@@ -201,15 +201,36 @@ function isNonTranslatableText(text: string): boolean {
   return /^(\W|\d)*$/.test(text) || /^(?:[-+]?x\d*|\d+x)$/i.test(text);
 }
 
+/**
+ * The English SOURCE of every text node this directive has rewritten, plus the
+ * output it wrote there.
+ *
+ * `v-i18n` translates a text node DESTRUCTIVELY (`text.data = translated`), and
+ * Vue only re-writes a text node when its interpolated STRING changes. So when a
+ * re-render keeps the template but changes the PARAMS — a board fact whose
+ * «Снизить производство на ${0}» goes 1 → 2 as the cursor moves to a cell with a
+ * second adjacent hazard — the node still holds the previous substitution, the
+ * `${0}` slot is gone, and the FIRST number freezes on screen forever. (Same
+ * class of trap as `translateMessage` mutating `Message.message` in place.)
+ *
+ * Remembering the source lets a re-run substitute from the English template
+ * again. When the node holds something else, Vue wrote a NEW string into it and
+ * that becomes the source. A `WeakMap` keyed on the node keeps this GC-safe.
+ */
+const translatedTextNodes = new WeakMap<Text, {source: string, output: string}>();
+
 function translateChildren(node: Node, params: string[] | undefined) {
   for (let i = 0, length = node.childNodes.length; i < length; i++) {
     const child = node.childNodes[i];
     if (child.nodeType === Node.TEXT_NODE) {
       const text = child as Text;
-      const translatedText = params ? translateTextWithParams(text.data, params) : translateText(text.data);
+      const remembered = translatedTextNodes.get(text);
+      const source = remembered !== undefined && remembered.output === text.data ? remembered.source : text.data;
+      const translatedText = params ? translateTextWithParams(source, params) : translateText(source);
       if (translatedText !== text.data) {
         text.data = translatedText;
       }
+      translatedTextNodes.set(text, {source, output: translatedText});
     } else {
       if (child.nodeType === Node.ELEMENT_NODE && (child as HTMLElement).getAttribute('tm-has-i18n') === 'true') {
         continue;

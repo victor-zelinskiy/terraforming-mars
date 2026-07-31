@@ -5,6 +5,7 @@
  */
 import {reactive} from 'vue';
 import {Color, PLAYER_COLORS} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 import {Expansion} from '@/common/cards/GameModule';
 import {BoardName} from '@/common/boards/BoardName';
 import {RandomBoardOption} from '@/common/boards/RandomBoardOption';
@@ -48,6 +49,17 @@ export type PremiumRules = {
   testMode: boolean;
 };
 
+/** The three server lists a guaranteed card can be routed through. */
+export type GuaranteedPickList = 'corporations' | 'preludes' | 'projects';
+
+/**
+ * DEV sub-setting of «Тестовый режим»: cards forced into the first hand every
+ * player is dealt. Stored ALREADY SPLIT by target list so this module and the
+ * payload builder never need card data — the catalogue that fills it lives in
+ * `devGuaranteedCards.ts` (console-only, pulls the client card manifest).
+ */
+export type GuaranteedCardPicks = Record<GuaranteedPickList, Array<CardName>>;
+
 export type PremiumCreateGameState = {
   gameMode: GameMode;
   botDifficulty: DifficultyLevel;
@@ -62,6 +74,8 @@ export type PremiumCreateGameState = {
   mapMode: MapMode;
   mapId: BoardName;
   rules: PremiumRules;
+  /** Only reachable while `rules.testMode` is on for the admin seat. */
+  guaranteedCards: GuaranteedCardPicks;
 };
 
 /** What the contextual "briefing" info panel is describing. */
@@ -117,6 +131,7 @@ export function defaultPremiumState(): PremiumCreateGameState {
       showOtherPlayersVP: d.showOtherPlayersVP,
       testMode: d.testMode,
     },
+    guaranteedCards: {corporations: [], preludes: [], projects: []},
   };
 }
 
@@ -614,7 +629,40 @@ function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
     mapMode,
     mapId,
     rules,
+    guaranteedCards: sanitizeGuaranteedCards(saved.guaranteedCards),
   };
+}
+
+/** Cap per list — a dev typo can't grow the saved blob without bound. */
+const GUARANTEED_PICKS_MAX = 100;
+
+/**
+ * SHAPE-only sanitize: deduped card-name strings. Names are NOT validated
+ * against the card manifest here (this module must stay importable without
+ * `genfiles/cards.json`) — the console screen prunes unknown ones through
+ * `pruneGuaranteedCards` right after restoring.
+ */
+function sanitizeGuaranteedCards(raw: JSONValue | undefined): GuaranteedCardPicks {
+  const rec = asRecord(raw);
+  const picks: GuaranteedCardPicks = {corporations: [], preludes: [], projects: []};
+  if (rec === undefined) {
+    return picks;
+  }
+  for (const list of Object.keys(picks) as Array<GuaranteedPickList>) {
+    const values = rec[list];
+    if (!Array.isArray(values)) {
+      continue;
+    }
+    const seen = new Set<string>();
+    for (const value of values) {
+      if (typeof value !== 'string' || seen.has(value) || seen.size >= GUARANTEED_PICKS_MAX) {
+        continue;
+      }
+      seen.add(value);
+      picks[list].push(value as CardName);
+    }
+  }
+  return picks;
 }
 
 /** Remember the current premium setup (config only) for the next visit. */

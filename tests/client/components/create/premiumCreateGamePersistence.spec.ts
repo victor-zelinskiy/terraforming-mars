@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {BoardName} from '@/common/boards/BoardName';
+import {CardName} from '@/common/cards/CardName';
 import {FakeLocalStorage} from '../FakeLocalStorage';
 import {CreateGameSettingsStorage} from '@/client/components/create/CreateGameSettingsStorage';
 import {
@@ -57,13 +58,46 @@ describe('premium create — settings persistence', () => {
 
     expect(saved).is.not.undefined;
     expect(Object.keys(saved!).sort()).deep.eq(
-      ['botDifficulty', 'gameMode', 'mapId', 'mapMode', 'players', 'rules', 'selectedExpansions'].sort());
+      ['botDifficulty', 'gameMode', 'guaranteedCards', 'mapId', 'mapMode', 'players', 'rules', 'seatMarsBot', 'selectedExpansions'].sort());
     expect(saved).to.not.have.property('creating');
     expect(saved).to.not.have.property('error');
     expect(saved).to.not.have.property('mapPickerOpen');
     expect(saved).to.not.have.property('info');
     expect(saved).to.not.have.property('seed');
     expect(saved).to.not.have.property('clonedGamedId');
+  });
+
+  it('round-trips the dev guaranteed-card picks', () => {
+    createGameState.config.guaranteedCards.corporations.push('Ecoline' as CardName);
+    createGameState.config.guaranteedCards.projects.push('Algae' as CardName, 'Bushes' as CardName);
+
+    saveCreateGameState(storage);
+    resetCreateGameState();
+    expect(createGameState.config.guaranteedCards.projects).is.empty;
+
+    expect(restoreCreateGameState(storage)).is.true;
+    expect(createGameState.config.guaranteedCards).deep.eq({
+      corporations: ['Ecoline'],
+      preludes: [],
+      projects: ['Algae', 'Bushes'],
+    });
+  });
+
+  it('sanitizes the picks: drops non-strings, duplicates and unknown lists', () => {
+    storage.saveSettings({
+      guaranteedCards: {
+        corporations: ['Ecoline', 'Ecoline', 42, null],
+        projects: 'not-an-array',
+        notAList: ['Algae'],
+      },
+    } as any);
+
+    expect(restoreCreateGameState(storage)).is.true;
+    expect(createGameState.config.guaranteedCards).deep.eq({
+      corporations: ['Ecoline'],
+      preludes: [],
+      projects: [],
+    });
   });
 
   it('safely restores a partial / stale / invalid blob', () => {

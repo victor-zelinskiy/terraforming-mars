@@ -79,6 +79,10 @@ export class GameCards {
   public getProjectCards() {
     const cards = this.getCards<IProjectCard>('projectCards');
     this.addCustomCards(cards, this.gameOptions.includedCards);
+    // Guaranteed cards are put on top of the deck by `Deck.shuffle`, which can
+    // only order what is already IN the pile — so a card whose module is off
+    // joins here first, exactly like `customCorporationsList` / `customPreludes`.
+    this.addCustomCards(cards, this.gameOptions.customProjectCards);
     return cards.filter(isIProjectCard);
   }
   public getStandardProjects() {

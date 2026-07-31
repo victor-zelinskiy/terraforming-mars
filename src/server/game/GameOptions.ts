@@ -73,6 +73,12 @@ export type GameOptions = {
   includedCards: ReadonlyArray<CardName>;
   customColoniesList: ReadonlyArray<ColonyName>;
   customPreludes: ReadonlyArray<CardName>;
+  /**
+   * Project cards forced onto the TOP of the project deck (and into the pool
+   * when their module is off), so they land in the first hand dealt. The
+   * project-deck twin of `customCorporationsList` / `customPreludes`.
+   */
+  customProjectCards: ReadonlyArray<CardName>;
   customCeos: ReadonlyArray<CardName>;
   startingCeos: number;
   startingPreludes: number;
@@ -114,6 +120,7 @@ export const DEFAULT_GAME_OPTIONS: GameOptions = {
   customColoniesList: [],
   customCorporationsList: [],
   customPreludes: [],
+  customProjectCards: [],
   draftVariant: false,
   escapeVelocity: undefined,
   expansions: {

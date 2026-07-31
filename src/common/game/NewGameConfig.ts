@@ -73,6 +73,11 @@ export interface NewGameConfig {
   includedCards: Array<CardName>;
   customColoniesList: Array<ColonyName>;
   customPreludes: Array<CardName>;
+  /**
+   * Project cards guaranteed in the first hand (dealt off the top of the deck).
+   * Optional: the legacy create form never sends it.
+   */
+  customProjectCards?: Array<CardName>;
   requiresMoonTrackCompletion: boolean; // Moon must be completed to end the game
   requiresVenusTrackCompletion: boolean; // Venus must be completed to end the game
   moonStandardProjectVariant: boolean;

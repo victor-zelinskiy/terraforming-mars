@@ -7,6 +7,7 @@
   "Bonus to the owner": "Бонус владельцу",
   "The owner gains M€ when a tile is placed next to this.": "Владелец получает M€, когда рядом размещают тайл.",
   "Adjacency cost": "Доплата за соседство",
+  "Ocean adjacency": "Соседство с океаном",
   "Placing a tile next to this costs extra M€.": "Размещение тайла рядом стоит дополнительно M€.",
   "Total placement cost": "Итоговая стоимость размещения",
   "Adjusted by the factors below.": "Изменена факторами ниже.",

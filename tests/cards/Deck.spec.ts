@@ -113,6 +113,60 @@ describe('CeoDeck', () => {
   });
 });
 
+describe('putOnTop()', () => {
+  let deck: ProjectDeck;
+  let game: IGame;
+
+  beforeEach(() => {
+    [game] = testGame(2);
+    deck = game.projectDeck;
+  });
+
+  it('lifts the named cards to the top, in the order asked for', () => {
+    const names = [deck.drawPile[0].name, deck.drawPile[4].name];
+    deck.putOnTop(names);
+    // The top of the draw pile is its END — draw('top') pops.
+    expect(deck.drawPile.slice(-2).map(name)).deep.eq(names);
+  });
+
+  it('keeps every other card, and the pile size', () => {
+    const before = deck.drawPile.length;
+    const moved = deck.drawPile[2].name;
+    deck.putOnTop([moved]);
+    expect(deck.drawPile).has.length(before);
+    expect(new Set(deck.drawPile.map(name))).has.property('size', before);
+  });
+
+  it('reclaims a card that was already discarded', () => {
+    const logger = {log: () => {}};
+    const discarded = deck.drawOrThrow(logger);
+    deck.discard(discarded);
+    expect(deck.discardPile.map(name)).includes(discarded.name);
+
+    deck.putOnTop([discarded.name]);
+    expect(deck.drawPile[deck.drawPile.length - 1].name).eq(discarded.name);
+    expect(deck.discardPile.map(name)).does.not.include(discarded.name);
+  });
+
+  it('leaves the rest of the discard pile alone', () => {
+    const logger = {log: () => {}};
+    const first = deck.drawOrThrow(logger);
+    const second = deck.drawOrThrow(logger);
+    deck.discard(first, second);
+
+    deck.putOnTop([first.name]);
+    expect(deck.discardPile.map(name)).deep.eq([second.name]);
+  });
+
+  it('is a no-op for an empty list or an unknown name', () => {
+    const before = [...deck.drawPile.map(name)];
+    deck.putOnTop([]);
+    expect(deck.drawPile.map(name)).deep.eq(before);
+    deck.putOnTop(['Not A Card' as CardName]);
+    expect(deck.drawPile.map(name)).deep.eq(before);
+  });
+});
+
 describe('draw()', () => {
   let deck: ProjectDeck;
   let game: IGame;

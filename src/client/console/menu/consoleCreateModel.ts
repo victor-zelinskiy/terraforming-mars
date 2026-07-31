@@ -39,6 +39,7 @@ import {
   SlotNameIssue,
   TR_BOOST_MAX,
   TR_BOOST_MIN,
+  adminUnlocked,
   automaBlockerText,
   botSeatedInState,
   createGameState,
@@ -348,6 +349,35 @@ export function ruleRows(): ReadonlyArray<RuleRow> {
     });
 }
 
+/**
+ * The rules DECK is the toggles plus, when «Тестовый режим» is on for the admin
+ * seat, its one SUB-setting — a dev card picker, which is a count and a
+ * drill-in, not a switch. It is APPENDED, so every rule keeps its row index
+ * (jump-to-issue targets rules by index).
+ */
+export type RulesDeckRow =
+  | {kind: 'rule', rule: RuleRow}
+  | {kind: 'devCards', count: number};
+
+/** True while the test-mode sub-setting is reachable at all. */
+export function devCardsAvailable(): boolean {
+  const config = createGameState.config;
+  return adminUnlocked(config) && config.rules.testMode;
+}
+
+export function devCardsCount(): number {
+  const picks = createGameState.config.guaranteedCards;
+  return picks.corporations.length + picks.preludes.length + picks.projects.length;
+}
+
+export function rulesDeckRows(): ReadonlyArray<RulesDeckRow> {
+  const rows: Array<RulesDeckRow> = ruleRows().map((rule) => ({kind: 'rule' as const, rule}));
+  if (devCardsAvailable()) {
+    rows.push({kind: 'devCards', count: devCardsCount()});
+  }
+  return rows;
+}
+
 export function toggleRule(id: PremiumRuleMeta['id']): void {
   const rules = createGameState.config.rules;
   rules[id] = !rules[id];
@@ -444,7 +474,7 @@ function automaConflictTarget(key: string): LaunchIssueTarget {
   }
   if (key.startsWith('rule:')) {
     const id = key.substring('rule:'.length);
-    const row = ruleRows().findIndex((r) => r.meta.id === id);
+    const row = rulesDeckRows().findIndex((r) => r.kind === 'rule' && r.rule.meta.id === id);
     return {deck: 'rules', row: row >= 0 ? row : 0};
   }
   return {deck: 'rules'};
@@ -463,6 +493,7 @@ export type CreateOverlay =
   | {kind: 'editor', target: EditorTarget, cursor: number}
   | {kind: 'nameEntry', index: number}
   | {kind: 'confirm', id: ConfirmId, index?: number, cursor: number}
+  | {kind: 'devCards'}
   | {kind: 'launch'};
 
 export const consoleCreateUi = reactive<{
@@ -492,7 +523,7 @@ export function resetConsoleCreateUi(): void {
 export function deckRowCount(deck: CreateDeckId): number {
   switch (deck) {
   case 'crew': return crewRows().length;
-  case 'rules': return ruleRows().length;
+  case 'rules': return rulesDeckRows().length;
   case 'expansions': return expansionRows().length;
   case 'map': return mapRows().length;
   }

@@ -5,6 +5,7 @@ import type {PremiumCreateGameState} from '../../src/client/components/create/pr
 import {RandomBoardOption} from '../../src/common/boards/RandomBoardOption';
 import {RandomMAOptionType} from '../../src/common/ma/RandomMAOptionType';
 import {BoardName} from '../../src/common/boards/BoardName';
+import {CardName} from '../../src/common/cards/CardName';
 
 function baseState(): PremiumCreateGameState {
   const selectedExpansions = {} as PremiumCreateGameState['selectedExpansions'];
@@ -31,6 +32,7 @@ function baseState(): PremiumCreateGameState {
       showOtherPlayersVP: false,
       testMode: false,
     },
+    guaranteedCards: {corporations: [], preludes: [], projects: []},
   };
 }
 
@@ -119,6 +121,66 @@ describe('buildCreateGamePayloadFromPremiumState', () => {
 
     state.rules.testMode = false;
     expect(buildCreateGamePayloadFromPremiumState(state).testMode).eq(false);
+  });
+
+  it('routes guaranteed cards into the three server "on top of the deck" lists', () => {
+    const state = baseState();
+    state.players[1].name = 'Admin';
+    state.rules.testMode = true;
+    state.guaranteedCards = {
+      corporations: [CardName.ECOLINE],
+      preludes: [CardName.DONATION],
+      projects: [CardName.ALGAE, CardName.BUSHES],
+    };
+    const payload = buildCreateGamePayloadFromPremiumState(state);
+    expect(payload.customCorporationsList).to.include(CardName.ECOLINE);
+    expect(payload.customPreludes).to.include(CardName.DONATION);
+    expect(payload.customProjectCards).deep.eq([CardName.ALGAE, CardName.BUSHES]);
+  });
+
+  it('drops guaranteed cards with test mode off — it is a sub-setting of it', () => {
+    const state = baseState();
+    state.players[1].name = 'Admin';
+    state.guaranteedCards = {corporations: [CardName.ECOLINE], preludes: [], projects: [CardName.ALGAE]};
+
+    // Admin seat, but the parent switch is off.
+    let payload = buildCreateGamePayloadFromPremiumState(state);
+    expect(payload.customCorporationsList).to.not.include(CardName.ECOLINE);
+    expect(payload.customProjectCards).to.be.empty;
+
+    // Test mode on, but no admin seat → the whole development branch is gone.
+    state.rules.testMode = true;
+    state.players[1].name = 'Nastya';
+    payload = buildCreateGamePayloadFromPremiumState(state);
+    expect(payload.customCorporationsList).to.not.include(CardName.ECOLINE);
+    expect(payload.customProjectCards).to.be.empty;
+  });
+
+  it('pins the creator as first player when something is guaranteed', () => {
+    const state = baseState();
+    state.players[1].name = 'Admin';
+    state.rules.testMode = true;
+
+    // Nothing picked → the ordinary (random) first player is untouched.
+    let payload = buildCreateGamePayloadFromPremiumState(state);
+    expect(payload.randomFirstPlayer).eq(true);
+
+    // With a pick, the cards ride the top of the deck into the FIRST hand —
+    // a random first player would hand them to someone else half the time.
+    state.guaranteedCards = {corporations: [], preludes: [], projects: [CardName.ALGAE]};
+    payload = buildCreateGamePayloadFromPremiumState(state);
+    expect(payload.randomFirstPlayer).eq(false);
+    expect(payload.players.map((p) => p.first)).deep.eq([true, false]);
+  });
+
+  it('does not mutate the state\'s pick lists while building', () => {
+    const state = baseState();
+    state.players[1].name = 'Admin';
+    state.rules.testMode = true;
+    state.guaranteedCards = {corporations: [], preludes: [], projects: [CardName.ALGAE]};
+    const payload = buildCreateGamePayloadFromPremiumState(state);
+    payload.customProjectCards?.push(CardName.BUSHES);
+    expect(state.guaranteedCards.projects).deep.eq([CardName.ALGAE]);
   });
 
   it('fills hidden legacy options from the central defaults', () => {

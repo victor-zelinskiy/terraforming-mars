@@ -4,8 +4,11 @@ import {BoardNameType, NewGameConfig, NewPlayerModel} from '@/common/game/NewGam
 import {Expansion} from '@/common/cards/GameModule';
 import {defaultCreateGameModel} from '@/client/components/create/defaultCreateGameModel';
 import {adminUnlocked} from './createGameState';
-import type {PremiumCreateGameState} from './createGameState';
+import type {GuaranteedCardPicks, GuaranteedPickList, PremiumCreateGameState} from './createGameState';
 import {PREMIUM_EXPANSIONS} from './createGameMeta';
+
+const GUARANTEED_LISTS: ReadonlyArray<GuaranteedPickList> = ['corporations', 'preludes', 'projects'];
+const NO_GUARANTEED_CARDS: GuaranteedCardPicks = {corporations: [], preludes: [], projects: []};
 
 /**
  * THE single conversion from premium UI state → the existing `NewGameConfig`.
@@ -38,7 +41,19 @@ export function buildCreateGamePayloadFromPremiumState(state: PremiumCreateGameS
   // Mode B (§12 Q14): the bot seated as an EXTRA participant of the ordinary
   // multiplayer party. Either way the bot seat itself is created by the server.
   const botSeated = marsBot || (state.gameMode === 'multiplayer' && state.seatMarsBot === true);
-  const players = buildPlayers(state, d.randomFirstPlayer);
+
+  // The development switch only exists for the admin seat — a toggle left over
+  // from an admin session (persisted setup) can never leak into a real party.
+  const testMode = adminUnlocked(state) && state.rules.testMode;
+  // Guaranteed cards are a SUB-setting of test mode: off with it, always.
+  const guaranteed = testMode ? state.guaranteedCards : NO_GUARANTEED_CARDS;
+  const hasGuaranteed = GUARANTEED_LISTS.some((list) => guaranteed[list].length > 0);
+  // Those cards ride the TOP of each deck, so they land in the FIRST hand dealt
+  // — which is the first player's. A random first player would hand a dev's
+  // picks to someone else half the time, so pin the creator instead. Dev branch
+  // only: an ordinary party keeps the random first player untouched.
+  const randomFirstPlayer = hasGuaranteed ? false : d.randomFirstPlayer;
+  const players = buildPlayers(state, randomFirstPlayer);
 
   const expansions: Record<Expansion, boolean> = {...d.expansions};
   for (const e of PREMIUM_EXPANSIONS) {
@@ -54,15 +69,13 @@ export function buildCreateGamePayloadFromPremiumState(state: PremiumCreateGameS
     expansions,
     board,
     seed: d.seed,
-    randomFirstPlayer: d.randomFirstPlayer,
+    randomFirstPlayer,
     clonedGamedId: undefined,
     undoOption: d.undoOption,
     showTimers: d.showTimers,
     fastModeOption: d.fastModeOption,
     showOtherPlayersVP: state.rules.showOtherPlayersVP,
-    // The development switch only exists for the admin seat — a toggle left over
-    // from an admin session (persisted setup) can never leak into a real party.
-    testMode: adminUnlocked(state) && state.rules.testMode,
+    testMode,
     aresExtremeVariant: d.aresExtremeVariant,
     politicalAgendasExtension: d.politicalAgendasExtension,
     // Venus solar phase follows the Venus expansion, like the legacy form.
@@ -86,11 +99,15 @@ export function buildCreateGamePayloadFromPremiumState(state: PremiumCreateGameS
     randomMA,
     includeFanMA: d.includeFanMA,
     soloTR: d.soloTR,
-    customCorporationsList: d.customCorporations,
+    // Guaranteed picks ride the server's "cards on top of the deck" lists, so a
+    // dev-chosen card lands in the first hand. They EXTEND the defaults rather
+    // than replace them (the fork ships both empty, but that stays true here).
+    customCorporationsList: [...d.customCorporations, ...guaranteed.corporations],
     bannedCards: d.bannedCards,
     includedCards: d.includedCards,
     customColoniesList: d.customColonies,
-    customPreludes: d.customPreludes,
+    customPreludes: [...d.customPreludes, ...guaranteed.preludes],
+    customProjectCards: [...guaranteed.projects],
     requiresMoonTrackCompletion: d.requiresMoonTrackCompletion,
     requiresVenusTrackCompletion: d.requiresVenusTrackCompletion,
     moonStandardProjectVariant: d.moonStandardProjectVariant,

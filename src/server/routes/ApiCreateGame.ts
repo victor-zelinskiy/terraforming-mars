@@ -130,6 +130,7 @@ export class ApiCreateGame extends Handler {
             customColoniesList: gameReq.customColoniesList,
             customCorporationsList: gameReq.customCorporationsList,
             customPreludes: gameReq.customPreludes,
+            customProjectCards: gameReq.customProjectCards ?? [],
             draftVariant: gameReq.draftVariant,
             escapeVelocity: gameReq.escapeVelocity,
             fastModeOption: gameReq.fastModeOption,

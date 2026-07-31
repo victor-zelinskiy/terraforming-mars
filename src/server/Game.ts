@@ -467,6 +467,12 @@ export class Game implements IGame, Logger {
       gameOptions.startingCorporations = 2;
     }
 
+    // DEV "guaranteed cards": lift them to the top of the project deck as LATE
+    // as possible — a solo game's neutral player already drew and discarded off
+    // that deck above, so ordering it at construction time would let the setup
+    // eat the very cards the developer asked for.
+    projectDeck.putOnTop(gameOptions.customProjectCards);
+
     // Initialize each player:
     // Give them their corporation cards, other cards, starting production,
     // handicaps.

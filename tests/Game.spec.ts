@@ -749,6 +749,32 @@ describe('Game', () => {
     expect(assignedPreludes).has.members(customPreludes);
   });
 
+  it('specifically-requested project cards are dealt in the first hand', () => {
+    const player = TestPlayer.BLUE.newPlayer();
+    const player2 = TestPlayer.RED.newPlayer();
+    const customProjectCards = [
+      CardName.ALGAE,
+      CardName.BUSHES,
+      CardName.LICHEN,
+      CardName.MOSS,
+    ];
+    Game.newInstance('gameid', [player, player2], player, 'spectatorid', {customProjectCards});
+
+    const dealt = [...player.dealtProjectCards, ...player2.dealtProjectCards].map(toName);
+
+    expect(dealt).to.include.members(customProjectCards);
+  });
+
+  it('deals a requested project card whose module is not even in the game', () => {
+    const player = TestPlayer.BLUE.newPlayer();
+    // A Venus card in a game without Venus: the guarantee joins the pool first
+    // (GameCards) and is then put on top of the deck (Deck.shuffle).
+    const customProjectCards = [CardName.FREYJA_BIODOMES];
+    Game.newInstance('gameid', [player], player, 'spectatorid', {customProjectCards, venusNextExtension: false});
+
+    expect(player.dealtProjectCards.map(toName)).to.include(CardName.FREYJA_BIODOMES);
+  });
+
   it('throws if Delta Project is in customPreludes', () => {
     const player = TestPlayer.BLUE.newPlayer();
     expect(() => Game.newInstance('gameid', [player], player, 'spectatorid', {

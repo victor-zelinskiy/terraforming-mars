@@ -1937,3 +1937,171 @@
     color: mix(#ffffff, @con-red, 30%);
 }
 .cm-admin__hint--off { opacity: 0.4; }
+
+/* ── Dev card picker (test-mode sub-setting, ADMIN_NAME) ─────────── */
+/* Deliberately a UTILITY list: no card faces, no cinematics — the value is
+   how fast a dev can find and pin a card. Cursor/selection cues are
+   box-shadow + colour only, so `con-perf-lite` (which drops `filter` and
+   `text-shadow`) keeps every one of them. */
+@cm-dev-emerald: #55b869;
+@cm-dev-azure: #4aa3dd;
+@cm-dev-crimson: #dd5f5f;
+@cm-dev-prelude: #dd77a8;
+@cm-dev-corporation: #d3c088;
+
+.cm-rule--sub {
+    /* Nested under its parent toggle — the indent IS the hierarchy. */
+    margin-left: 1.4rem;
+    background: rgba(10, 17, 26, 0.55);
+}
+.cm-rule__devtag,
+.cm-devcards__devtag {
+    display: inline-block;
+    margin-right: .4rem;
+    padding: .05rem .35rem;
+    border-radius: .25rem;
+    background: fade(@con-amber, 16%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%);
+    color: mix(#ffffff, @con-amber, 30%);
+    font-size: .6rem;
+    letter-spacing: .1rem;
+    vertical-align: .1rem;
+}
+.cm-rule__count {
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    flex-shrink: 0;
+    color: @con-text-dim;
+
+    &--on { color: @cm-gold; }
+}
+.cm-rule__count-value {
+    font-size: .9rem;
+    letter-spacing: .06rem;
+}
+
+.cm-devcards__crumb {
+    margin-left: .5rem;
+    color: fade(@con-cyan, 85%);
+}
+.cm-devcards__lede {
+    font-size: .72rem;
+    line-height: 1.35;
+    color: @con-text-dim;
+}
+.cm-devcards__scroll {
+    /* A full module list is long by nature: the card grows to its own
+       max-height and this takes what is left (never a hand-rolled overflow). */
+    flex: 1;
+    min-height: 6rem;
+}
+.cm-devcards__list {
+    display: flex;
+    flex-direction: column;
+    gap: .2rem;
+    min-height: 0;
+    padding-right: .2rem;
+}
+.cm-devcards__empty {
+    padding: 1.2rem .4rem;
+    text-align: center;
+    color: @con-text-dim;
+    font-size: .8rem;
+}
+.cm-devcards__group {
+    display: flex;
+    align-items: baseline;
+    gap: .5rem;
+    padding: .7rem .3rem .2rem;
+    font-size: .68rem;
+    letter-spacing: .14rem;
+    text-transform: uppercase;
+    color: fade(@con-cyan, 70%);
+}
+.cm-devcards__group-count { color: @con-text-dim; letter-spacing: .04rem; }
+
+.cm-drow {
+    display: flex;
+    align-items: center;
+    gap: .55rem;
+    min-height: 1.9rem;
+    padding: .25rem .6rem;
+    border: 0;
+    border-radius: .4rem;
+    background: transparent;
+    color: @con-text;
+    font-family: inherit;
+    font-size: .85rem;
+    text-align: left;
+    cursor: pointer;
+
+    &--cursor {
+        background: rgba(14, 24, 36, 0.95);
+        box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 85%);
+    }
+    &--chosen { background: fade(@cm-gold, 10%); }
+    &--chosen&--cursor { background: rgba(14, 24, 36, 0.95); box-shadow: inset 0 0 0 .1rem fade(@cm-gold, 90%); }
+    &--add {
+        min-height: 2.2rem;
+        color: @cm-gold;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 35%);
+    }
+    &--module { min-height: 2.4rem; font-size: .95rem; }
+
+    /* Card-type colour lives on the row's leading dot AND its type chip. */
+    &--emerald { --cm-drow-tint: @cm-dev-emerald; }
+    &--azure { --cm-drow-tint: @cm-dev-azure; }
+    &--crimson { --cm-drow-tint: @cm-dev-crimson; }
+    &--prelude { --cm-drow-tint: @cm-dev-prelude; }
+    &--corporation { --cm-drow-tint: @cm-dev-corporation; }
+}
+.cm-drow__dot {
+    width: .45rem;
+    height: .45rem;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--cm-drow-tint, @con-text-dim);
+}
+.cm-drow__name {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.cm-drow__type {
+    flex-shrink: 0;
+    font-size: .65rem;
+    letter-spacing: .08rem;
+    text-transform: uppercase;
+    color: var(--cm-drow-tint, @con-text-dim);
+}
+.cm-drow__mark {
+    flex-shrink: 0;
+    color: @cm-gold;
+    font-size: .9rem;
+}
+.cm-drow__off {
+    flex-shrink: 0;
+    font-size: .65rem;
+    letter-spacing: .06rem;
+    color: mix(#ffffff, @con-amber, 35%);
+}
+.cm-drow__count {
+    display: inline-flex;
+    align-items: baseline;
+    gap: .3rem;
+    flex-shrink: 0;
+    font-size: .75rem;
+    color: @con-text-dim;
+}
+.cm-drow__count-on {
+    padding: .05rem .35rem;
+    border-radius: .25rem;
+    background: fade(@cm-gold, 16%);
+    box-shadow: inset 0 0 0 .05rem fade(@cm-gold, 55%);
+    color: @cm-gold;
+}

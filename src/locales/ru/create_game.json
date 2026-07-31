@@ -108,5 +108,13 @@
     "Go to the first issue": "К первой проблеме",
     "Mission control": "Центр управления",
     "Launch": "Запустить",
-    "Creating the game": "Создание партии"
+    "Creating the game": "Создание партии",
+    "Guaranteed cards": "Гарантированные карты",
+    "Put cards on top of the decks so they land in the first hand dealt.": "Кладёт карты на верх колод, чтобы они попали в первую раздачу.",
+    "These cards go on top of the decks, so the starting choice contains them. Picking any of them also makes you the first player, who is dealt first.": "Эти карты кладутся на верх колод, поэтому попадают в стартовый выбор. Любой выбор здесь также делает вас первым игроком — раздача идёт с вас.",
+    "Add card": "Добавить карту",
+    "No cards picked — the deal stays random.": "Карты не выбраны — раздача остаётся случайной.",
+    "Clear all": "Очистить всё",
+    "Expansion is off": "Дополнение выключено",
+    "Card type": "Тип карты"
 }

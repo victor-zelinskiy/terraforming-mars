@@ -64,6 +64,38 @@ export class Deck<T extends ICard> {
     }
   }
 
+  /**
+   * Lift `names` to the TOP of the draw pile without re-ordering anything else,
+   * reclaiming them from the discard pile if they already left it.
+   *
+   * `shuffle(cardsOnTop)` can only do this while the deck is untouched: it
+   * re-merges the discard pile, so calling it later would resurrect cards the
+   * game deliberately discarded. This is the late-application twin, for the dev
+   * "guaranteed cards" setup — a solo game's neutral player draws (and
+   * discards) off the top of the project deck BEFORE anyone is dealt.
+   */
+  public putOnTop(names: ReadonlyArray<CardName>): void {
+    if (names.length === 0) {
+      return;
+    }
+    const wanted = new Set(names);
+    const lifted: Array<T> = [];
+    const keptDraw: Array<T> = [];
+    const keptDiscard: Array<T> = [];
+    for (const card of this.drawPile) {
+      (wanted.has(card.name) ? lifted : keptDraw).push(card);
+    }
+    for (const card of this.discardPile) {
+      (wanted.has(card.name) ? lifted : keptDiscard).push(card);
+    }
+    if (lifted.length === 0) {
+      return;
+    }
+    // The top of the draw pile is its END — `draw('top')` pops.
+    this.drawPile.splice(0, this.drawPile.length, ...keptDraw, ...lifted);
+    this.discardPile.splice(0, this.discardPile.length, ...keptDiscard);
+  }
+
   public draw(logger: Logger, source: 'top' | 'bottom' = 'top'): T | undefined {
     this.shuffleIfNecessary(logger);
     const card = source === 'top' ? this.drawPile.pop() : this.drawPile.shift();

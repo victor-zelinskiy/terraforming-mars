@@ -100,6 +100,12 @@
       </div>
     </div>
 
+    <ConsoleDevCardPicker
+      v-if="ui.overlay?.kind === 'devCards'"
+      ref="devCards"
+      @close="closeOverlay"
+    />
+
     <ConsoleLaunchConfirm
       v-if="ui.overlay?.kind === 'launch'"
       @confirm="doLaunch"
@@ -140,7 +146,7 @@ import {
   ExpansionRow,
   MapRow,
   ParticipantTypeOption,
-  RuleRow,
+  RulesDeckRow,
   addHuman,
   clampCreateCursors,
   consoleCreateUi,
@@ -156,7 +162,7 @@ import {
   participantTypeOptions,
   removeHuman,
   resetConsoleCreateUi,
-  ruleRows,
+  rulesDeckRows,
   seatBot,
   seatBotNeedsConfirm,
   selectMap,
@@ -185,6 +191,8 @@ import ConsoleLaunchPanel from '@/client/components/console/menu/ConsoleLaunchPa
 import ConsoleParticipantEditor from '@/client/components/console/menu/ConsoleParticipantEditor.vue';
 import ConsoleTypePicker from '@/client/components/console/menu/ConsoleTypePicker.vue';
 import ConsoleLaunchConfirm from '@/client/components/console/menu/ConsoleLaunchConfirm.vue';
+import ConsoleDevCardPicker from '@/client/components/console/menu/ConsoleDevCardPicker.vue';
+import {pruneGuaranteedCards} from '@/client/components/create/premium/devGuaranteedCards';
 import {$t} from '@/client/directives/i18n';
 
 const SHAKE_MS = 460;
@@ -203,6 +211,7 @@ export default defineComponent({
     ConsoleParticipantEditor,
     ConsoleTypePicker,
     ConsoleLaunchConfirm,
+    ConsoleDevCardPicker,
   },
   setup() {
     // Foundation: page-level overflow lock while this screen owns the viewport.
@@ -225,8 +234,8 @@ export default defineComponent({
     crew(): ReadonlyArray<CrewRow> {
       return crewRows();
     },
-    rules(): ReadonlyArray<RuleRow> {
-      return ruleRows();
+    rules(): ReadonlyArray<RulesDeckRow> {
+      return rulesDeckRows();
     },
     expansions(): ReadonlyArray<ExpansionRow> {
       return expansionRows();
@@ -295,6 +304,9 @@ export default defineComponent({
       if (overlay?.kind === 'launch') {
         return 'Launch the party';
       }
+      if (overlay?.kind === 'devCards') {
+        return 'Guaranteed cards';
+      }
       return 'Create new game';
     },
     commands(): ReadonlyArray<ConsoleCommand> {
@@ -325,6 +337,14 @@ export default defineComponent({
           {control: 'back', label: 'Cancel'},
         ];
       }
+      if (overlay?.kind === 'devCards') {
+        // The picker shows precise per-view foot hints; the bar stays generic.
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Select'},
+          {control: 'back', label: 'Back'},
+        ];
+      }
       const verb = this.deckVerb;
       const cmds: Array<ConsoleCommand> = [
         {control: 'bumperL', control2: 'bumperR', label: 'Section'},
@@ -349,7 +369,10 @@ export default defineComponent({
         }
         return {label: 'Edit', enabled: true};
       }
-      case 'rules':
+      case 'rules': {
+        const row = this.rules[this.ui.cursor.rules];
+        return {label: row?.kind === 'devCards' ? 'Open' : 'Toggle', enabled: true};
+      }
       case 'expansions':
         return {label: 'Toggle', enabled: true};
       case 'map': {
@@ -380,6 +403,9 @@ export default defineComponent({
     if (!restored) {
       resetCreateGameState();
     }
+    // A restored setup may name a card a later build renamed or dropped — the
+    // shared state can't check (no card manifest there), so prune it here.
+    pruneGuaranteedCards(createGameState.config.guaranteedCards);
     const id = this.identityState.identity;
     if (id !== undefined) {
       applyCreatorIdentity(id.displayName, id.cubeColor);
@@ -402,6 +428,14 @@ export default defineComponent({
       // create screen's advertised verb; no raw button names).
       const action = consoleActionOf(intent, {secondary: 'launch'});
       const overlay = this.ui.overlay;
+      if (overlay?.kind === 'devCards') {
+        // The picker owns the pad completely (X = inspect there, not launch).
+        const picker = this.$refs.devCards as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
+        if (picker?.handleIntent?.(intent) !== true && action === 'back') {
+          this.closeOverlay();
+        }
+        return true;
+      }
       if (overlay?.kind === 'editor') {
         const editor = this.$refs.editor as {handleIntent?: (intent: GamepadIntent) => boolean} | undefined;
         if (editor?.handleIntent?.(intent) === true) {
@@ -535,10 +569,16 @@ export default defineComponent({
     activateRules(i: number): void {
       this.setCursor('rules', i);
       const row = this.rules[i];
-      if (row !== undefined) {
-        toggleRule(row.meta.id);
-        clampCreateCursors(); // altVenus visibility may change the row count.
+      if (row === undefined) {
+        return;
       }
+      if (row.kind === 'devCards') {
+        this.ui.overlay = {kind: 'devCards'};
+        return;
+      }
+      toggleRule(row.rule.meta.id);
+      // altVenus visibility — and the test-mode sub-row — change the row count.
+      clampCreateCursors();
     },
     activateExpansions(i: number): void {
       this.setCursor('expansions', i);

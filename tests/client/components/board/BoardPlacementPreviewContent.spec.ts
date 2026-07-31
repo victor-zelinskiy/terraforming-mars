@@ -90,6 +90,28 @@ describe('BoardPlacementPreviewContent', () => {
       return mount(BoardFactRow, {...globalConfig, props: {fact: f}});
     }
 
+    /**
+     * The cursor moving from a cell with ONE adjacent hazard to one with TWO
+     * keeps `id` AND `title` — only `params` changes. The row is keyed on `id`,
+     * so Vue reuses the very same text node and never re-writes it; the number
+     * must still follow the new cell (it once froze on the first cell's «1»).
+     */
+    it('follows a params-only change when the cell under the cursor changes', async () => {
+      const hazard = (n: string) => fact({
+        id: 'cost-production',
+        category: 'placement-penalty',
+        timing: 'cost',
+        severity: 'danger',
+        title: 'Reduce production by ${0}',
+        params: [n],
+      });
+      const wrapper = row(hazard('1'));
+      expect(wrapper.find('.board-fact__title').text()).to.eq('Reduce production by 1');
+
+      await wrapper.setProps({fact: hazard('2')});
+      expect(wrapper.find('.board-fact__title').text()).to.eq('Reduce production by 2');
+    });
+
     it('names the source CARD so a gain is never anonymous', () => {
       const wrapper = row(fact({source: {type: 'card', id: 'Solar Farm', label: 'Solar Farm'}}));
       expect(wrapper.find('.board-fact__source').text()).to.eq('Solar Farm');

@@ -1,5 +1,6 @@
 import {expect} from 'chai';
 import {BoardName} from '@/common/boards/BoardName';
+import {CardName} from '@/common/cards/CardName';
 import {
   createGameState,
   resetCreateGameState,
@@ -18,6 +19,9 @@ import {
   cycleCreateDeck,
   cycleSlotColor,
   deckNavStep,
+  deckRowCount,
+  devCardsAvailable,
+  devCardsCount,
   editorFields,
   expansionRows,
   jumpToFirstIssue,
@@ -28,6 +32,7 @@ import {
   removeHuman,
   resetConsoleCreateUi,
   ruleRows,
+  rulesDeckRows,
   seatBot,
   seatBotNeedsConfirm,
   selectMap,
@@ -188,6 +193,52 @@ describe('consoleCreateModel', () => {
       expect(ruleRows().map((r) => r.meta.id)).to.include('testMode');
       setSlotName(0, 'Player 1');
       expect(ruleRows().map((r) => r.meta.id)).to.not.include('testMode');
+    });
+
+    it('offers the guaranteed-cards sub-row only for admin WITH test mode on', () => {
+      const devRows = () => rulesDeckRows().filter((r) => r.kind === 'devCards');
+      expect(devCardsAvailable()).to.be.false;
+      expect(devRows()).to.have.length(0);
+
+      // Admin alone is not enough — it is a SUB-setting of test mode.
+      setSlotName(0, 'admin');
+      expect(devCardsAvailable()).to.be.false;
+
+      toggleRule('testMode');
+      expect(devCardsAvailable()).to.be.true;
+      expect(devRows()).to.have.length(1);
+
+      // Losing the admin seat withdraws the sub-row even with the flag left on.
+      setSlotName(0, 'Player 1');
+      expect(devCardsAvailable()).to.be.false;
+      expect(devRows()).to.have.length(0);
+    });
+
+    it('appends the sub-row, so every rule keeps its jump-to-issue index', () => {
+      setSlotName(0, 'admin');
+      toggleRule('testMode');
+      const rows = rulesDeckRows();
+      const rules = ruleRows();
+      expect(rows).to.have.length(rules.length + 1);
+      rules.forEach((rule, i) => {
+        const row = rows[i];
+        expect(row.kind).to.eq('rule');
+        expect(row.kind === 'rule' && row.rule.meta.id).to.eq(rule.meta.id);
+      });
+      expect(rows[rows.length - 1].kind).to.eq('devCards');
+      expect(deckRowCount('rules')).to.eq(rows.length);
+    });
+
+    it('counts the picks across all three target lists', () => {
+      setSlotName(0, 'admin');
+      toggleRule('testMode');
+      expect(devCardsCount()).to.eq(0);
+      const picks = createGameState.config.guaranteedCards;
+      picks.corporations.push(CardName.ECOLINE);
+      picks.preludes.push(CardName.DONATION);
+      picks.projects.push(CardName.ALGAE, CardName.BUSHES);
+      expect(devCardsCount()).to.eq(4);
+      expect(rulesDeckRows()[rulesDeckRows().length - 1]).to.deep.eq({kind: 'devCards', count: 4});
     });
 
     it('selects a specific map and the random rotation', () => {
