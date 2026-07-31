@@ -184,7 +184,10 @@ test.describe('console placement panel · Ares hazard adjacency', () => {
       'ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowDown'];
     for (let i = 0; i < 48 && found === ''; i++) {
       const text = await panel.innerText();
-      if (text.includes('роизводств')) {
+      // Match the PENALTY itself, not any «производство» line: a greenery
+      // preview legitimately mentions other players' production gains, and
+      // the loose stem stopped the walk on the first such cell.
+      if (text.includes('Снизить производство')) {
         found = text;
         break;
       }

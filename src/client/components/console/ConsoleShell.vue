@@ -889,6 +889,7 @@
                        :epoch="playerView.runId"
                        :interactive="handDockInteractive"
                        :raised="consoleState.quick === 'actions'"
+                       :compact="planetFocusState.phase !== 'idle'"
                        :liftedNames="dockLiftedNames"
                        :deliveryHeld="dockHeld"
                        @open="onHandDockOpen" />

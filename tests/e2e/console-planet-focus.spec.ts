@@ -127,6 +127,53 @@ async function focusStdProject(page: Page, title: RegExp): Promise<boolean> {
  * ZERO-HEIGHT box (every arc child is absolute), so Playwright's
  * `toBeVisible` can never pass on it — probe the computed style instead.
  */
+/**
+ * The hand dock's live POSE: which of the three classes is on, and the
+ * whole-pack transform the CSS resolved for it. `scale` is read off the
+ * computed matrix — the pose contract is "one uniform shrink", so the
+ * matrix's `a` component IS the pose.
+ */
+function dockPose(page: Page): Promise<{compact: boolean, raised: boolean, scale: number, opacity: number}> {
+  return page.evaluate(() => {
+    const dock = document.querySelector('.con-handdock');
+    const pack = document.querySelector('.con-handdock__pack');
+    if (dock === null || pack === null) {
+      return {compact: false, raised: false, scale: 0, opacity: 0};
+    }
+    const cs = getComputedStyle(pack as HTMLElement);
+    const m = new DOMMatrixReadOnly(cs.transform === 'none' ? '' : cs.transform);
+    return {
+      compact: dock.classList.contains('con-handdock--compact'),
+      raised: dock.classList.contains('con-handdock--raised'),
+      scale: Math.round(m.a * 1000) / 1000,
+      opacity: Number(cs.opacity),
+    };
+  });
+}
+
+/**
+ * Wait until the pack's pose transition has actually SETTLED (two equal
+ * samples), then report it. A fixed sleep read the eased tail (0.994) and
+ * turned an exact-pose assertion into a flake.
+ */
+async function settledDockPose(page: Page): Promise<{compact: boolean, raised: boolean, scale: number, opacity: number}> {
+  // Poll until the pack STOPS moving — three consecutive equal samples, and
+  // never fewer than two rounds (a single pair can both land before the
+  // transition's first frame and read the OLD pose as "settled").
+  let last = await dockPose(page);
+  let stable = 0;
+  for (let i = 0; i < 30; i++) {
+    await page.waitForTimeout(120);
+    const now = await dockPose(page);
+    stable = now.scale === last.scale && now.opacity === last.opacity ? stable + 1 : 0;
+    last = now;
+    if (stable >= 3) {
+      break;
+    }
+  }
+  return last;
+}
+
 function arcBandState(page: Page): Promise<{display: string, opacity: string}> {
   return page.evaluate(() => {
     const el = document.querySelector('.con-board .global-numbers');
@@ -175,10 +222,18 @@ test.describe('console planet focus · main-grid placement stage', () => {
     await page.waitForTimeout(2500);
     expect(await startScene.count(), 'start wizard never completed').toBe(0);
 
-    // The buy step can outlive the wizard as a deferred board-home prompt
-    // («ПОКУПКА … A ПРОПУСТИТЬ») — skip it, we buy nothing.
-    for (let i = 0; i < 3 && /ПРОПУСТИТЬ/.test(await page.locator('.con-footer').innerText().catch(() => '')); i++) {
-      await key(page, 'Enter', 2000);
+    // The initial buy step can outlive the wizard: either ANNOUNCED (the
+    // amber «ПОКУПКА КАРТ» chip — B opens it) or already served on the
+    // home. Open if needed, let the deal land, then SKIP (we buy nothing).
+    // Leaving it pending makes every turn verb «Сейчас недоступно», which
+    // is what stalled this spec once.
+    const rootText = () => page.locator('.con-root').innerText().catch(() => '');
+    if (/ПОКУПКА КАРТ/.test(await rootText())) {
+      await key(page, 'Escape', 3200);
+      for (let i = 0; i < 4 && /ПРОПУСТИТЬ/.test(await rootText()); i++) {
+        await key(page, 'Enter', 2600);
+      }
+      await page.waitForTimeout(1500);
     }
 
     // ── overview baseline ─────────────────────────────────────────────
@@ -189,6 +244,10 @@ test.describe('console planet focus · main-grid placement stage', () => {
     expect(arcsBefore.display, 'no arc band on the overview board').not.toBe('none');
     expect(arcsBefore.opacity).toBe('1');
     const oceansBefore = await hudOceans(page);
+    // POSE 1 — the dock's default: full-size pack, no pose class.
+    const poseHome = await dockPose(page);
+    expect(poseHome.compact || poseHome.raised, 'the dock starts in a pose').toBe(false);
+    expect(poseHome.scale).toBe(1);
     await shoot(page, '01-board-home');
 
     // LT wheel → Standard Projects → «Аквифер»: an OCEAN placement — the
@@ -217,7 +276,27 @@ test.describe('console planet focus · main-grid placement stage', () => {
       .toBeGreaterThan(scaleBefore * 1.25);
     // The arc band receded out of the scene (display drops at settle).
     expect((await arcBandState(page)).display).toBe('none');
+    // POSE 2 — the hand steps back so it stops competing with the planet.
+    const poseFocus = await settledDockPose(page);
+    expect(poseFocus.compact, 'the dock did not take its compact pose').toBe(true);
+    expect(poseFocus.scale, 'the compact pack is not visibly smaller').toBeLessThan(0.8);
+    expect(poseFocus.opacity).toBeLessThan(1);
     await shoot(page, '02-placement-focus');
+
+    // POSE 3 over POSE 2 — the RT wheel is legal on an expanded planet: the
+    // pack must come back to FULL size and stand ready (never stay tucked),
+    // and closing the wheel must return it to compact, not to default.
+    await key(page, 'Period', 500);
+    const poseWheel = await settledDockPose(page);
+    expect(poseWheel.raised, 'RT did not raise the dock over the focused board').toBe(true);
+    expect(poseWheel.compact, 'raised and compact are mutually exclusive').toBe(false);
+    expect(poseWheel.scale, 'the raised pack is not at full size').toBe(1);
+    expect(poseWheel.opacity).toBe(1);
+    await shoot(page, '02b-wheel-over-focus');
+    await key(page, 'Period', 500); // the same trigger closes it
+    const poseBack = await settledDockPose(page);
+    expect(poseBack.compact, 'closing the wheel did not return the compact pose').toBe(true);
+    expect(poseBack.scale).toBeLessThan(0.8);
 
     // ── place: the hero + rewards play on the enlarged stage ──────────
     await key(page, 'Enter', 600);
@@ -248,6 +327,10 @@ test.describe('console planet focus · main-grid placement stage', () => {
     const arcsAfter = await arcBandState(page);
     expect(arcsAfter.display, 'the arc band never returned').not.toBe('none');
     expect(arcsAfter.opacity).toBe('1');
+    // …and the hand returns to POSE 1 with the rest of the interface.
+    const poseAfter = await settledDockPose(page);
+    expect(poseAfter.compact, 'the dock stayed tucked after the exit').toBe(false);
+    expect(poseAfter.scale).toBe(1);
     const scaleAfter = await boardScale(page);
     expect(Math.abs(scaleAfter - scaleBefore), 'the overview fit did not return')
       .toBeLessThan(scaleBefore * 0.06);

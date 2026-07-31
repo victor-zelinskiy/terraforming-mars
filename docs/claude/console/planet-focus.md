@@ -72,6 +72,33 @@ cover lift — plays on the enlarged stage. Files:
    runs on `$nextTick` after the class patch so it measures the GROWN
    stage, and the disc's transform transition carries the visible motion.
 
+## The hand dock has THREE poses (and every pair interpolates)
+
+The pack at the bottom centre is part of the same scene, so it answers the
+planet. `ConsoleHandDock` resolves ONE pose class in the component
+(`compact && !raised`) — the CSS never has to fight its own cascade:
+
+| Pose | When | Knobs |
+| --- | --- | --- |
+| **1 · default** | board home | `--hd-scale 1`, no sink, no fan |
+| **2 · compact** | Planet Focus engaged (`phase !== 'idle'`) | `--hd-compact-scale` (.6 / .72 on the Deck), `--hd-compact-sink`, `--hd-fade .82` |
+| **3 · raised** | RT wheel open, or hover | full size, `--hd-lift`, `--hd-fan 1`, `--hd-spread 1.12` |
+
+Ordering is by URGENCY: raised ≻ compact ≻ default. Opening the RT wheel
+over an expanded planet is legal (`nextTab` on the board home works during
+placement — P20), so **compact → raised → compact** is a real run and both
+directions are one interpolation of the same knobs.
+
+The whole-pack knobs (`--hd-scale` / `--hd-sink` / `--hd-fade`) live on
+`.con-handdock__pack`, NOT on the cards: the compact pose is one uniform
+shrink of one physical object (animating per-card width/height is banned,
+and a partial shrink would change the fan's read). The pack already was a
+stacking context (`z-index: 11704`), so the added transform changes no
+layering, and flight anchors read `getBoundingClientRect` — post-transform,
+so an intake lands on the card where it VISUALLY is in every pose. The
+CHASSIS (plate, wings, «КАРТЫ N/M») is untouched in all three: what the
+player still needs during placement is the COUNT, not the silhouette.
+
 ## The recede is opacity-only (do not "improve" it into a transform)
 
 `.global-numbers` and `.board-outer-spaces` live INSIDE `.board-cont`, so

@@ -3,6 +3,7 @@
        :class="{
          'con-handdock--live': interactive,
          'con-handdock--raised': raised,
+         'con-handdock--compact': compact && !raised,
          'con-handdock--empty': plan.empty,
          'con-handdock--hot': playableCount > 0,
          'con-handdock--receiving': receiving,
@@ -76,12 +77,16 @@
  * (click → the shell opens the hand section; the pad's own path stays
  * RT → КАРТЫ — no new bindings here, the command bar owns button truth).
  *
- * The dock is WELDED INTO the bar: it renders identically in every shell
- * state — never dimmed, scaled or hidden. Only the PACK animates: hover /
- * the RT-wheel `raised` beat (the wheel's centre «РУКА» slot is the entry
- * to the hand — the dock below answers on the same axis) / card
- * enter-leave. `interactive` gates the click affordance only (the shell
- * computes it from the same flags its template mounts overlays by).
+ * The dock CHASSIS is WELDED INTO the bar: the plate, the «КАРТЫ N/M»
+ * counter and the wings render identically in every shell state — never
+ * dimmed, scaled or hidden. Only the PACK animates, and it has exactly
+ * THREE poses (see `compact`): default · compact (planet focus) · raised
+ * (the RT wheel / hover), plus the short `receiving` breath. Every pair of
+ * poses is a single interpolation of the same transform knobs, so any
+ * transition between them is continuous — including the legal
+ * compact → raised (opening the wheel over an expanded planet) and back.
+ * `interactive` gates the click affordance only (the shell computes it
+ * from the same flags its template mounts overlays by).
  *
  * Deliberately NO card faces and NO text besides the ONE status line
  * «КАРТЫ playable/total» (etched-kicker voice; HUD active/total
@@ -127,6 +132,17 @@ export default defineComponent({
     interactive: {type: Boolean, default: true},
     /** The RT wheel is open — the pack rises to answer its «КАРТЫ» slot. */
     raised: {type: Boolean, default: false},
+    /**
+     * PLANET FOCUS is engaged — the pack tucks into its COMPACT pose so it
+     * stops competing with the planet that just took the screen. The three
+     * poses are exclusive and ordered by urgency: `raised` (the wheel is
+     * out, the hand is the next thing the player may touch) outranks
+     * `compact` (the board is the subject) outranks the default. Opening
+     * the wheel over an expanded planet is legal, so the class binding
+     * resolves the pair HERE — one pose on the element, and the CSS never
+     * has to fight its own cascade.
+     */
+    compact: {type: Boolean, default: false},
     /**
      * Names the hand OVERLAY (or a reveal flight) owns right now — those
      * backs render hidden while the chassis + status line stay put

@@ -7813,12 +7813,24 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     bottom: .35rem;
     width: calc(var(--con-hd-bay, 16rem) - 1.6rem);
     height: calc(var(--hd-card-h, 4.4rem) + 1.5rem);
-    /* Pack presentation knobs (the hover/focused state retunes them). */
+    /* Pack presentation knobs (the three poses retune them).
+       PER-CARD: spread / lift / fan. WHOLE-PACK: scale / sink / fade —
+       these live on `.con-handdock__pack` so the compact pose is ONE
+       uniform shrink of one physical object (never a per-card resize:
+       animating width/height is banned, and a partial shrink would change
+       the fan's read). */
     --hd-card-w: 3.15rem;
     --hd-card-h: 4.4rem;
     --hd-spread: 1;
     --hd-lift: 0rem;
     --hd-fan: 0;
+    --hd-scale: 1;
+    --hd-sink: 0rem;
+    --hd-fade: 1;
+    /* The compact pose's shrink (profiles retune — a Deck pack is small
+       already, so it tucks less aggressively). */
+    --hd-compact-scale: .6;
+    --hd-compact-sink: .5rem;
     /* WELDED IN: the dock is a fixed part of the bar — it never dims,
        shrinks or slides with the shell's states (only the PACK animates:
        hover / the RT wheel raise / card enter-leave). */
@@ -7860,6 +7872,20 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
            rule after this block. The card children keep their own inline
            z (3+i), stacked WITHIN this pack. */
         z-index: 11704;
+        /* The WHOLE-PACK pose (compact / default). Origin = the tray axis,
+           so a shrink seats the pack DEEPER into the plate instead of
+           drifting — the cards read as tucked away, not as a smaller
+           picture. Safe as a stacking context: the z-index above already
+           made this element one, so the cards' inline z still stacks
+           WITHIN the pack exactly as before. Flight anchors read
+           `getBoundingClientRect`, which is post-transform — an intake
+           lands on the card where it VISUALLY is in every pose. */
+        transform: translateY(var(--hd-sink, 0rem)) scale(var(--hd-scale, 1));
+        transform-origin: 50% 100%;
+        opacity: var(--hd-fade, 1);
+        transition:
+            transform calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+            opacity calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
     }
     &__card {
         position: absolute;
@@ -8007,15 +8033,35 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__card--lifted {
         visibility: hidden;
     }
-    /* The pack rises + opens a notch: on hover, AND while the RT wheel is
-       open (its centre «КАРТЫ» slot is the entry to the hand — the dock
-       below answers on the same axis). */
+    /* POSE 2 — COMPACT: Planet Focus took the screen, so the hand steps
+       back. The pack shrinks toward the tray axis and settles a little
+       deeper into the plate, keeping its exact fan geometry (one uniform
+       scale — the same object, further away) and losing a touch of light.
+       The CHASSIS is untouched: «КАРТЫ N/M» stays fully readable, because
+       what the player still needs here is the COUNT, not the silhouette.
+       Mutually exclusive with `--raised` by construction (the component
+       resolves the pair), so this can never fight the pose below. */
+    &--compact {
+        --hd-scale: var(--hd-compact-scale, .6);
+        --hd-sink: var(--hd-compact-sink, .5rem);
+        --hd-fade: .82;
+    }
+    /* POSE 3 — RAISED: the pack rises + opens a notch, on hover AND while
+       the RT wheel is open (its centre «КАРТЫ» slot is the entry to the
+       hand — the dock below answers on the same axis). Reachable from
+       EITHER of the other two poses: opening the wheel over an expanded
+       planet is legal, and this pose explicitly restores the whole-pack
+       knobs, so compact → raised interpolates the same transform back to
+       full size instead of snapping. */
     &--raised,
     &--live:hover,
     &--live:focus-visible {
         --hd-spread: 1.12;
         --hd-lift: .45rem;
         --hd-fan: 1;
+        --hd-scale: 1;
+        --hd-sink: 0rem;
+        --hd-fade: 1;
 
         .con-handdock__plate-face {
             box-shadow: inset 0 .05rem .8rem fade(@con-cyan, 14%);
@@ -8030,6 +8076,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
         .con-handdock__plate-face {
             box-shadow: inset 0 .05rem .9rem fade(@con-cyan, 20%);
+        }
+    }
+    /* Reduced motion: the POSES still apply (they carry meaning — the hand
+       is stepping back / standing ready), only their travel stops. */
+    @media (prefers-reduced-motion: reduce) {
+        .con-handdock__pack,
+        .con-handdock__card {
+            transition: none;
         }
     }
     /* The playable mint hairline along the plate's top edge. */
@@ -17043,6 +17097,12 @@ html.con-profile-handheld {
         --hd-card-w: 2.6rem;
         --hd-card-h: 3.65rem;
         --hd-spread: .84;
+        /* The Deck pack is already small and its footer band is tight —
+           the compact pose tucks LESS here (a .6 shrink on top of a .84
+           spread would read as a smudge, and the sink would bury the
+           backs entirely). The idea survives; the amount adapts. */
+        --hd-compact-scale: .72;
+        --hd-compact-sink: .3rem;
         bottom: .3rem;
         width: calc(var(--con-hd-bay, 12.4rem) - 1.2rem);
         height: calc(var(--hd-card-h) + 1.2rem);
