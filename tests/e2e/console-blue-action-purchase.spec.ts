@@ -121,7 +121,9 @@ for (const profile of PROFILES) {
       }
       expect(playerId, 'a deal containing Business Network').not.toBe('');
       await page.goto(`/player?id=${playerId}&console=1${profile.query}`);
-      await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
+      // 4K + a full parallel run makes the first paint genuinely slow; this is a
+      // load budget, not a behaviour assertion.
+      await page.waitForSelector('.con-start__frame, .con-root', {timeout: 90_000});
       await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
       await page.waitForTimeout(3800);
 
@@ -325,8 +327,8 @@ for (const profile of PROFILES) {
       // (Retry discipline: a press during a still-settling flight on a heavy
       //  4K frame is deliberately consumed — same as every wizard step.)
       const zoom = page.locator('dialog.con-zoom[open]');
-      for (let tries = 0; tries < 3 && await zoom.count() === 0; tries++) {
-        await key(page, 'KeyC', 1600);
+      for (let tries = 0; tries < 6 && await zoom.count() === 0; tries++) {
+        await key(page, 'KeyC', 1900);
       }
       await expect(zoom).toHaveCount(1, {timeout: 8000});
       await expect(zoom).toContainText(/Коммерческая сеть/i);

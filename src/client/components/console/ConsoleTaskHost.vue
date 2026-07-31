@@ -440,7 +440,7 @@ import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {fitRowZoom} from '@/client/console/cardStripFit';
 import {rememberCardBrowserPicks, recallCardBrowserPicks, clearCardBrowserPicks} from '@/client/console/consoleRouter';
 import {consoleTaskSummary} from '@/client/console/consoleTaskSummary';
-import {setWorkspaceOutcomePhase, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {setWorkspaceOutcomePhase, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {TargetImpact, TargetImpactChange} from '@/common/models/TargetImpactModel';
 import TagComponent from '@/client/components/Tag.vue';
@@ -1693,11 +1693,9 @@ export default defineComponent({
       openConsoleCardZoom([card as CardModel], 0, undefined, undefined, {
         contextLabel: 'Card actions',
         statusLabel: 'Source',
-        origin: {
-          kind: 'physical',
-          resolve: () => document.querySelector<HTMLElement>(
-            `[data-motion-surface="action-composer"] [data-zoom-slot="${CSS.escape(String(name))}"]`),
-        },
+        // ONE resolver for every host that offers L3 Источник — the hero card
+        // itself lifts out of the composer column (see the helper).
+        origin: workspaceSourceZoomOrigin(String(name)),
       });
     },
     /**

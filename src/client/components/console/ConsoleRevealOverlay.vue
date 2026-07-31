@@ -442,6 +442,7 @@ import {consoleActionOf, ConsoleAction} from '@/client/console/composables/conso
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {fitRowZoom} from '@/client/console/cardStripFit';
+import {workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {
   DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, holdRevealForFollowUp, markAllTaken,
@@ -1442,9 +1443,14 @@ export default defineComponent({
       if (s === undefined || s.type !== 'card') {
         return;
       }
+      // The SOURCE card is a real object standing in the workspace's hero
+      // column — L3 lifts THAT card (its slot is held empty while the viewer
+      // is up), never opens a second identical copy beside it. A standalone
+      // reveal has no composer on screen: the resolver returns null and the
+      // viewer degrades to its textual entrance on its own.
       openConsoleCardZoom([{name: s.cardName} as CardModel], 0, undefined, undefined, {
         statusLabel: 'Draw source',
-        origin: {kind: 'textual'},
+        origin: workspaceSourceZoomOrigin(String(s.cardName)),
       });
     },
     zoomRevealed(): void {

@@ -3,7 +3,8 @@
          :class="[
            'card-zoom-lore--' + model.tier,
            'card-zoom-lore--' + script,
-           {'card-zoom-lore--fallback': model.fallback, 'card-zoom-lore--in': revealed},
+           {'card-zoom-lore--fallback': model.fallback, 'card-zoom-lore--in': revealed,
+            'card-zoom-lore--closing': closing},
          ]"
          data-test="card-zoom-lore">
     <h2 class="card-zoom-lore__label">

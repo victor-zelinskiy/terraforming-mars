@@ -303,6 +303,24 @@
     }
 }
 
+/* THE CLOSE IS INSTANT — the same 60ms opacity drop the right-hand rules
+   panel takes (`.con-zoom-rules-host--closing`). The per-element leave below
+   is a BROWSE gesture (one entry steps aside for the next, ~110ms with a
+   slide and a blur); playing it while the viewer is departing left the block
+   visibly readable AFTER the fullscreen had gone — it read as a stuck panel
+   flashing. The whole aside leaves as ONE object instead: no travel, no
+   blur, no per-part timing. */
+.card-zoom-lore--closing {
+    opacity: 0;
+    transition: opacity calc(60ms * var(--motion-scale, 1)) ease;
+
+    .card-zoom-lore__label,
+    .card-zoom-lore__quote,
+    .card-zoom-lore__mark {
+        transition: none;
+    }
+}
+
 /* ── reveal choreography ─────────────────────────────────────────────────
  *  ONE quiet entrance, not four separate effects: the heading leads, the text
  *  follows a few tens of ms later, the opening mark rides almost WITH the text

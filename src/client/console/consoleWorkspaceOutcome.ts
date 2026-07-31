@@ -33,6 +33,7 @@
  */
 import {reactive} from 'vue';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
+import type {ZoomOrigin} from '@/client/console/consoleCardZoom';
 
 /**
  * Which workspace holds the claim. A closed union on purpose: every host needs
@@ -333,4 +334,35 @@ export function workspaceClaimsPick(): boolean {
 /** Full reset (game switch / test cleanup). */
 export function resetWorkspaceOutcome(): void {
   releaseWorkspaceOutcome();
+}
+
+/**
+ * THE PHYSICAL ORIGIN of the workspace's SOURCE card — one resolver, every
+ * host that offers `L3 Источник`.
+ *
+ * The source card is a real object on screen: the action composer's hero
+ * column holds it for the whole flow. So L3 must LIFT THAT CARD into the
+ * fullscreen (the zoom motion holds its slot empty for the duration —
+ * `.con-zoom-hold`), never open a second copy beside it. A textual origin
+ * did exactly that: the hero stayed in its column while an identical card
+ * rose in the middle of the screen, which reads as two of the same card and
+ * breaks the console's physicality rule.
+ *
+ * Standalone hosts (a reveal the player did not open a workspace for) have no
+ * composer on screen: `resolve` returns null and the viewer degrades to the
+ * documented textual entrance by itself — one call site, both worlds.
+ */
+export function workspaceSourceZoomOrigin(name: string): ZoomOrigin {
+  return {
+    kind: 'physical',
+    resolve: () => {
+      if (typeof document === 'undefined' || name === '') {
+        return null;
+      }
+      const key = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
+        CSS.escape(name) : name.replace(/"/g, '\\"');
+      return document.querySelector<HTMLElement>(
+        `[data-motion-surface="action-composer"] [data-zoom-slot="${key}"]`);
+    },
+  };
 }

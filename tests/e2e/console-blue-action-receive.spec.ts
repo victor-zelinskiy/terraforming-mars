@@ -116,7 +116,9 @@ for (const profile of PROFILES) {
       }
       expect(playerId, 'a deal containing Development Center').not.toBe('');
       await page.goto(`/player?id=${playerId}&console=1${profile.query}`);
-      await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
+      // 4K + a full parallel run makes the first paint genuinely slow; this is a
+      // load budget, not a behaviour assertion.
+      await page.waitForSelector('.con-start__frame, .con-root', {timeout: 90_000});
       await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
       await page.waitForTimeout(3800);
 
@@ -245,9 +247,12 @@ for (const profile of PROFILES) {
       const embedded = page.locator('[data-embed-slot="workspace-reveal"] .con-reveal--embedded');
       await expect(embedded).toHaveCount(1, {timeout: 10_000});
       const arriveMs = Date.now() - tPress;
-      // Sanity ceiling only (the precise probe is the backstop log below —
-      // a healthy chain on a busy runner can legitimately take ~2.8 s).
-      expect(arriveMs, `stage arrived in ${arriveMs}ms`).toBeLessThan(3600);
+      // A LOOSE sanity ceiling on purpose: under a full parallel run a healthy
+      // chain has measured 5.2 s of pure runner contention. The REGRESSION
+      // probe is the backstop log below — it names the failure path directly
+      // instead of inferring it from wall-clock, which cannot tell a slow
+      // healthy chain from a dead one.
+      expect(arriveMs, `stage arrived in ${arriveMs}ms`).toBeLessThan(12_000);
       expect(wsLogs.some((l) => l.includes('BACKSTOP FIRED')),
         `the beat fell back to the backstop:\n${wsLogs.join('\n')}`).toBe(false);
       await expect(page.locator('.con-reveal__title')).toContainText('Получена карта');
@@ -296,6 +301,29 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-cmdbar')).toContainText(/Добор карт/i);
       await page.waitForTimeout(700);
       await shoot(page, `${profile.tag}-01-receive-stage`);
+
+      // ── 2b. L3 = the SOURCE, lifted PHYSICALLY out of the hero column. ──
+      // The source card is a real object on screen, so the fullscreen must
+      // raise THAT card (its slot is held empty while the viewer is up) — a
+      // textual entrance left the hero standing in its column while an
+      // identical card rose in the middle: two of the same card at once.
+      const srcZoom = page.locator('dialog.con-zoom[open]');
+      for (let tries = 0; tries < 5 && await srcZoom.count() === 0; tries++) {
+        await key(page, 'KeyC', 1500);
+      }
+      await expect(srcZoom).toHaveCount(1, {timeout: 8000});
+      // The composer's hero slot is HELD (the zoom motion empties it) — the
+      // proof that the viewer's card IS that card and not a second copy.
+      await expect(page.locator('[data-motion-surface="action-composer"] .con-zoom-hold'))
+        .toHaveCount(1, {timeout: 4000});
+      await shoot(page, `${profile.tag}-01b-source-fullscreen`);
+      for (let tries = 0; tries < 5 && await srcZoom.count() > 0; tries++) {
+        await key(page, 'Escape', 1400);
+      }
+      await expect(srcZoom).toHaveCount(0, {timeout: 8000});
+      // …and it comes BACK: no slot left empty, no stranded hold.
+      await expect(page.locator('.con-zoom-hold')).toHaveCount(0, {timeout: 6000});
+      await expect(page.locator('[data-embed-slot="workspace-reveal"] .con-cards__slot .pcard')).toBeVisible();
 
       // ── 3. TAKE → NO SEAM, then fold + dock landing. ────────────────────
       // A per-frame sampler for the HOLE the player reported: the card

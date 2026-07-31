@@ -184,6 +184,12 @@ describe('CardLoreAside', () => {
       expect(wrapper.classes()).to.include('card-zoom-lore--in');
       await wrapper.setProps({closing: true});
       expect(wrapper.classes()).to.not.include('card-zoom-lore--in');
+      // …and it says so EXPLICITLY: `--closing` is what makes the block leave
+      // as one object in 60ms (card_lore.less), the same instant drop the
+      // right-hand rules panel takes. Dropping `--in` alone left the parts
+      // playing the ~110ms browse retreat, and the entry stayed readable
+      // after the fullscreen had gone — a panel flashing over the board.
+      expect(wrapper.classes()).to.include('card-zoom-lore--closing');
     });
   });
 });
