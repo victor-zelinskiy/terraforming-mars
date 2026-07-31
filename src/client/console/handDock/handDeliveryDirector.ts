@@ -54,6 +54,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
+import {takeDiag} from '@/client/console/handDock/takeDiag'; // @TAKE-DIAG
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {
   deliveryEl, handDeliveryState, nextDeliveryId, clearDeliveryFlights,
@@ -288,7 +289,9 @@ export async function runHandIntake(entries: ReadonlyArray<HandIntakeEntry>, opt
       opts?.commit?.();
     }
   };
+  takeDiag('runHandIntake:enter', {n: names.length, names: names.map(String).join('|'), mode: String(opts?.mode ?? 'default'), commitAt: String(opts?.commitAt ?? 'default'), hasOnStaged: opts?.onStaged !== undefined}); // @TAKE-DIAG
   if (names.length === 0) {
+    takeDiag('runHandIntake:EMPTY-BATCH -> commit only'); // @TAKE-DIAG
     runCommit();
     opts?.onStaged?.();
     return;
@@ -327,7 +330,9 @@ export async function runHandIntake(entries: ReadonlyArray<HandIntakeEntry>, opt
   const releaseRemaining = () => entries.forEach((_e, i) => land(i));
 
   const dock = document.querySelector<HTMLElement>('.con-handdock');
+  takeDiag('runHandIntake:snapshots', {usable: snapshots.filter((s) => s !== undefined).length, of: snapshots.length, reduced: consoleReducedMotionActive(), dock: dock === null ? 'NULL' : 'found', activeRuns}); // @TAKE-DIAG
   if (consoleReducedMotionActive() || dock === null) {
+    takeDiag('runHandIntake:DEGENERATE -> no flight', {reason: dock === null ? 'no-dock' : 'reduced-motion'}); // @TAKE-DIAG
     releaseRemaining();
     runCommit();
     opts?.onStaged?.();
@@ -337,6 +342,10 @@ export async function runHandIntake(entries: ReadonlyArray<HandIntakeEntry>, opt
   activeRuns++;
   try {
     await fly(entries, snapshots, opts, dock, {myGen, land, releaseRemaining, runCommit});
+    takeDiag('runHandIntake:fly RESOLVED'); // @TAKE-DIAG
+  } catch (err) {
+    takeDiag('runHandIntake:fly THREW', {err: String(err)}); // @TAKE-DIAG
+    throw err;
   } finally {
     releaseRemaining();
     // A run that aborted before its staging seam must still commit — the
@@ -358,6 +367,7 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
   // A single card has no fan to gather — the stack gesture degrades to the
   // plain cascade arc.
   const mode = opts?.mode === 'stack' && entries.length > 1 ? 'stack' : 'cascade';
+  takeDiag('fly:mode', {asked: String(opts?.mode ?? 'default'), resolved: mode, entries: entries.length}); // @TAKE-DIAG
   const ui = conUiScale();
 
   // Contract 2: dock order — bottom-first departure/landing, matching z.
@@ -379,6 +389,7 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
   let aborted = false;
   const isAborted = () => aborted || gen !== ctx.myGen;
   const finish = () => {
+    takeDiag('fly:finish', {alreadyAborted: aborted, genDrift: gen !== ctx.myGen}); // @TAKE-DIAG
     aborted = true;
     if (safety !== undefined) {
       clearTimeout(safety);
@@ -451,6 +462,7 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
     if (src === undefined) {
       src = snapshots[entryIdx];
     }
+    takeDiag('fly:staged-measure', {entryIdx, rank, name: String(entry.name), back: entry.back === true, hasEl: entry.el !== undefined, connected: entry.el?.isConnected === true, src: src === undefined ? 'NONE' : `${Math.round(src.left)},${Math.round(src.top)},${Math.round(src.width)}`, usedSnapshot: src !== undefined && holdCard === undefined}); // @TAKE-DIAG
     staged.push({entryIdx, rank, name: entry.name, el, src, holdCard, back: entry.back});
   });
   // ── Pass 2 — WRITE ONLY (no layout read follows → nothing forces a reflow) ──
@@ -488,9 +500,11 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
   // the reveal closing with it) cannot open a hole: no paint happens between
   // the hold and the commit. `onStaged` then folds the surface UNDER the
   // proxies, exactly as before.
+  takeDiag('fly:SEAM', {staged: staged.length, live: live.length, landFallback: landFallback.length, withSrc: staged.filter((s) => s.src !== undefined).length}); // @TAKE-DIAG
   ctx.runCommit();
   opts?.onStaged?.();
   if (live.length === 0) {
+    takeDiag('fly:NO-LIVE -> finish (nothing flies)'); // @TAKE-DIAG
     finish();
     return;
   }

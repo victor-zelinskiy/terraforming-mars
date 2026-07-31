@@ -1107,7 +1107,7 @@ import {
   workspaceStageState,
 } from '@/client/console/consoleWorkspaceStage';
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
-import {armHandStageOrigin, resetHandStageMotion} from '@/client/console/consoleHandStageMotion';
+import {armHandStageOrigin, resetHandStageMotion, handStageTransitioning} from '@/client/console/consoleHandStageMotion';
 import ConsoleCorpFirstActionConfirm from '@/client/components/console/ConsoleCorpFirstActionConfirm.vue';
 import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
 import ConsoleCardDiscardLayer from '@/client/components/console/cardDiscard/ConsoleCardDiscardLayer.vue';
@@ -1190,6 +1190,7 @@ import ConsoleHydroDrawLayer from '@/client/components/console/hydroDraw/Console
 import {armHydroDraw, abortHydroDraw, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
+import {takeDiag} from '@/client/console/handDock/takeDiag'; // @TAKE-DIAG
 import {workspaceClaimsDrawReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
@@ -2760,7 +2761,13 @@ export default defineComponent({
      *  after a successful play (until the server removes it from the hand).
      *  One physical card never sits in two places at once. */
     stagedHandCard(): CardName | undefined {
-      return this.pendingPlayCard?.cardName ?? this.returningPlayCard ?? this.departingPlayCard;
+      // INSIDE THE HAND WORKSPACE the grid IS the card for the length of the
+      // camera reframe, and is hidden wholesale the moment the hero takes over.
+      // Holding its slot empty would delete the very object the transition
+      // carries — there is never a frame where both are visible, so the hold
+      // buys nothing and costs the continuity.
+      const staged = workspaceStageOpen('hand') ? undefined : this.pendingPlayCard?.cardName;
+      return staged ?? this.returningPlayCard ?? this.departingPlayCard;
     },
     /**
      * THE HAND WORKSPACE'S OPEN DESCENT — what the section needs to know to
@@ -5586,6 +5593,14 @@ export default defineComponent({
       if (this.handPickActive) {
         return this.handleSectionIntent(intent);
       }
+      // THE DESCENT OWNS THE PAD WHILE IT MOVES. Between the press and the
+      // settled work surface the composer is already mounted but not yet
+      // readable — an A there would confirm a play against a CTA the player
+      // cannot see. On the way back the same gate stops a second A from
+      // re-descending into a card that is still flying home to its slot.
+      if (handStageTransitioning()) {
+        return true;
+      }
       // T8: the native play-card confirm owns input while open.
       if (this.pendingPlayCard !== undefined) {
         const confirm = this.$refs.playConfirm as InstanceType<typeof ConsolePlayCardConfirm> | undefined;
@@ -6962,33 +6977,25 @@ export default defineComponent({
       return document.querySelector<HTMLElement>(`.con-hand [data-zoom-slot="${esc}"]`);
     },
     /**
-     * DIRECT play from the hand overlay (A on a playable card) — the same
-     * card motion language as fullscreen → modal: a FaceLite proxy
-     * TRANSFERS from the hand slot into the composer's card slot (source
-     * held empty for the flight, destination pre-held and revealed under
-     * the proxy, cross-fade). A missing slot / reduced motion degrades to
-     * the bare open.
+     * DIRECT play from the hand (A on a playable card) — the CAMERA REFRAME.
+     *
+     * There is deliberately no proxy flight here any more. The hand is a GRID,
+     * so a `runCardTransfer` had to drag the chosen card across however much
+     * viewport happened to lie between its slot and the play anchor — a card
+     * picked at the far right travelled the whole screen, and the transition
+     * got worse the further right the player looked. `consoleHandStageMotion`
+     * moves the SURFACE around the card instead: the eye travels the same short
+     * distance wherever the card sat, and the card never leaves its own layer,
+     * which is what makes it read as the same object rather than a copy.
+     *
+     * (The FULLSCREEN entry still uses `playZoomHandoff` — there the card is
+     * genuinely somewhere else, on its own layer, and a flight is honest.)
      */
     openPlayCardFromHand(name: CardName): void {
-      const slot = this.handExitSlot(name);
-      // The pressed card's rect, taken NOW — the stage unfolds from exactly
-      // where the player pressed. Measured before the descent mounts anything,
-      // because that is the only moment the browse geometry is still the one
-      // the player was looking at.
-      armHandStageOrigin(slot?.getBoundingClientRect());
-      // Opening pendingPlayCard ALSO engages the Vue-managed hand-slot hold
-      // (stagedHandCard) in the same flush — the source card leaves the
-      // table the frame its proxy exists; no double-vision, patch-proof.
+      // The pressed card's rect, taken NOW — the only moment the browse
+      // geometry is still the one the player was looking at.
+      armHandStageOrigin(this.handExitSlot(name)?.getBoundingClientRect());
       this.openPlayCard(name);
-      if (slot === null) {
-        return;
-      }
-      void runCardTransfer({
-        name,
-        from: slot,
-        resolveTo: () => document.querySelector<HTMLElement>('.con-composer--play [data-zoom-handoff="play-card"]'),
-        holdTarget: true,
-      });
     },
     /**
      * CANCEL of the play composer: the card physically RETURNS to its hand
@@ -7010,6 +7017,15 @@ export default defineComponent({
         return;
       }
       const name = pending.cardName;
+      // INSIDE THE HAND WORKSPACE the way back is the camera reversed (the
+      // stage's own leave hook): the layer is put back at the exact rect the
+      // hero occupies, the hero goes dark, and the surface flies home to
+      // identity — so the card SETTLES INTO ITS OWN SLOT rather than being
+      // re-created there, and the shelf comes back with it.
+      if (workspaceStageOpen('hand')) {
+        this.pendingPlayCard = undefined;
+        return;
+      }
       const modalSlot = document.querySelector<HTMLElement>('.con-composer--play [data-zoom-handoff="play-card"]');
       if (modalSlot === null) {
         this.pendingPlayCard = undefined;
@@ -7580,6 +7596,7 @@ export default defineComponent({
      * workspace) also covers the case where the workspace has already gone.
      */
     onEmbeddedDrawnComplete(): void {
+      takeDiag('SHELL:drawn-complete -> fold'); // @TAKE-DIAG
       releaseWorkspaceOutcome();
       this.foldWorkspaceAfterResult();
     },
@@ -7611,6 +7628,7 @@ export default defineComponent({
      * still hidden (or at a guessed rect, which this flow forbids).
      */
     onWorkspaceResultDetached(): void {
+      takeDiag('SHELL:result-detached -> fold'); // @TAKE-DIAG
       releaseWorkspaceOutcome();
       this.foldWorkspaceAfterResult();
     },

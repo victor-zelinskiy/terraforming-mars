@@ -930,6 +930,26 @@ html.con-profile-tv {
         &__outcome { font-size: var(--con-t-body); }
     }
 
+    /* ═══ 18/19 · CARD PLAY WORKSPACE (embedded) ══════════════════
+       Couch sizes for the level's own voices. The strip STAYS a strip: at
+       4K there is width to spare, so its units simply read bigger — the one
+       shape it must never take back is a column of full-width rows. */
+    .con-composer--embed {
+        .con-composer__playcard { zoom: ~"calc(1.24 * var(--con-ui-scale, 1))"; }
+        .con-composer__playmain { column-gap: 2.6rem; }
+        .con-composer__paycost {
+            font-size: var(--con-t-body);
+            b { font-size: 1.6rem; }
+            i { width: 1.4rem; height: 1.4rem; }
+        }
+        .con-composer__sub-title { font-size: var(--con-t-caption); }
+        .con-composer__rescat { min-height: 2.6rem; font-size: var(--con-t-body); padding: .35rem .9rem; }
+        .con-composer__rescat-glyph { font-size: 1rem; width: 1.2rem; }
+        .con-composer__rescat-tag { width: 1.6rem; height: 1.6rem; line-height: 1.6rem; }
+        .con-composer__cta { padding: 1rem 1.3rem; }
+        .con-composer__cta-label { font-size: 1.35rem; }
+    }
+
     /* ═══ 19 · ACTION WORKSPACE + COMPOSERS ═══════════════════════ */
     .con-cardactions {
         /* (The one-line header — identity + breadcrumb + card name at couch

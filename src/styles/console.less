@@ -4886,23 +4886,62 @@ html.console-mode {
         display: flex;
         flex-direction: column;
         gap: .6rem;
-        transition:
-            transform calc(190ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
-            opacity calc(190ms * var(--motion-scale, 1)) ease;
 
-        /* PARKED — the cards recede so the eye stays on the one card the
-           player picked. transform/opacity only (perf-lite safe); the DOM is
-           untouched, so selection, scroll and filter survive by construction
-           and coming back is a return, not a rebuild. */
-        /* A WHISPER, not a ghost. Enough that the player still reads «I am
-           inside the hand», quiet enough that card art does not show through
-           the stage plate — at 0.16 the shelf legibly ghosted under the
-           decision column and read as leakage rather than as depth. */
+        /* PARKED is the layer's RESTING truth while a stage is open: GONE, not
+           dimmed. A hand grid still legible behind the play surface is the
+           single loudest «this is a modal over a screen» cue there is, and at
+           any opacity above zero the card art reads straight through the work
+           surface. The DOM stays MOUNTED — selection, scroll position, filter
+           and focus survive by construction, and B hands the card back into its
+           own slot instead of rebuilding the grid.
+           The camera director overrides this INLINE for the length of the
+           reframe (for those ~400 ms the layer IS the card the player chose);
+           `clearProps` on the way out gives the resting truth back. */
         &--parked {
-            transform: scale(0.985);
-            opacity: 0.07;
+            opacity: 0;
+            visibility: hidden;
             pointer-events: none;
         }
+        /* 2 · DEPTH COLLAPSE — every card EXCEPT the chosen one lets go, in ONE
+           class and one paint, so the cost never grows with the size of the
+           hand. The browse chrome goes with them: a status rail describing a
+           selection the player has already made is noise on the way in. */
+        /* The opacity TRANSITION is declared HERE, never on `.con-hand__slot`
+           itself: the base slot deliberately has none, because the dock→hand
+           reveal releases held slots as an instant snap under still-opaque
+           proxies and a transition there re-creates the cross-fade dip. This
+           class only exists during a descent, where no proxy is in flight. */
+        &--reframing {
+            /* Promoted ONLY for the length of the move: a permanent
+               `will-change` on a layer this large keeps a full-size composited
+               copy alive for the whole time the hand is open, which is exactly
+               the kind of cost the Deck notices and nobody sees. */
+            will-change: transform;
+
+            .con-hand__slot:not(.con-hand__slot--selected),
+            .con-hand__scrollbar,
+            .con-hand__empty,
+            .con-hand__verdictbar {
+                opacity: 0;
+                transition: opacity calc(150ms * var(--motion-scale, 1)) ease;
+            }
+        }
+    }
+    /* 1 · MECHANICAL COMMIT — the pressed card answers WHERE IT STANDS, before
+       anything in the space moves, so the player sees WHICH card was taken
+       before the surface starts reframing around it. */
+    &--staged &__slot--selected {
+        transform: scale(1.07);
+        z-index: 4;
+    }
+    &--staged &__slot--selected > :is(.card-container, .pcard) {
+        box-shadow:
+            0 0 0 .18rem fade(@con-mint, 92%),
+            0 0 1.6rem fade(@con-mint, 45%),
+            0 1rem 2rem -.7rem rgba(0, 0, 0, 0.75);
+    }
+    @media (prefers-reduced-motion: reduce) {
+        &--staged &__slot--selected { transform: none; }
     }
     /* A pick BRIDGE is out: the shelf is the picker again. The stage keeps its
        claim (and its zone, and the composer's captures inside it) — it just
@@ -4911,8 +4950,12 @@ html.console-mode {
     &--stagepaused &__browse--parked {
         transform: none;
         opacity: 1;
+        visibility: visible;
         pointer-events: auto;
     }
+    &--stagepaused &__browse--reframing .con-hand__slot,
+    &--stagepaused &__browse--reframing .con-hand__verdictbar { opacity: 1; }
+    &--stagepaused &__slot--selected { transform: scale(1.035); }
     &--stagepaused &__stage {
         opacity: 0;
         pointer-events: none;
@@ -16566,17 +16609,29 @@ html.console-mode {
     }
 }
 
-/* ═══ THE EMBEDDED PLAY STAGE — the play composer re-homed into «КАРТЫ В РУКЕ»
-   ═══
-   Same instance, same logic, different DRESS. Everything removed here is
-   something the WORKSPACE already provides: the band geometry (the stage zone
-   is the band), the plate (the workspace frame is the plane), the centred
-   fixed-width card (a screen inside a screen), and the header (the breadcrumb
-   says it, in the line that has been on screen the whole time).
+/* ═══ THE CARD PLAY WORKSPACE — the play composer AS a workspace level ═══
+   (`.con-composer--embed`, re-homed into «КАРТЫ В РУКЕ» by `<Teleport>`.)
 
-   The hero column and the decision column then read exactly like the blue
-   action's `--stage` variant — because they ARE the same composition, one
-   workspace over. */
+   Same instance, same logic, a DIFFERENT SURFACE. The first cut of this simply
+   took the standalone dialog and put it inside the workspace, and it read
+   exactly like what it was: a modal that had been carried indoors — a plate
+   inside a frame, a bordered «РЕЗУЛЬТАТ» box inside the plate, bordered rows
+   inside that box, and a green button parked at the bottom of it all. Panels
+   inside panels inside panels, stacked vertically, in the middle of a 4K band
+   with room to spare on both sides.
+
+   So this is not a restyle of the dialog. The rules:
+
+   1. ONE SURFACE. Nothing here draws its own container. Sections are separated
+      by a HAIRLINE and named by a label — the way a workspace separates zones —
+      never by nesting another rounded box.
+   2. THE WIDTH IS THE POINT. The work surface takes the band it is given
+      instead of centring a fixed-width card in it.
+   3. THE RESULT IS A SUMMARY, NOT THE SCREEN. It becomes a horizontal strip of
+      compact impact units. It used to be the tallest, loudest thing on a screen
+      whose actual job is choosing how to pay.
+   4. PAYMENT IS THE WORKING ZONE, and gets the room to look like it.
+   5. THE COMMIT IS A RAIL of the surface, not a button in a dialog. */
 .con-composer--embed {
     position: relative;
     inset: auto;
@@ -16589,9 +16644,6 @@ html.console-mode {
     align-items: stretch;
 
     .con-composer__panel--play {
-        /* Fills the zone: `min(59rem,…)` centred a card-sized dialog inside a
-           4K band and left the screen reading as a small form in a lot of
-           emptiness — the exact defect the north star calls out. */
         width: 100%;
         max-width: none;
         height: 100%;
@@ -16601,48 +16653,149 @@ html.console-mode {
         background: none;
         box-shadow: none;
     }
+
+    /* ── The two zones: the anchored CARD and the WORK SURFACE ───────────── */
     .con-composer__playmain {
-        /* Centred as a PAIR, capped so the two columns stay a composition
-           rather than drifting to opposite edges of a 4K band. */
         align-items: center;
-        justify-content: center;
-        column-gap: 1.7rem;
-        max-width: 74rem;
-        margin: 0 auto;
+        column-gap: 2.2rem;
+        max-width: none;
         width: 100%;
+        padding: 0 .4rem;
     }
+    /* The card's stable ANCHOR — this is where the camera reframe lands it, so
+       it holds ONE position for the whole level and never re-lays out. */
     .con-composer__playcard {
         align-self: center;
-        zoom: calc(1.04 * var(--con-ui-scale, 1));
+        flex: 0 0 auto;
+        zoom: calc(1.16 * var(--con-ui-scale, 1));
     }
-    /* The decision column stands on the SHARED stage plate — the same plane
-       every workspace stage uses, so «one plate, one step deeper» is literally
-       true on screen rather than a claim in a comment. The plate goes on the
-       COLUMN, never on the scroll area: that element owns its own overflow
-       geometry and padding it would move the fade/thumb math with it. */
     .con-composer__playright {
-        max-width: min(50rem, 100%);
-        /* HUGS ITS CONTENT, capped by the band — the blue action's stage plate
-           does the same. Stretched to full height it became a tall empty box
-           with a CTA floating in the top third, which is the «маленькая форма
-           посреди пустоты» reading in a different disguise. */
+        flex: 1 1 auto;
+        min-width: 0;
+        /* Wide by default; the cap only stops a 4K band from stretching the
+           payment rows past comfortable reading. */
+        max-width: 74rem;
         align-self: center;
         max-height: 100%;
-        position: relative;
-        padding: .7rem .9rem .75rem;
-        .con-stage-plate();
-        &::before { .con-stage-tether(); }
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+        padding: 0;
+        background: none;
+        box-shadow: none;
+        border-radius: 0;
     }
-    /* The stage's SUPPORTING line (cost · verdict) — one step quieter than the
-       standalone header it replaces: it judges the controls under it, it does
-       not title the screen. */
+    .con-composer__scroll { min-height: 0; }
+    .con-composer__scroll-body { display: flex; flex-direction: column; gap: 0; }
+
+    /* ── SUMMARY LINE — the level's own one-liner: what it costs, whether it
+       can be played. A hairline under it opens the surface; it is not a
+       heading, so it never competes with the breadcrumb above. ─────────── */
     .con-composer__stagehead {
         display: flex;
         align-items: center;
-        gap: .8rem;
+        gap: .9rem;
         flex-shrink: 0;
-        padding-bottom: .1rem;
+        padding: 0 .2rem .5rem;
+        margin-bottom: .55rem;
+        border-bottom: .05rem solid rgba(120, 155, 190, 0.2);
     }
+    .con-composer__paycost { font-size: .95rem; b { font-size: 1.25rem; } i { width: 1.2rem; height: 1.2rem; } }
+
+    /* ── SECTION LABELS — the surface's zone names. They replace the boxes:
+       a label plus a hairline says «new zone» as clearly as a border and costs
+       no nesting. ─────────────────────────────────────────────────────────── */
+    .con-composer__sub-title {
+        font-size: .68rem;
+        letter-spacing: .1rem;
+        padding-bottom: .3rem;
+    }
+    .con-composer__sub-title--spaced { margin-top: 0; }
+
+    /* ── 3 · THE RESULT STRIP — impact units on ONE line wherever they fit.
+       Was: a mint-framed box holding four full-width bordered rows, ~40 % of
+       the surface's height for four short facts. Now: a wrap-row of compact
+       units that reads left-to-right and takes the height it actually needs. */
+    .con-composer__resulthero {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: stretch;
+        gap: .4rem;
+        padding: 0 0 .55rem;
+        margin-bottom: .55rem;
+        border-radius: 0;
+        background: none;
+        box-shadow: none;
+        border-bottom: .05rem solid rgba(120, 155, 190, 0.2);
+    }
+    /* The label opens the row and then steps out of the way. */
+    .con-composer__sub-title--result { flex: 0 0 100%; }
+    .con-composer__rescat {
+        flex: 0 1 auto;
+        width: auto;
+        /* `max-width` + the base's own wrap: a unit with a long clarification
+           takes a second LINE INSIDE ITSELF rather than overflowing the strip.
+           Hard `nowrap` here shipped an overflow the first time a long note
+           landed in it. */
+        max-width: 100%;
+        min-height: 2.1rem;
+        gap: .45rem;
+        padding: .3rem .75rem;
+        border-radius: 49.95rem;
+        font-size: .82rem;
+        background: rgba(16, 28, 42, 0.72);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
+    }
+    .con-composer__result-chips { gap: .4rem; padding-bottom: .55rem; }
+    /* Branch variants stay full-width rows: they are a CHOICE, not a summary,
+       and a choice must not compact into a chip. */
+    .con-composer__variant { flex: 0 0 100%; }
+
+    /* ── 5 · PAYMENT — the level's working zone, on the surface itself. ──── */
+    .con-pay {
+        margin-top: 0;
+        padding: 0;
+        border-radius: 0;
+        background: none;
+        box-shadow: none;
+        gap: .4rem;
+        /* The lane columns get real room on a wide band: the numbers are what
+           the player is actually working with here. */
+        --con-pay-w-used: 5rem;
+        --con-pay-w-stock: 7.4rem;
+        --con-pay-w-worth: 5rem;
+        --con-pay-w-tail: 7.6rem;
+        --con-pay-num-fs: 1.15rem;
+        --con-pay-name-fs: .92rem;
+        /* The zone closes with the same hairline the others use, so the commit
+           rail below reads as the NEXT zone rather than as a button hanging off
+           the bottom of the payment box. */
+        padding-bottom: .55rem;
+        border-bottom: .05rem solid rgba(120, 155, 190, 0.2);
+    }
+    /* EXPANDED still may only change PAINT (the layout-shift contract): on this
+       surface the promotion is a left accent rail, which occupies no box. */
+    .con-pay--expanded {
+        background: linear-gradient(90deg, fade(@con-cyan, 9%) 0%, transparent 42%);
+        box-shadow: inset .14rem 0 0 fade(@con-cyan, 62%);
+    }
+    /* NOTHING is written for `.con-payrow` here on purpose: its idle / live /
+       auto / focused paints are the panel's own state language, and a rule at
+       this specificity would out-rank every one of them and flatten the row
+       states the player navigates by. */
+
+    /* ── 6 · THE COMMIT RAIL — the level's own confirm surface. Full width of
+       the work zone, separated by the same hairline the other zones use, and
+       the loudest thing BELOW the fold rather than a button in a dialog. ─── */
+    .con-composer__cta {
+        margin-top: .6rem;
+        padding: .85rem 1.1rem;
+        border-radius: .55rem;
+        justify-content: flex-start;
+        gap: .75rem;
+    }
+    .con-composer__cta-label { font-size: 1.1rem; }
 }
 
 /* ── Play-card composer: a two-column card · pre-select layout ───────────── */
@@ -17372,10 +17525,20 @@ html.con-profile-handheld .con-composer--stage {
    centre in at 1280, and the cap would only push the decision column narrower).
    No horizontal scroll can appear: both columns are `minmax(0, …)` bounded. */
 html.con-profile-handheld .con-composer--embed {
-    .con-composer__playmain { max-width: none; column-gap: .9rem; }
-    .con-composer__playcard { zoom: calc(0.66 * var(--con-ui-scale, 1)); }
-    .con-composer__playright { padding: .5rem .6rem .55rem; max-width: 100%; }
-    .con-composer__stagehead { gap: .5rem; }
+    .con-composer__playmain { column-gap: 1rem; padding: 0; }
+    .con-composer__playcard { zoom: calc(0.72 * var(--con-ui-scale, 1)); }
+    .con-composer__playright { max-width: 100%; }
+    .con-composer__stagehead { gap: .5rem; padding-bottom: .35rem; margin-bottom: .4rem; }
+    .con-composer__paycost { font-size: .8rem; b { font-size: 1rem; } }
+    /* The impact strip stays a STRIP on the Deck — it just wraps to a second
+       line. What it must never do is grow back into a column of full-width
+       rows: that is the shape this rework removed. */
+    .con-composer__resulthero { gap: .3rem; padding-bottom: .4rem; margin-bottom: .4rem; }
+    .con-composer__rescat { min-height: 1.75rem; padding: .22rem .55rem; font-size: .68rem; gap: .35rem; }
+    .con-composer__rescat-glyph { font-size: .68rem; width: .8rem; }
+    .con-composer__rescat-tag { width: 1.05rem; height: 1.05rem; line-height: 1.05rem; }
+    .con-composer__cta { margin-top: .45rem; padding: .55rem .8rem; }
+    .con-composer__cta-label { font-size: .9rem; }
 }
 
 /* Large / 4K — a gentle readability boost only. */
