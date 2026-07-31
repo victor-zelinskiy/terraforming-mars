@@ -12548,7 +12548,15 @@ body.con-start-ceremony {
             border-radius: 0;
             background: none;
             box-shadow: none;
+            /* ONE centred group — instruction, card, status line — exactly
+               the buy stage's composition. Without this the head pinned to
+               the zone's top while the strip centred alone, opening a dead
+               gap between the sentence and the card it instructs about. */
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
+        .con-reveal__body--drawn { flex: 0 1 auto; }
         /* The fixed reward-scene height is a FULL-BLEED device (it keeps the
            header / stage / air proportions stable across card counts). In the
            workspace the zone already has a stable height, and forcing 42rem
@@ -12594,6 +12602,7 @@ body.con-start-ceremony {
             display: flex;
             align-items: center;
             justify-content: center;
+            gap: .6rem;
             .con-cards__verdict-name { font-size: .95rem; }
         }
         /* The band body carries a hand-rolled `overflow-y: auto` for the

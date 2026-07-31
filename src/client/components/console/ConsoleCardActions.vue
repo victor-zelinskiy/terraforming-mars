@@ -529,6 +529,7 @@ import {backVerbFor, WorkspacePhase, workspacePhaseOf} from '@/client/console/co
 import {
   claimWorkspaceOutcome,
   markWorkspaceOutcomePresenting,
+  workspaceOutcomeBeatPending,
   releaseWorkspaceOutcome,
   workspaceClaimsDrawReveal,
   workspaceOutcomeAdmits,
@@ -868,6 +869,10 @@ export default defineComponent({
      * Derived, never assigned, so it cannot drift from the real state — and
      * it is what B, the command bar and the specs all read.
      */
+    /** Path-watcher mirror: the beat finished (see the outcomeBeatDone watcher). */
+    outcomeBeatDone(): boolean {
+      return workspaceOutcomeState.beatDone;
+    },
     workspacePhase(): WorkspacePhase {
       return workspacePhaseOf({
         open: this.composer !== undefined,
@@ -992,9 +997,26 @@ export default defineComponent({
         if (id !== 0 && this.composer !== undefined &&
             (this.outcomeFlow === undefined || this.outcomeFlow.kind === 'pending')) {
           this.outcomeFlow = {kind: 'draw'};
-          markWorkspaceOutcomePresenting();
+          // The EXECUTION BEAT owes its minimum time from the CONFIRM.
+          // Marking `presenting` here on a fast local answer collapses the
+          // pending zone and CANCELS the commit-delayed beat launch — no
+          // face-down pull at all, then the 2.6 s backstop, then the card
+          // just appears («delta-chip → дилей → карта»). The beat's own
+          // completion marks it instead (the beatDone watcher below); the
+          // pick path already waits the same way (workspaceOutcomeEmbedded
+          // fires only after the teleport hold releases on beatDone).
+          if (!workspaceOutcomeBeatPending()) {
+            markWorkspaceOutcomePresenting();
+          }
         }
       },
+    },
+    /** The beat settled — NOW the claimed draw may present (see above). */
+    outcomeBeatDone(done: boolean) {
+      if (done && this.outcomeFlow?.kind === 'draw' &&
+          workspaceOutcomeState.stage === 'awaiting') {
+        markWorkspaceOutcomePresenting();
+      }
     },
     'revealSignal': {
       immediate: true,

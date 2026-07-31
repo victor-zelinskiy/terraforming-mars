@@ -189,10 +189,15 @@
                   </span>
                 </div>
               </transition-group>
-              <!-- EMBEDDED contextual footer — the focused card's name, the
-                   same status voice the buy stage speaks under its card. -->
+              <!-- EMBEDDED contextual footer — the focused card's name + the
+                   ONE take verb, the buy status line's voice. The verb chip is
+                   deliberate (user-mandated): with several cards it names
+                   exactly which card A takes; the name re-keys with focus. -->
               <div v-if="embedded && drawnUntaken[focusIdx] !== undefined" class="con-reveal__namebar">
                 <span class="con-cards__verdict-name" :key="drawnUntaken[focusIdx].card.name">{{ $t(drawnUntaken[focusIdx].card.name) }}</span>
+                <span class="con-cards__verdict con-cards__verdict--ok">
+                  <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
+                </span>
               </div>
               <div v-if="drawnUntaken.length > 4" class="con-reveal__pager" aria-hidden="true">
                 <span class="con-reveal__pager-b">[</span>
