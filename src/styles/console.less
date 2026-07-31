@@ -4893,43 +4893,23 @@ html.console-mode {
            any opacity above zero the card art reads straight through the work
            surface. The DOM stays MOUNTED — selection, scroll position, filter
            and focus survive by construction, and B hands the card back into its
-           own slot instead of rebuilding the grid.
-           The camera director overrides this INLINE for the length of the
-           reframe (for those ~400 ms the layer IS the card the player chose);
-           `clearProps` on the way out gives the resting truth back. */
+           own slot instead of rebuilding the grid. The GRID ITSELF is never
+           transformed or scaled: only the chosen card and the occlusion bridge
+           move (consoleHandStageMotion), so the cost of the transition does not
+           grow with the hand.
+           The bridge director overrides this INLINE for the length of the
+           phrase (the browse layer is the visible owner of the card until the
+           cover takes it); `clearProps` at the episode's end gives the resting
+           truth back. */
         &--parked {
             opacity: 0;
             visibility: hidden;
             pointer-events: none;
         }
-        /* 2 · DEPTH COLLAPSE — every card EXCEPT the chosen one lets go, in ONE
-           class and one paint, so the cost never grows with the size of the
-           hand. The browse chrome goes with them: a status rail describing a
-           selection the player has already made is noise on the way in. */
-        /* The opacity TRANSITION is declared HERE, never on `.con-hand__slot`
-           itself: the base slot deliberately has none, because the dock→hand
-           reveal releases held slots as an instant snap under still-opaque
-           proxies and a transition there re-creates the cross-fade dip. This
-           class only exists during a descent, where no proxy is in flight. */
-        &--reframing {
-            /* Promoted ONLY for the length of the move: a permanent
-               `will-change` on a layer this large keeps a full-size composited
-               copy alive for the whole time the hand is open, which is exactly
-               the kind of cost the Deck notices and nobody sees. */
-            will-change: transform;
-
-            .con-hand__slot:not(.con-hand__slot--selected),
-            .con-hand__scrollbar,
-            .con-hand__empty,
-            .con-hand__verdictbar {
-                opacity: 0;
-                transition: opacity calc(150ms * var(--motion-scale, 1)) ease;
-            }
-        }
     }
     /* 1 · MECHANICAL COMMIT — the pressed card answers WHERE IT STANDS, before
-       anything in the space moves, so the player sees WHICH card was taken
-       before the surface starts reframing around it. */
+       anything else changes, so the player sees WHICH card was taken while all
+       its neighbours are still fully still. */
     &--staged &__slot--selected {
         transform: scale(1.07);
         z-index: 4;
@@ -4953,8 +4933,6 @@ html.console-mode {
         visibility: visible;
         pointer-events: auto;
     }
-    &--stagepaused &__browse--reframing .con-hand__slot,
-    &--stagepaused &__browse--reframing .con-hand__verdictbar { opacity: 1; }
     &--stagepaused &__slot--selected { transform: scale(1.035); }
     &--stagepaused &__stage {
         opacity: 0;
@@ -4969,6 +4947,55 @@ html.console-mode {
         display: flex;
         min-height: 0;
         z-index: 2;
+    }
+
+    /* ── THE OCCLUSION BRIDGE (consoleHandStageMotion) ────────────────────
+       The near-opaque plane that hides the re-anchor between the hand slot and
+       the play anchor. Created imperatively for the length of one episode.
+       The HOST clips the sweeping plane so nothing ever pokes past the stage
+       area; the PLANE is the material — a deep alloy fall-off with a machined
+       top seam (one paint, no filter — perf-lite safe); the EDGE is the lit
+       frontier that travels with the sweep. */
+    &__bridgehost {
+        position: absolute;
+        inset: 0;
+        z-index: 3;
+        overflow: hidden;
+        border-radius: .5rem;
+        pointer-events: none;
+    }
+    &__bridge {
+        position: absolute;
+        inset: 0;
+        background:
+            radial-gradient(120% 100% at 22% 38%, rgba(26, 42, 62, 0.5) 0%, transparent 58%),
+            linear-gradient(90deg, rgba(150, 200, 240, 0.14) 0%, transparent 4%) no-repeat top left / 100% .06rem,
+            linear-gradient(168deg, rgba(15, 24, 37, 0.988) 0%, rgba(7, 12, 19, 0.995) 100%);
+        box-shadow:
+            inset 0 .06rem 0 rgba(210, 235, 255, 0.05),
+            inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
+    }
+    /* The lit LEADING EDGE — the plane's own left rim: during the sweep it IS
+       the frontier between the two levels, so it needs no per-frame tracking. */
+    &__bridge-edge {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        width: .16rem;
+        background: linear-gradient(180deg, transparent 0%, fade(@con-cyan, 62%) 28%, fade(@con-cyan, 62%) 72%, transparent 100%);
+        box-shadow: 0 0 .9rem fade(@con-cyan, 30%);
+
+        /* A soft bloom trailing the frontier into the covered side. */
+        &::after {
+            content: '';
+            position: absolute;
+            left: 100%;
+            top: 0;
+            bottom: 0;
+            width: 2.4rem;
+            background: linear-gradient(90deg, fade(@con-cyan, 8%) 0%, transparent 100%);
+        }
     }
 
     /* ── the dock ↔ overlay REVEAL transition owns the cards ─────────
@@ -4999,12 +5026,12 @@ html.console-mode {
     }
 
     /* ── the hand SHELF: the region the grid lives in.
-       It carries NO plate of its own any more. The workspace `__frame` is the
-       screen's one plane; a second bordered box inside it was the "content
-       pasted into an old modal" reading — and it competed with the cards,
-       which are the only thing on this screen that should hold the eye. What
-       remains is the faint control-panel texture (one paint, no per-card cost)
-       so the plane still has depth under the cards. ── */
+       It carries NO plate and NO texture of its own. The workspace `__frame`
+       is the screen's one plane — a second bordered box read as "content
+       pasted into an old modal", and the etched control-panel grid that
+       replaced it competed with the cards and made the surface technical
+       where it should be deep and calm. The cards are the only thing on this
+       screen that holds the eye; the plane under them stays clean. ── */
     &__shelf {
         position: relative;
         flex: 1;
@@ -5014,16 +5041,6 @@ html.console-mode {
         gap: .5rem;
         padding: .4rem .3rem;
         overflow: hidden;
-    }
-    &__shelf::before {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background:
-            repeating-linear-gradient(90deg, transparent 0 3.1rem, rgba(130, 170, 210, 0.045) 3.1rem 3.15rem),
-            repeating-linear-gradient(0deg, transparent 0 3.1rem, rgba(130, 170, 210, 0.035) 3.1rem 3.15rem);
-        opacity: 0.32;
-        pointer-events: none;
     }
 
     /* ── the scrolling grid viewport (windowed by the section) ─────────── *
@@ -8690,7 +8707,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     .con-handdock__num { animation: none; transition: none; }
     .con-hand__head,
     .con-hand__verdictbar { animation: none; }
-    .con-hand__browse { transition: none; }
     .con-hand__slot { transition-duration: 1ms; }
 }
 
@@ -16662,8 +16678,9 @@ html.console-mode {
         width: 100%;
         padding: 0 .4rem;
     }
-    /* The card's stable ANCHOR — this is where the camera reframe lands it, so
-       it holds ONE position for the whole level and never re-lays out. */
+    /* The card's stable ANCHOR — the occlusion bridge reveals the card already
+       standing here, so it holds ONE position for the whole level and never
+       re-lays out (the reveal waits for this rect to be still). */
     .con-composer__playcard {
         align-self: center;
         flex: 0 0 auto;

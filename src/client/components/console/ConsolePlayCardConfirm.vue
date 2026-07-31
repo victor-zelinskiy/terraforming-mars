@@ -35,34 +35,36 @@
       <!-- ── Two columns: card · composer ──────────────────────────── -->
       <div class="con-composer__playmain">
         <!-- data-zoom-handoff: the fullscreen inspector's «Разыграть» flies
-             the card INTO this slot (consoleZoomMotion.playZoomHandoff), and
-             `runCardTransfer` lands the hand-slot proxy here on the descent. -->
-        <div class="con-composer__playcard" data-zoom-handoff="play-card" data-unfold-item>
+             the card INTO this slot (consoleZoomMotion.playZoomHandoff).
+             NO cascade marker on the card — the occlusion bridge's sweep
+             reveals it already standing on the anchor; a fade on top of that
+             would be a second, contradictory entrance for the carried object. -->
+        <div class="con-composer__playcard" data-zoom-handoff="play-card">
           <Card v-if="card !== undefined" :card="card" :key="card.name" />
         </div>
 
-        <!-- The two cascade items are the CARD and the DECISION COLUMN — the
-             two things the descent's second reveal surfaces. Never a marker on
-             a nested pair (the column and a row inside it), which would animate
-             the same pixels twice at two speeds. -->
-        <div class="con-composer__playright" data-unfold-item>
+        <!-- `data-unfold-item` marks the WORK-SURFACE GROUPS (summary line,
+             result strip, payment, commit rail, …): they materialize with a
+             short stagger just behind the bridge's sweep, so the surface
+             assembles in reading order instead of arriving in one frame. -->
+        <div class="con-composer__playright">
           <!-- EMBEDDED: the stage's SUPPORTING line — the economics and the
                verdict, close above the controls they judge. Never a second
                page title: the name of this step is already in the one header
                that has been on screen since the player opened the screen. -->
-          <div v-if="embedded" class="con-composer__stagehead">
+          <div v-if="embedded" class="con-composer__stagehead" data-unfold-item>
             <span class="con-composer__paycost">
               {{ $t('Cost') }}: <b>{{ cost }}</b> <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
             </span>
             <span class="con-composer__paytag" :class="statusClass">{{ $t(statusLabel) }}</span>
           </div>
           <ConsoleScrollArea class="con-composer__scroll" content-class="con-composer__scroll-body" ref="scroll">
-            <div v-if="loading" class="con-composer__loading">{{ $t('Loading') }}…</div>
+            <div v-if="loading" class="con-composer__loading" data-unfold-item>{{ $t('Loading') }}…</div>
 
             <!-- ── SUB-STATE: a PREMIUM pick list (card / player / or w/ metadata
                  chips / nested-input target / tabbed target). ─────────── -->
             <template v-else-if="sub !== undefined && (sub.kind === 'list' || sub.kind === 'orNested' || sub.kind === 'tabbed')">
-              <div class="con-composer__sub-title">{{ subTitle }}</div>
+              <div class="con-composer__sub-title" data-unfold-item>{{ subTitle }}</div>
               <div v-for="(item, i) in listItems" :key="item.key"
                    class="con-composer__opt"
                    :class="{
@@ -95,6 +97,7 @@
                    payment editor is open it steps back (dimmed, NOT unmounted,
                    so the column's geometry is untouched). -->
               <div class="con-composer__resulthero"
+                   data-unfold-item
                    :class="{'con-composer__resulthero--muted': payExpanded}">
               <!-- RESULT: variants (selectable) or the single immediate effect. -->
               <div class="con-composer__sub-title con-composer__sub-title--result">{{ $t('Result') }}</div>
@@ -147,7 +150,7 @@
 
               <!-- SILENT-LOSS warnings (verbatim desktop parity): NAME the skipped
                    effect + the magnitude lost, then the reason. -->
-              <div v-for="(w, i) in warningSteps" :key="'w' + i" class="con-composer__warn">
+              <div v-for="(w, i) in warningSteps" :key="'w' + i" class="con-composer__warn" data-unfold-item>
                 <span class="con-composer__warn-glyph" aria-hidden="true">⚠</span>
                 <span class="con-composer__warn-body">
                   <span class="con-composer__warn-head">
@@ -162,7 +165,7 @@
               <!-- Honest post-confirm follow-up (board placement / notes). ONE
                    fixed-height line each: tile icon, the «ДАЛЕЕ» context label,
                    then the sentence. Only the muted constraint tail may clip. -->
-              <div v-for="(n, i) in followUpNotes" :key="'n' + i" class="con-composer__next" :aria-label="n.full">
+              <div v-for="(n, i) in followUpNotes" :key="'n' + i" class="con-composer__next" data-unfold-item :aria-label="n.full">
                 <span v-if="n.tileType !== undefined" class="con-composer__next-tile" :style="tileIconStyle(n.tileType)" aria-hidden="true"></span>
                 <span v-else class="con-composer__next-glyph" aria-hidden="true">›</span>
                 <span class="con-composer__next-label">{{ $t('Next') }}</span>
@@ -171,9 +174,9 @@
               </div>
 
               <!-- DECISIONS: the pre-collected step + tabbed-target rows. -->
-              <div v-if="decisionRows.length > 0" class="con-composer__sub-title con-composer__sub-title--spaced">{{ $t('Choose before playing') }}</div>
+              <div v-if="decisionRows.length > 0" class="con-composer__sub-title con-composer__sub-title--spaced" data-unfold-item>{{ $t('Choose before playing') }}</div>
               <div v-for="row in decisionRows" :key="row.id"
-                   class="con-composer__row"
+                   class="con-composer__row" data-unfold-item
                    :class="{'con-composer__row--focused': focusIdx === row.i, 'con-composer__row--missing': rowMissing(row)}"
                    :ref="focusIdx === row.i ? 'focusedEl' : undefined">
                 <!-- A tabbedTargets row (Virus) — the chosen target or a prompt. -->
@@ -238,12 +241,14 @@
               <ConsolePaymentPanel :view="paymentView"
                                    :mode="payMode"
                                    :focus-unit="payFocusUnit"
-                                   :flash-nonce="payFlashNonce" />
+                                   :flash-nonce="payFlashNonce"
+                                   data-unfold-item />
 
               <!-- The explicit «Разыграть» CTA — a FOCUSABLE row that draws the Ⓐ
                    glyph, so what A does is never ambiguous: A plays ONLY when this
                    row is focused (a pick row's A opens/changes that pick instead). -->
               <div class="con-composer__cta"
+                   data-unfold-item
                    :class="{
                      'con-composer__cta--off': !ctaDisplayReady,
                      'con-composer__cta--ready': ctaDisplayReady,

@@ -1,43 +1,52 @@
 /*
- * HAND STAGE MOTION — the browse ⇄ play choreography of «КАРТЫ В РУКЕ».
+ * HAND STAGE MOTION — the OCCLUSION BRIDGE between «КАРТЫ В РУКЕ» and the
+ * Card Play level.
  *
- * THE PROBLEM THIS SOLVES. The obvious way to carry the chosen card into the
- * play stage is to fly it there. It is also the wrong way: the hand is a GRID,
- * so the card the player picked can be anywhere in it, and a card picked at the
- * far right has to be dragged across the entire viewport. That reads as a
- * widget being transported — mechanical, slow, and worse the further right the
- * card sat, which is exactly the kind of inconsistency a premium transition
- * cannot have.
+ * WHY NOT A FLIGHT, AND WHY NOT A CAMERA. The chosen card can be anywhere in
+ * the grid, so flying it to the play anchor dragged it across however much
+ * viewport happened to lie in between — mechanical, and worse the further
+ * right the card sat. The next attempt transformed the WHOLE browse layer so
+ * the card came to rest on the anchor (a "virtual camera"). That fixed the
+ * distance problem and created three new ones: the handoff between the scaled
+ * grid card and the real hero was a visible micro-jerk (two different render
+ * paths of the same face can never match to the pixel), the return played as a
+ * zoom-out of the entire scene (dozens of cards moving at once reads as the UI
+ * losing its footing), and the cost of the move scaled with the size of the
+ * hand. Both models are gone.
  *
- * THE ANSWER IS TO MOVE THE CAMERA, NOT THE CARD. The whole browse layer is
- * transformed so that the chosen card comes to rest on the play stage's anchor.
- * The card therefore never moves RELATIVE TO ITS OWN SURFACE — the surface
- * reframes around it — and the distance the eye travels is identical whether
- * the card was first or last in the grid. One transform on one layer, which is
- * also why this is cheap: no per-card tween, no proxy, no second render of the
- * hand.
+ * THE BRIDGE. The awkward distance between the slot and the anchor is not
+ * travelled — it is OCCLUDED. A near-opaque premium surface grows out of the
+ * chosen card, covers the work area, and under that cover the re-anchor
+ * happens instantly and invisibly. The bridge then sweeps away to the right,
+ * revealing the card already standing on the play anchor and the work surface
+ * assembling behind the veil's trailing edge. Nothing else on the screen
+ * moves: the grid stays put, the header stays put, and the cost of the
+ * transition is one plane + one group fade, whatever the hand holds.
  *
- * THE PHRASE (order is the whole point):
+ * ENTRY (the phases are the contract, their overlap is the craft):
+ *  1 · CARD COMMIT     — the pressed card answers IN ITS SLOT (CSS `--staged`
+ *                        pulse); everything else stands still.
+ *  2 · HAND ISOLATION  — the other cards and the browse chrome fade out in
+ *                        place. Opacity only; nothing travels.
+ *  3 · BRIDGE OPEN     — the bridge UNFOLDS from the card's own rect
+ *                        (clip-path — the surface visibly belongs to the card).
+ *  4 · HIDDEN RE-ANCHOR— under full cover: grid hidden, play level shown,
+ *                        and the reveal waits for TWO STABLE FRAMES of the
+ *                        hero's rect, so nothing can move after it is seen.
+ *  5 · REVEAL          — the bridge sweeps off to the right (its lit edge is
+ *                        the frontier), uncovering the card first, then the
+ *                        work surface groups materialize with a short stagger.
  *
- *  1. COMMIT — the pressed slot answers the press where it stands. Short, and
- *     it is the only beat before anything moves, so the player knows WHICH card
- *     was taken before the space starts changing.
- *  2. DEPTH COLLAPSE — every other card lets go and is GONE. Not dimmed to a
- *     ghost: a hand grid still legible behind the play surface is the single
- *     loudest "this is a modal over a screen" cue there is.
- *  3. CAMERA REFRAME — the layer translates + scales so the chosen card lands
- *     exactly on the stage's hero rect.
- *  4. HANDOFF — in ONE frame the real hero becomes visible and the browse layer
- *     goes dark. Both are the same card face at the same rect and the same
- *     size, so the swap has nothing to see.
- *  5. CONTEXT UNFOLD — only now does the work surface open, from the card.
+ * RETURN plays the same material backwards: the controls let go, the bridge
+ * sweeps IN from the right until the level is covered, the grid is restored
+ * under the cover (selected card back in its own slot — it never left the
+ * DOM), the bridge FOLDS into that slot and dissolves over the card, and the
+ * rest of the hand fades back in around it.
  *
- * B reverses it exactly: the surface folds, the layer is placed back at the
- * reframed transform with the hero hidden, and it flies home to identity — so
- * the card lands back in its own slot rather than being re-created there.
- *
- * The HEADER is deliberately untouched by all of this. It is the system anchor;
- * only its breadcrumb tail crossfades, and that is the workspace's own doing.
+ * ONE VISUAL OWNER, ALWAYS. Source card → (covered) → play hero → (covered) →
+ * source card. The two representations are never on screen together and the
+ * swap always happens under a fully opaque plane, so identity continuity is a
+ * property of the construction, not of a pixel-perfect alignment.
  */
 
 import {gsap} from 'gsap';
@@ -54,25 +63,34 @@ import {
   descendCascadeOut,
   descendRectOf,
   descendRadiusOf,
-  descendPx,
 } from '@/client/console/surfaceMotion/workspaceDescend';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ───────────────
 
-/** The pressed card acknowledging the press, before anything moves. */
-const COMMIT_MS = 130;
-/** The camera reframing around the chosen card. */
-const CAMERA_MS = 400;
-/** …and flying home on the way back. */
-const CAMERA_BACK_MS = 330;
-/** The work surface opening from the card, and folding back. */
-const UNFOLD_MS = 260;
-const FOLD_MS = 190;
-/** The controls surfacing from inside the opened surface. */
-const CASCADE_MS = 190;
+/* The COMMIT beat has no constant of its own: the pulse is CSS (`--staged`,
+ * ~150 ms) and the timeline BUYS its beat with the offsets below — isolation
+ * starts while the pulse is still landing, the bridge only after it has. */
+/** Everything that is not the chosen card letting go, in place. */
+const ISOLATE_AT_MS = 100;
+const ISOLATE_MS = 150;
+/** The bridge unfolding out of the card's rect. */
+const UNFOLD_AT_MS = 190;
+const UNFOLD_MS = 240;
+/** The bridge sweeping off / in — the reveal and the cover. */
+const SWEEP_OUT_MS = 280;
+const SWEEP_IN_MS = 240;
+/** The bridge folding into the home slot on the way back. */
+const FOLD_MS = 210;
+/** The fold's plate dissolving over the returned card. */
+const BRIDGE_FADE_MS = 130;
+/** The rest of the hand blooming back in around the returned card. */
+const SIBLINGS_IN_MS = 170;
+/** The play controls letting go on B. */
 const CASCADE_OUT_MS = 90;
-/** How long we wait for the teleported composer's hero to exist (frames). */
-const HERO_POLL_FRAMES = 24;
+/** Work-surface groups materializing behind the sweep. */
+const CASCADE_MS = 190;
+/** Stability wait cap, in FRAMES (the wait ends the moment layout settles). */
+const STABLE_FRAMES = 24;
 
 const CARD_KEY = 'hand-card';
 
@@ -84,43 +102,70 @@ export function armHandStageOrigin(rect: {left: number, top: number, width: numb
   armDescendRect(CARD_KEY, rect);
 }
 
-/** The camera transform that carried the card to the anchor — kept so B can
- *  put the layer back exactly there before flying it home. */
-type CameraShot = {x: number, y: number, scale: number, origin: string};
-let camera: CameraShot | undefined;
-
 /**
- * THE INPUT GATE. The phrase owns the pad from the press until the work
- * surface has settled: mid-reframe the composer is mounted and would happily
- * take an A for a CTA the player cannot even see yet, and a second A on the way
- * back would re-descend into a card that is still flying home. Not a
- * `setTimeout` — it is released by the episode's own completion, so a slow
- * frame lengthens the lock instead of opening a hole in it.
+ * THE INPUT GATE. The phrase owns the pad from the press until the surface has
+ * settled: mid-bridge the composer is mounted and would take an A for a CTA
+ * the player cannot see yet, and a second B on the way back would re-enter a
+ * transition already running. A COUNTER, not a boolean: a cancelled episode's
+ * safety release must not unlock a successor episode that is still live.
  */
-let transitioning = false;
+let liveEpisodes = 0;
 
 export function handStageTransitioning(): boolean {
-  return transitioning;
+  return liveEpisodes > 0;
 }
 
-/** The rect the work surface unfolded FROM (the anchored card). */
-let unfoldedFrom: {rect: {left: number, top: number, width: number, height: number}, radius: number | undefined} | undefined;
-
-export function resetHandStageMotion(): void {
-  camera = undefined;
-  unfoldedFrom = undefined;
-  transitioning = false;
-}
-
-/** Wrap an episode so the gate can never be left closed — `guardedDescend`
- *  guarantees `done()` fires exactly once, on completion OR on its safety. */
-function gated(done: () => void): () => void {
-  transitioning = true;
+/** Wrap an episode's `done` so the gate and the cleanup can never be leaked —
+ *  `guardedDescend` fires it exactly once, on completion OR on its safety. */
+function gated(done: () => void, cleanup?: () => void): () => void {
+  liveEpisodes++;
   return () => {
-    transitioning = false;
-    done();
+    liveEpisodes = Math.max(0, liveEpisodes - 1);
+    try {
+      cleanup?.();
+    } finally {
+      done();
+    }
   };
 }
+
+// ── the bridge plane ────────────────────────────────────────────────────────
+
+type Bridge = {host: HTMLElement, plane: HTMLElement};
+let activeBridge: Bridge | undefined;
+
+/** Build the occlusion plane inside the stage wrap. Imperative on purpose —
+ *  it exists only for the length of one episode, like every proxy layer. */
+function createBridge(near: Element): Bridge | undefined {
+  const wrap = near.closest<HTMLElement>('.con-hand__stagewrap');
+  if (wrap === null) {
+    return undefined;
+  }
+  destroyBridge();
+  const host = document.createElement('div');
+  host.className = 'con-hand__bridgehost';
+  const plane = document.createElement('div');
+  plane.className = 'con-hand__bridge';
+  const edge = document.createElement('div');
+  edge.className = 'con-hand__bridge-edge';
+  plane.appendChild(edge);
+  host.appendChild(plane);
+  wrap.appendChild(host);
+  activeBridge = {host, plane};
+  return activeBridge;
+}
+
+function destroyBridge(): void {
+  activeBridge?.host.remove();
+  activeBridge = undefined;
+}
+
+export function resetHandStageMotion(): void {
+  destroyBridge();
+  liveEpisodes = 0;
+}
+
+// ── element resolution ──────────────────────────────────────────────────────
 
 function rootOf(el: Element): HTMLElement | null {
   return el.closest<HTMLElement>('.con-hand');
@@ -130,23 +175,29 @@ function browseOf(el: Element): HTMLElement | null {
   return rootOf(el)?.querySelector<HTMLElement>('.con-hand__browse') ?? null;
 }
 
-/** The card the descent opened from — the camera's subject. */
 function selectedSlotOf(el: Element): HTMLElement | null {
   return rootOf(el)?.querySelector<HTMLElement>('.con-hand__slot--selected') ?? null;
 }
 
-/** The CARD FACE inside a slot / the hero well — rects must compare like for
- *  like, and the slot box carries padding the card face does not. */
+/** The CARD FACE inside a slot / the hero well — rects compare like for like;
+ *  the slot box carries chrome the face does not. */
 function faceOf(el: Element | null): HTMLElement | null {
   return el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
 }
 
-/** The teleported composer's card well (present a flush AFTER this zone). */
+/** The teleported composer's card well (mounts a flush after the zone). */
 function heroWellOf(el: Element): HTMLElement | null {
   return el.querySelector<HTMLElement>('[data-zoom-handoff="play-card"]');
 }
 
-/** The controls that surface from inside the opened surface. */
+/** Everything the HAND ISOLATION fades: every card except the chosen one,
+ *  plus the browse chrome that describes a decision already made. */
+function isolationTargets(browse: HTMLElement): Array<HTMLElement> {
+  return Array.from(browse.querySelectorAll<HTMLElement>(
+    '.con-hand__slot:not(.con-hand__slot--selected), .con-hand__scrollbar, .con-hand__verdictbar, .con-hand__empty'));
+}
+
+/** The work-surface groups that materialize behind the sweep. */
 function cascadeItemsOf(el: Element): Array<HTMLElement> {
   return Array.from(el.querySelectorAll<HTMLElement>('[data-unfold-item]'));
 }
@@ -161,63 +212,42 @@ function noGeometry(el: Element): boolean {
 }
 
 /**
- * Wait for the teleported hero to exist and be measurable. Bounded in FRAMES,
- * not milliseconds: the wait is over as soon as Vue has patched, and the
- * fallback is a plain reveal rather than a stall.
+ * PHASE 4's stability contract: resolve only after the hero's rect has held
+ * still for TWO CONSECUTIVE FRAMES (fonts applied, zoom applied, layout done).
+ * Bounded in frames, not milliseconds — the wait ends the moment Vue and the
+ * layout engine settle, and the cap turns a pathological stall into a reveal
+ * rather than a hang.
  */
-function whenHeroReady(el: Element, then: (well: HTMLElement | null) => void): void {
+function whenStageStable(el: Element, then: () => void): void {
   let frames = 0;
-  const poll = () => {
-    const well = heroWellOf(el);
-    const face = faceOf(well);
-    if (face !== null && face.getBoundingClientRect().width > 8) {
-      then(well);
+  let stable = 0;
+  let last: DOMRect | undefined;
+  const probe = (): HTMLElement | null =>
+    faceOf(heroWellOf(el)) ?? el.querySelector<HTMLElement>('.con-composer--embed');
+  const step = () => {
+    const target = probe();
+    if (target !== null) {
+      const r = target.getBoundingClientRect();
+      const same = last !== undefined &&
+        Math.abs(r.left - last.left) < 0.5 && Math.abs(r.top - last.top) < 0.5 &&
+        Math.abs(r.width - last.width) < 0.5 && Math.abs(r.height - last.height) < 0.5;
+      stable = same ? stable + 1 : 0;
+      last = r;
+      if (stable >= 2 && r.width > 8) {
+        then();
+        return;
+      }
+    }
+    if (++frames >= STABLE_FRAMES) {
+      then();
       return;
     }
-    if (++frames >= HERO_POLL_FRAMES) {
-      then(null);
-      return;
-    }
-    requestAnimationFrame(poll);
+    requestAnimationFrame(step);
   };
-  requestAnimationFrame(poll);
+  requestAnimationFrame(step);
 }
 
-/**
- * Solve the camera: the transform that maps `from` (the card where it sits in
- * the grid) onto `to` (the stage's hero rect).
- *
- * The origin is the card's centre IN THE LAYER'S OWN BOX, so the scale pivots
- * on the card and the translate is then a pure centre-to-centre delta. Doing it
- * the other way round (origin at the layer centre) makes the translate depend
- * on the scale and the card overshoots by exactly the grid's own offset — the
- * bug that makes this kind of transition look "almost right".
- */
-export type CameraBox = {left: number, top: number, width: number, height: number};
-
-export function solveCameraShot(
-  layerBox: CameraBox,
-  from: CameraBox,
-  to: CameraBox,
-): CameraShot | undefined {
-  if (layerBox.width < 1 || from.width < 1 || to.width < 1) {
-    return undefined;
-  }
-  const originX = from.left + from.width / 2 - layerBox.left;
-  const originY = from.top + from.height / 2 - layerBox.top;
-  return {
-    x: (to.left + to.width / 2) - (from.left + from.width / 2),
-    y: (to.top + to.height / 2) - (from.top + from.height / 2),
-    scale: to.width / from.width,
-    origin: `${originX.toFixed(1)}px ${originY.toFixed(1)}px`,
-  };
-}
-
-function solveCamera(layer: HTMLElement, from: DOMRect, to: DOMRect): CameraShot | undefined {
-  return solveCameraShot(layer.getBoundingClientRect(), from, to);
-}
-
-// ── enter (browse → play stage) ─────────────────────────────────────────────
+// ── ENTRY (browse → play level) ─────────────────────────────────────────────
 
 export function handStageEnterHook(el: Element, done: () => void): void {
   if (typeof window === 'undefined' || noGeometry(el)) {
@@ -226,188 +256,234 @@ export function handStageEnterHook(el: Element, done: () => void): void {
     return;
   }
   const browse = browseOf(el);
-  const slot = selectedSlotOf(el);
-  const slotFace = faceOf(slot);
-  const armedRect = takeDescendRect(CARD_KEY);
-  camera = undefined;
+  const slotFace = faceOf(selectedSlotOf(el));
+  const armed = takeDescendRect(CARD_KEY);
 
-  if (consoleReducedMotionActive() || browse === null || slotFace === null) {
-    // No camera to move (or the player asked for none): keep the honest
-    // unfold-from-the-card so the stage still opens FROM somewhere.
-    const fromRect = armedRect ?? descendRectOf(slot);
-    unfoldedFrom = fromRect === undefined ? undefined : {rect: fromRect, radius: descendRadiusOf(slot)};
-    guardedDescend(el, UNFOLD_MS + 160, gated(done), (finish) => {
-      const tl = gsap.timeline({onComplete: finish});
-      if (browse !== null) {
-        gsap.set(browse, {autoAlpha: 0});
-      }
-      if (!descendUnfold(tl, el as HTMLElement, fromRect, s(UNFOLD_MS), 0, descendRadiusOf(slot))) {
-        tl.fromTo(el, {autoAlpha: 0, y: descendPx(10)},
-          {autoAlpha: 1, y: 0, duration: s(CASCADE_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility'}, 0);
-      }
-      return tl;
-    });
+  if (consoleReducedMotionActive() || browse === null) {
+    // Reduced motion: commit → cover-free static anchor change → short reveal.
+    // The `--parked` class hides the grid in the same flush; no space moves.
+    guardedDescend(el, 160, gated(done), (finish) =>
+      gsap.fromTo(el, {autoAlpha: 0}, {autoAlpha: 1, duration: 0.1, ease: 'power1.out', clearProps: 'opacity,visibility', onComplete: finish}));
     return;
   }
 
-  // The stage stays invisible until the camera has landed — the work surface
-  // must not be readable over a hand that is still reframing.
+  // The stage stays invisible until the bridge covers the space, and the
+  // browse layer is taken back from its `--parked` resting truth for exactly
+  // the length of the phrase (inline beats the class; cleanup returns it).
   gsap.set(el, {autoAlpha: 0});
-  // The layer's RESTING truth while a stage is open is «hidden» (the `--parked`
-  // class), because that is what must hold if no episode ever runs. For the
-  // duration of the camera it is the visible representation of the card, so the
-  // director takes it back with an inline override — which beats the class by
-  // construction and is undone by `clearProps` on the way out.
   gsap.set(browse, {autoAlpha: 1});
-  // 1 · COMMIT + 2 · DEPTH COLLAPSE — both are CSS on the layer (one class,
-  // one paint), so the cost does not grow with the size of the hand.
-  browse.classList.add('con-hand__browse--reframing');
 
-  guardedDescend(el, COMMIT_MS + CAMERA_MS + UNFOLD_MS + 420, gated(done), (finish) => {
-    const tl = gsap.timeline({paused: true, onComplete: finish});
-    whenHeroReady(el, (well) => {
-      const heroFace = faceOf(well);
-      const from = slotFace.getBoundingClientRect();
-      const to = heroFace?.getBoundingClientRect();
-      const shot = to === undefined ? undefined : solveCamera(browse, from, to);
-      unfoldedFrom = to === undefined ?
-        undefined :
-        {rect: {left: to.left, top: to.top, width: to.width, height: to.height}, radius: descendRadiusOf(heroFace)};
+  const siblings = isolationTargets(browse);
+  const items = cascadeItemsOf(el);
+  const fromRect = slotFace?.getBoundingClientRect() ?? armed ?? descendRectOf(selectedSlotOf(el));
+  const radius = descendRadiusOf(slotFace);
+  const bridge = createBridge(el);
 
-      if (shot === undefined || well === null) {
-        // Degrade to the plain open rather than to a wrong camera: a solve on
-        // unusable geometry would fling the layer somewhere arbitrary.
-        gsap.set(browse, {autoAlpha: 0});
-        tl.to(el, {autoAlpha: 1, duration: s(CASCADE_MS), ease: 'power2.out'}, 0);
-        descendCascade(tl, cascadeItemsOf(el), s(CASCADE_MS), s(60));
-        tl.play();
-        return;
+  const cleanup = () => {
+    destroyBridge();
+    // The resting truths come back: the browse layer to its `--parked` class,
+    // the siblings to their stylesheet opacity (a pick bridge needs them
+    // LIVE, so inline zeros must never survive the episode), the stage and
+    // the groups to plain visibility.
+    gsap.set(browse, {clearProps: 'opacity,visibility'});
+    if (siblings.length > 0) {
+      gsap.set(siblings, {clearProps: 'opacity,visibility'});
+    }
+    if (items.length > 0) {
+      gsap.set(items, {clearProps: 'opacity,visibility'});
+    }
+    gsap.set(el, {clearProps: 'opacity,visibility'});
+  };
+
+  if (bridge === undefined) {
+    guardedDescend(el, 200, gated(done, cleanup), (finish) =>
+      gsap.fromTo(el, {autoAlpha: 0}, {autoAlpha: 1, duration: 0.12, ease: 'power1.out', onComplete: finish}));
+    return;
+  }
+  gsap.set(bridge.plane, {autoAlpha: 0});
+
+  guardedDescend(el, UNFOLD_AT_MS + UNFOLD_MS + SWEEP_OUT_MS + 900, gated(done, cleanup), (finish) => {
+    const tl = gsap.timeline({onComplete: finish});
+    // 1 · COMMIT — the CSS `--staged` pulse is already playing in the slot;
+    //     the timeline's only job here is to give it its beat.
+    // 2 · ISOLATION — everything that is not the chosen card lets go in place.
+    if (siblings.length > 0) {
+      tl.to(siblings, {autoAlpha: 0, duration: s(ISOLATE_MS), ease: 'power1.out'}, s(ISOLATE_AT_MS));
+    }
+    // 3 · BRIDGE OPEN — the plane unfolds out of the card's own rect.
+    tl.set(bridge.plane, {autoAlpha: 1}, s(UNFOLD_AT_MS));
+    if (!descendUnfold(tl, bridge.plane, fromRect, s(UNFOLD_MS), s(UNFOLD_AT_MS), radius)) {
+      // Unusable geometry: the cover is the CONTRACT, so it materializes in
+      // place instead of unfolding — never skipped.
+      tl.fromTo(bridge.plane, {autoAlpha: 0}, {autoAlpha: 1, duration: s(160), ease: 'power2.out'}, s(UNFOLD_AT_MS));
+    }
+    // 4 · HIDDEN RE-ANCHOR — under full cover: swap the owner, then hold the
+    //     reveal until the hero's rect has been still for two frames.
+    tl.add(() => {
+      gsap.set(browse, {autoAlpha: 0});
+      if (siblings.length > 0) {
+        gsap.set(siblings, {clearProps: 'opacity,visibility'});
       }
-      camera = shot;
-      // The hero is the same card as the one on the layer — only one of them
-      // may be visible at a time, ever.
-      gsap.set(well, {autoAlpha: 0});
-      // 3 · CAMERA REFRAME.
-      tl.to(browse, {
-        x: shot.x, y: shot.y, scale: shot.scale,
-        transformOrigin: shot.origin,
-        duration: s(CAMERA_MS), ease: 'power3.inOut',
-      }, s(COMMIT_MS));
-      // 4 · HANDOFF — one frame, both ends at the same rect.
-      tl.add(() => {
-        gsap.set(well, {autoAlpha: 1});
-        gsap.set(browse, {autoAlpha: 0});
-      });
-      // 5 · CONTEXT UNFOLD — the work surface opens FROM the anchored card.
-      tl.set(el, {autoAlpha: 1});
-      if (!descendUnfold(tl, el as HTMLElement, unfoldedFrom?.rect, s(UNFOLD_MS), '<', unfoldedFrom?.radius)) {
-        tl.fromTo(el, {autoAlpha: 0}, {autoAlpha: 1, duration: s(CASCADE_MS), ease: 'power2.out'}, '<');
+      if (items.length > 0) {
+        gsap.set(items, {autoAlpha: 0});
       }
-      descendCascade(tl, cascadeItemsOf(el), s(CASCADE_MS), '<+=0.06');
-      tl.play();
+      gsap.set(el, {autoAlpha: 1});
     });
+    tl.addPause('+=0.001', () => whenStageStable(el, () => tl.resume()));
+    // 5 · REVEAL — the bridge sweeps off to the right (the lit edge is the
+    //     frontier): the anchored card first, then the work surface, whose
+    //     groups materialize just behind the veil.
+    tl.set(bridge.plane, {clearProps: 'clipPath,webkitClipPath'});
+    tl.to(bridge.plane, {xPercent: 103, duration: s(SWEEP_OUT_MS), ease: 'power2.inOut'});
+    descendCascade(tl, items, s(CASCADE_MS), '<+=0.05', 0.045);
     return tl;
   });
 }
 
-// ── leave (play stage → browse; the CANCEL path) ────────────────────────────
+// ── RETURN (play level → browse; the CANCEL path) ───────────────────────────
 
 export function handStageLeaveHook(el: Element, done: () => void): void {
   if (typeof window === 'undefined' || noGeometry(el)) {
     killDescendEpisode(el);
-    camera = undefined;
-    unfoldedFrom = undefined;
+    destroyBridge();
     done();
     return;
   }
   const browse = browseOf(el);
-  const well = heroWellOf(el);
-  const home = unfoldedFrom;
-  const shot = camera;
-  const items = cascadeItemsOf(el);
-  unfoldedFrom = undefined;
-  camera = undefined;
+  if (browse === null) {
+    killDescendEpisode(el);
+    destroyBridge();
+    done();
+    return;
+  }
+  // FIRST, before this tick can paint: the `--parked` class left with the
+  // stage flag, so without this the whole grid would flash in behind the play
+  // surface for the frame the leave takes to start.
+  gsap.set(browse, {autoAlpha: 0});
 
-  const restoreLayer = () => {
-    if (browse !== null) {
-      browse.classList.remove('con-hand__browse--reframing');
-      gsap.set(browse, {clearProps: 'transform,opacity,visibility,transformOrigin'});
+  const siblings = isolationTargets(browse);
+  const slotFace = faceOf(selectedSlotOf(el));
+  // `visibility: hidden` keeps layout, so the home slot is measurable NOW —
+  // the grid has not moved since entry (input was locked, scroll untouched).
+  const home = slotFace?.getBoundingClientRect();
+  const radius = descendRadiusOf(slotFace);
+  const items = cascadeItemsOf(el);
+
+  const cleanup = () => {
+    destroyBridge();
+    gsap.set(browse, {clearProps: 'opacity,visibility'});
+    if (siblings.length > 0) {
+      gsap.set(siblings, {clearProps: 'opacity,visibility'});
     }
   };
 
-  if (consoleReducedMotionActive() || browse === null || shot === undefined) {
-    guardedDescend(el, 140, gated(done), (finish) => {
-      restoreLayer();
-      return gsap.to(el, {autoAlpha: 0, duration: 0.1, ease: 'power1.in', onComplete: finish});
-    });
+  if (consoleReducedMotionActive()) {
+    guardedDescend(el, 160, gated(done, cleanup), (finish) =>
+      gsap.to(el, {autoAlpha: 0, duration: 0.1, ease: 'power1.in', onComplete: finish}));
     return;
   }
 
-  guardedDescend(el, FOLD_MS + CAMERA_BACK_MS + 300, gated(done), (finish) => {
+  const bridge = createBridge(el);
+  if (bridge === undefined) {
+    guardedDescend(el, 160, gated(done, cleanup), (finish) =>
+      gsap.to(el, {autoAlpha: 0, duration: 0.12, ease: 'power1.in', onComplete: finish}));
+    return;
+  }
+  // The plane waits just off the right edge; its lit left edge is the frontier.
+  gsap.set(bridge.plane, {xPercent: 103});
+
+  guardedDescend(el, SWEEP_IN_MS + FOLD_MS + SIBLINGS_IN_MS + 700, gated(done, cleanup), (finish) => {
     const tl = gsap.timeline({onComplete: finish});
-    // 1 · the controls let go, then the surface folds back into the card.
+    // 1 · RELEASE — the controls let go where they stand.
     descendCascadeOut(tl, items, s(CASCADE_OUT_MS), 0);
-    const folded = descendFold(tl, el as HTMLElement, home?.rect, s(FOLD_MS), s(40), home?.radius);
-    tl.to(el, {autoAlpha: 0, duration: s(folded ? 90 : 110), ease: 'power2.in'}, s(folded ? FOLD_MS - 20 : 0));
-    // 2 · the layer takes the card back at EXACTLY the rect the hero occupies,
-    //     so the object is handed over rather than re-created.
+    // 2 · COVER — the bridge sweeps in from the right over the play surface.
+    tl.to(bridge.plane, {xPercent: 0, duration: s(SWEEP_IN_MS), ease: 'power2.inOut'}, s(40));
+    // 3 · HIDDEN RETURN — under full cover: the play level goes dark and the
+    //     grid comes back with only the chosen card visible, standing in its
+    //     own slot (it never left the DOM, so this is a reveal, not a move).
     tl.add(() => {
-      if (well !== null) {
-        gsap.set(well, {autoAlpha: 0});
+      gsap.set(el, {autoAlpha: 0});
+      if (siblings.length > 0) {
+        gsap.set(siblings, {autoAlpha: 0});
       }
-      gsap.set(browse, {x: shot.x, y: shot.y, scale: shot.scale, transformOrigin: shot.origin, autoAlpha: 1});
+      gsap.set(browse, {autoAlpha: 1});
     });
-    // 3 · the camera flies home; the rest of the hand comes back with it.
-    tl.add(() => browse.classList.remove('con-hand__browse--reframing'));
-    tl.to(browse, {
-      x: 0, y: 0, scale: 1,
-      duration: s(CAMERA_BACK_MS), ease: 'power3.inOut',
-      clearProps: 'transform,opacity,visibility,transformOrigin',
-    });
+    // 4 · FOLD — the bridge collapses into the home slot and dissolves over
+    //     the card: the surface that came out of the card goes back into it.
+    const folded = home !== undefined &&
+      descendFold(tl, bridge.plane, {left: home.left, top: home.top, width: home.width, height: home.height}, s(FOLD_MS), '+=0.03', radius);
+    if (folded) {
+      tl.to(bridge.plane, {autoAlpha: 0, duration: s(BRIDGE_FADE_MS), ease: 'power1.out'}, '-=0.02');
+    } else {
+      tl.to(bridge.plane, {autoAlpha: 0, duration: s(170), ease: 'power1.inOut'}, '+=0.03');
+    }
+    // 5 · HAND REVEAL — the rest of the hand blooms back in around the card.
+    if (siblings.length > 0) {
+      tl.to(siblings, {
+        autoAlpha: 1, duration: s(SIBLINGS_IN_MS), ease: 'power1.out',
+        clearProps: 'opacity,visibility',
+      }, folded ? '-=0.10' : '<');
+    }
     return tl;
   });
 }
 
+// ── cancelled pairs ─────────────────────────────────────────────────────────
+
 export function handStageEnterCancelledHook(el: Element): void {
   killDescendEpisode(el);
+  // Leave the DOM in the entry's END state — the follow-up leave hook owns the
+  // way back from exactly there. (The stale episode's safety still fires its
+  // own cleanup + gate release; the counter keeps the new episode locked.)
+  destroyBridge();
+  const browse = browseOf(el);
+  if (browse !== null) {
+    gsap.set(browse, {autoAlpha: 0});
+    const siblings = isolationTargets(browse);
+    if (siblings.length > 0) {
+      gsap.set(siblings, {clearProps: 'opacity,visibility'});
+    }
+  }
+  gsap.set(el, {autoAlpha: 1});
 }
 
 export function handStageLeaveCancelledHook(el: Element): void {
   killDescendEpisode(el);
-  gsap.set(el, {clearProps: 'clipPath,webkitClipPath,opacity,visibility,transform'});
-  // A cancelled leave means the stage STAYS: the layer must go back to hidden,
-  // or the hand would sit visible underneath the play surface.
+  // A cancelled leave means the stage STAYS: back to the play level's resting
+  // state — surface visible, grid hidden (the `--parked` class is on again).
+  destroyBridge();
+  gsap.set(el, {clearProps: 'clipPath,webkitClipPath,transform'});
+  gsap.set(el, {autoAlpha: 1});
   const browse = browseOf(el);
   if (browse !== null) {
-    browse.classList.add('con-hand__browse--reframing');
     gsap.set(browse, {autoAlpha: 0});
   }
 }
 
 /**
- * THE SECOND REVEAL — kept for hosts that arrive into an already-open zone.
- *
- * The enter hook now waits for the teleported composer itself (it has to, to
- * measure the hero), so on the normal path the cascade is part of the one
- * phrase and this is a no-op. It still matters when the composer re-mounts into
- * a standing stage (a pick bridge coming back), where there is no camera move
- * to hang the reveal on.
+ * THE SECOND REVEAL — for a composer that re-mounts into an ALREADY-OPEN zone
+ * (the way back from a pick bridge). There is no bridge to hang the reveal on,
+ * so the groups get the same short materialize they would have had behind the
+ * sweep. During the initial entry the zone is still dark (autoAlpha 0) and the
+ * enter hook owns everything — this is a deliberate no-op then.
  */
 export function handStageReveal(root: HTMLElement | undefined): void {
   if (root === undefined || typeof window === 'undefined') {
     return;
   }
+  const stage = root.closest<HTMLElement>('.con-hand__stage');
+  if (stage === null) {
+    return;
+  }
   const items = Array.from(root.querySelectorAll<HTMLElement>('[data-unfold-item]'));
-  if (items.length === 0 || root.closest('.con-hand__stage') === null) {
+  if (items.length === 0) {
     return;
   }
   if (consoleReducedMotionActive()) {
     gsap.set(items, {clearProps: 'transform,opacity,visibility'});
     return;
   }
-  // Only when the zone is already settled — otherwise the enter hook owns it.
-  const stage = root.closest<HTMLElement>('.con-hand__stage');
-  if (stage !== null && Number(getComputedStyle(stage).opacity) < 0.9) {
+  if (Number(getComputedStyle(stage).opacity) < 0.9) {
     return;
   }
   const tl = gsap.timeline();

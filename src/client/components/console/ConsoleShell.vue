@@ -2761,11 +2761,12 @@ export default defineComponent({
      *  after a successful play (until the server removes it from the hand).
      *  One physical card never sits in two places at once. */
     stagedHandCard(): CardName | undefined {
-      // INSIDE THE HAND WORKSPACE the grid IS the card for the length of the
-      // camera reframe, and is hidden wholesale the moment the hero takes over.
-      // Holding its slot empty would delete the very object the transition
-      // carries — there is never a frame where both are visible, so the hold
-      // buys nothing and costs the continuity.
+      // INSIDE THE HAND WORKSPACE the slot card IS the transition's visible
+      // owner until the occlusion bridge covers it, and it is the object the
+      // return REVEALS back in place. Holding its slot empty would delete the
+      // very card the phrase is about — and the two representations are never
+      // on screen together (the swap happens under the opaque bridge), so the
+      // hold buys nothing and costs the continuity.
       const staged = workspaceStageOpen('hand') ? undefined : this.pendingPlayCard?.cardName;
       return staged ?? this.returningPlayCard ?? this.departingPlayCard;
     },
@@ -6977,16 +6978,17 @@ export default defineComponent({
       return document.querySelector<HTMLElement>(`.con-hand [data-zoom-slot="${esc}"]`);
     },
     /**
-     * DIRECT play from the hand (A on a playable card) — the CAMERA REFRAME.
+     * DIRECT play from the hand (A on a playable card) — the OCCLUSION BRIDGE.
      *
-     * There is deliberately no proxy flight here any more. The hand is a GRID,
-     * so a `runCardTransfer` had to drag the chosen card across however much
-     * viewport happened to lie between its slot and the play anchor — a card
-     * picked at the far right travelled the whole screen, and the transition
-     * got worse the further right the player looked. `consoleHandStageMotion`
-     * moves the SURFACE around the card instead: the eye travels the same short
-     * distance wherever the card sat, and the card never leaves its own layer,
-     * which is what makes it read as the same object rather than a copy.
+     * No proxy flight and no camera: a flight dragged the card across however
+     * much viewport lay between its slot and the play anchor (worse the
+     * further right it sat), and transforming the whole grid to compensate
+     * made the return a zoom-out of the entire scene. `consoleHandStageMotion`
+     * OCCLUDES the distance instead — a near-opaque plane grows out of the
+     * pressed card, the re-anchor happens invisibly under it, and the plane
+     * sweeps away to reveal the card already standing on the play anchor. The
+     * grid never moves, and the quality of the transition is identical for
+     * every slot in the hand.
      *
      * (The FULLSCREEN entry still uses `playZoomHandoff` — there the card is
      * genuinely somewhere else, on its own layer, and a flight is honest.)
@@ -7017,11 +7019,11 @@ export default defineComponent({
         return;
       }
       const name = pending.cardName;
-      // INSIDE THE HAND WORKSPACE the way back is the camera reversed (the
-      // stage's own leave hook): the layer is put back at the exact rect the
-      // hero occupies, the hero goes dark, and the surface flies home to
-      // identity — so the card SETTLES INTO ITS OWN SLOT rather than being
-      // re-created there, and the shelf comes back with it.
+      // INSIDE THE HAND WORKSPACE the way back is the occlusion bridge
+      // reversed (the stage's own leave hook): the bridge sweeps in over the
+      // play surface, the grid is restored UNDER the cover with the card in
+      // its own slot (it never left the DOM), and the bridge folds into that
+      // slot — so the card is revealed home rather than flown there.
       if (workspaceStageOpen('hand')) {
         this.pendingPlayCard = undefined;
         return;
