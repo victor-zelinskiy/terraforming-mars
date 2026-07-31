@@ -100,26 +100,18 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
   // footer. RB (`KeyE`) is a different verb and leaves the step where it was,
   // which is how an earlier cut bought 14 cards and ran the wallet dry.
   const launch = page.getByText('НАЧАТЬ ПАРТИЮ').first();
-  // Driven by the wizard's OWN counter, never by a fixed number of presses: a
-  // step that takes one extra beat to settle shifts a blind sequence onto the
-  // wrong screen, and the run then starts with an EMPTY hand — which looks
-  // like a broken hand screen and is really a lost boot.
-  const pickedCount = async(): Promise<number> => {
-    const text = await page.locator('.con-start__frame').innerText().catch(() => '');
-    return Number(/Выбрано\s+(\d+)/.exec(text)?.[1] ?? '0');
-  };
   // 1 · CORPORATION — exactly one pick, then advance.
-  for (let i = 0; i < 6 && await pickedCount() < 1; i++) {
-    await key(page, 'Enter', 900);
-  }
+  await key(page, 'Enter', 900);
   await key(page, 'Period', 1700);
-  // 2 · PROJECTS — buy a small, affordable handful (3 M€ each of 36).
-  await page.getByText('стартовые карты для покупки').first().waitFor({timeout: 15_000}).catch(() => {});
-  for (let i = 0; i < 24 && await pickedCount() < buyProjects; i++) {
+  // 2 · PROJECTS — buy a small, affordable handful (3 M€ each of 36). A step
+  // that has hit its own limit swallows A, so the presses are BOUNDED rather
+  // than repeated until a counter says stop: an over-buy would only stall on
+  // «Недостаточно средств», and the hand recovery below covers a short deal.
+  await page.getByText('стартовые карты для покупки').first().waitFor({timeout: 12_000}).catch(() => {});
+  for (let i = 0; i < buyProjects; i++) {
     await key(page, 'Enter', 700);
     await key(page, 'ArrowRight', 260);
   }
-  expect(await pickedCount(), 'starting projects bought').toBeGreaterThanOrEqual(1);
   await key(page, 'Period', 1700);
   // 3 · SUMMARY — the launch is the explicit A CTA.
   for (let i = 0; i < 4 && await launch.count() === 0; i++) {
@@ -140,11 +132,18 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
   const dirs = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
   for (let round = 0; round < 3; round++) {
     for (let i = 0; i < 36 && (await live.count() === 0 || await placement.count() > 0); i++) {
-      if (await quick.count() > 0) {
+      if (await page.locator('.con-zoom').count() > 0) {
+        // The fullscreen viewer's A is «Разыграть» — never walk INTO it.
+        await key(page, 'Escape', 1100);
+      } else if (await quick.count() > 0) {
         await key(page, 'Escape', 1100);
       } else if (await composer.count() > 0) {
+        // CANCEL a play composer, never advance it: X here opens the fullscreen
+        // viewer, and the walk's next blind A on that viewer PLAYS the card.
+        // That is how this spec kept arriving at «КАРТЫ 0/0» with production
+        // already ticked up — the boot had spent the hand it was meant to deal.
         const corpFirst = await page.locator('.con-composer--corpfirst').count() > 0;
-        await key(page, corpFirst ? 'Enter' : 'KeyX', 1600);
+        await key(page, corpFirst ? 'Enter' : 'Escape', 1600);
       } else if (await handSec.count() > 0) {
         // CLOSE the hand — never A. This spec needs the hand to still HOLD the
         // cards it was dealt; a self-healing Enter here plays them, and the
@@ -186,14 +185,22 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
 
 /** RT wheel → A («КАРТЫ»), then let the reveal episode settle. */
 async function openHand(page: Page): Promise<void> {
-  for (let i = 0; i < 4 && await page.locator('.con-hand').count() === 0; i++) {
-    await key(page, 'Period', 600);
+  for (let i = 0; i < 6 && await page.locator('.con-hand').count() === 0; i++) {
+    // Anything standing over the board home eats the gesture — clear it first.
+    if (await page.locator('.con-zoom, .con-quick, .con-composer').count() > 0) {
+      await key(page, 'Escape', 900);
+      continue;
+    }
+    await key(page, 'Period', 700);
     await key(page, 'Enter', 2600);
     // A wheel that stayed open means the commit did not take (a beat was still
     // running when it opened) — close it and try the whole gesture again.
     if (await page.locator('.con-quick').count() > 0) {
       await key(page, 'Escape', 700);
     }
+  }
+  if (await page.locator('.con-hand').count() === 0) {
+    await shoot(page, 'hand-would-not-open');
   }
   await expect(page.locator('.con-hand')).toHaveCount(1);
   await page.waitForTimeout(600);
@@ -215,8 +222,13 @@ async function focusPlayableCard(page: Page): Promise<string> {
   for (let round = 0; round < 3 && await page.locator('.con-hand__slot--playable').count() === 0; round++) {
     await key(page, 'Escape', 1800); // leave the hand
     await key(page, 'Escape', 1500); // restore a deferred prompt, if there is one
-    for (let i = 0; i < 6; i++) {
-      const pending = await page.locator('.con-mandatory, .con-task-host, .con-context__task-kicker').count();
+    // ANSWER whatever came back. The list has to cover every surface a restore
+    // can raise — a corporation's first action arrives as `.con-composer`, and
+    // a narrower list simply walks past it, leaves the window shut and lands
+    // back on a hand where nothing is playable.
+    for (let i = 0; i < 8; i++) {
+      const pending = await page.locator(
+        '.con-mandatory, .con-task-host, .con-context__task-kicker, .con-composer, .con-sheet').count();
       if (pending === 0) {
         break;
       }
@@ -260,8 +272,23 @@ for (const profile of PROFILES) {
       // Eight starting projects: the wallet affords twelve, and a hand this
       // size reliably contains at least one card with no unmet requirement
       // (the descent half of this spec needs a card that can actually be played).
-      await bootGame(page, request, 8, profile.query);
-      await openHand(page);
+      //
+      // BOOTING IS A LOTTERY, THE SCREEN IS NOT. Driving a real game to a live
+      // board through a keyboard walk occasionally loses the deal (a step takes
+      // an extra beat, the walk buys nothing, and the run starts with an empty
+      // hand). That is the HARNESS being unlucky, not this screen being broken,
+      // so a fresh game is dealt rather than failing on a misleading assertion.
+      // A genuine regression still fails: the retry is bounded and the shelf
+      // has to be non-empty before a single assertion runs.
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await bootGame(page, request, 8, profile.query);
+        await openHand(page);
+        if (await page.locator('.con-hand__slot').count() > 0) {
+          break;
+        }
+        await shoot(page, `${profile.tag}-boot-lost-deal-${attempt}`);
+      }
+      await expect(page.locator('.con-hand__slot'), 'a dealt hand to work with').not.toHaveCount(0);
 
       // ── 1 · THE HAND IS A WORKSPACE ────────────────────────────────────
       const hand = page.locator('.con-hand');

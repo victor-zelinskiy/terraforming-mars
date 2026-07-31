@@ -5,9 +5,10 @@
        band, and idles the board's infinite loops underneath. The hand is a
        first-class workspace, not a section that happens to fill the space —
        and the rail is the wallet every play on this screen is paid from.
-       `data-flow` — the EXPLICIT transition state (browse · configure), read
-       by the chrome and by e2e; never inferred from an animation's side
-       effects. -->
+       `data-flow` — the EXPLICIT state of the descent (browse · configure ·
+       picking, the last one being «the stage is claimed but a pick bridge has
+       borrowed the shelf»), read by the chrome and by e2e; never inferred from
+       an animation's side effects. -->
   <div class="con-hand con-hand--grid con-ws"
        :class="{'con-hand--transit': transitHold, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined, 'con-hand--discarding': discarding, 'con-hand--staged': stageOpen, 'con-hand--stagepaused': stagePaused}"
        :data-flow="stageOpen ? (stagePaused ? 'picking' : 'configure') : 'browse'"

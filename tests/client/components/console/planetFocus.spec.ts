@@ -4,7 +4,7 @@ import {
   playPlanetFocusScaleBeat, planetFocusBeatAllowed, qualifiesForPlanetFocus,
   captureGlobalParams, changedGlobalParams, displayGlobalParams,
   registerPlanetFocusParamsSource, resetPlanetFocus, isPlanetFocusEngaged,
-  HeldGlobalParams, PLANET_ARCS_RETURN_MS,
+  HeldGlobalParams, PLANET_ARCS_RETURN_MS, PLANET_FOCUS_EXIT_MS,
 } from '@/client/console/planetFocus';
 import {AdmissionSignals} from '@/client/console/consolePromptAdmission';
 import {GameModel} from '@/common/models/GameModel';
@@ -40,6 +40,9 @@ function quietSignals(over?: Partial<AdmissionSignals>): AdmissionSignals {
     ...over,
   };
 }
+
+/** The exit is fully settled (transition + the module's settle margin). */
+const EXIT_SETTLED_MS = PLANET_FOCUS_EXIT_MS + 200;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -125,10 +128,11 @@ describe('planetFocus — the main-grid placement stage', () => {
 
       beginPlanetFocusExit();
       expect(planetFocusState.phase).to.eq('exit-prep');
-      // rAF/16ms → 'exiting', then the exit settle (~520+60ms) → 'idle'.
+      // rAF/16ms → 'exiting', then the exit settle (the transition + the
+      // module's own margin) → 'idle'.
       await sleep(80);
       expect(planetFocusState.phase).to.eq('exiting');
-      await sleep(700);
+      await sleep(EXIT_SETTLED_MS);
       expect(planetFocusState.phase).to.eq('idle');
       // Temperature moved held → live: the beat is OWED, values still held.
       expect(planetFocusState.beatPending).to.be.true;
@@ -141,7 +145,7 @@ describe('planetFocus — the main-grid placement stage', () => {
       enterPlanetFocus(gameWith({temperature: -20}));
       snapPlanetFocusSettled();
       beginPlanetFocusExit();
-      await sleep(780);
+      await sleep(EXIT_SETTLED_MS);
       expect(planetFocusState.phase).to.eq('idle');
       expect(planetFocusState.beatPending).to.be.false;
       expect(planetFocusState.heldParams).to.be.undefined;
@@ -160,7 +164,7 @@ describe('planetFocus — the main-grid placement stage', () => {
       // The ORIGINAL hold survives the reversal (the chain's one story).
       expect(planetFocusState.heldParams?.temperature).to.eq(-20);
       // The cancelled exit settle must never fire behind the reversal.
-      await sleep(780);
+      await sleep(EXIT_SETTLED_MS);
       expect(planetFocusState.phase).to.not.eq('idle');
     });
   });
@@ -188,7 +192,7 @@ describe('planetFocus — the main-grid placement stage', () => {
       enterPlanetFocus(gameWith({temperature: -20}));
       snapPlanetFocusSettled();
       beginPlanetFocusExit();
-      await sleep(780); // exit-prep → exiting → idle
+      await sleep(EXIT_SETTLED_MS); // exit-prep → exiting → idle
 
       // The planet has landed and the arc band is fading back in: the beat
       // is OWED and HOLDS the foreground, but it may not play yet — a glide

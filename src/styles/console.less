@@ -513,6 +513,15 @@ body.con-zoom-open .con-handdock {
    card must read as SELECTED, not as a different-sized card. The room for it
    is reserved by the layout engine (WS_STAGE_FOCUS_SCALE — the two numbers
    must move together), so the row never re-flows on a d-pad move. */
+:is(.con-cards__strip, .con-composer__beatrow).con-ws-stage-row > .con-cards__slot {
+    /* The ring ARRIVES, it never snaps on. The batch hands over and the focus
+       opens a frame later, so this transition is what the player actually sees
+       as «the card settled and became the selected one» — at the carousel's
+       160ms/ease it read as a kick right after the landing. */
+    transition:
+        transform calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        box-shadow calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
 :is(.con-cards__strip, .con-composer__beatrow).con-ws-stage-row > .con-cards__slot--focused {
     transform: translateY(-.2rem) scale(var(--con-ws-focus-scale, 1.045));
 }
@@ -2585,32 +2594,97 @@ each(@players, {
     padding-bottom: .4rem;
 }
 .con-board--pfocus-anim .con-board__stage > .board-cont {
-    transition: transform calc(var(--pfocus-ms, 520ms) * var(--motion-scale, 1)) var(--pfocus-ease, cubic-bezier(0.22, 0.61, 0.36, 1));
+    transition: transform calc(var(--pfocus-ms, 700ms) * var(--motion-scale, 1)) var(--pfocus-ease, cubic-bezier(0.16, 1, 0.3, 1));
+    /* The planet is a 2.6k-px box carrying a 100px drop-shadow: hint the
+       compositor BEFORE the tween starts, or the first frames pay for the
+       layer promotion — which is exactly where the motion read as jerky. */
+    will-change: transform;
 }
-/* Entering (pfocus + anim together) — a touch longer, the confident
-   "camera moves in" ease; the return keeps the calm standard curve. */
+/* Both directions ride the SAME expo-out curve — a long, soft tail is what
+   makes the landing feel like weight settling instead of a stop. The
+   opening is a touch quicker (the player pressed for it); the landing gets
+   the longer tail (nobody asked for it, so it must not feel abrupt). */
 .con-board--pfocus.con-board--pfocus-anim {
     --pfocus-ms: 640ms;
-    --pfocus-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
-/* The band's fade lives on the BASE selector so it survives the phase
+.con-board--pfocus-anim:not(.con-board--pfocus) {
+    --pfocus-ms: 700ms;
+}
+/* ── the INSTRUMENTS: dematerialize / materialize ────────────────────
+   Not a flat fade — the band answers the planet's own motion. The growing
+   planet PUSHES the instruments out of their orbit (opacity out + a hair of
+   outward scale); the landing planet lets them SETTLE back in (they arrive
+   from slightly outside and close onto their rest positions), in shells:
+   the ring re-forms first, then the ocean band, then the outposts.
+
+   ⚠ WHICH elements may carry the transform is load-bearing: only ones that
+   are ALREADY `position: absolute`, because a transform makes an element
+   the containing block of its absolute children — and every arc digit /
+   chip / off-Mars hex is authored against the board's own coordinate
+   space. `.arc-scale`, `.global-numbers-oceans` and `.board-outer-spaces`
+   qualify; **`.global-numbers` and `.global-numbers-temperature` do NOT**
+   (the latter is the one scale container without `position`), so those
+   carry opacity only and the ring's own boxes do the moving.
+
+   The transitions live on the BASE selectors so they survive the phase
    classes dropping — a transition declared only on a transient class is
-   cancelled (and the value SNAPS) the moment that class goes. This one
-   governs the RETURN: the instruments come back once the planet has
-   landed, which is also why they can never be caught by the clip box. */
+   cancelled (and the value SNAPS) the moment that class goes, which is
+   what turned the whole return into a hard cut. */
 .con-board__stage .global-numbers,
 .con-board__stage .board-outer-spaces {
-    transition: opacity calc(380ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    transition: opacity calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 }
+.con-board__stage .global-numbers .arc-scale,
+.con-board__stage .global-numbers .global-numbers-oceans,
+.con-board__stage .board-outer-spaces {
+    transition: opacity calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
+                transform calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    /* keep-px: the arcs live in the board's own px space — this is the
+       circle centre they are all drawn around, so the scale breathes about
+       the PLANET, never about a box corner. */
+    transform-origin: 300px 301px;
+}
+.con-board__stage .board-outer-spaces {
+    transform-origin: 310px 300px; /* keep-px: the planet centre in board space */
+}
+
+/* LEAVING (the planet opens): pushed outward, gone before the growth can
+   carry them past the stage edge. Nearest shell first. */
 .con-board--pfocus .con-board__stage .global-numbers,
-.con-board--pfocus .con-board__stage .board-outer-spaces,
-.con-board--pfocus-exit .con-board__stage .global-numbers,
-.con-board--pfocus-exit .con-board__stage .board-outer-spaces {
+.con-board--pfocus .con-board__stage .board-outer-spaces {
     opacity: 0;
     pointer-events: none;
-    /* Leaving is FASTER than returning: the band must be gone before the
-       growth carries it past the stage edge. */
-    transition-duration: calc(220ms * var(--motion-scale, 1));
+    transition-duration: calc(300ms * var(--motion-scale, 1));
+    transition-delay: 0ms;
+}
+.con-board--pfocus .con-board__stage .global-numbers .arc-scale,
+.con-board--pfocus .con-board__stage .global-numbers .global-numbers-oceans,
+.con-board--pfocus .con-board__stage .board-outer-spaces {
+    transform: scale(1.035);
+    transition-duration: calc(300ms * var(--motion-scale, 1));
+}
+.con-board--pfocus .con-board__stage .global-numbers .global-numbers-oceans {
+    transition-delay: calc(40ms * var(--motion-scale, 1));
+}
+.con-board--pfocus .con-board__stage .board-outer-spaces {
+    transition-delay: calc(80ms * var(--motion-scale, 1));
+}
+
+/* RETURNING (`exiting` — anim without the focus state): the materialization
+   is DELAYED into the landing, not queued after it: it starts at ~43% of the
+   planet's travel, so the ring is condensing while the disc is still
+   settling, and both come to rest together. The clip box is safe because
+   the reclaimed chrome is still out (see `--pfocus-exit`) and by then the
+   board is nearly back to its overview size. */
+.con-board--pfocus-anim:not(.con-board--pfocus) .con-board__stage .global-numbers,
+.con-board--pfocus-anim:not(.con-board--pfocus) .con-board__stage .global-numbers .arc-scale {
+    transition-delay: calc(300ms * var(--motion-scale, 1));
+}
+.con-board--pfocus-anim:not(.con-board--pfocus) .con-board__stage .global-numbers .global-numbers-oceans {
+    transition-delay: calc(345ms * var(--motion-scale, 1));
+}
+.con-board--pfocus-anim:not(.con-board--pfocus) .con-board__stage .board-outer-spaces {
+    transition-delay: calc(390ms * var(--motion-scale, 1));
 }
 .con-board--pfocus-settled .con-board__stage .global-numbers,
 .con-board--pfocus-settled .con-board__stage .board-outer-spaces {
@@ -2619,9 +2693,17 @@ each(@players, {
 @media (prefers-reduced-motion: reduce) {
     .con-board--pfocus-anim .con-board__stage > .board-cont,
     .con-board__stage .global-numbers,
+    .con-board__stage .global-numbers .arc-scale,
+    .con-board__stage .global-numbers .global-numbers-oceans,
     .con-board__stage .board-outer-spaces,
     .con-board .con-board__stage::before {
         transition: none;
+    }
+    /* …and no residual displacement: the shells rest where they belong. */
+    .con-board--pfocus .con-board__stage .global-numbers .arc-scale,
+    .con-board--pfocus .con-board__stage .global-numbers .global-numbers-oceans,
+    .con-board--pfocus .con-board__stage .board-outer-spaces {
+        transform: none;
     }
 }
 
@@ -13276,11 +13358,22 @@ body.con-start-ceremony {
         .con-reveal__takeflip {
             transform-style: preserve-3d;
             will-change: transform;
+            /* ⚠️ NO `opacity` ON THIS ELEMENT, EVER. Any value below 1 is a
+               GROUPING property: it forces `transform-style: flat` on the very
+               element that declares `preserve-3d`, the children stop being
+               rendered in 3D, and backface culling stops working. The card then
+               renders MIRRORED through the 180° turn instead of showing its
+               back — which is exactly what shipped: the take «flip» was a
+               mirror image of the face, not a card turning over. The «done»
+               dim belongs on the BACK face, which is a flat leaf. */
             &--taking {
                 animation: con-take-turn calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.34, 0.85, 0.3, 1) both;
             }
             &--taken {
                 transform: rotateY(180deg) scale(.92);
+            }
+            &--taking > .con-reveal__flip-back,
+            &--taken > .con-reveal__flip-back {
                 opacity: .82;
             }
         }
@@ -16125,14 +16218,18 @@ html.console-mode {
    3D turn (the bonus flip's own travel, reversed) → the taken rest (a notch
    smaller, slightly deeper — must END exactly on the `--taken` class state
    so the animation→class handoff is invisible). */
+/* ⚠️ TRANSFORM ONLY — no `opacity` keys. An animated opacity below 1 flattens
+   `preserve-3d` on the flip chassis for the whole run, which kills backface
+   culling and turns the card into a MIRROR of its own face. The done-state dim
+   rides the back face instead (see `.con-reveal__takeflip`). */
 @keyframes con-take-turn {
-    0% { transform: translateY(0) scale(1) rotateY(0deg); opacity: 1; }
+    0% { transform: translateY(0) scale(1) rotateY(0deg); }
     /* The press — down and slightly in, no bounce. */
-    16% { transform: translateY(.12rem) scale(.97) rotateY(0deg); opacity: 1; }
+    16% { transform: translateY(.12rem) scale(.97) rotateY(0deg); }
     /* Lifted and turning, the same carried arc the bonus open plays. */
-    54% { transform: translateY(-.55rem) scale(1.01) rotateY(104deg); opacity: .96; }
+    54% { transform: translateY(-.55rem) scale(1.01) rotateY(104deg); }
     /* Laid back down face-down, receding into the done state. */
-    100% { transform: translateY(0) scale(.92) rotateY(180deg); opacity: .82; }
+    100% { transform: translateY(0) scale(.92) rotateY(180deg); }
 }
 @keyframes con-takenmark-in {
     from { opacity: 0; transform: translateX(-50%) translateY(.2rem); }
@@ -16989,15 +17086,21 @@ html.console-mode {
         flex: 1;
         min-height: 0;
     }
-    /* One landing slot per promised card. A calm waiting frame is all it
-       carries — the cards travelling into it ARE the state. */
+    /* One landing slot per promised card — PURE GEOMETRY, drawn as nothing.
+       A visible waiting frame here is a promise of a card that has not arrived
+       (and, while the fit settles, a promise that visibly resizes). The cards
+       travelling in ARE the state; the stage under them stays empty. */
     .con-composer__beatslot {
         width: 320px;  /* keep-px: the px-authored premium face */
         height: 460px; /* keep-px */
-        border-radius: .6rem;
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 20%);
     }
     .con-composer__beatstatus {
+        /* THE SAME SEAM the arriving surface spends between its row and its
+           status line (`.con-reveal__main`'s row-gap). Without it the prepared
+           stage hands the row 10px MORE than the real one gets, the batch lands
+           on slightly larger rects, and the handoff ends with every card
+           sliding those last pixels — read as a jerk right at the settle. */
+        margin-top: .5rem;
         font-size: .9rem;
         font-weight: 700;
         letter-spacing: .06rem;

@@ -268,6 +268,15 @@ export default defineComponent({
         void this.$nextTick(() => this.restoreNormalFraming());
       }
     },
+    /** The band has finished condensing — the board is measurable again, so
+     *  let the deferred calibration pass run now (on a settled scene it is
+     *  a no-op or a sub-pixel nudge; either way nothing is mid-flight). */
+    'planetFocusState.arcsReturning'(now: boolean, was: boolean): void {
+      if (!now && was) {
+        this.calibratePasses = 0;
+        this.scheduleCalibrate();
+      }
+    },
     /**
      * P27: the focused TRACK marker — spotlight ring + the SAME premium
      * ScaleTooltip the mouse hover shows (a synthetic mouseenter fires the
@@ -414,8 +423,12 @@ export default defineComponent({
     calibrate(): void {
       // PLANET FOCUS: the focus fit is deterministic and the transitions
       // make live measurements meaningless — calibration is a normal-mode
-      // instrument only (it resumes when the phase returns to idle).
-      if (this.planetFocusState.phase !== 'idle') {
+      // instrument only. `arcsReturning` extends that ban past the phase:
+      // the band is still CONDENSING there (its boxes are mid-transform), so
+      // a measurement taken then reports a wrong natural box and re-fits the
+      // planet WITHOUT a transition — the hard nudge in the landing's last
+      // frame. It resumes a beat later (the arcsReturning watcher re-arms it).
+      if (this.planetFocusState.phase !== 'idle' || this.planetFocusState.arcsReturning) {
         return;
       }
       const stage = this.$refs.stage as HTMLElement | undefined;

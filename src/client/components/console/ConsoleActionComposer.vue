@@ -1460,6 +1460,19 @@ export default defineComponent({
       this.commitHandle = undefined;
       this.submitting = false;
     },
+    /**
+     * THE PREPARED STAGE RE-SOLVES THE MOMENT ITS SIZE CHANGES. The batch is
+     * armed when the zone opens and re-armed at launch (the answer can firm the
+     * count up in between), and a row that keeps a zoom solved for a different
+     * card count visibly resizes under the player — the «contour that jumps»
+     * before anything has even flown. Only ever BEFORE the first frame of
+     * flight: once the batch is airborne its length is frozen.
+     */
+    beatCount(n: number) {
+      if (n > 0 && this.outcomePendingBeat) {
+        void this.$nextTick(() => this.fitBeatStage());
+      }
+    },
     /** The answer landed — the cards may turn over (mid-flight or on the slot). */
     'workspaceOutcomeState.answerIn'(arrived: boolean) {
       if (arrived) {
@@ -2822,7 +2835,19 @@ export default defineComponent({
         this.beatRowStyle = {};
         // The player may act only now: the real cards own their slots, so a
         // focus ring finally points at something that is there.
-        markWorkspaceOutcomeArrivalDone();
+        //
+        // TWO FRAMES LATER, though: the proxies unmount in this flush, and
+        // opening the gate in the same one puts the card's removal and the
+        // focus emphasis (a scale + lift) in a single frame — the landing then
+        // ends on a visible kick instead of a settle. One frame to paint the
+        // real cards unfocused, one for the transition to have a `from` state,
+        // and the ring eases in on top of a card that is already still.
+        const open = () => markWorkspaceOutcomeArrivalDone();
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(() => requestAnimationFrame(open));
+        } else {
+          open();
+        }
       };
       const proxies = asElements(this.$refs.batchProxies);
       const root = this.$refs.rootEl as HTMLElement | undefined;

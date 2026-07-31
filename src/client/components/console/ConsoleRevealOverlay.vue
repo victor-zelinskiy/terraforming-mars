@@ -561,6 +561,16 @@ export default defineComponent({
       takingIdx: undefined as number | undefined,
       collecting: false,
       /**
+       * The final collection is COMMITTED but not yet measuring: the last
+       * card's turn has ended and the strip is settling for one tick before
+       * `collectTaken` snapshots its exit rects. Input is closed from here, so
+       * the window cannot be pressed into, and it is deliberately a separate
+       * flag from `collecting` — that one dresses the surface for the flight
+       * (`.con-reveal--collecting`), and dressing it a tick early would blink
+       * the taken marks out before anything moves.
+       */
+      collectQueued: false,
+      /**
        * The SHARED stage layout (consoleWsStageLayout) for the embedded strip
        * — the same size / gap / row-shape source the buy pick uses, so
        * «купить» and «получена» present a byte-identical hero. 0 = not measured
@@ -1295,7 +1305,7 @@ export default defineComponent({
       // flight proxies have handed over, the slots under this surface are
       // still empty, and a press there would act on a card that is not there.
       if (this.mode === 'drawn' &&
-          (this.arrivalPending || this.takingIdx !== undefined || this.collecting)) {
+          (this.arrivalPending || this.takingIdx !== undefined || this.collecting || this.collectQueued)) {
         return;
       }
       // L3 = inspect the SOURCE card fullscreen (screen-specific stick). Drawn
@@ -1328,7 +1338,7 @@ export default defineComponent({
       // Navigation is between AVAILABLE cards only; while the batch is still
       // arriving, a take turn plays or the final collection runs, the frame
       // stays where it is (there is nothing under it to move between yet).
-      if (this.arrivalPending || this.takingIdx !== undefined || this.collecting) {
+      if (this.arrivalPending || this.takingIdx !== undefined || this.collecting || this.collectQueued) {
         return;
       }
       const count = this.focusCount;
@@ -1356,7 +1366,7 @@ export default defineComponent({
         // final collection: `taking`/`collecting` absorb EVERY verb, so a
         // near-simultaneous A+B is exactly one transaction by construction.
         if (this.arrivalPending || this.bonusFlipPhase === 'flipping' ||
-            this.takingIdx !== undefined || this.collecting) {
+            this.takingIdx !== undefined || this.collecting || this.collectQueued) {
           return;
         }
         if (action === 'primary') {
@@ -1693,7 +1703,7 @@ export default defineComponent({
      * never double-commit or strand the batch.
      */
     takeInPlace(): void {
-      if (this.takingIdx !== undefined || this.collecting) {
+      if (this.takingIdx !== undefined || this.collecting || this.collectQueued) {
         return;
       }
       const e = this.drawnEvent;
@@ -1732,7 +1742,18 @@ export default defineComponent({
       markCardTaken(e.id, index);
       const left = this.drawnUntaken.length;
       if (left === 0) {
-        this.collectTaken();
+        // THE LAST CARD IS THE COLLECTION, and it must run the way B «Взять
+        // всё» runs it — same function, same DOM.
+        //
+        // B is dispatched from an input handler, so the strip is settled when
+        // it measures the exit slots. This path is dispatched from the turn's
+        // own `animationend`, one state mutation deep: the row has not
+        // re-rendered for the new taken state yet, and `runHandIntake` snapshots
+        // its departure rects SYNCHRONOUSLY. Claiming the flag here (so no
+        // second press can interleave) and measuring on the next tick makes the
+        // two paths identical instead of nearly identical.
+        this.collectQueued = true;
+        void this.$nextTick(() => this.collectTaken());
         return;
       }
       this.focusIdx = Math.max(0, Math.min(takenPos < 0 ? this.focusIdx : takenPos, left - 1));
@@ -1752,8 +1773,10 @@ export default defineComponent({
       }
       const e = this.drawnEvent;
       if (e === undefined) {
+        this.collectQueued = false;
         return;
       }
+      this.collectQueued = false;
       this.collecting = true;
       const entries = e.cards.map((card, index) => ({
         name: card.name,
@@ -1822,7 +1845,7 @@ export default defineComponent({
       // them), already-taken ones join it back side out. One guard window
       // with the per-card take: B during a turn / a second B does nothing.
       if (this.embeddedMulti) {
-        if (this.takingIdx !== undefined || this.collecting) {
+        if (this.takingIdx !== undefined || this.collecting || this.collectQueued) {
           return;
         }
         this.collectTaken();

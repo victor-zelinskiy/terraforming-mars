@@ -72,6 +72,36 @@ cover lift — plays on the enlarged stage. Files:
    runs on `$nextTick` after the class patch so it measures the GROWN
    stage, and the disc's transform transition carries the visible motion.
 
+## The motion, and the four traps that made it feel cheap
+
+The band answers the planet: the growing disc PUSHES the instruments out of
+orbit (opacity out + `scale(1.035)`, nearest shell first); the landing disc
+lets them SETTLE back in, delayed ~300ms into the 700ms travel so both come
+to rest together, in shells (ring → ocean band → outposts). The landing is
+the LONGER of the two moves and both ride an expo-out tail.
+
+- **A transition declared only on a transient class is CANCELLED when that
+  class drops — the value snaps.** That is what turned the whole return
+  into a hard cut. Every transition here lives on a BASE selector; the
+  phase classes only override duration/delay.
+- **A transform may only go on an element that is ALREADY positioned.** It
+  becomes the containing block of its absolute children, and every arc
+  digit / chip / off-Mars hex is authored against the board's coordinate
+  space. `.arc-scale`, `.global-numbers-oceans`, `.board-outer-spaces`
+  qualify; **`.global-numbers` and `.global-numbers-temperature` do not**
+  (the latter is the one scale container without `position`) — those carry
+  opacity only. `transform-origin` is the planet's own centre in board px
+  (`300px 301px`, `310px 300px` — `keep-px`).
+- **Self-calibration is the jerk in the landing's last frame.** It measures
+  the content union and re-fits WITHOUT a transition; run it while the band
+  is still condensing and it reports a wrong natural box. It is gated on
+  `phase === 'idle' && !arcsReturning`, and re-armed by the
+  `arcsReturning` watcher once the scene is measurable again.
+- **The disc is a 2.6k-px box carrying a 100px drop-shadow**, so
+  `will-change: transform` is set for the transition's lifetime — without
+  it the first frames pay for the layer promotion, which is most of what
+  read as "not smooth".
+
 ## The hand dock has THREE poses (and every pair interpolates)
 
 The pack at the bottom centre is part of the same scene, so it answers the
