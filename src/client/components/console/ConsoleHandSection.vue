@@ -1,10 +1,35 @@
 <template>
-  <div class="con-hand con-hand--grid" :class="{'con-hand--transit': transitHold, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined, 'con-hand--discarding': discarding}" :style="rootStyle">
-    <!-- HEADER: title + live counts + the premium tag-filter chips. Button
-         hints live ONLY in the footer command bar — never here. -->
-    <div class="con-hand__header">
+  <!-- `con-ws` — the WORKSPACE-family marker: `.con-root:has(.con-ws)` lifts
+       and rings the player rail while this screen lives (leave transitions
+       included), hides the ДОП.РЕСУРСЫ satellite that would paint into the
+       band, and idles the board's infinite loops underneath. The hand is a
+       first-class workspace, not a section that happens to fill the space —
+       and the rail is the wallet every play on this screen is paid from.
+       `data-flow` — the EXPLICIT transition state (browse · configure), read
+       by the chrome and by e2e; never inferred from an animation's side
+       effects. -->
+  <div class="con-hand con-hand--grid con-ws"
+       :class="{'con-hand--transit': transitHold, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined, 'con-hand--discarding': discarding, 'con-hand--staged': stageOpen, 'con-hand--stagepaused': stagePaused}"
+       :data-flow="stageOpen ? (stagePaused ? 'picking' : 'configure') : 'browse'"
+       :style="rootStyle">
+  <!-- The workspace FRAME — ONE chrome for both presentation states (the card
+       shelf AND the embedded play stage). It is the screen's single plane: the
+       shelf inside it carries no second plate, because a frame inside a frame
+       is exactly what made this screen read as content pasted into an old
+       modal. -->
+  <div class="con-hand__frame">
+    <!-- HEADER: the SHARED workspace header (ConsoleWsHead) — same emblem box,
+         same three type voices, same aux-zone geometry as «Действия карт». Our
+         browse-layer content (counts + tag filters + the mode bars) goes in its
+         default slot; the breadcrumb tail is the component's own. Button hints
+         live ONLY in the footer command bar — never here. -->
+    <ConsoleWsHead class="con-hand__head"
+                   root="Cards in hand"
+                   emblem="cards"
+                   :subject="stage !== undefined ? stage.subject : ''"
+                   :stage="stage !== undefined ? stage.name : ''"
+                   :committed="stage !== undefined && stage.committed">
       <div class="con-hand__head-left">
-        <span class="con-hand__title" v-i18n>Cards in hand</span>
         <span v-if="countText !== ''" class="con-hand__count">{{ countText }}</span>
         <span v-if="!selectActive && playableCount > 0" class="con-hand__playable">{{ $t('Playable now') }}: <b>{{ playableCount }}</b></span>
       </div>
@@ -101,8 +126,15 @@
           <b class="con-hand__salebar-num con-hand__salebar-num--after">{{ selectPayout.current + pickGain }}</b>
         </span>
       </div>
-    </div>
+    </ConsoleWsHead>
 
+    <!-- ── The STAGE WRAP: the BROWSE layer (shelf + status rail) and the
+         embedded stage occupy the same region. Descending recomposes the frame
+         IN PLACE — the browse DOM is only parked, so the selection, the scroll
+         position and the filter survive by construction; nothing is
+         unmounted, nothing remounts on the way back. ── -->
+    <div class="con-hand__stagewrap">
+    <div class="con-hand__browse" ref="browseEl" :class="{'con-hand__browse--parked': stageOpen}">
     <!-- Premium hand SHELF: a smart, virtualized grid. Only the visible rows +
          overscan are rendered, so a big hand pages at 60fps. -->
     <div class="con-hand__shelf">
@@ -209,6 +241,32 @@
          following grid scroll and the focus scale transition live.
          Suppressed while the reveal transition owns the cards (the frame
          would aim at a held-invisible slot). -->
+    </div><!-- /__browse -->
+
+    <!-- ── THE EMBEDDED STAGE — the TELEPORT TARGET the shell's ONE
+         ConsolePlayCardConfirm re-homes into (consoleWorkspaceStage). The very
+         same instance that used to stand as its own band renders HERE, in
+         embedded dress: same captures, same payment, same submit path, same
+         command contract, same zoom routing. A nested second instance would
+         mean two mount points and two contracts to keep in sync — and a static
+         import of a `Card.vue` consumer into a unit-tested component silently
+         zeroes its whole spec file (the chunk `CardHelp.vue` loads cannot
+         resolve under mochapack). One mount, one lifecycle, one input path.
+
+         `data-unfold-surface` is what the descend phrase clips open from the
+         pressed card's rect; it is rendered from the moment the stage OPENS
+         (not when the composer arrives), so the teleport can never resolve
+         against a target that does not exist yet. -->
+    <transition :css="false"
+                @enter="handStageEnterHook" @leave="handStageLeaveHook"
+                @enter-cancelled="handStageEnterCancelledHook" @leave-cancelled="handStageLeaveCancelledHook">
+      <div v-if="stageOpen"
+           class="con-hand__stage"
+           data-unfold-surface
+           data-embed-slot="hand-play"></div>
+    </transition>
+    </div><!-- /__stagewrap -->
+  </div><!-- /__frame -->
   </div>
 </template>
 
@@ -233,6 +291,14 @@
  */
 import {defineComponent, PropType, markRaw} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
+import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
+import {setWorkspaceStageSlot} from '@/client/console/consoleWorkspaceStage';
+import {
+  handStageEnterHook,
+  handStageLeaveHook,
+  handStageEnterCancelledHook,
+  handStageLeaveCancelledHook,
+} from '@/client/console/consoleHandStageMotion';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
@@ -319,9 +385,24 @@ function clampNum(lo: number, hi: number, v: number): number {
   return Math.max(lo, Math.min(hi, v));
 }
 
+/**
+ * THE DESCENT the hand hosts: the player pressed A on a card and the workspace
+ * opened one level deeper around it. The shell owns the flow; the section only
+ * needs to know that it must PARK its browse layer, grow the breadcrumb and
+ * render the stage zone the embedded surface teleports into.
+ */
+export type ConsoleHandStage = {
+  /** The carried card (an i18n key) — the breadcrumb's fixed subject. */
+  subject: string,
+  /** The step's own name (i18n key), handed UP by the embedded surface. */
+  name: string,
+  /** Past the commit boundary — the stage marker goes amber. */
+  committed: boolean,
+};
+
 export default defineComponent({
   name: 'ConsoleHandSection',
-  components: {Card},
+  components: {Card, ConsoleWsHead},
   props: {
     entries: {type: Array as PropType<ReadonlyArray<ConsoleHandEntry>>, required: true},
     index: {type: Number, required: true},
@@ -377,6 +458,23 @@ export default defineComponent({
      * its text.
      */
     underScene: {type: Boolean, default: false},
+    /**
+     * THE OPEN DESCENT (undefined = the browse layer owns the screen). Present
+     * ⇔ the workspace has been entered one level deeper: the header grows its
+     * tail, the shelf parks, and the stage zone renders as the teleport target
+     * for the shell's play composer.
+     */
+    stage: {type: Object as PropType<ConsoleHandStage | undefined>, default: undefined},
+    /**
+     * THE DESCENT IS PAUSED — a pick BRIDGE is out (the composer sent the
+     * player back to this very shelf to choose a card for the play it is
+     * configuring). The stage stays CLAIMED (the zone keeps its slot and the
+     * composer keeps every capture — retracting it here would unmount the
+     * composer and lose the whole configuration), but the shelf must come back
+     * to full strength: it is the picker now, and a parked 7 %-opacity grid is
+     * one the player cannot choose from.
+     */
+    stagePaused: {type: Boolean, default: false},
   },
   data() {
     return {
@@ -392,6 +490,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The workspace has been descended into — the browse layer is parked. */
+    stageOpen(): boolean {
+      return this.stage !== undefined;
+    },
     selected(): CardModel | undefined {
       return this.entries[this.index]?.card;
     },
@@ -565,6 +667,28 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * Publish / retract the TELEPORT TARGET as the stage zone comes and goes.
+     * The consumer depends on this VALUE, not on a `document.querySelector` in
+     * a computed — a computed tracks reactive reads, not the DOM, so it would
+     * never re-run when the node appears, and a teleport whose target does not
+     * exist drops its content on the floor.
+     */
+    stageOpen: {
+      immediate: true,
+      // POST-FLUSH, and that is the whole trick. A `pre` watcher publishes the
+      // selector BEFORE this component has rendered the node it names — and the
+      // shell is our PARENT, so it re-renders first and resolves the teleport
+      // against a target that does not exist yet. Vue then warns and leaves the
+      // content sitting in its original place: the composer appeared BELOW the
+      // command bar, in flow, with the workspace standing empty above it.
+      // Publishing after the DOM update means the node is always there before
+      // anyone can look for it.
+      flush: 'post',
+      handler(on: boolean) {
+        setWorkspaceStageSlot(on ? '[data-embed-slot="hand-play"]' : '');
+      },
+    },
     index() {
       void this.$nextTick(() => this.ensureSelectedVisible());
     },
@@ -580,6 +704,13 @@ export default defineComponent({
     },
   },
   methods: {
+    // The WORKSPACE DESCEND phrase, one level deeper than «Действия карт»'s
+    // (consoleHandStageMotion): the stage unfolds from the pressed card's rect
+    // and folds back into it. Bound as methods so the template stays readable.
+    handStageEnterHook,
+    handStageLeaveHook,
+    handStageEnterCancelledHook,
+    handStageLeaveCancelledHook,
     range(a: number, b: number): Array<number> {
       const out: Array<number> = [];
       for (let i = a; i <= b; i++) {
@@ -848,6 +979,10 @@ export default defineComponent({
     void this.$nextTick(() => this.ensureSelectedVisible());
   },
   beforeUnmount() {
+    // Retract the target HERE, never from the flow side: a stale selector
+    // teleports the next surface into a detached node, and the unmount watcher
+    // does not fire (Vue tears the component down before its watchers run).
+    setWorkspaceStageSlot('');
     this.ro?.disconnect();
     if (this.rafScroll !== undefined) {
       cancelAnimationFrame(this.rafScroll);

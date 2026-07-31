@@ -38,18 +38,32 @@
                in an empty column while the buy case next door had a proper
                heading. The source chip goes: it points at the hero standing
                beside it. -->
-          <header class="con-reveal__head" :class="{'con-reveal__head--embedded': embedded, 'con-ws-stage-head': embedded}">
-            <div v-if="!embedded" class="con-task__kicker">
+          <!-- EMBEDDED: the SHARED stage header component — the title and the
+               live state on ONE row. Two separate rows (heading, then a
+               «ПОЛУЧЕНО N» strip) cost the result stage a whole band of
+               height for two short strings, and the cards paid for it in size.
+               Byte-identical to the buy stage's heading by construction: it is
+               the same component, not a matching rule set. -->
+          <ConsoleWsStageHead v-if="embedded"
+                              class="con-reveal__head con-reveal__head--embedded"
+                              :title="titleText">
+            <template v-if="mode === 'drawn' && drawnEvent !== undefined && drawnEvent.cards.length > 1" #badges>
+              <span class="con-ws-stage-badge">
+                <span class="con-ws-stage-badge__icon resource_icon resource_icon--cards" aria-hidden="true"></span>
+                <span class="con-ws-stage-badge__label">{{ $t('Received') }}</span>
+                <b class="con-ws-stage-badge__num">{{ drawnEvent.cards.length }}</b>
+              </span>
+            </template>
+          </ConsoleWsStageHead>
+          <header v-else class="con-reveal__head">
+            <div class="con-task__kicker">
               <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
               <span>{{ $t(kickerText) }}</span>
             </div>
             <div class="con-reveal__headrow">
               <div class="con-reveal__headmain">
-                <!-- The SHARED embedded primary-heading entity (see the buy
-                     host's title): one class, one styled thing, one profile
-                     ladder — never two look-alike per-host font rules. -->
-                <div class="con-reveal__title" :class="{'con-ws-stage-title': embedded}">{{ titleText }}</div>
-                <div v-if="mode === 'drawn' && !embedded" class="con-reveal__subtitle">
+                <div class="con-reveal__title">{{ titleText }}</div>
+                <div v-if="mode === 'drawn'" class="con-reveal__subtitle">
                   {{ $t('Cards were added from a draw source.') }}
                 </div>
                 <!--
@@ -58,7 +72,7 @@
                   An inspectable (card) source is a button (L3 opens it); a
                   colony / tile source is a plain informational chip.
                 -->
-                <button v-if="mode === 'drawn' && !embedded && sourceChip !== undefined"
+                <button v-if="mode === 'drawn' && sourceChip !== undefined"
                         type="button"
                         class="con-reveal__source-chip"
                         :class="{'con-reveal__source-chip--inspectable': sourceChip.inspectable}"
@@ -73,11 +87,8 @@
                   </span>
                 </button>
               </div>
-              <!-- Compact premium count chip (NEVER a full-width strip).
-                   EMBEDDED single card: hidden — «ПОЛУЧЕНО 1» beside one card
-                   is a mass-batch instrument (the same rule that folds the
-                   buy pickline); a real multi-batch keeps the count. -->
-              <div v-if="mode === 'drawn' && drawnEvent !== undefined && (!embedded || drawnEvent.cards.length > 1)" class="con-reveal__count">
+              <!-- Compact premium count chip (NEVER a full-width strip). -->
+              <div v-if="mode === 'drawn' && drawnEvent !== undefined" class="con-reveal__count">
                 <span class="con-reveal__count-icon resource_icon resource_icon--cards" aria-hidden="true"></span>
                 <span class="con-reveal__count-label">{{ $t('Received') }}</span>
                 <b class="con-reveal__count-num">{{ drawnEvent.cards.length }}</b>
@@ -120,7 +131,7 @@
                      class="con-cards__slot con-start__deal"
                      :style="dealDelay(entry.pos)"
                      :data-zoom-slot="entry.card.name + '#' + entry.index"
-                     :class="{'con-cards__slot--focused': !entry.taken && focusIdx === entry.pos,
+                     :class="{'con-cards__slot--focused': !entry.taken && focusIdx === entry.pos && !arrivalPending,
                               'con-cards__slot--taken': entry.taken}"
                      :ref="!entry.taken && focusIdx === entry.pos ? 'focusedCardSlot' : undefined">
                   <!-- TAKE-IN-PLACE (embedded multi): the slot is a flip
@@ -226,11 +237,19 @@
                    ONE take verb, the buy status line's voice. The verb chip is
                    deliberate (user-mandated): with several cards it names
                    exactly which card A takes; the name re-keys with focus. -->
-              <div v-if="embedded && drawnUntaken[focusIdx] !== undefined" class="con-reveal__namebar con-ws-stage-status">
-                <span class="con-cards__verdict-name" :key="drawnUntaken[focusIdx].card.name">{{ $t(drawnUntaken[focusIdx].card.name) }}</span>
-                <span class="con-cards__verdict con-cards__verdict--ok">
-                  <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
-                </span>
+              <!-- ALWAYS IN LAYOUT once embedded: the bar reserves its fixed
+                   row from the first frame, so the fit engine measures the
+                   true stage chrome and the arrival's end can never reflow the
+                   row. While the batch is still landing only its CONTENT hides
+                   (opacity — never promise a card that has not arrived). -->
+              <div v-if="embedded" class="con-reveal__namebar con-ws-stage-status"
+                   :class="{'con-reveal__namebar--held': arrivalPending || drawnUntaken[focusIdx] === undefined}">
+                <template v-if="drawnUntaken[focusIdx] !== undefined">
+                  <span class="con-cards__verdict-name" :key="drawnUntaken[focusIdx].card.name">{{ $t(drawnUntaken[focusIdx].card.name) }}</span>
+                  <span class="con-cards__verdict con-cards__verdict--ok">
+                    <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
+                  </span>
+                </template>
               </div>
               <div v-if="drawnUntaken.length > 4" class="con-reveal__pager" aria-hidden="true">
                 <span class="con-reveal__pager-b">[</span>
@@ -441,8 +460,9 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {fitRowZoom} from '@/client/console/cardStripFit';
-import {workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
+import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
+import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
+import {workspaceOutcomeArrivalPending, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {
   DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, holdRevealForFollowUp, markAllTaken,
@@ -494,7 +514,7 @@ type StripEntry = {card: CardModel, index: number, pos: number};
 
 export default defineComponent({
   name: 'ConsoleRevealOverlay',
-  components: {Card, ConsoleCardFaceLite, GamepadGlyph, ActionEffectChip},
+  components: {Card, ConsoleCardFaceLite, ConsoleWsStageHead, GamepadGlyph, ActionEffectChip},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     mode: {type: String as PropType<ConsoleRevealMode>, required: true},
@@ -541,12 +561,14 @@ export default defineComponent({
       takingIdx: undefined as number | undefined,
       collecting: false,
       /**
-       * The SHARED row-fit result (cardStripFit.fitRowZoom) for the embedded
-       * strip — the same size source the buy pick uses, so «купить» and
-       * «получена» present a byte-identical hero. 0 = not measured yet (the
-       * ladder fallback renders one frame, then the fit lands).
+       * The SHARED stage layout (consoleWsStageLayout) for the embedded strip
+       * — the same size / gap / row-shape source the buy pick uses, so
+       * «купить» and «получена» present a byte-identical hero. 0 = not measured
+       * yet (the ladder fallback renders one frame, then the fit lands).
        */
       embedFitZoom: 0,
+      /** The solved layout as CSS custom properties (one writer, both hosts). */
+      embedLayoutStyle: {} as Record<string, string>,
       embedFitRetries: 0,
       embedFitScheduled: false,
       stopFitResize: undefined as (() => void) | undefined,
@@ -884,9 +906,22 @@ export default defineComponent({
       // buy pick — see fitEmbeddedStrip). The ladder calc below is only the
       // first-frame fallback until the fit has measured.
       if (this.embedded && this.mode === 'drawn' && this.embedFitZoom > 0) {
-        return {'--con-cards-zoom': this.embedFitZoom.toFixed(3)};
+        return this.embedLayoutStyle;
       }
       return {'--con-cards-zoom': `calc(${this.stripZoom} * var(--con-ui-scale, 1) * var(--con-reveal-zoom-boost, 1) * var(--con-reveal-host-scale, 1))`};
+    },
+    /**
+     * THE BATCH IS STILL ARRIVING — the cards this surface renders are, right
+     * now, physically flying in as proxies over their (held, invisible) real
+     * slots. Interaction opens only when they are all down and handed over:
+     * a focus ring on an empty slot promises a card that is not there, and an
+     * «A Взять» accepted mid-flight is an input race by construction.
+     *
+     * Only meaningful embedded — a standalone reveal is not preceded by the
+     * workspace's arrival at all.
+     */
+    arrivalPending(): boolean {
+      return this.embedded && this.mode === 'drawn' && workspaceOutcomeArrivalPending();
     },
     /** The count class the tv profile keys its per-count boost / gap off. */
     stripCountClass(): string {
@@ -1135,17 +1170,10 @@ export default defineComponent({
           probe === undefined || probe === null || typeof window === 'undefined') {
         return;
       }
-      // The band is OUR OWN box (the embedded root is `flex: 1` in the
-      // workspace's stage zone) — exactly what the buy host measures with
-      // `workBandHeight()`. Measuring the PARENT was the size regression: the
-      // zone reports its pre-unfold height while the stage is still opening,
-      // and without a re-fit the card stayed at that first, small number.
-      const rcs = window.getComputedStyle(root);
-      const bandH = root.clientHeight - (parseFloat(rcs.paddingTop) || 0) - (parseFloat(rcs.paddingBottom) || 0);
       strip.style.setProperty('--con-cards-zoom', '1');
       const slotW = probe.offsetWidth;
       const slotH = probe.offsetHeight;
-      if (slotW <= 0 || slotH <= 0 || bandH <= 0) {
+      if (slotW <= 0 || slotH <= 0 || strip.clientHeight <= 0) {
         // Not laid out yet (mid-teleport / JSDOM) — bounded frame retries.
         strip.style.removeProperty('--con-cards-zoom');
         if (this.embedFitRetries < 20) {
@@ -1159,38 +1187,28 @@ export default defineComponent({
       const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
       const colGap = parseFloat(cs.columnGap) || parseFloat(cs.gap) || 14;
       const availW = strip.clientWidth - padX;
-      // The reveal chrome that shares the zone's vertical band with the row:
-      // frame paddings + the heading (+margin) + the reserved namebar. All
-      // constant-height pieces — nothing here depends on the strip zoom, so
-      // the solve is never circular (the buy fit's exact discipline).
       const ui = conUiScale();
       const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
-      // The stage chrome, MEASURED — the exact counterpart of the buy host's
-      // `modalChromeHeight`: frame paddings + heading (+ its margin) + the
-      // status line (+ the column gap above it) + the rounding headroom. The
-      // two stages wear the SAME chassis mixins, so these numbers match and
-      // the shared formula returns the same zoom for the same band.
-      let chrome = 8 * ui;
-      const frame = strip.closest('.con-reveal__card') as HTMLElement | null;
-      if (frame !== null) {
-        const fcs = window.getComputedStyle(frame);
-        chrome += (parseFloat(fcs.paddingTop) || 0) + (parseFloat(fcs.paddingBottom) || 0);
-        const head = frame.querySelector<HTMLElement>('.con-reveal__head');
-        if (head !== null && head.offsetHeight > 0) {
-          chrome += head.offsetHeight + (parseFloat(window.getComputedStyle(head).marginBottom) || 0);
-        }
-        const namebar = frame.querySelector<HTMLElement>('.con-reveal__namebar');
-        if (namebar !== null && namebar.offsetHeight > 0) {
-          const column = namebar.parentElement;
-          const gap = column !== null ? (parseFloat(window.getComputedStyle(column).rowGap) || 0) : 0;
-          chrome += namebar.offsetHeight + gap;
-        }
-      }
-      const availH = Math.max(200 * ui, bandH - chrome - padY);
+      // THE BUDGET IS THE ROW'S OWN BOX — measured, never reconstructed.
+      //
+      // The chrome used to be ENUMERATED (frame paddings + heading + margin +
+      // status + a column gap + a rounding slack) and an enumeration is only
+      // ever as right as its list: at 4K a wrapper's padding sat outside it,
+      // the fit handed the row 200px it did not have, and the stage overflowed
+      // the column it lives in. The stage is now a strict flex column in which
+      // the ROW is the only flexing part (`flex: 1; min-height: 0`), so its own
+      // height IS what the stage can spend on cards — no list to keep in sync,
+      // and byte-identical to how the buy stage measures its own row.
+      const availH = Math.max(200 * ui, strip.clientHeight - padY);
       const n = Math.max(this.stripEntries.length, 1);
-      const zoom = fitRowZoom({availW, availH, slotW, slotH, n, colGap, ui});
-      strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
-      this.embedFitZoom = zoom;
+      // THE SHARED STAGE LAYOUT: size, focus-safe gap and row shape solved
+      // together (consoleWsStageLayout). The gap is an OUTPUT, not a CSS
+      // constant — that is what stops a focused card's ring from growing over
+      // its neighbour, and what lets a big batch wrap instead of only shrinking.
+      const layout = wsStageLayout({availW, availH, slotW, slotH, n, ui, rowGapPx: colGap});
+      this.embedLayoutStyle = wsStageLayoutStyle(layout);
+      Object.entries(this.embedLayoutStyle).forEach(([k, v]) => strip.style.setProperty(k, v));
+      this.embedFitZoom = layout.zoom;
     },
     // ── RESULT reveal flight (deck → slot + flip; reuses the in-frame director) ──
     /**
@@ -1272,8 +1290,12 @@ export default defineComponent({
       }
       // A take turn / the final collection swallows the stick verbs too — a
       // fullscreen (X/L3) opening over a card mid-turn would zoom a surface
-      // that is about to change under it.
-      if (this.mode === 'drawn' && (this.takingIdx !== undefined || this.collecting)) {
+      // that is about to change under it. The BATCH ARRIVAL absorbs them for
+      // the same reason one level earlier: until every card has landed and the
+      // flight proxies have handed over, the slots under this surface are
+      // still empty, and a press there would act on a card that is not there.
+      if (this.mode === 'drawn' &&
+          (this.arrivalPending || this.takingIdx !== undefined || this.collecting)) {
         return;
       }
       // L3 = inspect the SOURCE card fullscreen (screen-specific stick). Drawn
@@ -1303,9 +1325,10 @@ export default defineComponent({
       if (dir !== 'left' && dir !== 'right') {
         return;
       }
-      // Navigation is between AVAILABLE cards only; while a take turn or the
-      // final collection plays, the frame stays where it is.
-      if (this.takingIdx !== undefined || this.collecting) {
+      // Navigation is between AVAILABLE cards only; while the batch is still
+      // arriving, a take turn plays or the final collection runs, the frame
+      // stays where it is (there is nothing under it to move between yet).
+      if (this.arrivalPending || this.takingIdx !== undefined || this.collecting) {
         return;
       }
       const count = this.focusCount;
@@ -1332,7 +1355,8 @@ export default defineComponent({
         // through the beat). Same swallow for the take-in-place turn and the
         // final collection: `taking`/`collecting` absorb EVERY verb, so a
         // near-simultaneous A+B is exactly one transaction by construction.
-        if (this.bonusFlipPhase === 'flipping' || this.takingIdx !== undefined || this.collecting) {
+        if (this.arrivalPending || this.bonusFlipPhase === 'flipping' ||
+            this.takingIdx !== undefined || this.collecting) {
           return;
         }
         if (action === 'primary') {

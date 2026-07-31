@@ -102,14 +102,35 @@
              watch anyway. A slow server simply leaves the card lying face-down
              on this slot: an honest "being drawn" state, never a fake face and
              never a dead screen. -->
-        <template v-if="outcomePendingBeat">
-          <div class="con-composer__revealslot con-composer__revealslot--beat"
-               ref="beatSlot" data-outcome-item aria-hidden="true"></div>
-          <div class="con-composer__revealstatus" role="status" data-outcome-item>
+        <!-- THE PREPARED STAGE. Not a placeholder: it is the SAME chassis the
+             arriving surface wears (`con-ws-stage-frame / -head / -row /
+             -status`) laid out by the SAME engine (consoleWsStageLayout), with
+             one empty slot per promised card. That is what lets the batch fly
+             straight into its FINAL rects — the handoff to the real cards is a
+             zero-distance cross-over instead of a jump — and it is why the
+             header, the count and the geometry do not move when the surface
+             takes over. -->
+        <div v-if="outcomePendingBeat" class="con-composer__beatstage con-ws-stage-frame"
+             data-outcome-item aria-hidden="true">
+          <ConsoleWsStageHead class="con-composer__beathead" :title="$t(beatTitleKey)">
+            <template v-if="beatCount > 1" #badges>
+              <span class="con-ws-stage-badge">
+                <span class="con-ws-stage-badge__icon resource_icon resource_icon--cards"></span>
+                <span class="con-ws-stage-badge__label">{{ $t('Received') }}</span>
+                <b class="con-ws-stage-badge__num">{{ beatCount }}</b>
+              </span>
+            </template>
+          </ConsoleWsStageHead>
+          <div class="con-cards__strip con-ws-stage-row con-composer__beatrow"
+               ref="beatRow" :style="beatRowStyle">
+            <div v-for="i in beatCount" :key="i" ref="beatSlots"
+                 class="con-cards__slot con-composer__beatslot"></div>
+          </div>
+          <div class="con-composer__beatstatus con-ws-stage-status" role="status">
             <span v-if="beatStalled" class="con-composer__revealstatus-spin" aria-hidden="true"></span>
             <span>{{ $t(beatStalled ? 'Drawing cards…' : 'Card draw') }}</span>
           </div>
-        </template>
+        </div>
       </div>
 
       <div v-else class="con-composer__revealzone" data-outcome-zone>
@@ -429,20 +450,36 @@
            deck pile, travelling into the reveal slot (fixed-position proxy —
            the shared deal chassis; the director owns every transform). ── -->
       <div v-if="revealFlightOn || beatFlightOn" class="con-composer__revealfly" aria-hidden="true">
-        <div class="con-deal-proxy" ref="revealProxy">
+        <!-- DECK-CHECK (Search For Life & co): ONE card, deliberately turned
+             over AFTER it lands — the opening IS the game event there, and
+             that beat is unchanged. -->
+        <div v-if="revealFlightOn" class="con-deal-proxy" ref="revealProxy">
           <div class="con-deal-proxy__flip" ref="revealFlip">
-            <!-- The face is EMPTY until the answer names the card. The beat
-                 flight starts before that exists — which is precisely why it
-                 can start at confirm instead of waiting on the server. -->
             <div class="con-deal-proxy__face">
               <ConsoleCardFaceLite v-if="revealPayload !== undefined" :name="revealPayload.revealed.name" />
-              <ConsoleCardFaceLite v-else-if="beatFaceName !== ''" :name="(beatFaceName as CardName)" />
             </div>
             <div class="con-deal-proxy__back">
               <div class="con-card-back con-card-back--flyer"></div>
             </div>
           </div>
         </div>
+        <!-- THE BATCH: one physical card object per drawn card, from the pile
+             onward. The face is EMPTY until the answer names that card — which
+             is precisely why the flight can start at confirm instead of waiting
+             on the server, and why a late answer opens these very same cards
+             instead of conjuring new ones. -->
+        <template v-else>
+          <div v-for="(face, i) in beatFaces" :key="'bp' + i" class="con-deal-proxy" ref="batchProxies">
+            <div class="con-deal-proxy__flip" ref="batchFlips">
+              <div class="con-deal-proxy__face">
+                <ConsoleCardFaceLite v-if="face !== ''" :name="(face as CardName)" />
+              </div>
+              <div class="con-deal-proxy__back">
+                <div class="con-card-back con-card-back--flyer"></div>
+              </div>
+            </div>
+          </div>
+        </template>
       </div>
 
       <!-- The GAIN beat: on a met condition the earned resource icon flies
@@ -510,7 +547,8 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
-import {markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {actionCommitState, armActionCommit, commitKindForBranch, commitRewardSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
@@ -536,13 +574,34 @@ import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
-import {runActionRevealFlight, runRevealGainFlight, settleRevealProxyOnto, ActionRevealFlightHandle, RevealGainFlightHandle} from '@/client/console/consoleActionRevealMotion';
+import {runActionRevealFlight, runRevealGainFlight, ActionRevealFlightHandle, RevealGainFlightHandle} from '@/client/console/consoleActionRevealMotion';
+import {BatchArrivalHandle, runBatchArrival, settleBatchProxiesOnto} from '@/client/console/consoleBatchArrivalMotion';
+import {resolveCardArrivalMode} from '@/client/console/consoleCardArrival';
+import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
+import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {enterPlayedTableauPick} from '@/client/console/played/playedCategoryView';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {CardType} from '@/common/cards/CardType';
+
+/**
+ * A `v-for` string ref → a dense element array. Vue hands back an array, a
+ * single node or nothing depending on which template branch rendered, and the
+ * batch arrival needs the three parallel ref lists to line up by index; a duck
+ * check rather than `instanceof` because the test runner's DOM is a different
+ * realm.
+ */
+function asElements(ref: unknown): Array<HTMLElement> {
+  const isEl = (el: unknown): el is HTMLElement =>
+    el !== null && typeof el === 'object' &&
+    typeof (el as HTMLElement).getBoundingClientRect === 'function';
+  if (Array.isArray(ref)) {
+    return ref.filter(isEl);
+  }
+  return isEl(ref) ? [ref] : [];
+}
 
 type GroupNode = ActionGroup['nodes'][number];
 type Item = {id: string, kind: 'branch', pos: number} | {id: string, kind: 'choice', choice: ComposerChoice};
@@ -618,7 +677,7 @@ export type ComposerOutcome =
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, GamepadGlyph},
+  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, GamepadGlyph},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -708,11 +767,25 @@ export default defineComponent({
       workspaceOutcomeState,
       /** The EXECUTION BEAT's own deck flight (face-down until the answer). */
       beatFlightOn: false,
-      beatHandle: undefined as ActionRevealFlightHandle | undefined,
-      /** The beat proxy touched down (a still-silent server now shows loading). */
+      beatHandle: undefined as BatchArrivalHandle | undefined,
+      /** The beat proxies touched down (a still-silent server now shows loading). */
       beatLanded: false,
-      /** The card the beat turns over, once the answer names it. */
-      beatFace: '',
+      /**
+       * THE BATCH — one entry per card that is physically coming off the deck,
+       * FROZEN at launch. `''` is an honest unknown face (the card is on its
+       * way, the server has not named it yet); the answer fills the entries in
+       * place, so the very same objects open. Its LENGTH is the batch size and
+       * never changes once the flight has begun — that invariant is what makes
+       * «one card arrived and then multiplied» unrepresentable.
+       */
+      beatFaces: [] as Array<string>,
+      /** The prepared stage's solved geometry (published onto the row). */
+      beatRowStyle: {} as Record<string, string>,
+      /** Bounded re-measure attempts while the stage is still laying out. */
+      beatFitRetries: 0,
+      /** The surface took the zone while cards were still opening — hand over
+       *  the moment the arrival settles (never cut a turn mid-way). */
+      beatHandoffPending: false,
       /** The live flight handle (payload release + abort). */
       revealHandle: undefined as ActionRevealFlightHandle | undefined,
       /** The stored-resource count CAPTURED when the reveal phase opened —
@@ -976,30 +1049,39 @@ export default defineComponent({
     beatStalled(): boolean {
       return this.beatLanded && !workspaceOutcomeState.answerIn;
     },
-    /** The name to paint on the beat proxy's face once it is known. */
-    beatFaceName(): string {
-      return this.beatFace;
-    },
     /**
-     * THE CARD THAT WAS ACTUALLY DRAWN — read off the arriving artifact, never
-     * off `entry.cardName` (that is the ACTING card, and painting it here made
-     * the deck hand the player a second copy of «Союз изобретателей» in flight,
-     * with the real face only appearing after landing).
+     * THE CARDS THAT WERE ACTUALLY DRAWN — read off the arriving artifact,
+     * never off `entry.cardName` (that is the ACTING card, and painting it in
+     * flight made the deck hand the player a second copy of «Союз
+     * изобретателей», with the real face only appearing after landing).
      *
      * Two shapes, because two artifacts can answer a draw:
      *  · a card PICK (buy / keep-some) — the prompt's candidates ARE the cards
      *    the deck turned over;
      *  · a drawn BATCH — the reveal event carries them.
-     * Empty until the answer lands, which is exactly when the face is allowed
-     * to exist (the proxy flies face-down until then).
+     * Empty until the answer lands, which is exactly when the faces are allowed
+     * to exist (the batch flies face-down until then).
      */
-    beatRevealedName(): string {
+    beatRevealedNames(): ReadonlyArray<string> {
       const wf = this.playerView.waitingFor as {cards?: ReadonlyArray<{name: string}>} | undefined;
-      const fromPrompt = wf?.cards?.[0]?.name;
-      if (fromPrompt !== undefined && fromPrompt !== '') {
+      const fromPrompt = (wf?.cards ?? []).map((c) => c.name).filter((n) => n !== '');
+      if (fromPrompt.length > 0) {
         return fromPrompt;
       }
-      return currentRevealEvent()?.cards[0]?.name ?? '';
+      return (currentRevealEvent()?.cards ?? []).map((c) => c.name);
+    },
+    /** How many physical cards the prepared stage reserves a slot for. */
+    beatCount(): number {
+      return this.beatFaces.length;
+    },
+    /**
+     * The prepared stage's own sentence. It is the DRAW's heading, not the
+     * arriving surface's — the surface may turn out to be a buy pick, and
+     * promising «Купить» before the server has said so would be a lie. The
+     * plural follows the count, which is known from the claim.
+     */
+    beatTitleKey(): string {
+      return this.beatCount > 1 ? 'Cards received' : 'Card received';
     },
     /** The outcome stage owns the column (any flavour) — drives the phrase. */
     outcomeStageOn(): boolean {
@@ -1351,13 +1433,21 @@ export default defineComponent({
     outcomePendingBeat(on: boolean) {
       if (on) {
         this.clearBeatDelay();
+        // ARM THE BATCH NOW, not at launch: the prepared stage has to stand
+        // with its N slots from the moment the zone opens, so the layout is
+        // solved and the landing rects exist before anything moves. The launch
+        // re-arms, because the answer may firm the count up in the meantime —
+        // but only ever BEFORE the first frame of flight.
+        this.armBeatBatch();
         this.beatDelayTimer = window.setTimeout(() => {
           this.beatDelayTimer = undefined;
           void this.$nextTick(() => this.beginBeatFlight());
         }, consoleMotionMs(COMMIT_HANDOFF_AT_MS));
       } else {
         this.clearBeatDelay();
-        this.abortBeatFlight();
+        // NOT an abort: the beat is leaving because the real surface has taken
+        // the zone, so the landed cards hand over rather than blink out.
+        this.handOffBeatBatch();
       }
     },
     /**
@@ -1370,11 +1460,13 @@ export default defineComponent({
       this.commitHandle = undefined;
       this.submitting = false;
     },
-    /** The answer landed — the card may turn over (mid-flight or on the slot). */
+    /** The answer landed — the cards may turn over (mid-flight or on the slot). */
     'workspaceOutcomeState.answerIn'(arrived: boolean) {
       if (arrived) {
-        this.beatFace = this.beatRevealedName;
-        this.beatHandle?.notifyPayload();
+        this.syncBeatFaces();
+        // The faces have to EXIST in the DOM before the turn shows them, or
+        // the first readable frame is an empty proxy face.
+        void this.$nextTick(() => this.beatHandle?.notifyPayload());
       }
     },
     outcomeStageOn(on: boolean) {
@@ -2505,74 +2597,180 @@ export default defineComponent({
       this.revealStage = 'pending';
     },
     /**
-     * Pull the card off the HUD pile, face-down, into the beat slot. Reuses
-     * `runActionRevealFlight` verbatim — the same flight the deck-check plays,
-     * built for exactly this: launch without knowing the card, flip when the
-     * payload lands, hold face-down when it doesn't. Nothing new was written
-     * for the draw/buy case.
+     * ARM THE BATCH — freeze, before anything moves, HOW MANY physical cards
+     * are coming and whatever is already known about their faces.
+     *
+     * The count comes from the answer when it is already in (the common case —
+     * the beat is handed off ~460 ms after the confirm, so a healthy server has
+     * usually replied), and otherwise from the claim's `expectedCards`, i.e.
+     * the branch preview's server-computed «gain N cards». Either way it is
+     * fixed HERE: the batch's length is what the slots, the layout and the
+     * focus target are computed from, and nothing may add a card to a flight
+     * that has already begun.
+     */
+    armBeatBatch(): void {
+      const named = this.beatRevealedNames;
+      const count = named.length > 0 ?
+        named.length :
+        Math.max(1, workspaceOutcomeState.expectedCards);
+      this.beatFaces = Array.from({length: count}, (_, i) => named[i] ?? '');
+    },
+    /**
+     * The answer named the cards — fill the faces of the objects ALREADY in
+     * flight. The array's LENGTH never changes: these are the same physical
+     * cards that left the pile, now with identities, which is exactly why a
+     * late answer opens them instead of producing new ones.
+     */
+    syncBeatFaces(): void {
+      const named = this.beatRevealedNames;
+      if (named.length === 0 || this.beatFaces.length === 0) {
+        return;
+      }
+      this.beatFaces = this.beatFaces.map((face, i) => named[i] ?? face);
+    },
+    /**
+     * SOLVE THE PREPARED STAGE — the same geometry engine, over the same kind
+     * of measurement, that the arriving surface will use (`wsStageLayout`), so
+     * the empty slots the batch flies into ARE the rects the real cards will
+     * occupy. Without this the landing would be a guess and the handoff a
+     * visible jump; with it the swap is a zero-distance cross-over.
+     */
+    fitBeatStage(): void {
+      const row = this.$refs.beatRow as HTMLElement | undefined;
+      const probe = row?.querySelector<HTMLElement>('.con-cards__slot');
+      if (row === undefined || row === null || probe === null || probe === undefined ||
+          typeof window === 'undefined') {
+        return;
+      }
+      // Probe protocol (the buy host's, byte for byte): force zoom 1 with a
+      // DIRECT style write, measure the natural slot box synchronously (no
+      // paint happens inside one JS turn), then publish the solved numbers.
+      row.style.setProperty('--con-cards-zoom', '1');
+      const slotW = probe.offsetWidth;
+      const slotH = probe.offsetHeight;
+      const stage = row.closest('.con-composer__beatstage') as HTMLElement | null;
+      if (slotW <= 0 || slotH <= 0 || stage === null) {
+        row.style.removeProperty('--con-cards-zoom');
+        if (this.beatFitRetries < 20) {
+          this.beatFitRetries++;
+          requestAnimationFrame(() => this.fitBeatStage());
+        }
+        return;
+      }
+      this.beatFitRetries = 0;
+      const cs = window.getComputedStyle(row);
+      const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+      const ui = conUiScale();
+      // THE BUDGET IS THE ROW'S OWN BOX — identical discipline to the arriving
+      // surface's own fit (`fitEmbeddedStrip`). The prepared stage wears the
+      // same strict flex column, so the row it hands the batch is measured the
+      // same way the real cards' row will be, and the landing rects are the
+      // rects the real cards take.
+      const layout = wsStageLayout({
+        availW: row.clientWidth - padX,
+        availH: Math.max(200 * ui, row.clientHeight - padY),
+        slotW, slotH, n: Math.max(1, this.beatCount), ui,
+      });
+      const style = wsStageLayoutStyle(layout);
+      Object.entries(style).forEach(([k, v]) => row.style.setProperty(k, v));
+      this.beatRowStyle = style;
+    },
+    /**
+     * THE BATCH ARRIVAL — N cards physically leave the HUD pile, each on its
+     * own trajectory, each into its own prepared slot, opening as they travel.
+     *
+     * The one-card version of this used to fly a single proxy into a single
+     * slot and then let the arriving surface render the whole batch, which is
+     * what read as «one card came and then multiplied». The count, the slots
+     * and the layout are all decided BEFORE the first frame now, so a batch of
+     * N is N objects from the pile onward.
      */
     beginBeatFlight(): void {
       if (this.beatFlightOn) {
         return;
       }
       const root = this.$refs.rootEl as HTMLElement | undefined;
-      const slot = this.$refs.beatSlot as HTMLElement | undefined;
-      if (root === undefined || slot === undefined) {
+      if (root === undefined) {
         // No stage to fly on (JSDOM / torn-down layout): never withhold the
         // outcome behind an animation that cannot run.
         markWorkspaceOutcomeBeatDone();
+        markWorkspaceOutcomeArrivalDone();
         return;
       }
+      this.armBeatBatch();
       this.beatFlightOn = true;
       this.beatLanded = false;
+      this.beatHandoffPending = false;
       // FREEZE the HUD deck counter at its pre-draw value. The server's answer
-      // decrements it the moment it lands, so without this the «−1» chip fires
-      // while the card is still sitting on the pile — the number changes before
-      // anything has physically left, which is the opposite of the causal
-      // story the whole beat exists to tell. Released the instant the card is
-      // visibly out (onFaceShown), so the tick lands ON the separation.
+      // decrements it the moment it lands, so without this the «−N» chip fires
+      // while the cards are still sitting on the pile — the number changes
+      // before anything has physically left, which is the opposite of the
+      // causal story the whole beat exists to tell. Released as the first card
+      // visibly separates, so the tick lands ON the separation.
       holdDeckDisplay(this.playerView.game.deckSize);
       void this.$nextTick(() => {
-        const proxy = this.$refs.revealProxy as HTMLElement | undefined;
-        const flip = this.$refs.revealFlip as HTMLElement | undefined;
-        if (proxy === undefined || flip === undefined) {
-          markWorkspaceOutcomeBeatDone();
-          return;
-        }
-        this.beatHandle = runActionRevealFlight({
-          proxy, flip, slot,
-          // Mid-flip: the face is first visible. The card is no longer "being
-          // drawn" — it has been drawn, and the real surface may take over.
-          onFaceShown: () => {
-            this.beatLanded = true;
-            // The card is out of the pile — the counter may now tell the truth.
-            releaseDeckDisplay();
-          },
-          onSettled: () => {
-            this.beatHandle = undefined;
-            // The landed proxy STAYS. Clearing it here would unmount the card
-            // the moment it finished turning over, leaving the zone empty for
-            // the frame or two before the real surface teleports in — the card
-            // would visibly blink out at the end of its own arrival. It is
-            // released by `abortBeatFlight` when the beat leaves, i.e. once
-            // that surface is actually there to replace it.
-            markWorkspaceOutcomeBeatDone();
-          },
-        });
-        // A server that already answered (the common local case) releases the
-        // turn immediately — the flip then plays right after touchdown.
-        if (workspaceOutcomeState.answerIn) {
-          this.beatFace = this.beatRevealedName;
-          this.beatHandle.notifyPayload();
-        }
+        // The stage must be SOLVED before the slots are measured, or the batch
+        // would aim at a pre-fit geometry and land off its own targets.
+        this.fitBeatStage();
+        void this.$nextTick(() => this.launchBeatBatch());
       });
     },
-    /**
-     * The beat is leaving because the real surface has taken the zone. The
-     * landed proxy does NOT blink out: it travels the last short leg onto the
-     * real card's rect and only then dissolves, so the arrival ends where the
-     * card actually lives instead of teleporting there.
-     */
+    /** Measure the prepared slots and hand the batch to the director. */
+    launchBeatBatch(): void {
+      if (!this.beatFlightOn || this.beatHandle !== undefined) {
+        return;
+      }
+      const proxies = asElements(this.$refs.batchProxies);
+      const flips = asElements(this.$refs.batchFlips);
+      const slots = asElements(this.$refs.beatSlots);
+      const cards = proxies
+        .map((proxy, i) => ({proxy, flip: flips[i]}))
+        .filter((c): c is {proxy: HTMLElement, flip: HTMLElement} => c.flip !== undefined);
+      if (cards.length === 0 || slots.length === 0) {
+        releaseDeckDisplay();
+        markWorkspaceOutcomeBeatDone();
+        markWorkspaceOutcomeArrivalDone();
+        return;
+      }
+      // THE MODE IS SEMANTIC (consoleCardArrival): a deck CHECK is the
+      // deliberate face-down reveal and never comes here; everything else opens
+      // in flight when the faces exist, and waits honestly when they do not.
+      const mode = resolveCardArrivalMode({
+        kinds: workspaceOutcomeState.kinds,
+        dataReady: workspaceOutcomeState.answerIn && this.beatFaces.every((f) => f !== ''),
+      });
+      this.beatHandle = runBatchArrival({
+        cards, slots, mode,
+        // The first card is visibly out of the pile — the counter may now tell
+        // the truth, and the tick lands ON the separation.
+        onDeparted: () => releaseDeckDisplay(),
+        // Every card has touched down. Only from here may a still-silent
+        // server show a loading affordance: before it, the flight IS the state
+        // and a spinner over travelling cards is noise.
+        onLanded: () => {
+          this.beatLanded = true;
+        },
+        onSettled: () => {
+          this.beatHandle = undefined;
+          // The landed proxies STAY. Clearing them here would unmount the
+          // cards the moment they finished turning over, leaving the stage
+          // empty for the frame or two before the real surface teleports in.
+          // They are released by the handoff, i.e. once that surface is
+          // actually there to replace them.
+          markWorkspaceOutcomeBeatDone();
+          if (this.beatHandoffPending) {
+            this.handOffBeatBatch();
+          }
+        },
+      });
+      // A server that already answered (the common local case) releases the
+      // turn immediately — the cards then open on their own trajectories.
+      if (workspaceOutcomeState.answerIn) {
+        this.syncBeatFaces();
+        this.beatHandle.notifyPayload();
+      }
+    },
     /** Cancel a scheduled commit-delayed beat launch (abort / unmount). */
     clearBeatDelay(): void {
       if (this.beatDelayTimer !== undefined) {
@@ -2580,26 +2778,87 @@ export default defineComponent({
         this.beatDelayTimer = undefined;
       }
     },
+    /**
+     * THE HANDOFF — the real surface has taken the zone, so the landed proxies
+     * give way to the real cards.
+     *
+     * It waits for the arrival to have SETTLED. The beat's own safety backstop
+     * can release the gate while a late answer's reveal cascade is still
+     * turning cards over, and cutting a proxy mid-turn would leave a card
+     * edge-on for a frame — the one artefact a card turn may never show.
+     */
+    handOffBeatBatch(): void {
+      if (!this.beatFlightOn) {
+        // NOTHING EVER FLEW — the beat's own safety backstop released the gate
+        // before the flight could launch (a heavy 4K first frame, a torn-down
+        // stage, JSDOM). The player must still be let in: an arrival gate that
+        // only opens on a successful flight turns a missed animation into a
+        // permanently dead stage — no focus ring, no verbs, every press
+        // swallowed. The gate is a courtesy to the animation, never its hostage.
+        markWorkspaceOutcomeArrivalDone();
+        return;
+      }
+      if (this.beatHandle !== undefined) {
+        this.beatHandoffPending = true;
+        return;
+      }
+      this.beatHandoffPending = false;
+      const clear = () => {
+        this.beatFlightOn = false;
+        this.beatLanded = false;
+        this.beatFaces = [];
+        this.beatRowStyle = {};
+        // The player may act only now: the real cards own their slots, so a
+        // focus ring finally points at something that is there.
+        markWorkspaceOutcomeArrivalDone();
+      };
+      const proxies = asElements(this.$refs.batchProxies);
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      if (proxies.length === 0 || root === undefined || typeof window === 'undefined') {
+        clear();
+        return;
+      }
+      // WAIT FOR THE SURFACE. The gate opens the moment the beat is marked
+      // done, but the re-homed presenter is teleported in on a later flush —
+      // querying its cards in this tick finds nothing and the proxies would
+      // simply vanish, which is the blink the whole handoff exists to remove.
+      // The landed proxies cover their own rects meanwhile, so the wait is
+      // invisible; it is bounded so a surface that never comes cannot strand
+      // the flight layer.
+      let frames = 0;
+      const seek = (): void => {
+        if (!this.beatFlightOn) {
+          return;
+        }
+        // The re-homed surface's own cards, in ITS layout order — the batch's
+        // order is the server's order, and both surfaces render it verbatim,
+        // so index i is the same card on both sides.
+        const targets = Array.from(root.querySelectorAll<HTMLElement>(
+          '[data-outcome-zone] :is(.con-cards__slot, .con-reveal__bonus-slot) :is(.card-container, .pcard)'));
+        if (targets.length === 0 && frames < 40) {
+          frames++;
+          requestAnimationFrame(seek);
+          return;
+        }
+        settleBatchProxiesOnto({
+          pairs: proxies.map((proxy, i) => ({proxy, target: targets[i]})),
+          onDone: clear,
+        });
+      };
+      seek();
+    },
+    /** Tear the beat down for good (cancel / unmount / phase abort). */
     abortBeatFlight(): void {
       // Never leave the HUD counter frozen on a beat that ended early.
       releaseDeckDisplay();
       this.beatHandle?.kill();
       this.beatHandle = undefined;
-      const proxy = this.$refs.revealProxy as HTMLElement | undefined;
-      const clear = () => {
-        this.beatFlightOn = false;
-        this.beatLanded = false;
-        this.beatFace = '';
-      };
-      if (proxy === undefined || !this.beatFlightOn) {
-        clear();
-        return;
-      }
-      const root = this.$refs.rootEl as HTMLElement | undefined;
-      // The re-homed surface's own card, wherever it laid it out.
-      const target = root?.querySelector<HTMLElement>(
-        '[data-outcome-zone] :is(.card-container, .pcard)');
-      settleRevealProxyOnto({proxy, target, onDone: clear});
+      this.beatHandoffPending = false;
+      this.beatFlightOn = false;
+      this.beatLanded = false;
+      this.beatFaces = [];
+      this.beatRowStyle = {};
+      markWorkspaceOutcomeArrivalDone();
     },
     /** OK on the shown outcome: the parent marks the reveal seen and returns
      *  the flow to the (refreshed) browse grid. */

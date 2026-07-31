@@ -34,17 +34,27 @@
              action the player just confirmed. The TITLE stays — it is the
              server's instruction («Выберите карты для покупки»), not an
              identity — but demotes to a subtitle under the breadcrumb. -->
-        <header class="con-task__head" :class="{'con-ws-stage-head': embedded}">
-          <div v-if="!embedded" class="con-task__kicker">
+        <!-- EMBEDDED: the SHARED stage header component — the stage's sentence
+             and its live state on ONE row. The drawn reveal renders the very
+             same component, so the two stages are one styled thing (markup,
+             height, hierarchy, profile ladders) rather than two look-alike
+             rule sets that have drifted apart four times already. -->
+        <ConsoleWsStageHead v-if="embedded" class="con-task__head" :title="titleText">
+          <template v-if="embeddedBadges.length > 0" #badges>
+            <span v-for="badge in embeddedBadges" :key="badge.key" class="con-ws-stage-badge"
+                  :class="{'con-ws-stage-badge--warn': badge.warn}">
+              <span class="con-ws-stage-badge__label">{{ badge.label }}</span>
+              <b class="con-ws-stage-badge__num">{{ badge.value }}</b>
+              <i v-if="badge.coin" class="resource_icon resource_icon--megacredits con-ws-stage-badge__coin" aria-hidden="true"></i>
+            </span>
+          </template>
+        </ConsoleWsStageHead>
+        <header v-else class="con-task__head">
+          <div class="con-task__kicker">
             <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
             <span>{{ $t(kickerText) }}</span>
           </div>
-          <!-- `con-ws-stage-title` is the SHARED primary-heading entity of an
-               embedded workspace stage — the drawn reveal's «Получена карта»
-               carries the same class, so both are ONE styled thing (incl. the
-               profile ladders) instead of two look-alike rules that drift. -->
-          <div class="con-task__title"
-               :class="{'con-task__title--embedded': embedded, 'con-ws-stage-title': embedded}">{{ titleText }}</div>
+          <div class="con-task__title">{{ titleText }}</div>
           <!-- Phase note (draft: what happens to the cards you don't keep). -->
           <div v-if="phaseSubtext !== ''" class="con-task__subtext">{{ phaseSubtext }}</div>
           <div v-if="triggerText !== ''" class="con-task__trigger">{{ triggerText }}</div>
@@ -254,7 +264,7 @@
                        class="con-cards__slot"
                        :data-zoom-slot="entry.card.name"
                        :class="{
-                         'con-cards__slot--focused': focusIdx === i && !trayPickBeat,
+                         'con-cards__slot--focused': focusIdx === i && !trayPickBeat && !arrivalPending,
                          'con-cards__slot--picked': isPicked(entry.card.name) && !trayPickBeat,
                          'con-cards__slot--disabled': entry.disabled,
                          'con-cards__slot--dim': cardDimUnpicked && !entry.disabled && !isPicked(entry.card.name),
@@ -281,7 +291,7 @@
                      only its CONTENT hides (opacity — never promise a selection
                      that isn't interactive yet). -->
                 <div v-if="cardEntries.length > 0" class="con-cards__verdictbar"
-                     :class="{'con-cards__verdictbar--held': deal.state.active || trayPickBeat,
+                     :class="{'con-cards__verdictbar--held': deal.state.active || trayPickBeat || arrivalPending,
                               'con-ws-stage-status': embedded}">
                   <div v-if="focusedCardEntry !== undefined" class="con-cards__verdict-inner">
                     <!-- Only the NAME re-keys on a d-pad move (a one-shot settle,
@@ -299,7 +309,15 @@
                          compete. What earns its place beside the card is what the
                          bar cannot say: the card's own economics. -->
                     <template v-else-if="embedded">
-                      <template v-if="embeddedSingleBuy">
+                      <!-- The aggregate SHORTFALL outranks the economics: it is
+                           the one thing that stops the decision, and now that
+                           the header is a single row this line is where the
+                           embedded stage states things. -->
+                      <span v-if="isBuyMode && picks.length > 0 && !cardBuyAffordable"
+                            class="con-cards__verdict con-cards__verdict--blocked">
+                        <span aria-hidden="true">⚠</span><span>{{ buyShortfallText }}</span>
+                      </span>
+                      <template v-else-if="embeddedSingleBuy">
                         <!-- «Покупка: 3», not «Цена карты»: the card face already
                              wears its PRINTED cost badge, and a second «price of
                              the card» beside it read as a contradiction — this
@@ -438,9 +456,11 @@ import {playerResourceValue} from '@/client/components/modalInputs/playerResourc
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {fitRowZoom} from '@/client/console/cardStripFit';
+import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
+import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import {rememberCardBrowserPicks, recallCardBrowserPicks, clearCardBrowserPicks} from '@/client/console/consoleRouter';
 import {consoleTaskSummary} from '@/client/console/consoleTaskSummary';
-import {setWorkspaceOutcomePhase, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
+import {setWorkspaceOutcomePhase, workspaceOutcomeArrivalPending, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {TargetImpact, TargetImpactChange} from '@/common/models/TargetImpactModel';
 import TagComponent from '@/client/components/Tag.vue';
@@ -546,7 +566,7 @@ const RESOURCE_FIELD: Record<string, {stock: string, production: string}> = {
 
 export default defineComponent({
   name: 'ConsoleTaskHost',
-  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel},
+  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel, ConsoleWsStageHead},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     task: {type: Object as PropType<ConsoleTask>, required: true},
@@ -746,6 +766,52 @@ export default defineComponent({
     embeddedSingleBuy(): boolean {
       return this.embedded && this.activeTask.kind === 'cardSelect' &&
         this.isBuyMode && this.cardEntries.length === 1;
+    },
+    /**
+     * The embedded stage's live state as compact HEADER BADGES — the same
+     * visual entity the drawn reveal's «ПОЛУЧЕНО N» is, on the same row as the
+     * title. It used to be a second full row under the heading, which cost the
+     * result stage a whole band of height that the cards then paid for.
+     *
+     * The COUNT of badges is constant per mode (never 2 then 3), so a d-pad
+     * move or a pick can't change the header's shape under the player.
+     * Selection rules are the previous pickline's, unchanged: one revealed
+     * card offered for purchase folds them away entirely (its economics live
+     * on the card's own status line), a plain single pick has nothing to count.
+     */
+    embeddedBadges(): Array<{key: string, label: string, value: string, warn: boolean, coin: boolean}> {
+      if (!this.embedded || this.activeTask.kind !== 'cardSelect' ||
+          this.embeddedSingleBuy || (this.singlePick && !this.isBuyMode)) {
+        return [];
+      }
+      const out: Array<{key: string, label: string, value: string, warn: boolean, coin: boolean}> = [];
+      if (!this.singlePick) {
+        out.push({
+          key: 'selected',
+          label: translateText('Selected'),
+          value: this.cardMax > 0 ? `${this.picks.length}/${this.cardMax}` : `${this.picks.length}`,
+          warn: false,
+          coin: false,
+        });
+      }
+      if (this.isBuyMode) {
+        out.push({
+          key: 'purchase',
+          label: translateText('Purchase'),
+          value: `−${this.buyTotal}`,
+          warn: !this.cardBuyAffordable,
+          coin: true,
+        });
+        const spent = this.picks.length > 0 && this.cardBuyAffordable;
+        out.push({
+          key: 'wallet',
+          label: translateText(spent ? 'After purchase' : 'You have'),
+          value: `${spent ? this.megacreditsAfterPurchase : this.megacreditsOnHand}`,
+          warn: false,
+          coin: true,
+        });
+      }
+      return out;
     },
     warningTexts(): Array<string> {
       const warnings = (this.wf as {warnings?: ReadonlyArray<string>} | undefined)?.warnings ?? [];
@@ -1185,6 +1251,12 @@ export default defineComponent({
       if (this.deal.state.active || this.trayPickBeat) {
         return [{control: 'confirm', label: 'Skip'}];
       }
+      // The workspace's batch is still landing: the stage advertises NOTHING
+      // yet. A verb on the bar while the slots are empty is a promise the
+      // stage cannot keep, and the input path swallows it anyway.
+      if (this.arrivalPending) {
+        return [];
+      }
       const confirm = {control: 'secondary' as GlyphControl, label: this.confirmLabel, enabled: this.confirmReady};
       const defer = {control: 'back' as GlyphControl, label: this.nested !== undefined ? 'Back' : this.deferLabel};
       // The select → confirm contract (A picks, X commits) every arm-then-confirm
@@ -1294,6 +1366,18 @@ export default defineComponent({
     /** A hero pick flight is live — input skips it, chrome stays quiet. */
     trayPickBeat(): boolean {
       return this.draftTrayState.pickActive || this.draftTrayState.processing;
+    },
+    /**
+     * THE BATCH IS STILL ARRIVING (embedded only). The cards this stage renders
+     * are physically flying in as proxies over their held, invisible slots, so
+     * interaction opens only when they are all down and handed over — a focus
+     * ring on an empty slot promises a card that is not there, and a press
+     * accepted mid-flight is an input race by construction. Exactly the
+     * `deal.state.active` rule the standalone stage has always applied to its
+     * own cinematic, for the workspace's.
+     */
+    arrivalPending(): boolean {
+      return this.embedded && workspaceOutcomeArrivalPending();
     },
   },
   watch: {
@@ -1468,6 +1552,13 @@ export default defineComponent({
       // can act on cards that aren't interactive yet.
       if (this.deal.state.active) {
         this.deal.skip();
+        return;
+      }
+      // The workspace's BATCH ARRIVAL is the same rule one level out: the cards
+      // are still flying in over these slots, so every verb is absorbed until
+      // they have landed and handed over. Absorbed, not queued — a press the
+      // player made at an empty stage must not fire on whatever lands there.
+      if (this.arrivalPending) {
         return;
       }
       if (intent.kind === 'nav') {
@@ -1938,10 +2029,29 @@ export default defineComponent({
       // branches so the modal always closes inside the visible play area.
       const availH = Math.max(200 * s, this.workBandHeight() - this.modalChromeHeight(strip, s) - padY);
       if (!grid) {
-        // The SHARED row-fit formula (cardStripFit) — the drawn reveal derives
-        // its embedded card size from the same function, so «купить» and
-        // «получена» present a byte-identical hero. Fills the vertical band
-        // too (TV: a few buy cards must not float small in an empty modal).
+        if (this.embedded) {
+          // EMBEDDED: the SHARED STAGE LAYOUT (consoleWsStageLayout) — the
+          // drawn reveal solves its stage with the very same function, so
+          // «купить» and «получена» present a byte-identical hero, gap and row
+          // shape. The gap is an OUTPUT here (focus-safe by construction), and
+          // a large batch may wrap instead of only shrinking.
+          //
+          // The BUDGET is this row's own box, not the work band minus an
+          // enumerated chrome list: the embedded stage is a strict flex column
+          // whose row is the only flexing part, so its height IS what the stage
+          // can spend — the same number, measured the same way, on both stages.
+          const layout = wsStageLayout({
+            availW,
+            availH: Math.max(200 * s, strip.clientHeight - padY),
+            slotW, slotH, n, ui: s, rowGapPx: rowGap,
+          });
+          Object.entries(wsStageLayoutStyle(layout))
+            .forEach(([k, v]) => strip.style.setProperty(k, v));
+          return;
+        }
+        // STANDALONE: the historical row fit (cardStripFit) — the full-bleed
+        // band is a different box with its own tuned chrome, and it is not
+        // part of the workspace-stage parity contract.
         const zoom = fitRowZoom({availW, availH, slotW, slotH, n, colGap, ui: s});
         strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
         return;

@@ -313,8 +313,17 @@ html.con-profile-tv {
     }
 
     /* ═══ 7 · HAND SECTION ════════════════════════════════════════ */
+    /* THE SHARED WORKSPACE HEADER — one couch-distance ladder for every
+       workspace line, published where the profile lives so the hand and
+       «Действия карт» can never read at two sizes on the same TV. */
+    .con-wshead {
+        &__root { font-size: 1.35rem; }
+        &__subject { font-size: 1.35rem; }
+        &__step { font-size: .95rem; }
+        &__context { font-size: 1.05rem; }
+        &__emblem { width: 1.45rem; height: 1.45rem; }
+    }
     .con-hand {
-        &__title { font-size: 1.3rem; }
         &__count { font-size: var(--con-t-secondary); }
         &__playable { font-size: 0.95rem; }
         &__reason { font-size: var(--con-t-body); }
@@ -354,13 +363,29 @@ html.con-profile-tv {
        player differently sized heroes (they did: the full-bleed reveal's own
        TV ladder spent 55px more chrome here). Written compound so they beat
        BOTH per-component TV ladders; the values are the buy stage's. */
-    .con-task.con-ws-stage-frame,
-    .con-reveal__card.con-ws-stage-frame { padding: 1.1rem 1.4rem .8rem; }
-    .con-task__head.con-ws-stage-head,
-    .con-reveal__head.con-ws-stage-head { margin-bottom: .45rem; }
-    .con-cards__strip.con-ws-stage-row { gap: .7rem; padding: 3.4rem .8rem 1.4rem; }
+    /* THE SHARED HEADING at 4K. It used to reach 1.8rem only on the buy stage,
+       because `html.con-profile-tv .con-task__title` out-specified the shared
+       class and the drawn reveal (which never carried `.con-task__title`) was
+       left on the 1.3rem base — the two stages had drifted again, at the one
+       profile this fork actually targets. Now the LADDER names the shared class
+       too, so there is one heading voice and one place to change it. */
+    .con-ws-stage-title { font-size: var(--con-t-title); }
+    .con-ws-stage-badge {
+        font-size: var(--con-t-caption);
+        &__num { font-size: var(--con-t-secondary); }
+    }
+    :is(.con-task, .con-reveal__card, .con-composer__beatstage).con-ws-stage-frame { padding: .9rem 1.2rem .6rem; }
+    :is(.con-task__head, .con-reveal__head, .con-composer__beathead).con-ws-stage-head { margin-bottom: .3rem; min-height: 2rem; }
+    /* The COLUMN gap stays the solved, focus-safe one (consoleWsStageLayout) —
+       a flat `gap` here would silently overwrite it and put the focus ring back
+       over the neighbouring card. Only the padding is a profile decision. */
+    :is(.con-cards__strip, .con-composer__beatrow).con-ws-stage-row {
+        row-gap: var(--con-ws-stage-rowgap, .7rem);
+        padding: 1.6rem .8rem .8rem;
+    }
     .con-cards__verdictbar.con-ws-stage-status,
-    .con-reveal__namebar.con-ws-stage-status { height: 2.7rem; }
+    .con-reveal__namebar.con-ws-stage-status,
+    .con-composer__beatstatus.con-ws-stage-status { height: 2.4rem; }
     /* The hand grid's focused card + its state band get the same headroom. */
     .con-hand__pad { padding-top: 1.6rem; }
     /* The TV rules panel beside the hero card (Этап 1-R2): a full reading

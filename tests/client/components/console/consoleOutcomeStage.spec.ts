@@ -59,6 +59,10 @@ describe('ConsoleActionComposer — the EMBEDDED outcome stage', () => {
 
   it('PENDING: the zone stands from submit time — it is the teleport target, and it narrates the beat', async () => {
     const w = factory();
+    // The workspace claims what it is about to produce in the SAME tick it
+    // opens the pending stage (that is the real submit path) — and the claim
+    // is what carries HOW MANY cards are coming.
+    claimWorkspaceOutcome('card-actions', 'AI Central', ['draw', 'pick'], 0, 2);
     await w.setProps({outcome: {kind: 'pending'}});
     await w.vm.$nextTick();
 
@@ -67,12 +71,19 @@ describe('ConsoleActionComposer — the EMBEDDED outcome stage', () => {
     expect(w.find('[data-embed-slot="workspace-reveal"]').exists()).to.eq(true);
     expect(workspaceOutcomeState.embedSlot).to.eq('[data-embed-slot="workspace-reveal"]');
     // The beat NAMES the stage; it does not apologise for a wait. The loading
-    // affordance appears only once the card has landed and the server is still
-    // silent — the flight itself is the state until then.
-    expect(w.find('.con-composer__revealstatus').text()).to.contain('Card draw');
+    // affordance appears only once the cards have landed and the server is
+    // still silent — the flight itself is the state until then.
+    expect(w.find('.con-composer__beatstatus').text()).to.contain('Card draw');
     expect(w.find('.con-composer__revealstatus-spin').exists()).to.eq(false);
-    // The landing slot the deck flight aims at is standing.
-    expect(w.find('.con-composer__revealslot--beat').exists()).to.eq(true);
+    // THE PREPARED STAGE: one landing slot per promised card, in the SAME
+    // chassis the arriving surface wears — that is what lets the batch fly
+    // straight to its final rects instead of guessing them.
+    expect(w.find('.con-composer__beatstage').exists()).to.eq(true);
+    expect(w.findAll('.con-composer__beatslot').length).to.eq(2);
+    // …and the count comes from the CLAIM's promise (this branch gains 2),
+    // so a slow server still gets N separate cards rather than one that
+    // multiplies on arrival.
+    expect(w.find('.con-ws-stage-head').exists()).to.eq(true);
     // The decision column yielded.
     expect(w.find('.con-composer__ctadock').exists()).to.eq(false);
     w.unmount();
@@ -86,8 +97,8 @@ describe('ConsoleActionComposer — the EMBEDDED outcome stage', () => {
     await w.vm.$nextTick();
 
     expect(w.find('[data-embed-slot="workspace-reveal"]').exists()).to.eq(true);
-    // The beat's own slot + status yield to the re-homed content.
-    expect(w.find('.con-composer__revealslot--beat').exists()).to.eq(false);
+    // The prepared stage yields to the re-homed content.
+    expect(w.find('.con-composer__beatstage').exists()).to.eq(false);
     w.unmount();
   });
 

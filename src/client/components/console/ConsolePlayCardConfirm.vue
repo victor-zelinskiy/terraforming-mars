@@ -4,30 +4,58 @@
        CONFIRM path is untouched: the played-hero scene owns that beat
        (armed → flight → landing), our leave only plays on the eventual
        unmount / cancel. -->
-  <div class="con-composer con-composer--play con-ws" :class="{'con-composer--submitting': submitting}" role="dialog" :aria-label="titleText" data-motion-surface="play-composer">
+  <!-- EMBEDDED (`con-composer--embed`): the SAME instance, re-homed into the
+       hand workspace's stage zone by `<Teleport>`. It drops the band geometry,
+       its plate, the `con-ws` marker and its `data-motion-surface` id (an
+       absent id is the director's documented pass-through — the workspace
+       already owns the entrance), and it stops titling itself: the kicker and
+       the card name are handed UP to the workspace breadcrumb
+       (`setWorkspaceStageName`). A surface that announces itself inside someone
+       else's frame is exactly how a stage starts reading as a modal. -->
+  <div class="con-composer con-composer--play"
+       :class="{'con-composer--submitting': submitting, 'con-composer--embed': embedded, 'con-ws': !embedded}"
+       role="dialog" :aria-label="titleText"
+       :data-motion-surface="embedded ? undefined : 'play-composer'">
     <div class="con-composer__panel con-composer__panel--play" data-motion-panel>
-      <!-- ── Header ────────────────────────────────────────────────── -->
-      <div class="con-composer__kicker">
-        <span class="con-composer__kicker-mark" aria-hidden="true">◈</span>
-        <span>{{ $t('Play project card') }}</span>
-      </div>
-      <div class="con-composer__name">{{ titleText }}</div>
-      <div class="con-composer__playhead">
-        <span class="con-composer__paycost">
-          {{ $t('Cost') }}: <b>{{ cost }}</b> <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
-        </span>
-        <span class="con-composer__paytag" :class="statusClass">{{ $t(statusLabel) }}</span>
-      </div>
+      <!-- ── Header — standalone only (see the EMBEDDED note above) ─── -->
+      <template v-if="!embedded">
+        <div class="con-composer__kicker">
+          <span class="con-composer__kicker-mark" aria-hidden="true">◈</span>
+          <span>{{ $t('Play project card') }}</span>
+        </div>
+        <div class="con-composer__name">{{ titleText }}</div>
+        <div class="con-composer__playhead">
+          <span class="con-composer__paycost">
+            {{ $t('Cost') }}: <b>{{ cost }}</b> <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
+          </span>
+          <span class="con-composer__paytag" :class="statusClass">{{ $t(statusLabel) }}</span>
+        </div>
+      </template>
 
       <!-- ── Two columns: card · composer ──────────────────────────── -->
       <div class="con-composer__playmain">
         <!-- data-zoom-handoff: the fullscreen inspector's «Разыграть» flies
-             the card INTO this slot (consoleZoomMotion.playZoomHandoff). -->
-        <div class="con-composer__playcard" data-zoom-handoff="play-card">
+             the card INTO this slot (consoleZoomMotion.playZoomHandoff), and
+             `runCardTransfer` lands the hand-slot proxy here on the descent. -->
+        <div class="con-composer__playcard" data-zoom-handoff="play-card" data-unfold-item>
           <Card v-if="card !== undefined" :card="card" :key="card.name" />
         </div>
 
-        <div class="con-composer__playright">
+        <!-- The two cascade items are the CARD and the DECISION COLUMN — the
+             two things the descent's second reveal surfaces. Never a marker on
+             a nested pair (the column and a row inside it), which would animate
+             the same pixels twice at two speeds. -->
+        <div class="con-composer__playright" data-unfold-item>
+          <!-- EMBEDDED: the stage's SUPPORTING line — the economics and the
+               verdict, close above the controls they judge. Never a second
+               page title: the name of this step is already in the one header
+               that has been on screen since the player opened the screen. -->
+          <div v-if="embedded" class="con-composer__stagehead">
+            <span class="con-composer__paycost">
+              {{ $t('Cost') }}: <b>{{ cost }}</b> <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
+            </span>
+            <span class="con-composer__paytag" :class="statusClass">{{ $t(statusLabel) }}</span>
+          </div>
           <ConsoleScrollArea class="con-composer__scroll" content-class="con-composer__scroll-body" ref="scroll">
             <div v-if="loading" class="con-composer__loading">{{ $t('Loading') }}…</div>
 
@@ -324,6 +352,8 @@ import {
   paymentCovers, paymentFromCounts, PaymentLane, paymentLanes, projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
 import {setConsolePlayCardCommands, resetConsolePlayCardUi} from '@/client/console/consolePlayCardUi';
+import {setWorkspaceStageName} from '@/client/console/consoleWorkspaceStage';
+import {handStageReveal} from '@/client/console/consoleHandStageMotion';
 import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from '@/client/console/consolePlayCardResult';
 import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
@@ -398,6 +428,15 @@ export default defineComponent({
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     cardName: {type: String as PropType<CardName>, required: true},
     input: {type: Object as PropType<SelectProjectCardToPlayModel>, required: true},
+    /**
+     * RE-HOMED into a workspace's stage zone (`consoleWorkspaceStage`). Mirrors
+     * `ConsoleTaskHost.embedded` / `ConsolePlayedOverlay.embedded`: the band
+     * geometry, the plate, the own header and the motion-surface id come off;
+     * the logic, the captures, the payment, the command contract and the input
+     * path are NOT touched. One prop, not one per flavour — «настройка → выбор
+     * → оплата» is one phase of one surface.
+     */
+    embedded: {type: Boolean, default: false},
   },
   emits: ['confirm', 'cancel'],
   data() {
@@ -479,6 +518,20 @@ export default defineComponent({
     },
     payMode(): 'compact' | 'expanded' {
       return this.payExpanded ? 'expanded' : 'compact';
+    },
+    /**
+     * THE STAGE'S OWN NAME (i18n key), handed UP to the workspace breadcrumb.
+     * One word wherever possible, and never an echo of the root's noun («КАРТЫ
+     * В РУКЕ › ЦЕНТР ИИ › РОЗЫГРЫШ», not «… › РОЗЫГРЫШ КАРТЫ»).
+     */
+    stageName(): string {
+      if (this.sub?.kind === 'payment') {
+        return 'Payment';
+      }
+      if (this.sub !== undefined) {
+        return 'Selection';
+      }
+      return 'Playing';
     },
     /** The hand-editable rows, in panel order — the editor's focus ring. */
     payEditableRows(): ReadonlyArray<PaymentSourceRow> {
@@ -959,6 +1012,30 @@ export default defineComponent({
         setConsolePlayCardCommands(hints);
       },
     },
+    /**
+     * Hand the STAGE NAME up to the workspace breadcrumb. The tail advances
+     * with the sub-state («РОЗЫГРЫШ» → «ОПЛАТА» → «ВЫБОР») because that is the
+     * only segment allowed to change: root and subject are the same vnodes for
+     * the whole flow, so the line proves continuity by construction while
+     * still telling the player which step they are on.
+     */
+    stageName: {
+      immediate: true,
+      handler(key: string) {
+        if (this.embedded) {
+          setWorkspaceStageName(key);
+        }
+      },
+    },
+  },
+  mounted() {
+    // THE SECOND REVEAL. The zone opened a flush ago (it must exist before the
+    // teleport resolves, or the content is dropped), so its own enter hook had
+    // nothing to cascade. Without this the controls would simply appear inside
+    // an already-open box — the same blink the descent exists to remove.
+    if (this.embedded) {
+      void this.$nextTick(() => handStageReveal(this.$el as HTMLElement | undefined));
+    }
   },
   beforeUnmount() {
     resetConsolePlayCardUi();

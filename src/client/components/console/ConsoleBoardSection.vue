@@ -165,6 +165,13 @@ export default defineComponent({
        *  offsets cumulatively — overwriting them would lose the truth). */
       savedBoardDx: undefined as string | undefined,
       savedBoardDy: undefined as string | undefined,
+      /** The stage box the board lives in OUTSIDE focus, refreshed on every
+       *  overview fit (so a window resize keeps it honest). The RETURN fits
+       *  against THIS box while the stage is still holding the reclaimed
+       *  chrome — the planet reaches its final scale during the shrink and
+       *  the space handback at the end costs no second re-fit, no jump. */
+      normalStageW: 0,
+      normalStageH: 0,
       /** P29: the self-calibrated natural content box (seeded by constants). */
       naturalW: BOARD_NATURAL_W,
       naturalH: BOARD_NATURAL_H,
@@ -203,6 +210,12 @@ export default defineComponent({
         'con-board--pfocus': phase === 'entering' || phase === 'active' || phase === 'exit-prep',
         'con-board--pfocus-anim': phase === 'entering' || phase === 'exit-prep' || phase === 'exiting',
         'con-board--pfocus-settled': phase === 'active',
+        // The RETURN, as its own state: the reclaimed chrome stays out and
+        // the arc band stays hidden for the whole shrink, so the stage's
+        // clip box always covers the board that is still oversized. Giving
+        // the space back at the START of the return is what cut the
+        // returning planet + arcs along the dock line.
+        'con-board--pfocus-exit': phase === 'exit-prep' || phase === 'exiting',
       };
     },
     selectedSpaceId(): string | undefined {
@@ -296,9 +309,21 @@ export default defineComponent({
         this.fitPlanetFocus(stage, r);
         return;
       }
+      // The RETURN fits against the box the stage will END in, not the one
+      // it currently has: the reclaimed chrome is deliberately still out
+      // (the clip box must cover the oversized board mid-shrink), so the
+      // live rect is TALLER than the destination. Outside focus the two are
+      // the same and this is where the destination gets refreshed.
+      const returning = phase === 'exit-prep' || phase === 'exiting';
+      if (!returning || this.normalStageH < 40) {
+        this.normalStageW = r.width;
+        this.normalStageH = r.height;
+      }
+      const boxW = returning ? this.normalStageW : r.width;
+      const boxH = returning ? this.normalStageH : r.height;
       const scale = Math.min(
-        (r.width - STAGE_PAD * 2) / this.naturalW,
-        (r.height - STAGE_PAD_Y * 2) / this.naturalH,
+        (boxW - STAGE_PAD * 2) / this.naturalW,
+        (boxH - STAGE_PAD_Y * 2) / this.naturalH,
       ) * SCALE_BOOST;
       const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
       this.appliedScale = clamped;

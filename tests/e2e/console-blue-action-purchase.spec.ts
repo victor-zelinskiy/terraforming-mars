@@ -1,6 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {WS_STAGE_BOX, WS_STAGE_HEAD, stageProbe} from './wsStageParity';
 
 /**
  * Console BLUE ACTION · the COMMIT half — the EMBEDDED PURCHASE stage
@@ -270,18 +271,18 @@ for (const profile of PROFILES) {
       await expect(step).toHaveClass(/--committed/);
       expect((await step.innerText()).trim().toUpperCase()).toBe('ПОКУПКА');
       // ADAPTIVE single-card copy: the actual question, not the mass selector.
-      await expect(page.locator('.con-task__title--embedded')).toContainText('Купить открытую карту?', {timeout: 10_000});
+      await expect(page.locator('.con-ws-stage-title')).toContainText('Купить открытую карту?', {timeout: 10_000});
       // PRIMARY-HEADING PARITY: the shared .con-ws-stage-heading role — the
       // receive spec asserts the IDENTICAL computed numbers on its title, so
       // the two stages cannot drift apart unnoticed (fhd: 1.3rem = 26px/700).
       if (profile.tag === 'fhd') {
-        const headStyle = await page.locator('.con-task__title--embedded').evaluate((el) => {
+        const headStyle = await page.locator('.con-ws-stage-title').evaluate((el) => {
           const cs = window.getComputedStyle(el);
           return {size: cs.fontSize, weight: cs.fontWeight};
         });
         expect(headStyle, `heading ${JSON.stringify(headStyle)}`).toEqual({size: '26px', weight: '700'});
       }
-      expect(await page.locator('.con-task__pickline').count(), 'the counters fold away for one card').toBe(0);
+      expect(await page.locator('.con-ws-stage-badge').count(), 'the counters fold away for one card').toBe(0);
       // The status line carries the economics and NO duplicated command chips.
       await expect(page.locator('.con-cards__verdict--price')).toBeVisible();
       expect(await page.locator('.con-cards__verdictbar .con-cards__verdict--zoom').count()).toBe(0);
@@ -306,20 +307,35 @@ for (const profile of PROFILES) {
         const cs = window.getComputedStyle(el);
         return {size: cs.fontSize, weight: cs.fontWeight};
       });
-      console.log(`[PARITY:${profile.tag}] buy hero=${JSON.stringify(heroBox)} head=${JSON.stringify(heroHead)}`);
+      // THE CHROME BREAKDOWN — the receive spec prints the same shape, so the
+      // two stages are compared by MEASUREMENT rather than by reading two CSS
+      // files (every divergence in this flow was found this way).
+      const chrome = await page.locator('.con-task-host--embedded').evaluate((root) => {
+        const box = (sel: string) => {
+          const el = root.querySelector(sel) as HTMLElement | null;
+          return el === null ? null : {h: el.offsetHeight, w: el.offsetWidth};
+        };
+        return {
+          rootH: root.clientHeight,
+          frame: box('.con-ws-stage-frame'),
+          head: box('.con-ws-stage-head'),
+          row: box('.con-ws-stage-row'),
+          status: box('.con-ws-stage-status'),
+          zoom: getComputedStyle(root.querySelector('.con-ws-stage-row') as HTMLElement)
+            .getPropertyValue('--con-cards-zoom'),
+          ui: getComputedStyle(document.documentElement).getPropertyValue('--con-ui-scale'),
+        };
+      });
+      console.log(`[PARITY:${profile.tag}] buy hero=${JSON.stringify(heroBox)} head=${JSON.stringify(heroHead)} chrome=${JSON.stringify(chrome)}`);
       expect(heroBox).not.toBeNull();
-      // The ETALON is pinned here too: the receive spec asserts these exact
-      // numbers for its own hero, so a change to the buy stage's chrome fails
-      // HERE first and the two constants get re-synced deliberately — never
-      // one stage silently drifting away from the other.
-      const BUY_HERO: Record<string, {w: number, h: number}> = {
-        fhd: {w: 471.74, h: 678.12},
-        tv4k: {w: 837.03, h: 1203.24},
-        deck: {w: 329.69, h: 473.93},
-      };
-      const want = BUY_HERO[profile.tag];
-      expect(Math.abs(heroBox!.width - want.w), `hero width ${heroBox!.width} vs ${want.w}`).toBeLessThanOrEqual(1);
-      expect(Math.abs(heroBox!.height - want.h), `hero height ${heroBox!.height} vs ${want.h}`).toBeLessThanOrEqual(1);
+      // The ETALON lives in ONE file (`wsStageParity`) that the receive spec
+      // reads too, so a change to the shared chassis fails BOTH specs against
+      // the same constant and gets re-synced in a single deliberate edit —
+      // never one stage silently drifting away from the other.
+      const stageBox = await page.locator('.con-task-host--embedded')
+        .evaluate(stageProbe);
+      expect(stageBox, `stage ${JSON.stringify(stageBox)}`).toEqual(WS_STAGE_BOX[profile.tag]);
+      expect(heroHead, `heading ${JSON.stringify(heroHead)}`).toEqual(WS_STAGE_HEAD[profile.tag]);
       await page.waitForTimeout(900);
       await shoot(page, `${profile.tag}-02-embedded-buy`);
 
@@ -341,7 +357,7 @@ for (const profile of PROFILES) {
       await expect(zoom).toHaveCount(0);
       // The stage survived the round trip untouched.
       await expect(embeddedHost).toHaveCount(1);
-      await expect(page.locator('.con-task__title--embedded')).toContainText('Купить открытую карту?');
+      await expect(page.locator('.con-ws-stage-title')).toContainText('Купить открытую карту?');
       // The FULLSCREEN RETURN did not move the source either (§17): the hero
       // box after the zoom round trip equals the setup box to the pixel.
       await page.waitForTimeout(400); // the return flight fully settles
@@ -387,7 +403,7 @@ for (const profile of PROFILES) {
       // The SAME committed stage comes back: same phase, same title, no
       // replayed cinematic, no second server trip.
       await expect(page.locator('[data-embed-slot="workspace-reveal"] .con-task-host--embedded')).toHaveCount(1, {timeout: 15_000});
-      await expect(page.locator('.con-task__title--embedded')).toContainText('Купить открытую карту?');
+      await expect(page.locator('.con-ws-stage-title')).toContainText('Купить открытую карту?');
       await expect(step).toHaveCount(1, {timeout: 5000});
       await expect(step).toHaveClass(/--committed/);
 

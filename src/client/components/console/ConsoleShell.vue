@@ -162,6 +162,8 @@
                           :tagFilters="handTagFilterOptions"
                           :activeTag="consoleState.handTagFilter"
                           :stagedCard="stagedHandCard"
+                          :stage="handStage"
+                          :stagePaused="pickBridgeActive"
                           :transitHold="handRevealState.holdSlots"
                           :filterBusy="handRevealState.filterActive"
                           :underScene="sceneOverHand || consoleRevealMode !== undefined" />
@@ -930,22 +932,43 @@
     <!-- Play-a-card flow — the console-native confirm (CTS T8: the
          re-hosted HandCardPaymentContent modal is retired). Preview +
          payment here; the on-play choices arrive as NATIVE follow-up
-         tasks after confirm (the legacy-supported sequential contract). -->
-    <transition :css="false" appear
-                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
-                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <!-- v-show (NOT v-if) while a client hand pick is out: the composer's
-           captured choices/payment must survive the hand round-trip (the
-           director recognizes the pick bridge and never animates it). -->
-      <ConsolePlayCardConfirm v-if="pendingPlayCard !== undefined"
-                              v-show="!handPickActive && !playedPickActive && !repeatPickActive"
-                              ref="playConfirm"
-                              :playerView="playerView"
-                              :cardName="pendingPlayCard.cardName"
-                              :input="pendingPlayCard.input"
-                              @confirm="onPlayCardConfirmNative($event)"
-                              @cancel="onPlayCardCancel" />
-    </transition>
+         tasks after confirm (the legacy-supported sequential contract).
+
+         EMBEDDED HOSTING (consoleWorkspaceStage): when the player entered
+         «КАРТЫ В РУКЕ» themselves and pressed A on a card, playing it is the
+         NEXT STAGE of that flow, not a new demand — so the SAME instance is
+         teleported into the hand workspace's stage zone instead of rising as
+         its own band. Same captures, same payment, same submit path, same
+         command contract. Entering from anywhere else (the fullscreen viewer
+         on the board, a `playFromHand` task that opened the screen for us)
+         keeps the standalone band: there is no workspace the player descended
+         through, so there is nothing to be inside of.
+
+         The surface-motion transition is BYPASSED while embedded — the
+         workspace owns the entrance (the zone unfolds from the pressed card
+         and the composer plays its own second reveal inside it), and a band
+         materialize on top of that would be a second, contradictory
+         entrance. The hooks stay bound in BOTH homes and need no branch: the
+         embedded root drops its `data-motion-surface`, and an absent id is
+         exactly the director's documented pass-through. -->
+    <Teleport :to="playEmbedTarget ?? 'body'" :disabled="playEmbedTarget === undefined">
+      <transition :css="false" appear
+                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                  @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+        <!-- v-show (NOT v-if) while a client hand pick is out: the composer's
+             captured choices/payment must survive the hand round-trip (the
+             director recognizes the pick bridge and never animates it). -->
+        <ConsolePlayCardConfirm v-if="pendingPlayCard !== undefined && !playHeldForWorkspace"
+                                v-show="!handPickActive && !playedPickActive && !repeatPickActive"
+                                ref="playConfirm"
+                                :playerView="playerView"
+                                :cardName="pendingPlayCard.cardName"
+                                :input="pendingPlayCard.input"
+                                :embedded="playEmbedTarget !== undefined"
+                                @confirm="onPlayCardConfirmNative($event)"
+                                @cancel="onPlayCardCancel" />
+      </transition>
+    </Teleport>
 
     <!-- (The repeat-pick ДЕЙСТВИЯ КАРТ surface moved INTO .con-main — the
          action workspace geometry next to the rail; see there.) -->
@@ -1072,6 +1095,19 @@ import ConsoleProductionLoss from '@/client/components/console/ConsoleProduction
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
+import type {ConsoleHandStage} from '@/client/components/console/ConsoleHandSection.vue';
+import {
+  openWorkspaceStage,
+  closeWorkspaceStage,
+  markWorkspaceStageCommitted,
+  rollbackWorkspaceStageCommit,
+  resetWorkspaceStage,
+  workspaceStageOpen,
+  workspaceStageTarget,
+  workspaceStageState,
+} from '@/client/console/consoleWorkspaceStage';
+import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
+import {armHandStageOrigin, resetHandStageMotion} from '@/client/console/consoleHandStageMotion';
 import ConsoleCorpFirstActionConfirm from '@/client/components/console/ConsoleCorpFirstActionConfirm.vue';
 import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
 import ConsoleCardDiscardLayer from '@/client/components/console/cardDiscard/ConsoleCardDiscardLayer.vue';
@@ -2726,6 +2762,49 @@ export default defineComponent({
     stagedHandCard(): CardName | undefined {
       return this.pendingPlayCard?.cardName ?? this.returningPlayCard ?? this.departingPlayCard;
     },
+    /**
+     * THE HAND WORKSPACE'S OPEN DESCENT — what the section needs to know to
+     * park its shelf, grow the breadcrumb and render the stage zone.
+     *
+     * It reads the live `workspaceStageState`, NOT `pendingPlayCard`, and the
+     * difference matters: the play composer can also be opened WITHOUT a
+     * descent (a `playFromHand` task raised over the board), and in that case
+     * the workspace was never entered, so there is nothing to be inside of and
+     * the composer keeps its own band.
+     */
+    handStage(): ConsoleHandStage | undefined {
+      if (!workspaceStageOpen('hand')) {
+        return undefined;
+      }
+      return {
+        subject: workspaceStageState.subject,
+        // Until the composer publishes its own step, the crumb shows the
+        // honest generic — so it never blinks and never renames itself twice.
+        name: workspaceStageState.stage === '' ? 'Playing' : workspaceStageState.stage,
+        committed: isCommitted(workspaceStageState.phase),
+      };
+    },
+    /**
+     * The workspace slot the PLAY COMPOSER is teleported into (undefined → its
+     * own band). Same shape as `taskEmbedTarget` / `revealEmbedTarget`.
+     */
+    playEmbedTarget(): string | undefined {
+      if (this.pendingPlayCard === undefined) {
+        return undefined;
+      }
+      return workspaceStageTarget('hand');
+    },
+    /**
+     * OWNERSHIP ≠ READINESS. The descent is claimed synchronously on the press,
+     * but the zone it teleports into exists one flush later. For that one frame
+     * the composer must render NOWHERE rather than in its standalone band —
+     * mounting it there and moving it next frame is a visible modal-then-embed
+     * flash, i.e. exactly the impression this migration removes. Same idiom as
+     * `taskHeldForWorkspace` / `deckDrawHolds()`.
+     */
+    playHeldForWorkspace(): boolean {
+      return workspaceStageOpen('hand') && workspaceStageState.slot === '';
+    },
     handEntries(): ReadonlyArray<ConsoleHandEntry> {
       if (this.consoleState.sale.active) {
         return this.handEntriesAll;
@@ -3514,7 +3593,11 @@ export default defineComponent({
         return 'Repeat action';
       }
       if (this.pendingPlayCard !== undefined) {
-        return 'Play project card';
+        // Inside the hand workspace the bar names the STAGE, not the surface —
+        // the breadcrumb above already says which workspace and which card, and
+        // repeating that in the footer is the duplication the one-bar rule
+        // exists to prevent. Standalone (no descent) it still names itself.
+        return this.handStage !== undefined ? this.handStage.name : 'Play project card';
       }
       if (this.corpFirstActionOpen) {
         return 'First action';
@@ -4427,6 +4510,9 @@ export default defineComponent({
       if (phase === 'failed') {
         const composer = this.$refs.playConfirm as InstanceType<typeof ConsolePlayCardConfirm> | undefined;
         composer?.resetSubmitting?.();
+        // A refused move never happened: the descent goes back to configurable,
+        // or B would stay dead and the crumb would keep claiming a commit.
+        rollbackWorkspaceStageCommit();
         return;
       }
       if (phase === 'idle' && this.journalHardBlocked && this.playedOpen) {
@@ -4470,6 +4556,13 @@ export default defineComponent({
       if (section !== 'colonies' && this.colonyInspectOpen) {
         this.colonyInspectOpen = false;
         resetConsoleColoniesUi();
+      }
+      // Leaving the hand by ANY route ends the descent with it: the workspace
+      // the player was standing inside of is no longer on screen, so a claim
+      // that outlived it would park a shelf behind nothing and keep the
+      // composer teleporting into a detached zone.
+      if (section !== 'hand') {
+        closeWorkspaceStage();
       }
       // The hand-reveal presentation follows the section on EVERY path, not
       // just the choreographed ones. While an episode runs the director owns
@@ -4601,6 +4694,13 @@ export default defineComponent({
     // focus chrome behind it goes quiet (same rule as the fullscreen zoom).
     pendingPlayCard(now: PendingPlayCard | undefined) {
       document.body.classList.toggle('con-play-modal-open', now !== undefined);
+      // THE DESCENT ENDS WITH THE COMPOSER, on every path — the B cancel, the
+      // successful play (the composer closes under the lifted card), and a
+      // prompt-identity change that moved the flow on. One place, so a claim
+      // can never outlive its flow and leave the shelf parked behind nothing.
+      if (now === undefined) {
+        closeWorkspaceStage();
+      }
     },
     // A successfully played card leaves the hand with the server response —
     // release its held slot the moment it is genuinely gone (never a fake
@@ -6837,6 +6937,14 @@ export default defineComponent({
       if (action === undefined || card === undefined || card.isDisabled === true) {
         return;
       }
+      // DESCEND, don't open a modal. The player is standing IN «Карты в руке»,
+      // so playing this card is the next stage of that screen — claimed
+      // SYNCHRONOUSLY (before any render) so no frame can hand the composer to
+      // the standalone band first. Opened from anywhere else there is no
+      // workspace to be inside of, and the band is the honest presentation.
+      if (this.consoleState.section === 'hand') {
+        openWorkspaceStage('hand', cardName, 'Playing');
+      }
       this.pendingPlayCard = {cardName, input: {...action.input, cards: [card]}};
     },
     /**
@@ -6863,6 +6971,11 @@ export default defineComponent({
      */
     openPlayCardFromHand(name: CardName): void {
       const slot = this.handExitSlot(name);
+      // The pressed card's rect, taken NOW — the stage unfolds from exactly
+      // where the player pressed. Measured before the descent mounts anything,
+      // because that is the only moment the browse geometry is still the one
+      // the player was looking at.
+      armHandStageOrigin(slot?.getBoundingClientRect());
       // Opening pendingPlayCard ALSO engages the Vue-managed hand-slot hold
       // (stagedHandCard) in the same flush — the source card leaves the
       // table the frame its proxy exists; no double-vision, patch-proof.
@@ -6964,6 +7077,10 @@ export default defineComponent({
       // from the server preview) — the hero scene's reward beat carries them
       // from the landed card onto the left panel, delta chips at contact.
       armPlayedHero(pending.cardName, isEvent, {manualTableOpen: this.playedOpen, rewards: payload.rewards});
+      // The descent crosses its commit boundary HERE: the crumb's stage marker
+      // goes amber (a committed step is a statement, not an invitation) and the
+      // depth model stops offering «back» for a move the server already has.
+      markWorkspaceStageCommitted();
       this.submitBatch(batch);
     },
     /**
@@ -8629,6 +8746,10 @@ export default defineComponent({
     resetHandReveal(); // never leak a mid-episode timeline / held dock
     resetHandDelivery(); // never leak a mid-flight delivery / held dock
     resetConsoleHandPick(); // never leak a client pick across games/sessions
+    // A descent can never outlive the shell: an orphaned claim suppresses the
+    // standalone band, so the next play would be presented NOWHERE.
+    resetWorkspaceStage();
+    resetHandStageMotion();
     resetConsoleRepeatPick(); // same for a repeat-action pick + its command store
     resetConsoleRepeatPickUi();
     // A composer's TABLEAU pick is module state too — fold it (cancel) so a

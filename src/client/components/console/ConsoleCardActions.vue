@@ -1603,11 +1603,23 @@ export default defineComponent({
         if (branch?.reveal !== undefined) {
           kinds.push('deck-check');
         }
-        if ((branch?.effects ?? []).some((e) => e.direction === 'gain' && e.icon === 'cards')) {
+        // HOW MANY cards, from the same structural place the kind came from.
+        // The batch arrival has to know the count BEFORE the first frame (N
+        // cards leave the pile, N slots are prepared), and on a slow server the
+        // answer simply is not back yet — the preview's server-computed `cards`
+        // amount is the only honest source at submit time. When the answer does
+        // beat the launch (the usual case) the real batch overrides it.
+        let expectedCards = 0;
+        for (const e of branch?.effects ?? []) {
+          if (e.direction === 'gain' && e.icon === 'cards') {
+            expectedCards += Math.max(1, Math.round(e.amount));
+          }
+        }
+        if (expectedCards > 0) {
           kinds.push('draw', 'pick');
         }
         if (kinds.length > 0) {
-          claimWorkspaceOutcome('card-actions', comp.cardName, kinds, comp.nodeIndex);
+          claimWorkspaceOutcome('card-actions', comp.cardName, kinds, comp.nodeIndex, expectedCards);
         }
         if (branch?.reveal !== undefined) {
           this.outcomeFlow = {kind: 'deck-check'};

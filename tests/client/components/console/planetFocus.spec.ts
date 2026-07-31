@@ -4,7 +4,7 @@ import {
   playPlanetFocusScaleBeat, planetFocusBeatAllowed, qualifiesForPlanetFocus,
   captureGlobalParams, changedGlobalParams, displayGlobalParams,
   registerPlanetFocusParamsSource, resetPlanetFocus, isPlanetFocusEngaged,
-  HeldGlobalParams,
+  HeldGlobalParams, PLANET_ARCS_RETURN_MS,
 } from '@/client/console/planetFocus';
 import {AdmissionSignals} from '@/client/console/consolePromptAdmission';
 import {GameModel} from '@/common/models/GameModel';
@@ -180,6 +180,27 @@ describe('planetFocus — the main-grid placement stage', () => {
       expect(planetFocusBeatAllowed(quietSignals({presentation: true, anyAnimation: true, announceGate: true}))).to.be.true;
       planetFocusState.beatPending = false;
       expect(planetFocusBeatAllowed(quietSignals())).to.be.false;
+    });
+
+    it('waits for the INSTRUMENTS to come back before it may play', async () => {
+      unregister = registerPlanetFocusParamsSource(
+        () => captureGlobalParams(gameWith({temperature: -18})));
+      enterPlanetFocus(gameWith({temperature: -20}));
+      snapPlanetFocusSettled();
+      beginPlanetFocusExit();
+      await sleep(780); // exit-prep → exiting → idle
+
+      // The planet has landed and the arc band is fading back in: the beat
+      // is OWED and HOLDS the foreground, but it may not play yet — a glide
+      // behind a half-transparent band is the story this mode exists to fix.
+      expect(planetFocusState.phase).to.eq('idle');
+      expect(planetFocusState.arcsReturning).to.be.true;
+      expect(planetFocusState.beatPending).to.be.true;
+      expect(planetFocusBeatAllowed(quietSignals())).to.be.false;
+
+      await sleep(PLANET_ARCS_RETURN_MS + 120);
+      expect(planetFocusState.arcsReturning).to.be.false;
+      expect(planetFocusBeatAllowed(quietSignals())).to.be.true;
     });
 
     it('releases the held values and pulses the changed scales', () => {

@@ -374,34 +374,182 @@ body.con-zoom-open .con-handdock {
    smaller card than the buy stage next door. The values are the BUY stage's
    own (it is the etalon); its profile ladder is re-published per profile
    below, so both stages move together and neither regresses. */
-.con-task.con-ws-stage-frame,
-.con-reveal__card.con-ws-stage-frame {
-    padding: 1.1rem 1.4rem .8rem;
+/* THE STAGE FILLS ITS ZONE — and nothing else decides how wide it is.
+   Both hosts carry a FULL-BLEED width of their own for the standalone band
+   (`.con-task--wide` → `min(92rem, 95vw)`, `.con-reveal__card` →
+   `min(88rem, 94vw)` on the TV ladder). Inside the workspace those are not
+   widths but OVERFLOWS: at 4K the buy frame ran 3648px wide inside a 2436px
+   zone and the drawn frame 3520px, so the two stages solved their rows in
+   different (and imaginary) rooms. The zone is the room.
+
+   Written with a doubled host class (0,3,0) so it outranks the profile
+   ladders' `html.con-profile-tv .con-task--wide` (0,2,1) — class count beats
+   element count, which is the one way to win a ladder without repeating this
+   rule inside every profile block. */
+.con-task-host--embedded.con-task-host .con-task,
+.con-reveal--embedded.con-reveal .con-reveal__card {
+    width: 100%;
+    max-width: none;
 }
-.con-task__head.con-ws-stage-head,
-.con-reveal__head.con-ws-stage-head {
-    margin-bottom: .45rem;
+
+/* `:is()` takes the HIGHEST specificity of its arguments, so one rule here is
+   still compound against every host's base class — adding a stage (the
+   workspace's PREPARED beat stage is the third) is one token, not a third
+   copy of the chassis. */
+:is(.con-task, .con-reveal__card, .con-composer__beatstage).con-ws-stage-frame {
+    /* Every rem here is height the CARDS do not get: the fit subtracts this
+       chrome from the band and hands the remainder to the row. The stage wears
+       no plate of its own (the workspace frame is already around it), so the
+       padding is breathing room, not a border — it was tuned down together
+       with the one-row header to buy the result back the vertical space two
+       heading rows used to spend. */
+    padding: .9rem 1.2rem .6rem;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+/* THE HEADER IS ONE ROW: the stage's sentence, then its live state as compact
+   badges. It used to be a heading row plus a «ПОЛУЧЕНО N» / pickline row, and
+   two short strings were costing the result stage a whole band of height that
+   the cards then paid for in size. Height is RESERVED (the fit subtracts it),
+   so going from one card to several never moves the row underneath. */
+:is(.con-task__head, .con-reveal__head, .con-composer__beathead).con-ws-stage-head {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .9rem;
+    /* Sized to what it HOLDS (a 1.3rem title line, a badge a notch shorter),
+       not to a round number — the fit turns every spare pixel here into a
+       smaller card. Reserved, so a batch going from one card to several never
+       moves the row underneath. */
+    min-height: 1.8rem;
+    margin-bottom: .3rem;
     padding-top: 0;
     text-align: center;
 }
-.con-cards__strip.con-ws-stage-row {
+.con-ws-stage-head__title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.con-ws-stage-head__badges {
+    display: inline-flex;
+    align-items: center;
+    gap: .45rem;
+    flex-shrink: 0;
+}
+/* ONE badge entity for every embedded stage's live state — «ПОЛУЧЕНО 2»,
+   «ВЫБРАНО 0/1», «ПОКУПКА −3», «У ВАС 41». A single recipe is what makes the
+   reveal and the buy stage read as the same screen; the only thing that ever
+   differs between them is which facts they have to state. */
+.con-ws-stage-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .18rem .55rem;
+    border-radius: 49.95rem;
+    background: fade(@con-cyan, 8%);
+    /* box-shadow, not filter: functional state must survive perf mode. */
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
+    color: fade(@con-text, 88%);
+    font-size: .68rem;
+    font-weight: 700;
+    letter-spacing: .05rem;
+    text-transform: uppercase;
+    white-space: nowrap;
+
+    &__num {
+        font-size: .82rem;
+        font-weight: 800;
+        color: @con-cyan;
+    }
+    &__icon {
+        width: .9rem;
+        height: .9rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__coin {
+        width: .8rem;
+        height: .8rem;
+        margin: 0;
+    }
+    &--warn {
+        background: fade(@con-red, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-red, 55%);
+        .con-ws-stage-badge__num { color: #ffc9c4; }
+    }
+}
+.con-cards__strip.con-ws-stage-row,
+.con-composer__beatrow.con-ws-stage-row {
     width: 100%;      /* spans the stage column — never shrink-wrapped, or the
                          fit solves against the CARD it is trying to size */
     max-width: 100%;
-    gap: .7rem;
-    padding: 2rem .8rem 1.4rem;
+    /* THE ROW IS THE ONE PART THAT FLEXES, and `min-height: 0` stops its own
+       content from inflating it — so its box is the height the stage actually
+       has for cards, and the fit can simply MEASURE it. */
+    flex: 1;
+    min-height: 0;
+    align-items: center;
+    align-content: center;
+    justify-content: center;
+    /* The gap is SOLVED, not authored: `consoleWsStageLayout` publishes a
+       column gap that always clears the focused card's own emphasis + ring, so
+       a focus move can never make two cards overlap. The rem values are the
+       first-frame fallback until the fit lands. */
+    column-gap: var(--con-ws-stage-gap, .7rem);
+    row-gap: var(--con-ws-stage-rowgap, .7rem);
+    flex-wrap: wrap;
+    /* The top padding is the focused card's VERTICAL clearance (its scale
+       growth + the −.2rem lift + the pick band that hangs above it) — the
+       layout deliberately does NOT reserve that in the height budget, because
+       this is where it lives. Anything more is height stolen from the cards. */
+    padding: 1.3rem .8rem .7rem;
+}
+/* The stage's focus emphasis is DELIBERATELY smaller than the hand/draft
+   carousel's: on a stage the neighbours are the same decision, so the focused
+   card must read as SELECTED, not as a different-sized card. The room for it
+   is reserved by the layout engine (WS_STAGE_FOCUS_SCALE — the two numbers
+   must move together), so the row never re-flows on a d-pad move. */
+:is(.con-cards__strip, .con-composer__beatrow).con-ws-stage-row > .con-cards__slot--focused {
+    transform: translateY(-.2rem) scale(var(--con-ws-focus-scale, 1.045));
 }
 .con-cards__verdictbar.con-ws-stage-status,
-.con-reveal__namebar.con-ws-stage-status {
+.con-reveal__namebar.con-ws-stage-status,
+.con-composer__beatstatus.con-ws-stage-status {
     /* A FIXED height, not a min: the status line is the last chrome the fit
        subtracts, so a content-driven one (the buy's price chip runs 3px
        taller than the draw's name chip at 4K) hands the two stages different
        card sizes. Reserved once, centred content, no layout shift on a
-       d-pad move either. */
-    height: 2.7rem;
+       d-pad move either.
+
+       The VALUE is the smallest that holds both stages' content (a name chip
+       and a glyph verb chip) — it is the last chrome the fit subtracts, so a
+       generous number here is height taken straight off the cards.
+
+       ⚠️ `min-height` and the margin are RESET, not merely overridden: the buy
+       host's own bar reserves `min-height: 2.6rem` + a `.1rem` margin for the
+       standalone band, and a `min-height` always beats a `height`. That is 6px
+       the buy stage spent and the drawn reveal did not — the two stages were
+       handing the player heroes ~1 % apart, which is exactly the drift this
+       shared chassis exists to make impossible. */
+    height: 2.4rem;
+    min-height: 0;
+    margin-top: 0;
+    flex-shrink: 0;
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: .6rem;
+}
+/* HELD: the line keeps its reserved row while the batch is still arriving —
+   only its content hides. Promising «A Взять <карта>» over a slot the card has
+   not reached yet is the input race the arrival gate exists to remove. */
+.con-reveal__namebar--held > * {
+    opacity: 0;
+    transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
 }
 
 /* The plate's SOURCE TETHER — the quiet accent segment on the card-facing
@@ -420,6 +568,165 @@ body.con-zoom-open .con-handdock {
     border-radius: .1rem;
     background: linear-gradient(180deg, transparent 0%, fade(@con-cyan, 55%) 32%, fade(@con-cyan, 55%) 68%, transparent 100%);
     pointer-events: none;
+}
+
+/* ═══ THE WORKSPACE HEADER — one line, every workspace ═══
+   `ConsoleWsHead.vue` owns the markup; this owns the metrics. It is one BLOCK
+   rather than a mixin on purpose: two hosts sharing a mixin still have two
+   class trees, and every past divergence in this console's headers (title
+   tier, kicker placement, head height, aux wrapping) was a markup divergence
+   that a mixin could not have caught. One block, one component, one line.
+
+   THREE TYPOGRAPHIC VOICES, one baseline, zero restyling between stages:
+   · ROOT («КАРТЫ В РУКЕ») — the stable frame of reference. Same box, weight and
+     colour in browse AND in flow: it must behave exactly like the source card —
+     never re-styled, never re-animated. One step calmer (weight + solid colour)
+     so it frames without competing.
+   · SUBJECT (the card name) — the flow's anchor and its brightest, heaviest
+     word. Hierarchy is WEIGHT-first, so it survives desaturation and TV
+     picture modes, not colour alone.
+   · STAGE — a compact accent marker: smaller, tracked caps, cyan pre-commit →
+     amber past the commit boundary.
+   Separators recede to hairline guides: they are punctuation, not content. */
+.con-wshead {
+    display: flex;
+    align-items: center;
+    gap: .35rem .9rem;
+    /* NOWRAP on purpose: the identity and the aux zone always share the first
+       line. A narrow band is absorbed INSIDE the aux zone (its own content
+       wraps to a second tier — the Deck's deliberate two-tier header), never
+       by pushing the whole zone below the identity, which would cost a third
+       tier and move the stage geometry between profiles. */
+    flex-wrap: nowrap;
+    min-height: 2rem;
+    flex-shrink: 0;
+
+    &__ident {
+        order: 1;
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        min-width: 0;
+        flex: 0 1 auto;
+    }
+    /* THE WORKSPACE IDENTITY SYMBOL — the same glyph the action wheel's tile
+       carries. Part of the PARENT anchor, present through every stage of the
+       flow: constant box, constant gap, never re-animated by a stage change
+       (only the one-shot wheel-handoff echo may touch it, and that tween is
+       strand-proofed in the director). */
+    &__emblem {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: 1.2rem;
+        height: 1.2rem;
+        color: @con-cyan;
+
+        .bar-btn-icon { width: 100%; height: 100%; }
+    }
+    &__mark { color: @con-cyan; font-size: 1rem; flex-shrink: 0; }
+    &__root {
+        font-size: 1.1rem; font-weight: 700; letter-spacing: .06rem; text-transform: uppercase; line-height: 1.1;
+        color: fade(#cfe4f7, 80%);
+        white-space: nowrap;
+    }
+    &__context { color: @con-text; font-size: .9rem; font-weight: 700; white-space: nowrap; }
+    &__sep { color: fade(@con-cyan, 36%); font-size: .95rem; flex-shrink: 0; }
+    &__subject {
+        min-width: 0;
+        font-size: 1.1rem; font-weight: 800; letter-spacing: .04rem; text-transform: uppercase; line-height: 1.1;
+        background: linear-gradient(180deg, #ffffff 0%, #e6f3ff 100%);
+        -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    &__step {
+        font-size: .8rem; font-weight: 700; letter-spacing: .12rem; text-transform: uppercase;
+        color: fade(@con-cyan, 92%); white-space: nowrap;
+        &--committed { color: fade(@con-amber, 92%); }
+    }
+
+    /* ── The AUX ZONE — ONE fixed region holding the two stage-specific blocks
+       as stacked LAYERS. The browse layer stays in the flow (it defines the
+       zone's height); the deep layer lies over it; they crossfade and neither
+       is ever removed. That is what makes the header height identical in both
+       stages — no reflow under the entering animation, and the host's filters
+       can never blink. ── */
+    &__aux {
+        order: 2;
+        position: relative;
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+    }
+    &__layer {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .35rem .9rem;
+        min-width: 0;
+        width: 100%;
+        transition: opacity calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
+
+        /* The DEEP layer floats over the browse one — the zone's width AND
+           height are the browse layer's, always, so the breadcrumb tail can be
+           as long as it likes without reflowing anything. */
+        &--deep {
+            position: absolute;
+            inset: 0;
+            /* ONE crumb rhythm. The head's column-gap (.9rem — right for the
+               browse filters) would also space root → first separator, while
+               every later step sits at the layer's own .4rem: the first `›`
+               read as detached from its parent. The layer is an absolute
+               overlay, so pulling its left edge back equalises the rhythm with
+               ZERO layout impact on the browse tier. */
+            left: -.5rem;
+            flex-wrap: nowrap;
+            gap: .4rem;
+            justify-content: flex-start;
+
+            .con-wshead__subject { flex: 0 1 auto; }
+            .con-wshead__tail { margin-left: auto; flex-shrink: 0; display: inline-flex; align-items: center; gap: .45rem; }
+        }
+        /* The deliberate, controlled disappearance (never a v-if / remount). */
+        &--out {
+            opacity: 0;
+            transform: translateY(-.12rem);
+            pointer-events: none;
+        }
+    }
+    /* The breadcrumb tail RISES IN READING ORDER as the flow opens: the card
+       name first, then the stage, then the trailing chips — the header reads as
+       the SAME line unfolding a deeper context, never as a new header arriving.
+       Mount-time, so it composes with the layer crossfade and never replays on
+       a stage change (those swap through the keyed crossfade inside the cells). */
+    &__layer--deep > * {
+        animation: con-crumb-rise calc(190ms * var(--motion-scale, 1)) ease backwards;
+    }
+    &__layer--deep > :nth-child(3),
+    &__layer--deep > :nth-child(4) { animation-delay: calc(80ms * var(--motion-scale, 1)); }
+    &__layer--deep > :nth-child(5) { animation-delay: calc(150ms * var(--motion-scale, 1)); }
+    @media (prefers-reduced-motion: reduce) {
+        &__layer { transition: none; }
+        &__layer--deep > * { animation: none; }
+    }
+}
+/* ONE grid cell for both words of a swap: it sizes to the WIDER of them, so
+   nothing beside them shifts mid-change. */
+.con-wshead__swap {
+    display: inline-grid;
+    min-width: 0;
+    > * { grid-area: 1 / 1; min-width: 0; }
+}
+.con-wshead-swap-enter-active,
+.con-wshead-swap-leave-active {
+    transition: opacity calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
+}
+.con-wshead-swap-enter-from { opacity: 0; transform: translateY(.18rem); }
+.con-wshead-swap-leave-to { opacity: 0; transform: translateY(-.14rem); }
+@media (prefers-reduced-motion: reduce) {
+    .con-wshead-swap-enter-active,
+    .con-wshead-swap-leave-active { transition: none; }
 }
 
 /* Any workspace surface is up (or still dismissing): drop .con-main's
@@ -2255,10 +2562,19 @@ each(@players, {
      trade, not the focus one).
    Both are layout flips, not transitions — the disc's own transform
    transition carries the visible motion to the new target. */
-.con-root:has(.con-board--pfocus) .con-banner {
+/* ⚠ The reclaim is held through the RETURN as well (`--pfocus-exit`), and
+   that ordering is load-bearing: the stage's `overflow: hidden` is the clip
+   box, so handing the space back at the START of the return cut the still-
+   oversized planet (and the arcs with it) along the dock line — the
+   "invisible wall" bug. The board's return fit targets the DESTINATION box
+   (ConsoleBoardSection.normalStageH), so the planet reaches its final scale
+   during the shrink and the handback at the end is free. */
+.con-root:has(.con-board--pfocus) .con-banner,
+.con-root:has(.con-board--pfocus-exit) .con-banner {
     display: none;
 }
-.con-root:has(.con-board--pfocus) .con-board {
+.con-root:has(.con-board--pfocus) .con-board,
+.con-root:has(.con-board--pfocus-exit) .con-board {
     padding-bottom: .4rem;
 }
 .con-board--pfocus-anim .con-board__stage > .board-cont {
@@ -2270,14 +2586,24 @@ each(@players, {
     --pfocus-ms: 640ms;
     --pfocus-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
-.con-board--pfocus-anim .con-board__stage .global-numbers,
-.con-board--pfocus-anim .con-board__stage .board-outer-spaces {
-    transition: opacity calc(440ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+/* The band's fade lives on the BASE selector so it survives the phase
+   classes dropping — a transition declared only on a transient class is
+   cancelled (and the value SNAPS) the moment that class goes. This one
+   governs the RETURN: the instruments come back once the planet has
+   landed, which is also why they can never be caught by the clip box. */
+.con-board__stage .global-numbers,
+.con-board__stage .board-outer-spaces {
+    transition: opacity calc(380ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 .con-board--pfocus .con-board__stage .global-numbers,
-.con-board--pfocus .con-board__stage .board-outer-spaces {
+.con-board--pfocus .con-board__stage .board-outer-spaces,
+.con-board--pfocus-exit .con-board__stage .global-numbers,
+.con-board--pfocus-exit .con-board__stage .board-outer-spaces {
     opacity: 0;
     pointer-events: none;
+    /* Leaving is FASTER than returning: the band must be gone before the
+       growth carries it past the stage edge. */
+    transition-duration: calc(220ms * var(--motion-scale, 1));
 }
 .con-board--pfocus-settled .con-board__stage .global-numbers,
 .con-board--pfocus-settled .con-board__stage .board-outer-spaces {
@@ -2285,8 +2611,8 @@ each(@players, {
 }
 @media (prefers-reduced-motion: reduce) {
     .con-board--pfocus-anim .con-board__stage > .board-cont,
-    .con-board--pfocus-anim .con-board__stage .global-numbers,
-    .con-board--pfocus-anim .con-board__stage .board-outer-spaces,
+    .con-board__stage .global-numbers,
+    .con-board__stage .board-outer-spaces,
     .con-board .con-board__stage::before {
         transition: none;
     }
@@ -4437,7 +4763,81 @@ html.console-mode {
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: .6rem;
+
+    /* ── THE WORKSPACE FRAME — the SAME chrome as `.con-cardactions__frame`,
+       to the value: this screen and «Действия карт» are two sections of one
+       system, and the eye reads that from the plane before it reads a word.
+       Deliberately NO `z-index`: `position: relative` alone does not open a
+       stacking context, so `__verdictbar` (z11711) still escapes to the root
+       and the reveal flights keep diving behind it (the whole reason
+       `.con-main--hand` drops the trap). Adding a z here would bury it. ── */
+    &__frame {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .55rem;
+        padding: .75rem 1.1rem .7rem;
+        border-radius: .7rem;
+        background: rgba(7, 12, 19, 0.96);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 .9rem 2.6rem rgba(0, 0, 0, 0.6);
+    }
+
+    /* The browse layer and the embedded stage share ONE region — entering the
+       stage recomposes the frame in place, it never swaps a screen. */
+    &__stagewrap {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+    }
+    &__browse {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .6rem;
+        transition:
+            transform calc(190ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+            opacity calc(190ms * var(--motion-scale, 1)) ease;
+
+        /* PARKED — the cards recede so the eye stays on the one card the
+           player picked. transform/opacity only (perf-lite safe); the DOM is
+           untouched, so selection, scroll and filter survive by construction
+           and coming back is a return, not a rebuild. */
+        /* A WHISPER, not a ghost. Enough that the player still reads «I am
+           inside the hand», quiet enough that card art does not show through
+           the stage plate — at 0.16 the shelf legibly ghosted under the
+           decision column and read as leakage rather than as depth. */
+        &--parked {
+            transform: scale(0.985);
+            opacity: 0.07;
+            pointer-events: none;
+        }
+    }
+    /* A pick BRIDGE is out: the shelf is the picker again. The stage keeps its
+       claim (and its zone, and the composer's captures inside it) — it just
+       steps out of the way. Written as an override rather than by dropping
+       `--staged`, so the claim and the presentation stay separate facts. */
+    &--stagepaused &__browse--parked {
+        transform: none;
+        opacity: 1;
+        pointer-events: auto;
+    }
+    &--stagepaused &__stage {
+        opacity: 0;
+        pointer-events: none;
+    }
+    /* The embedded stage zone — the teleport target. It carries no plate of
+       its own: the frame above IS the plane, and a box inside a box is exactly
+       what made the play step read as a modal that arrived. */
+    &__stage {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        min-height: 0;
+        z-index: 2;
+    }
 
     /* ── the dock ↔ overlay REVEAL transition owns the cards ─────────
        Every slot is held invisible while the proxies fly (one card — one
@@ -4458,7 +4858,7 @@ html.console-mode {
     /* The chrome materializes AROUND the arriving cards: a quiet rise on
        every mount of the section (the reveal episode and the plain task
        opens share it — cards stay the main event, panels follow). */
-    &__header,
+    &__head,
     &__verdictbar {
         animation: con-hand-chrome-in calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
     }
@@ -4466,7 +4866,13 @@ html.console-mode {
         animation-delay: calc(140ms * var(--motion-scale, 1));
     }
 
-    /* ── the premium hand SHELF: a glass sci-fi surface holding the grid ── */
+    /* ── the hand SHELF: the region the grid lives in.
+       It carries NO plate of its own any more. The workspace `__frame` is the
+       screen's one plane; a second bordered box inside it was the "content
+       pasted into an old modal" reading — and it competed with the cards,
+       which are the only thing on this screen that should hold the eye. What
+       remains is the faint control-panel texture (one paint, no per-card cost)
+       so the plane still has depth under the cards. ── */
     &__shelf {
         position: relative;
         flex: 1;
@@ -4474,16 +4880,9 @@ html.console-mode {
         display: flex;
         align-items: stretch;
         gap: .5rem;
-        padding: .7rem .8rem;
-        border-radius: .8rem;
-        background: linear-gradient(180deg, rgba(18, 28, 40, 0.6), rgba(10, 16, 24, 0.72));
-        box-shadow:
-            inset 0 0 0 .05rem rgba(120, 155, 190, 0.16),
-            inset 0 1.1rem 2.3rem -1.5rem rgba(120, 180, 240, 0.26),
-            0 .9rem 2.2rem -1.3rem rgba(0, 0, 0, 0.7);
+        padding: .4rem .3rem;
         overflow: hidden;
     }
-    /* A faint control-panel grid for depth — one paint, no per-card cost. */
     &__shelf::before {
         content: '';
         position: absolute;
@@ -4491,7 +4890,7 @@ html.console-mode {
         background:
             repeating-linear-gradient(90deg, transparent 0 3.1rem, rgba(130, 170, 210, 0.045) 3.1rem 3.15rem),
             repeating-linear-gradient(0deg, transparent 0 3.1rem, rgba(130, 170, 210, 0.035) 3.1rem 3.15rem);
-        opacity: 0.5;
+        opacity: 0.32;
         pointer-events: none;
     }
 
@@ -4787,28 +5186,16 @@ html.console-mode {
        can NEVER change the header height / steal space from the cards. The
        "Показано X из Y" count deliberately does NOT live here (it would widen
        the row and wrap the chips) — it sits compactly in the bottom info bar. */
-    &__header {
-        flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .8rem;
-        flex-wrap: nowrap;
-        min-height: 1.7rem;
-        padding: 0 .2rem;
-    }
+    /* The header IS `ConsoleWsHead` (the shared workspace line) — `__head` is a
+       fall-through class carrying only what is ours. Every metric of the line
+       itself (emblem box, the three type voices, the fixed-height aux zone)
+       lives in `.con-wshead`, which is the whole point: this screen and
+       «Действия карт» cannot drift apart again. */
     &__head-left {
         display: inline-flex;
         align-items: baseline;
         gap: .8rem;
         min-width: 0;
-    }
-    &__title {
-        font-size: 1.05rem;
-        font-weight: 700;
-        letter-spacing: .06rem;
-        text-transform: uppercase;
-        color: @con-text;
     }
     &__count {
         font-size: .8rem;
@@ -4831,6 +5218,11 @@ html.console-mode {
         flex-wrap: nowrap;
         justify-content: flex-end;
         min-width: 0;
+        /* The counts open the aux zone, the filters close it — the same
+           reading order the action workspace uses (identity · state · facets),
+           expressed with `auto` rather than a fixed position so a narrow band
+           can still wrap them onto the zone's second tier. */
+        margin-left: auto;
     }
     &__filter {
         display: inline-flex;
@@ -7827,10 +8219,13 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     --hd-scale: 1;
     --hd-sink: 0rem;
     --hd-fade: 1;
-    /* The compact pose's shrink (profiles retune — a Deck pack is small
-       already, so it tucks less aggressively). */
-    --hd-compact-scale: .6;
-    --hd-compact-sink: .5rem;
+    /* The compact pose's shrink: ~30% smaller, and only a HAIR deeper into
+       the plate. The pack must stay plainly VISIBLE — it steps back from
+       the planet, it does not leave (a .6 shrink + a .5rem sink buried it
+       behind the tray, which is not "compact", it's gone). Profiles retune
+       — a Deck pack is small to begin with. */
+    --hd-compact-scale: .7;
+    --hd-compact-sink: .12rem;
     /* WELDED IN: the dock is a fixed part of the bar — it never dims,
        shrinks or slides with the shell's states (only the PACK animates:
        hover / the RT wheel raise / card enter-leave). */
@@ -8161,8 +8556,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     .con-hd-enter-active,
     .con-hd-leave-active { transition: none; }
     .con-handdock__num { animation: none; transition: none; }
-    .con-hand__header,
+    .con-hand__head,
     .con-hand__verdictbar { animation: none; }
+    .con-hand__browse { transition: none; }
     .con-hand__slot { transition-duration: 1ms; }
 }
 
@@ -10084,6 +10480,9 @@ html.console-mode {
         padding: 0;
         align-items: stretch;
 
+        display: flex;
+        flex-direction: column;
+
         .con-task {
             width: 100%;
             max-width: none;
@@ -10093,17 +10492,41 @@ html.console-mode {
             box-shadow: none;
             /* Geometry comes from the shared chassis CLASSES the elements
                carry (con-ws-stage-frame / -row / -status). */
+            flex: 1;
+        }
+        /* The SAME strict flex column the drawn reveal wears (see its block):
+           every wrapper passes the height AND the width through, and the card
+           ROW is the one part that flexes — so `row.clientHeight` IS the card
+           budget on both stages, measured the same way, and neither can be
+           handed a budget the other was not. */
+        .con-task__main,
+        .con-task__body,
+        .con-cards {
+            flex: 1;
+            min-height: 0;
+            width: 100%;
+            align-self: stretch;
+            display: flex;
+            flex-direction: column;
+        }
+        .con-task__body {
+            /* The standalone band reserves a scrollbar gutter here; on the
+               embedded stage that .3rem is 6px of ROW WIDTH the drawn reveal
+               does not spend, and a width difference becomes a hero difference
+               the moment a batch is wide enough to be width-bound. The stage
+               cannot scroll anyway — the fit guarantees the row fits, and a
+               native scrollbar is a bug in console native. */
+            padding-right: 0;
+            overflow: visible;
         }
         /* The head loses its own identity block (the kicker went UP into the
            workspace breadcrumb): what is left is the STAGE INSTRUCTION —
            «Купить открытую карту?» — spoken with the SHARED primary-heading
            voice (.con-ws-stage-title — the reveal's «Получена карта» carries
            the same class, so the two stages can never drift apart again). */
-        .con-task__head { padding-top: 0; text-align: center; margin-bottom: .45rem; }
-        .con-task__pickline { justify-content: center; }
-        /* Geometry only — the VOICE comes from the shared `.con-ws-stage-title`
-           class the element also carries (and from its profile ladder). */
-        .con-task__title--embedded { margin-top: 0; }
+        /* The head is the shared `ConsoleWsStageHead` component now — its own
+           geometry, voice and markup all come from `.con-ws-stage-head`, so
+           there is nothing per-host left to say about it here. */
         /* The line under the result card is STATUS, not a second command bar:
            the glass box and the glyph chips belong to the standalone host —
            here the bottom bar owns every verb, and this line carries what the
@@ -12729,7 +13152,18 @@ body.con-start-ceremony {
         align-self: stretch;
         min-width: 0;
         min-height: 0;
-        padding-bottom: 0;
+        /* ALL of it, not just the bottom: the full-bleed band's own side
+           padding is a band device, and at 4K it was 128px of stage WIDTH the
+           buy host never spent — the two stages' rows were different widths,
+           which becomes a different hero the moment a batch is wide enough to
+           be width-bound. The stage's padding belongs to the shared chassis. */
+        padding: 0;
+        /* The TOP of the strict flex column: without this the frame's `flex: 1`
+           has no flex parent to grow in, the frame is content-sized, and every
+           «measure the row's box» below it measures a box that was sized by its
+           own content — the circular fit this whole discipline removes. */
+        display: flex;
+        flex-direction: column;
         /* The HOST factor of the strip's zoom calc (see stripZoomStyle).
            1 = the received card is a HERO, the same weight the buy stage next
            door gives its offered card. It was .84 on the theory that a
@@ -12745,6 +13179,12 @@ body.con-start-ceremony {
             width: 100%;
             min-width: 0;
             min-height: 0;
+            /* The band's own width cap (`min(88rem, 94vw)` on the TV ladder) is
+               a FULL-BLEED device. Inside the workspace it made the drawn
+               stage 128px narrower than the buy stage at 4K — the two rows had
+               different widths, and a width difference becomes a different hero
+               the moment a batch is wide enough to be width-bound. */
+            max-width: none;
             max-height: none;
             border-radius: 0;
             background: none;
@@ -12758,7 +13198,27 @@ body.con-start-ceremony {
             flex-direction: column;
             justify-content: center;
         }
-        .con-reveal__body--drawn { flex: 0 1 auto; }
+        /* THE STAGE IS A STRICT FLEX COLUMN down to the card row, and the row
+           is the one part that FLEXES (`min-height: 0`, so its content can
+           never inflate it). That is what makes the row's own box the honest
+           card budget: the fit reads `row.clientHeight` instead of trying to
+           reconstruct it by subtracting a list of chrome heights, and no
+           wrapper's padding can be left out of that list at one profile and
+           not another (which is exactly how the 4K stage ended up 200px taller
+           than the column it lives in). */
+        /* `width: 100%` + `align-self: stretch` on every link: the zone centres
+           its children on the cross axis, and a link that shrink-wraps makes
+           the row solve its fit against the very card it is sizing (root #2 of
+           the iteration-22 audit — a 40 %-smaller hero than the buy stage). */
+        .con-reveal__body--drawn,
+        .con-reveal__main {
+            flex: 1;
+            min-height: 0;
+            width: 100%;
+            align-self: stretch;
+            display: flex;
+            flex-direction: column;
+        }
         /* The fixed reward-scene height is a FULL-BLEED device (it keeps the
            header / stage / air proportions stable across card counts). In the
            workspace the zone already has a stable height, and forcing 42rem
@@ -12770,24 +13230,11 @@ body.con-start-ceremony {
            забирай») and a per-host font rule is how they drifted apart. The
            count chip (multi only) seats under it, the way the buy pickline
            does. */
-        .con-reveal__head--embedded {
-            margin-bottom: .45rem;
-            .con-reveal__headrow {
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                gap: .4rem;
-                /* The standalone header's kicker offset — here the kicker went
-                   up into the breadcrumb, so this 4px is pure chrome the buy
-                   stage does not spend, and the fit turns it into a smaller
-                   card (the heading block must measure the SAME as the buy
-                   head: one line, nothing above it). */
-                margin-top: 0;
-            }
-            .con-reveal__headmain { min-width: 0; text-align: center; }
-            /* No font rule here on purpose: the title carries the shared
-               `.con-ws-stage-title` class — see the buy stage's head. */
-        }
+        /* Nothing left here: the embedded head IS the shared
+           `ConsoleWsStageHead` component (one row, title + badges), so the
+           geometry, the voice AND the markup are the buy stage's by
+           construction. The modifier stays as a hook for a genuinely
+           reveal-specific need — there is none today. */
         /* SINGLE received card — the same open-composition halo the buy
            stage's lone card wears (out of flow, gradient-only). */
         .con-reveal__strip > .con-cards__slot:only-child::before {
@@ -12801,12 +13248,12 @@ body.con-start-ceremony {
         /* The row + the contextual footer (focused card's name): the SAME
            chassis parts the buy stage uses, so the fit's chrome matches to
            the pixel. Geometry-reserved — a d-pad move never reflows. */
-        .con-reveal__strip {
-            /* The buy stage's focus lift (1.08) — the fit leaves headroom for
-               exactly this much; a louder scale here would render the same
-               zoom as a bigger card. */
-            > .con-cards__slot--focused { transform: translateY(-.4rem) scale(1.08); }
-        }
+        /* (No focus rule here on purpose: the emphasis is the SHARED
+           `.con-ws-stage-row > .con-cards__slot--focused` one, and its scale
+           is the same number `consoleWsStageLayout` reserves clearance for.
+           A per-host 1.08 lived here and out-specified it — the focused card
+           read as a bigger card and its ring grew over its neighbour, which is
+           precisely what the solved gap exists to prevent.) */
         .con-reveal__main { gap: .5rem; }
         .con-reveal__namebar {
             gap: .6rem;
@@ -16192,6 +16639,85 @@ html.console-mode {
     }
 }
 
+/* ═══ THE EMBEDDED PLAY STAGE — the play composer re-homed into «КАРТЫ В РУКЕ»
+   ═══
+   Same instance, same logic, different DRESS. Everything removed here is
+   something the WORKSPACE already provides: the band geometry (the stage zone
+   is the band), the plate (the workspace frame is the plane), the centred
+   fixed-width card (a screen inside a screen), and the header (the breadcrumb
+   says it, in the line that has been on screen the whole time).
+
+   The hero column and the decision column then read exactly like the blue
+   action's `--stage` variant — because they ARE the same composition, one
+   workspace over. */
+.con-composer--embed {
+    position: relative;
+    inset: auto;
+    z-index: auto;
+    flex: 1;
+    width: 100%;
+    min-height: 0;
+    padding: 0;
+    display: flex;
+    align-items: stretch;
+
+    .con-composer__panel--play {
+        /* Fills the zone: `min(59rem,…)` centred a card-sized dialog inside a
+           4K band and left the screen reading as a small form in a lot of
+           emptiness — the exact defect the north star calls out. */
+        width: 100%;
+        max-width: none;
+        height: 100%;
+        min-height: 0;
+        padding: 0;
+        border-radius: 0;
+        background: none;
+        box-shadow: none;
+    }
+    .con-composer__playmain {
+        /* Centred as a PAIR, capped so the two columns stay a composition
+           rather than drifting to opposite edges of a 4K band. */
+        align-items: center;
+        justify-content: center;
+        column-gap: 1.7rem;
+        max-width: 74rem;
+        margin: 0 auto;
+        width: 100%;
+    }
+    .con-composer__playcard {
+        align-self: center;
+        zoom: calc(1.04 * var(--con-ui-scale, 1));
+    }
+    /* The decision column stands on the SHARED stage plate — the same plane
+       every workspace stage uses, so «one plate, one step deeper» is literally
+       true on screen rather than a claim in a comment. The plate goes on the
+       COLUMN, never on the scroll area: that element owns its own overflow
+       geometry and padding it would move the fade/thumb math with it. */
+    .con-composer__playright {
+        max-width: min(50rem, 100%);
+        /* HUGS ITS CONTENT, capped by the band — the blue action's stage plate
+           does the same. Stretched to full height it became a tall empty box
+           with a CTA floating in the top third, which is the «маленькая форма
+           посреди пустоты» reading in a different disguise. */
+        align-self: center;
+        max-height: 100%;
+        position: relative;
+        padding: .7rem .9rem .75rem;
+        .con-stage-plate();
+        &::before { .con-stage-tether(); }
+    }
+    /* The stage's SUPPORTING line (cost · verdict) — one step quieter than the
+       standalone header it replaces: it judges the controls under it, it does
+       not title the screen. */
+    .con-composer__stagehead {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        flex-shrink: 0;
+        padding-bottom: .1rem;
+    }
+}
+
 /* ── Play-card composer: a two-column card · pre-select layout ───────────── */
 .con-composer {
     &__panel--play { width: min(59rem, 100%); }
@@ -16608,14 +17134,48 @@ html.console-mode {
        presenter. It fills the column VERTICALLY (`flex: 1` — the strip is
        count-driven and must not resize between «Drawing cards…» and the last
        take) while keeping the shared horizontal box above. */
+    /* ── THE DRAW/PICK PHASE takes the WHOLE remaining stage. The 50rem cap
+       above is the SETUP plate's — a decision panel reads better as a column
+       standing beside its source card. A RESULT is the opposite case: it is a
+       set of physical cards that must be as large as the workspace can afford,
+       and capping it left a third of the stage empty while the cards shrank to
+       fit an arbitrary width. Same left edge, same axis, same source tether —
+       only the ceiling goes. */
     .con-composer__revealzone--draw {
         flex: 1;
         min-width: 0;
+        max-width: 100%;
+        align-self: stretch;
+        justify-content: stretch;
     }
-    /* THE EXECUTION BEAT's landing slot: the same box the revealed card will
-       occupy, so the proxy touches down pixel-true and the real surface takes
-       over without a jump. It carries only a calm waiting frame — the card
-       travelling into it IS the state, so there is nothing else to draw. */
+    /* ── THE PREPARED STAGE of the execution beat. Not a placeholder: it wears
+       the SHARED stage chassis (`con-ws-stage-*`) and is solved by the SHARED
+       layout engine, so its empty slots ARE the rects the arriving surface will
+       lay its cards into. That is what lets the batch fly straight to its final
+       positions and what makes the proxy → real-card handoff a zero-distance
+       cross-over instead of a jump. */
+    .con-composer__beatstage {
+        width: 100%;
+        flex: 1;
+        min-height: 0;
+    }
+    /* One landing slot per promised card. A calm waiting frame is all it
+       carries — the cards travelling into it ARE the state. */
+    .con-composer__beatslot {
+        width: 320px;  /* keep-px: the px-authored premium face */
+        height: 460px; /* keep-px */
+        border-radius: .6rem;
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 20%);
+    }
+    .con-composer__beatstatus {
+        font-size: .9rem;
+        font-weight: 700;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 88%);
+    }
+    /* THE EXECUTION BEAT's landing slot (deck-check: one card, turned over
+       where it lands — that beat is unchanged). */
     .con-composer__revealslot--beat {
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%);
     }
@@ -16873,6 +17433,18 @@ html.con-profile-handheld .con-composer--stage {
     .con-composer__actmain--stage { grid-template-columns: auto minmax(0, 1fr); max-width: none; column-gap: .9rem; align-items: center; }
 }
 
+/* The Deck's EMBEDDED PLAY STAGE — the same two-column composition, tightened
+   the same way its blue-action twin is: the hero shrinks, the columns close up,
+   and the pair stops being centred inside a cap (there is no spare width to
+   centre in at 1280, and the cap would only push the decision column narrower).
+   No horizontal scroll can appear: both columns are `minmax(0, …)` bounded. */
+html.con-profile-handheld .con-composer--embed {
+    .con-composer__playmain { max-width: none; column-gap: .9rem; }
+    .con-composer__playcard { zoom: calc(0.66 * var(--con-ui-scale, 1)); }
+    .con-composer__playright { padding: .5rem .6rem .55rem; max-width: 100%; }
+    .con-composer__stagehead { gap: .5rem; }
+}
+
 /* Large / 4K — a gentle readability boost only. */
 html.con-profile-large .con-composer {
     .con-composer__panel { width: min(52rem, 100%); }
@@ -17098,11 +17670,11 @@ html.con-profile-handheld {
         --hd-card-h: 3.65rem;
         --hd-spread: .84;
         /* The Deck pack is already small and its footer band is tight —
-           the compact pose tucks LESS here (a .6 shrink on top of a .84
-           spread would read as a smudge, and the sink would bury the
-           backs entirely). The idea survives; the amount adapts. */
-        --hd-compact-scale: .72;
-        --hd-compact-sink: .3rem;
+           the compact pose tucks LESS here (the standard shrink on top of
+           a .84 spread would read as a smudge). The idea survives; the
+           amount adapts. */
+        --hd-compact-scale: .78;
+        --hd-compact-sink: .08rem;
         bottom: .3rem;
         width: calc(var(--con-hd-bay, 12.4rem) - 1.2rem);
         height: calc(var(--hd-card-h) + 1.2rem);
@@ -17216,12 +17788,29 @@ html.con-profile-handheld {
     /* ── 8 · hand section ────────────────────────────────────────── */
     /* The grid planner owns the card zoom now (it sizes to the measured box),
        so the handheld profile only tunes chrome density — NOT the slot zoom. */
+    /* THE SHARED WORKSPACE HEADER — one Deck ladder for every workspace line,
+       so the hand and «Действия карт» cannot read at two sizes on the same
+       screen. (The hand's own `__title` is gone: the line is `.con-wshead`.) */
+    .con-wshead {
+        min-height: 1.6rem;
+        gap: .25rem .45rem;
+        /* The deep layer's left pull EQUALISES the crumb rhythm: it cancels the
+           head's column-gap so the first `›` sits at the layer's own gap like
+           every later one. The base value cancels .9rem; at the Deck's .45rem
+           it overshoots and the separator collides with the workspace name. */
+        &__layer--deep { left: -.05rem; }
+        &__root { font-size: .95rem; letter-spacing: .04rem; }
+        &__subject { font-size: .95rem; }
+        &__step { font-size: .65rem; letter-spacing: .09rem; }
+        &__context { font-size: .75rem; }
+        &__emblem { width: 1rem; height: 1rem; }
+    }
     .con-hand {
-        gap: .5rem;
-        &__shelf { padding: .5rem .6rem; border-radius: .6rem; }
+        &__frame { padding: .5rem .7rem .45rem; gap: .45rem; border-radius: .6rem; }
+        &__browse { gap: .45rem; }
+        &__shelf { padding: .3rem .2rem; }
         &__reason { font-size: .65rem; padding: .3rem .55rem; }
         &__chip { font-size: .65rem; }
-        &__title { font-size: .8rem; letter-spacing: .04rem; }
         &__count, &__playable { font-size: .65rem; }
         &__filter { padding: .15rem .4rem; gap: .25rem; }
         &__filter &__filter-icon { width: 1rem; height: 1rem; background-size: 1.05rem 1.05rem; }
@@ -17249,7 +17838,11 @@ html.con-profile-handheld {
         /* The embedded stage row + status keep THEIR density on both stages
            (buy and drawn reveal share the chassis classes) — see the tv
            ladder. The status ladder sits at the profile root below. */
-        &__strip.con-ws-stage-row { gap: .6rem; padding: 1.5rem .7rem .6rem; }
+        /* Handheld: only the PADDING is a profile decision — the column gap
+           stays the solved, focus-safe one (a flat `gap` would overwrite it and
+           the ring would sit over the neighbouring card on the smallest
+           screen, which is exactly where it hurts most). */
+        &__strip.con-ws-stage-row { row-gap: var(--con-ws-stage-rowgap, .6rem); padding: 1.2rem .7rem .6rem; }
         /* Handheld density: non-grid strips shrink a notch (4 preludes
            fit 1280 without scrolling); the >6 grid goes compact - X
            fullscreen is the detailed read. Both zooms are fit-computed on
@@ -17664,7 +18257,8 @@ html.con-profile-large {
        4K the two stages must spend identical chrome or the shared fit hands
        them different heroes. */
     .con-ws-stage-title { font-size: 1.5rem; }
-    .con-cards__strip.con-ws-stage-row { padding-top: 3.4rem; }
+    .con-ws-stage-badge { font-size: .78rem; &__num { font-size: .95rem; } }
+    :is(.con-cards__strip, .con-composer__beatrow).con-ws-stage-row { padding-top: 1.6rem; }
     .con-task__opt-title { font-size: 1.2rem; }
     /* Government Support briefing — a gentle 4K readability boost only. */
     .con-govsupport {

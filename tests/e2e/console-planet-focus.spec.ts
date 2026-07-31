@@ -279,7 +279,11 @@ test.describe('console planet focus · main-grid placement stage', () => {
     // POSE 2 — the hand steps back so it stops competing with the planet.
     const poseFocus = await settledDockPose(page);
     expect(poseFocus.compact, 'the dock did not take its compact pose').toBe(true);
+    // ~30% more compact — and NEVER so small it reads as gone (the first
+    // cut buried the pack behind the tray, which is not a pose, it's a
+    // disappearance). Both bounds are the contract.
     expect(poseFocus.scale, 'the compact pack is not visibly smaller').toBeLessThan(0.8);
+    expect(poseFocus.scale, 'the compact pack shrank out of sight').toBeGreaterThan(0.62);
     expect(poseFocus.opacity).toBeLessThan(1);
     await shoot(page, '02-placement-focus');
 
@@ -297,6 +301,7 @@ test.describe('console planet focus · main-grid placement stage', () => {
     const poseBack = await settledDockPose(page);
     expect(poseBack.compact, 'closing the wheel did not return the compact pose').toBe(true);
     expect(poseBack.scale).toBeLessThan(0.8);
+    expect(poseBack.scale).toBeGreaterThan(0.62);
 
     // ── place: the hero + rewards play on the enlarged stage ──────────
     await key(page, 'Enter', 600);
@@ -306,6 +311,45 @@ test.describe('console planet focus · main-grid placement stage', () => {
     await shoot(page, '03-mid-scene');
 
     // ── the exit restores the overview… ───────────────────────────────
+    // …WITHOUT the "invisible wall": sample the return continuously and
+    // catch any frame where a VISIBLE arc band sticks out of the stage's
+    // clip box (the stage is `overflow: hidden`, so that is exactly the
+    // frame where the player saw the band sliced along the dock line).
+    const clipWatch = page.evaluate(() => new Promise<{worst: number, frames: number}>((resolve) => {
+      const stage = document.querySelector('.con-board__stage');
+      let worst = 0;
+      let frames = 0;
+      const started = performance.now();
+      const tick = () => {
+        frames++;
+        const band = document.querySelector('.con-board__stage .global-numbers');
+        const sr = stage === null ? null : stage.getBoundingClientRect();
+        if (band !== null && sr !== null) {
+          const cs = getComputedStyle(band as HTMLElement);
+          const visible = cs.display !== 'none' && Number(cs.opacity) > 0.05;
+          if (visible) {
+            const br = (band as HTMLElement).getBoundingClientRect();
+            // The band's own box is zero-height (absolute children), so
+            // measure the real arc geometry instead.
+            for (const el of document.querySelectorAll('.con-board__stage .arc-scale__rail, .con-board__stage .arc-scale__edge')) {
+              const r = (el as HTMLElement).getBoundingClientRect();
+              if (r.width <= 0 || r.height <= 0) {
+                continue;
+              }
+              worst = Math.max(worst, r.bottom - sr.bottom, sr.top - r.top, r.right - sr.right, sr.left - r.left);
+            }
+            void br;
+          }
+        }
+        if (performance.now() - started > 5000) {
+          resolve({worst: Math.round(worst), frames});
+          return;
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    }));
+
     await page.waitForSelector('.con-board--pfocus', {state: 'detached', timeout: 20_000});
     // …and ONLY THEN the scale story plays: the oceans accent pulse must
     // arrive strictly on the RESTORED board (never over a focused one).
@@ -323,6 +367,12 @@ test.describe('console planet focus · main-grid placement stage', () => {
       const m = strip === null ? null : (strip as HTMLElement).innerText.match(/(\d+)\/9/);
       return m !== null && m[1] !== before;
     }, oceansBefore, {timeout: 8_000});
+
+    const clip = await clipWatch;
+    expect(clip.frames, 'the clip watcher never sampled a frame').toBeGreaterThan(30);
+    // A couple of px of rounding is fine; a sliced band is tens of px.
+    expect(clip.worst, 'a visible arc band overflowed the stage clip box during the return')
+      .toBeLessThan(8);
 
     const arcsAfter = await arcBandState(page);
     expect(arcsAfter.display, 'the arc band never returned').not.toBe('none');

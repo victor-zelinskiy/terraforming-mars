@@ -48,7 +48,9 @@ x/y. Направленный толчок wheel-handoff'а и «подъём» 
 
 ## Кто в семье (маркер + ws-band)
 
-`.con-cardactions` (Действия карт + repeat), `.con-stdp`, `.con-ma`,
+`.con-hand` (Карты в руке — секция-workspace: маркер + `__frame`, геометрия
+уже своя, она flex-ребёнок `.con-main`), `.con-cardactions` (Действия карт +
+repeat), `.con-stdp`, `.con-ma`,
 `.con-mainspect`, `.con-maconfirm`, `.con-sheet`, `.con-task-host` (шасси:
 `.con-task`/`--wide`, `.con-play`, `.con-trade`, `.con-colinspect`,
 `.con-hydroconfirm`, hydro help), `.con-composer` (play / corp-first;
@@ -521,6 +523,69 @@ fullscreen-осмотр `.con-zoom`, системное меню / `.con-alert`,
 (прегейм — рельса ещё не наполнена), endgame. Секции (`.con-hand`,
 `.con-colonies`, `.con-hydro`, board, journal, `.con-info`) — уже
 flex/absolute-дети `.con-main`, рельса видна по построению.
+
+## WORKSPACE STAGE — PRE-commit половина того же принципа (ит. 23)
+
+`consoleWorkspaceOutcome` отвечает на POST-commit вопрос («то, что произвёл мой
+ход, показывается ВНУТРИ workspace»). **`consoleWorkspaceStage.ts`** — это
+PRE-commit половина того же принципа: «то, что я сейчас НАСТРАИВАЮ, тоже
+показывается внутри». Формы совпадают намеренно: клейм + реактивный слот +
+`<Teleport>` одного смонтированного в шелле инстанса.
+
+```
+workspaceStageState = { host, subject, stage, slot, phase }
+```
+
+- `host` — какой workspace углублён (сегодня `'hand'`; союз закрытый);
+- `subject` — переносимый предмет (CardName) = фиксированный субъект крошки;
+- `stage` — имя ЭТАПА, которое встроенная поверхность отдаёт НАВЕРХ
+  (`setWorkspaceStageName`: «РОЗЫГРЫШ» → «ОПЛАТА» → «ВЫБОР»);
+- `slot` — селектор зоны-цели, публикуется хостом;
+- `phase` — тот же `WorkspacePhase` из `consoleWorkspaceFlow`, из него
+  ВЫВОДЯТСЯ глагол B и input-гейт. Никаких `isPlayModalOpen`.
+
+**RESTORE намеренно НЕ живёт здесь.** Выбранная карта, фильтр и скролл уже
+живут в `consoleState` (`handIndex`, `handTagFilter`) и переживают углубление
+ПО ПОСТРОЕНИЮ: browse-слой не размонтируется, он паркуется
+(`.con-hand__browse--parked`). Копия здесь была бы второй истиной.
+
+### Гоча №1 — слот публикуется `flush: 'post'`
+
+Родитель (шелл) рендерится РАНЬШЕ ребёнка (секции). `pre`-watcher публикует
+селектор до того, как секция отрисует названный им узел → телепорт резолвится в
+несуществующую цель, Vue варнит и оставляет контент НА МЕСТЕ: композер вставал
+ПОД командной строкой, в потоке, а workspace стоял пустой. `flush: 'post'` —
+единственное, что гарантирует «узел есть раньше, чем его ищут».
+
+### Гоча №2 — pick-мост НЕ снимает клейм
+
+Композер розыгрыша умеет отправить игрока обратно на ту же полку выбрать карту
+(`enterConsoleHandPick`). Снять клейм там — размонтировать композер и потерять
+всю настройку. Поэтому клейм ЖИВЁТ, а презентация ставится на паузу:
+`stagePaused` (шелловский `pickBridgeActive`) снимает парковку полки и прячет
+зону. Владение и подача — разные факты.
+
+### Гоча №3 — rollback коммита
+
+`markWorkspaceStageCommitted` на сабмите (крошка в amber, ввод поглощается) —
+и `rollbackWorkspaceStageCommit()` в `playedHeroState.phase === 'failed'` рядом
+с `resetSubmitting()`. Отказанный сервером ход не случился; оставить фазу за
+границей = мёртвая B и крошка, заявляющая несделанный ход.
+
+### Общий заголовок — `ConsoleWsHead.vue`
+
+ОДИН компонент на все workspace поверх чистой грамматики
+`consoleWorkspaceHeader.buildWorkspaceHeader`. Хост владеет ровно двумя вещами:
+содержимым browse-слоя aux-зоны (default-слот) и идентичностью внешнего
+элемента (fall-through класс). Метрики — в блоке `.con-wshead` (не миксин: два
+хоста с общим миксином — это всё ещё два дерева разметки, а каждое прошлое
+расхождение здешних шапок было расхождением РАЗМЕТКИ). Профильные лестницы
+(`console_tv.less`, handheld-блок) переопределяют `.con-wshead`, а не
+per-surface классы.
+
+Deck-гоча: `left` у `--deep` слоя КОМПЕНСИРУЕТ column-gap шапки, поэтому при
+профильном gap его надо пересчитывать — базовый `-.5rem` на Deck (.45rem gap)
+наезжал первым `›` на имя workspace.
 
 ## WORKSPACE DESCEND — «вход внутрь» шага той же рамки
 

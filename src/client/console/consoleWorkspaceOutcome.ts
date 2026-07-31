@@ -127,6 +127,32 @@ export const workspaceOutcomeState = reactive({
    * Reactive because the hold that consumes it is a render-time predicate.
    */
   beatDone: false,
+  /**
+   * HOW MANY cards this activation promised, known at SUBMIT time from the
+   * branch preview's `cards` gain amount (server-computed — the same numbers
+   * the commit wave spends, never a client re-derivation).
+   *
+   * The batch arrival needs the COUNT before anything can move: the slots, the
+   * layout and the focus target are all decided up front, and N flying cards
+   * cannot be planned from an answer that has not come back yet. When the
+   * answer IS already in (the common case — the beat is deliberately handed
+   * off ~460 ms after the confirm) the real batch wins; this is what makes the
+   * honest waiting case possible at all instead of a single card that later
+   * multiplies. 0 = the preview promised nothing countable.
+   */
+  expectedCards: 0,
+  /**
+   * THE ARRIVAL HAS COMPLETED — every card has landed, opened, and the flight
+   * proxies have handed over to the real cards.
+   *
+   * Deliberately LATER than `beatDone`: that one releases the surface (so it
+   * can mount and be measured under the still-flying proxies), this one
+   * releases the PLAYER. Between the two the real cards are held invisible
+   * beneath their proxies, and a focus ring or an «A Взять» hint there would
+   * point at an empty slot and accept a press for a card that is not yet
+   * there. Every embedded stage gates its input on this.
+   */
+  arrivalDone: true,
 });
 
 /**
@@ -155,10 +181,39 @@ function clearBeat(): void {
   }
 }
 
+/**
+ * The ARRIVAL's own backstop. The gate is a courtesy to the animation, never
+ * its hostage: a flight that never launched, a killed timeline or a stage torn
+ * down mid-air must not leave the player looking at a stage with no focus ring,
+ * no verbs and every press swallowed.
+ *
+ * Armed from the ANSWER, not from the claim, because the surface cannot exist
+ * before the answer does — an honest wait on a slow server is not the failure
+ * this guards. Generous next to the ~1.2 s batch it covers, and short enough
+ * that the failure reads as an abrupt arrival rather than a dead screen.
+ */
+const ARRIVAL_SAFETY_MS = 5000;
+
+let arrivalTimer: ReturnType<typeof setTimeout> | undefined;
+
+function clearArrival(): void {
+  if (arrivalTimer !== undefined) {
+    clearTimeout(arrivalTimer);
+    arrivalTimer = undefined;
+  }
+}
+
 /** The shell: the artifact exists — the card may turn over. */
 export function markWorkspaceOutcomeAnswerIn(): void {
   if (workspaceOutcomeState.sourceCard !== '') {
     workspaceOutcomeState.answerIn = true;
+    if (!workspaceOutcomeState.arrivalDone && arrivalTimer === undefined &&
+        typeof setTimeout === 'function') {
+      arrivalTimer = setTimeout(() => {
+        arrivalTimer = undefined;
+        workspaceOutcomeState.arrivalDone = true;
+      }, ARRIVAL_SAFETY_MS);
+    }
   }
 }
 
@@ -171,6 +226,20 @@ export function markWorkspaceOutcomeBeatDone(): void {
 /** Is the execution beat still playing? */
 export function workspaceOutcomeBeatPending(): boolean {
   return workspaceOutcomeState.sourceCard !== '' && !workspaceOutcomeState.beatDone;
+}
+
+/** The batch has fully arrived (landed, opened, handed over) — input may open. */
+export function markWorkspaceOutcomeArrivalDone(): void {
+  clearArrival();
+  workspaceOutcomeState.arrivalDone = true;
+}
+
+/**
+ * Is a claimed batch still ARRIVING? Embedded stages ask this before they
+ * draw a focus ring, name a focused card or accept a press.
+ */
+export function workspaceOutcomeArrivalPending(): boolean {
+  return workspaceOutcomeState.sourceCard !== '' && !workspaceOutcomeState.arrivalDone;
 }
 
 /** The workspace's outcome zone is mounted (or gone) — publish the target. */
@@ -227,6 +296,7 @@ export function claimWorkspaceOutcome(
   sourceCard: string,
   kinds: ReadonlyArray<WorkspaceOutcomeKind>,
   nodeIndex = 0,
+  expectedCards = 0,
 ): void {
   if (sourceCard === '' || kinds.length === 0) {
     releaseWorkspaceOutcome();
@@ -237,6 +307,12 @@ export function claimWorkspaceOutcome(
   workspaceOutcomeState.nodeIndex = nodeIndex;
   workspaceOutcomeState.kinds = [...kinds];
   workspaceOutcomeState.stage = 'awaiting';
+  workspaceOutcomeState.expectedCards = Math.max(0, Math.floor(expectedCards));
+  clearArrival();
+  // Only a CARD outcome arrives by flying; a deck-check presents in the
+  // composer's own slot and must not leave the input gate closed behind it.
+  workspaceOutcomeState.arrivalDone =
+    !(kinds.includes('draw') || kinds.includes('pick'));
   // The execution beat starts owing its minimum time from the confirm — not
   // from when the answer happens to land, or a fast server would shorten the
   // very beat that explains what the action is doing.
@@ -274,8 +350,11 @@ export function markWorkspaceOutcomePresenting(): void {
 export function releaseWorkspaceOutcome(): void {
   clearSafety();
   clearBeat();
+  clearArrival();
   workspaceOutcomeState.answerIn = false;
   workspaceOutcomeState.beatDone = false;
+  workspaceOutcomeState.expectedCards = 0;
+  workspaceOutcomeState.arrivalDone = true;
   workspaceOutcomeState.host = undefined;
   workspaceOutcomeState.sourceCard = '';
   workspaceOutcomeState.nodeIndex = 0;

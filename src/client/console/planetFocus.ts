@@ -65,6 +65,11 @@ export const PLANET_FOCUS_ENTER_MS = 640;
 export const PLANET_FOCUS_EXIT_MS = 520;
 /** Settle margin over the CSS transition before the settled state locks. */
 const SETTLE_MARGIN_MS = 60;
+/** The instruments' own return: the arc band + off-Mars flanks fade back in
+ *  AFTER the planet has landed (the CSS owns the fade; this is the beat it
+ *  buys). Nothing may move a scale until it is over — a glide behind a
+ *  half-transparent band is exactly the "wasted story" this mode fixes. */
+export const PLANET_ARCS_RETURN_MS = 400;
 /** The post-exit scale story: marker glide (≤1280) + the accent pulse tail. */
 export const PLANET_SCALE_BEAT_MS = 1250;
 /** A pending beat can never freeze the HUD — a stuck foreground releases
@@ -107,6 +112,13 @@ export const planetFocusState = reactive({
    * behind it would waste the story.
    */
   beatPending: false,
+  /**
+   * The planet has landed and the INSTRUMENTS are fading back in. A short
+   * beat of its own: the arcs are on screen but not yet solid, so no scale
+   * may move through it (and nothing else may take the foreground either —
+   * it is part of the hold).
+   */
+  arcsReturning: false,
   /** The arcs are back and the released values are gliding (accent window). */
   scaleBeat: false,
   /** Bumped per enter — lets the board section restart per-engagement work. */
@@ -123,6 +135,7 @@ export const planetFocusState = reactive({
 registerAnimationHoldSupplier('planet-focus', () =>
   planetFocusState.phase === 'exit-prep' ||
   planetFocusState.phase === 'exiting' ||
+  planetFocusState.arcsReturning ||
   planetFocusState.beatPending ||
   planetFocusState.scaleBeat);
 
@@ -137,6 +150,8 @@ registerAnimationHoldSupplier('planet-focus', () =>
  */
 export function planetFocusBeatAllowed(signals: AdmissionSignals): boolean {
   return planetFocusState.beatPending &&
+    // …and the instruments the story is TOLD ON are actually back.
+    !planetFocusState.arcsReturning &&
     !signals.revealOpen && !signals.revealPending &&
     !signals.cardArrival && !signals.boardBonus && !signals.cardDiscard;
 }
@@ -151,6 +166,7 @@ let exitPrepRaf: number | undefined;
 let exitTimer: number | undefined;
 let beatTimer: number | undefined;
 let beatSafetyTimer: number | undefined;
+let arcsTimer: number | undefined;
 
 export function registerPlanetFocusParamsSource(source: () => HeldGlobalParams): () => void {
   liveParamsSource = source;
@@ -277,7 +293,15 @@ export function beginPlanetFocusExit(): void {
     exitTimer = schedule(() => {
       exitTimer = undefined;
       if (planetFocusState.phase === 'exiting') {
+        // The planet has landed. Dropping the phase is what lets the CSS
+        // fade the instruments back in — so the beat of their return starts
+        // exactly here, and the scale story waits it out.
         planetFocusState.phase = 'idle';
+        planetFocusState.arcsReturning = true;
+        arcsTimer = schedule(() => {
+          arcsTimer = undefined;
+          planetFocusState.arcsReturning = false;
+        }, consoleMotionMs(PLANET_ARCS_RETURN_MS));
         settleExit();
       }
     }, consoleMotionMs(PLANET_FOCUS_EXIT_MS) + SETTLE_MARGIN_MS);
@@ -363,6 +387,7 @@ export function resetPlanetFocus(): void {
   clearAccentClasses();
   planetFocusState.phase = 'idle';
   planetFocusState.heldParams = undefined;
+  planetFocusState.arcsReturning = false;
   planetFocusState.scaleBeat = false;
 }
 
@@ -403,6 +428,9 @@ function clearExitTimers(): void {
   beatTimer = undefined;
   clearTimer(beatSafetyTimer);
   beatSafetyTimer = undefined;
+  clearTimer(arcsTimer);
+  arcsTimer = undefined;
+  planetFocusState.arcsReturning = false;
   planetFocusState.beatPending = false;
   endScaleBeat();
 }

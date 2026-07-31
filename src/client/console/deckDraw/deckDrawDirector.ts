@@ -15,6 +15,7 @@
 
 import {gsap} from 'gsap';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
+import {addPremiumTurn} from '@/client/console/cardDeal/premiumTurn';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {DeckDrawTimings, DrawBeat, RectLike} from './deckDrawModel';
 
@@ -29,52 +30,14 @@ function jitterDeg(index: number): number {
 
 export type DeckDrawHandle = {kill: () => void};
 
-/**
- * The shared PREMIUM 3D TURN: a real physical tumble open. Layers the OPEN
- * onto the flip chassis (`.con-deal-proxy__flip`, `preserve-3d`, backface-
- * hidden; the proxy owns the `perspective`, so a Z push reads as true depth).
- *
- * Four channels, one motion:
- *  · rotateY 180 → 0 — the turn, decelerating into the face-up rest (inertia);
- *  · rotateX 0 → −tilt → 0 — a small forward tumble that gives the turn volume;
- *  · z 0 → push → 0 — the card lifts toward the viewer as it opens, then sinks;
- *  · a one-shot light sweep (CSS `--revealing`) as the face comes round.
- * The settle overshoot rides SCALE (on the proxy), never rotateY — an angular
- * overshoot past 0°/180° would flash the mirrored backface.
- *
- * The flip is set up at (re)born time by the caller (`gsap.set(flip,{rotateY:
- * 180})`); this only animates from there. Used by the PLAIN landing (the turn
- * rides the flight) and the MATCH's inspect-point moment (the card is turned
- * over in place — the "is it the one?" table gesture).
+/*
+ * The PREMIUM 3D TURN now lives in `cardDeal/premiumTurn.ts` — it is the
+ * fork's ONE card-opening motion and the workspace batch arrival plays the
+ * very same function (the reference mechanic was always this one; copying it
+ * into a second director is exactly how two "identical" reveals drift). The
+ * only thing that was deck-draw-specific — the glint class — is a parameter,
+ * and this call site keeps its own default.
  */
-function addPremiumTurn(tl: gsap.core.Timeline, o: {
-  proxy: HTMLElement,
-  flip: HTMLElement,
-  /** Timeline position the turn starts at. */
-  at: number,
-  /** Full duration of the turn (already in seconds). */
-  dur: number,
-  /** The scale the card rests at when the turn completes. */
-  poseScale: number,
-  /** Depth push magnitude (px at scale 1); the hero moment pushes harder. */
-  push: number,
-}): void {
-  const {proxy, flip, at, dur, poseScale, push} = o;
-  const half = dur * 0.5;
-  // Y — the turn, inertial deceleration into rest.
-  tl.to(flip, {rotateY: 0, duration: dur, ease: 'power3.out'}, at);
-  // X — a forward tumble peaking at the halfway (card edge-on) point.
-  tl.to(flip, {rotateX: -13, duration: half, ease: 'sine.inOut'}, at);
-  tl.to(flip, {rotateX: 0, duration: half, ease: 'sine.inOut'}, at + half);
-  // Z — depth push toward the viewer, then a soft sink to rest.
-  tl.to(flip, {z: push, duration: half, ease: 'power2.out'}, at);
-  tl.to(flip, {z: 0, duration: half, ease: 'power2.inOut'}, at + half);
-  // The light sweep fires as the face crosses into view (~rotateY 90°).
-  tl.call(() => proxy.classList.add('con-deckdraw-proxy--revealing'), undefined, at + dur * 0.46);
-  // Settle overshoot on SCALE (safe — never on the turn axis).
-  tl.to(proxy, {scale: poseScale * 1.05, duration: dur * 0.62, ease: 'power2.out'}, at);
-  tl.to(proxy, {scale: poseScale, duration: s(210), ease: 'back.out(1.5)'}, at + dur * 0.62);
-}
 
 /** Everything one card's beat needs to be played. */
 export type BeatEls = {

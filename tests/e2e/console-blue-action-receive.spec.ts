@@ -1,6 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {WS_STAGE_BOX, WS_STAGE_HEAD, stageProbe} from './wsStageParity';
 
 /**
  * Console BLUE ACTION · the RECEIVE (plain draw) stage — the twin of the
@@ -255,7 +256,7 @@ for (const profile of PROFILES) {
       expect(arriveMs, `stage arrived in ${arriveMs}ms`).toBeLessThan(12_000);
       expect(wsLogs.some((l) => l.includes('BACKSTOP FIRED')),
         `the beat fell back to the backstop:\n${wsLogs.join('\n')}`).toBe(false);
-      await expect(page.locator('.con-reveal__title')).toContainText('Получена карта');
+      await expect(page.locator('.con-ws-stage-title')).toContainText('Получена карта');
       // PRIMARY-HEADING PARITY: the title reads the SHARED .con-ws-stage-heading
       // role — the same computed voice the buy stage's «Купить открытую карту?»
       // gets (its spec asserts the identical numbers; fhd: 1.3rem = 26px/700).
@@ -263,31 +264,54 @@ for (const profile of PROFILES) {
         const cs = window.getComputedStyle(el);
         return {size: cs.fontSize, weight: cs.fontWeight};
       });
-      // The numbers are the PURCHASE stage's own, captured from its parity
-      // print-out: fhd 1.3rem = 26px, tv 1.5rem × the 4K rem scale = 72px.
-      const expectHead = profile.tag === 'tv4k' ? {size: '72px', weight: '700'} : {size: '26px', weight: '700'};
-      expect(headStyle, `heading ${JSON.stringify(headStyle)}`).toEqual(expectHead);
       // HERO PARITY — printed next to the purchase spec's baseline line; the
       // shared fit formula + shared chrome must land the SAME card box.
       const rxHero = await page.locator('[data-embed-slot="workspace-reveal"] .con-cards__slot .pcard')
         .first().boundingBox();
-      // ONE HERO, TWO STAGES: the buy card's measured box at this profile
-      // (printed by the purchase spec's own parity line). Same fit formula +
-      // same stage chassis ⇒ the received card must land on the same numbers,
-      // not merely "look similar".
-      const BUY_HERO: Record<string, {w: number, h: number}> = {
-        fhd: {w: 471.74, h: 678.12},
-        tv4k: {w: 837.03, h: 1203.24},
-      };
-      const want = BUY_HERO[profile.tag];
-      console.log(`[PARITY:${profile.tag}] receive hero=${JSON.stringify(rxHero)} head=${JSON.stringify(headStyle)}`);
-      // 1px tolerance: the numbers come out byte-identical today (same fit,
-      // same chassis), and a whole-pixel drift is exactly the regression this
-      // guards — but sub-pixel rounding must not flake the suite.
-      expect(Math.abs(rxHero!.width - want.w), `hero width ${rxHero!.width} vs buy ${want.w}`).toBeLessThanOrEqual(1);
-      expect(Math.abs(rxHero!.height - want.h), `hero height ${rxHero!.height} vs buy ${want.h}`).toBeLessThanOrEqual(1);
+      // ONE STAGE, TWO HOSTS: the chassis box from the SHARED baseline file.
+      // Same layout engine + same chassis ⇒ the received card's stage must land
+      // on the same numbers as the buy stage's, not merely "look similar".
+      const stageBox = await page.locator('.con-reveal--embedded')
+        .evaluate(stageProbe);
+      // THE CHROME BREAKDOWN. Every past divergence in this flow was found by
+      // MEASURING both stages on one profile rather than by reading the CSS —
+      // the fit subtracts these numbers, so a stage that spends more chrome
+      // silently gets a smaller card. Printed on both specs, same shape.
+      const chrome = await page.locator('.con-reveal--embedded').evaluate((root) => {
+        const box = (sel: string) => {
+          const el = root.querySelector(sel) as HTMLElement | null;
+          return el === null ? null : {h: el.offsetHeight, w: el.offsetWidth};
+        };
+        return {
+          rootH: root.clientHeight,
+          frame: box('.con-ws-stage-frame'),
+          head: box('.con-ws-stage-head'),
+          row: box('.con-ws-stage-row'),
+          status: box('.con-ws-stage-status'),
+          zoom: getComputedStyle(root.querySelector('.con-ws-stage-row') as HTMLElement)
+            .getPropertyValue('--con-cards-zoom'),
+          // The profile's rem factor — the ladders and every px constant ride
+          // it, so a heading that measures "wrong" is usually a profile that
+          // did not resolve rather than a font rule that lost.
+          ui: getComputedStyle(document.documentElement).getPropertyValue('--con-ui-scale'),
+          profile: document.documentElement.className,
+        };
+      });
+      console.log(`[PARITY:${profile.tag}] receive hero=${JSON.stringify(rxHero)} head=${JSON.stringify(headStyle)} chrome=${JSON.stringify(chrome)}`);
+      // The numbers are the PURCHASE stage's own — one shared baseline file,
+      // so the two stages cannot be re-synced one at a time. Asserted AFTER the
+      // print-out, so a failure always comes with the measurements that explain it.
+      expect(headStyle, `heading ${JSON.stringify(headStyle)}`).toEqual(WS_STAGE_HEAD[profile.tag]);
+      // The chassis is asserted whole: head, row box, status and the zoom the
+      // shared engine solved from them. Transform-free by construction, so it
+      // cannot disagree with the buy spec for a reason (a focused card's
+      // emphasis) that has nothing to do with either stage.
+      expect(stageBox, `stage ${JSON.stringify(stageBox)}`).toEqual(WS_STAGE_BOX[profile.tag]);
       expect(rxHero).not.toBeNull();
-      expect(await page.locator('.con-reveal__count').count(), 'no count chip for ONE card').toBe(0);
+      // ONE card: the stage states no count — «ПОЛУЧЕНО 1» beside a single
+      // card is a mass-batch instrument (the same rule that folds the buy
+      // pickline). The badge is the SHARED entity both stages use.
+      expect(await page.locator('.con-ws-stage-badge').count(), 'no count badge for ONE card').toBe(0);
       expect(await page.locator('.con-start__slot-a').count(), 'no on-card command pill').toBe(0);
       // The status line: focused card's name + the ONE take verb.
       await expect(page.locator('.con-reveal__namebar .con-cards__verdict-name')).toBeVisible();

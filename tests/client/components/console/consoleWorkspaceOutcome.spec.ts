@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {
   claimWorkspaceOutcome,
   markWorkspaceOutcomeAnswerIn,
+  markWorkspaceOutcomeArrivalDone,
   markWorkspaceOutcomeBeatDone,
   markWorkspaceOutcomePresenting,
   releaseWorkspaceOutcome,
@@ -11,6 +12,7 @@ import {
   workspaceClaimsDrawReveal,
   workspaceClaimsPick,
   workspaceOutcomeAdmits,
+  workspaceOutcomeArrivalPending,
   workspaceOutcomeBeatPending,
   workspaceOutcomeClaimed,
   workspaceOutcomeState,
@@ -196,5 +198,56 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     claimWorkspaceOutcome('card-actions', RESTRICTED, ['draw']);
     expect(workspaceClaimsDrawReveal(cardSource(AI_CENTRAL))).to.eq(false);
     expect(workspaceClaimsDrawReveal(cardSource(RESTRICTED))).to.eq(true);
+  });
+
+  /**
+   * THE ARRIVAL GATE — deliberately later than `beatDone`. That one releases
+   * the SURFACE (so it can mount and be measured under the still-flying
+   * proxies); this one releases the PLAYER. Between the two the real cards are
+   * held invisible beneath their proxies, and a focus ring or an «A Взять»
+   * there would point at an empty slot and accept a press for a card that has
+   * not landed.
+   */
+  describe('the arrival gate', () => {
+    it('opens closed for a CARD outcome and only the arrival opens it', () => {
+      claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw', 'pick'], 0, 2);
+      expect(workspaceOutcomeArrivalPending()).to.eq(true);
+      // The beat finishing is NOT enough — the handoff still owes its frames.
+      markWorkspaceOutcomeBeatDone();
+      expect(workspaceOutcomeArrivalPending()).to.eq(true);
+      markWorkspaceOutcomeArrivalDone();
+      expect(workspaceOutcomeArrivalPending()).to.eq(false);
+    });
+
+    it('never closes for a deck CHECK — that result presents in the composer itself', () => {
+      // Leaving it shut there would strand the input of a stage that has no
+      // flying batch to wait for.
+      claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['deck-check']);
+      expect(workspaceOutcomeArrivalPending()).to.eq(false);
+    });
+
+    it('is open whenever nothing is claimed (a standalone reveal is never gated)', () => {
+      expect(workspaceOutcomeArrivalPending()).to.eq(false);
+      claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw']);
+      releaseWorkspaceOutcome();
+      expect(workspaceOutcomeArrivalPending()).to.eq(false);
+    });
+
+    it('carries the PROMISED card count — the batch is planned before it moves', () => {
+      // The count has to exist before the first frame (N cards leave the pile,
+      // N slots are prepared), and on a slow server the answer is not back yet.
+      claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw', 'pick'], 0, 3);
+      expect(workspaceOutcomeState.expectedCards).to.eq(3);
+      releaseWorkspaceOutcome();
+      expect(workspaceOutcomeState.expectedCards).to.eq(0);
+    });
+
+    it('a second activation never inherits the first batch\'s size or gate', () => {
+      claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw'], 0, 4);
+      markWorkspaceOutcomeArrivalDone();
+      claimWorkspaceOutcome('card-actions', RESTRICTED, ['draw'], 0, 1);
+      expect(workspaceOutcomeState.expectedCards).to.eq(1);
+      expect(workspaceOutcomeArrivalPending()).to.eq(true);
+    });
   });
 });
