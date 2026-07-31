@@ -19,7 +19,10 @@
              px stay 1:1) and the positioned host of the resource counter —
              the badge must sit OUTSIDE the card's `zoom:` context or the TV
              profile would scale it twice. -->
+        <!-- `--committed` (bound to the submitting lock): the quiet COMMITTED
+             accent — a calm ring, geometry-free, auto-clearing on rollback. -->
         <div class="con-composer__actcardwrap" aria-hidden="true"
+             :class="{'con-composer__actcardwrap--committed': submitting}"
              :data-motion-anchor="'card:' + entry.cardName"
              :data-zoom-slot="entry.cardName"
              data-action-focus-card>
@@ -508,6 +511,10 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {actionCommitState, armActionCommit, commitKindForBranch, commitRewardSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
+import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
+import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
+import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import {holdDeckDisplay, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {armOutcomeOrigin, playConfigRelease, playOutcomeContent, playOutcomePhase, resetOutcomeOrigin} from '@/client/console/consoleActionOutcomeMotion';
@@ -619,6 +626,14 @@ export default defineComponent({
     preview: {type: Object as PropType<ActionPreview | undefined>, default: undefined},
     nodeIndex: {type: Number, required: true},
     /**
+     * The SELECTED variant's render node — the ACTION COMMIT's content-token
+     * address into the hero card's printed graphic (data-graphic-node).
+     * Optional by design: a collapse-restore rebuilds the stage from the
+     * claim (no node), and the commit degrades to the mechanical beat over
+     * the whole mechanics plate — the safe fallback, never a requirement.
+     */
+    actionGraphicNode: {type: Object as PropType<ICardRenderEffect | undefined>, default: undefined},
+    /**
      * THE IN-FRAME OUTCOME STAGE. Set by the parent at confirm time from the
      * branch preview, it is what the confirmed action PRODUCES — and while it
      * is set the decision column yields to it, the hero card standing still.
@@ -661,6 +676,12 @@ export default defineComponent({
       capturedPre: {} as Record<number, unknown>,
       capturedOption: undefined as unknown,
       captured: {} as Record<number, unknown>,
+      /** The live ACTION COMMIT episode (killed on unmount / rollback). */
+      commitHandle: undefined as ActionCommitMotionHandle | undefined,
+      /** The draw beat's commit-handoff delay (cleared on abort/unmount). */
+      beatDelayTimer: undefined as number | undefined,
+      /** Path-watcher mirror of the commit lifecycle (the abort rollback). */
+      actionCommitState,
       /** The composed repeat-action pick (Viron): the chosen already-used
        *  action + its own composed responses. Filled by `consoleRepeatPick`;
        *  the confirm carries it as `repeat` (NOT a plain step response). */
@@ -1320,13 +1341,34 @@ export default defineComponent({
      * leaves the HUD pile face-down (a card back needs no data), so the beat
      * covers the round-trip instead of following it. `notifyPayload()` is what
      * releases the turn-over, and that is driven by `answerIn` below.
+     *
+     * The launch is DELAYED by the ACTION COMMIT's handoff window: the pull
+     * starts as the commit impulse lands on the printed card-draw icon (and
+     * the pile answers with its pulse) — the deck reacts to the activated
+     * symbol, never in the same frame as the press. The beat still covers the
+     * round-trip: the delay is a fraction of the flight it precedes.
      */
     outcomePendingBeat(on: boolean) {
       if (on) {
-        void this.$nextTick(() => this.beginBeatFlight());
+        this.clearBeatDelay();
+        this.beatDelayTimer = window.setTimeout(() => {
+          this.beatDelayTimer = undefined;
+          void this.$nextTick(() => this.beginBeatFlight());
+        }, consoleMotionMs(COMMIT_HANDOFF_AT_MS));
       } else {
+        this.clearBeatDelay();
         this.abortBeatFlight();
       }
+    },
+    /**
+     * The submitted action was REJECTED (server error) — the premium
+     * rollback: the commit visuals tear down, the CTA unlocks, the captures
+     * stay. The workspace returns to the exact editable state before A.
+     */
+    'actionCommitState.abortNonce'() {
+      this.commitHandle?.kill();
+      this.commitHandle = undefined;
+      this.submitting = false;
     },
     /** The answer landed — the card may turn over (mid-flight or on the slot). */
     'workspaceOutcomeState.answerIn'(arrived: boolean) {
@@ -1421,6 +1463,9 @@ export default defineComponent({
   mounted() {
   },
   beforeUnmount() {
+    this.clearBeatDelay();
+    this.commitHandle?.kill();
+    this.commitHandle = undefined;
     this.abortRevealFlight();
     this.abortBeatFlight();
     // The zone dies with the stage — retract the teleport target so a re-homed
@@ -2321,6 +2366,39 @@ export default defineComponent({
       // Capture the configuration surface's box NOW — the outcome unfolds from
       // it, and by the time that zone mounts this surface is already gone.
       armOutcomeOrigin(this.$refs.rootEl as HTMLElement | undefined);
+      // ── ACTION COMMIT — the universal activation beat. Armed and MEASURED
+      //    synchronously at the press (the reward-wave origins are the live
+      //    icon rects; the flight must never depend on this stage outliving
+      //    the answer). The nested repeat-pick composer only CAPTURES a
+      //    choice — no server activation, no commit beat there.
+      if (this.publishCommands) {
+        const kind = commitKindForBranch(branch);
+        const specs = commitRewardSpecs(this.entry.cardName, branch, this.captured);
+        const root = this.$refs.rootEl as HTMLElement | undefined;
+        const wrap = root?.querySelector<HTMLElement>('.con-composer__actcardwrap') ?? undefined;
+        const anchors = wrap !== undefined ? resolveActionCommitAnchors(wrap, this.actionGraphicNode) : undefined;
+        const origins = anchors !== undefined ? resolveGainIconOrigins(anchors, specs) : specs.map(() => undefined);
+        const srcRect = wrap?.getBoundingClientRect();
+        armActionCommit({
+          sourceCard: this.entry.cardName,
+          kind,
+          specs,
+          origins,
+          sourcePoint: srcRect !== undefined && srcRect.width > 4 ?
+            {x: srcRect.left + srcRect.width / 2, y: srcRect.top + srcRect.height * 0.72} : undefined,
+        });
+        this.commitHandle = runActionCommitMotion({
+          cardWrapEl: wrap,
+          ctaEl: root?.querySelector<HTMLElement>('.con-composer__cta') ?? undefined,
+          actionNode: this.actionGraphicNode,
+          kind,
+          firstResource: specs[0]?.resource,
+          // The draw's causality: the impulse lands on the printed card-draw
+          // icon and the HUD deck ANSWERS — right before the physical pull.
+          onHandoff: kind === 'draw' || kind === 'deck-check' ? pulseDeckPile : undefined,
+          onSettled: markActionCommitSettled,
+        });
+      }
       this.$emit('confirm', {
         branchIndex: branch.index,
         preResponses: orderedPreResponses(this.preview, this.capturedPre),
@@ -2495,6 +2573,13 @@ export default defineComponent({
      * real card's rect and only then dissolves, so the arrival ends where the
      * card actually lives instead of teleporting there.
      */
+    /** Cancel a scheduled commit-delayed beat launch (abort / unmount). */
+    clearBeatDelay(): void {
+      if (this.beatDelayTimer !== undefined) {
+        window.clearTimeout(this.beatDelayTimer);
+        this.beatDelayTimer = undefined;
+      }
+    },
     abortBeatFlight(): void {
       // Never leave the HUD counter frozen on a beat that ended early.
       releaseDeckDisplay();

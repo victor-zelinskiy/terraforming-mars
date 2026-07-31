@@ -252,6 +252,14 @@ for (const profile of PROFILES) {
       expect(Math.abs(heroAtBuy!.y - heroAtSetup!.y)).toBeLessThanOrEqual(1);
       expect(Math.abs(heroAtBuy!.width - heroAtSetup!.width)).toBeLessThanOrEqual(1);
       expect(Math.abs(heroAtBuy!.height - heroAtSetup!.height)).toBeLessThanOrEqual(1);
+      // THE IDENTITY SYMBOL holds on the COMMITTED stage too (§ NORTH STAR:
+      // present through every state, never re-hidden by a stage transition).
+      const emblemAtBuy = await page.locator('.con-cardactions__kicker-emblem').evaluate((el) => {
+        const cs = getComputedStyle(el);
+        return {opacity: cs.opacity, visibility: cs.visibility};
+      });
+      expect(parseFloat(emblemAtBuy.opacity), `emblem@buy: ${JSON.stringify(emblemAtBuy)}`).toBeGreaterThan(0.9);
+      expect(emblemAtBuy.visibility).toBe('visible');
       // The breadcrumb advanced its TAIL only, into the committed accent.
       // (Both keyed words coexist in the swap cell during the crossfade —
       // wait for the leaving one to finish before asserting the survivor.)
@@ -294,6 +302,14 @@ for (const profile of PROFILES) {
       // The stage survived the round trip untouched.
       await expect(embeddedHost).toHaveCount(1);
       await expect(page.locator('.con-task__title--embedded')).toContainText('Купить открытую карту?');
+      // The FULLSCREEN RETURN did not move the source either (§17): the hero
+      // box after the zoom round trip equals the setup box to the pixel.
+      await page.waitForTimeout(400); // the return flight fully settles
+      const heroAfterZoom = await page.locator('.con-composer__actcardwrap').boundingBox();
+      expect(heroAfterZoom).not.toBeNull();
+      expect(Math.abs(heroAfterZoom!.x - heroAtSetup!.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(heroAfterZoom!.y - heroAtSetup!.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(heroAfterZoom!.width - heroAtSetup!.width)).toBeLessThanOrEqual(1);
 
       // ── X: fullscreen the RESULT (the X/L3 split). ──────────────────────
       for (let tries = 0; tries < 3 && await zoom.count() === 0; tries++) {

@@ -203,6 +203,51 @@ inspectable через L3 (ТОЛЬКО в баре: локальная подп
 идентичных детей в каждой фазе; будущий маркер inspectability — только
 `position: absolute`).
 
+### ACTION COMMIT — универсальный момент активации действия (ит. 19)
+
+**Каждое действие карты имеет одну commit-фазу** между «A Подтвердить» и
+result-анимацией: `Confirm → Mechanical Press → Action Commit → Result
+Handoff → Result`. Commit НЕ изображает результат — он фиксирует границу
+«настраивал → активировал». Концепция — Combined Mechanical Commit:
+механическая фиксация карты = универсальный ИНВАРИАНТ (и безопасный fallback,
+когда якоря графики не разрешились), импульс по ВЫБРАННОМУ варианту до его
+result-иконки = смысловое усиление из реальной графики.
+
+- **Модули**: `consoleActionCommit.ts` (state/plan, pure: `armActionCommit`,
+  min-beat `actionCommitHolding`, `abortConsoleActionCommit`,
+  `commitKindForBranch`/`commitRewardSpecs`) +
+  `consoleActionCommitMotion.ts` (директор: press CTA → scale-фиксация
+  hero-body → sweep по группе → ring/pop на иконке → handoff на
+  `COMMIT_HANDOFF_AT_MS` ≈ 280, settle ≈ 430; всё — fixed-оверлеи
+  `.con-commit-*`, `.pcard`-DOM не мутируется).
+- **Якоря — из реальной графики, никогда из таблиц**: вариант адресуется
+  content-токеном (`nodeGraphicToken` → `[data-graphic-node]`, идиома
+  CardAnnotationsLayer), result-кластер = последний `.pcard-effect__part`,
+  иконки — по URL спрайта (`ICON_NEEDLES`); промах деградирует на уровень
+  (группа → плита → карта).
+- **Result handoff по категории**: draw/deck-check — запуск существующего
+  beat ЗАДЕРЖАН до handoff'а (импульс садится на иконку добора → пульс
+  `.con-deckstack__pile` → физический добор); resources — reward-волна
+  resource-transfer framework: origin'ы = ректы иконок, **кэшированные в
+  submit** (полёт не зависит от жизни workspace после ответа),
+  `beginPanelRewardHold` в pre-flush → счётчик рельсы тикает на касании
+  чипа; tile/global — иконка-акцент + существующие placement/scale-системы.
+- **Быстрый сервер не режет commit**: dismiss не-embedded результата ждёт
+  settle бита (`pendingCommitDismiss` + falling-edge watcher `commitHolding`
+  в шелле — отпускает МОУШЕН, backstop 1.1 с — путь отказа). Волна
+  стартует ДО `closeConsoleLayers()` — чипы рождаются над ещё стоящими
+  иконками, workspace складывается ПОД ними.
+- **Ошибка сервера = премиум-rollback**: `abortConsoleActionCommit()` в
+  reject-блоках WaitingFor (тот же enumerated-список, что герои) — бит
+  сворачивается, `abortNonce` снимает `submitting` композера, захваты
+  живы, карта не остаётся в ложном activated-state.
+- **Committed-state** — тихое кольцо на hero-wrap
+  (`--committed`, привязан к submitting), без циклов; CTA держит
+  «Выполняется…». Reduced motion: короткий ring-акцент, handoff/settle по
+  таймингам — семантика confirm → committed → result сохранена.
+- Вложенный repeat-pick композер только КАПТИТ выбор — commit там не
+  играет (`publishCommands === false`).
+
 ### IDENTITY SYMBOL — молния как постоянный знак workspace (ит. 18)
 
 У крупного workspace может быть ОДИН identity-символ в parent-якоре

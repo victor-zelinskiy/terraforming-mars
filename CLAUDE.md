@@ -40,6 +40,8 @@ A major workspace may carry ONE identity symbol in its parent anchor (`[симв
 ### Physical causality
 A card **always leaves from its real on-screen source** — an action that took the top card deals from `.con-deckstack__pile`, never from a synthetic dealer. A result **outlives the surface that produced it**: it detaches into an app-level layer, the workspace collapses, and only then does it fly to the *measured* destination (hand dock / discard). Every animation answers: where did this come from, why is it moving, where is it going.
 
+**Every card action has ONE universal ACTION COMMIT** between «A Подтвердить» and the result (`consoleActionCommit*.ts`): button press → the source card mechanically fixes → an impulse runs the SELECTED variant's printed graphic and lands on its result icon → the category handoff (draw = the deck answers and the existing pull starts; resources = the reward wave materializes FROM the card's own icons into the rail, counters ticking on touchdown; tile/global = the existing flows). The commit never depicts the result; a fast server never cuts its minimum beat (the dismiss gates on the motion's settle); a rejected submit rolls it back cleanly. Anchors resolve from the real graphic (`data-graphic-node` + sprite URLs) — never a per-card coordinate table.
+
 Mechanism + gotchas: `docs/claude/console/workspace-band.md` § EMBEDDED OUTCOMES / WORKSPACE DESCEND. Reference: `docs/CONSOLE_BLUE_ACTION_PARITY.md`.
 
 Before UI work read `docs/CONSOLE_MODE_CONCEPT.md`; to decide whether a file is frozen or live, read `docs/DESKTOP_DEPRECATION_AUDIT.md`.

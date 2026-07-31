@@ -16401,6 +16401,57 @@ html.console-mode {
     100% { transform: scale(1); filter: brightness(1); }
 }
 
+/* ── ACTION COMMIT — the universal activation beat's overlay layer
+   (consoleActionCommitMotion.ts). Every visual is a FIXED overlay measured
+   once — the `.pcard` DOM is never mutated; geometry rides inline px from
+   live rects. Sits between the composer's gain-fly (11610) and the
+   trade-fleet band (11620): over the workspace, under every result flight
+   that may follow. Transform/opacity only — perf-lite safe. ── */
+.con-commit-layer {
+    position: fixed;
+    inset: 0;
+    z-index: 11615;
+    pointer-events: none;
+}
+/* The impulse runway — a clip box over the SELECTED variant's printed
+   graphic; the light band inside reads the mechanic left to right. */
+.con-commit-sweep {
+    position: fixed;
+    overflow: hidden;
+    border-radius: .25rem;
+    pointer-events: none;
+}
+.con-commit-band {
+    position: absolute;
+    top: -8%;
+    height: 116%;
+    background: linear-gradient(100deg,
+        transparent 0%,
+        fade(@con-cyan, 18%) 30%,
+        rgba(210, 240, 255, 0.34) 50%,
+        fade(@con-cyan, 18%) 70%,
+        transparent 100%);
+    will-change: transform;
+}
+/* The one-shot execution ring on the RESULT icon (box-shadow — the state
+   colour survives perf-lite; never a loop). */
+.con-commit-ring {
+    position: fixed;
+    border-radius: .35rem;
+    box-shadow:
+        0 0 0 .1rem fade(@con-cyan, 85%),
+        0 0 .9rem fade(@con-cyan, 30%);
+    pointer-events: none;
+}
+/* The COMMITTED accent — bound to the composer's submitting lock: a calm
+   ring around the standing hero card. Geometry-free (paint only), clears
+   itself with the lock (rollback included). */
+.con-composer__actcardwrap--committed > .con-composer__actcard {
+    box-shadow: 0 0 0 .1rem fade(@con-cyan, 34%), 0 0 1.1rem fade(@con-cyan, 14%);
+    border-radius: .5rem;
+    transition: box-shadow calc(180ms * var(--motion-scale, 1)) ease;
+}
+
 /* The status ⇄ outcome swap of the reveal phase (out-in, short and calm). */
 .con-actfocus-outcome-enter-active,
 .con-actfocus-outcome-leave-active {

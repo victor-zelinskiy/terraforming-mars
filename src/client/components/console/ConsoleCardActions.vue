@@ -425,6 +425,7 @@
                                :entry="composerEntry"
                                :preview="composerPreview"
                                :nodeIndex="composer.nodeIndex"
+                               :action-graphic-node="composerActionNode"
                                :outcome="outcomeFlow"
                                :commitLabel="repeat ? 'Select this action' : 'Confirm action'"
                                :publishCommands="!repeat"
@@ -482,6 +483,7 @@ import {CardName} from '@/common/cards/CardName';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {CardResource} from '@/common/CardResource';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
+import type {ICardRenderEffect} from '@/common/cards/render/Types';
 import {actionPreviewMap, ensureActionPreviews} from '@/client/console/actionPreviewStore';
 import {EffectOverlayStat} from '@/common/events/aggregate';
 import {paths} from '@/common/app/paths';
@@ -824,6 +826,21 @@ export default defineComponent({
     composerPreview(): ActionPreview | undefined {
       const c = this.composer;
       return c === undefined ? undefined : this.previewMap.get(c.cardName);
+    },
+    /**
+     * The SELECTED variant's render node — the ACTION COMMIT's address into
+     * the hero card's printed graphic. Resolved from the same per-node
+     * extraction the browse tiles draw from; undefined (a restore without a
+     * live node, a text-only action) degrades the commit to the mechanical
+     * beat over the whole plate — safe by construction.
+     */
+    composerActionNode(): ICardRenderEffect | undefined {
+      const c = this.composer;
+      if (c === undefined) {
+        return undefined;
+      }
+      const entry = this.entries.find((e) => e.cardName === c.cardName);
+      return entry?.group.nodes[c.nodeIndex]?.actionNode;
     },
     /** A change-key for the ORDER-INDEPENDENT reveal delivery — bumps when the
      *  deck-check phase opens (outcomeFlow set + composer), or the server's answer

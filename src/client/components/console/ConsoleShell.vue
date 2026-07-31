@@ -1161,6 +1161,8 @@ import ConsolePatentSaleLayer from '@/client/components/console/patentSale/Conso
 import {armPatentSale, isPatentSaleActive, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {ActionCommitPlan, actionCommitHolding, consumeActionCommitPlan, releaseActionCommit} from '@/client/console/consoleActionCommit';
 import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
 import {tilePlacementHolding, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
 import ConsoleColonyBuildLayer from '@/client/components/console/colonyBuild/ConsoleColonyBuildLayer.vue';
@@ -1448,6 +1450,13 @@ export default defineComponent({
       lastTaskKey: '',
       /** The reveal-result the player already acknowledged (until the server clears). */
       dismissedRevealKey: '',
+      /**
+       * A dismiss deferred behind the ACTION COMMIT's minimum readable beat
+       * (a fast server answer must not cut the activation short). Executed
+       * by the `commitHolding` falling-edge watcher — the motion's own
+       * settle releases it, never a timer.
+       */
+      pendingCommitDismiss: undefined as (() => void) | undefined,
       /** The console-native card-action center's UI state (filter + confirm-open). */
       consoleCardActionsUi,
       /** Milestones/Awards premium confirm (nothing submitted until its A). */
@@ -2221,6 +2230,11 @@ export default defineComponent({
     taskHeldForWorkspace(): boolean {
       return this.taskBelongsToWorkspace &&
         (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
+    },
+    /** The ACTION COMMIT's minimum readable beat is still owed (the
+     *  deferred-dismiss gate — see `pendingCommitDismiss`). */
+    commitHolding(): boolean {
+      return actionCommitHolding();
     },
     taskEmbedTarget(): string | undefined {
       // HELD means "renders nowhere yet" — so it is NOT embedded, and saying
@@ -4233,6 +4247,14 @@ export default defineComponent({
     },
   },
   watch: {
+    /** The ACTION COMMIT settled — run the dismiss it was holding back. */
+    commitHolding(now: boolean, was: boolean) {
+      if (was && !now && this.pendingCommitDismiss !== undefined) {
+        const run = this.pendingCommitDismiss;
+        this.pendingCommitDismiss = undefined;
+        run();
+      }
+    },
     // NOTIFICATION X-HOLD safety: the tracked card left the screen (TTL ran
     // out despite the pause safeguard, a flow ack, a queue promotion) or a
     // DIFFERENT card took the top slot — an in-flight hold must die with it,
@@ -4758,17 +4780,47 @@ export default defineComponent({
               workspaceOutcomeState.sourceCard !== '';
             if (claimedInFrame) {
               clearAwaitingHandoff();
+              // The workspace's own stages carry the outcome from here — the
+              // commit beat's job is done, its plan unused (a draw's reward
+              // is the cards themselves).
+              releaseActionCommit();
               this.reconcileWorkspaceOutcome();
             } else {
-              // Capture the departing composer UNCONDITIONALLY — the incoming
-              // surface consumes it only when the pair is phase-linked
-              // (departureUsable), so a reveal FLIPs the source card while a
-              // follow-up task host (a Helion payment, an OrOptions branch)
-              // enters as the continuation of the same activation.
-              captureSurfaceDeparture(awaiting.from,
-                document.querySelector(`[data-motion-surface="${awaiting.from}"]`));
-              clearAwaitingHandoff();
-              closeConsoleLayers();
+              // ── ACTION COMMIT resolution (non-embedded results). The rail
+              //    freezes NOW — pre-flush, before this view commits — so a
+              //    counter can never tick ahead of the chips about to fly
+              //    out of the action graphic (the reward wave's contract).
+              const commitPlan = consumeActionCommitPlan();
+              if (commitPlan !== undefined && commitPlan.specs.length > 0) {
+                beginPanelRewardHold(commitPlan.specs);
+              }
+              const finishDismiss = () => {
+                // The wave FIRST (chips are born over the still-standing
+                // icons), then the workspace folds UNDER them — the result
+                // outlives the surface that produced it.
+                if (commitPlan !== undefined) {
+                  this.runCommitRewardWave(commitPlan);
+                }
+                // Capture the departing composer UNCONDITIONALLY — the incoming
+                // surface consumes it only when the pair is phase-linked
+                // (departureUsable), so a reveal FLIPs the source card while a
+                // follow-up task host (a Helion payment, an OrOptions branch)
+                // enters as the continuation of the same activation.
+                captureSurfaceDeparture(awaiting.from,
+                  document.querySelector(`[data-motion-surface="${awaiting.from}"]`));
+                clearAwaitingHandoff();
+                closeConsoleLayers();
+                releaseActionCommit();
+              };
+              // A fast server must not cut the minimum readable commit: the
+              // dismiss waits for the beat's settle (never a timer — the
+              // motion's own completion releases it; a dead stage releases
+              // through the beat's short backstop).
+              if (actionCommitHolding()) {
+                this.pendingCommitDismiss = finishDismiss;
+              } else {
+                finishDismiss();
+              }
             }
           }
         }
@@ -7349,6 +7401,27 @@ export default defineComponent({
      */
     onWorkspaceResultDetached(): void {
       releaseWorkspaceOutcome();
+    },
+    /**
+     * The ACTION COMMIT's reward wave: the resources the activated mechanic
+     * printed MATERIALIZE at their own icons (origins cached at submit — the
+     * flight never depends on the workspace outliving the answer) and fly to
+     * the rail rows; each counter ticks exactly at its chip's touchdown
+     * (the panel reward hold), the delta chip riding that honest transition.
+     * One existing framework end to end — specs, arcs, aggregation, layer,
+     * reduced motion all come from the resource-transfer system.
+     */
+    runCommitRewardWave(plan: ActionCommitPlan): void {
+      if (plan.specs.length === 0) {
+        return;
+      }
+      void runResourceTransfers({
+        specs: plan.specs,
+        origins: plan.origins,
+        source: {point: plan.sourcePoint},
+        arrival: 'auto',
+        onArrive: (spec) => releasePanelRewardHold(spec),
+      }).finally(() => clearPanelRewardHold());
     },
     /**
      * SETTLE the claim once the response has actually been applied.

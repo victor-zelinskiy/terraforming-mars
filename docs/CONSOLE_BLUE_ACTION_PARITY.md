@@ -1,3 +1,52 @@
+# ACTION WORKSPACE (iteration 19) — ACTION COMMIT: универсальный момент активации
+
+2026-07-31. Новый фундаментальный слой NORTH STAR: между «A Подтвердить» и
+результатом появился короткий системный момент «действие активировано» —
+ОДИН язык для всех действий карт, с category-specific result handoff.
+Полный контракт: workspace-band.md § ACTION COMMIT.
+
+**Выбор концепции — Combined Mechanical Commit (направление 3).** Чистая
+механика (напр. 1) универсальна, но нема о смысле; чистый action-path
+(напр. 2) осмыслен, но хрупок на разнородной DSL-графике и тянет к
+per-card анимациям. Слоёная модель делает механическую фиксацию инвариантом
+и безопасным fallback'ом, а импульс — усилением, разрешаемым из реальных
+`data-graphic-node`-якорей; деградация грациозна по построению.
+
+1. **Ядро**: `consoleActionCommit.ts` (lifecycle: arm при submit → settle от
+   моушена → release при резолюции; `abortNonce` для rollback; pure
+   `commitKindForBranch` / `commitRewardSpecs` — структурно из превью, те же
+   источники, что claim kinds; спеки наград = `extractPlayRewards`, сужены до
+   rail-каналов) + `consoleActionCommitMotion.ts` (CTA-press 120 → фиксация
+   карты scale 1.014→1 (110/150) → sweep по выбранной группе 210 →
+   ring/pop иконки 170; handoff на ≈280, settle ≈430; fixed-оверлеи
+   `.con-commit-layer` z11615, pcard-DOM не мутируется; reduced motion =
+   короткий ring + честные тайминги).
+2. **Draw handoff**: запуск execution beat задержан на `COMMIT_HANDOFF_AT_MS`
+   (watcher `outcomePendingBeat` → таймер, чистится в abort/unmount) — добор
+   стартует, когда импульс сел на печатную иконку карты, и колода отвечает
+   пульсом (`pulseDeckPile`). Бит по-прежнему покрывает round-trip.
+3. **Resources handoff**: план (specs + origin-ректы иконок, `sourcePoint`)
+   меряется В submit и кладётся в `actionCommitState.plan`; шелл в pre-flush
+   dismiss-ветке делает `beginPanelRewardHold(specs)` (рельса заморожена до
+   посадки), волна `runResourceTransfers` стартует ДО `closeConsoleLayers`
+   (чипы рождаются над живыми иконками, workspace складывается под ними),
+   `onArrive → releasePanelRewardHold` — счётчик тикает на касании, delta-chip
+   едет на честном переходе. Существующий framework целиком — нового слоя нет.
+4. **Min-beat гейт**: не-embedded dismiss ждёт settle
+   (`pendingCommitDismiss` + falling-edge watcher `commitHolding`); быстрый
+   сервер не режет читаемый commit, медленный держится committed-кольцом
+   (`__actcardwrap--committed`, привязан к submitting) + «Выполняется…».
+5. **Ошибка сервера**: `abortConsoleActionCommit()` добавлен в оба
+   reject-блока WaitingFor (enumerated-список героев) — премиум-rollback:
+   бит сворачивается, CTA разблокируется, захваты живы.
+6. Вложенный repeat-pick композер (`publishCommands=false`) commit не играет
+   — он только каптит выбор.
+
+Гейты: vue-tsc / eslint / build:test / make:css / юнит-батч (97, включая
+новый consoleActionCommit.spec) — зелёные.
+
+---
+
 # ACTION WORKSPACE (iteration 18) — точный pass: меньше контейнеров, абсолютные якоря, identity-молния
 
 2026-07-31. Полировка по фидбеку на ит. 17: «меньше контейнеров, меньше

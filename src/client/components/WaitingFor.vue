@@ -225,6 +225,7 @@ import {
 } from '@/client/console/colonyBuild/consoleColonyBuild';
 import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {abortConsoleActionCommit} from '@/client/console/consoleActionCommit';
 import {isConsolePlacementHeld} from '@/client/console/consolePromptAdmission';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 import {isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
@@ -1266,6 +1267,10 @@ export default defineComponent({
           // drops, no bonus is collected, the colonies screen stays intact.
           this.holdingForColonyBuild = false;
           abortColonyBuild();
+          // …and the blue-action COMMIT: the activation was rejected — the
+          // beat tears down, the composer's CTA unlocks (abortNonce), the
+          // captures stay; the card never sits in a false activated state.
+          abortConsoleActionCommit();
           const showAlert = vueRoot(this).showAlert;
           if (response.status === statusCode.badRequest) {
             const resp = await response.json() as AppErrorResponse;
@@ -1296,6 +1301,7 @@ export default defineComponent({
           abortTilePlacement(); // …and the tile hero — the board stays intact
           this.holdingForColonyBuild = false;
           abortColonyBuild(); // …and the colony-build hero — no ghost cube, ever
+          abortConsoleActionCommit(); // …and the blue-action commit — the CTA unlocks
           root.showAlert('Error sending input,', CANNOT_CONTACT_SERVER);
           console.error(e);
         })
