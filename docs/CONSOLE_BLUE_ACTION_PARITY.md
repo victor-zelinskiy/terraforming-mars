@@ -16,11 +16,13 @@ per-card анимациям. Слоёная модель делает механ
    моушена → release при резолюции; `abortNonce` для rollback; pure
    `commitKindForBranch` / `commitRewardSpecs` — структурно из превью, те же
    источники, что claim kinds; спеки наград = `extractPlayRewards`, сужены до
-   rail-каналов) + `consoleActionCommitMotion.ts` (CTA-press 120 → фиксация
-   карты scale 1.014→1 (110/150) → sweep по выбранной группе 210 →
-   ring/pop иконки 170; handoff на ≈280, settle ≈430; fixed-оверлеи
-   `.con-commit-layer` z11615, pcard-DOM не мутируется; reduced motion =
-   короткий ring + честные тайминги).
+   rail-каналов) + `consoleActionCommitMotion.ts` (CTA-press 160 → фиксация
+   карты scale 1.012→1 (180/260, sine/power2) → sweep по выбранной группе
+   340 → ring/pop иконки 260, кольцо гаснет последним; handoff на ≈460,
+   settle ≈700; fixed-оверлеи `.con-commit-layer` z11615, pcard-DOM не
+   мутируется; reduced motion = короткий ring + честные тайминги).
+   Перетюнено после фидбека «слишком резко/быстро/несчитываемо»: мягкая
+   sine-семья, больше кадров каждому биту, перекрытия сохраняют темп.
 2. **Draw handoff**: запуск execution beat задержан на `COMMIT_HANDOFF_AT_MS`
    (watcher `outcomePendingBeat` → таймер, чистится в abort/unmount) — добор
    стартует, когда импульс сел на печатную иконку карты, и колода отвечает

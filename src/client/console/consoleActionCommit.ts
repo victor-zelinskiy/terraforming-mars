@@ -79,11 +79,11 @@ export const actionCommitState = reactive({
 /**
  * Backstop only: the settle must never gate the flow forever if the motion
  * episode dies without its callback (a torn-down stage, a stalled timeline in
- * a backgrounded tab). Deliberately short — the healthy beat settles ≈0.4 s,
- * so anything past ~1 s is already a failure, and failing fast turns a broken
- * beat into a slightly abrupt one instead of a hang.
+ * a backgrounded tab). Deliberately short — the healthy beat settles ≈0.7 s,
+ * so anything past ~1.4 s is already a failure, and failing fast turns a
+ * broken beat into a slightly abrupt one instead of a hang.
  */
-const SETTLE_SAFETY_MS = 1100;
+const SETTLE_SAFETY_MS = 1400;
 
 let settleTimer: ReturnType<typeof setTimeout> | undefined;
 

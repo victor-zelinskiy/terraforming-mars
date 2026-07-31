@@ -30,21 +30,22 @@
         <div class="con-reveal__card" :key="revealKey" data-motion-panel
              :class="{'con-reveal__card--drawn': mode === 'drawn'}">
           <!-- ── Header ──────────────────────────────────────────────────
-               EMBEDDED: suppressed. The host workspace already names the
-               stage (its breadcrumb + phase status line) and shows the
-               SOURCE card as the standing hero, so this header would be a
-               second, competing title for the same beat — and its source
-               chip would point at a card already on screen. One naming
-               voice per surface: the host's. -->
-          <header v-if="!embedded" class="con-reveal__head">
-            <div class="con-task__kicker">
+               EMBEDDED follows the SAME rule as the embedded task host: the
+               KICKER goes UP into the workspace breadcrumb (it would repeat
+               it), but the TITLE stays — «Получена карта» is the stage's own
+               sentence, and without it the draw read as a bare card floating
+               in an empty column while the buy case next door had a proper
+               heading. The source chip goes: it points at the hero standing
+               beside it. -->
+          <header class="con-reveal__head" :class="{'con-reveal__head--embedded': embedded}">
+            <div v-if="!embedded" class="con-task__kicker">
               <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
               <span>{{ $t(kickerText) }}</span>
             </div>
             <div class="con-reveal__headrow">
               <div class="con-reveal__headmain">
                 <div class="con-reveal__title">{{ titleText }}</div>
-                <div v-if="mode === 'drawn'" class="con-reveal__subtitle">
+                <div v-if="mode === 'drawn' && !embedded" class="con-reveal__subtitle">
                   {{ $t('Cards were added from a draw source.') }}
                 </div>
                 <!--
@@ -53,7 +54,7 @@
                   An inspectable (card) source is a button (L3 opens it); a
                   colony / tile source is a plain informational chip.
                 -->
-                <button v-if="mode === 'drawn' && sourceChip !== undefined"
+                <button v-if="mode === 'drawn' && !embedded && sourceChip !== undefined"
                         type="button"
                         class="con-reveal__source-chip"
                         :class="{'con-reveal__source-chip--inspectable': sourceChip.inspectable}"
@@ -460,7 +461,7 @@ export default defineComponent({
      */
     embedded: {type: Boolean, default: false},
   },
-  emits: ['dismiss-result', 'discard-pick', 'drawn-complete'],
+  emits: ['dismiss-result', 'discard-pick', 'drawn-complete', 'result-detached'],
   data() {
     return {
       /**
@@ -823,7 +824,12 @@ export default defineComponent({
     titleText(): string {
       switch (this.mode) {
       case 'drawn':
-        return translateText('Cards received');
+        // Singular when the deck turned over exactly one card — «Получены
+        // карты» over a single card reads as a template that was not filled
+        // in. Counted off the batch's TOTAL (never the untaken remainder), so
+        // the heading cannot change mid-flow as cards are taken.
+        return translateText((this.drawnEvent?.cards.length ?? 0) === 1 ?
+          'Card received' : 'Cards received');
       case 'result':
         return this.lastReveal !== undefined ? translateText(this.lastReveal.action) : '';
       default:
@@ -1363,7 +1369,15 @@ export default defineComponent({
         this.$emit('drawn-complete');
       };
       const slot = this.exitSlotFor(`${entry.card.name}#${entry.index}`);
-      void runHandIntake([{name: entry.card.name, el: slot ?? undefined}], {commit});
+      void runHandIntake([{name: entry.card.name, el: slot ?? undefined}], {
+        commit,
+        // EMBEDDED: the workspace must get out of the way BEFORE the cards
+        // fly — the hand dock is what they aim at, and `onStaged` is the seam
+        // where the proxies already stand over them, so releasing the frame
+        // there overlaps the collapse with the flight instead of sequencing
+        // them. Identical to the purchase handoff; one language for both.
+        onStaged: this.embedded ? () => this.$emit('result-detached') : undefined,
+      });
     },
     /**
      * THE CLOSING STEP: release the held batch (ack the reveal) and hand the
@@ -1423,7 +1437,11 @@ export default defineComponent({
       };
       const entries = this.drawnUntaken
         .map((entry) => ({name: entry.card.name, el: this.exitSlotFor(`${entry.card.name}#${entry.index}`) ?? undefined}));
-      void runHandIntake(entries, {mode: 'stack', commit});
+      void runHandIntake(entries, {
+        mode: 'stack',
+        commit,
+        onStaged: this.embedded ? () => this.$emit('result-detached') : undefined,
+      });
     },
     /**
      * A from FULLSCREEN (MULTI-CARD) — the shell has ALREADY choreographed the

@@ -218,8 +218,10 @@ result-иконки = смысловое усиление из реальной 
   `commitKindForBranch`/`commitRewardSpecs`) +
   `consoleActionCommitMotion.ts` (директор: press CTA → scale-фиксация
   hero-body → sweep по группе → ring/pop на иконке → handoff на
-  `COMMIT_HANDOFF_AT_MS` ≈ 280, settle ≈ 430; всё — fixed-оверлеи
-  `.con-commit-*`, `.pcard`-DOM не мутируется).
+  `COMMIT_HANDOFF_AT_MS` ≈ 460, settle ≈ 700; всё — fixed-оверлеи
+  `.con-commit-*`, `.pcard`-DOM не мутируется). Тайминги/изинги настроены
+  на ЧИТАЕМОСТЬ (sine/power2-семья, перекрывающиеся биты, кольцо живёт
+  дольше всех) — первый жёсткий вариант (~430 суммарно) не считывался.
 - **Якоря — из реальной графики, никогда из таблиц**: вариант адресуется
   content-токеном (`nodeGraphicToken` → `[data-graphic-node]`, идиома
   CardAnnotationsLayer), result-кластер = последний `.pcard-effect__part`,

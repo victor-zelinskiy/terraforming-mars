@@ -12528,11 +12528,15 @@ body.con-start-ceremony {
         min-width: 0;
         min-height: 0;
         padding-bottom: 0;
-        /* The HOST factor of the strip's zoom calc (see stripZoomStyle): the
-           workspace column is narrower than the full band, so the cards sit a
-           notch smaller. Composes with — never replaces — the tv profile's
-           per-count `--con-reveal-zoom-boost`. */
-        --con-reveal-host-scale: .84;
+        /* The HOST factor of the strip's zoom calc (see stripZoomStyle).
+           1 = the received card is a HERO, the same weight the buy stage next
+           door gives its offered card. It was .84 on the theory that a
+           workspace column needs smaller cards; side by side with the buy case
+           that read as the draw being the lesser event, which is backwards —
+           the card IS the outcome here. The column has the room. Composes
+           with (never replaces) the tv profile's per-count zoom boost, so a
+           multi-card batch still steps down through the existing ladder. */
+        --con-reveal-host-scale: 1;
 
         .con-reveal__card {
             flex: 1;
@@ -12550,6 +12554,15 @@ body.con-start-ceremony {
            workspace the zone already has a stable height, and forcing 42rem
            here would overflow the band. */
         .con-reveal__card--drawn { height: auto; }
+        /* The stage's own sentence, dressed like the buy stage's heading next
+           door: centred over the card, same weight. The two cases are the SAME
+           moment («вот карта — решай») and must not read as different tiers. */
+        .con-reveal__head--embedded {
+            margin-bottom: 1rem;
+            .con-reveal__headrow { justify-content: center; }
+            .con-reveal__headmain { min-width: 0; text-align: center; }
+            .con-reveal__title { font-size: 1.7rem; }
+        }
         /* The band body carries a hand-rolled `overflow-y: auto` for the
            full-bleed case. Inside a workspace that is a native scrollbar
            waiting to happen (a console-native BUG): the zone is bounded and

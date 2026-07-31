@@ -99,6 +99,7 @@ import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale'
 import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {colonyTradeClaimsReveal, isColonyTradeRevealStaged, isPresentedTradeReveal} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {workspaceClaimsDrawReveal} from '@/client/console/consoleWorkspaceOutcome';
 import {
   DeckDrawTimings, DrawBeat, RectLike, deckCountAfter, deckDrawTimings, holdScale, holdSlots,
   inspectPoint, inspectScale, planDeckDraw, reducedDeckDrawTimings,
@@ -242,7 +243,13 @@ export default defineComponent({
       // while the cards are still untaken. A FOREIGN trade's bonus batch
       // (an opponent traded, we own a cube) stays ours — those cards honestly
       // come off the deck.
+      // …and a batch an open WORKSPACE claimed is that workspace's: its
+      // execution beat already pulls the card off this very pile and lands it
+      // in the workspace's own zone. Running this scene too means TWO flights
+      // for one card, aiming at two different places — the player watches it
+      // fly somewhere and then appear somewhere else.
       if (!isDeckDrawSource(e.source) ||
+          workspaceClaimsDrawReveal(e.source) ||
           boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id) ||
           colonyTradeClaimsReveal(e.source) || isColonyTradeRevealStaged(e.id) ||
           isPresentedTradeReveal(e.source)) {

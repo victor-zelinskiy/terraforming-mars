@@ -34,23 +34,27 @@ import type {ActionCommitKind} from '@/client/console/consoleActionCommit';
 import type {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
+// Tuned for READABILITY over snap (player feedback: the first cut was too
+// sharp to follow): each beat gets room to develop, eases stay in the
+// soft sine/power2 family, and neighbouring beats overlap so the longer
+// phrase still flows — felt, read, never waited for.
 
 /** The CTA's physical press acknowledgement. */
-const PRESS_MS = 120;
+const PRESS_MS = 160;
 /** The card's lift half of the mechanical fix. */
-const FIX_IN_MS = 110;
+const FIX_IN_MS = 180;
 /** The seat-back half (the «fixation» read). */
-const FIX_OUT_MS = 150;
+const FIX_OUT_MS = 260;
 /** The impulse band's travel across the variant graphic. */
-const SWEEP_MS = 210;
-/** The impulse starts this far into the phrase (under the lift). */
-const SWEEP_AT_MS = 70;
+const SWEEP_MS = 340;
+/** The impulse starts this far into the phrase (the lift reads first). */
+const SWEEP_AT_MS = 120;
 /** The result-icon pop + ring. */
-const ICON_MS = 170;
+const ICON_MS = 260;
 /** The handoff fires AT the impulse's landing — overlap, never a pause. */
 export const COMMIT_HANDOFF_AT_MS = SWEEP_AT_MS + SWEEP_MS;
 /** The whole mandatory beat (a frequent flow — felt, never waited for). */
-const SETTLE_AT_MS = 430;
+const SETTLE_AT_MS = 700;
 
 function s(ms: number): number {
   return motionMs(ms) / 1000;
@@ -249,7 +253,7 @@ export function pulseDeckPile(): void {
     return;
   }
   gsap.fromTo(pile, {scale: 1}, {
-    scale: 1.035, duration: s(110), ease: 'power2.out', yoyo: true, repeat: 1,
+    scale: 1.03, duration: s(150), ease: 'sine.out', yoyo: true, repeat: 1,
     transformOrigin: '50% 20%', clearProps: 'transform',
     onInterrupt: () => gsap.set(pile, {clearProps: 'transform'}),
   });
@@ -322,27 +326,29 @@ export function runActionCommitMotion(args: ActionCommitMotionArgs): ActionCommi
   }});
   liveEpisode = {layer, tl, finish};
 
-  // 1. MECHANICAL PRESS — the CTA answers the very press frame.
+  // 1. MECHANICAL PRESS — the CTA answers the very press frame (soft, no snap).
   if (args.ctaEl !== undefined) {
     tl.fromTo(args.ctaEl, {scale: 1}, {
-      scale: 0.985, duration: s(PRESS_MS * 0.45), ease: 'power2.out', transformOrigin: '50% 50%',
+      scale: 0.988, duration: s(PRESS_MS * 0.45), ease: 'sine.out', transformOrigin: '50% 50%',
     }, 0);
     tl.to(args.ctaEl, {
-      scale: 1, duration: s(PRESS_MS * 0.55), ease: 'power2.inOut', clearProps: 'transform',
+      scale: 1, duration: s(PRESS_MS * 0.55), ease: 'sine.inOut', clearProps: 'transform',
       onInterrupt: () => gsap.set(args.ctaEl as HTMLElement, {clearProps: 'transform'}),
     }, s(PRESS_MS * 0.45));
   }
 
   // 2. MECHANICAL FIX — the card lifts a breath and seats back. Scale-only
   //    (ratio-based — safe inside the CSS `zoom` subtree), on the visual
-  //    body, never the wrap: the wrap's box is a NORTH STAR anchor.
+  //    body, never the wrap: the wrap's box is a NORTH STAR anchor. A calm
+  //    arc — the subtler amplitude over a longer window reads as weight,
+  //    never as a jolt.
   tl.fromTo(anchors.cardEl, {scale: 1}, {
-    scale: 1.014, duration: s(FIX_IN_MS), ease: 'power2.out', transformOrigin: '50% 60%',
-  }, s(30));
+    scale: 1.012, duration: s(FIX_IN_MS), ease: 'sine.out', transformOrigin: '50% 60%',
+  }, s(40));
   tl.to(anchors.cardEl, {
-    scale: 1, duration: s(FIX_OUT_MS), ease: 'power3.inOut', clearProps: 'transform',
+    scale: 1, duration: s(FIX_OUT_MS), ease: 'power2.inOut', clearProps: 'transform',
     onInterrupt: () => gsap.set(anchors.cardEl, {clearProps: 'transform'}),
-  }, s(30 + FIX_IN_MS));
+  }, s(40 + FIX_IN_MS));
 
   // 3. ACTION IMPULSE — the light band reads the printed mechanic left to
   //    right (cost → arrow → result) inside the SELECTED variant only.
@@ -355,11 +361,11 @@ export function runActionCommitMotion(args: ActionCommitMotionArgs): ActionCommi
     band.className = 'con-commit-band';
     sweep.appendChild(band);
     layer.appendChild(sweep);
-    const bandW = Math.max(26, g.width * 0.34);
+    const bandW = Math.max(30, g.width * 0.42);
     band.style.width = `${bandW}px`;
-    tl.fromTo(band, {x: -bandW, opacity: 0}, {opacity: 1, duration: s(50), ease: 'power1.out'}, s(SWEEP_AT_MS));
-    tl.to(band, {x: g.width, duration: s(SWEEP_MS), ease: 'power1.inOut'}, s(SWEEP_AT_MS));
-    tl.to(sweep, {opacity: 0, duration: s(90), ease: 'power1.out'}, s(SWEEP_AT_MS + SWEEP_MS - 30));
+    tl.fromTo(band, {x: -bandW, opacity: 0}, {opacity: 1, duration: s(110), ease: 'sine.out'}, s(SWEEP_AT_MS));
+    tl.to(band, {x: g.width, duration: s(SWEEP_MS), ease: 'sine.inOut'}, s(SWEEP_AT_MS));
+    tl.to(sweep, {opacity: 0, duration: s(150), ease: 'sine.out'}, s(SWEEP_AT_MS + SWEEP_MS - 40));
   }
 
   // 4. RESULT LANDING — the icon pops, a one-shot ring marks the execution,
@@ -372,16 +378,18 @@ export function runActionCommitMotion(args: ActionCommitMotionArgs): ActionCommi
     ring.style.cssText = `left:${r.left - 5}px;top:${r.top - 5}px;width:${r.width + 10}px;height:${r.height + 10}px;`;
     layer.appendChild(ring);
     tl.fromTo(iconEl ?? landingEl, {scale: 1}, {
-      scale: 1.22, duration: s(ICON_MS * 0.45), ease: 'power2.out', transformOrigin: '50% 50%',
-    }, s(COMMIT_HANDOFF_AT_MS - 20));
+      scale: 1.16, duration: s(ICON_MS * 0.45), ease: 'sine.out', transformOrigin: '50% 50%',
+    }, s(COMMIT_HANDOFF_AT_MS - 40));
     tl.to(iconEl ?? landingEl, {
-      scale: 1, duration: s(ICON_MS * 0.55), ease: 'power2.inOut', clearProps: 'transform',
+      scale: 1, duration: s(ICON_MS * 0.55), ease: 'sine.inOut', clearProps: 'transform',
       onInterrupt: () => gsap.set(iconEl ?? landingEl, {clearProps: 'transform'}),
-    }, s(COMMIT_HANDOFF_AT_MS - 20 + ICON_MS * 0.45));
-    tl.fromTo(ring, {opacity: 0, scale: 0.72}, {
-      opacity: 0.95, scale: 1, duration: s(ICON_MS * 0.5), ease: 'power2.out', transformOrigin: '50% 50%',
-    }, s(COMMIT_HANDOFF_AT_MS - 20));
-    tl.to(ring, {opacity: 0, scale: 1.12, duration: s(ICON_MS), ease: 'power1.out'}, s(COMMIT_HANDOFF_AT_MS + ICON_MS * 0.4));
+    }, s(COMMIT_HANDOFF_AT_MS - 40 + ICON_MS * 0.45));
+    tl.fromTo(ring, {opacity: 0, scale: 0.78}, {
+      opacity: 0.9, scale: 1, duration: s(ICON_MS * 0.5), ease: 'sine.out', transformOrigin: '50% 50%',
+    }, s(COMMIT_HANDOFF_AT_MS - 40));
+    // The ring DWELLS a beat before letting go — the «executed» mark is the
+    // one thing the eye must be given time to read.
+    tl.to(ring, {opacity: 0, scale: 1.1, duration: s(ICON_MS * 1.15), ease: 'sine.out'}, s(COMMIT_HANDOFF_AT_MS + ICON_MS * 0.55));
   }
 
   tl.call(fireHandoff, undefined, s(COMMIT_HANDOFF_AT_MS));

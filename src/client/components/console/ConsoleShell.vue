@@ -561,6 +561,7 @@
                               :mode="consoleRevealMode"
                               :embedded="revealEmbedTarget !== undefined"
                               @dismiss-result="onDismissRevealResult"
+                              @result-detached="onWorkspaceResultDetached"
                               @drawn-complete="onEmbeddedDrawnComplete"
                               @discard-pick="onRevealDiscardPick" />
       </transition>

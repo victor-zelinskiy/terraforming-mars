@@ -297,7 +297,11 @@ for (const profile of PROFILES) {
       await expect(zoom).toHaveCount(1, {timeout: 8000});
       await expect(zoom).toContainText(/Коммерческая сеть/i);
       await shoot(page, `${profile.tag}-03-l3-source`);
-      await key(page, 'Escape', 1200);
+      // (Close with the same retry discipline — a press inside the viewer's
+      //  still-settling open flight is consumed on a heavy 4K frame.)
+      for (let tries = 0; tries < 3 && await zoom.count() > 0; tries++) {
+        await key(page, 'Escape', 1400);
+      }
       await expect(zoom).toHaveCount(0);
       // The stage survived the round trip untouched.
       await expect(embeddedHost).toHaveCount(1);
@@ -316,7 +320,9 @@ for (const profile of PROFILES) {
         await key(page, 'KeyX', 1600);
       }
       await expect(zoom).toHaveCount(1, {timeout: 8000});
-      await key(page, 'Escape', 1200);
+      for (let tries = 0; tries < 3 && await zoom.count() > 0; tries++) {
+        await key(page, 'Escape', 1400);
+      }
       await expect(zoom).toHaveCount(0);
       await expect(embeddedHost).toHaveCount(1);
 
