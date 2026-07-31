@@ -462,7 +462,6 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
-import {diagRect, takeDiag} from '@/client/console/handDock/takeDiag'; // @TAKE-DIAG
 import {workspaceOutcomeArrivalPending, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {
@@ -1139,7 +1138,6 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
-    takeDiag('OVERLAY:beforeUnmount', {collecting: this.collecting, turned: this.turnedIdx ?? -1, taking: this.takingIdx ?? -1, mode: this.mode, embedded: this.embedded}); // @TAKE-DIAG
     setRevealVeilSuppressed(false);
     this.abortResultFlight();
     this.stopFitResize?.();
@@ -1715,44 +1713,35 @@ export default defineComponent({
      * never double-commit or strand the batch.
      */
     takeInPlace(): void {
-      takeDiag('takeInPlace:enter', {focusIdx: this.focusIdx, untaken: this.drawnUntaken.length, taking: this.takingIdx ?? -1, collecting: this.collecting, turned: this.turnedIdx ?? -1, embeddedMulti: this.embeddedMulti}); // @TAKE-DIAG
       if (this.takingIdx !== undefined || this.collecting) {
-        takeDiag('takeInPlace:BLOCKED-by-guard'); // @TAKE-DIAG
         return;
       }
       const e = this.drawnEvent;
       const entry = this.drawnUntaken[this.focusIdx];
       if (e === undefined || entry === undefined) {
-        takeDiag('takeInPlace:NO-ENTRY', {hasEvent: e !== undefined}); // @TAKE-DIAG
         return;
       }
       if (consoleReducedMotionActive()) {
         // No turn to wait for — commit the same state transition directly.
-        takeDiag('takeInPlace:reduced-motion-direct', {index: entry.index}); // @TAKE-DIAG
         this.commitTakeInPlace(entry.index);
         return;
       }
-      takeDiag('takeInPlace:arm-turn', {index: entry.index, name: entry.card.name}); // @TAKE-DIAG
       this.takingIdx = entry.index;
     },
     /** The in-slot turn finished — commit the taken state + advance focus. */
     onTakeFlipEnd(index: number, ev: AnimationEvent): void {
-      takeDiag('flipEnd:event', {index, taking: this.takingIdx ?? -1, anim: String(ev.animationName || '')}); // @TAKE-DIAG
       // The chassis raises animationend for every child animation (the deal-in
       // replays under reduced layouts, the mark's own fade) — only the take
       // turn commits a take.
       if (this.takingIdx !== index || !String(ev.animationName || '').includes('con-take-turn')) {
-        takeDiag('flipEnd:IGNORED'); // @TAKE-DIAG
         return;
       }
       this.commitTakeInPlace(index);
     },
     commitTakeInPlace(index: number): void {
       const e = this.drawnEvent;
-      takeDiag('commitTake:enter', {index, hasEvent: e !== undefined, alreadyTaken: e !== undefined && e.takenIndices.has(index), untaken: this.drawnUntaken.length}); // @TAKE-DIAG
       this.takingIdx = undefined;
       if (e === undefined || e.takenIndices.has(index)) {
-        takeDiag('commitTake:EARLY-RETURN'); // @TAKE-DIAG
         return;
       }
       // Focus advance: the right neighbour slides into the taken card's
@@ -1768,14 +1757,12 @@ export default defineComponent({
       // the batch commits inside the intake's staged seam — which is exactly
       // what «Взять всё» has always done.
       if (this.drawnUntaken.length === 1) {
-        takeDiag('commitTake:LAST-CARD -> collect without marking', {index, takenPos}); // @TAKE-DIAG
         this.turnedIdx = index;
         this.collectTaken();
         return;
       }
       markCardTaken(e.id, index);
       const left = this.drawnUntaken.length;
-      takeDiag('commitTake:advance-focus', {left, takenPos}); // @TAKE-DIAG
       this.focusIdx = Math.max(0, Math.min(takenPos < 0 ? this.focusIdx : takenPos, left - 1));
     },
     /**
@@ -1788,14 +1775,11 @@ export default defineComponent({
      * (`HandIntakeEntry.back`), so a flipped card never flashes open.
      */
     collectTaken(): void {
-      takeDiag('collectTaken:enter', {collecting: this.collecting, turned: this.turnedIdx ?? -1, embedded: this.embedded}); // @TAKE-DIAG
       if (this.collecting) {
-        takeDiag('collectTaken:BLOCKED-already-collecting'); // @TAKE-DIAG
         return;
       }
       const e = this.drawnEvent;
       if (e === undefined) {
-        takeDiag('collectTaken:NO-EVENT'); // @TAKE-DIAG
         return;
       }
       this.collecting = true;
@@ -1807,20 +1791,14 @@ export default defineComponent({
         // like every other one or it would flash open on the way to the dock.
         back: e.takenIndices.has(index) || this.turnedIdx === index,
       }));
-      // @TAKE-DIAG — what the intake is actually handed: does every card still
-      // have a live, measurable source slot at this exact moment?
-      entries.forEach((en, i) => takeDiag('collectTaken:entry', {i, name: String(en.name), back: en.back, ...diagRect(en.el ?? null), inner: en.el === undefined ? 'n/a' : (en.el.querySelector(':is(.card-container, .pcard)') === null ? 'NO-CARD-CHILD' : 'card-child-ok')})); // @TAKE-DIAG
-      takeDiag('collectTaken:dock', diagRect(document.querySelector('.con-handdock'))); // @TAKE-DIAG
       void runHandIntake(entries, {
         mode: 'stack',
         commitAt: 'staged', // see takeFocused — the cards must not blink out
         commit: () => {
-          takeDiag('collectTaken:COMMIT fired'); // @TAKE-DIAG
           closeAndReleaseEvent(this.playerView.id, e.id, () => markAllTaken(e.id));
           this.$emit('drawn-complete');
         },
         onStaged: () => {
-          takeDiag('collectTaken:ON-STAGED fired'); // @TAKE-DIAG
           this.$emit('result-detached');
         },
       });
@@ -1877,9 +1855,7 @@ export default defineComponent({
       // them), already-taken ones join it back side out. One guard window
       // with the per-card take: B during a turn / a second B does nothing.
       if (this.embeddedMulti) {
-        takeDiag('takeAll:B-pressed (embeddedMulti)', {taking: this.takingIdx ?? -1, collecting: this.collecting, turned: this.turnedIdx ?? -1, untaken: this.drawnUntaken.length, total: e.cards.length}); // @TAKE-DIAG
         if (this.takingIdx !== undefined || this.collecting) {
-          takeDiag('takeAll:BLOCKED-by-guard'); // @TAKE-DIAG
           return;
         }
         this.collectTaken();

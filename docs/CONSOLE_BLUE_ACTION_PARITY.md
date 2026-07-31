@@ -357,7 +357,14 @@ workspace → пустой delivery-слой → док вырос; + purchase (
 
    **Правило:** в этом флоу состояние взятия коммитится ТОЛЬКО в staged-шве
    интейка. Любая пометка «взято» до него убирает поверхность из-под собственной
-   анимации.
+   анимации. Свойство закреплено спекой `tests/client/components/
+   drawnCardsTakeLifecycle.spec.ts` — она пиннит именно причину («пометка
+   последней карты И ЕСТЬ конец reveal'а»), а не симптом.
+
+   Подтверждено повторным прогоном: `LAST-CARD -> collect without marking` →
+   `entry ×2 {back:true, el:"ok"}` → `fly:SEAM {live:2}` → `COMMIT` →
+   `ON-STAGED` → `beforeUnmount` ПОСЛЕ шва — форма один в один с рабочим B.
+   Диагностика (`takeDiag`, метки `@TAKE-DIAG`) снята.
 
 Гейты: eslint / vue-tsc / make:css / юнит-батчи / build:client / e2e
 `console-blue-action-purchase` 3/3 (buy-путь с новым ранним fold'ом) —

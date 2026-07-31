@@ -1190,7 +1190,6 @@ import ConsoleHydroDrawLayer from '@/client/components/console/hydroDraw/Console
 import {armHydroDraw, abortHydroDraw, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
-import {takeDiag} from '@/client/console/handDock/takeDiag'; // @TAKE-DIAG
 import {workspaceClaimsDrawReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
@@ -7598,7 +7597,6 @@ export default defineComponent({
      * workspace) also covers the case where the workspace has already gone.
      */
     onEmbeddedDrawnComplete(): void {
-      takeDiag('SHELL:drawn-complete -> fold'); // @TAKE-DIAG
       releaseWorkspaceOutcome();
       this.foldWorkspaceAfterResult();
     },
@@ -7630,7 +7628,6 @@ export default defineComponent({
      * still hidden (or at a guessed rect, which this flow forbids).
      */
     onWorkspaceResultDetached(): void {
-      takeDiag('SHELL:result-detached -> fold'); // @TAKE-DIAG
       releaseWorkspaceOutcome();
       this.foldWorkspaceAfterResult();
     },
