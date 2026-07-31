@@ -33,8 +33,7 @@ export class AresHazards {
   // no journal noise.
   public static makeSevere(game: IGame, from: TileType, to: TileType): number {
     let count = 0;
-    game.board.spaces
-      .filter((s) => s.tile?.tileType === from)
+    this.spacesToMakeSevere(game, from)
       .forEach((s) => {
         if (s.tile !== undefined) {
           s.tile.tileType = to;
@@ -42,6 +41,46 @@ export class AresHazards {
         }
       });
     return count;
+  }
+
+  /**
+   * The tiles {@link makeSevere} would upgrade. Split out READ-ONLY so the
+   * placement preview can say "3 dust storms would become severe" through the
+   * very filter that upgrades them, instead of re-deriving it.
+   */
+  public static spacesToMakeSevere(game: IGame, from: TileType): ReadonlyArray<Space> {
+    return game.board.spaces.filter((s) => s.tile?.tileType === from);
+  }
+
+  /**
+   * The hazards the ocean-count "dust storms recede" event clears. A PROTECTED
+   * hazard survives it — the same exception {@link testToRemoveDustStorms}
+   * applies, kept in ONE predicate so the preview's count matches the commit's.
+   */
+  public static spacesToClearDustStorms(game: IGame): ReadonlyArray<Space> {
+    return game.board.spaces.filter((s) => {
+      const tileType = s.tile?.tileType;
+      return (tileType === TileType.DUST_STORM_MILD || tileType === TileType.DUST_STORM_SEVERE) &&
+        s.tile?.protectedHazard !== true;
+    });
+  }
+
+  /**
+   * The read-only half of {@link testConstraint}: would `testValue` trip this
+   * threshold? `testConstraint` routes through it, so the placement preview can
+   * promise a planetary event on the EXACT condition that fires it and the two
+   * can never drift.
+   */
+  public static wouldFire(constraint: HazardConstraint, testValue: number): boolean {
+    return constraint.available === true && testValue >= constraint.threshold;
+  }
+
+  /**
+   * Whether the ocean-count threshold may drop new erosions at all — the extra
+   * gate {@link testToPlaceErosionTiles} checks before its constraint.
+   */
+  public static erosionPlacementEnabled(game: IGame): boolean {
+    return game.gameOptions.aresHazards !== false;
   }
 
   // Wrap an Ares PLANETARY EVENT in its own journal root scope so it groups under
@@ -91,7 +130,7 @@ export class AresHazards {
   }
 
   private static testToPlaceErosionTiles(aresData: AresData, player: IPlayer) {
-    if (player.game.gameOptions.aresHazards === false) {
+    if (!this.erosionPlacementEnabled(player.game)) {
       return;
     }
 
@@ -124,12 +163,8 @@ export class AresHazards {
       player,
       () => {
         this.planetaryEvent(player, () => {
-          player.game.board.spaces.forEach((space) => {
-            if (space.tile?.tileType === TileType.DUST_STORM_MILD || space.tile?.tileType === TileType.DUST_STORM_SEVERE) {
-              if (space.tile.protectedHazard !== true) {
-                space.tile = undefined;
-              }
-            }
+          this.spacesToClearDustStorms(player.game).forEach((space) => {
+            space.tile = undefined;
           });
           player.game.log('Planetary event: dust storms recede across the surface.');
 
@@ -145,10 +180,7 @@ export class AresHazards {
   }
 
   private static testConstraint(constraint: HazardConstraint, testValue: number, player: IPlayer, cb: () => void) {
-    if (!constraint.available) {
-      return;
-    }
-    if (testValue >= constraint.threshold) {
+    if (this.wouldFire(constraint, testValue)) {
       cb();
       constraint.available = false;
       // Record WHO crossed the threshold (the player whose action raised the

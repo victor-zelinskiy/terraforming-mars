@@ -396,6 +396,11 @@ describe('BoardInformationEngine', () => {
     const before = JSON.stringify(game.board.serialize());
     const mc = player.megaCredits;
     const deferred = game.deferredActions.length;
+    // Ares hazard THRESHOLDS are one-shot (`available` flips to false when they
+    // fire). The preview now asks whether a placement would trip one, so a
+    // careless read that ran the real `testConstraint` would CONSUME a planetary
+    // event just by hovering a cell.
+    const aresBefore = JSON.stringify(game.aresData);
 
     for (const space of game.board.spaces.slice(0, 20)) {
       boardCellInfo(player, space);
@@ -407,6 +412,7 @@ describe('BoardInformationEngine', () => {
     expect(JSON.stringify(game.board.serialize())).to.eq(before);
     expect(player.megaCredits).to.eq(mc);
     expect(game.deferredActions.length).to.eq(deferred);
+    expect(JSON.stringify(game.aresData)).to.eq(aresBefore);
   });
 
   describe('Ares hazard adjacency', () => {

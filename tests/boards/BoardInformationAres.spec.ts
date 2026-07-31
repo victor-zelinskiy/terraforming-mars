@@ -10,6 +10,9 @@ import {Space} from '../../src/server/boards/Space';
 import {TileType} from '../../src/common/TileType';
 import {CardName} from '../../src/common/cards/CardName';
 import {MarketingExperts} from '../../src/server/cards/ares/MarketingExperts';
+import {setOxygenLevel} from '../TestingUtils';
+import * as constants from '../../src/common/constants';
+import {hazardSeverity} from '../../src/common/AresTileType';
 
 describe('BoardInformationEngine — Ares', () => {
   let game: IGame;
@@ -150,6 +153,133 @@ describe('BoardInformationEngine — Ares', () => {
     expect(prod!.delta?.amount).to.eq(3); // 1 + 2 — never averaged into a single rate
     expect(prod!.description).to.eq('Your choice · mild ×${0} (−1), severe ×${1} (−2)');
     expect(prod!.params).to.deep.eq(['1', '1']);
+  });
+
+  /**
+   * PLANETARY EVENTS. One tile can rewrite the whole map: the ocean count wipes
+   * every dust storm (and pays the placer +1 TR) or drops two new erosions, and
+   * the oxygen / temperature thresholds turn every hazard of a kind severe. The
+   * player used to meet all of it only AFTER confirming.
+   */
+  describe('Ares planetary events', () => {
+    /**
+     * Park every threshold out of reach and sweep the hazards the Ares SETUP
+     * scatters, so each test arms exactly one threshold and seeds exactly the
+     * hazards whose count it asserts on.
+     */
+    function disarmThresholds(): void {
+      for (const key of ['erosionOceanCount', 'removeDustStormsOceanCount', 'severeErosionTemperature', 'severeDustStormOxygen'] as const) {
+        game.aresData!.hazardData[key] = {threshold: 999, available: true};
+      }
+      for (const space of game.board.spaces) {
+        if (space.tile !== undefined && hazardSeverity(space.tile.tileType) !== 'none') {
+          space.tile = undefined;
+        }
+      }
+    }
+    function emptyOceanSpace(): Space {
+      return game.board.spaces.find((s) => s.spaceType === SpaceType.OCEAN && s.tile === undefined)!;
+    }
+
+    it('an OCEAN that clears the dust storms previews the event AND its +1 TR', () => {
+      [game, player] = testGame(2, {aresExtension: true});
+      disarmThresholds();
+      game.aresData!.hazardData.removeDustStormsOceanCount =
+        {threshold: game.board.getOceanSpaces().length + 1, available: true};
+      emptyLand().tile = {tileType: TileType.DUST_STORM_MILD, protectedHazard: false};
+
+      const preview = boardCellPreview(player, emptyOceanSpace(), 'ocean');
+      const event = preview.immediateFacts.find((f) => f.id === 'ares-event-dust-storms-recede');
+      expect(event, 'planetary-event fact').to.not.be.undefined;
+      expect(event!.title).to.eq('Planetary event: dust storms recede');
+      expect(event!.params).to.deep.eq(['1']); // the one storm on the board
+      // The TR the event pays — the thing that was completely invisible before.
+      const tr = preview.immediateFacts.find((f) => f.id === 'ares-event-dust-storms-tr');
+      expect(tr?.delta).to.include({icon: 'tr', amount: 1, direction: 'gain'});
+    });
+
+    it('an OCEAN that drops new erosions warns about it', () => {
+      [game, player] = testGame(2, {aresExtension: true});
+      disarmThresholds();
+      game.aresData!.hazardData.erosionOceanCount =
+        {threshold: game.board.getOceanSpaces().length + 1, available: true};
+
+      const warn = boardCellPreview(player, emptyOceanSpace(), 'ocean').warningFacts
+        .find((f) => f.id === 'ares-event-erosions-appear');
+      expect(warn, 'erosion-appearance warning').to.not.be.undefined;
+      expect(warn!.description).to.eq('Two erosion tiles are placed on the map');
+    });
+
+    it('…and says SEVERE when the temperature threshold has already been consumed', () => {
+      [game, player] = testGame(2, {aresExtension: true});
+      disarmThresholds();
+      game.aresData!.hazardData.erosionOceanCount =
+        {threshold: game.board.getOceanSpaces().length + 1, available: true};
+      game.aresData!.hazardData.severeErosionTemperature.available = false;
+
+      const warn = boardCellPreview(player, emptyOceanSpace(), 'ocean').warningFacts
+        .find((f) => f.id === 'ares-event-erosions-appear');
+      expect(warn!.description).to.eq('Two SEVERE erosion tiles are placed on the map');
+    });
+
+    it('a GREENERY that crosses the oxygen threshold warns that dust storms intensify', () => {
+      [game, player] = testGame(2, {aresExtension: true});
+      disarmThresholds();
+      game.aresData!.hazardData.severeDustStormOxygen = {threshold: game.getOxygenLevel() + 1, available: true};
+      emptyLand().tile = {tileType: TileType.DUST_STORM_MILD, protectedHazard: false};
+      emptyLand().tile = {tileType: TileType.DUST_STORM_MILD, protectedHazard: false};
+
+      const place = game.board.getAvailableSpacesOnLand(player)[0];
+      const warn = boardCellPreview(player, place, 'greenery').warningFacts
+        .find((f) => f.id === 'effect-ares-dust-storms-severe');
+      expect(warn, 'dust-storm intensify warning').to.not.be.undefined;
+      expect(warn!.params).to.deep.eq(['2']);
+      expect(warn!.description).to.eq('Becomes severe: ${0} · building next to one then costs −2');
+    });
+
+    it('follows the 8% oxygen chain into the TEMPERATURE erosion event', () => {
+      [game, player] = testGame(2, {aresExtension: true});
+      disarmThresholds();
+      setOxygenLevel(game, constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS - 1);
+      // The chained temperature step is what trips this one.
+      game.aresData!.hazardData.severeErosionTemperature = {threshold: game.getTemperature() + 2, available: true};
+      emptyLand().tile = {tileType: TileType.EROSION_MILD, protectedHazard: false};
+
+      const place = game.board.getAvailableSpacesOnLand(player)[0];
+      const warn = boardCellPreview(player, place, 'greenery').warningFacts
+        .find((f) => f.id === 'effect-oxygen-bonus-ares-erosions-severe');
+      expect(warn, 'erosion intensify via the oxygen→temperature chain').to.not.be.undefined;
+      expect(warn!.params).to.deep.eq(['1']);
+    });
+
+    it('says NOTHING when the threshold is already spent, or when no hazard would change', () => {
+      [game, player] = testGame(2, {aresExtension: true});
+      disarmThresholds();
+      // Armed but ALREADY consumed → no promise.
+      game.aresData!.hazardData.severeDustStormOxygen =
+        {threshold: game.getOxygenLevel() + 1, available: false};
+      emptyLand().tile = {tileType: TileType.DUST_STORM_MILD, protectedHazard: false};
+      const place = game.board.getAvailableSpacesOnLand(player)[0];
+      expect(boardCellPreview(player, place, 'greenery').warningFacts
+        .some((f) => f.id === 'effect-ares-dust-storms-severe')).to.be.false;
+
+      // Available, but there is no mild dust storm to upgrade → a non-event
+      // must not spend a line.
+      [game, player] = testGame(2, {aresExtension: true});
+      disarmThresholds();
+      game.aresData!.hazardData.severeDustStormOxygen = {threshold: game.getOxygenLevel() + 1, available: true};
+      const bare = game.board.getAvailableSpacesOnLand(player)[0];
+      expect(boardCellPreview(player, bare, 'greenery').warningFacts
+        .some((f) => f.id === 'effect-ares-dust-storms-severe')).to.be.false;
+    });
+
+    it('promises nothing when Ares is OFF', () => {
+      [game, player] = testGame(2); // no Ares
+      const oceanSpace = game.board.spaces.find((s) => s.spaceType === SpaceType.OCEAN && s.tile === undefined)!;
+      const preview = boardCellPreview(player, oceanSpace, 'ocean');
+      expect([...preview.immediateFacts, ...preview.warningFacts]
+        .some((f) => f.id.startsWith('ares-event'))).to.be.false;
+    });
   });
 
   it('hovering an adjacency-SOURCE tile explains the neighbour bonus AND the owner benefit', () => {

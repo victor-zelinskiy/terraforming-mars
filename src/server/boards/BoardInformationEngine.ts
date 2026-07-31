@@ -10,6 +10,8 @@ import {PlacementType} from './PlacementType';
 import {PlacementPreviewContext} from './PlacementPreviewContext';
 import {PlacementEffect} from '../../common/models/PlayerInputModel';
 import {AresHandler} from '../ares/AresHandler';
+import {AresHazards} from '../ares/AresHazards';
+import {HazardData} from '../../common/ares/AresData';
 import {ICard} from '../cards/ICard';
 import {newCard} from '../createCard';
 import {Phase} from '../../common/Phase';
@@ -531,9 +533,115 @@ function placementEffectFacts(player: IPlayer, ctx: PlacementPreviewContext): Ar
       out.push(gainFact('effect-ocean', 'placement-effect', 'Raises the ocean parameter',
         {icon: 'ocean', amount: 1, direction: 'gain', current, resulting: current + 1}));
       out.push(...terraformRatingFact(player, 'effect-tr-ocean', 1));
+      // `onOceanPlaced` tests the count AFTER the tile is down, so the preview
+      // asks about the resulting count.
+      out.push(...oceanPlanetaryEventFacts(player, current + 1));
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Ares PLANETARY EVENTS — the board-wide consequence of moving a parameter
+// ---------------------------------------------------------------------------
+
+/**
+ * One tile can set off an event that rewrites the whole map: the 6th ocean wipes
+ * every dust storm AND pays the placer +1 TR; a later ocean count drops two new
+ * erosions; the oxygen / temperature thresholds turn every existing hazard of a
+ * kind SEVERE, which doubles what each one charges every future neighbour.
+ *
+ * None of it used to be previewed — the player met a second, board-wide event
+ * only after confirming, which is precisely the surprise this panel exists to
+ * prevent. The trip condition is `AresHazards.wouldFire` (the predicate the live
+ * `testConstraint` runs) and the affected counts come from the same filters the
+ * mutators walk, so the promise cannot drift from the commit.
+ */
+function hazardDataFor(player: IPlayer): HazardData | undefined {
+  const game = player.game;
+  if (game.gameOptions.aresExtension !== true) {
+    return undefined;
+  }
+  return game.aresData?.hazardData;
+}
+
+/** The two events an OCEAN placement can trigger via the ocean COUNT. */
+function oceanPlanetaryEventFacts(player: IPlayer, resultingOceans: number): Array<BoardFact> {
+  const hazardData = hazardDataFor(player);
+  if (hazardData === undefined) {
+    return [];
+  }
+  const game = player.game;
+  const out: Array<BoardFact> = [];
+
+  if (AresHazards.wouldFire(hazardData.removeDustStormsOceanCount, resultingOceans)) {
+    const cleared = AresHazards.spacesToClearDustStorms(game).length;
+    out.push({
+      id: 'ares-event-dust-storms-recede',
+      category: 'hazard-cleanup',
+      timing: 'immediate',
+      severity: 'premium',
+      recipient: {kind: 'current-player'},
+      title: 'Planetary event: dust storms recede',
+      // The TR is granted whether or not any storm is actually on the board, so
+      // the count is a detail of the event, never its precondition.
+      ...(cleared > 0 ? {description: 'Clears every dust storm · ${0} on the board', params: [String(cleared)]} : {}),
+    });
+    // Reuses the solar-phase waiver: WGT crosses thresholds without paying TR.
+    out.push(...terraformRatingFact(player, 'ares-event-dust-storms-tr', 1));
+  }
+
+  // Ordered as `onOceanPlaced` runs them: erosions appear, then storms recede.
+  // Listed after the reward on purpose — the RISK block is where it lands.
+  if (AresHazards.erosionPlacementEnabled(game) &&
+      AresHazards.wouldFire(hazardData.erosionOceanCount, resultingOceans)) {
+    // The live rule drops SEVERE erosions once the severe-erosion temperature
+    // threshold has already been consumed.
+    const severe = hazardData.severeErosionTemperature.available !== true;
+    out.push({
+      id: 'ares-event-erosions-appear',
+      category: 'hazard-penalty',
+      timing: 'warning',
+      severity: 'warning',
+      recipient: {kind: 'neutral'},
+      title: 'Planetary event: erosions appear',
+      description: severe ?
+        'Two SEVERE erosion tiles are placed on the map' :
+        'Two erosion tiles are placed on the map',
+    });
+  }
+  return out;
+}
+
+/**
+ * The "every hazard of this kind becomes severe" events. Emitted ONLY when
+ * something would actually change — the live rule consumes the threshold either
+ * way but only logs a real upgrade, and announcing "0 affected" would spend a
+ * line of a finite panel on a non-event.
+ */
+function intensifyEventFact(
+  player: IPlayer,
+  id: string,
+  title: string,
+  from: TileType,
+  fires: boolean): Array<BoardFact> {
+  if (!fires) {
+    return [];
+  }
+  const affected = AresHazards.spacesToMakeSevere(player.game, from).length;
+  if (affected === 0) {
+    return [];
+  }
+  return [{
+    id,
+    category: 'hazard-penalty',
+    timing: 'warning',
+    severity: 'warning',
+    recipient: {kind: 'neutral'},
+    title,
+    description: 'Becomes severe: ${0} · building next to one then costs −2',
+    params: [String(affected)],
+  }];
 }
 
 /**
@@ -580,6 +688,14 @@ function oxygenRaiseFacts(player: IPlayer, idPrefix: string, steps = 1): Array<B
       'Reaching 8% oxygen also raises the temperature one step.'));
     out.push(...temperatureRaiseFacts(player, `${idPrefix}-oxygen-bonus`, 1));
   }
+  // Ares: `increaseOxygenLevel` runs `onOxygenChange` LAST, after the 8%
+  // temperature chain — the facts mirror that order.
+  const hazardData = hazardDataFor(player);
+  if (hazardData !== undefined) {
+    out.push(...intensifyEventFact(player, `${idPrefix}-ares-dust-storms-severe`,
+      'Planetary event: dust storms intensify', TileType.DUST_STORM_MILD,
+      AresHazards.wouldFire(hazardData.severeDustStormOxygen, resulting)));
+  }
   return out;
 }
 
@@ -616,6 +732,14 @@ function temperatureRaiseFacts(player: IPlayer, idPrefix: string, steps = 1): Ar
   if (current < constants.TEMPERATURE_FOR_OCEAN_BONUS && resulting >= constants.TEMPERATURE_FOR_OCEAN_BONUS && game.canAddOcean()) {
     out.push(chainNote(`${idPrefix}-temperature-ocean`, 'Temperature bonus step',
       'Reaching 0 °C lets you place a free ocean tile.'));
+  }
+  // Ares: the temperature this placement drives can also intensify erosions —
+  // reachable from a GREENERY through the 8% oxygen chain.
+  const hazardData = hazardDataFor(player);
+  if (hazardData !== undefined) {
+    out.push(...intensifyEventFact(player, `${idPrefix}-ares-erosions-severe`,
+      'Planetary event: erosions intensify', TileType.EROSION_MILD,
+      AresHazards.wouldFire(hazardData.severeErosionTemperature, resulting)));
   }
   return out;
 }
