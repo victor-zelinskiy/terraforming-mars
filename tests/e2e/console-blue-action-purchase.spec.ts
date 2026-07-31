@@ -206,19 +206,19 @@ for (const profile of PROFILES) {
       }
       await expect(page.locator('.con-cardactions')).toHaveCount(1, {timeout: 10_000});
       await page.waitForTimeout(700); // the wheel-handoff enter fully settles
-      const emblemInBrowse = await page.locator('.con-cardactions__kicker-emblem').evaluate((el) => {
+      const emblemInBrowse = await page.locator('.con-wshead__emblem').evaluate((el) => {
         const cs = getComputedStyle(el);
         return {opacity: cs.opacity, visibility: cs.visibility, inline: el.getAttribute('style') ?? ''};
       });
       await key(page, 'Enter', 1200);
       await expect(page.locator('.con-cardactions__stagewrap .con-composer--stage')).toHaveCount(1);
       // The one-word stage marker: «НАСТРОЙКА», never «НАСТРОЙКА ДЕЙСТВИЯ».
-      expect((await page.locator('.con-cardactions__kicker-step').innerText()).trim().toUpperCase()).toBe('НАСТРОЙКА');
+      expect((await page.locator('.con-wshead__step').innerText()).trim().toUpperCase()).toBe('НАСТРОЙКА');
       await page.waitForTimeout(600); // the entry FLIP fully settles
       // THE IDENTITY SYMBOL: the lightning is part of the parent anchor in
       // EVERY state — measurably drawn, not just a reserved box (a stranded
       // wheel-echo once left it at inline opacity 0 for the workspace's life).
-      const emblemProbe = await page.locator('.con-cardactions__kicker-emblem').evaluate((el) => {
+      const emblemProbe = await page.locator('.con-wshead__emblem').evaluate((el) => {
         const cs = getComputedStyle(el);
         const svg = el.querySelector('svg');
         const r = el.getBoundingClientRect();
@@ -257,7 +257,7 @@ for (const profile of PROFILES) {
       expect(Math.abs(heroAtBuy!.height - heroAtSetup!.height)).toBeLessThanOrEqual(1);
       // THE IDENTITY SYMBOL holds on the COMMITTED stage too (§ NORTH STAR:
       // present through every state, never re-hidden by a stage transition).
-      const emblemAtBuy = await page.locator('.con-cardactions__kicker-emblem').evaluate((el) => {
+      const emblemAtBuy = await page.locator('.con-wshead__emblem').evaluate((el) => {
         const cs = getComputedStyle(el);
         return {opacity: cs.opacity, visibility: cs.visibility};
       });
@@ -266,7 +266,7 @@ for (const profile of PROFILES) {
       // The breadcrumb advanced its TAIL only, into the committed accent.
       // (Both keyed words coexist in the swap cell during the crossfade —
       // wait for the leaving one to finish before asserting the survivor.)
-      const step = page.locator('.con-cardactions__kicker-step');
+      const step = page.locator('.con-wshead__step');
       await expect(step).toHaveCount(1, {timeout: 5000});
       await expect(step).toHaveClass(/--committed/);
       expect((await step.innerText()).trim().toUpperCase()).toBe('ПОКУПКА');

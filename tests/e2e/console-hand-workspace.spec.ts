@@ -100,15 +100,27 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
   // footer. RB (`KeyE`) is a different verb and leaves the step where it was,
   // which is how an earlier cut bought 14 cards and ran the wallet dry.
   const launch = page.getByText('НАЧАТЬ ПАРТИЮ').first();
+  // Driven by the wizard's OWN counter, never by a fixed number of presses: a
+  // step that takes one extra beat to settle shifts a blind sequence onto the
+  // wrong screen, and the run then starts with an EMPTY hand — which looks
+  // like a broken hand screen and is really a lost boot.
+  const pickedCount = async(): Promise<number> => {
+    const text = await page.locator('.con-start__frame').innerText().catch(() => '');
+    return Number(/Выбрано\s+(\d+)/.exec(text)?.[1] ?? '0');
+  };
   // 1 · CORPORATION — exactly one pick, then advance.
-  await key(page, 'Enter', 900);
-  await key(page, 'Period', 1600);
+  for (let i = 0; i < 6 && await pickedCount() < 1; i++) {
+    await key(page, 'Enter', 900);
+  }
+  await key(page, 'Period', 1700);
   // 2 · PROJECTS — buy a small, affordable handful (3 M€ each of 36).
-  for (let i = 0; i < buyProjects; i++) {
+  await page.getByText('стартовые карты для покупки').first().waitFor({timeout: 15_000}).catch(() => {});
+  for (let i = 0; i < 24 && await pickedCount() < buyProjects; i++) {
     await key(page, 'Enter', 700);
     await key(page, 'ArrowRight', 260);
   }
-  await key(page, 'Period', 1600);
+  expect(await pickedCount(), 'starting projects bought').toBeGreaterThanOrEqual(1);
+  await key(page, 'Period', 1700);
   // 3 · SUMMARY — the launch is the explicit A CTA.
   for (let i = 0; i < 4 && await launch.count() === 0; i++) {
     await key(page, 'Period', 1300);

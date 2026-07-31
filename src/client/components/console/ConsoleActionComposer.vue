@@ -2609,7 +2609,11 @@ export default defineComponent({
      * that has already begun.
      */
     armBeatBatch(): void {
-      const named = this.beatRevealedNames;
+      // ⚠️ Only trust the artifact once the answer for THIS claim has landed.
+      // Arming happens at SUBMIT time, when `playerView` still describes the
+      // world before the action — a leftover reveal event or a previous
+      // prompt's candidates would otherwise decide this batch's size.
+      const named = workspaceOutcomeState.answerIn ? this.beatRevealedNames : [];
       const count = named.length > 0 ?
         named.length :
         Math.max(1, workspaceOutcomeState.expectedCards);
@@ -2623,7 +2627,15 @@ export default defineComponent({
      */
     syncBeatFaces(): void {
       const named = this.beatRevealedNames;
-      if (named.length === 0 || this.beatFaces.length === 0) {
+      if (named.length === 0) {
+        return;
+      }
+      // Not yet in flight (the answer beat the commit handoff): the batch is
+      // still free to take the REAL size, which is always better than the
+      // promise. Once it is flying the length is frozen — the objects that
+      // left the pile are the objects that land.
+      if (!this.beatFlightOn) {
+        this.beatFaces = named.slice();
         return;
       }
       this.beatFaces = this.beatFaces.map((face, i) => named[i] ?? face);

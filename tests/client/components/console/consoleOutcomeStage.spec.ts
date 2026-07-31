@@ -89,6 +89,47 @@ describe('ConsoleActionComposer — the EMBEDDED outcome stage', () => {
     w.unmount();
   });
 
+  /**
+   * THE BATCH IS N OBJECTS FROM THE FIRST FRAME. The bug this replaced flew
+   * ONE proxy into ONE slot and let the arriving surface render the whole
+   * batch, so a two-card draw read as one card arriving and multiplying. The
+   * prepared stage reserving exactly N slots — before anything moves — is what
+   * makes that unrepresentable, so the count is asserted across the real range.
+   */
+  for (const n of [1, 2, 3, 4]) {
+    it(`the prepared stage reserves EXACTLY ${n} landing slot(s)`, async () => {
+      const w = factory();
+      claimWorkspaceOutcome('card-actions', 'AI Central', ['draw', 'pick'], 0, n);
+      await w.setProps({outcome: {kind: 'pending'}});
+      await w.vm.$nextTick();
+
+      expect(w.findAll('.con-composer__beatslot').length).to.eq(n);
+      // The count BADGE is a mass-batch instrument: one card states no count
+      // (the same rule that folds the buy pickline), several do.
+      expect(w.findAll('.con-ws-stage-badge').length).to.eq(n > 1 ? 1 : 0);
+      // The heading follows the batch, and it is the DRAW's sentence — the
+      // arriving surface may turn out to be a buy pick, and promising that
+      // before the server has said so would be a lie.
+      expect(w.find('.con-ws-stage-title').text())
+        .to.contain(n > 1 ? 'Cards received' : 'Card received');
+      // The status line keeps its reserved row throughout.
+      expect(w.find('.con-composer__beatstatus').exists()).to.eq(true);
+      w.unmount();
+    });
+  }
+
+  it('a claim with NO promised cards still stands one honest slot', async () => {
+    // A branch whose preview promised nothing countable must not produce a
+    // zero-slot stage: the batch would have nothing to fly into and the
+    // arrival would degrade to the old "it just appeared".
+    const w = factory();
+    claimWorkspaceOutcome('card-actions', 'AI Central', ['draw'], 0, 0);
+    await w.setProps({outcome: {kind: 'pending'}});
+    await w.vm.$nextTick();
+    expect(w.findAll('.con-composer__beatslot').length).to.eq(1);
+    w.unmount();
+  });
+
   it('the beat YIELDS once something is re-homed in — never a spinner behind live content', async () => {
     const w = factory();
     await w.setProps({outcome: {kind: 'pending'}});

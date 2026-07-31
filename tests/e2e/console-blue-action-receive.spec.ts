@@ -331,6 +331,15 @@ for (const profile of PROFILES) {
       // raise THAT card (its slot is held empty while the viewer is up) — a
       // textual entrance left the hero standing in its column while an
       // identical card rose in the middle: two of the same card at once.
+      // THE ARRIVAL GATE HAS OPENED. Input is live only once every card has
+      // landed AND the flight proxies have handed over — until then the focus
+      // ring, the card's name and every verb are suppressed and presses are
+      // absorbed (a ring over a slot the card has not reached yet promises a
+      // card that is not there). The ring IS that signal, so the drive waits
+      // for it instead of racing it.
+      await expect(page.locator('[data-embed-slot="workspace-reveal"] .con-cards__slot--focused'))
+        .toHaveCount(1, {timeout: 12_000});
+
       const srcZoom = page.locator('dialog.con-zoom[open]');
       for (let tries = 0; tries < 5 && await srcZoom.count() === 0; tries++) {
         await key(page, 'KeyC', 1500);
@@ -341,10 +350,18 @@ for (const profile of PROFILES) {
       await expect(page.locator('[data-motion-surface="action-composer"] .con-zoom-hold'))
         .toHaveCount(1, {timeout: 4000});
       await shoot(page, `${profile.tag}-01b-source-fullscreen`);
+      // ONE press closes it. The retry is for a press DROPPED on a heavy 4K
+      // frame, never for spamming: a second Escape that reaches the stage
+      // underneath is B = «Взять всё», which ends the whole flow early (that
+      // is how this drive used to fold the workspace and then assert on a
+      // stage that was already gone). So each press waits for the dialog to
+      // actually detach before another one is considered.
       for (let tries = 0; tries < 5 && await srcZoom.count() > 0; tries++) {
-        await key(page, 'Escape', 1400);
+        await page.keyboard.press('Escape');
+        await srcZoom.waitFor({state: 'detached', timeout: 2500}).catch(() => { /* dropped — retry */ });
       }
       await expect(srcZoom).toHaveCount(0, {timeout: 8000});
+      await page.waitForTimeout(400);
       // …and it comes BACK: no slot left empty, no stranded hold.
       await expect(page.locator('.con-zoom-hold')).toHaveCount(0, {timeout: 6000});
       await expect(page.locator('[data-embed-slot="workspace-reveal"] .con-cards__slot .pcard')).toBeVisible();

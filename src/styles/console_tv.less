@@ -319,8 +319,8 @@ html.con-profile-tv {
     .con-wshead {
         &__root { font-size: 1.35rem; }
         &__subject { font-size: 1.35rem; }
-        &__step { font-size: .95rem; }
-        &__context { font-size: 1.05rem; }
+        &__step { font-size: var(--con-t-caption); }
+        &__context { font-size: var(--con-t-body); }
         &__emblem { width: 1.45rem; height: 1.45rem; }
     }
     .con-hand {
@@ -932,11 +932,10 @@ html.con-profile-tv {
 
     /* ═══ 19 · ACTION WORKSPACE + COMPOSERS ═══════════════════════ */
     .con-cardactions {
-        /* One-line header: identity + breadcrumb + card name at couch size. */
-        &__ident-section { font-size: 1.35rem; }
-        &__title { font-size: 1.35rem; }
-        &__kicker-step { font-size: var(--con-t-caption); }
-        &__kicker-src { font-size: var(--con-t-body); }
+        /* (The one-line header — identity + breadcrumb + card name at couch
+           size — rides the shared `.con-wshead` ladder in §7. Keeping a second
+           copy here is exactly how this screen and the hand ended up reading
+           at two different sizes on the same TV.) */
         &__stat {
             b { font-size: 1.3rem; }
             i { font-size: var(--con-t-floor); }

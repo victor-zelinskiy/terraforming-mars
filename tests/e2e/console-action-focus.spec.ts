@@ -217,8 +217,8 @@ for (const profile of PROFILES) {
       expect(await page.locator('.con-composer__backdrop').count()).toBe(0);
       await expect(page.locator('.con-cardactions__browse--parked')).toHaveCount(1);
       // The header is the operation breadcrumb now.
-      await expect(page.locator('.con-cardactions__kicker-step')).toHaveCount(1);
-      expect((await page.locator('.con-cardactions__title').innerText()).toUpperCase()).toContain('ПОИСКИ ЖИЗНИ');
+      await expect(page.locator('.con-wshead__step')).toHaveCount(1);
+      expect((await page.locator('.con-wshead__subject').innerText()).toUpperCase()).toContain('ПОИСКИ ЖИЗНИ');
       // The hero card slot carries the FLIP/zoom contracts.
       await expect(page.locator('.con-composer--stage [data-action-focus-card][data-zoom-slot="Search For Life"]')).toHaveCount(1);
       // The CTA dock is pinned outside the scroll.
@@ -238,7 +238,7 @@ for (const profile of PROFILES) {
       await key(page, 'Escape', 900);
       await expect(page.locator('.con-composer--stage')).toHaveCount(0);
       await expect(page.locator('.con-cardactions__browse--parked')).toHaveCount(0);
-      await expect(page.locator('.con-cardactions__kicker-step')).toHaveCount(0);
+      await expect(page.locator('.con-wshead__step')).toHaveCount(0);
       await expect(thumb).toHaveCount(1);
       await shoot(page, `${profile.tag}-03-back-to-browse`);
 

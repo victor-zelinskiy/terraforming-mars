@@ -715,6 +715,13 @@ body.con-zoom-open .con-handdock {
    nothing beside them shifts mid-change. */
 .con-wshead__swap {
     display: inline-grid;
+    align-items: center;
+    /* The cell is GRID (not absolute) so it still SIZES to the widest word —
+       the neighbours never reflow mid-swap, which is the other half of
+       «seamless». A long card name must never push the stage off the line: the
+       SUBJECT truncates (see `__subject`) rather than wrapping, because the
+       header is a single line by contract — a second row would move every rect
+       the descend phrase measures from. */
     min-width: 0;
     > * { grid-area: 1 / 1; min-width: 0; }
 }
@@ -15414,153 +15421,14 @@ html.console-mode {
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 .9rem 2.6rem rgba(0, 0, 0, 0.6);
     }
 
-    /* ── Header — ONE line whenever the width allows: [identity] [filters]
-       [counts]. The filters sit BETWEEN the section name and the count chips
-       (the natural free space); they only drop to a second line when the
-       band is genuinely too narrow (flex-wrap, no media query). In focus the
-       filters yield entirely and the line becomes the breadcrumb. ── */
-    &__head {
-        display: flex;
-        align-items: center;
-        gap: .35rem .9rem;
-        /* NOWRAP on purpose: the identity and the aux zone always share the
-           first line. A narrow band is absorbed INSIDE the aux zone (its own
-           filter strip wraps to a second tier — the Deck's deliberate
-           two-tier header), never by pushing the whole zone below the
-           identity, which would have cost a third tier. */
-        flex-wrap: nowrap;
-        min-height: 2rem;
-    }
-    &__ident {
-        order: 1;
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        min-width: 0;
-        flex: 0 1 auto;
-    }
-    &__kicker-mark { color: @con-cyan; font-size: 1rem; }
-    /* THE WORKSPACE IDENTITY SYMBOL — the lightning that links this screen
-       to the action wheel's tile (same BarButtonIcon, same accent). Part of
-       the PARENT anchor, present through every stage of the flow: constant
-       box, constant gap, never re-animated by a stage change (only the
-       one-shot wheel-handoff echo touches it, strand-proofed in the
-       director). Also the wheel flight's landing anchor (data-wheel-anchor). */
-    &__kicker-emblem {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        width: 1.2rem;
-        height: 1.2rem;
-        color: @con-cyan;
-
-        .bar-btn-icon { width: 100%; height: 100%; }
-    }
-    /* ── HEADER TYPOGRAPHY ROLES — three distinct voices on ONE line, one
-       shared baseline, zero restyling between stages:
-       · PARENT («ДЕЙСТВИЯ КАРТ») — the stable frame of reference. Same box,
-         same weight, same colour in browse AND in flow: it must behave
-         exactly like the source card — never re-styled, never re-animated.
-         Its voice is deliberately one step calmer (weight + solid colour) so
-         it frames without competing.
-       · SUBJECT (the card name) — the flow's anchor and its brightest,
-         heaviest word: full-white gradient + the top weight. Hierarchy is
-         weight-first, so it survives desaturation and TV picture modes.
-       · STAGE — a compact accent marker: smaller, tracked caps in the system
-         accent (cyan pre-commit → amber past the commit boundary).
-       The separators recede to hairline guides — they are punctuation, not
-       content. ── */
-    &__ident-section {
-        font-size: 1.1rem; font-weight: 700; letter-spacing: .06rem; text-transform: uppercase; line-height: 1.1;
-        color: fade(#cfe4f7, 80%);
-        white-space: nowrap;
-    }
-    /* The focus-stage breadcrumb («Действия карт › <карта> › Настройка»). */
-    &__kicker-sep { color: fade(@con-cyan, 36%); font-size: .95rem; }
-    &__kicker-step {
-        font-size: .8rem; font-weight: 700; letter-spacing: .12rem; text-transform: uppercase;
-        color: fade(@con-cyan, 92%); white-space: nowrap;
-    }
-    /* Repeat mode names the source card (ProjInsp / Viron) in the breadcrumb. */
-    &__kicker-src { color: @con-text; font-size: .9rem; font-weight: 700; white-space: nowrap; }
-    /* The composed card's name (focus stage) — the operation's title and the
-       line's PRIMARY voice. */
-    &__title {
-        min-width: 0;
-        font-size: 1.1rem; font-weight: 800; letter-spacing: .04rem; text-transform: uppercase; line-height: 1.1;
-        background: linear-gradient(180deg, #ffffff 0%, #e6f3ff 100%);
-        -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    /* ── The AUX ZONE — ONE fixed region of the header holding the two
-       stage-specific blocks as stacked LAYERS. The browse layer stays in the
-       flow (it defines the zone's height), the focus layer lies over it; they
-       crossfade and neither is ever removed. That is what makes the header
-       height identical in both stages: the focus stage assembles in exactly
-       the geometry the browse layer was measured in — no reflow under the
-       entering animation, and the filters can never blink. ── */
-    &__aux {
-        order: 2;
-        position: relative;
-        flex: 1 1 auto;
-        min-width: 0;
-        display: flex;
-    }
-    &__aux-layer {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: .35rem .9rem;
-        min-width: 0;
-        width: 100%;
-        transition: opacity calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
-        /* The FOCUS layer floats over the browse one — the zone's width AND
-           height are the browse layer's, always, so the breadcrumb tail can
-           be as long as it likes without reflowing anything. */
-        &--focus {
-            position: absolute;
-            inset: 0;
-            /* ONE crumb rhythm. The head's column-gap (.9rem — right for the
-               browse filters) would also space parent → first separator,
-               while every later step sits at the layer's own .4rem: the first
-               `›` read as detached from its parent. The layer is an absolute
-               overlay, so pulling its left edge back equalises the rhythm to
-               .4rem everywhere with ZERO layout impact on the browse tier. */
-            left: -.5rem;
-            flex-wrap: nowrap;
-            gap: .4rem;
-            /* The tail reads as the continuation of the identity line: it
-               starts at the zone's left edge (right after the section name)
-               and the variant chip closes the line on the right. */
-            justify-content: flex-start;
-            .con-cardactions__title { flex: 0 1 auto; }
-            .con-cardactions__stat--variant { margin-left: auto; flex-shrink: 0; }
-        }
-        /* The deliberate, controlled disappearance (never a v-if / remount). */
-        &--out {
-            opacity: 0;
-            transform: translateY(-.12rem);
-            pointer-events: none;
-        }
-    }
-    /* The breadcrumb tail RISES IN READING ORDER as the flow opens: the
-       card name first, then the stage, then the variant chip — the header
-       reads as the same line unfolding a deeper context, never as a new
-       header arriving. Mount-time (the tail mounts with the composer), so
-       it composes with the layer crossfade and never replays on a stage
-       change (those swap through the keyed crossfade inside the cells).
-       Children 1-2 = sep + card name, 3-4 = sep + stage, 5 = variant chip. */
-    &__aux-layer--focus > * {
-        animation: con-crumb-rise calc(190ms * var(--motion-scale, 1)) ease backwards;
-    }
-    &__aux-layer--focus > :nth-child(3),
-    &__aux-layer--focus > :nth-child(4) { animation-delay: calc(80ms * var(--motion-scale, 1)); }
-    &__aux-layer--focus > :nth-child(5) { animation-delay: calc(150ms * var(--motion-scale, 1)); }
-    @media (prefers-reduced-motion: reduce) {
-        &__aux-layer { transition: none; }
-        &__aux-layer--focus > * { animation: none; }
-    }
+    /* ── Header — the SHARED workspace line (`.con-wshead`, rendered by
+       ConsoleWsHead.vue). Everything that used to live here — the identity
+       row, the three type voices, the fixed-height two-layer aux zone and the
+       crumb-rise — is that block's now, so this screen and «КАРТЫ В РУКЕ»
+       cannot drift apart again (they had already grown two ladders in
+       console_tv.less that only agreed by hand). What stays below is what is
+       genuinely OURS: the faceted filter groups and the count chips, which we
+       hand to the header through its aux slot. ── */
     /* The counts close the browse layer; the filters take the middle. */
     &__head-stats { order: 3; display: flex; align-items: center; gap: .45rem; margin-left: auto; }
     &__stat {
@@ -16248,43 +16116,6 @@ html.console-mode {
 
 /* The header's browse ⇄ focus content swap (a short out-in beat — the fixed
    header height means no layout motion, only the text crossfades). */
-/* THE BREADCRUMB STEP — a true CROSSFADE, never an out-in swap.
-   `mode="out-in"` empties the slot between the two words: at 110 ms out plus
-   110 ms in that gap is a visible BLINK on the one line that is supposed to
-   prove the flow never broke. Both words now occupy the SAME grid cell and
-   travel through each other, so the crumb reads as one label changing rather
-   than one label leaving and another arriving.
-   The cell is `grid` (not absolute) so it still SIZES to the widest word —
-   the neighbours never reflow mid-swap, which is the other half of "seamless". */
-.con-cardactions__kicker-swap {
-    display: inline-grid;
-    grid-template-areas: 'step';
-    align-items: center;
-    /* The longer word decides the width; both children share the cell. */
-    > * { grid-area: step; }
-    /* A long card name must never push the stage off the line: the SUBJECT
-       cell is the one that yields, and it truncates rather than wrapping
-       (the header is a single line by contract — a second row would move
-       every rect the descend phrase measures from). */
-    min-width: 0;
-    > .con-cardactions__title {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-}
-/* A COMMITTED stage is a statement, not an invitation: it drops the inviting
-   cyan for the calm amber the rest of the console uses for "in effect".
-   Colour carries the state on `color` (perf-lite keeps it — never a filter). */
-.con-cardactions__kicker-step--committed { color: fade(@con-amber, 92%); }
-.con-cardactions-headswap-enter-active,
-.con-cardactions-headswap-leave-active {
-    transition: opacity calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
-}
-.con-cardactions-headswap-enter-from { opacity: 0; transform: translateY(.18rem); }
-.con-cardactions-headswap-leave-to { opacity: 0; transform: translateY(-.14rem); }
-
 /* The breadcrumb tail's mount-time rise (same travel family as headswap). */
 @keyframes con-crumb-rise {
     from { opacity: 0; transform: translateY(.16rem); }
@@ -16323,7 +16154,6 @@ html.console-mode {
 
 @media (prefers-reduced-motion: reduce) {
     .con-cardactions__tile--shake { animation: none; }
-    .con-cardactions-headswap-enter-active, .con-cardactions-headswap-leave-active,
     .con-actfocus-card-enter-active, .con-actfocus-card-leave-active { transition: none; }
 }
 
@@ -17472,8 +17302,8 @@ html.con-profile-handheld .con-cardactions {
        single-action groups down to their canvas the moment the canvas got a
        fixed size. */
     .con-cardactions__group--wide { grid-column: auto; }
-    .con-cardactions__ident-section { font-size: .95rem; }
-    .con-cardactions__title { font-size: .95rem; }
+    /* (The header's type ladder lives on `.con-wshead` at the profile root —
+       one ladder for every workspace line, not one per surface.) */
     .con-cardactions__detail { flex-basis: 16.5rem; }
     .con-cardactions__detail-name { font-size: 1rem; }
     .con-cardactions__detail-card { zoom: calc(0.46 * var(--con-ui-scale, 1)); }
@@ -17486,7 +17316,6 @@ html.con-profile-handheld .con-cardactions {
         b { font-size: .8rem; }
         i { font-size: .5rem; }
     }
-    .con-cardactions__head { gap: .25rem .45rem; }
     .con-cardactions__head-stats { gap: .3rem; }
     /* The Deck's band is genuinely too narrow for all three blocks on one
        line (196 + 679 + 208 > 1080 logical px). Rather than let the flex
@@ -17496,7 +17325,7 @@ html.con-profile-handheld .con-cardactions {
        height in BOTH stages (the browse layer is the one in flow), so
        entering the focus stage still changes nothing about the geometry. */
     .con-cardactions__filters { order: 2; flex-basis: 100%; gap: .25rem .4rem; }
-    .con-cardactions__aux-layer--browse .con-cardactions__head-stats { order: 1; }
+    .con-wshead__layer--browse .con-cardactions__head-stats { order: 1; }
     .con-cardactions__fgroup { padding: .1rem .3rem; gap: .2rem; }
     .con-cardactions__chip {
         padding: .1rem .35rem;
@@ -17521,10 +17350,13 @@ html.con-profile-handheld .con-composer--stage {
     .con-composer__rule--note .con-composer__rule-text { font-size: .78rem; }
 }
 
-/* Large / 4K — a gentle readability boost only. */
+/* Large / 4K — a gentle readability boost only. The workspace HEADER's own
+   ladder is on `.con-wshead` (one place, every workspace). */
+html.con-profile-large .con-wshead {
+    &__root { font-size: 1.3rem; }
+    &__subject { font-size: 1.3rem; }
+}
 html.con-profile-large .con-cardactions {
-    .con-cardactions__ident-section { font-size: 1.3rem; }
-    .con-cardactions__title { font-size: 1.3rem; }
     .con-cardactions__detail-name { font-size: 1.35rem; }
     .con-cardactions__plate-name { font-size: .95rem; }
 }

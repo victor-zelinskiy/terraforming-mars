@@ -21,30 +21,20 @@
            header can neither blink nor change height under the entering
            animation — the stage below always assembles in the geometry the
            browse layer was measured in. ── -->
-      <header class="con-cardactions__head">
-        <div class="con-cardactions__ident">
-          <span v-if="repeat" class="con-cardactions__kicker-mark" aria-hidden="true">⟳</span>
-          <span v-else class="con-cardactions__kicker-emblem" data-wheel-anchor="card-actions" aria-hidden="true">
-            <BarButtonIcon name="actions" />
-          </span>
-          <span class="con-cardactions__ident-section">{{ $t(repeat ? 'Repeat action' : 'Card actions') }}</span>
-          <!-- Repeat mode names the SOURCE (ProjInsp / Viron / Hydro) in the breadcrumb. -->
-          <template v-if="repeat && repeatRequest !== undefined">
-            <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
-            <span class="con-cardactions__kicker-src">{{ $t(repeatRequest.source.label ?? repeatRequest.source.card) }}</span>
-          </template>
-        </div>
-
-        <!-- ── The AUX ZONE — one region, two stacked layers. Only the BROWSE
-             layer (filters + counts) is in the FLOW: it alone decides the
-             zone's width and height, so both are identical in both stages.
-             The FOCUS layer (the breadcrumb tail + the variant chip) lies
-             over it — which is why the breadcrumb can grow long without ever
-             pushing the header taller. They crossfade; neither is removed. ── -->
-        <div class="con-cardactions__aux">
-        <div class="con-cardactions__aux-layer con-cardactions__aux-layer--browse"
-             :class="{'con-cardactions__aux-layer--out': composer !== undefined}"
-             :aria-hidden="composer !== undefined ? 'true' : undefined">
+      <!-- THE SHARED WORKSPACE HEADER (ConsoleWsHead) — the same component,
+           the same three type voices and the same fixed-height aux zone as
+           «КАРТЫ В РУКЕ». It owns the identity line and the breadcrumb; we
+           supply what is genuinely ours: the faceted filters and the counts
+           (the browse layer of the aux zone) and the variant chip (its tail). -->
+      <ConsoleWsHead class="con-cardactions__head"
+                     :root="repeat ? 'Repeat action' : 'Card actions'"
+                     :mark="repeat ? '⟳' : ''"
+                     :emblem="repeat ? undefined : 'actions'"
+                     :wheelAnchor="repeat ? undefined : 'card-actions'"
+                     :context="repeat && repeatRequest !== undefined ? (repeatRequest.source.label ?? repeatRequest.source.card) : ''"
+                     :subject="composer !== undefined ? composer.cardName : ''"
+                     :stage="composer !== undefined ? focusKickerKey : ''"
+                     :committed="outcomeFlow !== undefined">
         <!-- ── Filters: two labeled groups with their OWN trigger chips
              (the sanctioned exception to the one-bottom-bar rule). They
              live in the header line and yield to the focus stage. ── -->
@@ -87,59 +77,25 @@
               <b>{{ model.availableTiles }}</b><i>{{ $t(repeat ? 'can select' : 'can perform') }}</i>
             </span>
           </div>
-        </div><!-- /aux-layer--browse -->
-
-        <div class="con-cardactions__aux-layer con-cardactions__aux-layer--focus"
-             :class="{'con-cardactions__aux-layer--out': composer === undefined}"
-             :aria-hidden="composer === undefined ? 'true' : undefined">
-          <!-- The breadcrumb TAIL — it continues the identity line visually
-               (the zone starts right after it) while living in an overlay, so
-               a long card name can never reflow the header. -->
-          <template v-if="composer !== undefined">
-            <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
-            <!-- STABLE CONTEXT BEFORE MUTABLE STAGE (consoleWorkspaceHeader):
-                   ДЕЙСТВИЯ КАРТ › СОЮЗ ИЗОБРЕТАТЕЛЕЙ › ПОКУПКА
-                 The SUBJECT is the anchor of the whole flow and stands FIXED;
-                 only the tail changes. The old grammar put the stage in the
-                 middle and the card last, so every phase re-flowed the crumb
-                 and the eye re-read the whole line — it looked like arriving
-                 somewhere else, the one impression this flow must never give.
-                 It swaps only on a Viron repeat re-point. -->
-            <span class="con-cardactions__kicker-swap">
-              <transition name="con-cardactions-headswap">
-                <span class="con-cardactions__title" :key="composer.cardName">{{ $t(composer.cardName) }}</span>
-              </transition>
-            </span>
-            <span class="con-cardactions__kicker-sep" aria-hidden="true">›</span>
-            <!-- The STAGE — the ONLY animating segment. Crossfade, never
-                 `mode="out-in"`: out-in empties the slot between the two words,
-                 and at 110 ms each way that gap is a visible blink on the one
-                 line that is supposed to prove the flow never broke. Both
-                 words share ONE grid cell sized to the wider of them, so
-                 nothing beside them shifts mid-swap. -->
-            <span class="con-cardactions__kicker-swap">
-              <transition name="con-cardactions-headswap">
-                <span class="con-cardactions__kicker-step"
-                      :class="{'con-cardactions__kicker-step--committed': outcomeFlow !== undefined}"
-                      :key="focusKickerKey">{{ $t(focusKickerKey) }}</span>
-              </transition>
-            </span>
-          </template>
+        <!-- The variant chip closes the breadcrumb TAIL (the header's `deep`
+             slot) — it belongs to the focused stage, not to the browse layer. -->
+        <template #deep>
           <span v-if="composer !== undefined && focusVariantTotal > 1" class="con-cardactions__stat con-cardactions__stat--variant">
             <b>{{ composer.nodeIndex + 1 }}/{{ focusVariantTotal }}</b><i>{{ $t('Option') }}</i>
           </span>
-        </div>
-        </div><!-- /aux -->
+        </template>
 
         <!-- The PLAYER-CONTEXT chip — only when the workspace is opened on
              behalf of ANOTHER player (the future Information-Panel entry);
              your own visit needs no name tag. It belongs to the WORKSPACE,
              not to a stage, so it stays in the flow across both. -->
-        <span v-if="contextPlayer !== undefined" class="con-cardactions__player" :class="'player_bg_color_' + contextPlayer.color">
-          <span class="con-cardactions__player-dot" aria-hidden="true"></span>
-          <span>{{ contextPlayer.name }}</span>
-        </span>
-      </header>
+        <template #trailing>
+          <span v-if="contextPlayer !== undefined" class="con-cardactions__player" :class="'player_bg_color_' + contextPlayer.color">
+            <span class="con-cardactions__player-dot" aria-hidden="true"></span>
+            <span>{{ contextPlayer.name }}</span>
+          </span>
+        </template>
+      </ConsoleWsHead>
 
       <!-- ── The stage wrap: the BROWSE layer (grid + inspector) and the
            ACTION FOCUS stage occupy the same region; entering focus
@@ -480,7 +436,6 @@
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
-import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {CardResource} from '@/common/CardResource';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
@@ -540,6 +495,7 @@ import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState
 import ConsoleActionComposer, {ComposerOutcome} from '@/client/components/console/ConsoleActionComposer.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
+import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
@@ -586,7 +542,7 @@ type ComposerContext = ActionFlowDraft;
 
 export default defineComponent({
   name: 'ConsoleCardActions',
-  components: {ConsoleActionComposer, ConsoleCardFaceLite, ConsoleScrollArea, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph, BarButtonIcon},
+  components: {ConsoleActionComposer, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleWsHead, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},

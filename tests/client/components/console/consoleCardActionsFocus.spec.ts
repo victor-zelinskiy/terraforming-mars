@@ -98,8 +98,8 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     expect(browse.exists()).to.eq(true);
     expect(browse.classes()).to.contain('con-cardactions__browse--parked');
     // The header turns into the operation breadcrumb + names the card.
-    expect(w.find('.con-cardactions__kicker-step').exists()).to.eq(true);
-    expect(w.find('.con-cardactions__title').text()).to.contain(CARD);
+    expect(w.find('.con-wshead__step').exists()).to.eq(true);
+    expect(w.find('.con-wshead__subject').text()).to.contain(CARD);
     // The shell mirror flips (command bar routing).
     expect(consoleActionComposerUi.open).to.eq(true);
     expect(consoleCardActionsUi.confirmOpen).to.eq(true);
@@ -122,7 +122,7 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     expect(vm.focusKickerKey).to.eq('Setup');
     await settle(w);
     expect(vm.focusKickerKey).to.eq('Setup');
-    expect(w.find('.con-cardactions__kicker-step').text()).to.eq('Setup');
+    expect(w.find('.con-wshead__step').text()).to.eq('Setup');
     // The OUTCOME phases — the only things that rename the stage, and each
     // names itself: a deck-check is a «результат вскрытия», a draw is not.
     vm.outcomeFlow = {kind: 'deck-check'};
@@ -154,10 +154,10 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     setWorkspaceOutcomePhase('Buying');
     await settle(w);
     expect(vm.focusKickerKey).to.eq('Buying');
-    expect(w.find('.con-cardactions__kicker-step').text()).to.eq('Buying');
+    expect(w.find('.con-wshead__step').text()).to.eq('Buying');
     // …and the CARD is still named, on the same line, unchanged. This is the
     // whole point: only the middle step advanced.
-    expect(w.find('.con-cardactions__title').text()).to.eq(cardName);
+    expect(w.find('.con-wshead__subject').text()).to.eq(cardName);
 
     // Retracting it falls back to the generic, never to a blank crumb.
     setWorkspaceOutcomePhase('');
@@ -172,7 +172,7 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     await settle(w);
     expect((w.vm as any).flowState).to.eq('browse');
     // Both header layers exist in browse…
-    expect(w.find('.con-cardactions__aux-layer--browse').exists()).to.eq(true);
+    expect(w.find('.con-wshead__layer--browse').exists()).to.eq(true);
     expect(w.find('.con-cardactions__filters').exists()).to.eq(true);
     (w.vm as any).activateFocused();
     await settle(w);
@@ -180,8 +180,8 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     // inside a fixed zone, they are never removed (a v-if here reflowed the
     // header, which moved the whole stage region mid-transition).
     expect(w.find('.con-cardactions__filters').exists()).to.eq(true);
-    expect(w.find('.con-cardactions__aux-layer--browse').classes()).to.contain('con-cardactions__aux-layer--out');
-    expect(w.find('.con-cardactions__aux-layer--focus').classes()).to.not.contain('con-cardactions__aux-layer--out');
+    expect(w.find('.con-wshead__layer--browse').classes()).to.contain('con-wshead__layer--out');
+    expect(w.find('.con-wshead__layer--deep').classes()).to.not.contain('con-wshead__layer--out');
     // The stage carries the UNFOLD surface, and no action-graphic carry.
     expect(w.find('[data-unfold-surface]').exists()).to.eq(true);
     expect(w.find('[data-action-strip]').exists()).to.eq(false);
@@ -226,7 +226,7 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     expect((w.vm as any).focusKey).to.eq(focusBefore);
     expect(consoleCardActionsUi.filter.activation).to.eq('all');
     // The browse header is back.
-    expect(w.find('.con-cardactions__kicker-step').exists()).to.eq(false);
+    expect(w.find('.con-wshead__step').exists()).to.eq(false);
     w.unmount();
   });
 
@@ -255,7 +255,7 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     expect((w.vm as any).focusKey).to.eq(CardName.IRONWORKS + '#0');
     expect((w.vm as any).focusedTile?.cardName).to.eq(CardName.IRONWORKS);
     // The source line never leaks the lore card name for a labelled source.
-    expect(w.find('.con-cardactions__kicker-src').text()).to.eq('Mars Hydronetwork');
+    expect(w.find('.con-wshead__context').text()).to.eq('Mars Hydronetwork');
     w.unmount();
     resetConsoleRepeatPick();
     resetConsoleRepeatPickUi();
