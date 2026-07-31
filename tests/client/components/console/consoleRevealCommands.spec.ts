@@ -29,6 +29,33 @@ describe('drawnRevealCommandRun — ONE contract for both hosts', () => {
     expect(labels(run)).to.not.contain('stickL:Source');
   });
 
+  /**
+   * The BUY-PARITY bar grammar: with several takeable cards the run LEADS
+   * with the ◄► navigation hint — the same slot the buy pick's bar puts it
+   * in. One structural grid for both stages; a single card only DROPS the
+   * hint (there is genuinely nothing to navigate), it never re-orders.
+   */
+  it('multi leads with the ◄► nav hint in the buy bar\'s slot; single drops it without re-ordering', () => {
+    const multi = drawnRevealCommandRun({hasCardSource: true, hasDiscards: false, multi: true});
+    expect(labels(multi)).to.deep.eq([
+      'dpadH:Navigate', 'confirm:Take card', 'secondary:Inspect', 'stickL:Source', 'back:Take all cards',
+    ]);
+    const single = drawnRevealCommandRun({hasCardSource: true, hasDiscards: false, multi: false});
+    expect(labels(single)).to.deep.eq([
+      'confirm:Take card', 'secondary:Inspect', 'stickL:Source', 'back:Take all cards',
+    ]);
+  });
+
+  it('a READY closer suppresses the nav hint with the rest of the take verbs', () => {
+    const run = drawnRevealCommandRun({
+      hasCardSource: false,
+      hasDiscards: false,
+      multi: true,
+      closer: {index: 1, total: 1, label: 'Discard a card', ready: true} as never,
+    });
+    expect(labels(run)).to.not.contain('dpadH:Navigate');
+  });
+
   it('a conditional search offers the discard pile on R3', () => {
     const run = drawnRevealCommandRun({hasCardSource: false, hasDiscards: true});
     expect(labels(run)).to.contain('stickR:Discarded pile');

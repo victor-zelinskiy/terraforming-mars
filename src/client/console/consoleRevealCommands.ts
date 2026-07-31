@@ -33,6 +33,13 @@ export type DrawnRevealCommandCtx = {
   hasCardSource: boolean;
   /** The conditional search discarded at least one card → R3 opens the pile. */
   hasDiscards: boolean;
+  /**
+   * More than one card remains takeable → the bar leads with the ◄► nav hint
+   * in the SAME slot the buy pick's bar uses. A single card genuinely has no
+   * navigation — the hint goes, the grid does not change (the buy parity
+   * contract: one structure, content-level differences only).
+   */
+  multi?: boolean;
 };
 
 /**
@@ -43,6 +50,9 @@ export type DrawnRevealCommandCtx = {
 export function drawnRevealCommandRun(ctx: DrawnRevealCommandCtx): Array<ConsoleCommand> {
   const cmds: Array<ConsoleCommand> = [];
   const closerReady = ctx.closer?.ready === true;
+  if (ctx.multi === true && !closerReady) {
+    cmds.push({control: 'dpadH', label: 'Navigate'});
+  }
   cmds.push({control: 'confirm', label: closerReady ? (ctx.closer?.label ?? 'Take card') : 'Take card'});
   cmds.push({control: 'secondary', label: 'Inspect'});
   if (ctx.hasCardSource) {

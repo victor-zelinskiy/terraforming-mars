@@ -424,6 +424,7 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
+import {fitRowZoom} from '@/client/console/cardStripFit';
 import {rememberCardBrowserPicks, recallCardBrowserPicks, clearCardBrowserPicks} from '@/client/console/consoleRouter';
 import {consoleTaskSummary} from '@/client/console/consoleTaskSummary';
 import {setWorkspaceOutcomePhase, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
@@ -1926,15 +1927,11 @@ export default defineComponent({
       // branches so the modal always closes inside the visible play area.
       const availH = Math.max(200 * s, this.workBandHeight() - this.modalChromeHeight(strip, s) - padY);
       if (!grid) {
-        // `zoom` scales the SLOTS but not the flex GAP, so solve for the slot
-        // zoom against the width left after the gaps. 0.96 leaves headroom for
-        // the focused card's scale(1.08) — the row fits WITH the lift.
-        const wZoom = (0.96 * availW - (n - 1) * colGap) / (n * slotW);
-        // ALSO fill the panel's vertical band (TV: a few buy cards must not
-        // float small in a mostly-empty modal — the «карты слишком мелкие»
-        // read).
-        const hZoom = availH / slotH;
-        const zoom = Math.min(1.6 * s, Math.max(0.5 * s, Math.min(wZoom, hZoom)));
+        // The SHARED row-fit formula (cardStripFit) — the drawn reveal derives
+        // its embedded card size from the same function, so «купить» and
+        // «получена» present a byte-identical hero. Fills the vertical band
+        // too (TV: a few buy cards must not float small in an empty modal).
+        const zoom = fitRowZoom({availW, availH, slotW, slotH, n, colGap, ui: s});
         strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
         return;
       }

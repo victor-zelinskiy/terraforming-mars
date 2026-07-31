@@ -269,6 +269,16 @@ for (const profile of PROFILES) {
       expect((await step.innerText()).trim().toUpperCase()).toBe('ПОКУПКА');
       // ADAPTIVE single-card copy: the actual question, not the mass selector.
       await expect(page.locator('.con-task__title--embedded')).toContainText('Купить открытую карту?', {timeout: 10_000});
+      // PRIMARY-HEADING PARITY: the shared .con-ws-stage-heading role — the
+      // receive spec asserts the IDENTICAL computed numbers on its title, so
+      // the two stages cannot drift apart unnoticed (fhd: 1.3rem = 26px/700).
+      if (profile.tag === 'fhd') {
+        const headStyle = await page.locator('.con-task__title--embedded').evaluate((el) => {
+          const cs = window.getComputedStyle(el);
+          return {size: cs.fontSize, weight: cs.fontWeight};
+        });
+        expect(headStyle, `heading ${JSON.stringify(headStyle)}`).toEqual({size: '26px', weight: '700'});
+      }
       expect(await page.locator('.con-task__pickline').count(), 'the counters fold away for one card').toBe(0);
       // The status line carries the economics and NO duplicated command chips.
       await expect(page.locator('.con-cards__verdict--price')).toBeVisible();

@@ -10,6 +10,7 @@
        :class="{
          'con-reveal--headless': headless,
          'con-reveal--embedded': embedded,
+         'con-reveal--collecting': collecting,
          'con-reveal--bonus-mode': bonusMode,
          'con-reveal--bonus-veiled': bonusVeiled,
          'con-reveal--bonus-held': bonusHeld,
@@ -107,17 +108,45 @@
                    :style="stripZoomStyle">
                 <!-- The trade-income cards (or the whole batch when it isn't
                      a merged colony trade). Focus/take order is UNCHANGED —
-                     `pos` is the card's logical strip position. -->
-                <div v-for="entry in drawnGrouped.income" :key="entry.card.name + '#' + entry.index"
+                     `pos` is the card's logical strip position. EMBEDDED MULTI
+                     renders the WHOLE batch (taken cards stay in their slots
+                     as face-down backs — see stripEntries), so the row never
+                     re-flows while the player works through it. -->
+                <div v-for="entry in stripEntries" :key="entry.card.name + '#' + entry.index"
                      class="con-cards__slot con-start__deal"
                      :style="dealDelay(entry.pos)"
                      :data-zoom-slot="entry.card.name + '#' + entry.index"
-                     :class="{'con-cards__slot--focused': focusIdx === entry.pos}"
-                     :ref="focusIdx === entry.pos ? 'focusedCardSlot' : undefined">
-                  <Card :card="entry.card" :key="entry.card.name" lightweight />
+                     :class="{'con-cards__slot--focused': !entry.taken && focusIdx === entry.pos,
+                              'con-cards__slot--taken': entry.taken}"
+                     :ref="!entry.taken && focusIdx === entry.pos ? 'focusedCardSlot' : undefined">
+                  <!-- TAKE-IN-PLACE (embedded multi): the slot is a flip
+                       chassis — A presses the card down and turns it face-down
+                       IN ITS SLOT (the hand dock is unreachable while the
+                       workspace is up); the whole batch flies to the hand as
+                       ONE stack when the last card is taken. The bonus-zone
+                       chassis classes carry the 3D; only the turn direction
+                       (face → back) and the taken rest state are new. -->
+                  <div v-if="embeddedMulti" class="con-reveal__flip con-reveal__takeflip"
+                       :class="{'con-reveal__takeflip--taking': takingIdx === entry.index,
+                                'con-reveal__takeflip--taken': entry.taken && takingIdx !== entry.index}"
+                       @animationend="onTakeFlipEnd(entry.index, $event)">
+                    <div class="con-reveal__flip-face">
+                      <Card :card="entry.card" :key="entry.card.name" lightweight />
+                    </div>
+                    <div class="con-reveal__flip-back" aria-hidden="true">
+                      <span class="con-card-back"></span>
+                    </div>
+                  </div>
+                  <Card v-else :card="entry.card" :key="entry.card.name" lightweight />
+                  <!-- Sibling of the flip, NOT inside it (a child would render
+                       mirrored through the 180° turn). Absolute → zero layout. -->
+                  <div v-if="entry.taken" class="con-reveal__takenmark">
+                    <span class="con-reveal__takenmark-check">✓</span>
+                    <span class="con-reveal__takenmark-text">{{ $t('Taken') }}</span>
+                  </div>
                   <!-- EMBEDDED: no per-card command pill — the ONE bottom bar
                        owns every verb (the same rule as the buy status line). -->
-                  <div v-if="focusIdx === entry.pos && !embedded" class="con-start__slot-a">
+                  <div v-if="!entry.taken && focusIdx === entry.pos && !embedded" class="con-start__slot-a">
                     <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
                   </div>
                 </div>
@@ -407,6 +436,9 @@ import {translateText} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {fitRowZoom} from '@/client/console/cardStripFit';
+import {useEventListener} from '@vueuse/core';
 import {
   DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, holdRevealForFollowUp, markAllTaken,
   markCardTaken, releaseRevealFollowUp,
@@ -491,6 +523,28 @@ export default defineComponent({
       bonusFlipPhase: 'down' as 'down' | 'flipping' | 'up',
       bonusFlipKey: '',
       focusIdx: 0,
+      /**
+       * TAKE-IN-PLACE state machine (EMBEDDED MULTI batches only). A card is
+       * `available` (untaken, not animating) → `taking` (`takingIdx` — the
+       * in-slot press+turn is playing; ALL input is swallowed, so a double A
+       * or an A+B race can never start two transactions) → `taken` (recorded
+       * in the batch's `takenIndices`; face-down in its slot, out of the
+       * focus ring) → `collecting` (the final stack gather is in flight —
+       * the terminal stage; the workspace folds under it). Explicit fields,
+       * never scattered booleans: every guard reads these two.
+       */
+      takingIdx: undefined as number | undefined,
+      collecting: false,
+      /**
+       * The SHARED row-fit result (cardStripFit.fitRowZoom) for the embedded
+       * strip — the same size source the buy pick uses, so «купить» and
+       * «получена» present a byte-identical hero. 0 = not measured yet (the
+       * ladder fallback renders one frame, then the fit lands).
+       */
+      embedFitZoom: 0,
+      embedFitRetries: 0,
+      embedFitScheduled: false,
+      stopFitResize: undefined as (() => void) | undefined,
       // ── The 'result' deck→slot reveal flight (reuses the in-frame director) ──
       /** pending → the card is flying / flipping (status shows); settled → the
        *  face is up and the real card + verdict are shown. */
@@ -545,6 +599,40 @@ export default defineComponent({
         }
       });
       return {income, bonus};
+    },
+    /**
+     * TAKE-IN-PLACE mode: an EMBEDDED batch of several cards. The hand dock
+     * is unreachable while the workspace is up, so per-card intake flights
+     * would aim at a covered target — instead A turns the focused card
+     * face-down IN ITS SLOT and the whole batch rides ONE stack intake at
+     * the end. Merged colony trades and discard-owing payouts keep their own
+     * grammar (they are never workspace-embedded; guarded anyway).
+     */
+    embeddedMulti(): boolean {
+      const e = this.drawnEvent;
+      return this.embedded && e !== undefined && e.cards.length > 1 &&
+        e.tradeSegments === undefined && this.bonusDiscard === undefined;
+    },
+    /**
+     * The strip rows. Embedded-multi renders the WHOLE batch — taken cards
+     * stay in their slots as face-down backs (the row must never re-flow
+     * while the player works through it); `pos` stays the UNTAKEN ordinal
+     * (−1 for taken), so focus / navigation / take order are byte-identical
+     * to the flat untaken strip and taken cards are skipped by construction.
+     */
+    stripEntries(): Array<StripEntry & {taken: boolean}> {
+      if (!this.embeddedMulti) {
+        return this.drawnGrouped.income.map((entry) => ({...entry, taken: false}));
+      }
+      const e = this.drawnEvent;
+      if (e === undefined) {
+        return [];
+      }
+      let pos = 0;
+      return e.cards.map((card, index) => {
+        const taken = e.takenIndices.has(index);
+        return {card, index, pos: taken ? -1 : pos++, taken};
+      });
     },
     /** A card source opens fullscreen on L3 (colony/tile/other are not). */
     drawnSourceInspectable(): boolean {
@@ -785,6 +873,12 @@ export default defineComponent({
      * the embedded root would have silently thrown away the TV ladder.
      */
     stripZoomStyle(): Record<string, string> {
+      // EMBEDDED: the SHARED fit engine owns the size (one source with the
+      // buy pick — see fitEmbeddedStrip). The ladder calc below is only the
+      // first-frame fallback until the fit has measured.
+      if (this.embedded && this.mode === 'drawn' && this.embedFitZoom > 0) {
+        return {'--con-cards-zoom': this.embedFitZoom.toFixed(3)};
+      }
       return {'--con-cards-zoom': `calc(${this.stripZoom} * var(--con-ui-scale, 1) * var(--con-reveal-zoom-boost, 1) * var(--con-reveal-host-scale, 1))`};
     },
     /** The count class the tv profile keys its per-count boost / gap off. */
@@ -924,6 +1018,13 @@ export default defineComponent({
         this.focusIdx = Math.max(0, now - 1);
       }
     },
+    // The batch (or its card count) changed — re-derive the embedded fit
+    // against the fresh row. Also covers the first population after mount.
+    stripCount() {
+      if (this.embedded && this.mode === 'drawn') {
+        void this.$nextTick(() => this.fitEmbeddedStrip());
+      }
+    },
     // Single-card reveal: (re-)open the fullscreen whenever it should be
     // showing but isn't — the initial mount is handled in mounted(); this
     // covers a multi→single batch transition and any unexpected close.
@@ -952,17 +1053,106 @@ export default defineComponent({
     if (this.mode === 'result' && this.lastReveal !== undefined) {
       this.scheduleResultFlight();
     }
+    // EMBEDDED: the shared row fit sizes the strip (one size source with the
+    // buy pick). Runs on mount / count / resize — never per focus move.
+    if (this.embedded && this.mode === 'drawn') {
+      void this.$nextTick(() => this.fitEmbeddedStrip());
+      // Options-API mounted() has no effect scope — keep the stop handle and
+      // release it ourselves (the buy host's exact pattern).
+      this.stopFitResize = useEventListener(window, 'resize', () => this.scheduleEmbedFit());
+    }
   },
   beforeUnmount() {
     setRevealVeilSuppressed(false);
     this.abortResultFlight();
+    this.stopFitResize?.();
   },
   methods: {
     dealDelay(i: number): Record<string, string> {
       if (consoleReducedMotionActive()) {
         return {};
       }
-      return {animationDelay: `calc(${Math.min(i, 12) * 55}ms * var(--motion-scale, 1))`};
+      return {animationDelay: `calc(${Math.min(Math.max(i, 0), 12) * 55}ms * var(--motion-scale, 1))`};
+    },
+    /** rAF-coalesced embedded fit for resize bursts (mirrors the buy host). */
+    scheduleEmbedFit(): void {
+      if (this.embedFitScheduled || !this.embedded || this.mode !== 'drawn') {
+        return;
+      }
+      this.embedFitScheduled = true;
+      requestAnimationFrame(() => {
+        this.embedFitScheduled = false;
+        this.fitEmbeddedStrip();
+      });
+    },
+    /**
+     * ONE SIZE SOURCE with the buy pick: measure the embed zone's real band
+     * (zone height − the head/namebar chrome, exactly how the buy fit
+     * subtracts ITS chrome) and derive the slot zoom from the SHARED
+     * `fitRowZoom` — the same formula over the same kind of measurement, so
+     * the received hero is byte-identical to the purchase hero by
+     * construction, never by hand-matched constants.
+     *
+     * Probe protocol (same as the buy host): force the strip to zoom 1 with a
+     * DIRECT style write, measure the natural slot box synchronously (no
+     * paint happens inside one JS turn), then write the computed zoom back —
+     * the reactive mirror (`embedFitZoom`) keeps Vue's next patch writing the
+     * same value, so the direct write and the binding can never fight.
+     */
+    fitEmbeddedStrip(): void {
+      if (!this.embedded || this.mode !== 'drawn') {
+        return;
+      }
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const strip = root?.querySelector<HTMLElement>('.con-reveal__strip');
+      // The workspace's embed zone — the stage-area box the teleport fills.
+      const zone = root?.parentElement;
+      const probe = strip?.querySelector<HTMLElement>('.con-cards__slot');
+      if (strip === undefined || strip === null || zone === null || zone === undefined ||
+          probe === undefined || probe === null || typeof window === 'undefined') {
+        return;
+      }
+      strip.style.setProperty('--con-cards-zoom', '1');
+      const slotW = probe.offsetWidth;
+      const slotH = probe.offsetHeight;
+      if (slotW <= 0 || slotH <= 0 || zone.clientHeight <= 0) {
+        // Not laid out yet (mid-teleport / JSDOM) — bounded frame retries.
+        strip.style.removeProperty('--con-cards-zoom');
+        if (this.embedFitRetries < 20) {
+          this.embedFitRetries++;
+          requestAnimationFrame(() => this.fitEmbeddedStrip());
+        }
+        return;
+      }
+      this.embedFitRetries = 0;
+      const cs = window.getComputedStyle(strip);
+      const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
+      const colGap = parseFloat(cs.columnGap) || parseFloat(cs.gap) || 14;
+      const availW = strip.clientWidth - padX;
+      // The reveal chrome that shares the zone's vertical band with the row:
+      // frame paddings + the heading (+margin) + the reserved namebar. All
+      // constant-height pieces — nothing here depends on the strip zoom, so
+      // the solve is never circular (the buy fit's exact discipline).
+      const ui = conUiScale();
+      let chrome = 0;
+      const frame = strip.closest('.con-reveal__card') as HTMLElement | null;
+      if (frame !== null) {
+        const fcs = window.getComputedStyle(frame);
+        chrome += (parseFloat(fcs.paddingTop) || 0) + (parseFloat(fcs.paddingBottom) || 0);
+        const head = frame.querySelector<HTMLElement>('.con-reveal__head');
+        if (head !== null && head.offsetHeight > 0) {
+          chrome += head.offsetHeight + (parseFloat(window.getComputedStyle(head).marginBottom) || 0);
+        }
+        const namebar = frame.querySelector<HTMLElement>('.con-reveal__namebar');
+        if (namebar !== null && namebar.offsetHeight > 0) {
+          chrome += namebar.offsetHeight + (parseFloat(window.getComputedStyle(namebar).marginTop) || 0);
+        }
+      }
+      const availH = Math.max(200 * ui, zone.clientHeight - chrome - 8 * ui);
+      const n = Math.max(this.stripEntries.length, 1);
+      const zoom = fitRowZoom({availW, availH, slotW, slotH, n, colGap, ui});
+      strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
+      this.embedFitZoom = zoom;
     },
     // ── RESULT reveal flight (deck → slot + flip; reuses the in-frame director) ──
     /**
@@ -1042,6 +1232,12 @@ export default defineComponent({
       if (intent.kind !== 'press') {
         return;
       }
+      // A take turn / the final collection swallows the stick verbs too — a
+      // fullscreen (X/L3) opening over a card mid-turn would zoom a surface
+      // that is about to change under it.
+      if (this.mode === 'drawn' && (this.takingIdx !== undefined || this.collecting)) {
+        return;
+      }
       // L3 = inspect the SOURCE card fullscreen (screen-specific stick). Drawn
       // mode opens the DRAW SOURCE; result mode opens the acting card that did
       // the deck-check — the same L3 = source idiom, one language.
@@ -1069,6 +1265,11 @@ export default defineComponent({
       if (dir !== 'left' && dir !== 'right') {
         return;
       }
+      // Navigation is between AVAILABLE cards only; while a take turn or the
+      // final collection plays, the frame stays where it is.
+      if (this.takingIdx !== undefined || this.collecting) {
+        return;
+      }
       const count = this.focusCount;
       if (count === 0) {
         return;
@@ -1090,8 +1291,10 @@ export default defineComponent({
       case 'drawn':
         // The card is physically turning over — no take, no take-all, no
         // hand-over can be triggered mid-turn (and no double-press can slip
-        // through the beat).
-        if (this.bonusFlipPhase === 'flipping') {
+        // through the beat). Same swallow for the take-in-place turn and the
+        // final collection: `taking`/`collecting` absorb EVERY verb, so a
+        // near-simultaneous A+B is exactly one transaction by construction.
+        if (this.bonusFlipPhase === 'flipping' || this.takingIdx !== undefined || this.collecting) {
           return;
         }
         if (action === 'primary') {
@@ -1371,6 +1574,12 @@ export default defineComponent({
      *  flight lives on the app-level delivery layer, surviving the overlay
      *  closing on the last take. Reduced motion → the bare commit. */
     takeFocused(): void {
+      // EMBEDDED MULTI: the take happens IN THE SLOT (flip face-down + stay),
+      // never a per-card flight at a dock the workspace is covering.
+      if (this.embeddedMulti) {
+        this.takeInPlace();
+        return;
+      }
       const e = this.drawnEvent;
       const entry = this.drawnUntaken[this.focusIdx];
       if (e === undefined || entry === undefined) {
@@ -1401,6 +1610,90 @@ export default defineComponent({
         // there overlaps the collapse with the flight instead of sequencing
         // them. Identical to the purchase handoff; one language for both.
         onStaged: this.embedded ? () => this.$emit('result-detached') : undefined,
+      });
+    },
+    /**
+     * TAKE-IN-PLACE (embedded multi): A starts the in-slot press+turn on the
+     * focused card. The state records ONLY the intent (`takingIdx`); the
+     * taken fact commits on the animation's own end event — never a timer —
+     * so a fast second press, a B during the turn or an unmount mid-turn can
+     * never double-commit or strand the batch.
+     */
+    takeInPlace(): void {
+      if (this.takingIdx !== undefined || this.collecting) {
+        return;
+      }
+      const e = this.drawnEvent;
+      const entry = this.drawnUntaken[this.focusIdx];
+      if (e === undefined || entry === undefined) {
+        return;
+      }
+      if (consoleReducedMotionActive()) {
+        // No turn to wait for — commit the same state transition directly.
+        this.commitTakeInPlace(entry.index);
+        return;
+      }
+      this.takingIdx = entry.index;
+    },
+    /** The in-slot turn finished — commit the taken state + advance focus. */
+    onTakeFlipEnd(index: number, ev: AnimationEvent): void {
+      // The chassis raises animationend for every child animation (the deal-in
+      // replays under reduced layouts, the mark's own fade) — only the take
+      // turn commits a take.
+      if (this.takingIdx !== index || !String(ev.animationName || '').includes('con-take-turn')) {
+        return;
+      }
+      this.commitTakeInPlace(index);
+    },
+    commitTakeInPlace(index: number): void {
+      const e = this.drawnEvent;
+      this.takingIdx = undefined;
+      if (e === undefined || e.takenIndices.has(index)) {
+        return;
+      }
+      // Focus advance: the right neighbour slides into the taken card's
+      // untaken position; when the last one went, the nearest LEFT card takes
+      // the frame. Computed BEFORE the mark and applied in the same tick, so
+      // the frame can never rest on the taken card for even one render.
+      const takenPos = this.drawnUntaken.findIndex((u) => u.index === index);
+      markCardTaken(e.id, index);
+      const left = this.drawnUntaken.length;
+      if (left === 0) {
+        this.collectTaken();
+        return;
+      }
+      this.focusIdx = Math.max(0, Math.min(takenPos < 0 ? this.focusIdx : takenPos, left - 1));
+    },
+    /**
+     * THE FINAL COLLECTION (embedded multi): every card is face-down in its
+     * slot — the batch gathers into ONE physical stack and rides the EXISTING
+     * hand-intake bridge (app-level proxies that survive the workspace fold:
+     * `onStaged` folds the frame under them, the stack then peels into the
+     * dock — the same handoff, the same code path as every other take-all).
+     * Cards already face-down spawn their proxies BACK side out
+     * (`HandIntakeEntry.back`), so a flipped card never flashes open.
+     */
+    collectTaken(): void {
+      if (this.collecting) {
+        return;
+      }
+      const e = this.drawnEvent;
+      if (e === undefined) {
+        return;
+      }
+      this.collecting = true;
+      const entries = e.cards.map((card, index) => ({
+        name: card.name,
+        el: this.exitSlotFor(`${card.name}#${index}`) ?? undefined,
+        back: e.takenIndices.has(index),
+      }));
+      void runHandIntake(entries, {
+        mode: 'stack',
+        commit: () => {
+          closeAndReleaseEvent(this.playerView.id, e.id, () => markAllTaken(e.id));
+          this.$emit('drawn-complete');
+        },
+        onStaged: () => this.$emit('result-detached'),
       });
     },
     /**
@@ -1448,6 +1741,17 @@ export default defineComponent({
     takeAll(): void {
       const e = this.drawnEvent;
       if (e === undefined) {
+        return;
+      }
+      // EMBEDDED MULTI: «взять всё» IS the final collection — untaken cards
+      // fly open-faced into the forming stack (the gather's own flip turns
+      // them), already-taken ones join it back side out. One guard window
+      // with the per-card take: B during a turn / a second B does nothing.
+      if (this.embeddedMulti) {
+        if (this.takingIdx !== undefined || this.collecting) {
+          return;
+        }
+        this.collectTaken();
         return;
       }
       const commit = () => {

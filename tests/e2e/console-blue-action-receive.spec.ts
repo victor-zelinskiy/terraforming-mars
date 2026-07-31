@@ -225,6 +225,14 @@ for (const profile of PROFILES) {
       expect(wsLogs.some((l) => l.includes('BACKSTOP FIRED')),
         `the beat fell back to the backstop:\n${wsLogs.join('\n')}`).toBe(false);
       await expect(page.locator('.con-reveal__title')).toContainText('Получена карта');
+      // PRIMARY-HEADING PARITY: the title reads the SHARED .con-ws-stage-heading
+      // role — the same computed voice the buy stage's «Купить открытую карту?»
+      // gets (its spec asserts the identical numbers; fhd: 1.3rem = 26px/700).
+      const headStyle = await page.locator('.con-reveal__title').evaluate((el) => {
+        const cs = window.getComputedStyle(el);
+        return {size: cs.fontSize, weight: cs.fontWeight};
+      });
+      expect(headStyle, `heading ${JSON.stringify(headStyle)}`).toEqual({size: '26px', weight: '700'});
       expect(await page.locator('.con-reveal__count').count(), 'no count chip for ONE card').toBe(0);
       expect(await page.locator('.con-start__slot-a').count(), 'no on-card command pill').toBe(0);
       // The status line: focused card's name + the ONE take verb.

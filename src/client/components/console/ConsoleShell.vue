@@ -3642,6 +3642,7 @@ export default defineComponent({
             closer: this.revealDiscardCloser,
             hasCardSource: ev?.source?.type === 'card',
             hasDiscards: ev?.sequence?.some((step) => !step.matched) === true,
+            multi: ev !== undefined && ev.cards.length - ev.takenIndices.size > 1,
           }));
         } else if (this.consoleRevealMode === 'viewer') {
           cmds.push({control: 'secondary', label: 'Inspect'});

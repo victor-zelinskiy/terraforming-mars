@@ -344,6 +344,20 @@ body.con-zoom-open .con-handdock {
         0 .5rem 1.4rem rgba(0, 0, 0, 0.38);
 }
 
+/* ONE PRIMARY-HEADING ROLE for every embedded workspace stage — «Купить
+   открытую карту?» and «Получена карта» are the SAME moment («вот карта —
+   решай/забирай») and must speak with the same voice: the full scene heading
+   (the standalone task/reveal title's own scale), bright, centred over the
+   hero. Both embedded hosts read THIS mixin; a per-host font rule here is
+   the drift that made the draw look like a smaller, different screen. */
+.con-ws-stage-heading() {
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1.3;
+    letter-spacing: .02em;
+    color: @con-text;
+}
+
 /* The plate's SOURCE TETHER — the quiet accent segment on the card-facing
    edge, centred on the shared axis with the hero card. One visual sentence
    («this plane continues that card's action») reused by every stage of the
@@ -9898,19 +9912,14 @@ html.console-mode {
         }
         /* The head loses its own identity block (the kicker went UP into the
            workspace breadcrumb): what is left is the STAGE INSTRUCTION —
-           «Купить открытую карту?». Deliberately a SUPPORTING voice, not a
-           page title: it sits close over the result it instructs about,
-           clearly below the workspace's own header line and below the card
-           name in weight — a second big heading here made the stage read as
-           a new screen. */
+           «Купить открытую карту?» — spoken with the SHARED primary-heading
+           voice (.con-ws-stage-heading — the reveal's «Получена карта» reads
+           the same mixin, so the two stages can never drift apart again). */
         .con-task__head { padding-top: 0; text-align: center; margin-bottom: .45rem; }
         .con-task__pickline { justify-content: center; }
         .con-task__title--embedded {
             margin-top: 0;
-            font-size: .95rem;
-            font-weight: 600;
-            letter-spacing: .03em;
-            color: fade(@con-text, 88%);
+            .con-ws-stage-heading();
         }
         /* The line under the result card is STATUS, not a second command bar:
            the glass box and the glyph chips belong to the standalone host —
@@ -12563,12 +12572,11 @@ body.con-start-ceremony {
            here would overflow the band. */
         .con-reveal__card--drawn { height: auto; }
         /* The stage's own sentence, dressed EXACTLY like the buy stage's
-           heading next door (`.con-task__title--embedded`): the supporting
-           instruction voice, centred close over the card. The two cases are
-           the SAME moment («вот карта — решай/забирай») and must not read as
-           different tiers — a bigger heading here made the draw look like a
-           different screen. The count chip (multi only) seats under it, the
-           way the buy pickline does. */
+           heading next door: BOTH read the shared `.con-ws-stage-heading()`
+           role — the two cases are the SAME moment («вот карта — решай/
+           забирай») and a per-host font rule is how they drifted apart. The
+           count chip (multi only) seats under it, the way the buy pickline
+           does. */
         .con-reveal__head--embedded {
             margin-bottom: .45rem;
             .con-reveal__headrow {
@@ -12579,10 +12587,7 @@ body.con-start-ceremony {
             }
             .con-reveal__headmain { min-width: 0; text-align: center; }
             .con-reveal__title {
-                font-size: .95rem;
-                font-weight: 600;
-                letter-spacing: .03em;
-                color: fade(@con-text, 88%);
+                .con-ws-stage-heading();
             }
         }
         /* SINGLE received card — the same open-composition halo the buy
@@ -12605,6 +12610,54 @@ body.con-start-ceremony {
             gap: .6rem;
             .con-cards__verdict-name { font-size: .95rem; }
         }
+        /* ── TAKE-IN-PLACE (embedded multi) ──────────────────────────────
+           A turns the focused card face-down IN ITS SLOT: a tactile press
+           (down + slight shrink, no bounce), the 3D turn on the shared flip
+           chassis, then the card RESTS in the same slot — a notch smaller
+           and deeper (still readable, clearly done), the green mark under
+           it. Transform/opacity only (perf-lite); the slot's box never
+           changes, so the row cannot re-flow. */
+        .con-reveal__takeflip {
+            transform-style: preserve-3d;
+            will-change: transform;
+            &--taking {
+                animation: con-take-turn calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.34, 0.85, 0.3, 1) both;
+            }
+            &--taken {
+                transform: rotateY(180deg) scale(.92);
+                opacity: .82;
+            }
+        }
+        /* Focus ring never lands on a taken slot (the class is not bound),
+           and the pointer is honest about it too. */
+        .con-cards__slot--taken { pointer-events: none; }
+        /* The green «взято» mark — absolute (zero layout), OUTSIDE the flip
+           (a child would render mirrored through the 180° turn). box-shadow
+           ring: functional state survives perf-lite. */
+        .con-reveal__takenmark {
+            position: absolute;
+            left: 50%;
+            bottom: .55rem;
+            transform: translateX(-50%);
+            display: inline-flex;
+            align-items: center;
+            gap: .3rem;
+            padding: .16rem .55rem;
+            border-radius: 1rem;
+            background: rgba(9, 24, 18, 0.82);
+            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%);
+            color: @con-mint;
+            font-size: .7rem;
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            white-space: nowrap;
+            z-index: 2;
+            animation: con-takenmark-in calc(220ms * var(--motion-scale, 1)) ease-out both;
+        }
+        /* The final collection lifts the batch off the slots — the marks
+           belong to the slots, not to the flying stack. */
+        &.con-reveal--collecting .con-reveal__takenmark { opacity: 0; }
         /* The band body carries a hand-rolled `overflow-y: auto` for the
            full-bleed case. Inside a workspace that is a native scrollbar
            waiting to happen (a console-native BUG): the zone is bounded and
@@ -15586,6 +15639,28 @@ html.console-mode {
 /* The breadcrumb tail's mount-time rise (same travel family as headswap). */
 @keyframes con-crumb-rise {
     from { opacity: 0; transform: translateY(.16rem); }
+}
+
+/* TAKE-IN-PLACE turn (embedded multi reveal): tactile press → the face→back
+   3D turn (the bonus flip's own travel, reversed) → the taken rest (a notch
+   smaller, slightly deeper — must END exactly on the `--taken` class state
+   so the animation→class handoff is invisible). */
+@keyframes con-take-turn {
+    0% { transform: translateY(0) scale(1) rotateY(0deg); opacity: 1; }
+    /* The press — down and slightly in, no bounce. */
+    16% { transform: translateY(.12rem) scale(.97) rotateY(0deg); opacity: 1; }
+    /* Lifted and turning, the same carried arc the bonus open plays. */
+    54% { transform: translateY(-.55rem) scale(1.01) rotateY(104deg); opacity: .96; }
+    /* Laid back down face-down, receding into the done state. */
+    100% { transform: translateY(0) scale(.92) rotateY(180deg); opacity: .82; }
+}
+@keyframes con-takenmark-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(.2rem); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    /* The card still turns over — it simply does not travel. */
+    .con-reveal__takeflip--taking { animation-duration: 1ms; }
 }
 
 /* The focus stage's hero-face micro-swap (a Viron repeat re-points the card

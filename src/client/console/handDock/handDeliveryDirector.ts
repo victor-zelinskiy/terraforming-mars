@@ -70,6 +70,13 @@ export type HandIntakeEntry = {
   /** A pre-measured departure rect for a source that unmounts on commit
    *  (the pay grid, the fullscreen stage). Ignored when `el` is given. */
   rect?: HandIntakeRect,
+  /**
+   * The card is ALREADY face-down at its source (a take-in-place slot the
+   * player flipped earlier) — its proxy spawns back side out, so a flipped
+   * card never flashes open. The flight's own face→back turn is a no-op on
+   * it (tween to the rotation it already holds).
+   */
+  back?: boolean,
 };
 
 export type HandIntakeOptions = {
@@ -369,7 +376,7 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
   const rawDockR = dock.getBoundingClientRect();
   const dockR = rawDockR.width > 8 ? rawDockR :
     new DOMRect(window.innerWidth / 2 - 160 * ui, window.innerHeight - 110 * ui, 320 * ui, 80 * ui);
-  type Live = {entryIdx: number, rank: number, name: CardName, el: HTMLElement, src?: HandIntakeRect};
+  type Live = {entryIdx: number, rank: number, name: CardName, el: HTMLElement, src?: HandIntakeRect, back?: boolean};
   const live: Array<Live> = [];
   // FastDOM TWO-PASS to kill forced synchronous layout on a hand deal. The old
   // single pass read `getBoundingClientRect()` for card N AFTER card N-1's
@@ -379,7 +386,7 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
   // `gsap.set` targets the separate flight PROXIES (not the measured sources),
   // and the `ctx.land` fallback touches only the DOCK — so every measured rect
   // is byte-for-byte what the interleaved version read.
-  type Staged = {entryIdx: number, rank: number, name: CardName, el: HTMLElement, src?: HandIntakeRect, holdCard?: HTMLElement};
+  type Staged = {entryIdx: number, rank: number, name: CardName, el: HTMLElement, src?: HandIntakeRect, holdCard?: HTMLElement, back?: boolean};
   const staged: Array<Staged> = [];
   const landFallback: Array<number> = [];
   // ── Pass 1 — READ ONLY (measure every source rect; no DOM writes) ──────────
@@ -407,7 +414,7 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
     if (src === undefined) {
       src = snapshots[entryIdx];
     }
-    staged.push({entryIdx, rank, name: entry.name, el, src, holdCard});
+    staged.push({entryIdx, rank, name: entry.name, el, src, holdCard, back: entry.back});
   });
   // ── Pass 2 — WRITE ONLY (no layout read follows → nothing forces a reflow) ──
   for (const entryIdx of landFallback) {
@@ -431,10 +438,12 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
       });
       const flip = s.el.querySelector<HTMLElement>('.con-deal-proxy__flip');
       if (flip !== null) {
-        gsap.set(flip, {rotationY: 0}); // face out — the card being taken
+        // Face out — the card being taken; BACK out when the source slot is
+        // already face-down (take-in-place) so it never flashes open.
+        gsap.set(flip, {rotationY: s.back === true ? 180 : 0});
       }
     }
-    live.push({entryIdx: s.entryIdx, rank: s.rank, name: s.name, el: s.el, src: s.src});
+    live.push({entryIdx: s.entryIdx, rank: s.rank, name: s.name, el: s.el, src: s.src, back: s.back});
   }
   opts?.onStaged?.();
   if (live.length === 0) {
@@ -476,7 +485,7 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
   finish();
 }
 
-type LiveFlight = {entryIdx: number, rank: number, name: CardName, el: HTMLElement, src?: HandIntakeRect};
+type LiveFlight = {entryIdx: number, rank: number, name: CardName, el: HTMLElement, src?: HandIntakeRect, back?: boolean};
 
 type FlightTools = {
   ui: number,
@@ -543,7 +552,7 @@ async function flyCascade(live: Array<LiveFlight>, dock: HTMLElement, dockR: DOM
       });
       const flipEl = f.el.querySelector<HTMLElement>('.con-deal-proxy__flip');
       if (flipEl !== null) {
-        gsap.set(flipEl, {rotationY: 0});
+        gsap.set(flipEl, {rotationY: f.back === true ? 180 : 0});
       }
     }
     const scaleTo = rect.width / CARD_NATURAL_W;
@@ -603,6 +612,10 @@ async function flyStack(live: Array<LiveFlight>, dock: HTMLElement, dockR: DOMRe
         autoAlpha: 1,
         transformOrigin: 'top left',
       });
+      const preFlip = f.el.querySelector<HTMLElement>('.con-deal-proxy__flip');
+      if (preFlip !== null) {
+        gsap.set(preFlip, {rotationY: f.back === true ? 180 : 0});
+      }
     }
     const centered = k - (n - 1) / 2;
     const at = k * s(45);
