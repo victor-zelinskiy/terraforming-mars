@@ -347,6 +347,20 @@ html.con-profile-tv {
        headroom on TV so the focused band always sits inside the clip. */
     .con-cards__strip { padding-top: 3.4rem; }
     .con-cards__strip--grid { padding-top: 2.6rem; }
+    /* ── THE EMBEDDED WORKSPACE STAGE — one chassis, both stages ──────────
+       The buy pick and the drawn reveal present the same moment inside the
+       same zone, and their card size is a FIT against the band MINUS this
+       chrome — so the numbers must be identical or the two stages hand the
+       player differently sized heroes (they did: the full-bleed reveal's own
+       TV ladder spent 55px more chrome here). Written compound so they beat
+       BOTH per-component TV ladders; the values are the buy stage's. */
+    .con-task.con-ws-stage-frame,
+    .con-reveal__card.con-ws-stage-frame { padding: 1.1rem 1.4rem .8rem; }
+    .con-task__head.con-ws-stage-head,
+    .con-reveal__head.con-ws-stage-head { margin-bottom: .45rem; }
+    .con-cards__strip.con-ws-stage-row { gap: .7rem; padding: 3.4rem .8rem 1.4rem; }
+    .con-cards__verdictbar.con-ws-stage-status,
+    .con-reveal__namebar.con-ws-stage-status { height: 2.7rem; }
     /* The hand grid's focused card + its state band get the same headroom. */
     .con-hand__pad { padding-top: 1.6rem; }
     /* The TV rules panel beside the hero card (Этап 1-R2): a full reading

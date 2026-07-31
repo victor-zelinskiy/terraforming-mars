@@ -19,7 +19,13 @@
 
     <!-- Keyed frame: prompt→prompt switches cross-fade (CTS-3.9). -->
     <transition name="con-task-swap" mode="out-in">
-      <div class="con-task" :class="{'con-task--wide': activeTask.kind === 'cardSelect'}" :key="taskKey" data-motion-panel>
+      <!-- `con-ws-stage-*` are the SHARED embedded-stage chassis classes (frame
+           / card row / status line). The drawn reveal wears the same three, so
+           both stages spend the SAME chrome and the shared fit returns the same
+           hero — see .con-ws-stage-frame in console.less. -->
+      <div class="con-task"
+           :class="{'con-task--wide': activeTask.kind === 'cardSelect', 'con-ws-stage-frame': embedded}"
+           :key="taskKey" data-motion-panel>
         <!-- ── Frame header ──────────────────────────────────────────
              EMBEDDED: the KICKER is handed UP to the workspace's breadcrumb
              (setWorkspaceOutcomePhase) instead of being drawn here. Rendering
@@ -28,12 +34,17 @@
              action the player just confirmed. The TITLE stays — it is the
              server's instruction («Выберите карты для покупки»), not an
              identity — but demotes to a subtitle under the breadcrumb. -->
-        <header class="con-task__head">
+        <header class="con-task__head" :class="{'con-ws-stage-head': embedded}">
           <div v-if="!embedded" class="con-task__kicker">
             <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
             <span>{{ $t(kickerText) }}</span>
           </div>
-          <div class="con-task__title" :class="{'con-task__title--embedded': embedded}">{{ titleText }}</div>
+          <!-- `con-ws-stage-title` is the SHARED primary-heading entity of an
+               embedded workspace stage — the drawn reveal's «Получена карта»
+               carries the same class, so both are ONE styled thing (incl. the
+               profile ladders) instead of two look-alike rules that drift. -->
+          <div class="con-task__title"
+               :class="{'con-task__title--embedded': embedded, 'con-ws-stage-title': embedded}">{{ titleText }}</div>
           <!-- Phase note (draft: what happens to the cards you don't keep). -->
           <div v-if="phaseSubtext !== ''" class="con-task__subtext">{{ phaseSubtext }}</div>
           <div v-if="triggerText !== ''" class="con-task__trigger">{{ triggerText }}</div>
@@ -227,7 +238,8 @@
             <template v-else-if="activeTask.kind === 'cardSelect'">
               <div class="con-cards">
                 <div class="con-cards__strip"
-                     :class="{'con-cards__strip--grid': gridMode, 'con-cards__strip--has-focus': cardEntries.length > 0}"
+                     :class="{'con-cards__strip--grid': gridMode, 'con-cards__strip--has-focus': cardEntries.length > 0,
+                              'con-ws-stage-row': embedded && !gridMode}"
                      ref="cardStrip">
                   <!-- P15: no per-card cost overlay (the buy math lives in
                        the pickline), strong «✓ SELECTED» band, unpicked
@@ -269,7 +281,8 @@
                      only its CONTENT hides (opacity — never promise a selection
                      that isn't interactive yet). -->
                 <div v-if="cardEntries.length > 0" class="con-cards__verdictbar"
-                     :class="{'con-cards__verdictbar--held': deal.state.active || trayPickBeat}">
+                     :class="{'con-cards__verdictbar--held': deal.state.active || trayPickBeat,
+                              'con-ws-stage-status': embedded}">
                   <div v-if="focusedCardEntry !== undefined" class="con-cards__verdict-inner">
                     <!-- Only the NAME re-keys on a d-pad move (a one-shot settle,
                          no out-in gap); the button-hint chips are PERSISTENT

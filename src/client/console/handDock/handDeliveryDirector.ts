@@ -88,6 +88,22 @@ export type HandIntakeOptions = {
    */
   commit?: () => void,
   /**
+   * WHEN the commit fires.
+   *
+   * 'now' (default) — the historical contract above: before the proxies
+   * exist. Correct when the commit does NOT remove the card from the screen
+   * (a buy submit leaves its strip up until the server answers).
+   *
+   * 'staged' — inside the SAME synchronous block that positions the proxies
+   * over the live cards and hides the originals. Use it whenever the commit
+   * ITSELF unmounts the card (a drawn-reveal take drops it from the batch,
+   * and the embedded reveal closes with it): committing three frames early
+   * left a hole where the card had been — the card blinked out, the surface
+   * folded, and only then did the flight begin. The in-flight hold still
+   * registers up front, so the dock cannot show the card early either way.
+   */
+  commitAt?: 'now' | 'staged',
+  /**
    * 'cascade' (default) — every card flies its own staggered arc (dock
    * order). 'stack' — «взять все»: the fan gathers into one back-stack
    * above the dock, pulses, then peels bottom-first into the slots.
@@ -262,8 +278,18 @@ function dockOrderKeys(dock: HTMLElement, entries: ReadonlyArray<HandIntakeEntry
  */
 export async function runHandIntake(entries: ReadonlyArray<HandIntakeEntry>, opts?: HandIntakeOptions): Promise<void> {
   const names = entries.map((e) => e.name);
+  // The commit fires EXACTLY ONCE on every path (staged seam, degenerate
+  // batch, reduced motion, missing dock, abort) — a take that never commits
+  // strands the batch, a double commit double-takes it.
+  let committed = false;
+  const runCommit = () => {
+    if (!committed) {
+      committed = true;
+      opts?.commit?.();
+    }
+  };
   if (names.length === 0) {
-    opts?.commit?.();
+    runCommit();
     opts?.onStaged?.();
     return;
   }
@@ -282,8 +308,13 @@ export async function runHandIntake(entries: ReadonlyArray<HandIntakeEntry>, opt
     }
     return e.rect !== undefined && e.rect.width > 4 ? e.rect : undefined;
   });
-  // Contract 1: commit first, hold in the SAME synchronous block.
-  opts?.commit?.();
+  // Contract 1: commit first, hold in the SAME synchronous block. With
+  // `commitAt: 'staged'` the commit moves to the proxy-staging seam instead
+  // (see the option) — the HOLD still registers here either way, so the dock
+  // can never show an arriving card before it lands.
+  if (opts?.commitAt !== 'staged') {
+    runCommit();
+  }
   handDeliveryState.inFlight = [...handDeliveryState.inFlight, ...names];
   const myGen = gen;
   const landed = entries.map(() => false);
@@ -298,15 +329,19 @@ export async function runHandIntake(entries: ReadonlyArray<HandIntakeEntry>, opt
   const dock = document.querySelector<HTMLElement>('.con-handdock');
   if (consoleReducedMotionActive() || dock === null) {
     releaseRemaining();
+    runCommit();
     opts?.onStaged?.();
     return;
   }
 
   activeRuns++;
   try {
-    await fly(entries, snapshots, opts, dock, {myGen, land, releaseRemaining});
+    await fly(entries, snapshots, opts, dock, {myGen, land, releaseRemaining, runCommit});
   } finally {
     releaseRemaining();
+    // A run that aborted before its staging seam must still commit — the
+    // player pressed take, and the state may not stay behind the animation.
+    runCommit();
     activeRuns--;
   }
 }
@@ -315,6 +350,8 @@ type RunCtx = {
   myGen: number,
   land: (i: number) => void,
   releaseRemaining: () => void,
+  /** Fire the host's commit (once, whichever path gets there first). */
+  runCommit: () => void,
 };
 
 async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyArray<HandIntakeRect | undefined>, opts: HandIntakeOptions | undefined, dock: HTMLElement, ctx: RunCtx): Promise<void> {
@@ -445,6 +482,13 @@ async function fly(entries: ReadonlyArray<HandIntakeEntry>, snapshots: ReadonlyA
     }
     live.push({entryIdx: s.entryIdx, rank: s.rank, name: s.name, el: s.el, src: s.src, back: s.back});
   }
+  // THE SEAM. `commitAt: 'staged'` commits HERE — the proxies already stand
+  // over the live cards and the originals are held hidden in this same
+  // synchronous block, so a commit that unmounts the source (a drawn take,
+  // the reveal closing with it) cannot open a hole: no paint happens between
+  // the hold and the commit. `onStaged` then folds the surface UNDER the
+  // proxies, exactly as before.
+  ctx.runCommit();
   opts?.onStaged?.();
   if (live.length === 0) {
     finish();

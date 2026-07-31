@@ -294,6 +294,30 @@ for (const profile of PROFILES) {
       // The deal cinematic has fully HANDED OVER (no slot still holds its
       // card for a flying proxy) — the screenshot shows the settled stage.
       await expect(page.locator('.con-cards__slot.con-deal-hold')).toHaveCount(0, {timeout: 12_000});
+      // HERO PARITY BASELINE — the offered card's real box + the heading's
+      // computed voice, printed for the receive spec's twin probe (which
+      // asserts the SAME numbers at the same profile: one fit formula, one
+      // heading class, therefore one geometry).
+      const heroBox = await page.locator('[data-embed-slot="workspace-reveal"] .con-cards__slot .pcard')
+        .first().boundingBox();
+      const heroHead = await page.locator('.con-ws-stage-title').evaluate((el) => {
+        const cs = window.getComputedStyle(el);
+        return {size: cs.fontSize, weight: cs.fontWeight};
+      });
+      console.log(`[PARITY:${profile.tag}] buy hero=${JSON.stringify(heroBox)} head=${JSON.stringify(heroHead)}`);
+      expect(heroBox).not.toBeNull();
+      // The ETALON is pinned here too: the receive spec asserts these exact
+      // numbers for its own hero, so a change to the buy stage's chrome fails
+      // HERE first and the two constants get re-synced deliberately — never
+      // one stage silently drifting away from the other.
+      const BUY_HERO: Record<string, {w: number, h: number}> = {
+        fhd: {w: 471.74, h: 678.12},
+        tv4k: {w: 837.03, h: 1203.24},
+        deck: {w: 329.69, h: 473.93},
+      };
+      const want = BUY_HERO[profile.tag];
+      expect(Math.abs(heroBox!.width - want.w), `hero width ${heroBox!.width} vs ${want.w}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(heroBox!.height - want.h), `hero height ${heroBox!.height} vs ${want.h}`).toBeLessThanOrEqual(1);
       await page.waitForTimeout(900);
       await shoot(page, `${profile.tag}-02-embedded-buy`);
 

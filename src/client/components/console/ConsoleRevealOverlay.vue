@@ -29,7 +29,7 @@
     <template v-if="!headless">
       <transition name="con-task-swap" mode="out-in">
         <div class="con-reveal__card" :key="revealKey" data-motion-panel
-             :class="{'con-reveal__card--drawn': mode === 'drawn'}">
+             :class="{'con-reveal__card--drawn': mode === 'drawn', 'con-ws-stage-frame': embedded}">
           <!-- ── Header ──────────────────────────────────────────────────
                EMBEDDED follows the SAME rule as the embedded task host: the
                KICKER goes UP into the workspace breadcrumb (it would repeat
@@ -38,14 +38,17 @@
                in an empty column while the buy case next door had a proper
                heading. The source chip goes: it points at the hero standing
                beside it. -->
-          <header class="con-reveal__head" :class="{'con-reveal__head--embedded': embedded}">
+          <header class="con-reveal__head" :class="{'con-reveal__head--embedded': embedded, 'con-ws-stage-head': embedded}">
             <div v-if="!embedded" class="con-task__kicker">
               <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
               <span>{{ $t(kickerText) }}</span>
             </div>
             <div class="con-reveal__headrow">
               <div class="con-reveal__headmain">
-                <div class="con-reveal__title">{{ titleText }}</div>
+                <!-- The SHARED embedded primary-heading entity (see the buy
+                     host's title): one class, one styled thing, one profile
+                     ladder — never two look-alike per-host font rules. -->
+                <div class="con-reveal__title" :class="{'con-ws-stage-title': embedded}">{{ titleText }}</div>
                 <div v-if="mode === 'drawn' && !embedded" class="con-reveal__subtitle">
                   {{ $t('Cards were added from a draw source.') }}
                 </div>
@@ -104,7 +107,8 @@
               -->
               <transition-group tag="div" name="con-reveal-shift"
                    class="con-cards__strip con-reveal__strip"
-                   :class="[stripCountClass, {'con-cards__strip--has-focus': drawnUntaken.length > 1}]"
+                   :class="[stripCountClass, {'con-cards__strip--has-focus': drawnUntaken.length > 1,
+                            'con-ws-stage-row': embedded}]"
                    :style="stripZoomStyle">
                 <!-- The trade-income cards (or the whole batch when it isn't
                      a merged colony trade). Focus/take order is UNCHANGED —
@@ -222,7 +226,7 @@
                    ONE take verb, the buy status line's voice. The verb chip is
                    deliberate (user-mandated): with several cards it names
                    exactly which card A takes; the name re-keys with focus. -->
-              <div v-if="embedded && drawnUntaken[focusIdx] !== undefined" class="con-reveal__namebar">
+              <div v-if="embedded && drawnUntaken[focusIdx] !== undefined" class="con-reveal__namebar con-ws-stage-status">
                 <span class="con-cards__verdict-name" :key="drawnUntaken[focusIdx].card.name">{{ $t(drawnUntaken[focusIdx].card.name) }}</span>
                 <span class="con-cards__verdict con-cards__verdict--ok">
                   <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
@@ -438,7 +442,7 @@ import {consoleActionOf, ConsoleAction} from '@/client/console/composables/conso
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {fitRowZoom} from '@/client/console/cardStripFit';
-import {useEventListener} from '@vueuse/core';
+import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {
   DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, holdRevealForFollowUp, markAllTaken,
   markCardTaken, releaseRevealFollowUp,
@@ -545,6 +549,8 @@ export default defineComponent({
       embedFitRetries: 0,
       embedFitScheduled: false,
       stopFitResize: undefined as (() => void) | undefined,
+      stopFitObs: undefined as (() => void) | undefined,
+      settleFitTimer: undefined as number | undefined,
       // ── The 'result' deck→slot reveal flight (reuses the in-frame director) ──
       /** pending → the card is flying / flipping (status shows); settled → the
        *  face is up and the real card + verdict are shown. */
@@ -1057,15 +1063,33 @@ export default defineComponent({
     // buy pick). Runs on mount / count / resize — never per focus move.
     if (this.embedded && this.mode === 'drawn') {
       void this.$nextTick(() => this.fitEmbeddedStrip());
-      // Options-API mounted() has no effect scope — keep the stop handle and
-      // release it ourselves (the buy host's exact pattern).
+      // Options-API mounted() has no effect scope — keep the stop handles and
+      // release them ourselves (the buy host's exact pattern).
       this.stopFitResize = useEventListener(window, 'resize', () => this.scheduleEmbedFit());
+      // The stage zone GROWS as the workspace unfolds (and again when the
+      // command bar / status line settle): a first fit against the opening
+      // box is a permanently small card. The observer is the honest wait —
+      // never a guessed delay — and the settle pass is its cheap backstop
+      // for a growth that produced no observable resize.
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      if (root !== undefined) {
+        this.stopFitObs = useResizeObserver(root, () => this.scheduleEmbedFit()).stop;
+      }
+      this.settleFitTimer = window.setTimeout(() => {
+        this.settleFitTimer = undefined;
+        this.fitEmbeddedStrip();
+      }, motionMs(420));
     }
   },
   beforeUnmount() {
     setRevealVeilSuppressed(false);
     this.abortResultFlight();
     this.stopFitResize?.();
+    this.stopFitObs?.();
+    if (this.settleFitTimer !== undefined) {
+      window.clearTimeout(this.settleFitTimer);
+      this.settleFitTimer = undefined;
+    }
   },
   methods: {
     dealDelay(i: number): Record<string, string> {
@@ -1105,17 +1129,22 @@ export default defineComponent({
       }
       const root = this.$refs.rootEl as HTMLElement | undefined;
       const strip = root?.querySelector<HTMLElement>('.con-reveal__strip');
-      // The workspace's embed zone — the stage-area box the teleport fills.
-      const zone = root?.parentElement;
       const probe = strip?.querySelector<HTMLElement>('.con-cards__slot');
-      if (strip === undefined || strip === null || zone === null || zone === undefined ||
+      if (root === undefined || strip === undefined || strip === null ||
           probe === undefined || probe === null || typeof window === 'undefined') {
         return;
       }
+      // The band is OUR OWN box (the embedded root is `flex: 1` in the
+      // workspace's stage zone) — exactly what the buy host measures with
+      // `workBandHeight()`. Measuring the PARENT was the size regression: the
+      // zone reports its pre-unfold height while the stage is still opening,
+      // and without a re-fit the card stayed at that first, small number.
+      const rcs = window.getComputedStyle(root);
+      const bandH = root.clientHeight - (parseFloat(rcs.paddingTop) || 0) - (parseFloat(rcs.paddingBottom) || 0);
       strip.style.setProperty('--con-cards-zoom', '1');
       const slotW = probe.offsetWidth;
       const slotH = probe.offsetHeight;
-      if (slotW <= 0 || slotH <= 0 || zone.clientHeight <= 0) {
+      if (slotW <= 0 || slotH <= 0 || bandH <= 0) {
         // Not laid out yet (mid-teleport / JSDOM) — bounded frame retries.
         strip.style.removeProperty('--con-cards-zoom');
         if (this.embedFitRetries < 20) {
@@ -1134,7 +1163,13 @@ export default defineComponent({
       // constant-height pieces — nothing here depends on the strip zoom, so
       // the solve is never circular (the buy fit's exact discipline).
       const ui = conUiScale();
-      let chrome = 0;
+      const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+      // The stage chrome, MEASURED — the exact counterpart of the buy host's
+      // `modalChromeHeight`: frame paddings + heading (+ its margin) + the
+      // status line (+ the column gap above it) + the rounding headroom. The
+      // two stages wear the SAME chassis mixins, so these numbers match and
+      // the shared formula returns the same zoom for the same band.
+      let chrome = 8 * ui;
       const frame = strip.closest('.con-reveal__card') as HTMLElement | null;
       if (frame !== null) {
         const fcs = window.getComputedStyle(frame);
@@ -1145,10 +1180,12 @@ export default defineComponent({
         }
         const namebar = frame.querySelector<HTMLElement>('.con-reveal__namebar');
         if (namebar !== null && namebar.offsetHeight > 0) {
-          chrome += namebar.offsetHeight + (parseFloat(window.getComputedStyle(namebar).marginTop) || 0);
+          const column = namebar.parentElement;
+          const gap = column !== null ? (parseFloat(window.getComputedStyle(column).rowGap) || 0) : 0;
+          chrome += namebar.offsetHeight + gap;
         }
       }
-      const availH = Math.max(200 * ui, zone.clientHeight - chrome - 8 * ui);
+      const availH = Math.max(200 * ui, bandH - chrome - padY);
       const n = Math.max(this.stripEntries.length, 1);
       const zoom = fitRowZoom({availW, availH, slotW, slotH, n, colGap, ui});
       strip.style.setProperty('--con-cards-zoom', zoom.toFixed(3));
@@ -1604,6 +1641,12 @@ export default defineComponent({
       const slot = this.exitSlotFor(`${entry.card.name}#${entry.index}`);
       void runHandIntake([{name: entry.card.name, el: slot ?? undefined}], {
         commit,
+        // SEAMLESS: the take's commit REMOVES this card (and, embedded, closes
+        // the whole stage with it). Committing before the proxies exist left a
+        // three-frame hole — card blinks out, surface folds, and only then the
+        // flight starts. Staged, the proxy is already standing over the card
+        // when the state changes: one continuous object, no gap.
+        commitAt: 'staged',
         // EMBEDDED: the workspace must get out of the way BEFORE the cards
         // fly — the hand dock is what they aim at, and `onStaged` is the seam
         // where the proxies already stand over them, so releasing the frame
@@ -1689,6 +1732,7 @@ export default defineComponent({
       }));
       void runHandIntake(entries, {
         mode: 'stack',
+        commitAt: 'staged', // see takeFocused — the cards must not blink out
         commit: () => {
           closeAndReleaseEvent(this.playerView.id, e.id, () => markAllTaken(e.id));
           this.$emit('drawn-complete');
@@ -1767,6 +1811,7 @@ export default defineComponent({
         .map((entry) => ({name: entry.card.name, el: this.exitSlotFor(`${entry.card.name}#${entry.index}`) ?? undefined}));
       void runHandIntake(entries, {
         mode: 'stack',
+        commitAt: 'staged', // see takeFocused — the cards must not blink out
         commit,
         onStaged: this.embedded ? () => this.$emit('result-detached') : undefined,
       });

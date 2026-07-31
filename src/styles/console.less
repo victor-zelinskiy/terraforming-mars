@@ -344,18 +344,64 @@ body.con-zoom-open .con-handdock {
         0 .5rem 1.4rem rgba(0, 0, 0, 0.38);
 }
 
-/* ONE PRIMARY-HEADING ROLE for every embedded workspace stage — «Купить
+/* ONE PRIMARY-HEADING ENTITY for every embedded workspace stage — «Купить
    открытую карту?» and «Получена карта» are the SAME moment («вот карта —
-   решай/забирай») and must speak with the same voice: the full scene heading
-   (the standalone task/reveal title's own scale), bright, centred over the
-   hero. Both embedded hosts read THIS mixin; a per-host font rule here is
-   the drift that made the draw look like a smaller, different screen. */
-.con-ws-stage-heading() {
+   решай/забирай») and must speak with the same voice: the full scene heading,
+   bright, centred over the hero.
+
+   It is a real CLASS on both titles, not a mixin copied into two host rules:
+   a mixin still leaves two selectors, and a profile ladder that names only
+   one of them (`html.con-profile-tv .con-task__title { 1.5rem }` — exactly
+   what shipped) silently out-specifies it for ONE stage and re-opens the
+   drift. One class = one profile ladder = they cannot diverge. */
+.con-ws-stage-title {
     font-size: 1.3rem;
     font-weight: 700;
     line-height: 1.3;
     letter-spacing: .02em;
     color: @con-text;
+}
+
+/* THE EMBEDDED STAGE CHASSIS — the geometry both stages measure against.
+   Card size is a FIT: the row gets the stage band minus this chrome, so two
+   stages render the same hero only if their chrome is the same NUMBERS.
+
+   Real CLASSES (like `.con-ws-stage-title`), carried by both hosts and
+   written COMPOUND with each element's own base class, because the per-host
+   base rules AND the profile ladders (`html.con-profile-tv .con-reveal__strip`
+   vs `… .con-cards__strip`) would otherwise out-specify a plain class — which
+   is exactly how the 4K drawn stage ended up with 55px more chrome and a
+   smaller card than the buy stage next door. The values are the BUY stage's
+   own (it is the etalon); its profile ladder is re-published per profile
+   below, so both stages move together and neither regresses. */
+.con-task.con-ws-stage-frame,
+.con-reveal__card.con-ws-stage-frame {
+    padding: 1.1rem 1.4rem .8rem;
+}
+.con-task__head.con-ws-stage-head,
+.con-reveal__head.con-ws-stage-head {
+    margin-bottom: .45rem;
+    padding-top: 0;
+    text-align: center;
+}
+.con-cards__strip.con-ws-stage-row {
+    width: 100%;      /* spans the stage column — never shrink-wrapped, or the
+                         fit solves against the CARD it is trying to size */
+    max-width: 100%;
+    gap: .7rem;
+    padding: 2rem .8rem 1.4rem;
+}
+.con-cards__verdictbar.con-ws-stage-status,
+.con-reveal__namebar.con-ws-stage-status {
+    /* A FIXED height, not a min: the status line is the last chrome the fit
+       subtracts, so a content-driven one (the buy's price chip runs 3px
+       taller than the draw's name chip at 4K) hands the two stages different
+       card sizes. Reserved once, centred content, no layout shift on a
+       d-pad move either. */
+    height: 2.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 /* The plate's SOURCE TETHER — the quiet accent segment on the card-facing
@@ -9909,24 +9955,24 @@ html.console-mode {
             border-radius: 0;
             background: none;
             box-shadow: none;
+            /* Geometry comes from the shared chassis CLASSES the elements
+               carry (con-ws-stage-frame / -row / -status). */
         }
         /* The head loses its own identity block (the kicker went UP into the
            workspace breadcrumb): what is left is the STAGE INSTRUCTION —
            «Купить открытую карту?» — spoken with the SHARED primary-heading
-           voice (.con-ws-stage-heading — the reveal's «Получена карта» reads
-           the same mixin, so the two stages can never drift apart again). */
+           voice (.con-ws-stage-title — the reveal's «Получена карта» carries
+           the same class, so the two stages can never drift apart again). */
         .con-task__head { padding-top: 0; text-align: center; margin-bottom: .45rem; }
         .con-task__pickline { justify-content: center; }
-        .con-task__title--embedded {
-            margin-top: 0;
-            .con-ws-stage-heading();
-        }
+        /* Geometry only — the VOICE comes from the shared `.con-ws-stage-title`
+           class the element also carries (and from its profile ladder). */
+        .con-task__title--embedded { margin-top: 0; }
         /* The line under the result card is STATUS, not a second command bar:
            the glass box and the glyph chips belong to the standalone host —
            here the bottom bar owns every verb, and this line carries what the
            bar cannot (the focused card's name + its economics). */
         .con-cards__verdictbar {
-            min-height: 2.2rem;
             background: none;
             box-shadow: none;
         }
@@ -12534,6 +12580,13 @@ body.con-start-ceremony {
         right: auto;
         z-index: auto;
         flex: 1;
+        /* SPAN THE STAGE COLUMN — the embed zone centres its children on the
+           cross axis, so without this the whole reveal shrink-wraps to its
+           card and the row's fit solves against the very card it is sizing
+           (a 40%-smaller hero than the buy stage, whose host has always
+           carried `width: 100%`). Same host geometry, same fit input. */
+        width: 100%;
+        align-self: stretch;
         min-width: 0;
         min-height: 0;
         padding-bottom: 0;
@@ -12553,10 +12606,10 @@ body.con-start-ceremony {
             min-width: 0;
             min-height: 0;
             max-height: none;
-            padding: 0;
             border-radius: 0;
             background: none;
             box-shadow: none;
+            /* Geometry: the shared chassis classes (see the buy stage). */
             /* ONE centred group — instruction, card, status line — exactly
                the buy stage's composition. Without this the head pinned to
                the zone's top while the strip centred alone, opening a dead
@@ -12584,11 +12637,16 @@ body.con-start-ceremony {
                 align-items: center;
                 justify-content: center;
                 gap: .4rem;
+                /* The standalone header's kicker offset — here the kicker went
+                   up into the breadcrumb, so this 4px is pure chrome the buy
+                   stage does not spend, and the fit turns it into a smaller
+                   card (the heading block must measure the SAME as the buy
+                   head: one line, nothing above it). */
+                margin-top: 0;
             }
             .con-reveal__headmain { min-width: 0; text-align: center; }
-            .con-reveal__title {
-                .con-ws-stage-heading();
-            }
+            /* No font rule here on purpose: the title carries the shared
+               `.con-ws-stage-title` class — see the buy stage's head. */
         }
         /* SINGLE received card — the same open-composition halo the buy
            stage's lone card wears (out of flow, gradient-only). */
@@ -12600,13 +12658,17 @@ body.con-start-ceremony {
             background: radial-gradient(48% 46% at 50% 47%, rgba(120, 190, 235, 0.09), transparent 74%);
             pointer-events: none;
         }
-        /* The contextual footer (focused card's name) — the buy status
-           line's voice, geometry-reserved so a d-pad move never reflows. */
+        /* The row + the contextual footer (focused card's name): the SAME
+           chassis parts the buy stage uses, so the fit's chrome matches to
+           the pixel. Geometry-reserved — a d-pad move never reflows. */
+        .con-reveal__strip {
+            /* The buy stage's focus lift (1.08) — the fit leaves headroom for
+               exactly this much; a louder scale here would render the same
+               zoom as a bigger card. */
+            > .con-cards__slot--focused { transform: translateY(-.4rem) scale(1.08); }
+        }
+        .con-reveal__main { gap: .5rem; }
         .con-reveal__namebar {
-            min-height: 2.2rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             gap: .6rem;
             .con-cards__verdict-name { font-size: .95rem; }
         }
@@ -16772,6 +16834,10 @@ html.con-profile-large .con-cardactions {
    ═══════════════════════════════════════════════════════════════════ */
 
 html.con-profile-handheld {
+    /* The embedded stage's status line — the Deck's compact density, for BOTH
+       stages at once (they carry the same chassis class). */
+    .con-ws-stage-status { height: 2.2rem; }
+
     /* Effect-chip system: keep the pre-token compact weight on the Deck
        (the surfaces used .75–.8rem chips before the tokens unified them). */
     --con-chip-fs: 0.75rem;
@@ -17034,6 +17100,10 @@ html.con-profile-handheld {
            focus lift + scale + the pick band at every slot zoom. */
         &__strip { gap: .6rem; padding: 1.5rem .7rem .6rem; }
         &__strip--few { gap: 1.3rem; padding: 1.7rem 1.2rem 1rem; }
+        /* The embedded stage row + status keep THEIR density on both stages
+           (buy and drawn reveal share the chassis classes) — see the tv
+           ladder. The status ladder sits at the profile root below. */
+        &__strip.con-ws-stage-row { gap: .6rem; padding: 1.5rem .7rem .6rem; }
         /* Handheld density: non-grid strips shrink a notch (4 preludes
            fit 1280 without scrolling); the >6 grid goes compact - X
            fullscreen is the detailed read. Both zooms are fit-computed on
@@ -17441,6 +17511,14 @@ html.con-profile-large {
     .con-award__leader-val { font-size: .85rem; }
     .con-award__legend-span { font-size: .55rem; }
     .con-task__title { font-size: 1.5rem; }
+    /* THE EMBEDDED STAGE LADDER — ONE set of numbers for BOTH stages (buy and
+       drawn reveal carry the same chassis classes). Declared after the task /
+       strip ladders above so it wins their equal-specificity ties, and written
+       compound so it also beats `html.con-profile-tv .con-reveal__strip`: at
+       4K the two stages must spend identical chrome or the shared fit hands
+       them different heroes. */
+    .con-ws-stage-title { font-size: 1.5rem; }
+    .con-cards__strip.con-ws-stage-row { padding-top: 3.4rem; }
     .con-task__opt-title { font-size: 1.2rem; }
     /* Government Support briefing — a gentle 4K readability boost only. */
     .con-govsupport {

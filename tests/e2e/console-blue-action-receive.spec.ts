@@ -84,6 +84,10 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
 
 const PROFILES = [
   {tag: 'fhd', width: 1920, height: 1080, query: ''},
+  // The 4K TV is the target platform AND the profile where the two stages
+  // drifted apart last (the tv ladder re-sized only the buy heading) — the
+  // parity probe below runs here too.
+  {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
 ] as const;
 
 for (const profile of PROFILES) {
@@ -170,27 +174,49 @@ for (const profile of PROFILES) {
       await page.waitForTimeout(4000);
 
       // ── Play Development Center from the hand. ─────────────────────────────
-      await key(page, 'Period', 600);
-      await key(page, 'Enter', 1600);
-      await expect(page.locator('.con-hand [data-zoom-slot="Development Center"]')).toBeVisible({timeout: 10_000});
-      for (let step = 0; step < 14; step++) {
-        const focusedName = await page.locator('.con-hand .con-hand__slot--selected[data-zoom-slot]').first()
-          .getAttribute('data-zoom-slot').catch(() => null);
-        if (focusedName === 'Development Center') {
+      // Retried as a WHOLE: on a heavy 4K frame a press can be swallowed
+      // mid-flight and the card simply stays in hand — the run then reaches
+      // the workspace with «Нет действий карт» and fails somewhere far from
+      // the real cause. The exit condition is the honest one: the card has
+      // left the hand.
+      const inHand = page.locator('.con-hand [data-zoom-slot="Development Center"]');
+      for (let attempt = 0; attempt < 3; attempt++) {
+        await key(page, 'Period', 600);
+        await key(page, 'Enter', 1600);
+        await expect(inHand).toBeVisible({timeout: 10_000});
+        for (let step = 0; step < 14; step++) {
+          const focusedName = await page.locator('.con-hand .con-hand__slot--selected[data-zoom-slot]').first()
+            .getAttribute('data-zoom-slot').catch(() => null);
+          if (focusedName === 'Development Center') {
+            break;
+          }
+          await key(page, 'ArrowRight', 260);
+        }
+        await key(page, 'Enter', 900);
+        for (let i = 0; i < 5 && await page.locator('.con-composer--play, .con-play').count() > 0; i++) {
+          await key(page, 'Enter', 900);
+        }
+        await page.waitForTimeout(4200);
+        if (await inHand.count() === 0) {
           break;
         }
-        await key(page, 'ArrowRight', 260);
+        // Still in hand — close whatever is open and try the play again.
+        for (let i = 0; i < 3 && await page.locator('.con-hand, .con-play, .con-composer--play').count() > 0; i++) {
+          await key(page, 'Escape', 700);
+        }
       }
-      await key(page, 'Enter', 900);
-      for (let i = 0; i < 5 && await page.locator('.con-composer--play, .con-play').count() > 0; i++) {
-        await key(page, 'Enter', 900);
-      }
-      await page.waitForTimeout(4200);
+      expect(await inHand.count(), 'Development Center must have been played').toBe(0);
 
       // ── Workspace → setup → COMMIT. ─────────────────────────────────────
-      for (let tries = 0; tries < 4 && await page.locator('.con-cardactions').count() === 0; tries++) {
-        await key(page, 'Period', 700);
-        await key(page, 'ArrowUp', 1200);
+      // Retry discipline (the 4K profile's heavy frames swallow a press that
+      // lands mid-flight): back out of whatever opened instead, and try the
+      // wheel again — the drive must not depend on a lucky frame.
+      for (let tries = 0; tries < 10 && await page.locator('.con-cardactions').count() === 0; tries++) {
+        if (tries > 0 && await page.locator('.con-hand, .con-play').count() > 0) {
+          await key(page, 'Escape', 600);
+        }
+        await key(page, 'Period', 800);
+        await key(page, 'ArrowUp', 1400);
       }
       await expect(page.locator('.con-cardactions')).toHaveCount(1, {timeout: 10_000});
       await key(page, 'Enter', 1200);
@@ -228,11 +254,34 @@ for (const profile of PROFILES) {
       // PRIMARY-HEADING PARITY: the title reads the SHARED .con-ws-stage-heading
       // role — the same computed voice the buy stage's «Купить открытую карту?»
       // gets (its spec asserts the identical numbers; fhd: 1.3rem = 26px/700).
-      const headStyle = await page.locator('.con-reveal__title').evaluate((el) => {
+      const headStyle = await page.locator('.con-ws-stage-title').evaluate((el) => {
         const cs = window.getComputedStyle(el);
         return {size: cs.fontSize, weight: cs.fontWeight};
       });
-      expect(headStyle, `heading ${JSON.stringify(headStyle)}`).toEqual({size: '26px', weight: '700'});
+      // The numbers are the PURCHASE stage's own, captured from its parity
+      // print-out: fhd 1.3rem = 26px, tv 1.5rem × the 4K rem scale = 72px.
+      const expectHead = profile.tag === 'tv4k' ? {size: '72px', weight: '700'} : {size: '26px', weight: '700'};
+      expect(headStyle, `heading ${JSON.stringify(headStyle)}`).toEqual(expectHead);
+      // HERO PARITY — printed next to the purchase spec's baseline line; the
+      // shared fit formula + shared chrome must land the SAME card box.
+      const rxHero = await page.locator('[data-embed-slot="workspace-reveal"] .con-cards__slot .pcard')
+        .first().boundingBox();
+      // ONE HERO, TWO STAGES: the buy card's measured box at this profile
+      // (printed by the purchase spec's own parity line). Same fit formula +
+      // same stage chassis ⇒ the received card must land on the same numbers,
+      // not merely "look similar".
+      const BUY_HERO: Record<string, {w: number, h: number}> = {
+        fhd: {w: 471.74, h: 678.12},
+        tv4k: {w: 837.03, h: 1203.24},
+      };
+      const want = BUY_HERO[profile.tag];
+      console.log(`[PARITY:${profile.tag}] receive hero=${JSON.stringify(rxHero)} head=${JSON.stringify(headStyle)}`);
+      // 1px tolerance: the numbers come out byte-identical today (same fit,
+      // same chassis), and a whole-pixel drift is exactly the regression this
+      // guards — but sub-pixel rounding must not flake the suite.
+      expect(Math.abs(rxHero!.width - want.w), `hero width ${rxHero!.width} vs buy ${want.w}`).toBeLessThanOrEqual(1);
+      expect(Math.abs(rxHero!.height - want.h), `hero height ${rxHero!.height} vs buy ${want.h}`).toBeLessThanOrEqual(1);
+      expect(rxHero).not.toBeNull();
       expect(await page.locator('.con-reveal__count').count(), 'no count chip for ONE card').toBe(0);
       expect(await page.locator('.con-start__slot-a').count(), 'no on-card command pill').toBe(0);
       // The status line: focused card's name + the ONE take verb.
@@ -248,8 +297,37 @@ for (const profile of PROFILES) {
       await page.waitForTimeout(700);
       await shoot(page, `${profile.tag}-01-receive-stage`);
 
-      // ── 3. TAKE → the workspace folds, the card lands in the dock. ──────
+      // ── 3. TAKE → NO SEAM, then fold + dock landing. ────────────────────
+      // A per-frame sampler for the HOLE the player reported: the card
+      // vanished, the workspace folded, and only THEN the flight began. It
+      // exists whenever the take's state commit runs before the flight's
+      // proxies stand over the card (`commitAt: 'staged'` is the fix), so the
+      // honest test is "was there ever a frame with no card and no proxy,
+      // before the first proxy appeared".
+      await page.evaluate(() => {
+        const w = window as unknown as {__seam?: {hole: number, frames: number, seenProxy: boolean}};
+        w.__seam = {hole: 0, frames: 0, seenProxy: false};
+        const tick = () => {
+          const s = w.__seam;
+          if (s === undefined || s.frames > 300) {
+            return;
+          }
+          const card = document.querySelector('[data-embed-slot="workspace-reveal"] .pcard');
+          const proxy = document.querySelector('.con-handdelivery-layer .con-deal-proxy');
+          if (proxy !== null) {
+            s.seenProxy = true;
+          }
+          if (!s.seenProxy && card === null) {
+            s.hole++;
+          }
+          s.frames++;
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      });
       await key(page, 'Enter', 600);
+      const seam = await page.evaluate(() => (window as unknown as {__seam: {hole: number, frames: number}}).__seam);
+      expect(seam.hole, `frames with neither the card nor its proxy (of ${seam.frames})`).toBe(0);
       await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 8000});
       // No proxy left hanging: the delivery layer empties once the flight lands.
       await expect(page.locator('.con-handdelivery-layer .con-deal-proxy')).toHaveCount(0, {timeout: 8000});
