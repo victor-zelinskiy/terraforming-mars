@@ -12554,14 +12554,47 @@ body.con-start-ceremony {
            workspace the zone already has a stable height, and forcing 42rem
            here would overflow the band. */
         .con-reveal__card--drawn { height: auto; }
-        /* The stage's own sentence, dressed like the buy stage's heading next
-           door: centred over the card, same weight. The two cases are the SAME
-           moment («вот карта — решай») and must not read as different tiers. */
+        /* The stage's own sentence, dressed EXACTLY like the buy stage's
+           heading next door (`.con-task__title--embedded`): the supporting
+           instruction voice, centred close over the card. The two cases are
+           the SAME moment («вот карта — решай/забирай») and must not read as
+           different tiers — a bigger heading here made the draw look like a
+           different screen. The count chip (multi only) seats under it, the
+           way the buy pickline does. */
         .con-reveal__head--embedded {
-            margin-bottom: 1rem;
-            .con-reveal__headrow { justify-content: center; }
+            margin-bottom: .45rem;
+            .con-reveal__headrow {
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: .4rem;
+            }
             .con-reveal__headmain { min-width: 0; text-align: center; }
-            .con-reveal__title { font-size: 1.7rem; }
+            .con-reveal__title {
+                font-size: .95rem;
+                font-weight: 600;
+                letter-spacing: .03em;
+                color: fade(@con-text, 88%);
+            }
+        }
+        /* SINGLE received card — the same open-composition halo the buy
+           stage's lone card wears (out of flow, gradient-only). */
+        .con-reveal__strip > .con-cards__slot:only-child::before {
+            content: '';
+            position: absolute;
+            inset: -3rem -3.6rem;
+            z-index: -1;
+            background: radial-gradient(48% 46% at 50% 47%, rgba(120, 190, 235, 0.09), transparent 74%);
+            pointer-events: none;
+        }
+        /* The contextual footer (focused card's name) — the buy status
+           line's voice, geometry-reserved so a d-pad move never reflows. */
+        .con-reveal__namebar {
+            min-height: 2.2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            .con-cards__verdict-name { font-size: .95rem; }
         }
         /* The band body carries a hand-rolled `overflow-y: auto` for the
            full-bleed case. Inside a workspace that is a native scrollbar

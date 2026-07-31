@@ -24,10 +24,10 @@ describe('ConsoleOptionsPanel (in-game settings)', () => {
     setButtonLayout('standard');
   });
 
-  it('game context hides Interface, shows Display / Controller / Button layout / Private score', () => {
+  it('game context hides Interface, shows Display / Controller / Button layout / Wheel control / Motion / Performance settings, ending with Private score', () => {
     const ids = (mountWith('game').vm as any).rows.map((r: any) => r.id);
     expect(ids).to.not.include('interface');
-    expect(ids).to.deep.eq(['display', 'controller', 'buttons', 'privateScore']);
+    expect(ids).to.deep.eq(['display', 'controller', 'buttons', 'wheelControl', 'motionSpeed', 'motionRate', 'perfMode', 'privateScore']);
   });
 
   it('menu context keeps Interface but HIDES the per-game Private score row', () => {

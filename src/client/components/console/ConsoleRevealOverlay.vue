@@ -69,8 +69,11 @@
                   </span>
                 </button>
               </div>
-              <!-- Compact premium count chip (NEVER a full-width strip). -->
-              <div v-if="mode === 'drawn' && drawnEvent !== undefined" class="con-reveal__count">
+              <!-- Compact premium count chip (NEVER a full-width strip).
+                   EMBEDDED single card: hidden — «ПОЛУЧЕНО 1» beside one card
+                   is a mass-batch instrument (the same rule that folds the
+                   buy pickline); a real multi-batch keeps the count. -->
+              <div v-if="mode === 'drawn' && drawnEvent !== undefined && (!embedded || drawnEvent.cards.length > 1)" class="con-reveal__count">
                 <span class="con-reveal__count-icon resource_icon resource_icon--cards" aria-hidden="true"></span>
                 <span class="con-reveal__count-label">{{ $t('Received') }}</span>
                 <b class="con-reveal__count-num">{{ drawnEvent.cards.length }}</b>
@@ -112,7 +115,9 @@
                      :class="{'con-cards__slot--focused': focusIdx === entry.pos}"
                      :ref="focusIdx === entry.pos ? 'focusedCardSlot' : undefined">
                   <Card :card="entry.card" :key="entry.card.name" lightweight />
-                  <div v-if="focusIdx === entry.pos" class="con-start__slot-a">
+                  <!-- EMBEDDED: no per-card command pill — the ONE bottom bar
+                       owns every verb (the same rule as the buy status line). -->
+                  <div v-if="focusIdx === entry.pos && !embedded" class="con-start__slot-a">
                     <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
                   </div>
                 </div>
@@ -184,6 +189,11 @@
                   </span>
                 </div>
               </transition-group>
+              <!-- EMBEDDED contextual footer — the focused card's name, the
+                   same status voice the buy stage speaks under its card. -->
+              <div v-if="embedded && drawnUntaken[focusIdx] !== undefined" class="con-reveal__namebar">
+                <span class="con-cards__verdict-name" :key="drawnUntaken[focusIdx].card.name">{{ $t(drawnUntaken[focusIdx].card.name) }}</span>
+              </div>
               <div v-if="drawnUntaken.length > 4" class="con-reveal__pager" aria-hidden="true">
                 <span class="con-reveal__pager-b">[</span>
                 <span class="con-reveal__pager-i">{{ focusIdx + 1 }}</span>
@@ -684,7 +694,12 @@ export default defineComponent({
           // …and from the very first render for a batch the live trade is about
           // to claim: the claim lands one scheduler job LATER than this mount,
           // and that gap is a fully visible modal — see colonyTradeWillDressReveal.
-          colonyTradeWillDressReveal(this.drawnEvent?.id, this.drawnEvent?.source));
+          colonyTradeWillDressReveal(this.drawnEvent?.id, this.drawnEvent?.source) ||
+          // EMBEDDED: the workspace's EXECUTION BEAT owns this batch's arrival
+          // (the face-down card already flew off the pile and flips in the
+          // zone) — replaying the stock deal-in on top of it is exactly the
+          // «карта просто появилась» double-entrance.
+          this.embedded);
     },
     /** Pre-frame: the modal is mounted for measurement but fully veiled. */
     bonusVeiled(): boolean {
@@ -739,7 +754,11 @@ export default defineComponent({
      */
     stripZoom(): number {
       const n = this.stripCount;
-      const ladder = n <= 2 ? 0.94 : n <= 3 ? 0.82 : n <= 4 ? 0.72 : n <= 6 ? 0.6 : 0.52;
+      // EMBEDDED 1–2 cards: full hero presence — the received card is the
+      // stage's protagonist, the SAME size language the buy pick gives it
+      // (its single card rides an unscaled slot). Denser batches keep the
+      // shared ladder.
+      const ladder = n <= 2 ? (this.embedded ? 1 : 0.94) : n <= 3 ? 0.82 : n <= 4 ? 0.72 : n <= 6 ? 0.6 : 0.52;
       // The payout's closing step lives UNDER the strip, and the modal's height
       // was already fully spent on the cards — without giving the row back a
       // notch the step (and the bonus zone's caption) get clipped by the frame.

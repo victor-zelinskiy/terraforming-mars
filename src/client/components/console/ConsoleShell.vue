@@ -3425,6 +3425,13 @@ export default defineComponent({
         return 'Waiting for draft cards';
       }
       if (this.consoleRevealMode !== undefined) {
+        // EMBEDDED drawn batch: the kicker mirrors the workspace STAGE
+        // («ДОБОР КАРТ») — never a generic «КАРТЫ» beside a breadcrumb that
+        // already names the stage. One voice, two places (the buy stage's
+        // «ПОКУПКА» parity).
+        if (this.revealEmbedTarget !== undefined) {
+          return workspaceOutcomeState.phaseKey !== '' ? workspaceOutcomeState.phaseKey : focusKicker('draw');
+        }
         return 'Cards';
       }
       if (this.startTask !== undefined && !this.consoleState.task.deferred) {
@@ -7385,6 +7392,20 @@ export default defineComponent({
      */
     onEmbeddedDrawnComplete(): void {
       releaseWorkspaceOutcome();
+      this.foldWorkspaceAfterResult();
+    },
+    /**
+     * The flow is FINISHED and its result is airborne — fold the WHOLE
+     * workspace, atomically (sheet closed + the composer's command contract
+     * reset in the same frame — the iteration-16 half-collapse rule). A take
+     * never round-trips the server, so no view change will close the sheet
+     * for us; without this the workspace sat over the board while the intake
+     * aimed at a covered dock («workspace не закрывается» — the receive bug).
+     * Idempotent: the buy path reaches it twice (detach + complete).
+     */
+    foldWorkspaceAfterResult(): void {
+      resetConsoleActionComposerUi();
+      closeConsoleLayers();
     },
     /**
      * THE RESULT HAS LEFT THE WORKSPACE — the card is now an independent
@@ -7402,6 +7423,7 @@ export default defineComponent({
      */
     onWorkspaceResultDetached(): void {
       releaseWorkspaceOutcome();
+      this.foldWorkspaceAfterResult();
     },
     /**
      * The ACTION COMMIT's reward wave: the resources the activated mechanic
