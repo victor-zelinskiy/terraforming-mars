@@ -1155,7 +1155,13 @@ import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/c
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {workspaceClaimsDrawReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
-import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {
+  planetFocusState, enterPlanetFocus, beginPlanetFocusExit, playPlanetFocusScaleBeat,
+  planetFocusBeatAllowed, qualifiesForPlanetFocus, captureGlobalParams,
+  registerPlanetFocusParamsSource, resetPlanetFocus, isPlanetFocusEngaged,
+  snapPlanetFocusSettled,
+} from '@/client/console/planetFocus';
 import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
 import {abortDeckDraw, deckDrawHolds, isDeckDrawActive} from '@/client/console/deckDraw/consoleDeckDraw';
 import ConsolePatentSaleLayer from '@/client/components/console/patentSale/ConsolePatentSaleLayer.vue';
@@ -1369,6 +1375,10 @@ export default defineComponent({
        *  never fire (the hydro black-screen bug). */
       cardDiscardTransaction,
       tilePlacementState,
+      /** Planet Focus (main-grid placement): phases + held global params. */
+      planetFocusState,
+      /** Unregister fn of the planet-focus live-params source. */
+      offPlanetFocusParams: undefined as (() => void) | undefined,
       /** Fullscreen open/close choreography: chrome held hidden mid-flight. */
       zoomFlight: false,
       /** Backdrop fade-out while the close flight plays. */
@@ -2525,6 +2535,38 @@ export default defineComponent({
         return wf;
       }
       return this.convertPlantsPrompt ?? this.taskSpacePrompt;
+    },
+    /**
+     * PLANET FOCUS target — should the enlarged placement stage be up?
+     *
+     * TRUE while a space prompt whose WHOLE candidate set lives on the main
+     * Mars grid is present (read RAW off `placementSpaceModel`, not the
+     * admission-gated `placementActive`: a prompt held behind a reveal
+     * still engages the mode, so the board is already focused when the
+     * overlay clears — and a chained second placement re-claims the mode
+     * before any exit gets to run). After the pick resolves, the tile-hero
+     * transaction and the card-bonus cover's FIELD phases SUSTAIN an
+     * already-engaged mode through the landing + the field reward beats —
+     * they never INITIATE it (a non-qualifying placement runs its hero on
+     * the normal stage).
+     */
+    planetFocusTarget(): boolean {
+      const prompt = this.placementSpaceModel;
+      if (prompt !== undefined &&
+          qualifiesForPlanetFocus(prompt.spaces, this.playerView.game.spaces)) {
+        return true;
+      }
+      return (this.tilePlacementState.active || isBoardCardBonusFieldPhase()) &&
+        isPlanetFocusEngaged();
+    },
+    /**
+     * The OWED scale beat may play: the exit landed with parameter changes
+     * untold, and the world is quiet enough for the scales to be READ (no
+     * reveal above the board, no cards in transit). Pure policy in
+     * planetFocus.ts, evaluated against the one signal collection.
+     */
+    planetFocusBeatReady(): boolean {
+      return planetFocusBeatAllowed(this.admissionSignals);
     },
     /**
      * The (cell, tile) the preview is for — the refetch key. '' → no preview
@@ -4589,6 +4631,28 @@ export default defineComponent({
       this.consoleState.inspecting = false;
       this.consoleState.scaleInspecting = false;
       this.consoleState.trackMarker = undefined;
+    },
+    /**
+     * PLANET FOCUS driver. Rising edge: the board becomes the stage (arcs
+     * + off-Mars flanks recede, the planet expands, the four global-param
+     * readouts freeze at their displayed values). Falling edge: the field's
+     * whole story is over (pick resolved/cancelled, hero landed, field
+     * rewards paid) — the exit transition returns the interface, and only
+     * then may the scales move (the beat watcher below). planetFocus.ts
+     * owns the phase machine; a mid-exit re-claim is a native reversal.
+     */
+    planetFocusTarget(now: boolean): void {
+      if (now) {
+        enterPlanetFocus(this.playerView.game);
+      } else {
+        beginPlanetFocusExit();
+      }
+    },
+    /** The owed scale beat fires the moment the world can read it. */
+    planetFocusBeatReady(now: boolean): void {
+      if (now) {
+        playPlanetFocusScaleBeat();
+      }
     },
     /** The start ceremony fully resolved (the game began) — release any
      *  residual starting-cards delivery HOLD so the dock can never stick
@@ -7214,6 +7278,12 @@ export default defineComponent({
      * the standard reveal flow stays untouched.
      */
     armBoardBonusIfCardCell(spaceId: string): void {
+      // A confirm mid-Planet-Focus-growth settles the board FIRST — this is
+      // the earliest cell-anchor measurement of the commit chain (the cover
+      // icon rect), and it must never read a still-moving hex. Runs before
+      // the DRAW_CARD guard on purpose: armTilePlacement (the next
+      // measurer) is only reached through the same submit.
+      snapPlanetFocusSettled();
       const space = this.playerView.game.spaces.find((s) => s.id === spaceId);
       if (space === undefined || !space.bonus.includes(SpaceBonus.DRAW_CARD)) {
         return;
@@ -8524,6 +8594,11 @@ export default defineComponent({
     this.consoleState.shellMounted = true;
     resetMandatoryGate(); // a fresh shell starts with no acknowledged beat
     resetNotifHold(); // a fresh shell never inherits a mid-flight X-hold
+    // Planet Focus reads the LIVE committed parameters through this source
+    // at its release (the playerView root identity changes every response,
+    // so the module can never hold an object reference itself).
+    this.offPlanetFocusParams = registerPlanetFocusParamsSource(
+      () => captureGlobalParams(this.playerView.game));
     // The hand-reveal director owns WHEN the section switches during its
     // episodes (and re-seats the grid scroll on a mid-close reopen).
     setHandRevealHooks({
@@ -8548,6 +8623,8 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.offIntent?.();
+    this.offPlanetFocusParams?.();
+    resetPlanetFocus(); // never carry a held HUD / mid-exit phase across games
     resetHandReveal(); // never leak a mid-episode timeline / held dock
     resetHandDelivery(); // never leak a mid-flight delivery / held dock
     resetConsoleHandPick(); // never leak a client pick across games/sessions

@@ -156,6 +156,7 @@ import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import ConsoleFlipValue from '@/client/components/console/ConsoleFlipValue.vue';
 import ConsoleProjectDeck from '@/client/components/console/ConsoleProjectDeck.vue';
+import {planetFocusState, displayGlobalParams} from '@/client/console/planetFocus';
 
 /** Mirrors LeftPlayerCard: 1-indexed position of the upcoming action. */
 const MAX_ACTIONS_PER_ROUND = 2;
@@ -215,8 +216,19 @@ export default defineComponent({
     };
   },
   computed: {
+    /**
+     * The game the strip DISPLAYS. While Planet Focus owns the scene the
+     * four global parameters come from the frozen snapshot — the SAME read
+     * the board's arcs use (planetFocus.displayGlobalParams), so the top
+     * HUD and the scales can never disagree. The release flips the values
+     * (ConsoleFlipValue) and fires the globals delta chips exactly when
+     * the arc markers glide — one synchronized beat.
+     */
     game(): GameModel {
-      return this.playerView.game;
+      if (planetFocusState.heldParams === undefined) {
+        return this.playerView.game;
+      }
+      return {...this.playerView.game, ...displayGlobalParams(this.playerView.game)};
     },
     players(): ReadonlyArray<PublicPlayerModel> {
       return this.playerView.players;

@@ -2,7 +2,7 @@
   <!-- P27: the selection spotlight paints ONLY while the board is LIVE
        (inspection mode / placement) — on the calm board home no cell reads
        as focused, so nothing competes with ocean/availability highlights. -->
-  <div class="con-board" :class="{'con-board--live': placementActive || inspecting, 'con-board--inspecting': inspecting && !placementActive}" ref="root">
+  <div class="con-board" :class="boardClasses" ref="root">
     <div class="con-board__stage" ref="stage">
       <GameBoardView :game="game" :players="playerView.players" :tileView="tileView" @toggleTileView="cycleTileView" />
     </div>
@@ -38,6 +38,7 @@ import {NavRect, pickDirectional, pickNearest, pickStrictGrid, rectCenter} from 
 import {hoverBoardCell} from '@/client/components/board/boardInfoState';
 import {consoleState} from '@/client/console/consoleRouter';
 import {TileView, nextTileView} from '@/client/components/board/TileView';
+import {planetFocusState, displayGlobalParams, PlanetFocusPhase} from '@/client/console/planetFocus';
 
 const SELECT_CLASS = 'con-cell-sel';
 /** P27: the focused global-parameter TRACK marker (inspection mode). */
@@ -114,6 +115,23 @@ const CALIBRATE_MAX_PASSES = 2;
  */
 const SCALE_BOOST = 1.0;
 
+/**
+ * PLANET FOCUS framing — the camera moves IN on the planet while the arc
+ * scales / off-Mars flanks recede (planetFocus.ts owns the phases; the CSS
+ * owns the motion). The Mars disc is a FIXED asset painted from
+ * `.board-cont`'s top-left at 620×600 (board.less), so the focus fit is
+ * fully DETERMINISTIC — no measurement, no calibration passes, nothing to
+ * poison mid-transition. The frame below is the board-cont-local rectangle
+ * that must fill the stage: the full hex grid plus the planet's readable
+ * body, deliberately cropping a sliver of the disc's soft atmospheric rim
+ * (the planet grows PAST the frame — a camera that moved closer, not a
+ * smaller picture).
+ */
+const PFOCUS_FRAME = {x: 20, y: 42, w: 580, h: 516}; /* keep-px: board-cont local space */
+/** `.board-cont`'s own box (the transform-origin is its centre). */
+const BOARD_CONT_W = 670;
+const BOARD_CONT_H = 600;
+
 export default defineComponent({
   name: 'ConsoleBoardSection',
   components: {GameBoardView},
@@ -126,9 +144,15 @@ export default defineComponent({
   data() {
     return {
       consoleState,
+      planetFocusState,
       tileView: 'show' as TileView,
       stageObserver: undefined as ResizeObserver | undefined,
       fitRaf: 0,
+      /** The stage's calibrated centring vars, saved at focus enter so the
+       *  exit restores the exact pre-focus framing (calibration folds its
+       *  offsets cumulatively — overwriting them would lose the truth). */
+      savedBoardDx: undefined as string | undefined,
+      savedBoardDy: undefined as string | undefined,
       /** P29: the self-calibrated natural content box (seeded by constants). */
       naturalW: BOARD_NATURAL_W,
       naturalH: BOARD_NATURAL_H,
@@ -142,8 +166,32 @@ export default defineComponent({
     };
   },
   computed: {
+    /**
+     * The game the board DISPLAYS. While Planet Focus holds the scene, the
+     * four global parameters are served from the frozen snapshot — a commit
+     * that lands mid-scene (the tile hero holds it through the flight, the
+     * reward beats run after it) must not glide the arc scales behind the
+     * receded band. The release (planetFocus's scale beat, after the exit
+     * transition seats the arcs back) simply lets the live values through —
+     * the existing AnimatedScaleMarker / ArcScale watchers then play the
+     * glide exactly once, at the one moment it can be read.
+     */
     game(): GameModel {
-      return this.playerView.game;
+      if (this.planetFocusState.heldParams === undefined) {
+        return this.playerView.game;
+      }
+      return {...this.playerView.game, ...displayGlobalParams(this.playerView.game)};
+    },
+    /** Planet-focus phase → root classes (the CSS owns the actual motion). */
+    boardClasses(): Record<string, boolean> {
+      const phase = this.planetFocusState.phase;
+      return {
+        'con-board--live': this.placementActive || this.inspecting,
+        'con-board--inspecting': this.inspecting && !this.placementActive,
+        'con-board--pfocus': phase === 'entering' || phase === 'active' || phase === 'exit-prep',
+        'con-board--pfocus-anim': phase === 'entering' || phase === 'exit-prep' || phase === 'exiting',
+        'con-board--pfocus-settled': phase === 'active',
+      };
     },
     selectedSpaceId(): string | undefined {
       return this.consoleState.boardSpaceId;
@@ -169,6 +217,27 @@ export default defineComponent({
           hoverBoardCell(now as SpaceId);
         }
       },
+    },
+    /**
+     * PLANET FOCUS phases (planetFocus.ts) → framing. Enter/active apply
+     * the deterministic focus fit (the CSS transition carries the growth,
+     * `--pfocus-anim` gates it); exit/idle restore the calibrated normal
+     * framing saved at enter. The module owns WHEN; this component owns
+     * the geometry (it has the stage).
+     */
+    'planetFocusState.phase'(now: PlanetFocusPhase): void {
+      if (now === 'entering' && this.savedBoardDx === undefined) {
+        const stage = this.$refs.stage as HTMLElement | undefined;
+        this.savedBoardDx = stage?.style.getPropertyValue('--con-board-dx') ?? '';
+        this.savedBoardDy = stage?.style.getPropertyValue('--con-board-dy') ?? '';
+      }
+      if (now === 'entering' || now === 'active') {
+        this.fitBoard();
+        return;
+      }
+      if (now === 'exiting' || now === 'idle') {
+        this.restoreNormalFraming();
+      }
     },
     /**
      * P27: the focused TRACK marker — spotlight ring + the SAME premium
@@ -206,6 +275,11 @@ export default defineComponent({
       if (r.width < 40 || r.height < 40) {
         return; // hidden (hand section) / not laid out yet — keep the last scale
       }
+      const phase = this.planetFocusState.phase;
+      if (phase === 'entering' || phase === 'active') {
+        this.fitPlanetFocus(stage, r);
+        return;
+      }
       const scale = Math.min(
         (r.width - STAGE_PAD * 2) / this.naturalW,
         (r.height - STAGE_PAD_Y * 2) / this.naturalH,
@@ -216,6 +290,55 @@ export default defineComponent({
       // P29: refine against the REAL rendered content (next frame — the new
       // scale must paint first so the union bbox reflects it).
       this.scheduleCalibrate();
+    },
+    /**
+     * The PLANET FOCUS fit — deterministic: the frame is a fixed rectangle
+     * of `.board-cont`'s local space (the Mars disc is a fixed asset), so
+     * the scale and the centring offset are pure arithmetic. No calibration
+     * runs in focus — there is nothing to measure, and a mid-transition
+     * measurement would poison the vars anyway.
+     */
+    fitPlanetFocus(stage: HTMLElement, r: DOMRect): void {
+      const scale = Math.min(
+        (r.width - STAGE_PAD * 2) / PFOCUS_FRAME.w,
+        (r.height - STAGE_PAD_Y * 2) / PFOCUS_FRAME.h,
+      );
+      const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
+      this.appliedScale = clamped;
+      document.documentElement.style.setProperty('--board-scale', clamped.toFixed(4));
+      // Centre the FRAME in the stage: the flex centres the .board-cont BOX,
+      // so the translate compensates the frame-centre ↔ box-centre offset
+      // (screen px — the translate sits OUTSIDE the scale in the transform).
+      const dx = (BOARD_CONT_W / 2 - (PFOCUS_FRAME.x + PFOCUS_FRAME.w / 2)) * clamped;
+      const dy = (BOARD_CONT_H / 2 - (PFOCUS_FRAME.y + PFOCUS_FRAME.h / 2)) * clamped;
+      stage.style.setProperty('--con-board-dx', `${dx.toFixed(1)}px`);
+      stage.style.setProperty('--con-board-dy', `${dy.toFixed(1)}px`);
+    },
+    /**
+     * Leaving focus: put back the calibrated normal framing captured at
+     * enter (empty saved value = the CSS fallback), then re-fit — the same
+     * transition that grew the planet now carries it home.
+     */
+    restoreNormalFraming(): void {
+      const stage = this.$refs.stage as HTMLElement | undefined;
+      if (stage !== undefined && this.savedBoardDx !== undefined) {
+        if (this.savedBoardDx === '') {
+          stage.style.removeProperty('--con-board-dx');
+        } else {
+          stage.style.setProperty('--con-board-dx', this.savedBoardDx);
+        }
+        if (this.savedBoardDy === '' || this.savedBoardDy === undefined) {
+          stage.style.removeProperty('--con-board-dy');
+        } else {
+          stage.style.setProperty('--con-board-dy', this.savedBoardDy);
+        }
+      }
+      this.savedBoardDx = undefined;
+      this.savedBoardDy = undefined;
+      // A fresh calibration convergence once the exit settles (the gate
+      // inside calibrate() keeps it out of the transition itself).
+      this.calibratePasses = 0;
+      this.fitBoard();
     },
     scheduleFit(): void {
       if (this.fitRaf !== 0) {
@@ -249,6 +372,12 @@ export default defineComponent({
      * cycle; the clamps make a stray mid-transition measurement harmless.
      */
     calibrate(): void {
+      // PLANET FOCUS: the focus fit is deterministic and the transitions
+      // make live measurements meaningless — calibration is a normal-mode
+      // instrument only (it resumes when the phase returns to idle).
+      if (this.planetFocusState.phase !== 'idle') {
+        return;
+      }
       const stage = this.$refs.stage as HTMLElement | undefined;
       if (stage === undefined) {
         return;

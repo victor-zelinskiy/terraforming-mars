@@ -2191,6 +2191,23 @@ each(@players, {
         align-items: center;
         justify-content: center;
         overflow: hidden;
+        /* Anchor for the planet-focus veil (::before below). */
+        position: relative;
+
+        /* PLANET FOCUS veil — the stage acknowledges it became the scene:
+           a whisper of cold light behind the planet, corners settling into
+           deep space. Plain gradients (perf-lite safe), opacity-only. */
+        &::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            background:
+                radial-gradient(ellipse 58% 54% at 50% 46%, fade(@con-cyan, 4%), transparent 62%),
+                radial-gradient(ellipse 130% 124% at 50% 50%, transparent 52%, fade(#010409, 30%) 96%);
+            transition: opacity calc(520ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
 
         /* P29: the fit engine SELF-CENTRES the board — it measures the real
            content bbox and folds the true-centre offset into these vars
@@ -2207,6 +2224,56 @@ each(@players, {
         > .board-cont {
             transform: translate(var(--con-board-dx, 6px), var(--con-board-dy, -4px)) scale(var(--board-scale, 1)); /* keep-px: JS folds px into these vars */
         }
+    }
+}
+
+/* ── PLANET FOCUS — a main-grid placement makes the board THE stage ──────
+   Phases → classes (planetFocus.ts owns the machine, ConsoleBoardSection
+   maps it): `--pfocus` = the focused STATE (arcs/off-Mars faded, veil up,
+   the fit engine holds the enlarged deterministic framing); `--pfocus-anim`
+   = a transition is in flight (enter / the exit's return) — the transform
+   transition lives ONLY here, so calibration nudges and window-resize fits
+   in settled states stay instant; `--pfocus-settled` = fully engaged
+   (the faded chrome drops from the tree: zero rects for the gamepad nav,
+   nothing to paint).
+
+   The recede is OPACITY-ONLY on purpose: the arc band and the off-Mars
+   flanks live INSIDE `.board-cont`, so the planet's own growth carries
+   them outward as they dissolve — the camera moves in and the instruments
+   yield, one physical motion, no second transform (and no containing-block
+   trap: a transform on `.global-numbers` would re-anchor every absolute
+   arc child and jump the ring by its own margin). */
+.con-board--pfocus .con-board__stage::before {
+    opacity: 1;
+}
+.con-board--pfocus-anim .con-board__stage > .board-cont {
+    transition: transform calc(var(--pfocus-ms, 520ms) * var(--motion-scale, 1)) var(--pfocus-ease, cubic-bezier(0.22, 0.61, 0.36, 1));
+}
+/* Entering (pfocus + anim together) — a touch longer, the confident
+   "camera moves in" ease; the return keeps the calm standard curve. */
+.con-board--pfocus.con-board--pfocus-anim {
+    --pfocus-ms: 640ms;
+    --pfocus-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+.con-board--pfocus-anim .con-board__stage .global-numbers,
+.con-board--pfocus-anim .con-board__stage .board-outer-spaces {
+    transition: opacity calc(440ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.con-board--pfocus .con-board__stage .global-numbers,
+.con-board--pfocus .con-board__stage .board-outer-spaces {
+    opacity: 0;
+    pointer-events: none;
+}
+.con-board--pfocus-settled .con-board__stage .global-numbers,
+.con-board--pfocus-settled .con-board__stage .board-outer-spaces {
+    display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-board--pfocus-anim .con-board__stage > .board-cont,
+    .con-board--pfocus-anim .con-board__stage .global-numbers,
+    .con-board--pfocus-anim .con-board__stage .board-outer-spaces,
+    .con-board .con-board__stage::before {
+        transition: none;
     }
 }
 
@@ -10850,14 +10917,18 @@ html.console-mode {
 }
 html.con-scale-focus-temperature .arc-scale--temperature,
 html.con-scale-focus-oxygen .arc-scale--oxygen,
-html.con-scale-focus-venus .arc-scale--venus {
+html.con-scale-focus-venus .arc-scale--venus,
+/* Planet Focus releases the OCEAN count through the same accent (the ocean
+   arc is its own component — the whole compact band pulses once). */
+html.con-scale-focus-oceans .global-numbers-oceans {
     animation: con-scale-focus-pulse calc(850ms * var(--motion-scale, 1)) ease-out 1;
     will-change: filter;
 }
 @media (prefers-reduced-motion: reduce) {
     html.con-scale-focus-temperature .arc-scale--temperature,
     html.con-scale-focus-oxygen .arc-scale--oxygen,
-    html.con-scale-focus-venus .arc-scale--venus { animation: none; }
+    html.con-scale-focus-venus .arc-scale--venus,
+    html.con-scale-focus-oceans .global-numbers-oceans { animation: none; }
 }
 
 /* ── Shared card inspector + filmstrip (T2 browser · T5 start scene) ──

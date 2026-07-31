@@ -143,6 +143,21 @@ function clearSafety(): void {
 }
 
 /** The input gate — the shell blocks pad input + commands while true. */
+/**
+ * The scene is still ON THE FIELD: a cover lifted off a placed BOARD CELL
+ * is hovering over it or travelling away from it. Once the covers fan into
+ * the reveal space ('fan'/'frame'/'handoff') the story belongs to the
+ * overlay, not the board. Planet Focus uses this to keep the enlarged
+ * stage up exactly as long as the field is performing.
+ */
+export function isBoardCardBonusFieldPhase(): boolean {
+  return boardCardBonusState.active &&
+    boardCardBonusState.source.kind === 'board-cell' &&
+    (boardCardBonusState.phase === 'lift' ||
+     boardCardBonusState.phase === 'hover' ||
+     boardCardBonusState.phase === 'gather');
+}
+
 export function isBoardCardBonusActive(): boolean {
   return boardCardBonusState.active;
 }

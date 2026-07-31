@@ -78,6 +78,7 @@ import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {TransferPoint, transferWaveDelayMs} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {snapPlanetFocusSettled} from '@/client/console/planetFocus';
 
 export type BonusProxy = {
   id: number,
@@ -202,6 +203,11 @@ registerAnimationHoldSupplier('tile-placement', tilePlacementHolding);
  * armed space. Sets `active` synchronously — the input gate closes at once.
  */
 export function armTilePlacement(opts: {spaceId: string}): void {
+  // A confirm that lands while Planet Focus is still GROWING the board
+  // snaps the transition to its settled state NOW — the detect measures the
+  // target hex right after the response, and the flight must never aim at
+  // a board that is still moving. No-op outside the enter transition.
+  snapPlanetFocusSettled();
   clearTimers();
   claimed = false;
   pendingBonuses = [];

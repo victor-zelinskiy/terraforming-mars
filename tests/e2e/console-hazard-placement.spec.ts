@@ -81,6 +81,31 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await page.waitForTimeout(settleMs);
 }
 
+/**
+ * Walk the standard-projects sheet until the FOCUSED card names `title`
+ * (mirrors console-planet-focus.spec — a blind "two downs" drifted onto
+ * «Город» and poisoned the panel walk with the city's own production line).
+ */
+async function focusStdProject(page: Page, title: RegExp): Promise<boolean> {
+  const focusedName = () =>
+    page.locator('.con-stdp__card--focused .con-stdp__name').innerText().catch(() => '');
+  // Let the sheet finish its enter transition before the first press —
+  // early arrows were swallowed and the walk desynced from the grid.
+  await page.waitForTimeout(900);
+  const walk = ['ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowDown',
+    'ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft',
+    'ArrowUp', 'ArrowUp', 'ArrowDown', 'ArrowDown', 'ArrowDown'];
+  for (let i = 0; i <= walk.length; i++) {
+    if (title.test(await focusedName())) {
+      return true;
+    }
+    if (i < walk.length) {
+      await key(page, walk[i], 500);
+    }
+  }
+  return false;
+}
+
 test.describe('console placement panel · Ares hazard adjacency', () => {
   test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1, screen: {width: 1920, height: 1080}});
 
@@ -97,16 +122,39 @@ test.describe('console placement panel · Ares hazard adjacency', () => {
     await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
     await page.waitForTimeout(3500);
 
-    // Walk the start wizard: A picks the focused card, RB advances a step
-    // (corp → buy projects → start). Adaptive: keep going until the start
-    // scene is gone — extra presses are inert once a step completes.
+    // Walk the start wizard STATE-AWARE (mirrors console-planet-focus.spec):
+    // the projects-buy step always advances with RT («СЛЕД. ШАГ» — an A
+    // there would toggle a card into the cart), a payment/begin screen
+    // confirms with A, anything else alternates A-first. Extra presses are
+    // inert once a step completes.
     const startScene = page.locator('.con-start__frame');
-    for (let i = 0; i < 14 && await startScene.count() > 0; i++) {
-      await key(page, i % 2 === 0 ? 'Enter' : 'KeyE', 1100);
+    for (let i = 0; i < 24 && await startScene.count() > 0; i++) {
+      const text = await startScene.innerText().catch(() => '');
+      let press: string;
+      if (/Заплатить|Начать|НАЧАТЬ|ОПЛАТИТЬ/.test(text)) {
+        press = 'Enter';
+      } else if (/для покупки/i.test(text)) {
+        press = 'Period';
+      } else {
+        press = i % 2 === 0 ? 'Enter' : 'Period';
+      }
+      await key(page, press, 1400);
     }
     await page.waitForTimeout(2500);
     await shoot(page, '01-after-start');
     expect(await startScene.count(), 'start wizard never completed').toBe(0);
+
+    // The initial buy step can outlive the wizard: either ANNOUNCED (the
+    // amber «ПОКУПКА КАРТ» chip — B opens it) or already served on the
+    // home. Open if needed, let the deal land, then SKIP (we buy nothing).
+    const rootText = () => page.locator('.con-root').innerText().catch(() => '');
+    if (/ПОКУПКА КАРТ/.test(await rootText())) {
+      await key(page, 'Escape', 3200);
+      for (let i = 0; i < 4 && /ПРОПУСТИТЬ/.test(await rootText()); i++) {
+        await key(page, 'Enter', 2600);
+      }
+      await page.waitForTimeout(1500);
+    }
 
     // LT wheel → Standard Projects (the center slot) → the projects sheet.
     await key(page, 'Comma', 1200);
@@ -114,15 +162,17 @@ test.describe('console placement panel · Ares hazard adjacency', () => {
     await key(page, 'Enter', 1500);
     await shoot(page, '03-std-projects');
 
-    // The sheet is a 2-column grid; the focus starts on «Продажа патентов».
-    // Two steps down lands on «Озеленение» — a greenery places a tile with no
-    // adjacency restriction yet (no tiles of ours), so every legal land cell
-    // is reachable, hazard neighbours included.
+    // «Озеленение»: a greenery places a tile with no adjacency restriction
+    // yet (no tiles of ours), so every legal land cell is reachable,
+    // hazard neighbours included.
     const panel = page.locator('.con-context');
-    await key(page, 'ArrowDown', 500);
-    await key(page, 'ArrowDown', 500);
+    expect(await focusStdProject(page, /озеленение/i), 'never focused «Озеленение»').toBeTruthy();
     await shoot(page, '04-greenery-focused');
-    await key(page, 'Enter', 2200);
+    await key(page, 'Enter', 1600);
+    // The project opens the shared payment panel — X is «ОПЛАТИТЬ».
+    if (/ОПЛАТА/.test(await page.locator('.con-root').innerText())) {
+      await key(page, 'KeyX', 2600);
+    }
     await shoot(page, '05-placement-open');
     const placing = (await panel.innerText()).includes('РАЗМЕЩЕНИЕ ТАЙЛА');
     expect(placing, 'never reached a board placement').toBeTruthy();
@@ -146,6 +196,6 @@ test.describe('console placement panel · Ares hazard adjacency', () => {
     // The penalty reads as a COST, and names WHY (the adjacent hazard).
     expect(found).toContain('Снизить производство');
     expect(found).toContain('ЦЕНА');
-    expect(found).toContain('опасная зона');
+    expect(found).toContain('опасных зон рядом');
   });
 });
