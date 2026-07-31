@@ -30,7 +30,7 @@ export type AutomaConflictKey =
   | 'variant:solarPhase'
   | 'variant:venusCompletion'
   | 'rule:randomBoardTiles'
-  | 'variant:customLists';
+  | 'variant:customColonies';
 
 export type AutomaConflict = {
   key: AutomaConflictKey;
@@ -61,8 +61,11 @@ export type AutomaCompatibilityInput = {
   solarPhaseOption: boolean;
   requiresVenusTrackCompletion: boolean;
   shuffleMapOption: boolean;
-  /** True when any custom corporation/colony/prelude/CEO/banned/included list is set. */
-  customLists: boolean;
+  /**
+   * True when a custom COLONY list is set. Custom CARD lists are deliberately
+   * NOT here — see the rule below.
+   */
+  customColonyList: boolean;
 };
 
 type Rule = {
@@ -121,7 +124,17 @@ const RULES: ReadonlyArray<Rule> = [
   // 1 M€ per crossed bonus space, +1 floater for the 30% wild resource.
   // See the isMarsBot branch in Game.increaseVenusScaleLevel.
   {key: 'rule:randomBoardTiles', test: (o) => o.shuffleMapOption, reason: () => 'the shuffled map (MarsBot tile placement uses the printed board)'},
-  {key: 'variant:customLists', test: (o) => o.customLists, reason: () => 'custom card/colony lists in the POC'},
+  // NOTE: custom CARD lists (corporations / preludes / project cards / banned /
+  // included) are NOT a conflict — they only reshape the DECKS, which reaches
+  // MarsBot indirectly at most. The bot is dealt no corporation, no prelude and
+  // no CEO, and it resolves a project card purely from its PRINTED TAGS
+  // (AutomaResolver.resolveProjectCard), with an unknown tag safely ignored —
+  // so no card list can hand it something it cannot play.
+  // The COLONY list is different: it is DIRECT bot data. MarsBot's shipping
+  // board (ShippingBoardData) has exactly 11 storage areas — one per base
+  // Colonies tile — and `AutomaColonies.addToStorage` THROWS on a colony
+  // outside them, so a custom list can crash the bot mid-turn.
+  {key: 'variant:customColonies', test: (o) => o.customColonyList, reason: () => 'a custom colony list (its shipping board covers the 11 base colony tiles)'},
 ];
 
 /** Every conflict of the given configuration, in the server's check order. */

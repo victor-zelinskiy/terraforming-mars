@@ -73,6 +73,22 @@ in the shared create modules may import `devGuaranteedCards.ts`.
    not offered at all — a pick that silently no-ops or breaks creation is worse
    than an absent one.
 
+## MarsBot (Automa) — supported on purpose
+
+The main e2e scenario is *rig the deck, then let the bot take turns while you
+check your part*, so a custom card list must NOT block an Automa game. The POC
+guard used to reject **any** custom list (`variant:customLists`); that rule is
+now split, because only one of them is really bot data:
+
+| List | Verdict | Why |
+| --- | --- | --- |
+| corporations / preludes / project cards / included / banned | **allowed** | The bot is dealt no corporation, no prelude and no CEO, and it resolves a project card purely from its **printed tags** (`AutomaResolver.resolveProjectCard`) — an unknown tag is safely ignored. A card list can only reshape the decks, which reaches the bot indirectly at most. |
+| **colonies** (`customColoniesList`) | still **rejected** (`variant:customColonies`) | Direct bot data: the shipping board (`ShippingBoardData`) has exactly 11 storage areas, one per base Colonies tile, and `AutomaColonies.addToStorage` **throws** on anything outside them — a custom list crashes the bot mid-turn. |
+
+Ordering holds too: `AutomaSetup.setup` draws the bot's action-deck project
+cards **after** the human has been dealt, so the bot never takes a guaranteed
+card off the top.
+
 ## Safety
 
 - Double-gated exactly like test mode: `adminUnlocked(state) && rules.testMode`.
@@ -95,3 +111,5 @@ in the shared create modules may import `devGuaranteedCards.ts`.
 | `tests/createGame/buildCreateGamePayload.spec.ts` | routing into the three lists, the test-mode gate, the first-player pin |
 | `tests/Game.spec.ts` | the cards really are dealt — including one whose module is off |
 | `tests/cards/Deck.spec.ts` | `putOnTop` ordering, discard reclaim, no-ops |
+| `tests/automa/AutomaSetup.spec.ts` | a rigged deck still creates a MarsBot game; the bot takes none of the picks; a custom COLONY list is still rejected |
+| `tests/automa/AutomaCompatibility.spec.ts` | the split rule + its reject wording |

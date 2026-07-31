@@ -387,7 +387,8 @@ function specialZoneFacts(
   } else if (space.spaceType === SpaceType.RESTRICTED) {
     out.push(rule('restricted', 'restriction', 'Restricted area', 'No tiles can ever be placed on this space.', 'nobody'));
   } else if (space.volcanic === true) {
-    out.push(rule('volcanic', 'map-special-zone', 'Volcanic area', 'A volcanic space. Some cards may only place their tile on a volcanic space.', 'neutral'));
+    // The first half ("A volcanic space") only repeated the title.
+    out.push(rule('volcanic', 'map-special-zone', 'Volcanic area', 'Some cards may only place their tile on a volcanic space.', 'neutral'));
   }
   return out;
 }
@@ -430,12 +431,15 @@ function describeSpaceBonus(bonus: SpaceBonus, count: number): BonusDescription 
   case SpaceBonus.ENERGY: return {title: 'Cell bonus', deferred: false, delta: gain('energy')};
   case SpaceBonus.DRAW_CARD: return {title: 'Cell bonus', deferred: false, delta: gain('cards')};
   case SpaceBonus.MEGACREDITS: return {title: 'Cell bonus', deferred: false, delta: gain('megacredits')};
-  case SpaceBonus.ENERGY_PRODUCTION: return {title: 'Cell bonus', deferred: false, delta: gain('energy', true), description: 'Production'};
-  case SpaceBonus.MICROBE: return {title: 'Add to a card', deferred: true, delta: gain('microbe'), description: 'Added to a card you choose'};
-  case SpaceBonus.ANIMAL: return {title: 'Add to a card', deferred: true, delta: gain('animal'), description: 'Added to a card you choose'};
-  case SpaceBonus.DATA: return {title: 'Add to a card', deferred: true, delta: gain('data'), description: 'Added to a card you choose'};
-  case SpaceBonus.SCIENCE: return {title: 'Add to a card', deferred: true, delta: gain('science'), description: 'Added to a card you choose'};
-  case SpaceBonus.ASTEROID: return {title: 'Add to a card', deferred: true, delta: gain('asteroid'), description: 'Added to a card you choose'};
+  // No descriptions below: the chip already renders the production frame, and
+  // "Added to a card you choose" only said the title ("Add to a card") again —
+  // five identical restatements when a cell prints several card resources.
+  case SpaceBonus.ENERGY_PRODUCTION: return {title: 'Cell bonus', deferred: false, delta: gain('energy', true)};
+  case SpaceBonus.MICROBE: return {title: 'Add to a card', deferred: true, delta: gain('microbe')};
+  case SpaceBonus.ANIMAL: return {title: 'Add to a card', deferred: true, delta: gain('animal')};
+  case SpaceBonus.DATA: return {title: 'Add to a card', deferred: true, delta: gain('data')};
+  case SpaceBonus.SCIENCE: return {title: 'Add to a card', deferred: true, delta: gain('science')};
+  case SpaceBonus.ASTEROID: return {title: 'Add to a card', deferred: true, delta: gain('asteroid')};
   case SpaceBonus.OCEAN: return {title: 'Place an ocean tile', deferred: true, description: 'Pay M€ to place an ocean tile from this bonus'};
   case SpaceBonus.TEMPERATURE:
   case SpaceBonus.TEMPERATURE_4MC: return {title: 'Raise temperature', deferred: true, description: 'Pay M€ to raise temperature one step (+1 TR)'};
@@ -474,9 +478,15 @@ function oceanAdjacencyFact(player: IPlayer, space: Space): BoardFact | undefine
     severity: 'positive',
     recipient: {kind: 'current-player'},
     title: 'Adjacent to ocean',
-    description: oceans === 1 ? 'A tile placed next to an ocean grants M€.' : 'A tile placed next to oceans grants M€ per ocean.',
+    // The old description ("a tile placed next to an ocean grants M€") only said
+    // the title again, and the `Ocean adjacency` source tag said it a THIRD time.
+    // What the chip's total genuinely cannot show is the ARITHMETIC — and the
+    // per-ocean rate is not always 2 (cards move `oceanBonus`). One ocean needs
+    // no breakdown, so it spends no line.
+    ...(oceans > 1 ?
+      {description: 'Adjacent oceans: ${0} × ${1} M€', params: [String(oceans), String(player.oceanBonus)]} :
+      {}),
     delta: {icon: 'megacredits', amount: megacredits, direction: 'gain'},
-    source: {type: 'global-rule', label: 'Ocean adjacency'},
   };
 }
 
@@ -754,9 +764,13 @@ function placementScoringFacts(player: IPlayer, space: Space, ctx: PlacementPrev
     out.push(cityScoringFact('place-city', {kind: 'current-player'}, greeneries, true));
   }
   if (countsAsGreenery) {
-    // The greenery itself scores +1 VP for the placing player.
-    out.push(vpFact('place-greenery-self', 'city-greenery-scoring', 'Greenery scores at game end', {kind: 'current-player'}, 0, 1, '+1 VP at game end.'));
+    // The greenery itself scores +1 VP for the placing player. NO description:
+    // the title, the `+1 VP` badge and the "At game end" section heading already
+    // said it three times over.
+    out.push(vpFact('place-greenery-self', 'city-greenery-scoring', 'Greenery scores at game end', {kind: 'current-player'}, 0, 1));
     // Each adjacent city scores +1 more for ITS owner — possibly an opponent.
+    // The recipient GROUP names the owner, so a description repeating "for its
+    // owner" adds nothing the layout doesn't carry.
     for (const adj of board.getAdjacentSpaces(space)) {
       if (Board.isCitySpace(adj)) {
         const ownerColor = adj.player?.color ?? adj.coOwner?.color;
@@ -766,8 +780,7 @@ function placementScoringFacts(player: IPlayer, space: Space, ctx: PlacementPrev
             'city-greenery-scoring',
             'Adjacent city scores at game end',
             recipientFor(player, ownerColor),
-            0, 1,
-            'The adjacent city scores +1 VP for its owner at game end.'));
+            0, 1));
         }
       }
     }
@@ -1452,6 +1465,39 @@ function megacreditCostFacts(player: IPlayer, space: Space, total: number, categ
 }
 
 /**
+ * The «why is it this much» line under the forced production loss.
+ *
+ * The old copy said "reduce ONE production of your choice", which was simply
+ * false on any cell touching two hazards or a single severe one — the exact
+ * surprise this preview exists to prevent. It now names the COUNT and the RATE,
+ * and the mixed case names BOTH rates instead of averaging them into a lie.
+ *
+ * The count is rendered as `hazards: N` / `×N` rather than a counted noun on
+ * purpose: a substituted `${0}` carries no Russian plural agreement, and this
+ * text has to render 1..6 zones.
+ */
+function hazardAdjacencyBreakdown(
+  hazards: {mild: number, severe: number} | undefined): {description: string, params: ReadonlyArray<string>} {
+  if (hazards === undefined || hazards.mild + hazards.severe === 0) {
+    // Defensive: a production cost with no hazard behind it can only come from a
+    // future rule, so say the one thing that is still certainly true.
+    return {description: 'Your choice of production.', params: []};
+  }
+  if (hazards.mild > 0 && hazards.severe > 0) {
+    return {
+      description: 'Your choice · mild ×${0} (−1), severe ×${1} (−2)',
+      params: [String(hazards.mild), String(hazards.severe)],
+    };
+  }
+  // Uniform severity — the rate comes from WHICH severity is present, never from
+  // dividing the total (a future board-specific production cost would skew that).
+  return {
+    description: 'Your choice · adjacent hazards: ${0}, −${1} each',
+    params: [String(hazards.mild + hazards.severe), hazards.severe > 0 ? '2' : '1'],
+  };
+}
+
+/**
  * `tileType` is what makes the cost HONEST: the hazard-adjacency production
  * penalty is waived for an OCEAN tile and for Athena's owner, exactly as
  * `Game.addTile` will charge it (both read the shared
@@ -1462,17 +1508,23 @@ function placementCostFacts(player: IPlayer, space: Space, tileType: TileType | 
   const out: Array<BoardFact> = [];
   out.push(...megacreditCostFacts(player, space, info.megacredits, 'placement-cost', info.affordable));
   if (info.production > 0) {
-    // A FORCED negative: placing next to a hazard makes you reduce production —
-    // surface the EXACT amount + that it's your choice, BEFORE confirming.
+    // A FORCED negative: placing next to a hazard makes you reduce production.
+    // The TOTAL rides the same premium chip every gain on this panel uses (red,
+    // because the row's severity is danger) so the Ares penalty stops reading in
+    // a different language than the rest of the board; the line under it carries
+    // the WHY the chip can't: how many hazards touch this cell and what each one
+    // charges.
     out.push({
       id: 'cost-production',
       category: 'placement-penalty',
       timing: 'cost',
       severity: 'danger',
       recipient: {kind: 'current-player'},
-      title: 'Reduce production by ${0}',
-      description: 'You must reduce a production of your choice (adjacent hazard).',
-      params: [String(info.production)],
+      title: 'Reduce production',
+      ...hazardAdjacencyBreakdown(info.hazardAdjacency),
+      // No icon: the player picks WHICH production to lose, so there is no one
+      // resource sprite that would be honest here.
+      delta: {icon: '', amount: info.production, direction: 'cost'},
       source: {type: 'map-rule', label: 'Hazard adjacency'},
     });
   }
@@ -1484,8 +1536,8 @@ function placementCostFacts(player: IPlayer, space: Space, tileType: TileType | 
       severity: 'danger',
       recipient: {kind: 'current-player'},
       title: 'Cannot afford the placement cost',
+      // The chip carries the shortfall; "you need more M€" only said the title.
       delta: {icon: 'megacredits', amount: info.deficit, direction: 'cost'},
-      description: 'You need more M€ to place here.',
       source: {type: 'map-rule', label: 'Placement cost'},
     });
   }
@@ -1616,7 +1668,8 @@ function vpFact(
   recipient: BoardFactRecipient,
   from: number,
   to: number,
-  description: string): BoardFact {
+  /** Omit when the title + the `VP` badge + the block heading already say it. */
+  description?: string): BoardFact {
   return {
     id,
     category,

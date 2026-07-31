@@ -2,7 +2,9 @@ import {expect} from 'chai';
 import {BonusCardId} from '../../src/common/automa/AutomaTypes';
 import {BoardName} from '../../src/common/boards/BoardName';
 import {CardName} from '../../src/common/cards/CardName';
+import {ColonyName} from '../../src/common/colonies/ColonyName';
 import {RandomMAOptionType} from '../../src/common/ma/RandomMAOptionType';
+import {toName} from '../../src/common/utils/utils';
 import {Game} from '../../src/server/Game';
 import {IGame} from '../../src/server/IGame';
 import {AutomaState} from '../../src/server/automa/AutomaState';
@@ -204,7 +206,10 @@ describe('AutomaSetup', () => {
       // NOTE: the ALTERNATE Venus board is SUPPORTED (its bonus spaces resolve
       // as fixed bot gains) — covered positively below + in AutomaResolver.spec.ts.
       ['shuffled map', {shuffleMapOption: true}],
-      ['banned cards', {bannedCards: ['Birds']}],
+      // NOTE: custom CARD lists are SUPPORTED (they only reshape the decks) —
+      // covered positively below. A custom COLONY list stays rejected: it is
+      // direct bot data (the 11-area shipping board).
+      ['a custom colony list', {coloniesExtension: true, customColoniesList: [ColonyName.IAPETUS]}],
       ['a non-Tharsis board', {boardName: BoardName.HELLAS}],
     ];
     for (const [label, options] of cases) {
@@ -212,6 +217,33 @@ describe('AutomaSetup', () => {
         expect(() => testAutomaGame(options as object)).to.throw(/MarsBot \(Automa\) does not support/);
       });
     }
+  });
+
+  it('accepts custom CARD lists — a rigged deck still gives the human an opponent', () => {
+    // The dev "guaranteed cards" setup: the picks ride the top of each deck so
+    // the human is dealt them, and MarsBot is unaffected — it gets no
+    // corporation and no prelude, and resolves project cards from printed tags.
+    const [game, human] = testAutomaGame({
+      preludeExtension: true,
+      customCorporationsList: [CardName.ECOLINE],
+      customPreludes: [CardName.DONATION],
+      customProjectCards: [CardName.ALGAE, CardName.BUSHES],
+      bannedCards: [CardName.BIRDS],
+    });
+    expect(game.automa).is.not.undefined;
+
+    expect(human.dealtCorporationCards.map(toName)).contains(CardName.ECOLINE);
+    expect(human.dealtPreludeCards.map(toName)).contains(CardName.DONATION);
+    expect(human.dealtProjectCards.map(toName)).to.include.members([CardName.ALGAE, CardName.BUSHES]);
+
+    // The bot took its own cards AFTER the human — never the guaranteed ones.
+    const bot = game.players.find((p) => p.isMarsBot);
+    expect(bot?.dealtCorporationCards).is.empty;
+    expect(bot?.dealtPreludeCards).is.empty;
+    const botProjects = automaOf(game).actionDeck.filter((c) => c.kind === 'project');
+    expect(botProjects.length).is.greaterThan(0);
+    expect(botProjects.map((c) => c.kind === 'project' ? c.name : undefined))
+      .does.not.have.members([CardName.ALGAE, CardName.BUSHES]);
   });
 
   it('accepts promo cards; Mons Insurance is banned from the official-solo deck (FAQ p.11)', () => {

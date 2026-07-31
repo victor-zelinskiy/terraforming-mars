@@ -10,7 +10,7 @@
          that now carries several more sections than it used to. -->
     <div v-if="preview.warningFacts.length > 0" class="board-preview__section board-preview__section--risk">
       <div class="board-preview__heading" v-i18n>Risk</div>
-      <board-fact-row v-for="fact in preview.warningFacts" :key="fact.id" :fact="fact" />
+      <board-fact-row v-for="fact in preview.warningFacts" :key="fact.id" :fact="fact" sectionTiming="warning" />
     </div>
 
     <div v-if="preview.immediateFacts.length > 0" class="board-preview__section board-preview__section--gain">
@@ -30,7 +30,7 @@
 
     <div v-if="preview.futureScoringFacts.length > 0" class="board-preview__section board-preview__section--endgame">
       <div class="board-preview__heading" v-i18n>At game end</div>
-      <board-fact-row v-for="fact in preview.futureScoringFacts" :key="fact.id" :fact="fact" />
+      <board-fact-row v-for="fact in preview.futureScoringFacts" :key="fact.id" :fact="fact" sectionTiming="endgame" />
     </div>
 
     <div v-if="preview.ruleFacts.length > 0" class="board-preview__section board-preview__section--rule">

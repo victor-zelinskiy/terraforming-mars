@@ -119,8 +119,8 @@ export class UrbanizedArea extends Card implements IProjectCard {
    * it. (The +2 M€ production is declarative and already shown in the play modal.)
    */
   public placementPreview(player: IPlayer): ReadonlyArray<BoardFact> {
+    // No description: the title plus the chip's real `N → N-1 production` say it.
     return [placementPreviews.productionChange(player, this, Resource.ENERGY, -1,
-      'Energy production decreases',
-      {description: 'Placing the city reduces your energy production 1 step.'})];
+      'Energy production decreases')];
   }
 }

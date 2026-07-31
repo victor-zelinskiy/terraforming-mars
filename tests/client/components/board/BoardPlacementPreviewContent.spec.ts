@@ -112,6 +112,53 @@ describe('BoardPlacementPreviewContent', () => {
       expect(wrapper.find('.board-fact__title').text()).to.eq('Reduce production by 2');
     });
 
+    /**
+     * The Ares penalty used to be the one fact on the panel with no chip — a
+     * paragraph of prose beside rows of premium chips. It now speaks the same
+     * language: a red total (the row is danger-severity) with no sprite, because
+     * the player picks WHICH production to lose.
+     */
+    it('renders a DANGER cost in the red chip tone', () => {
+      const wrapper = row(fact({
+        severity: 'danger',
+        timing: 'cost',
+        title: 'Reduce production',
+        delta: {icon: '', amount: 2, direction: 'cost'},
+      }));
+      const chip = wrapper.find('.action-effect-chip');
+      expect(chip.classes()).to.include('action-effect-chip--danger');
+      expect(chip.text()).to.include('2');
+    });
+
+    it('drops the icon box when the effect has no honest sprite', () => {
+      const bare = row(fact({delta: {icon: '', amount: 2, direction: 'cost'}}));
+      expect(bare.find('.action-effect-chip__icon').exists()).to.be.false;
+      expect(bare.find('.action-effect-chip').classes()).to.include('action-effect-chip--bare');
+
+      const iconed = row(fact({delta: {icon: 'megacredits', amount: 2, direction: 'gain'}}));
+      expect(iconed.find('.action-effect-chip__icon').exists()).to.be.true;
+    });
+
+    it('keeps a NON-danger cost amber', () => {
+      const wrapper = row(fact({severity: 'info', delta: {icon: 'megacredits', amount: 3, direction: 'cost'}}));
+      expect(wrapper.find('.action-effect-chip').classes()).to.not.include('action-effect-chip--danger');
+    });
+
+    it('drops a timing tag its own section heading already states', () => {
+      const endgame = fact({timing: 'endgame', title: 'City will score'});
+      expect(row(endgame).find('.board-fact__tag').exists(), 'no section context → tag earns its place').to.be.true;
+
+      const inSection = mount(BoardFactRow, {...globalConfig, props: {fact: endgame, sectionTiming: 'endgame'}});
+      expect(inSection.find('.board-fact__tag').exists()).to.be.false;
+
+      // A DIFFERENT timing inside the same block still says so.
+      const later = mount(BoardFactRow, {
+        ...globalConfig,
+        props: {fact: fact({timing: 'future', title: 'Later'}), sectionTiming: 'endgame'},
+      });
+      expect(later.find('.board-fact__tag').text()).to.eq('Later');
+    });
+
     it('names the source CARD so a gain is never anonymous', () => {
       const wrapper = row(fact({source: {type: 'card', id: 'Solar Farm', label: 'Solar Farm'}}));
       expect(wrapper.find('.board-fact__source').text()).to.eq('Solar Farm');

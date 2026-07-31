@@ -73,8 +73,9 @@ export class CityStandardProject extends StandardProjectCard {
    * city tile and hide half of what 25 M€ actually buys.
    */
   public placementPreview(player: IPlayer): ReadonlyArray<BoardFact> {
+    // No description: it would only restate the title, which already names the
+    // project, while the chip carries the real `2 → 3 production` readout.
     return [placementPreviews.productionChange(player, this, Resource.MEGACREDITS, 1,
-      'M€ production from the city project',
-      {description: 'The city standard project also raises your M€ production 1 step.'})];
+      'M€ production from the city project')];
   }
 }

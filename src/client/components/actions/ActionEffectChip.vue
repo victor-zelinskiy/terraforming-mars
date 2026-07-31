@@ -11,10 +11,15 @@
           'action-effect-chip--insufficient': shortfall,
           'action-effect-chip--noeffect': noEffect,
           'action-effect-chip--skipped': skipped,
+          'action-effect-chip--danger': danger && !shortfall,
+          'action-effect-chip--bare': iconClass === '',
         }]">
     <!-- The icon is ALWAYS a real sprite (including `tr` → tr.png and `cards` →
-         card.png, via iconClassFor) — never a drawn glyph, so it matches the game art. -->
-    <span class="action-effect-chip__icon" :class="iconClass" aria-hidden="true"></span>
+         card.png, via iconClassFor) — never a drawn glyph, so it matches the game art.
+         A few effects have NO honest single sprite (the Ares penalty lets the player
+         pick WHICH production to lose); those drop the box rather than reserve an
+         empty 22px hole. -->
+    <span v-if="iconClass !== ''" class="action-effect-chip__icon" :class="iconClass" aria-hidden="true"></span>
 
     <span class="action-effect-chip__value">
       <!-- Unaffordable cost → "have / need" so the shortfall is explicit. -->
@@ -60,6 +65,13 @@ export default defineComponent({
     // shown INSIDE a warning block purely to name the magnitude that is lost. Muted
     // + struck through so it can never be misread as something that applies.
     skipped: {
+      type: Boolean,
+      default: false,
+    },
+    // The hosting row is DANGER-severity (a forced, unavoidable loss). The chip
+    // takes the row's red so the two read as one statement — an amber "cost" chip
+    // under a red title read as a second, milder fact.
+    danger: {
       type: Boolean,
       default: false,
     },
@@ -129,6 +141,18 @@ export default defineComponent({
     --chip-rim: rgba(255, 120, 110, 0.6);
     --chip-bg: rgba(62, 26, 24, 0.55);
     --chip-accent: #ff9f96;
+  }
+  // A FORCED loss the player cannot plan around (the Ares hazard-adjacency
+  // production penalty). Same red as the unaffordable case — it is blocker-grade
+  // news, and its row title is already red.
+  &--danger {
+    --chip-rim: rgba(255, 120, 110, 0.6);
+    --chip-bg: rgba(62, 26, 24, 0.55);
+    --chip-accent: #ff9f96;
+  }
+  // No sprite → no reserved icon box, so the pill stays symmetric.
+  &--bare {
+    padding-left: 10px;
   }
   // No-op gain (capped at max) — muted, so it reads as "this won't do anything".
   &--noeffect {

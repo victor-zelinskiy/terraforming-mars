@@ -38,7 +38,9 @@ export class ErodeSpacesDeferred extends RunNTimes<Space> {
     })
       .andThen((space) => {
         AresHazards.putHazardAt(this.player.game, space, TileType.EROSION_MILD);
-        LogHelper.logBoardTileAction(this.player, space, 'space', 'eroded');
+        // NOT the bare `'space'` — that string is already the Space TAG's i18n
+        // key ("космос" in ru), so the log read «… разрушил эрозией космос».
+        LogHelper.logBoardTileAction(this.player, space, 'board space', 'eroded');
         game.grantSpaceBonuses(this.player, space);
         return this.next();
       });

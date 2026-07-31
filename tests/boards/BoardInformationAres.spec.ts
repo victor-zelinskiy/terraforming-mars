@@ -99,7 +99,7 @@ describe('BoardInformationEngine — Ares', () => {
     expect(facts.some((f) => f.category === 'ares-adjacency-bonus' || f.category === 'tile-owner-benefit')).to.be.false;
   });
 
-  it('placing next to a hazard surfaces the FORCED production-loss amount (with params)', () => {
+  it('placing next to a hazard surfaces the FORCED production-loss amount as a chip', () => {
     [game, player] = testGame(2, {aresExtension: true});
     const hz = emptyLand();
     hz.tile = {tileType: TileType.EROSION_SEVERE, protectedHazard: false}; // severe → 2 production
@@ -107,9 +107,49 @@ describe('BoardInformationEngine — Ares', () => {
 
     const prod = boardCellPreview(player, place, 'city').costFacts.find((f) => f.id === 'cost-production');
     expect(prod, 'forced production-loss cost fact').to.not.be.undefined;
-    expect(prod!.title).to.eq('Reduce production by ${0}');
-    expect(prod!.params).to.deep.eq(['2']); // severe adjacent hazard
+    expect(prod!.title).to.eq('Reduce production');
     expect(prod!.severity).to.eq('danger');
+    // The TOTAL rides the premium chip, like every other cost on the panel.
+    expect(prod!.delta).to.deep.eq({icon: '', amount: 2, direction: 'cost'});
+    // …and the line under it says WHY, naming the count and the per-hazard rate.
+    expect(prod!.description).to.eq('Your choice · adjacent hazards: ${0}, −${1} each');
+    expect(prod!.params).to.deep.eq(['1', '2']); // 1 adjacent hazard, −2 each (severe)
+  });
+
+  /**
+   * The bug this reworked copy exists to kill: "reduce ONE production" was simply
+   * false the moment a second hazard touched the cell.
+   */
+  it('spells out the count and rate for SEVERAL adjacent hazards', () => {
+    [game, player] = testGame(2, {aresExtension: true});
+    const place = game.board.spaces.find((s) =>
+      s.spaceType === SpaceType.LAND && s.tile === undefined &&
+      game.board.getAdjacentSpaces(s).filter((n) => n.spaceType === SpaceType.LAND && n.tile === undefined).length >= 2)!;
+    const neighbours = game.board.getAdjacentSpaces(place)
+      .filter((n) => n.spaceType === SpaceType.LAND && n.tile === undefined);
+    neighbours[0].tile = {tileType: TileType.DUST_STORM_MILD, protectedHazard: false};
+    neighbours[1].tile = {tileType: TileType.DUST_STORM_MILD, protectedHazard: false};
+
+    const prod = boardCellPreview(player, place, 'city').costFacts.find((f) => f.id === 'cost-production');
+    expect(prod!.delta?.amount).to.eq(2);
+    expect(prod!.description).to.eq('Your choice · adjacent hazards: ${0}, −${1} each');
+    expect(prod!.params).to.deep.eq(['2', '1']); // 2 adjacent hazards, −1 each
+  });
+
+  it('names BOTH rates when the adjacent hazards differ in severity', () => {
+    [game, player] = testGame(2, {aresExtension: true});
+    const place = game.board.spaces.find((s) =>
+      s.spaceType === SpaceType.LAND && s.tile === undefined &&
+      game.board.getAdjacentSpaces(s).filter((n) => n.spaceType === SpaceType.LAND && n.tile === undefined).length >= 2)!;
+    const neighbours = game.board.getAdjacentSpaces(place)
+      .filter((n) => n.spaceType === SpaceType.LAND && n.tile === undefined);
+    neighbours[0].tile = {tileType: TileType.DUST_STORM_MILD, protectedHazard: false};
+    neighbours[1].tile = {tileType: TileType.EROSION_SEVERE, protectedHazard: false};
+
+    const prod = boardCellPreview(player, place, 'city').costFacts.find((f) => f.id === 'cost-production');
+    expect(prod!.delta?.amount).to.eq(3); // 1 + 2 — never averaged into a single rate
+    expect(prod!.description).to.eq('Your choice · mild ×${0} (−1), severe ×${1} (−2)');
+    expect(prod!.params).to.deep.eq(['1', '1']);
   });
 
   it('hovering an adjacency-SOURCE tile explains the neighbour bonus AND the owner benefit', () => {

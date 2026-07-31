@@ -223,6 +223,7 @@ export class MarsBoard extends Board {
     canAffordOptions?: CanAffordOptions, tileType?: TileType,
   }): {
     megacredits: number, production: number, tr: SpaceCosts['tr'], affordable: boolean, deficit: number,
+    hazardAdjacency?: SpaceCosts['hazardAdjacency'],
   } {
     const canAffordOptions = options?.canAffordOptions;
     const aresCostsApply = player.game.gameOptions.aresExtension && !AresHandler.placementCostsWaived(player.game);
@@ -231,7 +232,10 @@ export class MarsBoard extends Board {
     });
     const affordable = this.canAfford(player, space, canAffordOptions);
     const deficit = affordable ? 0 : this.placementMegacreditDeficit(player, space, 'cannot-afford', canAffordOptions);
-    return {megacredits: costs.megacredits, production: costs.production, tr: costs.tr, affordable, deficit};
+    return {
+      megacredits: costs.megacredits, production: costs.production, tr: costs.tr, affordable, deficit,
+      hazardAdjacency: costs.hazardAdjacency,
+    };
   }
 
   /**

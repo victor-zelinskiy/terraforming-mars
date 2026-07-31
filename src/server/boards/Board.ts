@@ -19,6 +19,14 @@ export type SpaceCosts = {
   megacredits: number,
   production: number,
   tr: TRSource,
+  /**
+   * The adjacent hazards that produced `production`, counted by severity. Filled
+   * in the SAME loop that charges the penalty, so the read-only preview can spell
+   * out "3 adjacent hazards, −1 each" without re-deriving (and thus never
+   * describe a breakdown the commit path doesn't charge). Absent when nothing
+   * adjacent is hazardous or the placement is exempt.
+   */
+  hazardAdjacency?: {mild: number, severe: number},
 };
 
 /**
@@ -183,14 +191,18 @@ export abstract class Board {
     }
 
     const subjectToHazardAdjacency = options?.subjectToHazardAdjacency ?? true;
+    let mildHazards = 0;
+    let severeHazards = 0;
     for (const adjacentSpace of this.getAdjacentSpaces(space)) {
       if (subjectToHazardAdjacency) {
         switch (hazardSeverity(adjacentSpace.tile?.tileType)) {
         case 'mild':
           costs.production += 1;
+          mildHazards++;
           break;
         case 'severe':
           costs.production += 2;
+          severeHazards++;
           break;
         }
       }
@@ -207,6 +219,9 @@ export abstract class Board {
         //   }
         // }
       }
+    }
+    if (mildHazards + severeHazards > 0) {
+      costs.hazardAdjacency = {mild: mildHazards, severe: severeHazards};
     }
     return costs;
   }

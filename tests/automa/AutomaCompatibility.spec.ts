@@ -20,7 +20,7 @@ function cleanInput(): AutomaCompatibilityInput {
     solarPhaseOption: false,
     requiresVenusTrackCompletion: false,
     shuffleMapOption: false,
-    customLists: false,
+    customColonyList: false,
   };
 }
 
@@ -61,7 +61,12 @@ describe('automaCompatibility — the shared UI/server conflict rules', () => {
       .eq('the 63 TR solo variant (the win condition is beating MarsBot)');
     expect(automaConflicts({...cleanInput(), solarPhaseOption: true})[0].reason)
       .eq('the Solar Phase / WGT option (Government Intervention covers it)');
-    expect(automaConflicts({...cleanInput(), customLists: true})[0].reason)
-      .eq('custom card/colony lists in the POC');
+    expect(automaConflicts({...cleanInput(), customColonyList: true})[0].reason)
+      .eq('a custom colony list (its shipping board covers the 11 base colony tiles)');
+  });
+
+  it('a custom COLONY list conflicts — it is direct MarsBot data', () => {
+    const conflicts = automaConflicts({...cleanInput(), customColonyList: true});
+    expect(conflicts.map((c) => c.key)).deep.eq(['variant:customColonies']);
   });
 });

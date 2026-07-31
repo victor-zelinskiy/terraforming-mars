@@ -9,7 +9,7 @@
       <div v-if="sourceLabel !== undefined" class="board-fact__source" v-i18n>{{ sourceLabel }}</div>
     </div>
     <div class="board-fact__value">
-      <action-effect-chip v-if="deltaEffect !== undefined" :effect="deltaEffect" />
+      <action-effect-chip v-if="deltaEffect !== undefined" :effect="deltaEffect" :danger="fact.severity === 'danger'" />
       <span v-if="vpAmount !== undefined && vpAmount !== 0" class="board-fact__vp" :class="{'board-fact__vp--neg': vpAmount < 0}">
         <span class="board-fact__vp-amount">{{ vpSign }}{{ Math.abs(vpAmount) }}</span>
         <span class="board-fact__vp-label" v-i18n>VP</span>
@@ -38,6 +38,17 @@ export default defineComponent({
     fact: {
       type: Object as PropType<BoardFact>,
       required: true,
+    },
+    /**
+     * The timing the HOSTING section already states in its heading ("At game
+     * end" / "Risk"). A tag repeating its own heading is a wasted line on a
+     * finite panel, so the row drops it — while a DIFFERENT timing inside the
+     * same block (a `future` fact under "At game end") still earns its tag.
+     * Unset on the hover popover, which groups by recipient and states no timing.
+     */
+    sectionTiming: {
+      type: String as PropType<BoardFact['timing'] | undefined>,
+      default: undefined,
     },
   },
   computed: {
@@ -98,6 +109,10 @@ export default defineComponent({
       // A progress row lives in its own "Milestones and awards" block and shows a
       // `from → to` badge; a "Later" tag beside it says nothing new.
       if (this.fact.progress !== undefined) {
+        return undefined;
+      }
+      // The section heading already said it.
+      if (this.sectionTiming !== undefined && this.fact.timing === this.sectionTiming) {
         return undefined;
       }
       switch (this.fact.timing) {

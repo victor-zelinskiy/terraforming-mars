@@ -2,6 +2,9 @@
     "Build Colony bonus": "Бонус строительства",
     "Colony bonus": "Бонус колонии",
     "Trade Income: Erode X adjacent spaces": "Торговый доход: эрозия Х соседних клеток",
+    "Place a hazard tile next to no other tile": "Разместите опасную зону, не примыкающую к другим тайлам",
+    "Erode n spaces adjacent to hazard tiles (gaining placement bonuses)": "Эрозия N клеток рядом с опасными зонами (с получением бонусов за размещение)",
+    "Gain 1 M€ per hazard tile on Mars": "Получите 1 M€ за каждую опасную зону на Марсе",
     "Trade Income: WGT raises global parameter": "Торговый доход: правительство повышает глобальный параметр",
     "Trade bonus": "Торговый бонус",
 

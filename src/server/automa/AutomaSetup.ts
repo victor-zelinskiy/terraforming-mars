@@ -31,12 +31,11 @@ export class AutomaSetup {
       solarPhaseOption: gameOptions.solarPhaseOption,
       requiresVenusTrackCompletion: gameOptions.requiresVenusTrackCompletion,
       shuffleMapOption: gameOptions.shuffleMapOption,
-      customLists: gameOptions.customCorporationsList.length > 0 ||
-        gameOptions.customColoniesList.length > 0 ||
-        gameOptions.customPreludes.length > 0 ||
-        gameOptions.customCeos.length > 0 ||
-        gameOptions.bannedCards.length > 0 ||
-        gameOptions.includedCards.length > 0,
+      // Only the COLONY list feeds MarsBot data directly (its shipping board).
+      // Custom CARD lists reshape the decks and reach the bot indirectly at
+      // most — deliberately allowed, so a dev can rig a deck and still have an
+      // opponent taking turns. See the rule in automaCompatibility.ts.
+      customColonyList: gameOptions.customColoniesList.length > 0,
     };
   }
 

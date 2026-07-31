@@ -445,7 +445,9 @@ export function stateAutomaConflicts(): ReadonlyArray<AutomaConflict> {
     solarPhaseOption: false,
     requiresVenusTrackCompletion: false,
     shuffleMapOption: config.rules.randomBoardTiles,
-    customLists: false,
+    // The premium form never sends a custom colony list. (Custom CARD lists —
+    // the dev "guaranteed cards" picks — are not a MarsBot conflict at all.)
+    customColonyList: false,
   });
 }
 
