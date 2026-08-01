@@ -112,6 +112,18 @@ a:active {
  * Each face still carries a `unicode-range` so only the relevant TTF
  * is fetched per locale (en+latin → Prototype.ttf, Cyrillic letters
  * pull Prototype-ru.ttf, Polish accents pull Prototype-pl.ttf).
+ *
+ * ⚠️ A `unicode-range` NARROWER than the file it points at is a silent
+ * rendering bug, not an optimisation. The Latin face claims U+000-5FF,
+ * which SWALLOWS the Cyrillic letters that sit outside the ru face's
+ * declared range — the browser then picks Prototype.ttf (zero Cyrillic
+ * glyphs) and drops that ONE character to the next family in the stack.
+ * On `.pcard` that stack ends in 'Times New Roman', so a single letter
+ * rendered as a serif in the middle of a title. This bit Ё/ё (and the
+ * Ukrainian Є І Ї Ґ) until 2026-08-01: all ten live in Prototype-ru.ttf
+ * with correct outlines and metrics, they were simply never declared.
+ * The range below is the file's ACTUAL Cyrillic coverage; keep the two
+ * in sync — `tests/styles/prototypeFontCoverage.spec.ts` enforces it.
  */
 @font-face {
     font-family: Prototype;
@@ -123,7 +135,10 @@ a:active {
     font-family: Prototype;
     src: url(./assets/Prototype-ru.ttf);
     font-display: swap;
-    unicode-range: U+0410-044F; /* Russian glyphs */
+    /* Cyrillic glyphs — the exact set present in Prototype-ru.ttf.
+       U+0401/U+0451 are Ё/ё; U+0404,0406-0407,0454,0456-0457,0490-0491
+       are the Ukrainian Є І Ї Ґ pairs. All sit OUTSIDE U+0410-044F. */
+    unicode-range: U+0401, U+0404, U+0406-0407, U+0410-044F, U+0451, U+0454, U+0456-0457, U+0490-0491;
 }
 @font-face {
     font-family: Prototype;
@@ -147,9 +162,17 @@ a:active {
 
 /*
  * Anton — heavy condensed display font (Google Fonts), self-hosted.
- * Single weight regular, full Latin + Cyrillic. More compressed than
- * Russo One — fits long Russian card names better and reads closer
- * to the condensed display fonts used in Steam Asmodee Digital UI.
+ * Single weight regular. More compressed than Russo One and reads
+ * closer to the condensed display fonts used in Steam Asmodee Digital
+ * UI.
+ *
+ * ⚠️ This file is the LATIN-ONLY Anton subset — it has ZERO Cyrillic
+ * glyphs (verified 2026-08-01; the comment here used to claim "full
+ * Latin + Cyrillic", which was simply wrong). It is therefore only
+ * ever safe BEHIND Russo One in a stack, which is the only way it is
+ * used today (cards_scifi.less). Never promote it ahead of Russo One
+ * without shipping a Cyrillic subset — every Russian title would fall
+ * through to Ubuntu.
  */
 @font-face {
     font-family: "Anton";

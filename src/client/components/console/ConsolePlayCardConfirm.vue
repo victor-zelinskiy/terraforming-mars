@@ -725,12 +725,19 @@ export default defineComponent({
       const id = this.sub?.kind === 'playedTarget' ? this.sub.choiceId : this.playedTargetRowId;
       return id === undefined ? undefined : this.allChoices.find((c: ComposerChoice) => c.id === id);
     },
-    /** The FIRST decision row this step owns — used to render its summary and
-     *  to warm the model before the player presses A. */
+    /**
+     * The FIRST decision row this step owns — used to render its summary and
+     * to warm the model before the player presses A.
+     *
+     * Returns the CHOICE id, not the ROW id. The row's own id is prefixed
+     * (`step#<choiceId>`), so returning it made the lookup in
+     * `playedTargetChoice` miss every time: the model came out undefined and
+     * A on the row did nothing at all.
+     */
     playedTargetRowId(): string | undefined {
-      return this.decisionRows
-        .find((r) => r.kind === 'step' && this.choiceMode(r.choice) === 'playedTarget')
-        ?.id;
+      const row = this.decisionRows
+        .find((r) => r.kind === 'step' && this.choiceMode(r.choice) === 'playedTarget');
+      return row !== undefined && row.kind === 'step' ? row.choice.id : undefined;
     },
     playedTargetLayout(): PlayedTargetLayout {
       return planPlayedTargetLayout({

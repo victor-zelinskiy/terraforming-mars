@@ -352,8 +352,10 @@
  * rules. We now match the same depth and use !important on
  * font-family to make the win bulletproof.
  *
- * Font: RUSSO ONE (restored per user) with Anton fallback. Both have
- * full Cyrillic, both shipped self-hosted.
+ * Font: RUSSO ONE (restored per user) with Anton fallback, both
+ * shipped self-hosted. Only RUSSO ONE carries Cyrillic — the Anton
+ * subset in /assets is Latin-only, so it must stay BEHIND Russo One
+ * here or Russian titles fall through to Ubuntu (see common.less).
  *
  * Visual rework:
  *   - Per-type gradient redone with 3-stop vertical (lighter at top,
