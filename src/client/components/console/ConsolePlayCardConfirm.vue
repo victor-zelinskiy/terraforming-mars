@@ -80,6 +80,7 @@
                                      :layout="playedTargetLayout"
                                      :focus="sub.focus"
                                      :selection="playedTargetSelection"
+                                     :bandHeight="playedTargetHeight"
                                      :lockedCard="playedTargetResults[sub.choiceId]?.cardName ?? ''" />
 
             <!-- ── SUB-STATE: a PREMIUM pick list (card / player / or w/ metadata
@@ -267,10 +268,15 @@
                         <b v-else-if="imp.amount !== undefined" class="con-ptsel__imp-delta">{{ imp.amount > 0 ? '+' : '' }}{{ imp.amount }}</b>
                       </span>
                     </div>
-                    <!-- The CHANGE affordance, on the row that owns it: A here
-                         re-opens the selector (the CTA row's A plays). It is
-                         drawn only while this row holds the cursor, so the
-                         screen never shows two live Ⓐ verbs at once. -->
+                    <!-- The CHANGE affordance — drawn ONLY while this row holds
+                         the cursor. A dimmed Ⓐ here was still an Ⓐ: with the
+                         focus on the commit rail the screen promised «изменить»
+                         next to a button that would have played the card. One
+                         physical button may advertise exactly one verb at a
+                         time, so this is presence, not emphasis.
+                         The slot is RESERVED either way (`visibility`), so
+                         gaining the cursor cannot move the row, the thumbnail
+                         or anything below it. -->
                     <span class="con-composer__target-change" :class="{'con-composer__target-change--on': focusIdx === row.i}">
                       <GamepadGlyph control="confirm" />
                       <span>{{ $t('Change selection') }}</span>
@@ -402,6 +408,7 @@ import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
   computePrimaryAction, PrimaryActionState,
+  playPrimaryVerb, PlayFocusTarget,
   playChoiceMode, PlayChoiceMode, foldCopiedProductionEffects,
 } from '@/client/console/consolePlayCardComposer';
 import {
@@ -549,6 +556,21 @@ export default defineComponent({
       playedTargetOwnerFocus: {} as Record<string, number>,
       /** The step's measured content width — the split/tabs decision reads it. */
       playedTargetWidth: 0,
+      /**
+       * THE STEP'S VERTICAL BUDGET, measured from the STRETCHED band
+       * (`.con-composer__playmain`, `flex: 1` of the panel) and never from
+       * anything inside it.
+       *
+       * This is not a detail. The right column and its scroll area are BOTH
+       * content-sized here (`align-self: center` + `max-height: 100%`), so a
+       * budget read from either is a function of the very cards it is about to
+       * size — a cycle whose fixpoint depends on nothing but what the unmeasured
+       * first render happened to produce. That is what drew a LONE candidate
+       * smaller than each of two: one card in one stacked block made a shorter
+       * column than two blocks did, so it measured itself a smaller room and
+       * settled there.
+       */
+      playedTargetHeight: 0,
       /** Multi-select hand picks by choice id (display; the capture is the truth). */
       multiPicks: {} as Record<string, ReadonlyArray<string>>,
       payCounts: {} as Partial<Record<SpendableResource, number>>,
@@ -1035,33 +1057,21 @@ export default defineComponent({
       return 'pick';
     },
     /**
-     * The A-button verb for the FOCUSED row — A always acts on the focused row,
-     * so its verb is honest about what will happen: «Разыграть» ONLY on the CTA
-     * (and only when ready), «Изменить»/«Выбрать» on a pick, «Далее» on a
-     * variant/stepper (advance toward the CTA). This is why A can never be
-     * mistaken for "change" and silently play the card.
+     * The A-button verb for the FOCUSED row. The decision itself is
+     * `playPrimaryVerb` (pure, unit-tested); this only reports which row the
+     * cursor is on. The ROW's own affordance reads the same focus, so the
+     * command bar and the row can never advertise different verbs.
      */
     primaryFooter(): {label: string, enabled: boolean} {
       const row = this.focusedRow;
-      if (row?.kind === 'cta') {
-        const st = this.primaryActionState;
-        if (st.kind === 'ready') {
-          return {label: 'Play now', enabled: true};
-        }
-        if (st.kind === 'blocked-payment') {
-          return {label: 'Configure payment', enabled: true};
-        }
-        if (st.kind === 'need-preselect') {
-          return {label: 'Choose an option', enabled: true};
-        }
-        // blocked-requirement (unplayable) — nothing A can do; the CTA shows why.
-        return {label: 'Play now', enabled: false};
-      }
-      if (row !== undefined && this.focusedOpensPicker) {
-        return {label: this.rowMissing(row) ? 'Select' : 'Change', enabled: true};
-      }
-      // A variant / amount / spend-heat row: A proceeds toward the play CTA.
-      return {label: 'Next', enabled: true};
+      const focused: PlayFocusTarget = row === undefined ?
+        'none' :
+        (row.kind === 'cta' ? 'cta' : (this.focusedOpensPicker ? 'picker' : 'other'));
+      return playPrimaryVerb({
+        focused,
+        pickAnswered: row !== undefined && !this.rowMissing(row),
+        primary: this.primaryActionState,
+      });
     },
     /** The focused row opens a sub-picker on A (card/player/or step or tabbed) —
      *  A = «Выбрать»/«Изменить» there, never «Разыграть». */
@@ -1946,12 +1956,19 @@ export default defineComponent({
      * its group and the cursor on the card itself, already target-locked.
      */
     openPlayedTargetStep(c: ComposerChoice): void {
-      // Measure the zone ONCE, before the step is visible: the split/tabs
-      // decision must be taken on the real band and must never change while
-      // the player is interacting with it.
-      const zone = (this.$el as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-composer__playright');
+      // Measure the band ONCE, before the step is visible, and measure it where
+      // the layout is STRETCHED rather than content-sized — see
+      // `playedTargetHeight`. The width comes from the work column (`flex: 1`
+      // with a max cap, so it is stretched too); the height comes from the row
+      // above it, which is the only box here whose size the cards cannot move.
+      const root = this.$el as HTMLElement | undefined;
+      const zone = root?.querySelector<HTMLElement>('.con-composer__playright');
       if (zone !== null && zone !== undefined) {
         this.playedTargetWidth = zone.clientWidth;
+      }
+      const band = root?.querySelector<HTMLElement>('.con-composer__playmain');
+      if (band !== null && band !== undefined) {
+        this.playedTargetHeight = band.clientHeight;
       }
       const owners = this.playedTargetModel?.owners ?? [];
       if (owners.length === 0) {

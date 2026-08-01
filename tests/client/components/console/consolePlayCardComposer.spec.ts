@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {
   buildPlayCardBatch, playComposerFootHints, FootHint, PlayFootContext,
   computePrimaryAction, buildPaymentView, playChoiceMode, foldCopiedProductionEffects,
+  playPrimaryVerb,
 } from '@/client/console/consolePlayCardComposer';
 import {CardName} from '@/common/cards/CardName';
 import {Payment} from '@/common/inputs/Payment';
@@ -558,5 +559,62 @@ describe('consolePlayCardComposer.foldCopiedProductionEffects', () => {
   it('a picked candidate ABSENT from the box map (bespoke produce) contributes nothing', () => {
     const out = foldCopiedProductionEffects(copyBranch(), () => CardName.PETS, prod);
     expect(out).to.be.undefined;
+  });
+});
+
+/**
+ * A ALWAYS ACTS ON THE FOCUSED ROW, so it must promise exactly one verb at a
+ * time. The composer used to decide this inside the component, where nothing
+ * could test it — and the answered target row drew a dimmed «Ⓐ Изменить выбор»
+ * while the cursor sat on the commit rail, so the screen showed two Ⓐ verbs and
+ * only one of them was true. The row's affordance and the command bar now read
+ * the same decision, which is this one.
+ */
+describe('playPrimaryVerb — one button, one promise', () => {
+  const READY = {kind: 'ready'} as const;
+
+  it('promises PLAY only on the commit rail', () => {
+    expect(playPrimaryVerb({focused: 'cta', primary: READY}))
+      .to.deep.eq({label: 'Play now', enabled: true});
+  });
+
+  /** THE REGRESSION: with the cursor on the commit rail, no other row may be
+   *  offering A. The verb for that focus is «Разыграть» and nothing else. */
+  it('never promises CHANGE while the commit rail holds the cursor', () => {
+    const verb = playPrimaryVerb({focused: 'cta', pickAnswered: true, primary: READY});
+    expect(verb.label).to.eq('Play now');
+    expect(verb.label).to.not.eq('Change');
+  });
+
+  it('promises CHANGE on an ANSWERED pick, SELECT on an empty one', () => {
+    expect(playPrimaryVerb({focused: 'picker', pickAnswered: true, primary: READY}).label).to.eq('Change');
+    expect(playPrimaryVerb({focused: 'picker', pickAnswered: false, primary: READY}).label).to.eq('Select');
+  });
+
+  /** The commit rail's verb follows the play STATE, so A never says «Разыграть»
+   *  while something still blocks the play. */
+  it('re-labels the commit rail for whatever actually blocks the play', () => {
+    expect(playPrimaryVerb({focused: 'cta', primary: {kind: 'blocked-payment'}}).label).to.eq('Configure payment');
+    expect(playPrimaryVerb({focused: 'cta', primary: {kind: 'need-preselect', rowIndex: 1}}).label).to.eq('Choose an option');
+    const blocked = playPrimaryVerb({focused: 'cta', primary: {kind: 'blocked-requirement', reason: 'x'}});
+    expect(blocked.enabled).to.eq(false);
+  });
+
+  it('advances toward the play on a variant or a stepper', () => {
+    expect(playPrimaryVerb({focused: 'other', primary: READY}).label).to.eq('Next');
+    expect(playPrimaryVerb({focused: 'none', primary: READY}).label).to.eq('Next');
+  });
+
+  /** The command bar renders whatever this decided — so the two are one
+   *  statement, not two that happen to agree today. */
+  it('is what the command bar publishes on A', () => {
+    const verb = playPrimaryVerb({focused: 'picker', pickAnswered: true, primary: READY});
+    const hints = playComposerFootHints({
+      sub: 'none', subIsCardList: false, hasRows: true, focusedKind: 'pick',
+      configurablePayment: false, paymentReady: true,
+      primaryLabel: verb.label, primaryEnabled: verb.enabled,
+    } as PlayFootContext);
+    const a = hints.find((h) => h.control === 'confirm');
+    expect(a?.label).to.eq('Change');
   });
 });

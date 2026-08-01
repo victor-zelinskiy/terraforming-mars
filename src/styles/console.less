@@ -17092,18 +17092,21 @@ html.console-mode {
     font-size: .68rem; letter-spacing: .05rem; text-transform: uppercase;
 }
 .con-composer__target-dot { align-self: center; width: .45rem; height: .45rem; border-radius: 50%; flex-shrink: 0; }
-/* The CHANGE affordance. Present at rest so the row reads as answerable-again,
-   and lit only while the row holds the cursor — A means «change» HERE and
-   «play» on the commit rail, and the screen never shows two live Ⓐ at once. */
+/* The CHANGE affordance — HIDDEN unless this row holds the cursor.
+   A dimmed Ⓐ is still an Ⓐ: with the focus on the commit rail the screen
+   showed «Ⓐ Изменить выбор» beside a button that would have played the card,
+   and dimming does not make a promise smaller — it makes it quieter. One
+   physical button advertises exactly one verb at a time.
+   `visibility` and not `display`: the slot stays reserved, so gaining the
+   cursor cannot move the row, the thumbnail, the Result or the payment. */
 .con-composer__target-change {
     flex-shrink: 0;
     display: inline-flex; align-items: center; gap: .35rem;
     font-size: .7rem; letter-spacing: .05rem; text-transform: uppercase;
-    color: @con-text-dim;
-    opacity: .5;
-    transition: opacity calc(140ms * var(--motion-scale, 1)) ease, color calc(140ms * var(--motion-scale, 1)) ease;
+    color: fade(@con-mint, 95%);
+    visibility: hidden;
     .gp-glyph { transform: scale(.78); }
-    &--on { opacity: 1; color: fade(@con-mint, 95%); }
+    &--on { visibility: visible; }
 }
 
 /* ── Play-card composer: a two-column card · pre-select layout ───────────── */

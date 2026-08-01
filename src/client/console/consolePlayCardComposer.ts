@@ -299,6 +299,43 @@ export function computePrimaryAction(ctx: {
   return {kind: 'ready'};
 }
 
+/** Which kind of row the cursor is on, as far as A is concerned. */
+export type PlayFocusTarget = 'cta' | 'picker' | 'other' | 'none';
+
+/**
+ * THE A-BUTTON VERB for the FOCUSED row — one decision, in one place.
+ *
+ * A always acts on the focused row, so its verb has to be honest about what
+ * will happen: «Разыграть» ONLY on the commit rail, «Выбрать»/«Изменить» on a
+ * pick, «Далее» on a variant or a stepper. This lived inside the composer
+ * component, where nothing could test it and where the ROW's own affordance was
+ * free to disagree with the command bar — and did: an answered target row drew
+ * a dimmed «Ⓐ Изменить выбор» while the cursor sat on the commit rail, so the
+ * screen showed two Ⓐ verbs and only one of them was true. Dimming does not
+ * make a promise smaller. Both readers now come from here.
+ */
+export function playPrimaryVerb(ctx: {
+  focused: PlayFocusTarget,
+  /** For a `picker` row: does it already hold an answer? */
+  pickAnswered?: boolean,
+  primary: PrimaryActionState,
+}): {label: string, enabled: boolean} {
+  if (ctx.focused === 'cta') {
+    switch (ctx.primary.kind) {
+    case 'ready': return {label: 'Play now', enabled: true};
+    case 'blocked-payment': return {label: 'Configure payment', enabled: true};
+    case 'need-preselect': return {label: 'Choose an option', enabled: true};
+    // Unplayable: nothing A can do here — the CTA itself carries the reason.
+    case 'blocked-requirement': return {label: 'Play now', enabled: false};
+    }
+  }
+  if (ctx.focused === 'picker') {
+    return {label: ctx.pickAnswered === true ? 'Change' : 'Select', enabled: true};
+  }
+  // A variant / amount / spend-heat row: A proceeds toward the play CTA.
+  return {label: 'Next', enabled: true};
+}
+
 // ── Contextual footer command bar (the ONE bottom action bar) ───────────────
 
 export type FootHint = {control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean, spread?: boolean, badge?: number, highlight?: boolean};

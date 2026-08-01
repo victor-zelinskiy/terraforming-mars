@@ -482,6 +482,18 @@ const SLOT_H = 460;
  */
 const MAX_CARD_ZOOM = 1.0;
 const MAX_CARD_ZOOM_HANDHELD = 0.6;
+/**
+ * A LONE target may take more room — there is no second card to be fair to, and
+ * one choice drawn at pair size reads as a list that happens to have one item.
+ *
+ * This is a CEILING, not a layout branch. Everything else about the single case
+ * is the general path: same flow rules, same fit, same navigation. The ceiling
+ * only ever moves UP with fewer candidates, so the monotonic invariant
+ * (`size(1) ≥ size(2) ≥ size(3+)`) holds by construction rather than by luck —
+ * and it stays clear of the source card's own `1.24·ui`.
+ */
+const SOLO_CARD_ZOOM = 1.12;
+const SOLO_CARD_ZOOM_HANDHELD = 0.68;
 /** Below this a card stops being readable and starts being a swatch. */
 const MIN_CARD_ZOOM = 0.3;
 const MIN_CARD_ZOOM_HANDHELD = 0.24;
@@ -599,8 +611,21 @@ function fitOwner(
  * iterations, run once per open — free.
  */
 export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTargetSizing {
-  const maxZoom = (o.handheld ? MAX_CARD_ZOOM_HANDHELD : MAX_CARD_ZOOM) * o.ui;
+  const solo = o.owners.reduce((n, owner) => n + owner.candidates.length, 0) === 1;
+  const ceiling = o.handheld ?
+    (solo ? SOLO_CARD_ZOOM_HANDHELD : MAX_CARD_ZOOM_HANDHELD) :
+    (solo ? SOLO_CARD_ZOOM : MAX_CARD_ZOOM);
+  const maxZoom = ceiling * o.ui;
   const minZoom = (o.handheld ? MIN_CARD_ZOOM_HANDHELD : MIN_CARD_ZOOM) * o.ui;
+  /**
+   * The scan walks an ABSOLUTE grid — the same sizes for every candidate count
+   * — and a case simply starts lower on it. Deriving the grid from the case's
+   * own ceiling made the STEPS differ between counts, and quantization alone
+   * then broke the monotonic invariant: at one band a lone candidate landed on
+   * 0.8125 while a pair landed on 0.825, purely because their ladders did not
+   * share rungs. Constraints decide the size; arithmetic must not.
+   */
+  const gridMax = (o.handheld ? SOLO_CARD_ZOOM_HANDHELD : SOLO_CARD_ZOOM) * o.ui;
   const sectionGap = SECTION_GAP * o.ui;
   const ownerGap = SPLIT_GAP * o.ui;
   // The gap is the LARGER of a readable minimum and the focused card's own
@@ -635,7 +660,10 @@ export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTarget
       continue;
     }
     for (let step = 0; step <= ZOOM_STEPS; step++) {
-      const zoom = maxZoom - (maxZoom - minZoom) * (step / ZOOM_STEPS);
+      const zoom = gridMax - (gridMax - minZoom) * (step / ZOOM_STEPS);
+      if (zoom > maxZoom) {
+        continue; // above THIS case's ceiling — same grid, different entry point
+      }
       const cardW = SLOT_W * zoom;
       const cardH = SLOT_H * zoom;
       const gap = gapFor(cardW);

@@ -217,6 +217,19 @@ export default defineComponent({
      * the prompt, never a per-card rule here.
      */
     selection: {type: Object as PropType<PlayedTargetSelection>, default: () => ({mode: 'single'} as PlayedTargetSelection)},
+    /**
+     * THE VERTICAL BUDGET, measured by the host on a STRETCHED box before this
+     * step was visible.
+     *
+     * It is a prop and not a self-measurement on purpose. Everything between
+     * this component and the workspace band is content-sized, so any height
+     * this component could read is a height its own cards produced — a cycle
+     * whose fixpoint depends on the unmeasured first render. It settled LOWER
+     * for one candidate than for two (one stacked block is a shorter column
+     * than two), which is exactly why a lone target came out smaller than each
+     * of a pair. The host owns the band; the step owns what goes in it.
+     */
+    bandHeight: {type: Number, default: 0},
     /** The already-confirmed target of a SINGLE step (a re-entry from «Изменить
      *  выбор»); in multi the picks live in `selection.picked`. */
     lockedCard: {type: String, default: ''},
@@ -304,6 +317,9 @@ export default defineComponent({
       this.invalidateGeometry();
       this.measureSizing();
     },
+    bandHeight() {
+      this.measureSizing();
+    },
     activeOwnerId() {
       this.invalidateGeometry();
     },
@@ -362,28 +378,25 @@ export default defineComponent({
       this.cellCache = undefined;
     },
     /**
-     * Measure the real box and solve the card size against it.
+     * Solve the card size against the real box.
      *
-     * The vertical budget is the SCROLL VIEWPORT's — this step lives inside the
-     * workspace's one scroll area, so that viewport is the room it actually
-     * has; its own zone is content-sized and would answer with whatever the
-     * cards currently happen to need (a fixpoint at any size, which is exactly
-     * how a fit engine oscillates).
+     * WIDTH is measured here (the zone is stretched, so its width is the band's
+     * and no card can move it). HEIGHT arrives from the host — see `bandHeight`.
+     *
+     * The step's OWN chrome is measured and subtracted: a contract line, the
+     * owner tabs and the status rail. All three are text at a fixed size, so
+     * none of them depends on how big the cards turned out — which is what
+     * keeps this acyclic even though it reads the live DOM.
      */
     measureSizing(): void {
-      const root = this.$el as HTMLElement | undefined;
       const zone = this.$refs.zone as HTMLElement | undefined;
-      if (root === undefined || zone === undefined || root.closest === undefined) {
+      if (zone === undefined) {
         return;
       }
       const availW = zone.clientWidth;
-      // The VIEWPORT is required, not preferred. This step's zone is
-      // content-sized, so measuring height from it would make the budget a
-      // function of the cards it is about to size — a fixpoint at ANY size, and
-      // a resize-observer loop besides. No viewport (a bare unit mount) means no
-      // honest budget, so nothing is measured and the default stands.
-      const viewport = root.closest<HTMLElement>('.con-scroll-area__viewport');
-      if (availW <= 0 || viewport === null) {
+      // No band, no honest budget: a bare unit mount keeps the default rather
+      // than sizing itself from a box it produced.
+      if (availW <= 0 || this.bandHeight <= 0) {
         return;
       }
       const chrome = (this.$refs.contract as HTMLElement | undefined)?.offsetHeight ?? 0;
@@ -391,7 +404,7 @@ export default defineComponent({
       const rail = (this.$refs.rail as HTMLElement | undefined)?.offsetHeight ?? 0;
       // The column gaps between contract / tabs / zone / rail.
       const gaps = 3 * 11 * conUiScale();
-      const availH = Math.max(120, viewport.clientHeight - chrome - tabs - rail - gaps);
+      const availH = Math.max(120, this.bandHeight - chrome - tabs - rail - gaps);
       this.sizing = planPlayedTargetSizing({
         owners: this.model.owners,
         mode: this.layout.mode,

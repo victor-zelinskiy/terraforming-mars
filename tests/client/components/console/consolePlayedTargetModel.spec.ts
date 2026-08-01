@@ -390,16 +390,74 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
       expect(two).to.be.greaterThan(eight);
     });
 
-    /** A single target on a 4K band is a confident card, not a stamp adrift in
-     *  empty space. */
-    it('sizes a lone candidate up to the ceiling', () => {
-      expect(plan(owner(1)).cardZoom).to.be.closeTo(1, 0.03);
+    /**
+     * THE MONOTONIC INVARIANT — `size(1) ≥ size(2) ≥ size(3+)`.
+     *
+     * It shipped INVERTED: a lone candidate came out visibly SMALLER than each
+     * of a pair, which read as a compact fallback for the single case. The
+     * cause was not this function (its constraints are strictly tighter with
+     * more cards, so the ordering holds by construction) — it was the vertical
+     * budget it was fed, measured off a content-sized box that one stacked
+     * block made shorter than two. Pinning the ordering here means a future
+     * budget mistake fails a test instead of a screenshot.
+     */
+    it('never draws FEWER candidates SMALLER — at any box, on any profile', () => {
+      for (const handheld of [false, true]) {
+        for (const [w, h] of [[1600, 800], [1100, 620], [900, 420], [2600, 1400]]) {
+          const sizes = [1, 2, 3, 5, 9].map((n) => planPlayedTargetSizing({
+            owners: [owner(n)], mode: 'tabs', availW: w, availH: h, ui: 1, handheld,
+          }).cardZoom);
+          for (let i = 1; i < sizes.length; i++) {
+            expect(sizes[i], `${w}x${h} handheld=${handheld}: ${sizes.join(' ')}`)
+              .to.be.at.most(sizes[i - 1] + 1e-9);
+          }
+        }
+      }
+    });
+
+    /** A lone target is a confident card, not a stamp adrift in empty space —
+     *  it takes its own (higher) ceiling, still short of the source card. */
+    it('gives a LONE candidate its own, larger ceiling', () => {
+      const one = plan(owner(1)).cardZoom;
+      const two = plan(owner(2)).cardZoom;
+      expect(one).to.be.greaterThan(two);
+      expect(one).to.be.closeTo(1.12, 0.03);
+      // …and still visibly under the source card's own 1.24·ui: the target is
+      // never the subject of the screen.
+      expect(one).to.be.lessThan(1.24);
     });
 
     /** A candidate never out-sizes the SOURCE card (`1.24·ui`): the source is
      *  the subject of the screen, not a rival. */
     it('never exceeds the ceiling, however much room there is', () => {
       expect(plan(owner(2), 6000, 4000).cardZoom).to.be.at.most(1);
+      expect(plan(owner(1), 6000, 4000).cardZoom).to.be.at.most(1.12);
+    });
+
+    /**
+     * The category rail is SUPPRESSED for a single block — and suppressing a
+     * label must not shrink a card. (It would be an easy accident: the rail's
+     * height is an input to the fit, so a branch that kept reserving it while
+     * hiding it, or a "one category → compact" shortcut, would both show up
+     * here.)
+     */
+    it('a single category does not cost the card any size', () => {
+      const oneCat = plan(owner(4, ['active'])).cardZoom;
+      const twoCat = plan(owner(4, ['active', 'automated'])).cardZoom;
+      expect(oneCat).to.be.at.least(twoCat);
+    });
+
+    /**
+     * TARGET LOCK IS PAINT-ONLY. The sizing has no notion of a selected card at
+     * all — which is the point: re-entering through «Изменить выбор» with a
+     * target already locked must land on exactly the geometry the first entry
+     * had, or the card would appear to resize when it was merely remembered.
+     */
+    it('is identical on a repeated entry with a target already chosen', () => {
+      const first = plan(owner(2, ['active', 'automated']));
+      const again = plan(owner(2, ['active', 'automated']));
+      expect(again).to.deep.eq(first);
+      expect(plan(owner(1))).to.deep.eq(plan(owner(1)));
     });
 
     /** Two categories and a wide band: the blocks stand side by side, which is
