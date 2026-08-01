@@ -931,22 +931,23 @@ html.con-profile-tv {
     }
 
     /* ═══ 18 · EMBEDDED PLAYED-TARGET STEP ════════════════════════
-       Couch sizes: the candidate faces stay genuinely readable from the sofa,
-       owner identity carries across the room, and the status rail is a real
-       zone of the layout rather than a small caption under the cards. */
+       Couch TYPE only. The candidate faces are NOT sized here any more: a
+       profile constant cannot know that this particular choice has two options
+       and a whole 4K band to put them in, which is exactly how a two-card pick
+       ended up drawn at ten-card size. `planPlayedTargetSizing` measures the
+       real box and publishes `--con-ptsel-zoom`; its couch ceiling already
+       rides `conUiScale()`. */
     .con-ptsel {
         &__contract-title { font-size: var(--con-t-caption); }
+        &__contract-head { font-size: var(--con-t-secondary); }
         &__contract-ask { font-size: var(--con-t-body); }
-        &__contract-scope { font-size: var(--con-t-secondary); }
         &__tab { font-size: var(--con-t-secondary); }
         &__ownername { font-size: 1.15rem; }
         &__ownercount { font-size: var(--con-t-floor); b { font-size: 1.1rem; } }
-        &__catrail { font-size: var(--con-t-floor); }
-        &__slot { zoom: 0.74; }
-        &__rail { min-height: 5.6rem; }
+        &__catrail { font-size: var(--con-t-floor); height: 1.2rem; }
+        &__rail { height: 2.8rem; }
         &__railcard { font-size: 1.2rem; }
         &__railowner { font-size: var(--con-t-secondary); }
-        &__prev-title { font-size: var(--con-t-floor); }
         &__imp { font-size: var(--con-t-secondary); }
     }
 

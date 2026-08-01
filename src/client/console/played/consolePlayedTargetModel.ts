@@ -35,6 +35,7 @@
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {CardType} from '@/common/cards/CardType';
+import {NavRect, pickDirectional, pickStrictGrid} from '@/client/gamepad/spatialNav';
 
 /** The tableau sections a candidate can belong to — the same vocabulary the
  *  «Разыграно» surfaces use, so the origin reads the same everywhere. */
@@ -101,6 +102,68 @@ export type PlayedTargetPreviewSection = {
   note?: string;
 };
 
+/**
+ * ONE contextual fact, flattened out of its section for the ONE-LINE readings
+ * (the focus rail, the answered summary). The section TITLE and its clarifying
+ * note are deliberately dropped here: a quick line that also says «БУДЕТ
+ * СКОПИРОВАНО» and «источник не изменится» is three readings of one fact, which
+ * is the exact noise this surface removed. `entity` survives because WHAT the
+ * change happens to is data — the target's own numbers must never be confused
+ * with the player's.
+ */
+export type PlayedTargetQuickImpact = PlayedTargetImpact & {
+  key: string;
+  entity: PlayedTargetPreviewSection['entity'];
+};
+
+/** The focus rail's line. Beyond this the line stops being glanceable. */
+export const PLAYED_TARGET_RAIL_IMPACT_CAP = 3;
+/** The answered summary's line — the Result already carries the full before→after. */
+export const PLAYED_TARGET_SUMMARY_IMPACT_CAP = 2;
+
+/**
+ * THE ONE derivation behind every quick reading. The rail, the summary and (via
+ * the host's own fold) the Result all descend from the same injected preview, so
+ * the three can never state the same effect in three slightly different ways.
+ */
+export function playedTargetQuickImpacts(
+  sections: ReadonlyArray<PlayedTargetPreviewSection>,
+): ReadonlyArray<PlayedTargetQuickImpact> {
+  const out: Array<PlayedTargetQuickImpact> = [];
+  sections.forEach((sec, si) => {
+    sec.impacts.forEach((imp, ii) => {
+      out.push({...imp, key: `${si}:${ii}`, entity: sec.entity});
+    });
+  });
+  return out;
+}
+
+/**
+ * A resource overlay on a candidate face — EXPLICIT, never inferred.
+ *
+ * The first cut painted `model.resources` on every candidate, so Industrial
+ * Robots' building cards each wore a gold «0»: a number that is true, has no
+ * bearing on the choice, and reads as a cost. A card's resource belongs on this
+ * surface only when the resource IS the choice (Predators eats animals) — which
+ * is knowledge the HOST has and this component never will.
+ */
+export type PlayedTargetResourceContext = {
+  /** Resource icon key (`optionIcons.iconClassFor` vocabulary). */
+  icon: string;
+  count: number;
+  /**
+   * Draw the badge at zero too. Off by default: a zero is normally noise, and
+   * the one case where it matters (a legal target that happens to be empty)
+   * has to be asked for deliberately.
+   */
+  showZero?: boolean;
+};
+
+/** Does this candidate's resource context earn a badge? */
+export function playedTargetShowsResource(ctx: PlayedTargetResourceContext | undefined): boolean {
+  return ctx !== undefined && (ctx.count > 0 || ctx.showZero === true);
+}
+
 export type PlayedTargetCandidate = {
   cardName: CardName;
   category: PlayedTargetCategory;
@@ -115,6 +178,8 @@ export type PlayedTargetCandidate = {
   slotKey: string;
   /** Contextual preview, injected by the caller (never derived here). */
   preview: ReadonlyArray<PlayedTargetPreviewSection>;
+  /** The resource badge THIS choice justifies, if any (see the type). */
+  resourceContext?: PlayedTargetResourceContext;
   /** The live card model (resource counts etc.) for the face + badges. */
   model: CardModel;
 };
@@ -221,6 +286,11 @@ export type BuildPlayedTargetInput = {
   typeOf: (name: CardName) => CardType | undefined;
   /** The contextual preview for one candidate — the caller's game knowledge. */
   preview: (name: CardName) => ReadonlyArray<PlayedTargetPreviewSection>;
+  /**
+   * The resource badge this choice justifies on a candidate, if any. Omitted by
+   * default on purpose: no host gets a generic resource overlay for free.
+   */
+  resourceContext?: (name: CardName, model: CardModel) => PlayedTargetResourceContext | undefined;
 };
 
 /**
@@ -263,6 +333,7 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
       ownerId: owner.color,
       slotKey: model.name,
       preview: input.preview(model.name as CardName),
+      resourceContext: input.resourceContext?.(model.name as CardName, model),
       model,
     });
   }
@@ -318,6 +389,23 @@ export function playedTargetSections(owner: PlayedTargetOwner): ReadonlyArray<Pl
  */
 export function playedTargetShowsCategoryRails(sections: ReadonlyArray<PlayedTargetSection>): boolean {
   return sections.length > 1;
+}
+
+/**
+ * Does the owner bar earn a SECOND number?
+ *
+ * With one owner the answer is no, and this is the whole duplication rule in one
+ * place. «Доступных целей: 2» in the contract, «ДОСТУПНО 2» in the owner bar and
+ * «АКТИВНЫЕ 1 · АВТОМАТИЧЕСКИЕ 1» in the rails were three statements of the same
+ * count, each read as if it might mean something the others didn't. The owner
+ * bar keeps «РАЗЫГРАНО N» — that one says something nothing else does: this is a
+ * FILTERED view of a real, larger table.
+ *
+ * With several owners the per-owner count is no longer a repeat of the total, so
+ * it comes back — it now answers «where are they».
+ */
+export function playedTargetShowsOwnerTargetCount(owners: ReadonlyArray<PlayedTargetOwner>): boolean {
+  return owners.length > 1;
 }
 
 // ── owner presentation: SPLIT vs TABS ───────────────────────────────────────
@@ -381,6 +469,225 @@ export function planPlayedTargetLayout(o: PlayedTargetLayoutInput): PlayedTarget
   return {mode: 'split', perRow};
 }
 
+// ── candidate SIZING: the surface is spent on the cards that exist ──────────
+
+/** The premium face's unzoomed box (`--pcard-w` / `--pcard-h`). */
+const SLOT_W = 320;
+const SLOT_H = 460;
+
+/**
+ * A candidate never out-sizes the SOURCE card (`zoom: 1.24·ui` on TV). The
+ * source is the subject of the whole screen; a target that matches it turns the
+ * step into a comparison between two heroes.
+ */
+const MAX_CARD_ZOOM = 1.0;
+const MAX_CARD_ZOOM_HANDHELD = 0.6;
+/** Below this a card stops being readable and starts being a swatch. */
+const MIN_CARD_ZOOM = 0.3;
+const MIN_CARD_ZOOM_HANDHELD = 0.24;
+
+/**
+ * The focused candidate's emphasis. Deliberately tiny: at the sizes this step
+ * now reaches, a 4–5 % growth is 30 px of movement and reads as the card jumping
+ * rather than being selected. The cue's weight is the ring and the lift — both
+ * `box-shadow`/`transform`, so both survive performance mode.
+ *
+ * Mirrored in LESS as `--con-ptsel-focus-scale`, and the layout RESERVES exactly
+ * this much room in its gap, which is why the two are one exported constant.
+ */
+export const PLAYED_TARGET_FOCUS_SCALE = 1.02;
+/** Ring + glow headroom around a focused card, rem-equivalent px at ui 1. */
+const FOCUS_GLOW_PX = 7;
+
+/** Chrome the sizing has to live around, in rem-equivalent px at ui 1.
+ *  These MIRROR the LESS block — a card gap of `.55rem` is 11 px at the 20 px
+ *  rem base — so the fit that was solved is the fit that gets rendered. */
+const CARD_GAP = 11;
+const SECTION_GAP = 18;
+const SECTION_RAIL_H = 20;
+const OWNER_BAR_H = 28;
+/** The cards row's own vertical padding — where the focus lift happens. */
+const ZONE_PAD_Y = 12;
+/** Category blocks past this stop being columns and become a wall. */
+const MAX_SECTION_COLUMNS = 3;
+/** Steps of the descending fit scan — fine enough that the step is invisible. */
+const ZOOM_STEPS = 48;
+
+export type PlayedTargetSectionFlow = 'columns' | 'rows';
+
+export type PlayedTargetSizing = {
+  /** The candidate slot's `zoom` (published as `--con-ptsel-zoom`). */
+  cardZoom: number;
+  /** The focus-safe gap between candidate cards, px (`--con-ptsel-gap`). */
+  gapPx: number;
+  /** Category blocks side by side, or stacked. */
+  sectionFlow: PlayedTargetSectionFlow;
+  /** Category columns actually laid out side by side (1 = stacked). */
+  sectionColumns: number;
+  /** The widest section's cards-per-row at this size (nav fallback + CSS hint). */
+  perRow: number;
+  /** Nothing fits even at the floor — the zone must scroll for real. */
+  overflows: boolean;
+};
+
+export type PlayedTargetSizingInput = {
+  owners: ReadonlyArray<PlayedTargetOwner>;
+  /** `split` fits BOTH groups; `tabs` fits the busiest one (tabs must not resize). */
+  mode: PlayedTargetLayoutMode;
+  /** The candidate zone's content box, measured. */
+  availW: number;
+  availH: number;
+  ui: number;
+  handheld: boolean;
+};
+
+type OwnerFit = {perRow: number, w: number, h: number};
+
+/** Lay ONE owner's sections out at a given card size and report the box needed. */
+function fitOwner(
+  sections: ReadonlyArray<PlayedTargetSection>,
+  flow: PlayedTargetSectionFlow,
+  columns: number,
+  cardW: number,
+  cardH: number,
+  colW: number,
+  gap: number,
+  sectionGap: number,
+  railH: number,
+): OwnerFit {
+  let perRowMax = 1;
+  let widest = 0;
+  // COLUMNS: the tallest column decides. ROWS: the blocks stack, so the heights
+  // add up (and the single column is as wide as the widest row in it).
+  let stackedH = 0;
+  let tallest = 0;
+  sections.forEach((sec, i) => {
+    const n = sec.candidates.length;
+    const perRow = Math.max(1, Math.min(n, Math.floor((colW + gap) / (cardW + gap))));
+    const rows = Math.ceil(n / perRow);
+    const blockW = perRow * cardW + (perRow - 1) * gap;
+    const blockH = railH + rows * cardH + (rows - 1) * gap;
+    perRowMax = Math.max(perRowMax, perRow);
+    widest = Math.max(widest, blockW);
+    tallest = Math.max(tallest, blockH);
+    stackedH += blockH + (i > 0 ? sectionGap : 0);
+  });
+  const h = flow === 'columns' ? tallest : stackedH;
+  const w = flow === 'columns' ?
+    columns * colW + (columns - 1) * sectionGap :
+    widest;
+  return {perRow: perRowMax, w, h};
+}
+
+/**
+ * THE CANDIDATE SIZE — solved against the real box, for the candidates that
+ * actually exist.
+ *
+ * The first cut sized cards from a per-profile CSS ladder (`zoom: .74` on TV,
+ * `.44` on the Deck), which meant a two-card choice was drawn at the size a
+ * ten-card choice would need: two small faces stacked in a narrow column with
+ * most of a 4K band empty beside them. Size is not a profile constant — it is
+ * what the count and the box jointly allow.
+ *
+ * Two arrangements are tried and the bigger card wins, because bigger IS the
+ * goal: category blocks side by side (which spends the width the complaint was
+ * about) or stacked (which spends height). A tie goes to columns.
+ *
+ * A DESCENDING SCAN rather than a closed form: cards-per-row is itself a
+ * function of the card width (a wrap threshold), so the fit is a step function,
+ * not a line. Scanning it is honest, deterministic and — at 48 trivial
+ * iterations, run once per open — free.
+ */
+export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTargetSizing {
+  const maxZoom = (o.handheld ? MAX_CARD_ZOOM_HANDHELD : MAX_CARD_ZOOM) * o.ui;
+  const minZoom = (o.handheld ? MIN_CARD_ZOOM_HANDHELD : MIN_CARD_ZOOM) * o.ui;
+  const sectionGap = SECTION_GAP * o.ui;
+  const ownerGap = SPLIT_GAP * o.ui;
+  // The gap is the LARGER of a readable minimum and the focused card's own
+  // clearance. At today's deliberately tiny emphasis the minimum wins at every
+  // size — the clearance term is not decoration for that, it is what keeps the
+  // guarantee true if the emphasis is ever raised, instead of turning into an
+  // overlap nobody re-derived. (Guarded by a spec across sizes and ui factors.)
+  const gapFor = (cardW: number): number =>
+    Math.max(CARD_GAP * o.ui, cardW * (PLAYED_TARGET_FOCUS_SCALE - 1) / 2 + FOCUS_GLOW_PX * o.ui);
+
+  // Which groups must fit at ONE size: both in split, and in tabs every owner —
+  // a tab switch that re-sized the cards would be the layout jump this step is
+  // built to avoid.
+  const groups = o.owners.map((owner) => playedTargetSections(owner));
+  if (groups.length === 0) {
+    return {
+      cardZoom: minZoom, gapPx: CARD_GAP * o.ui, sectionFlow: 'rows',
+      sectionColumns: 1, perRow: 1, overflows: false,
+    };
+  }
+  const ownerCols = o.mode === 'split' ? Math.max(1, o.owners.length) : 1;
+  const ownerW = (o.availW - (ownerCols - 1) * ownerGap) / ownerCols;
+  const ownerH = o.availH - OWNER_BAR_H * o.ui - ZONE_PAD_Y * o.ui;
+
+  const flows: ReadonlyArray<PlayedTargetSectionFlow> = ['columns', 'rows'];
+  let best: PlayedTargetSizing | undefined;
+  for (const flow of flows) {
+    // A single block is the same layout either way — only 'rows' is emitted for
+    // it, so the CSS never has to render a one-column "grid".
+    const maxSections = Math.max(...groups.map((s) => s.length));
+    if (flow === 'columns' && (maxSections < 2 || maxSections > MAX_SECTION_COLUMNS)) {
+      continue;
+    }
+    for (let step = 0; step <= ZOOM_STEPS; step++) {
+      const zoom = maxZoom - (maxZoom - minZoom) * (step / ZOOM_STEPS);
+      const cardW = SLOT_W * zoom;
+      const cardH = SLOT_H * zoom;
+      const gap = gapFor(cardW);
+      const railH = groups.some((s) => playedTargetShowsCategoryRails(s)) ? SECTION_RAIL_H * o.ui : 0;
+      let fits = true;
+      let perRow = 1;
+      let columns = 1;
+      for (const sections of groups) {
+        const cols = flow === 'columns' ? Math.min(sections.length, MAX_SECTION_COLUMNS) : 1;
+        const colW = flow === 'columns' ? (ownerW - (cols - 1) * sectionGap) / cols : ownerW;
+        if (colW < cardW) {
+          fits = false;
+          break;
+        }
+        const fit = fitOwner(sections, flow, cols, cardW, cardH, colW, gap, sectionGap, railH);
+        if (fit.w > ownerW + 0.5 || fit.h > ownerH) {
+          fits = false;
+          break;
+        }
+        perRow = Math.max(perRow, fit.perRow);
+        columns = Math.max(columns, cols);
+      }
+      if (!fits) {
+        continue;
+      }
+      const candidate: PlayedTargetSizing = {
+        cardZoom: zoom,
+        gapPx: gap,
+        sectionFlow: flow,
+        sectionColumns: flow === 'columns' ? columns : 1,
+        perRow,
+        overflows: false,
+      };
+      // Bigger cards win outright; an exact tie goes to columns, which is the
+      // arrangement that spends the width rather than leaving it empty.
+      if (best === undefined || candidate.cardZoom > best.cardZoom) {
+        best = candidate;
+      }
+      break; // this flow's best size — the scan descends, so the first fit IS it
+    }
+  }
+  if (best !== undefined) {
+    return best;
+  }
+  // Nothing fits even at the floor: the zone genuinely has to scroll, and it
+  // says so instead of shrinking the cards past legibility.
+  const cardW = SLOT_W * minZoom;
+  const gap = gapFor(cardW);
+  const perRow = Math.max(1, Math.floor((ownerW + gap) / (cardW + gap)));
+  return {cardZoom: minZoom, gapPx: gap, sectionFlow: 'rows', sectionColumns: 1, perRow, overflows: true};
+}
+
 // ── focus navigation (pure) ─────────────────────────────────────────────────
 
 /** Where the cursor stands: an owner and an index into their candidates. */
@@ -436,6 +743,56 @@ export function stepPlayedTargetFocus(
   const entryCol = dir === 'right' ? 0 : perRow - 1;
   const entry = Math.min(neighbour.candidates.length - 1, Math.max(0, row * perRow + entryCol));
   return {ownerId: neighbour.id, index: entry};
+}
+
+/**
+ * A candidate's MEASURED box, tagged with what it is. The component publishes
+ * these from the live DOM; nothing here touches a DOM node.
+ */
+export type PlayedTargetCell = NavRect & {ownerId: string, index: number};
+
+/**
+ * THE REAL NAVIGATION — by where the cards ARE.
+ *
+ * `stepPlayedTargetFocus` walks an index with a `perRow` guess, and that guess
+ * was wrong the moment category blocks stopped being one uniform grid: two
+ * candidates in two categories sit one ABOVE the other, but a flat list of two
+ * with `perRow: 3` says they are side by side, so Down did nothing and Right
+ * moved between cards the player sees stacked. Index arithmetic cannot describe
+ * a layout it does not own.
+ *
+ * So direction is resolved against the measured boxes, with the engine the hex
+ * board already uses: `pickStrictGrid` first (a strict row/column traversal —
+ * the predictable case, and the one that keeps a column walk from drifting
+ * sideways), then `pickDirectional`'s scored cone for everything a grid cannot
+ * describe: crossing a category column, crossing the gap into the other owner's
+ * group, a ragged last row. Primary distance dominates, cross-axis offset is
+ * penalised, near-perpendicular candidates are rejected outright.
+ *
+ * Returns `undefined` when nothing lies that way — an edge HOLDS. In tabs mode
+ * only one owner is on screen, so the cell list contains one group and the
+ * horizontal edges hold by construction: LB/RB stay the only owner axis, with
+ * no second silent way to change tab.
+ */
+export function stepPlayedTargetFocusAt(
+  focus: PlayedTargetFocus,
+  dir: PlayedTargetNavDir,
+  cells: ReadonlyArray<PlayedTargetCell>,
+): PlayedTargetFocus | undefined {
+  const at = cells.findIndex((c) => c.ownerId === focus.ownerId && c.index === focus.index);
+  if (at < 0) {
+    return undefined;
+  }
+  const from = cells[at];
+  const others = cells.filter((_c, i) => i !== at);
+  if (others.length === 0) {
+    return undefined;
+  }
+  const hit = pickStrictGrid(from, others, dir) ?? pickDirectional(from, others, dir);
+  if (hit === undefined) {
+    return undefined;
+  }
+  return {ownerId: others[hit].ownerId, index: others[hit].index};
 }
 
 /** The owners LB/RB cycles through in tabbed mode (only those with targets —

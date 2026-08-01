@@ -35,6 +35,21 @@
 import {defineComponent, ref, computed, CSSProperties} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 
+/**
+ * How much scrollable distance makes the rail worth drawing.
+ *
+ * `scrollHeight > clientHeight` is true for a few sub-pixel rows of any
+ * fractionally-laid-out content, and the rail it produced was the WORST possible
+ * shape: a nearly-full-height thumb, which reads as a scrollbar on a surface
+ * that has nothing to scroll. It shipped that way on the play composer — a
+ * permanent bright line down the right edge of a screen that fits.
+ *
+ * A few pixels of travel is not navigation. Below this the content is treated as
+ * fitting: it still scrolls if something forces it (wheel, ensureVisible), it
+ * just stops ADVERTISING a journey the player cannot make.
+ */
+const RAIL_MIN_TRAVEL_PX = 8;
+
 export default defineComponent({
   name: 'ConsoleScrollArea',
   props: {
@@ -88,7 +103,7 @@ export default defineComponent({
         const pos = props.axis === 'y' ? vp.scrollTop : vp.scrollLeft;
         const max = Math.max(0, total - size);
         const was = overflowing.value;
-        overflowing.value = max > 1;
+        overflowing.value = max > RAIL_MIN_TRAVEL_PX;
         ratio.value = total > 0 ? Math.max(0.1, Math.min(1, size / total)) : 1;
         progress.value = max > 0 ? Math.min(1, Math.max(0, pos / max)) : 0;
         if (was !== overflowing.value) {

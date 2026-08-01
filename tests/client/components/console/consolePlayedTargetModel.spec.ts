@@ -12,6 +12,15 @@ import {
   reseatPlayedTargetFocus,
   findPlayedTargetFocus,
   playedTargetAt,
+  planPlayedTargetSizing,
+  stepPlayedTargetFocusAt,
+  playedTargetQuickImpacts,
+  playedTargetShowsOwnerTargetCount,
+  playedTargetShowsResource,
+  PLAYED_TARGET_RAIL_IMPACT_CAP,
+  PLAYED_TARGET_FOCUS_SCALE,
+  PlayedTargetCell,
+  PlayedTargetPreviewSection,
   playedTargetResultOf,
   playedTargetResultLive,
   togglePlayedTargetPick,
@@ -37,6 +46,7 @@ function build(opts: {
   admin?: ReadonlyArray<string>,
   victor?: ReadonlyArray<string>,
   bot?: ReadonlyArray<string>,
+  resourceContext?: (name: CardName, model: CardModel) => {icon: string, count: number, showZero?: boolean} | undefined,
 }) {
   return buildPlayedTargetModel({
     candidates: opts.candidates.map(card),
@@ -49,11 +59,16 @@ function build(opts: {
     ask: 'Choose a building card',
     typeOf: (n) => TYPES[n],
     preview: (n) => [{key: 'copy', title: 'Will be copied', entity: 'target', impacts: [{label: n}]}],
+    resourceContext: opts.resourceContext,
   });
 }
 
 const LAYOUT: PlayedTargetLayout = {mode: 'split', perRow: 2};
 const TABS: PlayedTargetLayout = {mode: 'tabs', perRow: 3};
+
+/** A measured candidate box, the way the component publishes it. */
+const cell = (ownerId: string, index: number, left: number, top: number): PlayedTargetCell =>
+  ({ownerId, index, left, top, width: 200, height: 290});
 
 describe('consolePlayedTargetModel — the embedded played-card target step', () => {
   describe('the model', () => {
@@ -246,6 +261,324 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
       expect(reseated).to.deep.eq({ownerId: 'red', index: 0});
       expect(reseatPlayedTargetFocus({ownerId: 'gone', index: 3}, shrunk.owners)?.ownerId).to.eq('red');
       expect(reseatPlayedTargetFocus({ownerId: 'red', index: 0}, [])).to.eq(undefined);
+    });
+  });
+
+  /**
+   * ONE derivation behind the focus rail, the answered summary and (through the
+   * host's fold) the Result. Three UI places computing "what does this card
+   * give me" three times is how a screen ends up saying the same thing in three
+   * slightly different ways — which is exactly what the rail did.
+   */
+  describe('quick impacts — the ONE-LINE reading', () => {
+    const sections: ReadonlyArray<PlayedTargetPreviewSection> = [
+      {key: 'copy', title: 'Will be copied', entity: 'player',
+        impacts: [{label: 'Titanium production', icon: 'titanium', amount: 1}]},
+      {key: 'src', title: '', entity: 'source', impacts: [], note: 'The source card stays unchanged'},
+      {key: 'res', title: 'Target card', entity: 'target',
+        impacts: [{label: 'Resources on this card', from: 4, to: 3}]},
+    ];
+
+    /** The rail is one line. A section TITLE next to the very chip that states
+     *  the fact, plus a note restating it in prose, is three readings of one
+     *  thing — so the flattening drops both by construction. */
+    it('drops section titles and notes, and keeps WHAT the change happens to', () => {
+      const quick = playedTargetQuickImpacts(sections);
+      expect(quick.map((i) => i.label))
+        .to.deep.eq(['Titanium production', 'Resources on this card']);
+      expect(quick.map((i) => i.entity)).to.deep.eq(['player', 'target']);
+      expect(quick.every((i) => !('title' in i) && !('note' in i))).to.eq(true);
+    });
+
+    /** A note-only section (the «источник не изменится» clarifier) contributes
+     *  nothing to a line whose job is the delta. */
+    it('emits nothing for a section that carries no impact', () => {
+      expect(playedTargetQuickImpacts([sections[1]])).to.have.length(0);
+      expect(playedTargetQuickImpacts([])).to.have.length(0);
+    });
+
+    it('keeps both delta shapes intact — before→after and a bare amount', () => {
+      const quick = playedTargetQuickImpacts(sections);
+      expect(quick[0].amount).to.eq(1);
+      expect(quick[1].from).to.eq(4);
+      expect(quick[1].to).to.eq(3);
+    });
+
+    /** Keys are stable and unique so the rail can re-render on a focus move
+     *  without remounting chips (a remount is a blink at 4K). */
+    it('gives every impact a stable unique key', () => {
+      const keys = playedTargetQuickImpacts(sections).map((i) => i.key);
+      expect(new Set(keys).size).to.eq(keys.length);
+      expect(playedTargetQuickImpacts(sections).map((i) => i.key)).to.deep.eq(keys);
+    });
+
+    it('the rail cap is a real bound the host can honour', () => {
+      expect(PLAYED_TARGET_RAIL_IMPACT_CAP).to.be.greaterThan(0);
+    });
+  });
+
+  /**
+   * THE GOLD «0». Every candidate used to wear its `model.resources`, so
+   * Industrial Robots' building cards each showed a zero that is true, has no
+   * bearing on the choice, and reads as a cost.
+   */
+  describe('resource overlays — context-driven, never inferred', () => {
+    it('carries NO resource context unless the host supplies one', () => {
+      const m = build({candidates: ['Mars Hydro Turbines'], admin: ['Mars Hydro Turbines']});
+      expect(m.owners[0].candidates[0].resourceContext).to.eq(undefined);
+      expect(playedTargetShowsResource(undefined)).to.eq(false);
+    });
+
+    it('shows an explicit context, and hides a zero unless it was asked for', () => {
+      expect(playedTargetShowsResource({icon: 'animals', count: 4})).to.eq(true);
+      expect(playedTargetShowsResource({icon: 'animals', count: 0})).to.eq(false);
+      expect(playedTargetShowsResource({icon: 'animals', count: 0, showZero: true})).to.eq(true);
+    });
+
+    it('passes the host\'s context through onto the candidate', () => {
+      const m = build({
+        candidates: ['Predators'], admin: ['Predators'],
+        resourceContext: () => ({icon: 'animals', count: 4}),
+      });
+      expect(m.owners[0].candidates[0].resourceContext).to.deep.eq({icon: 'animals', count: 4});
+    });
+  });
+
+  /**
+   * «Доступных целей: 2», «ДОСТУПНО 2» and «АКТИВНЫЕ 1 · АВТОМАТИЧЕСКИЕ 1» were
+   * three statements of one count, each read as if it might mean something the
+   * others did not.
+   */
+  describe('count suppression', () => {
+    it('drops the owner bar\'s eligible count when there is only ONE owner', () => {
+      const one = build({candidates: ['Mars Hydro Turbines'], admin: ['Mars Hydro Turbines']});
+      expect(playedTargetShowsOwnerTargetCount(one.owners)).to.eq(false);
+    });
+
+    /** With several owners the number stops repeating the total and starts
+     *  answering «where are they» — so it comes back. */
+    it('brings it back when the count answers a question the total cannot', () => {
+      const two = build({
+        candidates: ['Mars Hydro Turbines', 'Tectonic Stress Power'],
+        admin: ['Mars Hydro Turbines'],
+        victor: ['Tectonic Stress Power'],
+      });
+      expect(playedTargetShowsOwnerTargetCount(two.owners)).to.eq(true);
+    });
+  });
+
+  /**
+   * SIZE IS A MEASUREMENT, NOT A PROFILE CONSTANT. The first cut drew a
+   * two-card choice at the size a ten-card choice needs, because the zoom came
+   * from a per-profile CSS ladder.
+   */
+  describe('sizing — the surface is spent on the cards that exist', () => {
+    const owner = (n: number, cats: ReadonlyArray<string> = ['active']): PlayedTargetOwner => ({
+      id: 'red', name: 'admin', color: 'red', self: true, totalPlayed: 12,
+      candidates: new Array(n).fill(0).map((_x, i) => ({
+        cardName: `C${i}` as CardName,
+        category: cats[i % cats.length] as PlayedTargetOwner['candidates'][number]['category'],
+        ownerId: 'red', slotKey: `C${i}`, preview: [], model: card(`C${i}`),
+      })),
+    });
+    const plan = (o: PlayedTargetOwner, availW = 1600, availH = 800) =>
+      planPlayedTargetSizing({owners: [o], mode: 'tabs', availW, availH, ui: 1, handheld: false});
+
+    it('gives FEWER candidates BIGGER cards — the whole point', () => {
+      const two = plan(owner(2)).cardZoom;
+      const eight = plan(owner(8)).cardZoom;
+      expect(two).to.be.greaterThan(eight);
+    });
+
+    /** A single target on a 4K band is a confident card, not a stamp adrift in
+     *  empty space. */
+    it('sizes a lone candidate up to the ceiling', () => {
+      expect(plan(owner(1)).cardZoom).to.be.closeTo(1, 0.03);
+    });
+
+    /** A candidate never out-sizes the SOURCE card (`1.24·ui`): the source is
+     *  the subject of the screen, not a rival. */
+    it('never exceeds the ceiling, however much room there is', () => {
+      expect(plan(owner(2), 6000, 4000).cardZoom).to.be.at.most(1);
+    });
+
+    /** Two categories and a wide band: the blocks stand side by side, which is
+     *  the arrangement that spends the width the complaint was about. */
+    it('stands category blocks SIDE BY SIDE when that buys bigger cards', () => {
+      const s = plan(owner(2, ['active', 'automated']));
+      expect(s.sectionFlow).to.eq('columns');
+      expect(s.sectionColumns).to.eq(2);
+    });
+
+    it('stacks them when there is only one block to lay out', () => {
+      expect(plan(owner(2, ['active'])).sectionFlow).to.eq('rows');
+      expect(plan(owner(2, ['active'])).sectionColumns).to.eq(1);
+    });
+
+    /** A narrow band cannot halve: stacking keeps the cards readable, and a
+     *  readable stacked card beats a cramped column pair. */
+    it('falls back to stacked blocks on a band too narrow to halve', () => {
+      const s = plan(owner(2, ['active', 'automated']), 300, 900);
+      expect(s.sectionFlow).to.eq('rows');
+    });
+
+    /** A tab switch that re-sized the cards would be a layout jump — so the
+     *  size is solved against EVERY owner, not just the visible one. */
+    it('sizes tabs against the busiest owner so switching never resizes', () => {
+      const quiet: PlayedTargetOwner = {...owner(1), id: 'blue', name: 'victor', color: 'blue', self: false};
+      const busy = owner(9);
+      const both = planPlayedTargetSizing({owners: [quiet, busy], mode: 'tabs', availW: 1600, availH: 800, ui: 1, handheld: false});
+      const busyAlone = plan(busy);
+      expect(both.cardZoom).to.be.closeTo(busyAlone.cardZoom, 0.001);
+    });
+
+    it('scales the whole ladder with the TV rem factor', () => {
+      const at1 = planPlayedTargetSizing({owners: [owner(2)], mode: 'tabs', availW: 1600, availH: 800, ui: 1, handheld: false});
+      const at2 = planPlayedTargetSizing({owners: [owner(2)], mode: 'tabs', availW: 3200, availH: 1600, ui: 2, handheld: false});
+      expect(at2.cardZoom).to.be.greaterThan(at1.cardZoom);
+    });
+
+    /** The Deck's ceiling is its own — its band has neither the width nor the
+     *  viewing distance for a couch-sized face. */
+    it('keeps the Deck under its own ceiling', () => {
+      const s = planPlayedTargetSizing({owners: [owner(2)], mode: 'tabs', availW: 900, availH: 420, ui: 1, handheld: true});
+      expect(s.cardZoom).to.be.at.most(0.6);
+    });
+
+    /**
+     * The gap is the LARGER of a readable minimum and the focused card's own
+     * clearance, so a ring can never grow over its neighbour at any size. At
+     * today's deliberately tiny emphasis the minimum wins every time — the
+     * clearance term is what keeps that true if the emphasis is ever raised,
+     * rather than turning into a silent overlap nobody re-checked.
+     */
+    it('always clears the focused card\'s overhang, at every size and scale', () => {
+      for (const ui of [1, 2]) {
+        for (const n of [1, 2, 4, 9]) {
+          const s = planPlayedTargetSizing({
+            owners: [owner(n)], mode: 'tabs', availW: 1600 * ui, availH: 800 * ui, ui, handheld: false,
+          });
+          const overhang = 320 * s.cardZoom * (PLAYED_TARGET_FOCUS_SCALE - 1) / 2;
+          expect(s.gapPx, `n=${n} ui=${ui}`).to.be.at.least(overhang);
+          expect(s.gapPx, `n=${n} ui=${ui}`).to.be.at.least(11 * ui);
+        }
+      }
+    });
+
+    /** Honest failure: it says the zone must scroll rather than shrinking the
+     *  cards past legibility. */
+    it('reports overflow instead of shrinking past the floor', () => {
+      const s = planPlayedTargetSizing({owners: [owner(40)], mode: 'tabs', availW: 300, availH: 200, ui: 1, handheld: false});
+      expect(s.overflows).to.eq(true);
+      expect(s.cardZoom).to.be.at.least(0.3);
+    });
+
+    it('is deterministic for a given model + box', () => {
+      expect(plan(owner(3))).to.deep.eq(plan(owner(3)));
+    });
+
+    it('answers safely for an empty model', () => {
+      const s = planPlayedTargetSizing({owners: [], mode: 'tabs', availW: 1600, availH: 800, ui: 1, handheld: false});
+      expect(s.perRow).to.eq(1);
+      expect(s.overflows).to.eq(false);
+    });
+  });
+
+  /**
+   * THE REPORTED DEFECT. Two candidates in two category blocks sit one ABOVE
+   * the other, but the index walk assumed one uniform grid with `perRow: 3` —
+   * so Down did nothing and Right moved between cards the player sees stacked.
+   * Direction is now resolved against the measured boxes.
+   */
+  describe('geometry navigation — by where the cards ARE', () => {
+    /** ACTIVE over AUTOMATED, one card each: the exact reported layout. */
+    const stacked: ReadonlyArray<PlayedTargetCell> = [cell('red', 0, 100, 100), cell('red', 1, 100, 460)];
+
+    it('moves DOWN and UP through a vertical layout (the reported bug)', () => {
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 0}, 'down', stacked))
+        .to.deep.eq({ownerId: 'red', index: 1});
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 1}, 'up', stacked))
+        .to.deep.eq({ownerId: 'red', index: 0});
+    });
+
+    /** …and Left/Right do NOTHING there, because nothing lies that way. An
+     *  edge holds; it never wraps and never teleports to an array neighbour. */
+    it('holds Left/Right when the layout is vertical', () => {
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 0}, 'right', stacked)).to.eq(undefined);
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 0}, 'left', stacked)).to.eq(undefined);
+    });
+
+    /** The same model laid out horizontally navigates horizontally — with no
+     *  change anywhere but the rects. That is what "geometry-aware" buys. */
+    it('moves LEFT and RIGHT through a horizontal layout', () => {
+      const side: ReadonlyArray<PlayedTargetCell> = [cell('red', 0, 100, 100), cell('red', 1, 400, 100)];
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 0}, 'right', side))
+        .to.deep.eq({ownerId: 'red', index: 1});
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 1}, 'left', side))
+        .to.deep.eq({ownerId: 'red', index: 0});
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 0}, 'down', side)).to.eq(undefined);
+    });
+
+    /** Category blocks side by side: crossing between them is a horizontal
+     *  move, and the row it lands on is the one the eye is already on. */
+    it('crosses between CATEGORY blocks by geometry', () => {
+      const cols: ReadonlyArray<PlayedTargetCell> = [
+        cell('red', 0, 100, 100), cell('red', 1, 100, 420), // «Активные» column
+        cell('red', 2, 500, 100), cell('red', 3, 500, 420), // «Автоматические»
+      ];
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 1}, 'right', cols))
+        .to.deep.eq({ownerId: 'red', index: 3});
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 3}, 'left', cols))
+        .to.deep.eq({ownerId: 'red', index: 1});
+    });
+
+    /** SPLIT owners are spatial neighbours, so the cursor crosses the gap the
+     *  way the eye does — never by array order. */
+    it('crosses between SPLIT owner groups by geometry, symmetrically', () => {
+      const split: ReadonlyArray<PlayedTargetCell> = [
+        cell('blue', 0, 100, 100), cell('blue', 1, 340, 100),
+        cell('red', 0, 900, 100),
+      ];
+      expect(stepPlayedTargetFocusAt({ownerId: 'blue', index: 1}, 'right', split))
+        .to.deep.eq({ownerId: 'red', index: 0});
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 0}, 'left', split))
+        .to.deep.eq({ownerId: 'blue', index: 1});
+    });
+
+    /** In TABS only one group is on screen, so its cells are the only ones
+     *  published — the horizontal edges hold and LB/RB stay the ONLY owner
+     *  axis. No second, silent way to change tab. */
+    it('cannot leave the visible owner in tabbed mode', () => {
+      const oneTab: ReadonlyArray<PlayedTargetCell> = [cell('red', 0, 100, 100), cell('red', 1, 400, 100)];
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 1}, 'right', oneTab)).to.eq(undefined);
+    });
+
+    /**
+     * A wrapped grid's LAST ROW is short. Down from a column that has nothing
+     * directly beneath it reaches the nearest card of the row below rather than
+     * stranding the cursor — a short last row must stay reachable from every
+     * column above it. What it never does is slide sideways WITHIN a row.
+     */
+    it('reaches a short last row from any column above it', () => {
+      const ragged: ReadonlyArray<PlayedTargetCell> = [
+        cell('red', 0, 100, 100), cell('red', 1, 340, 100), cell('red', 2, 580, 100),
+        cell('red', 3, 100, 420),
+      ];
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 0}, 'down', ragged))
+        .to.deep.eq({ownerId: 'red', index: 3});
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 2}, 'down', ragged))
+        .to.deep.eq({ownerId: 'red', index: 3});
+      // …and the row below is the FLOOR: there is nothing under it.
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 3}, 'down', ragged)).to.eq(undefined);
+    });
+
+    /** No geometry, or a focus the map does not know → the caller must fall
+     *  back to the index walk rather than moving somewhere arbitrary. */
+    it('declines when it has nothing to answer with', () => {
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 0}, 'down', [])).to.eq(undefined);
+      expect(stepPlayedTargetFocusAt({ownerId: 'gone', index: 0}, 'down', stacked)).to.eq(undefined);
+      expect(stepPlayedTargetFocusAt({ownerId: 'red', index: 0}, 'down', [cell('red', 0, 100, 100)]))
+        .to.eq(undefined);
     });
   });
 });

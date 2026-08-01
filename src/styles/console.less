@@ -16777,7 +16777,17 @@ html.console-mode {
    A LEVEL of the Card Play Workspace, so it draws no plate, no backdrop and no
    frame: the workspace's own plane is underneath it and the source card stays
    visible to its left. Everything here is content — a contract line, owner
-   groups, and a reserved status rail. */
+   groups, and a one-line status rail.
+
+   THE SIZE IS NOT HERE. Card size, the focus-safe gap and whether category
+   blocks stand side by side are SOLVED in `planPlayedTargetSizing` against the
+   measured box and arrive as custom properties (`--con-ptsel-zoom`, `-gap`,
+   `-cols`). This block only spends them. That is the fix for the shape the first
+   cut had: a per-profile `zoom` ladder drew a two-card choice at the size a
+   ten-card choice needs, so two small faces sat in a narrow column with most of
+   a 4K band empty beside them. The px constants that DO live here (`.55rem`
+   card gap, `.9rem` section gap, the rail and owner-bar heights) are mirrored by
+   name in that module — the fit that was solved is the fit that gets rendered. */
 .con-ptsel {
     display: flex;
     flex-direction: column;
@@ -16785,8 +16795,10 @@ html.console-mode {
     width: 100%;
     gap: .55rem;
 
-    /* ── THE CONTRACT — what is being chosen and why these are the options.
-       Closed by the same hairline the play surface uses between its zones. ── */
+    /* ── THE CONTRACT — what is being chosen, and how many there are. ONE line
+       for both: the count is a property of the ask, not a third statement of it
+       (it used to be repeated in the owner bar and again in the category
+       rails). Closed by the hairline the play surface uses between zones. ── */
     &__contract {
         flex-shrink: 0;
         display: flex;
@@ -16795,18 +16807,19 @@ html.console-mode {
         padding-bottom: .5rem;
         border-bottom: .05rem solid rgba(120, 155, 190, 0.2);
     }
-    &__contract-head { display: flex; align-items: center; gap: .4rem; }
-    &__contract-mark { color: fade(@con-cyan, 82%); font-size: .8rem; }
+    &__contract-head {
+        display: flex; align-items: baseline; flex-wrap: wrap; gap: .35rem;
+        font-size: .78rem; color: @con-text-dim;
+    }
+    &__contract-sep { color: fade(@con-cyan, 38%); }
+    &__contract-mark { align-self: center; color: fade(@con-cyan, 82%); font-size: .8rem; }
     &__contract-title {
         font-size: .72rem; font-weight: 700; letter-spacing: .1rem; text-transform: uppercase;
         color: fade(@con-cyan, 92%);
     }
     &__contract-ask { font-size: 1rem; font-weight: 600; color: @con-text; line-height: 1.25; }
-    &__contract-scope {
-        display: flex; align-items: baseline; flex-wrap: wrap; gap: .25rem .7rem;
-        font-size: .78rem; color: @con-text-dim;
-    }
     &__scope-count { color: fade(@con-mint, 90%); font-weight: 700; }
+    &__scope-note { color: @con-text-dim; }
     /* MULTI — the live accumulation. It turns amber AT THE CAP, next to the
        «снимите выбор с другой» note: a press that cannot land says so instead
        of being silently swallowed. */
@@ -16841,14 +16854,19 @@ html.console-mode {
 
     /* ── THE OWNER ZONE. In SPLIT the groups are side-by-side columns, so
        whose card this is reads from WHERE it sits — never from a small badge
-       inside one shared grid. ── */
+       inside one shared grid.
+
+       `overflow: visible` on purpose: the sizing GUARANTEES the fit, so there is
+       nothing to clip, and clipping would only cut the focused card's lift. In
+       the one case the fit fails (`overflows`) the zone grows and the
+       workspace's own scroll area — the ONE sanctioned scroll — takes over. ── */
     &__zone {
         flex: 1;
         min-height: 0;
         display: flex;
         align-items: flex-start;
         gap: 1.4rem;
-        overflow: hidden;
+        overflow: visible;
     }
     &[data-mode='split'] &__owner { flex: 1 1 0; min-width: 0; }
     &[data-mode='tabs'] &__owner { flex: 1 1 auto; min-width: 0; }
@@ -16866,7 +16884,8 @@ html.console-mode {
         transition: border-color calc(150ms * var(--motion-scale, 1)) ease;
         &--focused { border-left-color: fade(@con-cyan, 55%); }
     }
-    &__ownerbar { display: flex; align-items: baseline; gap: .45rem; min-width: 0; }
+    /* A FIXED height, mirrored by `OWNER_BAR_H` in the sizing module. */
+    &__ownerbar { display: flex; align-items: baseline; gap: .45rem; min-width: 0; height: 1.4rem; }
     &__ownerdot { align-self: center; width: .6rem; height: .6rem; border-radius: 50%; box-shadow: 0 0 .4rem currentColor; }
     &__ownername {
         font-size: .95rem; font-weight: 800; letter-spacing: .04rem; text-transform: uppercase;
@@ -16885,21 +16904,43 @@ html.console-mode {
     &__ownercount-live { color: fade(@con-mint, 95%) !important; }
     &__ownercount-sep { opacity: .5; }
 
+    /* ── CATEGORY BLOCKS. Side by side when the planner found the room for it
+       (`data-flow="columns"`), stacked otherwise. Grouping must never force the
+       cards into ONE narrow column while the band has width to spare — that was
+       the whole complaint, and it was a layout decision, not a data one. ── */
+    &__sections { display: flex; flex-direction: column; gap: .9rem; min-width: 0; }
+    &[data-flow='columns'] &__sections {
+        flex-direction: row;
+        align-items: flex-start;
+    }
     &__section { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
-    /* A LIGHT rail — this is not the full tableau's section chrome. */
+    /* EQUAL columns, cards left-aligned inside — the same `ownerW / cols` the
+       planner solved against. Content-sized columns would pack the blocks left
+       and put the labels somewhere other than over their own cards. */
+    &[data-flow='columns'] &__section { flex: 1 1 0; }
+    /* A LIGHT rail — this is not the full tableau's section chrome. Fixed
+       height, mirrored by `SECTION_RAIL_H` in the sizing module. */
     &__catrail {
-        display: flex; align-items: baseline; gap: .4rem;
+        display: flex; align-items: baseline; gap: .4rem; height: 1rem;
         font-size: .62rem; letter-spacing: .09rem; text-transform: uppercase;
         color: fade(#a8c4dd, 62%);
     }
     &__catcount { font-weight: 800; color: @con-text-dim; }
 
+    /* FLEX, not a fractional grid: the cards are a SOLVED size, so the row must
+       take that size and wrap — `1fr` columns would stretch a lone card to fill
+       whatever space happened to be left and quietly undo the fit. */
     &__cards {
-        display: grid;
-        grid-template-columns: repeat(var(--con-ptsel-per-row, 3), minmax(0, 1fr));
-        gap: .55rem;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-start;
+        gap: var(--con-ptsel-gap, .55rem);
+        padding: .3rem 0;
         min-width: 0;
     }
+    /* THE MEASURED CELL — the box directional navigation reads. It never
+       transforms, so the geometry can never be the emphasis being applied to it. */
+    &__cell { flex: 0 0 auto; position: relative; }
     /* A CANDIDATE. It stays in its owner's group at all times — the focused
        card lifts a little and takes a ring; it never travels to the source
        card, because targeting a played card does not take it off the table. */
@@ -16910,8 +16951,11 @@ html.console-mode {
         transition: transform calc(150ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
         > :is(.card-container, .pcard) { margin: 0; border-radius: .4rem; }
 
+        /* The cue's weight is the RING and the lift, not growth: at the sizes
+           this step now reaches a 4 % scale is 30 px of travel and reads as the
+           card jumping. The gap reserves exactly this much and no more. */
         &--focused {
-            transform: translateY(-.28rem) scale(1.045);
+            transform: translateY(-.22rem) scale(var(--con-ptsel-focus-scale, 1.02));
             z-index: 2;
         }
         &--focused > :is(.card-container, .pcard) {
@@ -16933,50 +16977,82 @@ html.console-mode {
         font-size: .95rem; font-weight: 900;
         zoom: calc(1 / var(--con-ptsel-zoom, .58));
     }
+    /* THE CONTEXT RESOURCE BADGE. Rendered only when the card's resource is
+       what the step moves (`resourceContext`) — never as a generic counter, and
+       never at zero without an explicit reason. It rides the corner opposite
+       the lock so the two can share a card, and de-zooms so it keeps ONE size
+       whatever the planner sized the faces at. */
+    &__res {
+        position: absolute; top: .3rem; left: .3rem;
+        display: inline-flex; align-items: center; gap: .2rem;
+        padding: .1rem .4rem; border-radius: 49.95rem;
+        background: rgba(8, 16, 26, 0.88);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%);
+        color: @con-text;
+        zoom: calc(1 / var(--con-ptsel-zoom, .58));
+        b { font-size: .9rem; font-weight: 900; font-variant-numeric: tabular-nums; }
+    }
+    &__res-icon { width: .95rem; height: .95rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
 
-    /* ── THE CONTEXTUAL STATUS RAIL — part of the layout, never a tooltip.
-       Its height is RESERVED, so moving the cursor cannot move the cards. ── */
+    /* ── THE CONTEXTUAL STATUS RAIL — ONE LINE, part of the layout, never a
+       tooltip and never a panel.
+       Its job is a single question — «what does the card under the cursor give
+       me, here» — so it carries an identity and the contextual impacts and
+       nothing else. What it deliberately does NOT carry: the card type (the
+       group above says it), a reason it is available (everything shown is), the
+       section titles («БУДЕТ СКОПИРОВАНО» next to the very chip that says it),
+       the clarifying notes, or a second wording of the Result's own numbers.
+       The height is a FIXED ROW, so moving the cursor can never move the cards
+       — including onto a candidate that happens to have nothing to say. ── */
     &__rail {
         flex-shrink: 0;
-        min-height: 4.6rem;
+        height: 2.4rem;
         display: flex;
-        flex-direction: column;
-        gap: .3rem;
+        align-items: center;
+        gap: .45rem;
+        min-width: 0;
         padding-top: .5rem;
         border-top: .05rem solid rgba(120, 155, 190, 0.2);
+        overflow: hidden;
     }
-    &__railhead { display: flex; align-items: baseline; gap: .4rem; min-width: 0; }
     &__railcard {
+        flex-shrink: 1;
         font-size: 1rem; font-weight: 800; letter-spacing: .03rem; text-transform: uppercase;
         color: @con-text; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    &__railsep { color: fade(@con-cyan, 40%); }
-    &__railowner { font-size: .8rem; font-weight: 700; letter-spacing: .04rem; text-transform: uppercase; }
-    &__railbody { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .3rem .9rem; }
-    &__prev { display: flex; align-items: center; flex-wrap: wrap; gap: .3rem .5rem; min-width: 0; }
-    &__prev-title {
-        font-size: .62rem; letter-spacing: .08rem; text-transform: uppercase;
-        color: fade(@con-cyan, 88%);
+    &__railsep { flex-shrink: 0; color: fade(@con-cyan, 40%); }
+    &__railowner {
+        flex-shrink: 0;
+        font-size: .8rem; font-weight: 700; letter-spacing: .04rem; text-transform: uppercase;
     }
-    /* WHAT IT HAPPENS TO is data, not decoration: the source's own changes read
-       amber so they can never be mistaken for the target's. */
-    &__prev--source &__prev-title { color: fade(@con-amber, 88%); }
-    &__prev-impacts { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .35rem; }
+    &__railarrow { flex-shrink: 0; color: fade(@con-cyan, 55%); font-size: .9rem; }
+    &__railimpacts { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; flex-wrap: nowrap; }
     &__imp {
         display: inline-flex; align-items: center; gap: .25rem;
+        flex-shrink: 0;
         padding: .15rem .5rem; border-radius: 49.95rem;
         background: rgba(16, 28, 42, 0.7);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
         font-size: .78rem;
+        white-space: nowrap;
+        /* WHAT IT HAPPENS TO is data, not decoration: a change to the SOURCE
+           card reads amber so it can never be mistaken for the player's own
+           gain (Predators takes from the target and adds to itself — two
+           chips, two meanings, one line). */
+        &--source { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%); }
+        &--target { box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%); }
+        &--more { color: @con-text-dim; font-weight: 800; }
     }
     &__imp-icon { width: 1rem; height: 1rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
     &__imp-delta { font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; }
-    &__prev-note { font-size: .68rem; color: @con-text-dim; }
 }
 
-/* ── THE SELECTED TARGET SUMMARY — the answered row in the play surface. It is
-   a LINK to a card that is still lying in its owner's tableau, so it shows a
-   thumbnail and its origin, never a second full-size copy of the card. ── */
+/* ── THE SELECTED TARGET SUMMARY — the answered row in the play surface.
+   A LINK to a card still lying in its owner's tableau: a thumbnail, its origin,
+   the one fact that ties it to the Result strip, and the way to change it. ONE
+   ROW, because the answer is settled — the RESULT above carries the full
+   `current → resulting`, and restating it here would be the same number twice
+   on one screen. ── */
 .con-composer__target {
     display: flex;
     align-items: center;
@@ -16988,17 +17064,30 @@ html.console-mode {
     zoom: .3;
     > :is(.card-container, .pcard) { margin: 0; border-radius: .5rem; }
 }
-.con-composer__target-body { display: flex; flex-direction: column; gap: .15rem; min-width: 0; flex: 1; }
+.con-composer__target-body {
+    display: flex; align-items: baseline; flex-wrap: wrap; gap: .3rem .5rem; min-width: 0; flex: 1;
+}
 .con-composer__target-name {
     font-size: .95rem; font-weight: 800; letter-spacing: .02rem;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .con-composer__target-origin {
-    display: inline-flex; align-items: center; gap: .3rem;
-    font-size: .68rem; letter-spacing: .05rem; text-transform: uppercase; color: @con-text-dim;
+    font-size: .68rem; letter-spacing: .05rem; text-transform: uppercase;
 }
-.con-composer__target-dot { width: .45rem; height: .45rem; border-radius: 50%; }
-.con-composer__target-impacts { display: inline-flex; align-items: center; flex-wrap: wrap; gap: .3rem; }
+.con-composer__target-dot { align-self: center; width: .45rem; height: .45rem; border-radius: 50%; flex-shrink: 0; }
+/* The CHANGE affordance. Present at rest so the row reads as answerable-again,
+   and lit only while the row holds the cursor — A means «change» HERE and
+   «play» on the commit rail, and the screen never shows two live Ⓐ at once. */
+.con-composer__target-change {
+    flex-shrink: 0;
+    display: inline-flex; align-items: center; gap: .35rem;
+    font-size: .7rem; letter-spacing: .05rem; text-transform: uppercase;
+    color: @con-text-dim;
+    opacity: .5;
+    transition: opacity calc(140ms * var(--motion-scale, 1)) ease, color calc(140ms * var(--motion-scale, 1)) ease;
+    .gp-glyph { transform: scale(.78); }
+    &--on { opacity: 1; color: fade(@con-mint, 95%); }
+}
 
 /* ── Play-card composer: a two-column card · pre-select layout ───────────── */
 .con-composer {
@@ -17733,17 +17822,18 @@ html.con-profile-handheld .con-ptsel {
     gap: .4rem;
     &__contract { padding-bottom: .35rem; gap: .1rem; }
     &__contract-title { font-size: .6rem; }
+    &__contract-head { font-size: .65rem; }
     &__contract-ask { font-size: .82rem; }
-    &__contract-scope { font-size: .65rem; }
     &__tab { padding: .12rem .45rem; font-size: .66rem; }
     &__zone { gap: .8rem; }
     &__owner { padding-left: .4rem; }
     &__ownername { font-size: .8rem; }
     &__ownercount { font-size: .58rem; b { font-size: .76rem; } }
-    &__catrail { font-size: .55rem; }
-    &__cards { gap: .4rem; }
-    &__slot { zoom: .44; }
-    &__rail { min-height: 3.6rem; padding-top: .35rem; }
+    &__catrail { font-size: .55rem; height: .9rem; }
+    &__sections { gap: .6rem; }
+    /* (No `zoom` here either — the planner's Deck ceiling handles the size, and
+       forces tabs on this profile so there is never a second owner column.) */
+    &__rail { height: 2rem; padding-top: .35rem; }
     &__railcard { font-size: .85rem; }
     &__railowner { font-size: .68rem; }
     &__imp { font-size: .66rem; padding: .1rem .4rem; }

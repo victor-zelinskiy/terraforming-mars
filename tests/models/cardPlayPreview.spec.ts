@@ -691,6 +691,13 @@ describe('cardPlayPreview', () => {
       expect(step.kind === 'input' && step.input.type).eq('card');
       const names = step.kind === 'input' ? (step.input as SelectCardModel).cards.map((c) => c.name) : [];
       expect(names).to.include(mine.name);
+      // …and PER CANDIDATE, what copying it would actually produce. This card IS
+      // the choice of which production box to copy, so a picker that cannot say
+      // what each box holds is a blind target. (It shipped blind for a while:
+      // `CyberiaSystems` — same base class — always passed the flag, this one
+      // did not, and nothing asserted the difference.)
+      expect(step.kind === 'input' && step.copyProductionBox?.[mine.name])
+        .to.deep.equal({megacredits: 0, steel: 1, titanium: 0, plants: 0, energy: 0, heat: 0});
     });
 
     it('EnergyTapping: a "+1 your energy production" chip + a DecreaseAnyProduction step', () => {

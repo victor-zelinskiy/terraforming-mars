@@ -47,10 +47,18 @@ export class RoboticWorkforce extends RoboticWorkforceBase {
   // chooses WHICH building card's production to copy, as premium card tiles in the
   // play modal, instead of a follow-up prompt. (`selectBuildingCard` builds a
   // `SelectCard(title, 'Copy', cards)`, so the response lines up byte-for-byte.)
+  //
+  // `copyProductionBox` is what makes the pick INFORMED rather than blind: it
+  // asks the read-only mirror of `selectBuildingCard`'s own copy order what each
+  // candidate would actually produce, per card. Without it the client can only
+  // say «choose one of these», which is exactly the "no hidden target" rule this
+  // fork does not bend — the whole card IS the choice of which box to copy. Its
+  // sibling `CyberiaSystems` (same base class, same mechanic) has always passed
+  // it; this one silently did not.
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const cards = this.getPlayableBuildingCards(player);
     const step = cards.length > 0 ?
-      actionPreviews.selectCardStep(player, 'Select builder card to copy', 'Copy', cards) :
+      actionPreviews.selectCardStep(player, 'Select builder card to copy', 'Copy', cards, {copyProductionBox: true}) :
       undefined;
     return actionPreviews.playPreview(this, player, [], [step]);
   }

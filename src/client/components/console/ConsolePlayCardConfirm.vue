@@ -51,8 +51,14 @@
           <!-- EMBEDDED: the stage's SUPPORTING line — the economics and the
                verdict, close above the controls they judge. Never a second
                page title: the name of this step is already in the one header
-               that has been on screen since the player opened the screen. -->
-          <div v-if="embedded" class="con-composer__stagehead" data-unfold-item>
+               that has been on screen since the player opened the screen.
+               It belongs to the PLAY level and stays there: the price is
+               already settled, is not what the target choice weighs, and is
+               still on the source card — repeating it one level down (next to
+               a «НУЖЕН ВЫБОР» chip saying what the breadcrumb, the contract
+               line and the screen itself already say) is three restatements
+               of context the player did not ask for. -->
+          <div v-if="embedded && !playedTargetStepOpen" class="con-composer__stagehead" data-unfold-item>
             <span class="con-composer__paycost">
               {{ $t('Cost') }}: <b>{{ cost }}</b> <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
             </span>
@@ -246,23 +252,29 @@
                     <div class="con-composer__target-thumb" aria-hidden="true">
                       <ConsoleCardFaceLite :name="tgt.cardName" />
                     </div>
+                    <!-- ONE line: what was chosen, whose it is, and the fact
+                         that links it to the Result strip above. The full
+                         before→after lives THERE — repeating it here would be
+                         the same number twice on one screen. -->
                     <div class="con-composer__target-body">
                       <span class="con-composer__target-name">{{ $t(tgt.cardName) }}</span>
-                      <span class="con-composer__target-origin">
-                        <span class="con-composer__target-dot" :class="'player_bg_color_' + tgt.ownerColor" aria-hidden="true"></span>
-                        <span :class="'player_color_' + tgt.ownerColor">{{ tgt.ownerName }}</span>
-                        <span aria-hidden="true">·</span>
-                        <span>{{ $t('Played') }}</span>
-                      </span>
-                      <span class="con-composer__target-impacts">
-                        <span v-for="imp in targetSummaryImpacts(row.choice)" :key="imp.key" class="con-ptsel__imp">
-                          <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="iconClass(imp.icon)" aria-hidden="true"></i>
-                          <span class="con-ptsel__imp-label">{{ imp.translate === false ? imp.label : $t(imp.label) }}</span>
-                          <b v-if="imp.from !== undefined && imp.to !== undefined" class="con-ptsel__imp-delta">{{ imp.from }}<span aria-hidden="true"> → </span>{{ imp.to }}</b>
-                          <b v-else-if="imp.amount !== undefined" class="con-ptsel__imp-delta">{{ imp.amount > 0 ? '+' : '' }}{{ imp.amount }}</b>
-                        </span>
+                      <span class="con-composer__target-dot" :class="'player_bg_color_' + tgt.ownerColor" aria-hidden="true"></span>
+                      <span class="con-composer__target-origin" :class="'player_color_' + tgt.ownerColor">{{ tgt.ownerName }}</span>
+                      <span v-for="imp in targetSummaryImpacts(row.choice)" :key="imp.key" class="con-ptsel__imp">
+                        <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="iconClass(imp.icon)" aria-hidden="true"></i>
+                        <span class="con-ptsel__imp-label">{{ imp.translate === false ? imp.label : $t(imp.label) }}</span>
+                        <b v-if="imp.from !== undefined && imp.to !== undefined" class="con-ptsel__imp-delta">{{ imp.from }}<span aria-hidden="true"> → </span>{{ imp.to }}</b>
+                        <b v-else-if="imp.amount !== undefined" class="con-ptsel__imp-delta">{{ imp.amount > 0 ? '+' : '' }}{{ imp.amount }}</b>
                       </span>
                     </div>
+                    <!-- The CHANGE affordance, on the row that owns it: A here
+                         re-opens the selector (the CTA row's A plays). It is
+                         drawn only while this row holds the cursor, so the
+                         screen never shows two live Ⓐ verbs at once. -->
+                    <span class="con-composer__target-change" :class="{'con-composer__target-change--on': focusIdx === row.i}">
+                      <GamepadGlyph control="confirm" />
+                      <span>{{ $t('Change selection') }}</span>
+                    </span>
                   </div>
                 </template>
                 <template v-else>
@@ -404,19 +416,29 @@ import {takeHandPlayPreview, storeHandPlayPreview, playPreviewUrl} from '@/clien
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
 import {
   buildPlayedTargetModel, planPlayedTargetLayout, findPlayedTargetFocus, reseatPlayedTargetFocus,
-  stepPlayedTargetFocus, stepPlayedTargetOwner, playedTargetAt,
-  playedTargetResultOf, playedTargetResultLive,
-  PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetNavDir,
-  PlayedTargetPreviewSection, PlayedTargetResult, PlayedTargetImpact, PlayedTargetSelection,
+  stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner, playedTargetAt,
+  playedTargetResultOf, playedTargetResultLive, playedTargetQuickImpacts,
+  PLAYED_TARGET_SUMMARY_IMPACT_CAP,
+  PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetNavDir, PlayedTargetCell,
+  PlayedTargetPreviewSection, PlayedTargetResult, PlayedTargetQuickImpact, PlayedTargetSelection,
+  PlayedTargetResourceContext,
   togglePlayedTargetPick, playedTargetPicksValid, prunePlayedTargetPicks,
 } from '@/client/console/played/consolePlayedTargetModel';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 
 /** The production resources a copy-production box can carry, in chip order. */
 const STANDARD_PROD_KEYS = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'] as const;
+/**
+ * PRODUCTION labels, not bare resource names. The quick readings drop their
+ * section titles (the rail is one line, the summary is one row), so «БУДЕТ
+ * СКОПИРОВАНО» no longer supplies the word «производство» — the impact has to
+ * carry its own meaning or it reads as a stock gain. The Result chip states the
+ * same fact the other way round (`0 → 1 производство`, no resource name), so the
+ * two are complements rather than two wordings of one line.
+ */
 const PROD_LABEL: Record<string, string> = {
-  megacredits: 'M€', steel: 'Steel', titanium: 'Titanium',
-  plants: 'Plants', energy: 'Energy', heat: 'Heat',
+  megacredits: 'M€ production', steel: 'Steel production', titanium: 'Titanium production',
+  plants: 'Plant production', energy: 'Energy production', heat: 'Heat production',
 };
 import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from '@/client/console/consolePlayCardResult';
 import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
@@ -718,7 +740,12 @@ export default defineComponent({
         ask: textOf(model.title),
         typeOf: (name) => getCard(name)?.type,
         preview: (name) => this.playedTargetPreview(choice, name),
+        resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
       });
+    },
+    /** The embedded selector holds the surface right now. */
+    playedTargetStepOpen(): boolean {
+      return this.sub?.kind === 'playedTarget' && this.playedTargetModel !== undefined;
     },
     /** The choice the open (or pending) played-target step serves. */
     playedTargetChoice(): ComposerChoice | undefined {
@@ -1822,6 +1849,24 @@ export default defineComponent({
       }
       return out;
     },
+    /**
+     * The resource badge a candidate face earns — EXPLICIT, and only when the
+     * card's resource is what the step moves.
+     *
+     * The condition is the same one that produces the `current → resulting`
+     * section above, deliberately: a badge that appears without that reading, or
+     * a reading without that badge, would be two different claims about whether
+     * the resource matters here. For a copy-production step (Industrial Robots)
+     * there is no resource delta, so there is no badge — which is how the gold
+     * «0» on every building card disappears without a card-specific rule.
+     */
+    playedTargetResourceContext(c: ComposerChoice, card: CardModel): PlayedTargetResourceContext | undefined {
+      const amount = c.input.type === 'card' ? (c.input as SelectCardModel & {amount?: number}).amount : undefined;
+      if (amount === undefined || amount === 0 || card.resources === undefined) {
+        return undefined;
+      }
+      return {icon: c.cardResource ?? 'resource', count: card.resources};
+    },
     /** A LATER card step of a merge branch — collapsed into the first one's
      *  multi pick (never its own row, never a follow-up note). */
     isCollapsedMergeStep(c: ComposerChoice): boolean {
@@ -1986,7 +2031,17 @@ export default defineComponent({
       this.focusIdx = this.firstActionableIndex();
       this.scrollFocused();
     },
-    /** Move the cursor inside the step (D-pad; crosses owner groups in split). */
+    /**
+     * Move the cursor inside the step — BY WHERE THE CARDS ARE.
+     *
+     * The step's own measured cells decide, so Down goes to the card that is
+     * visually below whether that is the next row of one grid, the next
+     * category block, or the other owner's group across the gap. The index walk
+     * survives only as the answer for a step that has not measured yet (the
+     * very first frame, and unit tests) — it assumes ONE uniform grid, which is
+     * exactly the assumption that made Up/Down dead while two candidates sat
+     * one above the other in two category blocks.
+     */
     movePlayedTarget(dir: NavDirection): void {
       if (this.sub?.kind !== 'playedTarget') {
         return;
@@ -1999,7 +2054,25 @@ export default defineComponent({
       if (d === undefined) {
         return;
       }
-      this.sub = {...this.sub, focus: stepPlayedTargetFocus(this.sub.focus, d, owners, this.playedTargetLayout)};
+      const step = this.$refs.targetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
+      const cells = step?.cells?.() ?? [];
+      const next = cells.length > 0 ?
+        stepPlayedTargetFocusAt(this.sub.focus, d, cells) :
+        stepPlayedTargetFocus(this.sub.focus, d, owners, this.playedTargetLayout);
+      if (next === undefined) {
+        return; // an edge HOLDS — never a wrap, never a silent owner change
+      }
+      this.sub = {...this.sub, focus: next};
+      this.scrollPlayedTargetFocused();
+    },
+    /** Keep the cursored candidate inside the workspace's ONE scroll area —
+     *  only ever needed when the sizing genuinely could not fit the set. */
+    scrollPlayedTargetFocused(): void {
+      this.$nextTick(() => {
+        const scroll = this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined;
+        const el = (this.$el as HTMLElement | undefined)?.querySelector('[data-ptsel-cell][data-focused]');
+        scroll?.ensureVisible?.(el);
+      });
     },
     /** LB/RB — the owner axis, tabbed mode only (in split the groups are both
      *  on screen and the d-pad crosses between them spatially). */
@@ -2055,16 +2128,23 @@ export default defineComponent({
       const result = this.playedTargetResult(c);
       return result === undefined ? [] : [result];
     },
-    /** The summary's compact impact chips — the snapshot the selection was
-     *  made against, flattened; the summary states the outcome, not the whole
-     *  rail (the rail's job was comparison, and comparison is over). */
-    targetSummaryImpacts(c: ComposerChoice): ReadonlyArray<PlayedTargetImpact & {key: string}> {
+    /**
+     * The summary's compact impact chips — the SAME derivation the focus rail
+     * uses, capped shorter.
+     *
+     * The division of labour is deliberate and is why nothing is said twice:
+     * the RESULT strip above carries the full authoritative `current →
+     * resulting` (the copied production folds into it through the branch's own
+     * effects), and this row carries identity, origin and the one fact that
+     * links the two — «this card is why that number moved». Comparison is over;
+     * the summary is not a smaller rail.
+     */
+    targetSummaryImpacts(c: ComposerChoice): ReadonlyArray<PlayedTargetQuickImpact> {
       const result = this.playedTargetResult(c);
       if (result === undefined) {
         return [];
       }
-      return result.preview.flatMap((sec, si) =>
-        sec.impacts.map((imp, ii) => ({...imp, key: `${si}:${ii}`})));
+      return playedTargetQuickImpacts(result.preview).slice(0, PLAYED_TARGET_SUMMARY_IMPACT_CAP);
     },
     // (`openTableauPick` is gone. Every played-card pick this flow has — the
     // single «point at one card» ask AND the server's merged up-to-N ask —

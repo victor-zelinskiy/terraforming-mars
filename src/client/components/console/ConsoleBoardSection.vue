@@ -43,6 +43,9 @@ import {
   PLANET_FOCUS_ENTER_MS, PLANET_FOCUS_EXIT_MS,
 } from '@/client/console/planetFocus';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
+// ⚠ TEMPORARY DIAGNOSTIC — remove this import + the `traceBoardWrite` call
+// and the `fitReason` assignments to revert (see planetFocusTrace.ts).
+import {traceBoardWrite} from '@/client/console/planetFocusTrace';
 
 const SELECT_CLASS = 'con-cell-sel';
 /** P27: the focused global-parameter TRACK marker (inspection mode). */
@@ -198,6 +201,8 @@ export default defineComponent({
        * it goes through scheduleFit, which re-opens the pass budget).
        */
       calibrateLock: undefined as {w: number, h: number} | undefined,
+      /** ⚠ TEMPORARY DIAGNOSTIC — who asked for the current fit. */
+      fitReason: 'mount',
       /** The first fit has landed — from here every scale change GLIDES. */
       fitted: false,
       /** A board transform is in flight: measurements are meaningless until
@@ -307,7 +312,10 @@ export default defineComponent({
         // banner row hides, the dock clearance drops), and the fit must
         // measure the GROWN stage — a sync call would read the old box.
         // The ResizeObserver double-checks a frame later either way.
-        void this.$nextTick(() => this.fitBoard());
+        void this.$nextTick(() => {
+          this.fitReason = 'phase-enter'; // ⚠ TEMPORARY DIAGNOSTIC
+          this.fitBoard();
+        });
         return;
       }
       if (now === 'exiting') {
@@ -365,6 +373,7 @@ export default defineComponent({
       }
       const phase = this.planetFocusState.phase;
       if (phase === 'entering' || phase === 'active') {
+        this.fitReason = 'focus-fit'; // ⚠ TEMPORARY DIAGNOSTIC
         this.fitPlanetFocus(stage, r);
         return;
       }
@@ -398,6 +407,9 @@ export default defineComponent({
      */
     applyBoardScale(scale: number): void {
       const moved = Math.abs(scale - this.appliedScale) > 0.0005;
+      if (moved) {
+        traceBoardWrite(this.fitReason, scale); // ⚠ TEMPORARY DIAGNOSTIC
+      }
       this.appliedScale = scale;
       document.documentElement.style.setProperty('--board-scale', scale.toFixed(4));
       if (moved && this.fitted) {
@@ -460,6 +472,7 @@ export default defineComponent({
         this.naturalW = this.savedNaturalW;
         this.naturalH = this.savedNaturalH;
         this.restoreStageOffsets(stage);
+        this.fitReason = 'replay'; // ⚠ TEMPORARY DIAGNOSTIC
         this.applyBoardScale(saved);
         // The replayed framing IS the reference. A calibration pass here
         // would "improve" it ~400ms after the landing — an unanimated
@@ -499,6 +512,7 @@ export default defineComponent({
         // A fresh fit cycle (mount / stage resize) restarts the bounded
         // calibration convergence.
         this.calibratePasses = 0;
+        this.fitReason = 'observer'; // ⚠ TEMPORARY DIAGNOSTIC
         this.fitBoard();
       });
     },
@@ -508,6 +522,7 @@ export default defineComponent({
       }
       this.calibrateRaf = window.requestAnimationFrame(() => {
         this.calibrateRaf = 0;
+        this.fitReason = 'calibrate'; // ⚠ TEMPORARY DIAGNOSTIC
         this.calibrate();
       });
     },
