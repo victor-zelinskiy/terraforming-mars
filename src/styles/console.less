@@ -4894,46 +4894,29 @@ html.console-mode {
            surface. The DOM stays MOUNTED — selection, scroll position, filter
            and focus survive by construction, and B hands the card back into its
            own slot instead of rebuilding the grid. The GRID ITSELF is never
-           transformed or scaled: only the chosen card and the occlusion bridge
-           move (consoleHandStageMotion), so the cost of the transition does not
-           grow with the hand.
-           The bridge director overrides this INLINE for the length of the
-           phrase (the browse layer is the visible owner of the card until the
-           cover takes it); `clearProps` at the episode's end gives the resting
-           truth back. */
+           transformed or scaled: only the ONE persistent hero card moves, on
+           the app-level exit layer (consoleHandStageMotion + runCardTransfer),
+           so the cost of the transition does not grow with the hand.
+           The hero director overrides this INLINE for the length of the
+           isolation fade (the neighbours let go IN PLACE while the hero is
+           already flying above); `clearProps` at the episode's end gives the
+           resting truth back. */
         &--parked {
             opacity: 0;
             visibility: hidden;
             pointer-events: none;
         }
     }
-    /* 1 · MECHANICAL COMMIT — the pressed card answers WHERE IT STANDS, before
-       anything else changes, so the player sees WHICH card was taken while all
-       its neighbours are still fully still. */
-    &--staged &__slot--selected {
-        transform: scale(1.07);
-        z-index: 4;
-    }
-    &--staged &__slot--selected > :is(.card-container, .pcard) {
-        box-shadow:
-            0 0 0 .18rem fade(@con-mint, 92%),
-            0 0 1.6rem fade(@con-mint, 45%),
-            0 1rem 2rem -.7rem rgba(0, 0, 0, 0.75);
-    }
-    @media (prefers-reduced-motion: reduce) {
-        &--staged &__slot--selected { transform: none; }
-    }
     /* A pick BRIDGE is out: the shelf is the picker again. The stage keeps its
        claim (and its zone, and the composer's captures inside it) — it just
        steps out of the way. Written as an override rather than by dropping
-       `--staged`, so the claim and the presentation stay separate facts. */
+       the stage flag, so the claim and the presentation stay separate facts. */
     &--stagepaused &__browse--parked {
         transform: none;
         opacity: 1;
         visibility: visible;
         pointer-events: auto;
     }
-    &--stagepaused &__slot--selected { transform: scale(1.035); }
     &--stagepaused &__stage {
         opacity: 0;
         pointer-events: none;
@@ -4948,54 +4931,15 @@ html.console-mode {
         min-height: 0;
         z-index: 2;
     }
-
-    /* ── THE OCCLUSION BRIDGE (consoleHandStageMotion) ────────────────────
-       The near-opaque plane that hides the re-anchor between the hand slot and
-       the play anchor. Created imperatively for the length of one episode.
-       The HOST clips the sweeping plane so nothing ever pokes past the stage
-       area; the PLANE is the material — a deep alloy fall-off with a machined
-       top seam (one paint, no filter — perf-lite safe); the EDGE is the lit
-       frontier that travels with the sweep. */
-    &__bridgehost {
-        position: absolute;
-        inset: 0;
-        z-index: 3;
-        overflow: hidden;
-        border-radius: .5rem;
-        pointer-events: none;
-    }
-    &__bridge {
-        position: absolute;
-        inset: 0;
-        background:
-            radial-gradient(120% 100% at 22% 38%, rgba(26, 42, 62, 0.5) 0%, transparent 58%),
-            linear-gradient(90deg, rgba(150, 200, 240, 0.14) 0%, transparent 4%) no-repeat top left / 100% .06rem,
-            linear-gradient(168deg, rgba(15, 24, 37, 0.988) 0%, rgba(7, 12, 19, 0.995) 100%);
-        box-shadow:
-            inset 0 .06rem 0 rgba(210, 235, 255, 0.05),
-            inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
-    }
-    /* The lit LEADING EDGE — the plane's own left rim: during the sweep it IS
-       the frontier between the two levels, so it needs no per-frame tracking. */
-    &__bridge-edge {
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: .16rem;
-        background: linear-gradient(180deg, transparent 0%, fade(@con-cyan, 62%) 28%, fade(@con-cyan, 62%) 72%, transparent 100%);
-        box-shadow: 0 0 .9rem fade(@con-cyan, 30%);
-
-        /* A soft bloom trailing the frontier into the covered side. */
-        &::after {
-            content: '';
-            position: absolute;
-            left: 100%;
-            top: 0;
-            bottom: 0;
-            width: 2.4rem;
-            background: linear-gradient(90deg, fade(@con-cyan, 8%) 0%, transparent 100%);
-        }
+    /* ARMING — the enter phrase's window between the zone opening and the
+       work-surface groups' materialize: groups born in it (the composer
+       teleports in one flush after the zone) stay hidden until the cascade
+       takes them, so nothing can pop in the frame the composer mounts. The
+       class comes off the moment the cascade starts; content that mounts
+       LATER (a slow preview on the fast-A fallback) is deliberately outside
+       it and appears plainly — honest, and rare once the prewarm has run. */
+    &__stage--arming [data-unfold-item] {
+        opacity: 0;
     }
 
     /* ── the dock ↔ overlay REVEAL transition owns the cards ─────────

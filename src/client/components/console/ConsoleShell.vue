@@ -1107,7 +1107,8 @@ import {
   workspaceStageState,
 } from '@/client/console/consoleWorkspaceStage';
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
-import {armHandStageOrigin, resetHandStageMotion, handStageTransitioning} from '@/client/console/consoleHandStageMotion';
+import {resetHandStageMotion, handStageTransitioning, guardHandHeroFlight, heroCommitLift} from '@/client/console/consoleHandStageMotion';
+import {armHandPlayPrewarm, cancelHandPlayPrewarm, resetHandPlayPrewarm} from '@/client/console/consoleHandPlayPrewarm';
 import ConsoleCorpFirstActionConfirm from '@/client/components/console/ConsoleCorpFirstActionConfirm.vue';
 import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
 import ConsoleCardDiscardLayer from '@/client/components/console/cardDiscard/ConsoleCardDiscardLayer.vue';
@@ -2760,14 +2761,7 @@ export default defineComponent({
      *  after a successful play (until the server removes it from the hand).
      *  One physical card never sits in two places at once. */
     stagedHandCard(): CardName | undefined {
-      // INSIDE THE HAND WORKSPACE the slot card IS the transition's visible
-      // owner until the occlusion bridge covers it, and it is the object the
-      // return REVEALS back in place. Holding its slot empty would delete the
-      // very card the phrase is about — and the two representations are never
-      // on screen together (the swap happens under the opaque bridge), so the
-      // hold buys nothing and costs the continuity.
-      const staged = workspaceStageOpen('hand') ? undefined : this.pendingPlayCard?.cardName;
-      return staged ?? this.returningPlayCard ?? this.departingPlayCard;
+      return this.pendingPlayCard?.cardName ?? this.returningPlayCard ?? this.departingPlayCard;
     },
     /**
      * THE HAND WORKSPACE'S OPEN DESCENT — what the section needs to know to
@@ -2811,6 +2805,20 @@ export default defineComponent({
      */
     playHeldForWorkspace(): boolean {
       return workspaceStageOpen('hand') && workspaceStageState.slot === '';
+    },
+    /**
+     * The card the PLAY PREWARM watches: the browse-hand cursor standing on a
+     * playable card (never a sale / select / pick mode — those cursors are not
+     * «considering a play»). Feeds the focus-dwell preview prefetch, so by the
+     * time A lands the composer usually reads its preview synchronously.
+     */
+    focusedPlayableHandCard(): CardName | undefined {
+      if (this.consoleState.section !== 'hand' || this.consoleState.sale.active ||
+          this.handSelectUiActive || this.pendingPlayCard !== undefined) {
+        return undefined;
+      }
+      const entry = this.handEntries[this.consoleState.handIndex];
+      return entry?.playable === true ? (entry.card.name as CardName) : undefined;
     },
     handEntries(): ReadonlyArray<ConsoleHandEntry> {
       if (this.consoleState.sale.active) {
@@ -4699,6 +4707,18 @@ export default defineComponent({
     },
     // The play composer owns the ideological focus while open — the hand's
     // focus chrome behind it goes quiet (same rule as the fullscreen zoom).
+    /**
+     * FOCUS PREWARM — the dwell timer follows the browse cursor. Arming is
+     * latest-wins (riffling across the hand fires zero requests); leaving the
+     * hand / entering any pick mode cancels the pending dwell outright.
+     */
+    focusedPlayableHandCard(name: CardName | undefined) {
+      if (name === undefined) {
+        cancelHandPlayPrewarm();
+      } else {
+        armHandPlayPrewarm(this.playerView, name);
+      }
+    },
     pendingPlayCard(now: PendingPlayCard | undefined) {
       document.body.classList.toggle('con-play-modal-open', now !== undefined);
       // THE DESCENT ENDS WITH THE COMPOSER, on every path — the B cancel, the
@@ -6977,26 +6997,35 @@ export default defineComponent({
       return document.querySelector<HTMLElement>(`.con-hand [data-zoom-slot="${esc}"]`);
     },
     /**
-     * DIRECT play from the hand (A on a playable card) — the OCCLUSION BRIDGE.
+     * DIRECT play from the hand (A on a playable card) — the PERSISTENT HERO.
      *
-     * No proxy flight and no camera: a flight dragged the card across however
-     * much viewport lay between its slot and the play anchor (worse the
-     * further right it sat), and transforming the whole grid to compensate
-     * made the return a zoom-out of the entire scene. `consoleHandStageMotion`
-     * OCCLUDES the distance instead — a near-opaque plane grows out of the
-     * pressed card, the re-anchor happens invisibly under it, and the plane
-     * sweeps away to reveal the card already standing on the play anchor. The
-     * grid never moves, and the quality of the transition is identical for
-     * every slot in the hand.
-     *
-     * (The FULLSCREEN entry still uses `playZoomHandoff` — there the card is
-     * genuinely somewhere else, on its own layer, and a flight is honest.)
+     * ONE FaceLite hero spawns over the pressed card in the same paint its
+     * slot hides (`stagedHandCard`), answers the press on itself (commit ring
+     * + lift, `heroCommitLift`), and flies a FIXED-duration transfer into the
+     * composer's pre-held card well — the flight starts only once the well's
+     * rect has held still across frames, and the real card is revealed UNDER
+     * the still-opaque hero on touchdown. Around it, the stage's enter hook
+     * fades the rest of the hand in place and materializes the work-surface
+     * groups WHILE the hero travels — the card and the level assemble as one
+     * event. The grid itself never moves; a far-right card differs only in
+     * velocity, never in duration or quality.
      */
     openPlayCardFromHand(name: CardName): void {
-      // The pressed card's rect, taken NOW — the only moment the browse
-      // geometry is still the one the player was looking at.
-      armHandStageOrigin(this.handExitSlot(name)?.getBoundingClientRect());
+      const slot = this.handExitSlot(name);
+      // Opening pendingPlayCard ALSO engages the Vue-managed hand-slot hold
+      // (stagedHandCard) in the same flush — the source card leaves the
+      // table the frame its hero exists; no double-vision, patch-proof.
       this.openPlayCard(name);
+      if (slot === null) {
+        return;
+      }
+      void guardHandHeroFlight(runCardTransfer({
+        name,
+        from: slot,
+        resolveTo: () => document.querySelector<HTMLElement>('.con-composer--play [data-zoom-handoff="play-card"]'),
+        holdTarget: true,
+        onSpawn: heroCommitLift,
+      }));
     },
     /**
      * CANCEL of the play composer: the card physically RETURNS to its hand
@@ -7018,32 +7047,33 @@ export default defineComponent({
         return;
       }
       const name = pending.cardName;
-      // INSIDE THE HAND WORKSPACE the way back is the occlusion bridge
-      // reversed (the stage's own leave hook): the bridge sweeps in over the
-      // play surface, the grid is restored UNDER the cover with the card in
-      // its own slot (it never left the DOM), and the bridge folds into that
-      // slot — so the card is revealed home rather than flown there.
-      if (workspaceStageOpen('hand')) {
-        this.pendingPlayCard = undefined;
-        return;
-      }
+      // The hero flies HOME — the same persistent-hero grammar reversed: it
+      // spawns over the anchored card (which hides under it in the same
+      // paint), the leave hook blooms the hand back in around the flight, and
+      // the card is revealed in its own held-empty slot on touchdown. One
+      // path for the workspace descent and the standalone band alike.
       const modalSlot = document.querySelector<HTMLElement>('.con-composer--play [data-zoom-handoff="play-card"]');
       if (modalSlot === null) {
         this.pendingPlayCard = undefined;
         return;
       }
       this.returningPlayCard = name; // keeps the hand slot held across the modal close
-      void runCardTransfer({
+      void guardHandHeroFlight(runCardTransfer({
         name,
         from: modalSlot,
         resolveTo: () => this.handExitSlot(name),
+        // ONE visible owner from the first frame: the anchored card hides
+        // under the hero the moment it spawns — the composer stays mounted
+        // through its own leave fade, and without the hold both would paint
+        // together for the length of that fade.
+        holdFrom: true,
         onLift: () => {
           this.pendingPlayCard = undefined;
         },
         onTouchdown: () => {
           this.returningPlayCard = undefined;
         },
-      });
+      }));
     },
     clearDepartingPlayCard(): void {
       this.departingPlayCard = undefined;
@@ -8767,6 +8797,7 @@ export default defineComponent({
     // standalone band, so the next play would be presented NOWHERE.
     resetWorkspaceStage();
     resetHandStageMotion();
+    resetHandPlayPrewarm(); // pending dwell timers + version-keyed previews
     resetConsoleRepeatPick(); // same for a repeat-action pick + its command store
     resetConsoleRepeatPickUi();
     // A composer's TABLEAU pick is module state too — fold it (cancel) so a

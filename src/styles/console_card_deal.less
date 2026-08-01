@@ -612,6 +612,18 @@ dialog.con-zoom {
         box-shadow: 0 0 0 .15rem fade(@con-cyan, 85%), 0 0 1.3rem fade(@con-cyan, 30%);
         border-radius: .8rem;
     }
+
+    /* The hand→play COMMIT hero (consoleHandStageMotion.heroCommitLift): the
+       press answers ON THE CARD the frame it spawns — the mint ring says
+       «taken», the deepened drop says «off the shelf». Static, set once,
+       travels and fades with the element (box-shadow — perf-lite keeps it). */
+    &--commit .con-card-lite {
+        box-shadow:
+            0 0 0 .16rem fade(@con-mint, 90%),
+            0 0 1.4rem fade(@con-mint, 38%),
+            0 1rem 2.2rem -.6rem rgba(0, 0, 0, 0.75);
+        border-radius: .8rem;
+    }
 }
 
 /* The SUBDUED discard of non-chosen cards (draft rejects / unbought

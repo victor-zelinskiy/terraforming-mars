@@ -323,8 +323,6 @@ import {extractPlayRewards} from '@/client/console/resourceTransfer/resourceTran
 import {Tag} from '@/common/cards/Tag';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {Payment} from '@/common/inputs/Payment';
-import {paths} from '@/common/app/paths';
-import {apiUrl} from '@/client/utils/runtimeConfig';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {cardHasAction, playerActionGroups, ActionGroup} from '@/client/components/actions/actionExtraction';
 import {stripNodeOr} from '@/client/components/actions/actionBranchView';
@@ -359,6 +357,7 @@ import {
 import {setConsolePlayCardCommands, resetConsolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {setWorkspaceStageName} from '@/client/console/consoleWorkspaceStage';
 import {handStageReveal} from '@/client/console/consoleHandStageMotion';
+import {takeHandPlayPreview, storeHandPlayPreview, playPreviewUrl} from '@/client/console/consoleHandPlayPrewarm';
 import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from '@/client/console/consolePlayCardResult';
 import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
@@ -997,11 +996,24 @@ export default defineComponent({
     cardName: {
       immediate: true,
       handler() {
-        this.preview = undefined;
-        this.loading = true;
         this.resetCaptures();
         this.payCounts = initialCounts(this.cost, this.payLanes, this.megacreditsOnHand);
         this.focusIdx = 0;
+        // The FOCUS PREWARM's synchronous read: a hit means this exact card's
+        // preview was fetched under this exact game-state version while the
+        // player was still considering it — the composer mounts CONTENT-
+        // COMPLETE, so the entry transition never contains a «Загрузка…» row
+        // or the layout swap its replacement used to cause. A miss (fast A
+        // before the dwell, changed game state) falls back to the live fetch.
+        const warmed = takeHandPlayPreview(this.playerView, this.cardName);
+        if (warmed.hit) {
+          this.preview = warmed.preview;
+          this.loading = false;
+          this.applyPreview();
+          return;
+        }
+        this.preview = undefined;
+        this.loading = true;
         this.fetchPreview();
       },
     },
@@ -1081,10 +1093,14 @@ export default defineComponent({
     },
     fetchPreview(): void {
       const cardName = this.cardName;
-      const url = apiUrl(paths.API_CARD_PLAY_PREVIEW) + '?id=' + encodeURIComponent(this.playerView.id) + '&card=' + encodeURIComponent(cardName);
-      fetch(url)
+      // ONE URL builder with the prewarm — the warmed request and the live
+      // request can never drift apart.
+      fetch(playPreviewUrl(this.playerView.id, cardName))
         .then((r) => (r.ok ? r.json() : undefined))
         .then((p) => {
+          // Feed the prewarm cache too: a pick-bridge return or a re-open in
+          // the same game state remounts content-complete.
+          storeHandPlayPreview(this.playerView, cardName, p as ActionPreview | undefined);
           if (this.cardName === cardName) {
             this.preview = p as ActionPreview | undefined;
             this.loading = false;

@@ -463,6 +463,15 @@ export type TransferArgs = {
    * behind the composer backdrop: playing isn't committed yet).
    */
   holdFrom?: boolean,
+  /**
+   * Fires with the PROXY ELEMENT the moment it stands over the source —
+   * the one place a caller may dress the flight (a commit ring, a spawn
+   * lift) without owning the proxy's lifecycle. A short spawn tween it
+   * starts is superseded by the main flight on the shared axes (the flight
+   * is created later, so its per-frame writes win), which lets a lift blend
+   * into the travel instead of completing as a separate move.
+   */
+  onSpawn?: (el: HTMLElement) => void,
   /** Fires once the proxy stands over the source (host updates state). */
   onLift?: () => void,
   /**
@@ -490,6 +499,9 @@ export async function runCardTransfer(args: TransferArgs): Promise<void> {
     return;
   }
   const spawned = await spawnProxies([{name: args.name, el: args.from}], false);
+  if (spawned.length > 0) {
+    args.onSpawn?.(spawned[0].el);
+  }
   args.onLift?.();
   if (spawned.length === 0) {
     return;
