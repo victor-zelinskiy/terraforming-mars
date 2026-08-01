@@ -108,48 +108,44 @@ export function buildPlayCardBatch(args: PlayCardBatchArgs): Array<unknown> {
 
 /**
  * HOW the play composer serves one pre-select choice:
- *  - `inline`      — hosted in the composer itself (a sub-list / stepper);
- *  - `handPick`    — handed to the HAND SECTION's pick mode (every candidate
- *                    is a hand card — single AND multi-select, Public Plans);
- *  - `tableauPick` — handed to the «РАЗЫГРАНО» view's pick mode (every
- *                    candidate is one of the viewer's PLAYED cards): single
- *                    picks (Robotic Workforce, the resource targets), the
- *                    merged up-to-N pick (Astra Mechanica `mergeCardSteps` —
- *                    hosted as ONE multi pick on the FIRST card step) and the
- *                    deduped sequential picks (Cyberia `dedupeFromSteps`);
- *  - `repeat`      — a "repeat an already-used action" pick (ProjectInspection):
- *                    hosted by the ДЕЙСТВИЯ КАРТ list surface in repeat mode
- *                    (`consoleRepeatPick`), pre-collected as the chosen action +
- *                    its composed responses;
- *  - `followup`    — an honest post-submit follow-up (a candidate-less pick the
- *                    live play auto-resolves, a multi-select whose candidates
- *                    the console doesn't own).
+ *  - `inline`       — hosted in the composer itself (a sub-list / stepper);
+ *  - `handPick`     — handed to the HAND SECTION's pick mode (every candidate
+ *                     is a hand card — single AND multi-select, Public Plans);
+ *  - `playedTarget` — the EMBEDDED played-card target step (every candidate is
+ *                     already on SOME player's table): the single «point at one
+ *                     card» ask, the server's merged up-to-N ask (Astra
+ *                     Mechanica `mergeCardSteps`) and the deduped sequential
+ *                     picks (Cyberia `dedupeFromSteps`) alike;
+ *  - `repeat`       — a "repeat an already-used action" pick (ProjectInspection):
+ *                     hosted by the ДЕЙСТВИЯ КАРТ list surface in repeat mode
+ *                     (`consoleRepeatPick`), pre-collected as the chosen action +
+ *                     its composed responses;
+ *  - `followup`     — an honest post-submit follow-up (a candidate-less pick the
+ *                     live play auto-resolves, a multi-select whose candidates
+ *                     the console doesn't own).
+ *
+ * (`tableauPick` is GONE. It handed the pick to the «Разыграно» view, which
+ * lifted the real table cards — physical, but it took the player out of the
+ * workspace that asked the question and gave them a whole tableau to find two
+ * legal targets in. Both composers now descend into the embedded step instead,
+ * and «Разыграно» is a BROWSING surface only.)
  */
-export type PlayChoiceMode = 'inline' | 'handPick' | 'tableauPick' | 'playedTarget' | 'repeat' | 'followup';
+export type PlayChoiceMode = 'inline' | 'handPick' | 'playedTarget' | 'repeat' | 'followup';
 
 /**
  * `playedNames` = every card on ANY player's table.
  *
- * THE BOUNDARY IS A CAPABILITY, NOT AN OWNER. A pick that points at ONE card
+ * THE BOUNDARY IS A CAPABILITY, NOT AN OWNER. A pick that points at a card
  * already on the table — whoever owns it — is what the EMBEDDED played-target
- * step exists for, and it is checked FIRST. Routing by owner instead was the
- * bug this ordering fixes: Robotic Workforce («Промышленные роботы») targets
- * the viewer's OWN buildings, so an own-table-first check sent the flagship
- * case straight back to the old lift-out-of-the-tableau surface and the new
- * step never appeared.
- *
- * `tableauPick` (the physical lift out of the real tableau) is now UNREACHABLE
- * from card play: the embedded step hosts both shapes the flow has — the
- * single «point at one card» ask and the server's merged up-to-N ask (Astra
- * Mechanica). The branch stays only because the BLUE-ACTION composer still
- * routes through this module's vocabulary; it goes when that flow migrates,
- * and the «Разыграно» surface then keeps browsing only.
+ * step exists for. Routing by owner instead was the bug this ordering fixed:
+ * Robotic Workforce («Промышленные роботы») targets the viewer's OWN buildings,
+ * so an own-table-first check sent the flagship case straight back to the old
+ * lift-out-of-the-tableau surface and the new step never appeared.
  */
 export function playChoiceMode(
   c: ComposerChoice,
   handNames: ReadonlySet<string>,
-  tableauNames: ReadonlySet<string>,
-  playedNames?: ReadonlySet<string>,
+  playedNames: ReadonlySet<string>,
 ): PlayChoiceMode {
   if (c.repeatAction === true) {
     return 'repeat';
@@ -165,15 +161,11 @@ export function playChoiceMode(
     if (candidates.every((cd) => handNames.has(cd.name))) {
       return 'handPick';
     }
-    // Cards already ON THE TABLE, whoever owns them → the embedded step.
-    // Checked BEFORE the own-table branch on purpose (see the note above), and
-    // no longer limited to single selection: the step now hosts the server's
-    // merged up-to-N ask too, so card play has no case left for the old lift.
-    if (playedNames !== undefined && candidates.every((cd) => playedNames.has(cd.name))) {
+    // Cards already ON THE TABLE, whoever owns them → the embedded step. Not
+    // limited to single selection: the step hosts the server's merged up-to-N
+    // ask too.
+    if (candidates.every((cd) => playedNames.has(cd.name))) {
       return 'playedTarget';
-    }
-    if (candidates.every((cd) => tableauNames.has(cd.name))) {
-      return 'tableauPick';
     }
     // Candidates the console doesn't own a surface for (SRR-hosted cards):
     // a single pick stays an inline sub-list; a multi-select keeps the

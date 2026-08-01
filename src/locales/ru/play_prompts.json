@@ -241,6 +241,8 @@
     "Fund ${0} award": "Профинансируйте награду ${0}",
     "Gain ${0} standard resources": "Распределите стандартные ресурсы (${0})",
     "Gain ${0} units of a standard resource": "Получите ${0} ед. базового ресурса",
+    "${0}'s tile landed next to yours. New adjacencies: ${1}": "Тайл игрока ${0} встал рядом с вашими. Новых соседств: ${1}",
+    "Your tile landed next to another player's. New adjacencies: ${0}": "Ваш тайл встал рядом с чужим. Новых соседств: ${0}",
     "Select new space for ${0}": "Выберите новое место для ${0}",
     "Select space for ${0} to place an ocean": "Выберите место для ${0}, чтобы выложить океан",
     "Spend ${0} M€ instead of a second standard project": "Потратьте ${0} M€ вместо второго стандартного проекта",

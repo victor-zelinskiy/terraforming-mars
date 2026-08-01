@@ -42,7 +42,6 @@ import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
-import {isPlayedTableauPickActive} from '@/client/console/played/playedCategoryView';
 import {
   armDescendRect,
   takeDescendOrigin,
@@ -154,7 +153,7 @@ function slotContentOf(el: Element): Array<HTMLElement> {
 /** The pick bridges hide the WHOLE center via v-show; a focus unmount during
  *  one (prompt-change teardown) has no live geometry — resolve instantly. */
 function hiddenByBridge(el: Element): boolean {
-  return isConsoleHandPickActive() || isPlayedTableauPickActive() ||
+  return isConsoleHandPickActive() ||
     (el instanceof HTMLElement && el.offsetParent === null && getComputedStyle(el).position !== 'fixed');
 }
 

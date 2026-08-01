@@ -27,34 +27,11 @@
        :aria-label="$t(title)">
     <div class="con-played-cat__backdrop" aria-hidden="true" @click="requestClose"></div>
 
-    <div class="con-played-cat__panel" :class="{'con-played-cat__panel--pick': pickActive}">
+    <div class="con-played-cat__panel">
       <div class="con-played-cat__head">
-        <span class="con-played-cat__kicker">
-          <!-- A composer's target pick names the OPERATION it serves — the
-               player keeps the WHY while the focus stage waits underneath. -->
-          <template v-if="pickSource !== undefined">
-            <span>{{ $t(pickSource.kicker) }}</span>
-            <span class="con-played-cat__kicker-card">· {{ $t(pickSource.card) }}</span>
-          </template>
-          <template v-else>{{ $t(pickActive ? 'Card selection' : 'Played') }}</template>
-        </span>
-        <span class="con-played-cat__title" :class="'con-played-cat__title--' + (state.category ?? (pickActive ? 'pick' : ''))">{{ titleText }}</span>
+        <span class="con-played-cat__kicker">{{ $t('Played') }}</span>
+        <span class="con-played-cat__title" :class="'con-played-cat__title--' + (state.category ?? '')">{{ titleText }}</span>
         <span class="con-played-cat__count">{{ cards.length }}</span>
-        <!-- Multi-pick: the running counter IS the commit CTA (single picks
-             resolve in one press and need none). The trigger that CONFIRMS is
-             named ON the count it commits — a multi pick accumulates, so
-             without this the player has no idea the selection must be sent. -->
-        <span v-if="pickActive && !pickSingle"
-              class="con-played-cat__pickcta"
-              :class="{'con-played-cat__pickcta--ready': pickValid}">
-          <span class="con-played-cat__pickcount">
-            <b>{{ state.pickSelected.length }}</b><i>/ {{ pickMax }}</i>
-          </span>
-          <span class="con-played-cat__pickcta-go">
-            <GamepadGlyph control="triggerR" />
-            <span class="con-played-cat__pickcta-label">{{ $t('Confirm') }}</span>
-          </span>
-        </span>
       </div>
 
       <!-- SINGLE card — the near-fullscreen stage (no grid chrome). -->
@@ -72,8 +49,6 @@
             <div class="con-played-cat__face" :style="{zoom: String(layout.zoom)}">
               <ConsolePlayedCardLite :name="cards[0].name" />
             </div>
-            <span v-if="pickBand(cards[0].name) === 'picked'" class="con-cards__pickband con-cards__pickband--select">✓ {{ $t('Card selected') }}</span>
-            <span v-else-if="pickBand(cards[0].name) === 'blocked'" class="con-cards__pickband con-cards__pickband--disabled con-played-cat__reasonband">{{ pickBandText(cards[0].name) }}</span>
           </div>
         </div>
       </div>
@@ -101,8 +76,6 @@
                   <div class="con-played-cat__face" :style="{zoom: String(gridPlan.cardZoom)}">
                     <ConsolePlayedCardLite :name="card.name" />
                   </div>
-                  <span v-if="pickBand(card.name) === 'picked'" class="con-cards__pickband con-cards__pickband--select">✓ {{ $t('Card selected') }}</span>
-                  <span v-else-if="pickBand(card.name) === 'blocked'" class="con-cards__pickband con-cards__pickband--disabled con-played-cat__reasonband">{{ pickBandText(card.name) }}</span>
                 </div>
               </div>
             </div>
@@ -161,7 +134,11 @@
  * (stepHandGrid — column-preserving, honest partial last row), A/X = the
  * fullscreen inspector (physical lift off the grid slot), B = close, right
  * stick = scroll. Focus index lives in playedCategoryState so it survives
- * remounts and is restorable by the future pick mode.
+ * remounts.
+ *
+ * BROWSING ONLY. This surface once doubled as a composer's pick surface; that
+ * job moved to the EMBEDDED played-target step, which presents inside the
+ * workspace that asked instead of taking the player out to the table.
  */
 import {defineComponent, PropType, markRaw} from 'vue';
 import {CardModel} from '@/common/models/CardModel';
@@ -180,10 +157,8 @@ import {
 import {
   playedCategoryState, resetPlayedCategoryView, nextCategoryFlightId,
   registerCategoryFlightEl, CategoryFlight,
-  stagePlayedTableauPickOutcome,
 } from '@/client/console/played/playedCategoryView';
-import {consolePlayedUi} from '@/client/console/consolePlayedUi';
-import {translateText, translateMessage} from '@/client/directives/i18n';
+import {translateText} from '@/client/directives/i18n';
 import {CardName} from '@/common/cards/CardName';
 import {
   runCategoryOpen, runCategoryClose, reverseCategoryEpisode, finishCategoryInstant,
@@ -244,58 +219,12 @@ export default defineComponent({
       const key = this.state.category;
       return key !== undefined ? PLAYED_CATEGORY_LABEL[key] : 'Played';
     },
-    /** The header title: the pick's own prompt (server ask) in pick mode. */
+    /** The header title — the open category's caption. */
     titleText(): string {
-      const pick = this.state.pick;
-      if (pick !== undefined) {
-        return typeof pick.title === 'string' ? translateText(pick.title) : translateMessage(pick.title);
-      }
       return translateText(this.title);
     },
     busy(): boolean {
       return this.state.phase === 'opening' || this.state.phase === 'closing';
-    },
-    // ── pick mode (the composer's tableau pick) ─────────────────────────
-    pickActive(): boolean {
-      return this.state.pick !== undefined;
-    },
-    /** The operation a composer's pick serves (kicker + source card). */
-    pickSource(): {kicker: string, card: string} | undefined {
-      return this.state.pick?.source;
-    },
-    pickSingle(): boolean {
-      const p = this.state.pick;
-      return p !== undefined && p.min === 1 && p.max === 1;
-    },
-    pickMax(): number {
-      return this.state.pick?.max ?? 1;
-    },
-    pickSelectableSet(): ReadonlySet<string> {
-      return new Set(this.state.pick?.selectable ?? []);
-    },
-    pickValid(): boolean {
-      const p = this.state.pick;
-      if (p === undefined) {
-        return false;
-      }
-      const n = this.state.pickSelected.length;
-      return n >= p.min && n <= p.max;
-    },
-    /** The focused card is a pickable candidate (the bar's A-verb enabled). */
-    pickFocusOk(): boolean {
-      const name = this.cards[this.state.focusIndex]?.name;
-      return name !== undefined && this.pickSelectableSet.has(name);
-    },
-    /** One object for the command-bar mirror watcher (fresh per re-compute). */
-    pickUi(): {active: boolean, verb: string, single: boolean, count: number, valid: boolean, focusOk: boolean} {
-      return {
-        active: this.pickActive,
-        verb: this.state.pick?.buttonLabel ?? '',
-        single: this.pickSingle,
-        count: this.state.pickSelected.length,
-        valid: this.pickValid,
-        focusOk: this.pickFocusOk,
-      };
     },
     insetPx(): number {
       return Math.round(CAT_EDGE_INSET * conUiScale());
@@ -356,18 +285,6 @@ export default defineComponent({
       if (this.state.focusIndex > n - 1) {
         this.state.focusIndex = Math.max(0, n - 1);
       }
-    },
-    /** Command-bar mirror of the live pick state (the bar never pokes refs). */
-    'pickUi': {
-      immediate: true,
-      handler(u: {active: boolean, verb: string, single: boolean, count: number, valid: boolean, focusOk: boolean}) {
-        consolePlayedUi.pickActive = u.active;
-        consolePlayedUi.pickVerb = u.verb;
-        consolePlayedUi.pickSingle = u.single;
-        consolePlayedUi.pickCount = u.count;
-        consolePlayedUi.pickValid = u.valid;
-        consolePlayedUi.pickFocusOk = u.focusOk;
-      },
     },
   },
   mounted() {
@@ -685,99 +602,25 @@ export default defineComponent({
         return;
       }
       switch (consoleActionOf(intent)) {
-      case 'primary':
-        // A = THE PICK VERB (the reserved slot): resolves a single pick /
-        // toggles a multi pick. Quiet in browse mode.
-        if (this.pickActive) {
-          this.pickPress();
-        }
-        break;
-      case 'nextTab':
-        // RT confirms the accumulated MULTI pick (bounds-checked).
-        if (this.pickActive && !this.pickSingle && this.pickValid) {
-          this.finishPick([...this.state.pickSelected]);
-        }
-        break;
       case 'inspect':
-        // X = the fullscreen inspector — ALWAYS (browse AND pick).
+        // X = the fullscreen inspector. (A is deliberately quiet: this is a
+        // BROWSING surface — nothing here is chosen.)
         this.inspectFocused();
         break;
       case 'back':
-        // B in pick mode = CANCEL (the composer keeps its old capture) —
-        // the cards still fly home first (the physical return).
-        if (this.pickActive) {
-          this.finishPick(undefined);
-        } else {
-          this.requestClose();
-        }
+        this.requestClose();
         break;
       default:
         break;
       }
     },
-    // ── the pick verbs ──────────────────────────────────────────────────
-    /** A on the focused card: resolve (single) / toggle (multi). A non-
-     *  candidate is a quiet no-op — its reason band is already on the card. */
-    pickPress(): void {
-      const name = this.cards[this.state.focusIndex]?.name;
-      if (name === undefined || !this.pickSelectableSet.has(name)) {
-        return;
-      }
-      if (this.pickSingle) {
-        this.finishPick([name as CardName]);
-        return;
-      }
-      const picked = this.state.pickSelected;
-      const at = picked.indexOf(name as CardName);
-      if (at !== -1) {
-        picked.splice(at, 1);
-      } else if (picked.length < this.pickMax) {
-        picked.push(name as CardName);
-      }
-    },
-    /** Stage the outcome (cards / undefined = cancel), then fly HOME — the
-     *  bridge fires the composer callback only at the return touchdown. */
-    finishPick(cards: ReadonlyArray<CardName> | undefined): void {
-      if (!this.pickActive || this.busy) {
-        return;
-      }
-      stagePlayedTableauPickOutcome(cards);
-      this.requestClose();
-    },
-    slotClasses(index: number, name: string): Record<string, boolean> {
+    slotClasses(index: number, _name: string): Record<string, boolean> {
       return {
         'con-played-cat__slot--focused': this.state.phase === 'open' && index === this.state.focusIndex,
-        'con-played-cat__slot--picked': this.pickActive && this.state.pickSelected.includes(name as CardName),
-        'con-played-cat__slot--pick-disabled': this.pickActive && !this.pickSelectableSet.has(name),
       };
     },
-    /** The slot band kind in pick mode ('' → none). */
-    pickBand(name: string): string {
-      if (!this.pickActive) {
-        return '';
-      }
-      if (this.state.pickSelected.includes(name as CardName)) {
-        return 'picked';
-      }
-      if (!this.pickSelectableSet.has(name)) {
-        return 'blocked';
-      }
-      return '';
-    },
-    pickBandText(name: string): string {
-      if (this.pickBand(name) === 'picked') {
-        return translateText('Card selected');
-      }
-      const r = this.state.pick?.reasons[name];
-      return r !== undefined && r !== '' ? r : translateText('This card cannot be chosen here');
-    },
-    /** The card lies FACE DOWN on the table (a played event) — per card in
-     *  pick mode (the set can mix events with face-up cards). */
-    isFaceDown(name: string): boolean {
-      const pick = this.state.pick;
-      if (pick !== undefined) {
-        return pick.faceDown.includes(name as CardName);
-      }
+    /** The card lies FACE DOWN on the table — the events category. */
+    isFaceDown(_name: string): boolean {
       return this.state.category === 'events';
     },
     /** The card's rank within the face-down subset (the pile stack offset). */
@@ -798,12 +641,8 @@ export default defineComponent({
         return;
       }
       if (this.state.focusIndex === index) {
-        // Mouse parity: the second click is the pad's A (pick) / X (browse).
-        if (this.pickActive) {
-          this.pickPress();
-        } else {
-          this.inspectFocused();
-        }
+        // Mouse parity: the second click is the pad's X (inspect).
+        this.inspectFocused();
       } else {
         this.state.focusIndex = index;
       }

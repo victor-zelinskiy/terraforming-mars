@@ -92,6 +92,11 @@ PROMPT-TIME truth, not "whatever was true inside the acting player's resolution"
 
 ## Documented remaining gaps (phase 2 — explained, not blind)
 
+> **Superseded / tracked**: the phase-2 list below is now maintained (widened to
+> EVERY prompt shape, not just `OrOptions`, and to the console-native surfaces)
+> in [PROMPT_SOURCE_AUDIT.md](PROMPT_SOURCE_AUDIT.md). Start there.
+
+
 - **Shared deferred-action prompts** — `StealResources`, `RemoveAnyPlants`,
   `RemoveResourcesFromCard`, `SelectResourceTypeDeferred`, `IncreaseColonyTrack`,
   `GainAnyResourceButScienceDeferred`. These ALREADY render richly via

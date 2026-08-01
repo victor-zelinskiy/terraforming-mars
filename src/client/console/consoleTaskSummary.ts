@@ -45,6 +45,7 @@ import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {nestedDiscardBranch} from '@/client/console/cardDiscard/discardIntent';
+import {promptSourceCard} from '@/client/console/promptSource';
 
 export interface ConsoleTaskSummary {
   /** The decision TYPE — a short English i18n KEY, rendered as the chip. */
@@ -95,9 +96,15 @@ function ask(wf: PlayerInputModel | undefined, fallbackKey: string): string | Me
   return titleOf(wf) ?? fallbackKey;
 }
 
-/** The card that asks — the choice context, else a placement's source. */
+/**
+ * The card that asks — read through the SHARED normalizer, so the chip / bar /
+ * kicker and the source DOCK can never disagree about who asked. They used to:
+ * each read the one marker it knew about, and `discardPrompt.source` was
+ * visible to the hand screen's header but not here, so a deferred Mars
+ * University discard sat on the board home as an anonymous «Сброс карты».
+ */
 function sourceCardOf(wf: PlayerInputModel | undefined): CardName | undefined {
-  return wf?.choiceContext?.source.card ?? wf?.placementContext?.source?.card;
+  return promptSourceCard(wf);
 }
 
 /**

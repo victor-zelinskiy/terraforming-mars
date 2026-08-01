@@ -431,22 +431,13 @@ import {
   PlayedTargetResourceContext,
   togglePlayedTargetPick, playedTargetPicksValid, prunePlayedTargetPicks,
 } from '@/client/console/played/consolePlayedTargetModel';
+import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 
-/** The production resources a copy-production box can carry, in chip order. */
-const STANDARD_PROD_KEYS = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'] as const;
-/**
- * PRODUCTION labels, not bare resource names. The quick readings drop their
- * section titles (the rail is one line, the summary is one row), so «БУДЕТ
- * СКОПИРОВАНО» no longer supplies the word «производство» — the impact has to
- * carry its own meaning or it reads as a stock gain. The Result chip states the
- * same fact the other way round (`0 → 1 производство`, no resource name), so the
- * two are complements rather than two wordings of one line.
- */
-const PROD_LABEL: Record<string, string> = {
-  megacredits: 'M€ production', steel: 'Steel production', titanium: 'Titanium production',
-  plants: 'Plant production', energy: 'Energy production', heat: 'Heat production',
-};
+// (The contextual preview + the resource badge live in the ONE shared builder —
+//  `consolePlayedTargetPreview`. Two hosts render this selector now, and a
+//  builder written twice explains the same mechanic two ways the first time a
+//  step shape changes.)
 import {derivePlayResultSections, isFallbackOnlyResult, PlayResultSection} from '@/client/console/consolePlayCardResult';
 import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
@@ -712,11 +703,6 @@ export default defineComponent({
      *  section's pick mode instead of an inline text list. */
     handNamesSet(): ReadonlySet<string> {
       return new Set(this.playerView.cardsInHand.map((c) => c.name));
-    },
-    /** Card names on the viewer's TABLE — those picks route to the
-     *  «Разыграно» view's pick mode (the physical tableau surface). */
-    tableauNamesSet(): ReadonlySet<string> {
-      return new Set(this.thisPlayer.tableau.map((c) => c.name));
     },
     /** Card names on ANY player's table — those picks route to the EMBEDDED
      *  played-target step (the surface that shows whose card it is, where it
@@ -1810,7 +1796,7 @@ export default defineComponent({
     /** HOW a choice is served: inline sub / the hand pick / the tableau pick /
      *  an honest post-submit follow-up (the PURE classification). */
     choiceMode(c: ComposerChoice): PlayChoiceMode {
-      return playChoiceMode(c, this.handNamesSet, this.tableauNamesSet, this.playedNamesSet);
+      return playChoiceMode(c, this.handNamesSet, this.playedNamesSet);
     },
     /**
      * THE CONTEXTUAL PREVIEW for one candidate — the ONE place this flow's
@@ -1829,35 +1815,8 @@ export default defineComponent({
      * covered the day the server sends it.
      */
     playedTargetPreview(choice: ComposerChoice, name: CardName): ReadonlyArray<PlayedTargetPreviewSection> {
-      const out: Array<PlayedTargetPreviewSection> = [];
       const step = choice.scope === 'step' ? this.selectedBranch?.steps[choice.index] : undefined;
-      const box = step !== undefined && step.kind === 'input' ? step.copyProductionBox?.[name] : undefined;
-      if (box !== undefined) {
-        const impacts = STANDARD_PROD_KEYS
-          .map((res) => ({res, amount: Number((box as Record<string, number | undefined>)[res] ?? 0)}))
-          .filter((u) => u.amount !== 0)
-          .map((u) => ({label: PROD_LABEL[u.res], icon: u.res, amount: u.amount}));
-        if (impacts.length > 0) {
-          out.push({key: 'copy', title: 'Will be copied', entity: 'player', impacts});
-          out.push({key: 'src', title: '', entity: 'source', impacts: [], note: 'The source card stays unchanged'});
-        }
-      }
-      // A resource step over the target's live count — `current → resulting`.
-      const amount = choice.input.type === 'card' ? (choice.input as SelectCardModel & {amount?: number}).amount : undefined;
-      const model = (choice.input as SelectCardModel).cards.find((c) => c.name === name);
-      if (amount !== undefined && amount !== 0 && model?.resources !== undefined) {
-        out.push({
-          key: 'res',
-          title: 'Target card',
-          entity: 'target',
-          impacts: [{
-            label: 'Resources on this card',
-            from: model.resources,
-            to: Math.max(0, model.resources + amount),
-          }],
-        });
-      }
-      return out;
+      return playedTargetPreviewFor(step, choice.input as SelectCardModel, name);
     },
     /**
      * The resource badge a candidate face earns — EXPLICIT, and only when the
@@ -1871,11 +1830,7 @@ export default defineComponent({
      * «0» on every building card disappears without a card-specific rule.
      */
     playedTargetResourceContext(c: ComposerChoice, card: CardModel): PlayedTargetResourceContext | undefined {
-      const amount = c.input.type === 'card' ? (c.input as SelectCardModel & {amount?: number}).amount : undefined;
-      if (amount === undefined || amount === 0 || card.resources === undefined) {
-        return undefined;
-      }
-      return {icon: c.cardResource ?? 'resource', count: card.resources};
+      return playedTargetResourceFor(c.input as SelectCardModel, c.cardResource, card);
     },
     /** A LATER card step of a merge branch — collapsed into the first one's
      *  multi pick (never its own row, never a follow-up note). */

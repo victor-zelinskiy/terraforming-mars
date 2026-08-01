@@ -11,20 +11,6 @@
         </div>
         <div class="con-prodloss__title">{{ titleText }}</div>
 
-        <!-- WHY the reduction is forced — a hazard zone (the Ares case) or a
-             card attack — so the player always sees the cause. -->
-        <div v-if="isHazard" class="con-prodloss__source con-prodloss__source--hazard">
-          <span class="con-prodloss__source-glyph" aria-hidden="true">⚠</span>
-          <span>{{ $t('Hazard zone') }}</span>
-        </div>
-        <div v-else-if="sourceCard !== undefined" class="con-prodloss__source">
-          <span class="con-prodloss__source-glyph" aria-hidden="true">◈</span>
-          <span>{{ $t(sourceCard) }}</span>
-        </div>
-        <div v-if="isHazard" class="con-prodloss__rule">
-          {{ $t('Placing a tile next to a hazard zone forces you to reduce production.') }}
-        </div>
-
         <!-- The distribution indicator (Выбрано: N / M). -->
         <div class="con-prodloss__counter" :class="{'con-prodloss__counter--ready': ready}">
           <span>{{ $t('Selected') }}:</span>
@@ -34,45 +20,54 @@
         </div>
       </header>
 
-      <!-- ── The six production rows ─────────────────────────────────── -->
-      <div class="con-prodloss__rows">
-        <div v-for="(row, i) in rows" :key="row.unit"
-             class="con-prodloss__row"
-             :class="{
-               'con-prodloss__row--focused': focusIdx === i,
-               'con-prodloss__row--active': lossFor(row.unit) > 0,
-               'con-prodloss__row--disabled': row.disabled,
-             }">
-          <div class="con-prodloss__line">
-            <span class="con-prodloss__row-id">
-              <span class="con-prodloss__frame">
-                <i class="con-prodloss__icon" :class="iconClass(row.unit)" aria-hidden="true"></i>
+      <div class="con-prodloss__main">
+        <!-- WHY the reduction is forced — the SHARED source dock, the same one
+             every other decision surface uses. A card attack renders the real
+             premium card (L3 opens it fullscreen); an Ares hazard renders the
+             plate + its rule, in the board's own hazard accent. The old ◈-and-
+             a-name chip named the card but gave no way to read it. -->
+        <console-source-dock v-if="sourceView !== undefined" :view="sourceView" compact ref="sourceDock" />
+
+        <!-- ── The six production rows ───────────────────────────────── -->
+        <div class="con-prodloss__rows">
+          <div v-for="(row, i) in rows" :key="row.unit"
+               class="con-prodloss__row"
+               :class="{
+                 'con-prodloss__row--focused': focusIdx === i,
+                 'con-prodloss__row--active': lossFor(row.unit) > 0,
+                 'con-prodloss__row--disabled': row.disabled,
+               }">
+            <div class="con-prodloss__line">
+              <span class="con-prodloss__row-id">
+                <span class="con-prodloss__frame">
+                  <i class="con-prodloss__icon" :class="iconClass(row.unit)" aria-hidden="true"></i>
+                </span>
+                <span class="con-prodloss__name">{{ resourceName(row.unit) }}</span>
               </span>
-              <span class="con-prodloss__name">{{ resourceName(row.unit) }}</span>
-            </span>
 
-            <!-- current → resulting (было → станет), shown as signed
-                 production so the "income" reads (and negative M€ works). -->
-            <span class="con-prodloss__values">
-              <span class="con-prodloss__cur" :class="{'con-prodloss__cur--faded': lossFor(row.unit) > 0}">{{ fmt(row.current) }}</span>
-              <template v-if="lossFor(row.unit) > 0">
-                <span class="con-prodloss__arrow" aria-hidden="true">→</span>
-                <span class="con-prodloss__next">{{ fmt(resultingFor(row)) }}</span>
-              </template>
-            </span>
+              <!-- current → resulting (было → станет), shown as signed
+                   production so the "income" reads (and negative M€ works). -->
+              <span class="con-prodloss__values">
+                <span class="con-prodloss__cur" :class="{'con-prodloss__cur--faded': lossFor(row.unit) > 0}">{{ fmt(row.current) }}</span>
+                <template v-if="lossFor(row.unit) > 0">
+                  <span class="con-prodloss__arrow" aria-hidden="true">→</span>
+                  <span class="con-prodloss__next">{{ fmt(resultingFor(row)) }}</span>
+                </template>
+              </span>
 
-            <!-- The chosen loss (−1 / −2). -->
-            <span class="con-prodloss__delta" :class="{'con-prodloss__delta--empty': lossFor(row.unit) <= 0}">
-              <template v-if="lossFor(row.unit) > 0">−{{ lossFor(row.unit) }}</template>
-            </span>
+              <!-- The chosen loss (−1 / −2). -->
+              <span class="con-prodloss__delta" :class="{'con-prodloss__delta--empty': lossFor(row.unit) <= 0}">
+                <template v-if="lossFor(row.unit) > 0">−{{ lossFor(row.unit) }}</template>
+              </span>
 
-            <span class="con-prodloss__a" aria-hidden="true">
-              <GamepadGlyph v-if="focusIdx === i && !row.disabled" control="confirm" />
-            </span>
+              <span class="con-prodloss__a" aria-hidden="true">
+                <GamepadGlyph v-if="focusIdx === i && !row.disabled" control="confirm" />
+              </span>
+            </div>
+
+            <!-- Disabled / limited reason — visible, never hidden. -->
+            <div v-if="noteFor(row) !== ''" class="con-prodloss__note">✕ {{ noteFor(row) }}</div>
           </div>
-
-          <!-- Disabled / limited reason — visible, never hidden. -->
-          <div v-if="noteFor(row) !== ''" class="con-prodloss__note">✕ {{ noteFor(row) }}</div>
         </div>
       </div>
 
@@ -107,7 +102,6 @@ import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SelectProductionToLoseModel} from '@/common/models/PlayerInputModel';
-import {ProductionLossSource} from '@/common/models/ProductionLossSource';
 import {CardName} from '@/common/cards/CardName';
 import {Units} from '@/common/Units';
 import {Message} from '@/common/logs/Message';
@@ -116,7 +110,9 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePanelUi';
+import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {productionToLoseResponse} from '@/client/console/taskResponses';
+import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {buildProductionLossRows, firstSelectableIndex, ProductionLossRow} from '@/client/console/consoleProductionLoss';
 
 function textOf(v: string | Message | undefined): string {
@@ -128,6 +124,10 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsoleProductionLoss',
+  // `console-source-dock` is registered GLOBALLY (main.ts) — deliberately not a
+  // local import: the dock renders the real card face, and that import chain
+  // zeroes this file's mochapack spec (the known baseline class, same reason
+  // `action-target-card` is global).
   components: {GamepadGlyph},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -154,14 +154,14 @@ export default defineComponent({
       const model = this.model;
       return model !== undefined ? buildProductionLossRows(model.payProduction.units, this.cost) : [];
     },
-    source(): ProductionLossSource | undefined {
-      return this.model?.source;
+    /** WHY the reduction is forced — normalized by the shared model, so a card
+     *  attack and an Ares hazard are described in ONE vocabulary. */
+    sourceView(): PromptSourceView | undefined {
+      return promptSourceView(this.model);
     },
-    isHazard(): boolean {
-      return this.source?.type === 'hazard';
-    },
+    /** The card behind the loss, when it IS a card — what L3 opens. */
     sourceCard(): CardName | undefined {
-      return this.source?.type === 'card' ? this.source.card : undefined;
+      return this.sourceView?.inspectable === true ? this.sourceView.card : undefined;
     },
     /** Diegetic + translated title (bypasses the server's baked
      *  "Choose N unit(s)…" string), mirroring the desktop premium surface. */
@@ -183,13 +183,21 @@ export default defineComponent({
     /** The live command contract — published to the shell's ONE bottom
      *  command bar through consolePanelUi (the footCommands watch below). */
     footCommands(): Array<ConsoleCommand> {
-      return [
+      const cmds: Array<ConsoleCommand> = [
         {control: 'dpad', label: 'Navigate'},
         {control: 'confirm', label: '−1'},
         {control: 'bumperL', label: '+1'},
         {control: 'secondary', label: 'Confirm', enabled: this.ready},
-        {control: 'back', label: 'Minimize'},
       ];
+      // L3 = the SOURCE, the console-wide grammar («X = the current object,
+      // L3 = the source that produced it»). The subject here is the production
+      // rows; the card only caused them. Discoverable nowhere else, so it
+      // outlives the self-evident hints when the bar drops for fit.
+      if (this.sourceCard !== undefined) {
+        cmds.push({control: 'stickL', label: 'Source', priority: 1});
+      }
+      cmds.push({control: 'back', label: 'Minimize'});
+      return cmds;
     },
   },
   watch: {
@@ -263,6 +271,13 @@ export default defineComponent({
         this.onNav(intent.dir);
         return;
       }
+      // L3 — the source card fullscreen. Raw button (the stick presses carry no
+      // default semantic action by design); the panel is never unmounted, so
+      // the chosen distribution survives the round trip.
+      if (intent.kind === 'press' && intent.button === 'stickL' && this.sourceCard !== undefined) {
+        this.zoomSource();
+        return;
+      }
       switch (consoleActionOf(intent)) {
       case 'primary': // A
       case 'nextSection': // RB — both assign a −1 (user-mandated)
@@ -326,6 +341,24 @@ export default defineComponent({
         next[row.unit] = current - 1;
       }
       this.units = next;
+    },
+    /** L3: the source card fullscreen, read-only (no select / action bridge,
+     *  so it can never submit). It lifts physically out of the dock. */
+    zoomSource(): void {
+      const name = this.sourceCard;
+      if (name === undefined) {
+        return;
+      }
+      openConsoleCardZoom([{name}], 0, undefined, undefined, {
+        statusLabel: 'Source',
+        origin: {
+          kind: 'physical',
+          resolve: () => {
+            const dock = this.$refs.sourceDock as {$el?: HTMLElement} | undefined;
+            return dock?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
+          },
+        },
+      });
     },
     /** X: confirm the distribution (byte-identical to the desktop submit). */
     confirm(): void {

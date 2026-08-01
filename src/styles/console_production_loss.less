@@ -61,34 +61,14 @@
         -webkit-text-fill-color: transparent;
     }
 
-    /* The cause chip — hazard zone (Ares) or a card attack. */
-    &__source {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        margin-top: .6rem;
-        padding: .32rem .7rem;
-        border-radius: .5rem;
-        font-size: .85rem;
-        font-weight: 600;
-        letter-spacing: .02rem;
-        background: fade(@con-cyan, 10%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
-        color: #cfe6fb;
-
-        &--hazard {
-            background: fade(#e58a5a, 14%);
-            box-shadow: inset 0 0 0 .05rem fade(#e58a5a, 48%);
-            color: #ffcf9a;
-        }
-    }
-    &__source-glyph { font-size: .95rem; }
-
-    &__rule {
-        margin-top: .5rem;
-        font-size: .82rem;
-        line-height: 1.35;
-        color: @con-text-dim;
+    /* The cause + the rows, side by side — the SAME two-column shape the task
+       host uses (`.con-task__main`), so the source dock sits where the player
+       already expects to find it. The old ◈-chip lived in the header and named
+       the card without ever showing it. */
+    &__main {
+        display: flex;
+        gap: 1.1rem;
+        min-height: 0;
     }
 
     /* The distribution indicator (Выбрано: N / M). */
@@ -116,6 +96,8 @@
 
     /* ── The six production rows ─────────────────────────────────────── */
     &__rows {
+        flex: 1;
+        min-width: 0;
         display: flex;
         flex-direction: column;
         gap: .5rem;

@@ -13,6 +13,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Card} from '../Card';
 import * as actionPreviews from '../actionPreviews';
 import * as actionReason from '../actionReasons';
+import {cardSource} from '../../inputs/choiceContext';
 
 export class TitanShuttles extends Card implements IProjectCard {
   constructor() {
@@ -76,13 +77,13 @@ export class TitanShuttles extends Card implements IProjectCard {
     if (this.resourceCount === 0) {
       // autoSelect:false — ALWAYS ask which Jovian card (even with one candidate) so
       // the player sees where the floaters land; the modal pre-collects the pick.
-      player.game.defer(new AddResourcesToCard(player, CardResource.FLOATER, {count: 2, restrictedTag: Tag.JOVIAN, title: 'Add 2 floaters to a Jovian card', autoSelect: false}));
+      player.game.defer(new AddResourcesToCard(player, CardResource.FLOATER, {count: 2, restrictedTag: Tag.JOVIAN, title: 'Add 2 floaters to a Jovian card', autoSelect: false, cause: cardSource(this)}));
       return undefined;
     }
 
     return new OrOptions(
       new SelectOption('Add 2 floaters to a Jovian card', 'Add floaters').andThen(() => {
-        player.game.defer(new AddResourcesToCard(player, CardResource.FLOATER, {count: 2, restrictedTag: Tag.JOVIAN, autoSelect: false}));
+        player.game.defer(new AddResourcesToCard(player, CardResource.FLOATER, {count: 2, restrictedTag: Tag.JOVIAN, autoSelect: false, cause: cardSource(this)}));
         return undefined;
       }),
       new SelectAmount(

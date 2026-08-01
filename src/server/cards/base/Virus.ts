@@ -16,6 +16,7 @@ import {all, digit} from '../Options';
 import {ActionPreview, TabbedPlantTarget, TabbedTargetsStep} from '../../../common/models/ActionPreviewModel';
 import {SelectCardModel} from '../../../common/models/PlayerInputModel';
 import * as actionPreviews from '../actionPreviews';
+import {attackEffect, cardSource} from '../../inputs/choiceContext';
 
 export class Virus extends Card implements IProjectCard {
   constructor() {
@@ -61,7 +62,7 @@ export class Virus extends Card implements IProjectCard {
     // Extract the animal-CARD picker by TYPE (execute() may itself bundle a
     // MarsBot option now — we add the bot animal target separately below via the
     // shared helper so the tab classifies it cleanly by its 'animal' icon).
-    const orOptionsAnimals = new RemoveResourcesFromCard(player, CardResource.ANIMAL, 2, {mandatory: false, log: true}).execute();
+    const orOptionsAnimals = new RemoveResourcesFromCard(player, CardResource.ANIMAL, 2, {mandatory: false, log: true, cause: cardSource(this)}).execute();
     const removeAnimals = orOptionsAnimals instanceof OrOptions ?
       orOptionsAnimals.options.find((o) => o instanceof SelectCard) :
       undefined;
@@ -92,7 +93,9 @@ export class Virus extends Card implements IProjectCard {
     }
     orOptions.options.push(new SelectOption('Skip removal'));
 
-    return orOptions;
+    // The COMPOSED prompt is the top-level one, and the client reads the marker
+    // there — the contexts on the extracted branches are invisible to it.
+    return orOptions.markChoiceContext(attackEffect(this));
   }
 
   /** Opponents whose plants are PROTECTED — shown as greyed, non-selectable rows in

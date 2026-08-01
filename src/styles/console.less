@@ -10744,20 +10744,9 @@ html.console-mode {
         display: flex;
         gap: 1.1rem;
     }
-    /* INFO PARITY: the docked source card (a REAL premium card render). */
-    &__source {
-        flex-shrink: 0;
-        zoom: calc(0.9 * var(--con-ui-scale, 1));
-        > :is(.card-container, .pcard) { margin: 0; }
-    }
-    &__source-label {
-        font-size: .75rem;
-        letter-spacing: .1rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-        margin-bottom: .4rem;
-        zoom: 1.1;
-    }
+    /* (The source dock moved to the SHARED `.con-src` family —
+       console_source.less. It is one component on every decision surface now,
+       so there is no per-surface source rule set left to drift.) */
     &__body {
         flex: 1;
         min-width: 0;
@@ -18315,7 +18304,7 @@ html.con-profile-handheld {
         &__kicker { font-size: .6rem; letter-spacing: .08rem; }
         &__title { font-size: 1rem; }
         &__trigger { font-size: .7rem; }
-        &__source { zoom: 0.72; }
+        /* (the source dock scales itself — `.con-src` in console_source.less) */
         &__warning { font-size: .75rem; }
         &__option { padding: .4rem .6rem; }
         &__opt-title { font-size: .8rem; }

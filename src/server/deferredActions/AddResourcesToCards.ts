@@ -5,12 +5,16 @@ import {CardResource} from '../../common/CardResource';
 import {CardName} from '../../common/cards/CardName';
 import {SelectAmount} from '../inputs/SelectAmount';
 import {AndOptions} from '../inputs/AndOptions';
+import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
+import {message} from '../logs/MessageBuilder';
 
 export class AddResourcesToCards extends DeferredAction {
   constructor(
     player: IPlayer,
     public resourceType: CardResource,
-    public count: number) {
+    public count: number,
+    /** WHO caused this — see `inputs/choiceContext.ts`. */
+    private cause?: ChoiceContextSource) {
     super(player, Priority.GAIN_RESOURCE_OR_PRODUCTION);
   }
 
@@ -36,7 +40,15 @@ export class AddResourcesToCards extends DeferredAction {
         });
     });
 
-    return new AndOptions(...options).andThen(() => {
+    // A TITLE, always: `AndOptions` defaults to '' and this prompt shipped with
+    // a blank header over a column of bare card names — the player was asked to
+    // distribute something without being told what, or how many.
+    const and = new AndOptions(...options)
+      .setTitle(message('Distribute ${0} ${1}', (b) => b.number(this.count).string(this.resourceType)));
+    if (this.cause !== undefined) {
+      and.markChoiceContext({source: this.cause, mode: 'reward'});
+    }
+    return and.andThen(() => {
       let sum = 0;
       cards.forEach((card) => {
         sum += map.get(card.name) ?? 0;

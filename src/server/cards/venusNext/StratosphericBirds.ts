@@ -11,6 +11,7 @@ import {ActionPreview} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
 import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 import * as reason from '../actionReasons';
+import {cardSource} from '../../inputs/choiceContext';
 
 export class StratosphericBirds extends ActionCard implements IActionCard {
   constructor() {
@@ -68,7 +69,7 @@ export class StratosphericBirds extends ActionCard implements IActionCard {
     }
   }
   public override bespokePlay(player: IPlayer) {
-    player.game.defer(new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false, autoselect: false}));
+    player.game.defer(new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false, autoselect: false, cause: cardSource(this)}));
     return undefined;
   }
 
@@ -99,7 +100,7 @@ export class StratosphericBirds extends ActionCard implements IActionCard {
   // so the player always SEES which card the floater is spent from.
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const step = actionPreviews.inputStep(
-      new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false, autoselect: false}).previewSelectCard(),
+      new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false, autoselect: false, cause: cardSource(this)}).previewSelectCard(),
       // The signed delta (−1) so the picker shows each candidate's floater
       // `current → resulting` (e.g. 2 → 1) — incl. the SINGLE-candidate case, which
       // ActionTargetCard pre-selects + shows with its projected count (no blind spend).

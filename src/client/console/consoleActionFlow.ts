@@ -137,6 +137,18 @@ export type FocusCommandCtx =
   | {state: 'draw-pending'}
   /** A sub-list pick (card / player / or). X inspects a CARD list's rows. */
   | {state: 'sub-list', cardList: boolean}
+  /**
+   * The EMBEDDED played-card target step. LB/RB appear ONLY in tabbed owner
+   * mode — in split view both groups are on screen and the d-pad crosses
+   * between them spatially, so advertising the bumpers would offer a second way
+   * to do what the stick already does.
+   */
+  | {
+      state: 'sub-played-target',
+      ownerTabs: boolean,
+      /** The server's merged up-to-N ask: A accumulates, RT submits. */
+      multi?: {count: number, valid: boolean, verb: string},
+    }
   /** The payment lanes sub-state. */
   | {state: 'sub-payment', covers: boolean}
   /** The main decision column. */
@@ -195,6 +207,23 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
     if (ctx.cardList) {
       run.push({control: 'secondary', label: 'Inspect'});
     }
+    run.push({control: 'back', label: 'Back'});
+    return run;
+  }
+  case 'sub-played-target': {
+    const run: Array<ConsoleCommand> = [{control: 'dpad', label: 'Navigate'}];
+    if (ctx.ownerTabs) {
+      run.push({control: 'bumperL', control2: 'bumperR', label: 'Player'});
+    }
+    if (ctx.multi !== undefined) {
+      // A accumulates, RT submits — the same grammar the hand's multi pick and
+      // the patent sale speak, so a stray A can never send a half-built pick.
+      run.push({control: 'confirm', label: 'Select / Deselect'});
+      run.push({control: 'triggerR', label: ctx.multi.verb, enabled: ctx.multi.valid});
+    } else {
+      run.push({control: 'confirm', label: 'Select'});
+    }
+    run.push({control: 'secondary', label: 'Inspect'});
     run.push({control: 'back', label: 'Back'});
     return run;
   }

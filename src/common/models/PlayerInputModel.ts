@@ -71,6 +71,13 @@ export type AwardFundingPromptMeta = {
 export type ChoiceContextSource = {
   kind: 'card' | 'corporation' | 'standardProject' | 'colony' | 'system';
   card?: CardName;
+  /**
+   * The concrete NAME of a non-card source (which colony, which standard
+   * project, which rule). Without it the console can only say «Колония», which
+   * is barely better than saying nothing when three colonies could have paid
+   * the bonus. Never set alongside `card` — a card face already is its name.
+   */
+  name?: string | Message;
 }
 
 /**

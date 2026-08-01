@@ -1,6 +1,6 @@
 import {IPlayer} from '../IPlayer';
 import {SelectCard} from '../inputs/SelectCard';
-import {SelectCardModel} from '../../common/models/PlayerInputModel';
+import {ChoiceContextSource, SelectCardModel} from '../../common/models/PlayerInputModel';
 import {CardResource} from '../../common/CardResource';
 import {ICard} from '../cards/ICard';
 import {Tag} from '../../common/cards/Tag';
@@ -40,6 +40,14 @@ export type Options = {
    * instant apply on a single match.
    */
   autoSelect?: boolean;
+  /**
+   * WHO caused this prompt — the card / corporation / colony whose effect is
+   * handing out the resource. This helper is shared by ~30 callers, so it can
+   * only learn that from them; without it the player is shown a card picker
+   * with no way to tell which effect asked (see `docs/PROMPT_SOURCE_AUDIT.md`).
+   * Named `cause` across every shared helper — see `inputs/choiceContext.ts`.
+   */
+  cause?: ChoiceContextSource;
 }
 
 export class AddResourcesToCard extends DeferredAction {
@@ -133,7 +141,10 @@ export class AddResourcesToCard extends DeferredAction {
     const title: string | Message = this.options.title ?? (single ?
       (qty === 1 ? 'Add resource to this card' : 'Add resources to this card') :
       message('Select card to add ${0} ${1}', (b) => b.number(qty).string(this.resourceType || 'resources')));
-    return new SelectCard(title, buttonLabel, cards);
+    const select = new SelectCard(title, buttonLabel, cards);
+    return this.options.cause === undefined ?
+      select :
+      select.markChoiceContext({source: this.options.cause, mode: 'reward'});
   }
 
   /**

@@ -98,21 +98,11 @@
     grid-template-columns: 1fr;
 }
 
+/* The dock itself is the SHARED `.con-src` family (console_source.less) — this
+   class only places it in the decision's grid. Nothing about how a source LOOKS
+   lives here any more: that was the fourth copy of the same idea. */
 .con-decision__source {
-    display: flex;
-    flex-direction: column;
-    gap: .35rem;
-    zoom: calc(0.78 * var(--con-ui-scale, 1));
-
-    > :is(.card-container, .pcard) {
-        margin: 0;
-    }
-}
-.con-decision__source-label {
-    font-size: .58rem;
-    letter-spacing: .1rem;
-    text-transform: uppercase;
-    color: fade(@con-text-dim, 78%);
+    align-self: start;
 }
 
 .con-decision__actions {

@@ -220,8 +220,23 @@
 
       <!-- ── The decision surface ─────────────────────────────────────── -->
       <ConsoleScrollArea class="con-composer__scroll" content-class="con-composer__scroll-body" ref="scroll" data-unfold-item>
+        <!-- ── THE EMBEDDED PLAYED-TARGET STEP — a LEVEL of this workspace, the
+             SAME component the card-play workspace uses. It replaces the
+             decision column in place while the source card keeps its anchor to
+             the left and the frame, header and bars never move. Not a modal, no
+             backdrop, and no trip out to the «Разыграно» surface to answer a
+             question this action asked. ────────────────────────────────────── -->
+        <ConsolePlayedTargetStep v-if="sub !== undefined && sub.kind === 'playedTarget' && playedTargetModel !== undefined"
+                                 ref="targetStep"
+                                 :model="playedTargetModel"
+                                 :layout="playedTargetLayout"
+                                 :focus="sub.focus"
+                                 :selection="playedTargetSelection"
+                                 :bandHeight="playedTargetHeight"
+                                 :lockedCard="playedTargetResults[sub.choiceId]?.cardName ?? ''" />
+
         <!-- SUB-STATE: a premium pick list (card / player / or). -->
-        <template v-if="sub !== undefined && sub.kind === 'list'">
+        <template v-else-if="sub !== undefined && sub.kind === 'list'">
           <div class="con-composer__sub-title">{{ subTitle }}</div>
           <div v-for="(item, i) in listItems" :key="item.key"
                class="con-composer__opt"
@@ -352,6 +367,35 @@
                 <div class="con-composer__row-note">{{ $t('Heat') }}: {{ heatStockFor(item.choice) }} · {{ $t('Floaters') }}: {{ floatersFor(item.choice.id) }}</div>
               </template>
 
+              <!-- SELECTED TARGET SUMMARY — an answered played-target choice is
+                   a LINK to a card still lying in its owner's tableau: a
+                   thumbnail, its origin and the one contextual fact, never a
+                   second full-size copy. The CHANGE affordance is drawn ONLY
+                   under the cursor — a dimmed Ⓐ beside a focused commit row is
+                   still a promise the button will not keep. -->
+              <template v-else-if="playedTargetResult(item.choice) !== undefined">
+                <div class="con-composer__row-label">{{ $t('Selected card') }}</div>
+                <div class="con-composer__target" v-for="tgt in targetSummaryOf(item.choice)" :key="tgt.cardName">
+                  <div class="con-composer__target-thumb" aria-hidden="true">
+                    <ConsoleCardFaceLite :name="tgt.cardName" />
+                  </div>
+                  <div class="con-composer__target-body">
+                    <span class="con-composer__target-name">{{ $t(tgt.cardName) }}</span>
+                    <span class="con-composer__target-dot" :class="'player_bg_color_' + tgt.ownerColor" aria-hidden="true"></span>
+                    <span class="con-composer__target-origin" :class="'player_color_' + tgt.ownerColor">{{ tgt.ownerName }}</span>
+                    <span v-for="imp in targetSummaryImpacts(item.choice)" :key="imp.key" class="con-ptsel__imp">
+                      <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="iconClass(imp.icon)" aria-hidden="true"></i>
+                      <span class="con-ptsel__imp-label">{{ imp.translate === false ? imp.label : $t(imp.label) }}</span>
+                      <b v-if="imp.from !== undefined && imp.to !== undefined" class="con-ptsel__imp-delta">{{ imp.from }}<span aria-hidden="true"> → </span>{{ imp.to }}</b>
+                      <b v-else-if="imp.amount !== undefined" class="con-ptsel__imp-delta">{{ imp.amount > 0 ? '+' : '' }}{{ imp.amount }}</b>
+                    </span>
+                  </div>
+                  <span class="con-composer__target-change" :class="{'con-composer__target-change--on': isFocused(item)}">
+                    <GamepadGlyph control="confirm" />
+                    <span>{{ $t('Change selection') }}</span>
+                  </span>
+                </div>
+              </template>
               <template v-else>
                 <div class="con-composer__row-label">{{ choiceTitle(item.choice) }}</div>
                 <div class="con-composer__row-value">
@@ -582,9 +626,19 @@ import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWs
 import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
-import {enterPlayedTableauPick} from '@/client/console/played/playedCategoryView';
 import {getCard} from '@/client/cards/ClientCardManifest';
-import {CardType} from '@/common/cards/CardType';
+import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
+import {
+  buildPlayedTargetModel, planPlayedTargetLayout, findPlayedTargetFocus, reseatPlayedTargetFocus,
+  stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner, playedTargetAt,
+  playedTargetResultOf, playedTargetResultLive, playedTargetQuickImpacts,
+  PLAYED_TARGET_SUMMARY_IMPACT_CAP,
+  PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetNavDir, PlayedTargetCell,
+  PlayedTargetResult, PlayedTargetQuickImpact, PlayedTargetSelection,
+  togglePlayedTargetPick, playedTargetPicksValid, prunePlayedTargetPicks,
+} from '@/client/console/played/consolePlayedTargetModel';
+import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
+import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 
 /**
  * A `v-for` string ref → a dense element array. Vue hands back an array, a
@@ -607,7 +661,14 @@ type GroupNode = ActionGroup['nodes'][number];
 type Item = {id: string, kind: 'branch', pos: number} | {id: string, kind: 'choice', choice: ComposerChoice};
 type SubState =
   | {kind: 'list', choiceId: string, index: number}
-  | {kind: 'payment', choiceId: string, index: number};
+  | {kind: 'payment', choiceId: string, index: number}
+  /**
+   * The EMBEDDED played-card target step — the same component and the same
+   * grammar the card-play workspace uses. It replaced the hand-off to the
+   * «Разыграно» view's pick mode, which took the player OUT of the action
+   * workspace to point at a card and gave them a full tableau to do it in.
+   */
+  | {kind: 'playedTarget', choiceId: string, focus: PlayedTargetFocus, picked: ReadonlyArray<string>};
 
 type ListItem = {
   key: string,
@@ -677,7 +738,7 @@ export type ComposerOutcome =
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, GamepadGlyph},
+  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, GamepadGlyph, ConsolePlayedTargetStep},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -756,6 +817,17 @@ export default defineComponent({
       multiPicks: {} as Record<string, ReadonlyArray<string>>,
       focusIdx: 0,
       sub: undefined as SubState | undefined,
+      /** The rich answered targets by choice id — identity, origin and the
+       *  preview snapshot the summary renders. The capture stays the truth. */
+      playedTargetResults: {} as Record<string, PlayedTargetResult>,
+      /** Per-owner cursor memory for the tabbed mode. */
+      playedTargetOwnerFocus: {} as Record<string, number>,
+      /** The step's measured band — width from the work column, height from the
+       *  STRETCHED row (`.con-composer__actmain`). Never from anything the
+       *  cards themselves size, or the budget would be a function of its own
+       *  answer (that inverted the card size for a single candidate once). */
+      playedTargetWidth: 0,
+      playedTargetHeight: 0,
       submitting: false,
       /** The reveal phase's visual stage: face down → face first shown
        *  (mid-flip; the status yields to the outcome) → settled (the REAL
@@ -812,11 +884,78 @@ export default defineComponent({
     handNamesSet(): ReadonlySet<string> {
       return new Set(this.playerView.cardsInHand.map((c) => c.name));
     },
-    /** Card names on the viewer's TABLE — those picks (incl. Viron's
-     *  repeat-action pick over played action cards) route to the «Разыграно»
-     *  view's pick mode: the real table cards physically lift. */
-    tableauNamesSet(): ReadonlySet<string> {
-      return new Set(this.thisPlayer.tableau.map((c) => c.name));
+    /**
+     * Card names on ANY player's table — a pick whose every candidate lies on
+     * some tableau routes to the EMBEDDED played-target step.
+     *
+     * ANY player, not the viewer's own: the boundary is the CAPABILITY (point
+     * at a played card), never the owner. The previous rule read the viewer's
+     * tableau alone, so a pick that could reach an opponent's card fell through
+     * to a flat name list — the same misrouting that sent Robotic Workforce to
+     * the wrong surface on the play side.
+     */
+    playedNamesSet(): ReadonlySet<string> {
+      const names = new Set<string>();
+      for (const player of this.playerView.players) {
+        for (const c of player.tableau) {
+          names.add(c.name);
+        }
+      }
+      return names;
+    },
+    /** The embedded selector holds the surface right now. */
+    playedTargetStepOpen(): boolean {
+      return this.sub?.kind === 'playedTarget' && this.playedTargetModel !== undefined;
+    },
+    /** The choice the open (or pending) played-target step serves. */
+    playedTargetChoice(): ComposerChoice | undefined {
+      const id = this.sub?.kind === 'playedTarget' ? this.sub.choiceId : this.playedTargetRowId;
+      return id === undefined ? undefined : this.allChoices.find((c: ComposerChoice) => c.id === id);
+    },
+    /** The FIRST decision row this step owns — used to render its summary and
+     *  to warm the model before the player presses A. (The CHOICE id, never the
+     *  row's own key: the two are different vocabularies.) */
+    playedTargetRowId(): string | undefined {
+      return this.allChoices.find((c: ComposerChoice) => this.isPlayedTargetChoice(c))?.id;
+    },
+    /**
+     * THE EMBEDDED SELECTOR'S MODEL — built only while the step is open (or
+     * warmed for the answered row), so an action with no played-card choice
+     * never pays for it. Eligibility is the SERVER's candidate set, verbatim.
+     */
+    playedTargetModel(): PlayedTargetModel | undefined {
+      const choice = this.playedTargetChoice;
+      if (choice === undefined) {
+        return undefined;
+      }
+      const model = choice.input as SelectCardModel;
+      return buildPlayedTargetModel({
+        candidates: model.cards,
+        players: this.playerView.players,
+        viewerColor: this.thisPlayer.color,
+        ask: textOf(model.title),
+        typeOf: (name) => getCard(name)?.type,
+        preview: (name) => this.playedTargetPreview(choice, name),
+        resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
+      });
+    },
+    playedTargetLayout(): PlayedTargetLayout {
+      return planPlayedTargetLayout({
+        owners: this.playedTargetModel?.owners ?? [],
+        availW: this.playedTargetWidth,
+        ui: conUiScale(),
+        handheld: consoleLayoutState.profile === 'handheld',
+      });
+    },
+    /** The live ask of the OPEN step. A COMPUTED, not a method: the template
+     *  binds it and the input handlers read it every press. */
+    playedTargetSelection(): PlayedTargetSelection {
+      const choice = this.playedTargetChoice;
+      return choice === undefined ? {mode: 'single'} : this.playedTargetSelectionFor(choice);
+    },
+    /** The game-state version a selection is only valid under. */
+    playedTargetVersion(): string {
+      return `${this.playerView.game.gameAge}|${this.playerView.game.undoCount ?? 0}`;
     },
     branches(): ReadonlyArray<ActionPreviewBranch> {
       return this.preview?.branches ?? [];
@@ -1164,6 +1303,18 @@ export default defineComponent({
       if (this.sub !== undefined) {
         if (this.sub.kind === 'payment') {
           return focusCommandRun({state: 'sub-payment', covers: this.paymentView?.status.ok === true});
+        }
+        if (this.sub.kind === 'playedTarget') {
+          const sel = this.playedTargetSelection;
+          return focusCommandRun({
+            state: 'sub-played-target',
+            ownerTabs: this.playedTargetLayout.mode === 'tabs' && (this.playedTargetModel?.owners.length ?? 0) > 1,
+            multi: sel.mode === 'multi' ? {
+              count: sel.picked.length,
+              valid: playedTargetPicksValid(sel),
+              verb: (this.playedTargetChoice?.input as SelectCardModel | undefined)?.buttonLabel || 'Select',
+            } : undefined,
+          });
         }
         return focusCommandRun({state: 'sub-list', cardList: this.subChoice?.input.type === 'card'});
       }
@@ -2128,6 +2279,10 @@ export default defineComponent({
       this.onMainPress(action);
     },
     onNav(dir: NavDirection): void {
+      if (this.sub?.kind === 'playedTarget') {
+        this.movePlayedTarget(dir);
+        return;
+      }
       if (this.sub !== undefined) {
         const len = this.sub.kind === 'payment' ? this.payEditableRows.length : this.listItems.length;
         if (dir === 'up' || dir === 'down') {
@@ -2234,18 +2389,16 @@ export default defineComponent({
       }
       // A hand-card pick (Self-Replicating Robots' link branch: every candidate
       // — eligible AND greyed-with-reason — is a card in hand) routes to the
-      // HAND SECTION's premium pick mode; a TABLEAU pick (a resource target on
-      // an own played card) routes to the «Разыграно» view's pick mode — never a
-      // flat name list. Only the hosted-cards pick (SRR targetCards — in neither
-      // zone) keeps the inline sub-list.
+      // HAND SECTION's premium pick mode; a PLAYED-CARD pick descends into the
+      // embedded target step, INSIDE this workspace. Only the hosted-cards pick
+      // (SRR targetCards — in neither zone) keeps the inline sub-list.
       if (c.kind === 'card' &&
           isHandCardSelection(c.input as SelectCardModel, this.handNamesSet)) {
         this.openHandPick(c);
         return;
       }
-      if (c.kind === 'card' &&
-          isCardSelectionWithin(c.input as SelectCardModel, this.tableauNamesSet)) {
-        this.openTableauPick(c);
+      if (this.isPlayedTargetChoice(c)) {
+        this.openPlayedTargetStep(c);
         return;
       }
       if (c.kind === 'card' || c.kind === 'player' || c.kind === 'or') {
@@ -2282,45 +2435,224 @@ export default defineComponent({
         this.scrollFocused();
       });
     },
+    /** Does this choice belong to the embedded played-target step? The boundary
+     *  is the CAPABILITY (every candidate lies on some tableau), never the
+     *  owner — an opponent's card is the same kind of pick as your own. */
+    isPlayedTargetChoice(c: ComposerChoice): boolean {
+      return c.kind === 'card' && c.repeatAction !== true &&
+        !isHandCardSelection(c.input as SelectCardModel, this.handNamesSet) &&
+        isCardSelectionWithin(c.input as SelectCardModel, this.playedNamesSet);
+    },
     /**
-     * Hand a TABLEAU card pick to the «Разыграно» view's pick mode: the
-     * candidates physically lift off their real table slots (face-down events
-     * off the pile, flipping open), the player picks on the real card, the
-     * cards fly home and the capture lands back here.
+     * DESCEND into the embedded played-target step — the same level the card-play
+     * workspace opens, in the same component.
+     *
+     * It replaced a hand-off to the «Разыграно» view's pick mode. That surface
+     * lifted the real table cards, which was physical and pretty, but it took
+     * the player OUT of the action workspace to answer a question the action
+     * asked, and it gave them a whole tableau to find two legal targets in. The
+     * step costs what the CHOICES cost.
      */
-    openTableauPick(c: ComposerChoice): void {
-      const model = c.input as SelectCardModel;
-      const reasons: Record<string, string> = {};
-      for (const d of model.disabledCards ?? []) {
-        reasons[d.name] = d.disabledReason !== undefined ? textOf(d.disabledReason) : '';
+    openPlayedTargetStep(c: ComposerChoice): void {
+      // Measure the band ONCE, before the step is visible, and measure it where
+      // the layout is STRETCHED: the work column's width is the band's, and the
+      // row above it is the only box here whose height the cards cannot move.
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      const zone = root?.querySelector<HTMLElement>('.con-composer__actright');
+      if (zone !== null && zone !== undefined) {
+        this.playedTargetWidth = zone.clientWidth;
       }
-      const selectable = model.cards.map((cd) => cd.name);
-      const disabledNames = (model.disabledCards ?? []).map((d) => d.name);
-      const faceDown = [...selectable, ...disabledNames]
-        .filter((n) => getCard(n)?.type === CardType.EVENT);
-      enterPlayedTableauPick({
-        title: model.title,
-        buttonLabel: model.buttonLabel || 'Select',
-        selectable,
-        disabled: disabledNames,
-        reasons,
-        min: 1,
-        max: 1,
-        selected: this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : [],
-        faceDown,
-        // The pick surface names the operation it serves — the player keeps
-        // the WHY while the focus stage waits hidden underneath.
-        source: {kicker: 'Action setup', card: this.entry.cardName},
-      }, (cards) => {
-        if (cards.length === 0) {
-          return;
-        }
-        // Re-locate by id — the preview may have refreshed under the pick.
-        const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
-        this.picks[cur.id] = cards[0];
-        this.captureFor(cur, {type: 'card', cards: [cards[0]]});
-        this.scrollFocused();
+      const band = root?.querySelector<HTMLElement>('.con-composer__actmain');
+      if (band !== null && band !== undefined) {
+        this.playedTargetHeight = band.clientHeight;
+      }
+      const owners = this.playedTargetModel?.owners ?? [];
+      if (owners.length === 0) {
+        return;
+      }
+      // Re-entry restores the previous answer: the cursor lands ON that card,
+      // already target-locked (a multi ask brings its whole accumulation back,
+      // pruned of anything that left the table since).
+      const selection = this.playedTargetSelectionFor(c);
+      const picked = selection.mode === 'multi' ?
+        prunePlayedTargetPicks((this.multiPicks[c.id] ?? []) as ReadonlyArray<string>, owners) :
+        [];
+      const chosen = this.playedTargetResults[c.id];
+      const focus = findPlayedTargetFocus(chosen?.cardName ?? picked[0], owners) ??
+        reseatPlayedTargetFocus(undefined, owners);
+      if (focus === undefined) {
+        return;
+      }
+      this.sub = {kind: 'playedTarget', choiceId: c.id, focus, picked};
+    },
+    /** The step's ASK, read from the server's own prompt: one card, or the
+     *  up-to-N the input declares. */
+    playedTargetSelectionFor(c: ComposerChoice): PlayedTargetSelection {
+      const model = c.input as SelectCardModel;
+      const max = model.max ?? 1;
+      if (max <= 1) {
+        return {mode: 'single'};
+      }
+      return {
+        mode: 'multi',
+        min: model.min ?? 0,
+        max,
+        picked: this.sub?.kind === 'playedTarget' && this.sub.choiceId === c.id ?
+          this.sub.picked :
+          ((this.multiPicks[c.id] ?? []) as ReadonlyArray<string>),
+      };
+    },
+    /** The contextual preview for a candidate — the ONE shared builder. */
+    playedTargetPreview(choice: ComposerChoice, name: CardName) {
+      const step = choice.scope === 'step' ? this.selectedBranch?.steps[choice.index] : undefined;
+      return playedTargetPreviewFor(step, choice.input as SelectCardModel, name);
+    },
+    playedTargetResourceContext(c: ComposerChoice, card: CardModel) {
+      return playedTargetResourceFor(c.input as SelectCardModel, c.cardResource, card);
+    },
+    /** Move the cursor inside the step — BY WHERE THE CARDS ARE (the index walk
+     *  survives only as the answer for a step that has not measured yet). */
+    movePlayedTarget(dir: NavDirection): void {
+      if (this.sub?.kind !== 'playedTarget') {
+        return;
+      }
+      const owners = this.playedTargetModel?.owners ?? [];
+      const map: Record<string, PlayedTargetNavDir | undefined> = {
+        left: 'left', right: 'right', up: 'up', down: 'down',
+      };
+      const d = map[dir as string];
+      if (d === undefined) {
+        return;
+      }
+      const step = this.$refs.targetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
+      const cells = step?.cells?.() ?? [];
+      const next = cells.length > 0 ?
+        stepPlayedTargetFocusAt(this.sub.focus, d, cells) :
+        stepPlayedTargetFocus(this.sub.focus, d, owners, this.playedTargetLayout);
+      if (next === undefined) {
+        return; // an edge HOLDS — never a wrap, never a silent owner change
+      }
+      this.sub = {...this.sub, focus: next};
+      this.scrollPlayedTargetFocused();
+    },
+    scrollPlayedTargetFocused(): void {
+      void this.$nextTick(() => {
+        const scroll = this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined;
+        const el = (this.$refs.rootEl as HTMLElement | undefined)
+          ?.querySelector('[data-ptsel-cell][data-focused]');
+        scroll?.ensureVisible?.(el);
       });
+    },
+    /** LB/RB — the owner axis, tabbed mode only (in split both groups are on
+     *  screen and the d-pad crosses between them spatially). */
+    cyclePlayedTargetOwner(delta: number): void {
+      if (this.sub?.kind !== 'playedTarget' || this.playedTargetLayout.mode !== 'tabs') {
+        return;
+      }
+      const owners = this.playedTargetModel?.owners ?? [];
+      const ownerId = stepPlayedTargetOwner(this.sub.focus.ownerId, delta, owners);
+      if (ownerId === this.sub.focus.ownerId) {
+        return;
+      }
+      const remembered = this.playedTargetOwnerFocus[ownerId] ?? 0;
+      this.playedTargetOwnerFocus = {...this.playedTargetOwnerFocus, [this.sub.focus.ownerId]: this.sub.focus.index};
+      this.sub = {...this.sub, focus: reseatPlayedTargetFocus({ownerId, index: remembered}, owners) ?? this.sub.focus};
+    },
+    /** A in a MULTI ask toggles instead of choosing. */
+    togglePlayedTarget(): void {
+      if (this.sub?.kind !== 'playedTarget') {
+        return;
+      }
+      const selection = this.playedTargetSelection;
+      if (selection.mode !== 'multi') {
+        return;
+      }
+      const candidate = playedTargetAt(this.sub.focus, this.playedTargetModel?.owners ?? []);
+      if (candidate === undefined) {
+        return;
+      }
+      this.sub = {
+        ...this.sub,
+        picked: togglePlayedTargetPick(this.sub.picked, candidate.cardName, selection.max),
+      };
+    },
+    /** RT — submit a MULTI ask. */
+    confirmPlayedTargetPicks(): void {
+      if (this.sub?.kind !== 'playedTarget') {
+        return;
+      }
+      const choice = this.playedTargetChoice;
+      const selection = this.playedTargetSelection;
+      if (choice === undefined || selection.mode !== 'multi' || !playedTargetPicksValid(selection)) {
+        return;
+      }
+      const cards = [...this.sub.picked] as Array<CardName>;
+      this.multiPicks[choice.id] = cards;
+      this.picks[choice.id] = String(cards.length);
+      this.captureFor(choice, {type: 'card', cards});
+      this.sub = undefined;
+      this.scrollFocused();
+    },
+    /** A — lock the focused candidate in as this choice's target. */
+    confirmPlayedTarget(): void {
+      if (this.sub?.kind !== 'playedTarget') {
+        return;
+      }
+      const owners = this.playedTargetModel?.owners ?? [];
+      const candidate = playedTargetAt(this.sub.focus, owners);
+      const choice = this.playedTargetChoice;
+      if (candidate === undefined || choice === undefined) {
+        return;
+      }
+      this.playedTargetResults = {
+        ...this.playedTargetResults,
+        [choice.id]: playedTargetResultOf(candidate, owners, this.playedTargetVersion),
+      };
+      // The capture is the same shape every card pick uses — the rich result is
+      // presentation context, never a second source of truth.
+      this.captureFor(choice, {type: 'card', cards: [candidate.cardName]});
+      this.picks[choice.id] = candidate.cardName;
+      this.sub = undefined;
+      this.scrollFocused();
+    },
+    /** X inside the step — the FOCUSED candidate fullscreen, lifting from its
+     *  own slot (the console-wide «X inspects the current object»). */
+    inspectPlayedTarget(): void {
+      if (this.sub?.kind !== 'playedTarget') {
+        return;
+      }
+      const owners = this.playedTargetModel?.owners ?? [];
+      const candidate = playedTargetAt(this.sub.focus, owners);
+      if (candidate === undefined) {
+        return;
+      }
+      const cards = owners.flatMap((o) => o.candidates.map((c) => c.model));
+      const at = Math.max(0, cards.findIndex((c) => c.name === candidate.cardName));
+      openConsoleCardZoom(cards, at, undefined, undefined, {
+        origin: slotZoomOrigin(() => document.querySelector<HTMLElement>('.con-ptsel'), (i) => cards[i]?.name ?? ''),
+      });
+    },
+    /** The summary of an answered played-target choice (undefined = unanswered
+     *  or gone stale — a target whose card left the table is never shown as
+     *  chosen, and never submitted). */
+    playedTargetResult(c: ComposerChoice): PlayedTargetResult | undefined {
+      const result = this.playedTargetResults[c.id];
+      const owners = this.playedTargetModel?.owners ?? [];
+      return playedTargetResultLive(result, owners, this.playedTargetVersion) ? result : undefined;
+    },
+    /** The answered target as a ONE-ELEMENT list — a template alias. */
+    targetSummaryOf(c: ComposerChoice): ReadonlyArray<PlayedTargetResult> {
+      const result = this.playedTargetResult(c);
+      return result === undefined ? [] : [result];
+    },
+    /** The summary's compact impacts — the SAME derivation the focus rail uses,
+     *  capped shorter. Comparison is over; the summary is not a smaller rail. */
+    targetSummaryImpacts(c: ComposerChoice): ReadonlyArray<PlayedTargetQuickImpact> {
+      const result = this.playedTargetResult(c);
+      if (result === undefined) {
+        return [];
+      }
+      return playedTargetQuickImpacts(result.preview).slice(0, PLAYED_TARGET_SUMMARY_IMPACT_CAP);
     },
     /** Hand a hand-card pick to the HAND SECTION (consoleHandPick bridge): the
      *  shell hides the Action Center (v-show — every capture survives), the
@@ -2386,6 +2718,37 @@ export default defineComponent({
       const sub = this.sub;
       if (sub === undefined) {
         return;
+      }
+      // The EMBEDDED played-target step owns its own grammar: A chooses (or
+      // toggles in a multi ask, with RT to submit), X inspects the FOCUSED
+      // candidate, LB/RB walk the owner tabs, B is one level back into the
+      // action's own decision column.
+      if (sub.kind === 'playedTarget') {
+        switch (action) {
+        case 'primary':
+          if (this.playedTargetSelection.mode === 'multi') {
+            this.togglePlayedTarget();
+          } else {
+            this.confirmPlayedTarget();
+          }
+          return;
+        case 'nextTab':
+          this.confirmPlayedTargetPicks();
+          return;
+        case 'inspect':
+          this.inspectPlayedTarget();
+          return;
+        case 'prevSection':
+        case 'nextSection':
+          this.cyclePlayedTargetOwner(action === 'prevSection' ? -1 : 1);
+          return;
+        case 'back':
+          this.sub = undefined;
+          this.scrollFocused();
+          return;
+        default:
+          return;
+        }
       }
       switch (action) {
       case 'primary':

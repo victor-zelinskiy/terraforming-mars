@@ -10,7 +10,7 @@ import {Priority} from '../deferredActions/Priority';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {ActionPreview, ActionEffect} from '../../common/models/ActionPreviewModel';
 import {effectsForBehavior, stepsForBehavior} from '../models/actionPreview';
-import {effectChoice} from '../inputs/choiceContext';
+import {cardSource, effectChoice} from '../inputs/choiceContext';
 import {chip, optionResult} from '../inputs/optionMetadata';
 import * as actionPreviews from './actionPreviews';
 
@@ -115,7 +115,9 @@ export function gainOrAddResourceChoice(
         // Defer the target pick AT the play-choice priority (ahead of any tile the
         // card queues) — overriding AddResourcesToCard's default GAIN priority, which
         // would otherwise land AFTER the ocean and break the modal's batched pick.
-        const action = new AddResourcesToCard(player, add.resource, {count: add.amount, autoSelect: false, log: true});
+        const action = new AddResourcesToCard(
+          player, add.resource,
+          {count: add.amount, autoSelect: false, log: true, cause: cardSource(card)});
         action.priority = Priority.PLAY_CARD_RESOURCE_CHOICE;
         player.game.defer(action);
         return undefined;

@@ -17,6 +17,7 @@ import {AresHandler} from '../../ares/AresHandler';
 import {BoardFact} from '../../../common/boards/BoardInformationFacts';
 import {PlacementPreviewContext} from '../../boards/PlacementPreviewContext';
 import * as placementPreviews from '../placementPreviews';
+import {cardSource} from '../../inputs/choiceContext';
 
 /**
  * ONE (resource, printed bonus) pair a survey card watches, declared so the
@@ -171,7 +172,7 @@ export abstract class SurveyCard extends Card implements IProjectCard {
       cardOwner.game.defer(new AddResourcesToCard(
         cardOwner,
         resource,
-        {log: true}))
+        {log: true, cause: cardSource(this)}))
         .andThen(() => this.log(cardOwner, resource));
     }
   }

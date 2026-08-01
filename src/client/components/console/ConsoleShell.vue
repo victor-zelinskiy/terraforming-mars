@@ -227,7 +227,7 @@
              no replayed cinematic, no restarted server flow. Destroying it
              here is what would force the flow to be rebuilt on re-open. -->
         <ConsoleCardActions v-if="consoleState.sheet === 'cardActions'"
-                            v-show="!handPickActive && !playedPickActive && !repeatPickActive && !workspaceCollapsed"
+                            v-show="!handPickActive && !repeatPickActive && !workspaceCollapsed"
                             ref="cardActions"
                             :playerView="playerView"
                             :collapsed="workspaceCollapsed"
@@ -959,7 +959,7 @@
              captured choices/payment must survive the hand round-trip (the
              director recognizes the pick bridge and never animates it). -->
         <ConsolePlayCardConfirm v-if="pendingPlayCard !== undefined && !playHeldForWorkspace"
-                                v-show="!handPickActive && !playedPickActive && !repeatPickActive"
+                                v-show="!handPickActive && !repeatPickActive"
                                 ref="playConfirm"
                                 :playerView="playerView"
                                 :cardName="pendingPlayCard.cardName"
@@ -1148,7 +1148,7 @@ import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspe
 import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlayedOverlay.vue';
 import ConsolePlayedHeroLayer from '@/client/components/console/played/ConsolePlayedHeroLayer.vue';
 import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
-import {isPlayedTableauPickActive, resetPlayedCategoryView} from '@/client/console/played/playedCategoryView';
+import {resetPlayedCategoryView} from '@/client/console/played/playedCategoryView';
 import {resetPlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {resetCategoryDirector} from '@/client/console/played/playedCategoryDirector';
 import {
@@ -1887,17 +1887,14 @@ export default defineComponent({
      *  composer's TABLEAU PICK (the pick forces the table open over the
      *  hidden composer — consoleHandPick's played twin). */
     playedTableVisible(): boolean {
-      return this.playedOpen || playedHeroState.tableOpen || this.playedPickActive;
+      return this.playedOpen || playedHeroState.tableOpen;
     },
-    /** A composer's tableau-pick is out on the played view. */
-    playedPickActive(): boolean {
-      return isPlayedTableauPickActive();
-    },
-    /** A client pick bridge (hand / tableau / repeat-action) hides the owning
-     *  composer via v-show — the picked-in surface owns the screen, the shade
-     *  yields. */
+    /** A client pick bridge (hand / repeat-action) hides the owning composer
+     *  via v-show — the picked-in surface owns the screen, the shade yields.
+     *  (The TABLEAU bridge is gone: a played-card pick is now an EMBEDDED step
+     *  inside the workspace that asked, so nothing is hidden for it.) */
     pickBridgeActive(): boolean {
-      return this.handPickActive || this.playedPickActive || this.repeatPickActive;
+      return this.handPickActive || this.repeatPickActive;
     },
     /**
      * The corporations whose mandatory first action is live RIGHT NOW (>1 =
@@ -2967,10 +2964,25 @@ export default defineComponent({
      *  source of a contextual selection flow (a decision screen's hand pick, a
      *  composer's target pick). Drives the L3 verb and its command hint. */
     contextualSourceCard(): CardName | undefined {
-      if (this.consoleState.section !== 'hand' || !this.handPickActive) {
+      if (this.consoleState.section !== 'hand') {
         return undefined;
       }
-      return consoleHandPickState.request?.source?.card;
+      // The CLIENT bridge: a decision screen / composer sent the player here.
+      if (this.handPickActive) {
+        return consoleHandPickState.request?.source?.card;
+      }
+      // The SERVER's own MANDATORY hand pick (a discard / reveal / place a card
+      // demanded by an effect). The prompt names its source structurally
+      // (`discardPrompt.source` / `choiceContext`) and the footer below already
+      // advertised «L3 Источник» for this branch — but the two flags are
+      // mutually exclusive, so it could never resolve a card and the verb was
+      // unreachable. This is the ONE prompt family that most needs it: the
+      // player is being made to throw a card away by something they may not
+      // have played themselves.
+      if (this.handSelectTaskActive) {
+        return this.activeTaskSummary?.sourceCard;
+      }
+      return undefined;
     },
     /** Per-card reason (pre-translated) for a NON-selectable hand card. */
     handSelectReasons(): Record<string, string> {
@@ -3596,11 +3608,6 @@ export default defineComponent({
         // A composer's card pick is out on the hand — the bar names the pick.
         return 'Card selection';
       }
-      // ...and its TABLEAU twin (hoisted above the composers for the same
-      // reason: the pick owns the screen, so the bar must name IT).
-      if (this.playedPickActive) {
-        return 'Card selection';
-      }
       // ...and the REPEAT-ACTION pick (ProjInsp / Viron / Hydronetwork stage 7):
       // the ДЕЙСТВИЯ КАРТ repeat surface owns the screen — never the hidden
       // source composer / the hydro section underneath.
@@ -3639,11 +3646,7 @@ export default defineComponent({
         return 'Played';
       }
       if (this.playedTableVisible) {
-        // A tableau pick names the bar as the selection; else the open
-        // category's caption; the bare table reads as «Разыграно».
-        if (consolePlayedUi.pickActive) {
-          return 'Card selection';
-        }
+        // The open category's caption; the bare table reads as «Разыграно».
         return (consolePlayedUi.categoryOpen || consolePlayedUi.categoryBusy) && consolePlayedUi.categoryLabel !== '' ?
           consolePlayedUi.categoryLabel : 'Played';
       }
@@ -3878,14 +3881,6 @@ export default defineComponent({
         cmds.push({control: 'back', label: 'Back'});
         return cmds;
       }
-      // A composer's TABLEAU pick owns the pad the same way (the composers are
-      // hidden under «Разыграно»). It MUST be hoisted above them: the intent
-      // routing already gives the pick the pad, so leaving the bar on the
-      // composer's contract advertised A/X/B only — the RT that COMMITS a
-      // multi pick (Astra's "up to 2") went completely unnamed.
-      if (this.playedPickActive) {
-        return this.playedPickCommands();
-      }
       if (this.pendingPlayCard !== undefined) {
         // The composer publishes its CONTEXTUAL controls (A plays / Y changes a
         // resolved choice / X inspects / LB·RB only where a value dials / LT
@@ -3999,11 +3994,6 @@ export default defineComponent({
         // the focused one; inside the category view A/X inspect a card and
         // B is a LOCAL back (the cards fly home, never the tableau closing);
         // mid-flight only B is live (it reverses the same flight).
-        // TABLEAU PICK: A is the pick verb (single resolves / multi toggles,
-        // RT confirms), X inspects, B cancels back to the composer.
-        if (consolePlayedUi.pickActive) {
-          return this.playedPickCommands();
-        }
         if (consolePlayedUi.categoryBusy) {
           return [{control: 'back', label: 'Back'}];
         }
@@ -5094,12 +5084,6 @@ export default defineComponent({
           cancelConsoleHandPick();
           // Same for a repeat-action pick whose source composer's prompt moved on.
           cancelConsoleRepeatPick();
-          // Same for a TABLEAU pick out on the played view: fold it (the
-          // reset commits its cancel — the composer keeps the old capture).
-          if (isPlayedTableauPickActive()) {
-            resetCategoryDirector();
-            resetPlayedCategoryView();
-          }
           // A NEW prompt resets the mandatory hand-SELECT picks + filter (they
           // survive a defer→resume of the SAME prompt, but never leak across
           // prompts). Cleared here rather than in closeConsoleLayers so the
@@ -5142,31 +5126,6 @@ export default defineComponent({
      */
     admits(surface: PromptSurface): boolean {
       return isPromptAdmitted(surface, this.admissionSignals);
-    },
-    /**
-     * The command run of a composer's TABLEAU pick — ONE definition for the
-     * two places it applies (hoisted above the composers, and the ordinary
-     * «Разыграно» branch), so the bar can never advertise two contracts for
-     * the same screen. A MULTI pick accumulates: A toggles, RT COMMITS — and
-     * the trigger is labelled «Подтвердить» in lock-step with the in-screen
-     * CTA on the N/max counter (the server's buttonLabel is the per-card
-     * verb, which read as a second "select" on the commit).
-     */
-    playedPickCommands(): Array<ConsoleCommand> {
-      if (consolePlayedUi.categoryBusy) {
-        return [{control: 'back', label: 'Cancel'}];
-      }
-      const verb = consolePlayedUi.pickVerb !== '' ? consolePlayedUi.pickVerb : 'Select';
-      const cmds: Array<ConsoleCommand> = [];
-      if (consolePlayedUi.pickSingle) {
-        cmds.push({control: 'confirm', label: verb, enabled: consolePlayedUi.pickFocusOk});
-      } else {
-        cmds.push({control: 'confirm', label: 'Select / Deselect', enabled: consolePlayedUi.pickFocusOk});
-        cmds.push({control: 'triggerR', label: 'Confirm', enabled: consolePlayedUi.pickValid, badge: consolePlayedUi.pickCount, highlight: consolePlayedUi.pickValid});
-      }
-      cmds.push({control: 'secondary', label: 'Inspect'});
-      cmds.push({control: 'back', label: 'Cancel'});
-      return cmds;
     },
     /** Titles of the inner SelectOptions — the server's claimable/fundable set. */
     /**
@@ -5424,7 +5383,7 @@ export default defineComponent({
         // …but NOT while an outcome is re-homed inside it: the browse list is
         // parked behind the outcome zone, so scrolling it would move something
         // the player cannot see instead of the content in front of them.
-        if (this.consoleState.sheet === 'cardActions' && !this.handPickActive && !this.playedPickActive &&
+        if (this.consoleState.sheet === 'cardActions' && !this.handPickActive &&
             !this.workspaceOutcomeEmbedded) {
           (this.$refs.cardActions as InstanceType<typeof ConsoleCardActions> | undefined)?.handleIntent(intent);
           return true;

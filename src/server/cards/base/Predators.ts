@@ -8,6 +8,7 @@ import {CardResource} from '../../../common/CardResource';
 import {CardName} from '../../../common/cards/CardName';
 import {AddResourcesToCard} from '../../deferredActions/AddResourcesToCard';
 import {RemoveResourcesFromCard} from '../../deferredActions/RemoveResourcesFromCard';
+import {cardSource} from '../../inputs/choiceContext';
 import {CardRenderer} from '../render/CardRenderer';
 import {all} from '../Options';
 import * as actionReason from '../actionReasons';
@@ -56,7 +57,7 @@ export class Predators extends Card implements IProjectCard, IActionCard {
 
   public action(player: IPlayer) {
     player.game.defer(
-      new RemoveResourcesFromCard(player, CardResource.ANIMAL, 1, {log: true, autoselect: false})
+      new RemoveResourcesFromCard(player, CardResource.ANIMAL, 1, {log: true, autoselect: false, cause: cardSource(this)})
         .andThen((response) => {
           if (response.proceed) {
             player.game.defer(new AddResourcesToCard(player, CardResource.ANIMAL, {filter: (c) => c.name === this.name}));

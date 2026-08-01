@@ -35,7 +35,6 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
-import {isPlayedTableauPickActive} from '@/client/console/played/playedCategoryView';
 import {
   SurfaceMotionId,
   SurfaceDeparture,
@@ -81,7 +80,7 @@ function s(ms: number): number {
 /** A press mid-bridge (hand/tableau pick hides the composer via v-show) —
  *  those "transitions" are the bridge's own beat, never ours. */
 function isPickBridgeHidden(): boolean {
-  return isConsoleHandPickActive() || isPlayedTableauPickActive();
+  return isConsoleHandPickActive();
 }
 
 /**

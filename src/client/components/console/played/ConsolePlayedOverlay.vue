@@ -312,16 +312,8 @@ export default defineComponent({
     categoryUp(): boolean {
       return isCategoryViewUp();
     },
-    /** The open collection's cards (LIVE — an undo/refresh flows through):
-     *  the category's cards in browse mode, the PICK set (candidates +
-     *  disabled-with-reason) resolved against the live tableau in pick mode. */
+    /** The open category's cards (LIVE — an undo/refresh flows through). */
     categoryViewCards(): ReadonlyArray<CardModel> {
-      if (this.catState.pick !== undefined) {
-        const byName = new Map((this.viewedPlayer?.tableau ?? []).map((c) => [c.name as string, c]));
-        return this.catState.names
-          .map((n) => byName.get(n))
-          .filter((c): c is CardModel => c !== undefined);
-      }
       const key = this.catState.category;
       return key !== undefined ? categoryCards(this.zones, key) : [];
     },
@@ -652,7 +644,6 @@ export default defineComponent({
       // painted their proxies (the view flips the hold in that same turn).
       playedCategoryState.holdCards = false;
       playedCategoryState.frameOn = false;
-      playedCategoryState.pick = undefined;
       playedCategoryState.phase = 'opening';
       // The view mounts off `phase` and runs the whole open flight itself.
     },

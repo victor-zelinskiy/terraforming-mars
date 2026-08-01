@@ -7,7 +7,7 @@ import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
 import {Units} from '../../common/Units';
-import {SelectPaymentModel} from '../../common/models/PlayerInputModel';
+import {ChoiceContextSource, SelectPaymentModel} from '../../common/models/PlayerInputModel';
 
 export type Options = {
   canUseSteel?: boolean;
@@ -19,6 +19,13 @@ export type Options = {
   canUseSpireScience?: boolean,
   reserveUnits?: Units | undefined;
   title?: string | Message;
+  /**
+   * WHO is charging — the card / standard project / rule that raised this bill.
+   * Until now the only channel was `title`, a TRANSLATABLE string: the client is
+   * forbidden from parsing it, so a payment prompt could name its source to a
+   * human and stay anonymous to the UI. See `inputs/choiceContext.ts`.
+   */
+  cause?: ChoiceContextSource;
 }
 
 export class SelectPaymentDeferred extends DeferredAction<Payment> {
@@ -63,7 +70,7 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
   // `execute` and the read-only `previewPaymentModel` (action-preview rework)
   // build the IDENTICAL input, with no chance of the two drifting apart.
   private buildSelectPayment(): SelectPayment {
-    return new SelectPayment(
+    const select = new SelectPayment(
       this.options.title || message('Select how to spend ${0} M€', (b) => b.number(this.amount)),
       this.amount,
       {
@@ -77,6 +84,9 @@ export class SelectPaymentDeferred extends DeferredAction<Payment> {
         kuiperAsteroids: this.options.canUseAsteroids || false,
         graphene: this.options.canUseGraphene || false,
       }, this.options.reserveUnits);
+    return this.options.cause === undefined ?
+      select :
+      select.markChoiceContext({source: this.options.cause, mode: 'effect-choice'});
   }
 
   /**

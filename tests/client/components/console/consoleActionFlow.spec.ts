@@ -55,6 +55,42 @@ describe('consoleActionFlow', () => {
       expect(players.map((c) => c.label)).to.deep.eq(['Select', 'Back']);
     });
 
+    /**
+     * The EMBEDDED played-target step, reached from a blue action. It replaced
+     * the hand-off to the «Разыграно» pick surface, so its contract has to be
+     * published from HERE — while the pick lived on the other screen, the bar
+     * showed the composer's own A/X/B and the RT that COMMITS a multi pick went
+     * completely unnamed.
+     */
+    it('sub-played-target: d-pad + A + X + B, and owner tabs ONLY in tabbed mode', () => {
+      const tabs = focusCommandRun({state: 'sub-played-target', ownerTabs: true});
+      expect(tabs.map((c) => c.label)).to.deep.eq(['Navigate', 'Player', 'Select', 'Inspect', 'Back']);
+      // SPLIT view puts both owner groups on screen and the d-pad crosses
+      // between them — advertising the bumpers would offer a second way to do
+      // what the stick already does.
+      const split = focusCommandRun({state: 'sub-played-target', ownerTabs: false});
+      expect(split.map((c) => c.label)).to.deep.eq(['Navigate', 'Select', 'Inspect', 'Back']);
+    });
+
+    it('sub-played-target: a MULTI ask names its COMMIT and gates it on validity', () => {
+      const half = focusCommandRun({
+        state: 'sub-played-target', ownerTabs: false,
+        multi: {count: 1, valid: false, verb: 'Return'},
+      });
+      expect(half.find((c) => c.control === 'confirm')?.label).to.eq('Select / Deselect');
+      const rt = half.find((c) => c.control === 'triggerR');
+      expect(rt?.label, 'the commit is named by the server\'s own verb').to.eq('Return');
+      expect(rt?.enabled, 'a half-built selection cannot be sent').to.eq(false);
+      const ready = focusCommandRun({
+        state: 'sub-played-target', ownerTabs: false,
+        multi: {count: 2, valid: true, verb: 'Return'},
+      });
+      expect(ready.find((c) => c.control === 'triggerR')?.enabled).to.eq(true);
+      // …and a SINGLE ask never offers a commit trigger: A resolves it.
+      const single = focusCommandRun({state: 'sub-played-target', ownerTabs: false});
+      expect(single.some((c) => c.control === 'triggerR')).to.eq(false);
+    });
+
     it('sub-payment: lanes chords + Done gated on coverage', () => {
       const run = focusCommandRun({state: 'sub-payment', covers: false});
       const done = run.find((c) => c.label === 'Done');

@@ -12,6 +12,7 @@ import {Card} from '../Card';
 import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import * as actionPreviews from '../actionPreviews';
+import {cardSource} from '../../inputs/choiceContext';
 
 export class JupiterFloatingStation extends Card implements IProjectCard {
   constructor() {
@@ -73,6 +74,7 @@ export class JupiterFloatingStation extends Card implements IProjectCard {
         // player sees the target; the confirm modal pre-collects the pick.
         player.game.defer(new AddResourcesToCard(player, CardResource.FLOATER, {
           restrictedTag: Tag.JOVIAN, title: 'Add 1 floater to a Jovian card', autoSelect: false,
+          cause: cardSource(this),
         }));
         return undefined;
       }),

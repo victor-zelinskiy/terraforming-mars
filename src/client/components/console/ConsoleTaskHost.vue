@@ -101,12 +101,15 @@
         </header>
 
         <div class="con-task__main">
-          <!-- INFO PARITY (CTS-3.8): the SOURCE CARD renders as the real
-               premium card wherever the desktop docks it. -->
-          <div v-if="sourceCardName !== undefined" class="con-task__source" ref="sourceCard">
-            <div class="con-task__source-label">{{ $t('Source') }}</div>
-            <Card :card="{name: sourceCardName}" :key="sourceCardName" />
-          </div>
+          <!-- WHO asked — the SHARED source dock (`console-source-dock`, global
+               in main.ts), identical on every decision surface.
+               COMPACT when the prompt is a DIAL or a LIST the card merely
+               produced (Philares' resource distribution): the card is context,
+               recognisable but never the subject, and L3 opens it. A `choice`
+               keeps the full dock and its X — there the card IS what is being
+               decided about. -->
+          <console-source-dock v-if="sourceView !== undefined" :view="sourceView"
+                               :compact="sourceCompact" ref="sourceCard" />
 
           <div class="con-task__body con-info__scroll" ref="body">
             <!-- Warnings carry over (parity). -->
@@ -460,6 +463,7 @@ import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStage
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import {rememberCardBrowserPicks, recallCardBrowserPicks, clearCardBrowserPicks} from '@/client/console/consoleRouter';
 import {consoleTaskSummary} from '@/client/console/consoleTaskSummary';
+import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {setWorkspaceOutcomePhase, workspaceOutcomeArrivalPending, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {TargetImpact, TargetImpactChange} from '@/common/models/TargetImpactModel';
@@ -735,11 +739,46 @@ export default defineComponent({
       const trigger = this.wf?.choiceContext?.trigger;
       return textOf(trigger as string | Message | undefined);
     },
-    /** The docked source card — REAL render (info-parity contract; the
-     *  context lives on the PARENT prompt, kept visible in nested steps). */
+    /** WHO asked — normalized by the shared model, so every marker the server
+     *  might have used lands in ONE dock. The context lives on the PARENT
+     *  prompt, so it stays visible through a nested wizard step. */
+    sourceView(): PromptSourceView | undefined {
+      return promptSourceView(this.parentWf);
+    },
+    /** The docked source CARD, when the source is one — what X / L3 opens. */
     sourceCardName(): CardName | undefined {
-      const source = this.parentWf?.choiceContext?.source;
-      return source !== undefined && 'card' in source ? (source.card as CardName | undefined) : undefined;
+      return this.sourceView?.inspectable === true ? this.sourceView.card : undefined;
+    },
+    /**
+     * The STANDALONE host's inspectable source — the card that PRODUCED this
+     * prompt, offered on L3.
+     *
+     * `choice` is deliberately excluded and keeps its shipped X: there the card
+     * IS the object being decided about (Pharmacy Union asks about Pharmacy
+     * Union), which is the console grammar's "pre-commit — the source IS the
+     * current object" case. Every other kind hands the player a DIAL or a LIST
+     * that the card merely produced (Philares' resource distribution arrives
+     * after the tile already landed — possibly on an OPPONENT's turn), so the
+     * card is a source in the strict sense and belongs on L3.
+     */
+    standaloneSourceCard(): CardName | undefined {
+      if (this.embedded || this.activeTask.kind === 'choice') {
+        return undefined;
+      }
+      return this.sourceCardName;
+    },
+    /** The dock presents COMPACT exactly when the card is a source rather than
+     *  the subject — the same condition that puts it on L3. */
+    sourceCompact(): boolean {
+      return this.standaloneSourceCard !== undefined;
+    },
+    /** The L3 «Источник» hint, appended before the B verb by every kind that
+     *  has a source to inspect. Discoverable nowhere else → outlives the
+     *  self-evident stick/dpad hints when the bar drops for fit. */
+    sourceHint(): Array<ConsoleCommand> {
+      return this.standaloneSourceCard === undefined ?
+        [] :
+        [{control: 'stickL' as GlyphControl, label: 'Source', priority: 1}];
     },
     /**
      * The workspace claim's SOURCE card — the action whose activation produced
@@ -1264,7 +1303,7 @@ export default defineComponent({
       const selectThenConfirm: Array<ConsoleCommand> = [
         {control: 'dpad', label: 'Navigate'},
         {control: 'confirm', label: 'Select'},
-        confirm, defer,
+        confirm, ...this.sourceHint, defer,
       ];
       switch (this.activeTask.kind) {
       case 'choice': {
@@ -1288,19 +1327,19 @@ export default defineComponent({
       case 'amount':
         return [
           {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
-          {control: 'triggerR', label: 'MAX'}, confirm, defer,
+          {control: 'triggerR', label: 'MAX'}, confirm, ...this.sourceHint, defer,
         ];
       case 'distribute':
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
-          {control: 'triggerR', label: 'MAX'}, confirm, defer,
+          {control: 'triggerR', label: 'MAX'}, confirm, ...this.sourceHint, defer,
         ];
       case 'payment':
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
-          {control: 'triggerR', label: 'MAX'}, confirm, defer,
+          {control: 'triggerR', label: 'MAX'}, confirm, ...this.sourceHint, defer,
         ];
       case 'cardSelect': {
         // X ALWAYS opens the fullscreen INSPECT viewer (never labelled "Card").
@@ -1310,8 +1349,13 @@ export default defineComponent({
           // PICK phase (draft / single target): A commits the focused card in
           // one press — no toggle-then-confirm, no re-pick. RT (otherwise free)
           // opens the drafted-cards viewer in a single-keep draft.
+          // STANDALONE: a card browser opened BY a marked prompt (a contextual
+          // choice's nested target pick) has a source too — L3 already worked
+          // here, but only the embedded case advertised it, so it was reachable
+          // and undiscoverable. Mutually exclusive with the workspace hint below
+          // (that one is embedded-only).
           const pickHints: Array<ConsoleCommand> = [
-            nav, {control: 'confirm', label: 'Select'}, inspect,
+            nav, {control: 'confirm', label: 'Select'}, inspect, ...this.sourceHint,
           ];
           if (this.workspaceSourceCard !== undefined) {
             // Discoverable nowhere else → survives the Deck bar's fit drops
@@ -1331,6 +1375,7 @@ export default defineComponent({
           nav,
           {control: 'confirm', label: 'Select / Deselect'},
           inspect,
+          ...this.sourceHint,
         ];
         if (this.workspaceSourceCard !== undefined) {
           // Discoverable nowhere else → outlives the self-evident hints in
@@ -1565,12 +1610,21 @@ export default defineComponent({
         this.onNav(intent.dir);
         return;
       }
-      // L3 = the workspace SOURCE, fullscreen (embedded only — the claim is
-      // what knows which card's action produced this pick). The stage under
-      // the viewer is never unmounted: selection, cost and focus all survive.
-      if (intent.kind === 'press' && intent.button === 'stickL' && this.workspaceSourceCard !== undefined) {
-        this.zoomWorkspaceSource();
-        return;
+      // L3 = the SOURCE, fullscreen. EMBEDDED reads the workspace claim (the
+      // one thing that knows which card's action produced this pick);
+      // STANDALONE reads the prompt's own `choiceContext` source — the card
+      // that caused a decision the player did not open themselves (Philares).
+      // The stage under the viewer is never unmounted: selection, cost and
+      // focus all survive.
+      if (intent.kind === 'press' && intent.button === 'stickL') {
+        if (this.workspaceSourceCard !== undefined) {
+          this.zoomWorkspaceSource();
+          return;
+        }
+        if (this.standaloneSourceCard !== undefined) {
+          this.zoomSourceCard();
+          return;
+        }
       }
       const action = consoleActionOf(intent);
       if (action !== undefined) {
@@ -1748,10 +1802,12 @@ export default defineComponent({
       }
     },
     /**
-     * X on a CHOICE: inspect the docked SOURCE card fullscreen — read-only (no
-     * select / action bridge, so it can never submit the choice). The card is a
-     * VISIBLE tile, so it lifts physically out of its dock and dives back into
-     * it on close.
+     * Inspect the docked SOURCE card fullscreen — read-only (no select / action
+     * bridge, so it can never submit the prompt). The card is a VISIBLE tile, so
+     * it lifts physically out of its dock and dives back into it on close.
+     * Reached by X on a CHOICE (there the card IS the subject) and by L3
+     * everywhere else (there it is the source that produced the prompt); the
+     * viewer NAMES that role, mirroring the drawn reveal's «ИСТОЧНИК ДОБОРА».
      */
     zoomSourceCard(): void {
       const name = this.sourceCardName;
@@ -1759,11 +1815,13 @@ export default defineComponent({
         return;
       }
       openConsoleCardZoom([{name}], 0, undefined, undefined, {
+        statusLabel: 'Source',
         origin: {
           kind: 'physical',
           resolve: () => {
-            const host = this.$refs.sourceCard as HTMLElement | null | undefined;
-            return host?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
+            // The dock is a COMPONENT now — reach its root element.
+            const dock = this.$refs.sourceCard as {$el?: HTMLElement} | undefined;
+            return dock?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
           },
         },
       });

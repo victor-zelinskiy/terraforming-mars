@@ -1,4 +1,4 @@
-import {ChoiceContext} from '../../common/models/PlayerInputModel';
+import {ChoiceContext, ChoiceContextSource} from '../../common/models/PlayerInputModel';
 import {CardType} from '../../common/cards/CardType';
 import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
@@ -57,4 +57,34 @@ export function systemChoice(kind: 'standardProject' | 'colony' | 'system', trig
  *  ICard instance isn't on hand, e.g. inside a shared deferred action). */
 export function namedCardEffect(card: CardName, isCorporation: boolean, trigger?: string | Message, mode: ChoiceContext['mode'] = 'optional-effect'): ChoiceContext {
   return {source: {kind: isCorporation ? 'corporation' : 'card', card}, trigger, mode};
+}
+
+/*
+ * ── The SOURCE half, for SHARED deferred actions ─────────────────────────────
+ *
+ * A card-specific prompt describes itself with `cardEffect(...)` above. A
+ * SHARED helper (`AddResourcesToCard`, `RemoveResourcesFromCard`,
+ * `SelectPaymentDeferred`, …) is different: it is reused by dozens of cards and
+ * only ever learns WHO caused it from the caller, so it carries a bare
+ * `ChoiceContextSource` and supplies the trigger/mode itself.
+ *
+ * The option is named `cause` on every one of those helpers — deliberately NOT
+ * `source`, which `RemoveResourcesFromCard` already uses for "take from whom"
+ * (self / opponents / all). One name, one meaning, no upstream rename.
+ */
+
+/** The card (or corporation) that caused a prompt a shared helper builds. */
+export function cardSource(card: ICard): ChoiceContextSource {
+  return {kind: card.type === CardType.CORPORATION ? 'corporation' : 'card', card: card.name};
+}
+
+/** The same, when only the NAME is on hand. */
+export function namedCardSource(card: CardName, isCorporation = false): ChoiceContextSource {
+  return {kind: isCorporation ? 'corporation' : 'card', card};
+}
+
+/** A COLONY that caused a prompt — no card to show, so it names itself instead
+ *  («КОЛОНИЯ · Ганимед») rather than leaving the player with a bare list. */
+export function colonySource(name: string | Message): ChoiceContextSource {
+  return {kind: 'colony', name};
 }

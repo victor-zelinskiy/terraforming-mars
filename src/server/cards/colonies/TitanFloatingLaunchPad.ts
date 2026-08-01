@@ -16,6 +16,7 @@ import {ColoniesHandler} from '../../colonies/ColoniesHandler';
 import {message} from '../../logs/MessageBuilder';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
+import {cardSource} from '../../inputs/choiceContext';
 
 export class TitanFloatingLaunchPad extends Card implements IProjectCard {
   constructor() {
@@ -95,7 +96,7 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
       new SelectOption('Add 1 floater to a Jovian card', 'Add floater').andThen(() => {
         // autoSelect:false — ALWAYS ask which Jovian card (even one candidate) so the
         // player sees the target; the confirm modal pre-collects the pick.
-        player.game.defer(new AddResourcesToCard(player, CardResource.FLOATER, {restrictedTag: Tag.JOVIAN, title: 'Add 1 floater to a Jovian card', autoSelect: false}));
+        player.game.defer(new AddResourcesToCard(player, CardResource.FLOATER, {restrictedTag: Tag.JOVIAN, title: 'Add 1 floater to a Jovian card', autoSelect: false, cause: cardSource(this)}));
         return undefined;
       }),
     );

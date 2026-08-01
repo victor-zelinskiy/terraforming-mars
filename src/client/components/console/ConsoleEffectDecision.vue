@@ -28,13 +28,13 @@
         </header>
 
         <div class="con-decision__main" :class="{'con-decision__main--sourceless': sourceCardName === undefined}">
-          <!-- THE SOURCE. Rendered with the real premium card face — the player
-               must recognise the same object they see everywhere else. Absent
-               sources render NO column at all (never an empty placeholder). -->
-          <div v-if="sourceCardName !== undefined" class="con-decision__source" ref="sourceCard">
-            <div class="con-decision__source-label">{{ $t('Source') }}</div>
-            <Card :card="{name: sourceCardName}" :key="sourceCardName" />
-          </div>
+          <!-- THE SOURCE — the SHARED dock (`console-source-dock`), the same
+               component every other decision surface uses, so the player meets
+               one answer to "who asked?" everywhere. NOT compact: here the card
+               IS the subject of the decision. Absent sources render no column
+               at all (never an empty placeholder). -->
+          <console-source-dock v-if="sourceView !== undefined" class="con-decision__source"
+                               :view="sourceView" ref="sourceCard" />
 
           <div class="con-decision__actions">
             <div v-for="(action, i) in vm.actions" :key="action.key"
@@ -87,7 +87,6 @@
  * game logic and no text heuristics.
  */
 import {defineComponent, PropType} from 'vue';
-import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {CardName} from '@/common/cards/CardName';
@@ -100,6 +99,7 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {clearPanelCommands, setPanelCommands} from '@/client/console/consolePanelUi';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {choiceSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {orOptionResponse} from '@/client/console/taskResponses';
 import {
   decisionCommandKeys, decisionFocusStep, decisionPressIntent,
@@ -116,7 +116,8 @@ function textOf(value: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsoleEffectDecision',
-  components: {Card, GamepadGlyph, ActionEffectChip},
+  // `console-source-dock` is GLOBAL (main.ts) — see the note there.
+  components: {GamepadGlyph, ActionEffectChip},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     vm: {type: Object as PropType<EffectDecisionViewModel>, required: true},
@@ -136,6 +137,11 @@ export default defineComponent({
     /** A genuinely NEW prompt cross-fades the panel; a re-render does not. */
     panelKey(): string {
       return `${this.vm.eyebrowKey}|${this.vm.headlineKey}|${this.vm.actions.length}`;
+    },
+    /** The decision model already resolved WHO asks; normalize it into the one
+     *  shape the shared dock speaks. */
+    sourceView(): PromptSourceView | undefined {
+      return choiceSourceView(this.vm.source);
     },
     sourceCardName(): CardName | undefined {
       return this.vm.source?.card;
@@ -230,10 +236,12 @@ export default defineComponent({
      *  the player left them when the viewer closes. */
     inspectSource(name: CardName): void {
       openConsoleCardZoom([{name}], 0, undefined, undefined, {
+        statusLabel: 'Source',
         origin: {
           kind: 'physical',
-          resolve: () => (this.$refs.sourceCard as HTMLElement | undefined)
-            ?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null,
+          // The dock is a COMPONENT — reach its root element.
+          resolve: () => (this.$refs.sourceCard as {$el?: HTMLElement} | undefined)
+            ?.$el?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null,
         },
       });
     },

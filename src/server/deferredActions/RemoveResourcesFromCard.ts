@@ -4,7 +4,7 @@ import {OrOptions} from '../inputs/OrOptions';
 import {SelectCard} from '../inputs/SelectCard';
 import {SelectOption} from '../inputs/SelectOption';
 import {ICard} from '../cards/ICard';
-import {PlayerInputModel, SelectCardModel} from '../../common/models/PlayerInputModel';
+import {ChoiceContextSource, PlayerInputModel, SelectCardModel} from '../../common/models/PlayerInputModel';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {Message} from '../../common/logs/Message';
@@ -25,6 +25,8 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
   private autoselect: boolean;
   private title: string | Message;
   private log: boolean;
+  /** WHO caused this — attached to every prompt this deferred builds. */
+  private cause: ChoiceContextSource | undefined;
 
   public override priority: Priority = Priority.ATTACK_OPPONENT;
   constructor(
@@ -41,6 +43,12 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
       title?: string | Message,
       blockable?: boolean,
       log?: boolean,
+      /**
+       * WHO caused this attack — the card whose effect is taking the resource.
+       * NOT `source`: that already means "take from whom" here. Named `cause`
+       * across every shared helper (see `inputs/choiceContext.ts`).
+       */
+      cause?: ChoiceContextSource,
     }) {
     super(player, Priority.ATTACK_OPPONENT);
     this.cardResource = cardResource;
@@ -50,6 +58,7 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     this.blockable = options?.blockable ?? true;
     this.autoselect = options?.autoselect ?? true;
     this.log = options?.log ?? false;
+    this.cause = options?.cause;
     // A `message()` (NOT a raw template literal) so the title is a translatable
     // key — the ${1} resource token is translated client-side, and the template
     // 'Select card to remove ${0} ${1}' has a single stable i18n key.
@@ -95,7 +104,7 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     // With a bot target, ALWAYS present an OrOptions so the bot is a conscious,
     // visible choice alongside the card(s) — never auto-applied behind the picker.
     if (botOption !== undefined) {
-      const orOptions = new OrOptions().setTitle(this.title);
+      const orOptions = this.withCause(new OrOptions().setTitle(this.title));
       if (cards.length > 0) {
         orOptions.options.push(this.buildSelectCard(cards, disabledCards));
       }
@@ -115,13 +124,13 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
       return this.buildSelectCard(cards, disabledCards);
     }
 
-    return new OrOptions(
+    return this.withCause(new OrOptions(
       this.buildSelectCard(cards, disabledCards),
-      new SelectOption('Do not remove').withMetadata(skip()));
+      new SelectOption('Do not remove').withMetadata(skip())));
   }
 
   private buildSelectCard(cards: Array<ICard>, disabledCards: Array<{card: ICard, reason: string}>) {
-    return new SelectCard(
+    return this.withCause(new SelectCard(
       this.title,
       'Remove resource(s)',
       cards,
@@ -129,7 +138,21 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
       .andThen(([card]) => {
         this.attack(card);
         return undefined;
-      });
+      }));
+  }
+
+  /**
+   * Attach WHO caused this to whichever prompt shape `execute()` returns. The
+   * client reads the marker off the TOP-LEVEL prompt, so the `OrOptions`
+   * wrappers (a MarsBot branch, a "do not remove" skip) need it just as much as
+   * the bare picker — mark one and the other two stay anonymous.
+   */
+  private withCause<T extends {markChoiceContext(meta: {source: ChoiceContextSource, mode: 'attack' | 'effect-choice'}): T}>(input: T): T {
+    if (this.cause === undefined) {
+      return input;
+    }
+    // Taking from your OWN card is a cost you chose, not an attack.
+    return input.markChoiceContext({source: this.cause, mode: this.source === 'self' ? 'effect-choice' : 'attack'});
   }
 
   /**
@@ -209,7 +232,7 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
     }
     const disabledCards = RemoveResourcesFromCard.getUnavailableTargetCards(this.player, this.cardResource, this.source, cards);
     if (botOption !== undefined) {
-      const orOptions = new OrOptions().setTitle(this.title);
+      const orOptions = this.withCause(new OrOptions().setTitle(this.title));
       if (cards.length > 0) {
         orOptions.options.push(this.buildSelectCard(cards, disabledCards));
       }
@@ -246,11 +269,11 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
       return undefined;
     }
     const disabledCards = RemoveResourcesFromCard.getUnavailableTargetCards(this.player, this.cardResource, this.source, cards);
-    return new SelectCard(
+    return this.withCause(new SelectCard(
       this.title,
       'Remove resource(s)',
       cards,
-      {showOwner: this.source !== 'self', disabled: disabledCards.length > 0 ? disabledCards : undefined})
+      {showOwner: this.source !== 'self', disabled: disabledCards.length > 0 ? disabledCards : undefined}))
       .toModel(this.player);
   }
 

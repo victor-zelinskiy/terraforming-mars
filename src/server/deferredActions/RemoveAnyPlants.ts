@@ -7,20 +7,33 @@ import {Priority} from './Priority';
 import {CardName} from '../../common/cards/CardName';
 import {MessageBuilder, message} from '../logs/MessageBuilder';
 import {Message} from '../../common/logs/Message';
-import {DisabledOptionModel} from '../../common/models/PlayerInputModel';
+import {ChoiceContextSource, DisabledOptionModel} from '../../common/models/PlayerInputModel';
 import {disabledPlayerTarget, removeResourceFromPlayer, skip} from '../inputs/optionMetadata';
 import {AutomaTargeting} from '../automa/AutomaTargeting';
 export class RemoveAnyPlants extends DeferredAction {
   private title: string | Message;
   private count: number;
 
-  constructor(player: IPlayer, count: number = 1, title?: string | Message, priority: Priority = Priority.ATTACK_OPPONENT) {
+  constructor(
+    player: IPlayer,
+    count: number = 1,
+    title?: string | Message,
+    priority: Priority = Priority.ATTACK_OPPONENT,
+    /** WHO caused this attack — see `inputs/choiceContext.ts`. */
+    private cause?: ChoiceContextSource,
+  ) {
     // Default ATTACK_OPPONENT. A card that ALSO places a tile passes
     // `Priority.PLAY_CARD_PLANT_REMOVAL` so the OrOptions prompts BEFORE the
     // placement and the play modal can pre-collect it (see Executor.execute).
     super(player, priority);
     this.count = count;
     this.title = title ?? message('Select player to remove up to ${0} plants', (b) => b.number(count));
+  }
+
+  /** Attach WHO caused this to whichever prompt shape is built (solo and
+   *  multiplayer each build their own — mark one and the other stays mute). */
+  private withCause(input: OrOptions): OrOptions {
+    return this.cause === undefined ? input : input.markChoiceContext({source: this.cause, mode: 'attack'});
   }
 
   private createOption(target: IPlayer) {
@@ -74,7 +87,7 @@ export class RemoveAnyPlants extends DeferredAction {
         ownOption.warnings = ['removeOwnPlants'];
         removalOptions.push(ownOption);
       }
-      return new OrOptions(...removalOptions).setTitle(this.title);
+      return this.withCause(new OrOptions(...removalOptions).setTitle(this.title));
     }
 
     return this.buildOptions();
@@ -148,9 +161,9 @@ export class RemoveAnyPlants extends DeferredAction {
       removalOptions.push(ownOption);
     }
 
-    return new OrOptions(...removalOptions)
+    return this.withCause(new OrOptions(...removalOptions)
       .setTitle(this.title)
-      .setDisabledOptions(this.disabledOpponents());
+      .setDisabledOptions(this.disabledOpponents()));
   }
 
   /** READ-ONLY preview of the plant-removal OrOptions (no solo-mode mutation) — lets

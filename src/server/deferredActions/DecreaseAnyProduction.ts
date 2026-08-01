@@ -1,7 +1,7 @@
 import {IPlayer} from '../IPlayer';
 import {Resource} from '../../common/Resource';
 import {SelectPlayer} from '../inputs/SelectPlayer';
-import {SelectPlayerModel} from '../../common/models/PlayerInputModel';
+import {ChoiceContextSource, SelectPlayerModel} from '../../common/models/PlayerInputModel';
 import {DeferredAction} from './DeferredAction';
 import {Priority} from './Priority';
 import {Message} from '../../common/logs/Message';
@@ -9,7 +9,9 @@ import {message} from '../logs/MessageBuilder';
 
 export type Options = {
   count: number,
-  stealing?: boolean
+  stealing?: boolean,
+  /** WHO caused this attack — see `inputs/choiceContext.ts`. */
+  cause?: ChoiceContextSource,
 }
 
 export class DecreaseAnyProduction extends DeferredAction<boolean> {
@@ -69,12 +71,15 @@ export class DecreaseAnyProduction extends DeferredAction<boolean> {
    * two never drift.
    */
   private buildSelectPlayer(targets: ReadonlyArray<IPlayer>): SelectPlayer {
-    return new SelectPlayer(targets, this.title, 'Decrease', {
+    const select = new SelectPlayer(targets, this.title, 'Decrease', {
       icon: this.resource,
       amount: this.options.count,
       scope: 'production',
       disabled: this.blockedTargets(targets),
     });
+    return this.options.cause === undefined ?
+      select :
+      select.markChoiceContext({source: this.options.cause, mode: 'attack'});
   }
 
   /**

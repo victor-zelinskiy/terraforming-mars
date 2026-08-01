@@ -35,6 +35,7 @@ import {TileType} from '../../../src/common/TileType';
 import {ErodeSpacesDeferred} from '../underworld/ErodeSpacesDeferred';
 import {CardName} from '../../common/cards/CardName';
 import {GlobalParameter} from '@/common/GlobalParameter';
+import {colonySource} from '../inputs/choiceContext';
 
 export abstract class Colony implements IColony {
   // Players can't build colonies on Miranda until someone has played an Animal card.
@@ -345,7 +346,11 @@ export abstract class Colony implements IColony {
     switch (bonusType) {
     case ColonyBenefit.ADD_RESOURCES_TO_CARD:
       const cardResource = this.metadata.cardResource;
-      action = new AddResourcesToCard(player, cardResource, {count: quantity});
+      // A colony bonus has no CARD to show, so it names itself instead
+      // («КОЛОНИЯ · Ганимед»). The colony was already known one call up (the
+      // event source) and dropped here, leaving the player with a card picker
+      // and no idea which of their colonies paid.
+      action = new AddResourcesToCard(player, cardResource, {count: quantity, cause: colonySource(this.name)});
       break;
 
     case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD:
@@ -356,6 +361,7 @@ export abstract class Colony implements IColony {
           count: quantity,
           restrictedTag: Tag.VENUS,
           title: message('Select Venus card to add ${0} resource(s)', (b) => b.number(quantity)),
+          cause: colonySource(this.name),
         });
       break;
 
@@ -364,6 +370,7 @@ export abstract class Colony implements IColony {
       action = new SimpleDeferredAction(
         player,
         () => new SelectColony('Select colony to gain trade income from', 'Select', openColonies)
+          .markChoiceContext({source: colonySource(this.name), mode: 'reward'})
           .andThen((colony) => {
             game.log('${0} gained ${1} trade bonus', (b) => b.player(player).colony(colony));
             (colony as Colony).handleTrade(player, {
@@ -525,9 +532,10 @@ export abstract class Colony implements IColony {
             return undefined;
           }
           return new SelectPlayer(playersWithCards, 'Select player to discard a card', 'Select')
+            .markChoiceContext({source: colonySource(this.name), mode: 'attack'})
             .andThen((selectedPlayer) => {
               game.defer(new DiscardCards(selectedPlayer, 1, 1, this.name + ' colony effect. Select a card to discard', {
-                source: {kind: 'colony'},
+                source: colonySource(this.name),
               }));
               return undefined;
             });

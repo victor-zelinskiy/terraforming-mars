@@ -9,6 +9,7 @@ import {Size} from '../../../common/cards/render/Size';
 import {BoardType} from '../../boards/BoardType';
 import {all} from '../Options';
 import {SelectResources} from '../../inputs/SelectResources';
+import {cardEffect} from '../../inputs/choiceContext';
 import {message} from '../../logs/MessageBuilder';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 import {TileType} from '../../../common/TileType';
@@ -77,9 +78,20 @@ export class Philares extends CorporationCard implements ICorporationCard {
 
     const count = eligibleTiles.length;
     if (count > 0) {
+      const bySomeoneElse = cardOwner.id !== activePlayer.id;
       cardOwner.defer(() => {
         cardOwner.game.log('${0} must select ${1} bonus resource(s) from ${2}\' ability', (b) => b.player(cardOwner).number(count).card(this));
         return new SelectResources(message('Gain ${0} standard resources', (b) => b.number(count)), count)
+          // WHY this prompt appeared. Philares is the fork's purest "prompt out
+          // of nowhere": it fires on an OPPONENT's placement too, so without the
+          // marker the player is handed a resource dial with no attribution at
+          // all. The context names the corporation (source-card dock + L3
+          // inspect + the deferred band's source line) and the trigger says
+          // which placement caused it — both phrasings are gender-neutral in
+          // Russian by attaching the verb to «тайл», never to the player.
+          .markChoiceContext(cardEffect(this, bySomeoneElse ?
+            message('${0}\'s tile landed next to yours. New adjacencies: ${1}', (b) => b.player(activePlayer).number(count)) :
+            message('Your tile landed next to another player\'s. New adjacencies: ${0}', (b) => b.number(count)), 'reward'))
           .andThen((units) => {
             cardOwner.stock.adjust(units, {log: true});
             return undefined;

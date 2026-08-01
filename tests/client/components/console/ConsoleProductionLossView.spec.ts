@@ -26,10 +26,33 @@ function view(cost: number, prod: Partial<Units>, source?: ProductionLossSource)
 
 function mountWith(v: PlayerViewModel) {
   return mount(ConsoleProductionLoss, {
-    global: {...globalConfig.global, stubs: {GamepadGlyph: true}},
+    global: {
+      ...globalConfig.global,
+      // `console-source-dock` is GLOBAL in the real app (it renders the card
+      // face, whose import chain zeroes a mochapack spec) — so it is stubbed
+      // here rather than resolved. Its own contract is guarded by
+      // `promptSource.spec.ts` + the e2e probe; what this file owns is WHICH
+      // view the surface hands it and WHICH verbs it publishes.
+      stubs: {'GamepadGlyph': true, 'console-source-dock': ConsoleSourceDockStub},
+    },
     props: {playerView: v},
   });
 }
+
+/** Mirrors the real dock's root classes so the layout assertions still mean
+ *  something without dragging the card renderer into this bundle. */
+const ConsoleSourceDockStub = {
+  props: {view: {type: Object, required: true}, compact: Boolean},
+  template: `<div class="con-src" :class="{
+      'con-src--compact': compact,
+      'con-src--plate': view.card === undefined,
+      'con-src--hazard': view.tone === 'hazard',
+    }">
+      <div v-if="view.card !== undefined" class="con-src__card"/>
+      <div v-else class="con-src__plate"/>
+      <div v-if="view.ruleKey !== undefined" class="con-src__rule"/>
+    </div>`,
+};
 
 // The test i18n plugin returns the English key (with ${0} substituted) — mirrors
 // the desktop ModernProductionToLose spec, so we can assert on the key text.
@@ -43,10 +66,30 @@ describe('ConsoleProductionLoss (view)', () => {
     expect((mountWith(view(2, {steel: 3})).vm as any).titleText).to.eq('Reduce production by 2');
   });
 
-  it('shows the hazard cause chip when forced by an adjacent hazard', () => {
+  // The cause now renders through the SHARED source dock — same component,
+  // same grammar and same slot as every other decision surface. A hazard has
+  // no card to show, so it keeps the plate + the rule that explains it.
+  it('shows the hazard cause plate when forced by an adjacent hazard', () => {
     const w = mountWith(view(1, {steel: 1}, {type: 'hazard'}));
-    expect(w.find('.con-prodloss__source--hazard').exists()).to.be.true;
-    expect(w.find('.con-prodloss__rule').exists()).to.be.true;
+    expect(w.find('.con-src--hazard').exists()).to.be.true;
+    expect(w.find('.con-src__plate').exists()).to.be.true;
+    expect(w.find('.con-src__rule').exists()).to.be.true;
+    // Nothing to inspect → the bar must not advertise a source verb.
+    expect((w.vm as any).footCommands.some((c: any) => c.label === 'Source')).to.be.false;
+  });
+
+  it('a CARD cause renders the real premium card face + the L3 verb', () => {
+    const w = mountWith(view(1, {steel: 1}, {type: 'card', card: 'Caesar' as any}));
+    expect(w.find('.con-src__card').exists()).to.be.true;
+    expect(w.find('.con-src--hazard').exists()).to.be.false;
+    expect((w.vm as any).sourceCard).to.eq('Caesar');
+    expect((w.vm as any).footCommands.some((c: any) => c.control === 'stickL' && c.label === 'Source')).to.be.true;
+  });
+
+  it('no source at all → no dock, no verb (never an empty column)', () => {
+    const w = mountWith(view(1, {steel: 1}));
+    expect(w.find('.con-src').exists()).to.be.false;
+    expect((w.vm as any).footCommands.some((c: any) => c.label === 'Source')).to.be.false;
   });
 
   it('cost 1: a lone reducible production is pre-selected and confirms in one press', async () => {

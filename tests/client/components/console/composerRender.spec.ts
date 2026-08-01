@@ -10,7 +10,11 @@ const GlyphStub = {name: 'GamepadGlyph', props: ['control'], template: '<i class
 const PLAYER_VIEW: any = {
   id: 'p1',
   thisPlayer: {color: 'blue', name: 'Me', megacredits: 47, steel: 0, titanium: 0, plants: 0, energy: 0, heat: 0, tableau: []},
-  players: [{color: 'blue', name: 'Me'}],
+  // `tableau` is not optional in the real model, and the composer reads every
+  // player's to decide which picks are PLAYED-CARD picks (the embedded target
+  // step). A fixture that omits it is not a smaller player — it is a shape the
+  // server never sends.
+  players: [{color: 'blue', name: 'Me', tableau: []}],
   game: {generation: 1},
   cardsInHand: [],
 };

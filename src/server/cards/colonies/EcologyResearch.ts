@@ -10,6 +10,7 @@ import {Card} from '../Card';
 import {CardRenderer} from '../render/CardRenderer';
 import {ActionPreview, ActionPreviewStep, ActionEffect} from '../../../common/models/ActionPreviewModel';
 import * as actionPreviews from '../actionPreviews';
+import {cardSource} from '../../inputs/choiceContext';
 
 export class EcologyResearch extends Card implements IProjectCard {
   constructor() {
@@ -49,12 +50,12 @@ export class EcologyResearch extends Card implements IProjectCard {
     // play modal pre-collects both picks in order (animal then microbe).
     const animalCards = player.getResourceCards(CardResource.ANIMAL);
     if (animalCards.length) {
-      player.game.defer(new AddResourcesToCard(player, CardResource.ANIMAL, {count: 1, autoSelect: false}));
+      player.game.defer(new AddResourcesToCard(player, CardResource.ANIMAL, {count: 1, autoSelect: false, cause: cardSource(this)}));
     }
 
     const microbeCards = player.getResourceCards(CardResource.MICROBE);
     if (microbeCards.length) {
-      player.game.defer(new AddResourcesToCard(player, CardResource.MICROBE, {count: 2, autoSelect: false}));
+      player.game.defer(new AddResourcesToCard(player, CardResource.MICROBE, {count: 2, autoSelect: false, cause: cardSource(this)}));
     }
 
     return undefined;

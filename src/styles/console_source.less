@@ -1,0 +1,100 @@
+/*
+ * THE SOURCE DOCK (`ConsoleSourceDock.vue`) — one visual language for
+ * "who asked for this decision?", shared by every console decision surface.
+ *
+ * Before this file there were four: a full card at 0.9 zoom (task host), one at
+ * 0.78 (effect decision), one at 0.92 (reveal result) and a bare ◈-and-a-name
+ * text chip (production loss). Same question, four answers — and the text one
+ * could not be inspected at all.
+ *
+ * TWO SIZES, ONE GRAMMAR:
+ *   default  — the surface's SUBJECT is the card (a contextual choice).
+ *   compact  — the subject is a dial / a list / a distribution the card merely
+ *              PRODUCED; the card is context and must not out-weigh it.
+ * A non-card source (a colony bonus, an Ares hazard, a game rule) keeps the
+ * dock's shape and swaps the card for a plate, so the answer never moves.
+ *
+ * Authored in rem (1rem = 20px logical) per the TV profile contract; tokens
+ * (@con-*) come from console.less's root scope. Functional cues are box-shadow
+ * only — `con-perf-lite` strips filter/text-shadow.
+ */
+
+.con-src {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .4rem;
+
+    &__label {
+        font-size: .68rem;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: fade(@con-text-dim, 82%);
+    }
+
+    /* The premium card face. The zoom lives on the CARD, never on the dock, so
+       the label and the plate keep their own size and a display profile can
+       still scale the whole dock without dragging the caption with it. */
+    &__card {
+        zoom: calc(0.8 * var(--con-ui-scale, 1));
+        :is(.card-container, .pcard) { margin: 0; }
+    }
+
+    &--compact &__card { zoom: calc(0.56 * var(--con-ui-scale, 1)); }
+
+    /* A NON-card source: the same slot, a named plate. */
+    &__plate {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        max-width: 15rem;
+        padding: .34rem .75rem;
+        border-radius: .5rem;
+        background: fade(@con-cyan, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
+        font-size: .85rem;
+        font-weight: 600;
+        color: #cfe6fb;
+    }
+    &__plate-mark { color: @con-cyan; font-size: .8rem; }
+    &__plate-kind {
+        font-size: .7rem;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        color: fade(#cfe6fb, 88%);
+    }
+    &__plate-sep { color: fade(@con-cyan, 60%); }
+    &__plate-name {
+        color: @con-text;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* An Ares hazard is a PENALTY, not a card effect — the plate carries the
+       warm hazard accent the board itself uses, so the two read as one thing. */
+    &--hazard &__plate {
+        background: fade(#e58a5a, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(#e58a5a, 48%);
+        color: #ffcf9a;
+        .con-src__plate-mark { color: #e58a5a; }
+        .con-src__plate-kind { color: fade(#ffcf9a, 88%); }
+    }
+
+    /* The rule behind a non-card source ("placing next to a hazard forces…"). */
+    &__rule {
+        max-width: 15rem;
+        font-size: .74rem;
+        line-height: 1.35;
+        color: @con-text-dim;
+    }
+}
+
+/* Handheld: the dock is context on a small screen — shrink the whole thing
+   (caption included), which is exactly what scaling the DOCK does. */
+html.con-profile-handheld .con-src {
+    zoom: 0.82;
+    &__plate { max-width: 12rem; }
+    &__rule { max-width: 12rem; }
+}

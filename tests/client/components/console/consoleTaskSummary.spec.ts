@@ -125,6 +125,32 @@ describe('consoleTaskSummary (no prompt is ever a bare «awaiting decision»)', 
     expect(s.kickerKey).to.eq('Spend heat');
   });
 
+  // Philares: the resource dial arrives with the tile already placed — often on
+  // an OPPONENT's turn — so the marker must reach the copy layer for a NON-`or`
+  // prompt too. All three surfaces (deferred band, command bar, host kicker)
+  // read this one summary, so covering it here covers the whole contract.
+  it('a distribute prompt names its SOURCE card via choiceContext', () => {
+    const s = summaryOf({
+      type: 'resources', title: 'Gain 2 standard resources', count: 2,
+      choiceContext: {source: {kind: 'corporation', card: 'Philares'}, mode: 'reward'},
+    });
+    expect(s.kickerKey).to.eq('Distribute resources');
+    expect(s.sourceCard).to.eq('Philares');
+  });
+
+  // The hand screen's own header already read `discardPrompt.source`; the chip /
+  // bar / kicker did not, so a DEFERRED discard sat on the board home as an
+  // anonymous «Сброс карты» with nothing saying who demanded it.
+  it('a discard names its SOURCE card via discardPrompt', () => {
+    const s = summaryOf({
+      type: 'card', title: 'Select a card to discard', buttonLabel: 'Discard',
+      cards: [{name: 'Birds'}], min: 1, max: 1,
+      discardPrompt: {min: 1, max: 1, source: {kind: 'card', card: 'Mars University'}},
+    }, ['Birds']);
+    expect(s.kickerKey).to.eq('Discarding a card');
+    expect(s.sourceCard).to.eq('Mars University');
+  });
+
   it('a placement names its SOURCE card via placementContext', () => {
     const s = summaryOf({type: 'space', title: 'Select space', spaces: [], placementContext: {cancellable: true, source: {kind: 'card', card: 'Lunar Beam'}}});
     expect(s.kickerKey).to.eq('Tile placement');

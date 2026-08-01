@@ -29,6 +29,7 @@ import {Payment} from '../../common/inputs/Payment';
 import {CardDrawRevealSource} from '../../common/models/CardDrawRevealModel';
 import {SelectResources} from '../inputs/SelectResources';
 import {TITLES} from '../inputs/titles';
+import {cardEffect, cardSource} from '../inputs/choiceContext';
 import {message} from '../logs/MessageBuilder';
 import {IdentifySpacesDeferred} from '../underworld/IdentifySpacesDeferred';
 import {ClaimSpacesDeferred} from '../underworld/ClaimSpacesDeferred';
@@ -324,7 +325,11 @@ export class Executor implements BehaviorExecutor {
       if (options.length === 1 && behavior.or.autoSelect === true) {
         options[0].cb(undefined);
       } else {
-        player.defer(new OrOptions(...options));
+        // The declarative "pick one of these effects" prompt. Normally the play
+        // / action-confirm modal pre-collects it, but on a batch divergence it
+        // surfaces standalone as a bare «Выберите вариант» — and THEN the card
+        // that offered the choice is the one thing the player cannot see.
+        player.defer(new OrOptions(...options).markChoiceContext(cardEffect(card, undefined, 'effect-choice')));
       }
     }
 
@@ -336,6 +341,10 @@ export class Executor implements BehaviorExecutor {
       if (spend.megacredits) {
         player.game.defer(new SelectPaymentDeferred(player, spend.megacredits, {
           title: TITLES.payForCardAction(card.name),
+          // The title already names the card to a HUMAN; the client is
+          // forbidden from parsing it, so the marker is what lets the UI show
+          // the card itself.
+          cause: cardSource(card),
         })).andThen(() => this.execute(remainder, player, card));
         // Exit early as the rest of handled by the deferred action.
         return;
@@ -406,9 +415,14 @@ export class Executor implements BehaviorExecutor {
       const entry = behavior.standardResource;
       const count = typeof(entry) === 'number' ? entry : entry.count;
       const same = typeof(entry) === 'number' ? true : entry.same ?? true;
+      // The declarative twin of Philares' payout: a bare resource dial. Marked
+      // for the same reason — a dial with no attribution is a prompt the player
+      // cannot explain (see `docs/PROMPT_SOURCE_AUDIT.md`).
+      const reward = cardEffect(card, undefined, 'reward');
       if (same === false) {
         player.defer(
           new SelectResources(message('Gain ${0} standard resources', (b) => b.number(count)), count)
+            .markChoiceContext(reward)
             .andThen((units) => {
               player.stock.adjust(units, {log: true});
               return undefined;
@@ -416,6 +430,7 @@ export class Executor implements BehaviorExecutor {
       } else {
         player.defer(
           new SelectResource(message('Gain ${0} units of a standard resource', (b) => b.number(count)))
+            .markChoiceContext(reward)
             .andThen((unit) => {
               player.stock.add(unit, count, {log: true});
               return undefined;
@@ -509,6 +524,7 @@ export class Executor implements BehaviorExecutor {
                 // shows it live. (The instant-apply-on-single shortcut was
                 // removed fork-wide; see Behavior.AddResourcesToAnyCard.)
                 autoSelect: false,
+                cause: cardSource(card),
               }));
         }
       }
@@ -519,7 +535,9 @@ export class Executor implements BehaviorExecutor {
     // }
 
     if (behavior.decreaseAnyProduction !== undefined) {
-      player.game.defer(new DecreaseAnyProduction(player, behavior.decreaseAnyProduction.type, {count: behavior.decreaseAnyProduction.count}));
+      player.game.defer(new DecreaseAnyProduction(
+        player, behavior.decreaseAnyProduction.type,
+        {count: behavior.decreaseAnyProduction.count, cause: cardSource(card)}));
     }
     if (behavior.removeAnyPlants !== undefined) {
       // When the SAME card also queues a placement (Comet/Giant Ice Asteroid place
@@ -535,7 +553,7 @@ export class Executor implements BehaviorExecutor {
         behavior.colonies?.buildColony !== undefined || behavior.moon !== undefined ||
         behavior.underworld !== undefined;
       const priority = hasPlacement ? Priority.PLAY_CARD_PLANT_REMOVAL : Priority.ATTACK_OPPONENT;
-      player.game.defer(new RemoveAnyPlants(player, behavior.removeAnyPlants, undefined, priority));
+      player.game.defer(new RemoveAnyPlants(player, behavior.removeAnyPlants, undefined, priority, cardSource(card)));
     }
     if (behavior.colonies !== undefined) {
       const colonies = behavior.colonies;

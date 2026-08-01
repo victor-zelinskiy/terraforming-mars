@@ -37,6 +37,7 @@ files here are the deeper dives it points at.
 ## Cards / expansion adaptation
 - [ARES_ADAPTATION_AUDIT.md](ARES_ADAPTATION_AUDIT.md) — Ares premium-subsystem adaptation audit.
 - [CHOICE_CONTEXT_AUDIT.md](CHOICE_CONTEXT_AUDIT.md) — contextual-choice modal coverage.
+- [PROMPT_SOURCE_AUDIT.md](PROMPT_SOURCE_AUDIT.md) — "why did this prompt come to me?": which prompts name their source card, and which console surfaces show it.
 - [DELAYED_TARGET_AUDIT.md](DELAYED_TARGET_AUDIT.md) — no-auto-select / hidden-target triage.
 - [MULTI_BRANCH_PLAY_AUDIT.md](MULTI_BRANCH_PLAY_AUDIT.md) — multi-branch play-preview coverage.
 - [SPECIAL_TILE_AUDIT.md](SPECIAL_TILE_AUDIT.md) — special/off-Mars tile identity + scoring.

@@ -651,9 +651,8 @@ describe('playChoiceMode — routing a played-card target to the embedded step',
   /** The case this migration exists for: candidates on the table, but not all
    *  on the viewer's own — it used to fall through to a generic text list. */
   it('routes a MIXED-owner played-card pick to the embedded step', () => {
-    const mode = playChoiceMode(
-      choice(['Mine', 'Theirs']), set(), set('Mine'), set('Mine', 'Theirs'));
-    expect(mode).to.eq('playedTarget');
+    expect(playChoiceMode(choice(['Mine', 'Theirs']), set(), set('Mine', 'Theirs')))
+      .to.eq('playedTarget');
   });
 
   /**
@@ -661,40 +660,32 @@ describe('playChoiceMode — routing a played-card target to the embedded step',
    * (RoboticWorkforce) duplicates the production of one of the player's OWN
    * buildings — so an own-table-first check sent the flagship case straight
    * back to the old lift-out-of-the-tableau surface and the new step never
-   * appeared. The boundary is the CAPABILITY (one card vs many), not the owner.
+   * appeared. The boundary is the CAPABILITY (point at a played card), never
+   * the owner.
    */
   it('routes an OWN-table SINGLE pick to the embedded step too', () => {
-    const mode = playChoiceMode(
-      choice(['Mine']), set(), set('Mine'), set('Mine', 'Theirs'));
-    expect(mode).to.eq('playedTarget');
+    expect(playChoiceMode(choice(['Mine']), set(), set('Mine', 'Theirs')))
+      .to.eq('playedTarget');
   });
 
   /**
-   * THE MIGRATION IS COMPLETE FOR CARD PLAY: with multi hosted inside the
-   * embedded step, NO shape of this flow reaches the old lift-out-of-the-
-   * tableau surface any more. `tableauPick` survives only for the blue-action
-   * composer, which shares this vocabulary and has not migrated yet.
+   * THE MIGRATION IS COMPLETE. Both composers descend into the embedded step,
+   * so `tableauPick` has no caller left and is DELETED — there is no shape of
+   * either flow that can reach the old lift-out-of-the-tableau surface, because
+   * that surface no longer accepts a decision at all.
    */
-  it('leaves NO card-play shape on the old tableau surface — single OR multi', () => {
+  it('leaves NO shape on the old tableau surface — single OR multi', () => {
     const played = set('Mine', 'Mine2');
-    expect(playChoiceMode(choice(['Mine']), set(), set('Mine'), played)).to.eq('playedTarget');
-    expect(playChoiceMode(choice(['Mine', 'Mine2'], 2), set(), set('Mine', 'Mine2'), played)).to.eq('playedTarget');
-    // …and the branch is only reachable when the caller supplies no played
-    // universe at all (the un-migrated blue-action path).
-    expect(playChoiceMode(choice(['Mine', 'Mine2'], 2), set(), set('Mine', 'Mine2'))).to.eq('tableauPick');
+    expect(playChoiceMode(choice(['Mine']), set(), played)).to.eq('playedTarget');
+    expect(playChoiceMode(choice(['Mine', 'Mine2'], 2), set(), played)).to.eq('playedTarget');
   });
 
   it('never claims a hand pick, and never candidates it cannot place', () => {
-    expect(playChoiceMode(choice(['InHand']), set('InHand'), set(), set('InHand'))).to.eq('handPick');
+    expect(playChoiceMode(choice(['InHand']), set('InHand'), set('InHand'))).to.eq('handPick');
     // A candidate on nobody's table (an SRR-hosted card) has no physical
     // origin to show, and this surface is ABOUT origin — the honest follow-up.
-    expect(playChoiceMode(choice(['Mine', 'Hosted'], 3), set(), set('Mine'), set('Mine'))).to.eq('followup');
-  });
-
-  /** Without the played-name universe the classifier must behave exactly as
-   *  before — the argument is additive, never a behaviour change for callers
-   *  that do not pass it. */
-  it('is inert for callers that do not supply the played universe', () => {
+    expect(playChoiceMode(choice(['Mine', 'Hosted'], 3), set(), set('Mine'))).to.eq('followup');
+    // …and a single such pick stays an inline sub-list.
     expect(playChoiceMode(choice(['Mine', 'Theirs']), set(), set('Mine'))).to.eq('inline');
   });
 });
@@ -742,7 +733,6 @@ describe('multi selection — the server\'s merged up-to-N ask', () => {
       id: 's0', scope: 'step', index: 0, kind: 'card',
       input: {type: 'card', cards: [{name: 'Mine'}, {name: 'Mine2'}], max: 2, min: 0},
     };
-    expect(playChoiceMode(c, new Set(), new Set(['Mine', 'Mine2']), new Set(['Mine', 'Mine2'])))
-      .to.eq('playedTarget');
+    expect(playChoiceMode(c, new Set(), new Set(['Mine', 'Mine2']))).to.eq('playedTarget');
   });
 });

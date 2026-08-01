@@ -7,6 +7,7 @@ import {Priority} from './Priority';
 import {CardName} from '../../common/cards/CardName';
 import {Message} from '../../common/logs/Message';
 import {message} from '../logs/MessageBuilder';
+import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
 import {disabledPlayerTarget, stealResourceFromPlayer, skip} from '../inputs/optionMetadata';
 import {AutomaTargeting} from '../automa/AutomaTargeting';
 
@@ -17,6 +18,8 @@ export class StealResources extends DeferredAction {
     public count: number = 1,
     public title: string | Message = message('Select player to steal up to ${0} ${1} from', (b) => b.number(count).string(resource)),
     public mandatory: boolean = false,
+    /** WHO caused this attack — see `inputs/choiceContext.ts`. */
+    private cause?: ChoiceContextSource,
   ) {
     super(player, Priority.ATTACK_OPPONENT);
   }
@@ -119,7 +122,10 @@ export class StealResources extends DeferredAction {
         return disabledPlayerTarget(p, this.resource, reason);
       });
 
-    return new OrOptions(...stealOptions).setDisabledOptions(disabled);
+    const orOptions = new OrOptions(...stealOptions).setDisabledOptions(disabled);
+    return this.cause === undefined ?
+      orOptions :
+      orOptions.markChoiceContext({source: this.cause, mode: 'attack'});
   }
 
   /** READ-ONLY preview of the steal OrOptions (no solo-mode mutation) — for the

@@ -15,6 +15,7 @@ import {runAllActions, setOxygenLevel, setTemperature} from '../../TestingUtils'
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
 import {testGame} from '../../TestGame';
 import {cast} from '../../../src/common/utils/utils';
+import {CardName} from '../../../src/common/cards/CardName';
 
 describe('Philares', () => {
   let card: Philares;
@@ -58,6 +59,32 @@ describe('Philares', () => {
     game.addTile(otherPlayer, adjacentSpace, {tileType: TileType.GREENERY});
     runAllActions(game);
     cast(philaresPlayer.popWaitingFor(), SelectResources);
+  });
+
+  // The prompt arrives with the tile already placed — sometimes on an OPPONENT's
+  // turn — so it MUST name what produced it. The console reads `choiceContext`
+  // for the source-card dock (L3 inspect) and for the deferred band's source
+  // line; a structural marker, never the (translated-in-place) title.
+  it('the resource prompt names Philares as its source', () => {
+    game.addTile(otherPlayer, space, {tileType: TileType.GREENERY});
+    game.addTile(philaresPlayer, adjacentSpace, {tileType: TileType.GREENERY});
+    runAllActions(game);
+    const input = cast(philaresPlayer.popWaitingFor(), SelectResources);
+    expect(input.choiceContext?.source.kind).to.eq('corporation');
+    expect(input.choiceContext?.source.card).to.eq(CardName.PHILARES);
+    expect(input.choiceContext?.mode).to.eq('reward');
+    // Own placement: the trigger speaks about the player's OWN tile.
+    expect(input.choiceContext?.trigger).to.deep.include(
+      {message: 'Your tile landed next to another player\'s. New adjacencies: ${0}'});
+  });
+
+  it('the trigger names the OPPONENT who placed the tile', () => {
+    game.addTile(philaresPlayer, space, {tileType: TileType.GREENERY});
+    game.addTile(otherPlayer, adjacentSpace, {tileType: TileType.GREENERY});
+    runAllActions(game);
+    const input = cast(philaresPlayer.popWaitingFor(), SelectResources);
+    expect(input.choiceContext?.trigger).to.deep.include(
+      {message: '${0}\'s tile landed next to yours. New adjacencies: ${1}'});
   });
 
   it('placing ocean tile does not grant bonus', () => {

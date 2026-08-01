@@ -26,6 +26,12 @@ const ActionTargetCard = defineAsyncComponent(() => import(/* webpackChunkName: 
 // PremiumCard type cycle (same trick as `modal-input-host` above; a cycle
 // collapses vue-tsc inference to `{}`).
 const PremiumCardFace = defineAsyncComponent(() => import('@/client/components/premiumCard/PremiumCard.vue'));
+// The console's SOURCE DOCK ("who asked for this decision?") — registered
+// globally for the SAME reason as `action-target-card` above: it renders the
+// real card face, and a static import of that chain zeroes the mochapack spec
+// of any surface that adopts it. Every console decision surface can now show a
+// source without trading away its component guard.
+const ConsoleSourceDock = defineAsyncComponent(() => import(/* webpackChunkName: "console-shell" */ '@/client/components/console/ConsoleSourceDock.vue'));
 
 declare global {
   interface Window {
@@ -74,6 +80,7 @@ async function bootstrap() {
   app.component('modal-input-host', ModalInputHost);
   app.component('action-target-card', ActionTargetCard);
   app.component('premium-card-face', PremiumCardFace);
+  app.component('console-source-dock', ConsoleSourceDock);
 
   app.directive('trim-whitespace', {
     mounted: trimEmptyTextNodes,
