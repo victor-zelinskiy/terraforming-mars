@@ -182,6 +182,22 @@ export default defineComponent({
        *  the space handback at the end costs no second re-fit, no jump. */
       normalStageW: 0,
       normalStageH: 0,
+      /** The EXACT pre-focus framing, captured at enter. The return is a
+       *  REVERSAL, not a re-derivation: it restores these verbatim. */
+      savedScale: 0,
+      savedNaturalW: 0,
+      savedNaturalH: 0,
+      /** The viewport at enter — the one honest "may I replay?" signal. */
+      savedViewW: 0,
+      savedViewH: 0,
+      /**
+       * Calibration is LOCKED to this viewport: a replayed framing is
+       * already the converged one, so any further "improvement" is just an
+       * unanimated correction landing after the landing. Only a real
+       * viewport change lifts the lock (the stage's own handback must not —
+       * it goes through scheduleFit, which re-opens the pass budget).
+       */
+      calibrateLock: undefined as {w: number, h: number} | undefined,
       /** The first fit has landed — from here every scale change GLIDES. */
       fitted: false,
       /** A board transform is in flight: measurements are meaningless until
@@ -275,6 +291,16 @@ export default defineComponent({
         const stage = this.$refs.stage as HTMLElement | undefined;
         this.savedBoardDx = stage?.style.getPropertyValue('--con-board-dx') ?? '';
         this.savedBoardDy = stage?.style.getPropertyValue('--con-board-dy') ?? '';
+        // …and the framing ITSELF. The return replays these instead of
+        // re-fitting: a re-derivation lands on whatever the fit engine
+        // concludes NOW (and the calibration pass that follows "improves"
+        // it again ~400ms after the landing) — which is the second,
+        // unanimated correction the player reads as the planet jumping.
+        this.savedScale = this.appliedScale;
+        this.savedNaturalW = this.naturalW;
+        this.savedNaturalH = this.naturalH;
+        this.savedViewW = window.innerWidth;
+        this.savedViewH = window.innerHeight;
       }
       if (now === 'entering' || now === 'active') {
         // AFTER the DOM patch: the focus classes also reclaim layout (the
@@ -284,7 +310,11 @@ export default defineComponent({
         void this.$nextTick(() => this.fitBoard());
         return;
       }
-      if (now === 'exiting' || now === 'idle') {
+      if (now === 'exiting') {
+        // ONLY here — the replay sets the final framing, and the stage's own
+        // handback at idle is picked up by the ResizeObserver (which lands
+        // on the same numbers, so it is a no-op). Re-running the restore at
+        // idle used to re-arm calibration and undo the replay.
         void this.$nextTick(() => this.restoreNormalFraming());
       }
     },
@@ -419,6 +449,32 @@ export default defineComponent({
      */
     restoreNormalFraming(): void {
       const stage = this.$refs.stage as HTMLElement | undefined;
+      // THE RETURN IS A REVERSAL. Replay the exact pre-focus framing —
+      // scale, natural box and centring — so the planet glides back to the
+      // pixel it came from and NOTHING corrects it afterwards. A fresh fit
+      // is the fallback for the one case a replay cannot cover: the
+      // viewport genuinely changed while focus was up.
+      const saved = this.savedScale;
+      this.savedScale = 0;
+      if (saved > 0 && this.savedViewW === window.innerWidth && this.savedViewH === window.innerHeight) {
+        this.naturalW = this.savedNaturalW;
+        this.naturalH = this.savedNaturalH;
+        this.restoreStageOffsets(stage);
+        this.applyBoardScale(saved);
+        // The replayed framing IS the reference. A calibration pass here
+        // would "improve" it ~400ms after the landing — an unanimated
+        // second correction, which is precisely the jump this replaces.
+        this.calibrateLock = {w: window.innerWidth, h: window.innerHeight};
+        return;
+      }
+      this.restoreStageOffsets(stage);
+      // A fresh calibration convergence once the exit settles (the gate
+      // inside calibrate() keeps it out of the transition itself).
+      this.calibratePasses = 0;
+      this.fitBoard();
+    },
+    /** Put back the centring vars captured at enter (empty = CSS fallback). */
+    restoreStageOffsets(stage: HTMLElement | undefined): void {
       if (stage !== undefined && this.savedBoardDx !== undefined) {
         if (this.savedBoardDx === '') {
           stage.style.removeProperty('--con-board-dx');
@@ -433,10 +489,6 @@ export default defineComponent({
       }
       this.savedBoardDx = undefined;
       this.savedBoardDy = undefined;
-      // A fresh calibration convergence once the exit settles (the gate
-      // inside calibrate() keeps it out of the transition itself).
-      this.calibratePasses = 0;
-      this.fitBoard();
     },
     scheduleFit(): void {
       if (this.fitRaf !== 0) {
@@ -480,6 +532,12 @@ export default defineComponent({
       if (this.planetFocusState.phase !== 'idle' || this.planetFocusState.arcsReturning ||
           this.boardTweening) {
         return;
+      }
+      if (this.calibrateLock !== undefined) {
+        if (this.calibrateLock.w === window.innerWidth && this.calibrateLock.h === window.innerHeight) {
+          return; // a replayed framing is already converged — leave it alone
+        }
+        this.calibrateLock = undefined; // the viewport really moved: re-converge
       }
       const stage = this.$refs.stage as HTMLElement | undefined;
       if (stage === undefined) {

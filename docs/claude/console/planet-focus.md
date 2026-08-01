@@ -102,11 +102,26 @@ the LONGER of the two moves and both ride an expo-out tail.
   (the latter is the one scale container without `position`) — those carry
   opacity only. `transform-origin` is the planet's own centre in board px
   (`300px 301px`, `310px 300px` — `keep-px`).
-- **Self-calibration is the jerk in the landing's last frame.** It measures
-  the content union and re-fits WITHOUT a transition; run it while the band
-  is still condensing and it reports a wrong natural box. It is gated on
-  `phase === 'idle' && !arcsReturning`, and re-armed by the
-  `arcsReturning` watcher once the scene is measurable again.
+- **THE RETURN IS A REVERSAL, NOT A RE-DERIVATION** — the one that took
+  three passes to find. The exit used to RE-FIT, so it landed on whatever
+  the fit engine concluded at that moment, and the self-calibration pass
+  that followed "improved" it again ~400ms AFTER the landing: a second,
+  unanimated correction (measured at 5%, then 0.8% — both plainly visible)
+  that reads as the planet jumping just as the hand dock returns. The exit
+  now REPLAYS the framing captured at enter — `savedScale`, `naturalW/H`,
+  `--con-board-dx/dy` — so the planet glides back to the pixel it left
+  from. A fresh fit is the fallback for the only case a replay cannot
+  cover: the viewport actually changed while focus was up.
+- **Calibration must then be LOCKED to that viewport** (`calibrateLock`).
+  Gating it on `phase === 'idle' && !arcsReturning && !boardTweening` is
+  not enough: the stage's own handback goes through `scheduleFit`, which
+  re-opens the pass budget and lets calibration correct the replayed
+  framing anyway. Only a real viewport change lifts the lock.
+- **Diagnose this class of bug with a per-frame trace, not by reading
+  code** — sample `--board-scale`, the computed `transform`, the stage
+  height and the phase classes every rAF through the return. The
+  discontinuity's timestamp names its cause immediately; two of the three
+  fixes above were wrong guesses before the trace existed.
 - **The disc is a 2.6k-px box carrying a 100px drop-shadow**, so
   `will-change: transform` is set for the transition's lifetime — without
   it the first frames pay for the layer promotion, which is most of what
