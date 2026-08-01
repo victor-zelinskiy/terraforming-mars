@@ -50,7 +50,12 @@ export class ConvertPlants extends StandardActionCard {
       player.game.board.getAvailableSpacesForGreenery(player),
       // Convert plants is a pre-commit picker: plants are spent in the andThen
       // below, so the placement is genuinely cancellable before a space is chosen.
-      {placementType: 'greenery', placementContext: cancellablePlacement({kind: 'standardProject'})})
+      // The source names THIS card, not just its kind: the console's board
+      // panel shows «ИСТОЧНИК · Потратить растения» and L3 opens the real
+      // standard-action card, exactly as a card-driven placement does. A bare
+      // `{kind:'standardProject'}` left the one basic action that places a tile
+      // as the only placement on the board with nothing to look at.
+      {placementType: 'greenery', placementContext: cancellablePlacement({kind: 'standardProject', card: this.name})})
       .andThen((space) => {
         // Root the analytics chain at the conversion so the greenery placement,
         // oxygen rise and triggered effects group under it in the journal.

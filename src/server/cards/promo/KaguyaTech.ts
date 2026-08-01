@@ -90,6 +90,10 @@ export class KaguyaTech extends Card implements IProjectCard {
       // a remove-and-replace target (hideExistingTile), so the preview grants the
       // bonus instead of reading the doomed greenery as a covering "no bonus".
       placementType: 'city',
+      // NAMES the card doing this (and feeds the card-aware cell preview). The
+      // helper derives the placement marker from it, so the board panel can say
+      // what is replacing the greenery instead of asking blind.
+      sourceCard: this.name,
       hideExistingTile: true,
       customReasoner: (space) => {
         // Empty cell: not a greenery target → wrong-terrain reads OK.

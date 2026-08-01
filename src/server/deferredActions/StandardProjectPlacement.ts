@@ -49,8 +49,11 @@ export class StandardProjectPlacement extends DeferredAction<undefined> {
       placementType: this.opts.placementType,
       sourceCard: this.opts.sourceCard,
       // Explicit — the helper's `sourceCard`-derived default marker must NOT
-      // replace the cancellable standard-project marker.
-      placementContext: cancellablePlacement({kind: 'standardProject'}),
+      // replace the cancellable standard-project marker. It still NAMES the
+      // project: the card is right there, and dropping it left every standard
+      // placement on the board saying only «стандартный проект» when it could
+      // say which one (and let the player open it).
+      placementContext: cancellablePlacement({kind: 'standardProject', card: this.opts.sourceCard}),
       onCancel: () => {
         this.player.pendingPlacementCancelled = true;
       },

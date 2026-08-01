@@ -437,11 +437,11 @@ export class Server {
     if (waitingFor.choiceContext !== undefined) {
       model.choiceContext = waitingFor.choiceContext;
     }
-    // Placement cancellability marker — drives the PlacementBanner's
-    // "cancel"/honest-reason UI for a tile-placement prompt.
-    if (waitingFor.placementContext !== undefined) {
-      model.placementContext = waitingFor.placementContext;
-    }
+    // NOTE: the PLACEMENT marker (`placementContext`) is deliberately NOT
+    // decorated here either — same reason as the discard marker below: a
+    // placement is routinely NESTED (convert plants, a task's own space
+    // option). It rides `SelectSpace.toModel()` instead, so it survives any
+    // nesting depth.
     // Venus alt-track bonus marker — routes the prompt to the premium
     // VenusBonusContent modal (resource tiles + final-step wild bonus).
     if (waitingFor.venusBonusPrompt !== undefined) {

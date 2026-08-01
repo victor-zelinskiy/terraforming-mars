@@ -109,7 +109,7 @@ export class SelectSpace extends BasePlayerInput<Space> {
   }
 
   public override toModel(): SelectSpaceModel {
-    return {
+    const model: SelectSpaceModel = {
       title: this.title,
       buttonLabel: this.buttonLabel,
       type: 'space',
@@ -121,6 +121,20 @@ export class SelectSpace extends BasePlayerInput<Space> {
       sourceCard: this.sourceCard,
       placementEffect: this.placementEffect,
     };
+    // The PLACEMENT marker is serialized HERE, not only in
+    // `ServerModel.getWaitingFor`. That function decorates the TOP-LEVEL prompt
+    // alone, and a placement is very often NESTED: converting plants is one
+    // branch of the action-menu `OrOptions`, and so is a task's own space
+    // option (the World Government ocean). Serialized centrally, those branches
+    // reached the client stripped of their marker — so the board's context
+    // panel could not name what was placing the tile, and its cancellability
+    // had to be guessed client-side. Riding the input's own `toModel` makes it
+    // survive ANY depth. Exactly the trap `discardPrompt` already paid for —
+    // see `SelectCard.toModel`.
+    if (this.placementContext !== undefined) {
+      model.placementContext = this.placementContext;
+    }
+    return model;
   }
 
   public process(input: InputResponse) {

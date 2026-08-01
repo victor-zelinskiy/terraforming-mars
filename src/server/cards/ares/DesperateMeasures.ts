@@ -4,6 +4,7 @@ import {IPlayer} from '../../IPlayer';
 import {CardType} from '../../../common/cards/CardType';
 import {IProjectCard} from '../IProjectCard';
 import {SelectSpace} from '../../inputs/SelectSpace';
+import {committedPlacement} from '../../inputs/placementContext';
 import {TileType} from '../../../common/TileType';
 import {CardRenderer} from '../render/CardRenderer';
 import {CardResource} from '../../../common/CardResource';
@@ -39,7 +40,15 @@ export class DesperateMeasures extends Card implements IProjectCard {
   }
 
   public override bespokePlay(player: IPlayer) {
+    // A bare `SelectSpace` (this one picks an existing HAZARD tile, not a place
+    // to build), so it bypasses `createMarsSelectSpace` and with it the
+    // marker that helper derives — it was the only placement in the game
+    // arriving with no attribution at all. The card is committed by the time
+    // the pick appears, so the context is the committed one.
     return new SelectSpace('Select a hazard space to protect', player.game.board.getUnprotectedHazards())
+      .markPlacementContext(committedPlacement(
+        'The card is already played — choose the hazard to protect.',
+        {kind: 'card', card: this.name}))
       .andThen((space) => {
         if (space.tile === undefined) {
           throw new Error(`selected space ${space.id} without tile for DesperateMeasures`);

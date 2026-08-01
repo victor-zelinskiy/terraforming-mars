@@ -137,6 +137,31 @@ pixels, X → fullscreen → the placement survives).
 
 ---
 
+### Wave 5 — the marker that never survived NESTING
+
+Converting plants opened a board placement whose panel named no source at all —
+and the marker had been there the whole time. `ConvertPlants` sets
+`cancellablePlacement(...)`, but the placement is a **nested branch of the
+action-menu `OrOptions`**, and `ServerModel.getWaitingFor` decorates the
+**top-level prompt only**. The branch reached the client stripped.
+
+This is the exact trap `discardPrompt` already paid for — the NOTE explaining it
+was sitting three lines below the `placementContext` copy that had the same bug.
+
+| # | Fix | Files |
+| --- | --- | --- |
+| 14 | **`placementContext` rides `SelectSpace.toModel()`** instead of the central copy, so it survives ANY nesting depth. Fixes converting plants and a task's own space option (the World Government ocean) — and brings the marker's OTHER half with it: those placements no longer have to guess cancellability client-side. | `SelectSpace.ts`, `ServerModel.ts` |
+| 15 | **Every placement now names its own card**, not just its kind: `ConvertPlants` and `StandardProjectPlacement` both had the card in hand and passed only `{kind:'standardProject'}`, so every standard placement on the board said «стандартный проект» when it could say WHICH one and let the player open it. | `ConvertPlants.ts`, `StandardProjectPlacement.ts` |
+| 16 | **Three placements with no source at all** — `KaguyaTech` (converts a greenery to a city) and `StJosephOfCupertinoMission` (moves its cathedral on a LATER turn, so nothing on screen named it) never passed `sourceCard`; `DesperateMeasures` built a bare `SelectSpace` outside `createMarsSelectSpace` and was the only placement in the game arriving with no marker whatsoever. | those three cards |
+| 17 | `cardKindKey` tells a standard project / colony apart from a hand card — a `standardProject` source used to read «Карта». | `promptSource.ts` |
+
+Guards: `tests/inputs/SelectSpace.spec.ts` (the marker survives nesting; an
+unmarked placement still has none) · `tests/e2e/console-convert-plants-source.spec.ts`
+(the REAL basic action, no interception: chip → cancel affordance → L3 →
+the placement survives).
+
+---
+
 ## WHAT REMAINS — server
 
 Scope note: the fork's premium scope is `base`, `corpera`, `promo`, `venus`,
@@ -144,10 +169,10 @@ Scope note: the fork's premium scope is `base`, `corpera`, `promo`, `venus`,
 
 | Rank | Module | Where | Prompt |
 | --- | --- | --- | --- |
-| 1 | ares | `DesperateMeasures.ts:42` | a bare `new SelectSpace(...)` bypassing `createMarsSelectSpace` → **neither** `placementContext` **nor** `sourceCard`. Every other placement in the game gets at least the committed-default fallback. |
-| 2 | colonies | `MarketManipulation.ts:87,95` (`SelectColony` ×2) | self-played, so the context is implicit — lowest priority. |
-| 3 | shared | `SelectResourceTypeDeferred.ts:19`, `IncreaseColonyTrack.ts:30` | same shape as the wave-3 helpers; exercised today only by colony/turmoil trade bonuses, and `IncreaseColonyTrack` at least names the colony in its title. |
-| 4 | frontier | `community/Eris.ts:102`, `moon/HostileTakeover.ts:71,80` (mirrors of #1); `RemoveOceanTile.ts:21` bakes the source into the *title string* — readable, but not translation-safe and not client-routable. | adapt with their expansion |
+| 1 | colonies | `MarketManipulation.ts:87,95` (`SelectColony` ×2) | self-played, so the context is implicit — lowest priority. |
+| 2 | shared | `SelectResourceTypeDeferred.ts:19`, `IncreaseColonyTrack.ts:30` | same shape as the wave-3 helpers; exercised today only by colony/turmoil trade bonuses, and `IncreaseColonyTrack` at least names the colony in its title. |
+| 3 | ares/colonies | `PlaceHazardTile.ts:31` | passes only `{placementType: 'land'}`. Its callers are the Ares rules themselves as often as a card, so the honest source is not always a card — needs a decision before a fix, not just threading. |
+| 4 | frontier | `community/Eris.ts:102`, `moon/HostileTakeover.ts:71,80`, `moon/LunarMineUrbanization.ts:49` (bare `SelectSpace`, mirrors of the Desperate Measures shape); `RemoveOceanTile.ts:21` bakes the source into the *title string* — readable, but not translation-safe and not client-routable. | adapt with their expansion |
 
 Everything else the audit found is done — see waves 1–3 above.
 
@@ -176,12 +201,21 @@ Everything else the audit found is done — see waves 1–3 above.
 
 ## Suggested order (what's left)
 
-1. Server #1 — **Desperate Measures** builds a bare `SelectSpace` outside
-   `createMarsSelectSpace`, so it is the ONE placement with no marker at all;
-   the panel now shows a source for every other one.
-2. Server #2/#3 (Market Manipulation, the two remaining shared helpers).
-3. **C4** — the colony pick reads the `sourceCard` it is already handed.
+1. **C4** — the colony pick reads the `sourceCard` it is already handed.
+2. Server #1/#2 (Market Manipulation, the two remaining shared helpers).
+3. Server #3 — decide what a hazard placement's source IS before threading one.
 4. The frontier `unknown` kinds, with their expansions.
+
+## The recurring trap, stated once
+
+A marker copied in `ServerModel.getWaitingFor` reaches the **top-level prompt
+only**. Two markers have now been caught by this — `discardPrompt` (Mars
+University's nested discard) and `placementContext` (converting plants) — and
+both cost the same debugging twice. **A marker that can ride a NESTED input
+belongs in that input's own `toModel()`.** Today that means `SelectCard` and
+`SelectSpace`; `choiceContext` is the next candidate if a nested contextual
+choice ever needs its source (the task host reads it off the parent prompt, so
+nothing is broken yet).
 
 ## Adding a new prompt — the checklist
 

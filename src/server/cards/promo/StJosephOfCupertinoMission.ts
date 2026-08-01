@@ -99,6 +99,9 @@ export class StJosephOfCupertinoMission extends Card implements IActionCard {
           message('Select new space for ${0}', (b) => b.card(this)),
           cities,
           {
+            // The cathedral moves on a LATER turn than the card was played, so
+            // without this the prompt arrives with nothing naming it.
+            sourceCard: this.name,
             customReasoner: (space) => {
               // Operates on city tiles, not empty cells. Two reasons:
               if (space.tile === undefined || !Board.isCitySpace(space)) {

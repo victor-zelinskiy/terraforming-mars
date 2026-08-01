@@ -48,9 +48,18 @@ export interface PromptSourceView {
   tone?: 'hazard';
 }
 
-/** The kind chip for a source that carries a card. */
+/**
+ * The kind chip for a source that carries a card. A standard project / action
+ * IS a card (it has a `CardName` and a real face) but calling it «Карта» would
+ * misfile it — the player picked it from the projects sheet, not from hand.
+ */
 function cardKindKey(kind: ChoiceContextSource['kind']): string {
-  return kind === 'corporation' ? 'Corporation' : 'Card';
+  switch (kind) {
+  case 'corporation': return 'Corporation';
+  case 'standardProject': return 'Standard project';
+  case 'colony': return 'Colony';
+  default: return 'Card';
+  }
 }
 
 /** `ChoiceContextSource` — the shape `choiceContext` / `placementContext` /
