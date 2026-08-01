@@ -125,12 +125,24 @@ export function buildPlayCardBatch(args: PlayCardBatchArgs): Array<unknown> {
  *                    live play auto-resolves, a multi-select whose candidates
  *                    the console doesn't own).
  */
-export type PlayChoiceMode = 'inline' | 'handPick' | 'tableauPick' | 'repeat' | 'followup';
+export type PlayChoiceMode = 'inline' | 'handPick' | 'tableauPick' | 'playedTarget' | 'repeat' | 'followup';
 
+/**
+ * `playedNames` = every card on ANY player's table. A pick whose candidates
+ * all live there — but NOT all on the viewer's own — used to fall through to
+ * `inline`: a generic text list that said nothing about whose card it was,
+ * where it sat, or what choosing it would do. It now routes to the EMBEDDED
+ * played-target step, which is the surface that answers all three.
+ *
+ * The viewer's OWN-table case keeps `tableauPick` (the physical lift out of
+ * the real tableau) — that surface is genuinely about the player's own table
+ * and is not being migrated here.
+ */
 export function playChoiceMode(
   c: ComposerChoice,
   handNames: ReadonlySet<string>,
   tableauNames: ReadonlySet<string>,
+  playedNames?: ReadonlySet<string>,
 ): PlayChoiceMode {
   if (c.repeatAction === true) {
     return 'repeat';
@@ -149,9 +161,16 @@ export function playChoiceMode(
     if (candidates.every((cd) => tableauNames.has(cd.name))) {
       return 'tableauPick';
     }
-    // Candidates the console doesn't own a surface for (SRR-hosted cards,
-    // opponents' cards): a single pick stays an inline sub-list; a
-    // multi-select keeps the honest follow-up.
+    // Cards that are ON THE TABLE, somewhere — the embedded played-target
+    // step owns these (single selection only: it is a «point at one card»
+    // surface by design, and a multi-select needs an accumulation grammar it
+    // deliberately does not have).
+    if (model.max <= 1 && playedNames !== undefined && candidates.every((cd) => playedNames.has(cd.name))) {
+      return 'playedTarget';
+    }
+    // Candidates the console doesn't own a surface for (SRR-hosted cards):
+    // a single pick stays an inline sub-list; a multi-select keeps the
+    // honest follow-up.
     return model.max <= 1 ? 'inline' : 'followup';
   }
   if (c.kind === 'amount' || c.kind === 'player' || c.kind === 'or' || c.kind === 'spendHeat') {
@@ -275,16 +294,19 @@ export function computePrimaryAction(ctx: {
 
 // ── Contextual footer command bar (the ONE bottom action bar) ───────────────
 
-export type FootHint = {control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean};
+export type FootHint = {control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean, spread?: boolean};
 
 /** The focused review row's KIND — drives which local verb the footer offers. */
 export type PlayFocusKind = 'variant' | 'amount' | 'spendHeat' | 'pick' | 'none';
 
 export type PlayFootContext = {
   /** The active sub-state (a list pick / the payment lanes), or none = review. */
-  sub: 'none' | 'list' | 'payment';
+  sub: 'none' | 'list' | 'payment' | 'playedTarget';
   /** When `sub === 'list'`: the list is a CARD list (X = inspect the card). */
   subIsCardList: boolean;
+  /** When `sub === 'playedTarget'`: the step is in TABBED owner mode, so LB/RB
+   *  own the owner axis (in split view the d-pad crosses between groups). */
+  targetOwnerTabs?: boolean;
   /** There are navigable pre-select rows (show the Navigate hint). */
   hasRows: boolean;
   /** The focused review row's kind (only meaningful when `sub === 'none'`). */
@@ -330,6 +352,20 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
       {control: 'triggerL', label: 'Back to quick payment'},
       {control: 'back', label: 'Back'},
     ];
+  }
+  if (ctx.sub === 'playedTarget') {
+    // The embedded played-target step. LB/RB appear ONLY in tabbed mode — in
+    // split view both owner groups are on screen and the d-pad crosses between
+    // them spatially, so advertising the bumpers there would offer a second
+    // way to do what the stick already does.
+    const hints: Array<FootHint> = [{control: 'dpad', label: 'Navigate'}];
+    if (ctx.targetOwnerTabs === true) {
+      hints.push({control: 'bumperL', control2: 'bumperR', label: 'Player', spread: true});
+    }
+    hints.push({control: 'confirm', label: 'Select'});
+    hints.push({control: 'secondary', label: 'Inspect'});
+    hints.push({control: 'back', label: 'Back'});
+    return hints;
   }
   if (ctx.sub === 'list') {
     const hints: Array<FootHint> = [{control: 'dpad', label: 'Navigate'}, {control: 'confirm', label: 'Select'}];
