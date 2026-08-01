@@ -219,6 +219,78 @@ describe('ConsoleActionComposer — premium render', () => {
     w.unmount();
   });
 
+  /**
+   * THE COMMIT GATE, on the screen it was reported from («Обстрел кометами»).
+   *
+   * The commit row used to be a cursor stop wearing the full active treatment
+   * — bright ring, live Ⓐ — while a required card pick was still empty and
+   * pressing A did nothing at all. Every reading below now comes from the one
+   * gate, so they cannot disagree again.
+   */
+  function withMissingPick() {
+    return factory({
+      card: 'Y', isCorporation: false, kind: 'declarative',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [], effects: [],
+        steps: [{kind: 'input', input: {type: 'card', title: 'Select card', buttonLabel: 'Select', cards: [{name: 'Tardigrades'}, {name: 'Regolith Eaters'}], min: 1, max: 1}}],
+      }],
+    }, 'Y');
+  }
+
+  it('a HELD commit row wears no active treatment and no Ⓐ', async () => {
+    const w = withMissingPick();
+    await w.vm.$nextTick();
+    const cta = w.find('.con-composer__ctadock .con-composer__cta');
+    expect(cta.classes(), 'held, not selected').to.include('con-composer__cta--held');
+    expect(cta.classes(), 'a disabled row must never look focused').to.not.include('con-composer__cta--focused');
+    expect(cta.attributes('aria-disabled')).to.eq('true');
+    // The glyph belongs to the press it stands for.
+    expect(cta.find('.con-composer__cta-glyph').exists()).to.eq(false);
+    w.unmount();
+  });
+
+  /** The cursor cannot ARRIVE at a row that would refuse it — not on open, and
+   *  not by walking down past the last requirement. */
+  it('the cursor never reaches the commit row while a requirement is waiting', async () => {
+    const w = withMissingPick();
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    expect(vm.ctaFocused, 'the screen must not OPEN on the commit row').to.eq(false);
+    for (let i = 0; i < 6; i++) {
+      vm.handleIntent({kind: 'nav', dir: 'down', repeat: false});
+    }
+    await w.vm.$nextTick();
+    expect(vm.ctaFocused, 'walking down must stop before it').to.eq(false);
+    expect(vm.commitGate.kind).to.eq('incomplete');
+    w.unmount();
+  });
+
+  /** #11 — a mouse click is the backstop path: it must not commit, and the
+   *  refusal must LAND the player on the thing that needs them. */
+  it('a click on the held commit row redirects instead of confirming', async () => {
+    const w = withMissingPick();
+    await w.vm.$nextTick();
+    await w.find('.con-composer__ctadock .con-composer__cta').trigger('click');
+    expect(w.emitted('confirm'), 'no commit may escape').to.eq(undefined);
+    expect((w.vm as any).focusIdx).to.eq((w.vm as any).commitGate.blocking.index);
+    w.unmount();
+  });
+
+  /** #13 — an action with nothing to configure stays immediately confirmable:
+   *  the gating must not tax the simple case. */
+  it('an action with NO requirements is ready and focusable at once', async () => {
+    const w = factory({
+      card: 'Z', isCorporation: false, kind: 'dynamic',
+      branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}],
+    }, 'Z');
+    await w.vm.$nextTick();
+    expect((w.vm as any).commitGate.kind).to.eq('ready');
+    const cta = w.find('.con-composer__ctadock .con-composer__cta');
+    expect(cta.classes()).to.not.include('con-composer__cta--held');
+    expect(cta.find('.con-composer__cta-glyph').exists()).to.eq(true);
+    w.unmount();
+  });
+
   it('X emits inspect-source (the console-wide inspect verb) — it NEVER confirms', () => {
     const w = factory({
       card: 'X', isCorporation: false, kind: 'dynamic',

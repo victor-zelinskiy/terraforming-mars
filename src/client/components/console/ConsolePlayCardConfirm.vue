@@ -314,7 +314,8 @@
                    :class="{
                      'con-composer__cta--off': !ctaDisplayReady,
                      'con-composer__cta--ready': ctaDisplayReady,
-                     'con-composer__cta--focused': ctaFocused && !payExpanded,
+                     'con-composer__cta--focused': ctaFocused && !payExpanded && ctaPressMeaningful,
+                     'con-composer__cta--held': !ctaPressMeaningful && !submitting,
                    }"
                    :ref="ctaFocused && !payExpanded ? 'focusedEl' : undefined">
                 <GamepadGlyph control="confirm" class="con-composer__cta-glyph" />
@@ -432,6 +433,7 @@ import {
   togglePlayedTargetPick, playedTargetPicksValid, prunePlayedTargetPicks,
 } from '@/client/console/played/consolePlayedTargetModel';
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
+import {computeCommitGate, commitAllowed, commitAcceptsCursor, CommitGate} from '@/client/console/consoleCommitGate';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 
 // (The contextual preview + the resource badge live in the ONE shared builder —
@@ -857,6 +859,52 @@ export default defineComponent({
     },
     ctaIndex(): number {
       return this.rows.findIndex((r) => r.kind === 'cta');
+    },
+    /**
+     * THE COMMIT GATE — the same shared model the action composer reads, so
+     * both screens answer «may this be confirmed yet» the same way.
+     *
+     * Satisfaction is `rowMissing` (the domain's own verdict, never a count).
+     * An UNPLAYABLE card is the un-fillable case: the reason belongs on the
+     * commit row, and there is no requirement to send the cursor to.
+     *
+     * A PAYMENT SHORTFALL is deliberately NOT modelled as a blocking
+     * requirement here. On this screen the commit row's A is genuinely
+     * meaningful then — it opens the payment editor — so hiding the row from
+     * the cursor would remove a working affordance, which is the opposite of
+     * the problem this model exists to fix. The gate still refuses the COMMIT;
+     * `ctaPressMeaningful` is what decides the ring and the glyph.
+     */
+    commitGate(): CommitGate {
+      const st = this.primaryActionState;
+      return computeCommitGate({
+        requirements: this.rows
+          .filter((r): r is PlayRow => r.kind !== 'cta')
+          .map((r) => ({index: r.i, verb: this.rowVerb(r), satisfied: !this.rowMissing(r)})),
+        submitting: this.submitting,
+        unavailable: st.kind === 'blocked-requirement' ?
+          st.reason :
+          (st.kind === 'blocked-payment' ? 'Not enough resources' : undefined),
+      });
+    },
+    /** May A actually PLAY the card right now? */
+    commitReady(): boolean {
+      return commitAllowed(this.commitGate) && !this.payExpanded;
+    },
+    /**
+     * Does pressing A on the commit row DO something? That — not «is the play
+     * ready» — is what earns the active ring and the live glyph: a payment
+     * shortfall opens the editor, and the expanded editor confirms the payment.
+     */
+    ctaPressMeaningful(): boolean {
+      return this.commitReady || this.payExpanded ||
+        this.primaryActionState.kind === 'blocked-payment';
+    },
+    /** The last cursor stop — the commit row drops out only when a real ROW is
+     *  waiting for the player (the gate's `incomplete` / `stale`). */
+    navMaxIndex(): number {
+      const last = this.rows.length - 1;
+      return commitAcceptsCursor(this.commitGate) ? last : Math.max(0, Math.min(last, this.ctaIndex - 1));
     },
     ctaFocused(): boolean {
       return this.focusedRow?.kind === 'cta';
@@ -1342,6 +1390,26 @@ export default defineComponent({
       const missing = this.rows.findIndex((r) => this.rowMissing(r));
       return missing >= 0 ? missing : this.ctaIndex;
     },
+    /** The A-verb a row publishes while it holds the cursor and is unanswered
+     *  — the next real step, not the screen's eventual purpose. */
+    rowVerb(row: PlayRow): string {
+      if (row.kind === 'tabbed') {
+        return 'Choose a target';
+      }
+      if (row.kind === 'repeat') {
+        return 'Choose an action to repeat';
+      }
+      if (row.kind === 'variant') {
+        return 'Choose an option';
+      }
+      switch (row.kind === 'step' ? row.choice.kind : undefined) {
+      case 'card': return 'Choose a card';
+      case 'player': return 'Choose a player';
+      case 'or': return 'Choose an option';
+      case 'spendHeat': return 'Heat sources';
+      default: return 'Select';
+      }
+    },
     /** Whether a decision row is still unresolved (a variant is auto-selected). */
     rowMissing(row: PlayRow): boolean {
       if (row.kind === 'step') {
@@ -1672,7 +1740,10 @@ export default defineComponent({
         return;
       }
       if (dir === 'up' || dir === 'down') {
-        this.focusIdx = Math.min(this.rows.length - 1, Math.max(0, this.focusIdx + (dir === 'down' ? 1 : -1)));
+        // The walk ends at the «Разыграть» row only while the play can actually
+        // run — the SAME commit-gate rule the action composer uses. A row whose
+        // A would be refused is not a place the cursor may stop.
+        this.focusIdx = Math.min(this.navMaxIndex, Math.max(0, this.focusIdx + (dir === 'down' ? 1 : -1)));
         // Moving onto an available variant SELECTS it (focus = selection for the
         // radio-group of variants; the result recomputes live).
         const row = this.focusedRow;

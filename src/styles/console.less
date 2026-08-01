@@ -17268,6 +17268,36 @@ html.console-mode {
             background: rgba(18, 30, 42, 0.72);
             box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
         }
+        /* HELD — a requirement is still outstanding, so this row cannot run.
+           It keeps its place and stays readable (the flow's shape must not
+           change), but it wears nothing that reads as ACTIVE: no ring, no
+           glyph, a recessed plate. `--held` deliberately comes LAST so it wins
+           over `--focused`, which a stale frame can still apply for one tick;
+           a disabled row that looks selected is the exact lie this removes. */
+        &--held {
+            background: rgba(14, 21, 30, 0.55);
+            box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+        }
+    }
+    /* The label stays legible while held — muted, never ghosted: the player
+       must still be able to read what the screen is building toward. */
+    &__cta--held &__cta-label { color: rgba(190, 210, 232, 0.62); }
+
+    /* A REFUSED COMMIT's local answer: one short amber wash over the row that
+       is holding it. Overlay-only (no layout, no size change), one shot, and
+       it survives performance mode — the pulse is a `box-shadow`, not a
+       `filter`. Deliberately NOT a loop: a permanent pulse stops being a
+       signal and becomes decoration. */
+    &__row { position: relative; }
+    &__row-flash {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        animation: con-row-block-flash calc(520ms * var(--motion-scale, 1)) ease-out 1;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        &__row-flash { animation: none; }
     }
     /* The Ⓐ glyph reads brighter when the play is actually ready. */
     &__cta-glyph { flex: 0 0 auto; opacity: 0.85; }
@@ -17294,6 +17324,11 @@ html.console-mode {
 
 @keyframes con-cta-wait-spin {
     to { transform: rotate(360deg); }
+}
+
+@keyframes con-row-block-flash {
+    0%   { box-shadow: inset 0 0 0 .12rem fade(@con-amber, 95%); }
+    100% { box-shadow: inset 0 0 0 .12rem fade(@con-amber, 0%); }
 }
 
 /* ── ACTION FOCUS — the action composer as the IN-FRAME stage of the Action

@@ -159,7 +159,6 @@ import {
   registerCategoryFlightEl, CategoryFlight,
 } from '@/client/console/played/playedCategoryView';
 import {translateText} from '@/client/directives/i18n';
-import {CardName} from '@/common/cards/CardName';
 import {
   runCategoryOpen, runCategoryClose, reverseCategoryEpisode, finishCategoryInstant,
   dissolveCategoryProxies, resetCategoryDirector,

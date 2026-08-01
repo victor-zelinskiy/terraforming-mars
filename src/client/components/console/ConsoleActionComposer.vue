@@ -313,6 +313,14 @@
                    'con-composer__row--dial': item.choice.id === focusFreeDialId,
                  }"
                  :ref="isFocused(item) ? 'focusedEl' : undefined">
+              <!-- A refused commit lands HERE, and says so: one short local
+                   pulse on the row that is holding it. Never a toast detached
+                   from the problem, never a shake of the whole surface. The
+                   `key` is what re-runs it — a repeated refusal must be
+                   visible, not swallowed because the class was already on. -->
+              <span v-if="blockFlashNonce > 0 && isBlockingRow(item)"
+                    :key="'blk' + blockFlashNonce"
+                    class="con-composer__row-flash" aria-hidden="true"></span>
               <!-- The REPEAT slot (Viron): empty → a prompt; filled → the chosen
                    action drawn as a button with its own action graphic. -->
               <template v-if="item.choice.repeatAction === true">
@@ -469,17 +477,26 @@
           <span aria-hidden="true">◈</span>
           <span>{{ ctaDockHint }}</span>
         </div>
+        <!-- THE COMMIT ROW. It stays in place whatever the gate says — the flow
+             must keep its shape — but it only wears the ACTIVE treatment (ring,
+             live Ⓐ) when the gate would actually run it. `--held` is the honest
+             third state: readable, clearly not pressable, and never mistakable
+             for «selected». `aria-disabled` carries the same fact to anything
+             that is not looking at the pixels. -->
         <div class="con-composer__cta"
              :class="{
                'con-composer__cta--off': !ctaDockReady && !submitting,
                'con-composer__cta--ready': ctaDockReady && !submitting,
-               'con-composer__cta--focused': ctaFocused && !submitting,
+               'con-composer__cta--focused': ctaFocused && commitReady && !submitting,
+               'con-composer__cta--held': !commitReady && !submitting,
                'con-composer__cta--waiting': submitting,
              }"
-             :ref="ctaFocused ? 'focusedEl' : undefined"
+             :aria-disabled="!commitReady || submitting ? 'true' : 'false'"
+             :ref="ctaFocused && commitReady ? 'focusedEl' : undefined"
              @click="submit">
-          <GamepadGlyph v-if="!submitting" control="confirm" class="con-composer__cta-glyph" />
-          <span v-else class="con-composer__cta-wait" aria-hidden="true"></span>
+          <!-- The glyph appears only with the press it stands for. -->
+          <GamepadGlyph v-if="!submitting && commitReady" control="confirm" class="con-composer__cta-glyph" />
+          <span v-else-if="submitting" class="con-composer__cta-wait" aria-hidden="true"></span>
           <span class="con-composer__cta-label">{{ $t(submitting ? 'Performing…' : ctaDockLabel) }}</span>
         </div>
       </div>
@@ -639,6 +656,10 @@ import {
 } from '@/client/console/played/consolePlayedTargetModel';
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {
+  computeCommitGate, commitAllowed, commitAcceptsCursor, commitCursorTarget,
+  commitRedirectTarget, CommitGate, CommitRequirement,
+} from '@/client/console/consoleCommitGate';
 
 /**
  * A `v-for` string ref → a dense element array. Vue hands back an array, a
@@ -816,6 +837,8 @@ export default defineComponent({
       /** Multi-select hand picks by choice id (display; the capture is the truth). */
       multiPicks: {} as Record<string, ReadonlyArray<string>>,
       focusIdx: 0,
+      /** Bumped when a refused commit redirects — the blocking row pulses once. */
+      blockFlashNonce: 0,
       sub: undefined as SubState | undefined,
       /** The rich answered targets by choice id — identity, origin and the
        *  preview snapshot the summary renders. The capture stays the truth. */
@@ -1324,7 +1347,11 @@ export default defineComponent({
       const pay = this.primaryPaymentChoice;
       const payView = pay !== undefined ? this.paymentPanelView(pay) : undefined;
       return focusCommandRun({
-        state: 'main', focused: kind, resolved, canConfirm: this.canConfirm,
+        state: 'main', focused: kind, resolved,
+        // ONE answer drives the bar and the row alike — the bar can never
+        // advertise a confirm the gate has already refused.
+        canConfirm: this.commitReady,
+        pickVerb: item?.kind === 'choice' ? this.requirementVerb(item.choice) : undefined,
         commitLabel: this.commitLabel !== 'Confirm action' ? this.commitLabel : undefined,
         // LB/RB follow the ACTIVE dial (the same resolution the input uses), and
         // LT is the payment editor's dedicated, focus-independent entry.
@@ -1506,11 +1533,76 @@ export default defineComponent({
       return this.navItems[this.focusIdx];
     },
     /** The CTA row's virtual focus index — one past the navigable rows. */
+    /**
+     * THE REQUIREMENTS, in cursor order — what the commit gate reads.
+     *
+     * Satisfaction is asked of the DOMAIN (`choiceMissing`), never re-derived
+     * here: whether `1/2 выбрано` answers an ask is a rule, not a count. Each
+     * requirement carries its OWN A-verb, so the command bar can name the next
+     * real step instead of the screen's eventual purpose.
+     */
+    commitRequirements(): ReadonlyArray<CommitRequirement> {
+      const out: Array<CommitRequirement> = [];
+      this.navItems.forEach((item, index) => {
+        if (item.kind === 'branch') {
+          // A branch row is a requirement only while nothing is selected — and
+          // then it is THE first one (nothing below it is even decided yet).
+          if (this.selectedPos === undefined) {
+            out.push({index, verb: 'Choose an option', satisfied: false});
+          }
+          return;
+        }
+        if (item.choice.repeatAction === true) {
+          out.push({
+            index, verb: 'Choose an action to repeat',
+            satisfied: !this.choiceMissing(item.choice),
+          });
+          return;
+        }
+        out.push({
+          index,
+          verb: this.requirementVerb(item.choice),
+          satisfied: !this.choiceMissing(item.choice),
+        });
+      });
+      return out;
+    },
+    /**
+     * THE ONE ANSWER to «may this be confirmed yet». Everything that has to
+     * agree — the cursor ring, the Ⓐ glyph, the command bar's verb, the click
+     * handler — reads THIS, so the screen cannot advertise an action it has
+     * already decided to refuse.
+     */
+    commitGate(): CommitGate {
+      return computeCommitGate({
+        requirements: this.commitRequirements,
+        submitting: this.submitting,
+        // An unavailable branch is not a requirement: filling the fields under
+        // it would change nothing, so the commit row carries the reason itself.
+        unavailable: this.selectedBranch !== undefined && !this.selectedBranch.available ?
+          this.branchReason(this.selectedBranch) : undefined,
+      });
+    },
     ctaIndex(): number {
       return this.navItems.length;
     },
+    /** The last cursor stop. The commit row DROPS OUT of the ring while a
+     *  requirement is waiting — that is what keeps focus off a row whose A
+     *  would do nothing. */
+    navMaxIndex(): number {
+      return commitAcceptsCursor(this.commitGate) ? this.ctaIndex : Math.max(0, this.ctaIndex - 1);
+    },
     ctaFocused(): boolean {
       return this.sub === undefined && this.focusIdx >= this.ctaIndex;
+    },
+    /** May A run the commit right now? The ONE execution guard. */
+    commitReady(): boolean {
+      return commitAllowed(this.commitGate);
+    },
+    /** The gate's WORD alone — the watcher re-seats the cursor on transitions
+     *  (a branch switch, a target going stale), not on every recompute. */
+    commitGateKind(): string {
+      return this.commitGate.kind;
     },
     /**
      * The dock while the payment EDITOR is open: the same strip in the same
@@ -1696,6 +1788,18 @@ export default defineComponent({
       // other fresh view means the prompt moved on — re-arm the CTA.
       if (!isSurfaceAwaitingHandoff()) {
         this.submitting = false;
+      }
+    },
+    /**
+     * THE GATE RE-SEATS THE CURSOR. Switching a variant, a target going stale
+     * or a pick returning can all put a requirement back in the way — and if
+     * the cursor was sitting on the commit row it is now parked on something
+     * that will refuse it. Watching the gate's KIND (not the whole object)
+     * keeps this to the transitions that actually matter.
+     */
+    commitGateKind() {
+      if (this.sub === undefined && !this.submitting) {
+        this.syncCommitFocus();
       }
     },
     footCommands: {
@@ -1889,6 +1993,10 @@ export default defineComponent({
         this.focusIdx = firstAvail >= 0 ? firstAvail : 0;
       }
       this.seedDefaults();
+      // …and then let the GATE have the last word: if a requirement is already
+      // waiting, the cursor starts ON it. A screen that opens on a commit row
+      // it will refuse is the defect this whole model exists to remove.
+      void this.$nextTick(() => this.syncCommitFocus());
     },
     seedDefaults(): void {
       for (const c of this.allChoices) {
@@ -2297,8 +2405,9 @@ export default defineComponent({
         return;
       }
       if (dir === 'up' || dir === 'down') {
-        // The focus walk includes the CTA row (index items.length).
-        this.focusIdx = Math.min(this.ctaIndex, Math.max(0, this.focusIdx + (dir === 'up' ? -1 : 1)));
+        // The walk ends at the COMMIT row only while the commit can actually
+        // run — a row that would refuse A is not a place the cursor may stop.
+        this.focusIdx = Math.min(this.navMaxIndex, Math.max(0, this.focusIdx + (dir === 'up' ? -1 : 1)));
         this.scrollFocused();
         return;
       }
@@ -2337,7 +2446,7 @@ export default defineComponent({
           // A stepper adjusts via LB/RB — A ADVANCES toward the CTA («Далее»),
           // mirroring the play composer's grammar (the visible, editable
           // default is already captured).
-          this.focusIdx = Math.min(this.ctaIndex, this.focusIdx + 1);
+          this.focusIdx = Math.min(this.navMaxIndex, this.focusIdx + 1);
           this.scrollFocused();
         } else {
           this.openChoice(item.choice);
@@ -2434,6 +2543,44 @@ export default defineComponent({
         this.focusIdx = this.ctaIndex;
         this.scrollFocused();
       });
+    },
+    /** The A-verb a requirement publishes while it holds the cursor. The keys
+     *  are the ones the held line already uses — ONE vocabulary, not two. */
+    requirementVerb(c: ComposerChoice): string {
+      switch (c.kind) {
+      case 'card': return 'Choose a card';
+      case 'player': return 'Choose a player';
+      case 'or': return 'Choose an option';
+      case 'payment': return 'Configure payment';
+      case 'spendHeat': return 'Heat sources';
+      default: return 'Select';
+      }
+    },
+    /**
+     * Put the cursor where the gate says it belongs. Called on open and after
+     * anything that can re-block the screen (a pick returning, a branch switch,
+     * a target going stale) — a focus seeded once and left alone is exactly how
+     * the cursor ends up parked on a row that has since stopped working.
+     */
+    syncCommitFocus(): void {
+      const target = commitCursorTarget(this.commitGate, this.ctaIndex);
+      if (target !== undefined && target !== this.focusIdx) {
+        this.focusIdx = target;
+        this.scrollFocused();
+      }
+    },
+    /** A short LOCAL pulse on the row that is holding the commit — never a
+     *  toast detached from the problem, never a shake of the whole surface. */
+    flashBlockingRequirement(): void {
+      this.blockFlashNonce++;
+    },
+    /** Is this row the one the gate is waiting on? */
+    isBlockingRow(item: Item): boolean {
+      const gate = this.commitGate;
+      if (gate.kind !== 'incomplete' && gate.kind !== 'stale') {
+        return false;
+      }
+      return this.navItems.indexOf(item) === gate.blocking.index;
     },
     /** Does this choice belong to the embedded played-target step? The boundary
      *  is the CAPABILITY (every candidate lies on some tableau), never the
@@ -2827,7 +2974,19 @@ export default defineComponent({
     },
     submit(): void {
       const branch = this.selectedBranch;
-      if (branch === undefined || !this.canConfirm || this.submitting || this.preview === undefined) {
+      // THE BACKSTOP. The cursor rule is the real protection — the commit row
+      // is not a stop while a requirement is waiting — but a mouse click, a
+      // press that crossed a state change, or a repeat during a transition can
+      // still arrive here. A refusal must never be silent: send the player TO
+      // the thing that needs them, and flash it so the redirect is visible.
+      const redirect = commitRedirectTarget(this.commitGate);
+      if (redirect !== undefined) {
+        this.focusIdx = redirect;
+        this.scrollFocused();
+        this.flashBlockingRequirement();
+        return;
+      }
+      if (branch === undefined || !this.commitReady || this.submitting || this.preview === undefined) {
         return;
       }
       this.submitting = true;

@@ -157,6 +157,9 @@ export type FocusCommandCtx =
       focused: FocusRowKind,
       /** The focused pick row already holds a choice (A = «Изменить»). */
       resolved?: boolean,
+      /** The focused UNRESOLVED pick's own verb (i18n key) — «Выбрать карту»
+       *  rather than a bare «Выбрать», so the bar names the next real step. */
+      pickVerb?: string,
       canConfirm: boolean,
       /** The commit-CTA label (i18n key) when it is not the default «Confirm»
        *  (the repeat pick's compose stage reads «Выбрать это действие»). */
@@ -266,11 +269,24 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
       run.push({control: 'confirm', label: 'Select'});
       break;
     case 'pick':
-      run.push({control: 'confirm', label: ctx.resolved === true ? 'Change' : 'Select'});
+      // An UNRESOLVED pick names its own step («Выбрать карту»), not a generic
+      // «Выбрать»: the bar's job is to say what the next real press does. An
+      // answered one offers «Изменить».
+      run.push({control: 'confirm', label: ctx.resolved === true ? 'Change' : (ctx.pickVerb ?? 'Select')});
       break;
     default:
       // The CTA row (or a decision-less confirm) — A commits.
-      run.push({control: 'confirm', label: ctx.commitLabel ?? 'Confirm', enabled: ctx.canConfirm});
+      //
+      // A DISABLED confirm is not published at all. A greyed «ПОДТВЕРДИТЬ»
+      // beside a press that would open a card selector is worse than silence:
+      // it describes the screen's eventual purpose instead of the player's next
+      // step, and the bar exists to answer the second question. The commit row
+      // is not a cursor stop while anything is outstanding, so reaching this
+      // branch un-confirmable means a stale frame — say nothing rather than
+      // something untrue.
+      if (ctx.canConfirm) {
+        run.push({control: 'confirm', label: ctx.commitLabel ?? 'Confirm', enabled: true});
+      }
       break;
     }
     // LT — the DEDICATED payment editor entry (review-level, focus-independent),

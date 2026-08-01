@@ -149,12 +149,23 @@ describe('consoleActionFlow', () => {
       expect(focusCommandRun({state: 'main', focused: 'pick', resolved: true, canConfirm: false})[0].label).to.eq('Change');
     });
 
-    it('main / CTA (or a decision-less confirm): A = Confirm, gated on readiness; X always inspects', () => {
+    /**
+     * A DEAD CONFIRM IS NOT PUBLISHED AT ALL. It used to appear greyed —
+     * `{label: 'Confirm', enabled: false}` — which reads as «press A to
+     * confirm, but not yet» beside a screen whose real next step is opening a
+     * card selector. The bar names what A DOES now; when A does nothing here,
+     * the honest answer is silence, and the commit row is not a cursor stop in
+     * that state anyway (`consoleCommitGate`).
+     */
+    it('main / CTA: A = Confirm when runnable, and ABSENT when it is not', () => {
       const cta = focusCommandRun({state: 'main', focused: 'cta', canConfirm: true});
       expect(cta[0]).to.deep.eq({control: 'confirm', label: 'Confirm', enabled: true});
       expect(cta.some((c) => c.label === 'Inspect' && c.control === 'secondary')).to.eq(true);
       const bare = focusCommandRun({state: 'main', focused: 'none', canConfirm: false});
-      expect(bare[0]).to.deep.eq({control: 'confirm', label: 'Confirm', enabled: false});
+      expect(bare.some((c) => c.control === 'confirm')).to.eq(false);
+      // …and the rest of the contract is untouched.
+      expect(bare.some((c) => c.label === 'Inspect')).to.eq(true);
+      expect(bare[bare.length - 1].label).to.eq('Cancel');
     });
 
     it('X is NEVER a confirm — the quick-confirm X is retired for grammar consistency', () => {
