@@ -64,13 +64,21 @@ cover lift — plays on the enlarged stage. Files:
    self-calibration is gated to phase `idle`; the stage vars are saved at
    enter and restored at exit.
 
-5. **Focus reclaims non-participating chrome** (console.less,
-   `.con-root:has(.con-board--pfocus)`): the banner row above the board
-   hides (the placement panel already titles the task) and `.con-board`'s
-   hand-dock clearance drops to `.4rem` (the dock is an absolute layer and
-   paints over the disc's bottom rim). These are layout flips — the fit
-   runs on `$nextTick` after the class patch so it measures the GROWN
-   stage, and the disc's transform transition carries the visible motion.
+5. **THE MODE NEVER CHANGES LAYOUT.** The extra room comes from a
+   downward BLEED, not from reclaiming space: the stage keeps its box and
+   gets `clip-path: polygon(… 100% + var(--pfocus-bleed) …)` (sides still
+   clipped, so returning arcs cannot smear over the rail), the focus fit
+   uses `stageH + bleed`, and the re-centring into that virtual box rides
+   `--con-board-dy` — a transform, therefore transitioned. The banner
+   recedes by OPACITY, never `display`.
+   Why it is written this way (device trace, 2560×1440 TV): the first cut
+   reclaimed the dock clearance by shrinking `.con-board`'s padding. The
+   stage is a CENTRING flex box, so handing that 77px back at the end moved
+   its centre — and the planet — **39px in a single frame**, with the scale
+   provably flat (`tf=2.0203` on both sides of the step). Layout cannot be
+   transitioned, so no curve, duration or hold could ever have hidden it.
+   The guard for a future change here: sample the stage box in focus,
+   mid-return and at rest — all three must be identical.
 
 ## The motion, and the four traps that made it feel cheap
 

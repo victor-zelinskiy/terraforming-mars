@@ -2500,6 +2500,10 @@ each(@players, {
     min-width: 0;
     display: flex;
     gap: .9rem;
+    /* How far PLANET FOCUS may bleed below the stage — the dock clearance
+       reserved just below. Mirrored in JS (the focus fit adds it to the
+       usable height and re-centres by half of it). Keep the two in step. */
+    --pfocus-bleed: 2.9rem;
     /* HAND-DOCK clearance: the dock's pack rises ~3rem above the footer
        into the main band's bottom centre. Reserving it HERE (the stage box
        shrinks) lets the self-calibrating fit engine re-scale + re-centre
@@ -2578,20 +2582,33 @@ each(@players, {
      trade, not the focus one).
    Both are layout flips, not transitions — the disc's own transform
    transition carries the visible motion to the new target. */
-/* ⚠ The reclaim is held through the RETURN as well (`--pfocus-exit`), and
-   that ordering is load-bearing: the stage's `overflow: hidden` is the clip
-   box, so handing the space back at the START of the return cut the still-
-   oversized planet (and the arcs with it) along the dock line — the
-   "invisible wall" bug. The board's return fit targets the DESTINATION box
-   (ConsoleBoardSection.normalStageH), so the planet reaches its final scale
-   during the shrink and the handback at the end is free. */
+/* ⚠ THE MODE NEVER CHANGES LAYOUT — the hard-won rule of this whole scene.
+   The stage is a CENTRING flex box, so reclaiming the dock clearance by
+   shrinking `.con-board`'s padding moved the stage's centre by half the
+   reclaim — and handing it back at the end teleported the planet by that
+   half (39px on a 4K TV, measured) in a single frame. Layout cannot be
+   transitioned, so no easing could ever have hidden it.
+   Instead the stage KEEPS its box and is allowed to BLEED downward into the
+   dock's clearance (clip-path — the sides stay clipped, so the returning
+   arcs still cannot smear over the rail), and the planet's re-centring into
+   that taller virtual box rides `--con-board-dy`, i.e. the same transform
+   that is already transitioned. Nothing about the layout moves, at either
+   end of the cycle. */
 .con-root:has(.con-board--pfocus) .con-banner,
 .con-root:has(.con-board--pfocus-exit) .con-banner {
-    display: none;
+    /* Recedes, but keeps its row: `display: none` here would move the whole
+       main band and re-open the very jump described above. */
+    opacity: 0;
+    pointer-events: none;
 }
-.con-root:has(.con-board--pfocus) .con-board,
-.con-root:has(.con-board--pfocus-exit) .con-board {
-    padding-bottom: .4rem;
+.con-banner {
+    transition: opacity calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.con-board--pfocus .con-board__stage,
+.con-board--pfocus-exit .con-board__stage {
+    overflow: visible;
+    /* Down to the dock's clearance, and not one pixel to the sides. */
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% + var(--pfocus-bleed, 2.9rem)), 0 calc(100% + var(--pfocus-bleed, 2.9rem)));
 }
 /* ⚠ THE PLANET NEVER JUMPS — the transform transition is PERMANENT (from
    the first fit onward), not scoped to the focus transition.

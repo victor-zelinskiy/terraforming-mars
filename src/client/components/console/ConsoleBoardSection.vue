@@ -43,6 +43,7 @@ import {
   PLANET_FOCUS_ENTER_MS, PLANET_FOCUS_EXIT_MS,
 } from '@/client/console/planetFocus';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
+import {cssLengthPx} from '@/client/console/cssUnits';
 // ⚠ TEMPORARY DIAGNOSTIC — remove this import + the `traceBoardWrite` call
 // and the `fitReason` assignments to revert (see planetFocusTrace.ts).
 import {traceBoardWrite} from '@/client/console/planetFocusTrace';
@@ -178,13 +179,6 @@ export default defineComponent({
        *  offsets cumulatively — overwriting them would lose the truth). */
       savedBoardDx: undefined as string | undefined,
       savedBoardDy: undefined as string | undefined,
-      /** The stage box the board lives in OUTSIDE focus, refreshed on every
-       *  overview fit (so a window resize keeps it honest). The RETURN fits
-       *  against THIS box while the stage is still holding the reclaimed
-       *  chrome — the planet reaches its final scale during the shrink and
-       *  the space handback at the end costs no second re-fit, no jump. */
-      normalStageW: 0,
-      normalStageH: 0,
       /** The EXACT pre-focus framing, captured at enter. The return is a
        *  REVERSAL, not a re-derivation: it restores these verbatim. */
       savedScale: 0,
@@ -377,21 +371,13 @@ export default defineComponent({
         this.fitPlanetFocus(stage, r);
         return;
       }
-      // The RETURN fits against the box the stage will END in, not the one
-      // it currently has: the reclaimed chrome is deliberately still out
-      // (the clip box must cover the oversized board mid-shrink), so the
-      // live rect is TALLER than the destination. Outside focus the two are
-      // the same and this is where the destination gets refreshed.
-      const returning = phase === 'exit-prep' || phase === 'exiting';
-      if (!returning || this.normalStageH < 40) {
-        this.normalStageW = r.width;
-        this.normalStageH = r.height;
-      }
-      const boxW = returning ? this.normalStageW : r.width;
-      const boxH = returning ? this.normalStageH : r.height;
+      // The stage's box is CONSTANT across the whole focus cycle now (the
+      // mode bleeds instead of reclaiming layout), so the live rect is
+      // always the honest destination — no stored target, nothing to go
+      // stale between the two ends of the return.
       const scale = Math.min(
-        (boxW - STAGE_PAD * 2) / this.naturalW,
-        (boxH - STAGE_PAD_Y * 2) / this.naturalH,
+        (r.width - STAGE_PAD * 2) / this.naturalW,
+        (r.height - STAGE_PAD_Y * 2) / this.naturalH,
       ) * SCALE_BOOST;
       const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
       this.applyBoardScale(clamped);
@@ -441,18 +427,35 @@ export default defineComponent({
      * measurement would poison the vars anyway.
      */
     fitPlanetFocus(stage: HTMLElement, r: DOMRect): void {
+      // The usable height is the stage PLUS the bleed the mode is allowed
+      // below it (the dock's clearance — see `--pfocus-bleed`). The stage's
+      // own box never changes: taking that space by shrinking layout moved
+      // the centring flex and teleported the planet by half the reclaim on
+      // the way back, which is the jump this whole approach exists to kill.
+      const bleed = this.pfocusBleedPx();
       // No breathing pads on purpose: the disc's border IS meant to land on
       // the stage border («буквально на границе экрана по высоте»).
-      const scale = Math.min(r.width / PFOCUS_FRAME.w, r.height / PFOCUS_FRAME.h);
+      const scale = Math.min(r.width / PFOCUS_FRAME.w, (r.height + bleed) / PFOCUS_FRAME.h);
       const clamped = Math.min(PFOCUS_MAX_SCALE, Math.max(MIN_SCALE, scale));
       this.applyBoardScale(clamped);
-      // Centre the FRAME in the stage: the flex centres the .board-cont BOX,
-      // so the translate compensates the frame-centre ↔ box-centre offset
-      // (screen px — the translate sits OUTSIDE the scale in the transform).
+      // Centre the FRAME in that virtual box: the flex centres the
+      // .board-cont BOX in the STAGE, so the translate carries both the
+      // frame-centre ↔ box-centre offset and half the bleed (screen px —
+      // the translate sits OUTSIDE the scale in the transform, and being a
+      // transform it is transitioned like the scale).
       const dx = (BOARD_CONT_W / 2 - (PFOCUS_FRAME.x + PFOCUS_FRAME.w / 2)) * clamped;
-      const dy = (BOARD_CONT_H / 2 - (PFOCUS_FRAME.y + PFOCUS_FRAME.h / 2)) * clamped;
+      const dy = (BOARD_CONT_H / 2 - (PFOCUS_FRAME.y + PFOCUS_FRAME.h / 2)) * clamped + bleed / 2;
       stage.style.setProperty('--con-board-dx', `${dx.toFixed(1)}px`);
       stage.style.setProperty('--con-board-dy', `${dy.toFixed(1)}px`);
+    },
+    /** `--pfocus-bleed` in px (a length-valued custom property must go
+     *  through cssLengthPx — getPropertyValue returns "2.9rem"). */
+    pfocusBleedPx(): number {
+      const root = this.$refs.root as HTMLElement | undefined;
+      if (root === undefined || typeof getComputedStyle !== 'function') {
+        return 0;
+      }
+      return cssLengthPx(getComputedStyle(root).getPropertyValue('--pfocus-bleed'), 0);
     },
     /**
      * Leaving focus: put back the calibrated normal framing captured at
