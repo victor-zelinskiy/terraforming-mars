@@ -14,6 +14,9 @@ import {
   playedTargetAt,
   playedTargetResultOf,
   playedTargetResultLive,
+  togglePlayedTargetPick,
+  playedTargetPicksValid,
+  prunePlayedTargetPicks,
   PlayedTargetOwner,
   PlayedTargetLayout,
 } from '@/client/console/played/consolePlayedTargetModel';
@@ -275,17 +278,26 @@ describe('playChoiceMode — routing a played-card target to the embedded step',
     expect(mode).to.eq('playedTarget');
   });
 
-  /** MULTI keeps the physical tableau surface — accumulate-then-confirm is a
-   *  real capability the embedded step deliberately does not have. */
-  it('leaves a MULTI own-table pick on the physical tableau surface', () => {
-    const mode = playChoiceMode(
-      choice(['Mine', 'Mine2'], 2), set(), set('Mine', 'Mine2'), set('Mine', 'Mine2'));
-    expect(mode).to.eq('tableauPick');
+  /**
+   * THE MIGRATION IS COMPLETE FOR CARD PLAY: with multi hosted inside the
+   * embedded step, NO shape of this flow reaches the old lift-out-of-the-
+   * tableau surface any more. `tableauPick` survives only for the blue-action
+   * composer, which shares this vocabulary and has not migrated yet.
+   */
+  it('leaves NO card-play shape on the old tableau surface — single OR multi', () => {
+    const played = set('Mine', 'Mine2');
+    expect(playChoiceMode(choice(['Mine']), set(), set('Mine'), played)).to.eq('playedTarget');
+    expect(playChoiceMode(choice(['Mine', 'Mine2'], 2), set(), set('Mine', 'Mine2'), played)).to.eq('playedTarget');
+    // …and the branch is only reachable when the caller supplies no played
+    // universe at all (the un-migrated blue-action path).
+    expect(playChoiceMode(choice(['Mine', 'Mine2'], 2), set(), set('Mine', 'Mine2'))).to.eq('tableauPick');
   });
 
-  it('never claims a hand pick, and never a MULTI select', () => {
+  it('never claims a hand pick, and never candidates it cannot place', () => {
     expect(playChoiceMode(choice(['InHand']), set('InHand'), set(), set('InHand'))).to.eq('handPick');
-    expect(playChoiceMode(choice(['Mine', 'Theirs'], 3), set(), set('Mine'), set('Mine', 'Theirs'))).to.eq('followup');
+    // A candidate on nobody's table (an SRR-hosted card) has no physical
+    // origin to show, and this surface is ABOUT origin — the honest follow-up.
+    expect(playChoiceMode(choice(['Mine', 'Hosted'], 3), set(), set('Mine'), set('Mine'))).to.eq('followup');
   });
 
   /** Without the played-name universe the classifier must behave exactly as
@@ -293,5 +305,53 @@ describe('playChoiceMode — routing a played-card target to the embedded step',
    *  that do not pass it. */
   it('is inert for callers that do not supply the played universe', () => {
     expect(playChoiceMode(choice(['Mine', 'Theirs']), set(), set('Mine'))).to.eq('inline');
+  });
+});
+
+describe('multi selection — the server\'s merged up-to-N ask', () => {
+  /**
+   * The merged ask (Astra Mechanica's «return up to 2 events») is ONE question
+   * the server sends with one title and one `min`. It is hosted inside the step
+   * rather than split into rows, because splitting would invent a sequence the
+   * rules do not have. Cards that genuinely ARE several asks (Cyberia's two
+   * copy steps) already arrive as separate steps and get a zone each.
+   */
+  it('toggles picks and respects the cap', () => {
+    let picked: ReadonlyArray<string> = [];
+    picked = togglePlayedTargetPick(picked, 'A', 2);
+    picked = togglePlayedTargetPick(picked, 'B', 2);
+    expect(picked).to.deep.eq(['A', 'B']);
+    // At the cap a third add is a NO-OP that returns the same list, so the
+    // caller can tell «blocked» from «picked» and say so.
+    const blocked = togglePlayedTargetPick(picked, 'C', 2);
+    expect(blocked).to.eq(picked);
+    // …and de-selecting always works, whatever the cap.
+    expect(togglePlayedTargetPick(picked, 'A', 2)).to.deep.eq(['B']);
+  });
+
+  it('validates against min/max — never submits a half-built selection', () => {
+    expect(playedTargetPicksValid({mode: 'multi', min: 1, max: 2, picked: []})).to.eq(false);
+    expect(playedTargetPicksValid({mode: 'multi', min: 1, max: 2, picked: ['A']})).to.eq(true);
+    // Astra's `min: 0` — returning nothing is a legal choice, so RT stays live.
+    expect(playedTargetPicksValid({mode: 'multi', min: 0, max: 2, picked: []})).to.eq(true);
+    // A single ask has nothing to validate: A chooses and the step closes.
+    expect(playedTargetPicksValid({mode: 'single'})).to.eq(true);
+  });
+
+  it('prunes picks whose cards left the table (the realtime path)', () => {
+    const m = build({candidates: ['Mars Hydro Turbines'], admin: ['Mars Hydro Turbines']});
+    expect(prunePlayedTargetPicks(['Mars Hydro Turbines', 'Gone'], m.owners)).to.deep.eq(['Mars Hydro Turbines']);
+    expect(prunePlayedTargetPicks(['Gone'], m.owners)).to.deep.eq([]);
+  });
+
+  /** MULTI now lives in the embedded step too, so card play has no shape left
+   *  that needs the old lift-out-of-the-tableau surface. */
+  it('routes a MULTI played-card pick to the embedded step as well', () => {
+    const c: any = {
+      id: 's0', scope: 'step', index: 0, kind: 'card',
+      input: {type: 'card', cards: [{name: 'Mine'}, {name: 'Mine2'}], max: 2, min: 0},
+    };
+    expect(playChoiceMode(c, new Set(), new Set(['Mine', 'Mine2']), new Set(['Mine', 'Mine2'])))
+      .to.eq('playedTarget');
   });
 });

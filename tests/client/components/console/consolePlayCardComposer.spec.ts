@@ -449,11 +449,26 @@ describe('consolePlayCardComposer.playChoiceMode', () => {
     expect(playChoiceMode(off, HAND, TABLE)).to.equal('inline');
   });
 
-  it('a pick whose candidates are all PLAYED cards → tableauPick (single AND multi)', () => {
+  // WITHOUT the played-card universe (the un-migrated BLUE-ACTION caller) the
+  // classifier still answers `tableauPick`. Card play ALWAYS supplies that
+  // universe and therefore never reaches this branch any more.
+  it('all-PLAYED candidates → tableauPick for a caller with no played universe', () => {
     expect(playChoiceMode(cardChoice([CardName.PETS]), HAND, TABLE)).to.equal('tableauPick');
     expect(playChoiceMode(cardChoice([CardName.PETS, CardName.FISH], {max: 2}), HAND, TABLE)).to.equal('tableauPick');
     const withDisabled = cardChoice([CardName.PETS], {disabledCards: [{name: CardName.FISH}]});
     expect(playChoiceMode(withDisabled, HAND, TABLE)).to.equal('tableauPick');
+  });
+
+  /** …and WITH it (the card-play caller) every played-card shape goes to the
+   *  EMBEDDED step instead — single, multi, and disabled-carrying alike. That
+   *  is what makes the old lift-out-of-the-tableau surface unreachable from
+   *  card play. */
+  it('the card-play caller routes every played-card shape to the embedded step', () => {
+    const PLAYED = new Set<string>([CardName.PETS, CardName.FISH]);
+    expect(playChoiceMode(cardChoice([CardName.PETS]), HAND, TABLE, PLAYED)).to.equal('playedTarget');
+    expect(playChoiceMode(cardChoice([CardName.PETS, CardName.FISH], {max: 2}), HAND, TABLE, PLAYED)).to.equal('playedTarget');
+    const withDisabled = cardChoice([CardName.PETS], {disabledCards: [{name: CardName.FISH}]});
+    expect(playChoiceMode(withDisabled, HAND, TABLE, PLAYED)).to.equal('playedTarget');
   });
 
   it('unowned candidates: a single pick stays inline, a multi stays a follow-up', () => {

@@ -138,10 +138,12 @@ export type PlayChoiceMode = 'inline' | 'handPick' | 'tableauPick' | 'playedTarg
  * case straight back to the old lift-out-of-the-tableau surface and the new
  * step never appeared.
  *
- * `tableauPick` (the physical lift) keeps exactly what the new step
- * deliberately cannot do: MULTI selection — the merged up-to-N pick (Astra)
- * and the accumulate-then-confirm grammar. That is a real capability
- * difference, so it is a real routing difference.
+ * `tableauPick` (the physical lift out of the real tableau) is now UNREACHABLE
+ * from card play: the embedded step hosts both shapes the flow has — the
+ * single «point at one card» ask and the server's merged up-to-N ask (Astra
+ * Mechanica). The branch stays only because the BLUE-ACTION composer still
+ * routes through this module's vocabulary; it goes when that flow migrates,
+ * and the «Разыграно» surface then keeps browsing only.
  */
 export function playChoiceMode(
   c: ComposerChoice,
@@ -163,9 +165,11 @@ export function playChoiceMode(
     if (candidates.every((cd) => handNames.has(cd.name))) {
       return 'handPick';
     }
-    // ONE card already on the table, whoever owns it → the embedded step.
-    // Checked BEFORE the own-table branch on purpose (see the note above).
-    if (model.max <= 1 && playedNames !== undefined && candidates.every((cd) => playedNames.has(cd.name))) {
+    // Cards already ON THE TABLE, whoever owns them → the embedded step.
+    // Checked BEFORE the own-table branch on purpose (see the note above), and
+    // no longer limited to single selection: the step now hosts the server's
+    // merged up-to-N ask too, so card play has no case left for the old lift.
+    if (playedNames !== undefined && candidates.every((cd) => playedNames.has(cd.name))) {
       return 'playedTarget';
     }
     if (candidates.every((cd) => tableauNames.has(cd.name))) {
@@ -297,7 +301,7 @@ export function computePrimaryAction(ctx: {
 
 // ── Contextual footer command bar (the ONE bottom action bar) ───────────────
 
-export type FootHint = {control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean, spread?: boolean};
+export type FootHint = {control: GlyphControl, control2?: GlyphControl, label: string, enabled?: boolean, spread?: boolean, badge?: number, highlight?: boolean};
 
 /** The focused review row's KIND — drives which local verb the footer offers. */
 export type PlayFocusKind = 'variant' | 'amount' | 'spendHeat' | 'pick' | 'none';
@@ -310,6 +314,9 @@ export type PlayFootContext = {
   /** When `sub === 'playedTarget'`: the step is in TABBED owner mode, so LB/RB
    *  own the owner axis (in split view the d-pad crosses between groups). */
   targetOwnerTabs?: boolean;
+  /** When `sub === 'playedTarget'` and the ask is the server's merged up-to-N:
+   *  the live accumulation, so the bar can offer RT with an honest badge. */
+  targetMulti?: {count: number, valid: boolean, verb: string};
   /** There are navigable pre-select rows (show the Navigate hint). */
   hasRows: boolean;
   /** The focused review row's kind (only meaningful when `sub === 'none'`). */
@@ -365,7 +372,15 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
     if (ctx.targetOwnerTabs === true) {
       hints.push({control: 'bumperL', control2: 'bumperR', label: 'Player', spread: true});
     }
-    hints.push({control: 'confirm', label: 'Select'});
+    if (ctx.targetMulti !== undefined) {
+      // The merged up-to-N ask: A accumulates, RT submits — the same grammar
+      // the hand's multi pick and the patent sale already speak, so a stray A
+      // can never send a half-built selection.
+      hints.push({control: 'confirm', label: 'Select / Deselect'});
+      hints.push({control: 'triggerR', label: ctx.targetMulti.verb, enabled: ctx.targetMulti.valid, badge: ctx.targetMulti.count, highlight: ctx.targetMulti.count > 0});
+    } else {
+      hints.push({control: 'confirm', label: 'Select'});
+    }
     hints.push({control: 'secondary', label: 'Inspect'});
     hints.push({control: 'back', label: 'Back'});
     return hints;

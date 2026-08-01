@@ -15,7 +15,12 @@
       <div class="con-ptsel__contract-ask">{{ model.contract.ask }}</div>
       <div class="con-ptsel__contract-scope">
         <span class="con-ptsel__scope-count">{{ scopeLine }}</span>
-        <span v-if="model.contract.selfAllowed && model.contract.opponentsInvolved"
+        <!-- MULTI: the live accumulation, so «сколько ещё можно» is never a
+             guess. At the cap it says so instead of silently ignoring A. -->
+        <span v-if="selection.mode === 'multi'" class="con-ptsel__scope-picked"
+              :class="{'con-ptsel__scope-picked--full': atCap}">{{ pickedLine }}</span>
+        <span v-if="selection.mode === 'multi' && atCap" class="con-ptsel__scope-note">{{ $t('Deselect another card first') }}</span>
+        <span v-else-if="model.contract.selfAllowed && model.contract.opponentsInvolved"
               class="con-ptsel__scope-note">{{ $t('Your own card or another player\'s') }}</span>
       </div>
     </header>
@@ -65,12 +70,12 @@
                  class="con-ptsel__slot"
                  :class="{
                    'con-ptsel__slot--focused': isFocused(owner.id, cand.cardName),
-                   'con-ptsel__slot--locked': cand.cardName === lockedCard,
+                   'con-ptsel__slot--locked': isChosen(cand.cardName),
                  }"
                  :data-zoom-slot="cand.slotKey">
               <ConsoleCardFaceLite :name="cand.cardName" />
               <span v-if="cand.model.resources !== undefined" class="con-played__res">{{ cand.model.resources }}</span>
-              <span v-if="cand.cardName === lockedCard" class="con-ptsel__lock" aria-hidden="true">✓</span>
+              <span v-if="isChosen(cand.cardName)" class="con-ptsel__lock" aria-hidden="true">{{ pickOrdinal(cand.cardName) }}</span>
             </div>
           </div>
         </div>
@@ -144,7 +149,7 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetOwner,
-  PlayedTargetCandidate, PlayedTargetSection,
+  PlayedTargetCandidate, PlayedTargetSection, PlayedTargetSelection,
   playedTargetSections, playedTargetShowsCategoryRails, playedTargetAt,
 } from '@/client/console/played/consolePlayedTargetModel';
 
@@ -155,7 +160,14 @@ export default defineComponent({
     model: {type: Object as PropType<PlayedTargetModel>, required: true},
     layout: {type: Object as PropType<PlayedTargetLayout>, required: true},
     focus: {type: Object as PropType<PlayedTargetFocus>, required: true},
-    /** The already-confirmed target (a re-entry from «Изменить выбор»). */
+    /**
+     * HOW MANY the step asks for. `single` (A chooses and closes) or the
+     * server's merged up-to-N ask (A toggles, RT confirms) — the shape follows
+     * the prompt, never a per-card rule here.
+     */
+    selection: {type: Object as PropType<PlayedTargetSelection>, default: () => ({mode: 'single'} as PlayedTargetSelection)},
+    /** The already-confirmed target of a SINGLE step (a re-entry from «Изменить
+     *  выбор»); in multi the picks live in `selection.picked`. */
     lockedCard: {type: String, default: ''},
   },
   computed: {
@@ -190,8 +202,35 @@ export default defineComponent({
     rowStyle(): Record<string, string> {
       return {'--con-ptsel-per-row': String(Math.max(1, this.layout.perRow))};
     },
+    /** «Выбрано 1 из 2» — the live accumulation of a multi ask. */
+    pickedLine(): string {
+      if (this.selection.mode !== 'multi') {
+        return '';
+      }
+      return translateTextWithParams('Selected ${0} of ${1}',
+        [String(this.selection.picked.length), String(this.selection.max)]);
+    },
+    atCap(): boolean {
+      return this.selection.mode === 'multi' && this.selection.picked.length >= this.selection.max;
+    },
   },
   methods: {
+    /** Chosen = the confirmed single target, or a member of the multi pick. */
+    isChosen(cardName: string): boolean {
+      return this.selection.mode === 'multi' ?
+        this.selection.picked.includes(cardName) :
+        cardName === this.lockedCard;
+    },
+    /** In a multi ask the badge carries the ORDER — «первое / второе событие»
+     *  is what the server's own slots mean, so the player can see which is
+     *  which without reading the prompt again. A single ask just ticks. */
+    pickOrdinal(cardName: string): string {
+      if (this.selection.mode !== 'multi') {
+        return '✓';
+      }
+      const at = this.selection.picked.indexOf(cardName);
+      return at < 0 ? '✓' : String(at + 1);
+    },
     iconClass(icon: string): string {
       return iconClassFor(icon);
     },

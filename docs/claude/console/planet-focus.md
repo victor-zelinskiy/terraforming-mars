@@ -84,6 +84,16 @@ the LONGER of the two moves and both ride an expo-out tail.
   class drops — the value snaps.** That is what turned the whole return
   into a hard cut. Every transition here lives on a BASE selector; the
   phase classes only override duration/delay.
+- **The planet's transform transition is PERMANENT** (`.con-board--fitted`,
+  set after the first fit so the mount doesn't animate up from `scale(1)`).
+  `--board-scale` is re-derived after ANY stage layout change, and the
+  mode's own handback (dock clearance + banner row returning) is exactly
+  such a change, landing one frame after the phase ends — with a
+  class-scoped transition that correction had nothing left to ride and
+  SNAPPED. That is the "planet jumps as the hand dock comes back" bug.
+  Corollary: **nothing may measure the board while it glides** — the fit
+  arms `boardTweening` for the transition's length and calibration waits it
+  out, or it chases a moving planet and wobbles.
 - **A transform may only go on an element that is ALREADY positioned.** It
   becomes the containing block of its absolute children, and every arc
   digit / chip / off-Mars hex is authored against the board's coordinate

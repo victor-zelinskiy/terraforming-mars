@@ -135,6 +135,24 @@ export type PlayedTargetOwner = {
   candidates: ReadonlyArray<PlayedTargetCandidate>;
 };
 
+/**
+ * HOW MANY cards this step asks for.
+ *
+ * `single` is «point at one card»: A chooses and the step closes — no
+ * accumulation, no confirm.
+ *
+ * `multi` is the up-to-N ask the server merges into ONE response (Astra
+ * Mechanica's «return up to 2 events»). It is deliberately NOT modelled as
+ * several single steps: the server sends one merged prompt with one title and
+ * one `min`, so splitting it into rows would invent a sequence the rules do
+ * not have. Cards that genuinely ARE several asks (Cyberia's two copy steps)
+ * already arrive as separate steps and get their own zone each — the shape
+ * follows the server, never the other way round.
+ */
+export type PlayedTargetSelection =
+  | {mode: 'single'}
+  | {mode: 'multi', min: number, max: number, picked: ReadonlyArray<string>};
+
 export type PlayedTargetContract = {
   /** The server's own ask, already resolved to the player's language. */
   ask: string;
@@ -145,6 +163,38 @@ export type PlayedTargetContract = {
   /** At least one candidate belongs to somebody else. */
   opponentsInvolved: boolean;
 };
+
+/** Toggle a candidate in a multi selection, respecting the cap. Returns the
+ *  SAME list when the cap blocks the add — the caller can compare identity to
+ *  tell «nothing happened» from «picked», and say so honestly. */
+export function togglePlayedTargetPick(
+  picked: ReadonlyArray<string>,
+  cardName: string,
+  max: number,
+): ReadonlyArray<string> {
+  if (picked.includes(cardName)) {
+    return picked.filter((n) => n !== cardName);
+  }
+  if (picked.length >= max) {
+    return picked;
+  }
+  return [...picked, cardName];
+}
+
+/** May a multi selection be submitted as it stands? */
+export function playedTargetPicksValid(selection: PlayedTargetSelection): boolean {
+  return selection.mode === 'single' ||
+    (selection.picked.length >= selection.min && selection.picked.length <= selection.max);
+}
+
+/** Drop picks whose cards are no longer candidates (the realtime path). */
+export function prunePlayedTargetPicks(
+  picked: ReadonlyArray<string>,
+  owners: ReadonlyArray<PlayedTargetOwner>,
+): ReadonlyArray<string> {
+  const live = new Set<string>(owners.flatMap((o) => o.candidates.map((c) => c.cardName as string)));
+  return picked.filter((n) => live.has(n));
+}
 
 export type PlayedTargetModel = {
   contract: PlayedTargetContract;

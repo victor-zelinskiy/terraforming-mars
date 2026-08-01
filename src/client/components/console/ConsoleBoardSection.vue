@@ -38,7 +38,11 @@ import {NavRect, pickDirectional, pickNearest, pickStrictGrid, rectCenter} from 
 import {hoverBoardCell} from '@/client/components/board/boardInfoState';
 import {consoleState} from '@/client/console/consoleRouter';
 import {TileView, nextTileView} from '@/client/components/board/TileView';
-import {planetFocusState, displayGlobalParams, PlanetFocusPhase} from '@/client/console/planetFocus';
+import {
+  planetFocusState, displayGlobalParams, PlanetFocusPhase,
+  PLANET_FOCUS_ENTER_MS, PLANET_FOCUS_EXIT_MS,
+} from '@/client/console/planetFocus';
+import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 
 const SELECT_CLASS = 'con-cell-sel';
 /** P27: the focused global-parameter TRACK marker (inspection mode). */
@@ -143,6 +147,12 @@ const BOARD_CONT_H = 600;
  * the dock clearance are reclaimed (disc 451 → stage ~1900px ⇒ ~4.2).
  */
 const PFOCUS_MAX_SCALE = 4.8;
+/** The calm curve every NON-focus scale change rides (mount aside): a
+ *  resize, a calibration nudge, the focus mode's own chrome handback.
+ *  Mirrors `--pfocus-ms`'s default in console.less. */
+const BOARD_TWEEN_MS = 300;
+/** Margin over a board transition before measurements are trusted again. */
+const TWEEN_SETTLE_MS = 60;
 
 export default defineComponent({
   name: 'ConsoleBoardSection',
@@ -172,6 +182,12 @@ export default defineComponent({
        *  the space handback at the end costs no second re-fit, no jump. */
       normalStageW: 0,
       normalStageH: 0,
+      /** The first fit has landed — from here every scale change GLIDES. */
+      fitted: false,
+      /** A board transform is in flight: measurements are meaningless until
+       *  it rests (calibration would otherwise chase a moving planet). */
+      boardTweening: false,
+      tweenTimer: 0,
       /** P29: the self-calibrated natural content box (seeded by constants). */
       naturalW: BOARD_NATURAL_W,
       naturalH: BOARD_NATURAL_H,
@@ -216,6 +232,10 @@ export default defineComponent({
         // the space back at the START of the return is what cut the
         // returning planet + arcs along the dock line.
         'con-board--pfocus-exit': phase === 'exit-prep' || phase === 'exiting',
+        // The board has a real fitted scale → its transform may transition.
+        // Withheld until then so the FIRST fit doesn't animate the planet up
+        // from scale(1) on every mount.
+        'con-board--fitted': this.fitted,
       };
     },
     selectedSpaceId(): string | undefined {
@@ -335,11 +355,41 @@ export default defineComponent({
         (boxH - STAGE_PAD_Y * 2) / this.naturalH,
       ) * SCALE_BOOST;
       const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
-      this.appliedScale = clamped;
-      document.documentElement.style.setProperty('--board-scale', clamped.toFixed(4));
+      this.applyBoardScale(clamped);
       // P29: refine against the REAL rendered content (next frame — the new
       // scale must paint first so the union bbox reflects it).
       this.scheduleCalibrate();
+    },
+    /**
+     * Write `--board-scale` and, when it actually MOVED, arm the tween
+     * guard for the transition that write just started (the CSS owns the
+     * curve; this only records that the planet is in motion, so nothing
+     * measures it mid-flight). The first write also unlocks the transition.
+     */
+    applyBoardScale(scale: number): void {
+      const moved = Math.abs(scale - this.appliedScale) > 0.0005;
+      this.appliedScale = scale;
+      document.documentElement.style.setProperty('--board-scale', scale.toFixed(4));
+      if (moved && this.fitted) {
+        this.armBoardTween();
+      }
+      this.fitted = true;
+    },
+    /** Hold measurements off for the length of the CSS transition in play. */
+    armBoardTween(): void {
+      const phase = this.planetFocusState.phase;
+      const base = phase === 'idle' ? BOARD_TWEEN_MS :
+        (phase === 'entering' ? PLANET_FOCUS_ENTER_MS : PLANET_FOCUS_EXIT_MS);
+      this.boardTweening = true;
+      if (this.tweenTimer !== 0) {
+        window.clearTimeout(this.tweenTimer);
+      }
+      this.tweenTimer = window.setTimeout(() => {
+        this.tweenTimer = 0;
+        this.boardTweening = false;
+        // The planet is at rest — NOW a calibration pass is meaningful.
+        this.scheduleCalibrate();
+      }, consoleMotionMs(base) + TWEEN_SETTLE_MS);
     },
     /**
      * The PLANET FOCUS fit — deterministic: the frame is a fixed rectangle
@@ -353,8 +403,7 @@ export default defineComponent({
       // the stage border («буквально на границе экрана по высоте»).
       const scale = Math.min(r.width / PFOCUS_FRAME.w, r.height / PFOCUS_FRAME.h);
       const clamped = Math.min(PFOCUS_MAX_SCALE, Math.max(MIN_SCALE, scale));
-      this.appliedScale = clamped;
-      document.documentElement.style.setProperty('--board-scale', clamped.toFixed(4));
+      this.applyBoardScale(clamped);
       // Centre the FRAME in the stage: the flex centres the .board-cont BOX,
       // so the translate compensates the frame-centre ↔ box-centre offset
       // (screen px — the translate sits OUTSIDE the scale in the transform).
@@ -428,7 +477,8 @@ export default defineComponent({
       // a measurement taken then reports a wrong natural box and re-fits the
       // planet WITHOUT a transition — the hard nudge in the landing's last
       // frame. It resumes a beat later (the arcsReturning watcher re-arms it).
-      if (this.planetFocusState.phase !== 'idle' || this.planetFocusState.arcsReturning) {
+      if (this.planetFocusState.phase !== 'idle' || this.planetFocusState.arcsReturning ||
+          this.boardTweening) {
         return;
       }
       const stage = this.$refs.stage as HTMLElement | undefined;
@@ -747,6 +797,9 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
+    if (this.tweenTimer !== 0) {
+      window.clearTimeout(this.tweenTimer);
+    }
     this.stageObserver?.disconnect();
     if (this.fitRaf !== 0) {
       window.cancelAnimationFrame(this.fitRaf);

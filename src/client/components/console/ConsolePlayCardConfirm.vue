@@ -73,6 +73,7 @@
                                      :model="playedTargetModel"
                                      :layout="playedTargetLayout"
                                      :focus="sub.focus"
+                                     :selection="playedTargetSelection"
                                      :lockedCard="playedTargetResults[sub.choiceId]?.cardName ?? ''" />
 
             <!-- ── SUB-STATE: a PREMIUM pick list (card / player / or w/ metadata
@@ -374,7 +375,6 @@ import {cardHasPassiveEffect} from '@/client/components/effects/effectExtraction
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
-import {enterPlayedTableauPick} from '@/client/console/played/playedCategoryView';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {targetImpactRows, targetImpactText} from '@/client/components/modalInputs/targetImpactRows';
 import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
@@ -407,7 +407,8 @@ import {
   stepPlayedTargetFocus, stepPlayedTargetOwner, playedTargetAt,
   playedTargetResultOf, playedTargetResultLive,
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetNavDir,
-  PlayedTargetPreviewSection, PlayedTargetResult, PlayedTargetImpact,
+  PlayedTargetPreviewSection, PlayedTargetResult, PlayedTargetImpact, PlayedTargetSelection,
+  togglePlayedTargetPick, playedTargetPicksValid, prunePlayedTargetPicks,
 } from '@/client/console/played/consolePlayedTargetModel';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 
@@ -447,7 +448,7 @@ type SubState =
   /** THE EMBEDDED PLAYED-TARGET STEP — a level of this workspace, not a modal
    *  over it: the same `sub` slot every other in-place step uses, so B is one
    *  logical level and the payment / captures below it are never touched. */
-  | {kind: 'playedTarget', choiceId: string, focus: PlayedTargetFocus}
+  | {kind: 'playedTarget', choiceId: string, focus: PlayedTargetFocus, picked: ReadonlyArray<string>}
   | {kind: 'list', choiceId: string, index: number}
   | {kind: 'orNested', choiceId: string, item: ConsoleOrItem, index: number}
   | {kind: 'tabbed', stepIndex: number, index: number}
@@ -738,6 +739,13 @@ export default defineComponent({
         ui: conUiScale(),
         handheld: consoleLayoutState.profile === 'handheld',
       });
+    },
+    /** The live ask of the OPEN step (the component's `selection` prop). A
+     *  COMPUTED, not a method: the template binds it and the input handlers
+     *  read it every press, so it must track `sub.picked` reactively. */
+    playedTargetSelection(): PlayedTargetSelection {
+      const choice = this.playedTargetChoice;
+      return choice === undefined ? {mode: 'single'} : this.playedTargetSelectionFor(choice);
     },
     /** The game-state version a selection is only valid under. */
     playedTargetVersion(): string {
@@ -1048,6 +1056,11 @@ export default defineComponent({
           'none' :
           (this.sub.kind === 'payment' ? 'payment' : (this.sub.kind === 'playedTarget' ? 'playedTarget' : 'list')),
         targetOwnerTabs: this.playedTargetLayout.mode === 'tabs' && (this.playedTargetModel?.owners.length ?? 0) > 1,
+        targetMulti: this.playedTargetSelection.mode === 'multi' ? {
+          count: this.playedTargetSelection.picked.length,
+          valid: playedTargetPicksValid(this.playedTargetSelection),
+          verb: (this.playedTargetChoice?.input as SelectCardModel | undefined)?.buttonLabel || 'Select',
+        } : undefined,
         subIsCardList: this.subChoice?.input.type === 'card' || this.sub?.kind === 'orNested' || this.sub?.kind === 'tabbed',
         // More than the lone CTA row → there's something to navigate between.
         hasRows: this.rows.length > 1,
@@ -1830,8 +1843,6 @@ export default defineComponent({
         this.openRepeatPick(row.choice);
       } else if (row.kind === 'step' && this.choiceMode(row.choice) === 'handPick') {
         this.openHandPick(row.choice);
-      } else if (row.kind === 'step' && this.choiceMode(row.choice) === 'tableauPick') {
-        this.openTableauPick(row.choice);
       } else if (row.kind === 'step' && this.choiceMode(row.choice) === 'playedTarget') {
         this.openPlayedTargetStep(row.choice);
       } else if (row.kind === 'step' && (row.choice.kind === 'card' || row.choice.kind === 'player' || row.choice.kind === 'or')) {
@@ -1894,13 +1905,79 @@ export default defineComponent({
       if (owners.length === 0) {
         return;
       }
+      // Re-entry restores the previous answer: a single target puts the cursor
+      // ON that card, a multi ask brings its whole accumulation back (pruned of
+      // anything that left the table since).
+      const multi = this.playedTargetSelectionFor(c);
+      const picked = multi.mode === 'multi' ?
+        prunePlayedTargetPicks((this.multiPicks[c.id] ?? []) as ReadonlyArray<string>, owners) :
+        [];
       const chosen = this.playedTargetResults[c.id];
-      const focus = findPlayedTargetFocus(chosen?.cardName, owners) ??
+      const focus = findPlayedTargetFocus(chosen?.cardName ?? picked[0], owners) ??
         reseatPlayedTargetFocus(undefined, owners);
       if (focus === undefined) {
         return;
       }
-      this.sub = {kind: 'playedTarget', choiceId: c.id, focus};
+      this.sub = {kind: 'playedTarget', choiceId: c.id, focus, picked};
+    },
+    /**
+     * The step's ASK — read from the server's own prompt, never from a card.
+     * A branch that declares `mergeCardSteps` is ONE up-to-N question whose
+     * slots the composer collapses into this choice; everything else is a
+     * single «point at one card».
+     */
+    playedTargetSelectionFor(c: ComposerChoice): PlayedTargetSelection {
+      if (!this.isMergedPickChoice(c)) {
+        return {mode: 'single'};
+      }
+      const merge = this.selectedBranch?.mergeCardSteps;
+      return {
+        mode: 'multi',
+        min: merge?.min ?? 0,
+        max: Math.max(1, this.mergeCardStepCount),
+        picked: this.sub?.kind === 'playedTarget' && this.sub.choiceId === c.id ?
+          this.sub.picked :
+          ((this.multiPicks[c.id] ?? []) as ReadonlyArray<string>),
+      };
+    },
+
+    /** A in a MULTI ask toggles instead of choosing — the cap is stated, never
+     *  silently enforced (the contract line says «снимите выбор с другой»). */
+    togglePlayedTarget(): void {
+      if (this.sub?.kind !== 'playedTarget') {
+        return;
+      }
+      const selection = this.playedTargetSelection;
+      if (selection.mode !== 'multi') {
+        return;
+      }
+      const candidate = playedTargetAt(this.sub.focus, this.playedTargetModel?.owners ?? []);
+      if (candidate === undefined) {
+        return;
+      }
+      this.sub = {
+        ...this.sub,
+        picked: togglePlayedTargetPick(this.sub.picked, candidate.cardName, selection.max),
+      };
+    },
+    /** RT — submit a MULTI ask. The response is the ONE merged
+     *  `{type:'card', cards:[…]}` the server's `mergeCardSteps` expects. */
+    confirmPlayedTargetPicks(): void {
+      if (this.sub?.kind !== 'playedTarget') {
+        return;
+      }
+      const choice = this.playedTargetChoice;
+      const selection = this.playedTargetSelection;
+      if (choice === undefined || selection.mode !== 'multi' || !playedTargetPicksValid(selection)) {
+        return;
+      }
+      const cards = [...this.sub.picked] as Array<CardName>;
+      this.multiPicks = {...this.multiPicks, [choice.id]: cards};
+      this.picks = {...this.picks, [choice.id]: String(cards.length)};
+      this.captureFor(choice, {type: 'card', cards});
+      this.sub = undefined;
+      this.focusIdx = this.firstActionableIndex();
+      this.scrollFocused();
     },
     /** Move the cursor inside the step (D-pad; crosses owner groups in split). */
     movePlayedTarget(dir: NavDirection): void {
@@ -1982,70 +2059,12 @@ export default defineComponent({
       return result.preview.flatMap((sec, si) =>
         sec.impacts.map((imp, ii) => ({...imp, key: `${si}:${ii}`})));
     },
-    openTableauPick(c: ComposerChoice): void {
-      const model = c.input as SelectCardModel;
-      const merged = this.isMergedPickChoice(c);
-      const reasons: Record<string, string> = {};
-      for (const d of model.disabledCards ?? []) {
-        reasons[d.name] = d.disabledReason !== undefined ? textOf(d.disabledReason) : '';
-      }
-      // De-dupe: a candidate already chosen in a referenced earlier step
-      // (Cyberia's second copy) shows DISABLED with the honest «уже выбрана»
-      // reason — visible and explained, never a pickable twin (desktop parity).
-      const dedupe = new Set<CardName>();
-      const step = this.previewStepOf(c);
-      for (const si of step?.dedupeFromSteps ?? []) {
-        const nm = this.capturedCardNameAt(si);
-        if (nm !== undefined) {
-          dedupe.add(nm);
-        }
-      }
-      const selectable = model.cards.map((cd) => cd.name).filter((n) => !dedupe.has(n));
-      const disabledNames = (model.disabledCards ?? []).map((d) => d.name);
-      for (const n of dedupe) {
-        if (!disabledNames.includes(n)) {
-          disabledNames.push(n);
-          reasons[n] = translateText('This card is already chosen');
-        }
-      }
-      const faceDown = [...selectable, ...disabledNames]
-        .filter((n) => getCard(n)?.type === CardType.EVENT);
-      const prior = merged ?
-        [...(this.multiPicks[c.id] ?? [])] as Array<CardName> :
-        (this.picks[c.id] !== undefined ? [this.picks[c.id] as CardName] : []);
-      const merge = this.selectedBranch?.mergeCardSteps;
-      enterPlayedTableauPick({
-        // The merged pick asks ONCE for all its slots — the pick screen is
-        // titled by the branch's merged prompt, never a per-slot «первое…».
-        title: (merged ? merge?.title : undefined) ?? model.title,
-        buttonLabel: model.buttonLabel || 'Select',
-        selectable,
-        disabled: disabledNames,
-        reasons,
-        min: merged ? (merge?.min ?? 0) : 1,
-        max: merged ? Math.max(1, this.mergeCardStepCount) : 1,
-        selected: prior,
-        faceDown,
-        // The pick surface names the operation it serves — the player keeps
-        // the WHY (which card asked) while the composer waits hidden under it
-        // (the repeat / action-setup picks already do; this one didn't).
-        source: {kicker: 'Play card', card: this.cardName},
-      }, (cards) => {
-        // Re-locate by id — the preview may have refreshed under the pick.
-        const cur = this.allChoices.find((x) => x.id === c.id) ?? c;
-        if (merged) {
-          this.multiPicks[cur.id] = [...cards];
-          this.picks[cur.id] = String(cards.length);
-          this.captureFor(cur, {type: 'card', cards: [...cards]});
-        } else if (cards.length > 0) {
-          this.picks[cur.id] = cards[0];
-          this.captureFor(cur, {type: 'card', cards: [cards[0]]});
-          this.clearDedupeConflicts(cur, cards[0]);
-        }
-        this.focusIdx = this.firstActionableIndex();
-        this.scrollFocused();
-      });
-    },
+    // (`openTableauPick` is gone. Every played-card pick this flow has — the
+    // single «point at one card» ask AND the server's merged up-to-N ask —
+    // is hosted by the EMBEDDED played-target step, so the old lift-out-of-
+    // the-tableau surface is unreachable from card play. The «Разыграно»
+    // view keeps it for the blue-action composer until that flow migrates,
+    // after which it becomes a browsing surface only.)
     /** The ActionPreviewStep behind a branch-step choice (dedupe metadata). */
     previewStepOf(c: ComposerChoice): {dedupeFromSteps?: ReadonlyArray<number>} | undefined {
       if (c.scope !== 'step') {
@@ -2132,7 +2151,14 @@ export default defineComponent({
       switch (action) {
       case 'primary':
         if (sub.kind === 'playedTarget') {
-          this.confirmPlayedTarget();
+          // SINGLE: A chooses and the step closes. MULTI: A toggles — the
+          // merged ask is submitted with RT, so a stray A can never send a
+          // half-built selection.
+          if (this.playedTargetSelection.mode === 'multi') {
+            this.togglePlayedTarget();
+          } else {
+            this.confirmPlayedTarget();
+          }
           return;
         }
         if (sub.kind === 'payment') {
@@ -2182,6 +2208,12 @@ export default defineComponent({
         }
         return;
       case 'nextTab':
+        // RT — submit the merged up-to-N ask (the same button the hand's
+        // multi pick and the patent sale confirm with).
+        if (sub.kind === 'playedTarget') {
+          this.confirmPlayedTargetPicks();
+          return;
+        }
         if (sub.kind === 'payment') {
           this.adjustPayRow(sub.index, 0, true);
         }

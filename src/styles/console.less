@@ -2593,8 +2593,20 @@ each(@players, {
 .con-root:has(.con-board--pfocus-exit) .con-board {
     padding-bottom: .4rem;
 }
+/* ⚠ THE PLANET NEVER JUMPS — the transform transition is PERMANENT (from
+   the first fit onward), not scoped to the focus transition.
+   Why: `--board-scale` is re-derived by the fit engine after ANY layout
+   change of its stage — and the focus mode's own handback (the dock
+   clearance + the banner row returning) is exactly such a change, landing
+   one frame after the phase ends. With a class-scoped transition that
+   correction had no transition left to ride and SNAPPED: the planet
+   "jumped" precisely as the hand dock came back, which is what made the
+   ending read as cheap. A resize, a calibration nudge and the focus
+   handback now all glide through the same rule. */
+.con-board--fitted .con-board__stage > .board-cont {
+    transition: transform calc(var(--pfocus-ms, 300ms) * var(--motion-scale, 1)) var(--pfocus-ease, cubic-bezier(0.22, 0.61, 0.36, 1));
+}
 .con-board--pfocus-anim .con-board__stage > .board-cont {
-    transition: transform calc(var(--pfocus-ms, 700ms) * var(--motion-scale, 1)) var(--pfocus-ease, cubic-bezier(0.16, 1, 0.3, 1));
     /* The planet is a 2.6k-px box carrying a 100px drop-shadow: hint the
        compositor BEFORE the tween starts, or the first frames pay for the
        layer promotion — which is exactly where the motion read as jerky. */
@@ -2605,10 +2617,12 @@ each(@players, {
    opening is a touch quicker (the player pressed for it); the landing gets
    the longer tail (nobody asked for it, so it must not feel abrupt). */
 .con-board--pfocus.con-board--pfocus-anim {
-    --pfocus-ms: 640ms;
+    --pfocus-ms: 680ms;
+    --pfocus-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 .con-board--pfocus-anim:not(.con-board--pfocus) {
-    --pfocus-ms: 700ms;
+    --pfocus-ms: 760ms;
+    --pfocus-ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 /* ── the INSTRUMENTS: dematerialize / materialize ────────────────────
    Not a flat fade — the band answers the planet's own motion. The growing
@@ -2630,15 +2644,17 @@ each(@players, {
    classes dropping — a transition declared only on a transient class is
    cancelled (and the value SNAPS) the moment that class goes, which is
    what turned the whole return into a hard cut. */
-.con-board__stage .global-numbers,
+/* Each SHELL fades on its own curve — `> *` covers the three arc bands,
+   the three chip containers and the ocean band, and keeps covering a shell
+   added later (a flat fade on the shared parent is what read as "one
+   switch", however long you make it). */
+.con-board__stage .global-numbers > *,
 .con-board__stage .board-outer-spaces {
-    transition: opacity calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity calc(540ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
+                transform calc(540ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 }
 .con-board__stage .global-numbers .arc-scale,
-.con-board__stage .global-numbers .global-numbers-oceans,
-.con-board__stage .board-outer-spaces {
-    transition: opacity calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
-                transform calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+.con-board__stage .global-numbers .global-numbers-oceans {
     /* keep-px: the arcs live in the board's own px space — this is the
        circle centre they are all drawn around, so the scale breathes about
        the PLANET, never about a box corner. */
@@ -2648,40 +2664,38 @@ each(@players, {
     transform-origin: 310px 300px; /* keep-px: the planet centre in board space */
 }
 
-/* LEAVING (the planet opens): pushed outward, gone before the growth can
-   carry them past the stage edge. Nearest shell first. */
-.con-board--pfocus .con-board__stage .global-numbers,
+/* LEAVING (the planet opens): the instruments are pushed out of orbit and
+   dissolve, nearest shell first — gone before the growth can carry them
+   past the stage edge. */
+.con-board--pfocus .con-board__stage .global-numbers > *,
 .con-board--pfocus .con-board__stage .board-outer-spaces {
     opacity: 0;
     pointer-events: none;
-    transition-duration: calc(300ms * var(--motion-scale, 1));
-    transition-delay: 0ms;
+    transition-duration: calc(420ms * var(--motion-scale, 1));
 }
 .con-board--pfocus .con-board__stage .global-numbers .arc-scale,
 .con-board--pfocus .con-board__stage .global-numbers .global-numbers-oceans,
 .con-board--pfocus .con-board__stage .board-outer-spaces {
-    transform: scale(1.035);
-    transition-duration: calc(300ms * var(--motion-scale, 1));
+    transform: scale(1.05);
 }
 .con-board--pfocus .con-board__stage .global-numbers .global-numbers-oceans {
-    transition-delay: calc(40ms * var(--motion-scale, 1));
+    transition-delay: calc(50ms * var(--motion-scale, 1));
 }
 .con-board--pfocus .con-board__stage .board-outer-spaces {
-    transition-delay: calc(80ms * var(--motion-scale, 1));
+    transition-delay: calc(100ms * var(--motion-scale, 1));
 }
 
 /* RETURNING (`exiting` — anim without the focus state): the materialization
-   is DELAYED into the landing, not queued after it: it starts at ~43% of the
-   planet's travel, so the ring is condensing while the disc is still
-   settling, and both come to rest together. The clip box is safe because
-   the reclaimed chrome is still out (see `--pfocus-exit`) and by then the
-   board is nearly back to its overview size. */
-.con-board--pfocus-anim:not(.con-board--pfocus) .con-board__stage .global-numbers,
-.con-board--pfocus-anim:not(.con-board--pfocus) .con-board__stage .global-numbers .arc-scale {
-    transition-delay: calc(300ms * var(--motion-scale, 1));
+   is DELAYED INTO the landing, not queued after it — it starts at ~34% of
+   the planet's travel, so the shells are condensing onto their orbits while
+   the disc is still settling and everything comes to rest together. The
+   clip box is safe because the reclaimed chrome is still out (see
+   `--pfocus-exit`) and by then the board is near its overview size. */
+.con-board--pfocus-anim:not(.con-board--pfocus) .con-board__stage .global-numbers > * {
+    transition-delay: calc(260ms * var(--motion-scale, 1));
 }
 .con-board--pfocus-anim:not(.con-board--pfocus) .con-board__stage .global-numbers .global-numbers-oceans {
-    transition-delay: calc(345ms * var(--motion-scale, 1));
+    transition-delay: calc(330ms * var(--motion-scale, 1));
 }
 .con-board--pfocus-anim:not(.con-board--pfocus) .con-board__stage .board-outer-spaces {
     transition-delay: calc(390ms * var(--motion-scale, 1));
@@ -16793,6 +16807,15 @@ html.console-mode {
         font-size: .78rem; color: @con-text-dim;
     }
     &__scope-count { color: fade(@con-mint, 90%); font-weight: 700; }
+    /* MULTI — the live accumulation. It turns amber AT THE CAP, next to the
+       «снимите выбор с другой» note: a press that cannot land says so instead
+       of being silently swallowed. */
+    &__scope-picked {
+        font-weight: 800;
+        color: fade(@con-cyan, 92%);
+        font-variant-numeric: tabular-nums;
+        &--full { color: fade(@con-amber, 95%); }
+    }
 
     /* ── OWNER TABS (tabbed mode only) — LB/RB own the owner axis here. ── */
     &__tabs {

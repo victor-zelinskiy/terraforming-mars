@@ -63,8 +63,8 @@ import {AdmissionSignals} from '@/client/console/consolePromptAdmission';
 /** The board-growth transition (the planet expands / returns). The landing
  *  is deliberately the LONGER of the two — the opening was asked for, the
  *  return was not, so it must not feel abrupt. Mirrors `--pfocus-ms`. */
-export const PLANET_FOCUS_ENTER_MS = 640;
-export const PLANET_FOCUS_EXIT_MS = 700;
+export const PLANET_FOCUS_ENTER_MS = 680;
+export const PLANET_FOCUS_EXIT_MS = 760;
 /** Settle margin over the CSS transition before the settled state locks. */
 const SETTLE_MARGIN_MS = 60;
 /** The tail of the instruments' materialization: the CSS starts it INSIDE
@@ -73,7 +73,7 @@ const SETTLE_MARGIN_MS = 60;
  *  band is still condensing. Nothing may move a scale, re-measure the board
  *  or take the foreground until it is over: a glide behind a half-formed
  *  band is exactly the wasted story this mode exists to prevent. */
-export const PLANET_ARCS_RETURN_MS = 220;
+export const PLANET_ARCS_RETURN_MS = 260;
 /** The post-exit scale story: marker glide (≤1280) + the accent pulse tail. */
 export const PLANET_SCALE_BEAT_MS = 1250;
 /** A pending beat can never freeze the HUD — a stuck foreground releases
