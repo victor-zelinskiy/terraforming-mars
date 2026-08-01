@@ -76,7 +76,7 @@
     "zlib": "^1.0.5"
   },
   "optionalDependencies": {
-    "better-sqlite3": "^12.11.1",
+    "better-sqlite3": "^13.0.2",
     "pg": "^8.22.0"
   },
   "scripts": {
