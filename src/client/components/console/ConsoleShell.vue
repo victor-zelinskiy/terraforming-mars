@@ -4190,16 +4190,12 @@ export default defineComponent({
         const cmds: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Place here', enabled: this.selectedCellLegal},
-          {control: 'stickL', label: 'Next available'},
-          // X — the SOURCE card fullscreen. NOT L3: that is the cell-to-cell
-          // navigation verb here and must stay it. X is also the RIGHT button
-          // by the console's own grammar — nothing has committed yet, so the
-          // card placing this tile IS the current object («pre-commit the
-          // source IS the current object: X = source, no L3»). X is otherwise
-          // inert while placing (every `inspect` branch requires
-          // !placementActive), so nothing is displaced.
+          // L3 — the SOURCE card fullscreen, the same verb it carries on every
+          // other surface in the shell. It replaced «next available cell», a
+          // jump that duplicated what the d-pad already does over a board whose
+          // legal cells are highlighted.
           ...(this.placementSourceCard !== undefined ?
-            [{control: 'secondary' as GlyphControl, label: 'Inspect the source'}] : []),
+            [{control: 'stickL' as GlyphControl, label: 'Inspect the source'}] : []),
           {control: 'stickR', label: this.consoleState.freeRoam ? 'Available only' : 'All cells'},
         ];
         if (this.placementCancellable) {
@@ -6352,13 +6348,15 @@ export default defineComponent({
         // hand was opened BY an effect). Checked FIRST so the verb reads the
         // same on every contextual selection surface; X stays the card under
         // the cursor, which is why the source needs a button of its own.
-        // P20: L3 = next AVAILABLE placement target during placement;
+        // DURING PLACEMENT L3 is the SAME verb: the card placing this tile.
+        // (It used to be «next available cell» — a jump nobody used, on the one
+        // screen where the shell's most consistent verb had nowhere to live.)
         // P27: on the board home L3 toggles BOARD INSPECTION MODE. In the hand's
         // sell-patents multi-select L3 = SELECT ALL / UNSELECT ALL.
         if (this.contextualSourceCard !== undefined) {
           this.inspectContextualSource();
         } else if (this.placementActive && this.consoleState.section === 'board') {
-          this.handleNextJump();
+          this.inspectPlacementSource();
         } else if (onBoard) {
           this.toggleInspection();
         } else if (this.consoleState.section === 'hand' && this.consoleState.sale.active) {
@@ -6451,12 +6449,6 @@ export default defineComponent({
           this.zoomHandCard();
         } else if (this.consoleState.section === 'colonies') {
           this.toggleColonyInspect();
-        } else if (onBoard && this.placementActive && this.placementSourceCard !== undefined) {
-          // MID-PLACEMENT X reads the card that is placing this tile. It was
-          // the one inert button here, and the context panel had no way to
-          // show more than the card's NAME — the board stays live underneath,
-          // so the cursor and the cell facts survive the viewer.
-          this.inspectPlacementSource();
         } else if (onBoard && !this.placementActive &&
             !this.consoleState.inspecting && !this.consoleState.scaleInspecting) {
           this.openPlayedOverlay();
@@ -6510,13 +6502,6 @@ export default defineComponent({
       // column-preserving up/down stepping, and keep-selected-visible.
       const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
       hand?.move(dir);
-    },
-    /** L3 during placement: focus the next available cell on the board. */
-    handleNextJump(): void {
-      if (this.consoleState.section === 'board' && this.placementActive) {
-        const board = this.$refs.boardSection as InstanceType<typeof ConsoleBoardSection> | undefined;
-        board?.nextAvailable();
-      }
     },
     handleSectionConfirm(): void {
       // No accidental card activation under the flying reveal proxies —

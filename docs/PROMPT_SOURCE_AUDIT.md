@@ -118,13 +118,13 @@ e2e `console-prompt-source` + `console-effect-decision` + `console-card-discard`
 | 12 | **`ConsoleAresGlobals`** — the planetary-event thresholds, diegetic: the expansion's name never appears, each row states its CONSEQUENCE beside the number, °C moves two per step, a threshold that already fired is absent rather than greyed, and «без изменений» is presented as the real answer it is. | `ConsoleAresGlobals.vue` |
 | 13 | **The placement panel names who is placing.** `placementContext.source` has been on the wire since the marker existed and nothing read it. The panel is ~17rem wide with a variable-height consequences preview, so the source costs ONE LINE — the shared dock in a new `chip` layout, reusing the plate rather than inventing a fifth vocabulary. | `ConsoleContextPanel.vue`, `ConsoleSourceDock.vue`, `ConsoleShell.vue` |
 
-**The button split, and why it is X.** Every other surface gives L3 to the
-source because L3 is idle there. During a placement L3 is `handleNextJump` —
-the cell-to-cell navigation verb — and taking it would be a regression. X was
-the one inert button (every `inspect` branch requires `!placementActive`), and
-it is also the RIGHT button by the console's own grammar: nothing has committed
-yet, so the card placing this tile IS the current object («pre-commit the source
-IS the current object: X = source, no L3»).
+**L3, and what it replaced.** Every other surface gives L3 to the source, and
+during a placement L3 was «next available cell» — a cyclic jump that duplicated
+what the d-pad already does over a board whose legal cells are highlighted. It
+was **removed** rather than moved aside (`ConsoleBoardSection.nextAvailable`,
+`ConsoleShell.handleNextJump`, its footer entry and its i18n key are all gone),
+so the shell's most consistent verb reads the same on the one screen that most
+needed it.
 
 Guards: `tests/client/components/console/compositePrompts.spec.ts` (the engine's
 exact/cover rules, incl. the two overspend cases, plus response BYTE-PARITY for

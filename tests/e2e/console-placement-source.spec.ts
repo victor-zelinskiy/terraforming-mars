@@ -12,9 +12,10 @@ import * as path from 'node:path';
  * generic «Выберите место на поле».
  *
  * The panel is ~17rem wide and its consequences preview is variable-height, so
- * the source costs ONE LINE (the shared dock in chip layout) and no more. X
- * opens the real card fullscreen — NOT L3, which is the cell-to-cell navigation
- * verb here and must stay it.
+ * the source costs ONE LINE (the shared dock in chip layout) and no more. L3
+ * opens the real card fullscreen — the SAME verb it carries on every other
+ * surface in the shell (it replaced «next available cell», a jump that
+ * duplicated the d-pad over a board whose legal cells are highlighted).
  */
 
 const OUT = path.resolve('screenshots', 'placement-source');
@@ -158,9 +159,9 @@ test.describe('console placement panel · the source', () => {
    * «Стандартные проекты» reads «Сейчас недоступно» — a driver artefact, not a
    * finding. The NON-card path (a standard project naming its own kind) is
    * covered by `promptSource.spec.ts`; what only the real DOM can prove is the
-   * chip in the live panel, its cost in pixels, and the button split.
+   * chip in the live panel, its cost in pixels, and the L3 verb.
    */
-  test('the panel names who is placing, in one line, and X reads the card', async ({page, request}) => {
+  test('the panel names who is placing, in one line, and L3 reads the card', async ({page, request}) => {
     test.setTimeout(300_000);
     page.on('pageerror', (e) => console.log('[pageerror]', e.message));
     await driveToPlacement(page, request, true);
@@ -184,14 +185,14 @@ test.describe('console placement panel · the source', () => {
     // The facts the panel exists for are still there, below it.
     await expect(panel).toContainText(/ВЫ ПОЛУЧИТЕ|Клетка поля/i);
 
-    // 3 · X reads the card — and L3 stays the cell-to-cell navigation verb.
+    // 3 · L3 reads the card — and the jump it replaced is GONE from the bar.
     await expect(panel.locator('.con-context__source-hint')).toHaveCount(1);
     const bar = page.locator('.con-cmdbar, .con-commands').first();
     await expect(bar).toContainText(/ИСТОЧНИК/i);
-    await expect(bar).toContainText(/ДОСТУПН/i);
+    await expect(bar).not.toContainText(/СЛЕДУЮЩАЯ/i);
 
     // 4 · …and the placement survives the round trip.
-    await key(page, 'KeyX', 1800);
+    await key(page, 'KeyC', 1800); // L3
     await shoot(page, '2-placement-source-fullscreen');
     await expect(page.locator('.con-zoom')).toHaveCount(1);
     await key(page, 'Escape', 1600);

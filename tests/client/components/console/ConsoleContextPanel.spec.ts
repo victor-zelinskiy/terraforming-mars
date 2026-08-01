@@ -42,6 +42,14 @@ const info: BoardCellInfo = {
 function mountPanel(props: Record<string, unknown>) {
   return shallowMount(ConsoleContextPanel, {
     ...globalConfig,
+    global: {
+      ...globalConfig.global,
+      // `console-source-dock` is GLOBAL in the real app (it renders the card
+      // face, whose import chain zeroes a mochapack spec) — so it is stubbed
+      // here rather than resolved. Its own contract lives in
+      // `promptSource.spec.ts` + the placement e2e probe.
+      stubs: {'console-source-dock': {props: ['view', 'chip'], template: '<div class="con-src con-src--chip" />'}},
+    },
     props: {mode: 'placement', viewerColor: 'red', players: [], ...props},
   });
 }

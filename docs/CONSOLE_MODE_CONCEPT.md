@@ -1638,8 +1638,12 @@ the desktop-gamepad mode are untouched throughout.
   and the secondary lore/rule facts read one notch compact (zoom 0.86;
   the primary status/reason keeps its size).
   **The legend (Menu → Управление) is the home of the globals:** LT
-  Information / RT Actions / L3 Next available / R3 Inspect all cells /
+  Information / RT Actions / L3 Inspect the source / R3 Inspect all cells /
   RS Scroll — the footer stays compact and contextual.
+  (L3 was «Next available» — a cyclic jump to the next legal cell. It was
+  dropped 2026-08-01: the d-pad already walks a board whose legal cells are
+  highlighted, and L3 is the shell's most consistent verb — the SOURCE —
+  which had nowhere to live on the one screen that most needed it.)
   Gates: 129 console+gamepad specs, vue-tsc, eslint, make:json
   (+2 ru keys), make:css, build:client — green.
 - **P22 — SHIPPED (premium console-native Milestones / Awards).**

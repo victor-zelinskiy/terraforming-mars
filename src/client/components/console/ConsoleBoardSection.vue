@@ -806,21 +806,6 @@ export default defineComponent({
       this.colAnchor = rectCenter(target.rect).x;
       this.select(target);
     },
-    /** RT: jump the selection to the NEXT legal cell (cyclic, DOM order). */
-    nextAvailable(): boolean {
-      const root = this.$refs.root as HTMLElement | undefined;
-      if (root === undefined) {
-        return false;
-      }
-      const cells = Array.from(root.querySelectorAll<HTMLElement>('.board-space--available[data_space_id]'));
-      if (cells.length === 0) {
-        return false;
-      }
-      const ids = cells.map((el) => el.getAttribute('data_space_id') ?? '');
-      const at = ids.indexOf(this.selectedSpaceId ?? '');
-      this.select(ids[(at + 1) % ids.length]);
-      return true;
-    },
     /**
      * A on the selected cell during placement: the existing per-cell onclick
      * (SelectSpace) — the same submission contract as a mouse click.

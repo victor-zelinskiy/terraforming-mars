@@ -16,7 +16,7 @@
            source may cost one line and no more. X opens the real card. -->
       <console-source-dock v-if="sourceView !== undefined" :view="sourceView" chip ref="sourceChip" />
       <div v-if="sourceCard !== undefined" class="con-context__source-hint">
-        <GamepadGlyph control="secondary" /><span>{{ $t('Inspect the source') }}</span>
+        <GamepadGlyph control="stickL" /><span>{{ $t('Inspect the source') }}</span>
       </div>
       <!-- P20: the inspect-all toggle announces itself as a distinct mode. -->
       <div v-if="inspectAll" class="con-context__mode-chip">{{ $t('Inspecting all cells') }}</div>
