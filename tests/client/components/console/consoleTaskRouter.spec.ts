@@ -55,6 +55,11 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '22c start: merger corp selection', wf: {type: 'card', title: 'Select corporation', cards: [], startGamePrompt: {kind: 'corporationSelection'}}, expect: {kind: 'startSequence', prompt: 'corporationSelection'}},
   {row: '23 and composite', wf: {type: 'and', title: 'Choose both', options: []}, expect: {kind: 'composite'}},
   {row: '24 ares global', wf: {type: 'aresGlobalParameters', title: 'Shift'}, expect: {kind: 'aresGlobal'}},
+  // The MARKER outranks the type: the Venus bonus arrives as an `and` for the
+  // base step and as an `or` for the final one, and both are ONE decision.
+  {row: '24a venus bonus (base)', wf: {type: 'and', title: 'Gain 2', options: [], venusBonusPrompt: {kind: 'standard', baseCount: 2}}, expect: {kind: 'venusBonus', mode: 'standard'}},
+  {row: '24b venus bonus (final)', wf: {type: 'or', title: 'Gain 3', options: [], venusBonusPrompt: {kind: 'final', baseCount: 2}}, expect: {kind: 'venusBonus', mode: 'final'}},
+  {row: '24c spend heat', wf: {type: 'and', title: 'Spend 6 heat', options: [], spendHeatPrompt: {amount: 6}}, expect: {kind: 'spendHeat'}},
   {row: 'native placement', wf: {type: 'space', title: 'Select space', spaces: []}, expect: {kind: 'space'}},
   {row: '30 out-of-scope: delegate', wf: {type: 'delegate', title: 'Select delegate'}, expect: {kind: 'unknown', inputType: 'delegate'}},
   {row: '30b out-of-scope: party', wf: {type: 'party', title: 'Select party'}, expect: {kind: 'unknown', inputType: 'party'}},
@@ -78,7 +83,11 @@ const EXPECTED_RED: ReadonlyArray<TaskKind> = [
   // T3: payment (native lanes) + projectCard (hand / std-project sections).
   // T4: colony (colonies rail pick mode).
   // T5: initialDraft (the start-scene wizard) + startSequence (the ceremony).
-  'composite', 'aresGlobal', 'unknown',
+  // T-composite: the two MARKED composites (the Venus alt-track bonus and
+  // Stormcraft's spend-heat) and the planetary-event thresholds now have their
+  // own console-native surfaces, so `aresGlobal` left this list. `composite`
+  // stays: an UNMARKED `and` is still the honest carve-out.
+  'composite', 'unknown',
 ];
 
 describe('consoleTaskRouter (CTS-2 coverage)', () => {

@@ -452,5 +452,37 @@
     "not found": "не найдено",
     "Not received": "не получена",
     "Microbe tag": "Бактерия",
-    "Space tag": "Космос"
+    "Space tag": "Космос",
+
+    "Covered": "Покрыто",
+    "Placed": "Размещено",
+    "Collect": "Забрать",
+    "No changes": "Без изменений",
+    "Shifted: ${0}": "Сдвинуто: ${0}",
+    "Planetary events": "Планетарные события",
+    "Move each threshold up to 1 step up or down.": "Каждый порог можно сдвинуть не более чем на 1 шаг вверх или вниз.",
+    "Erosion tiles are placed on Mars": "На Марсе появляются тайлы эрозии",
+    "Dust storm tiles are removed": "Тайлы пыльных бурь убираются",
+    "Erosion tiles become severe": "Эрозия становится сильной",
+    "Dust storm tiles become severe": "Пыльные бури становятся сильными",
+
+    "Each floater pays 2 heat": "Каждый аэростат покрывает 2 тепла",
+    "Not enough to cover the cost": "Не хватает, чтобы покрыть стоимость",
+    "Remove a step — this overpays": "Уберите шаг — это переплата",
+    "Choose how to pay the heat": "Выберите, чем оплатить тепло",
+
+    "Distribute the whole bonus": "Распределите весь бонус",
+    "Place your Venus track bonus": "Разместите бонус шкалы Венеры",
+    "Place the bonus and its wild resource": "Разместите бонус и дополнительный ресурс",
+    "Return to the bonus": "Вернуться к бонусу",
+    "Wild resource": "Дополнительный ресурс",
+    "Where does the wild resource go?": "Куда пойдёт дополнительный ресурс?",
+    "The final step adds one wild resource.": "Финальная ступень даёт один дополнительный ресурс на ваш выбор.",
+    "Put it on a card": "Положить на карту",
+    "One resource of that card's own type.": "Один ресурс того типа, который принимает карта.",
+    "Take one more standard resource": "Взять ещё один базовый ресурс",
+    "The wild joins the bonus you are placing.": "Он добавится к бонусу, который вы размещаете.",
+    "You have no card that can hold a resource": "Нет карты, которая может принять ресурс",
+    "Choose the card to receive it": "Выберите карту, которая его получит",
+    "Taken as a standard resource": "Взят базовым ресурсом"
 }

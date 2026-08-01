@@ -6025,6 +6025,23 @@ html.console-mode {
         color: #ffc9c4;
         font-size: .775rem;
     }
+    /* The placement SOURCE — one line, because this panel is ~17rem wide and
+       its consequences preview is variable-height: the source may cost a line
+       and no more. The chip is the shared `.con-src` in chip layout, so it
+       still speaks the one source vocabulary; only the affordance hint below
+       it is local (the command bar owns the verb, this is its echo where the
+       player is actually looking). */
+    &__source-hint {
+        align-self: flex-start;
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        margin-top: -.25rem;
+        font-size: .66rem;
+        letter-spacing: .05rem;
+        text-transform: uppercase;
+        color: fade(@con-text-dim, 88%);
+    }
     /* P21: secondary lore/rule facts go one notch down — the primary
        placement status / reason / bonus keeps its full size. */
     & .con-inspector__facts {

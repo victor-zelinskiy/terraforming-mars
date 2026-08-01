@@ -267,6 +267,28 @@ export function consoleTaskSummary(
   case 'colony':
     return {kickerKey: 'Colony', ask: ask(wf, 'Choose a colony'), sourceCard: source, returnKey: 'Return to selection'};
 
+  case 'venusBonus':
+    // The reward for crossing a bonus step on the Venus track — named as a
+    // BONUS, never as the shapeless «and» the server happens to send. The
+    // final step adds the wild resource, so it says so. The server title is
+    // the same sentence in weaker words («Gain N resource(s) for your Venus
+    // track bonus»), so the per-kind copy wins here.
+    return {
+      kickerKey: 'Venus bonus',
+      ask: task.mode === 'final' ? 'Place the bonus and its wild resource' : 'Place your Venus track bonus',
+      returnKey: 'Return to the bonus',
+    };
+
+  case 'spendHeat':
+    // Framed as what it IS — paying a cost — so it reads like every other
+    // payment in the shell rather than like a distribution puzzle.
+    return {
+      kickerKey: 'Spend heat',
+      ask: ask(wf, 'Choose how to pay the heat'),
+      sourceCard: source,
+      returnKey: 'Return to payment',
+    };
+
   case 'composite':
     return {kickerKey: compositeKicker(wf), ask: ask(wf, 'Choose an option'), sourceCard: source, returnKey: 'Return to the decision'};
 
@@ -288,7 +310,14 @@ export function consoleTaskSummary(
     return {kickerKey: 'First corporation action', ask: 'Take your corporation action', returnKey: 'Return to the decision'};
 
   case 'aresGlobal':
-    return {kickerKey: 'Ares', ask: ask(wf, 'Shift an Ares global parameter'), returnKey: 'Return to the decision'};
+    // DIEGETIC, like the rest of the shell: the player moves the thresholds at
+    // which planetary events fire — «Арес» is an expansion's name, not a thing
+    // on the board. The server title is the developer-facing sentence.
+    return {
+      kickerKey: 'Planetary events',
+      ask: 'Shift the planetary event thresholds',
+      returnKey: 'Return to the decision',
+    };
 
   case 'unknown':
     // The honest guard — the ONLY generic kicker. The stranded panel owns the

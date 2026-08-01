@@ -54,6 +54,15 @@ export type ConsoleTask =
   | {kind: 'handSelect'}
   | {kind: 'projectCard', mode: 'playFromHand' | 'standardProject'}
   | {kind: 'colony'}
+  /**
+   * The Venus ALT-TRACK bonus. Two server SHAPES for one decision — the base
+   * bonus is an `and` of six amounts, the 30 % final bonus is an `or` whose
+   * branches decide where the extra WILD resource goes — so the MARKER routes
+   * it, never the type (the same structural rule `startGamePrompt` follows).
+   */
+  | {kind: 'venusBonus', mode: 'standard' | 'final'}
+  /** Stormcraft: cover N heat with stock heat (1 each) and floaters (2 each). */
+  | {kind: 'spendHeat'}
   | {kind: 'composite'}
   | {kind: 'initialDraft'}
   | {kind: 'startSequence', prompt: 'corporationPlay' | 'corporationPay' | 'corporationSelection' | 'preludeSelection'}
@@ -82,6 +91,9 @@ export const NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'cardSelect', 'handSelect', 'payment', 'draftWait',
   'projectCard', 'colony', 'awardFunding',
   'initialDraft', 'startSequence', 'corpFirstAction',
+  // The three that used to fall through to the DESKTOP modal inside the
+  // console shell — each now has its own console-native surface.
+  'venusBonus', 'spendHeat', 'aresGlobal',
 ]);
 
 /** Kinds handled by shell surfaces that need NO task host (detector base). */
@@ -140,6 +152,17 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
   const wf: PlayerInputModel | undefined = view.waitingFor;
   if (wf === undefined) {
     return undefined;
+  }
+
+  // MARKERS outrank the raw type — the structural rule. The Venus alt-track
+  // bonus takes TWO shapes (`and` for the base, `or` for the final wild step)
+  // and the spend-heat prompt is an `and` that is really a payment; classifying
+  // either by type would drop both back onto the generic composite carve-out.
+  if (wf.venusBonusPrompt !== undefined) {
+    return {kind: 'venusBonus', mode: wf.venusBonusPrompt.kind};
+  }
+  if (wf.spendHeatPrompt !== undefined) {
+    return {kind: 'spendHeat'};
   }
 
   // Start-of-game markers outrank the raw type (a marked SelectCard is the

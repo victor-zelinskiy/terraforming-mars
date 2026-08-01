@@ -43,6 +43,16 @@
 
     &--compact &__card { zoom: calc(0.56 * var(--con-ui-scale, 1)); }
 
+    /* CHIP — one line, for a host with no room for a card face (the board's
+       placement-context panel). It reuses the PLATE, so a source named without
+       its picture is still the same sentence in the same shape, not a fifth
+       visual vocabulary. */
+    &--chip {
+        align-self: stretch;
+        .con-src__plate { max-width: 100%; }
+        .con-src__plate-name { font-size: .82rem; }
+    }
+
     /* A NON-card source: the same slot, a named plate. */
     &__plate {
         display: inline-flex;

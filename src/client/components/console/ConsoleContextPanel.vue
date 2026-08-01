@@ -8,6 +8,16 @@
     <template v-if="mode === 'placement'">
       <div class="con-context__task-kicker">{{ $t('Tile placement') }}</div>
       <div class="con-context__task-title">{{ placementTitle }}</div>
+      <!-- WHO is placing. The server has named the card on every card-driven
+           placement all along (`placementContext.source`) and nothing showed
+           it — so a tile that arrives from a triggered effect had no
+           attribution on screen at all. A CHIP, not the dock: this panel is
+           ~17rem wide and its consequences preview is variable-height, so the
+           source may cost one line and no more. X opens the real card. -->
+      <console-source-dock v-if="sourceView !== undefined" :view="sourceView" chip ref="sourceChip" />
+      <div v-if="sourceCard !== undefined" class="con-context__source-hint">
+        <GamepadGlyph control="secondary" /><span>{{ $t('Inspect the source') }}</span>
+      </div>
       <!-- P20: the inspect-all toggle announces itself as a distinct mode. -->
       <div v-if="inspectAll" class="con-context__mode-chip">{{ $t('Inspecting all cells') }}</div>
 
@@ -273,6 +283,8 @@ import {Message} from '@/common/logs/Message';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {ScaleTooltipContent} from '@/client/components/board/scaleTooltipState';
 import {HomeMaSummary, HomeMaRow} from '@/client/console/consoleQuickModel';
+import {CardName} from '@/common/cards/CardName';
+import {PromptSourceView} from '@/client/console/promptSource';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -341,6 +353,8 @@ export default defineComponent({
     cancellable: {type: Boolean, default: false},
     /** P20: the R3 inspect-all toggle is on (labels + the mode chip). */
     inspectAll: {type: Boolean, default: false},
+    /** WHO asked for this placement — normalized by the shared model. */
+    sourceView: {type: Object as PropType<PromptSourceView | undefined>, default: undefined},
     // track mode (P27)
     trackInfo: {type: Object as PropType<ScaleTooltipContent | null>, default: null},
     /** P27c: the owning scale's overview (name / current value / description). */
@@ -355,6 +369,10 @@ export default defineComponent({
     awardSummary: {type: Object as PropType<HomeMaSummary>, default: () => EMPTY_SUMMARY},
   },
   computed: {
+    /** The source CARD, when there is one — what X opens fullscreen. */
+    sourceCard(): CardName | undefined {
+      return this.sourceView?.inspectable === true ? this.sourceView.card : undefined;
+    },
     cellHeader(): string {
       return textOf(this.info?.status.header);
     },

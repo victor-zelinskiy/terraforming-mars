@@ -56,7 +56,10 @@ const ROWS: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<strin
   {row: 'start: corp pay', wf: {type: 'card', title: 'Pay for your cards', cards: [], startGamePrompt: {kind: 'corporationPay'}}, kicker: 'Payment'},
   {row: 'start: prelude', wf: {type: 'card', title: 'Select prelude card to play', cards: [], startGamePrompt: {kind: 'preludeSelection', preludeMode: 'hand'}}, kicker: 'Prelude'},
   {row: 'start: merger corp', wf: {type: 'card', title: 'Select corporation', cards: [], startGamePrompt: {kind: 'corporationSelection'}}, kicker: 'Corporation'},
-  {row: 'ares global', wf: {type: 'aresGlobalParameters', title: 'Shift'}, kicker: 'Ares'},
+  // DIEGETIC: «Арес» is a box, not a thing on the board.
+  {row: 'ares global', wf: {type: 'aresGlobalParameters', title: 'Shift'}, kicker: 'Planetary events'},
+  {row: 'venus bonus', wf: {type: 'and', title: 'Gain 2', options: [], venusBonusPrompt: {kind: 'standard', baseCount: 2}}, kicker: 'Venus bonus'},
+  {row: 'spend heat', wf: {type: 'and', title: 'Spend 6 heat', options: [], spendHeatPrompt: {amount: 6}}, kicker: 'Spend heat'},
 ];
 
 describe('consoleTaskSummary (no prompt is ever a bare «awaiting decision»)', () => {

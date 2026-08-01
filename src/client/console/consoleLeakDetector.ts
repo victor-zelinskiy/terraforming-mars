@@ -56,6 +56,11 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // a repeat pick (source composer v-show-hidden underneath) is never stranded.
   '.con-cardactions',
   '.con-prodloss', // the dedicated production-loss surface (Ares hazard penalty)
+  // The three that used to fall through to the DESKTOP modal: Stormcraft's
+  // spend-heat and the Venus alt-track bonus share the `.con-lanes` chassis;
+  // the planetary-event thresholds have their own root.
+  '.con-lanes',
+  '.con-ares',
   // NOTE: a DEFERRED task is handled by the `consoleTaskDeferred` early-return in
   // runLeakDetection, NOT by a serving surface. The legacy always-on amber chip
   // (`.con-banner--deferred`) that this list used to match no longer exists — it

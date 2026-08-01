@@ -33,6 +33,15 @@ export function orWrappedResponse(index: number, inner: unknown): unknown {
   return {type: 'or' as const, index, response: inner};
 }
 
+/**
+ * An AndOptions answer — one child response per option, IN THE SERVER'S OWN
+ * OPTION ORDER. The server zips them positionally, so a reordered array is a
+ * silently wrong answer, not an error.
+ */
+export function andResponse(responses: ReadonlyArray<unknown>): unknown {
+  return {type: 'and' as const, responses: [...responses]};
+}
+
 export function playerResponse(player: Color | 'NEUTRAL'): {type: 'player', player: Color | 'NEUTRAL'} {
   return {type: 'player', player};
 }

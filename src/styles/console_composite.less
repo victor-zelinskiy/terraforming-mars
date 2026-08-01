@@ -1,0 +1,580 @@
+/*
+ * THE THREE SURFACES THAT USED TO FALL THROUGH TO THE DESKTOP MODAL.
+ *
+ *   .con-lanes  — the shared "spread a budget across lanes" chassis, worn by
+ *                 `.con-heat` (Stormcraft's spend-heat) and `.con-venus` (the
+ *                 Venus alt-track bonus). ONE rule set, because the two prompts
+ *                 are the same machine (see `budgetLanes.ts`).
+ *   .con-ares   — the planetary-event thresholds (a different shape: four
+ *                 −1 / 0 / +1 segmented rows, not a budget).
+ *
+ * Authored in rem (1rem = 20px logical) per the TV profile contract; tokens
+ * (@con-*, mixins) come from console.less's root scope. Every FUNCTIONAL cue
+ * (focus, active, ready, blocked) is box-shadow / colour — `con-perf-lite`
+ * strips `filter` and `text-shadow`, and a focus ring that vanishes there costs
+ * the player their cursor.
+ */
+
+@lanes-gain: #7fd6a4;  // the calm "you receive" green
+@lanes-spend: #e6a15c; // the warm "you pay" amber (kin to the production-loss accent)
+
+/* ── The shared budget chassis ───────────────────────────────────────────── */
+
+.con-lanes {
+    // THE MODAL BAND (shared contract — console.less): between the bars, right
+    // of the always-visible player rail.
+    .con-ws-band();
+    z-index: 11480; // the same band as the task host these replace
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__panel {
+        position: relative;
+        width: min(44rem, 100%);
+        max-height: 100%;
+        display: flex;
+        flex-direction: column;
+        padding: 1.3rem 1.5rem .9rem;
+        border-radius: .8rem;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 .9rem 2.6rem rgba(0, 0, 0, 0.6);
+        color: @con-text;
+        overflow-y: auto;
+        .con-scrollbars();
+    }
+
+    /* ── Header ─────────────────────────────────────────────────────────── */
+    &__head { margin-bottom: .8rem; }
+    &__kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .8rem;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 90%);
+    }
+    &__kicker-mark { color: @con-cyan; }
+    /* The breadcrumb tail: only the STAGE advances, the root never moves. */
+    &__crumb-sep { color: fade(@con-cyan, 55%); }
+    &__crumb-stage {
+        color: @con-cyan;
+        font-weight: 700;
+        &--past { color: fade(@con-amber, 92%); }
+    }
+    &__title {
+        margin-top: .3rem;
+        font-size: 1.7rem;
+        font-weight: 800;
+        letter-spacing: .05rem;
+        text-transform: uppercase;
+        line-height: 1.1;
+        background: linear-gradient(180deg, #ffffff 0%, #c6e3fb 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    /* THE METER — the one number the player works against. */
+    &__meter {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .35rem;
+        margin-top: .75rem;
+        padding: .3rem .95rem;
+        border-radius: .5rem;
+        font-size: .95rem;
+        letter-spacing: .03rem;
+        background: rgba(20, 30, 44, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
+        color: @con-text-dim;
+
+        &-label { text-transform: uppercase; font-size: .72rem; letter-spacing: .1rem; }
+        &-now { font-size: 1.35rem; font-weight: 800; color: @con-text; }
+        &-slash { opacity: 0.55; }
+        &-target { font-size: 1rem; font-weight: 700; color: @con-text; }
+        &-icon {
+            align-self: center;
+            width: 1rem;
+            height: 1rem;
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+
+        &--ready {
+            box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 60%);
+            color: #cfe6fb;
+            .con-lanes__meter-now { color: @con-cyan; }
+        }
+        /* Covered, but a step could be taken back — the server would refuse it. */
+        &--over {
+            box-shadow: inset 0 0 0 .06rem fade(@lanes-spend, 68%);
+            .con-lanes__meter-now { color: @lanes-spend; }
+        }
+    }
+    &__blocked {
+        margin-top: .5rem;
+        font-size: .82rem;
+        color: fade(@lanes-spend, 92%);
+    }
+
+    /* NOT `flex: 1`: the panel is the scroll container, so this row must size
+       to its CONTENT. Flexing it computes a height smaller than the lanes and
+       they spill out of it — which is how the Venus recap ended up drawn on
+       top of the last resource row. */
+    &__main {
+        flex: 0 0 auto;
+        min-height: 0;
+        display: flex;
+        gap: 1.1rem;
+    }
+    &__rows {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+    }
+
+    /* ── A lane ─────────────────────────────────────────────────────────── */
+    &__row {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: .2rem;
+        padding: .55rem .8rem;
+        border-radius: .6rem;
+        background: linear-gradient(160deg, rgba(20, 30, 44, 0.72) 0%, rgba(11, 18, 28, 0.78) 100%);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+
+        &--active { box-shadow: inset 0 0 0 .06rem fade(@lanes-gain, 52%); }
+        &--focused { box-shadow: inset 0 0 0 .1rem @con-cyan; }
+        &--active&--focused { box-shadow: inset 0 0 0 .1rem @con-cyan, inset 0 0 0 .18rem fade(@lanes-gain, 34%); }
+        /* Nothing to spend on this lane — readable, never selectable-looking. */
+        &--spent { opacity: 0.52; }
+    }
+    &__line {
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+    }
+    &__id {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: .6rem;
+    }
+    &__frame {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: 2.2rem;
+        height: 2.2rem;
+        border-radius: .4rem;
+        background: rgba(58, 44, 26, 0.5);
+        box-shadow: inset 0 0 0 .05rem rgba(200, 150, 90, 0.28);
+    }
+    /* The shared resolver emits `.resource_icon` for a standard resource and
+       `.wgt-icon` for a global parameter — size BOTH, or half the rows show an
+       empty frame. */
+    &__icon:is(.resource_icon, .wgt-icon) {
+        display: inline-block;
+        width: 1.5rem;
+        height: 1.5rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__name {
+        font-size: 1.05rem;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* The dial + what it buys (spend-heat) — fixed cells so rows never jump. */
+    &__dial {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: baseline;
+        gap: .3rem;
+        min-width: 4.6rem;
+        justify-content: flex-end;
+    }
+    &__value { font-size: 1.35rem; font-weight: 800; color: @con-text; }
+    &__of { font-size: .85rem; color: @con-text-dim; }
+    &__pays {
+        flex-shrink: 0;
+        min-width: 4rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .25rem;
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: @lanes-spend;
+        &--empty { color: transparent; }
+        &-icon {
+            width: .95rem;
+            height: .95rem;
+            background-size: contain;
+            background-repeat: no-repeat;
+        }
+    }
+
+    /* current → resulting on the player's stock (the Venus bonus). */
+    &__stock {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: baseline;
+        justify-content: flex-end;
+        gap: .4rem;
+        min-width: 6.5rem;
+    }
+    &__cur {
+        font-size: 1.3rem;
+        font-weight: 800;
+        color: @con-text;
+        &--faded { font-size: 1.05rem; font-weight: 600; color: @con-text-dim; }
+    }
+    &__arrow { color: @lanes-gain; font-size: 1.05rem; }
+    &__next { font-size: 1.45rem; font-weight: 800; color: @lanes-gain; }
+    &__delta {
+        flex-shrink: 0;
+        min-width: 2.4rem;
+        text-align: center;
+        padding: .18rem .5rem;
+        border-radius: .4rem;
+        font-size: 1.05rem;
+        font-weight: 800;
+        color: #0d1a12;
+        background: linear-gradient(180deg, lighten(@lanes-gain, 8%) 0%, @lanes-gain 100%);
+        &--empty { background: none; color: transparent; }
+    }
+
+    &__keys {
+        flex-shrink: 0;
+        min-width: 3.4rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .2rem;
+    }
+    &__note {
+        font-size: .74rem;
+        color: @con-text-dim;
+        padding-left: 2.8rem;
+    }
+}
+
+/* ── The Venus bonus's own stages ────────────────────────────────────────── */
+
+.con-venus {
+    &__mark { color: #d9a2e8; } // the Venus accent, kept to the emblem only
+
+    &__wild {
+        display: flex;
+        flex-direction: column;
+        gap: .55rem;
+    }
+    &__wild-lead {
+        margin: 0 0 .2rem;
+        font-size: .88rem;
+        color: @con-text-dim;
+    }
+    &__opt {
+        padding: .7rem .9rem;
+        border-radius: .6rem;
+        background: linear-gradient(160deg, rgba(20, 30, 44, 0.72) 0%, rgba(11, 18, 28, 0.78) 100%);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+
+        &--focused { box-shadow: inset 0 0 0 .1rem @con-cyan; }
+        /* Dimmed by colour, never by opacity — an unavailable branch must stay
+           readable, because its REASON is the information. */
+        &--disabled {
+            .con-venus__opt-title, .con-venus__opt-desc { color: fade(@con-text-dim, 75%); }
+        }
+    }
+    &__opt-head {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+    }
+    &__opt-icon.resource_icon {
+        display: inline-block;
+        width: 1.3rem;
+        height: 1.3rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__opt-title {
+        flex: 1;
+        font-size: 1.1rem;
+        font-weight: 700;
+    }
+    &__opt-a { flex-shrink: 0; }
+    &__opt-desc {
+        margin-top: .2rem;
+        font-size: .84rem;
+        color: @con-text-dim;
+    }
+    &__opt-reason {
+        margin-top: .3rem;
+        font-size: .78rem;
+        color: fade(@lanes-spend, 92%);
+    }
+
+    /* The wild's host-card strip. */
+    &__cards {
+        display: flex;
+        align-items: flex-start;
+        gap: 1rem;
+        overflow-x: auto;
+        padding-bottom: .3rem;
+        .con-scrollbars();
+    }
+    &__card {
+        flex-shrink: 0;
+        border-radius: .5rem;
+        zoom: calc(0.62 * var(--con-ui-scale, 1));
+        :is(.card-container, .pcard) { margin: 0; }
+
+        &--focused {
+            box-shadow: 0 0 0 .16rem @con-cyan;
+        }
+    }
+
+    /* The decision the player already made, kept visible through placement. */
+    &__wild-recap {
+        margin-top: .7rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .28rem .75rem;
+        border-radius: .5rem;
+        background: rgba(20, 30, 44, 0.6);
+        box-shadow: inset 0 0 0 .05rem fade(#d9a2e8, 38%);
+
+        &-label {
+            font-size: .66rem;
+            letter-spacing: .09rem;
+            text-transform: uppercase;
+            color: fade(@con-text-dim, 88%);
+        }
+        &-value { font-size: .9rem; font-weight: 700; color: @con-text; }
+    }
+}
+
+/* ── The planetary-event thresholds ──────────────────────────────────────── */
+
+.con-ares {
+    .con-ws-band();
+    z-index: 11480;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    &__panel {
+        position: relative;
+        width: min(48rem, 100%);
+        max-height: 100%;
+        display: flex;
+        flex-direction: column;
+        padding: 1.3rem 1.5rem .9rem;
+        border-radius: .8rem;
+        background: @con-glass;
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 .9rem 2.6rem rgba(0, 0, 0, 0.6);
+        color: @con-text;
+        overflow-y: auto;
+        .con-scrollbars();
+    }
+
+    &__head { margin-bottom: .8rem; }
+    &__kicker {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .8rem;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 90%);
+    }
+    &__kicker-mark { color: @con-cyan; }
+    &__title {
+        margin-top: .3rem;
+        font-size: 1.55rem;
+        font-weight: 800;
+        letter-spacing: .04rem;
+        text-transform: uppercase;
+        line-height: 1.1;
+        background: linear-gradient(180deg, #ffffff 0%, #c6e3fb 100%);
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    &__lead {
+        margin-top: .35rem;
+        font-size: .88rem;
+        color: @con-text-dim;
+    }
+    &__count {
+        display: inline-block;
+        margin-top: .6rem;
+        padding: .28rem .8rem;
+        border-radius: .5rem;
+        font-size: .82rem;
+        letter-spacing: .04rem;
+        background: rgba(20, 30, 44, 0.6);
+        box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 55%);
+        color: #cfe6fb;
+        &--idle {
+            box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
+            color: @con-text-dim;
+        }
+    }
+
+    &__rows {
+        display: flex;
+        flex-direction: column;
+        gap: .5rem;
+    }
+    &__row {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        padding: .55rem .8rem;
+        border-radius: .6rem;
+        background: linear-gradient(160deg, rgba(20, 30, 44, 0.72) 0%, rgba(11, 18, 28, 0.78) 100%);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+
+        &--changed { box-shadow: inset 0 0 0 .06rem fade(@lanes-spend, 55%); }
+        &--focused { box-shadow: inset 0 0 0 .1rem @con-cyan; }
+        &--changed&--focused { box-shadow: inset 0 0 0 .1rem @con-cyan, inset 0 0 0 .18rem fade(@lanes-spend, 34%); }
+    }
+    &__id {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: .6rem;
+    }
+    &__frame {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        width: 2.2rem;
+        height: 2.2rem;
+        border-radius: .4rem;
+        background: rgba(26, 44, 58, 0.5);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 170, 200, 0.28);
+    }
+    /* The shared resolver emits `.resource_icon` for a standard resource and
+       `.wgt-icon` for a global parameter — size BOTH, or half the rows show an
+       empty frame. */
+    &__icon:is(.resource_icon, .wgt-icon) {
+        display: inline-block;
+        width: 1.5rem;
+        height: 1.5rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__names {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    &__name {
+        font-size: 1.05rem;
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    /* The CONSEQUENCE — a threshold with no consequence is trivia. */
+    &__effect {
+        font-size: .76rem;
+        color: @con-text-dim;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    &__values {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: baseline;
+        justify-content: flex-end;
+        gap: .4rem;
+        min-width: 7rem;
+    }
+    &__cur {
+        font-size: 1.3rem;
+        font-weight: 800;
+        color: @con-text;
+        &--faded { font-size: 1.05rem; font-weight: 600; color: @con-text-dim; }
+    }
+    &__arrow { color: @lanes-spend; font-size: 1.05rem; }
+    &__next { font-size: 1.4rem; font-weight: 800; color: @lanes-spend; }
+
+    &__seg {
+        flex-shrink: 0;
+        display: inline-flex;
+        border-radius: .45rem;
+        overflow: hidden;
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
+    }
+    &__seg-cell {
+        min-width: 2.3rem;
+        padding: .22rem 0;
+        text-align: center;
+        font-size: .88rem;
+        font-weight: 700;
+        color: @con-text-dim;
+        background: rgba(12, 20, 30, 0.55);
+
+        &--on {
+            color: #0d1520;
+            background: linear-gradient(180deg, #cfe6fb 0%, #9cc6e8 100%);
+        }
+        &--down&--on { background: linear-gradient(180deg, lighten(@lanes-spend, 12%) 0%, @lanes-spend 100%); }
+        &--up&--on { background: linear-gradient(180deg, lighten(@lanes-gain, 10%) 0%, @lanes-gain 100%); }
+    }
+    &__keys {
+        flex-shrink: 0;
+        min-width: 3.4rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .2rem;
+    }
+}
+
+/* Handheld: the same surfaces, tightened. */
+html.con-profile-handheld {
+    .con-lanes {
+        &__panel { width: min(38rem, 94vw); padding: .8rem 1rem .6rem; }
+        &__title { font-size: 1.15rem; }
+        &__kicker { font-size: .6rem; }
+        &__meter { font-size: .8rem; &-now { font-size: 1.1rem; } }
+        &__name { font-size: .9rem; }
+        &__cur, &__value { font-size: 1.1rem; }
+        &__next { font-size: 1.2rem; }
+    }
+    .con-venus__card { zoom: calc(0.5 * var(--con-ui-scale, 1)); }
+    .con-ares {
+        &__panel { width: min(40rem, 94vw); padding: .8rem 1rem .6rem; }
+        &__title { font-size: 1.05rem; }
+        &__name { font-size: .9rem; }
+        &__effect { font-size: .68rem; }
+        &__cur { font-size: 1.1rem; }
+        &__next { font-size: 1.2rem; }
+        &__seg-cell { min-width: 1.9rem; font-size: .78rem; }
+    }
+}

@@ -105,6 +105,13 @@ const FORCED_REACTION_INTERRUPTIVE: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'choice', 'player', 'amount', 'resource', 'distribute', 'payment', 'projectCard', 'colony', 'composite',
 ]);
 
+// The three DEDICATED composite surfaces are deliberately NOT here. Each is a
+// continuation of an action the viewer is already taking — spending heat pays a
+// bill they chose to raise, the Venus alt-track bonus rewards the step THEY
+// crossed, and the planetary thresholds shift on their own World Government
+// beat. None can arrive as an off-turn forced reaction, so gating them would
+// only add a press to a decision the player is already mid-way through.
+
 // Deliberately NEVER gated (open immediately): 'actionMenu' (the turn UI is not
 // a modal), 'space' (a placement — a continuation of the player's own play, and
 // it has its own banner flow), 'cardSelect' (draft / buy / target inside the

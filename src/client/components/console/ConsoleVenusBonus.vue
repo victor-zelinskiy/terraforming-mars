@@ -1,0 +1,453 @@
+<template>
+  <!--
+    THE VENUS TRACK BONUS — the reward for crossing a bonus step on the
+    Alternative Venus Board, console-native.
+
+    It is a GIFT, and it is presented as one: what you earned is stated as a
+    figure, and the whole surface is about placing it. Two shapes, ONE FLOW —
+    the 30 % final step first asks where its WILD resource goes, and only then
+    opens the same lanes; the frame, the kicker and the meter never move, so the
+    stage advances rather than a second screen arriving.
+
+    data-motion-*: rides the shared `.con-shade` dim + the surface-motion
+    director — no own backdrop.
+  -->
+  <div class="con-lanes con-venus con-ws" role="dialog" :aria-label="$t(headlineKey)" data-motion-surface="venus-bonus">
+    <div class="con-lanes__panel" data-motion-panel>
+      <header class="con-lanes__head">
+        <div class="con-lanes__kicker">
+          <span class="con-lanes__kicker-mark con-venus__mark" aria-hidden="true">◈</span>
+          <span>{{ $t('Venus bonus') }}</span>
+          <!-- The stage tail. Stable context BEFORE the mutable stage, and only
+               the tail advances — the console's breadcrumb grammar. -->
+          <template v-if="isFinal">
+            <span class="con-lanes__crumb-sep" aria-hidden="true">›</span>
+            <span class="con-lanes__crumb-stage" :class="{'con-lanes__crumb-stage--past': stage === 'place'}">
+              {{ $t(stage === 'wild' ? 'Wild resource' : 'Placement') }}
+            </span>
+          </template>
+        </div>
+        <div class="con-lanes__title">{{ $t(headlineKey) }}</div>
+
+        <!-- The meter belongs to the PLACEMENT stage only: during the wild
+             question nothing is placed yet and the budget is not even decided
+             (the wild can still fold into it), so a «0 / 2» there states a
+             number that is about to change. -->
+        <div v-if="stage === 'place'" class="con-lanes__meter" :class="{'con-lanes__meter--ready': ready}">
+          <span class="con-lanes__meter-label">{{ $t('Placed') }}</span>
+          <b class="con-lanes__meter-now">{{ placed }}</b>
+          <span class="con-lanes__meter-slash" aria-hidden="true">/</span>
+          <span class="con-lanes__meter-target">{{ target }}</span>
+        </div>
+        <div v-if="stage === 'place' && blockedText !== ''" class="con-lanes__blocked">⚠ {{ blockedText }}</div>
+      </header>
+
+      <!-- ── STAGE 1 (final step only): where does the WILD go? ──────────── -->
+      <div v-if="stage === 'wild'" class="con-venus__wild">
+        <p class="con-venus__wild-lead">{{ $t('The final step adds one wild resource.') }}</p>
+        <div v-for="(opt, i) in wildOptions" :key="opt.value"
+             class="con-venus__opt"
+             :class="{
+               'con-venus__opt--focused': wildIdx === i,
+               'con-venus__opt--disabled': opt.disabled,
+             }">
+          <div class="con-venus__opt-head">
+            <i class="con-venus__opt-icon" :class="opt.iconClass" aria-hidden="true"></i>
+            <span class="con-venus__opt-title">{{ $t(opt.titleKey) }}</span>
+            <GamepadGlyph v-if="wildIdx === i && !opt.disabled" control="confirm" class="con-venus__opt-a" />
+          </div>
+          <div class="con-venus__opt-desc">{{ $t(opt.descKey) }}</div>
+          <!-- A blocked branch is SHOWN with its reason, never dropped: losing
+               the wild silently because you own no resource card would be a
+               reward vanishing without a trace. -->
+          <div v-if="opt.disabled" class="con-venus__opt-reason">✕ {{ $t(opt.reasonKey) }}</div>
+        </div>
+      </div>
+
+      <!-- ── STAGE 1b: which card hosts the wild ────────────────────────── -->
+      <div v-else-if="stage === 'wildCard'" class="con-venus__cards">
+        <div v-for="(name, i) in wildTargets" :key="name"
+             class="con-venus__card"
+             :class="{'con-venus__card--focused': cardIdx === i}"
+             :ref="i === cardIdx ? 'focusedCard' : undefined">
+          <Card :card="{name}" :key="name" />
+        </div>
+      </div>
+
+      <!-- ── STAGE 2: place the standard resources ──────────────────────── -->
+      <div v-else class="con-lanes__main">
+        <div class="con-lanes__rows">
+          <div v-for="(lane, i) in lanes" :key="lane.key"
+               class="con-lanes__row"
+               :class="{
+                 'con-lanes__row--focused': focusIdx === i,
+                 'con-lanes__row--active': valueOf(lane) > 0,
+               }">
+            <div class="con-lanes__line">
+              <span class="con-lanes__id">
+                <span class="con-lanes__frame">
+                  <i class="con-lanes__icon" :class="lane.iconClass" aria-hidden="true"></i>
+                </span>
+                <span class="con-lanes__name">{{ $t(lane.label) }}</span>
+              </span>
+
+              <!-- current → resulting on the player's OWN stock: the point of
+                   choosing where a bonus lands is seeing what it becomes. -->
+              <span class="con-lanes__stock">
+                <span class="con-lanes__cur" :class="{'con-lanes__cur--faded': valueOf(lane) > 0}">{{ lane.available }}</span>
+                <template v-if="valueOf(lane) > 0">
+                  <span class="con-lanes__arrow" aria-hidden="true">→</span>
+                  <span class="con-lanes__next">{{ (lane.available ?? 0) + valueOf(lane) }}</span>
+                </template>
+              </span>
+
+              <span class="con-lanes__delta" :class="{'con-lanes__delta--empty': valueOf(lane) === 0}">
+                <template v-if="valueOf(lane) > 0">+{{ valueOf(lane) }}</template>
+              </span>
+
+              <span class="con-lanes__keys" aria-hidden="true">
+                <template v-if="focusIdx === i">
+                  <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
+                </template>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- What the wild is doing, kept visible through the placement so the
+           decision the player already made never disappears. BELOW the lanes,
+           not beside them: `.con-lanes__main` is a flex ROW, and a sibling
+           there halves the lanes' width — which squeezed every resource name
+           out of its own row. -->
+      <div v-if="stage === 'place' && isFinal" class="con-venus__wild-recap">
+        <span class="con-venus__wild-recap-label">{{ $t('Wild resource') }}</span>
+        <span class="con-venus__wild-recap-value">{{ wildRecapText }}</span>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script lang="ts">
+/**
+ * Presentation + the pad contract. The lane arithmetic is the shared
+ * `budgetLanes` engine (the same one the spend-heat surface uses) and every
+ * server-shape decision — which `and` holds the amounts for the chosen branch,
+ * what the response looks like — lives in the pure `compositePrompts` adapter.
+ */
+import {defineComponent, PropType} from 'vue';
+import Card from '@/client/components/card/CardFace.vue';
+import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import {PlayerViewModel} from '@/common/models/PlayerModel';
+import {VenusBonusPromptMeta} from '@/common/models/PlayerInputModel';
+import {CardName} from '@/common/cards/CardName';
+import {Units} from '@/common/Units';
+import {translateText} from '@/client/directives/i18n';
+import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
+import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
+import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
+import {clearPanelCommands, setPanelCommands} from '@/client/console/consolePanelUi';
+import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {
+  VenusWildChoice, venusBaseCount, venusBonusLanes, venusBonusResponse, venusWildTargets,
+} from '@/client/console/compositePrompts';
+import {
+  BudgetLane, BudgetRule, BudgetState, budgetBlockedKey, budgetTotal, budgetValid,
+  laneValue, maxOntoLane, stepFocus, stepLane,
+} from '@/client/console/budgetLanes';
+
+type Stage = 'wild' | 'wildCard' | 'place';
+
+interface WildOption {
+  value: VenusWildChoice;
+  iconClass: string;
+  titleKey: string;
+  descKey: string;
+  disabled: boolean;
+  reasonKey: string;
+}
+
+export default defineComponent({
+  name: 'ConsoleVenusBonus',
+  components: {Card, GamepadGlyph},
+  props: {
+    playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+  },
+  emits: ['submit', 'defer'],
+  data() {
+    return {
+      focusIdx: 0,
+      wildIdx: 0,
+      cardIdx: 0,
+      picks: {} as BudgetState,
+      wild: undefined as VenusWildChoice | undefined,
+      wildCard: undefined as CardName | undefined,
+      submitting: false,
+    };
+  },
+  computed: {
+    meta(): VenusBonusPromptMeta | undefined {
+      return this.playerView.waitingFor?.venusBonusPrompt;
+    },
+    isFinal(): boolean {
+      return this.meta?.kind === 'final';
+    },
+    wildTargets(): ReadonlyArray<CardName> {
+      return this.meta === undefined ? [] : venusWildTargets(this.meta);
+    },
+    /**
+     * THE STAGE. Derived, never a set of booleans: the base bonus goes straight
+     * to the lanes, the final one asks about its wild first and only descends
+     * into the card pick when that branch is chosen.
+     */
+    stage(): Stage {
+      if (!this.isFinal || this.wild === 'asStandard') {
+        return 'place';
+      }
+      if (this.wild === undefined) {
+        return 'wild';
+      }
+      return this.wildCard === undefined ? 'wildCard' : 'place';
+    },
+    target(): number {
+      return this.meta === undefined ? 0 : venusBaseCount(this.meta, this.wild);
+    },
+    rule(): BudgetRule {
+      return {kind: 'exact', target: this.target};
+    },
+    lanes(): Array<BudgetLane> {
+      const stock = this.playerView.thisPlayer as unknown as Partial<Record<keyof Units, number>>;
+      return venusBonusLanes(this.target, stock);
+    },
+    placed(): number {
+      return budgetTotal(this.lanes, this.picks);
+    },
+    ready(): boolean {
+      return budgetValid(this.lanes, this.picks, this.rule);
+    },
+    blockedText(): string {
+      const key = budgetBlockedKey(this.lanes, this.picks, this.rule);
+      return key === undefined ? '' : translateText(key);
+    },
+    headlineKey(): string {
+      switch (this.stage) {
+      case 'wild': return 'Where does the wild resource go?';
+      case 'wildCard': return 'Choose the card to receive it';
+      default: return 'Place your Venus track bonus';
+      }
+    },
+    wildOptions(): ReadonlyArray<WildOption> {
+      const noCards = this.wildTargets.length === 0;
+      return [
+        {
+          value: 'onCard',
+          iconClass: 'resource_icon resource_icon--cards',
+          titleKey: 'Put it on a card',
+          descKey: 'One resource of that card\'s own type.',
+          disabled: noCards,
+          reasonKey: 'You have no card that can hold a resource',
+        },
+        {
+          value: 'asStandard',
+          iconClass: 'resource_icon resource_icon--megacredits',
+          titleKey: 'Take one more standard resource',
+          descKey: 'The wild joins the bonus you are placing.',
+          disabled: false,
+          reasonKey: '',
+        },
+      ];
+    },
+    wildRecapText(): string {
+      if (this.wild === 'onCard' && this.wildCard !== undefined) {
+        return translateText(this.wildCard);
+      }
+      return translateText('Taken as a standard resource');
+    },
+    promptKey(): string {
+      return `${this.meta?.kind ?? ''}|${this.meta?.baseCount ?? 0}|${this.wildTargets.join(',')}`;
+    },
+    footCommands(): Array<ConsoleCommand> {
+      const back: ConsoleCommand = {control: 'back', label: this.stage === 'place' && this.isFinal ? 'Back' : 'Minimize'};
+      if (this.stage === 'wild') {
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: 'Select', enabled: !this.wildOptions[this.wildIdx]?.disabled},
+          back,
+        ];
+      }
+      if (this.stage === 'wildCard') {
+        return [
+          {control: 'dpadH', label: 'Navigate'},
+          {control: 'confirm', label: 'Select'},
+          {control: 'secondary', label: 'Inspect'},
+          back,
+        ];
+      }
+      return [
+        {control: 'dpad', label: 'Navigate'},
+        {control: 'bumperL', label: '−1'},
+        {control: 'bumperR', label: '+1'},
+        {control: 'triggerR', label: 'MAX'},
+        {control: 'secondary', label: 'Collect', enabled: this.ready},
+        back,
+      ];
+    },
+  },
+  watch: {
+    promptKey: {
+      immediate: true,
+      handler() {
+        this.reset();
+      },
+    },
+    /** A changed budget (the wild folded in) invalidates the placement. */
+    target() {
+      this.picks = {};
+      this.focusIdx = 0;
+    },
+    playerView() {
+      this.submitting = false;
+    },
+    footCommands: {
+      immediate: true,
+      deep: true,
+      handler(cmds: ReadonlyArray<ConsoleCommand>) {
+        setPanelCommands('venusBonus', cmds);
+      },
+    },
+  },
+  beforeUnmount() {
+    clearPanelCommands('venusBonus');
+  },
+  methods: {
+    valueOf(lane: BudgetLane): number {
+      return laneValue(this.picks, lane.key);
+    },
+    reset(): void {
+      this.submitting = false;
+      this.focusIdx = 0;
+      this.wildIdx = 0;
+      this.cardIdx = 0;
+      this.picks = {};
+      this.wild = undefined;
+      this.wildCard = undefined;
+    },
+    handleIntent(intent: GamepadIntent): void {
+      if (intent.kind === 'nav') {
+        this.onNav(intent.dir);
+        return;
+      }
+      switch (consoleActionOf(intent)) {
+      case 'primary': // A
+        this.onConfirmPress();
+        return;
+      case 'prevSection':
+        if (this.stage === 'place') {
+          this.step(-1);
+        }
+        return;
+      case 'nextSection':
+        if (this.stage === 'place') {
+          this.step(1);
+        }
+        return;
+      case 'nextTab': // RT
+        if (this.stage === 'place') {
+          this.maxOnto();
+        }
+        return;
+      case 'inspect': // X
+        if (this.stage === 'wildCard') {
+          this.zoomFocusedCard();
+        } else if (this.stage === 'place') {
+          this.collect();
+        }
+        return;
+      case 'back':
+        this.onBack();
+        return;
+      default:
+        return;
+      }
+    },
+    onNav(dir: string): void {
+      if (this.stage === 'wild') {
+        if (dir === 'up' || dir === 'down') {
+          this.wildIdx = Math.min(this.wildOptions.length - 1, Math.max(0, this.wildIdx + (dir === 'down' ? 1 : -1)));
+        }
+        return;
+      }
+      if (this.stage === 'wildCard') {
+        if (dir === 'left' || dir === 'right') {
+          this.cardIdx = Math.min(this.wildTargets.length - 1, Math.max(0, this.cardIdx + (dir === 'right' ? 1 : -1)));
+        }
+        return;
+      }
+      if (dir === 'up' || dir === 'down') {
+        this.focusIdx = stepFocus(this.lanes, this.focusIdx, dir === 'down' ? 1 : -1);
+      }
+    },
+    /** A — advances the flow one level; it never submits (X does). */
+    onConfirmPress(): void {
+      if (this.stage === 'wild') {
+        const opt = this.wildOptions[this.wildIdx];
+        if (opt !== undefined && !opt.disabled) {
+          this.wild = opt.value;
+        }
+        return;
+      }
+      if (this.stage === 'wildCard') {
+        this.wildCard = this.wildTargets[this.cardIdx];
+      }
+    },
+    /** B — ONE logical level, and the earned bonus survives it. */
+    onBack(): void {
+      if (this.stage === 'wildCard') {
+        this.wild = undefined;
+        return;
+      }
+      if (this.stage === 'place' && this.isFinal) {
+        this.wild = undefined;
+        this.wildCard = undefined;
+        return;
+      }
+      this.$emit('defer');
+    },
+    step(delta: number): void {
+      const lane = this.lanes[this.focusIdx];
+      if (lane !== undefined) {
+        this.picks = stepLane(this.lanes, this.picks, this.rule, lane.key, delta);
+      }
+    },
+    maxOnto(): void {
+      const lane = this.lanes[this.focusIdx];
+      if (lane !== undefined) {
+        this.picks = maxOntoLane(this.lanes, this.picks, this.rule, lane.key);
+      }
+    },
+    collect(): void {
+      if (!this.ready || this.submitting || this.meta === undefined) {
+        return;
+      }
+      this.submitting = true;
+      this.$emit('submit', venusBonusResponse(this.meta, this.picks, this.wild, this.wildCard));
+    },
+    /** X on the card stage — the ordinary fullscreen viewer, read-only. */
+    zoomFocusedCard(): void {
+      const name = this.wildTargets[this.cardIdx];
+      if (name === undefined) {
+        return;
+      }
+      openConsoleCardZoom([{name}], 0, undefined, undefined, {
+        origin: {
+          kind: 'physical',
+          resolve: () => {
+            const el = this.$refs.focusedCard as Array<HTMLElement> | HTMLElement | undefined;
+            const host = Array.isArray(el) ? el[0] : el;
+            return host?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? null;
+          },
+        },
+      });
+    },
+  },
+});
+</script>

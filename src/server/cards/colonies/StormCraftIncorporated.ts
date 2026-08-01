@@ -10,6 +10,7 @@ import {Size} from '../../../common/cards/render/Size';
 import {PlayerInput} from '../../PlayerInput';
 import {Resource} from '../../../common/Resource';
 import {message} from '../../logs/MessageBuilder';
+import {cardEffect} from '../../inputs/choiceContext';
 
 export class StormCraftIncorporated extends ActiveCorporationCard {
   constructor() {
@@ -76,8 +77,12 @@ export class StormCraftIncorporated extends ActiveCorporationCard {
       player.stock.deduct(Resource.HEAT, heatAmount);
       return cb();
     }).setTitle(message('Select how to spend ${0} heat', (b) => b.number(targetAmount)))
-      // Route to the premium SpendHeatContent modal (heat + floaters distribution)
+      // Route to the premium spend-heat surface (heat + floaters distribution)
       // instead of the legacy AndOptions-of-SelectAmount widget.
-      .markSpendHeatPrompt({amount: targetAmount});
+      .markSpendHeatPrompt({amount: targetAmount})
+      // …and name WHO is offering the floaters. The prompt arrives in the
+      // middle of paying for something else, so without this the player is
+      // handed two dials and no clue which card turned one payment into two.
+      .markChoiceContext(cardEffect(this, undefined, 'effect-choice'));
   }
 }

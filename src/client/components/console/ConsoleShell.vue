@@ -128,6 +128,7 @@
                            :illegalReason="selectedCellIllegalReason"
                            :inspectAll="consoleState.freeRoam"
                            :cancellable="placementCancellable"
+                           :sourceView="placementSourceView"
                            :myTurn="myTurn"
                            :actionsAvailable="actionsAvailableCount"
                            :actionsTotal="actionsTotalCount"
@@ -524,6 +525,37 @@
                              :playerView="playerView"
                              @submit="onTaskSubmit"
                              @defer="onTaskDefer" />
+    </transition>
+
+    <!-- The three prompts that used to fall through to the DESKTOP modal
+         inside the console shell. Same submit / defer contract as every other
+         decision surface; each owns the pad while it serves. -->
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+      <ConsoleSpendHeat v-if="spendHeatActive"
+                        ref="spendHeat"
+                        :playerView="playerView"
+                        @submit="onTaskSubmit"
+                        @defer="onTaskDefer" />
+    </transition>
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+      <ConsoleVenusBonus v-if="venusBonusActive"
+                         ref="venusBonus"
+                         :playerView="playerView"
+                         @submit="onTaskSubmit"
+                         @defer="onTaskDefer" />
+    </transition>
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+      <ConsoleAresGlobals v-if="aresGlobalsActive"
+                          ref="aresGlobals"
+                          :playerView="playerView"
+                          @submit="onTaskSubmit"
+                          @defer="onTaskDefer" />
     </transition>
 
     <!-- CTS T5: the game-opening START SCENE (initialCards wizard /
@@ -1177,7 +1209,15 @@ import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, p
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
+import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
+import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
+import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
+
+import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
+
+/** The kinds served by a DEDICATED composite surface (not by the task host). */
+const NATIVE_COMPOSITE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['venusBonus', 'spendHeat', 'aresGlobal']);
 import {ConsoleTaskSummary, consoleTaskSummary} from '@/client/console/consoleTaskSummary';
 import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
@@ -1341,6 +1381,9 @@ export default defineComponent({
     ConsoleEffectDecision,
     ConsoleFinalGreenery,
     ConsoleProductionLoss,
+    ConsoleSpendHeat,
+    ConsoleVenusBonus,
+    ConsoleAresGlobals,
     ConsoleStartScene,
     ConsoleRevealOverlay,
     ConsolePlayCardConfirm,
@@ -1694,6 +1737,7 @@ export default defineComponent({
         this.corpFirstActionOpen ||
         this.govSupportActive ||
         this.productionLossActive ||
+        this.nativeCompositeTask !== undefined ||
         this.maConfirmView !== undefined ||
         this.maInspectItem !== undefined ||
         this.colonyInspectModel !== undefined ||
@@ -1771,6 +1815,7 @@ export default defineComponent({
         this.startTask !== undefined ||
         this.govSupportActive ||
         this.productionLossActive ||
+        this.nativeCompositeTask !== undefined ||
         this.consoleRevealMode !== undefined ||
         this.consoleState.sheet !== undefined ||
         this.consoleState.confirm !== undefined ||
@@ -2082,7 +2127,39 @@ export default defineComponent({
      * shows when nothing native handles the prompt.
      */
     hostServesPrompt(): boolean {
-      return taskServedByHost(this.playerView) !== undefined;
+      // The three DEDICATED composite surfaces count too: they are not
+      // host-served, but they ARE served natively, and the desktop fallback
+      // must stay suppressed for them exactly as it does for the host (and
+      // hold-independently, or it flashes for a beat before they mount).
+      return taskServedByHost(this.playerView) !== undefined || this.compositeServesPrompt;
+    },
+    /**
+     * The three prompts that used to fall through to the DESKTOP modal inside
+     * the console shell — the Venus alt-track bonus, Stormcraft's spend-heat
+     * and the planetary-event thresholds. Read from the RAW router (none of
+     * them is host-served) and HOLD-INDEPENDENT, like `hostServesPrompt`.
+     */
+    compositeServesPrompt(): boolean {
+      const task = taskFor(this.playerView);
+      return task !== undefined && NATIVE_COMPOSITE_KINDS.has(task.kind);
+    },
+    /** …and the same classification, gated on the `host` admission so a reveal
+     *  still owns the foreground while it plays. */
+    nativeCompositeTask(): ConsoleTask | undefined {
+      if (this.pendingClientPayment !== undefined || !this.admits('host')) {
+        return undefined;
+      }
+      const task = taskFor(this.playerView);
+      return task !== undefined && NATIVE_COMPOSITE_KINDS.has(task.kind) ? task : undefined;
+    },
+    venusBonusActive(): boolean {
+      return this.nativeCompositeTask?.kind === 'venusBonus' && !this.consoleState.task.deferred;
+    },
+    spendHeatActive(): boolean {
+      return this.nativeCompositeTask?.kind === 'spendHeat' && !this.consoleState.task.deferred;
+    },
+    aresGlobalsActive(): boolean {
+      return this.nativeCompositeTask?.kind === 'aresGlobal' && !this.consoleState.task.deferred;
     },
     /** What the ConsoleTaskHost renders: a server task OR the client payment. */
     hostTask(): ConsoleTask | undefined {
@@ -2553,6 +2630,24 @@ export default defineComponent({
         return true; // client-side — nothing committed yet
       }
       return this.playerView.waitingFor?.placementContext?.cancellable === true;
+    },
+    /**
+     * WHO asked for this placement. Read off `placementSpaceModel` — the one
+     * resolver that already unifies the three placement sources — so the two
+     * CLIENT pickers (convert plants, a task's nested space) are covered too;
+     * reading the task summary instead would classify only the server prompt.
+     *
+     * `createMarsSelectSpace` has derived `placementContext.source` from the
+     * placing card since the marker existed, and the panel showed none of it:
+     * a tile that arrives from a triggered effect had no attribution on screen.
+     */
+    placementSourceView(): PromptSourceView | undefined {
+      return this.placementActive ? promptSourceView(this.placementSpaceModel) : undefined;
+    },
+    /** The placement source CARD, when there is one — what X inspects. */
+    placementSourceCard(): CardName | undefined {
+      const view = this.placementSourceView;
+      return view?.inspectable === true ? view.card : undefined;
     },
     /**
      * The active space prompt, narrowed to the SelectSpace model — the ONE
@@ -3829,6 +3924,17 @@ export default defineComponent({
           {control: 'back', label: 'Minimize'},
         ])];
       }
+      // The dedicated composite surfaces publish their own contracts; the
+      // fallbacks below only ever show for the frame before the watcher runs.
+      if (this.spendHeatActive) {
+        return [...(panelCommands('spendHeat') ?? [{control: 'secondary', label: 'Pay'}, {control: 'back', label: 'Minimize'}])];
+      }
+      if (this.venusBonusActive) {
+        return [...(panelCommands('venusBonus') ?? [{control: 'secondary', label: 'Collect'}, {control: 'back', label: 'Minimize'}])];
+      }
+      if (this.aresGlobalsActive) {
+        return [...(panelCommands('aresGlobals') ?? [{control: 'secondary', label: 'Apply'}, {control: 'back', label: 'Minimize'}])];
+      }
       if (this.effectDecisionActive) {
         return [...(panelCommands('effectDecision') ?? [])];
       }
@@ -4085,6 +4191,15 @@ export default defineComponent({
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Place here', enabled: this.selectedCellLegal},
           {control: 'stickL', label: 'Next available'},
+          // X — the SOURCE card fullscreen. NOT L3: that is the cell-to-cell
+          // navigation verb here and must stay it. X is also the RIGHT button
+          // by the console's own grammar — nothing has committed yet, so the
+          // card placing this tile IS the current object («pre-commit the
+          // source IS the current object: X = source, no L3»). X is otherwise
+          // inert while placing (every `inspect` branch requires
+          // !placementActive), so nothing is displaced.
+          ...(this.placementSourceCard !== undefined ?
+            [{control: 'secondary' as GlyphControl, label: 'Inspect the source'}] : []),
           {control: 'stickR', label: this.consoleState.freeRoam ? 'Available only' : 'All cells'},
         ];
         if (this.placementCancellable) {
@@ -5531,6 +5646,19 @@ export default defineComponent({
         panel?.handleIntent(intent);
         return true;
       }
+      // The three dedicated COMPOSITE surfaces own the pad on the same terms.
+      if (this.spendHeatActive) {
+        (this.$refs.spendHeat as InstanceType<typeof ConsoleSpendHeat> | undefined)?.handleIntent(intent);
+        return true;
+      }
+      if (this.venusBonusActive) {
+        (this.$refs.venusBonus as InstanceType<typeof ConsoleVenusBonus> | undefined)?.handleIntent(intent);
+        return true;
+      }
+      if (this.aresGlobalsActive) {
+        (this.$refs.aresGlobals as InstanceType<typeof ConsoleAresGlobals> | undefined)?.handleIntent(intent);
+        return true;
+      }
       // The EFFECT DECISION screen owns input while it stands in for the host
       // (same contract, same gate — kept next to it so the two can never both
       // claim the pad).
@@ -6323,6 +6451,12 @@ export default defineComponent({
           this.zoomHandCard();
         } else if (this.consoleState.section === 'colonies') {
           this.toggleColonyInspect();
+        } else if (onBoard && this.placementActive && this.placementSourceCard !== undefined) {
+          // MID-PLACEMENT X reads the card that is placing this tile. It was
+          // the one inert button here, and the context panel had no way to
+          // show more than the card's NAME — the board stays live underneath,
+          // so the cursor and the cell facts survive the viewer.
+          this.inspectPlacementSource();
         } else if (onBoard && !this.placementActive &&
             !this.consoleState.inspecting && !this.consoleState.scaleInspecting) {
           this.openPlayedOverlay();
@@ -8594,6 +8728,25 @@ export default defineComponent({
         return;
       }
       openConsoleCardZoom([{name}], 0);
+    },
+    /**
+     * X mid-placement — the card that is placing this tile, fullscreen. The
+     * viewer names its role, and the board is never unmounted: the cursor,
+     * the highlighted cells and the panel's facts are exactly as they were
+     * when it closes.
+     */
+    inspectPlacementSource(): void {
+      const name = this.placementSourceCard;
+      if (name === undefined) {
+        return;
+      }
+      openConsoleCardZoom([{name}], 0, undefined, undefined, {
+        statusLabel: 'Source',
+        origin: {
+          kind: 'physical',
+          resolve: () => document.querySelector<HTMLElement>('.con-context .con-src') ?? null,
+        },
+      });
     },
     /** Multi-select toggle (respects `max` — a full set ignores a new pick). */
     toggleHandSelectPick(name: string): void {
