@@ -128,15 +128,20 @@ export function buildPlayCardBatch(args: PlayCardBatchArgs): Array<unknown> {
 export type PlayChoiceMode = 'inline' | 'handPick' | 'tableauPick' | 'playedTarget' | 'repeat' | 'followup';
 
 /**
- * `playedNames` = every card on ANY player's table. A pick whose candidates
- * all live there — but NOT all on the viewer's own — used to fall through to
- * `inline`: a generic text list that said nothing about whose card it was,
- * where it sat, or what choosing it would do. It now routes to the EMBEDDED
- * played-target step, which is the surface that answers all three.
+ * `playedNames` = every card on ANY player's table.
  *
- * The viewer's OWN-table case keeps `tableauPick` (the physical lift out of
- * the real tableau) — that surface is genuinely about the player's own table
- * and is not being migrated here.
+ * THE BOUNDARY IS A CAPABILITY, NOT AN OWNER. A pick that points at ONE card
+ * already on the table — whoever owns it — is what the EMBEDDED played-target
+ * step exists for, and it is checked FIRST. Routing by owner instead was the
+ * bug this ordering fixes: Robotic Workforce («Промышленные роботы») targets
+ * the viewer's OWN buildings, so an own-table-first check sent the flagship
+ * case straight back to the old lift-out-of-the-tableau surface and the new
+ * step never appeared.
+ *
+ * `tableauPick` (the physical lift) keeps exactly what the new step
+ * deliberately cannot do: MULTI selection — the merged up-to-N pick (Astra)
+ * and the accumulate-then-confirm grammar. That is a real capability
+ * difference, so it is a real routing difference.
  */
 export function playChoiceMode(
   c: ComposerChoice,
@@ -158,15 +163,13 @@ export function playChoiceMode(
     if (candidates.every((cd) => handNames.has(cd.name))) {
       return 'handPick';
     }
-    if (candidates.every((cd) => tableauNames.has(cd.name))) {
-      return 'tableauPick';
-    }
-    // Cards that are ON THE TABLE, somewhere — the embedded played-target
-    // step owns these (single selection only: it is a «point at one card»
-    // surface by design, and a multi-select needs an accumulation grammar it
-    // deliberately does not have).
+    // ONE card already on the table, whoever owns it → the embedded step.
+    // Checked BEFORE the own-table branch on purpose (see the note above).
     if (model.max <= 1 && playedNames !== undefined && candidates.every((cd) => playedNames.has(cd.name))) {
       return 'playedTarget';
+    }
+    if (candidates.every((cd) => tableauNames.has(cd.name))) {
+      return 'tableauPick';
     }
     // Candidates the console doesn't own a surface for (SRR-hosted cards):
     // a single pick stays an inline sub-list; a multi-select keeps the

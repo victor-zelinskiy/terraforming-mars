@@ -262,9 +262,24 @@ describe('playChoiceMode — routing a played-card target to the embedded step',
     expect(mode).to.eq('playedTarget');
   });
 
-  it('leaves the viewer\'s OWN-table pick on the physical tableau surface', () => {
+  /**
+   * THE REGRESSION THIS ORDERING FIXES. «Промышленные роботы»
+   * (RoboticWorkforce) duplicates the production of one of the player's OWN
+   * buildings — so an own-table-first check sent the flagship case straight
+   * back to the old lift-out-of-the-tableau surface and the new step never
+   * appeared. The boundary is the CAPABILITY (one card vs many), not the owner.
+   */
+  it('routes an OWN-table SINGLE pick to the embedded step too', () => {
     const mode = playChoiceMode(
       choice(['Mine']), set(), set('Mine'), set('Mine', 'Theirs'));
+    expect(mode).to.eq('playedTarget');
+  });
+
+  /** MULTI keeps the physical tableau surface — accumulate-then-confirm is a
+   *  real capability the embedded step deliberately does not have. */
+  it('leaves a MULTI own-table pick on the physical tableau surface', () => {
+    const mode = playChoiceMode(
+      choice(['Mine', 'Mine2'], 2), set(), set('Mine', 'Mine2'), set('Mine', 'Mine2'));
     expect(mode).to.eq('tableauPick');
   });
 

@@ -697,8 +697,21 @@ export default defineComponent({
         return undefined;
       }
       const model = choice.input as SelectCardModel;
+      // DEDUPE (Cyberia Systems' sequential copy steps): a card an EARLIER
+      // step already holds is not a candidate here. The rule lived only in the
+      // old tableau-pick branch; it moves with the flow rather than being left
+      // behind — the step's contract is «only selectable candidates», and a
+      // card that cannot be chosen twice is not selectable a second time.
+      const taken = new Set<string>();
+      const step = choice.scope === 'step' ? this.selectedBranch?.steps[choice.index] : undefined;
+      for (const si of (step !== undefined && step.kind === 'input' ? step.dedupeFromSteps ?? [] : [])) {
+        const name = this.capturedCardNameAt(si);
+        if (name !== undefined) {
+          taken.add(name);
+        }
+      }
       return buildPlayedTargetModel({
-        candidates: model.cards,
+        candidates: taken.size === 0 ? model.cards : model.cards.filter((c) => !taken.has(c.name)),
         players: this.playerView.players,
         viewerColor: this.thisPlayer.color,
         ask: textOf(model.title),
