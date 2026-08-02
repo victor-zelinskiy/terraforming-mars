@@ -8,7 +8,7 @@ import {Message} from '../../common/logs/Message';
 import {TileType} from '../../common/TileType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
-import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor} from '../../common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor, VictoryPointsDelta} from '../../common/models/ActionPreviewModel';
 import {AmountConversionModel, AmountCostModel, AmountResultModel, PlayerInputModel} from '../../common/models/PlayerInputModel';
 import {effectsForBehavior, copiedProductionUnits, resourceVictoryPoints} from '../models/actionPreview';
 import {Units} from '../../common/Units';
@@ -447,29 +447,34 @@ export function selectCardStep(
  * resource-driven VP, so the field stays absent rather than shipping an empty
  * map on every card pick in the game.
  *
- * ⚠️ PRECONDITION: `cards` must be `player`'s OWN cards. The rule is evaluated
- * through `new Counter(player, card)`, so a card owned by someone ELSE would
- * have its non-resource half ("+1 VP per Jovian tag") counted against the wrong
- * tableau and report a number that is simply false. Every caller today targets
- * own cards; a cross-owner picker (Ants / Predators remove from ANY card) needs
- * the OWNER resolved per candidate first — it is deliberately not wired.
+ * OWNER-AWARE. A picker may span tableaux (Predators / Ants take a resource
+ * from ANY card), so each candidate's rule is evaluated through ITS OWNER's
+ * `Counter` — «1 ПО за каждую метку Юпитера» read against the actor's tableau
+ * would report a number that is simply false — and a foreign card carries the
+ * owner so the client can say WHOSE points move.
+ *
+ * A card whose points RESPOND to the resource is reported even when the value
+ * does not move: choosing between «1 ПО за каждую фишку» and «1 ПО за каждые
+ * две, и там чётное число» is precisely the comparison this exists for, and
+ * silence would make the second look like the first.
  */
 export function targetVictoryPoints(
   player: IPlayer,
   cards: ReadonlyArray<ICard>,
   delta: number | undefined,
-): Partial<Record<CardName, {from: number, to: number}>> | undefined {
+): Partial<Record<CardName, VictoryPointsDelta>> | undefined {
   if (delta === undefined || delta === 0) {
     return undefined;
   }
-  let box: Partial<Record<CardName, {from: number, to: number}>> | undefined;
+  let box: Partial<Record<CardName, VictoryPointsDelta>> | undefined;
   for (const c of cards) {
-    const vp = resourceVictoryPoints(player, c, delta);
-    // Only a MOVING value earns a line: «2 → 2» is noise, and a card whose VP
-    // the resource does not touch must not imply that it does.
-    if (vp !== undefined && vp.from !== vp.to) {
+    // A card BEING PLAYED is on no tableau yet (Jovian Lanterns targets itself),
+    // and an SRR-hosted card is unplayed — both are the actor's own.
+    const owner = player.game.getCardPlayerOrUndefined(c.name) ?? player;
+    const vp = resourceVictoryPoints(owner, c, delta);
+    if (vp !== undefined) {
       box = box ?? {};
-      box[c.name] = vp;
+      box[c.name] = owner.id === player.id ? vp : {...vp, owner: {color: owner.color, name: owner.name}};
     }
   }
   return box;
@@ -791,17 +796,44 @@ export function removeAddCardResource(player: IPlayer, card: ActionCard, resourc
   // `previewRemovalModel` (NOT `previewSelectCard`) so a MarsBot card-resource
   // target is pre-collected too — the model is the SAME OrOptions the live action
   // builds, so the confirm-modal response replays byte-for-byte.
-  const model = new RemoveResourcesFromCard(player, resource, 1, {log: true, autoselect: false}).previewRemovalModel();
-  const steps: ReadonlyArray<ActionPreviewStep> = model !== undefined ? [{kind: 'input', input: model}] : [];
+  // ONE removal, asked twice: the picker's candidates and the set the VP reading
+  // is computed over are then the same set by construction.
+  const removal = new RemoveResourcesFromCard(player, resource, 1, {log: true, autoselect: false});
+  const model = removal.previewRemovalModel();
+  // THE WHOLE DECISION: this picker spans OTHER players' tableaux, and taking the
+  // resource off a card that scores per resource costs its OWNER points. Which
+  // opponent card to hit — one that scores per resource over one that doesn't,
+  // and one that scores per EACH over one that scores per two — is the choice,
+  // and it is unreadable from the card faces alone. The delta is −1 (the resource
+  // LEAVES the target); the +1 that lands on this card is constant across
+  // candidates and is already stated as the effect below.
+  const steps: ReadonlyArray<ActionPreviewStep> = model !== undefined ?
+    [{kind: 'input', input: model, amount: -1, vpBox: targetVictoryPoints(player, removal.previewTargetCards(), -1)}] :
+    [];
   // The gain: the removed resource lands on THIS card (current → resulting). The
   // cost — which card it's taken from — is the picker step above.
-  const effects: ReadonlyArray<ActionEffect> = [{
+  const gain: ActionEffect = {
     direction: 'gain',
     icon: cardResourceIcon(resource),
     amount: 1,
     current: card.resourceCount,
     resulting: card.resourceCount + 1,
     note: 'on this card',
+  };
+  // …and what that resource is WORTH here. This half is CONSTANT across
+  // candidates, so it belongs with the effects and not in the per-candidate rail
+  // — a value that never changes, restated on every focus move, is what stops a
+  // status line being glanceable. Stated even when it does not move: Ants score
+  // 1 VP per TWO microbes, so whether this particular one pays is exactly the
+  // thing the player cannot read off the card, and the chip's own «no effect»
+  // treatment says so without a second vocabulary.
+  const selfVp = resourceVictoryPoints(player, card, 1);
+  const effects: ReadonlyArray<ActionEffect> = selfVp === undefined ? [gain] : [gain, {
+    direction: 'gain',
+    icon: 'vp',
+    amount: selfVp.to - selfVp.from,
+    current: selfVp.from,
+    resulting: selfVp.to,
   }];
   return singleBranch(card, player, steps, effects);
 }

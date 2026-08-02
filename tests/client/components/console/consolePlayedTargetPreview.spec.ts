@@ -140,22 +140,82 @@ describe('consolePlayedTargetPreview — what the rail actually says', () => {
       expect(impacts[1]).to.include({from: 4, to: 5});
     });
 
-    /** A static reading is not a reading: «2 → 2» must never reach the rail. */
-    it('drops a VP entry that does not move', () => {
+    /**
+     * THE DELTA RIDES THE STEP — as the server actually sends it.
+     *
+     * `SelectCardModel` has no `amount` field and the server never invents one,
+     * so a fixture that stamps the model tests a shape that does not exist. Read
+     * from the step alone, with an effect stated on the SOURCE card (Predators:
+     * «+1 животное на этой карте»), there was nothing to fall back to and the
+     * target reading vanished entirely — on the one screen whose whole job is
+     * comparing targets.
+     */
+    it('reads the delta from the STEP, with no help from the input model', () => {
+      const step: ActionPreviewStep = {
+        kind: 'input', input: {} as never, amount: -1, cardResource: 'animals',
+        vpBox: {['Birds' as CardName]: {from: 3, to: 2}},
+      };
+      const impacts = playedTargetQuickImpacts(playedTargetPreviewFor(
+        step,
+        // No amount on the model, and the branch effect talks about the SOURCE
+        // card — exactly Predators' shape.
+        input([{name: 'Birds', resources: 3}]),
+        'Birds' as CardName,
+        [{direction: 'gain', icon: 'animals', amount: 1, note: 'on this card'} as never]));
+      expect(impacts.map((i) => i.label)).to.deep.eq(['Resources on this card', 'VP']);
+      expect(impacts[0], 'the target loses one').to.include({from: 3, to: 2});
+      expect(impacts[1], 'and that costs its owner a point').to.include({from: 3, to: 2});
+    });
+
+    /**
+     * A STATIC reading IS a reading — this reverses the earlier contract, on
+     * purpose.
+     *
+     * It used to drop «1 → 1» as noise. But «эта карта даёт 1 ПО за каждую
+     * фишку» and «эта — за каждые две, и там чётное число» are the entire
+     * comparison when deciding what to take and from whom, and dropping the
+     * second made it look identical to a card that scores nothing at all —
+     * opposite answers, rendered the same. It is kept, and MARKED so the rail
+     * can state it quietly instead of competing with the ones that move.
+     */
+    it('keeps a VP entry that does not move, marked static', () => {
       const sections = playedTargetPreviewFor(
         undefined, input([{name: 'Ants', resources: 2}]), 'Ants' as CardName,
         [onCardGain('microbes', 1)], {['Ants' as CardName]: {from: 1, to: 1}});
-      expect(playedTargetQuickImpacts(sections)).to.have.length(1);
+      const impacts = playedTargetQuickImpacts(sections);
+      expect(impacts.map((i) => i.label)).to.deep.eq(['Resources on this card', 'VP']);
+      expect(impacts[1].static, 'stated, but stated quietly').to.eq(true);
+      expect(impacts[1]).to.include({from: 1, to: 1});
+    });
+
+    /** A MOVING reading is never marked static — the two must stay tellable
+     *  apart, since that difference is the whole decision. */
+    it('does not mark a moving reading', () => {
+      const sections = playedTargetPreviewFor(
+        undefined, input([{name: 'Birds', resources: 3}]), 'Birds' as CardName,
+        [onCardGain('animals', -1)], {['Birds' as CardName]: {from: 3, to: 2}});
+      const impacts = playedTargetQuickImpacts(sections);
+      expect(impacts[1].static ?? false).to.eq(false);
+      expect(impacts[1]).to.include({from: 3, to: 2});
     });
   });
 
   describe('the resource badge', () => {
-    /** Unchanged contract: a badge only where the resource IS the choice. */
+    /**
+     * Unchanged CONTRACT — a badge only where the resource IS the choice — but
+     * the delta is now handed in rather than dug out of the input model, which
+     * never carried one. Read from the model it was always `undefined`, so the
+     * badge could not appear ANYWHERE: the gold «0» went away for the right
+     * reason and took the legitimate counts (Predators eats animals — how many
+     * each candidate holds IS the comparison) away with it.
+     */
     it('appears only for a step that actually moves the card\'s resource', () => {
-      expect(playedTargetResourceFor(input([{name: 'A', resources: 4}], 1), 'animals', ({name: 'A', resources: 4} as unknown as CardModel)))
+      const card = {name: 'A', resources: 4} as unknown as CardModel;
+      expect(playedTargetResourceFor(1, 'animals', card)).to.deep.eq({icon: 'animals', count: 4});
+      expect(playedTargetResourceFor(-1, 'animals', card), 'a REMOVAL is just as much a reason to show the count')
         .to.deep.eq({icon: 'animals', count: 4});
-      expect(playedTargetResourceFor(input([{name: 'A', resources: 4}]), 'animals', ({name: 'A', resources: 4} as unknown as CardModel)))
-        .to.eq(undefined);
+      expect(playedTargetResourceFor(undefined, 'animals', card)).to.eq(undefined);
+      expect(playedTargetResourceFor(0, 'animals', card), 'a zero delta moves nothing').to.eq(undefined);
     });
   });
 });

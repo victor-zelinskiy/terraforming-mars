@@ -85,6 +85,14 @@ export type PlayedTargetImpact = {
   to?: number;
   /** A standalone delta when there is no before/after to show. */
   amount?: number;
+  /**
+   * The reading is TRUE but does not move — «эта карта даёт 1 ПО за каждые две
+   * фишки, и там сейчас чётное число». It is shown, because silence would make
+   * it look like a card whose points the resource never touches, and those are
+   * opposite answers when you are choosing what to take. It is shown QUIETLY, so
+   * the eye still lands on the candidates where something actually happens.
+   */
+  static?: boolean;
 };
 
 /**

@@ -30,8 +30,19 @@ const RESOURCE_ICON_ALIASES: Readonly<Record<string, string>> = {tr: 'rating', c
 // the ocean sprite instead of falling through to a non-existent card-resource.
 const GLOBAL_PARAMETER_ALIASES: Readonly<Record<string, string>> = {oceans: 'ocean'};
 
+/**
+ * Keys with NO sprite in any of the three families, resolved to '' on purpose.
+ *
+ * Victory points are drawn as the card's own printed badge — there is no inline
+ * icon for them anywhere in the game's art. Left to fall through, `vp` would
+ * resolve to `card-resource-vp`, a class no stylesheet defines, and every
+ * consumer would reserve a 22px hole with nothing in it. Returning '' routes
+ * them through the callers' existing "no honest sprite" path instead.
+ */
+const NO_SPRITE_ICONS: ReadonlySet<string> = new Set(['vp']);
+
 export function iconClassFor(icon: string | undefined): string {
-  if (icon === undefined || icon === '') {
+  if (icon === undefined || icon === '' || NO_SPRITE_ICONS.has(icon)) {
     return '';
   }
   if (STANDARD_RESOURCE_ICONS.has(icon)) {

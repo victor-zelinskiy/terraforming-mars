@@ -8,6 +8,30 @@ import {Units} from '../Units';
 import {PlayerInputModel, SelectCardModel} from './PlayerInputModel';
 
 /**
+ * What a resource move does to ONE candidate card's victory points.
+ *
+ * Present for every candidate whose points RESPOND to the resource — including
+ * when they do not move. «Эта карта даёт 1 ПО за КАЖДУЮ фишку» and «эта — за
+ * каждые две, и ты на чётном числе» are the same comparison, and the second is
+ * only sayable if a static reading is still a reading. A candidate absent from
+ * the map is one whose points the resource does not touch AT ALL.
+ */
+export type VictoryPointsDelta = {
+  from: number,
+  to: number,
+  /**
+   * WHOSE points move, when the picker spans more than one tableau (Predators /
+   * Ants take a resource from ANY card, including an opponent's). Absent means
+   * the acting player's own — the common case, and the one that needs no label.
+   *
+   * The rule is evaluated through the OWNER's own `Counter`: a descriptor like
+   * «1 ПО за каждую метку Юпитера» read against the wrong tableau would report a
+   * number that is simply false.
+   */
+  owner?: {color: Color, name: string},
+};
+
+/**
  * Read-only PREVIEW of an activatable blue-card / corporation action, fetched
  * by the client when the action confirmation modal opens (GET
  * `/api/action-preview`). It lets the player make EVERY required choice INSIDE
@@ -153,7 +177,7 @@ export type ActionPreviewBranch = {
    * family (`optionInput`) puts the target on the BRANCH, so there is no step
    * to hang it on. The client reads whichever of the two is present.
    */
-  vpBox?: Partial<Record<CardName, {from: number, to: number}>>;
+  vpBox?: Partial<Record<CardName, VictoryPointsDelta>>;
   /** Ordered INTERACTIVE choices that arrive as SEPARATE prompts AFTER the branch
    *  pick (a SelectOption's deferred follow-ups), collected in the confirm modal. */
   steps: ReadonlyArray<ActionPreviewStep>;
@@ -252,9 +276,10 @@ export type ActionPreviewStep =
      *
      * A candidate whose VP cannot be previewed honestly (a fixed VP, a
      * `'special'` bespoke card, or a descriptor with no resource term) is
-     * simply absent from the map.
+     * simply absent from the map. A candidate whose points RESPOND but do not
+     * move is present with `from === to` — see `VictoryPointsDelta`.
      */
-    vpBox?: Partial<Record<CardName, {from: number, to: number}>>,
+    vpBox?: Partial<Record<CardName, VictoryPointsDelta>>,
     /**
      * A MULTI-select card pick (`input.max > 1`): instead of listing the chosen
      * cards (the pick can be large — e.g. Public Plans "reveal ANY NUMBER of cards

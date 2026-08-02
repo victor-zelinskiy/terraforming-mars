@@ -6,6 +6,9 @@ import {fakeCard} from '../TestingUtils';
 import {stepsForBehavior} from '../../src/server/models/actionPreview';
 import {Birds} from '../../src/server/cards/base/Birds';
 import {Mine} from '../../src/server/cards/base/Mine';
+import {Ants} from '../../src/server/cards/base/Ants';
+import {Predators} from '../../src/server/cards/base/Predators';
+import {SmallAnimals} from '../../src/server/cards/base/SmallAnimals';
 import {CardResource} from '../../src/common/CardResource';
 import {CardName} from '../../src/common/cards/CardName';
 
@@ -114,6 +117,97 @@ describe('target victory points — coverage', () => {
     const input = steps.find((s) => s.kind === 'input');
     expect(input, 'the picker is still shown — the resource still moves').to.not.eq(undefined);
     expect(input?.kind === 'input' ? input.vpBox : undefined).to.eq(undefined);
+  });
+
+  /**
+   * THE CROSS-OWNER READING — the whole reason Predators is a decision.
+   *
+   * Taking an animal costs the OWNER points, and which card to take it from is
+   * the move: a card scoring 1 VP per animal loses a point, one scoring 1 VP per
+   * TWO animals may lose nothing at all, and neither is legible from the faces.
+   * The rule must be read against the OWNER's tableau, and the answer must name
+   * whose points they are.
+   */
+  it('reads an opponent card against ITS OWNER, and names them', () => {
+    const [/* game */, player, opponent] = testGame(2);
+    const predators = new Predators();
+    player.playedCards.push(predators);
+    const birds = new Birds();
+    const small = new SmallAnimals();
+    opponent.playedCards.push(birds, small);
+    birds.resourceCount = 3;
+    small.resourceCount = 3;
+
+    const preview = predators.actionPreview(player);
+    const step = preview.branches[0].steps.find((s) => s.kind === 'input');
+    const vpBox = step?.kind === 'input' ? step.vpBox : undefined;
+    expect(vpBox, 'the removal states what it costs').to.not.eq(undefined);
+
+    // Birds score per animal: −1 animal is −1 VP, and it is the OPPONENT's.
+    expect(vpBox?.[CardName.BIRDS]).to.deep.eq({
+      from: 3, to: 2, owner: {color: opponent.color, name: opponent.name},
+    });
+    // Small Animals score per TWO: at 3 animals the same removal costs NOTHING…
+    expect(vpBox?.[CardName.SMALL_ANIMALS]?.from).to.eq(1);
+    expect(vpBox?.[CardName.SMALL_ANIMALS]?.to).to.eq(1);
+    // …and that is STATED, never omitted — silence would make it look like Birds.
+    expect(vpBox?.[CardName.SMALL_ANIMALS]?.owner?.color).to.eq(opponent.color);
+  });
+
+  /**
+   * THE CONSTANT HALF, stated with the EFFECTS.
+   *
+   * What the taken resource is worth on the acting card does not vary with the
+   * candidate, so it belongs beside the other effects and not in the rail — a
+   * value restated on every focus move is what stops a status line being
+   * glanceable. Without it the trade was told from one side only: the opponent's
+   * loss was spelled out and the player's own gain was left as «+1 животное».
+   */
+  it('states what the taken resource is worth on the ACTING card', () => {
+    const [/* game */, player, opponent] = testGame(2);
+    const predators = new Predators();
+    player.playedCards.push(predators);
+    predators.resourceCount = 4;
+    const birds = new Birds();
+    opponent.playedCards.push(birds);
+    birds.resourceCount = 3;
+
+    const vp = predators.actionPreview(player).branches[0].effects.find((e) => e.icon === 'vp');
+    expect(vp, 'the action says what the animal is worth here').to.not.eq(undefined);
+    // Predators score 1 VP per animal: 4 → 5.
+    expect(vp).to.include({direction: 'gain', current: 4, resulting: 5});
+  });
+
+  /**
+   * …and stated even when THIS one does not pay. Ants score 1 VP per TWO
+   * microbes, so at an even count the same action gains nothing — precisely the
+   * arithmetic that is invisible on the card face, and the chip's own «no
+   * effect» treatment says it without inventing a second vocabulary.
+   */
+  it('states it even when the acting card gains no point this time', () => {
+    const [/* game */, player, opponent] = testGame(2);
+    const ants = new Ants();
+    player.playedCards.push(ants);
+    ants.resourceCount = 2; // 1 VP; +1 microbe → 3 microbes → still 1 VP
+    opponent.playedCards.push(fakeCard({resourceType: CardResource.MICROBE, resourceCount: 2}));
+
+    const vp = ants.actionPreview(player).branches[0].effects.find((e) => e.icon === 'vp');
+    expect(vp, 'silence would read as «this card does not score»').to.not.eq(undefined);
+    expect(vp).to.include({current: 1, resulting: 1});
+  });
+
+  /** The actor's OWN card carries no owner label — there is nobody to name. */
+  it('leaves the acting player\'s own cards unlabelled', () => {
+    const [/* game */, player] = testGame(2);
+    const predators = new Predators();
+    const birds = new Birds();
+    player.playedCards.push(predators, birds);
+    birds.resourceCount = 2;
+
+    const preview = predators.actionPreview(player);
+    const step = preview.branches[0].steps.find((s) => s.kind === 'input');
+    const vpBox = step?.kind === 'input' ? step.vpBox : undefined;
+    expect(vpBox?.[CardName.BIRDS], 'own card still reads').to.deep.eq({from: 2, to: 1});
   });
 
   /**

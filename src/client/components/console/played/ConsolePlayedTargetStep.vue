@@ -164,7 +164,8 @@
         <template v-if="railImpacts.length > 0">
           <span class="con-ptsel__railarrow" aria-hidden="true">→</span>
           <span class="con-ptsel__railimpacts">
-            <span v-for="imp in railImpacts" :key="imp.key" class="con-ptsel__imp" :class="'con-ptsel__imp--' + imp.entity">
+            <span v-for="imp in railImpacts" :key="imp.key" class="con-ptsel__imp"
+                  :class="['con-ptsel__imp--' + imp.entity, {'con-ptsel__imp--static': imp.static}]">
               <i v-if="imp.icon" class="con-ptsel__imp-icon" :class="iconClass(imp.icon)" aria-hidden="true"></i>
               <span class="con-ptsel__imp-label">{{ imp.translate === false ? imp.label : $t(imp.label) }}</span>
               <b v-if="imp.from !== undefined && imp.to !== undefined" class="con-ptsel__imp-delta">

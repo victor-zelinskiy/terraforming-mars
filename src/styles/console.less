@@ -17158,6 +17158,20 @@ html.console-mode {
         &--source { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%); }
         &--target { box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%); }
         &--more { color: @con-text-dim; font-weight: 800; }
+        /* A reading that is TRUE but does not move — «эта карта даёт 1 ПО за
+           каждые ДВЕ фишки, и там сейчас чётное число». It has to be legible,
+           because it is the answer to «а с этой сколько снимется?» and the whole
+           reason one target beats another; it must not compete with the ones
+           where something actually happens. Muted COLOUR, never `opacity` or
+           `filter`: the perf profile drops filters, and a see-through chip over
+           the band reads as broken rather than as quiet. The `N → N` form is
+           kept deliberately — the equality IS the statement, and inventing a
+           second grammar for it would cost the line its glanceability. */
+        &--static {
+            box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
+            color: @con-text-dim;
+            .con-ptsel__imp-delta { color: fade(@con-text-dim, 80%); font-weight: 700; }
+        }
     }
     &__imp-icon { width: 1rem; height: 1rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
     &__imp-delta { font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; }

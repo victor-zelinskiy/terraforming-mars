@@ -12,14 +12,21 @@
           'action-effect-chip--noeffect': noEffect,
           'action-effect-chip--skipped': skipped,
           'action-effect-chip--danger': danger && !shortfall,
-          'action-effect-chip--bare': iconClass === '',
+          'action-effect-chip--bare': iconClass === '' && !isVictoryPoints,
         }]">
     <!-- The icon is ALWAYS a real sprite (including `tr` → tr.png and `cards` →
          card.png, via iconClassFor) — never a drawn glyph, so it matches the game art.
          A few effects have NO honest single sprite (the Ares penalty lets the player
          pick WHICH production to lose); those drop the box rather than reserve an
          empty 22px hole. -->
-    <span v-if="iconClass !== ''" class="action-effect-chip__icon" :class="iconClass" aria-hidden="true"></span>
+    <!-- VICTORY POINTS carry their identity as TYPE, not art: the game draws them
+         as the card's own printed badge, and there is no inline sprite for them
+         (the colony trade panel already answers TR the same way). The badge is
+         not decoration — it must survive `noEffect`, which REPLACES the note, or
+         a capped reading renders as a bare «1 → 1 · нет эффекта» with no word
+         about WHAT did not change. -->
+    <span v-if="isVictoryPoints" class="action-effect-chip__vp" v-i18n>VP</span>
+    <span v-else-if="iconClass !== ''" class="action-effect-chip__icon" :class="iconClass" aria-hidden="true"></span>
 
     <span class="action-effect-chip__value">
       <!-- Unaffordable cost → "have / need" so the shortfall is explicit. -->
@@ -79,6 +86,10 @@ export default defineComponent({
   computed: {
     iconClass(): string {
       return iconClassFor(this.effect.icon);
+    },
+    /** A VP reading — rendered as a typographic badge, never a sprite. */
+    isVictoryPoints(): boolean {
+      return this.effect.icon === 'vp';
     },
     hasDelta(): boolean {
       return this.effect.current !== undefined && this.effect.resulting !== undefined;
@@ -186,6 +197,26 @@ export default defineComponent({
   /* Normalise the three sprite families to a single box (mirrors
      .modal-input__option-icon) so resource / param / card-resource icons align. */
   transform: scale(1);
+}
+
+// The VP identity as type rather than art (see the template note). Sized to the
+// icon box so a row mixing sprite chips and this one keeps ONE baseline, and
+// tinted from the chip's own accent so gain / no-effect / skipped all carry it
+// without a second colour rule.
+.action-effect-chip__vp {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 5px;
+  border-radius: 6px;
+  border: 1px solid var(--chip-rim);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--chip-accent);
 }
 
 .action-effect-chip__value {

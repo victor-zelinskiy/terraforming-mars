@@ -33,7 +33,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
-import {PlayedTargetPreviewSection, PlayedTargetResourceContext} from './consolePlayedTargetModel';
+import {PlayedTargetImpact, PlayedTargetPreviewSection, PlayedTargetResourceContext} from './consolePlayedTargetModel';
 
 /**
  * The server's marker for «this amount lands ON THE CHOSEN CARD», set by
@@ -74,8 +74,24 @@ const PROD_LABEL: Record<string, string> = {
   plants: 'Plant production', energy: 'Energy production', heat: 'Heat production',
 };
 
-/** The step's per-target resource delta, when it has one. */
-function stepAmountOf(input: SelectCardModel): number | undefined {
+/**
+ * The step's per-target resource delta.
+ *
+ * IT RIDES THE STEP. The server puts no `amount` on a `SelectCardModel`, so
+ * reading it off the input returned `undefined` for every pre-collected family
+ * and the whole reading fell through to the branch's effect chip. That fallback
+ * covers «добавьте N на карту» (a `to a card` gain), but NOT a step whose effect
+ * is stated on the SOURCE card — Predators says «+1 животное НА ЭТОЙ КАРТЕ», so
+ * nothing described the target at all, and the one screen whose entire job is
+ * comparing targets showed each candidate's name and nothing else.
+ *
+ * The input is still consulted second: a host may pre-stamp the model, and
+ * silently ignoring that would trade one dead path for another.
+ */
+function stepAmountOf(step: ActionPreviewStep | undefined, input: SelectCardModel): number | undefined {
+  if (step !== undefined && step.kind === 'input' && step.amount !== undefined) {
+    return step.amount;
+  }
   return (input as SelectCardModel & {amount?: number}).amount;
 }
 
@@ -116,32 +132,41 @@ export function playedTargetPreviewFor(
   // both is what stopped the rail saying nothing but the card's name on every
   // «потратьте X, чтобы добавить Y на карту» action.
   const onCard = onCardDeltaOf(branchEffects);
-  const amount = stepAmountOf(input) ?? onCard?.amount;
+  const amount = stepAmountOf(step, input) ?? onCard?.amount;
   const model = input.cards.find((c) => c.name === name);
   if (amount !== undefined && amount !== 0 && model !== undefined) {
     // A card with no counter yet reads as 0 — «0 → 1» is the honest statement
     // of what the press does, and it is the whole point of the preview.
     const from = model.resources ?? 0;
-    const impacts: Array<{label: string, icon?: string, from: number, to: number}> = [{
+    const impacts: Array<PlayedTargetImpact> = [{
       label: 'Resources on this card',
       icon: onCard?.icon ?? (step !== undefined && step.kind === 'input' ? step.cardResource : undefined),
       from,
       to: Math.max(0, from + amount),
     }];
     /**
-     * …and the VICTORY POINTS that resource moves, when it moves any.
+     * …and the VICTORY POINTS that resource moves.
      *
      * Authoritative and per-candidate: the server evaluated each card's own
-     * `victoryPoints` descriptor (`resourceVictoryPoints`), including the
-     * `per` arithmetic that makes 2 → 3 asteroids often NOT a VP change. The
-     * box only ever contains candidates whose value actually moves, so its
-     * presence IS the condition — nothing here decides when VP is interesting.
+     * `victoryPoints` descriptor against ITS OWNER's tableau, including the
+     * `per` arithmetic that makes 2 → 3 asteroids often NOT a VP change.
+     *
+     * PRESENT IS THE CONDITION, movement is NOT. A card that scores per resource
+     * earns the line even when this particular move leaves it where it was —
+     * «1 ПО за каждую фишку» versus «1 ПО за каждые две, и там чётное число» is
+     * the entire comparison when choosing what to take from whom, and dropping
+     * the second would make it read exactly like a card that scores nothing.
+     * The static reading is marked so it can be stated QUIETLY rather than
+     * competing with the ones that move.
      */
     const vp = (step !== undefined && step.kind === 'input' ? step.vpBox?.[name] : undefined) ?? branchVpBox?.[name];
-    if (vp !== undefined && vp.from !== vp.to) {
+    if (vp !== undefined) {
       // No icon: 'vp' resolves to no sprite in the shared vocabulary, and a
       // broken glyph beside a number is worse than the canonical «ПО» label.
-      impacts.push({label: 'VP', from: vp.from, to: vp.to});
+      // No owner name either — the rail already states WHOSE card is focused one
+      // segment to the left, and saying it twice on one line is what makes a
+      // status line stop being glanceable.
+      impacts.push({label: 'VP', from: vp.from, to: vp.to, static: vp.from === vp.to});
     }
     out.push({key: 'res', title: 'Target card', entity: 'target', impacts});
   }
@@ -160,11 +185,12 @@ export function playedTargetPreviewFor(
  * without a single card-specific rule.
  */
 export function playedTargetResourceFor(
-  input: SelectCardModel,
+  /** The step's delta — passed EXPLICITLY. It used to be dug out of the input
+   *  model, which never carries one, so the badge could not appear anywhere. */
+  amount: number | undefined,
   cardResource: string | undefined,
   card: CardModel,
 ): PlayedTargetResourceContext | undefined {
-  const amount = stepAmountOf(input);
   if (amount === undefined || amount === 0 || card.resources === undefined) {
     return undefined;
   }

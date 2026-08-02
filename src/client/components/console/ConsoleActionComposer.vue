@@ -2690,7 +2690,7 @@ export default defineComponent({
       return playedTargetPreviewFor(step, choice.input as SelectCardModel, name, this.selectedBranch?.effects, this.selectedBranch?.vpBox);
     },
     playedTargetResourceContext(c: ComposerChoice, card: CardModel) {
-      return playedTargetResourceFor(c.input as SelectCardModel, c.cardResource, card);
+      return playedTargetResourceFor(c.amount, c.cardResource, card);
     },
     /** Move the cursor inside the step — BY WHERE THE CARDS ARE (the index walk
      *  survives only as the answer for a step that has not measured yet). */

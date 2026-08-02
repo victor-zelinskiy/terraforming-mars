@@ -417,6 +417,72 @@ describe('ConsoleActionComposer — premium render', () => {
     w.unmount();
   });
 
+  /**
+   * THE QUIET READING MUST REACH THE DOM.
+   *
+   * A VP that responds but does not move is shown deliberately (it is how «1 ПО
+   * за каждую фишку» is told apart from «1 ПО за каждые две»), and it is shown
+   * QUIETLY. If the marker never reaches the chip, the two read identically and
+   * the distinction the server went to the trouble of computing is lost on the
+   * way out. A model-level test cannot see that.
+   */
+  it('a static VP reading reaches the rail marked, a moving one does not', async () => {
+    const mk = (vp: {from: number, to: number}) => factory({
+      card: 'P', isCorporation: false, kind: 'declarative',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [], effects: [],
+        steps: [{kind: 'input', amount: -1, cardResource: 'animals',
+          vpBox: {['Birds' as any]: vp},
+          input: {type: 'card', title: 'Select card', buttonLabel: 'Select',
+            cards: [{name: 'Birds', resources: 3}], min: 1, max: 1}}],
+      }],
+    }, 'P', 0, viewWithTableau(['Birds']));
+
+    const still = mk({from: 1, to: 1});
+    await still.vm.$nextTick();
+    (still.vm as any).openChoice((still.vm as any).allChoices[0]);
+    await still.vm.$nextTick();
+    const quiet = still.findAll('.con-ptsel__imp--static');
+    expect(quiet.length, 'the static reading is marked').to.be.greaterThan(0);
+    expect(quiet[0].text().replace(/\s/g, ''), 'and still states both numbers').to.contain('1→1');
+    still.unmount();
+
+    const moving = mk({from: 3, to: 2});
+    await moving.vm.$nextTick();
+    (moving.vm as any).openChoice((moving.vm as any).allChoices[0]);
+    await moving.vm.$nextTick();
+    expect(moving.findAll('.con-ptsel__imp--static').length, 'a moving reading is never quiet').to.eq(0);
+    expect(moving.find('.con-ptsel__railimpacts').text().replace(/\s/g, '')).to.contain('3→2');
+    moving.unmount();
+  });
+
+  /**
+   * THE CONSTANT HALF REACHES THE RESULT AREA.
+   *
+   * Predators' shape: ONE branch, so its effects render in the result cluster
+   * rather than on branch cards. The «ПО» chip states what the taken animal is
+   * worth on the acting card — the half that does not vary with the candidate,
+   * and therefore the half that must NOT be in the per-candidate rail.
+   */
+  it('a single-branch action shows the VP chip in its result, badge and all', () => {
+    const w = factory({
+      card: 'Predators', isCorporation: false, kind: 'bespoke',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [],
+        effects: [
+          {direction: 'gain', icon: 'animals', amount: 1, current: 4, resulting: 5, note: 'on this card'},
+          {direction: 'gain', icon: 'vp', amount: 1, current: 4, resulting: 5},
+        ],
+        steps: [],
+      }],
+    }, 'Predators');
+    const badge = w.find('.action-effect-chip__vp');
+    expect(badge.exists(), 'the VP reading is stated with the effects').to.eq(true);
+    // …and it never reserves an empty sprite box beside itself.
+    expect(w.findAll('.action-effect-chip').length, 'both halves of the trade are shown').to.be.greaterThan(1);
+    w.unmount();
+  });
+
   it('X emits inspect-source (the console-wide inspect verb) — it NEVER confirms', () => {
     const w = factory({
       card: 'X', isCorporation: false, kind: 'dynamic',

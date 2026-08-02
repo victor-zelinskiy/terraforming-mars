@@ -1920,7 +1920,7 @@ export default defineComponent({
      * «0» on every building card disappears without a card-specific rule.
      */
     playedTargetResourceContext(c: ComposerChoice, card: CardModel): PlayedTargetResourceContext | undefined {
-      return playedTargetResourceFor(c.input as SelectCardModel, c.cardResource, card);
+      return playedTargetResourceFor(c.amount, c.cardResource, card);
     },
     /** A LATER card step of a merge branch — collapsed into the first one's
      *  multi pick (never its own row, never a follow-up note). */

@@ -123,18 +123,28 @@ describe('targetVictoryPoints — automatic on every resource step', () => {
     expect(noScorers.kind === 'input' && noScorers.vpBox).to.eq(undefined);
   });
 
-  /** Only a MOVING value earns a place in the box: «1 → 1» is noise, and a
-   *  candidate whose VP the resource does not touch must not imply that it
-   *  does. (Ants at 2 microbes with +1 stays on 1 VP.) */
-  it('omits candidates whose VP does not actually move', () => {
+  /**
+   * A candidate whose points RESPOND to the resource is reported EVEN when the
+   * value does not move — this reverses the first cut, deliberately.
+   *
+   * «Птицы дают 1 ПО за каждое животное» versus «Мелкие животные — за каждые
+   * два, и там сейчас чётное число» is exactly the comparison a player makes
+   * when choosing what to take and from whom. Dropping the second as noise made
+   * it read identically to a card that scores nothing at all, which is the
+   * opposite answer. Only a card with no resource term at all stays absent.
+   * (Ants at 2 microbes with +1 still reads 1 → 1.)
+   */
+  it('reports a candidate whose VP responds but does not move', () => {
     const [/* game */, player] = testGame(2);
     const ants = new Ants();
     const birds = new Birds();
-    player.playedCards.push(ants, birds);
+    const mine = new Mine();
+    player.playedCards.push(ants, birds, mine);
     ants.resourceCount = 2;
     birds.resourceCount = 0;
-    const box = actionPreviews.targetVictoryPoints(player, [ants, birds], 1);
+    const box = actionPreviews.targetVictoryPoints(player, [ants, birds, mine], 1);
     expect(box?.[birds.name]).to.deep.eq({from: 0, to: 1});
-    expect(box?.[ants.name], 'a static reading is not a reading').to.eq(undefined);
+    expect(box?.[ants.name], 'a static reading is still a reading').to.deep.eq({from: 1, to: 1});
+    expect(box?.[mine.name], 'but a card with no resource term says nothing').to.eq(undefined);
   });
 });
