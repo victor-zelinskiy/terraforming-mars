@@ -17861,6 +17861,27 @@ html.console-mode {
     transition: box-shadow calc(180ms * var(--motion-scale, 1)) ease;
 }
 
+/* ── THE STEP'S BUDGET MUST BE THE TRUTH ──────────────────────────────────
+   The embedded selector sizes its cards against «the band's bottom minus my
+   own top». That reading is only honest if the work column actually REACHES
+   the band's bottom — and normally it does not: both composers centre their
+   work column vertically (`align-self: center` on the play side, a centred
+   `justify-content` on the action side), so there is band below the column
+   that the column cannot use. The step measured that space, believed it had
+   ~40 % more height than it did, and chose a taller arrangement — two cards
+   stacked in a column instead of side by side, then overflow.
+
+   While the step is open the column STRETCHES and starts at the top, so the
+   measurement and the room are the same number. Scoped to the step: the review
+   layout keeps its centred composition, which is load-bearing for the way the
+   work column sits beside the hero card. ── */
+.con-composer--ptsel .con-composer__playright,
+.con-composer--ptsel .con-composer__actright {
+    align-self: stretch;
+    justify-content: flex-start;
+    max-height: none;
+}
+
 /* ── THE SELF-TARGET RESPONSE. The «Эта карта» handle in the selector points
    here, and the REAL card answers — one physical object, lit on the object
    itself rather than duplicated beside it.

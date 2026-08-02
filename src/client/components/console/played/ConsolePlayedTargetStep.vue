@@ -81,7 +81,7 @@
         </header>
 
         <div class="con-ptsel__sections">
-          <div v-for="section in sectionsOf(owner)" :key="section.category" class="con-ptsel__section">
+          <div v-for="section in sectionsOf(owner)" :key="section.category" class="con-ptsel__section" :style="sectionStyle(section)">
             <div v-if="showsRails(owner)" class="con-ptsel__catrail">
               <span class="con-ptsel__catname">{{ $t(section.label) }}</span>
               <span class="con-ptsel__catcount">{{ section.candidates.length }}</span>
@@ -240,8 +240,11 @@ import {
 } from '@/client/console/played/consolePlayedTargetModel';
 
 /** The sizing used until the first measurement lands (one frame, at most). */
+/** The premium face's unzoomed width — the section span is counted in these. */
+const SLOT_W_PX = 320;
+
 const UNMEASURED: PlayedTargetSizing =
-  {cardZoom: 0.58, gapPx: 11, sectionFlow: 'rows', sectionColumns: 1, perRow: 3, overflows: false};
+  {cardZoom: 0.58, gapPx: 11, sectionFlow: 'rows', sectionColumns: 1, rows: 1, perRow: 3, overflows: false};
 
 export default defineComponent({
   name: 'ConsolePlayedTargetStep',
@@ -548,6 +551,20 @@ export default defineComponent({
     },
     sectionsOf(owner: PlayedTargetOwner): ReadonlyArray<PlayedTargetSection> {
       return playedTargetSections(owner);
+    },
+    /**
+     * A category's WIDTH IS ITS SPAN — the columns its own cards need at the
+     * solved row count, not an equal share of the band.
+     *
+     * This is the visual half of the layout fix. A two-card category gets two
+     * card widths; a one-card category gets one. Bounding the section to
+     * exactly that width is what makes the flex row inside it wrap at the right
+     * place, so the cards land in the grid the solver actually planned.
+     */
+    sectionStyle(section: PlayedTargetSection): Record<string, string> {
+      const cols = Math.max(1, Math.ceil(section.candidates.length / Math.max(1, this.sizing.rows)));
+      const cardW = SLOT_W_PX * this.sizing.cardZoom;
+      return {width: `${Math.round(cols * cardW + (cols - 1) * this.sizing.gapPx)}px`};
     },
     showsRails(owner: PlayedTargetOwner): boolean {
       return playedTargetShowsCategoryRails(playedTargetSections(owner));

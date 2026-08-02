@@ -541,10 +541,10 @@ const SECTION_RAIL_H = 20;
 const OWNER_BAR_H = 28;
 /** The cards row's own vertical padding — where the focus lift happens. */
 const ZONE_PAD_Y = 12;
-/** Category blocks past this stop being columns and become a wall. */
-const MAX_SECTION_COLUMNS = 3;
-/** Steps of the descending fit scan — fine enough that the step is invisible. */
-const ZOOM_STEPS = 48;
+// (A per-category column cap and a descending zoom scan used to live here.
+//  Both belonged to the old «space to categories first» model: the cap bounded
+//  how many independent columns could exist, and the scan searched for a size
+//  that fit inside them. The solver derives both from the cards instead.)
 
 export type PlayedTargetSectionFlow = 'columns' | 'rows';
 
@@ -557,6 +557,13 @@ export type PlayedTargetSizing = {
   sectionFlow: PlayedTargetSectionFlow;
   /** Category columns actually laid out side by side (1 = stacked). */
   sectionColumns: number;
+  /**
+   * ROWS the grid uses. Every category lays its own cards across the SAME
+   * number of rows, so a category spans `ceil(n / rows)` columns — which is
+   * how a two-card category gets twice the width of a one-card one instead of
+   * an equal half it then has to stack inside.
+   */
+  rows: number;
   /** The widest section's cards-per-row at this size (nav fallback + CSS hint). */
   perRow: number;
   /** Nothing fits even at the floor — the zone must scroll for real. */
@@ -574,191 +581,164 @@ export type PlayedTargetSizingInput = {
   handheld: boolean;
 };
 
-type OwnerFit = {perRow: number, w: number, h: number};
+/** The card's aspect as width-per-height — the solver turns a height budget
+ *  into a width with it. */
+const ASPECT_W_OVER_H = SLOT_W / SLOT_H;
+
+/** Rows considered. Past this a selection stops being a surface to read and
+ *  becomes a catalogue — which is exactly when scrolling is the honest answer. */
+const MAX_GRID_ROWS = 4;
+
+/** One candidate arrangement of the whole visible set. */
+type GridShape = {
+  rows: number;
+  /** The widest owner's total column count (the grid's real width in tracks). */
+  columns: number;
+  /** The uniform card width this shape affords, before clamping. */
+  cardW: number;
+};
 
 /**
- * Lay one owner's sections out with a PER-SECTION width, and report the box.
+ * How many COLUMNS a category needs at a given row count — its span.
  *
- * The width comes from a `share` function rather than a uniform column, so a
- * category holding two cards can be twice as wide as one holding a single card
- * — which is what lets both of its cards sit side by side instead of stacking
- * while the neighbour wastes half the band.
+ * This is the whole replacement for the old model. Width used to be handed out
+ * per CATEGORY (an equal half, later a share by count) and each category then
+ * packed inside its own allowance; a two-card category that came up 51 px short
+ * of holding its pair stacked them vertically while the one-card category
+ * beside it sat on a third of the band doing nothing. Now the CARDS are the
+ * layout unit: every category lays its cards across the same rows, and its
+ * width follows from how many columns that takes.
  */
-function fitOwnerShared(
-  sections: ReadonlyArray<PlayedTargetSection>,
-  flow: PlayedTargetSectionFlow,
-  cardW: number,
-  cardH: number,
-  share: (sec: PlayedTargetSection) => number,
-  gap: number,
-  sectionGap: number,
-  railH: number,
-): OwnerFit {
-  let perRowMax = 1;
-  let widest = 0;
-  let stackedH = 0;
-  let tallest = 0;
-  let totalW = 0;
-  sections.forEach((sec, i) => {
-    const n = sec.candidates.length;
-    const colW = share(sec);
-    const perRow = Math.max(1, Math.min(n, Math.floor((colW + gap) / (cardW + gap))));
-    const rows = Math.ceil(n / perRow);
-    const blockW = perRow * cardW + (perRow - 1) * gap;
-    const blockH = railH + rows * cardH + (rows - 1) * gap;
-    perRowMax = Math.max(perRowMax, perRow);
-    widest = Math.max(widest, blockW);
-    tallest = Math.max(tallest, blockH);
-    stackedH += blockH + (i > 0 ? sectionGap : 0);
-    totalW += blockW + (i > 0 ? sectionGap : 0);
-  });
-  return {
-    perRow: perRowMax,
-    // COLUMNS report what the blocks ACTUALLY occupy, not the notional grid:
-    // a proportional split can leave slack, and claiming the slack as used
-    // would refuse sizes that genuinely fit.
-    w: flow === 'columns' ? totalW : widest,
-    h: flow === 'columns' ? tallest : stackedH,
-  };
+function sectionColumnsAt(sections: ReadonlyArray<PlayedTargetSection>, rows: number): Array<number> {
+  return sections.map((sec) => Math.max(1, Math.ceil(sec.candidates.length / rows)));
 }
 
 /**
- * THE CANDIDATE SIZE — solved against the real box, for the candidates that
- * actually exist.
+ * THE LAYOUT SOLVER.
  *
- * The first cut sized cards from a per-profile CSS ladder (`zoom: .74` on TV,
- * `.44` on the Deck), which meant a two-card choice was drawn at the size a
- * ten-card choice would need: two small faces stacked in a narrow column with
- * most of a 4K band empty beside them. Size is not a profile constant — it is
- * what the count and the box jointly allow.
+ * Enumerates the honest arrangements — one row, two rows, … — and for each
+ * derives the biggest uniform card the box can hold, from BOTH directions at
+ * once:
  *
- * Two arrangements are tried and the bigger card wins, because bigger IS the
- * goal: category blocks side by side (which spends the width the complaint was
- * about) or stacked (which spends height). A tie goes to columns.
+ *     width:  (ownerW − gaps) / columns
+ *     height: ((ownerH − rail − rowGaps) / rows) × aspect
  *
- * A DESCENDING SCAN rather than a closed form: cards-per-row is itself a
- * function of the card width (a wrap threshold), so the fit is a step function,
- * not a line. Scanning it is honest, deterministic and — at 48 trivial
- * iterations, run once per open — free.
+ * The smaller wins, because a card has to fit both. Then the arrangement with
+ * the LARGEST card wins overall, fewer rows breaking a tie — which makes the
+ * required priority order fall out of the arithmetic instead of being a rule
+ * someone has to remember to apply: a single wide row is preferred exactly
+ * while it yields the biggest card, and multi-row packing takes over precisely
+ * when it does not.
+ *
+ * Scrolling is deliberately NOT one of the options. It is what is left when
+ * every arrangement lands under the readable floor — reported, never chosen.
+ */
+function solveGrid(
+  groups: ReadonlyArray<ReadonlyArray<PlayedTargetSection>>,
+  ownerW: number,
+  ownerH: number,
+  gap: number,
+  sectionGap: number,
+  railH: number,
+): ReadonlyArray<GridShape> {
+  const maxCards = Math.max(1, ...groups.map((secs) => secs.reduce((n, sec) => n + sec.candidates.length, 0)));
+  const shapes: Array<GridShape> = [];
+  for (let rows = 1; rows <= Math.min(MAX_GRID_ROWS, maxCards); rows++) {
+    let cardW = Infinity;
+    let columns = 1;
+    for (const sections of groups) {
+      const cols = sectionColumnsAt(sections, rows);
+      const c = cols.reduce((a, b) => a + b, 0);
+      const gaps = (c - 1) * gap + (sections.length - 1) * sectionGap;
+      const byWidth = (ownerW - gaps) / c;
+      const byHeight = ((ownerH - railH - (rows - 1) * gap) / rows) * ASPECT_W_OVER_H;
+      cardW = Math.min(cardW, byWidth, byHeight);
+      columns = Math.max(columns, c);
+    }
+    if (cardW > 0 && Number.isFinite(cardW)) {
+      shapes.push({rows, columns, cardW});
+    }
+  }
+  return shapes;
+}
+
+/**
+ * THE CANDIDATE SIZE AND SHAPE — solved together, against the real box.
+ *
+ * Two models failed here before, both the same way: they allocated SPACE TO
+ * CATEGORIES first and packed cards into whatever each one got. Equal halves
+ * came first; a share-by-count came second and still left a two-card category
+ * short of holding its pair, so it stacked them and overflowed a band with a
+ * third of its width unused.
+ *
+ * The cards are the layout unit now.
  */
 export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTargetSizing {
   const solo = o.owners.reduce((n, owner) => n + owner.candidates.length, 0) === 1;
   const ceiling = o.handheld ?
     (solo ? SOLO_CARD_ZOOM_HANDHELD : MAX_CARD_ZOOM_HANDHELD) :
     (solo ? SOLO_CARD_ZOOM : MAX_CARD_ZOOM);
-  const maxZoom = ceiling * o.ui;
-  const minZoom = (o.handheld ? MIN_CARD_ZOOM_HANDHELD : MIN_CARD_ZOOM) * o.ui;
-  /**
-   * The scan walks an ABSOLUTE grid — the same sizes for every candidate count
-   * — and a case simply starts lower on it. Deriving the grid from the case's
-   * own ceiling made the STEPS differ between counts, and quantization alone
-   * then broke the monotonic invariant: at one band a lone candidate landed on
-   * 0.8125 while a pair landed on 0.825, purely because their ladders did not
-   * share rungs. Constraints decide the size; arithmetic must not.
-   */
-  const gridMax = (o.handheld ? SOLO_CARD_ZOOM_HANDHELD : SOLO_CARD_ZOOM) * o.ui;
+  const maxCardW = ceiling * o.ui * SLOT_W;
+  const minCardW = (o.handheld ? MIN_CARD_ZOOM_HANDHELD : MIN_CARD_ZOOM) * o.ui * SLOT_W;
   const sectionGap = SECTION_GAP * o.ui;
   const ownerGap = SPLIT_GAP * o.ui;
-  // The gap is the LARGER of a readable minimum and the focused card's own
-  // clearance. At today's deliberately tiny emphasis the minimum wins at every
-  // size — the clearance term is not decoration for that, it is what keeps the
-  // guarantee true if the emphasis is ever raised, instead of turning into an
-  // overlap nobody re-derived. (Guarded by a spec across sizes and ui factors.)
-  const gapFor = (cardW: number): number =>
-    Math.max(CARD_GAP * o.ui, cardW * (PLAYED_TARGET_FOCUS_SCALE - 1) / 2 + FOCUS_GLOW_PX * o.ui);
+  // Solved for the LARGEST card any shape could produce, so a shape can never
+  // be accepted on a gap smaller than the one it will be drawn with.
+  const gap = Math.max(CARD_GAP * o.ui, maxCardW * (PLAYED_TARGET_FOCUS_SCALE - 1) / 2 + FOCUS_GLOW_PX * o.ui);
 
-  // Which groups must fit at ONE size: both in split, and in tabs every owner —
-  // a tab switch that re-sized the cards would be the layout jump this step is
-  // built to avoid.
   const groups = o.owners.map((owner) => playedTargetSections(owner));
   if (groups.length === 0) {
     return {
-      cardZoom: minZoom, gapPx: CARD_GAP * o.ui, sectionFlow: 'rows',
-      sectionColumns: 1, perRow: 1, overflows: false,
+      cardZoom: minCardW / SLOT_W, gapPx: gap, sectionFlow: 'rows',
+      sectionColumns: 1, rows: 1, perRow: 1, overflows: false,
     };
   }
   const ownerCols = o.mode === 'split' ? Math.max(1, o.owners.length) : 1;
   const ownerW = (o.availW - (ownerCols - 1) * ownerGap) / ownerCols;
   const ownerH = o.availH - OWNER_BAR_H * o.ui - ZONE_PAD_Y * o.ui;
+  const railH = groups.some((secs) => playedTargetShowsCategoryRails(secs)) ? SECTION_RAIL_H * o.ui : 0;
 
-  const flows: ReadonlyArray<PlayedTargetSectionFlow> = ['columns', 'rows'];
-  let best: PlayedTargetSizing | undefined;
-  for (const flow of flows) {
-    // A single block is the same layout either way — only 'rows' is emitted for
-    // it, so the CSS never has to render a one-column "grid".
-    const maxSections = Math.max(...groups.map((s) => s.length));
-    if (flow === 'columns' && (maxSections < 2 || maxSections > MAX_SECTION_COLUMNS)) {
+  const shapes = solveGrid(groups, ownerW, ownerH, gap, sectionGap, railH);
+  const sections = Math.max(...groups.map((g) => g.length));
+  const perRowOf = (rows: number): number =>
+    Math.max(...groups.map((g) => Math.max(...sectionColumnsAt(g, rows))));
+
+  let best: GridShape | undefined;
+  for (const shape of shapes) {
+    const w = Math.min(shape.cardW, maxCardW);
+    if (w < minCardW) {
       continue;
     }
-    for (let step = 0; step <= ZOOM_STEPS; step++) {
-      const zoom = gridMax - (gridMax - minZoom) * (step / ZOOM_STEPS);
-      if (zoom > maxZoom) {
-        continue; // above THIS case's ceiling — same grid, different entry point
-      }
-      const cardW = SLOT_W * zoom;
-      const cardH = SLOT_H * zoom;
-      const gap = gapFor(cardW);
-      const railH = groups.some((s) => playedTargetShowsCategoryRails(s)) ? SECTION_RAIL_H * o.ui : 0;
-      let fits = true;
-      let perRow = 1;
-      let columns = 1;
-      for (const sections of groups) {
-        const cols = flow === 'columns' ? Math.min(sections.length, MAX_SECTION_COLUMNS) : 1;
-        /**
-         * COLUMNS ARE PROPORTIONAL TO THEIR CONTENT, never equal.
-         *
-         * Equal halves is what forced two Automated cards to stack vertically
-         * while the Active column — holding ONE card — sat on half the band
-         * doing nothing. A category with twice the cards needs twice the room;
-         * splitting the width by COUNT spends the horizontal surface before the
-         * vertical one, which is the whole priority order this layout owes the
-         * player. (Each column still gets at least one card's width, or the
-         * biggest category would starve the others.)
-         */
-        const total = sections.reduce((n, sec) => n + sec.candidates.length, 0);
-        const usable = ownerW - (cols - 1) * sectionGap;
-        const share = (sec: PlayedTargetSection): number =>
-          flow === 'columns' ? Math.max(cardW, usable * (sec.candidates.length / Math.max(1, total))) : ownerW;
-        if (flow === 'columns' && usable / cols < cardW && usable < cols * cardW) {
-          fits = false;
-          break;
-        }
-        const fit = fitOwnerShared(sections, flow, cardW, cardH, share, gap, sectionGap, railH);
-        if (fit.w > ownerW + 0.5 || fit.h > ownerH) {
-          fits = false;
-          break;
-        }
-        perRow = Math.max(perRow, fit.perRow);
-        columns = Math.max(columns, cols);
-      }
-      if (!fits) {
-        continue;
-      }
-      const candidate: PlayedTargetSizing = {
-        cardZoom: zoom,
-        gapPx: gap,
-        sectionFlow: flow,
-        sectionColumns: flow === 'columns' ? columns : 1,
-        perRow,
-        overflows: false,
-      };
-      // Bigger cards win outright; an exact tie goes to columns, which is the
-      // arrangement that spends the width rather than leaving it empty.
-      if (best === undefined || candidate.cardZoom > best.cardZoom) {
-        best = candidate;
-      }
-      break; // this flow's best size — the scan descends, so the first fit IS it
+    if (best === undefined || w > Math.min(best.cardW, maxCardW)) {
+      best = shape;
     }
   }
   if (best !== undefined) {
-    return best;
+    return {
+      cardZoom: Math.min(best.cardW, maxCardW) / SLOT_W,
+      gapPx: gap,
+      sectionFlow: sections > 1 ? 'columns' : 'rows',
+      sectionColumns: sections,
+      rows: best.rows,
+      perRow: perRowOf(best.rows),
+      overflows: false,
+    };
   }
-  // Nothing fits even at the floor: the zone genuinely has to scroll, and it
-  // says so instead of shrinking the cards past legibility.
-  const cardW = SLOT_W * minZoom;
-  const gap = gapFor(cardW);
-  const perRow = Math.max(1, Math.floor((ownerW + gap) / (cardW + gap)));
-  return {cardZoom: minZoom, gapPx: gap, sectionFlow: 'rows', sectionColumns: 1, perRow, overflows: true};
+
+  // NOTHING fits at a readable size. The cards stay readable and the viewport
+  // scrolls — the one thing this surface may never trade away is being able to
+  // read the candidates. The shape taken is the flattest one considered, at the
+  // floor, so the scroll is as short as the floor allows.
+  const fallback = shapes[shapes.length - 1] ?? {rows: 1, columns: 1, cardW: minCardW};
+  return {
+    cardZoom: minCardW / SLOT_W,
+    gapPx: gap,
+    sectionFlow: sections > 1 ? 'columns' : 'rows',
+    sectionColumns: sections,
+    rows: fallback.rows,
+    perRow: perRowOf(fallback.rows),
+    overflows: true,
+  };
 }
 
 // ── focus navigation (pure) ─────────────────────────────────────────────────

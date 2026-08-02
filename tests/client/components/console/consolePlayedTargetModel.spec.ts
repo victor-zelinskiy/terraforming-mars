@@ -475,11 +475,24 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
       expect(plan(owner(2, ['active'])).sectionColumns).to.eq(1);
     });
 
-    /** A narrow band cannot halve: stacking keeps the cards readable, and a
-     *  readable stacked card beats a cramped column pair. */
-    it('falls back to stacked blocks on a band too narrow to halve', () => {
-      const s = plan(owner(2, ['active', 'automated']), 300, 900);
-      expect(s.sectionFlow).to.eq('rows');
+    /**
+     * A narrow band cannot hold both categories side by side, so the grid gets
+     * DEEPER — the same cards over more rows — rather than cramming them into
+     * a width that would make them unreadable. (Under the old model this was
+     * expressed as a «flow» flag; the row count is the honest carrier, because
+     * it is the thing that actually changes.)
+     */
+    it('deepens the grid on a band too narrow to lay the set out flat', () => {
+      // FOUR cards in ONE category: on a wide band they share a row; on a
+      // narrow one a second row HALVES the column count, which buys a bigger
+      // card than cramming four across — so the solver takes it. (Two cards in
+      // two categories cannot benefit: one card is always one column, so no
+      // number of rows reduces the width they need.)
+      const wide = plan(owner(4, ['active']), 1600, 900);
+      const narrow = plan(owner(4, ['active']), 420, 900);
+      expect(wide.rows).to.eq(1);
+      expect(narrow.rows).to.be.greaterThan(wide.rows);
+      expect(narrow.overflows, 'and it still fits — deeper, not scrolled').to.eq(false);
     });
 
     /** A tab switch that re-sized the cards would be a layout jump — so the

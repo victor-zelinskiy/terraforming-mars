@@ -13,7 +13,12 @@
        (`setWorkspaceStageName`). A surface that announces itself inside someone
        else's frame is exactly how a stage starts reading as a modal. -->
   <div class="con-composer con-composer--play"
-       :class="{'con-composer--submitting': submitting, 'con-composer--embed': embedded, 'con-ws': !embedded}"
+       :class="{
+         'con-composer--submitting': submitting,
+         'con-composer--embed': embedded,
+         'con-ws': !embedded,
+         'con-composer--ptsel': playedTargetStepOpen,
+       }"
        role="dialog" :aria-label="titleText"
        :data-motion-surface="embedded ? undefined : 'play-composer'">
     <div class="con-composer__panel con-composer__panel--play" data-motion-panel>

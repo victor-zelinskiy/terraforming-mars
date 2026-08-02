@@ -8,7 +8,9 @@
        action center owns the shared `.con-shade`); the panel is the captured
        unit of the AWAITING handoff; the source card is the ANCHOR that FLIPs
        into the reveal result's «Источник» slot on the phase handoff. -->
-  <div ref="rootEl" class="con-composer con-composer--stage" role="region" :aria-label="$t('Action setup')" data-motion-surface="action-composer">
+  <div ref="rootEl" class="con-composer con-composer--stage"
+       :class="{'con-composer--ptsel': playedTargetStepOpen}"
+       role="region" :aria-label="$t('Action setup')" data-motion-surface="action-composer">
     <div class="con-composer__panel con-composer__panel--act con-composer__panel--stage" data-motion-panel>
       <!-- ── Two columns: the SOURCE CARD (the hero anchor — it physically
            arrives from the browser's inspector thumbnail, X inspects it
