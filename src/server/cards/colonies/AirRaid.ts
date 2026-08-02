@@ -80,9 +80,13 @@ export class AirRaid extends Card implements IProjectCard {
   public cardPlayPreview(player: IPlayer): ActionPreview {
     const stealOptions = new StealResources(player, Resource.MEGACREDITS, 5, undefined, true).previewOptions();
     const stealStep = stealOptions !== undefined ? actionPreviews.orOptionsStep(player, stealOptions) : undefined;
+    // ONE removal, asked twice: the picker's candidates and the set the VP
+    // reading is computed over are then the same set by construction.
+    const floaterRemoval = new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false, autoselect: false, cause: cardSource(this)});
     const floaterStep = actionPreviews.inputStep(
-      new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false, autoselect: false, cause: cardSource(this)}).previewSelectCard(),
-      -1);
+      floaterRemoval.previewSelectCard(),
+      -1,
+      {player, cards: floaterRemoval.previewTargetCards()});
     return actionPreviews.playPreview(this, player, [
       actionPreviews.stockGain(player, Resource.MEGACREDITS, 5),
       actionPreviews.cardResourceCost(CardResource.FLOATER, 1),

@@ -86,6 +86,9 @@ export class AsteroidRights extends Card implements IActionCard, IProjectCard {
         title: 'Add 1 asteroid to this card',
         effects: [actionPreviews.stockCost(player, Resource.MEGACREDITS, 1), actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)],
         optionInput: pickTarget ? actionPreviews.cardInput(player, 'Select card to add 1 asteroid', 'Add asteroid', asteroidCards) : undefined,
+        // On a card that scores per asteroid the resource moves VICTORY POINTS —
+        // usually the reason one target beats another.
+        vpBox: actionPreviews.targetVictoryPoints(player, asteroidCards, 1),
         unavailableReason: actionReason.needMoreMC(player, 1),
       },
     ]);

@@ -72,6 +72,9 @@ export class BioPrintingFacility extends Card implements IActionCard, IProjectCa
         // The branch's OrOptions option IS this SelectCard, so its picked-card
         // response nests into the branch pick — collected BEFORE confirm.
         optionInput: hasAnimalCard ? actionPreviews.cardInput(player, 'Select card to add 1 animal', 'Add animal', animalCards) : undefined,
+        // On a card that scores per animal the resource moves VICTORY POINTS —
+        // usually the reason one target beats another.
+        vpBox: actionPreviews.targetVictoryPoints(player, animalCards, 1),
         unavailableReason: actionReason.targetReason('No card to add an animal to'),
       },
       {

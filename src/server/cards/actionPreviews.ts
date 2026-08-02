@@ -114,13 +114,30 @@ export function cardResourceCost(resource: CardResource, amount: number): Action
  * `autoSelect: false`, else the pre-collected pick has no live prompt to consume.
  */
 export function addToCardStep(player: IPlayer, resource: CardResource | undefined, opts: AddResourceOptions = {}): ActionPreviewStep | undefined {
-  const model = new AddResourcesToCard(player, resource, {...opts, autoSelect: opts.autoSelect ?? false}).previewSelectCard();
+  // ONE instance, asked twice: the candidate set the VP reading is computed over
+  // is then the set the picker presents BY CONSTRUCTION.
+  const target = new AddResourcesToCard(player, resource, {...opts, autoSelect: opts.autoSelect ?? false});
+  const model = target.previewSelectCard();
   if (model === undefined) {
     return undefined;
   }
+  // The live deferred action reads `count ?? 1`, so an OMITTED count means one —
+  // not "no amount". Mirroring it is load-bearing: `amount: undefined` showed no
+  // `N → N+1` on the candidates at all (Jupiter Floating Station / Titan Floating
+  // Launch Pad shipped that way) and left the VP reading unreachable too.
+  const count = opts.count ?? 1;
   // `amount` drives the per-candidate "N → N+count" impact; `cardResource` (the icon
   // key) makes the picker prompt name the resource.
-  return {kind: 'input', input: model, amount: opts.count, cardResource: resource !== undefined ? cardResourceIcon(resource) : undefined};
+  return {
+    kind: 'input',
+    input: model,
+    amount: count,
+    cardResource: resource !== undefined ? cardResourceIcon(resource) : undefined,
+    // AUTOMATIC, never opt-in — same rule as `selectCardStep` and the declarative
+    // walker: a builder that moves a resource onto a card always knows what that
+    // does to the card's points, so no caller can forget to ask.
+    vpBox: targetVictoryPoints(player, target.getCards(), count),
+  };
 }
 
 /**
@@ -429,6 +446,13 @@ export function selectCardStep(
  * it). Returns `undefined` when NOTHING in the candidate set has a
  * resource-driven VP, so the field stays absent rather than shipping an empty
  * map on every card pick in the game.
+ *
+ * ⚠️ PRECONDITION: `cards` must be `player`'s OWN cards. The rule is evaluated
+ * through `new Counter(player, card)`, so a card owned by someone ELSE would
+ * have its non-resource half ("+1 VP per Jovian tag") counted against the wrong
+ * tableau and report a number that is simply false. Every caller today targets
+ * own cards; a cross-owner picker (Ants / Predators remove from ANY card) needs
+ * the OWNER resolved per candidate first — it is deliberately not wired.
  */
 export function targetVictoryPoints(
   player: IPlayer,
@@ -735,8 +759,24 @@ export function orOptionsStep(player: IPlayer, orOptions: OrOptions): ActionPrev
  *  `previewSelect*` output) as a step, or `undefined` when there's no model
  *  (the live path auto-resolves / offers no choice → no step). `amount` is the
  *  signed resource delta for a target step's `current → resulting` preview. */
-export function inputStep(model: PlayerInputModel | undefined, amount?: number): ActionPreviewStep | undefined {
-  return model !== undefined ? {kind: 'input', input: model, amount} : undefined;
+export function inputStep(
+  model: PlayerInputModel | undefined,
+  amount?: number,
+  /**
+   * The CARD candidates this picker offers — supply them whenever the target is
+   * a card, and the per-candidate VP reading comes with it. Taking a resource
+   * OFF a scoring card lowers its points exactly as adding raises them, and that
+   * is often the whole choice ("spend the floater from which card?"). Omit for a
+   * player / production target, where there is no card VP to read.
+   */
+  vpTargets?: {player: IPlayer, cards: ReadonlyArray<ICard>},
+): ActionPreviewStep | undefined {
+  return model !== undefined ? {
+    kind: 'input',
+    input: model,
+    amount,
+    vpBox: vpTargets !== undefined ? targetVictoryPoints(vpTargets.player, vpTargets.cards, amount) : undefined,
+  } : undefined;
 }
 
 /**

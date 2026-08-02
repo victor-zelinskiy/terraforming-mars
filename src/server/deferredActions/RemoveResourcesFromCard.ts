@@ -249,6 +249,16 @@ export class RemoveResourcesFromCard extends DeferredAction<Response> {
   }
 
   /**
+   * READ-ONLY: the candidate cards `previewSelectCard()` would offer, so a
+   * preview can compute the per-candidate VICTORY POINT reading over EXACTLY
+   * the set the picker presents. `source` is private, so deriving this outside
+   * would mean re-stating the targeting rule in a second place.
+   */
+  public previewTargetCards(): ReadonlyArray<ICard> {
+    return RemoveResourcesFromCard.getAvailableTargetCards(this.player, this.cardResource, this.source);
+  }
+
+  /**
    * READ-ONLY: the `SelectCardModel` the live path WOULD present (the target
    * picker), or `undefined` when no choice is offered (solo auto-resolve, no
    * target, or a single auto-selected target). Used by the action-preview

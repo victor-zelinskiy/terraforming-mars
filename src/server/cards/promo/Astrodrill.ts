@@ -75,6 +75,9 @@ export class Astrodrill extends CorporationCard implements ICorporationCard, IAc
         title: 'Add 1 asteroid to a card',
         effects: [actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)],
         optionInput: pickTarget ? actionPreviews.cardInput(player, 'Select card to add 1 asteroid', 'Add asteroid', asteroidCards) : undefined,
+        // On a card that scores per asteroid the resource moves VICTORY POINTS —
+        // usually the reason one target beats another.
+        vpBox: actionPreviews.targetVictoryPoints(player, asteroidCards, 1),
       },
       {
         // Picking WHICH standard resource is a nested OrOptions that rides the

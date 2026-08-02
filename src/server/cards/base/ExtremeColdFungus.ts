@@ -56,6 +56,9 @@ export class ExtremeColdFungus extends Card implements IActionCard, IProjectCard
         unavailableReason: actionReason.targetReason('No card to add microbes to'),
         effects: [actionPreviews.cardResourceGain(CardResource.MICROBE, 2)],
         optionInput: hasMicrobeCard ? actionPreviews.cardInput(player, 'Select card to add 2 microbes', 'Add microbes', microbeCards) : undefined,
+        // On a card that scores per microbe the resource moves VICTORY POINTS —
+        // usually the reason one target beats another.
+        vpBox: actionPreviews.targetVictoryPoints(player, microbeCards, 2),
       },
       {
         available: true,

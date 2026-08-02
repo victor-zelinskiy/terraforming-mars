@@ -433,7 +433,24 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
   // (the SAME order `Executor.execute` defers them) so the batched picks line up.
   for (const a of addToAnyCardList(behavior)) {
     const count = ctx.count(a.count);
-    if (addAnyCardCandidates(player, card, a).length === 0) {
+    // ONE instance, asked twice: the candidate set the VP reading is computed
+    // over is then the set the picker presents BY CONSTRUCTION, rather than by
+    // two separate constructions that happen to agree today.
+    const target = new AddResourcesToCard(player, a.type, {
+      count,
+      restrictedTag: a.tag,
+      min: a.min,
+      robotCards: a.robotCards !== undefined,
+      // ALWAYS pre-collect the target pick in the modal — even for one
+      // candidate — so the player ALWAYS sees WHERE the resource goes (matches
+      // the live `Executor` defer; no silent single-apply).
+      autoSelect: false,
+      // The card being played can be its OWN target (Jovian Lanterns adds its own
+      // floaters) — it isn't on the tableau yet, so add it explicitly.
+      cardBeingPlayed: card,
+    });
+    const candidates = target.getCards();
+    if (candidates.length === 0) {
       // Name WHICH resource is lost via its icon — never an ambiguous "this
       // resource" (the gain chip is suppressed, so this warning is the only
       // mention of it). Pass the NORMALIZED icon key (`cardResourceIcon`, same as
@@ -455,23 +472,23 @@ export function stepsForBehavior(player: IPlayer, card: ICard, behavior: Behavio
         },
       });
     } else {
-      const model = new AddResourcesToCard(player, a.type, {
-        count,
-        restrictedTag: a.tag,
-        min: a.min,
-        robotCards: a.robotCards !== undefined,
-        // ALWAYS pre-collect the target pick in the modal — even for one
-        // candidate — so the player ALWAYS sees WHERE the resource goes (matches
-        // the live `Executor` defer; no silent single-apply).
-        autoSelect: false,
-        // The card being played can be its OWN target (Jovian Lanterns adds its own
-        // floaters) — it isn't on the tableau yet, so add it explicitly.
-        cardBeingPlayed: card,
-      }).previewSelectCard();
+      const model = target.previewSelectCard();
       if (model !== undefined) {
         // The signed delta lets the picker show "N → N+count" per candidate card;
         // `cardResource` (the icon key) makes the picker prompt name the resource.
-        steps.push({kind: 'input', input: model, amount: count, cardResource: a.type !== undefined ? cardResourceIcon(a.type) : undefined});
+        steps.push({
+          kind: 'input',
+          input: model,
+          amount: count,
+          cardResource: a.type !== undefined ? cardResourceIcon(a.type) : undefined,
+          // AUTOMATIC, never opt-in — the same rule `selectCardStep` states. This
+          // is the walker EVERY declarative card goes through (play, blue action
+          // and corp first action alike), so a card that moves a resource onto a
+          // scoring card cannot forget to say what that does to its VP. Returns
+          // `undefined` when nothing in the set scores per resource, so the field
+          // stays absent rather than shipping an empty map on every pick.
+          vpBox: actionPreviews.targetVictoryPoints(player, candidates, count),
+        });
       }
     }
   }

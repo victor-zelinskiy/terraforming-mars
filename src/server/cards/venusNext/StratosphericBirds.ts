@@ -99,12 +99,18 @@ export class StratosphericBirds extends ActionCard implements IActionCard {
   // (`autoselect: false`) the picker ALWAYS shows, EVEN for a single floater card,
   // so the player always SEES which card the floater is spent from.
   public cardPlayPreview(player: IPlayer): ActionPreview {
+    // ONE removal, asked twice: the picker's candidates and the set the VP
+    // reading is computed over are then the same set by construction.
+    const removal = new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false, autoselect: false, cause: cardSource(this)});
     const step = actionPreviews.inputStep(
-      new RemoveResourcesFromCard(player, CardResource.FLOATER, 1, {source: 'self', blockable: false, autoselect: false, cause: cardSource(this)}).previewSelectCard(),
+      removal.previewSelectCard(),
       // The signed delta (−1) so the picker shows each candidate's floater
       // `current → resulting` (e.g. 2 → 1) — incl. the SINGLE-candidate case, which
       // ActionTargetCard pre-selects + shows with its projected count (no blind spend).
-      -1);
+      -1,
+      // Spending the floater off a card that scores per floater COSTS points —
+      // usually the reason one source card beats another.
+      {player, cards: removal.previewTargetCards()});
     return actionPreviews.playPreview(this, player, [], [step]);
   }
 }
