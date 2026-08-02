@@ -16959,11 +16959,25 @@ html.console-mode {
         flex-direction: row;
         align-items: flex-start;
     }
-    &__section { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
-    /* EQUAL columns, cards left-aligned inside — the same `ownerW / cols` the
-       planner solved against. Content-sized columns would pack the blocks left
-       and put the labels somewhere other than over their own cards. */
-    &[data-flow='columns'] &__section { flex: 1 1 0; }
+    /* A category is exactly as wide as its OWN SPAN — the inline width the
+       solver computed (`ceil(n / rows)` card widths).
+       `flex: 0 0 auto` is load-bearing, not tidiness: a flex item with a
+       `flex-basis` other than `auto` IGNORES its `width` entirely. This rule
+       used to read `flex: 1 1 0`, so every category was handed an equal share
+       of the band and the span was silently discarded — which is exactly the
+       equal-columns model this layout was rewritten to remove. The solver had
+       been right for a whole iteration; the CSS was overruling it. */
+    &__section {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+        min-width: 0;
+        flex: 0 0 auto;
+    }
+    /* (The equal-share override that used to live here is GONE. It set
+       `flex: 1 1 0` on every category, which is what defeated the span above:
+       a two-card category got the same half-band as a one-card one and had to
+       stack its pair inside it. The span IS the allocation now.) */
     /* A LIGHT rail — this is not the full tableau's section chrome. Fixed
        height, mirrored by `SECTION_RAIL_H` in the sizing module. */
     &__catrail {

@@ -564,7 +564,11 @@ export default defineComponent({
     sectionStyle(section: PlayedTargetSection): Record<string, string> {
       const cols = Math.max(1, Math.ceil(section.candidates.length / Math.max(1, this.sizing.rows)));
       const cardW = SLOT_W_PX * this.sizing.cardZoom;
-      return {width: `${Math.round(cols * cardW + (cols - 1) * this.sizing.gapPx)}px`};
+      // CEIL plus a pixel of slack: the cards row wraps at exactly this
+      // width, so a half-pixel of rounding the other way would push the last
+      // card of a span onto a second line — the very stack this span exists
+      // to prevent.
+      return {width: `${Math.ceil(cols * cardW + (cols - 1) * this.sizing.gapPx) + 1}px`};
     },
     showsRails(owner: PlayedTargetOwner): boolean {
       return playedTargetShowsCategoryRails(playedTargetSections(owner));

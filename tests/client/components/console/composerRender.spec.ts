@@ -354,6 +354,69 @@ describe('ConsoleActionComposer — premium render', () => {
     w.unmount();
   });
 
+
+  /**
+   * THE SPAN MUST REACH THE DOM.
+   *
+   * The solver had been right for a whole iteration and the screen did not
+   * change: `.con-ptsel__section` carried `flex: 1 1 0`, and a flex item with
+   * a `flex-basis` other than `auto` IGNORES its `width` — so every category
+   * kept getting an equal share of the band and the computed span was silently
+   * discarded. Unit tests on the solver could not see that; this asserts the
+   * value actually ARRIVES on the element.
+   */
+  it('a category carries its own SPAN width, not an equal share', async () => {
+    const w = factory({
+      card: 'S', isCorporation: false, kind: 'declarative',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [], effects: [],
+        steps: [{kind: 'input', input: {type: 'card', title: 'Select card', buttonLabel: 'Select',
+          cards: [{name: 'Tardigrades'}, {name: 'Regolith Eaters'}, {name: 'Mine'}], min: 1, max: 1}}],
+      }],
+    }, 'S', 0, viewWithTableau(['Tardigrades', 'Regolith Eaters', 'Mine']));
+    await w.vm.$nextTick();
+    (w.vm as any).openChoice((w.vm as any).allChoices[0]);
+    await w.vm.$nextTick();
+
+    const sections = w.findAll('.con-ptsel__section');
+    expect(sections.length, 'two categories are rendered').to.be.greaterThan(1);
+    for (const sec of sections) {
+      const style = sec.attributes('style') ?? '';
+      expect(style, 'every category states its own width').to.contain('width');
+    }
+    // The busier category must be WIDER — that is the whole allocation model.
+    const widths = sections.map((sec) => {
+      const m = /width:\s*([0-9.]+)px/.exec(sec.attributes('style') ?? '');
+      return m !== null ? Number(m[1]) : 0;
+    });
+    const counts = sections.map((sec) => sec.findAll('.con-ptsel__cell').length);
+    const busiest = counts.indexOf(Math.max(...counts));
+    const quietest = counts.indexOf(Math.min(...counts));
+    expect(counts[busiest], 'the fixture really has an uneven split').to.be.greaterThan(counts[quietest]);
+    expect(widths[busiest], 'the busier category is wider').to.be.greaterThan(widths[quietest]);
+  });
+
+  /** …and the section must be able to HONOUR that width — a flex item whose
+   *  basis is not `auto` cannot. This pins the class contract itself. */
+  it('the section is not a flex-basis item (its width would be ignored)', async () => {
+    const w = factory({
+      card: 'S2', isCorporation: false, kind: 'declarative',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [], effects: [],
+        steps: [{kind: 'input', input: {type: 'card', title: 'Select card', buttonLabel: 'Select',
+          cards: [{name: 'Tardigrades'}, {name: 'Mine'}], min: 1, max: 1}}],
+      }],
+    }, 'S2', 0, viewWithTableau(['Tardigrades', 'Mine']));
+    await w.vm.$nextTick();
+    (w.vm as any).openChoice((w.vm as any).allChoices[0]);
+    await w.vm.$nextTick();
+    const sec = w.find('.con-ptsel__section');
+    expect(sec.exists()).to.eq(true);
+    // The inline width is the allocation; nothing may set a basis that beats it.
+    expect(sec.attributes('style') ?? '').to.contain('width');
+    w.unmount();
+  });
+
   it('X emits inspect-source (the console-wide inspect verb) — it NEVER confirms', () => {
     const w = factory({
       card: 'X', isCorporation: false, kind: 'dynamic',
