@@ -32,8 +32,31 @@
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
-import {ActionPreviewStep} from '@/common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
 import {PlayedTargetPreviewSection, PlayedTargetResourceContext} from './consolePlayedTargetModel';
+
+/**
+ * The server's marker for «this amount lands ON THE CHOSEN CARD», set by
+ * `actionPreviews.cardResourceGain` / `cardResourceCost`.
+ *
+ * Reading `note` as a discriminator is the established pattern here, not a text
+ * sniff: it is a typed field the SERVER authors, and the copied-production fold
+ * already keys on its sibling `note: 'production'`. What it buys is the whole
+ * `optionInput` family — «Обстрел кометами», «Права на астероиды», AstroDrill,
+ * «Биопечать» and the rest — which carry no per-step `amount` at all (the delta
+ * lives in the BRANCH's effects, because the target is a branch option rather
+ * than a step) and therefore had nothing to say in the status rail but a name.
+ */
+const ON_CARD_NOTE = 'to a card';
+
+/** The per-candidate delta a branch's own effects imply, if any. */
+function onCardDeltaOf(effects: ReadonlyArray<ActionEffect> | undefined): {icon: string, amount: number} | undefined {
+  const hit = (effects ?? []).find((e) => e.note === ON_CARD_NOTE && e.amount !== 0);
+  if (hit === undefined) {
+    return undefined;
+  }
+  return {icon: hit.icon, amount: hit.direction === 'cost' ? -hit.amount : hit.amount};
+}
 
 /** The production resources a copy-production box can carry, in chip order. */
 const STANDARD_PROD_KEYS = ['megacredits', 'steel', 'titanium', 'plants', 'energy', 'heat'] as const;
@@ -67,6 +90,9 @@ export function playedTargetPreviewFor(
   step: ActionPreviewStep | undefined,
   input: SelectCardModel,
   name: CardName,
+  /** The SELECTED branch's own effects — where an `optionInput` target's delta
+   *  lives (there is no step to carry it). Omitted by callers that have none. */
+  branchEffects?: ReadonlyArray<ActionEffect>,
 ): ReadonlyArray<PlayedTargetPreviewSection> {
   const out: Array<PlayedTargetPreviewSection> = [];
   const box = step !== undefined && step.kind === 'input' ? step.copyProductionBox?.[name] : undefined;
@@ -80,18 +106,29 @@ export function playedTargetPreviewFor(
       out.push({key: 'src', title: '', entity: 'source', impacts: [], note: 'The source card stays unchanged'});
     }
   }
-  // A resource step over the target's live count — `current → resulting`.
-  const amount = stepAmountOf(input);
+  // A resource change over the target's live count — `current → resulting`.
+  //
+  // TWO SOURCES, one reading. A pre-collected STEP carries its own `amount`
+  // (Predators and the add-to-card family); a branch OPTION carries it in the
+  // branch's effects instead, because there is no step to hang it on. Reading
+  // both is what stopped the rail saying nothing but the card's name on every
+  // «потратьте X, чтобы добавить Y на карту» action.
+  const onCard = onCardDeltaOf(branchEffects);
+  const amount = stepAmountOf(input) ?? onCard?.amount;
   const model = input.cards.find((c) => c.name === name);
-  if (amount !== undefined && amount !== 0 && model?.resources !== undefined) {
+  if (amount !== undefined && amount !== 0 && model !== undefined) {
+    // A card with no counter yet reads as 0 — «0 → 1» is the honest statement
+    // of what the press does, and it is the whole point of the preview.
+    const from = model.resources ?? 0;
     out.push({
       key: 'res',
       title: 'Target card',
       entity: 'target',
       impacts: [{
         label: 'Resources on this card',
-        from: model.resources,
-        to: Math.max(0, model.resources + amount),
+        icon: onCard?.icon ?? (step !== undefined && step.kind === 'input' ? step.cardResource : undefined),
+        from,
+        to: Math.max(0, from + amount),
       }],
     });
   }

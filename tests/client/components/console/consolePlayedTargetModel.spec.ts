@@ -47,6 +47,7 @@ function build(opts: {
   victor?: ReadonlyArray<string>,
   bot?: ReadonlyArray<string>,
   resourceContext?: (name: CardName, model: CardModel) => {icon: string, count: number, showZero?: boolean} | undefined,
+  sourceCardName?: string,
 }) {
   return buildPlayedTargetModel({
     candidates: opts.candidates.map(card),
@@ -60,6 +61,7 @@ function build(opts: {
     typeOf: (n) => TYPES[n],
     preview: (n) => [{key: 'copy', title: 'Will be copied', entity: 'target', impacts: [{label: n}]}],
     resourceContext: opts.resourceContext,
+    sourceCardName: opts.sourceCardName as CardName | undefined,
   });
 }
 
@@ -159,8 +161,8 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
 
   describe('owner presentation', () => {
     const owners = (a: number, b: number): ReadonlyArray<PlayedTargetOwner> => [
-      {id: 'blue', name: 'victor', color: 'blue', self: false, totalPlayed: 9, candidates: new Array(a).fill(0).map((_x, i) => ({cardName: `A${i}` as CardName, category: 'active', ownerId: 'blue', slotKey: `A${i}`, preview: [], model: card(`A${i}`)}))},
-      {id: 'red', name: 'admin', color: 'red', self: true, totalPlayed: 4, candidates: new Array(b).fill(0).map((_x, i) => ({cardName: `B${i}` as CardName, category: 'active', ownerId: 'red', slotKey: `B${i}`, preview: [], model: card(`B${i}`)}))},
+      {id: 'blue', name: 'victor', color: 'blue', self: false, totalPlayed: 9, candidates: new Array(a).fill(0).map((_x, i) => ({cardName: `A${i}` as CardName, category: 'active', relation: 'external-card', ownerId: 'blue', slotKey: `A${i}`, preview: [], model: card(`A${i}`)}))},
+      {id: 'red', name: 'admin', color: 'red', self: true, totalPlayed: 4, candidates: new Array(b).fill(0).map((_x, i) => ({cardName: `B${i}` as CardName, category: 'active', relation: 'external-card', ownerId: 'red', slotKey: `B${i}`, preview: [], model: card(`B${i}`)}))},
     ];
 
     it('splits TWO owners when the band genuinely affords two readable columns', () => {
@@ -378,7 +380,7 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
       candidates: new Array(n).fill(0).map((_x, i) => ({
         cardName: `C${i}` as CardName,
         category: cats[i % cats.length] as PlayedTargetOwner['candidates'][number]['category'],
-        ownerId: 'red', slotKey: `C${i}`, preview: [], model: card(`C${i}`),
+        relation: 'external-card', ownerId: 'red', slotKey: `C${i}`, preview: [], model: card(`C${i}`),
       })),
     });
     const plan = (o: PlayedTargetOwner, availW = 1600, availH = 800) =>
@@ -734,5 +736,118 @@ describe('multi selection — the server\'s merged up-to-N ask', () => {
       input: {type: 'card', cards: [{name: 'Mine'}, {name: 'Mine2'}], max: 2, min: 0},
     };
     expect(playChoiceMode(c, new Set(), new Set(['Mine', 'Mine2']))).to.eq('playedTarget');
+  });
+});
+
+/**
+ * THE SELF-TARGET RELATION.
+ *
+ * «Обстрел кометами» adds its asteroid to ANY card, and it is a card — so it is
+ * its own legal target. The selector drew it as a SECOND full-size face beside
+ * the one already standing in the workspace's hero slot: two copies of one
+ * physical object on one screen, which is the continuity this fork spends its
+ * whole motion budget defending. The relation is what lets every consumer —
+ * the candidate, the answered summary — point at the real card instead.
+ */
+describe('self-target — one physical object, never two', () => {
+  const selfModel = () => build({
+    candidates: ['Predators', 'Mars Hydro Turbines'],
+    admin: ['Predators', 'Mars Hydro Turbines'],
+    sourceCardName: 'Predators',
+  });
+
+  it('marks the SOURCE card as `source-card` and everything else external', () => {
+    const m = selfModel();
+    const by = new Map(m.owners[0].candidates.map((c) => [c.cardName as string, c.relation]));
+    expect(by.get('Predators')).to.eq('source-card');
+    expect(by.get('Mars Hydro Turbines')).to.eq('external-card');
+  });
+
+  /** No source card supplied (card PLAY — the card is not on a tableau yet):
+   *  every candidate is external, and nothing changes for that whole family. */
+  it('is inert when no source card is supplied', () => {
+    const m = build({candidates: ['Predators'], admin: ['Predators']});
+    expect(m.owners[0].candidates[0].relation).to.eq('external-card');
+  });
+
+  /** The handle is a NORMAL candidate: same group, same order, same navigation
+   *  vocabulary. It must never become a special mode. */
+  it('keeps the self-target in the ordinary candidate list and navigation', () => {
+    const m = selfModel();
+    expect(m.contract.targetCount).to.eq(2);
+    const focus = findPlayedTargetFocus('Predators', m.owners);
+    expect(focus, 'the handle is reachable like any other target').to.not.eq(undefined);
+    expect(playedTargetAt(focus, m.owners)?.relation).to.eq('source-card');
+  });
+
+  /** The answered summary needs the relation too — that is what lets it drop
+   *  the thumbnail for a card that is still on screen. */
+  it('carries the relation into the confirmed result', () => {
+    const m = selfModel();
+    const self = m.owners[0].candidates.find((c) => c.relation === 'source-card');
+    const result = playedTargetResultOf(self as never, m.owners, 'v1');
+    expect(result.relation).to.eq('source-card');
+  });
+
+  /** SELF-TARGET ONLY: one handle, and the sizing must not try to fill the band
+   *  with a giant card — there is no card here to size. */
+  it('a self-target-only step is still a one-candidate model', () => {
+    const m = build({candidates: ['Predators'], admin: ['Predators'], sourceCardName: 'Predators'});
+    expect(m.contract.targetCount).to.eq(1);
+    expect(m.owners[0].candidates[0].relation).to.eq('source-card');
+  });
+});
+
+/**
+ * HORIZONTAL SURFACE BEFORE VERTICAL STACK.
+ *
+ * Three candidates on a 4K band — one Active, two Automated — stacked the two
+ * Automated cards vertically and pushed the status rail toward the fold, while
+ * the Active column sat on half the band holding a single card. Equal columns
+ * were the cause: a category with twice the cards needs twice the room.
+ */
+describe('layout — the width is spent before the height', () => {
+  const mixed = (active: number, automated: number): PlayedTargetOwner => ({
+    id: 'red', name: 'admin', color: 'red', self: true, totalPlayed: 12,
+    candidates: [
+      ...new Array(active).fill(0).map((_x, i) => ({
+        cardName: `A${i}` as CardName, category: 'active' as const, relation: 'external-card' as const,
+        ownerId: 'red', slotKey: `A${i}`, preview: [], model: card(`A${i}`),
+      })),
+      ...new Array(automated).fill(0).map((_x, i) => ({
+        cardName: `M${i}` as CardName, category: 'automated' as const, relation: 'external-card' as const,
+        ownerId: 'red', slotKey: `M${i}`, preview: [], model: card(`M${i}`),
+      })),
+    ],
+  });
+  const plan = (o: PlayedTargetOwner, availW = 1700, availH = 760) =>
+    planPlayedTargetSizing({owners: [o], mode: 'tabs', availW, availH, ui: 1, handheld: false});
+
+  /** THE REPORTED CASE: 1 Active + 2 Automated on a wide band must NOT overflow
+   *  — the two Automated cards belong side by side, in the width that was
+   *  sitting empty next to the single Active one. */
+  it('fits 1 + 2 across two categories on a 4K band without overflow', () => {
+    const s = plan(mixed(1, 2));
+    expect(s.overflows, 'three candidates on a wide band must fit').to.eq(false);
+    expect(s.sectionFlow).to.eq('columns');
+    // The busiest category lays its two cards in ONE row.
+    expect(s.perRow).to.be.at.least(2);
+  });
+
+  /** The proportional split is the mechanism: the two-card category has to end
+   *  up wide enough for two cards, which an equal halving would not give it. */
+  it('gives the busier category the room its cards need', () => {
+    const even = plan(mixed(2, 2));
+    expect(even.perRow).to.be.at.least(2);
+    const lopsided = plan(mixed(1, 3));
+    expect(lopsided.perRow, 'three in one block still share a row').to.be.at.least(2);
+  });
+
+  /** …and the priority order holds: shrinking happens BEFORE overflow. */
+  it('shrinks the cards before it reports overflow', () => {
+    const roomy = plan(mixed(1, 2), 1700, 760);
+    const tight = plan(mixed(1, 2), 900, 520);
+    expect(tight.cardZoom).to.be.lessThan(roomy.cardZoom);
+    expect(tight.overflows).to.eq(false);
   });
 });

@@ -85,7 +85,32 @@
                    :data-owner="owner.id"
                    :data-index="indexOf(owner, cand.cardName)"
                    :data-focused="isFocused(owner.id, cand.cardName) ? '1' : undefined">
-                <div class="con-ptsel__slot"
+                <!-- THE SELF-TARGET HANDLE. The source card is already standing
+                     in the workspace's hero slot; drawing it AGAIN at full size
+                     would put two copies of one physical object on one screen.
+                     So this candidate is a HANDLE that points at the real card
+                     — a full navigation stop with its own focus, its own A, its
+                     own lock, and a link marker instead of a face. -->
+                <div v-if="cand.relation === 'source-card'"
+                     class="con-ptsel__self"
+                     :class="{
+                       'con-ptsel__self--focused': isFocused(owner.id, cand.cardName),
+                       'con-ptsel__self--locked': isChosen(cand.cardName),
+                     }"
+                     :data-zoom-slot="cand.slotKey">
+                  <span class="con-ptsel__self-link" aria-hidden="true">↰</span>
+                  <span class="con-ptsel__self-body">
+                    <span class="con-ptsel__self-kicker">{{ $t('This card') }}</span>
+                    <span class="con-ptsel__self-name">{{ $t(cand.cardName) }}</span>
+                  </span>
+                  <span v-if="showsResource(cand)" class="con-ptsel__self-res">
+                    <i v-if="cand.resourceContext?.icon" class="con-ptsel__res-icon" :class="iconClass(cand.resourceContext.icon)" aria-hidden="true"></i>
+                    <b>{{ cand.resourceContext?.count }}</b>
+                  </span>
+                  <span v-if="isChosen(cand.cardName)" class="con-ptsel__self-check" aria-hidden="true">{{ pickOrdinal(cand.cardName) }}</span>
+                </div>
+                <div v-else
+                     class="con-ptsel__slot"
                      :class="{
                        'con-ptsel__slot--focused': isFocused(owner.id, cand.cardName),
                        'con-ptsel__slot--locked': isChosen(cand.cardName),
@@ -190,6 +215,7 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {setPlayedTargetSelfFocus, setPlayedTargetSelfLock, resetPlayedTargetSelf} from '@/client/console/played/consolePlayedTargetSelf';
 import {
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetOwner,
   PlayedTargetCandidate, PlayedTargetSection, PlayedTargetSelection,
@@ -305,6 +331,20 @@ export default defineComponent({
     atCap(): boolean {
       return this.selection.mode === 'multi' && this.selection.picked.length >= this.selection.max;
     },
+    /** The state of the SELF-TARGET link, as one value the watcher can publish
+     *  to the composer that owns the real source card. */
+    selfLink(): {focused: boolean, locked: boolean} {
+      const self = this.model.owners
+        .flatMap((o) => o.candidates)
+        .find((c) => c.relation === 'source-card');
+      if (self === undefined) {
+        return {focused: false, locked: false};
+      }
+      return {
+        focused: this.focused?.cardName === self.cardName,
+        locked: this.isChosen(self.cardName),
+      };
+    },
   },
   watch: {
     // The four events that genuinely change the geometry — and nothing else.
@@ -319,6 +359,19 @@ export default defineComponent({
     },
     bandHeight() {
       this.measureSizing();
+    },
+    /**
+     * THE SELF LINK. The handle cannot reach the source card (it lives one
+     * level up, in the composer's hero slot), so the fact is published and the
+     * composer lights the REAL card. Immediate: the very first frame of a
+     * self-target-only step must already show the link.
+     */
+    selfLink: {
+      immediate: true,
+      handler(v: {focused: boolean, locked: boolean}) {
+        setPlayedTargetSelfFocus(v.focused);
+        setPlayedTargetSelfLock(v.locked);
+      },
     },
     activeOwnerId() {
       this.invalidateGeometry();
@@ -349,6 +402,7 @@ export default defineComponent({
   beforeUnmount() {
     this.stopResizeObs?.();
     this.stopResizeObs = undefined;
+    resetPlayedTargetSelf();
   },
   methods: {
     /**

@@ -22,7 +22,11 @@
         <!-- `--committed` (bound to the submitting lock): the quiet COMMITTED
              accent — a calm ring, geometry-free, auto-clearing on rollback. -->
         <div class="con-composer__actcardwrap" aria-hidden="true"
-             :class="{'con-composer__actcardwrap--committed': submitting}"
+             :class="{
+               'con-composer__actcardwrap--committed': submitting,
+               'con-composer__actcardwrap--targetfocus': selfTargetFocused,
+               'con-composer__actcardwrap--targetlock': selfTargetLocked,
+             }"
              :data-motion-anchor="'card:' + entry.cardName"
              :data-zoom-slot="entry.cardName"
              data-action-focus-card>
@@ -384,9 +388,12 @@
               <template v-else-if="playedTargetResult(item.choice) !== undefined">
                 <div class="con-composer__row-label">{{ $t('Selected card') }}</div>
                 <div class="con-composer__target" v-for="tgt in targetSummaryOf(item.choice)" :key="tgt.cardName">
-                  <div class="con-composer__target-thumb" aria-hidden="true">
+                  <!-- A SOURCE-CARD target draws no thumbnail: the real card is
+                       still in the hero slot to the left. -->
+                  <div v-if="tgt.relation !== 'source-card'" class="con-composer__target-thumb" aria-hidden="true">
                     <ConsoleCardFaceLite :name="tgt.cardName" />
                   </div>
+                  <span v-else class="con-composer__target-selflink" aria-hidden="true">↰</span>
                   <div class="con-composer__target-body">
                     <span class="con-composer__target-name">{{ $t(tgt.cardName) }}</span>
                     <span class="con-composer__target-dot" :class="'player_bg_color_' + tgt.ownerColor" aria-hidden="true"></span>
@@ -655,6 +662,7 @@ import {
   togglePlayedTargetPick, playedTargetPicksValid, prunePlayedTargetPicks,
 } from '@/client/console/played/consolePlayedTargetModel';
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
+import {playedTargetSelfState} from '@/client/console/played/consolePlayedTargetSelf';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {
   computeCommitGate, commitAllowed, commitAcceptsCursor, commitCursorTarget,
@@ -957,6 +965,10 @@ export default defineComponent({
         players: this.playerView.players,
         viewerColor: this.thisPlayer.color,
         ask: textOf(model.title),
+        // The card whose action this is — «Обстрел кометами» adds its asteroid
+        // to ANY card, and it is one. That candidate becomes a HANDLE pointing
+        // at the hero slot instead of a second full-size copy of the same card.
+        sourceCardName: this.entry.cardName,
         typeOf: (name) => getCard(name)?.type,
         preview: (name) => this.playedTargetPreview(choice, name),
         resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
@@ -1594,6 +1606,15 @@ export default defineComponent({
     },
     ctaFocused(): boolean {
       return this.sub === undefined && this.focusIdx >= this.ctaIndex;
+    },
+    /** The «Эта карта» handle holds the cursor — the REAL source card in the
+     *  hero slot answers, so the link is visible on the object it names. */
+    selfTargetFocused(): boolean {
+      return this.sub?.kind === 'playedTarget' && playedTargetSelfState.focused;
+    },
+    /** The source card is the CONFIRMED target. */
+    selfTargetLocked(): boolean {
+      return playedTargetSelfState.locked;
     },
     /** May A run the commit right now? The ONE execution guard. */
     commitReady(): boolean {
@@ -2652,7 +2673,7 @@ export default defineComponent({
     /** The contextual preview for a candidate — the ONE shared builder. */
     playedTargetPreview(choice: ComposerChoice, name: CardName) {
       const step = choice.scope === 'step' ? this.selectedBranch?.steps[choice.index] : undefined;
-      return playedTargetPreviewFor(step, choice.input as SelectCardModel, name);
+      return playedTargetPreviewFor(step, choice.input as SelectCardModel, name, this.selectedBranch?.effects);
     },
     playedTargetResourceContext(c: ComposerChoice, card: CardModel) {
       return playedTargetResourceFor(c.input as SelectCardModel, c.cardResource, card);

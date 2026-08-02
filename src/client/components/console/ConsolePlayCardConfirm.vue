@@ -250,9 +250,14 @@
                 <template v-else-if="playedTargetResult(row.choice) !== undefined">
                   <div class="con-composer__row-label">{{ $t('Selected card') }}</div>
                   <div class="con-composer__target" v-for="tgt in targetSummaryOf(row.choice)" :key="tgt.cardName">
-                    <div class="con-composer__target-thumb" aria-hidden="true">
+                    <!-- A SOURCE-CARD target draws no thumbnail: the real card is
+                         still standing in the hero slot to the left, and a second
+                         copy of it here would be the duplication the selector
+                         itself just stopped making. -->
+                    <div v-if="tgt.relation !== 'source-card'" class="con-composer__target-thumb" aria-hidden="true">
                       <ConsoleCardFaceLite :name="tgt.cardName" />
                     </div>
+                    <span v-else class="con-composer__target-selflink" aria-hidden="true">↰</span>
                     <!-- ONE line: what was chosen, whose it is, and the fact
                          that links it to the Result strip above. The full
                          before→after lives THERE — repeating it here would be
@@ -748,6 +753,10 @@ export default defineComponent({
         players: this.playerView.players,
         viewerColor: this.thisPlayer.color,
         ask: textOf(model.title),
+        // The card being PLAYED is not on a tableau yet, so it can never be a
+        // candidate here — passing it costs nothing and keeps the two hosts
+        // symmetrical.
+        sourceCardName: this.cardName,
         typeOf: (name) => getCard(name)?.type,
         preview: (name) => this.playedTargetPreview(choice, name),
         resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
@@ -1887,7 +1896,7 @@ export default defineComponent({
      */
     playedTargetPreview(choice: ComposerChoice, name: CardName): ReadonlyArray<PlayedTargetPreviewSection> {
       const step = choice.scope === 'step' ? this.selectedBranch?.steps[choice.index] : undefined;
-      return playedTargetPreviewFor(step, choice.input as SelectCardModel, name);
+      return playedTargetPreviewFor(step, choice.input as SelectCardModel, name, this.selectedBranch?.effects);
     },
     /**
      * The resource badge a candidate face earns — EXPLICIT, and only when the

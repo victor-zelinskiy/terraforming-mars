@@ -164,9 +164,23 @@ export function playedTargetShowsResource(ctx: PlayedTargetResourceContext | und
   return ctx !== undefined && (ctx.count > 0 || ctx.showZero === true);
 }
 
+/**
+ * HOW a candidate relates to the card that raised the prompt.
+ *
+ * `source-card` is the card ITSELF being a legal target — «Обстрел кометами»
+ * adds its asteroid to any card, and it is a card. Rendering that as a second
+ * full-size face is the one thing this surface must never do: the source card
+ * is already standing on the left, and two copies of one object is exactly the
+ * physicality this fork spends its motion budget defending. It gets a HANDLE
+ * that points at the real card instead.
+ */
+export type PlayedTargetRelation = 'external-card' | 'source-card';
+
 export type PlayedTargetCandidate = {
   cardName: CardName;
   category: PlayedTargetCategory;
+  /** External card, or the source card itself (see the type). */
+  relation: PlayedTargetRelation;
   /** The owner's colour — the stable per-game identity the console keys on. */
   ownerId: string;
   /**
@@ -280,6 +294,12 @@ export type BuildPlayedTargetInput = {
   players: ReadonlyArray<PlayedTargetPlayerRef>;
   /** The viewer's colour. */
   viewerColor: string;
+  /**
+   * The card that RAISED this prompt, when it is also a legal target. It is
+   * already standing on the left of the workspace, so the selector must point
+   * AT it rather than draw a second full-size copy of the same object.
+   */
+  sourceCardName?: CardName;
   /** The prompt's ask, already translated by the caller. */
   ask: string;
   /** Card type resolver (`ClientCardManifest.getCard`), injected for purity. */
@@ -330,6 +350,7 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
     group.candidates.push({
       cardName: model.name as CardName,
       category: playedTargetCategoryOf(input.typeOf(model.name as CardName)),
+      relation: model.name === input.sourceCardName ? 'source-card' : 'external-card',
       ownerId: owner.color,
       slotKey: model.name,
       preview: input.preview(model.name as CardName),
@@ -555,26 +576,32 @@ export type PlayedTargetSizingInput = {
 
 type OwnerFit = {perRow: number, w: number, h: number};
 
-/** Lay ONE owner's sections out at a given card size and report the box needed. */
-function fitOwner(
+/**
+ * Lay one owner's sections out with a PER-SECTION width, and report the box.
+ *
+ * The width comes from a `share` function rather than a uniform column, so a
+ * category holding two cards can be twice as wide as one holding a single card
+ * — which is what lets both of its cards sit side by side instead of stacking
+ * while the neighbour wastes half the band.
+ */
+function fitOwnerShared(
   sections: ReadonlyArray<PlayedTargetSection>,
   flow: PlayedTargetSectionFlow,
-  columns: number,
   cardW: number,
   cardH: number,
-  colW: number,
+  share: (sec: PlayedTargetSection) => number,
   gap: number,
   sectionGap: number,
   railH: number,
 ): OwnerFit {
   let perRowMax = 1;
   let widest = 0;
-  // COLUMNS: the tallest column decides. ROWS: the blocks stack, so the heights
-  // add up (and the single column is as wide as the widest row in it).
   let stackedH = 0;
   let tallest = 0;
+  let totalW = 0;
   sections.forEach((sec, i) => {
     const n = sec.candidates.length;
+    const colW = share(sec);
     const perRow = Math.max(1, Math.min(n, Math.floor((colW + gap) / (cardW + gap))));
     const rows = Math.ceil(n / perRow);
     const blockW = perRow * cardW + (perRow - 1) * gap;
@@ -583,12 +610,16 @@ function fitOwner(
     widest = Math.max(widest, blockW);
     tallest = Math.max(tallest, blockH);
     stackedH += blockH + (i > 0 ? sectionGap : 0);
+    totalW += blockW + (i > 0 ? sectionGap : 0);
   });
-  const h = flow === 'columns' ? tallest : stackedH;
-  const w = flow === 'columns' ?
-    columns * colW + (columns - 1) * sectionGap :
-    widest;
-  return {perRow: perRowMax, w, h};
+  return {
+    perRow: perRowMax,
+    // COLUMNS report what the blocks ACTUALLY occupy, not the notional grid:
+    // a proportional split can leave slack, and claiming the slack as used
+    // would refuse sizes that genuinely fit.
+    w: flow === 'columns' ? totalW : widest,
+    h: flow === 'columns' ? tallest : stackedH,
+  };
 }
 
 /**
@@ -673,12 +704,26 @@ export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTarget
       let columns = 1;
       for (const sections of groups) {
         const cols = flow === 'columns' ? Math.min(sections.length, MAX_SECTION_COLUMNS) : 1;
-        const colW = flow === 'columns' ? (ownerW - (cols - 1) * sectionGap) / cols : ownerW;
-        if (colW < cardW) {
+        /**
+         * COLUMNS ARE PROPORTIONAL TO THEIR CONTENT, never equal.
+         *
+         * Equal halves is what forced two Automated cards to stack vertically
+         * while the Active column — holding ONE card — sat on half the band
+         * doing nothing. A category with twice the cards needs twice the room;
+         * splitting the width by COUNT spends the horizontal surface before the
+         * vertical one, which is the whole priority order this layout owes the
+         * player. (Each column still gets at least one card's width, or the
+         * biggest category would starve the others.)
+         */
+        const total = sections.reduce((n, sec) => n + sec.candidates.length, 0);
+        const usable = ownerW - (cols - 1) * sectionGap;
+        const share = (sec: PlayedTargetSection): number =>
+          flow === 'columns' ? Math.max(cardW, usable * (sec.candidates.length / Math.max(1, total))) : ownerW;
+        if (flow === 'columns' && usable / cols < cardW && usable < cols * cardW) {
           fits = false;
           break;
         }
-        const fit = fitOwner(sections, flow, cols, cardW, cardH, colW, gap, sectionGap, railH);
+        const fit = fitOwnerShared(sections, flow, cardW, cardH, share, gap, sectionGap, railH);
         if (fit.w > ownerW + 0.5 || fit.h > ownerH) {
           fits = false;
           break;
@@ -902,6 +947,9 @@ export type PlayedTargetResult = {
   ownerColor: string;
   self: boolean;
   category: PlayedTargetCategory;
+  /** External card, or the source card itself — the summary suppresses its
+   *  thumbnail for `source-card`, because that card is still on screen. */
+  relation: PlayedTargetRelation;
   slotKey: string;
   preview: ReadonlyArray<PlayedTargetPreviewSection>;
   version: string;
@@ -920,6 +968,7 @@ export function playedTargetResultOf(
     ownerColor: owner?.color ?? candidate.ownerId,
     self: owner?.self === true,
     category: candidate.category,
+    relation: candidate.relation,
     slotKey: candidate.slotKey,
     preview: candidate.preview,
     version,
