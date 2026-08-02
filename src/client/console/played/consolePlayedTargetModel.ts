@@ -214,6 +214,18 @@ export type PlayedTargetOwner = {
   /** The viewer's own tableau. */
   self: boolean;
   /**
+   * Choosing from THIS group costs the viewer something they own, AND an
+   * opponent's card was available instead.
+   *
+   * Both halves are load-bearing. Without the first, every «add to a card» pick
+   * would warn about the player's own tableau — the normal target. Without the
+   * second, a card whose cost IS its own resource (Air Raid spends your floater;
+   * every candidate is yours) would warn on every row about a cost the player
+   * already agreed to by activating it. A warning is only a warning where a
+   * different, harmless choice existed.
+   */
+  selfHarm: boolean;
+  /**
    * The owner's FULL played-card count. Shown next to the eligible count so
    * «ДОСТУПНО 2» reads as a filtered view of a real, larger table rather than
    * as everything that player owns.
@@ -310,6 +322,16 @@ export type BuildPlayedTargetInput = {
   sourceCardName?: CardName;
   /** The prompt's ask, already translated by the caller. */
   ask: string;
+  /**
+   * This step TAKES from the chosen card (Predators eats an animal) rather than
+   * giving to it.
+   *
+   * It is what turns «your own card» from the ordinary case into a WARNING.
+   * Adding a resource to your own card is the normal, good move — marking it
+   * would train the player to ignore the marker long before they ever meet a
+   * removal, and a warning nobody reads is worse than none.
+   */
+  takesFromTarget?: boolean;
   /** Card type resolver (`ClientCardManifest.getCard`), injected for purity. */
   typeOf: (name: CardName) => CardType | undefined;
   /** The contextual preview for one candidate — the caller's game knowledge. */
@@ -335,7 +357,12 @@ export type BuildPlayedTargetInput = {
  * default the cursor lands on.
  */
 export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTargetModel {
-  const byColor = new Map<string, PlayedTargetOwner & {candidates: Array<PlayedTargetCandidate>}>();
+  // `selfHarm` is deliberately absent here: it depends on whether an OPPONENT
+  // group also exists, which is only known once every candidate is grouped. The
+  // Omit says so in the type rather than seeding a placeholder that a later edit
+  // could forget to overwrite.
+  type Grouping = Omit<PlayedTargetOwner, 'selfHarm'> & {candidates: Array<PlayedTargetCandidate>};
+  const byColor = new Map<string, Grouping>();
   for (const model of input.candidates) {
     const owner = input.players.find((p) => p.tableau.some((c) => c.name === model.name));
     if (owner === undefined) {
@@ -366,8 +393,14 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
       model,
     });
   }
-  const owners = [...byColor.values()]
-    .map((g) => ({...g, candidates: sortByCategory(g.candidates)}))
+  const grouped = [...byColor.values()];
+  const opponentsInvolved = grouped.some((g) => !g.self);
+  const owners = grouped
+    .map((g) => ({
+      ...g,
+      candidates: sortByCategory(g.candidates),
+      selfHarm: g.self && input.takesFromTarget === true && opponentsInvolved,
+    }))
     .sort((a, b) => Number(a.self) - Number(b.self));
   const targetCount = owners.reduce((n, o) => n + o.candidates.length, 0);
   return {

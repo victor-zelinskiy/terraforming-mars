@@ -10940,10 +10940,38 @@ html.console-mode {
         font-size: .9rem;
         font-weight: 700;
         text-align: center;
+
+        /* THE REASON LEADS, the instruction follows. The bar used to read only
+           «Нажмите ещё раз для подтверждения» — a second press demanded with no
+           word of why, which costs the player trust and prevents nothing: an
+           unexplained gate is read as the UI being awkward, not as a caution.
+           The caution is now the sentence, and the instruction is a quiet
+           second voice under it. */
+        &-cta {
+            display: block;
+            margin-top: .15rem;
+            font-size: .75rem;
+            font-weight: 600;
+            letter-spacing: .04rem;
+            text-transform: uppercase;
+            color: fade(#ffe3b0, 70%);
+        }
     }
     &__opt-reason {
         margin-left: auto;
         font-size: .85rem;
+        color: @con-amber;
+    }
+    /* «Это вы» on a player row. Amber like every other «this costs YOU» voice
+       in the console; a ring rather than a fill so it annotates the row instead
+       of competing with the focus cue. Colour + box-shadow only — the perf
+       profile drops `filter`, and a state cue that disappears there is a bug. */
+    &__opt-selfwarn {
+        flex-shrink: 0;
+        padding: .05rem .45rem;
+        border-radius: 49.95rem;
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%);
+        font-size: .7rem; font-weight: 800; letter-spacing: .04rem;
         color: @con-amber;
     }
     &__disabled { margin-top: .5rem; }
@@ -16511,6 +16539,17 @@ html.console-mode {
     &__opt-impact { font-size: .8rem; font-weight: 700; color: #8ff0c4; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: .25rem; }
     &__opt-impact-icon { width: .95rem; height: .95rem; display: inline-block; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
     &__opt-reason { font-size: .7rem; color: #ffb0a6; }
+    /* THE ENGINE'S OWN CAUTION on an option row («это ваши растения»). Amber,
+       not the reason's red: a reason says the option CANNOT be taken, this says
+       it can and will cost you. `margin-left: auto` pushes it to the row's end,
+       where the answer marks live, so the row keeps ONE reading order. Colour
+       carries the state (perf mode drops filters, never box-shadow/colour). */
+    &__opt-warn {
+        margin-left: auto;
+        font-size: .7rem;
+        font-weight: 600;
+        color: @con-amber;
+    }
     &__opt-check { margin-left: auto; font-size: .9rem; font-weight: 800; color: @con-mint; }
 
     /* (The per-composer payment LANE rows + the floating «Всего» pill are gone:
@@ -16937,6 +16976,20 @@ html.console-mode {
         font-size: .95rem; font-weight: 800; letter-spacing: .04rem; text-transform: uppercase;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
+    /* SELF-HARM, on the group header. The printed rules allow taking from your
+       own table, so the option stays — this exists so it is never taken by
+       accident. Amber = «this will cost YOU», the same voice the cost chips
+       already speak in; a ring rather than a fill so it reads as an annotation
+       on the block, not as a second title. Colour + box-shadow only: the perf
+       profile drops `filter`, and a state cue that vanishes there is a bug. */
+    &__ownerwarn {
+        flex-shrink: 0;
+        padding: .05rem .45rem;
+        border-radius: 49.95rem;
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%);
+        font-size: .62rem; font-weight: 800; letter-spacing: .07rem; text-transform: uppercase;
+        color: @con-amber;
+    }
     /* «РАЗЫГРАНО 8 · ДОСТУПНО 2» — the spatial anchor: this is a FILTERED view
        of a real, larger table, not everything that player owns. */
     &__ownercount {
@@ -17140,6 +17193,19 @@ html.console-mode {
     &__railowner {
         flex-shrink: 0;
         font-size: .8rem; font-weight: 700; letter-spacing: .04rem; text-transform: uppercase;
+    }
+    /* …and at the moment of decision. The rail names the owner one segment to
+       the left, so this carries the JUDGEMENT, not the fact. Filled here, not
+       ringed: on the focused row it has to win the eye, and this is the last
+       line the player reads before pressing. */
+    &__railwarn {
+        flex-shrink: 0;
+        padding: .1rem .5rem;
+        border-radius: 49.95rem;
+        background: fade(@con-amber, 18%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 65%);
+        font-size: .72rem; font-weight: 800; letter-spacing: .04rem;
+        color: #ffd79a;
     }
     &__railarrow { flex-shrink: 0; color: fade(@con-cyan, 55%); font-size: .9rem; }
     &__railimpacts { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; flex-wrap: nowrap; }

@@ -5,7 +5,7 @@ import {CardModel} from '@/common/models/CardModel';
 
 const card = (n: string) => ({name: n} as CardModel);
 const owner = (spec: ReadonlyArray<[PlayedTargetCategory, number]>): PlayedTargetOwner => ({
-  id: 'red', name: 'admin', color: 'red', self: true, totalPlayed: 20,
+  id: 'red', name: 'admin', color: 'red', self: true, selfHarm: false, totalPlayed: 20,
   candidates: spec.flatMap(([cat, n], gi) => new Array(n).fill(0).map((_x, i) => ({
     cardName: `${cat}${gi}${i}` as CardName, category: cat, relation: 'external-card' as const,
     ownerId: 'red', slotKey: `${cat}${gi}${i}`, preview: [], model: card(`${cat}${gi}${i}`),

@@ -9,6 +9,33 @@ function leaf(title: unknown, metadata?: unknown) {
 }
 
 describe('consoleOrChoice — premium or items', () => {
+  /**
+   * THE ENGINE'S OWN CAUTION MUST SURVIVE THE BUILDER.
+   *
+   * `RemoveAnyPlants` marks its self-removal option with `removeOwnPlants` —
+   * the single place the rules engine says «this hurts YOU». This builder
+   * dropped it for its whole life, so the console received the warning and
+   * rendered nothing; downstream it survived only as a boolean that demanded a
+   * SECOND key press without ever saying why. Being asked to confirm twice with
+   * no reason given reads as the UI being clumsy, not as a caution — it costs
+   * trust and prevents nothing.
+   */
+  it('carries a per-option warning through, as a SENTENCE not a key', () => {
+    const model = {
+      type: 'or',
+      options: [
+        {type: 'option', title: 'Remove 2 plants from you', warnings: ['removeOwnPlants']},
+        {type: 'option', title: 'Remove 2 plants from Red'},
+      ],
+    } as unknown as OrOptionsModel;
+    const items = buildOrItems(model);
+    expect(items[0].warnings, 'the caution survives').to.not.eq(undefined);
+    expect(items[0].warnings?.[0], 'and it is words, never the raw key')
+      .to.eq('Warning: this will remove your own plants');
+    expect(items[0].warnings?.[0]).to.not.eq('removeOwnPlants');
+    expect(items[1].warnings, 'an unmarked option stays silent').to.eq(undefined);
+  });
+
   it('builds a leaf option with its steal metadata chip + player colour', () => {
     const model = {
       type: 'or',

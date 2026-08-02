@@ -206,6 +206,8 @@
     "${0} targets across ${1} players": "${0} доступные цели у ${1} игроков",
     "${0} available targets": "Доступных целей: ${0}",
     "Your own card or another player's": "Можно выбрать свою карту или карту другого игрока",
+    "Your own cards": "Ваши карты",
+    "This is your own card": "Это ваша карта — вы отнимаете у себя",
     "Will be copied": "Будет скопировано",
     "The source card stays unchanged": "Источник останется без изменений",
     "Plant production": "Производство растений",

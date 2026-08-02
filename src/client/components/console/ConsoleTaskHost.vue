@@ -150,8 +150,14 @@
                 </div>
                 <div v-if="entry.description !== ''" class="con-task__opt-desc">{{ entry.description }}</div>
                 <div v-if="entry.tradeoff !== ''" class="con-task__opt-tradeoff">⚠ {{ entry.tradeoff }}</div>
+                <!-- The engine's own caution, in words. Rendered on the ROW, not
+                     only in the arm bar, so it is readable BEFORE the first press
+                     — a warning that appears only after you have committed to
+                     pressing is a receipt, not a warning. -->
+                <div v-for="(w, k) in entry.warnings" :key="'w' + k" class="con-task__opt-tradeoff">⚠ {{ w }}</div>
                 <div v-if="focusIdx === i && armed && entry.risky" class="con-task__opt-confirmbar">
-                  {{ $t('Press again to confirm') }}
+                  {{ entry.warnings.length > 0 ? entry.warnings[0] : entry.tradeoff }}
+                  <span class="con-task__opt-confirmbar-cta">{{ $t('Press again to confirm') }}</span>
                 </div>
               </div>
               <div v-if="disabledChoiceEntries.length > 0" class="con-task__disabled">
@@ -179,6 +185,11 @@
                     <span>{{ p.name }}</span>
                   </span>
                   <span v-if="p.corp !== ''" class="con-task__opt-corp">{{ $t(p.corp) }}</span>
+                  <!-- «Это вы»: the rules permit hitting your own production, so
+                       the option stays and the job is to make it unpickable by
+                       accident. Only when it costs you AND another target was
+                       available. -->
+                  <span v-if="p.selfHarm" class="con-task__opt-selfwarn">⚠ {{ $t('This is you') }}</span>
                   <!-- Server-computed before→after rows — the SAME layout for a
                        human resource/production row and a MarsBot track row. -->
                   <span v-if="p.changes.length > 0" class="con-task__opt-previews">
@@ -457,6 +468,9 @@ import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
 import {translateMessage, translateText} from '@/client/directives/i18n';
+import {Warning} from '@/common/cards/Warning';
+import {warningText} from '@/client/components/card/cardWarnings';
+import {targetImpactIsLoss} from '@/client/components/modalInputs/targetImpactRows';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {fitRowZoom} from '@/client/console/cardStripFit';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
@@ -525,6 +539,8 @@ type ChoiceEntry = {
   effects: ReadonlyArray<ActionEffect>,
   description: string,
   tradeoff: string,
+  /** The engine's own per-option cautions, already resolved to sentences. */
+  warnings: ReadonlyArray<string>,
   isSkip: boolean,
   isSpace: boolean,
   /** T9: the option nests a hostable input — confirming OPENS it (one-level wizard). */
@@ -852,9 +868,18 @@ export default defineComponent({
       }
       return out;
     },
+    /**
+     * A `Warning` is a KEY, not a sentence.
+     *
+     * Translating the key itself printed `removeOwnPlants` on screen — the raw
+     * identifier, in a slot meant to explain a risk. `warningText` is the one
+     * place that maps a key to its English i18n sentence (shared with the
+     * desktop card warnings), so both surfaces can never word the same warning
+     * differently.
+     */
     warningTexts(): Array<string> {
-      const warnings = (this.wf as {warnings?: ReadonlyArray<string>} | undefined)?.warnings ?? [];
-      return warnings.map((w) => translateText(String(w)));
+      const warnings = (this.wf as {warnings?: ReadonlyArray<Warning>} | undefined)?.warnings ?? [];
+      return warnings.map((w) => translateText(warningText(w)));
     },
     confirmLabel(): string {
       const label = this.wf?.buttonLabel;
@@ -915,7 +940,14 @@ export default defineComponent({
           isSkip: meta?.kind === 'skip',
           isSpace: option.type === 'space',
           isNested: option.type !== 'option' && option.type !== 'space',
-          risky: tradeoff !== '' || ((option as {warnings?: ReadonlyArray<string>}).warnings ?? []).length > 0,
+          // The engine's own per-option warnings, as SENTENCES. They used to be
+          // collapsed straight into the `risky` boolean below, so the one thing
+          // the rules engine actually says about a self-harming choice («это
+          // ваши растения») reached the player as an unexplained second key
+          // press. A gate that asks twice without saying why is read as the UI
+          // being awkward, not as a caution — it costs trust and prevents nothing.
+          warnings: ((option as {warnings?: ReadonlyArray<Warning>}).warnings ?? []).map((w) => translateText(warningText(w))),
+          risky: tradeoff !== '' || ((option as {warnings?: ReadonlyArray<Warning>}).warnings ?? []).length > 0,
           option,
         };
       });
@@ -939,7 +971,7 @@ export default defineComponent({
       });
     },
     // ── player ───────────────────────────────────────────────────────
-    playerEntries(): Array<{color: Color, name: string, corp: string, changes: Array<TargetRowVM>}> {
+    playerEntries(): Array<{color: Color, name: string, corp: string, selfHarm: boolean, changes: Array<TargetRowVM>}> {
       if (this.wf?.type !== 'player') {
         return [];
       }
@@ -970,7 +1002,15 @@ export default defineComponent({
             raw = [{icon: model.icon, from: current, to: current - model.amount, scope}];
           }
         }
-        return {color, name: p !== undefined ? participantDisplayName(p) : color, corp, changes: raw.map((r) => this.toTargetRow(r))};
+        return {
+          color, name: p !== undefined ? participantDisplayName(p) : color, corp,
+          // «Это вы» — only when the move COSTS you and another target was
+          // selectable. Alone in the list it is a forced hit, not a mistake, and
+          // the card already warns about that case before it is played.
+          selfHarm: color === this.playerView.thisPlayer.color &&
+            model.players.length > 1 && targetImpactIsLoss(raw),
+          changes: raw.map((r) => this.toTargetRow(r)),
+        };
       });
     },
     disabledPlayerEntries(): Array<{color: Color, name: string, reason: string}> {

@@ -67,6 +67,15 @@
         <header class="con-ptsel__ownerbar">
           <span class="con-ptsel__ownerdot" :class="'player_bg_color_' + owner.color" aria-hidden="true"></span>
           <span class="con-ptsel__ownername" :class="'player_color_' + owner.color">{{ owner.name }}</span>
+          <!-- SELF-HARM, once per GROUP. The rules allow taking from your own
+               table and we may not forbid what the printed rules permit — but
+               the player must never do it by accident. One marker on the block
+               header, not one per card: the fact is «everything under here is
+               yours», and repeating it on every face would be noise the eye
+               learns to skip. Only shown when an opponent's card was available
+               instead (`selfHarm`), so it never fires on a card whose own
+               resource IS the cost. -->
+          <span v-if="owner.selfHarm" class="con-ptsel__ownerwarn">⚠ {{ $t('Your own cards') }}</span>
           <!-- «РАЗЫГРАНО 9» — the one thing only this line says: these cards
                come off a real, larger table. The eligible count joins it ONLY
                when there are several owners, where it stops being a repeat of
@@ -161,6 +170,10 @@
           <span class="con-ptsel__railsep" aria-hidden="true">·</span>
           <span class="con-ptsel__railowner" :class="'player_color_' + focusedOwnerColor">{{ focusedOwnerName }}</span>
         </template>
+        <!-- …and at the moment of decision, on the focused candidate. The rail
+             already names WHOSE card this is one segment to the left, so this
+             adds the judgement, not the fact. -->
+        <span v-if="focusedSelfHarm" class="con-ptsel__railwarn">⚠ {{ $t('This is your own card') }}</span>
         <template v-if="railImpacts.length > 0">
           <span class="con-ptsel__railarrow" aria-hidden="true">→</span>
           <span class="con-ptsel__railimpacts">
@@ -323,6 +336,10 @@ export default defineComponent({
     /** The focused candidate's contextual effect — the rail's whole payload. */
     railQuick(): ReadonlyArray<PlayedTargetQuickImpact> {
       return this.focused === undefined ? [] : playedTargetQuickImpacts(this.focused.preview);
+    },
+    /** The focused candidate belongs to the viewer AND this step takes from it. */
+    focusedSelfHarm(): boolean {
+      return this.model.owners.some((o) => o.id === this.focus.ownerId && o.selfHarm);
     },
     railImpacts(): ReadonlyArray<PlayedTargetQuickImpact> {
       return this.railQuick.slice(0, PLAYED_TARGET_RAIL_IMPACT_CAP);

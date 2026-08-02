@@ -18,6 +18,20 @@ import {PRODUCTION_FIELD, STOCK_FIELD, MC_PRODUCTION_FLOOR} from './playerResour
  * plants — the two most-attacked productions — and the row simply showed nothing.
  * M€ production floors at −5, everything else at 0.
  */
+/**
+ * Do these rows describe a LOSS for the target?
+ *
+ * The SAME `SelectPlayer` shape serves an attack and a gift, so «this is you»
+ * is a warning in only one of them. Telling a player they are about to give
+ * themselves their own bonus is noise, and noise is precisely what teaches
+ * people to stop reading warnings — by the time a real one appears they have
+ * learned the marker means nothing. Empty rows are a no-op, which is not a loss
+ * either.
+ */
+export function targetImpactIsLoss(rows: ReadonlyArray<TargetImpactChange>): boolean {
+  return rows.some((r) => r.to < r.from);
+}
+
 export function targetImpactRows(
   color: Color,
   opts: {

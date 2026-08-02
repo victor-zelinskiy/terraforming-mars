@@ -483,6 +483,79 @@ describe('ConsoleActionComposer — premium render', () => {
     w.unmount();
   });
 
+  /**
+   * SELF-HARM MUST REACH THE DOM.
+   *
+   * The rules let Predators eat your own animal, so the option stays — the job
+   * is to make it impossible to take by accident. The console had `self` in its
+   * model already and used it ONLY to sort; the `--self` class it painted had no
+   * stylesheet rule behind it at all. A flag that is computed and never seen is
+   * the same as no flag, and a model test cannot tell the two apart.
+   */
+  it('a TAKE from your own card is marked, on the group and on the rail', async () => {
+    const twoTableaux: any = {
+      ...PLAYER_VIEW,
+      thisPlayer: {...PLAYER_VIEW.thisPlayer, tableau: [{name: 'Birds'}]},
+      players: [
+        {color: 'blue', name: 'Me', tableau: [{name: 'Birds'}]},
+        {color: 'red', name: 'Red', tableau: [{name: 'Ants'}]},
+      ],
+    };
+    const w = factory({
+      card: 'Predators', isCorporation: false, kind: 'bespoke',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [], effects: [],
+        steps: [{kind: 'input', amount: -1, cardResource: 'animals',
+          input: {type: 'card', title: 'Remove resource(s)', buttonLabel: 'Select',
+            cards: [{name: 'Birds', resources: 3}, {name: 'Ants', resources: 2}], min: 1, max: 1}}],
+      }],
+    }, 'Predators', 0, twoTableaux);
+    await w.vm.$nextTick();
+    (w.vm as any).openChoice((w.vm as any).allChoices[0]);
+    await w.vm.$nextTick();
+
+    // Focus opens on the OPPONENT (groups sort opponents-first, deliberately),
+    // and in tabbed mode only the focused group is on screen — so nothing warns
+    // yet, which is correct: there is nothing to warn about.
+    expect(w.findAll('.con-ptsel__ownerwarn').length, 'the opponent block is never marked').to.eq(0);
+    expect(w.find('.con-ptsel__railwarn').exists(), 'nor does the rail').to.eq(false);
+
+    // Move to the viewer's own block — the case the whole marker exists for.
+    (w.vm as any).sub.focus = {ownerId: 'blue', index: 0};
+    await w.vm.$nextTick();
+    expect(w.findAll('.con-ptsel__ownerwarn').length, 'the viewer block is marked, once').to.eq(1);
+    expect(w.find('.con-ptsel__railwarn').exists(), 'and the rail warns at the moment of decision').to.eq(true);
+    w.unmount();
+  });
+
+  /** …and an ADD to your own card is the ordinary move — never marked. A marker
+   *  on the normal case is one the player learns to ignore. */
+  it('an ADD to your own card is not marked', async () => {
+    const twoTableaux: any = {
+      ...PLAYER_VIEW,
+      thisPlayer: {...PLAYER_VIEW.thisPlayer, tableau: [{name: 'Birds'}]},
+      players: [
+        {color: 'blue', name: 'Me', tableau: [{name: 'Birds'}]},
+        {color: 'red', name: 'Red', tableau: [{name: 'Ants'}]},
+      ],
+    };
+    const w = factory({
+      card: 'Comet Aiming', isCorporation: false, kind: 'bespoke',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [], effects: [],
+        steps: [{kind: 'input', amount: 1, cardResource: 'animals',
+          input: {type: 'card', title: 'Add resource', buttonLabel: 'Select',
+            cards: [{name: 'Birds', resources: 3}, {name: 'Ants', resources: 2}], min: 1, max: 1}}],
+      }],
+    }, 'Comet Aiming', 0, twoTableaux);
+    await w.vm.$nextTick();
+    (w.vm as any).openChoice((w.vm as any).allChoices[0]);
+    await w.vm.$nextTick();
+    expect(w.findAll('.con-ptsel__ownerwarn').length).to.eq(0);
+    expect(w.find('.con-ptsel__railwarn').exists()).to.eq(false);
+    w.unmount();
+  });
+
   it('X emits inspect-source (the console-wide inspect verb) — it NEVER confirms', () => {
     const w = factory({
       card: 'X', isCorporation: false, kind: 'dynamic',

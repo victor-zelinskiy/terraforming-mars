@@ -114,6 +114,14 @@
                   <i v-if="item.impactIcon" class="con-composer__opt-impact-icon" :class="iconClass(item.impactIcon)" aria-hidden="true"></i>{{ item.impact }}
                 </span>
                 <span v-if="item.meta !== ''" class="con-composer__opt-meta">{{ item.meta }}</span>
+                <!-- The engine's own caution, in words: «это ваши растения». It
+                     reads on the row itself, before any press — a warning that
+                     only appears after committing is a receipt, not a warning. -->
+                <span v-for="(w, k) in (item.warnings ?? [])" :key="'wn' + k" class="con-composer__opt-warn">⚠ {{ $t(w) }}</span>
+                <!-- «Это вы» on a PLAYER row. Same voice as the card version and
+                     the same rule: only when it costs you and somebody else was
+                     selectable — a forced self-hit is not a mistake to prevent. -->
+                <span v-if="item.selfHarm" class="con-composer__opt-warn">⚠ {{ $t('This is you') }}</span>
                 <span v-if="item.disabled && item.reason !== ''" class="con-composer__opt-reason">✕ {{ item.reason }}</span>
                 <span v-else-if="item.chosen" class="con-composer__opt-check" aria-hidden="true">✓</span>
               </div>
@@ -410,7 +418,8 @@ import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZ
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {targetImpactRows, targetImpactText} from '@/client/components/modalInputs/targetImpactRows';
+import {targetImpactRows, targetImpactText, targetImpactIsLoss} from '@/client/components/modalInputs/targetImpactRows';
+import {TargetImpactChange} from '@/common/models/TargetImpactModel';
 import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
@@ -502,6 +511,10 @@ type ListItem = {
   impactIcon?: string,
   /** Tab badge for a tabbed target ('animal' | 'plant'). */
   tab?: string,
+  /** The engine's own cautions for this option, already sentences (i18n keys). */
+  warnings?: ReadonlyArray<string>,
+  /** This row is the VIEWER, the move costs them, and another target existed. */
+  selfHarm?: boolean,
   /** The whole or-item, when this row is an OrOptions option (leaf or nested). */
   orItem?: ConsoleOrItem,
 };
@@ -768,6 +781,9 @@ export default defineComponent({
         // symmetrical.
         sourceCardName: this.cardName,
         typeOf: (name) => getCard(name)?.type,
+        // A NEGATIVE delta means the step takes FROM the chosen card, which is
+        // what makes «your own card» a warning rather than the ordinary target.
+        takesFromTarget: (choice.amount ?? 0) < 0,
         preview: (name) => this.playedTargetPreview(choice, name),
         resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
       });
@@ -1242,7 +1258,8 @@ export default defineComponent({
         const chosen = this.picks[c.id];
         return buildOrItems(c.input as OrOptionsModel).map((it): ListItem => ({
           key: it.key, label: textOf(it.label), meta: '', disabled: it.disabled, reason: textOf(it.reason),
-          chosen: chosen === String(it.optionIndex), color: it.playerColor, chips: it.chips, orItem: it,
+          chosen: chosen === String(it.optionIndex), color: it.playerColor, chips: it.chips,
+          warnings: it.warnings, orItem: it,
         }));
       }
       return [];
@@ -1457,11 +1474,25 @@ export default defineComponent({
       const items: Array<ListItem> = model.players.map((color): ListItem => ({
         key: color, label: this.playerName(color), meta: '', disabled: false, reason: '', chosen: chosen === color, color,
         impact: this.playerImpact(model, color), impactIcon: model.icon,
+        // «Это вы» — only when it is a LOSS and somebody else could have taken
+        // it instead. Alone in the list it is forced, not a mistake.
+        selfHarm: color === this.thisPlayer.color && model.players.length > 1 &&
+          targetImpactIsLoss(this.playerImpactRows(model, color)),
       }));
       for (const d of model.disabledPlayers ?? []) {
         items.push({key: 'd' + d.color, label: this.playerName(d.color), meta: '', disabled: true, reason: textOf(d.reason), chosen: false, color: d.color});
       }
       return items;
+    },
+    /** The shared per-target rows — ONE derivation for the text and the verdict. */
+    playerImpactRows(model: SelectPlayerModel, color: string): ReadonlyArray<TargetImpactChange> {
+      return targetImpactRows(color as Color, {
+        impacts: model.targetImpacts,
+        icon: model.icon,
+        amount: model.amount,
+        scope: model.scope,
+        player: this.playerView.players.find((p) => p.color === color),
+      });
     },
     playerImpact(model: SelectPlayerModel, color: string): string | undefined {
       // SERVER impacts first, then the shared derivation — hand-rolling the

@@ -264,6 +264,11 @@
               <b>{{ item.resCount }}</b>
             </span>
             <span v-if="item.impact !== ''" class="con-composer__opt-impact">{{ item.impact }}</span>
+            <!-- «Это вы» on a PLAYER row: the rules allow hitting your own
+                 production and we may not remove the option, so the job is to
+                 make it impossible to pick by accident. Only when it COSTS you
+                 and another target was selectable. -->
+            <span v-if="item.selfHarm" class="con-composer__opt-warn">⚠ {{ $t('This is you') }}</span>
             <span v-if="item.disabled && item.reason !== ''" class="con-composer__opt-reason">✕ {{ item.reason }}</span>
             <span v-else-if="item.chosen" class="con-composer__opt-check" aria-hidden="true">✓</span>
           </div>
@@ -640,7 +645,7 @@ import {consoleTranslate} from '@/client/console/consoleTranslate';
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
-import {targetImpactRows, targetImpactText} from '@/client/components/modalInputs/targetImpactRows';
+import {targetImpactRows, targetImpactText, targetImpactIsLoss} from '@/client/components/modalInputs/targetImpactRows';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
 import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
@@ -707,6 +712,8 @@ type SubState =
   | {kind: 'playedTarget', choiceId: string, focus: PlayedTargetFocus, picked: ReadonlyArray<string>};
 
 type ListItem = {
+  /** This row is the VIEWER, the move costs them, and another target existed. */
+  selfHarm?: boolean;
   key: string,
   label: string,
   resIcon: string,
@@ -977,6 +984,9 @@ export default defineComponent({
         // at the hero slot instead of a second full-size copy of the same card.
         sourceCardName: this.entry.cardName,
         typeOf: (name) => getCard(name)?.type,
+        // A NEGATIVE delta means the step takes FROM the chosen card, which is
+        // what makes «your own card» a warning rather than the ordinary target.
+        takesFromTarget: (choice.amount ?? 0) < 0,
         preview: (name) => this.playedTargetPreview(choice, name),
         resourceContext: (_name, card) => this.playedTargetResourceContext(choice, card),
       });
@@ -1974,14 +1984,20 @@ export default defineComponent({
       // SERVER impacts first, then the shared derivation — hand-rolling the
       // field name here printed NOTHING for M€ / plants production (the model's
       // fields are singular) and the wrong numbers for a MarsBot target.
-      const impact = targetImpactText(targetImpactRows(color as Color, {
+      const rows = targetImpactRows(color as Color, {
         impacts: model.targetImpacts,
         icon: model.icon,
         amount: model.amount,
         scope: model.scope,
         player: this.playerView.players.find((pl) => pl.color === color),
-      }));
+      });
+      const impact = targetImpactText(rows);
       return {
+        // «Это вы» — a warning only when it is a LOSS and somebody else could
+        // have taken it instead. Alone in the list it is a forced move, not a
+        // mistake, and the card already warns about that case before play.
+        selfHarm: color === this.thisPlayer.color && !disabled &&
+          targetImpactIsLoss(rows) && model.players.length > 1,
         key: (disabled ? 'd' : '') + color,
         label: this.playerName(color),
         resIcon: disabled ? '' : (model.icon ?? ''),

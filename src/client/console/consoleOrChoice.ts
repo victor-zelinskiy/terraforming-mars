@@ -17,6 +17,8 @@
  */
 
 import {Color} from '@/common/Color';
+import {Warning} from '@/common/cards/Warning';
+import {warningText} from '@/client/components/card/cardWarnings';
 import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
@@ -39,6 +41,25 @@ export type ConsoleOrItem = {
   /** A short descriptive sub-line / a non-numeric downside. */
   description?: string | Message;
   tradeoff?: string | Message;
+  /**
+   * The server's own per-option WARNINGS (`SelectOption.warnings`) — the engine
+   * saying this particular choice hurts the person making it («это ваши
+   * растения»).
+   *
+   * They were dropped here for the whole life of this builder, so the console
+   * received the one warning the rules engine actually raises and said nothing;
+   * downstream it survived only as a boolean that armed a second key press. A
+   * confirmation the player is asked for twice WITHOUT being told why is worse
+   * than no gate at all — it reads as the UI being awkward rather than as a
+   * caution.
+   *
+   * Resolved to SENTENCES here, not left as `Warning` keys: printing a key is
+   * the very failure this fixes (the task host rendered a literal
+   * `removeOwnPlants` on screen), and `warningText` is a pure record lookup, so
+   * doing it in this pure builder costs nothing and leaves no call site able to
+   * get it wrong. The sentence IS the i18n key — consumers just translate it.
+   */
+  warnings?: ReadonlyArray<string>;
   /** When the option IS a nested input (a `SelectPlayer`/`SelectCard`/
    *  `SelectAmount` sitting directly in the OrOptions, NOT a leaf SelectOption),
    *  this is that input — selecting the row opens a sub-pick over it and the
@@ -117,6 +138,7 @@ export function buildOrItems(model: OrOptionsModel): Array<ConsoleOrItem> {
       playerColor: playerColorOf(opt.title, meta),
       description: meta?.description,
       tradeoff: meta?.tradeoff,
+      warnings: leaf ? (opt as {warnings?: ReadonlyArray<Warning>}).warnings?.map(warningText) : undefined,
       nested: leaf ? undefined : opt,
     };
   });

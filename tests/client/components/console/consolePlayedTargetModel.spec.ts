@@ -73,6 +73,57 @@ const cell = (ownerId: string, index: number, left: number, top: number): Played
   ({ownerId, index, left, top, width: 200, height: 290});
 
 describe('consolePlayedTargetModel — the embedded played-card target step', () => {
+  /**
+   * SELF-HARM — the rules permit it, so the UI must never remove the option;
+   * it must only make it impossible to take by accident.
+   *
+   * Both halves of the condition are load-bearing. Without «it TAKES», every
+   * «add a resource to a card» pick would warn about the player's own tableau —
+   * the normal, correct target — and a marker shown on the ordinary case is one
+   * the eye learns to skip before it ever means anything. Without «an opponent
+   * was available», a card whose own resource IS the cost (Air Raid spends your
+   * floater; every candidate is yours) would warn on every row about a price the
+   * player already agreed to by activating it.
+   */
+  describe('self-harm marking', () => {
+    const players = [
+      {color: 'blue', name: 'Me', tableau: [{name: 'Predators'}, {name: 'Birds'}]},
+      {color: 'red', name: 'Red', tableau: [{name: 'Ants'}]},
+    ] as never;
+    const cards = [{name: 'Birds'}, {name: 'Ants'}] as never;
+
+    it('marks the viewer group when the step TAKES and an opponent was available', () => {
+      const model = buildPlayedTargetModel({
+        candidates: cards, players, viewerColor: 'blue', ask: 'Take one',
+        takesFromTarget: true,
+        typeOf: () => undefined, preview: () => [],
+      } as never);
+      const mine = model.owners.find((o) => o.self);
+      const theirs = model.owners.find((o) => !o.self);
+      expect(mine?.selfHarm, 'your own block is flagged').to.eq(true);
+      expect(theirs?.selfHarm, 'an opponent block never is').to.eq(false);
+    });
+
+    it('does NOT mark a step that GIVES to the chosen card', () => {
+      const model = buildPlayedTargetModel({
+        candidates: cards, players, viewerColor: 'blue', ask: 'Add one',
+        takesFromTarget: false,
+        typeOf: () => undefined, preview: () => [],
+      } as never);
+      expect(model.owners.find((o) => o.self)?.selfHarm, 'adding to your own card is the normal move').to.eq(false);
+    });
+
+    it('does NOT mark when every candidate is yours — that is the card price', () => {
+      const model = buildPlayedTargetModel({
+        candidates: [{name: 'Birds'}] as never, players, viewerColor: 'blue', ask: 'Spend one',
+        takesFromTarget: true,
+        typeOf: () => undefined, preview: () => [],
+      } as never);
+      expect(model.owners).to.have.length(1);
+      expect(model.owners[0].selfHarm, 'a forced self-cost is not a mistake to prevent').to.eq(false);
+    });
+  });
+
   describe('the model', () => {
     /**
      * THE CORE PROMISE: the step costs what the CHOICES cost, never what the
@@ -161,8 +212,8 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
 
   describe('owner presentation', () => {
     const owners = (a: number, b: number): ReadonlyArray<PlayedTargetOwner> => [
-      {id: 'blue', name: 'victor', color: 'blue', self: false, totalPlayed: 9, candidates: new Array(a).fill(0).map((_x, i) => ({cardName: `A${i}` as CardName, category: 'active', relation: 'external-card', ownerId: 'blue', slotKey: `A${i}`, preview: [], model: card(`A${i}`)}))},
-      {id: 'red', name: 'admin', color: 'red', self: true, totalPlayed: 4, candidates: new Array(b).fill(0).map((_x, i) => ({cardName: `B${i}` as CardName, category: 'active', relation: 'external-card', ownerId: 'red', slotKey: `B${i}`, preview: [], model: card(`B${i}`)}))},
+      {id: 'blue', name: 'victor', color: 'blue', self: false, selfHarm: false, totalPlayed: 9, candidates: new Array(a).fill(0).map((_x, i) => ({cardName: `A${i}` as CardName, category: 'active', relation: 'external-card', ownerId: 'blue', slotKey: `A${i}`, preview: [], model: card(`A${i}`)}))},
+      {id: 'red', name: 'admin', color: 'red', self: true, selfHarm: false, totalPlayed: 4, candidates: new Array(b).fill(0).map((_x, i) => ({cardName: `B${i}` as CardName, category: 'active', relation: 'external-card', ownerId: 'red', slotKey: `B${i}`, preview: [], model: card(`B${i}`)}))},
     ];
 
     it('splits TWO owners when the band genuinely affords two readable columns', () => {
@@ -176,7 +227,7 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
 
     it('never splits for one owner or for more than two', () => {
       expect(planPlayedTargetLayout({owners: owners(3, 0).slice(0, 1), availW: 1600, ui: 1, handheld: false}).mode).to.eq('tabs');
-      const three = [...owners(2, 2), {id: 'green', name: 'Bot', color: 'green', self: false, totalPlayed: 3, candidates: owners(1, 0)[0].candidates}];
+      const three = [...owners(2, 2), {id: 'green', name: 'Bot', color: 'green', self: false, selfHarm: false, totalPlayed: 3, candidates: owners(1, 0)[0].candidates}];
       expect(planPlayedTargetLayout({owners: three, availW: 1600, ui: 1, handheld: false}).mode).to.eq('tabs');
     });
 
@@ -376,7 +427,7 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
    */
   describe('sizing — the surface is spent on the cards that exist', () => {
     const owner = (n: number, cats: ReadonlyArray<string> = ['active']): PlayedTargetOwner => ({
-      id: 'red', name: 'admin', color: 'red', self: true, totalPlayed: 12,
+      id: 'red', name: 'admin', color: 'red', self: true, selfHarm: false, totalPlayed: 12,
       candidates: new Array(n).fill(0).map((_x, i) => ({
         cardName: `C${i}` as CardName,
         category: cats[i % cats.length] as PlayedTargetOwner['candidates'][number]['category'],
@@ -821,7 +872,7 @@ describe('self-target — one physical object, never two', () => {
  */
 describe('layout — the width is spent before the height', () => {
   const mixed = (active: number, automated: number): PlayedTargetOwner => ({
-    id: 'red', name: 'admin', color: 'red', self: true, totalPlayed: 12,
+    id: 'red', name: 'admin', color: 'red', self: true, selfHarm: false, totalPlayed: 12,
     candidates: [
       ...new Array(active).fill(0).map((_x, i) => ({
         cardName: `A${i}` as CardName, category: 'active' as const, relation: 'external-card' as const,
@@ -878,7 +929,7 @@ describe('layout — the width is spent before the height', () => {
  */
 describe('sizing — the rail is reserved before the cards', () => {
   const many = (n: number): PlayedTargetOwner => ({
-    id: 'red', name: 'admin', color: 'red', self: true, totalPlayed: 40,
+    id: 'red', name: 'admin', color: 'red', self: true, selfHarm: false, totalPlayed: 40,
     candidates: new Array(n).fill(0).map((_x, i) => ({
       cardName: `C${i}` as CardName, category: 'active' as const, relation: 'external-card' as const,
       ownerId: 'red', slotKey: `C${i}`, preview: [], model: card(`C${i}`),
