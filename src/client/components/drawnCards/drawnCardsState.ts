@@ -101,6 +101,17 @@ export function reconcileDrawnCards(reveals: ReadonlyArray<CardDrawRevealModel>)
   if (drawnCardsState.events.length === 0) {
     drawnCardsState.fullscreen = null;
   }
+  // A follow-up hold can only ever hold a batch that still EXISTS. Its own doc
+  // says "or the batch is gone", but nothing enforced it: the id is a module
+  // `let` with no reset path, and its single release runs off a CTA gated on a
+  // server prompt (`discardPrompt.colonyBonus`). When that prompt vanished — an
+  // undo, a poll that resolved it elsewhere — the CTA never enabled, the batch
+  // stayed "current" with every card taken, and `hasVisibleReveal()` blocked the
+  // whole presentation for the rest of the session. The server dropping the
+  // batch IS the honest end of the hold.
+  if (followUpHoldId !== undefined && !incomingIds.has(followUpHoldId)) {
+    followUpHoldId = undefined;
+  }
 }
 
 function untakenCount(e: DrawnCardEntry): number {

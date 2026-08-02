@@ -16817,6 +16817,14 @@ html.console-mode {
     min-height: 0;
     width: 100%;
     gap: .55rem;
+    /* THE CAP, measured against the stretched band (`--con-ptsel-max-h`).
+       A `max-height` and not a `height`: a short step still hugs its cards, so
+       the rail sits right under them exactly as it always did; a tall one stops
+       growing here and hands the excess to the candidate viewport. Without a
+       definite bound the viewport's `flex: 1; min-height: 0` would resolve to
+       «as tall as the content», the column would keep growing, and the whole
+       step — rail included — would scroll inside the composer instead. */
+    max-height: var(--con-ptsel-max-h, none);
 
     /* ── THE CONTRACT — what is being chosen, and how many there are. ONE line
        for both: the count is a property of the ask, not a third statement of it
@@ -16883,12 +16891,27 @@ html.console-mode {
        nothing to clip, and clipping would only cut the focused card's lift. In
        the one case the fit fails (`overflows`) the zone grows and the
        workspace's own scroll area — the ONE sanctioned scroll — takes over. ── */
+    /* ── THE CANDIDATE VIEWPORT — the ONE scroller of this step.
+       `flex: 1 1 auto` + `min-height: 0` is what lets it SHRINK under the cap
+       and take the overflow, instead of the column growing past it. It is the
+       only thing between the fixed contract above and the fixed rail below, so
+       a large table scrolls its cards and nothing else moves. ── */
+    &__viewport {
+        flex: 1 1 auto;
+        min-height: 0;
+        width: 100%;
+    }
+    &__viewport-body { display: flex; }
     &__zone {
         flex: 1;
         min-height: 0;
         display: flex;
         align-items: flex-start;
         gap: 1.4rem;
+        width: 100%;
+        /* The lifted focus ring needs a little room; the viewport clips, so the
+           padding is what keeps a focused top-row card from being shaved. */
+        padding: .2rem .1rem;
         overflow: visible;
     }
     &[data-mode='split'] &__owner { flex: 1 1 0; min-width: 0; }
@@ -17080,7 +17103,11 @@ html.console-mode {
        The height is a FIXED ROW, so moving the cursor can never move the cards
        — including onto a candidate that happens to have nothing to say. ── */
     &__rail {
-        flex-shrink: 0;
+        /* OUTSIDE the viewport, and never shrinking: the reading of the card
+           under the cursor is not something a long candidate list may push off
+           the screen. Its height is reserved in the sizing budget BEFORE a
+           single card is measured. */
+        flex: 0 0 auto;
         height: 2.4rem;
         display: flex;
         align-items: center;

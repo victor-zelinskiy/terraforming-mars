@@ -851,3 +851,70 @@ describe('layout — the width is spent before the height', () => {
     expect(tight.overflows).to.eq(false);
   });
 });
+
+/**
+ * THE RAIL IS NOT NEGOTIABLE.
+ *
+ * With a large table the cards genuinely have to scroll — they may not be
+ * shrunk to unreadable sizes to avoid it. What must NOT scroll with them is the
+ * reading of the card under the cursor: the rail states what choosing the
+ * focused candidate does, so it has to stay where the eye already is. The
+ * structure guarantees it (the rail lives outside the candidate viewport), and
+ * the SIZING guarantees the budget: the rail's height comes out of the
+ * available box before a single card is measured.
+ */
+describe('sizing — the rail is reserved before the cards', () => {
+  const many = (n: number): PlayedTargetOwner => ({
+    id: 'red', name: 'admin', color: 'red', self: true, totalPlayed: 40,
+    candidates: new Array(n).fill(0).map((_x, i) => ({
+      cardName: `C${i}` as CardName, category: 'active' as const, relation: 'external-card' as const,
+      ownerId: 'red', slotKey: `C${i}`, preview: [], model: card(`C${i}`),
+    })),
+  });
+
+  /** The caller subtracts the rail from the budget; the planner must SPEND
+   *  only what it was given. A smaller budget can never yield bigger cards. */
+  it('never sizes cards past the budget it was handed', () => {
+    const withRail = planPlayedTargetSizing({owners: [many(6)], mode: 'tabs', availW: 1700, availH: 600, ui: 1, handheld: false});
+    const withoutRail = planPlayedTargetSizing({owners: [many(6)], mode: 'tabs', availW: 1700, availH: 700, ui: 1, handheld: false});
+    expect(withRail.cardZoom).to.be.at.most(withoutRail.cardZoom);
+  });
+
+  /**
+   * DOZENS OF CARDS. The answer is scroll, not illegibility: the planner stops
+   * at the readable floor and REPORTS the overflow, and the viewport takes it.
+   * A layout that kept shrinking would trade the one thing the surface exists
+   * for — being able to read the candidates — to avoid a scrollbar.
+   */
+  it('shrinks toward the floor for a big set, and only then reports overflow', () => {
+    // Forty cards on a WIDE band still fit — at a much smaller size than six.
+    // Shrinking before scrolling is the contract; the scroll is the last step,
+    // not the first.
+    const big = planPlayedTargetSizing({owners: [many(40)], mode: 'tabs', availW: 1700, availH: 600, ui: 1, handheld: false});
+    const small = planPlayedTargetSizing({owners: [many(6)], mode: 'tabs', availW: 1700, availH: 600, ui: 1, handheld: false});
+    expect(big.cardZoom).to.be.lessThan(small.cardZoom);
+    expect(big.cardZoom, 'and never past the readable floor').to.be.at.least(0.3);
+
+    // …and when even the FLOOR cannot hold the set, it says so rather than
+    // shrinking on: the cards stay readable and the viewport scrolls.
+    const impossible = planPlayedTargetSizing({owners: [many(40)], mode: 'tabs', availW: 420, availH: 320, ui: 1, handheld: false});
+    expect(impossible.overflows, 'an impossible box must scroll, not collapse').to.eq(true);
+    expect(impossible.cardZoom).to.be.at.least(0.3);
+  });
+
+  /** …and the floor is the SAME size the fitting path would have produced, so
+   *  crossing into overflow is not a visual jolt. */
+  it('the overflow floor is a real size, not a collapse', () => {
+    const over = planPlayedTargetSizing({owners: [many(40)], mode: 'tabs', availW: 420, availH: 320, ui: 1, handheld: false});
+    expect(over.overflows).to.eq(true);
+    // A scrolling viewport still shows READABLE cards — that is the whole
+    // reason the floor exists.
+    expect(over.cardZoom).to.be.at.least(0.3);
+  });
+
+  /** Overflow is a LAST resort: the same set on a taller band fits. */
+  it('does not overflow when the band genuinely affords the set', () => {
+    const roomy = planPlayedTargetSizing({owners: [many(6)], mode: 'tabs', availW: 1700, availH: 900, ui: 1, handheld: false});
+    expect(roomy.overflows).to.eq(false);
+  });
+});

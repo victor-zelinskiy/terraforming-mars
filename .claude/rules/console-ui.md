@@ -18,6 +18,8 @@ Persistent console SETTINGS live in the main-menu → «Настройки» (`C
 ## Leak detector (breaks silently if skipped)
 A new console surface that renders its OWN root class is invisible to `consoleLeakDetector.ts` and gets masked by the amber stranded guard even though it renders underneath. **Register its root selector**: general surface → `SERVING_SURFACES`; kind-specific section → `KIND_SURFACES[<kind>]`. The root must have layout. No spec enumerates the list — a miss fails only at runtime.
 
+**Check 3 ACTS — the stalled-foreground self-heal.** `runForegroundWatchdog` shares the detector's DOM pass and runs BEFORE the stranded early-returns (the freeze lives exactly where the guard is disarmed by contract). Claimed foreground + nothing rendered + something waiting, 3 passes, only on `boardHomeIdle` → the stale claims are expired, the queue drains, the recovery names itself. See `docs/claude/presentation-flow.md` § the foreground watchdog.
+
 **A hand-off to an ALWAYS-MOUNTED surface (board placement, hand carousel) has no registrable selector** — it needs a module-level MIRROR + early-return instead (`setConsoleTaskSpacePlacement`, `setConsoleTaskDeferred`, `isConsoleHandPickActive`, …) plus a spec row. This is how the final-greenery placement stranded (a nested `SelectSpace` branch keeps `waitingFor` classified as `choice` while every task surface unmounts). Full table: `docs/claude/console/leak-detector-contract.md`.
 
 ## Input — semantic, never raw

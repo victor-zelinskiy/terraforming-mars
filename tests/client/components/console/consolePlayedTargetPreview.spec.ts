@@ -99,6 +99,56 @@ describe('consolePlayedTargetPreview — what the rail actually says', () => {
     });
   });
 
+
+  describe('victory points', () => {
+    /** THE DECISION-RELEVANT HALF. Adding a resource to a scoring card moves
+     *  VP, and that is usually what makes one target better than another — so
+     *  the rail states it beside the resource line, from the server's own
+     *  per-candidate reading. */
+    it('states the VP move beside the resource move', () => {
+      const sections = playedTargetPreviewFor(
+        undefined, input([{name: 'Birds', resources: 2}]), 'Birds' as CardName,
+        [onCardGain('animals', 1)], {['Birds' as CardName]: {from: 2, to: 3}});
+      const impacts = playedTargetQuickImpacts(sections);
+      expect(impacts).to.have.length(2);
+      expect(impacts[0]).to.include({from: 2, to: 3});
+      expect(impacts[1].label, 'the canonical abbreviation').to.eq('VP');
+      expect(impacts[1]).to.include({from: 2, to: 3});
+    });
+
+    /** A candidate the server left OUT of the box has no VP move — and the
+     *  rail must not imply one. The box's contents ARE the condition; nothing
+     *  in the client decides when VP is interesting. */
+    it('says nothing about VP for a candidate the server did not price', () => {
+      const sections = playedTargetPreviewFor(
+        undefined, input([{name: 'Ants', resources: 2}]), 'Ants' as CardName,
+        [onCardGain('microbes', 1)], {['Birds' as CardName]: {from: 0, to: 1}});
+      const impacts = playedTargetQuickImpacts(sections);
+      expect(impacts).to.have.length(1);
+      expect(impacts[0].label).to.eq('Resources on this card');
+    });
+
+    /** A STEP-borne reading works the same way — the two shapes are one line. */
+    it('reads the STEP-borne vpBox for the pre-collected family', () => {
+      const step: ActionPreviewStep = {
+        kind: 'input', input: {} as never, amount: 1, cardResource: 'animals',
+        vpBox: {['Birds' as CardName]: {from: 4, to: 5}},
+      };
+      const impacts = playedTargetQuickImpacts(
+        playedTargetPreviewFor(step, input([{name: 'Birds', resources: 4}], 1), 'Birds' as CardName));
+      expect(impacts.map((i) => i.label)).to.deep.eq(['Resources on this card', 'VP']);
+      expect(impacts[1]).to.include({from: 4, to: 5});
+    });
+
+    /** A static reading is not a reading: «2 → 2» must never reach the rail. */
+    it('drops a VP entry that does not move', () => {
+      const sections = playedTargetPreviewFor(
+        undefined, input([{name: 'Ants', resources: 2}]), 'Ants' as CardName,
+        [onCardGain('microbes', 1)], {['Ants' as CardName]: {from: 1, to: 1}});
+      expect(playedTargetQuickImpacts(sections)).to.have.length(1);
+    });
+  });
+
   describe('the resource badge', () => {
     /** Unchanged contract: a badge only where the resource IS the choice. */
     it('appears only for a step that actually moves the card\'s resource', () => {

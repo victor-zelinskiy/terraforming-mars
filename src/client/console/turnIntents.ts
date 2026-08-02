@@ -18,6 +18,7 @@ import {PlayerInputModel, OrOptionsModel, SelectOptionModel, SelectProjectCardTo
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {awaitingViewerInput, offTurnReason} from '@/client/console/offTurnReason';
+import {translateText} from '@/client/directives/i18n';
 
 /** Plain English text of a `string | Message` prompt title. */
 export function inputTitleText(title: string | Message | undefined): string | undefined {
@@ -25,6 +26,34 @@ export function inputTitleText(title: string | Message | undefined): string | un
     return undefined;
   }
   return typeof title === 'string' ? title : title.message;
+}
+
+/**
+ * A prompt's STABLE identity — its `type` plus its title normalized through the
+ * translator. Used wherever the client must answer "is this still the SAME
+ * prompt?".
+ *
+ * ⚠️ NEVER build that identity from the raw title. `translateMessage` rewrites
+ * `Message.message` IN PLACE on first render (the i18n contract), so a raw-title
+ * key silently flips from the English template to the localized one part-way
+ * through a prompt's life. Both consumers break on that flip, and both freeze
+ * the player:
+ *   - the mandatory ANNOUNCE gate re-arms after the player already acknowledged
+ *     the beat, holding the prompt closed with no way to open it again;
+ *   - the defer reset sees a phantom "new prompt" and un-defers a task the
+ *     player set aside, dropping any pending client payment with it.
+ *
+ * `translateText` is idempotent over this: the English key maps to the localized
+ * string, and the already-localized string has no entry of its own and comes
+ * back unchanged. Both sides of the mutation therefore produce the SAME key,
+ * with exactly the discrimination the raw title had.
+ */
+export function promptIdentityKey(wf: PlayerInputModel | undefined): string {
+  if (wf === undefined) {
+    return '';
+  }
+  const title = inputTitleText(wf.title) ?? '';
+  return `${wf.type}|${title === '' ? '' : translateText(title)}`;
 }
 
 type Options = ReadonlyArray<PlayerInputModel>;

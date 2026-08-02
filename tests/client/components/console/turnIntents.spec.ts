@@ -10,8 +10,10 @@ import {
   findSellPatentsAction,
   findStandardProjectsAction,
   optionResponseForPath,
+  promptIdentityKey,
   wrapPath,
 } from '@/client/console/turnIntents';
+import {Message} from '@/common/logs/Message';
 import {findPerformActionCard, findTradeColonyContext, findHydroActionPath} from '@/client/console/turnIntents';
 import {cycleSection, stepIndex, stepSelectable} from '@/client/console/consoleRouter';
 import {cyclePlayer} from '@/client/console/infoModeState';
@@ -199,5 +201,49 @@ describe('consoleRouter pure helpers', () => {
     expect(cyclePlayer(colors, 'red' as Color, -1)).to.eq('blue');
     expect(cyclePlayer(colors, undefined, 1)).to.eq('red');
     expect(cyclePlayer([], 'red' as Color, 1)).to.eq(undefined);
+  });
+});
+
+describe('promptIdentityKey — survives the in-place i18n mutation', () => {
+  const EN = 'Gain ${0} standard resources';
+  const RU = 'Получите ${0} стандартных ресурса';
+  let originalTranslations: unknown;
+
+  beforeEach(() => {
+    originalTranslations = (window as any)._translations;
+    (window as any)._translations = {[EN]: RU};
+  });
+
+  afterEach(() => {
+    // Bundle-shared: a leaked dictionary would localize every later spec.
+    (window as any)._translations = originalTranslations;
+  });
+
+  it('is the SAME key before and after translateMessage rewrites the title', () => {
+    // Philares' prompt: the title is a Message, and `translateMessage` assigns
+    // the localized template back onto `message.message` (i18n.ts).
+    const wf = {type: 'resources', title: {message: EN, data: []}} as unknown as PlayerInputModel;
+    const before = promptIdentityKey(wf);
+
+    (wf.title as Message).message = RU; // exactly what translateMessage does
+
+    expect(promptIdentityKey(wf)).to.eq(before,
+      'the announce gate re-arms and the defer reset fires a phantom "new prompt" if this flips');
+  });
+
+  it('still tells two different prompts apart', () => {
+    const a = {type: 'resources', title: EN} as unknown as PlayerInputModel;
+    const b = {type: 'resources', title: 'Select a card to discard'} as unknown as PlayerInputModel;
+    expect(promptIdentityKey(a)).to.not.eq(promptIdentityKey(b));
+  });
+
+  it('distinguishes the same title under different input types', () => {
+    const a = {type: 'resources', title: EN} as unknown as PlayerInputModel;
+    const b = {type: 'or', title: EN} as unknown as PlayerInputModel;
+    expect(promptIdentityKey(a)).to.not.eq(promptIdentityKey(b));
+  });
+
+  it('an absent prompt is the empty identity', () => {
+    expect(promptIdentityKey(undefined)).to.eq('');
   });
 });

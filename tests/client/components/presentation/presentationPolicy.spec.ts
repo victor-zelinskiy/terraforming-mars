@@ -5,6 +5,7 @@ import {
   mandatoryPromptsHeld,
   notificationDeliveryBlocked,
   pendingQueueSummary,
+  presentationStalled,
 } from '@/client/components/presentation/presentationPolicy';
 
 function flags(partial: Partial<PresentationFlags> = {}): PresentationFlags {
@@ -84,6 +85,23 @@ describe('presentationPolicy (pure)', () => {
       expect(mandatoryPromptsHeld(flags({animationHolds: 1, blockingAnimationHolds: 1}))).eq(true);
       // notification-only: counted in animationHolds but NOT in the blocking subset.
       expect(mandatoryPromptsHeld(flags({animationHolds: 1, blockingAnimationHolds: 0}))).eq(false);
+    });
+  });
+
+  describe('presentationStalled', () => {
+    const stall = {claimed: true, surfaceRendered: false, waiting: true};
+
+    it('all three parts must hold — a claim backed by a rendered surface is honest', () => {
+      expect(presentationStalled(stall)).eq(true);
+      expect(presentationStalled({...stall, surfaceRendered: true})).eq(false);
+    });
+
+    it('an unclaimed foreground is never stalled, however empty the screen is', () => {
+      expect(presentationStalled({...stall, claimed: false})).eq(false);
+    });
+
+    it('a claim nobody is waiting on is left alone (the player is not blocked)', () => {
+      expect(presentationStalled({...stall, waiting: false})).eq(false);
     });
   });
 

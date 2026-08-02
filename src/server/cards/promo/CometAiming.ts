@@ -87,6 +87,11 @@ export class CometAiming extends Card implements IActionCard, IProjectCard {
         title: 'Spend 1 titanium to add 1 asteroid resource to a card',
         effects: [actionPreviews.stockCost(player, Resource.TITANIUM, 1), actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)],
         optionInput: pickTarget ? actionPreviews.cardInput(player, 'Select card to add 1 asteroid', 'Add asteroid', asteroidCards) : undefined,
+        // The asteroid is not only a resource: on a card that scores per
+        // asteroid it moves VICTORY POINTS, and that is usually the reason one
+        // target beats another. The reading is computed authoritatively beside
+        // the effect that declares the delta.
+        vpBox: actionPreviews.targetVictoryPoints(player, asteroidCards, 1),
         unavailableReason: actionReason.notEnoughTitanium(),
       },
     ]);

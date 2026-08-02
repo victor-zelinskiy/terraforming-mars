@@ -10,7 +10,7 @@ import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
 import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionRevealDescriptor} from '../../common/models/ActionPreviewModel';
 import {AmountConversionModel, AmountCostModel, AmountResultModel, PlayerInputModel} from '../../common/models/PlayerInputModel';
-import {effectsForBehavior, copiedProductionUnits} from '../models/actionPreview';
+import {effectsForBehavior, copiedProductionUnits, resourceVictoryPoints} from '../models/actionPreview';
 import {Units} from '../../common/Units';
 import {RemoveResourcesFromCard} from '../deferredActions/RemoveResourcesFromCard';
 import {AddResourcesToCard, Options as AddResourceOptions} from '../deferredActions/AddResourcesToCard';
@@ -410,9 +410,45 @@ export function selectCardStep(
     amount: opts?.amount,
     dedupeFromSteps: opts?.dedupeFromSteps,
     copyProductionBox,
+    // AUTOMATIC, never opt-in: a step that moves a card resource ALWAYS knows
+    // what that does to the card's victory points, so every card in this family
+    // gets the reading for free — and none of them can forget to ask for it.
+    vpBox: targetVictoryPoints(player, cards, opts?.amount),
     multiSelect: opts?.multiSelect,
     repeatAction: opts?.repeatAction,
   };
+}
+
+/**
+ * The per-candidate VP reading a resource delta implies — `before → after`.
+ *
+ * Shared by the two shapes a card target takes: a pre-collected STEP (which
+ * carries its own `amount` and gets this automatically above) and a branch
+ * OPTION (`optionInput`, whose delta lives in the branch's effects — those
+ * cards pass the delta here from their own hook, beside the effect that states
+ * it). Returns `undefined` when NOTHING in the candidate set has a
+ * resource-driven VP, so the field stays absent rather than shipping an empty
+ * map on every card pick in the game.
+ */
+export function targetVictoryPoints(
+  player: IPlayer,
+  cards: ReadonlyArray<ICard>,
+  delta: number | undefined,
+): Partial<Record<CardName, {from: number, to: number}>> | undefined {
+  if (delta === undefined || delta === 0) {
+    return undefined;
+  }
+  let box: Partial<Record<CardName, {from: number, to: number}>> | undefined;
+  for (const c of cards) {
+    const vp = resourceVictoryPoints(player, c, delta);
+    // Only a MOVING value earns a line: «2 → 2» is noise, and a card whose VP
+    // the resource does not touch must not imply that it does.
+    if (vp !== undefined && vp.from !== vp.to) {
+      box = box ?? {};
+      box[c.name] = vp;
+    }
+  }
+  return box;
 }
 
 /** A single-target `SelectPlayer` as a STEP (the modal hosts the premium
@@ -443,6 +479,15 @@ export type BranchSpec = {
   steps?: ReadonlyArray<ActionPreviewStep | undefined>;
   /** Ordinal of the printed render node for this branch (defaults to its position). */
   renderKey?: string;
+  /**
+   * The per-candidate VP a branch-level card target would move, from
+   * `targetVictoryPoints(player, cards, delta)`.
+   *
+   * This family puts the target on the BRANCH (`optionInput`), so there is no
+   * step to compute it automatically from — the card states its delta once,
+   * beside the effect that already declares it.
+   */
+  vpBox?: Partial<Record<CardName, {from: number, to: number}>>;
 };
 
 function reasonMessage(r: string | Message | UnplayableReason | undefined): string | Message | undefined {
@@ -661,6 +706,7 @@ export function orBranches(
       renderKeys: [s.renderKey ?? String(i)],
       effects: s.effects ?? [],
       optionInput: s.available ? s.optionInput : undefined,
+      vpBox: s.available ? s.vpBox : undefined,
       steps: s.available ? definedSteps(s.steps) : [],
     };
   });

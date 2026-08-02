@@ -484,5 +484,6 @@
     "The wild joins the bonus you are placing.": "Он добавится к бонусу, который вы размещаете.",
     "You have no card that can hold a resource": "Нет карты, которая может принять ресурс",
     "Choose the card to receive it": "Выберите карту, которая его получит",
-    "Taken as a standard resource": "Взят базовым ресурсом"
+    "Taken as a standard resource": "Взят базовым ресурсом",
+    "The screen was stuck and has been released": "Экран завис — блокировка снята"
 }

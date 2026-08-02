@@ -117,6 +117,7 @@ import {PendingQueueSummary} from '@/client/components/presentation/presentation
 import {ensureBotPresentationLiveness, openBotTurnReviewByKey} from '@/client/components/marsbot/marsBotPresentation';
 import {resetBotStaging} from '@/client/components/marsbot/marsBotStagedCommits';
 import {resetMarsBotArchive} from '@/client/components/marsbot/marsBotTurnArchive';
+import {closeBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
 import {ackBotTurn, setBotAckViewer} from '@/client/components/marsbot/botTurnAck';
 import NotificationCard from '@/client/components/notifications/NotificationCard.vue';
 import {notificationBus} from '@/client/components/notifications/notificationBus';
@@ -352,6 +353,10 @@ export default defineComponent({
         resetMaCeremony();
         resetStartSetupReveal(); // a new game's gen-1 setup must not collide with the old dedup key
         resetMarsBotArchive(); // stale turn scripts belong to the previous game
+        // …and the review RENDERS from that archive: left open across the
+        // boundary it holds the foreground ('turn-theater') over a game it can
+        // no longer describe, and nothing else in the client ever closes it.
+        closeBotTurnReview();
         resetBotStaging(); // a stale staging window must not swallow the new game's commits
         this.lastFetchVersion = undefined; // A1: force a re-seed fetch for the new game
       }

@@ -28,12 +28,19 @@ function entryFor(cardName: string) {
   } as any;
 }
 
-function factory(preview: any, cardName = 'Robinson Industries', nodeIndex = 0) {
+function factory(preview: any, cardName = 'Robinson Industries', nodeIndex = 0, view: any = PLAYER_VIEW) {
   return mount(ConsoleActionComposer, {
     ...globalConfig,
     global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
-    props: {playerView: PLAYER_VIEW, entry: entryFor(cardName), preview, nodeIndex},
+    props: {playerView: view, entry: entryFor(cardName), preview, nodeIndex},
   });
+}
+
+/** A view whose TABLE holds the given cards — what makes a card pick a
+ *  PLAYED-CARD pick (and therefore the embedded target step). */
+function viewWithTableau(names: ReadonlyArray<string>): any {
+  const tableau = names.map((name) => ({name}));
+  return {...PLAYER_VIEW, thisPlayer: {...PLAYER_VIEW.thisPlayer, tableau}, players: [{color: 'blue', name: 'Me', tableau}]};
 }
 
 function prod(icon: string) {
@@ -288,6 +295,62 @@ describe('ConsoleActionComposer — premium render', () => {
     const cta = w.find('.con-composer__ctadock .con-composer__cta');
     expect(cta.classes()).to.not.include('con-composer__cta--held');
     expect(cta.find('.con-composer__cta-glyph').exists()).to.eq(true);
+    w.unmount();
+  });
+
+
+  /**
+   * THE STATUS RAIL IS OUTSIDE THE SCROLL — structurally, not by luck.
+   *
+   * With a large table the cards genuinely have to scroll (they may not be
+   * shrunk to unreadable), and the rail states what the card UNDER THE CURSOR
+   * does. If it travelled with the list, the reading would leave the screen at
+   * exactly the moment the player is moving through candidates. The DOM
+   * relationship is the guarantee, so that is what this asserts.
+   */
+  it('the status rail is NOT inside the candidate viewport', async () => {
+    const w = factory({
+      card: 'S', isCorporation: false, kind: 'declarative',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [], effects: [],
+        steps: [{kind: 'input', input: {type: 'card', title: 'Select card', buttonLabel: 'Select', cards: [{name: 'Tardigrades'}], min: 1, max: 1}}],
+      }],
+    }, 'S', 0, viewWithTableau(['Tardigrades']));
+    await w.vm.$nextTick();
+    (w.vm as any).openChoice((w.vm as any).allChoices[0]);
+    await w.vm.$nextTick();
+
+    const step = w.find('.con-ptsel');
+    expect(step.exists(), 'the embedded step is open').to.eq(true);
+    const rail = step.find('.con-ptsel__rail');
+    const viewport = step.find('.con-ptsel__viewport');
+    expect(rail.exists(), 'the rail is rendered').to.eq(true);
+    expect(viewport.exists(), 'the candidate viewport is rendered').to.eq(true);
+    // THE CONTRACT: the rail is a SIBLING of the scroller, never a descendant.
+    expect(viewport.element.contains(rail.element), 'the rail must not live inside the scroller').to.eq(false);
+    // …and so is the contract line above it.
+    expect(viewport.element.contains(step.find('.con-ptsel__contract').element)).to.eq(false);
+    // The cards, by contrast, ARE inside it.
+    expect(viewport.element.contains(step.find('.con-ptsel__zone').element)).to.eq(true);
+    w.unmount();
+  });
+
+  /** A SELF-TARGET draws a handle, never a second copy of the card that is
+   *  already standing in the hero slot. */
+  it('a self-target renders a handle, not a second full-size card', async () => {
+    const w = factory({
+      card: 'Tardigrades', isCorporation: false, kind: 'declarative',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [], effects: [],
+        steps: [{kind: 'input', input: {type: 'card', title: 'Select card', buttonLabel: 'Select', cards: [{name: 'Tardigrades'}], min: 1, max: 1}}],
+      }],
+    }, 'Tardigrades', 0, viewWithTableau(['Tardigrades']));
+    await w.vm.$nextTick();
+    (w.vm as any).openChoice((w.vm as any).allChoices[0]);
+    await w.vm.$nextTick();
+
+    expect(w.find('.con-ptsel__self').exists(), 'the handle is there').to.eq(true);
+    expect(w.find('.con-ptsel__slot').exists(), 'and no full-size candidate face').to.eq(false);
     w.unmount();
   });
 

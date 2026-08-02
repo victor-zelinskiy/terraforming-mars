@@ -33,7 +33,12 @@
       </template>
 
       <!-- ── Two columns: card · composer ──────────────────────────── -->
-      <div class="con-composer__playmain">
+      <!-- data-ws-band: THE STRETCHED BAND. The embedded played-target step
+           measures its own vertical budget as «this band's bottom minus my own
+           top» — acyclic by construction (the band's height is fixed by the
+           layout, the step's top by whatever sits above it), which is what lets
+           the step cap itself and scroll only its cards. -->
+      <div class="con-composer__playmain" data-ws-band>
         <!-- data-zoom-handoff: the fullscreen inspector's «Разыграть» flies
              the card INTO this slot (consoleZoomMotion.playZoomHandoff).
              NO cascade marker on the card — the occlusion bridge's sweep
@@ -1896,7 +1901,7 @@ export default defineComponent({
      */
     playedTargetPreview(choice: ComposerChoice, name: CardName): ReadonlyArray<PlayedTargetPreviewSection> {
       const step = choice.scope === 'step' ? this.selectedBranch?.steps[choice.index] : undefined;
-      return playedTargetPreviewFor(step, choice.input as SelectCardModel, name, this.selectedBranch?.effects);
+      return playedTargetPreviewFor(step, choice.input as SelectCardModel, name, this.selectedBranch?.effects, this.selectedBranch?.vpBox);
     },
     /**
      * The resource badge a candidate face earns — EXPLICIT, and only when the
@@ -2117,14 +2122,11 @@ export default defineComponent({
       this.sub = {...this.sub, focus: next};
       this.scrollPlayedTargetFocused();
     },
-    /** Keep the cursored candidate inside the workspace's ONE scroll area —
-     *  only ever needed when the sizing genuinely could not fit the set. */
+    /** Keep the cursored candidate inside the STEP's own candidate viewport.
+     *  The step owns that scroller — the contract and the status rail live
+     *  outside it, so a cursor move can never carry the rail off screen. */
     scrollPlayedTargetFocused(): void {
-      this.$nextTick(() => {
-        const scroll = this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined;
-        const el = (this.$el as HTMLElement | undefined)?.querySelector('[data-ptsel-cell][data-focused]');
-        scroll?.ensureVisible?.(el);
-      });
+      (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
     },
     /** LB/RB — the owner axis, tabbed mode only (in split the groups are both
      *  on screen and the d-pad crosses between them spatially). */

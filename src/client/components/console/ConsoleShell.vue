@@ -589,10 +589,10 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleRevealOverlay v-if="consoleRevealMode !== undefined && !playedHeroHolds"
+        <ConsoleRevealOverlay v-if="revealOverlayMode !== undefined"
                               ref="revealOverlay"
                               :playerView="playerView"
-                              :mode="consoleRevealMode"
+                              :mode="revealOverlayMode"
                               :embedded="revealEmbedTarget !== undefined"
                               @dismiss-result="onDismissRevealResult"
                               @result-detached="onWorkspaceResultDetached"
@@ -1301,6 +1301,7 @@ import {
   TradeColonyContext,
   hasTurn,
   inputTitleText,
+  promptIdentityKey,
   optionResponseForPath,
   wrapPath,
 } from '@/client/console/turnIntents';
@@ -1329,6 +1330,11 @@ import {
   setConsolePlacementHeld,
   resetPromptAdmission,
 } from '@/client/console/consolePromptAdmission';
+import {
+  guardedAdmissionSignals,
+  noteAdmissionSignals,
+  setConsoleBoardHomeIdle,
+} from '@/client/console/consoleForegroundWatchdog';
 
 type PendingPlayCard = {
   cardName: CardName;
@@ -1896,15 +1902,35 @@ export default defineComponent({
     pendingEvents(): PendingQueueSummary {
       return pendingSummary();
     },
+    /**
+     * The mode the reveal overlay is ACTUALLY mounted with, or undefined when it
+     * is not on screen. The single source for both its `v-if` and the foreground
+     * lease — they were two hand-written expressions and they had drifted: the
+     * lease was taken on `consoleRevealMode` alone while the overlay
+     * additionally required `!playedHeroHolds`, so through the hero beat the
+     * console held a `mandatory-choice` lease with NOTHING rendered. That is a
+     * foreground claim nobody can satisfy: the notification queue cannot drain
+     * and no mandatory surface may mount behind it.
+     */
+    revealOverlayMode(): ConsoleRevealMode | undefined {
+      return this.playedHeroHolds ? undefined : this.consoleRevealMode;
+    },
     /** A console blocking foreground surface is actively presenting (drives
      *  the lease): task host / start scene / gov-support panel, plus the
      *  reveal overlays ('drawn' also derives from drawnCardsState — the lease
-     *  covers the console-only 'result'/'viewer' modes too). */
+     *  covers the console-only 'result'/'viewer' modes too).
+     *
+     *  A LEASE IS A CLAIM THAT SOMETHING IS VISIBLE — so every branch here must
+     *  match a surface that really renders. The two states documented as
+     *  "render nowhere" are excluded explicitly: the hero beat unmounting the
+     *  reveal (via `revealOverlayVisible`) and a host claimed by a workspace
+     *  whose outcome slot does not exist yet (`taskHeldForWorkspace`, see its
+     *  own comment). Everything else the watchdog covers as the net. */
     consoleMandatoryPresenting(): boolean {
-      if (this.consoleRevealMode !== undefined) {
+      if (this.revealOverlayMode !== undefined) {
         return true;
       }
-      if (this.consoleState.task.deferred) {
+      if (this.consoleState.task.deferred || this.taskHeldForWorkspace) {
         return false;
       }
       return (this.hostTask !== undefined && this.taskSpacePending === undefined) ||
@@ -2083,6 +2109,18 @@ export default defineComponent({
      * apart, and the fifth family (board placement) had never been given one.
      */
     admissionSignals(): AdmissionSignals {
+      return guardedAdmissionSignals(this.rawAdmissionSignals);
+    },
+    /**
+     * The signals as the shell observes them, BEFORE the watchdog's staleness
+     * mask. Every one of these is a bounded cinematic, but they are read as raw
+     * module predicates — the animation-hold registry's 35 s ceiling never
+     * protected prompt ADMISSION, so one leaked scene flag held every mandatory
+     * surface closed forever. `guardedAdmissionSignals` masks a claim the
+     * watchdog has PROVEN stale (nothing rendered, player blocked); the mask
+     * lifts by itself the moment the flag goes honestly false again.
+     */
+    rawAdmissionSignals(): AdmissionSignals {
       return {
         revealOpen: this.consoleRevealMode !== undefined,
         revealPending: this.rawDrawnRevealPending,
@@ -2452,7 +2490,7 @@ export default defineComponent({
       const wf = this.playerView.waitingFor;
       return mandatoryBeatFor({
         task: taskFor(this.playerView),
-        taskKey: wf === undefined ? '' : `${wf.type}|${inputTitleText(wf.title) ?? ''}`,
+        taskKey: promptIdentityKey(wf),
         forcedReaction: this.viewerForcedReaction,
       });
     },
@@ -2478,18 +2516,19 @@ export default defineComponent({
       return (this.hostTask !== undefined || this.shellTask !== undefined || this.startTask !== undefined) &&
         this.consoleState.task.deferred;
     },
-    mandatoryAnnounceVisible(): boolean {
-      // ONE premium surface for BOTH states: a fresh HELD decision (opens with
-      // A) and a DEFERRED one (returns with A). Board-home + idle either way.
-      return (this.mandatoryGateHeld || this.mandatoryDeferredActive) &&
-        // The player is on the MAIN board view (they've "closed the screen /
-        // finished the animations") — not in the hand carousel / a sheet / an
-        // overlay / an inspection mode / a placement.
-        this.consoleState.section === 'board' &&
-        !isAnimationHoldActive() &&
-        !this.presentationHeld &&
-        !this.playedHeroHolds &&
-        !this.tilePlacementHolds &&
+    /**
+     * The player is on the MAIN board view and has opened NOTHING of their own
+     * — not the hand carousel / a sheet / the journal / an overlay / a zoom / an
+     * inspection / a placement. Deliberately free of the animation + foreground
+     * HOLDS: this is the player's own context, not the presentation's.
+     *
+     * Two consumers that must never drift apart: the announcement's visibility
+     * (below) and the foreground watchdog's scope. The watchdog only acts here,
+     * because "no serving surface is rendered" is a lie the moment the player
+     * opens a screen of their own over a legitimately claimed foreground.
+     */
+    boardHomeIdle(): boolean {
+      return this.consoleState.section === 'board' &&
         this.consoleCardZoom.card === undefined &&
         !journalState.open &&
         this.consoleState.sheet === undefined &&
@@ -2502,6 +2541,18 @@ export default defineComponent({
         !this.botTurnReviewState.open &&
         !this.govScaleFocusState.holding &&
         !this.govScaleFocusState.closing;
+    },
+    mandatoryAnnounceVisible(): boolean {
+      // ONE premium surface for BOTH states: a fresh HELD decision (opens with
+      // A) and a DEFERRED one (returns with A). Board-home + idle either way.
+      return (this.mandatoryGateHeld || this.mandatoryDeferredActive) &&
+        this.boardHomeIdle &&
+        // …and nothing is still PLAYING: the beat stays held until the player
+        // has "finished the animations", they just see their chip status.
+        !isAnimationHoldActive() &&
+        !this.presentationHeld &&
+        !this.playedHeroHolds &&
+        !this.tilePlacementHolds;
     },
     /**
      * The viewer's TOP CHIP carries the pending-decision beacon while the CTA
@@ -4744,6 +4795,25 @@ export default defineComponent({
         setMandatoryGateHeld(held);
       },
     },
+    // Mirror the RAW admission signals into the foreground watchdog: it runs on
+    // the leak detector's 1 s timer and cannot recompute them, and it needs the
+    // raw values both to name what is claiming the foreground and to lift its
+    // staleness mask the moment a claim goes honestly false again.
+    rawAdmissionSignals: {
+      immediate: true,
+      deep: true,
+      handler(raw: AdmissionSignals): void {
+        noteAdmissionSignals(raw);
+      },
+    },
+    // …and the watchdog's SCOPE: it may only act while the player is on the
+    // board home with nothing of their own open (see boardHomeIdle).
+    boardHomeIdle: {
+      immediate: true,
+      handler(idle: boolean): void {
+        setConsoleBoardHomeIdle(idle);
+      },
+    },
     // Mirror the PLACEMENT verdict into the module so the legacy WaitingFor —
     // which mounts the legacy SelectSpace (its `mounted()` paints the
     // `.board-space--available` hex highlight) and teleports the PlacementBanner
@@ -5179,8 +5249,7 @@ export default defineComponent({
           this.dismissedRevealKey = '';
         }
         // CTS: a NEW prompt identity resets the defer + stale nested picks.
-        const wf = this.playerView.waitingFor;
-        const key = wf === undefined ? '' : `${wf.type}|${inputTitleText(wf.title) ?? ''}`;
+        const key = promptIdentityKey(this.playerView.waitingFor);
         if (key !== this.lastTaskKey) {
           this.lastTaskKey = key;
           this.consoleState.task.deferred = false;

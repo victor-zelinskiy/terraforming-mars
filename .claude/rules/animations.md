@@ -28,6 +28,8 @@ Every CRITICAL animation is a first-class foreground occupant via `presentation/
 ## One foreground item at a time
 `presentation/presentationFlow.ts` sequences client-side delivery: blocking surfaces acquire/release a **lease** around their EFFECTIVE visibility (release fns idempotent, watchers keep them in lockstep); notifications are serial FIFO and re-queue when the foreground gets blocked. A new flow-holding item sets `holdsFlow` on its `NotificationModel`. `presentationPolicy.ts` holds the pure vocabulary and is unit-tested.
 
+**A lease is a CLAIM that a surface is VISIBLE — derive it from the same expression as that surface's `v-if`, never a hand-written superset.** Every desync froze the game permanently (the queue can't drain, no mandatory surface can mount, and the leak detector's guard is disarmed while an announce gate holds). Two shipped that way: the reveal lease ignored the overlay's `!playedHeroHolds`, and `taskHeldForWorkspace` is documented "render nowhere" yet still held one. The net is `consoleForegroundWatchdog.ts` (leak-detector check 3): claimed + nothing rendered + something waiting, for 3 passes on the board home → the claims are EXPIRED (masked until they go honestly false — `animationHold`'s semantics), the queue drains and it names what it expired. **Note the admission signals bypass the 35 s animation ceiling entirely** — `admits(...)` reads raw scene predicates, so a leaked flow flag holds every prompt closed until the watchdog masks it.
+
 Bot turns are notification-first with staged visual commits (`marsBotPresentation.ts`); read the archive, never re-derive scripts.
 
 ## Test gotcha

@@ -24,3 +24,13 @@ The root node must have layout (`getClientRects().length > 0`) — a `position: 
 
 The last one shipped as a **critical bug (2026-07-29)**: the FINAL GREENERY prompt is an `OrOptions` ('Place any final greenery from plants') whose first branch is a nested `SelectSpace`. Picking that branch sets `taskSpacePending`, which unmounts the task host / gov-support / production-loss surfaces (all three carry `taskSpacePending === undefined` in their `v-if`) and hands the answer to board placement — while `waitingFor` stays the `or`, so `taskFor` keeps returning `choice`, **not** the shell-native `space`. Nothing matched, and ~2 s into every final-greenery placement the amber guard covered a perfectly working board. Same shape: the World Government ocean. **A new client-side hand-off that unmounts its task surface while the server prompt stays live MUST add a mirror + a spec row in `tests/client/components/console/consoleLeakDetector.spec.ts`.**
 
+
+### Check 3 — the STALLED-FOREGROUND self-heal (2026-08-02)
+
+The detector no longer only *reports*. Before check 1's early-returns it runs `runForegroundWatchdog({surfaceRendered, promptLive})` (`consoleForegroundWatchdog.ts`), sharing the SAME querySelector pass via `anyServingSurfaceRendered(task)` so the two checks can never disagree about what is on screen.
+
+**Why it must run first.** Every early-return above disarms the stranded guard by contract — a held announce gate, a deferred task, a live animation hold all count as "served". The freeze this exists for lives exactly there: the console claimed the foreground (a lease, a derived flag, a raw admission signal), *nothing* rendered to justify it, and the player sat on the board home with «СОБЫТИЯ В ОЧЕРЕДИ +N», no prompt and «Сначала завершите текущее действие» on every verb — with no guard, because the gate said "served". Only a page reload cleared it.
+
+Unlike checks 1-2 this one ACTS: after 3 consecutive stalled passes it EXPIRES the stale claims (never force-closes them — see `docs/claude/presentation-flow.md` § the foreground watchdog), drains the queue, warns with the exact claims, and raises one player-facing notice.
+
+**Scope:** only while the shell mirrors `boardHomeIdle` (`setConsoleBoardHomeIdle`) — the board section with nothing the player opened themselves. Off the board home "no serving surface" is a lie, not a symptom, and expiring an honest claim would pop a prompt over whatever they were reading. That mirror is the fourth entry in the mirror table above.

@@ -1,7 +1,7 @@
 /*
  * CONSOLE LEAK DETECTOR — CTS phase T0 (docs/CONSOLE_MODE_CONCEPT.md §CTS-7).
  *
- * Makes mixed/broken input states VISIBLE instead of silent. Two checks,
+ * Makes mixed/broken input states VISIBLE instead of silent. Three checks,
  * run on a light 1 s interval while console mode is active:
  *
  * 1. STRANDED PROMPT (the production bug class behind "only the pill is
@@ -15,8 +15,17 @@
  *    rollout — this is telemetry that shrinks phase by phase, surfaced in
  *    the ?gpDebug readout, warn-once in dev).
  *
- * Read-only: one querySelector pass per tick, no DOM writes, no gameplay
- * effects. Stops with the shell.
+ * 3. STALLED FOREGROUND (`consoleForegroundWatchdog`): the console claims the
+ *    foreground is occupied, but nothing is RENDERED to justify it and the
+ *    player is demonstrably blocked (queued events that cannot be delivered
+ *    and/or a live prompt). Unlike the other two this one ACTS — it expires the
+ *    stale claims so the queue drains and the held prompt mounts. It runs
+ *    BEFORE check 1's early-returns on purpose: the freeze it exists for lives
+ *    exactly where the stranded guard is disarmed by contract (a held announce
+ *    gate counts as "served", so that case produced no guard at all).
+ *
+ * Checks 1-2 are read-only; check 3 shares their single querySelector pass and
+ * writes only presentation state, never game state. Stops with the shell.
  */
 
 import {reactive} from 'vue';
@@ -28,6 +37,7 @@ import {govScaleFocusState} from '@/client/console/consoleGovScaleFocus';
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
 import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
+import {resetForegroundWatchdog, runForegroundWatchdog} from '@/client/console/consoleForegroundWatchdog';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
 const SERVING_SURFACES: ReadonlyArray<string> = [
@@ -240,6 +250,20 @@ export function setConsoleTaskSpacePlacement(active: boolean): void {
   consoleTaskSpacePlacement = active;
 }
 
+/**
+ * Is ANY surface that could justify a foreground claim actually rendered? One
+ * querySelector pass, shared by the stranded check and the foreground watchdog
+ * (they ask the same DOM question for different reasons, so they must never be
+ * able to disagree about the answer).
+ */
+function anyServingSurfaceRendered(task: ConsoleTask | undefined): boolean {
+  const selectors = [...SERVING_SURFACES, ...(task !== undefined ? KIND_SURFACES[task.kind] ?? [] : [])];
+  return selectors.some((sel) => {
+    const el = document.querySelector(sel);
+    return el !== null && (el as HTMLElement).getClientRects().length > 0;
+  });
+}
+
 const warned = new Set<string>();
 
 function warnOnce(key: string, message: string): void {
@@ -265,8 +289,22 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   }
   leakDetectorState.desktopSurfaces = present;
 
-  // 1. Stranded prompt.
   const wf = view?.waitingFor;
+  const task: ConsoleTask | undefined = view === undefined ? undefined : taskFor(view);
+
+  // 3. STALLED FOREGROUND — the self-heal, run FIRST and unconditionally.
+  //
+  // It must be evaluated BEFORE the stranded check's early-returns, because the
+  // freeze this exists for lives exactly where those returns disarm the guard:
+  // a held announce gate reports "served" by contract, so a claim that is up
+  // with nothing rendered behind it produced no guard, no prompt and a pinned
+  // «events queued» chip until the player reloaded the page. The DOM evidence
+  // is the same querySelector pass the stranded check already needs, so this
+  // costs one shared computation, not a second clock.
+  const served = anyServingSurfaceRendered(task);
+  runForegroundWatchdog({surfaceRendered: served, promptLive: wf !== undefined});
+
+  // 1. Stranded prompt.
   if (view === undefined || wf === undefined) {
     clearStranded();
     return;
@@ -326,7 +364,6 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
     clearStranded();
     return;
   }
-  const task: ConsoleTask | undefined = taskFor(view);
   // Only the shell's OWN surfaces need no dedicated host; every task-host
   // kind must actually RENDER `.con-task-host` (checked below) — a host
   // that fails to mount is a stranded prompt, not a success.
@@ -334,11 +371,6 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
     clearStranded();
     return;
   }
-  const selectors = [...SERVING_SURFACES, ...(task !== undefined ? KIND_SURFACES[task.kind] ?? [] : [])];
-  const served = selectors.some((sel) => {
-    const el = document.querySelector(sel);
-    return el !== null && (el as HTMLElement).getClientRects().length > 0;
-  });
   if (served) {
     clearStranded();
     return;
@@ -387,4 +419,5 @@ export function stopConsoleLeakDetector(): void {
   consoleTaskDeferred = false;
   consoleTaskSpacePlacement = false;
   leakDetectorState.desktopSurfaces = [];
+  resetForegroundWatchdog();
 }

@@ -6,6 +6,7 @@
   <div class="con-ptsel"
        :data-mode="layout.mode"
        :data-flow="sizing.sectionFlow"
+       :data-overflow="sizing.overflows ? '1' : undefined"
        :style="sizeVars">
     <!-- ── THE SELECTION CONTRACT — one question, answered once. The count
          rides the SAME line as the title: it is a property of the ask, not a
@@ -45,6 +46,16 @@
       <GamepadGlyph control="bumperR" />
     </div>
 
+    <!-- ── THE CANDIDATE VIEWPORT — the ONLY scrollable zone of this step.
+         Everything outside it is FIXED: the contract above, the owner tabs, and
+         the status rail below. With a large table the cards genuinely have to
+         scroll (they may not be shrunk to unreadable), and when they do the
+         rail must not travel with them — it is the reading of the card under
+         the cursor, so it has to stay where the eye already is.
+         The step caps its own height against the band (see `budgetPx`), which
+         is what turns `flex: 1; min-height: 0` here into a real scroll
+         container rather than an ever-growing column. ── -->
+    <ConsoleScrollArea class="con-ptsel__viewport" content-class="con-ptsel__viewport-body" ref="viewport">
     <!-- ── OWNER GROUPS. Each owner is a SPATIAL group with its own rail —
          candidates are never mixed into one grid with small badges, because
          whose card this is must read from where it sits. ── -->
@@ -132,6 +143,7 @@
         </div>
       </section>
     </div>
+    </ConsoleScrollArea>
 
     <!-- ── THE CONTEXTUAL STATUS RAIL — ONE line, permanently present, whose
          only job is «what does the card under the cursor give me, here».
@@ -211,6 +223,7 @@
 import {defineComponent, PropType, markRaw} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateTextWithParams} from '@/client/directives/i18n';
@@ -232,7 +245,7 @@ const UNMEASURED: PlayedTargetSizing =
 
 export default defineComponent({
   name: 'ConsolePlayedTargetStep',
-  components: {ConsoleCardFaceLite, GamepadGlyph},
+  components: {ConsoleCardFaceLite, GamepadGlyph, ConsoleScrollArea},
   props: {
     model: {type: Object as PropType<PlayedTargetModel>, required: true},
     layout: {type: Object as PropType<PlayedTargetLayout>, required: true},
@@ -266,6 +279,8 @@ export default defineComponent({
       /** The measured cells, rebuilt only when the layout genuinely changed. */
       cellCache: undefined as ReadonlyArray<PlayedTargetCell> | undefined,
       stopResizeObs: undefined as (() => void) | undefined,
+      /** The step's own vertical CAP, measured against the stretched band. */
+      budgetPx: 0,
     };
   },
   computed: {
@@ -318,6 +333,10 @@ export default defineComponent({
         '--con-ptsel-zoom': this.sizing.cardZoom.toFixed(3),
         '--con-ptsel-gap': `${this.sizing.gapPx.toFixed(2)}px`,
         '--con-ptsel-focus-scale': String(PLAYED_TARGET_FOCUS_SCALE),
+        // The CAP, not a fixed height: a short step still hugs its cards (the
+        // rail sits right under them, exactly as before), and a tall one stops
+        // growing and hands the excess to the candidate viewport's scroll.
+        ...(this.budgetPx > 0 ? {'--con-ptsel-max-h': `${Math.round(this.budgetPx)}px`} : {}),
       };
     },
     /** «Выбрано 1 из 2» — the live accumulation of a multi ask. */
@@ -432,6 +451,23 @@ export default defineComponent({
       this.cellCache = undefined;
     },
     /**
+     * Keep the cursored candidate inside the CANDIDATE VIEWPORT — the step's
+     * own scroller, not the composer's. The host calls this after a move; with
+     * the rail and the contract fixed outside, this is the only thing a cursor
+     * move may ever scroll.
+     */
+    ensureFocusVisible(): void {
+      void this.$nextTick(() => {
+        const area = this.$refs.viewport as {ensureVisible?: (el: Element | null | undefined) => void} | undefined;
+        const el = (this.$el as HTMLElement | undefined)?.querySelector('[data-ptsel-cell][data-focused]');
+        area?.ensureVisible?.(el);
+      });
+    },
+    /** Right-stick scroll, routed by the host while the step owns the screen. */
+    scrollBy(dy: number): void {
+      (this.$refs.viewport as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(dy);
+    },
+    /**
      * Solve the card size against the real box.
      *
      * WIDTH is measured here (the zone is stretched, so its width is the band's
@@ -444,7 +480,8 @@ export default defineComponent({
      */
     measureSizing(): void {
       const zone = this.$refs.zone as HTMLElement | undefined;
-      if (zone === undefined) {
+      const root = this.$el as HTMLElement | undefined;
+      if (zone === undefined || root?.closest === undefined) {
         return;
       }
       const availW = zone.clientWidth;
@@ -453,12 +490,31 @@ export default defineComponent({
       if (availW <= 0 || this.bandHeight <= 0) {
         return;
       }
+      /**
+       * THE STEP'S OWN CAP — «the band's bottom, minus where I start».
+       *
+       * Acyclic by construction: the band's height is fixed by the layout, and
+       * this step's TOP is fixed by whatever sits above it. Neither is a
+       * function of the step's own content, which is what makes it safe to
+       * feed straight back into the card sizing. (Measuring the scroll
+       * viewport instead does NOT work: one host stretches it, the other
+       * content-sizes it, so the same read means two different things.)
+       */
+      const band = root.closest<HTMLElement>('[data-ws-band]');
+      const budget = band !== null ?
+        Math.max(160, band.getBoundingClientRect().bottom - root.getBoundingClientRect().top) :
+        this.bandHeight;
+      this.budgetPx = budget;
       const chrome = (this.$refs.contract as HTMLElement | undefined)?.offsetHeight ?? 0;
       const tabs = (this.$refs.tabs as HTMLElement | undefined)?.offsetHeight ?? 0;
       const rail = (this.$refs.rail as HTMLElement | undefined)?.offsetHeight ?? 0;
-      // The column gaps between contract / tabs / zone / rail.
+      // The column gaps between contract / tabs / viewport / rail.
       const gaps = 3 * 11 * conUiScale();
-      const availH = Math.max(120, this.bandHeight - chrome - tabs - rail - gaps);
+      // The RAIL IS RESERVED FIRST. Its height comes out of the budget before a
+      // single card is sized — the cards get what is left, never the other way
+      // round. That ordering is what stops an oversized candidate from pushing
+      // the reading of it off the screen.
+      const availH = Math.max(120, budget - chrome - tabs - rail - gaps);
       this.sizing = planPlayedTargetSizing({
         owners: this.model.owners,
         mode: this.layout.mode,

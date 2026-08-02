@@ -93,6 +93,8 @@ export function playedTargetPreviewFor(
   /** The SELECTED branch's own effects — where an `optionInput` target's delta
    *  lives (there is no step to carry it). Omitted by callers that have none. */
   branchEffects?: ReadonlyArray<ActionEffect>,
+  /** The branch's authoritative per-candidate VP reading, for the same family. */
+  branchVpBox?: Partial<Record<CardName, {from: number, to: number}>>,
 ): ReadonlyArray<PlayedTargetPreviewSection> {
   const out: Array<PlayedTargetPreviewSection> = [];
   const box = step !== undefined && step.kind === 'input' ? step.copyProductionBox?.[name] : undefined;
@@ -120,17 +122,28 @@ export function playedTargetPreviewFor(
     // A card with no counter yet reads as 0 — «0 → 1» is the honest statement
     // of what the press does, and it is the whole point of the preview.
     const from = model.resources ?? 0;
-    out.push({
-      key: 'res',
-      title: 'Target card',
-      entity: 'target',
-      impacts: [{
-        label: 'Resources on this card',
-        icon: onCard?.icon ?? (step !== undefined && step.kind === 'input' ? step.cardResource : undefined),
-        from,
-        to: Math.max(0, from + amount),
-      }],
-    });
+    const impacts: Array<{label: string, icon?: string, from: number, to: number}> = [{
+      label: 'Resources on this card',
+      icon: onCard?.icon ?? (step !== undefined && step.kind === 'input' ? step.cardResource : undefined),
+      from,
+      to: Math.max(0, from + amount),
+    }];
+    /**
+     * …and the VICTORY POINTS that resource moves, when it moves any.
+     *
+     * Authoritative and per-candidate: the server evaluated each card's own
+     * `victoryPoints` descriptor (`resourceVictoryPoints`), including the
+     * `per` arithmetic that makes 2 → 3 asteroids often NOT a VP change. The
+     * box only ever contains candidates whose value actually moves, so its
+     * presence IS the condition — nothing here decides when VP is interesting.
+     */
+    const vp = (step !== undefined && step.kind === 'input' ? step.vpBox?.[name] : undefined) ?? branchVpBox?.[name];
+    if (vp !== undefined && vp.from !== vp.to) {
+      // No icon: 'vp' resolves to no sprite in the shared vocabulary, and a
+      // broken glyph beside a number is worse than the canonical «ПО» label.
+      impacts.push({label: 'VP', from: vp.from, to: vp.to});
+    }
+    out.push({key: 'res', title: 'Target card', entity: 'target', impacts});
   }
   return out;
 }

@@ -124,6 +124,46 @@ export function mandatoryPromptsHeld(flags: PresentationFlags): boolean {
   return flags.theaterOpen || flags.flowHoldingNotificationVisible || flags.blockingAnimationHolds > 0;
 }
 
+/**
+ * The observations behind "the foreground is LYING" (the stall rule below).
+ * Deliberately three plain booleans: the DOM evidence is gathered by the console
+ * leak detector, which already does exactly one querySelector pass per tick.
+ */
+export type PresentationStallInput = {
+  /**
+   * The orchestrator reports the foreground occupied — a block reason is up
+   * and/or mandatory prompts are held.
+   */
+  claimed: boolean;
+  /**
+   * ≥1 surface that could justify the claim is actually RENDERED (has client
+   * rects). This is the only honest discriminator between "a modal the player
+   * is reading" and "a claim whose surface never mounted": a claim can be
+   * legitimately held for minutes, so a pure time ceiling would be wrong here.
+   */
+  surfaceRendered: boolean;
+  /**
+   * Something is genuinely waiting on the claim: a queued event that cannot be
+   * delivered, and/or a live server prompt. Without this a claim held over an
+   * idle board is nobody's problem and must not be disturbed.
+   */
+  waiting: boolean;
+};
+
+/**
+ * IS THE PRESENTATION STALLED? The invariant: a hold on the player's progress
+ * must be backed by something actually on screen. When the foreground claims to
+ * be occupied, nothing is rendered to justify it, and the player has events
+ * queued / a prompt pending, the claim is stale — the queue can never drain and
+ * no mandatory surface can mount, which is a frozen game, not a busy one.
+ *
+ * PURE. The caller debounces it over consecutive passes (a working hand-off can
+ * momentarily satisfy all three) before acting on it.
+ */
+export function presentationStalled(input: PresentationStallInput): boolean {
+  return input.claimed && !input.surfaceRendered && input.waiting;
+}
+
 /** Summary of the waiting queue for the pending indicator. */
 export type PendingQueueSummary = {
   count: number;

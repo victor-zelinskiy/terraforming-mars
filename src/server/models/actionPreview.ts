@@ -352,6 +352,62 @@ export function copiedProductionUnits(player: IPlayer, card: ICard): Units | und
 }
 
 /**
+ * THE VICTORY POINTS A RESOURCE DELTA WOULD MOVE — `before → after`, computed
+ * AUTHORITATIVELY here and never re-derived by a UI.
+ *
+ * WHY THE SERVER. «Добавьте астероид на любую карту» is not only a resource
+ * change: on a card that scores per resource it is also a VP change, and on a
+ * threshold card («3 ПО, если есть хотя бы 1 ресурс») it can be the WHOLE point
+ * of the choice. The client cannot work that out — the rule lives in each
+ * card's `victoryPoints` descriptor, and re-implementing it there is exactly
+ * the duplication the preview subsystem exists to prevent.
+ *
+ * HOW, WITHOUT MUTATING. `Counter` reads `card.resourceCount` directly, so the
+ * naive way to get the «after» value is to set the count, read, and put it back
+ * — a mutation inside a read-only builder, which this fork's purity guard
+ * rightly forbids. Instead the descriptor is evaluated in two halves: the
+ * NON-resource part goes through the real Counter (so a mixed «per tag + per
+ * resource» card still counts its tags correctly), and the resource term is
+ * substituted arithmetically. `each` / `per` are then applied exactly as the
+ * Counter applies them, which is what keeps a `per: 2` card honest (2 → 3
+ * resources is often 1 → 1 VP, and saying otherwise would be a lie).
+ *
+ * `undefined` means «no honest answer»: a fixed VP (a resource cannot move it),
+ * a `'special'` card (its `getVictoryPoints` is bespoke — guessing would be
+ * worse than silence), or a descriptor with no resource term at all. That is the
+ * same contract `copiedProductionUnits` keeps for bespoke `produce()`.
+ */
+export function resourceVictoryPoints(
+  player: IPlayer,
+  card: ICard,
+  delta: number,
+): {from: number, to: number} | undefined {
+  const vp = card.victoryPoints;
+  if (vp === undefined || typeof vp === 'number' || vp === 'special') {
+    return undefined;
+  }
+  if (vp.resourcesHere === undefined) {
+    return undefined; // nothing here responds to a resource
+  }
+  const {each, per} = vp;
+  // The non-resource half, through the REAL counter (tags, cities, oceans…).
+  const rest = new Counter(player, card).count({...vp, resourcesHere: undefined, each: undefined, per: undefined}, 'vps');
+  const scale = (raw: number): number => {
+    let n = raw;
+    if (each !== undefined) {
+      n = n * each;
+    }
+    if (per !== undefined) {
+      n = Math.floor(n / per);
+    }
+    return n;
+  };
+  const before = card.resourceCount;
+  const after = Math.max(0, before + delta);
+  return {from: scale(rest + before), to: scale(rest + after)};
+}
+
+/**
  * The ordered choice steps a (sub-)behavior needs, built by constructing the
  * SAME input the live path constructs (read-only) and serializing it. A behavior
  * key that resolves automatically (addResources to self, global, tr, drawCard)

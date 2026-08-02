@@ -147,6 +147,13 @@ export type ActionPreviewBranch = {
    * as separate `steps`).
    */
   optionInput?: PlayerInputModel;
+  /**
+   * The VP a branch-level card target would move, per candidate. Same contract
+   * and same producer as the step's `vpBox` — it lives here too because this
+   * family (`optionInput`) puts the target on the BRANCH, so there is no step
+   * to hang it on. The client reads whichever of the two is present.
+   */
+  vpBox?: Partial<Record<CardName, {from: number, to: number}>>;
   /** Ordered INTERACTIVE choices that arrive as SEPARATE prompts AFTER the branch
    *  pick (a SelectOption's deferred follow-ups), collected in the confirm modal. */
   steps: ReadonlyArray<ActionPreviewStep>;
@@ -231,6 +238,23 @@ export type ActionPreviewStep =
      * previewed (a bespoke `produce()` that mutates) is simply absent from the map.
      */
     copyProductionBox?: Partial<Record<CardName, Units>>,
+    /**
+     * The VICTORY POINTS this step's resource delta would move, per candidate —
+     * `before → after`, computed AUTHORITATIVELY server-side
+     * (`resourceVictoryPoints`).
+     *
+     * Adding a resource to a card is often not only a resource change: on a
+     * card that scores per resource it moves VP, and on a threshold card («3 ПО
+     * при хотя бы 1 ресурсе») the VP IS the reason to choose that target. The
+     * client cannot work that out — the rule lives in each card's
+     * `victoryPoints` descriptor — so it arrives ready-made and the preview
+     * states it beside the resource line.
+     *
+     * A candidate whose VP cannot be previewed honestly (a fixed VP, a
+     * `'special'` bespoke card, or a descriptor with no resource term) is
+     * simply absent from the map.
+     */
+    vpBox?: Partial<Record<CardName, {from: number, to: number}>>,
     /**
      * A MULTI-select card pick (`input.max > 1`): instead of listing the chosen
      * cards (the pick can be large — e.g. Public Plans "reveal ANY NUMBER of cards

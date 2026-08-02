@@ -13,7 +13,12 @@
       <!-- ── Two columns: the SOURCE CARD (the hero anchor — it physically
            arrives from the browser's inspector thumbnail, X inspects it
            fullscreen from this very slot) · the decision/summary column. -->
-      <div class="con-composer__actmain con-composer__actmain--stage">
+      <!-- data-ws-band: THE STRETCHED BAND. The embedded played-target step
+           measures its own vertical budget as «this band's bottom minus my own
+           top» — acyclic by construction (the band's height is fixed by the
+           layout, the step's top by whatever sits above it), which is what lets
+           the step cap itself and scroll only its cards. -->
+      <div class="con-composer__actmain con-composer__actmain--stage" data-ws-band>
       <div class="con-composer__actside">
         <!-- The UNZOOMED wrap is the FLIP / zoom / anchor target (transform
              px stay 1:1) and the positioned host of the resource counter —
@@ -2390,6 +2395,13 @@ export default defineComponent({
         return;
       }
       if (intent.kind === 'scroll') {
+        const step = this.sub?.kind === 'playedTarget' ?
+          this.$refs.targetStep as {scrollBy?: (d: number) => void} | undefined : undefined;
+        if (step?.scrollBy !== undefined) {
+          // The step owns the only scroller on screen while it is open.
+          step.scrollBy(Math.sign(intent.dy) * 40);
+          return;
+        }
         (this.$refs.scroll as {scrollByPx?: (d: number) => void} | undefined)?.scrollByPx?.(Math.sign(intent.dy) * 40);
         return;
       }
@@ -2673,7 +2685,7 @@ export default defineComponent({
     /** The contextual preview for a candidate — the ONE shared builder. */
     playedTargetPreview(choice: ComposerChoice, name: CardName) {
       const step = choice.scope === 'step' ? this.selectedBranch?.steps[choice.index] : undefined;
-      return playedTargetPreviewFor(step, choice.input as SelectCardModel, name, this.selectedBranch?.effects);
+      return playedTargetPreviewFor(step, choice.input as SelectCardModel, name, this.selectedBranch?.effects, this.selectedBranch?.vpBox);
     },
     playedTargetResourceContext(c: ComposerChoice, card: CardModel) {
       return playedTargetResourceFor(c.input as SelectCardModel, c.cardResource, card);
@@ -2703,13 +2715,10 @@ export default defineComponent({
       this.sub = {...this.sub, focus: next};
       this.scrollPlayedTargetFocused();
     },
+    /** The STEP owns its candidate viewport — the rail and the contract sit
+     *  outside it, so this never moves them. */
     scrollPlayedTargetFocused(): void {
-      void this.$nextTick(() => {
-        const scroll = this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined;
-        const el = (this.$refs.rootEl as HTMLElement | undefined)
-          ?.querySelector('[data-ptsel-cell][data-focused]');
-        scroll?.ensureVisible?.(el);
-      });
+      (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
     },
     /** LB/RB — the owner axis, tabbed mode only (in split both groups are on
      *  screen and the d-pad crosses between them spatially). */

@@ -60,6 +60,47 @@ const leaseCounts = reactive<Record<ForegroundLeaseKind, number>>({
   'ceremony': 0,
 });
 
+/*
+ * ── THE STALENESS NET ────────────────────────────────────────────────────────
+ *
+ * `animationHold` has a safety ceiling; NOTHING else here did. A lease is a
+ * CLAIM that a surface is visible, and a derived signal is a claim that a modal
+ * is on screen — but neither is ever checked against what is actually RENDERED.
+ * Every desync between a claim's predicate and its surface's real `v-if` (the
+ * console shell's lease is a strict superset of the task host's mount gate, and
+ * two <Teleport>s silently drop their content on a stale selector) therefore
+ * froze the player forever: the notification queue could not drain, mandatory
+ * prompts could not mount, and the leak detector's own guard was disarmed.
+ *
+ * So claims become EXPIRABLE, with exactly `animationHold`'s semantics: the
+ * console watchdog (which owns the DOM evidence) marks the current claims stale
+ * when it proves nothing is rendered, and a claim un-stales the moment it goes
+ * honestly false and is raised again. Expiring never touches the holder's own
+ * bookkeeping — its release token stays valid and idempotent — so a recovered
+ * surface that later closes normally still balances out.
+ */
+
+/** Per-kind count of leases EXCLUDED from the flags (expired by the watchdog). */
+const staleLeaseCounts = reactive<Record<ForegroundLeaseKind, number>>({
+  'mandatory-choice': 0,
+  'ceremony': 0,
+});
+
+/** The derived (non-lease) signals the watchdog can expire, by flag name. */
+export type StaleForegroundSignal = 'result-modal' | 'turn-theater' | 'flow-hold';
+
+const staleSignals = reactive(new Set<StaleForegroundSignal>());
+
+/** Live count of a lease kind, minus whatever the watchdog expired. */
+function liveLeases(kind: ForegroundLeaseKind): number {
+  return Math.max(0, leaseCounts[kind] - staleLeaseCounts[kind]);
+}
+
+/** A derived signal, masked while expired. */
+function liveSignal(signal: StaleForegroundSignal, raw: boolean): boolean {
+  return raw && !staleSignals.has(signal);
+}
+
 /** The injected "a flow-holding notification is visible" supplier. Reads
  *  reactive state (notificationState.transient), so computeds re-track it. */
 let flowHoldSupplier: () => boolean = () => false;
@@ -68,14 +109,23 @@ export function registerFlowHoldSupplier(fn: () => boolean): void {
   flowHoldSupplier = fn;
 }
 
+/** The RAW occupancy of the derived signals, before the staleness mask. */
+function rawSignal(signal: StaleForegroundSignal): boolean {
+  switch (signal) {
+  case 'result-modal': return hasVisibleReveal() || revealResultState.active;
+  case 'turn-theater': return botTurnReviewState.open;
+  case 'flow-hold': return flowHoldSupplier();
+  }
+}
+
 /** The current occupancy snapshot (reads only reactive sources). */
 function flags(): PresentationFlags {
   return {
-    resultModalOpen: hasVisibleReveal() || revealResultState.active,
-    mandatoryLeases: leaseCounts['mandatory-choice'],
-    ceremonyLeases: leaseCounts['ceremony'],
-    theaterOpen: botTurnReviewState.open,
-    flowHoldingNotificationVisible: flowHoldSupplier(),
+    resultModalOpen: liveSignal('result-modal', rawSignal('result-modal')),
+    mandatoryLeases: liveLeases('mandatory-choice'),
+    ceremonyLeases: liveLeases('ceremony'),
+    theaterOpen: liveSignal('turn-theater', rawSignal('turn-theater')),
+    flowHoldingNotificationVisible: liveSignal('flow-hold', rawSignal('flow-hold')),
     animationHolds: animationHoldCount(),
     blockingAnimationHolds: blockingAnimationHoldCount(),
   };
@@ -92,9 +142,71 @@ export function acquireForegroundLease(kind: ForegroundLeaseKind): () => void {
     if (!released) {
       released = true;
       leaseCounts[kind] = Math.max(0, leaseCounts[kind] - 1);
+      // A release can only ever retire a lease that is still counted, so the
+      // expired tally follows the total down — otherwise the LAST honest lease
+      // of a kind would stay masked after the stale one it replaced went away.
+      staleLeaseCounts[kind] = Math.min(staleLeaseCounts[kind], leaseCounts[kind]);
     }
   };
 }
+
+/**
+ * The watchdog PROVED that nothing backing the current foreground is rendered:
+ * expire every claim that is up right now. Returns the labels expired, for the
+ * recovery warn (never a bare "something was stuck").
+ *
+ * Leases are expired by COUNT, not by token: the holder keeps its own release
+ * function (still idempotent, still balanced), so a surface that recovers and
+ * later closes normally cannot double-decrement. A claim raised AFTER this call
+ * is honest by construction and counts again immediately.
+ */
+export function expireForegroundHolds(): ReadonlyArray<string> {
+  const expired: Array<string> = [];
+  for (const kind of ['mandatory-choice', 'ceremony'] as ReadonlyArray<ForegroundLeaseKind>) {
+    if (liveLeases(kind) > 0) {
+      expired.push(`lease:${kind}×${liveLeases(kind)}`);
+      staleLeaseCounts[kind] = leaseCounts[kind];
+    }
+  }
+  for (const signal of ['result-modal', 'turn-theater', 'flow-hold'] as ReadonlyArray<StaleForegroundSignal>) {
+    if (liveSignal(signal, rawSignal(signal))) {
+      expired.push(signal);
+      staleSignals.add(signal);
+    }
+  }
+  return expired;
+}
+
+/** What is claiming the foreground right now — for the recovery diagnostics. */
+export function foregroundHoldLabels(): ReadonlyArray<string> {
+  const labels: Array<string> = [];
+  for (const kind of ['mandatory-choice', 'ceremony'] as ReadonlyArray<ForegroundLeaseKind>) {
+    if (liveLeases(kind) > 0) {
+      labels.push(`lease:${kind}×${liveLeases(kind)}`);
+    }
+  }
+  for (const signal of ['result-modal', 'turn-theater', 'flow-hold'] as ReadonlyArray<StaleForegroundSignal>) {
+    if (liveSignal(signal, rawSignal(signal))) {
+      labels.push(signal);
+    }
+  }
+  return labels;
+}
+
+// An expired signal un-stales the moment it goes honestly false, so the very
+// next legitimate reveal / theater / holding card blocks normally again. Mirrors
+// `animationHold`'s `store.expired.delete(label)` on the falling edge.
+watch(() => ({
+  'result-modal': rawSignal('result-modal'),
+  'turn-theater': rawSignal('turn-theater'),
+  'flow-hold': rawSignal('flow-hold'),
+}), (raw) => {
+  for (const signal of [...staleSignals]) {
+    if (!raw[signal]) {
+      staleSignals.delete(signal);
+    }
+  }
+}, {deep: true});
 
 /** The active blocking foreground item, if any. Reactive-safe (usable in computeds). */
 export function currentBlockReason(): PresentationBlockReason | undefined {
@@ -148,4 +260,7 @@ watch(blockReasonRef, (now, prev) => {
 export function resetPresentationLeases(): void {
   leaseCounts['mandatory-choice'] = 0;
   leaseCounts['ceremony'] = 0;
+  staleLeaseCounts['mandatory-choice'] = 0;
+  staleLeaseCounts['ceremony'] = 0;
+  staleSignals.clear();
 }

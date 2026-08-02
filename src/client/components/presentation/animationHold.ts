@@ -297,6 +297,33 @@ export function isAnimationHoldActive(): boolean {
   return counts.value.all > 0;
 }
 
+/**
+ * Force the CEILING right now, for every hold that is currently live — the
+ * console foreground watchdog has PROVEN that nothing is rendered behind them.
+ * Returns the labels expired, for the recovery warn.
+ *
+ * Same semantics as the timed ceiling: a supplier is EXPIRED (excluded from the
+ * counts until it goes honestly false again), a manual handle is dropped (it has
+ * no falling edge, exactly as the ceiling treats it). Without this the watchdog
+ * could clear every lease and admission signal and STILL leave the notification
+ * queue blocked — `foregroundBlockReason()` returns 'animation' first — for the
+ * remainder of the 35 s ceiling, which is the freeze it exists to end.
+ */
+export function expireActiveAnimationHolds(): ReadonlyArray<string> {
+  const expired: Array<string> = [];
+  for (const [label, entry] of suppliers) {
+    if (!store.expired.has(label) && safeRead(label, entry.supplier)) {
+      store.expired.add(label);
+      expired.push(`animation:${label}`);
+    }
+  }
+  for (const [id, hold] of [...store.manual]) {
+    store.manual.delete(id);
+    expired.push(`animation:${hold.label}`);
+  }
+  return expired;
+}
+
 /** Diagnostics (?gpDebug / dev): what is holding right now. */
 export function activeAnimationHoldLabels(): Array<string> {
   void store.version;
