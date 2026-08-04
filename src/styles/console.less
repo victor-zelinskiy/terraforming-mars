@@ -811,10 +811,18 @@ body.con-zoom-open .con-handdock {
         box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 40%),
             0 .4rem 1.6rem rgba(0, 0, 0, 0.5);
     }
-    /* The satellite is deliberately NOT lifted: it keeps its board-level z
-       (50, see `.con-res-aux`) and is simply COVERED where a workspace panel
-       reaches it — which is the base rule for it all along ("paints OVER the
-       board, covered by every full-screen overlay"). Z-ORDER, NOT VISIBILITY. */
+    /* The satellite lands in the ONE gap in the ladder: ABOVE the shade
+       (11460) and BELOW every band surface (11480+) and the wheel (11500).
+       That is the whole intent in one number — COVERED, NEVER DIMMED AND NEVER
+       HIDDEN. Left at its board-level z (50) it reads as background and the
+       shade darkens it while the rail it belongs to stays lit, which is the
+       same information loss as hiding it, just softer: the counts are on
+       screen but no longer legible at couch distance. Lifted with the rail
+       (11520) it would paint over the panels instead. So: one step over the
+       dim, one step under the panels. */
+    .con-res-aux {
+        z-index: 11470;
+    }
 
     /* ── BACKGROUND CINEMATICS RECEDE UNDER THE SHADE ────────────────────
        The flight layers live at 11620–11670, i.e. ABOVE the shade (11460),
@@ -13059,32 +13067,6 @@ body.con-start-ceremony {
         text-transform: uppercase;
         color: @con-text-dim;
     }
-    &__hudprev-prod {
-        display: inline-flex;
-        align-items: center;
-        gap: .55rem;
-        flex-wrap: wrap;
-    }
-    &__hudprev-prodrow {
-        display: inline-flex;
-        align-items: center;
-        gap: .25rem;
-        b { color: @con-mint; }
-    }
-    &__hudprev-tags {
-        display: inline-flex;
-        align-items: center;
-        gap: .35rem;
-        flex-wrap: wrap;
-        .resource-tag {
-            width: 1.3rem;
-            height: 1.3rem;
-            background-size: contain;
-            margin: 0;
-        }
-        b { font-size: .7rem; color: @con-text-dim; }
-    }
-    &__hudprev-tag { display: inline-flex; align-items: center; gap: .15rem; }
     &__hudprev-ready {
         margin-top: .1rem;
         padding: .28rem .6rem;
@@ -13102,14 +13084,6 @@ body.con-start-ceremony {
             background: fade(@con-mint, 10%);
             box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%);
         }
-    }
-    /* The materialization's flying pixel clone (spawned in the fixed layer). */
-    &__matproxy {
-        pointer-events: none;
-        will-change: transform, opacity;
-        overflow: hidden;
-        border-radius: .7rem;
-        box-shadow: 0 .8rem 2.2rem rgba(0, 0, 0, 0.5);
     }
     &__money-line {
         display: flex;
@@ -14806,76 +14780,164 @@ body.con-start-ceremony .con-status {
     }
     &__crewtick { color: @con-mint; }
 
-    /* ── THE DEPLOYMENT ZONE: ask layer + the receiving stage ──────────
-       One zone, two layers. The ASK (corp column / pay / candidates /
-       prelude rail) is the flow layer; the RECEIVING STAGE is an absolute
-       overlay of the SAME zone that unfolds over the released ask — the
-       workspace-descend grammar, identical to the play composer's landing. */
-    &__deploy {
-        position: relative;
+    /* ── THE DEPLOYMENT: startup queue · embed zone · the played zone ──
+       A column of three physical places. The QUEUE holds every unresolved
+       start card (persistent row — a resolved card leaves, the others only
+       slide over via the transition-group move); the EMBED zone hosts the
+       shared reveal when a start card draws; the PLAYED zone is the real
+       «Разыграно» (owner + category piles on ConsolePlayedPile). */
+    &__ceremony--hidden { opacity: 0; }
+    /* An embedded follow-up owns the centre: the queue yields visual
+       priority (calms + compacts through transform only) but stays mounted. */
+    &__ceremony--yield .con-start__queue {
+        opacity: .38;
+        transform: scale(.965);
+        transform-origin: 50% 0;
+    }
+    &__queue {
+        /* ONE shared row: the unresolved cards AND the purchase group sit
+           side by side (never stacked — the FHD height budget), centred in
+           the zone between the header and the played shelf. */
         flex: 1;
         min-height: 0;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        align-content: center;
+        gap: .6rem 1.2rem;
+        transition:
+            opacity calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
+            transform calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__queue-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .9rem;
+        flex-wrap: wrap;
+    }
+    &__qcard {
+        position: relative;
+        border-radius: .6rem;
+        zoom: calc(0.62 * var(--con-ui-scale, 1));
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, transform calc(160ms * var(--motion-scale, 1)) ease;
+        > :is(.card-container, .pcard) { margin: 0; }
+
+        &--focused {
+            transform: translateY(-.25rem);
+            box-shadow: 0 0 0 .12rem fade(@con-cyan, 85%), 0 .6rem 1.4rem rgba(0, 0, 0, 0.45);
+            z-index: 2;
+        }
+        &--awaiting > :is(.card-container, .pcard) {
+            opacity: 0.6;
+            filter: saturate(0.7) brightness(0.9);
+        }
+        .con-cards__pickband { zoom: calc(1.15 / var(--con-ui-scale, 1)); }
+    }
+    /* The BOUGHT PROJECTS row — part of the queue until the payment resolves
+       them into the hand (they keep their pay-grid identity for the delivery
+       flight). */
+    &__buy {
+        align-self: center;
         display: flex;
         flex-direction: column;
+        align-items: center;
+        gap: .45rem;
+        padding: .55rem .8rem;
+        border-radius: .7rem;
+        background: rgba(14, 22, 33, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, background calc(160ms * var(--motion-scale, 1)) ease;
+        &--focused {
+            background: fade(@con-mint, 12%);
+            box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 1.2rem fade(@con-mint, 28%);
+        }
     }
-    &__ask {
-        flex: 1;
-        min-height: 0;
+    &__buy-row {
         display: flex;
         align-items: flex-start;
-        gap: 1.2rem;
-    }
-    &__playstage {
-        position: absolute;
-        inset: 0;
-        display: flex;
-        align-items: stretch;
         justify-content: center;
-        opacity: 0;
-        pointer-events: none;
-        transition: opacity calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
-
-        > .con-recv { flex: 1; min-height: 0; }
-
-        &--up { opacity: 1; }
+        gap: .45rem;
+        flex-wrap: wrap;
     }
-    /* The DEPLOYMENT SURFACE reveals only through Game State Materialization
-       (GSAP drives the entrance; this is the pre-reveal resting state). */
-    &__ceremony--hidden { opacity: 0; }
-
-    /* ── THE COMPACT START TABLEAU (the deployment's physical history) ──
-       A stable bottom shelf from the FIRST ceremony frame: resolved cards
-       fly down into their family row (peek faces — name band + upper art),
-       counts tick on arrival, the centre frees for the next card. */
-    &__tableau {
+    &__buycard {
+        display: flex;
+        > :is(.card-container, .pcard) {
+            margin: 0;
+            zoom: calc(0.34 * var(--con-ui-scale, 1));
+        }
+    }
+    &__buy-meta {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+    }
+    &__buy-cap {
+        font-size: .72rem; color: @con-text-dim;
+        letter-spacing: .06em; text-transform: uppercase; font-weight: 700;
+        b { font-size: .85rem; color: @con-text; font-variant-numeric: tabular-nums; }
+    }
+    &__buy-amount {
+        display: inline-flex; align-items: center; gap: .15rem;
+        font-size: .95rem; font-weight: 800; color: #ffd88a; font-variant-numeric: tabular-nums;
+    }
+    /* The embed zone — empty (zero height) until the shared reveal teleports
+       in; the reveal's own panel brings its size. */
+    &__embed {
         flex-shrink: 0;
         display: flex;
-        align-items: flex-start;
-        gap: 1.4rem;
-        min-height: 6.2rem;
-        padding: .45rem .2rem .1rem;
-        border-top: .05rem solid rgba(120, 155, 190, 0.12);
+        justify-content: center;
     }
-    &__tableau-title {
-        font-size: .68rem;
-        font-weight: 700;
-        letter-spacing: .12em;
+
+    /* ── THE PLAYED ZONE — the real «РАЗЫГРАНО» ── */
+    &__played {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .35rem;
+        padding: .45rem .6rem .35rem;
+        border-radius: .7rem .7rem 0 0;
+        background: linear-gradient(180deg, rgba(14, 22, 33, 0.66), rgba(10, 16, 24, 0.5));
+        box-shadow: inset 0 .05rem 0 rgba(120, 155, 190, 0.14);
+    }
+    &__played-head {
+        display: flex;
+        align-items: baseline;
+        gap: .7rem;
+    }
+    &__played-title {
+        font-size: .72rem;
+        font-weight: 800;
+        letter-spacing: .14em;
         text-transform: uppercase;
-        color: fade(@con-cyan, 75%);
-        padding-top: .35rem;
+        color: fade(@con-cyan, 85%);
     }
-    &__tableau-empty {
-        align-self: center;
+    &__played-owner {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
         font-size: .74rem;
-        color: @con-text-dim;
-        letter-spacing: .04em;
+        font-weight: 700;
+        color: @con-text;
     }
-    &__tabgroup {
+    &__played-groups {
+        display: flex;
+        align-items: flex-start;
+        gap: 1.6rem;
+        /* Reserve the receiving room: a full card + one peek band. The pile
+           grows INSIDE this reserve (top-anchored), so an arriving card never
+           reflows the frame — nothing outside the zone moves. */
+        min-height: 12.4rem;
+    }
+    &__pgroup {
         display: flex;
         flex-direction: column;
         gap: .25rem;
+        &--receiving .con-start__pgroup-cap { color: @con-mint; }
     }
-    &__tabgroup-cap {
+    &__pgroup-cap {
         display: inline-flex;
         align-items: baseline;
         gap: .4rem;
@@ -14886,35 +14948,12 @@ body.con-start-ceremony .con-status {
         color: fade(@con-cyan, 78%);
         b { color: #dfe9f2; font-size: .72rem; }
     }
-    &__tabrow {
-        display: flex;
-        align-items: flex-start;
-        gap: .5rem;
-    }
-    &__tabstack {
-        position: relative;
-        width: 6.4rem; /* 320 × 0.4 in rem */
-        height: 5.2rem; /* the peek: name band + upper art */
-        overflow: hidden;
-        border-radius: .3rem;
-        box-shadow:
-            inset 0 0 0 .05rem rgba(120, 155, 190, 0.18),
-            inset 0 -0.3rem .5rem -0.4rem rgba(0, 0, 0, 0.55);
-        /* The reserved slot mid-handoff (con-deal-hold) keeps its box —
-           the flying face covers it and reveals it at touchdown. */
-    }
-    &__tabslot { position: absolute; inset: 0; }
-    &__tabface {
-        > :is(.card-container, .pcard) { margin: 0; }
-        zoom: calc(0.4 * var(--con-ui-scale, 1));
-    }
-    /* The compact handoff's independent pixel proxy (fixed dock layer). */
-    &__handoff-proxy {
-        pointer-events: none;
-        will-change: transform, opacity;
-        overflow: hidden;
+    /* An EMPTY category: a calm waiting plate — the destination visibly
+       exists before anything flies (readiness is a place, not a promise). */
+    &__pgroup-plate {
         border-radius: .35rem;
-        box-shadow: 0 .7rem 1.8rem rgba(0, 0, 0, 0.5);
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.14);
     }
 }
 
@@ -14983,6 +15022,11 @@ body.con-start-ceremony .con-status {
            flight destination must pre-exist), calm, clearly not yet holding
            anything of the player's. */
         &--waiting { opacity: .55; }
+        /* TRACE mode (the summary): the cards lie open in the tiles — the
+           stack box stays for geometry but shows NOTHING (no back may
+           duplicate an open card); the label · count line is the whole
+           presentation. */
+        &--trace .con-startdock__stack { opacity: 0; }
     }
     &__stack {
         position: relative;

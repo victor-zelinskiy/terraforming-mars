@@ -1,8 +1,8 @@
 import {expect} from 'chai';
 import {
-  buildInitialCardsResponse, consoleStartState, ensureStartWizard, holdStartScene,
-  initialCardsSignature, picksForStep, releaseStartScene, startFlowBusy, startLaunchState,
-  startParticipants, startSceneHeld, stepComplete, wizardSteps,
+  buildInitialCardsResponse, clearDockDrift, consoleStartState, driftDockPile, ensureStartWizard,
+  holdStartScene, initialCardsSignature, picksForStep, releaseStartScene, startFlowBusy,
+  startLaunchState, startParticipants, startSceneHeld, stepComplete, wizardSteps,
   startJourneyItems, deploymentJourneyItems, startDockPiles,
 } from '@/client/console/consoleStartState';
 import {SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
@@ -237,6 +237,29 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       expect(atProjects.map((pl) => pl.collected)).to.deep.eq([true, true, false]);
       const atSummary = startDockPiles(steps, picks, 3);
       expect(atSummary.map((pl) => pl.count)).to.deep.eq([1, 2, 1]);
+    });
+
+    it('the SUMMARY keeps only the informational trace — the backs physically left', () => {
+      const picks = {corp: 'X' as never, preludes: ['A', 'B'] as never, ceo: undefined, projects: ['P'] as never};
+      const atSummary = startDockPiles(steps, picks, 3);
+      // Counts stay (the «КОРПОРАЦИЯ · 1» trace) — but NO physical backs may
+      // duplicate the cards lying open in the summary tiles.
+      expect(atSummary.map((pl) => pl.count)).to.deep.eq([1, 2, 1]);
+      expect(atSummary.map((pl) => pl.backs)).to.deep.eq([0, 0, 0]);
+    });
+
+    it('dockDrift: the backs follow the FLYING cards, never the state flip', () => {
+      const picks = {corp: 'X' as never, preludes: [], ceo: undefined, projects: []};
+      // The collect pre-drifts −1: the flip to collected shows an EMPTY pile…
+      const mid = startDockPiles(steps, picks, 1, {corp: -1});
+      expect(mid[0].backs).to.eq(0);
+      // …and the touchdown raises the drift — the back lands WITH the card.
+      const landed = startDockPiles(steps, picks, 1, {corp: 0});
+      expect(landed[0].backs).to.eq(1);
+      driftDockPile('corp', 2);
+      expect(consoleStartState.dockDrift['corp']).to.eq(2);
+      clearDockDrift('corp');
+      expect(consoleStartState.dockDrift['corp']).to.eq(undefined);
     });
 
     it('a fresh deal resets the VISITED set (first-visit stagger plays once per session)', () => {

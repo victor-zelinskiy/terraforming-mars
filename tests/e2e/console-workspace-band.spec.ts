@@ -82,6 +82,7 @@ type BandProbe = {
   railZ: string,
   railHostZ: string,
   auxHidden: boolean,
+  auxZ: number,
   bandRight: number,
   viewportW: number,
   panelOverflow: number,
@@ -114,6 +115,7 @@ async function probe(page: Page, selector: string): Promise<BandProbe> {
       railZ: getComputedStyle(rail).zIndex,
       railHostZ: getComputedStyle(host).zIndex,
       auxHidden: aux !== null && getComputedStyle(aux).display === 'none',
+      auxZ: aux === null ? -1 : Number(getComputedStyle(aux).zIndex),
       viewportW: window.innerWidth,
       panelOverflow: overflow,
     };
@@ -141,6 +143,13 @@ async function assertBand(page: Page, selector: string, label: string): Promise<
   expect(p.railHostZ, `${label}: the rail HOST must not be a stacking context (was z=${p.railHostZ})`)
     .toBe('auto');
   expect(p.auxHidden, `${label}: the ДОП.РЕСУРСЫ satellite must be covered, never hidden`).toBeFalsy();
+  // …and it must sit in the ONE gap: over the shade (11460) so a workspace
+  // never DIMS it, under the band surfaces (11480+) so it never paints over
+  // one. (-1 = no card resource in this game, so nothing to check.)
+  if (p.auxZ >= 0) {
+    expect(p.auxZ, `${label}: the satellite must clear the shade (was z=${p.auxZ})`).toBeGreaterThan(11460);
+    expect(p.auxZ, `${label}: the satellite must stay under the band (was z=${p.auxZ})`).toBeLessThan(11480);
+  }
   // Nothing sticks out past the viewport (the min(Xrem, 100%) width rule).
   expect(p.panelOverflow, `${label}: content overflows the viewport by ${p.panelOverflow}px`).toBeLessThan(2);
 }

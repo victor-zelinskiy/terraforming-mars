@@ -473,6 +473,7 @@ function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
   if (spec.targetCard !== undefined) {
     const esc = escapeName(spec.targetCard);
     const r = measureRect(`.con-recv [data-played-key="${esc}"]`) ??
+      measureRect(`.con-start__played [data-played-key="${esc}"]`) ??
       measureRect(`.con-played [data-played-key="${esc}"]`);
     if (r !== undefined) {
       return centerOf(r);

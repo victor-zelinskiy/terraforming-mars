@@ -1,14 +1,16 @@
 import {expect} from 'chai';
 import {buildStartStatusPreview} from '@/client/console/startStatusPreview';
 import {CardName} from '@/common/cards/CardName';
-import {Tag} from '@/common/cards/Tag';
 
 /**
- * EXPANDED STARTUP STATUS PREVIEW — the summary panel's pure model. Values
- * must be AUTHORITATIVE only: the shared initialDraftMoney brain for money,
- * the cards' printed productionBox / tags for the materialization forecast.
+ * STARTUP STATUS PREVIEW — the summary panel's pure model. A QUICK DECISION
+ * summary only: the financial core + the two set counts. Values are
+ * authoritative (the shared initialDraftMoney brain); tags / production
+ * previews are deliberately NOT part of this model — the cards themselves
+ * state their effects, and the panel must never grow into a pre-game
+ * simulator of the Player Rail.
  */
-describe('startStatusPreview (Expanded Startup Status Preview)', () => {
+describe('startStatusPreview (the summary quick-decision panel)', () => {
   it('no corporation → no preview (there is no start identity to preview)', () => {
     expect(buildStartStatusPreview({corp: undefined, preludes: [], ceo: undefined, projects: []})).to.eq(undefined);
   });
@@ -33,26 +35,16 @@ describe('startStatusPreview (Expanded Startup Status Preview)', () => {
     const none = buildStartStatusPreview({corp: CardName.CREDICOR, preludes: [], ceo: undefined, projects: []});
     const withLoan = buildStartStatusPreview({corp: CardName.CREDICOR, preludes: [CardName.LOAN], ceo: undefined, projects: []});
     expect(none?.preludeDelta).to.eq(0);
-    // Loan's printed +30 M€ — whatever the exact pairing math, the delta must
-    // be POSITIVE and the remaining must move by exactly that delta.
     expect(withLoan?.preludeDelta).to.be.greaterThan(0);
     expect((withLoan?.remaining ?? 0) - (none?.remaining ?? 0)).to.eq(withLoan?.preludeDelta);
     expect(withLoan?.preludeCount).to.eq(1);
   });
 
-  it('the materialization forecast: printed production + tags of the DEPLOYING cards only', () => {
-    // Mining Guild prints +1 steel production and building×2 tags.
-    const p = buildStartStatusPreview({
-      corp: CardName.MINING_GUILD,
-      preludes: [],
-      ceo: undefined,
-      projects: [CardName.BIRDS], // a bought project goes to HAND — no tags here
-    });
-    const steel = p?.production.find((r) => r.resource === 'steel');
-    expect(steel?.amount).to.eq(1);
-    const building = p?.tags.find((t) => t.tag === Tag.BUILDING);
-    expect(building?.count).to.eq(2);
-    // Birds' animal tag must NOT leak in (it is not deploying at start).
-    expect(p?.tags.some((t) => t.tag === Tag.ANIMAL)).to.eq(false);
+  it('the model is MINIMAL by contract — no tags, no production forecast', () => {
+    const p = buildStartStatusPreview({corp: CardName.MINING_GUILD, preludes: [], ceo: undefined, projects: []});
+    expect(p).to.not.eq(undefined);
+    expect(Object.keys(p as object).sort()).to.deep.eq([
+      'buys', 'cardCost', 'corp', 'handSize', 'preludeCount', 'preludeDelta', 'projectsCost', 'remaining', 'start',
+    ]);
   });
 });

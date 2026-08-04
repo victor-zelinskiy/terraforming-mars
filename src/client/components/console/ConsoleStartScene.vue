@@ -185,9 +185,10 @@
                 <div class="con-start__money-line con-start__money-line--total"><span>{{ $t('Remaining') }}</span>
                   <b>{{ preview.remaining }} <i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></b></div>
               </div>
-              <!-- The wider materialization forecast: what the deployment
-                   will put into play. Printed data only — a conditional
-                   production simply is not here. -->
+              <!-- The QUICK DECISION line — what is chosen, in two compact
+                   chips. Deliberately minimal: the cards themselves already
+                   state their effects; this panel answers only «что выбрано
+                   и сколько денег останется». -->
               <div class="con-start__hudprev-grid">
                 <span class="con-start__hudprev-cell">
                   <span class="con-start__hudprev-label">{{ $t('Starting hand') }}</span>
@@ -196,24 +197,6 @@
                 <span v-if="preview.preludeCount > 0" class="con-start__hudprev-cell">
                   <span class="con-start__hudprev-label">{{ $t('Preludes') }}</span>
                   <b>{{ preview.preludeCount }}</b>
-                </span>
-                <span v-if="preview.production.length > 0" class="con-start__hudprev-cell con-start__hudprev-cell--wide">
-                  <span class="con-start__hudprev-label">{{ $t('Production') }}</span>
-                  <span class="con-start__hudprev-prod">
-                    <span v-for="row in preview.production" :key="row.resource" class="con-start__hudprev-prodrow">
-                      <i class="resource_icon con-start__mc" :class="'resource_icon--' + row.resource" aria-hidden="true"></i>
-                      <b>{{ row.amount > 0 ? '+' : '' }}{{ row.amount }}</b>
-                    </span>
-                  </span>
-                </span>
-                <span v-if="preview.tags.length > 0" class="con-start__hudprev-cell con-start__hudprev-cell--wide">
-                  <span class="con-start__hudprev-label">{{ $t('Tags') }}</span>
-                  <span class="con-start__hudprev-tags">
-                    <span v-for="row in preview.tags" :key="row.tag" class="con-start__hudprev-tag">
-                      <span class="resource-tag" :class="'tag-' + row.tag" aria-hidden="true"></span>
-                      <b v-if="row.count > 1">×{{ row.count }}</b>
-                    </span>
-                  </span>
                 </span>
               </div>
               <div class="con-start__hudprev-ready" :class="{'con-start__hudprev-ready--ok': wizardReady}">
@@ -272,188 +255,91 @@
           </aside>
         </div>
 
-        <!-- ── CEREMONY (startSequence / the DEPLOYMENT) ──────────────
-             One zone, two layers. The ASK layer holds whatever the server
-             is asking right now (play the corporation / pay / a candidate
-             pick / the prelude rail); when a press arms a play, the ask
-             RELEASES IN PLACE and the REAL Played Tableau Receiving Stage
-             (the same ConsolePlayedReceivingStage every workspace play
-             lands on — never a startup-specific approximation) unfolds
-             over the zone, pre-mounted hidden through the submit round
-             trip. The compact start tableau below is the deployment's
-             physical history — every resolved card hands itself down into
-             it before the centre frees for the next one. -->
+        <!-- ── CEREMONY — the DEPLOYMENT ───────────────────────────────
+             Three physical places, one causal story:
+              · the STARTUP QUEUE — every unresolved start card (corporation,
+                preludes, draw candidates, the bought projects until they are
+                paid) stands HERE as one persistent row. A resolved card
+                LEAVES it physically; the others only ever slide over
+                (transition-group move) — nothing unmounts, nothing re-deals;
+              · the EMBED zone — a card that draws/picks other cards opens
+                its follow-up (the shared reveal) INSIDE this workspace, in
+                this slot; the queue yields visual priority but stays mounted;
+              · the PLAYED zone — the REAL «Разыграно» (owner + category
+                piles on the shared ConsolePlayedPile primitive). A pressed
+                card flies DIRECTLY down into its reserved pile slot — no
+                central holding presentation, no handoff copies. -->
         <div v-if="mode === 'ceremony'" class="con-start__body con-start__ceremony con-info__scroll"
-             :class="{'con-start__ceremony--hidden': !ceremonyRevealed}" ref="ceremonyBody">
-         <div class="con-start__deploy">
-          <div class="con-start__ask" ref="askLayer">
-          <!-- P18: card STATES ride the unified badge system (a bright band
-               over a DIMMED card body — the badge itself never dims); the
-               under-card chip is reserved for the ACTION affordance only. -->
-          <!-- The chosen corporation — shown ONLY while its deferred play is
-               pending (marker `corporationPlay`; the server has NOT played it
-               yet: no tableau entry, no starting M€, no resource sockets).
-               Pressing it runs the hero transaction: the card physically
-               lands on the receiving stage; the corp's mandatory FIRST
-               ACTION is deliberately NOT here — it belongs to the player's
-               first TURN (the «Разыграно» action mode). -->
-          <transition name="con-start-corpout">
-            <div class="con-start__corps" v-if="corpColumn.length > 0">
-              <div class="con-start__section-title">{{ $t('Corporation') }}</div>
-              <div v-for="corp in corpColumn" :key="corp.name"
-                   class="con-start__corp"
-                   :data-zoom-slot="corp.name"
+             :class="{'con-start__ceremony--hidden': !ceremonyRevealed, 'con-start__ceremony--yield': embedActive}" ref="ceremonyBody">
+          <div class="con-start__queue" ref="queueEl">
+            <transition-group name="con-start-shift" tag="div" class="con-start__queue-row">
+              <div v-for="entry in queueCards" :key="entry.name"
+                   class="con-start__qcard con-start__deal"
                    :class="{
-                     'con-start__corp--playable': !corp.played,
-                     'con-start__corp--done': corp.played,
-                     'con-start__corp--focused': isFocused('corp', corp.name),
-                   }">
-                <Card :card="{name: corp.name}" :key="corp.name" />
-                <!-- CONTEXT corp (assigned / test mode / a pre-rework save):
-                     shown calmly so the player always sees their corporation. -->
-                <span v-if="corp.played" class="con-cards__pickband con-cards__pickband--played">✓ {{ $t('Already played') }}</span>
-                <div v-else-if="isFocused('corp', corp.name)" class="con-start__slot-a">
-                  <GamepadGlyph control="confirm" /><span>{{ $t('Play now') }}</span>
+                     'con-start__qcard--focused': isFocused(entry.kind, entry.name),
+                     'con-start__qcard--awaiting': entry.dimmed,
+                     'con-deal-hold': queueArriving.has(entry.name) || deal.isHeld(entry.name + '#' + entry.dealIdx),
+                   }"
+                   :data-zoom-slot="entry.name"
+                   :data-queue-slot="entry.name">
+                <Card :card="{name: entry.name}" :key="entry.name" lightweight />
+                <span v-if="entry.badge !== undefined" class="con-cards__pickband" :class="entry.badgeClass">{{ $t(entry.badge) }}</span>
+                <div v-if="entry.reason !== undefined" class="con-cards__reason">{{ $t(entry.reason) }}</div>
+                <div v-else-if="isFocused(entry.kind, entry.name) && entry.verb !== undefined" class="con-start__slot-a">
+                  <GamepadGlyph control="confirm" /><span>{{ $t(entry.verb) }}</span>
                 </div>
               </div>
-            </div>
-          </transition>
+            </transition-group>
 
-          <!-- The card-payment beat: the corporation landed, its starting M€
-               are IN the panel, and this press is what spends them on the
-               cards bought at setup (the server holds the deduction until
-               it — see Player.payForBoughtCardsInput). Skipped entirely when
-               nothing was bought. The bought PROJECT cards are shown FACE UP
-               here (a compact, non-navigable grid — same footprint as the
-               hand) so the player sees exactly WHICH cards they are buying:
-               these are held out of the dock until the payment confirms, and
-               on confirm THESE cards physically fly into the hand. -->
-          <transition name="con-start-corpout">
-            <div v-if="corpPayCost !== undefined" class="con-start__pay">
-              <span class="con-start__section-title">{{ $t('Payment') }}</span>
-              <div class="con-start__pay-card"
-                   :class="{
-                     'con-start__pay-card--focused': isFocused('pay', PAY_KEY),
-                     'con-start__pay-card--grid': payProjects.length > 0,
-                   }">
-                <div v-if="payProjects.length > 0" class="con-start__pay-grid" ref="payGrid"
-                     :style="{'--con-pay-cols': payGridCols}">
-                  <div v-for="name in payProjects" :key="name"
-                       class="con-start__pay-proxy" :data-pay-card="name">
-                    <Card :card="{name}" :key="name" lightweight />
-                  </div>
-                </div>
-                <div class="con-start__pay-meta">
-                  <span class="con-start__pay-cards">{{ $t('Bought cards') }}: <b>{{ corpPayCost.cards }}</b></span>
-                  <span class="con-start__pay-amount">−{{ corpPayCost.megacredits }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
-                  <div class="con-start__slot-a con-start__pay-cta">
-                    <GamepadGlyph control="confirm" /><span>{{ $t('Pay') }}</span>
-                  </div>
+            <!-- The BOUGHT PROJECTS — part of the queue until the payment
+                 resolves them into the hand (they keep their pay-grid
+                 identity: runHandDelivery measures [data-pay-card]). -->
+            <div v-if="payProjects.length > 0" class="con-start__buy"
+                 :class="{'con-start__buy--focused': isFocused('pay', PAY_KEY)}">
+              <div class="con-start__buy-row" ref="payGrid">
+                <div v-for="name in payProjects" :key="name"
+                     class="con-start__buycard"
+                     :class="{'con-deal-hold': queueArriving.has(name)}"
+                     :data-pay-card="name">
+                  <Card :card="{name}" :key="name" lightweight />
                 </div>
               </div>
-            </div>
-          </transition>
-
-          <div class="con-start__right">
-            <!-- The live ask (draw-1-of-N / copy / Merger corp pick).
-                 P17: the header already states the task — no duplicated
-                 title line; a CORPORATION pick (Merger) scales its
-                 candidates down so five corp cards read as a calm
-                 comparison row instead of giant overflowing cards. -->
-            <div v-if="candidateCards.length > 0" class="con-start__cands"
-                 :class="{'con-start__cands--corps': corpCandidatePick}">
-              <div class="con-cards__strip" ref="candStrip">
-                <div v-for="(card, i) in candidateCards" :key="card.name + '#' + i"
-                     class="con-cards__slot con-start__deal"
-                     :style="dealDelay(i)"
-                     :data-zoom-slot="card.name"
-                     :class="{
-                       'con-cards__slot--focused': isFocused('candidate', card.name),
-                       'con-cards__slot--disabled': card.isDisabled === true,
-                       'con-deal-hold': deal.isHeld(card.name + '#' + i),
-                     }"
-                     :ref="isFocused('candidate', card.name) ? 'focusedCardSlot' : undefined">
-                  <Card :card="card" :key="card.name" lightweight />
-                  <!-- P18: a disabled candidate wears the state BADGE (read
-                       at a glance) + keeps the concrete reason line. -->
-                  <template v-if="card.isDisabled === true">
-                    <span class="con-cards__pickband con-cards__pickband--disabled">{{ $t('Unavailable') }}</span>
-                    <span class="con-cards__reason">{{ disabledCardReason(card) }}</span>
-                  </template>
-                  <div v-else-if="isFocused('candidate', card.name)" class="con-start__slot-a">
-                    <GamepadGlyph control="confirm" /><span>{{ $t(candidateVerb) }}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <!-- The prelude progress rail (context + hand-mode targets). While
-                 the setup reveal runs the preludes wait (dimmed) — they become
-                 playable only after the corp bonus + payment are applied. -->
-            <div v-if="preludeRail.length > 0" class="con-start__preludes">
-              <div class="con-start__section-title">{{ $t('Preludes') }}</div>
-              <!-- FLIP-animated: when the corporation column leaves (or a
-                   drawn prelude joins), the cards SLIDE into their new spots
-                   (transition-group move) — never a hard re-layout jump. -->
-              <transition-group name="con-start-shift" tag="div" class="con-start__prelude-grid">
-                <div v-for="(entry, i) in preludeRail" :key="entry.name"
-                     class="con-start__prelude con-start__deal"
-                     :style="dealDelay(i)"
-                     :data-zoom-slot="entry.name"
-                     :class="{
-                       'con-start__prelude--focused': isFocused('prelude', entry.name),
-                       'con-start__prelude--playable': entry.status === 'playable' && !entry.blocked,
-                       'con-start__prelude--awaiting': entry.status === 'awaiting' || entry.blocked,
-                     }">
-                  <Card :card="{name: entry.name}" :key="entry.name" lightweight />
-                  <!-- A PLAYED prelude leaves the rail entirely (it lives on
-                       the «Разыграно» table now) — no in-place ghost badge. -->
-                  <div v-if="entry.blocked" class="con-cards__reason">{{ $t('Play another prelude first') }}</div>
-                  <div v-else-if="isFocused('prelude', entry.name)" class="con-start__slot-a">
-                    <GamepadGlyph control="confirm" /><span>{{ $t('Play now') }}</span>
-                  </div>
-                </div>
-              </transition-group>
-            </div>
-          </div>
-          </div>
-
-          <!-- THE PLAYED TABLEAU RECEIVING & EFFECT RESOLUTION STAGE — the
-               real shared component (persistent hero target, destination
-               composition, effect emergence/delivery, resolved beat). It
-               mounts HIDDEN from the arm (the submit round trip is its
-               prewarm: layout done, peek faces painted) and unfolds over
-               the released ask when the server proves the play — the same
-               grammar as the Card Play Workspace's landing. -->
-          <div v-if="landingMounted"
-               class="con-start__playstage"
-               :class="{'con-start__playstage--up': landingUp}">
-            <ConsolePlayedReceivingStage :playerView="playerView" />
-          </div>
-         </div>
-
-         <!-- THE COMPACT START TABLEAU — the deployment's physical history.
-              A stable bottom zone from the FIRST ceremony frame (a handoff
-              can never target a rect that mounts mid-flight): each resolved
-              card flies down from the receiving stage into its family stack
-              here (runCompactHandoff) and the centre frees for the next. -->
-         <div class="con-start__tableau" ref="tableauZone">
-          <span class="con-start__tableau-title">{{ $t('Tabletop') }}</span>
-          <div v-for="group in startTableau" :key="group.id" class="con-start__tabgroup">
-            <span class="con-start__tabgroup-cap">{{ $t(group.label) }} <b>{{ group.names.length }}</b></span>
-            <div class="con-start__tabrow">
-              <div v-for="name in group.names" :key="name"
-                   class="con-start__tabstack"
-                   :data-start-mini="name"
-                   :class="{'con-deal-hold': compactArriving === name}">
-                <div class="con-start__tabslot">
-                  <div class="con-start__tabface"><ConsolePlayedCardLite :name="name" :peek="true" /></div>
+              <div class="con-start__buy-meta">
+                <span class="con-start__buy-cap">{{ $t('Bought cards') }} · <b>{{ payProjects.length }}</b></span>
+                <span v-if="corpPayCost !== undefined" class="con-start__buy-amount">−{{ corpPayCost.megacredits }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
+                <div v-if="isFocused('pay', PAY_KEY)" class="con-start__slot-a">
+                  <GamepadGlyph control="confirm" /><span>{{ $t('Pay') }}</span>
                 </div>
               </div>
             </div>
           </div>
-          <span v-if="startTableau.length === 0" class="con-start__tableau-empty">{{ $t('Cards you play will land here') }}</span>
-         </div>
+
+          <!-- EMBEDDED FOLLOW-UP zone: the shared reveal teleports HERE when a
+               start card draws/picks other cards (claimWorkspaceOutcome). -->
+          <div class="con-start__embed" data-embed-slot="start"></div>
+
+          <!-- ── THE PLAYED ZONE — the real «РАЗЫГРАНО» ── -->
+          <div class="con-start__played" ref="playedZone">
+            <div class="con-start__played-head">
+              <span class="con-start__played-title">{{ $t('Played') }}</span>
+              <span class="con-start__played-owner">
+                <span :class="'con-start__crewdot player_bg_color_' + playerView.thisPlayer.color" aria-hidden="true"></span>
+                {{ viewerName }}
+              </span>
+            </div>
+            <div class="con-start__played-groups">
+              <div v-for="fam in playedFamilies" :key="fam.id" class="con-start__pgroup"
+                   :class="{'con-start__pgroup--receiving': fam.receiving, 'con-start__pgroup--empty': fam.cards.length === 0}">
+                <span class="con-start__pgroup-cap">{{ $t(fam.label) }} <b v-if="fam.cards.length > 0">{{ fam.cards.length }}</b></span>
+                <ConsolePlayedPile v-if="fam.cards.length > 0"
+                                   :cards="fam.cards"
+                                   :hiddenKey="fam.hiddenKey"
+                                   :zoom="pilePlan.zoom" :slotW="pilePlan.slotW"
+                                   :cardH="pilePlan.cardH" :peekH="pilePlan.peekH" />
+                <div v-else class="con-start__pgroup-plate" :style="{width: pilePlan.slotW + 'px', height: pilePlan.peekH * 2 + 'px'}"></div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- ── THE SELECTION DOCK (preparation shelf) ─────────────────
@@ -471,6 +357,17 @@
              card area (flex:1 body above) fills all the space down to it,
              and a message swap never shifts the cards. Wizard card step only;
              hidden while the deal cinematic runs (nothing interactive yet). -->
+        <!-- CEREMONY status rail — the same shared workspace status line:
+             the focused queue card + its resolution context. Never the full
+             startup status, never an effect breakdown. -->
+        <div v-if="mode === 'ceremony' && ceremonyRevealed && !embedActive"
+             class="con-start__statusrail con-start__statusrail--hint">
+          <div class="con-start__status-inner">
+            <span class="con-start__status-name" :key="ceremonyStatusName">{{ ceremonyStatusName }}</span>
+            <span v-if="ceremonyStatusText !== ''" class="con-start__status-state">{{ ceremonyStatusText }}</span>
+          </div>
+        </div>
+
         <div v-if="mode === 'wizard' && currentStep !== undefined"
              class="con-start__statusrail" :class="statusRailClass">
           <!-- The rail's HEIGHT is reserved for the whole card step; only its
@@ -571,11 +468,11 @@ import {consoleActionOf, ConsoleAction, ConsoleActionOverrides} from '@/client/c
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {
-  buildInitialCardsResponse, consoleStartState, deploymentJourneyItems, ensureStartWizard,
-  holdStartScene, initialCardsInputOf, initialCardsSignature, picksForStep, releaseStartScene,
-  StartCrewMate, StartDockPileModel, startFlowBusy, StartLaunchState, StartParticipant,
-  startDockPiles, startJourneyItems, startLaunchState, startParticipants,
-  StartWizardStep, stepComplete, wizardSteps,
+  buildInitialCardsResponse, clearDockDrift, consoleStartState, deploymentJourneyItems,
+  driftDockPile, ensureStartWizard, holdStartScene, initialCardsInputOf, initialCardsSignature,
+  picksForStep, releaseStartScene, StartCrewMate, StartDockPileModel, startFlowBusy,
+  StartLaunchState, StartParticipant, startDockPiles, startJourneyItems, startLaunchState,
+  startParticipants, StartWizardStep, stepComplete, wizardSteps,
 } from '@/client/console/consoleStartState';
 import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/startStatusPreview';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -586,17 +483,24 @@ import {
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {
-  armPlayedHero, isPlayedHeroActive, playedHeroLandingPrewarm, playedHeroLandingUp, playedHeroState,
+  armPlayedHero, isPlayedHeroActive, playedHeroState, providePlayedHeroTarget,
 } from '@/client/console/played/consolePlayedHero';
-import ConsolePlayedReceivingStage from '@/client/components/console/played/ConsolePlayedReceivingStage.vue';
-import {collectToDock, returnFromDock, registerStartDockLayer, resetStartDockMotion, DockFlightSource} from '@/client/console/startDockMotion';
+import {HeroRect} from '@/client/console/played/playedHeroModel';
+import ConsolePlayedPile from '@/client/components/console/played/ConsolePlayedPile.vue';
+import {
+  claimWorkspaceOutcome, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome,
+  setWorkspaceOutcomeSlot, workspaceOutcomeState,
+} from '@/client/console/consoleWorkspaceOutcome';
+import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
+import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
+import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
+import {collectToDock, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, DockFlightSource, ReseatPair} from '@/client/console/startDockMotion';
 import {gsap} from 'gsap';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleJourneyRail, {JourneyItem} from '@/client/components/console/foundation/ConsoleJourneyRail.vue';
 import ConsoleStartSelectionDock from '@/client/components/console/ConsoleStartSelectionDock.vue';
-import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 import {armDeliveryHold, runHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {extractPlayRewards, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
@@ -659,7 +563,7 @@ function deliveryHoldKey(names: ReadonlyArray<CardName>): string {
 
 export default defineComponent({
   name: 'ConsoleStartScene',
-  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsolePlayedCardLite, ConsolePlayedReceivingStage},
+  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsolePlayedPile},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** The LIVE `/api/waitingFor` poll (App → shell → here) — see `launch`. */
@@ -712,20 +616,26 @@ export default defineComponent({
        * the honest default).
        */
       playRewards: new Map<CardName, ReadonlyArray<ResourceTransferSpec>>(),
+      /** Per pressable card: how many cards its play DRAWS (from the same
+       *  preview branch) — the embed claim's `expectedCards`. */
+      drawExpected: new Map<CardName, number>(),
       /** In-flight / done prefetches (never re-request the same card). */
       rewardFetched: new Set<CardName>(),
-      /** The played-hero transaction (module reactive, mirrored for the
-       *  compact-handoff phase watcher). */
+      /** The played-hero transaction (module reactive — the queue and the
+       *  played zone derive their reserved slots from it). */
       heroState: playedHeroState,
+      /** The shared claim state (embed zone presence derives from it). */
+      outcome: workspaceOutcomeState,
       /** Slots whose card is FLYING BACK from a dock pile (held empty until
        *  its touchdown) — keys are `stepId|name`. */
       returningNames: new Set<string>(),
       /** Summary tiles whose card is still arriving from its pile. */
       summaryArriving: new Set<CardName>(),
+      /** Queue slots whose card is still arriving (the summary re-seat / an
+       *  extra prelude joining) — held empty until each touchdown. */
+      queueArriving: new Set<CardName>(),
       /** A dock flight is running — step navigation waits it out. */
       dockBusy: false,
-      /** The card mid COMPACT HANDOFF (its tableau slot held under the hero). */
-      compactArriving: undefined as CardName | undefined,
       /** Parked per-step strips (v-show panes) — index = step position. */
       stripEls: [] as Array<HTMLElement | undefined>,
       /** Parked pane roots (the stage-transition motion targets). */
@@ -736,6 +646,7 @@ export default defineComponent({
       ceremonyRevealed: false,
       /** The commit's refusal safety (a submit that never flips the mode). */
       commitSafety: undefined as number | undefined,
+      unregisterHeroTarget: undefined as (() => void) | undefined,
     };
   },
   computed: {
@@ -807,22 +718,24 @@ export default defineComponent({
      *  (the wizard input is gone, but the recede needs the physical shelf). */
     dockPileView(): ReadonlyArray<StartDockPileModel> {
       if (this.steps.length > 0) {
-        return startDockPiles(this.steps, this.picks, this.railPos);
+        return startDockPiles(this.steps, this.picks, this.railPos, this.state.dockDrift);
       }
       if (this.state.flow !== 'materializing') {
         return [];
       }
+      // Through the shell formation the shelf keeps its COUNTS-ONLY trace
+      // (the cards themselves lie in the summary tiles — backs stay 0).
       const out: Array<StartDockPileModel> = [];
       if (this.state.corp !== undefined) {
-        out.push({id: 'corp', label: 'Corporation', count: 1, collected: true});
+        out.push({id: 'corp', label: 'Corporation', count: 1, backs: 0, collected: true});
       }
       if (this.state.preludes.length > 0) {
-        out.push({id: 'prelude', label: 'Preludes', count: this.state.preludes.length, collected: true});
+        out.push({id: 'prelude', label: 'Preludes', count: this.state.preludes.length, backs: 0, collected: true});
       }
       if (this.state.ceo !== undefined) {
-        out.push({id: 'ceo', label: 'CEO', count: 1, collected: true});
+        out.push({id: 'ceo', label: 'CEO', count: 1, backs: 0, collected: true});
       }
-      out.push({id: 'projects', label: 'Projects', count: this.state.projects.length, collected: true});
+      out.push({id: 'projects', label: 'Projects', count: this.state.projects.length, backs: 0, collected: true});
       return out;
     },
     /** The compact participant readiness strip (preparation only — the real
@@ -835,25 +748,55 @@ export default defineComponent({
     preview(): StartStatusPreview | undefined {
       return buildStartStatusPreview(this.picks);
     },
-    /** The receiving stage is PRESENTING (the ask has released, the play is
-     *  landing / resolving on it). Same predicate family as the play
-     *  composer's landing — one grammar, two hosts. */
-    landingUp(): boolean {
-      return this.mode === 'ceremony' && playedHeroLandingUp();
+    /** An embedded follow-up (the shared reveal) is presenting in THIS
+     *  workspace's zone — the queue yields visual priority, never unmounts. */
+    embedActive(): boolean {
+      return this.outcome.host === 'start' && this.outcome.sourceCard !== '';
     },
-    /** The receiving stage is MOUNTED — includes the hidden PREWARM window
-     *  (the submit round trip), so nothing heavy happens for the first time
-     *  after the server's proof. */
-    landingMounted(): boolean {
-      return this.mode === 'ceremony' && (playedHeroLandingUp() || playedHeroLandingPrewarm());
+    /** Presence key of the live drawn-reveal event (claim lifecycle driver). */
+    revealEventKey(): string {
+      return currentRevealEvent() === undefined ? '' : 'ev';
+    },
+    /** The ceremony status rail: the focused queue card's NAME. */
+    ceremonyStatusName(): string {
+      const f = this.focusedItem;
+      if (f === undefined) {
+        return '';
+      }
+      return f.name === PAY_KEY ? translateText('Bought cards') : translateText(f.name);
+    },
+    /** …and its resolution CONTEXT — one short state, never a breakdown. */
+    ceremonyStatusText(): string {
+      const f = this.focusedItem;
+      if (f === undefined) {
+        return this.heroState.active ? '' : translateText('Waiting for other players');
+      }
+      switch (f.kind) {
+      case 'corp':
+        return translateText('Ready to play');
+      case 'pay':
+        return translateText('Confirm the purchase');
+      case 'candidate':
+        return translateText('Select one');
+      default: {
+        const idx = this.queueCards.findIndex((q) => q.name === f.name);
+        return idx <= 0 ? translateText('Ready to play') : translateText('Next prelude');
+      }
+      }
+    },
+    /** The viewer's display name (the played zone's owner line). */
+    viewerName(): string {
+      const me = this.playerView.players.find((p) => p.color === this.playerView.thisPlayer.color);
+      return participantDisplayName({name: me?.name ?? this.playerView.thisPlayer.name ?? '', isMarsBot: me?.isMarsBot === true});
     },
     /**
      * THE DEPLOYMENT SETTLED — the whole start sequence is resolved for this
-     * player: no live start ask, no hero in flight, no compact handoff mid-
-     * air. Under the lifetime HOLD this is what finally releases the
-     * workspace (its own calm dissolve → the board), never a prompt gap.
-     * The corporation's mandatory first action is deliberately OUTSIDE this
-     * scene's scope — it arrives after the release, on the player's turn.
+     * player AND every visual consequence has completed: no live start ask,
+     * no hero in flight, no embedded follow-up open, no reveal pending, no
+     * card still flying into the hand dock, nothing left in the queue. Under
+     * the lifetime HOLD this is what finally releases the workspace (its own
+     * calm dissolve → the board), never a prompt gap. The corporation's
+     * mandatory first action is deliberately OUTSIDE this scene's scope.
      */
     deploymentSettled(): boolean {
       if (this.mode !== 'ceremony' || !this.state.hold || this.state.flow === 'materializing') {
@@ -865,38 +808,91 @@ export default defineComponent({
         startFlowPreludePrompt(this.playerView) === undefined &&
         this.wizardInput === undefined &&
         !this.heroState.active &&
-        this.compactArriving === undefined;
+        !this.embedActive &&
+        currentRevealEvent() === undefined &&
+        !isHandDeliveryActive() &&
+        handDeliveryState.held.length === 0 &&
+        this.queueCards.length === 0 &&
+        this.payProjects.length === 0 &&
+        this.queueArriving.size === 0;
     },
-    /** The preludes already ON the authoritative tableau — the compact start
-     *  tableau's second group (the startup history). */
+    /** The preludes already ON the authoritative tableau. */
     playedPreludes(): ReadonlyArray<CardName> {
       return this.playerView.thisPlayer.tableau
         .filter((c) => getCard(c.name)?.type === CardType.PRELUDE)
         .map((c) => c.name as CardName);
     },
-    startTableau(): ReadonlyArray<{id: string, family: string, label: string, names: ReadonlyArray<CardName>}> {
+    /**
+     * THE STARTUP QUEUE — every unresolved start card as ONE persistent
+     * physical row: the pending corporation, the draw/Merger candidates, the
+     * prelude rail. A resolved card leaves; the rest only ever slide over.
+     */
+    queueCards(): ReadonlyArray<{name: CardName, kind: Focusable['kind'], verb?: string, badge?: string, badgeClass?: string, reason?: string, dimmed: boolean, dealIdx: number}> {
       if (this.mode !== 'ceremony') {
         return [];
       }
-      const out: Array<{id: string, family: string, label: string, names: ReadonlyArray<CardName>}> = [];
-      const incoming = this.compactArriving;
-      const withIncoming = (names: ReadonlyArray<CardName>, family: 'corporation' | 'prelude'): ReadonlyArray<CardName> => {
-        if (incoming === undefined || names.includes(incoming)) {
-          return names;
-        }
-        const type = getCard(incoming)?.type;
-        const belongs = family === 'corporation' ? type === CardType.CORPORATION : type === CardType.PRELUDE;
-        return belongs ? [...names, incoming] : names;
-      };
-      const corpNames = withIncoming(corporationCardNames(this.playerView), 'corporation');
-      if (corpNames.length > 0) {
-        out.push({id: 'corp', family: 'corporation', label: 'Corporation', names: corpNames});
+      const out: Array<{name: CardName, kind: Focusable['kind'], verb?: string, badge?: string, badgeClass?: string, reason?: string, dimmed: boolean, dealIdx: number}> = [];
+      const corp = this.corpPlayCard;
+      if (corp !== undefined) {
+        out.push({name: corp.name, kind: 'corp', verb: 'Play now', dimmed: false, dealIdx: -1});
       }
-      const prel = withIncoming(this.playedPreludes, 'prelude');
-      if (prel.length > 0) {
-        out.push({id: 'preludes', family: 'prelude', label: 'Preludes', names: prel});
+      this.candidateCards.forEach((c, i) => {
+        const disabled = c.isDisabled === true;
+        out.push({
+          name: c.name, kind: 'candidate',
+          verb: disabled ? undefined : this.candidateVerb,
+          badge: disabled ? 'Unavailable' : undefined,
+          badgeClass: disabled ? 'con-cards__pickband--disabled' : undefined,
+          reason: disabled ? undefined : undefined,
+          dimmed: disabled,
+          dealIdx: i,
+        });
+      });
+      const preludesLive = startFlowPreludePrompt(this.playerView) !== undefined;
+      for (const e of this.preludeRail) {
+        const playable = e.status === 'playable' && !e.blocked && preludesLive;
+        out.push({
+          name: e.name, kind: 'prelude',
+          verb: playable ? 'Play now' : undefined,
+          reason: e.blocked ? 'Play another prelude first' : undefined,
+          dimmed: !playable,
+          dealIdx: -1,
+        });
       }
       return out;
+    },
+    /**
+     * THE PLAYED ZONE families — the REAL «Разыграно» presentation (owner +
+     * category piles). Both families stand from the first ceremony frame
+     * (a destination exists before anything flies); the hero's reserved slot
+     * rides `hiddenKey` exactly like the standalone tableau overlay.
+     */
+    playedFamilies(): ReadonlyArray<{id: string, label: string, cards: ReadonlyArray<CardModel>, hiddenKey: string | undefined, receiving: boolean}> {
+      if (this.mode !== 'ceremony') {
+        return [];
+      }
+      const hero = this.heroState;
+      const incoming = hero.active && hero.card !== undefined &&
+        hero.phase !== 'armed' && hero.phase !== 'idle' && hero.phase !== 'failed' ? hero.card : undefined;
+      const incomingType = incoming !== undefined ? getCard(incoming)?.type : undefined;
+      const fam = (id: string, label: string, names: ReadonlyArray<CardName>, mine: boolean) => {
+        const withIncoming = incoming !== undefined && mine && !names.includes(incoming) ? [...names, incoming] : names;
+        return {
+          id, label,
+          cards: withIncoming.map((name) => ({name}) as CardModel),
+          hiddenKey: mine && incoming !== undefined && !hero.revealed ? incoming : undefined,
+          receiving: mine && incoming !== undefined,
+        };
+      };
+      return [
+        fam('corp', 'Corporation', corporationCardNames(this.playerView), incomingType === CardType.CORPORATION),
+        fam('preludes', 'Preludes', this.playedPreludes, incomingType === CardType.PRELUDE),
+      ];
+    },
+    /** The played zone's pile metrics (screen px — profile-scaled). */
+    pilePlan(): {zoom: number, slotW: number, cardH: number, peekH: number} {
+      const zoom = 0.42 * conUiScale();
+      return {zoom, slotW: 320 * zoom, cardH: 460 * zoom, peekH: 66 * zoom};
     },
     picks() {
       return {
@@ -1162,10 +1158,15 @@ export default defineComponent({
       }
       return this.playerView.cardsInHand.map((c) => c.name);
     },
-    /** The face-up cards shown in the payment element (only during the pay
-     *  beat — the corp-play beat holds them silently out of the dock). */
+    /** The bought projects standing in the QUEUE's purchase row — from the
+     *  first deployment frame until the payment resolves them into the hand
+     *  (they are withheld from the dock the whole time; the pay confirm is
+     *  what physically flies them there). */
     payProjects(): ReadonlyArray<CardName> {
-      return this.corpPayCost !== undefined ? this.ceremonyBoughtNames : [];
+      if (this.mode !== 'ceremony') {
+        return [];
+      }
+      return this.corpPlayPrompt !== undefined || this.corpPayCost !== undefined ? this.ceremonyBoughtNames : [];
     },
     /** A balanced column count for the compact pay grid (rows stay even —
      *  never a lone orphan on a second row). */
@@ -1406,16 +1407,6 @@ export default defineComponent({
     onSummary() {
       this.onFrameSettle();
     },
-    /** The compact-handoff driver: at 'closing' the resolved start card flies
-     *  from the central stage down into its compact tableau slot. */
-    'heroState.phase'(phase: string) {
-      if (phase === 'closing' && this.mode === 'ceremony' && this.heroState.host === 'workspace') {
-        void this.runCompactHandoff();
-      }
-      if (phase === 'idle' || phase === 'failed') {
-        this.compactArriving = undefined;
-      }
-    },
 
     /** Pre-flush: arm the deal HOLD before the new card set paints (the
      *  real cards mount hidden — zero first-frame flash). */
@@ -1521,30 +1512,26 @@ export default defineComponent({
       },
     },
     /**
-     * THE ASK RELEASE (the deployment's descend): the moment the receiving
-     * stage takes the zone, the ask layer (corp column / pay element /
-     * candidates / prelude rail) lets go IN PLACE underneath — the pressed
-     * card is already independent (the hero blanks its slot under its own
-     * proxy in the same turn), so nothing doubles. A refused submit brings
-     * the ask back with the same calm.
+     * THE EMBEDDED FOLLOW-UP lifecycle. The claim is armed at the play press
+     * (actByName); when the server's reveal event actually presents in our
+     * zone we mark it; when the reveal fully completes (cards taken, intake
+     * landed — the event clears) the claim releases and the workspace
+     * returns to the queue context. A claim that never produced anything is
+     * dropped by its own 20 s backstop.
      */
-    'landingUp'(now: boolean) {
-      const ask = this.$refs.askLayer as HTMLElement | undefined;
-      if (ask === undefined || !ask.isConnected) {
+    'revealEventKey'(now: string, was: string) {
+      if (this.outcome.host !== 'start') {
         return;
       }
-      gsap.killTweensOf(ask);
-      if (consoleReducedMotionActive()) {
-        gsap.set(ask, now ? {autoAlpha: 0} : {clearProps: 'opacity,transform,visibility'});
+      if (now !== '' && was === '') {
+        markWorkspaceOutcomePresenting();
         return;
       }
-      if (now) {
-        gsap.to(ask, {autoAlpha: 0, y: -6 * conUiScale(), scale: 0.99, duration: motionMs(240) / 1000, ease: 'power2.in'});
-      } else {
-        gsap.fromTo(ask,
-          {autoAlpha: 0, y: 8 * conUiScale()},
-          {autoAlpha: 1, y: 0, scale: 1, duration: motionMs(280) / 1000, ease: 'power3.out',
-            onComplete: () => gsap.set(ask, {clearProps: 'opacity,transform,visibility'})});
+      if (now === '' && was !== '') {
+        releaseWorkspaceOutcome();
+        // Back to the queue context: focus the next unresolved card.
+        this.focusIdx = 0;
+        void this.$nextTick(() => this.scrollFocusedIntoView());
       }
     },
     /** Withhold the bought project cards from the dock the instant the
@@ -1567,8 +1554,9 @@ export default defineComponent({
       this.syncCeremonyLayout();
       registerStartDockLayer(this.$refs.dockLayer as HTMLElement | undefined);
     });
-    // (The hero's landing target + effect hooks register from the REAL
-    // receiving stage itself — ConsolePlayedReceivingStage owns both.)
+    // A start play lands DIRECTLY in the bottom played zone: the hero's
+    // target is the reserved pile slot (hiddenKey) of the card's family.
+    this.unregisterHeroTarget = providePlayedHeroTarget(() => this.measurePlayedSlot());
     // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
     this.stopStripObs = useResizeObserver(this.$el as HTMLElement, () => this.scheduleFit()).stop;
     this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
@@ -1577,6 +1565,10 @@ export default defineComponent({
     document.body.classList.remove('con-start-ceremony');
     document.body.classList.remove('con-start-prep');
     document.body.style.removeProperty('--con-start-rail-inset');
+    this.unregisterHeroTarget?.();
+    if (this.outcome.host === 'start') {
+      releaseWorkspaceOutcome(); // an orphaned claim suppresses presenters
+    }
     resetStartDockMotion();
     registerStartDockLayer(undefined);
     this.stopStripObs?.();
@@ -1711,6 +1703,9 @@ export default defineComponent({
           .filter((sc): sc is DockFlightSource => sc.el !== null);
         const goingToSummary = this.railPos + 1 >= this.steps.length;
         let paneMotion: Promise<void> = Promise.resolve();
+        // The pile's backs follow the CARDS: pre-drift −N so the state flip
+        // shows an (honest) empty pile, then each touchdown adds one back.
+        driftDockPile(step.id, -names.length);
         await collectToDock(sources, this.pileElFor(step.id), () => {
           // The picks are COVERED by their proxies: the pane may swap now —
           // the entering surface rises under the flight, one continuous move.
@@ -1720,10 +1715,21 @@ export default defineComponent({
             // painted early and then hid would be the double the physical
             // story forbids).
             this.steps.forEach((st) => picksForStep(this.picks, st.id).forEach((n) => this.summaryArriving.add(n)));
+            // Crossing INTO the summary drops every pile's TARGET backs to 0
+            // (the cards are about to lie in the tiles) — the PHYSICAL backs
+            // must not blink out under that flip: shift each pile's drift by
+            // its pick count so what is lying there keeps lying there until
+            // its card actually departs in the reveal.
+            this.steps.forEach((st) => driftDockPile(st.id, picksForStep(this.picks, st.id).length));
           }
           this.state.stepIdx = this.railPos + 1;
           paneMotion = this.$nextTick().then(() => this.animatePaneSwap(fromPane, this.paneElAt(this.railPos)));
+        }, () => {
+          driftDockPile(step.id, 1);
         });
+        if (!goingToSummary) {
+          clearDockDrift(step.id);
+        }
         await paneMotion;
         if (goingToSummary && this.onSummary) {
           this.state.flow = 'revealing-summary';
@@ -1747,7 +1753,8 @@ export default defineComponent({
       this.state.flow = this.onSummary ? 'stowing-summary' : 'returning';
       const fromPane = this.paneElAt(this.railPos);
       try {
-        if (this.onSummary) {
+        const leavingSummary = this.onSummary;
+        if (leavingSummary) {
           // The laid-out set gathers back into its piles FIRST — the summary
           // physically closes before the step surface returns.
           await this.collectSummaryToPiles();
@@ -1757,6 +1764,7 @@ export default defineComponent({
         const step = this.steps[target];
         if (step === undefined) {
           this.state.stepIdx = target;
+          clearDockDrift();
           return;
         }
         // Reserve the slots BEFORE the pane shows (the returning cards' own
@@ -1764,7 +1772,23 @@ export default defineComponent({
         // under the flight, never with doubles.
         const names = picksForStep(this.picks, step.id);
         names.forEach((n) => this.returningNames.add(`${step.id}|${n}`));
+        // The flip un-collects the TARGET step (its backs' target → 0) and,
+        // off the summary, re-collects the earlier piles (targets → picks):
+        // hold the physique steady across it, then drain per departure.
+        // (Off the summary the stow already parked +N on the target pile.)
+        if (!leavingSummary) {
+          driftDockPile(step.id, names.length);
+        }
         this.state.stepIdx = target;
+        if (leavingSummary) {
+          // Every OTHER pile's target just rose from 0 to its picks — cancel
+          // against the stow's accumulated +picks drift (backs stay put).
+          this.steps.forEach((st, i) => {
+            if (i < target) {
+              driftDockPile(st.id, -picksForStep(this.picks, st.id).length);
+            }
+          });
+        }
         await this.$nextTick();
         const paneMotion = this.animatePaneSwap(fromPane, this.paneElAt(target));
         await returnFromDock(
@@ -1772,8 +1796,10 @@ export default defineComponent({
           this.pileElFor(step.id),
           (name) => this.stepSlotEl(step.id, name),
           (name) => this.returningNames.delete(`${step.id}|${name}`),
+          () => driftDockPile(step.id, -1),
         );
         names.forEach((n) => this.returningNames.delete(`${step.id}|${n}`));
+        clearDockDrift();
         await paneMotion;
       } finally {
         this.dockBusy = false;
@@ -1781,7 +1807,9 @@ export default defineComponent({
       }
     },
     /** The SUMMARY REVEAL: every pile opens — its cards fly into their summary
-     *  tiles face-up (the prepared set, laid out for the final look). */
+     *  tiles face-up, and each pile's backs DRAIN as its cards depart (the
+     *  backs disappear BECAUSE the cards left — one physical owner; only the
+     *  informational count trace remains under the open tiles). */
     async revealSummaryFromPiles(): Promise<void> {
       const groups = this.steps
         .map((st) => ({st, names: picksForStep(this.picks, st.id)}))
@@ -1794,11 +1822,14 @@ export default defineComponent({
           this.pileElFor(g.st.id),
           (name) => this.summaryTileFor(name),
           (name) => this.summaryArriving.delete(name),
+          () => driftDockPile(g.st.id, -1),
         )));
       this.summaryArriving.clear();
+      clearDockDrift();
     },
     /** Leaving the summary backwards: the laid-out set gathers back into its
-     *  piles first (the reverse of the reveal), then the step returns. */
+     *  piles first (the reverse of the reveal) — a back reappears only when
+     *  its card physically lands back on the shelf — then the step returns. */
     async collectSummaryToPiles(): Promise<void> {
       const groups = this.steps
         .map((st) => ({st, names: picksForStep(this.picks, st.id)}))
@@ -1807,8 +1838,11 @@ export default defineComponent({
         const sources: Array<DockFlightSource> = g.names
           .map((name) => ({name, el: this.summaryTileFor(name)}))
           .filter((sc): sc is DockFlightSource => sc.el !== null);
-        return collectToDock(sources, this.pileElFor(g.st.id));
+        return collectToDock(sources, this.pileElFor(g.st.id), undefined,
+          () => driftDockPile(g.st.id, 1));
       }));
+      // (The drift is reconciled by the caller AFTER the step flip — clearing
+      // here, still on the summary, would blink every just-landed back out.)
     },
     summaryTileFor(name: CardName): HTMLElement | null {
       const root = this.$el as HTMLElement | undefined;
@@ -1819,60 +1853,37 @@ export default defineComponent({
       return root.querySelector<HTMLElement>(`.con-start__summary [data-zoom-slot="${esc}"], .con-start__mini[data-zoom-slot="${esc}"]`);
     },
     /**
-     * THE COMPACT HANDOFF — the deployment's closing move for each start
-     * card: the large, resolved stage card flies down into its pre-mounted
-     * compact tableau slot (held empty under it) — one visual owner, never a
-     * teleport; the centre frees for the next card.
+     * The hero's landing target — the RESERVED slot of the played zone's
+     * family pile (`hiddenKey`, rendered with full layout, kept invisible
+     * until the commit): the card flies DIRECTLY into the real «Разыграно».
+     * Stability-looped: the arc lands on settled geometry only.
      */
-    async runCompactHandoff(): Promise<void> {
+    async measurePlayedSlot(): Promise<HeroRect | undefined> {
       const name = this.heroState.card;
       if (name === undefined) {
-        return;
+        return undefined;
       }
+      await this.$nextTick();
       const root = this.$el as HTMLElement | undefined;
-      // The docked card on the RECEIVING STAGE is the flight's visual source
-      // — its front anchor holds the resolved play at this phase.
-      const face = root?.querySelector<HTMLElement>('.con-start__playstage [data-recv-front]') ?? undefined;
-      this.compactArriving = name;
-      await this.$nextTick();
-      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
-      const mini = root?.querySelector<HTMLElement>(`[data-start-mini="${esc}"] .con-start__tabface`);
-      const layer = this.$refs.dockLayer as HTMLElement | undefined;
-      const from = face?.getBoundingClientRect();
-      const to = mini?.getBoundingClientRect();
-      if (face === undefined || from === undefined || to === undefined || layer === undefined ||
-          to.width < 4 || from.width < 4 || consoleReducedMotionActive()) {
-        this.compactArriving = undefined;
-        return;
+      if (root === undefined || typeof root.querySelector !== 'function') {
+        return undefined;
       }
-      // An INDEPENDENT proxy (a pixel clone in the scene's fixed layer): the
-      // receiving stage unmounts when the transaction finishes, and the
-      // handoff must outlive it — one visual owner, its own lifetime.
-      const proxy = document.createElement('div');
-      proxy.className = 'con-start__handoff-proxy';
-      const clone = face.cloneNode(true) as HTMLElement;
-      clone.style.margin = '0';
-      proxy.appendChild(clone);
-      layer.appendChild(proxy);
-      gsap.set(proxy, {position: 'absolute', left: 0, top: 0, x: from.left, y: from.top, width: from.width, height: from.height, transformOrigin: '0 0'});
-      gsap.set(face, {autoAlpha: 0}); // the stage lets go — the proxy owns the card
-      await new Promise<void>((resolve) => {
-        const safety = window.setTimeout(resolve, 900);
-        gsap.to(proxy, {
-          x: to.left, y: to.top, scale: to.width / from.width,
-          duration: motionMs(300) / 1000,
-          ease: 'power3.inOut',
-          onComplete: () => {
-            window.clearTimeout(safety);
-            resolve();
-          },
-        });
-      });
-      // Ownership handoff: the real compact slot paints under the flown face
-      // in the same frame the proxy lets go.
-      this.compactArriving = undefined;
-      await this.$nextTick();
-      proxy.remove();
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
+      const el = root.querySelector<HTMLElement>(`.con-start__played [data-played-key="${esc}"]`);
+      if (el === null) {
+        return undefined;
+      }
+      let last: HeroRect | undefined = undefined;
+      for (let i = 0; i < 30; i++) {
+        await new Promise<void>((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => r()) : setTimeout(r, 16)));
+        const r = el.getBoundingClientRect();
+        if (r.width > 4 && last !== undefined &&
+            Math.abs(r.left - last.x) < 0.5 && Math.abs(r.top - last.y) < 0.5 && Math.abs(r.width - last.w) < 0.5) {
+          return last;
+        }
+        last = r.width > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+      }
+      return last;
     },
     dealDelay(i: number): Record<string, string> {
       if (consoleReducedMotionActive()) {
@@ -1957,13 +1968,34 @@ export default defineComponent({
       if (!this.deal.state.active) {
         return;
       }
-      const strip = (this.mode === 'wizard' ? this.activeStrip() : this.$refs.candStrip) as HTMLElement | undefined;
       const layer = this.$refs.dealLayer as InstanceType<typeof ConsoleCardDealLayer> | undefined;
-      if (strip === undefined || strip === null || layer === undefined) {
+      if (layer === undefined) {
         this.deal.dispose();
         return;
       }
-      const slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > :is(.card-container, .pcard)'));
+      let slotCards: Array<HTMLElement>;
+      if (this.mode === 'wizard') {
+        const strip = this.activeStrip();
+        if (strip === undefined || strip === null) {
+          this.deal.dispose();
+          return;
+        }
+        slotCards = Array.from(strip.querySelectorAll<HTMLElement>(':scope > .con-cards__slot > :is(.card-container, .pcard)'));
+      } else {
+        // CEREMONY: drawn candidates deal into their QUEUE slots (the deck
+        // deals — cards received into the queue arrive physically).
+        const row = this.$refs.queueEl as HTMLElement | undefined;
+        if (row === undefined || row === null) {
+          this.deal.dispose();
+          return;
+        }
+        slotCards = this.candidateCards
+          .map((c) => {
+            const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(c.name) : c.name;
+            return row.querySelector<HTMLElement>(`[data-queue-slot="${esc}"] :is(.card-container, .pcard)`);
+          })
+          .filter((el): el is HTMLElement => el !== null);
+      }
       this.deal.launch({slotCards, proxies: layer.proxyEls(), deck: layer.deckEl()});
     },
     /** The focus a freshly-entered frame opens on: a wizard step with an
@@ -2146,21 +2178,29 @@ export default defineComponent({
       return participantDisplayName({name: p.name, isMarsBot: p.isMarsBot});
     },
     /**
-     * GAME STATE MATERIALIZATION — the one episode that turns the preparation
-     * into the game. Runs on the commit's acceptance (the wizard mode flips):
+     * SHELL MATERIALIZATION — the game frame FORMS AROUND the workspace.
+     * Runs on the commit's acceptance (the wizard mode flips):
      *
-     *  1. the Expanded Startup Status Preview fixes its final values (a short
-     *     resolved accent);
-     *  2. the summary's cards + piles + launch block recede in place;
-     *  3. the preview physically TRANSFORMS toward the top of the screen — a
-     *     pixel proxy compacts into the Top HUD's band;
-     *  4. in the SAME episode the standard Top HUD and the Player Rail enter
-     *     together (one body-class swap drives both CSS entrances) and the
-     *     full-bleed shell re-bounds to standard workspace bounds (the frame's
-     *     padding transitions, never jumps);
-     *  5. the deployment surface reveals — the corporation is the first ask.
+     *  1. a short mechanical confirmation — the status preview states its
+     *     final numbers (resolved accent) while the summary cards stand
+     *     STABLE and visible;
+     *  2. the preparation-only chrome ends its role IN PLACE — the crew
+     *     strip and the counts shelf calmly fade where they are (nothing
+     *     flies anywhere: the Top Bar and the Player Rail are DIFFERENT
+     *     presentation contexts, not transformed panels);
+     *  3. ONE class swap materializes the standard shell: the Top Bar
+     *     surfaces from the top edge, the Player Rail from the left edge
+     *     (each from its OWN anchor — opacity + a short controlled slide),
+     *     and the full-bleed surface re-bounds to standard workspace bounds
+     *     through the frame's padding transition — content adapts smoothly,
+     *     nothing jumps;
+     *  4. the summary cards then PHYSICALLY REGROUP into the deployment's
+     *     startup queue (reseatCards — the same lift/travel/dock grammar),
+     *     the bought projects into the purchase row; the status preview
+     *     finishes its role locally and fades;
+     *  5. the deployment surface is live — the corporation is the first ask.
      *
-     * Reduced motion: values swap in one settled frame (no proxy, no travel).
+     * Reduced motion: values swap in one settled frame (no travel).
      */
     async runMaterialization(): Promise<void> {
       this.state.flow = 'materializing';
@@ -2171,75 +2211,72 @@ export default defineComponent({
       const reduced = consoleReducedMotionActive();
       const summary = this.$refs.summaryPane as HTMLElement | undefined;
       const prev = this.$refs.hudPrev as HTMLElement | undefined;
-      const layer = this.$refs.dockLayer as HTMLElement | undefined;
       const root = this.$el as HTMLElement | undefined;
       const dock = root?.querySelector<HTMLElement>('.con-startdock') ?? undefined;
       const crew = root?.querySelector<HTMLElement>('.con-start__crewline') ?? undefined;
+
       if (!reduced && summary !== undefined && summary.isConnected) {
-        // 1) the resolved beat — the preview states its final numbers.
+        // 1) the resolved beat — the preview states its final numbers; the
+        // cards stay exactly where they are.
         if (prev !== undefined) {
           prev.classList.add('con-start__hudprev--resolved');
-          await new Promise<void>((r) => window.setTimeout(r, motionMs(220)));
         }
-        // 3) the SHARED-ELEMENT transform: a pixel clone of the preview
-        // compacts into the Top HUD band while the real panel recedes with
-        // the summary — the strip then enters exactly where it lands.
-        const prevRect = prev?.getBoundingClientRect();
-        const strip = document.querySelector<HTMLElement>('.con-status');
-        const stripRect = strip?.getBoundingClientRect();
-        let proxyDone: Promise<void> = Promise.resolve();
-        if (prev !== undefined && prevRect !== undefined && prevRect.width > 4 &&
-            stripRect !== undefined && stripRect.width > 4 && layer !== undefined) {
-          const proxy = document.createElement('div');
-          proxy.className = 'con-start__matproxy';
-          const clone = prev.cloneNode(true) as HTMLElement;
-          clone.style.margin = '0';
-          proxy.appendChild(clone);
-          layer.appendChild(proxy);
-          gsap.set(proxy, {position: 'absolute', left: 0, top: 0, x: prevRect.left, y: prevRect.top, width: prevRect.width, transformOrigin: '0 0'});
-          proxyDone = new Promise<void>((resolve) => {
-            const safety = window.setTimeout(resolve, motionMs(520) + 700);
-            gsap.to(proxy, {
-              x: stripRect.left, y: stripRect.top,
-              scale: Math.max(0.2, Math.min(1, stripRect.width / prevRect.width)),
-              autoAlpha: 0,
-              duration: motionMs(480) / 1000,
-              ease: 'power3.inOut',
-              onComplete: () => {
-                window.clearTimeout(safety);
-                resolve();
-              },
-            });
-          }).then(() => proxy.remove());
+        await new Promise<void>((r) => window.setTimeout(r, motionMs(240)));
+        // 2) the preparation-only chrome ends its role IN PLACE.
+        const ending = [dock, crew].filter((el): el is HTMLElement => el !== undefined);
+        if (ending.length > 0) {
+          gsap.to(ending, {autoAlpha: 0, y: -4 * conUiScale(), duration: motionMs(260) / 1000, ease: 'power2.in'});
         }
-        // 2) the release — the summary lets go in place under the transform.
-        const receding = [summary, dock, crew].filter((el): el is HTMLElement => el !== undefined);
-        gsap.to(receding, {autoAlpha: 0, y: -8 * conUiScale(), duration: motionMs(280) / 1000, ease: 'power2.in'});
-        // 4) mid-transform: ONE class swap materializes the Top HUD + the
-        // Player Rail together and re-bounds the shell (CSS entrances +
-        // the frame's padding transition — never two separate pops).
-        await new Promise<void>((r) => window.setTimeout(r, motionMs(180)));
-        this.syncCeremonyLayout();
-        await proxyDone;
-        gsap.set(receding, {clearProps: 'opacity,transform,visibility'});
-      } else {
-        this.syncCeremonyLayout();
+        // The full-bleed surface recedes a breath into depth — the frame is
+        // about to form around it (transform only, no layout).
+        gsap.to(summary, {scale: 0.992, transformOrigin: '50% 40%', duration: motionMs(300) / 1000, ease: 'power2.out'});
       }
-      // 5) the deployment reveals — the ceremony body surfaces.
+
+      // 3) ONE swap: the Top Bar surfaces from the top edge, the Player Rail
+      // from the left edge, the bounds transition carries the re-bound. The
+      // summary cards ride the smooth padding change — no jump, no flight.
+      this.syncCeremonyLayout();
+      if (!reduced) {
+        await new Promise<void>((r) => window.setTimeout(r, motionMs(480)));
+      }
+
+      // 4) the CONTENT adapts: mount the deployment surface (hidden), then
+      // the summary cards physically REGROUP into the startup queue and the
+      // purchase row — the same cards, one continuous move each.
       this.ceremonyRevealed = true;
       await this.$nextTick();
       const body = this.$refs.ceremonyBody as HTMLElement | undefined;
-      if (!reduced && body !== undefined) {
-        await new Promise<void>((resolve) => {
-          const safety = window.setTimeout(resolve, motionMs(340) + 700);
-          gsap.fromTo(body,
-            {autoAlpha: 0, y: 12 * conUiScale()},
-            {autoAlpha: 1, y: 0, duration: motionMs(320) / 1000, ease: 'power3.out', onComplete: () => {
-              window.clearTimeout(safety);
-              resolve();
-            }});
-        });
-        gsap.set(body, {clearProps: 'opacity,transform,visibility'});
+      if (!reduced && body !== undefined && summary !== undefined) {
+        const pairs: Array<ReseatPair> = [];
+        const queueTarget = (name: CardName) => {
+          const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
+          return (this.$el as HTMLElement).querySelector<HTMLElement>(
+            `[data-queue-slot="${esc}"], [data-pay-card="${esc}"]`);
+        };
+        const moving: Array<CardName> = [];
+        if (this.state.corp !== undefined) {
+          moving.push(this.state.corp);
+        }
+        moving.push(...this.state.preludes, ...this.state.projects);
+        for (const name of moving) {
+          const from = this.summaryTileFor(name);
+          const to = queueTarget(name);
+          if (from !== null && to !== null) {
+            pairs.push({name, fromEl: from, toEl: to});
+            this.queueArriving.add(name);
+          }
+        }
+        // The queue's slots are HELD empty; the preview + launch finish their
+        // role locally under the flights; the surface crossfades beneath.
+        const flight = reseatCards(pairs, (name) => this.queueArriving.delete(name));
+        pairs.forEach((p) => this.summaryArriving.add(p.name)); // hide sources under proxies
+        gsap.to(summary, {autoAlpha: 0, duration: motionMs(300) / 1000, ease: 'power2.in', delay: 0.05});
+        gsap.fromTo(body, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(280) / 1000, ease: 'power2.out'});
+        await flight;
+        this.queueArriving.clear();
+        this.summaryArriving.clear();
+        gsap.set(body, {clearProps: 'opacity,visibility'});
+        gsap.set(summary, {clearProps: 'opacity,transform,visibility'});
       }
       this.state.flow = 'deploying';
     },
@@ -2451,7 +2488,13 @@ export default defineComponent({
         // returns; picks + step progress live in module state). NEVER while
         // a play is physically in flight — a defer unmounts the scene and
         // with it the hero's landing target (the stranded-card bug).
-        if (isPlayedHeroActive() || this.compactArriving !== undefined) {
+        if (this.mode === 'ceremony') {
+          // The deployment is IRREVERSIBLE and its every beat is causal —
+          // minimizing here would hide a live queue / an embedded follow-up
+          // / a flight mid-air. B is simply not a deployment verb.
+          return;
+        }
+        if (isPlayedHeroActive()) {
           return;
         }
         this.$emit('defer');
@@ -2630,7 +2673,7 @@ export default defineComponent({
       // deployment shell is REVEALED and standing (the receiving stage's
       // container, the compact tableau, the rail all live in it). Before
       // that — mid-materialization — the source card must not release.
-      if (this.mode === 'ceremony' && (!this.ceremonyRevealed || this.compactArriving !== undefined)) {
+      if (this.mode === 'ceremony' && (!this.ceremonyRevealed || this.embedActive || this.queueArriving.size > 0)) {
         return;
       }
       const item = this.focusables.find((f) => f.name === name);
@@ -2648,11 +2691,12 @@ export default defineComponent({
         return;
       }
       // The deferred CORPORATION play: arm the hero transaction (the card
-      // physically lands on the «Разыграно» table only after the server
-      // proves the play), then submit the corporationPlay answer.
+      // physically lands in the bottom «Разыграно» only after the server
+      // proves the play), claim any follow-up it draws, then submit.
       if (item.kind === 'corp') {
         if (this.corpPlayPrompt !== undefined) {
           this.armStartHero(name);
+          this.claimStartFollowUp(name);
           this.$emit('submit', cardsResponse([name]));
         }
         return;
@@ -2670,8 +2714,9 @@ export default defineComponent({
         }
         if (!copyPick) {
           // Preludes / drawn picks / Merger's corp all LAND in the tableau —
-          // the hero scene carries the pressed card onto the table.
+          // the hero carries the pressed card into the bottom «Разыграно».
           this.armStartHero(name);
+          this.claimStartFollowUp(name);
         }
         this.$emit('submit', cardsResponse([name]));
       };
@@ -2681,9 +2726,11 @@ export default defineComponent({
       if (item.kind === 'candidate' && !this.deal.state.active) {
         const slot = this.exitSlotFor(name);
         if (slot !== null) {
-          const candStrip = this.$refs.candStrip as HTMLElement | undefined;
-          const rejects = candStrip !== undefined && candStrip !== null ?
-            (Array.from(candStrip.children) as Array<HTMLElement>).filter((el) => el !== slot && !el.classList.contains('con-deal-hold')) : [];
+          const row = this.$refs.queueEl as HTMLElement | undefined;
+          const rejects = row !== undefined && row !== null ?
+            (Array.from(row.querySelectorAll<HTMLElement>('[data-queue-slot]')))
+              .filter((el) => el !== slot && !el.classList.contains('con-deal-hold') &&
+                this.candidateCards.some((c) => c.name === el.getAttribute('data-queue-slot'))) : [];
           applyDiscardExit(rejects, {delayMs: 150});
           if (copyPick) {
             void runHeroPick({name, el: slot}, submit);
@@ -2692,6 +2739,21 @@ export default defineComponent({
         }
       }
       submit();
+    },
+    /**
+     * The play's FOLLOW-UP claim: a start card that DRAWS other cards hosts
+     * the shared reveal INSIDE this workspace (the embed zone). Armed in the
+     * same press as the submit — nothing card-shaped can slip past it and
+     * open a standalone surface for a frame. Cards that draw nothing make no
+     * claim (a no-op — the deployment simply continues).
+     */
+    claimStartFollowUp(name: CardName): void {
+      const expected = this.drawExpected.get(name) ?? 0;
+      if (expected <= 0) {
+        return;
+      }
+      setWorkspaceOutcomeSlot('.con-start__embed');
+      claimWorkspaceOutcome('start', name, ['draw', 'pick'], 0, expected);
     },
     /**
      * The starting-cards DELIVERY (handDeliveryDirector). Fire on the payment
@@ -2728,13 +2790,14 @@ export default defineComponent({
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
         CSS.escape(name) : name.replace(/"/g, '\\"');
       // HOST 'workspace': the standalone «Разыграно» overlay never opens for
-      // a start play — the card lands on the scene's own CENTRAL STAGE
-      // (measureStageAnchor), resolves its effects onto the materializing
-      // rail, and the compact handoff then carries it into the start tableau.
+      // a start play. The card lifts out of its QUEUE slot and flies the hero
+      // arc DIRECTLY into the bottom played zone's reserved pile slot
+      // (measurePlayedSlot) — a short, causal trajectory: queue → «Разыграно».
+      // Effects then resolve FROM the docked card; the queue reflows.
       armPlayedHero(name, false, {
         manualTableOpen: false,
         host: 'workspace',
-        sourceSelector: `.con-start [data-zoom-slot="${esc}"] :is(.card-container, .pcard)`,
+        sourceSelector: `.con-start [data-queue-slot="${esc}"] :is(.card-container, .pcard), .con-start [data-zoom-slot="${esc}"] :is(.card-container, .pcard)`,
         rewards: this.playRewards.get(name),
       });
     },
@@ -2794,6 +2857,18 @@ export default defineComponent({
             }).filter((spec) => spec.channel !== 'card-resource');
             if (rewards.length > 0) {
               this.playRewards.set(name, rewards);
+            }
+            // The same structural read the card-actions workspace uses: a
+            // `cards` gain in the branch means this play DRAWS — its follow-
+            // up reveal will be claimed into OUR embed zone at press time.
+            let expected = 0;
+            for (const e of branch.effects ?? []) {
+              if (e.direction === 'gain' && e.icon === 'cards') {
+                expected += Math.max(1, Math.round(e.amount));
+              }
+            }
+            if (expected > 0) {
+              this.drawExpected.set(name, expected);
             }
           })
           .catch(() => {

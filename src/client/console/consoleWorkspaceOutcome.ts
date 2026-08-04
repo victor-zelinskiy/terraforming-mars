@@ -42,7 +42,10 @@ import type {ZoomOrigin} from '@/client/console/consoleCardZoom';
  */
 export type WorkspaceOutcomeHost =
   /** «Действия карт» → ACTION FOCUS (ConsoleCardActions + ConsoleActionComposer). */
-  | 'card-actions';
+  | 'card-actions'
+  /** The GAME START WORKSPACE — a start card (corporation / prelude) that
+   *  draws or picks other cards hosts the follow-up in its own embed zone. */
+  | 'start';
 
 /**
  * What an outcome can BE. The claimant declares which kinds it can host, so a

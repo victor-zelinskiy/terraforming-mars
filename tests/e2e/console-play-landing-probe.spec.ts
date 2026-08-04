@@ -34,8 +34,11 @@ const BLUE = 'Rover Construction';
 const EVENT = 'Investment Loan';
 const TILE_EVENT = 'Nuclear Zone';
 
-/** Follow-up-free preludes (plain printed gains → clean hero + reward beats). */
-const PRELUDES = ['Allied Bank', 'Loan', 'Dome Farming', 'Galilean Mining'];
+/** The probe's preludes: BIOLAB is deliberately a DRAW prelude (draw 3) —
+ * its play must open the EMBEDDED reveal inside the workspace and deliver
+ * the drawn cards to the hand dock before the deployment may settle. */
+const PRELUDES = ['Allied Bank', 'Loan', 'Dome Farming', 'Biolab'];
+const DRAW_PRELUDE = 'Biolab';
 
 function newGameConfig(withPreludes: boolean) {
   const expansions: Record<string, boolean> = {
@@ -115,12 +118,18 @@ type StartLog = {
   sawCeremony: boolean,
   /** Frames where `.con-start` was ABSENT between the commit and the settle. */
   goneFramesDuringDeployment: number,
-  /** The REAL receiving stage presented during a start play. */
-  sawStartRecv: boolean,
-  /** The docked front carried a card (the play physically landed). */
-  sawStartDocked: boolean,
-  /** Max compact-tableau minis seen (corp = 1; + preludes = 3). */
-  maxTableauMinis: number,
+  /** The bottom zone presented as the REAL «Разыграно» (title + owner). */
+  sawPlayedZone: boolean,
+  /** Cards physically standing in the played zone's piles (max seen). */
+  maxPlayedSlots: number,
+  /** The startup queue's card count (max seen — corp + preludes). */
+  maxQueueCards: number,
+  /** A frame ever showed the retired «СТОЛ» placeholder (must stay 0). */
+  stolFrames: number,
+  /** A central receiving stage mounted inside the start (must stay 0 now). */
+  centralStageFrames: number,
+  /** The shared reveal presented EMBEDDED inside `.con-start`. */
+  sawEmbeddedReveal: boolean,
   /** The standalone «Разыграно» overlay NEVER mounts during the start. */
   standaloneFrames: number,
   /** The hand dock was visible during the deployment. */
@@ -133,8 +142,9 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
   const log: StartLog = {
     topHudHidden: false, railHidden: false, sawCrewStrip: false, dockPilesAtStart: 0,
     sawDockProxy: false, sawHudPreview: false, sawCeremony: false,
-    goneFramesDuringDeployment: 0, sawStartRecv: false, sawStartDocked: false,
-    maxTableauMinis: 0, standaloneFrames: 0, sawHandDock: false, trace: [],
+    goneFramesDuringDeployment: 0, sawPlayedZone: false, maxPlayedSlots: 0,
+    maxQueueCards: 0, stolFrames: 0, centralStageFrames: 0, sawEmbeddedReveal: false,
+    standaloneFrames: 0, sawHandDock: false, trace: [],
   };
   const created = await request.post('/api/creategame', {data: newGameConfig(withPreludes)});
   expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
@@ -240,8 +250,17 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
       continue;
     }
     if (s.active.includes('ПРОЛОГ')) {
+      // BIOLAB (the draw prelude) MUST be in the set — walk to it first,
+      // then top up with whatever stands focused.
       if (s.picked.length >= 2) {
         await advance();
+      } else if (!s.picked.includes(DRAW_PRELUDE)) {
+        if (s.focused === DRAW_PRELUDE) {
+          await key(page, 'Enter', 420);
+          lastFocused = '';
+        } else {
+          await step(s.focused);
+        }
       } else if (s.focused !== '' && !s.picked.includes(s.focused)) {
         await key(page, 'Enter', 420);
         lastFocused = '';
@@ -271,64 +290,80 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
   }
 
   // ── the DEPLOYMENT: the root `.con-start` must exist CONTINUOUSLY from the
-  //    commit to the settle (the lifetime hold) — a single absent frame while
-  //    anything is still pending is the workspace-close bug. Press A whenever
-  //    a CTA stands; the release (scene gone AND stays gone) ends the loop. ──
+  //    commit to the settle (the lifetime hold). Press A whenever a CTA
+  //    stands (queue plays, the purchase, the embedded reveal's takes); the
+  //    release (scene gone AND stays gone) ends the loop. ──
   let shotDeploy = false;
-  let shotStage = false;
+  let shotPlayed = false;
+  let shotReveal = false;
   let goneStreak = 0;
-  for (let i = 0; i < 200; i++) {
-    const s = await page.evaluate(() => {
+  for (let i = 0; i < 240; i++) {
+    const s = await page.evaluate((drawCard) => {
       const start = document.querySelector('.con-start') !== null;
-      const recv = document.querySelector('.con-start__playstage .con-recv');
-      const front = recv?.querySelector('[data-recv-front]');
+      const played = document.querySelector('.con-start__played');
+      const bodyText = document.querySelector('.con-start')?.textContent ?? '';
       return {
         start,
         cta: start && document.querySelector('.con-start__slot-a') !== null,
-        recv: recv !== null,
-        docked: (front?.getAttribute('data-played-key') ?? '') !== '',
-        minis: document.querySelectorAll('.con-start [data-start-mini]').length,
+        playedZone: played !== null && played.textContent !== null &&
+          played.textContent.toUpperCase().includes('РАЗЫГРАНО'),
+        playedSlots: document.querySelectorAll('.con-start__played [data-played-key]').length,
+        queueCards: document.querySelectorAll('.con-start [data-queue-slot]').length,
+        stol: /СТОЛ(?![А-ЯЁ])/.test(bodyText),
+        centralStage: document.querySelector('.con-start .con-recv') !== null,
+        embedReveal: document.querySelector('.con-start__embed *') !== null,
         standalone: document.querySelector('.con-played:not(.con-played--embedded)') !== null,
         handDock: document.querySelector('.con-handdock, .con-hand-dock, [data-hand-dock]') !== null,
         mandatory: document.querySelector('.con-mandatory') !== null,
-        tableau: document.querySelector('.con-start__tableau') !== null,
+        drawQueued: document.querySelector(`.con-start [data-queue-slot="${drawCard}"]`) !== null,
       };
-    });
-    log.trace.push(`d${i} start:${s.start ? 1 : 0} cta:${s.cta ? 1 : 0} recv:${s.recv ? 1 : 0} dock:${s.docked ? 1 : 0} minis:${s.minis} hd:${s.handDock ? 1 : 0}`);
+    }, DRAW_PRELUDE);
+    log.trace.push(`d${i} start:${s.start ? 1 : 0} cta:${s.cta ? 1 : 0} q:${s.queueCards} p:${s.playedSlots} emb:${s.embedReveal ? 1 : 0} hd:${s.handDock ? 1 : 0}`);
     if (s.standalone) {
       log.standaloneFrames++;
     }
     if (s.start) {
       goneStreak = 0;
-      if (s.recv) {
-        log.sawStartRecv = true;
+      if (s.playedZone) {
+        log.sawPlayedZone = true;
       }
-      if (s.docked) {
-        log.sawStartDocked = true;
-        if (!shotStage) {
-          shotStage = true;
-          await shoot(page, `${shotPrefix}-4-receiving-stage`);
+      if (s.stol) {
+        log.stolFrames++;
+      }
+      if (s.centralStage) {
+        log.centralStageFrames++;
+      }
+      if (s.embedReveal) {
+        log.sawEmbeddedReveal = true;
+        if (!shotReveal) {
+          shotReveal = true;
+          await shoot(page, `${shotPrefix}-5-embedded-reveal`);
         }
       }
       if (s.handDock) {
         log.sawHandDock = true;
       }
-      log.maxTableauMinis = Math.max(log.maxTableauMinis, s.minis);
-      if (!shotDeploy && s.tableau) {
+      log.maxPlayedSlots = Math.max(log.maxPlayedSlots, s.playedSlots);
+      log.maxQueueCards = Math.max(log.maxQueueCards, s.queueCards);
+      if (!shotPlayed && s.playedSlots > 0) {
+        shotPlayed = true;
+        await shoot(page, `${shotPrefix}-4-played-dock`);
+      }
+      if (!shotDeploy && s.queueCards > 0) {
         shotDeploy = true;
         await shoot(page, `${shotPrefix}-3-deployment`);
       }
-      if (s.cta) {
+      if (s.cta || s.embedReveal) {
         await key(page, 'Enter', 700);
       } else {
         await page.waitForTimeout(180);
       }
       continue;
     }
-    // The scene is gone. Before the ceremony that's the old close bug; after
-    // it, it's the release — confirm it STAYS gone (not a gap re-mount).
+    // The scene is gone. Before every consequence resolved that is the old
+    // close bug; after, it is the release — confirm it STAYS gone.
     goneStreak++;
-    if (log.sawCeremony && log.maxTableauMinis === 0 && goneStreak === 1) {
+    if (log.sawCeremony && log.maxPlayedSlots === 0 && goneStreak === 1) {
       log.goneFramesDuringDeployment++;
     }
     if (goneStreak >= 8) {
@@ -344,23 +379,29 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
   return log;
 }
 
-function assertStart(log: StartLog, opts: {withPreludes: boolean, strictMotion: boolean}): void {
+function assertStart(log: StartLog, opts: {withPreludes: boolean, strictMotion: boolean, expectReveal?: boolean}): void {
   console.log(`[start trace]\n${log.trace.join('\n')}`);
   expect(log.topHudHidden, 'the standard top HUD must be HIDDEN through the preparation').toBeTruthy();
   expect(log.railHidden, 'the player rail must be HIDDEN through the preparation').toBeTruthy();
   expect(log.sawCrewStrip, 'the compact participant strip must serve readiness instead').toBeTruthy();
   expect(log.dockPilesAtStart, 'EVERY Selection-Dock pile pre-mounts from the first frame').toBeGreaterThanOrEqual(opts.withPreludes ? 3 : 2);
-  expect(log.sawHudPreview, 'the summary carries the Expanded Startup Status Preview').toBeTruthy();
+  expect(log.sawHudPreview, 'the summary carries the startup status preview').toBeTruthy();
   expect(log.sawCeremony, 'the deployment began INSIDE the same .con-start root').toBeTruthy();
   expect(log.goneFramesDuringDeployment, 'the workspace must NOT close between the commit and the first play').toBe(0);
-  expect(log.sawStartRecv, 'the REAL receiving stage presented the start plays').toBeTruthy();
-  expect(log.sawStartDocked, 'a start play physically DOCKED on the receiving stage').toBeTruthy();
-  expect(log.maxTableauMinis, 'resolved cards physically reached the compact tableau').toBeGreaterThanOrEqual(opts.withPreludes ? 3 : 1);
+  expect(log.sawPlayedZone, 'the bottom zone is the REAL «Разыграно» (title + owner)').toBeTruthy();
+  expect(log.stolFrames, 'the retired «СТОЛ» placeholder must never render').toBe(0);
+  expect(log.centralStageFrames, 'no central receiving stage — plays dock DIRECTLY into the bottom zone').toBe(0);
+  expect(log.maxQueueCards, 'the startup queue stood as one persistent row').toBeGreaterThanOrEqual(opts.withPreludes ? 3 : 1);
+  expect(log.maxPlayedSlots, 'resolved cards physically reached the played zone piles').toBeGreaterThanOrEqual(opts.withPreludes ? 3 : 1);
   expect(log.standaloneFrames, 'the standalone «Разыграно» overlay never mounts during the start').toBe(0);
+  if (opts.expectReveal === true) {
+    expect(log.sawEmbeddedReveal, 'the draw prelude opened the reveal EMBEDDED inside the workspace').toBeTruthy();
+  }
   if (opts.strictMotion) {
     expect(log.sawDockProxy, 'the RT collect flew a PHYSICAL dock proxy').toBeTruthy();
   }
 }
+
 
 /** Walk the hand cursor onto `card` and open the workspace descent. */
 async function descendIntoPlay(page: Page, card: string): Promise<void> {
@@ -550,7 +591,7 @@ test.describe('console Game Start Workspace + play landing', () => {
   test('the FULL start flow (preludes on) + the four hand plays', async ({page, request}) => {
     test.setTimeout(900_000);
     const startLog = await bootGame(page, request, true, 'gsw-fhd');
-    assertStart(startLog, {withPreludes: true, strictMotion: true});
+    assertStart(startLog, {withPreludes: true, strictMotion: true, expectReveal: true});
 
     await descendIntoPlay(page, GREEN);
     const log = await runLandingScene(page, GREEN, false, 'fhd-green');

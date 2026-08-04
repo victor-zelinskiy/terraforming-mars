@@ -80,6 +80,15 @@ export const consoleStartState = reactive({
   /** The motion director's phase (see StartFlowState). */
   flow: 'idle' as StartFlowState,
   /**
+   * PHYSICAL pile-count drift — the shelf follows the CARDS, not the state
+   * flip. A collect sets `-N` the instant the step advances (the backs are
+   * still airborne) and each touchdown adds one back; a return sets `+N`
+   * (the backs are still lying there) and each departure removes one. The
+   * dock renders `target + drift` — a back can never appear before its card
+   * lands, and never remains after its card left.
+   */
+  dockDrift: {} as Record<string, number>,
+  /**
    * THE WORKSPACE LIFETIME HOLD. The root Game Start Workspace must survive
    * the COMMIT and every prompt gap of the deployment (submit round trips,
    * the pause between two start prompts): the shell keeps the scene mounted
@@ -104,9 +113,24 @@ export function ensureStartWizard(ownerId: string, signature: string): void {
   consoleStartState.projects = [];
   consoleStartState.visited = new Set<number>();
   consoleStartState.flow = 'idle';
+  consoleStartState.dockDrift = {};
   // A FRESH deal identity is a fresh game start — a stale lifetime hold from
   // an earlier game (rematch) must never leak into this one's preparation.
   consoleStartState.hold = false;
+}
+
+/** Shift one pile's physical drift (see dockDrift). */
+export function driftDockPile(id: string, delta: number): void {
+  consoleStartState.dockDrift[id] = (consoleStartState.dockDrift[id] ?? 0) + delta;
+}
+
+/** A transfer finished — that pile's physique matches its state again. */
+export function clearDockDrift(id?: string): void {
+  if (id === undefined) {
+    consoleStartState.dockDrift = {};
+    return;
+  }
+  delete consoleStartState.dockDrift[id];
 }
 
 /** The scene is mid-motion / mid-commit — selection input must wait. */
@@ -335,9 +359,11 @@ export function deploymentJourneyItems(signals: {
 export type StartDockPileModel = {
   id: StartWizardStepId,
   label: string,
-  /** Cards physically LYING in this pile right now (0 on the live / future
-   *  steps — their picks still stand in the grid). */
+  /** The INFORMATIONAL count (collected picks — the «КОРПОРАЦИЯ · 1» trace). */
   count: number,
+  /** Backs PHYSICALLY lying in the pile right now (drift-adjusted — they
+   *  follow the flying cards, never the state flip). */
+  backs: number,
   /** The step whose picks these are has been collected past (i < railPos). */
   collected: boolean,
 };
@@ -347,20 +373,31 @@ export type StartDockPileModel = {
  * a pile is a physical DESTINATION and a flight cannot target an element
  * that mounts only after the flight (the exact bug that turned the collect
  * into a teleport). A step's cards LIE in its pile only while the player
- * stands PAST it (collected on RT, returned on LT); an un-collected pile is
- * an empty, waiting shelf slot.
+ * stands PAST it (collected on RT, returned on LT). ON THE SUMMARY the cards
+ * themselves are laid out in the tiles — the backs have physically LEFT the
+ * shelf (one visual owner, never a duplicate), and only the informational
+ * count trace remains.
  */
 export function startDockPiles(
   steps: ReadonlyArray<StartWizardStep>,
   picks: InitialCardsPicks,
   railPos: number,
+  drift: Record<string, number> = {},
 ): ReadonlyArray<StartDockPileModel> {
-  return steps.map((s, i) => ({
-    id: s.id,
-    label: JOURNEY_LABEL[s.id],
-    count: i < railPos ? picksForStep(picks, s.id).length : 0,
-    collected: i < railPos,
-  }));
+  const onSummary = railPos >= steps.length;
+  return steps.map((s, i) => {
+    const collected = i < railPos;
+    const picksN = picksForStep(picks, s.id).length;
+    const targetBacks = collected && !onSummary ? picksN : 0;
+    const backs = Math.max(0, targetBacks + (drift[s.id] ?? 0));
+    return {
+      id: s.id,
+      label: JOURNEY_LABEL[s.id],
+      count: onSummary ? picksN : backs,
+      backs,
+      collected,
+    };
+  });
 }
 
 /** One OTHER player at the table, as the summary's readiness readout sees them. */

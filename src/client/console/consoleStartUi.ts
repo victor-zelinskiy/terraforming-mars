@@ -107,17 +107,18 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
     hints.push({control: 'back', label: 'Minimize'});
     return hints;
   }
-  // The ceremony. The card-payment beat is ONE press naming its own cost.
+  // The ceremony (the DEPLOYMENT). Deliberately NO B here: the deployment is
+  // irreversible and every beat is causal — «Свернуть» would hide a live
+  // queue / an embedded follow-up / a flight mid-air, so it is not a verb of
+  // this stage at all (the bar never advertises what the gate would swallow).
   if (s.payBeat) {
     return [
       {control: 'confirm', label: 'Pay'},
-      {control: 'back', label: 'Minimize'},
     ];
   }
   return [
     {control: 'confirm', label: s.ceremonyVerb, enabled: s.hasFocusables},
     {control: 'secondary', label: 'Inspect', enabled: s.hasFocusables},
-    {control: 'back', label: 'Minimize'},
   ];
 }
 
