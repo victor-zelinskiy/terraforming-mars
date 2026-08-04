@@ -50,6 +50,13 @@ export const consoleStartState = reactive({
   preludes: [] as Array<CardName>,
   ceo: undefined as CardName | undefined,
   projects: [] as Array<CardName>,
+  /**
+   * Steps whose SURFACE has already presented once this setup session (the
+   * deal cinematic + the CSS materialize stagger are FIRST-VISIT beats): a
+   * revisited step is the same physical table the player left — its cards
+   * stand, they never re-deal and never re-materialize.
+   */
+  visited: new Set<number>(),
 });
 
 /** Reset picks when the prompt identity (player / deal) changes. */
@@ -64,6 +71,7 @@ export function ensureStartWizard(ownerId: string, signature: string): void {
   consoleStartState.preludes = [];
   consoleStartState.ceo = undefined;
   consoleStartState.projects = [];
+  consoleStartState.visited = new Set<number>();
 }
 
 function rawTitle(t: string | Message | undefined): string {
@@ -182,6 +190,117 @@ export function initialCardsSignature(input: SelectInitialCardsModel): string {
 /** Convenience narrowing for the shell / scene. */
 export function initialCardsInputOf(wf: PlayerInputModel | undefined): SelectInitialCardsModel | undefined {
   return wf !== undefined && wf.type === 'initialCards' ? wf : undefined;
+}
+
+// ── the GAME START WORKSPACE view models (Journey Rail + Selection Dock) ────
+
+export type StartJourneyItem = {
+  id: string,
+  label: string,
+  state: 'completed' | 'current' | 'available' | 'locked',
+};
+
+const JOURNEY_LABEL: Record<StartWizardStepId, string> = {
+  corp: 'Corporation',
+  prelude: 'Preludes',
+  ceo: 'CEO',
+  projects: 'Projects',
+};
+
+/**
+ * The PREPARATION journey (tabs mode): completed steps are revisitable, the
+ * next step unlocks only when the current one satisfies its pick contract,
+ * and the SUMMARY unlocks when every step does — the rail never promises a
+ * stage its prerequisites don't allow.
+ */
+export function startJourneyItems(
+  steps: ReadonlyArray<StartWizardStep>,
+  picks: InitialCardsPicks,
+  railPos: number,
+): ReadonlyArray<StartJourneyItem> {
+  const items: Array<StartJourneyItem> = steps.map((s, i) => {
+    const complete = stepComplete(s, picks);
+    let state: StartJourneyItem['state'];
+    if (i === railPos) {
+      state = 'current';
+    } else if (i < railPos) {
+      state = complete ? 'completed' : 'available';
+    } else {
+      // A future step is reachable only when every step BEFORE it is done.
+      state = steps.slice(0, i).every((p) => stepComplete(p, picks)) ? 'available' : 'locked';
+    }
+    return {id: s.id, label: JOURNEY_LABEL[s.id], state};
+  });
+  const allDone = steps.every((s) => stepComplete(s, picks));
+  items.push({
+    id: 'summary',
+    label: 'Summary',
+    state: railPos >= steps.length ? 'current' : (allDone ? 'available' : 'locked'),
+  });
+  return items;
+}
+
+/**
+ * The DEPLOYMENT journey (progress mode): the irreversible start sequence as
+ * a linear readout — corporation → payment (when cards were bought) →
+ * preludes → done. States derive from the live ceremony predicates the scene
+ * already owns; this is presentation math only.
+ */
+export function deploymentJourneyItems(signals: {
+  corpPending: boolean,
+  payPending: boolean,
+  boughtCards: boolean,
+  preludesLeft: number,
+  hasPreludes: boolean,
+}): ReadonlyArray<StartJourneyItem> {
+  const items: Array<StartJourneyItem> = [];
+  const corpState = signals.corpPending ? 'current' : 'completed';
+  items.push({id: 'corp', label: 'Corporation', state: corpState});
+  if (signals.boughtCards) {
+    items.push({
+      id: 'pay',
+      label: 'Projects',
+      state: signals.corpPending ? 'locked' : (signals.payPending ? 'current' : 'completed'),
+    });
+  }
+  if (signals.hasPreludes) {
+    const before = signals.corpPending || signals.payPending;
+    items.push({
+      id: 'preludes',
+      label: 'Preludes',
+      state: before ? 'locked' : (signals.preludesLeft > 0 ? 'current' : 'completed'),
+    });
+  }
+  const allDone = !signals.corpPending && !signals.payPending && signals.preludesLeft === 0;
+  items.push({id: 'ready', label: 'Ready', state: allDone ? 'current' : 'locked'});
+  return items;
+}
+
+export type StartDockPileModel = {
+  id: StartWizardStepId,
+  label: string,
+  count: number,
+};
+
+/**
+ * The SELECTION DOCK piles: one compact face-down pile per COLLECTED step —
+ * a step's picks live in the dock only while the player stands PAST it
+ * (collected on RT, returned on LT), and on the SUMMARY every pile is
+ * conceptually open (counts stay — the piles are the summary's source).
+ */
+export function startDockPiles(
+  steps: ReadonlyArray<StartWizardStep>,
+  picks: InitialCardsPicks,
+  railPos: number,
+): ReadonlyArray<StartDockPileModel> {
+  const out: Array<StartDockPileModel> = [];
+  steps.forEach((s, i) => {
+    if (i >= railPos) {
+      return; // the live / future steps still hold their cards in the grid
+    }
+    out.push({id: s.id, label: JOURNEY_LABEL[s.id], count: picksForStep(picks, s.id).length});
+  });
+  return out;
 }
 
 /** One OTHER player at the table, as the summary's readiness readout sees them. */

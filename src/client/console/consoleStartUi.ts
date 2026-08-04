@@ -87,14 +87,14 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
       hints.push({control: 'back', label: 'Minimize'});
       return hints;
     }
-    // A card step. A carries its EXACT verb — or is absent when the limit
-    // blocks the focused card (the context rail names the recovery).
+    // A card step. A carries its EXACT verb — TOGGLE on every step (a pick
+    // stays in the grid with its «Выбрана» band; RT is what advances and
+    // physically collects it into the Selection Dock) — or is absent when
+    // the limit blocks the focused card (the context rail explains).
     const hints: Array<StartCommand> = [];
-    if (s.singlePick) {
-      hints.push({control: 'confirm', label: 'Select'});
-    } else if (s.focusedPicked) {
+    if (s.focusedPicked) {
       hints.push({control: 'confirm', label: 'Deselect'});
-    } else if (s.canPickFocused) {
+    } else if (s.singlePick || s.canPickFocused) {
       hints.push({control: 'confirm', label: 'Select'});
     }
     if (s.hasCards) {

@@ -700,6 +700,9 @@ function heroRewardSourceSelectors(card: string): Array<string> {
     '.con-recv [data-recv-front] .con-recv__face',
     '.con-recv [data-recv-front]',
     '.con-recv .con-recv__backpile',
+    // The GAME START workspace's central stage (the corp / prelude plays).
+    '.con-start [data-recv-front] .con-start__stage-face',
+    '.con-start [data-recv-front]',
     `.con-played [data-played-key="${esc}"] .con-played__face`,
     `.con-played [data-played-key="${esc}"]`,
     // An EVENT lands face-down on the events backstack — its rewards

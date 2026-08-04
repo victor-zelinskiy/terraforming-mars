@@ -141,15 +141,22 @@ async function bootGame(page: Page, request: APIRequestContext): Promise<void> {
       continue;
     }
     const s = await page.evaluate(() => ({
-      active: (document.querySelector('.con-start__step--active')?.textContent ?? '').toUpperCase(),
+      active: (document.querySelector('.con-jrail__item--current')?.textContent ?? '').toUpperCase(),
       focused: document.querySelector('.con-cards__slot--focused')?.getAttribute('data-zoom-slot') ?? '',
       picked: Array.from(document.querySelectorAll('.con-cards__slot--picked')).map((el) => el.getAttribute('data-zoom-slot') ?? ''),
+      ceremony: document.querySelector('.con-start--ceremony') !== null,
     }));
+    // The wizard flows STRAIGHT into the deployment inside the same frame
+    // now (no unmount gap — the whole point): hand over to the ceremony loop.
+    if (s.ceremony) {
+      break;
+    }
     if (s.active.includes('КОРПОРАЦ')) {
       // CrediCor specifically: no first action, no on-pick choices — the
       // post-start board is idle. Walk to it, pick, RT advances.
       if (s.picked.includes('CrediCor')) {
-        await key(page, 'Period', 1500);
+        await shoot(page, 'gsw-1-corp-picked');
+        await key(page, 'Period', 1800);
         lastFocused = '';
       } else if (s.focused === 'CrediCor') {
         await key(page, 'Enter', 700);
@@ -172,18 +179,25 @@ async function bootGame(page: Page, request: APIRequestContext): Promise<void> {
       continue;
     }
     // The summary (or a transition beat): A launches the game.
+    if (s.active.includes('СВОДКА') || s.active.includes('SUMMARY')) {
+      await shoot(page, 'gsw-2-summary');
+    }
     await key(page, 'Enter', 1300);
   }
-  await expect(frame).toHaveCount(0, {timeout: 30_000});
 
   // ── the start CEREMONY: the scene RE-MOUNTS after a gap (longer at 4K —
   //    corp hero + deal render slower). Press A whenever the scene is up; a
   //    mandatory ANNOUNCE / deferred chip opens with B; call it done only
   //    after everything has stayed away for a while. ──
   let quietPolls = 0;
+  let shotCeremony = false;
   for (let i = 0; i < 90 && quietPolls < 12; i++) {
     if (await page.locator('.con-start').count() > 0) {
       quietPolls = 0;
+      if (!shotCeremony && await page.locator('.con-start__tableau').count() > 0) {
+        shotCeremony = true;
+        await shoot(page, 'gsw-3-deployment');
+      }
       await key(page, 'Enter', 1100);
     } else if (await page.locator('.con-mandatory').count() > 0) {
       quietPolls = 0;

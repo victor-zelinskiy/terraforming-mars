@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {
   buildInitialCardsResponse, consoleStartState, ensureStartWizard,
   initialCardsSignature, picksForStep, startLaunchState, stepComplete, wizardSteps,
+  startJourneyItems, deploymentJourneyItems, startDockPiles,
 } from '@/client/console/consoleStartState';
 import {SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -186,5 +187,55 @@ describe('consoleStartState (T5 summary launch readout)', () => {
     const red = startLaunchState(view([seat('red', true), seat('blue', true)]), live);
     expect(blue.launches).to.eq(false);
     expect(red.launches).to.eq(false);
+  });
+
+
+  // ── the GAME START WORKSPACE view models ────────────────────────────────
+  describe('the journey rail + selection dock models', () => {
+    const steps = [
+      {id: 'corp', input: {type: 'card', min: 1, max: 1, cards: []}},
+      {id: 'prelude', input: {type: 'card', min: 2, max: 2, cards: []}},
+      {id: 'projects', input: {type: 'card', min: 0, max: 10, cards: []}},
+    ] as unknown as Parameters<typeof startJourneyItems>[0];
+
+    it('preparation TABS: prerequisites gate the future, the summary unlocks last', () => {
+      const none = {corp: undefined, preludes: [], ceo: undefined, projects: []};
+      let items = startJourneyItems(steps, none, 0);
+      expect(items.map((i) => i.state)).to.deep.eq(['current', 'locked', 'locked', 'locked']);
+      const done = {corp: 'X' as never, preludes: ['A', 'B'] as never, ceo: undefined, projects: []};
+      items = startJourneyItems(steps, done, 1);
+      expect(items[0].state).to.eq('completed');
+      expect(items[1].state).to.eq('current');
+      expect(items[2].state).to.eq('available');
+      expect(items[3].id).to.eq('summary');
+      expect(items[3].state).to.eq('available'); // projects min=0 → all complete
+    });
+
+    it('deployment PROGRESS: a linear readout, never tabs', () => {
+      const items = deploymentJourneyItems({
+        corpPending: false, payPending: true, boughtCards: true, preludesLeft: 2, hasPreludes: true,
+      });
+      expect(items.map((i) => i.id)).to.deep.eq(['corp', 'pay', 'preludes', 'ready']);
+      expect(items[0].state).to.eq('completed');
+      expect(items[1].state).to.eq('current');
+      expect(items[2].state).to.eq('locked');
+      expect(items[3].state).to.eq('locked');
+    });
+
+    it('the SELECTION DOCK holds only the COLLECTED steps (behind the rail position)', () => {
+      const picks = {corp: 'X' as never, preludes: ['A', 'B'] as never, ceo: undefined, projects: ['P'] as never};
+      expect(startDockPiles(steps, picks, 0)).to.deep.eq([]);
+      const atProjects = startDockPiles(steps, picks, 2);
+      expect(atProjects.map((pl) => pl.id)).to.deep.eq(['corp', 'prelude']);
+      expect(atProjects.map((pl) => pl.count)).to.deep.eq([1, 2]);
+      const atSummary = startDockPiles(steps, picks, 3);
+      expect(atSummary.map((pl) => pl.count)).to.deep.eq([1, 2, 1]);
+    });
+
+    it('a fresh deal resets the VISITED set (first-visit stagger plays once per session)', () => {
+      consoleStartState.visited.add(1);
+      ensureStartWizard('p-other', 'sig-other');
+      expect(consoleStartState.visited.size).to.eq(0);
+    });
   });
 });
