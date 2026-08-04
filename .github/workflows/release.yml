@@ -142,7 +142,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # electron@43.0.0 ships without a postinstall hook, so `npm ci` doesn't populate
+      # electron ships without a postinstall hook, so `npm ci` doesn't populate
       # node_modules/electron/dist (electron-builder's electronDist). Unpack it explicitly.
       - name: Unpack Electron runtime
         run: node node_modules/electron/install.js

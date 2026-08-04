@@ -23,8 +23,11 @@ import PopupPanel from '@/client/components/common/PopupPanel.vue';
 // the `markdownit` splitChunks cacheGroup) so it isn't parsed eagerly in
 // vendors.js by every session that never opens a card help. Instance cached
 // across all CardHelp components.
-let mdPromise: Promise<MarkdownItType> | undefined;
-function loadMarkdown(): Promise<MarkdownItType> {
+// markdown-it ships its own types since v15: the module is `export = MarkdownIt`,
+// a merged const + namespace, so the INSTANCE type is `MarkdownItType.MarkdownIt`
+// (the bare name is the namespace and cannot be used as a type).
+let mdPromise: Promise<MarkdownItType.MarkdownIt> | undefined;
+function loadMarkdown(): Promise<MarkdownItType.MarkdownIt> {
   if (mdPromise === undefined) {
     mdPromise = import(/* webpackChunkName: "markdownit" */ 'markdown-it').then(({default: MarkdownIt}) =>
       new MarkdownIt({html: true, linkify: false, breaks: false}));

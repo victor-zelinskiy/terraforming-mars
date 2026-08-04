@@ -365,7 +365,7 @@
             </div>
 
             <!-- ── THE COMPACT PLAYED DESTINATION — «РАЗЫГРАНО · owner» ── -->
-            <ConsoleStartPlayedDock :playerView="playerView" />
+            <ConsoleStartPlayedDock :playerView="playerView" :awayCard="embedSourceShown" />
           </div>
         </div>
 
@@ -687,8 +687,6 @@ export default defineComponent({
       embedSourceShown: undefined as CardName | undefined,
       /** The column slot is held empty (its card is still in flight). */
       embedSourceArriving: false,
-      /** The dock face standing AWAY while its card presides over the step. */
-      embedSourceHeldEl: undefined as HTMLElement | undefined,
     };
   },
   computed: {
@@ -1583,10 +1581,6 @@ export default defineComponent({
   beforeUnmount() {
     document.body.classList.remove('con-start-ceremony');
     document.body.classList.remove('con-start-prep');
-    // A dock face stepped away for the embed's source column must never stay
-    // hidden past the scene (the class is DOM-held, not reactive).
-    this.embedSourceHeldEl?.classList.remove('con-deal-hold');
-    this.embedSourceHeldEl = undefined;
     if (this.outcome.host === 'start') {
       releaseWorkspaceOutcome(); // an orphaned claim suppresses presenters
     }
@@ -2799,38 +2793,38 @@ export default defineComponent({
         this.embedSourceArriving = false; // degraded: the column simply shows
         return;
       }
-      // Spawn the carry FIRST (the proxy clones the face's live pixels),
-      // then step the dock face away in the same tick — one visual owner.
-      const flight = reseatCards([{name: source, fromEl: dockFace, toEl: colSlot}],
+      // Spawn the carry FIRST (the proxy clones the face's live pixels);
+      // `embedSourceShown` is already set, so the dock's REACTIVE `awayCard`
+      // hides the face in the same flush the proxy covers it (an imperative
+      // class here was wiped by the dock's next patch — the duplicate bug).
+      await reseatCards([{name: source, fromEl: dockFace, toEl: colSlot}],
         () => {
           this.embedSourceArriving = false;
         });
-      dockFace.classList.add('con-deal-hold');
-      this.embedSourceHeldEl = dockFace;
-      await flight;
       this.embedSourceArriving = false;
     },
     /** THE SOURCE SETTLE — the step is over: the source card returns along
-     *  the same physical path into the very stack slot it left. */
+     *  the same physical path into the very stack slot it left; the shelf
+     *  face returns REACTIVELY the moment the proxy touches down. */
     async runEmbedSourceSettle(): Promise<void> {
       const source = this.embedSourceShown;
       if (source === undefined) {
         return;
       }
       const root = this.$el as HTMLElement | undefined;
-      const colSlot = root !== undefined && typeof root.querySelector === 'function' ?
-        root.querySelector<HTMLElement>('[data-embed-source-slot]') : null;
-      const held = this.embedSourceHeldEl;
-      if (colSlot !== null && held !== undefined && held.isConnected) {
-        const flight = reseatCards([{name: source, fromEl: colSlot, toEl: held}],
-          () => {
-            held.classList.remove('con-deal-hold');
-          });
+      const q = root !== undefined && typeof root.querySelector === 'function' ? root : undefined;
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(source) : source;
+      const colSlot = q?.querySelector<HTMLElement>('[data-embed-source-slot]') ?? null;
+      const dockFace = q?.querySelector<HTMLElement>(`.con-start__played [data-played-key="${esc}"] .con-splayed__face`) ?? null;
+      if (colSlot !== null && dockFace !== null) {
         this.embedSourceArriving = true; // the column empties under the proxy
-        await flight;
+        await reseatCards([{name: source, fromEl: colSlot, toEl: dockFace}],
+          () => {
+            // Touchdown: release the away-state — the shelf face reappears
+            // under the settling proxy in the same frame.
+            this.embedSourceShown = undefined;
+          });
       }
-      this.embedSourceHeldEl?.classList.remove('con-deal-hold');
-      this.embedSourceHeldEl = undefined;
       this.embedSourceShown = undefined;
       this.embedSourceArriving = false;
     },

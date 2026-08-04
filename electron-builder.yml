@@ -28,10 +28,10 @@ copyright: © Victor Zelinskiy
 npmRebuild: false
 nodeGypRebuild: false
 
-# Use the ALREADY-UNPACKED Electron 43 runtime from node_modules/electron/dist instead of
+# Use the ALREADY-UNPACKED Electron runtime from node_modules/electron/dist instead of
 # re-downloading + extracting the zip. This skips electron-builder's extract-to-.tmp → rename
 # step, which on Windows fails with EPERM when a scanner/indexer briefly holds a handle on the
-# freshly-extracted binaries. Same pinned version (electron@43.0.0) → identical artifact.
+# freshly-extracted binaries. Same version package.json pins → identical artifact.
 electronDist: node_modules/electron/dist
 
 directories:

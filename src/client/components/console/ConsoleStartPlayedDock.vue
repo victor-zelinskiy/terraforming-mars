@@ -59,7 +59,7 @@
                class="con-splayed__strip"
                :data-played-key="s" :data-zoom-slot="s"
                :style="{height: plan.stripH + 'px'}">
-            <div class="con-splayed__face" :style="{zoom: String(plan.zoom)}">
+            <div class="con-splayed__face" :class="{'con-deal-hold': awayCard === s}" :style="{zoom: String(plan.zoom)}">
               <ConsolePlayedCardLite :name="s" peek />
             </div>
           </div>
@@ -70,7 +70,7 @@
                class="con-splayed__strip con-splayed__strip--prev"
                :data-played-key="fam.prevTop" :data-zoom-slot="fam.prevTop"
                :style="{height: plan.stripH + 'px'}">
-            <div class="con-splayed__face" :style="{zoom: String(plan.zoom)}">
+            <div class="con-splayed__face" :class="{'con-deal-hold': awayCard === fam.prevTop}" :style="{zoom: String(plan.zoom)}">
               <ConsolePlayedCardLite :name="fam.prevTop" :peek="revealed" />
             </div>
           </div>
@@ -82,7 +82,9 @@
                :data-played-key="fam.topFace"
                :data-zoom-slot="fam.topFace"
                :style="{height: plan.cardH + 'px'}">
-            <div v-if="fam.topFace !== undefined" class="con-splayed__face" :key="fam.topFace" :style="{zoom: String(plan.zoom)}">
+            <div v-if="fam.topFace !== undefined" class="con-splayed__face"
+                 :class="{'con-deal-hold': awayCard === fam.topFace}"
+                 :key="fam.topFace" :style="{zoom: String(plan.zoom)}">
               <ConsolePlayedCardLite :name="fam.topFace" />
             </div>
             <div v-else class="con-splayed__place" aria-hidden="true">
@@ -141,6 +143,10 @@ export default defineComponent({
   components: {ConsolePlayedCardLite},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
+    /** A card whose face is AWAY from the shelf (it physically emerged into
+     *  the embed step's source column) — its slot keeps geometry, the face
+     *  hides REACTIVELY (an imperative class would be wiped by any patch). */
+    awayCard: {type: String as PropType<CardName | undefined>, default: undefined},
   },
   data() {
     return {

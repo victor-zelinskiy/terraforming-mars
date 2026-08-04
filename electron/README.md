@@ -1,6 +1,6 @@
 # Electron desktop shell — Phases 1 + 2A (dev)
 
-Minimal, safe Electron 43 desktop shell over the **existing web client**. It has two
+Minimal, safe Electron desktop shell over the **existing web client**. It has two
 load modes; both use the same safe window + preload:
 
 - **Phase 1 — `server` mode (default):** loads the client from a **running dev server**
@@ -15,7 +15,7 @@ It connects to the existing server over REST + WebSocket, exactly like the brows
 ## Prerequisites
 
 ```bash
-npm install            # includes electron@43.0.0 (pinned devDependency)
+npm install            # includes electron (exact-pinned devDependency — see package.json)
 ```
 
 ## Phase 1 — run against the dev server (three terminals)

@@ -14801,6 +14801,10 @@ body.con-start-ceremony .con-status {
     &__embed {
         flex-direction: row;
         align-items: center;
+        /* flex-START: the source column takes its left seat from its very
+           first frame — the reveal's later arrival must never re-center an
+           element the player is already looking at. */
+        justify-content: flex-start;
         gap: 1.1rem;
 
         > .con-reveal {

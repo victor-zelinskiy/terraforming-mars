@@ -164,7 +164,7 @@ unmounts / re-renders.
   the app is rendering/compositing-bound, and there is an Electron GPU-tuning +
   webp + no-remount baseline. The gamepad poll loop and any focus-driven re-renders
   must not reintroduce jank (no per-frame layout thrash, no per-frame Vue re-renders).
-- **Browser AND Electron:** the app ships as a web build and an Electron 43 desktop
+- **Browser AND Electron:** the app ships as a web build and an Electron desktop
   shell (`electron/`, `ELECTRON_MIGRATION_PLAN.md`). Both are Chromium, so the
   Gamepad API is available in both — but call out any Electron-specific
   considerations (focus, fullscreen, the `app://` origin, gamepad permission/gesture
