@@ -24,6 +24,16 @@
  *   - the fixed proxy stage             → ConsolePlayedHeroLayer.vue;
  *   - the reserved slot + reveal        → ConsolePlayedOverlay (hero props);
  *   - composer close / table open      → ConsoleShell watchers on `phase`.
+ *
+ * TWO SCENERIES, one transaction (`host`, decided at arm):
+ *   - 'overlay'   — the standalone table opens over the board (a play with
+ *     no workspace behind it: the playFromHand band, the start scene, or a
+ *     manually-open table);
+ *   - 'workspace' — the CARD PLAY WORKSPACE final stage: the hand workspace
+ *     never closes, its right zone becomes the EMBEDDED «Разыграно»
+ *     (ConsolePlayedLandingStage inside the composer), the card is laid onto
+ *     its real pile INSIDE the same frame, and the workspace folds to the
+ *     board only after the result beat. The external overlay never opens.
  */
 
 import {reactive, nextTick} from 'vue';
@@ -64,6 +74,17 @@ export type PlayedHeroProxy = {
   rect: HeroRect,
 };
 
+/**
+ * WHERE the scene presents its tableau:
+ *  - 'overlay'   — the classic path: the system opens the standalone
+ *    «Разыграно» table over the board (or lands into a manually-open one);
+ *  - 'workspace' — the CARD PLAY WORKSPACE path: the hand workspace stays
+ *    open, its right context becomes the EMBEDDED «Разыграно» stage, and the
+ *    card is laid onto its pile INSIDE the same frame. No external overlay
+ *    ever opens; the workspace folds only after the whole episode settles.
+ */
+export type PlayedHeroHost = 'overlay' | 'workspace';
+
 export const playedHeroState = reactive({
   /** TRUE from arm until finish/abort — the transaction lock. */
   active: false,
@@ -71,9 +92,12 @@ export const playedHeroState = reactive({
   nonce: 0,
   card: undefined as CardName | undefined,
   isEvent: false,
+  /** The scenery of this transaction (decided at arm — see PlayedHeroHost). */
+  host: 'overlay' as PlayedHeroHost,
   /** The overlay's reserved slot turns visible ONLY here (post-landing). */
   revealed: false,
-  /** The SYSTEM-opened table overlay is mounted (play-animation mode). */
+  /** The SYSTEM-opened table overlay is mounted (play-animation mode).
+   *  NEVER true for the 'workspace' host — that is the whole point of it. */
   tableOpen: false,
   /** FALSE ⇔ the player had «Разыграно» open manually — never auto-close it. */
   autoClose: true,
@@ -144,6 +168,45 @@ export function playedHeroHolding(): boolean {
   return playedHeroState.active && p !== 'idle' && p !== 'armed' && p !== 'failed';
 }
 
+/**
+ * The WORKSPACE LANDING STAGE is presenting: the play composer's right zone
+ * shows the embedded «Разыграно» tableau and the card is (about to be /
+ * being / just) laid onto its pile. Exactly the holding window, gated on the
+ * 'workspace' host — the composer renders its landing layer off this.
+ */
+export function playedHeroLandingUp(): boolean {
+  return playedHeroState.host === 'workspace' && playedHeroHolding();
+}
+
+/**
+ * The PREWARM window of the workspace landing: the submit is in flight
+ * ('armed'), nothing visual has happened, but the embedded tableau should
+ * already be MOUNTED (hidden) so the commit's unfold reveals settled
+ * geometry — layout done, peek faces painted, arts decoding. After A nothing
+ * heavy may happen for the first time.
+ */
+export function playedHeroLandingPrewarm(): boolean {
+  return playedHeroState.host === 'workspace' && playedHeroState.active &&
+    playedHeroState.phase === 'armed';
+}
+
+/**
+ * The incoming card the tableau reserves a slot for — undefined outside the
+ * visual window (armed/idle/failed). Shared by BOTH hosts (the shell's
+ * standalone overlay and the workspace landing stage) so the two can never
+ * disagree about when the reserved slot exists.
+ */
+export function playedHeroIncomingCard(): {name: CardName} | undefined {
+  if (!playedHeroState.active || playedHeroState.card === undefined) {
+    return undefined;
+  }
+  const p = playedHeroState.phase;
+  if (p === 'armed' || p === 'idle' || p === 'failed') {
+    return undefined;
+  }
+  return {name: playedHeroState.card};
+}
+
 // The whole scene — incl. the POST-COMMIT reveal / reward beat — holds the
 // presentation: notifications queue, mandatory surfaces wait. Releases the
 // instant `finish`/`abort` drops the phase (the GSAP completion signal).
@@ -157,7 +220,7 @@ registerAnimationHoldSupplier('played-hero', playedHeroHolding);
  * the tableau. `sourceSelector` overrides WHERE the card physically lifts
  * from (default: the play composer's card slot).
  */
-export function armPlayedHero(card: CardName, isEvent: boolean, opts: {manualTableOpen: boolean, sourceSelector?: string, rewards?: ReadonlyArray<ResourceTransferSpec>}): void {
+export function armPlayedHero(card: CardName, isEvent: boolean, opts: {manualTableOpen: boolean, sourceSelector?: string, rewards?: ReadonlyArray<ResourceTransferSpec>, host?: PlayedHeroHost}): void {
   clearTimers();
   claimed = false;
   followUpPending = false;
@@ -169,6 +232,7 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {manualTab
   playedHeroState.nonce++;
   playedHeroState.card = card;
   playedHeroState.isEvent = isEvent;
+  playedHeroState.host = opts.host ?? 'overlay';
   playedHeroState.revealed = false;
   playedHeroState.tableOpen = false;
   playedHeroState.autoClose = !opts.manualTableOpen;
@@ -277,8 +341,11 @@ async function executeFlight(): Promise<void> {
   }
   playedHeroState.phase = 'preparing';
   // The table opens NOW (play-animation mode) so its +1 layout settles while
-  // the card lifts; a manually-open table just gains the reserved slot.
-  if (playedHeroState.autoClose) {
+  // the card lifts; a manually-open table just gains the reserved slot. The
+  // WORKSPACE host never opens the standalone overlay — its tableau is the
+  // EMBEDDED stage the play composer reveals off this same phase, and the
+  // landing target registers from there.
+  if (playedHeroState.autoClose && playedHeroState.host === 'overlay') {
     playedHeroState.tableOpen = true;
   }
   const reduced = consoleReducedMotionActive();
@@ -435,6 +502,12 @@ export async function endPlayedHero(): Promise<void> {
   if (playedHeroState.autoClose && playedHeroState.tableOpen) {
     playedHeroState.tableOpen = false;
     await wait(motionMs(HERO_CLOSE_MS));
+  } else if (playedHeroState.host === 'workspace') {
+    // The WORKSPACE folds on this phase (the shell watcher tears the whole
+    // hand workspace down to the board) — hold the transaction through its
+    // dissolve so follow-up surfaces arrive onto a settled board, mirroring
+    // the overlay's own close beat.
+    await wait(motionMs(HERO_CLOSE_MS));
   }
   finish();
 }
@@ -482,6 +555,7 @@ export function abortPlayedHero(): void {
     if (playedHeroState.phase === 'failed') {
       playedHeroState.phase = 'idle';
       playedHeroState.card = undefined;
+      playedHeroState.host = 'overlay';
     }
   });
 }
@@ -499,6 +573,7 @@ function finish(): void {
   playedHeroState.phase = 'idle';
   playedHeroState.card = undefined;
   playedHeroState.isEvent = false;
+  playedHeroState.host = 'overlay';
   playedHeroState.revealed = false;
   playedHeroState.tableOpen = false;
   playedHeroState.proxy = undefined;

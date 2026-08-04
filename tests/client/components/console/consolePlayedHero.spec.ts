@@ -11,6 +11,8 @@ import {
   skipPlayedHeroResult,
   isPlayedHeroActive,
   playedHeroHolding,
+  playedHeroLandingPrewarm,
+  playedHeroLandingUp,
   playedHeroState,
   seedPlayedHeroRewardHold,
 } from '@/client/console/played/consolePlayedHero';
@@ -214,5 +216,49 @@ describe('consolePlayedHero (the animation transaction)', () => {
     skipPlayedHeroResult();
     await end;
     expect(playedHeroState.phase).to.eq('idle');
+  });
+
+  // ── the WORKSPACE host (the Card Play Workspace landing stage) ──────────
+  describe('the workspace host', () => {
+    it('NEVER opens the standalone table — the workspace stage owns the scene', async () => {
+      armPlayedHero(CardName.TREES, false, {manualTableOpen: false, host: 'workspace'});
+      expect(playedHeroState.host).to.eq('workspace');
+      // The prewarm window: the embedded tableau mounts hidden during the
+      // submit round trip; nothing presents yet.
+      expect(playedHeroLandingPrewarm()).to.be.true;
+      expect(playedHeroLandingUp()).to.be.false;
+      expect(detectPlayedHero(viewWithTableau([CardName.TREES]))).to.not.be.undefined;
+      await runPlayedHero(viewWithTableau([CardName.TREES]));
+      // The external overlay NEVER opens for a workspace play — that is the
+      // whole migration.
+      expect(playedHeroState.tableOpen).to.be.false;
+      expect(playedHeroLandingUp()).to.be.true;
+      expect(playedHeroLandingPrewarm()).to.be.false;
+      expect(playedHeroHolding()).to.be.true; // follow-up surfaces stay held
+      const end = endPlayedHero();
+      await settle(30);
+      expect(playedHeroState.phase).to.eq('showing-result');
+      skipPlayedHeroResult();
+      await end;
+      expect(playedHeroState.tableOpen).to.be.false; // never, at any phase
+      expect(playedHeroState.phase).to.eq('idle');
+      expect(playedHeroState.host).to.eq('overlay'); // reset for the next arm
+      expect(playedHeroLandingUp()).to.be.false;
+    });
+
+    it('the default host is the overlay — every existing arm is untouched', () => {
+      armPlayedHero(CardName.TREES, false, {manualTableOpen: false});
+      expect(playedHeroState.host).to.eq('overlay');
+      expect(playedHeroLandingPrewarm()).to.be.false;
+    });
+
+    it('a play the server refused resets the host with the failure', async () => {
+      armPlayedHero(CardName.TREES, false, {manualTableOpen: false, host: 'workspace'});
+      expect(detectPlayedHero(viewWithTableau([]))).to.be.undefined; // refused
+      expect(playedHeroLandingUp()).to.be.false; // the stage retracts at once
+      await settle(5);
+      expect(playedHeroState.host).to.eq('overlay');
+      expect(playedHeroState.phase).to.eq('idle');
+    });
   });
 });

@@ -16697,6 +16697,34 @@ html.console-mode {
         max-width: none;
         width: 100%;
         padding: 0 .4rem;
+        /* The landing stage below is an overlay LAYER of this band. */
+        position: relative;
+    }
+
+    /* ── THE LANDING STAGE — «… › РАЗЫГРАНО», the workspace's final step ──
+       An absolute LAYER over the zone the review occupies: engaging it can
+       never re-flow the frame or move the anchored card (the two states are
+       stacked layers of ONE zone — the descend precondition). Mounted hidden
+       from the submit's arm (prewarm: layout + art decode ride the server
+       round trip); `--up` is the reveal. The left inset is re-pinned by the
+       composer to the LIVE edge of the review zone; this value is only the
+       pre-measure fallback (card anchor 320px × 1.16 zoom = 18.56rem + the
+       band gap + the band padding). */
+    .con-composer__playstage {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: .4rem;
+        left: 21.2rem;
+        display: flex;
+        align-items: stretch;
+        min-width: 0;
+        min-height: 0;
+        z-index: 2;
+        visibility: hidden;
+        pointer-events: none;
+
+        &--up { visibility: visible; }
     }
     /* The card's stable ANCHOR — the occlusion bridge reveals the card already
        standing here, so it holds ONE position for the whole level and never

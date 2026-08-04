@@ -4653,22 +4653,36 @@ export default defineComponent({
     /**
      * The played-card hero scene drives the SHELL-owned surfaces around the
      * flying card (the module owns the card; the shell owns the scenery):
-     *  - 'lifting' → the composer closes UNDER the already-independent
-     *    proxy (the hand slot stays held until the commit removes the card
-     *    from the hand — the existing departingPlayCard mechanism);
+     *  - 'lifting' (overlay host) → the composer closes UNDER the already-
+     *    independent proxy (the hand slot stays held until the commit removes
+     *    the card from the hand — the existing departingPlayCard mechanism);
+     *  - 'closing' (workspace host) → the WORKSPACE FOLD: the card is docked
+     *    on its pile, the result beat has played — the whole hand workspace
+     *    (composer + embedded tableau + parked shelf) dissolves to the board
+     *    in ONE leave. Never earlier: the workspace is the scene;
      *  - 'failed'  → the play was refused: the composer is still open —
      *    re-arm its CTA so the player can retry or cancel;
      *  - 'idle'    → transaction over: run the deferred hard-block close
      *    for a manually-open table (suppressed mid-scene above).
      */
     'playedHeroState.phase'(phase: string) {
-      if (phase === 'lifting') {
+      if (phase === 'lifting' && playedHeroState.host !== 'workspace') {
         const pending = this.pendingPlayCard;
         if (pending !== undefined) {
           this.clearDepartingPlayCard();
           this.departingPlayCard = pending.cardName;
           this.departingTimer = window.setTimeout(() => this.clearDepartingPlayCard(), 6000);
         }
+        this.pendingPlayCard = undefined;
+        closeConsoleLayers();
+        this.consoleState.section = 'board';
+        return;
+      }
+      if (phase === 'closing' && playedHeroState.host === 'workspace') {
+        // One synchronous turn, one patch: clearing the pending play closes
+        // the stage claim (its own watcher), and the section change takes the
+        // whole workspace down through the section leave — the board is
+        // already committed and current underneath.
         this.pendingPlayCard = undefined;
         closeConsoleLayers();
         this.consoleState.section = 'board';
@@ -5257,8 +5271,15 @@ export default defineComponent({
           this.finalGreeneryPickPending = false;
           // A client payment built for a prompt that moved on is stale.
           this.pendingClientPayment = undefined;
-          // Same for the native play confirm (its playAction path moved on).
-          this.pendingPlayCard = undefined;
+          // Same for the native play confirm (its playAction path moved on) —
+          // EXCEPT mid workspace landing scene: the prompt change IS the
+          // commit of the very play this composer hosts, and its embedded
+          // tableau must live until the fold (the 'closing' teardown owns the
+          // clear there). An abandoned composer with no armed transaction
+          // still clears here as before.
+          if (!(isPlayedHeroActive() && playedHeroState.host === 'workspace')) {
+            this.pendingPlayCard = undefined;
+          }
           // A client hand pick belongs to a composer whose prompt just moved
           // on — cancel it (idempotent; restores the section via the watcher).
           cancelConsoleHandPick();
@@ -7270,7 +7291,16 @@ export default defineComponent({
       // `rewards` = the play's immediate resource gains (composer-extracted
       // from the server preview) — the hero scene's reward beat carries them
       // from the landed card onto the left panel, delta chips at contact.
-      armPlayedHero(pending.cardName, isEvent, {manualTableOpen: this.playedOpen, rewards: payload.rewards});
+      // HOST: a play composed INSIDE the hand workspace lands in the
+      // workspace's own EMBEDDED «Разыграно» stage — the standalone overlay
+      // never opens for it. A play with no descent behind it (the
+      // playFromHand band) — or one made while the player's own table is
+      // already open — keeps the overlay scenery.
+      armPlayedHero(pending.cardName, isEvent, {
+        manualTableOpen: this.playedOpen,
+        rewards: payload.rewards,
+        host: workspaceStageOpen('hand') && !this.playedOpen ? 'workspace' : 'overlay',
+      });
       // The descent crosses its commit boundary HERE: the crumb's stage marker
       // goes amber (a committed step is a statement, not an invitation) and the
       // depth model stops offering «back» for a move the server already has.

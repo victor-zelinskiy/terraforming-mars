@@ -783,6 +783,50 @@
 .con-composer--submitting .con-composer__panel {
     filter: saturate(0.8) brightness(0.9);
 }
+/* …but never over the LANDING STAGE: from the commit's reveal on, the scene
+   is the confirmation — a washed-out tableau under a flying card would read
+   as "still waiting". */
+.con-composer--landing .con-composer__panel {
+    filter: none;
+}
+
+/* ── THE CARD PLAY WORKSPACE LANDING (ConsolePlayedLandingStage) ──────────
+   The embedded tableau as the RECEIVING surface of a play: the destination
+   family carries a calm accent and the rest recede one step — context, not
+   competition. Paint-only (opacity / box-shadow): a lying card never moves
+   for an arriving one. Everything releases with the reveal commit (the
+   `--receiving` class comes off), so the final frame is the plain embedded
+   tableau presentation. */
+.con-landing {
+    flex: 1;
+    display: flex;
+    align-items: stretch;
+    min-width: 0;
+    min-height: 0;
+
+    /* The landing is a SCENE, not a browser: nothing here is openable while
+       the transaction runs, so the browse affordance stays quiet. */
+    .con-played__caption-open { display: none; }
+
+    .con-played__family {
+        transition:
+            box-shadow calc(160ms * var(--motion-scale, 1)) ease,
+            background-color calc(160ms * var(--motion-scale, 1)) ease,
+            opacity calc(220ms * var(--motion-scale, 1)) ease;
+    }
+    &:has(.con-played__family--receiving) .con-played__family:not(.con-played__family--receiving) {
+        opacity: 0.55;
+    }
+    .con-played__family--receiving {
+        background: fade(@con-cyan, 4%);
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-cyan, 50%),
+            0 0 1.1rem fade(@con-cyan, 13%);
+    }
+    .con-played__family--receiving .con-played__caption {
+        color: fade(@con-cyan, 92%);
+    }
+}
 
 /* Reduced motion: no lift glide — instant placement (a separate axis from
    the speed presets, mirrors the rest of the console flow). */
@@ -790,6 +834,7 @@
     .con-played__lift { transition: none; }
     .con-played__caption-open { transition: none; }
     .con-played__family { transition: none; }
+    .con-landing .con-played__family { transition: none; }
     .con-played-hero__sweep,
     .con-played-hero__shade { display: none; }
     .con-played-cat__backdrop { animation: none; opacity: 1; }

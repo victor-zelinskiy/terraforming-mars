@@ -20,7 +20,11 @@
        inside the Information Workspace, which owns its own rail treatment. -->
   <div class="con-played" :class="{'con-played--hero': heroActive, 'con-played--catview': categoryUp, 'con-played--embedded': embedded, 'con-ws': !embedded}">
     <div class="con-played__panel">
-      <div class="con-played__head">
+      <!-- HEADLESS (the Card Play Workspace landing stage): the workspace
+           breadcrumb already says «… › РАЗЫГРАНО», so the table draws NO head
+           of its own — a surface must not title itself inside someone else's
+           frame. The category captions carry the counts. -->
+      <div v-if="!headless" class="con-played__head">
         <span class="con-played__title" v-i18n>Played</span>
         <!-- EMBEDDED (the Information Workspace detail): the workspace header
              already IS the seat identity — the table head keeps only the
@@ -38,7 +42,7 @@
       <!-- The Automa's table is EVERYTHING it flipped from its action deck —
            an honest provenance line, one calm sentence under the head
            (visible prose, never a hover-only hint). -->
-      <div v-if="viewedIsBot" class="con-played__provenance" v-i18n>Everything MarsBot flipped from its action deck this game</div>
+      <div v-if="viewedIsBot && !headless" class="con-played__provenance" v-i18n>Everything MarsBot flipped from its action deck this game</div>
 
       <ConsoleScrollArea ref="scroll" class="con-played__scroll" content-class="con-played__content">
         <!-- Truly empty tableau — a calm compact state, never a bare panel. -->
@@ -56,7 +60,7 @@
                @click="onFamilyPress('corporation')">
             <span class="con-played__caption">
               <span v-i18n>Corporation</span>
-              <b class="con-played__caption-count">{{ zones.corporations.length }}</b>
+              <b class="con-played__caption-count">{{ familyCount(zones.corporations) }}</b>
               <span class="con-played__caption-open" v-i18n>Open</span>
             </span>
             <div class="con-played__piles">
@@ -72,7 +76,7 @@
                @click="onFamilyPress('prelude')">
             <span class="con-played__caption">
               <span v-i18n>Preludes</span>
-              <b class="con-played__caption-count">{{ zones.preludes.length }}</b>
+              <b class="con-played__caption-count">{{ familyCount(zones.preludes) }}</b>
               <span class="con-played__caption-open" v-i18n>Open</span>
             </span>
             <div class="con-played__piles">
@@ -88,7 +92,7 @@
                @click="onFamilyPress('ceo')">
             <span class="con-played__caption">
               <span v-i18n>CEO</span>
-              <b class="con-played__caption-count">{{ zones.ceos.length }}</b>
+              <b class="con-played__caption-count">{{ familyCount(zones.ceos) }}</b>
               <span class="con-played__caption-open" v-i18n>Open</span>
             </span>
             <div class="con-played__piles">
@@ -106,7 +110,7 @@
                @click="onFamilyPress('active')">
             <span class="con-played__caption">
               <span v-i18n>Active</span>
-              <b class="con-played__caption-count">{{ zones.active.length }}</b>
+              <b class="con-played__caption-count">{{ familyCount(zones.active) }}</b>
               <span class="con-played__caption-open" v-i18n>Open</span>
             </span>
             <div class="con-played__piles">
@@ -122,7 +126,7 @@
                @click="onFamilyPress('automated')">
             <span class="con-played__caption">
               <span v-i18n>Automated</span>
-              <b class="con-played__caption-count">{{ zones.automated.length }}</b>
+              <b class="con-played__caption-count">{{ familyCount(zones.automated) }}</b>
               <span class="con-played__caption-open" v-i18n>Open</span>
             </span>
             <div class="con-played__piles">
@@ -145,7 +149,7 @@
                @click="onFamilyPress('events')">
             <span class="con-played__caption">
               <span v-i18n>Events</span>
-              <b class="con-played__caption-count">{{ zones.events.length }}</b>
+              <b class="con-played__caption-count">{{ familyCount(zones.events) }}</b>
               <span class="con-played__caption-open" v-i18n>Open</span>
             </span>
             <ConsolePlayedEventsPile :count="displayedEventsCount"
@@ -243,6 +247,12 @@ export default defineComponent({
     embedded: {type: Boolean, default: false},
     /** The controlled viewed seat (embedded mode only). */
     forcedColor: {type: String as PropType<Color>, default: undefined},
+    /**
+     * HEADLESS — the Card Play Workspace's LANDING STAGE: the workspace
+     * breadcrumb already names this surface («… › РАЗЫГРАНО»), so the table
+     * draws no head/provenance of its own. Only meaningful with `embedded`.
+     */
+    headless: {type: Boolean, default: false},
   },
   emits: {
     'close': () => true,
@@ -493,7 +503,27 @@ export default defineComponent({
       return {
         'con-played__family--focused': this.focusCategory === key && !this.heroActive,
         'con-played__family--out': this.categoryUp && this.catState.category === key,
+        // The RECEIVING stack of the workspace landing stage: the destination
+        // family carries a calm accent while the card approaches; it releases
+        // the moment the card is committed onto the pile (the tableau's final
+        // frame is the plain presentation). Embedded-only — the standalone
+        // hero scene keeps its established look.
+        'con-played__family--receiving': this.embedded && this.heroActive && !this.heroRevealed &&
+          this.heroIncoming !== undefined && this.familyOf(this.heroIncoming.name) === key,
       };
+    },
+    /**
+     * The HONEST caption count of a family: the synthetic incoming card joins
+     * it only when it has physically become the pile's top card (the reveal
+     * commit) — until then the caption reads the pre-play truth, exactly like
+     * the header total and the events pile already did.
+     */
+    familyCount(cards: ReadonlyArray<CardModel>): number {
+      const incoming = this.heroIncoming;
+      if (incoming === undefined || this.heroRevealed) {
+        return cards.length;
+      }
+      return cards.some((c) => c.name === incoming.name) ? Math.max(0, cards.length - 1) : cards.length;
     },
     /** The zone a tableau card belongs to (the hero landing's focus seed). */
     familyOf(name: string): PlayedCategoryKey | '' {

@@ -18,6 +18,7 @@
          'con-composer--embed': embedded,
          'con-ws': !embedded,
          'con-composer--ptsel': playedTargetStepOpen,
+         'con-composer--landing': landingUp,
        }"
        role="dialog" :aria-label="titleText"
        :data-motion-surface="embedded ? undefined : 'play-composer'">
@@ -57,7 +58,7 @@
              result strip, payment, commit rail, …): they materialize with a
              short stagger just behind the bridge's sweep, so the surface
              assembles in reading order instead of arriving in one frame. -->
-        <div class="con-composer__playright">
+        <div class="con-composer__playright" ref="playRight">
           <!-- EMBEDDED: the stage's SUPPORTING line — the economics and the
                verdict, close above the controls they judge. Never a second
                page title: the name of this step is already in the one header
@@ -350,6 +351,25 @@
                shell's ONE bottom command bar (consolePlayCardUi) — hints live
                only there. -->
         </div>
+
+        <!-- ── THE LANDING STAGE — «… › РАЗЫГРАНО», the workspace's FINAL
+             step (played-hero host 'workspace'). An OVERLAY LAYER of the same
+             band zone the review occupies: absolute by design, so engaging it
+             can never re-flow the frame or move the anchored card — the two
+             states are stacked layers of ONE zone, never a v-if swap (the
+             descend precondition). Mounted HIDDEN from the submit's arm: the
+             embedded tableau lays out and its arts decode during the server
+             round trip, so the commit's reveal opens onto settled geometry
+             and the reserved top slot is measurable the moment the flight
+             asks. The review releases IN PLACE underneath (watcher below);
+             the card then leaves its anchor and is laid onto its real pile
+             inside this same frame. -->
+        <div v-if="landingMounted"
+             class="con-composer__playstage"
+             :class="{'con-composer__playstage--up': landingUp}"
+             :style="landingStyle">
+          <ConsolePlayedLandingStage :playerView="playerView" />
+        </div>
       </div>
     </div>
   </div>
@@ -459,6 +479,10 @@ import {
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
 import {computeCommitGate, commitAllowed, commitAcceptsCursor, CommitGate} from '@/client/console/consoleCommitGate';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {gsap} from 'gsap';
+import {motionMs} from '@/client/components/motion/motionTokens';
+import {playedHeroLandingUp, playedHeroLandingPrewarm} from '@/client/console/played/consolePlayedHero';
+import ConsolePlayedLandingStage from '@/client/components/console/played/ConsolePlayedLandingStage.vue';
 
 // (The contextual preview + the resource badge live in the ONE shared builder —
 //  `consolePlayedTargetPreview`. Two hosts render this selector now, and a
@@ -540,7 +564,7 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep},
+  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedLandingStage},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -604,6 +628,11 @@ export default defineComponent({
       submitting: false,
       /** Bumped on each quick-adjust to re-trigger the one-shot chip pulse. */
       payFlashNonce: 0,
+      /** The LIVE left edge of the landing stage layer (px) — measured off the
+       *  review zone once the layer mounts, so the tableau starts exactly
+       *  where the work surface stood on every profile. undefined → the CSS
+       *  fallback inset. */
+      landingLeftPx: undefined as number | undefined,
     };
   },
   computed: {
@@ -667,6 +696,11 @@ export default defineComponent({
      * В РУКЕ › ЦЕНТР ИИ › РОЗЫГРЫШ», not «… › РОЗЫГРЫШ КАРТЫ»).
      */
     stageName(): string {
+      // Past the commit the workspace is at its FINAL stage: the card is
+      // being laid into «Разыграно» — the tail says so, in one word.
+      if (this.landingUp) {
+        return 'Played';
+      }
       if (this.sub?.kind === 'payment') {
         return 'Payment';
       }
@@ -674,6 +708,21 @@ export default defineComponent({
         return 'Selection';
       }
       return 'Playing';
+    },
+    // ── THE LANDING STAGE (the workspace's «РАЗЫГРАНО» final step) ───────
+    /** The stage is PRESENTING — the review has released, the tableau owns
+     *  the zone, the card is being laid onto its pile. */
+    landingUp(): boolean {
+      return this.embedded && playedHeroLandingUp();
+    },
+    /** The stage layer is MOUNTED — includes the hidden PREWARM window (the
+     *  submit round trip), so after A nothing heavy happens for the first
+     *  time: layout done, peek faces painted, arts decoding. */
+    landingMounted(): boolean {
+      return this.embedded && (playedHeroLandingUp() || playedHeroLandingPrewarm());
+    },
+    landingStyle(): Record<string, string> {
+      return this.landingLeftPx !== undefined ? {left: `${Math.round(this.landingLeftPx)}px`} : {};
     },
     /** The hand-editable rows, in panel order — the editor's focus ring. */
     payEditableRows(): ReadonlyArray<PaymentSourceRow> {
@@ -1316,6 +1365,53 @@ export default defineComponent({
           setWorkspaceStageName(key);
         }
       },
+    },
+    /**
+     * The landing layer MOUNTED (hidden, at the submit's arm): pin its left
+     * edge to the LIVE left edge of the review zone — the tableau then opens
+     * exactly where the work surface stood, on every profile and card zoom,
+     * and the anchored card column is never covered. One measure; both rects
+     * are stable for the life of the level.
+     */
+    landingMounted(now: boolean) {
+      if (!now) {
+        this.landingLeftPx = undefined;
+        return;
+      }
+      void this.$nextTick(() => {
+        const right = this.$refs.playRight as HTMLElement | undefined;
+        const main = right?.closest<HTMLElement>('.con-composer__playmain');
+        if (right === undefined || main === null || main === undefined) {
+          return;
+        }
+        const edge = right.getBoundingClientRect().left - main.getBoundingClientRect().left;
+        // A degenerate measure (JSDOM / display:none) keeps the CSS fallback.
+        this.landingLeftPx = edge > 40 ? edge : undefined;
+      });
+    },
+    /**
+     * THE CONTEXT RESOLVE of the commit: the review's groups have finished
+     * their role — they RELEASE in place (one node: the whole work column
+     * fades where it stands; the card column and the frame never move), and
+     * the landing stage above them becomes the zone's content. A REFUSED
+     * submit reverses it: the review returns with the same materialize
+     * cascade it entered with, captures intact.
+     */
+    landingUp(now: boolean) {
+      const right = this.$refs.playRight as HTMLElement | undefined;
+      if (right === undefined) {
+        return;
+      }
+      gsap.killTweensOf(right);
+      if (now) {
+        gsap.to(right, {autoAlpha: 0, duration: motionMs(100) / 1000, ease: 'power1.in'});
+        return;
+      }
+      // Rollback (server refusal): the review comes back to full strength and
+      // its groups re-materialize — the player retries or cancels from the
+      // exact configuration they submitted.
+      gsap.set(right, {clearProps: 'opacity,visibility'});
+      handStageReveal(this.$el as HTMLElement | undefined);
     },
   },
   mounted() {
