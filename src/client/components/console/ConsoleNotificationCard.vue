@@ -107,6 +107,13 @@
       <!-- Pass / generation highlight body. -->
       <span v-else-if="notification.bodyKey !== undefined" class="con-notif__line" v-i18n>{{ notification.bodyKey }}</span>
 
+      <!-- Plain PROMPT text (`pushWarning` and every other model whose whole
+           content is the prompt). Console-native never rendered this field, so
+           a warning arrived as a card with a «ПРОБЛЕМА» header, a close hint
+           and NOTHING between them — a toast that says only that something
+           happened is worse than no toast. -->
+      <span v-else-if="promptText !== ''" class="con-notif__line">{{ promptText }}</span>
+
       <!-- Compact OUTCOME lines (the AI-turn card): the turn's own key log
            lines — placements / parameter raises / losses / failed-action
            money. Rendered INERT (a console toast is information); the full
@@ -195,6 +202,7 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {Log} from '@/common/logs/Log';
+import {translateMessage} from '@/client/directives/i18n';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {LogMessageData} from '@/common/logs/LogMessageData';
 import {Color} from '@/common/Color';
@@ -300,6 +308,14 @@ export default defineComponent({
         return [];
       }
       return Log.parse({message: this.$t(h.message), data: h.data});
+    },
+    /** The prompt as text — a plain string or a tokenised `Message`. */
+    promptText(): string {
+      const p = this.notification.prompt;
+      if (p === undefined) {
+        return '';
+      }
+      return typeof p === 'string' ? this.$t(p) : translateMessage(p);
     },
     glyph(): string {
       switch (this.notification.variant) {

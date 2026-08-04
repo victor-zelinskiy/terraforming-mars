@@ -168,12 +168,38 @@ function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/*
+ * ⚠️ BOTH awaits below MUST settle on an INTERRUPT, not only on completion.
+ * GSAP fires `onComplete` only for a natural finish: a killed tween (element
+ * unmounted, `killTweensOf`, an overwrite, a teardown mid-flight) never calls
+ * it. A bare `onComplete` promise therefore hangs FOREVER, `fly()` never
+ * returns, its `finally` never runs, and `activeRuns` stays incremented — which
+ * pins the 'notification-only' `hand-delivery` hold true for the whole session.
+ * That is the exact freeze shape the player reported: `foregroundBlockReason()`
+ * stuck at 'animation' with nothing on screen and the event queue climbing.
+ * Same rule `holdForGsapAnimation` documents for the hold registry.
+ */
 function tween(el: HTMLElement, vars: gsap.TweenVars): Promise<void> {
-  return new Promise((done) => gsap.to(el, {...vars, onComplete: done}));
+  return new Promise((done) => {
+    const settle = () => done();
+    gsap.to(el, {...vars, onComplete: settle, onInterrupt: settle});
+  });
 }
 
 function awaitTimeline(tl: gsap.core.Timeline): Promise<void> {
-  return new Promise((r) => tl.eventCallback('onComplete', () => r(undefined)).play());
+  return new Promise((r) => {
+    const settle = () => r(undefined);
+    tl.eventCallback('onComplete', settle);
+    // Chained, never clobbering: composed timelines set their own onInterrupt.
+    const previous = tl.eventCallback('onInterrupt');
+    tl.eventCallback('onInterrupt', function(this: unknown, ...args: Array<unknown>) {
+      if (typeof previous === 'function') {
+        (previous as (...a: Array<unknown>) => void).apply(this, args);
+      }
+      settle();
+    });
+    tl.play();
+  });
 }
 
 function usable(r: {width: number} | undefined): r is DOMRect {
@@ -683,14 +709,18 @@ async function flyStack(live: Array<LiveFlight>, dock: HTMLElement, dockR: DOMRe
 
   // The confirmation pulse — the stack acknowledges the take.
   const els = live.map((f) => f.el);
-  await new Promise((r) => gsap.to(els, {
-    scale: stackScale * 1.05,
-    duration: s(80),
-    yoyo: true,
-    repeat: 1,
-    ease: 'power1.inOut',
-    onComplete: () => r(undefined),
-  }));
+  await new Promise((r) => {
+    const settle = () => r(undefined);
+    gsap.to(els, {
+      scale: stackScale * 1.05,
+      duration: s(80),
+      yoyo: true,
+      repeat: 1,
+      ease: 'power1.inOut',
+      onComplete: settle,
+      onInterrupt: settle, // see the `tween` note — a killed pulse must not hang the run
+    });
+  });
   if (t.isAborted()) {
     return;
   }

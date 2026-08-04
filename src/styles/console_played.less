@@ -790,42 +790,235 @@
     filter: none;
 }
 
-/* ── THE CARD PLAY WORKSPACE LANDING (ConsolePlayedLandingStage) ──────────
-   The embedded tableau as the RECEIVING surface of a play: the destination
-   family carries a calm accent and the rest recede one step — context, not
-   competition. Paint-only (opacity / box-shadow): a lying card never moves
-   for an arriving one. Everything releases with the reveal commit (the
-   `--receiving` class comes off), so the final frame is the plain embedded
-   tableau presentation. */
-.con-landing {
+/* ── THE PLAYED TABLEAU RECEIVING & EFFECT RESOLUTION STAGE ──────────────
+   (ConsolePlayedReceivingStage — the Card Play Workspace's final scene.)
+   NOT the embedded overview: the DESTINATION STACK is the protagonist
+   (large, centred, top-anchored), every other family is a compact MINI on
+   the periphery, and effect targets emerge from / return into their strips.
+   Paint-only accents (box-shadow / opacity); motion is transform/opacity in
+   the component's GSAP. Authored in rem; card geometry is planner px. */
+.con-recv {
     flex: 1;
+    position: relative;
     display: flex;
-    align-items: stretch;
+    flex-direction: column;
     min-width: 0;
     min-height: 0;
+    padding: .4rem .8rem .5rem;
 
-    /* The landing is a SCENE, not a browser: nothing here is openable while
-       the transaction runs, so the browse affordance stays quiet. */
-    .con-played__caption-open { display: none; }
+    /* Owner context — one quiet chip, never a second surface title. */
+    &__owner {
+        position: absolute;
+        top: .3rem;
+        right: .9rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .75rem;
+        letter-spacing: .06em;
+        color: @con-text-dim;
+    }
+    &__owner-name {
+        max-width: 12rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
 
-    .con-played__family {
-        transition:
-            box-shadow calc(160ms * var(--motion-scale, 1)) ease,
-            background-color calc(160ms * var(--motion-scale, 1)) ease,
-            opacity calc(220ms * var(--motion-scale, 1)) ease;
+    /* ── the destination — centre stage ── */
+    &__main {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        padding-top: .55rem;
     }
-    &:has(.con-played__family--receiving) .con-played__family:not(.con-played__family--receiving) {
-        opacity: 0.55;
+    &__dest {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .4rem;
     }
-    .con-played__family--receiving {
-        background: fade(@con-cyan, 4%);
+    &__caption {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .55rem;
+        font-size: .78rem;
+        font-weight: 700;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 85%);
+    }
+    &__caption-count {
+        font-size: .95rem;
+        color: #eaf4ff;
+        /* Re-keyed at the dock — the N → N+1 tick is one calm pulse. */
+        animation: con-recv-tick calc(320ms * var(--motion-scale, 1)) ease;
+    }
+    &__caption--corporation { color: fade(#d8c896, 85%); }
+    &__caption--prelude { color: fade(#e8b8d8, 82%); }
+    &__caption--ceo { color: fade(#d8c8e8, 82%); }
+    &__caption--active { color: fade(#8fd0f0, 84%); }
+    &__caption--automated { color: fade(#a8dca0, 84%); }
+    &__caption--events { color: fade(#f0b890, 84%); }
+
+    /* The stack column: slivers → strips → the previous top → the front.
+       Top-anchored; the final silhouette is laid out from the first frame,
+       so nothing existing ever moves when the card arrives. */
+    &__stack {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+    }
+    &__slivers {
+        display: flex;
+        flex-direction: column;
+        gap: .12rem;
+        padding: 0 .4rem .14rem;
+    }
+    &__sliver {
+        border-radius: .14rem;
+        background: rgba(150, 185, 220, 0.10);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 185, 220, 0.16);
+    }
+    &__strip { position: relative; z-index: 1; }
+    &__strip--prev { z-index: 2; }
+    &__strip--accent .con-recv__face {
+        box-shadow: 0 0 0 .12rem fade(@con-cyan, 75%), 0 0 1rem fade(@con-cyan, 22%);
+        border-radius: .5rem;
+    }
+    &__face { position: relative; }
+    /* The card is OUT (the emergence layer owns it) — its strip holds the
+       geometry as a quiet footprint, never a collapse. */
+    &__face--away { visibility: hidden; }
+    &__front {
+        position: relative;
+        z-index: 3;
+        border-radius: .55rem;
+        /* The receiving surface — a soft tabletop plate under the landing
+           spot (reads as prepared room, never a dashed placeholder). */
+        background: linear-gradient(180deg, rgba(120, 155, 190, 0.055), rgba(120, 155, 190, 0.02));
+        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.12);
+        transition: box-shadow calc(200ms * var(--motion-scale, 1)) ease;
+    }
+    &--revealed &__front {
+        background: none;
+        box-shadow: none;
+    }
+    /* EFFECT SOURCE ACTIVATE — the docked card is the origin of everything
+       that follows (a calm ring, released with the result beat). */
+    &__front--pulse {
+        box-shadow: 0 0 0 .1rem fade(@con-cyan, 55%), 0 0 1.2rem fade(@con-cyan, 18%);
+    }
+
+    /* Events destination: the face-down pile, depth behind the top back. */
+    &__backcol { display: flex; }
+    &__backpile { position: relative; width: 100%; }
+    /* A deep pile reads through a doubled underside edge — never card crops. */
+    &__backpile--deep .con-recv__back {
         box-shadow:
-            inset 0 0 0 .05rem fade(@con-cyan, 50%),
-            0 0 1.1rem fade(@con-cyan, 13%);
+            0 .2rem 0 -0.05rem rgba(16, 25, 36, 0.9),
+            0 .24rem 0 -0.05rem rgba(150, 185, 220, 0.22),
+            0 .42rem 0 -0.1rem rgba(16, 25, 36, 0.9),
+            0 .46rem 0 -0.1rem rgba(150, 185, 220, 0.14);
     }
-    .con-played__family--receiving .con-played__caption {
-        color: fade(@con-cyan, 92%);
+    &__back {
+        position: absolute;
+        inset: 0;
+        border-radius: .55rem;
     }
+    &__front--back {
+        position: absolute;
+        inset: 0;
+        background: none;
+        box-shadow: none;
+    }
+
+    /* ── the periphery — compact helper families ── */
+    &__minis {
+        flex-shrink: 0;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        gap: 1.6rem;
+        padding-top: .5rem;
+        border-top: .05rem solid rgba(120, 155, 190, 0.12);
+    }
+    &__mini {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: .28rem;
+        border-radius: .4rem;
+        padding: .2rem .3rem;
+        transition:
+            box-shadow calc(180ms * var(--motion-scale, 1)) ease,
+            background-color calc(180ms * var(--motion-scale, 1)) ease;
+    }
+    /* The mini an effect target is emerging from — a calm priority accent. */
+    &__mini--emerging {
+        background: fade(@con-cyan, 5%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%);
+    }
+    &__mini-owner {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        font-size: .6rem;
+        color: @con-text-dim;
+        white-space: nowrap;
+    }
+    &__mini-caption {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .4rem;
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 78%);
+    }
+    &__mini-count { font-size: .72rem; color: #dfe9f2; }
+    /* Title strips only — the stack is CLIPPED to its bands (a mini never
+       shows a randomly cropped full card). */
+    &__mini-stack {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        border-radius: .3rem;
+        box-shadow: inset 0 -0.35rem .5rem -0.4rem rgba(0, 0, 0, 0.55);
+    }
+    &__mini-strip { position: relative; }
+    &__mini-back {
+        position: relative;
+        height: 2.3rem;
+        overflow: hidden;
+        border-radius: .3rem;
+    }
+
+    /* ── the emergence layer — the effect target physically forward ── */
+    &__emerge {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 11640; /* over the workspace; under the hero proxy (11660) */
+        pointer-events: none;
+        visibility: hidden; /* GSAP autoAlpha drives the entrance */
+        .con-recv__face {
+            border-radius: .5rem;
+            box-shadow:
+                0 0 0 .1rem fade(@con-cyan, 60%),
+                0 1.1rem 2.6rem -0.9rem rgba(0, 0, 0, 0.85);
+        }
+    }
+}
+
+@keyframes con-recv-tick {
+    0% { transform: scale(1); }
+    35% { transform: scale(1.22); }
+    100% { transform: scale(1); }
 }
 
 /* Reduced motion: no lift glide — instant placement (a separate axis from

@@ -50,7 +50,7 @@
              NO cascade marker on the card — the occlusion bridge's sweep
              reveals it already standing on the anchor; a fade on top of that
              would be a second, contradictory entrance for the carried object. -->
-        <div class="con-composer__playcard" data-zoom-handoff="play-card">
+        <div class="con-composer__playcard" data-zoom-handoff="play-card" ref="playCard">
           <Card v-if="card !== undefined" :card="card" :key="card.name" />
         </div>
 
@@ -352,23 +352,21 @@
                only there. -->
         </div>
 
-        <!-- ── THE LANDING STAGE — «… › РАЗЫГРАНО», the workspace's FINAL
-             step (played-hero host 'workspace'). An OVERLAY LAYER of the same
-             band zone the review occupies: absolute by design, so engaging it
-             can never re-flow the frame or move the anchored card — the two
-             states are stacked layers of ONE zone, never a v-if swap (the
-             descend precondition). Mounted HIDDEN from the submit's arm: the
-             embedded tableau lays out and its arts decode during the server
-             round trip, so the commit's reveal opens onto settled geometry
-             and the reserved top slot is measurable the moment the flight
-             asks. The review releases IN PLACE underneath (watcher below);
-             the card then leaves its anchor and is laid onto its real pile
-             inside this same frame. -->
+        <!-- ── THE RECEIVING STAGE — «… › РАЗЫГРАНО», the workspace's FINAL
+             step (played-hero host 'workspace'). An OVERLAY LAYER of the
+             WHOLE band zone: absolute by design, so engaging it can never
+             re-flow the frame — the two states are stacked layers of ONE
+             zone, never a v-if swap (the descend precondition). The setup
+             (card column + work surface) releases IN PLACE underneath, so no
+             empty source column ever remains; the stage composes around the
+             DESTINATION STACK and lays the card onto it inside this same
+             frame. Mounted HIDDEN from the submit's arm: layout, stack
+             geometry, effect-target anchors and arts all prepare during the
+             server round trip — the commit reveals a finished scene. -->
         <div v-if="landingMounted"
              class="con-composer__playstage"
-             :class="{'con-composer__playstage--up': landingUp}"
-             :style="landingStyle">
-          <ConsolePlayedLandingStage :playerView="playerView" />
+             :class="{'con-composer__playstage--up': landingUp}">
+          <ConsolePlayedReceivingStage :playerView="playerView" />
         </div>
       </div>
     </div>
@@ -482,7 +480,7 @@ import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProf
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {playedHeroLandingUp, playedHeroLandingPrewarm} from '@/client/console/played/consolePlayedHero';
-import ConsolePlayedLandingStage from '@/client/components/console/played/ConsolePlayedLandingStage.vue';
+import ConsolePlayedReceivingStage from '@/client/components/console/played/ConsolePlayedReceivingStage.vue';
 
 // (The contextual preview + the resource badge live in the ONE shared builder —
 //  `consolePlayedTargetPreview`. Two hosts render this selector now, and a
@@ -564,7 +562,7 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedLandingStage},
+  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedReceivingStage},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -628,11 +626,6 @@ export default defineComponent({
       submitting: false,
       /** Bumped on each quick-adjust to re-trigger the one-shot chip pulse. */
       payFlashNonce: 0,
-      /** The LIVE left edge of the landing stage layer (px) — measured off the
-       *  review zone once the layer mounts, so the tableau starts exactly
-       *  where the work surface stood on every profile. undefined → the CSS
-       *  fallback inset. */
-      landingLeftPx: undefined as number | undefined,
     };
   },
   computed: {
@@ -720,9 +713,6 @@ export default defineComponent({
      *  time: layout done, peek faces painted, arts decoding. */
     landingMounted(): boolean {
       return this.embedded && (playedHeroLandingUp() || playedHeroLandingPrewarm());
-    },
-    landingStyle(): Record<string, string> {
-      return this.landingLeftPx !== undefined ? {left: `${Math.round(this.landingLeftPx)}px`} : {};
     },
     /** The hand-editable rows, in panel order — the editor's focus ring. */
     payEditableRows(): ReadonlyArray<PaymentSourceRow> {
@@ -1367,50 +1357,29 @@ export default defineComponent({
       },
     },
     /**
-     * The landing layer MOUNTED (hidden, at the submit's arm): pin its left
-     * edge to the LIVE left edge of the review zone — the tableau then opens
-     * exactly where the work surface stood, on every profile and card zoom,
-     * and the anchored card column is never covered. One measure; both rects
-     * are stable for the life of the level.
-     */
-    landingMounted(now: boolean) {
-      if (!now) {
-        this.landingLeftPx = undefined;
-        return;
-      }
-      void this.$nextTick(() => {
-        const right = this.$refs.playRight as HTMLElement | undefined;
-        const main = right?.closest<HTMLElement>('.con-composer__playmain');
-        if (right === undefined || main === null || main === undefined) {
-          return;
-        }
-        const edge = right.getBoundingClientRect().left - main.getBoundingClientRect().left;
-        // A degenerate measure (JSDOM / display:none) keeps the CSS fallback.
-        this.landingLeftPx = edge > 40 ? edge : undefined;
-      });
-    },
-    /**
-     * THE CONTEXT RESOLVE of the commit: the review's groups have finished
-     * their role — they RELEASE in place (one node: the whole work column
-     * fades where it stands; the card column and the frame never move), and
-     * the landing stage above them becomes the zone's content. A REFUSED
-     * submit reverses it: the review returns with the same materialize
-     * cascade it entered with, captures intact.
+     * THE SETUP RELEASE of the commit: the WHOLE setup layer — the work
+     * column AND the anchored card column (its card is already blanked under
+     * the independent hero) — lets go in place, so no empty source column
+     * ever remains and the receiving stage above becomes the zone's only
+     * content. A REFUSED submit reverses it: the setup returns with the same
+     * materialize cascade it entered with, captures intact.
      */
     landingUp(now: boolean) {
       const right = this.$refs.playRight as HTMLElement | undefined;
-      if (right === undefined) {
+      const card = this.$refs.playCard as HTMLElement | undefined;
+      const layers = [right, card].filter((el): el is HTMLElement => el !== undefined);
+      if (layers.length === 0) {
         return;
       }
-      gsap.killTweensOf(right);
+      gsap.killTweensOf(layers);
       if (now) {
-        gsap.to(right, {autoAlpha: 0, duration: motionMs(100) / 1000, ease: 'power1.in'});
+        gsap.to(layers, {autoAlpha: 0, duration: motionMs(110) / 1000, ease: 'power1.in'});
         return;
       }
-      // Rollback (server refusal): the review comes back to full strength and
+      // Rollback (server refusal): the setup comes back to full strength and
       // its groups re-materialize — the player retries or cancels from the
       // exact configuration they submitted.
-      gsap.set(right, {clearProps: 'opacity,visibility'});
+      gsap.set(layers, {clearProps: 'opacity,visibility'});
       handStageReveal(this.$el as HTMLElement | undefined);
     },
   },

@@ -229,12 +229,20 @@ async function descendIntoPlay(page: Page, card: string): Promise<void> {
 
 type SceneLog = {
   standaloneFrames: number,
+  /** Frames where the FULL overview overlay leaked into the stage layer. */
+  fullOverlayFrames: number,
   sawStage: boolean,
-  sawIncoming: boolean,
+  /** The reserved front anchor existed BEFORE the dock (empty room). */
+  sawReserved: boolean,
   sawProxy: boolean,
   sawStepPlayed: boolean,
-  sawTopAfterReveal: boolean,
-  /** Highest events-pile count seen while the stage presented. */
+  /** The front anchor carries the played card (it IS the top card). */
+  sawDocked: boolean,
+  /** The setup's card column released (no empty source column remains). */
+  sawCardColHidden: boolean,
+  /** Compact helper minis were on the periphery. */
+  maxMinis: number,
+  /** Highest destination caption count seen while the stage presented. */
   maxEvents: number,
   handSurvivedUntilStage: boolean,
   /** Compact per-poll trace — printed on assertion failures. */
@@ -244,8 +252,8 @@ type SceneLog = {
 /** Confirm the play and observe the whole landing episode frame-by-frame. */
 async function runLandingScene(page: Page, card: string, isEvent: boolean, shotPrefix: string, shots = true): Promise<SceneLog> {
   const log: SceneLog = {
-    standaloneFrames: 0, sawStage: false, sawIncoming: false, sawProxy: false,
-    sawStepPlayed: false, sawTopAfterReveal: false, maxEvents: 0,
+    standaloneFrames: 0, fullOverlayFrames: 0, sawStage: false, sawReserved: false, sawProxy: false,
+    sawStepPlayed: false, sawDocked: false, sawCardColHidden: false, maxMinis: 0, maxEvents: 0,
     handSurvivedUntilStage: false, trace: [],
   };
   await key(page, 'Enter', 60); // A · Разыграть карту
@@ -254,50 +262,57 @@ async function runLandingScene(page: Page, card: string, isEvent: boolean, shotP
   let shotDock = false;
   while (Date.now() < deadline) {
     const snap = await page.evaluate((args) => {
-      const {card, isEvent} = args as {card: string, isEvent: boolean};
+      const {card} = args as {card: string, isEvent: boolean};
       const standalone = document.querySelector('.con-played:not(.con-played--embedded)') !== null;
       const stageUp = document.querySelector('.con-composer__playstage--up') !== null;
-      const emb = document.querySelector('.con-composer__playstage .con-played--embedded');
+      const recv = document.querySelector('.con-composer__playstage .con-recv');
+      const fullOverlay = document.querySelector('.con-composer__playstage .con-played') !== null;
       const proxy = document.querySelector('.con-played-hero__proxy') !== null;
       const hand = document.querySelector('.con-hand') !== null;
       const step = (document.querySelector('.con-wshead__step')?.textContent ?? '').trim().toUpperCase();
       const composer = document.querySelector('.con-composer--play') !== null;
-      let incoming = false;
-      let slotExists = false;
-      let topAfterReveal = false;
-      let eventsCount = -1;
-      if (emb !== null) {
-        if (isEvent) {
-          const count = emb.querySelector('.con-played__events-count')?.textContent ?? '';
-          eventsCount = count === '' ? -1 : Number(count);
-        } else {
-          const slot = emb.querySelector(`[data-played-key="${card}"]`);
-          slotExists = slot !== null;
-          incoming = slot?.classList.contains('con-played__slot--incoming') ?? false;
-          if (slot !== null && !incoming) {
-            const pile = slot.closest('.con-played__pile');
-            const keys = pile === null ? [] : Array.from(pile.querySelectorAll('[data-played-key]'));
-            topAfterReveal = keys.length > 0 && keys[keys.length - 1] === slot;
-          }
-        }
+      const playCard = document.querySelector('.con-composer__playcard');
+      const cardColHidden = playCard !== null && getComputedStyle(playCard).visibility === 'hidden';
+      let reserved = false;
+      let docked = false;
+      let minis = 0;
+      let destCount = -1;
+      if (recv !== null) {
+        const front = recv.querySelector('[data-recv-front]');
+        const key = front?.getAttribute('data-played-key') ?? '';
+        reserved = front !== null && key === '';
+        docked = key === card;
+        minis = recv.querySelectorAll('.con-recv__mini').length;
+        const count = recv.querySelector('.con-recv__caption-count')?.textContent ?? '';
+        destCount = count === '' ? -1 : Number(count);
       }
-      return {standalone, stageUp, proxy, hand, step, composer, incoming, slotExists, topAfterReveal, eventsCount};
+      return {standalone, stageUp, fullOverlay, proxy, hand, step, composer, cardColHidden, reserved, docked, minis, destCount};
     }, {card, isEvent});
     log.trace.push(
-      `t${Date.now() % 100000} comp:${snap.composer ? 1 : 0} stage:${snap.stageUp ? 1 : 0} slot:${snap.slotExists ? 1 : 0} ` +
-      `inc:${snap.incoming ? 1 : 0} top:${snap.topAfterReveal ? 1 : 0} prx:${snap.proxy ? 1 : 0} ev:${snap.eventsCount} step:${snap.step}`);
+      `t${Date.now() % 100000} comp:${snap.composer ? 1 : 0} stage:${snap.stageUp ? 1 : 0} res:${snap.reserved ? 1 : 0} ` +
+      `dock:${snap.docked ? 1 : 0} prx:${snap.proxy ? 1 : 0} minis:${snap.minis} n:${snap.destCount} col:${snap.cardColHidden ? 1 : 0} step:${snap.step}`);
 
     if (snap.standalone) {
       log.standaloneFrames++;
     }
+    if (snap.fullOverlay) {
+      log.fullOverlayFrames++;
+    }
     if (snap.stageUp) {
       log.sawStage = true;
+      log.maxMinis = Math.max(log.maxMinis, snap.minis);
       if (snap.hand) {
         log.handSurvivedUntilStage = true;
       }
+      if (snap.cardColHidden) {
+        log.sawCardColHidden = true;
+      }
+      if (snap.destCount > log.maxEvents) {
+        log.maxEvents = snap.destCount;
+      }
     }
-    if (snap.incoming) {
-      log.sawIncoming = true;
+    if (snap.reserved) {
+      log.sawReserved = true;
     }
     if (snap.proxy) {
       log.sawProxy = true;
@@ -309,19 +324,12 @@ async function runLandingScene(page: Page, card: string, isEvent: boolean, shotP
     if (snap.step === 'РАЗЫГРАНО') {
       log.sawStepPlayed = true;
     }
-    if (snap.topAfterReveal) {
+    if (snap.docked) {
       if (shots && !shotDock) {
         shotDock = true;
         await shoot(page, `${shotPrefix}-2-docked`);
       }
-      log.sawTopAfterReveal = true;
-    }
-    if (isEvent && log.sawStage && snap.eventsCount > log.maxEvents) {
-      log.maxEvents = snap.eventsCount;
-      if (shots && !shotDock) {
-        shotDock = true;
-        await shoot(page, `${shotPrefix}-2-docked`);
-      }
+      log.sawDocked = true;
     }
     if (!snap.composer && !snap.stageUp && log.sawStage) {
       break; // the workspace folded — the episode is over
@@ -337,15 +345,17 @@ function assertScene(log: SceneLog, opts: {isEvent: boolean, minEvents?: number}
   // Surface the frame-by-frame trace on any failure (attached to the error).
   console.log(`[landing trace]\n${log.trace.join('\n')}`);
   expect(log.standaloneFrames, 'the standalone «Разыграно» overlay must NEVER mount').toBe(0);
-  expect(log.sawStage, 'the embedded landing stage presented').toBeTruthy();
-  expect(log.handSurvivedUntilStage, 'the workspace stayed open into the landing stage').toBeTruthy();
+  expect(log.fullOverlayFrames, 'the FULL overview must never leak into the receiving stage').toBe(0);
+  expect(log.sawStage, 'the receiving stage presented').toBeTruthy();
+  expect(log.handSurvivedUntilStage, 'the workspace stayed open into the stage').toBeTruthy();
   expect(log.sawProxy, 'ONE physical proxy was visible during the transfer').toBeTruthy();
   expect(log.sawStepPlayed, 'the breadcrumb tail read «РАЗЫГРАНО»').toBeTruthy();
+  expect(log.sawCardColHidden, 'the setup card column released — no empty source column').toBeTruthy();
   if (opts.isEvent) {
-    expect(log.maxEvents, 'the events pile counter ticked at the dock').toBeGreaterThanOrEqual(opts.minEvents ?? 1);
+    expect(log.maxEvents, 'the destination count ticked at the dock').toBeGreaterThanOrEqual(opts.minEvents ?? 1);
   } else {
-    expect(log.sawIncoming, 'the reserved top slot existed before the dock').toBeTruthy();
-    expect(log.sawTopAfterReveal, 'the card became the TOP card of its pile').toBeTruthy();
+    expect(log.sawReserved, 'the reserved front anchor existed before the dock').toBeTruthy();
+    expect(log.sawDocked, 'the card took the front — the TOP of its stack').toBeTruthy();
   }
 }
 
@@ -409,8 +419,8 @@ test.describe('console play → embedded «Разыграно» landing', () => 
     // Reduced motion: the hop is short and may complete between polls — the
     // proxy sighting is not required; the structural contract still is.
     expect(log.standaloneFrames, 'no standalone overlay under reduced motion').toBe(0);
-    expect(log.sawStage, 'the embedded stage presented').toBeTruthy();
-    expect(log.sawTopAfterReveal || log.sawIncoming, 'the card reached its pile').toBeTruthy();
+    expect(log.sawStage, 'the receiving stage presented').toBeTruthy();
+    expect(log.sawDocked || log.sawReserved, 'the card reached its stack').toBeTruthy();
     await expect(page.locator('.con-played')).toHaveCount(0);
   });
 });

@@ -47,7 +47,12 @@
 import {reactive} from 'vue';
 import {AdmissionSignals} from '@/client/console/consolePromptAdmission';
 import {presentationStalled} from '@/client/components/presentation/presentationPolicy';
-import {expireActiveAnimationHolds} from '@/client/components/presentation/animationHold';
+import {
+  activeAnimationHoldLabels,
+  blockingAnimationHoldCount,
+  expireActiveAnimationHolds,
+  oldestAnimationHoldAgeMs,
+} from '@/client/components/presentation/animationHold';
 import {
   currentBlockReason,
   expireForegroundHolds,
@@ -95,6 +100,30 @@ export const STALL_CONFIRM_TICKS = 3;
  */
 export const RECOVERY_COOLDOWN_TICKS = 10;
 
+/**
+ * How many recoveries of the SAME claim signature before it is quarantined
+ * instead of merely expired. Two: the first is "a flow leaked once, let it
+ * recover"; a second means the expiry is being undone as fast as it is applied.
+ */
+export const QUARANTINE_AFTER_RECOVERIES = 2;
+
+/**
+ * How long an ANIMATION hold must have been up before "nothing is rendered"
+ * counts against it. Deliberately ABOVE every flow's own safety timer (the
+ * longest today is `planet-focus`'s 15 s owed-beat ceiling) and BELOW the
+ * registry's 35 s leak net, so a working cinematic is never accused and a real
+ * leak is still cured long before the ceiling. The event QUEUE does not wait
+ * for this — `QUEUE_STARVATION_MS` delivers a starved backlog at 12 s
+ * regardless, which is the symptom the player actually feels.
+ */
+export const ANIMATION_STALL_GRACE_MS = 20_000;
+
+/** Recovery count per claim signature — the escalation ladder. */
+const stallSignatures = new Map<string, number>();
+
+/** Admission keys suppressed for the SESSION (a recurring leak). */
+const quarantinedSignals = new Set<GuardableAdmissionSignal>();
+
 export const foregroundWatchdogState = reactive({
   /** Admission signals expired by a recovery — masked until they go false. */
   expiredSignals: new Set<GuardableAdmissionSignal>(),
@@ -137,7 +166,10 @@ export function setConsoleBoardHomeIdle(idle: boolean): void {
 export function noteAdmissionSignals(raw: AdmissionSignals): void {
   lastRaw = raw;
   for (const key of [...foregroundWatchdogState.expiredSignals]) {
-    if (!raw[key]) {
+    // A QUARANTINED key never comes back: its falling edge is exactly what kept
+    // undoing the cure (expire → the flag reads false → the mask lifts → the
+    // flag is raised again → stalled again, every cooldown, forever).
+    if (!raw[key] && !quarantinedSignals.has(key)) {
       foregroundWatchdogState.expiredSignals.delete(key);
     }
   }
@@ -170,19 +202,43 @@ export function guardedAdmissionSignals(raw: AdmissionSignals): AdmissionSignals
  * the same way, so the two halves agree.
  */
 function foregroundClaimed(): boolean {
-  if (currentBlockReason() !== undefined || isMandatoryPromptsHeld()) {
+  // An ANIMATION claim is self-bounded by contract, and some flows legitimately
+  // hold with nothing on screen (`planet-focus` keeps its blocking hold through
+  // the owed scale beat, up to its own 15 s safety, over an idle-looking board).
+  // Only a hold past EVERY flow's own safety is a lie — before that the DOM
+  // evidence is simply not yet meaningful, and acting on it made the watchdog
+  // announce «Экран завис» over a working cinematic.
+  const animationClaimIsStale = oldestAnimationHoldAgeMs() >= ANIMATION_STALL_GRACE_MS;
+  const reason = currentBlockReason();
+  if (reason !== undefined && (reason !== 'animation' || animationClaimIsStale)) {
+    return true;
+  }
+  // `isMandatoryPromptsHeld()` folds blocking animation holds — same rule.
+  if (isMandatoryPromptsHeld() && (blockingAnimationHoldCount() === 0 || animationClaimIsStale)) {
     return true;
   }
   if (lastRaw === undefined) {
     return false;
   }
   const guarded = guardedAdmissionSignals(lastRaw);
-  return GUARDABLE.some((key) => guarded[key] === true);
+  return GUARDABLE.some((key) => {
+    if (guarded[key] !== true) {
+      return false;
+    }
+    return (key !== 'anyAnimation' && key !== 'presentation') || animationClaimIsStale;
+  });
 }
 
-/** Everything claiming the foreground right now, for the recovery warn. */
+/**
+ * Everything claiming the foreground right now, for the recovery warn.
+ *
+ * The animation-hold LABELS are what actually identify a leak — the first
+ * production report of this watchdog said only `admission:anyAnimation`, which
+ * proves a hold leaked but names neither the flow nor the scope, and that is
+ * the one thing needed to fix the cause rather than the symptom.
+ */
 function claimLabels(): Array<string> {
-  const labels = [...foregroundHoldLabels()];
+  const labels = [...activeAnimationHoldLabels().map((l) => `animation:${l}`), ...foregroundHoldLabels()];
   if (lastRaw !== undefined) {
     for (const key of GUARDABLE) {
       if (lastRaw[key] === true) {
@@ -193,20 +249,41 @@ function claimLabels(): Array<string> {
   return labels;
 }
 
+/** The signature of a stall — same claims twice running = the cure is not taking. */
+function claimSignature(): string {
+  return [...claimLabels()].sort().join(',');
+}
+
 /**
  * Expire every claim that is up right now and let the queue flow again.
  * Exported for the ?gpDebug manual escape hatch and the specs.
  */
 export function recoverStalledForeground(): ReadonlyArray<string> {
   const claims = claimLabels();
+  // ESCALATION. An expiry that lifts on the falling edge cures a claim that
+  // leaked ONCE. Production showed the other shape: the same claim came back
+  // every cooldown and the watchdog "recovered" it twenty times over four
+  // minutes while the queue climbed past +17 — a detector, not a cure. The
+  // SECOND time the same signature stalls, the claim is QUARANTINED: it stops
+  // counting for the rest of the session, falling edge or not. Losing one
+  // animation's serialization is a cosmetic price; a permanently frozen queue
+  // is not a price, it is a broken game.
+  const signature = claimSignature();
+  const seen = (stallSignatures.get(signature) ?? 0) + 1;
+  stallSignatures.set(signature, seen);
+  const permanent = seen >= QUARANTINE_AFTER_RECOVERIES;
+
   // Animation holds FIRST: they outrank every other reason, so clearing only the
   // leases would leave `foregroundBlockReason()` at 'animation' and the queue
   // just as stuck, for the rest of the 35 s ceiling.
-  const expired = [...expireActiveAnimationHolds(), ...expireForegroundHolds()];
+  const expired = [...expireActiveAnimationHolds(permanent), ...expireForegroundHolds()];
   if (lastRaw !== undefined) {
     for (const key of GUARDABLE) {
       if (lastRaw[key] === true) {
         foregroundWatchdogState.expiredSignals.add(key);
+        if (permanent) {
+          quarantinedSignals.add(key);
+        }
         expired.push(`admission:${key}`);
       }
     }
@@ -223,7 +300,8 @@ export function recoverStalledForeground(): ReadonlyArray<string> {
   foregroundWatchdogState.cooldown = RECOVERY_COOLDOWN_TICKS;
   console.warn(
     `[console-foreground-watchdog] the foreground claimed to be busy with NOTHING rendered — ` +
-    `expired ${expired.length > 0 ? expired.join(', ') : '(nothing)'} ` +
+    `${permanent ? 'QUARANTINED (recurring leak, suppressed for the session)' : 'expired'} ` +
+    `${expired.length > 0 ? expired.join(', ') : '(nothing)'} ` +
     `(claims at the time: ${claims.length > 0 ? claims.join(', ') : 'none'})`);
   // The notice goes out BEFORE the drain: with the slot free it is delivered
   // rather than queued, and the backlog it just unblocked follows behind it
@@ -246,6 +324,11 @@ export type WatchdogPass = {
  * it recovered, so the caller can skip its own reporting for that pass.
  */
 export function runForegroundWatchdog(pass: WatchdogPass): boolean {
+  // UNCONDITIONAL, every pass and in every scope: the queue's own starvation
+  // deadline needs a clock, and a backlog starving behind a leaked animation
+  // hold is a bug wherever the player happens to be standing. This is the
+  // guarantee that does not depend on correctly identifying which claim lied.
+  promoteFromQueue();
   if (!boardHomeIdle) {
     foregroundWatchdogState.streak = 0;
     return false;
@@ -283,4 +366,6 @@ export function resetForegroundWatchdog(): void {
   foregroundWatchdogState.lastDiagnosis = '';
   lastRaw = undefined;
   boardHomeIdle = false;
+  stallSignatures.clear();
+  quarantinedSignals.clear();
 }

@@ -13,7 +13,9 @@ import {
   playedHeroHolding,
   playedHeroLandingPrewarm,
   playedHeroLandingUp,
+  playedHeroCardTargets,
   playedHeroState,
+  provideReceivingEffectHooks,
   seedPlayedHeroRewardHold,
 } from '@/client/console/played/consolePlayedHero';
 import {panelRewardHold, heldStock, heldProduction} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -259,6 +261,62 @@ describe('consolePlayedHero (the animation transaction)', () => {
       await settle(5);
       expect(playedHeroState.host).to.eq('overlay');
       expect(playedHeroState.phase).to.eq('idle');
+    });
+
+    it('EFFECT RESOLUTION: a card target emerges → receives → settles, strictly after the dock', async () => {
+      const calls: Array<string> = [];
+      const unregister = provideReceivingEffectHooks({
+        emergeTarget: async (c) => {
+          calls.push(`emerge:${c}`);
+        },
+        settleTarget: async (c) => {
+          calls.push(`settle:${c}`);
+        },
+      });
+      try {
+        armPlayedHero(CardName.LOCAL_HEAT_TRAPPING, true, {manualTableOpen: false, host: 'workspace', rewards: [
+          {channel: 'card-resource', resource: 'animal', amount: 2, targetCard: CardName.BIRDS},
+          {channel: 'stock', resource: 'heat', amount: 1},
+        ]});
+        expect(playedHeroCardTargets()).to.deep.eq([CardName.BIRDS]); // prewarm data
+        expect(detectPlayedHero(viewWithTableau([CardName.LOCAL_HEAT_TRAPPING]))).to.not.be.undefined;
+        await runPlayedHero(viewWithTableau([CardName.LOCAL_HEAT_TRAPPING]));
+        expect(calls, 'nothing delivers before the dock').to.be.empty;
+        const end = endPlayedHero();
+        await settle(700); // READ beat + degraded (geometry-less) transfers
+        skipPlayedHeroResult();
+        await end;
+        expect(calls).to.deep.eq([`emerge:${CardName.BIRDS}`, `settle:${CardName.BIRDS}`]);
+        expect(playedHeroState.phase).to.eq('idle');
+      } finally {
+        unregister();
+      }
+    });
+
+    it('the OVERLAY host never drives the hooks — its classic single wave stays', async () => {
+      const calls: Array<string> = [];
+      const unregister = provideReceivingEffectHooks({
+        emergeTarget: async (c) => {
+          calls.push(`emerge:${c}`);
+        },
+        settleTarget: async (c) => {
+          calls.push(`settle:${c}`);
+        },
+      });
+      try {
+        armPlayedHero(CardName.LOCAL_HEAT_TRAPPING, true, {manualTableOpen: false, rewards: [
+          {channel: 'card-resource', resource: 'animal', amount: 2, targetCard: CardName.BIRDS},
+        ]});
+        expect(detectPlayedHero(viewWithTableau([CardName.LOCAL_HEAT_TRAPPING]))).to.not.be.undefined;
+        await runPlayedHero(viewWithTableau([CardName.LOCAL_HEAT_TRAPPING]));
+        const end = endPlayedHero();
+        await settle(700);
+        skipPlayedHeroResult();
+        await end;
+        expect(calls).to.be.empty;
+      } finally {
+        unregister();
+      }
     });
   });
 });

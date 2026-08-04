@@ -264,51 +264,17 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
     });
   });
 
-  // ── the CARD PLAY WORKSPACE landing dress (embedded + headless) ───────
-  describe('workspace landing dress (embedded + headless)', () => {
-    function makeLanding(extra: Record<string, unknown> = {}) {
-      return mount(ConsolePlayedOverlay, {
-        props: {
-          players: [player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC, CardName.PREDATORS, CardName.TREES])],
-          thisPlayerColor: 'red' as Color,
-          embedded: true, forcedColor: 'red' as Color, headless: true,
-          ...extra,
-        },
-        global: {
-          mocks: {$t: (s: string) => s},
-          stubs: {ConsolePlayedCardLite: true, ConsolePlayedCategoryView: true},
-        },
-      });
-    }
-
-    it('headless: the table draws NO head of its own — the workspace breadcrumb names it', () => {
-      const wrapper = makeLanding();
-      expect(wrapper.find('.con-played__head').exists()).to.be.false;
-      expect(wrapper.find('.con-played__title').exists()).to.be.false;
-      wrapper.unmount();
-    });
-
-    it('the RECEIVING family is accented pre-dock, releases at the reveal; captions count honestly', async () => {
-      const wrapper = makeLanding({heroIncoming: {name: CardName.BIRDS}, heroActive: true});
+  // ── honest caption counts through the standalone hero scene ───────────
+  describe('honest family caption counts (hero scene)', () => {
+    it('captions read the PRE-play truth until the reveal, then tick at the dock', async () => {
+      const wrapper = make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC, CardName.PREDATORS, CardName.TREES])]);
+      await wrapper.setProps({heroIncoming: {name: CardName.BIRDS}, heroActive: true});
       const active = wrapper.find('.con-played__family--active');
-      expect(active.classes()).to.include('con-played__family--receiving');
-      // The caption reads the PRE-play truth (one active card lies there)…
+      // One active card lies there; the reserved slot already exists.
       expect(active.find('.con-played__caption-count').text()).to.eq('1');
-      // …while the reserved top slot already exists — final geometry, no
-      // re-arrangement will ever happen under the approaching card.
       expect(wrapper.find(`[data-played-key="${CardName.BIRDS}"]`).classes()).to.include('con-played__slot--incoming');
       await wrapper.setProps({heroRevealed: true});
-      // The card is committed onto the pile: the accent releases and the
-      // caption ticks — the final frame is the plain tableau presentation.
-      expect(wrapper.find('.con-played__family--active').classes()).to.not.include('con-played__family--receiving');
       expect(wrapper.find('.con-played__family--active .con-played__caption-count').text()).to.eq('2');
-      wrapper.unmount();
-    });
-
-    it('the standalone hero scene keeps its established look — no receiving accent', async () => {
-      const wrapper = make([player('red' as Color, 'Вы', [CardName.THARSIS_REPUBLIC, CardName.PREDATORS])]);
-      await wrapper.setProps({heroIncoming: {name: CardName.BIRDS}, heroActive: true});
-      expect(wrapper.find('.con-played__family--receiving').exists()).to.be.false;
       wrapper.unmount();
     });
   });

@@ -860,3 +860,83 @@ tableau-поверхности (оверлей поля + Info Panel) со св�
   не вторая полноразмерная копия.
 - Stale: `playedTargetResultLive` (версия gameAge|undoCount + карта на месте)
   — устаревший выбор не показывается как выбранный и не сабмитится.
+
+## THE LANDING STAGE — «… › РАЗЫГРАНО», финал Card Play Workspace (2026-08-04)
+
+После `A · Разыграть карту` из hand-workspace descend'а workspace **не
+закрывается и внешний оверлей «Разыграно» не открывается**. Транзакция
+played-hero получила ось `host: 'overlay' | 'workspace'` (решается при arm в
+`onPlayCardConfirmNative`: `workspaceStageOpen('hand') && !playedOpen`);
+фазовая лестница/детект/гейты/reward-бит — общие для обоих хостов.
+
+**Сценография workspace-хоста:**
+- Композер рендерит СЛОЙ `.con-composer__playstage` (absolute поверх зоны
+  review — наложенные слои одной зоны, никакого v-if-свопа; left пиннится
+  живым замером края `__playright`). Слой смонтирован СКРЫТО с фазы `armed`
+  (prewarm: layout/арты едут в server round trip), виден с `preparing`.
+- Внутри — `ConsolePlayedLandingStage`: ТОТ ЖЕ `ConsolePlayedOverlay` в
+  dress'е `embedded + headless` (стол не титулует себя — крошка уже говорит
+  «… › РАЗЫГРАНО», stageName композера возвращает `'Played'`). Синтетика +1,
+  reserved top slot, target-measurer, peek-пилы — всё родное.
+- REVEAL-каскад: семьи материализуются в порядке чтения, ПРИНИМАЮЩАЯ — на
+  месте (только opacity: её rect = цель полёта); принимающая семья несёт
+  `--receiving` (акцент; прочие отходят на 0.55) и отпускает его на reveal.
+  Честные caption-счётчики: `familyCount()` вычитает скрытый incoming до
+  коммита (тикают на доке).
+- STACK SETTLE: на `showing-result` (строго ПОСЛЕ dissolve прокси) принимающая
+  пила принимает вес — 2.5px damped press (gsap, transform-only).
+- Шелл: `'lifting'`-teardown только для overlay-хоста; `'closing'` +
+  workspace → один синхронный ход: `pendingPlayCard=undefined` (claim
+  закрывается watcher'ом) + `closeConsoleLayers()` + `section='board'` —
+  весь workspace растворяется section-leave'ом; модуль держит транзакцию
+  HERO_CLOSE_MS, чтобы follow-up пришёл на осевший борт.
+
+**ГОЧА (стоила итерации): prompt-identity clear убивал сцену.** Коммит
+playerView меняет `promptIdentityKey` → шелл чистил `pendingPlayCard` В
+МОМЕНТ коммита → композер+стол размонтировались под летящей картой. Гейт:
+`if (!(isPlayedHeroActive() && playedHeroState.host === 'workspace'))` вокруг
+этого clear (брошенный композер без транзакции чистится как раньше).
+
+Overlay-хост (playFromHand-band, стартовая сцена, вручную открытый стол) —
+нетронут. Гварды: `consolePlayedHero.spec.ts` (workspace-хост: tableOpen
+никогда; reset host), `ConsolePlayedOverlay.spec.ts` (headless / --receiving
+/ честные счётчики), `ConsolePlayedLandingStage.spec.ts`, e2e
+`console-play-landing-probe.spec.ts` (green/blue/event/tile-follow-up на FHD
++ 4K + reduced-motion; standalone `.con-played` не монтируется НИ КАДРА).
+
+### Итерация 2 (2026-08-04) — RECEIVING & EFFECT RESOLUTION STAGE
+
+Full-embedded-обзор в роли финала ОТМЕНЁН (обрезки чужих категорий, тонкая
+колонна стека в пустоте, брошенная колонка source-карты). Вместо него —
+специализированная сцена `ConsolePlayedReceivingStage` (+ чистый
+`receivingStageModel.ts`: planReceivingStage / receivingStackView /
+receivingMinis / foreignTargetMinis / splitPlayRewards / cardTargetGroups):
+
+- **Слой на ВСЮ зону** (`.con-composer__playstage { inset: 0 .4rem }`), setup
+  release гасит И work-колонку, И карту-якорь (`playRight`+`playCard`) — пустой
+  левой колонки не остаётся.
+- **Destination stack — протагонист**: по центру, top-anchored, cap полос
+  (RECEIVING_MAX_STRIPS=5) + depth-срезы; **Top Card Handoff геометрический**:
+  финальный силуэт свёрстан с первого кадра — prev-top ЛЕЖИТ на своей будущей
+  полосе и переполняет её вниз открытым лицом до дока; front-анкер
+  (`[data-recv-front]`, приёмная плита) пуст до reveal; на reveal new card
+  занимает front (z выше), prev даунгрейдится в peek — ничего не движется.
+- **Мини-категории**: caption+count+`≤2` title strips, клип по полосам (без
+  случайных обрезков full-карт); чужой владелец target-карты входит тем же
+  примитивом (`foreignTargetMinis`, prewarm по `playedHeroCardTargets()`).
+- **EFFECT RESOLUTION** (`provideReceivingEffectHooks` в hero-модуле): фаза
+  showing-result для ws-хоста = split rewards → card-цели по очереди
+  (emergeTarget → чипы `runResourceTransfers` между двумя КАРТАМИ →
+  settleTarget-возврат) → rail-волна. `targetPointFor` берёт
+  `.con-recv [data-played-key]` раньше `.con-played`; источник —
+  `[data-recv-front]`. Emergence: полоса цели → fixed-слой
+  `.con-recv__emerge` (clip-раскрытие strip→card), placeholder держит
+  геометрию (`__face--away`); открытый prev-top НЕ выходит (accent).
+- **Resolved beat**: HERO_RESOLVED_BEAT_MS=260 для ws-хоста (вместо 620).
+- **ГОЧА №2 (стоила итерации): top-level комментарий в `<template>`** делает
+  dev-сборку фрагментом → `this.$el` = comment node → каждый
+  querySelector-метод молча умирает. Комментарий сцены живёт ВНУТРИ корня.
+- Гварды: `receivingStageModel.spec.ts`, `ConsolePlayedReceivingStage.spec.ts`
+  (handoff/эмердженс/foreign-mini), hero-спек (порядок emerge→chips→settle;
+  overlay-хост хуки не зовёт), e2e-проба переписана на `.con-recv`
+  (+fullOverlayFrames=0, cardColHidden, docked=front key).

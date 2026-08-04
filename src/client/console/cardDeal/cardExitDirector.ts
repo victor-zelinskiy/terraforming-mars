@@ -308,8 +308,18 @@ function stableSlotRect(resolve: () => HTMLElement | null): Promise<DOMRect | un
   });
 }
 
+/**
+ * ⚠️ Settles on INTERRUPT as well as completion. GSAP fires `onComplete` only
+ * for a natural finish, so a killed tween (unmount, `killTweensOf`, overwrite)
+ * leaves a bare `onComplete` promise pending forever — and an `await` that
+ * never returns strands whatever bookkeeping its `finally` was going to undo.
+ * Same rule `holdForGsapAnimation` documents for the animation-hold registry.
+ */
 function tween(el: HTMLElement, vars: gsap.TweenVars): Promise<void> {
-  return new Promise((done) => gsap.to(el, {...vars, onComplete: done}));
+  return new Promise((done) => {
+    const settle = () => done();
+    gsap.to(el, {...vars, onComplete: settle, onInterrupt: settle});
+  });
 }
 
 /**
@@ -405,7 +415,10 @@ export function runDraftPickToTray(args: DraftPickToTrayArgs): DraftPickHandle {
       tl.to(s.el, {y: rect.top, duration: flight, ease: 'power2.inOut'}, 0);
       tl.to(s.el, {scale, duration: flight, ease: 'back.out(1.1)'}, 0);
       tl.to(s.el, {rotation: 0, duration: flight * 0.7, ease: 'power2.out'}, 0);
-      await new Promise((r) => tl.eventCallback('onComplete', () => r(undefined)).play());
+      await new Promise((r) => {
+        const settle = () => r(undefined);
+        tl.eventCallback('onComplete', settle).eventCallback('onInterrupt', settle).play();
+      });
       if (skipped) {
         return;
       }

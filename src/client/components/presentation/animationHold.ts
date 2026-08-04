@@ -94,6 +94,8 @@ type SupplierEntry = {
   diagnose: (() => unknown) | undefined,
   stop: () => void,
   ceilingTimer: ReturnType<typeof setTimeout> | undefined,
+  /** Epoch ms of the current rising edge (undefined = not holding). */
+  heldSince: number | undefined,
 };
 
 /** Run a hold's diagnose hook safely — a throwing/absent hook degrades to ''. */
@@ -116,9 +118,18 @@ const store = reactive({
   /** Bumped on (un)register so the counts computed re-scans the Map. */
   version: 0,
   /** Live imperative holds (beginAnimationHold). */
-  manual: new Map<number, {label: string, scope: AnimationHoldScope}>(),
+  manual: new Map<number, {label: string, scope: AnimationHoldScope, since: number}>(),
   /** Supplier labels past the safety ceiling — excluded until they go false. */
   expired: new Set<string>(),
+  /**
+   * Labels excluded for the REST OF THE SESSION — a recurring leak the console
+   * foreground watchdog gave up on. Unlike `expired` this is never lifted by a
+   * falling edge, and it covers MANUAL holds by label too: a source that
+   * re-creates `beginAnimationHold('x')` in a loop defeats any expiry that only
+   * deletes the current handle. Quarantining costs that one animation its
+   * serialization; leaving it costs the player a frozen event queue.
+   */
+  quarantined: new Set<string>(),
 });
 
 let nextHoldId = 1;
@@ -143,7 +154,7 @@ const counts = computed(() => {
   let all = 0;
   let blocking = 0;
   for (const [label, entry] of suppliers) {
-    if (store.expired.has(label) || !safeRead(label, entry.supplier)) {
+    if (store.expired.has(label) || store.quarantined.has(label) || !safeRead(label, entry.supplier)) {
       continue;
     }
     all++;
@@ -152,6 +163,9 @@ const counts = computed(() => {
     }
   }
   for (const hold of store.manual.values()) {
+    if (store.quarantined.has(hold.label)) {
+      continue;
+    }
     all++;
     if (hold.scope === 'blocking') {
       blocking++;
@@ -178,12 +192,14 @@ export function registerAnimationHoldSupplier(label: string, supplier: () => boo
     diagnose: options?.diagnose,
     stop: () => {},
     ceilingTimer: undefined,
+    heldSince: undefined,
   };
   // The ceiling: a supplier stuck true past maxHoldMs is EXPIRED (excluded
   // from the counts, with a warn) until it honestly goes false again.
   entry.stop = watch(() => safeRead(label, supplier), (holding) => {
     if (holding) {
       if (entry.ceilingTimer === undefined) {
+        entry.heldSince = Date.now();
         entry.ceilingTimer = setTimeout(() => {
           entry.ceilingTimer = undefined;
           store.expired.add(label);
@@ -195,6 +211,7 @@ export function registerAnimationHoldSupplier(label: string, supplier: () => boo
         clearTimeout(entry.ceilingTimer);
         entry.ceilingTimer = undefined;
       }
+      entry.heldSince = undefined;
       store.expired.delete(label);
     }
   }, {immediate: true});
@@ -223,7 +240,7 @@ export function unregisterAnimationHoldSupplier(label: string): void {
  */
 export function beginAnimationHold(label: string, options?: AnimationHoldOptions): AnimationHold {
   const id = nextHoldId++;
-  store.manual.set(id, {label, scope: options?.scope ?? 'blocking'});
+  store.manual.set(id, {label, scope: options?.scope ?? 'blocking', since: Date.now()});
   const maxHoldMs = options?.maxHoldMs ?? DEFAULT_MAX_HOLD_MS;
   const ceiling = setTimeout(() => {
     if (store.manual.delete(id)) {
@@ -309,19 +326,56 @@ export function isAnimationHoldActive(): boolean {
  * queue blocked — `foregroundBlockReason()` returns 'animation' first — for the
  * remainder of the 35 s ceiling, which is the freeze it exists to end.
  */
-export function expireActiveAnimationHolds(): ReadonlyArray<string> {
+export function expireActiveAnimationHolds(permanent = false): ReadonlyArray<string> {
   const expired: Array<string> = [];
   for (const [label, entry] of suppliers) {
-    if (!store.expired.has(label) && safeRead(label, entry.supplier)) {
+    if (!store.expired.has(label) && !store.quarantined.has(label) && safeRead(label, entry.supplier)) {
       store.expired.add(label);
-      expired.push(`animation:${label}`);
+      if (permanent) {
+        store.quarantined.add(label);
+      }
+      expired.push(`animation:${label}${permanent ? ' (quarantined)' : ''}`);
     }
   }
   for (const [id, hold] of [...store.manual]) {
     store.manual.delete(id);
-    expired.push(`animation:${hold.label}`);
+    if (permanent) {
+      store.quarantined.add(hold.label);
+    }
+    expired.push(`animation:${hold.label}${permanent ? ' (quarantined)' : ''}`);
   }
   return expired;
+}
+
+/**
+ * How long the LONGEST-running live hold has been up (0 when nothing holds).
+ *
+ * WHY THE CONSUMER NEEDS THIS. An animation hold is self-bounded BY CONTRACT
+ * (its flow's own completion or safety timer releases it), and some legitimately
+ * run with NOTHING on screen — `planet-focus` deliberately keeps a blocking hold
+ * through its owed scale beat, up to its own 15 s safety, while the board looks
+ * perfectly idle. To a DOM-evidence stall check that is indistinguishable from a
+ * leak, so the console watchdog cried "the screen was stuck" over a working
+ * cinematic. Age is the discriminator: past every flow's own safety, a hold is
+ * a leak; before it, it is just slow.
+ */
+export function oldestAnimationHoldAgeMs(): number {
+  const now = Date.now();
+  let oldest = 0;
+  for (const [label, entry] of suppliers) {
+    if (store.expired.has(label) || store.quarantined.has(label) || entry.heldSince === undefined) {
+      continue;
+    }
+    if (safeRead(label, entry.supplier)) {
+      oldest = Math.max(oldest, now - entry.heldSince);
+    }
+  }
+  for (const hold of store.manual.values()) {
+    if (!store.quarantined.has(hold.label)) {
+      oldest = Math.max(oldest, now - hold.since);
+    }
+  }
+  return oldest;
 }
 
 /** Diagnostics (?gpDebug / dev): what is holding right now. */
@@ -329,12 +383,14 @@ export function activeAnimationHoldLabels(): Array<string> {
   void store.version;
   const labels: Array<string> = [];
   for (const [label, entry] of suppliers) {
-    if (!store.expired.has(label) && safeRead(label, entry.supplier)) {
-      labels.push(label);
+    if (!store.expired.has(label) && !store.quarantined.has(label) && safeRead(label, entry.supplier)) {
+      labels.push(`${label}[${entry.scope}]`);
     }
   }
   for (const hold of store.manual.values()) {
-    labels.push(hold.label);
+    if (!store.quarantined.has(hold.label)) {
+      labels.push(`${hold.label}[${hold.scope}]`);
+    }
   }
   return labels;
 }
@@ -368,4 +424,5 @@ export function whenAnimationsSettled(): Promise<void> {
 export function resetAnimationHoldsForTest(): void {
   store.manual.clear();
   store.expired.clear();
+  store.quarantined.clear();
 }

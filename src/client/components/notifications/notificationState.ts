@@ -6,11 +6,13 @@
 import {reactive} from 'vue';
 import {NotificationModel, LiveNotification, NotificationKind, MAX_VISIBLE_TRANSIENT, NOTIFICATION_PRIORITY, NOTIFICATION_TTL} from './notificationTypes';
 import {
+  currentBlockReason,
   isNotificationDeliveryBlocked,
   onForegroundBlocked,
   onForegroundFreed,
   registerFlowHoldSupplier,
 } from '@/client/components/presentation/presentationFlow';
+import {activeAnimationHoldLabels} from '@/client/components/presentation/animationHold';
 import {PendingQueueSummary, pendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {ackBotTurn} from '@/client/components/marsbot/botTurnAck';
 
@@ -127,15 +129,61 @@ export function notificationKnownId(id: string): boolean {
 }
 
 /**
+ * How long a NON-EMPTY queue may stay undelivered behind an ANIMATION block
+ * before it is delivered anyway. Every real cinematic is a few seconds; twelve
+ * is far past any of them and far short of the 35 s hold ceiling — which, as
+ * production proved, does not help at all when the leaking flag is re-raised
+ * faster than it expires.
+ */
+export const QUEUE_STARVATION_MS = 12_000;
+
+/** When the current undelivered backlog started waiting (undefined = flowing). */
+let queueBlockedSince: number | undefined;
+
+let starvationWarned = false;
+
+/**
  * Promote queued models into freed transient slots — HIGHEST priority first,
  * FIFO within a priority (`findIndex`-style stable pick). A no-op while the
  * presentation flow reports a blocking foreground (result modal / mandatory
  * choice / theater) — the queue drains the moment it clears.
+ *
+ * STARVATION ESCAPE. "The queue drains the moment it clears" is only true if
+ * the blocker ever clears. A leaked animation hold froze it indefinitely — the
+ * player watched «СОБЫТИЯ В ОЧЕРЕДИ» climb past +17 with nothing on screen — so
+ * a backlog blocked by an `'animation'` reason for {@link QUEUE_STARVATION_MS}
+ * is delivered ANYWAY, with a warn.
+ *
+ * Deliberately ONLY the animation reason: a result modal, a mandatory choice
+ * and the theater all mean a PLAYER is looking at something and may legitimately
+ * take minutes, and floating toasts over them would break the very serialization
+ * this queue exists for. An animation has no player in the loop, so past a
+ * bounded lifetime it is always a leak. A toast over a stuck scene is the honest
+ * degraded mode; a permanently frozen queue is not.
  */
 export function promoteFromQueue(): void {
   if (isNotificationDeliveryBlocked()) {
-    return;
+    if (notificationState.queue.length === 0) {
+      queueBlockedSince = undefined;
+      return;
+    }
+    const now = Date.now();
+    if (queueBlockedSince === undefined) {
+      queueBlockedSince = now;
+      return;
+    }
+    if (now - queueBlockedSince < QUEUE_STARVATION_MS || currentBlockReason() !== 'animation') {
+      return;
+    }
+    if (!starvationWarned) {
+      starvationWarned = true;
+      console.warn(
+        `[notifications] ${notificationState.queue.length} queued event(s) held behind an ANIMATION ` +
+        `hold for over ${QUEUE_STARVATION_MS}ms — delivering anyway (leaked hold: ` +
+        `${activeAnimationHoldLabels().join(', ') || 'none named'})`);
+    }
   }
+  queueBlockedSince = undefined;
   while (notificationState.transient.length < MAX_VISIBLE_TRANSIENT && notificationState.queue.length > 0) {
     let bestIdx = 0;
     notificationState.queue.forEach((n, i) => {
@@ -339,6 +387,8 @@ export function setExpanded(id: string, expanded: boolean): void {
 export function clearTransient(): void {
   notificationState.transient = [];
   notificationState.queue = [];
+  queueBlockedSince = undefined;
+  starvationWarned = false;
 }
 
 // ── Presentation-flow wiring (module init) ──────────────────────────────────

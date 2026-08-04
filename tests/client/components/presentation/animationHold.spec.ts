@@ -48,7 +48,10 @@ describe('animationHold (the critical-animation registry)', () => {
     expect(currentBlockReason()).eq('animation');
     expect(isNotificationDeliveryBlocked()).eq(true);
     expect(isMandatoryPromptsHeld()).eq(true);
-    expect(activeAnimationHoldLabels()).deep.eq(['spec-beat']);
+    // The label carries its SCOPE: the first production leak report could not
+    // say whether the stuck hold was 'blocking' or 'notification-only', which
+    // is exactly what narrows a leak down to a flow.
+    expect(activeAnimationHoldLabels()).deep.eq(['spec-beat[blocking]']);
     hold.release();
     hold.release(); // double release must not underflow
     expect(animationHoldCount()).eq(0);

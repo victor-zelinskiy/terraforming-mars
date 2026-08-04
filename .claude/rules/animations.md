@@ -20,7 +20,8 @@ Taste: Ark Nova (BGA) feel — short easings, subtle scale/glow, no hard pop-ins
 Every CRITICAL animation is a first-class foreground occupant via `presentation/animationHold.ts`:
 - `registerAnimationHoldSupplier(label, predicate)` at module scope for a flow with a reactive "scene owns the foreground" predicate, or `beginAnimationHold(label)` for a component beat (idempotent release from every exit path).
 - Wrappers: `holdAnimationWhile(label, promise)`, `holdForGsapAnimation(label, tl)` (releases on completion AND on kill via a chained `onInterrupt`).
-- **The release IS the flow's own completion signal (GSAP `onComplete` → the reactive flag drops) — NEVER a `setTimeout`.** A 35 s ceiling force-releases a leaked hold with a warn.
+- **The release IS the flow's own completion signal (GSAP `onComplete` → the reactive flag drops) — NEVER a `setTimeout`.** A 35 s ceiling force-releases a leaked hold with a warn; a hold the watchdog has to recover TWICE is quarantined for the session.
+- **⚠️ Any promise you `await` around a GSAP animation MUST settle on `onInterrupt` too, not just `onComplete`.** A killed tween (unmount, `killTweensOf`, overwrite, teardown) never fires `onComplete`, so the `await` hangs forever, the enclosing `finally` never runs, and its bookkeeping leaks permanently — that is how `handDeliveryDirector`'s `activeRuns` pinned a `'notification-only'` hold true for a whole session and froze the event queue. Copy `holdForGsapAnimation`'s chained-`onInterrupt` pattern (never clobber an existing handler).
 - Scope `'blocking'` by default; `'notification-only'` only for a cinematic that runs INSIDE a mandatory surface (a blocking hold would unmount its own stage — self-deadlock).
 - **A new hold that hides the console task host while the server waits must add its DOM root to the leak detector's `SERVING_SURFACES`.**
 - Never write a local `setTimeout` gate or an ad-hoc OR-chain in a shell computed.

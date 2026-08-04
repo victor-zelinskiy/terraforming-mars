@@ -466,11 +466,14 @@ function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
       measureRect(`.con-res__row--${spec.resource}`);
     return r !== undefined ? centerOf(r) : undefined;
   }
-  // card-resource: the PRE-SELECTED host card when it's on screen (the
-  // «Разыграно» table is open through the reward beat), else the
-  // additional-resources satellite cell, else no flight.
+  // card-resource: the PRE-SELECTED host card when it's on screen — the
+  // workspace RECEIVING STAGE's physical anchor (the front card / an emerged
+  // target) first, then the «Разыграно» table — else the additional-resources
+  // satellite cell, else no flight.
   if (spec.targetCard !== undefined) {
-    const r = measureRect(`.con-played [data-played-key="${escapeName(spec.targetCard)}"]`);
+    const esc = escapeName(spec.targetCard);
+    const r = measureRect(`.con-recv [data-played-key="${esc}"]`) ??
+      measureRect(`.con-played [data-played-key="${esc}"]`);
     if (r !== undefined) {
       return centerOf(r);
     }

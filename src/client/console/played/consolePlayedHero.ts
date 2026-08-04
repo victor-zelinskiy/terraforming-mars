@@ -61,10 +61,14 @@ import {
 import {
   abortPlayedCardReturns, capturePlayedCardReturnSource, hasPendingPlayedReturns, runPlayedCardReturns,
 } from '@/client/console/played/playedCardReturn';
+import {splitPlayRewards, cardTargetGroups} from '@/client/console/played/receivingStageModel';
 
 /** The result beat is SHORT when the server already queued the next decision
  *  — the demonstration yields to the game (spec §13). */
 const HERO_RESULT_PAUSE_FOLLOWUP_MS = 220;
+/** The RESOLVED-TABLEAU beat of the workspace stage: everything has arrived,
+ *  the table stands still, the eye reads the finished state — short. */
+const HERO_RESOLVED_BEAT_MS = 260;
 /** How long we wait for the table overlay to mount + register its measurer. */
 const TARGET_WAIT_BUDGET_MS = 1600;
 
@@ -153,6 +157,49 @@ export function providePlayedHeroTarget(fn: HeroTargetMeasure): () => void {
       targetMeasure = undefined;
     }
   };
+}
+
+/**
+ * THE EFFECT DELIVERY HOOKS — the workspace RECEIVING STAGE plugs its
+ * physical target choreography in here. For every card the play sends a
+ * resource to, the transaction asks the scene to EMERGE the target (the card
+ * comes forward out of its strip / its compact mini family — resolved
+ * instantly when the card is already open), flies the chips between the two
+ * physical anchors, then asks the scene to SETTLE it back. Absent hooks (the
+ * overlay host, a degraded scene) fall back to the classic single wave.
+ */
+export type ReceivingEffectHooks = {
+  emergeTarget: (card: CardName) => Promise<void>,
+  settleTarget: (card: CardName) => Promise<void>,
+};
+let effectHooks: ReceivingEffectHooks | undefined;
+
+export function provideReceivingEffectHooks(hooks: ReceivingEffectHooks): () => void {
+  effectHooks = hooks;
+  return () => {
+    if (effectHooks === hooks) {
+      effectHooks = undefined;
+    }
+  };
+}
+
+/**
+ * The card-resource TARGETS of the armed play, excluding the played card
+ * itself — the receiving stage prepares their emergence anchors (and any
+ * foreign owner's mini) at prewarm, so a delivery never mounts UI mid-beat.
+ */
+export function playedHeroCardTargets(): ReadonlyArray<CardName> {
+  if (!playedHeroState.active) {
+    return [];
+  }
+  const {cardSpecs} = splitPlayRewards(pendingRewards);
+  const out: Array<CardName> = [];
+  for (const spec of cardSpecs) {
+    if (spec.targetCard !== undefined && spec.targetCard !== playedHeroState.card && !out.includes(spec.targetCard)) {
+      out.push(spec.targetCard);
+    }
+  }
+  return out;
 }
 
 // ── predicates ──────────────────────────────────────────────────────────────
@@ -448,29 +495,47 @@ export async function endPlayedHero(): Promise<void> {
   if (pendingRewards.length > 0 && !consoleReducedMotionActive()) {
     // THE REWARD BEAT — the final chord of the play: the landed card is read
     // for a quiet moment, then its immediate gains emerge from it as
-    // physical resource chips and land on the exact left-panel zones. Each
-    // touchdown releases its metric from the panel reward hold, firing that
-    // delta chip at the contact — the card is the visible source of the
-    // reward until the last transfer completes.
+    // physical resource chips and land where they belong. Each touchdown
+    // releases its metric from the panel reward hold, firing that delta chip
+    // at the contact — the card is the visible source of the reward until
+    // the last transfer completes.
     const rewards = pendingRewards;
     pendingRewards = [];
     await wait(motionMs(TRANSFER_READ_MS));
     if (!playedHeroState.active) {
       return;
     }
-    const esc = escapeName(playedHeroState.card ?? '');
-    await runResourceTransfers({
-      specs: rewards,
-      source: {selectors: [
-        `.con-played [data-played-key="${esc}"] .con-played__face`,
-        `.con-played [data-played-key="${esc}"]`,
-        // An EVENT lands face-down on the events backstack — its rewards
-        // emerge from the pile (the card's honest on-table location).
-        '.con-played .con-played__family--event .con-played__backstack',
-      ]},
-      arrival: 'auto',
-      onArrive: (spec) => releasePanelRewardHold(spec),
-    });
+    const source = {selectors: heroRewardSourceSelectors(playedHeroState.card ?? '')};
+    const release = (spec: ResourceTransferSpec) => releasePanelRewardHold(spec);
+    const hooks = effectHooks;
+    if (playedHeroState.host === 'workspace' && hooks !== undefined) {
+      // THE EFFECT RESOLUTION SEQUENCE (the receiving stage): card targets
+      // first — each target physically EMERGES from its strip / its compact
+      // mini family, the chips fly between the two card anchors, the target
+      // SETTLES back with its gain; the rail wave then closes the beat. The
+      // newly played card needs no emergence — it IS the front.
+      const {railSpecs, cardSpecs} = splitPlayRewards(rewards);
+      for (const group of cardTargetGroups(cardSpecs, playedHeroState.card as CardName)) {
+        if (!playedHeroState.active) {
+          return;
+        }
+        if (!group.self) {
+          await hooks.emergeTarget(group.target);
+        }
+        await runResourceTransfers({specs: group.specs, source, arrival: 'auto', onArrive: release});
+        if (!playedHeroState.active) {
+          return;
+        }
+        if (!group.self) {
+          await hooks.settleTarget(group.target);
+        }
+      }
+      if (railSpecs.length > 0 && playedHeroState.active) {
+        await runResourceTransfers({specs: railSpecs, source, arrival: 'auto', onArrive: release});
+      }
+    } else {
+      await runResourceTransfers({specs: rewards, source, arrival: 'auto', onArrive: release});
+    }
     // Belt-and-braces: any hold a degraded transfer left behind snaps to the
     // committed truth now (its chip fires marginally late, never lost).
     clearPanelRewardHold();
@@ -479,8 +544,12 @@ export async function endPlayedHero(): Promise<void> {
     }
     await skippablePause(motionMs(TRANSFER_RESIDUAL_PAUSE_MS));
   } else {
+    // The RESOLVED-TABLEAU beat: the workspace stage reads shorter than the
+    // standalone overlay's result pause — the player is already inside the
+    // scene, the state is on screen, a long hold would be a stall.
+    const idlePause = playedHeroState.host === 'workspace' ? HERO_RESOLVED_BEAT_MS : HERO_RESULT_PAUSE_MS;
     const pauseMs = consoleReducedMotionActive() ? HERO_REDUCED_PAUSE_MS :
-      (followUpPending ? HERO_RESULT_PAUSE_FOLLOWUP_MS : HERO_RESULT_PAUSE_MS);
+      (followUpPending ? HERO_RESULT_PAUSE_FOLLOWUP_MS : idlePause);
     await skippablePause(motionMs(pauseMs));
   }
   if (!playedHeroState.active) {
@@ -620,6 +689,23 @@ function currentProxyRect(els: HeroStageEls): HeroRect | undefined {
 function escapeName(name: string): string {
   return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
     CSS.escape(name) : name.replace(/"/g, '\\"');
+}
+
+/** WHERE a play's reward chips are born, in resolution order: the receiving
+ *  stage's front card / events pile (the workspace scene), else the landed
+ *  card on the «Разыграно» table (the overlay scene). */
+function heroRewardSourceSelectors(card: string): Array<string> {
+  const esc = escapeName(card);
+  return [
+    '.con-recv [data-recv-front] .con-recv__face',
+    '.con-recv [data-recv-front]',
+    '.con-recv .con-recv__backpile',
+    `.con-played [data-played-key="${esc}"] .con-played__face`,
+    `.con-played [data-played-key="${esc}"]`,
+    // An EVENT lands face-down on the events backstack — its rewards
+    // emerge from the pile (the card's honest on-table location).
+    '.con-played .con-played__family--event .con-played__backstack',
+  ];
 }
 
 async function awaitTargetRect(): Promise<HeroRect | undefined> {

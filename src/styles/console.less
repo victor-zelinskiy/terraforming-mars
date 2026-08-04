@@ -16701,21 +16701,16 @@ html.console-mode {
         position: relative;
     }
 
-    /* ── THE LANDING STAGE — «… › РАЗЫГРАНО», the workspace's final step ──
-       An absolute LAYER over the zone the review occupies: engaging it can
-       never re-flow the frame or move the anchored card (the two states are
-       stacked layers of ONE zone — the descend precondition). Mounted hidden
-       from the submit's arm (prewarm: layout + art decode ride the server
-       round trip); `--up` is the reveal. The left inset is re-pinned by the
-       composer to the LIVE edge of the review zone; this value is only the
-       pre-measure fallback (card anchor 320px × 1.16 zoom = 18.56rem + the
-       band gap + the band padding). */
+    /* ── THE RECEIVING STAGE — «… › РАЗЫГРАНО», the workspace's final step ──
+       An absolute LAYER over the WHOLE band zone: the setup (card column +
+       work surface) releases in place underneath, so no empty source column
+       ever remains and the stage composes on the full workspace surface (the
+       two states are stacked layers of ONE zone — the descend precondition).
+       Mounted hidden from the submit's arm (prewarm: layout, stack geometry,
+       target anchors and arts ride the server round trip); `--up` reveals. */
     .con-composer__playstage {
         position: absolute;
-        top: 0;
-        bottom: 0;
-        right: .4rem;
-        left: 21.2rem;
+        inset: 0 .4rem;
         display: flex;
         align-items: stretch;
         min-width: 0;
