@@ -6,6 +6,11 @@
       piles (corporation / preludes / projects), physically collected on RT
       and physically returned to their grid slots on LT (startDockMotion).
 
+      EVERY step's pile is PRE-MOUNTED from the first frame: a pile is a
+      physical destination, and a flight cannot target an element that mounts
+      only after the flight. An un-collected pile is an empty waiting slot
+      (ghost back, count 0) — the shelf itself never pops into existence.
+
       NOT the Hand Dock (real bought cards) and NOT the Played Tableau (real
       played cards): everything here is still reversible — a prepared stack
       on the table's edge, waiting for the summary to open it.
@@ -14,7 +19,7 @@
     <div v-for="pile in piles"
          :key="pile.id"
          class="con-startdock__pile"
-         :class="{'con-startdock__pile--empty': pile.count === 0, 'con-startdock__pile--hot': pile.hot}"
+         :class="{'con-startdock__pile--empty': pile.count === 0, 'con-startdock__pile--waiting': !pile.collected}"
          :data-start-pile="pile.id">
       <div class="con-startdock__stack">
         <div v-for="i in Math.min(3, Math.max(1, pile.count))"
@@ -41,6 +46,9 @@ export type StartDockPile = {
   /** i18n key. */
   label: string,
   count: number,
+  /** The step whose picks these are has been collected past (styles the
+   *  un-collected piles as waiting shelf slots). */
+  collected?: boolean,
   /** A flight is landing here right now (a brief receiving accent). */
   hot?: boolean,
 };

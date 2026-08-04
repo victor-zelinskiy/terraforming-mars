@@ -1,7 +1,8 @@
 import {expect} from 'chai';
 import {
-  buildInitialCardsResponse, consoleStartState, ensureStartWizard,
-  initialCardsSignature, picksForStep, startLaunchState, stepComplete, wizardSteps,
+  buildInitialCardsResponse, consoleStartState, ensureStartWizard, holdStartScene,
+  initialCardsSignature, picksForStep, releaseStartScene, startFlowBusy, startLaunchState,
+  startParticipants, startSceneHeld, stepComplete, wizardSteps,
   startJourneyItems, deploymentJourneyItems, startDockPiles,
 } from '@/client/console/consoleStartState';
 import {SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
@@ -222,12 +223,18 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       expect(items[3].state).to.eq('locked');
     });
 
-    it('the SELECTION DOCK holds only the COLLECTED steps (behind the rail position)', () => {
+    it('the SELECTION DOCK pre-mounts EVERY pile; cards lie only in the collected ones', () => {
       const picks = {corp: 'X' as never, preludes: ['A', 'B'] as never, ceo: undefined, projects: ['P'] as never};
-      expect(startDockPiles(steps, picks, 0)).to.deep.eq([]);
+      // A pile is a physical flight destination — it must exist from the
+      // very first frame (an element that mounts after the flight is the
+      // teleport bug this model change removed).
+      const atStart = startDockPiles(steps, picks, 0);
+      expect(atStart.map((pl) => pl.id)).to.deep.eq(['corp', 'prelude', 'projects']);
+      expect(atStart.map((pl) => pl.count)).to.deep.eq([0, 0, 0]);
+      expect(atStart.map((pl) => pl.collected)).to.deep.eq([false, false, false]);
       const atProjects = startDockPiles(steps, picks, 2);
-      expect(atProjects.map((pl) => pl.id)).to.deep.eq(['corp', 'prelude']);
-      expect(atProjects.map((pl) => pl.count)).to.deep.eq([1, 2]);
+      expect(atProjects.map((pl) => pl.count)).to.deep.eq([1, 2, 0]);
+      expect(atProjects.map((pl) => pl.collected)).to.deep.eq([true, true, false]);
       const atSummary = startDockPiles(steps, picks, 3);
       expect(atSummary.map((pl) => pl.count)).to.deep.eq([1, 2, 1]);
     });
@@ -236,6 +243,59 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       consoleStartState.visited.add(1);
       ensureStartWizard('p-other', 'sig-other');
       expect(consoleStartState.visited.size).to.eq(0);
+    });
+
+    it('a fresh deal resets the flow AND the lifetime hold (a rematch never inherits a stale claim)', () => {
+      holdStartScene();
+      consoleStartState.flow = 'deploying';
+      ensureStartWizard('p-rematch', 'sig-rematch');
+      expect(startSceneHeld()).to.eq(false);
+      expect(consoleStartState.flow).to.eq('idle');
+    });
+
+    it('startFlowBusy: transitions lock input; idle and the live deployment do not', () => {
+      consoleStartState.flow = 'idle';
+      expect(startFlowBusy()).to.eq(false);
+      consoleStartState.flow = 'deploying';
+      expect(startFlowBusy()).to.eq(false);
+      for (const flow of ['docking', 'returning', 'revealing-summary', 'stowing-summary', 'committing', 'materializing', 'releasing'] as const) {
+        consoleStartState.flow = flow;
+        expect(startFlowBusy(), flow).to.eq(true);
+      }
+      consoleStartState.flow = 'idle';
+    });
+
+    it('the lifetime hold arms and releases explicitly', () => {
+      releaseStartScene();
+      expect(startSceneHeld()).to.eq(false);
+      holdStartScene();
+      expect(startSceneHeld()).to.eq(true);
+      releaseStartScene();
+      expect(startSceneHeld()).to.eq(false);
+    });
+  });
+
+  describe('startParticipants (the preparation crew strip)', () => {
+    it('every seat through the shared status brain, the viewer first', () => {
+      const blue = 'blue' as Color;
+      const red = 'red' as Color;
+      const view = {
+        thisPlayer: {color: blue},
+        id: 'p1',
+        game: {phase: Phase.RESEARCH, generation: 1, passedPlayers: []},
+        players: [
+          {color: red, name: 'Rival', isActive: false, isWaitingForInput: false},
+          {color: blue, name: 'Me', isActive: false, isWaitingForInput: true},
+        ],
+      } as unknown as PlayerViewModel;
+      const crew = startParticipants(view, [blue]);
+      expect(crew.length).to.eq(2);
+      expect(crew[0].self).to.eq(true);
+      expect(crew[0].color).to.eq(blue);
+      expect(crew[1].self).to.eq(false);
+      // The live poll says only BLUE is still owed — RED reads ready.
+      expect(crew[0].status.category).to.eq('active');
+      expect(crew[1].status.category).to.not.eq('active');
     });
   });
 });

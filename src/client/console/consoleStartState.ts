@@ -40,6 +40,26 @@ export type StartWizardStep = {
   input: SelectCardModel & {type: 'card'},
 };
 
+/**
+ * The Game Start Workspace's FLOW STATE — the one motion director's phase.
+ * Input gates on it (a press during a transfer can neither double-fire nor
+ * act on geometry that is mid-flight):
+ *  - 'idle'               — a live selection surface, everything pressable;
+ *  - 'docking'            — RT collect: picks are flying into their pile;
+ *  - 'returning'          — LT return: a pile is flying back into its slots;
+ *  - 'revealing-summary'  — the piles are opening into the summary tiles;
+ *  - 'stowing-summary'    — the summary is folding back into the piles;
+ *  - 'committing'         — the initialCards response is on the wire;
+ *  - 'materializing'      — GAME STATE MATERIALIZATION (status preview →
+ *                           Top HUD + Player Rail, shell re-bounds);
+ *  - 'deploying'          — the irreversible deployment is live (per-press
+ *                           busy-ness rides playedHeroState, not this);
+ *  - 'releasing'          — the workspace's final dissolve back to the board.
+ */
+export type StartFlowState =
+  | 'idle' | 'docking' | 'returning' | 'revealing-summary' | 'stowing-summary'
+  | 'committing' | 'materializing' | 'deploying' | 'releasing';
+
 /** The player's in-progress wizard picks (survives defer / re-renders). */
 export const consoleStartState = reactive({
   ownerId: '',
@@ -57,6 +77,17 @@ export const consoleStartState = reactive({
    * stand, they never re-deal and never re-materialize.
    */
   visited: new Set<number>(),
+  /** The motion director's phase (see StartFlowState). */
+  flow: 'idle' as StartFlowState,
+  /**
+   * THE WORKSPACE LIFETIME HOLD. The root Game Start Workspace must survive
+   * the COMMIT and every prompt gap of the deployment (submit round trips,
+   * the pause between two start prompts): the shell keeps the scene mounted
+   * while this is true, even when `waitingFor` momentarily names nothing.
+   * Set at the summary commit; released only by the scene's own final
+   * release beat (the deployment settled) — never by a prompt gap.
+   */
+  hold: false,
 });
 
 /** Reset picks when the prompt identity (player / deal) changes. */
@@ -72,6 +103,31 @@ export function ensureStartWizard(ownerId: string, signature: string): void {
   consoleStartState.ceo = undefined;
   consoleStartState.projects = [];
   consoleStartState.visited = new Set<number>();
+  consoleStartState.flow = 'idle';
+  // A FRESH deal identity is a fresh game start — a stale lifetime hold from
+  // an earlier game (rematch) must never leak into this one's preparation.
+  consoleStartState.hold = false;
+}
+
+/** The scene is mid-motion / mid-commit — selection input must wait. */
+export function startFlowBusy(): boolean {
+  return consoleStartState.flow !== 'idle' && consoleStartState.flow !== 'deploying';
+}
+
+/** Keep the Game Start Workspace mounted across prompt gaps (the shell reads
+ *  this beside its `startTask` serving predicate). */
+export function holdStartScene(): void {
+  consoleStartState.hold = true;
+}
+
+/** The deployment settled (or the commit was refused) — the shell may let the
+ *  scene go the moment no start prompt is live. */
+export function releaseStartScene(): void {
+  consoleStartState.hold = false;
+}
+
+export function startSceneHeld(): boolean {
+  return consoleStartState.hold;
 }
 
 function rawTitle(t: string | Message | undefined): string {
@@ -279,28 +335,32 @@ export function deploymentJourneyItems(signals: {
 export type StartDockPileModel = {
   id: StartWizardStepId,
   label: string,
+  /** Cards physically LYING in this pile right now (0 on the live / future
+   *  steps — their picks still stand in the grid). */
   count: number,
+  /** The step whose picks these are has been collected past (i < railPos). */
+  collected: boolean,
 };
 
 /**
- * The SELECTION DOCK piles: one compact face-down pile per COLLECTED step —
- * a step's picks live in the dock only while the player stands PAST it
- * (collected on RT, returned on LT), and on the SUMMARY every pile is
- * conceptually open (counts stay — the piles are the summary's source).
+ * The SELECTION DOCK piles. EVERY step's pile exists from the first frame —
+ * a pile is a physical DESTINATION and a flight cannot target an element
+ * that mounts only after the flight (the exact bug that turned the collect
+ * into a teleport). A step's cards LIE in its pile only while the player
+ * stands PAST it (collected on RT, returned on LT); an un-collected pile is
+ * an empty, waiting shelf slot.
  */
 export function startDockPiles(
   steps: ReadonlyArray<StartWizardStep>,
   picks: InitialCardsPicks,
   railPos: number,
 ): ReadonlyArray<StartDockPileModel> {
-  const out: Array<StartDockPileModel> = [];
-  steps.forEach((s, i) => {
-    if (i >= railPos) {
-      return; // the live / future steps still hold their cards in the grid
-    }
-    out.push({id: s.id, label: JOURNEY_LABEL[s.id], count: picksForStep(picks, s.id).length});
-  });
-  return out;
+  return steps.map((s, i) => ({
+    id: s.id,
+    label: JOURNEY_LABEL[s.id],
+    count: i < railPos ? picksForStep(picks, s.id).length : 0,
+    collected: i < railPos,
+  }));
 }
 
 /** One OTHER player at the table, as the summary's readiness readout sees them. */
@@ -379,4 +439,47 @@ export function startLaunchState(
   }
   const pending = others.filter((mate) => mate.picking);
   return {others, pending, launches: pending.length === 0};
+}
+
+/** One seat of the PREPARATION's compact participant strip. */
+export type StartParticipant = {
+  color: Color,
+  /** RAW model name — the view resolves it (participantDisplayName). */
+  name: string,
+  isMarsBot: boolean,
+  /** TRUE for the viewer's own seat (rendered first, with its own accent). */
+  self: boolean,
+  /** The SHARED status presentation (same brain as the in-game top strip). */
+  status: StatusPresentation,
+};
+
+/**
+ * PARTICIPANT READINESS for the full-bleed preparation. The standard top HUD
+ * is deliberately hidden there (the player is not in the normal game state
+ * yet — global parameters and deck counts must not compete with the pick),
+ * but WHO is choosing and WHO is ready stays genuinely useful. This is that
+ * information alone, through the SAME status brain the top strip reads
+ * (`actionLabelForPlayer` + `presentPlayerStatus`), so the compact strip and
+ * the future in-game presentation can never disagree about a seat's state.
+ */
+export function startParticipants(
+  view: PlayerViewModel,
+  livePlayersWaitingFor?: ReadonlyArray<Color>,
+): ReadonlyArray<StartParticipant> {
+  const viewer = view.thisPlayer.color;
+  const live = liveWaitingSignal(livePlayersWaitingFor);
+  const out: Array<StartParticipant> = [];
+  for (const player of view.players) {
+    const isMarsBot = player.isMarsBot === true;
+    out.push({
+      color: player.color,
+      name: player.name,
+      isMarsBot,
+      self: player.color === viewer,
+      status: presentPlayerStatus(actionLabelForPlayer(view, player, live), isMarsBot),
+    });
+  }
+  // The viewer's seat leads the strip (their own state reads first).
+  out.sort((a, b) => Number(b.self) - Number(a.self));
+  return out;
 }

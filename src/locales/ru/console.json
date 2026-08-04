@@ -1,6 +1,12 @@
 {
     "System error": "Сбой системы",
     "Prepared": "Подготовлено",
+    "Starting state": "Стартовое состояние",
+    "Starting hand": "Стартовая рука",
+    "Ready to begin": "Готово к старту",
+    "Complete the remaining steps": "Завершите оставшиеся шаги",
+    "Tabletop": "Стол",
+    "Cards you play will land here": "Разыгранные карты лягут сюда",
     "Card rules": "Правила карты",
     "Statistics": "Статистика",
     "Played events": "Разыгранные события",

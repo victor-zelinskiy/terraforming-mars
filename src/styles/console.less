@@ -12376,6 +12376,10 @@ body.con-start-ceremony {
     justify-content: center;
     font-family: @con-font;
     color: @con-text;
+    /* The FULL-BLEED → STANDARD BOUNDS re-bound of Game State Materialization
+       travels (the rail inset var is published BEFORE the class swap) — the
+       shell resizes as one calm move, never a snap. */
+    transition: padding-left calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 
     &__bg {
         position: absolute;
@@ -12391,19 +12395,29 @@ body.con-start-ceremony {
         right: 0;
         bottom: 0;
         left: var(--con-start-rail-inset, 0);
-        /* Themed dim (cyan top / warm bottom) — NO blur (Steam Deck); the
-           0.92 base carries the occlusion the frost used to. */
+        transition: left calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        /* An OPAQUE premium surface — the Game Start Workspace is a real
+           room, not a veil over the live game: no board, no side panels, no
+           legacy chrome may read through the preparation (the old 0.92
+           translucency ghosted the whole right sidebar through the card
+           grid). Controlled depth stays: a cool zenith light, a warm floor
+           glow, sparse stars — calm enough that the cards own every eye. */
         background:
-            radial-gradient(ellipse at 50% -10%, fade(@con-cyan, 9%), transparent 55%),
-            radial-gradient(ellipse at 50% 115%, rgba(160, 80, 40, 0.10), transparent 60%),
-            rgba(4, 8, 14, 0.92);
+            radial-gradient(ellipse at 50% -10%, fade(@con-cyan, 8%), transparent 55%),
+            radial-gradient(ellipse at 50% 118%, rgba(150, 78, 40, 0.09), transparent 60%),
+            linear-gradient(180deg, #060b12, #04070d 58%, #05080e);
 
-        /* A faint iso-tech grid (the start-game-flow visual signature). */
+        /* A faint iso-tech grid + sparse star pinpoints (the start-flow
+           visual signature) — texture, never noise. */
         &::after {
             content: '';
             position: absolute;
             inset: 0;
             background-image:
+                radial-gradient(circle at 18% 26%, rgba(210, 230, 250, 0.10) 0 .06rem, transparent .12rem),
+                radial-gradient(circle at 72% 12%, rgba(210, 230, 250, 0.08) 0 .05rem, transparent .11rem),
+                radial-gradient(circle at 86% 64%, rgba(210, 230, 250, 0.07) 0 .05rem, transparent .11rem),
+                radial-gradient(circle at 34% 82%, rgba(210, 230, 250, 0.06) 0 .05rem, transparent .11rem),
                 repeating-linear-gradient(60deg, fade(@con-cyan, 3%) 0 .05rem, transparent .05rem 2.8rem),
                 repeating-linear-gradient(-60deg, fade(@con-cyan, 3%) 0 .05rem, transparent .05rem 2.8rem);
             pointer-events: none;
@@ -12493,56 +12507,10 @@ body.con-start-ceremony {
 
         .con-start__step--done & { color: @con-mint; }
     }
-    /* P15: the economy capsule is LABELLED COLUMNS (Starting / Purchase /
-       Preludes / Remaining) - a readable report, never a «40 −7 × 3». */
-    &__budget {
-        margin-left: auto;
-        display: inline-flex;
-        align-items: stretch;
-        gap: 0;
-        padding: .25rem .3rem;
-        border-radius: .6rem;
-        background: rgba(14, 22, 33, 0.7);
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%);
-        color: @con-text-dim;
-
-        &--broke {
-            box-shadow: inset 0 0 0 .05rem fade(@con-red, 65%), 0 0 .7rem fade(@con-red, 14%);
-            .con-start__budget-col--strong b { color: @con-red; }
-        }
-        /* COMPACT (corp / prelude): just «СРЕДСТВА N» — a calm cyan capsule,
-           not the amber spend-warning look of the full projects breakdown. */
-        &--compact {
-            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
-        }
-    }
-    &__budget-col {
-        display: inline-flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        gap: .05rem;
-        padding: .1rem .8rem;
-        b {
-            display: inline-flex;
-            align-items: center;
-            gap: .25rem;
-            color: @con-text;
-            font-size: .9rem;
-            line-height: 1.15;
-            white-space: nowrap;
-        }
-
-        & + & { border-left: .05rem solid rgba(120, 150, 180, 0.18); }
-        &--strong b { color: @con-mint; font-size: 1rem; }
-    }
-    &__budget-label {
-        font-size: .55rem;
-        letter-spacing: .07rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-        white-space: nowrap;
-    }
+    /* (The old header economy capsule is gone: the deep breakdown lives in
+       the summary's EXPANDED STARTUP STATUS PREVIEW, and the live quick
+       readout is the status rail's __status-quick chip — the header stays
+       a calm identity + journey line, exactly the workspace grammar.) */
     &__mc {
         display: inline-block;
         width: 1.1rem;
@@ -12697,6 +12665,36 @@ body.con-start-ceremony {
             line-height: 1.15;
         }
     }
+    /* THE ONE QUICK SUMMARY (shared status-rail grammar): the live economy
+       in a compact right-edge chip — funds on the identity steps, the buy
+       line on the projects step. Same glass + separator language as every
+       workspace status line; the deep breakdown belongs to the summary. */
+    &__status-quick {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        margin-left: .8rem;
+        padding: .18rem .7rem;
+        border-radius: .45rem;
+        background: rgba(10, 17, 26, 0.72);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
+        font-size: .82rem;
+        color: @con-text-dim;
+        white-space: nowrap;
+
+        &--broke {
+            box-shadow: inset 0 0 0 .05rem fade(@con-red, 60%);
+            .con-start__status-quick-part--strong { color: @con-red; }
+        }
+    }
+    &__status-quick-sep { color: rgba(120, 150, 180, 0.55); }
+    &__status-quick-part {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        &--strong { color: @con-mint; font-weight: 700; font-size: .9rem; }
+    }
     &__section-title {
         font-size: .75rem;
         letter-spacing: .11rem;
@@ -12729,7 +12727,7 @@ body.con-start-ceremony {
         align-items: flex-start;
     }
     &__summary-side {
-        flex: 0 0 16rem;
+        flex: 0 0 19.5rem;
         display: flex;
         flex-direction: column;
         gap: .6rem;
@@ -12983,12 +12981,135 @@ body.con-start-ceremony {
         font-size: .9rem;
         color: @con-text-dim;
     }
-    &__money {
-        max-width: 23rem;
-        padding: .6rem .9rem;
-        border-radius: .6rem;
-        background: rgba(14, 22, 33, 0.6);
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 35%);
+    /* ═══ EXPANDED STARTUP STATUS PREVIEW ═══
+       The summary's status panel in the FUTURE Top HUD's visual language —
+       same glass, same separators, same number treatment as `.con-status`,
+       laid out larger and with contextual labels (a pre-game HUD, not a
+       random money footnote). On the commit it physically transforms into
+       the real strip (Game State Materialization). */
+    &__hudprev {
+        display: flex;
+        flex-direction: column;
+        gap: .55rem;
+        padding: .7rem .9rem .6rem;
+        border-radius: .7rem;
+        background: linear-gradient(180deg, rgba(16, 26, 38, 0.92), rgba(10, 17, 26, 0.88));
+        box-shadow:
+            inset 0 0 0 .05rem rgba(130, 170, 205, 0.28),
+            0 .4rem 1.2rem rgba(0, 0, 0, 0.35);
+        transition: box-shadow calc(220ms * var(--motion-scale, 1)) ease;
+
+        /* The commit's RESOLVED beat — the panel states its final numbers. */
+        &--resolved {
+            box-shadow:
+                inset 0 0 0 .07rem fade(@con-mint, 60%),
+                0 0 1.1rem fade(@con-mint, 16%),
+                0 .4rem 1.2rem rgba(0, 0, 0, 0.35);
+        }
+    }
+    &__hudprev-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: .8rem;
+        padding-bottom: .35rem;
+        border-bottom: .05rem solid rgba(120, 150, 180, 0.18);
+    }
+    &__hudprev-kicker {
+        font-size: .66rem;
+        font-weight: 700;
+        letter-spacing: .13em;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 85%);
+    }
+    &__hudprev-corp {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 700;
+        font-size: .92rem;
+        color: @con-text;
+    }
+    &__hudprev-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .4rem .6rem;
+    }
+    &__hudprev-cell {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .22rem .6rem;
+        border-radius: .45rem;
+        background: rgba(255, 255, 255, 0.04);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+        font-size: .8rem;
+        color: @con-text-dim;
+        b { color: @con-text; font-size: .92rem; }
+        &--wide { flex-basis: 100%; }
+    }
+    &__hudprev-label {
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .1em;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__hudprev-prod {
+        display: inline-flex;
+        align-items: center;
+        gap: .55rem;
+        flex-wrap: wrap;
+    }
+    &__hudprev-prodrow {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        b { color: @con-mint; }
+    }
+    &__hudprev-tags {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        flex-wrap: wrap;
+        .resource-tag {
+            width: 1.3rem;
+            height: 1.3rem;
+            background-size: contain;
+            margin: 0;
+        }
+        b { font-size: .7rem; color: @con-text-dim; }
+    }
+    &__hudprev-tag { display: inline-flex; align-items: center; gap: .15rem; }
+    &__hudprev-ready {
+        margin-top: .1rem;
+        padding: .28rem .6rem;
+        border-radius: .45rem;
+        text-align: center;
+        font-size: .74rem;
+        font-weight: 700;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        color: #ffe6b0;
+        background: fade(@con-amber, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%);
+        &--ok {
+            color: @con-mint;
+            background: fade(@con-mint, 10%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%);
+        }
+    }
+    /* The materialization's flying pixel clone (spawned in the fixed layer). */
+    &__matproxy {
+        pointer-events: none;
+        will-change: transform, opacity;
+        overflow: hidden;
+        border-radius: .7rem;
+        box-shadow: 0 .8rem 2.2rem rgba(0, 0, 0, 0.5);
     }
     &__money-line {
         display: flex;
@@ -13019,9 +13140,14 @@ body.con-start-ceremony {
 
     /* Ceremony. */
     &__ceremony {
+        /* The deployment surface is a COLUMN: the deploy zone (ask layer +
+           the receiving-stage overlay) above, the compact start tableau as
+           the stable bottom shelf. The old side-by-side row lives on the
+           ASK layer inside the zone. */
         display: flex;
-        gap: 1.5rem;
-        align-items: flex-start;
+        flex-direction: column;
+        gap: .8rem;
+        align-items: stretch;
     }
     &__corps {
         flex-shrink: 0;
@@ -14565,30 +14691,44 @@ html.console-mode .notifications-layer {
 
 /* ═══ GAME START WORKSPACE (the Workspace North Star start rework) ═══ */
 
-/* FULL-BLEED PREPARATION: the player rail has no physical meaning before the
-   deployment (no resources, no identity) — it stays entirely away, and the
-   wizard's surface owns the whole width. NOT display:none on the host (its
-   box anchors nothing here) — visibility keeps the subtree cheap. */
-body.con-start-prep .con-res-host {
+/* FULL-BLEED PREPARATION: before the deployment the player has NO game state
+   — no identity, no resources, no reason for the game chrome. The STANDARD
+   TOP HUD and the PLAYER RAIL both stay entirely away (this is a deliberate
+   UX decision, not a workaround: global parameters, deck counts and the
+   generation must not compete with the starting pick), and the wizard's
+   surface owns the WHOLE screen. Participant readiness lives in the
+   workspace's own compact crew strip meanwhile. NOT display:none (their
+   boxes stay measurable — the materialization measures the strip's rect and
+   the rail inset BEFORE the entrance); visibility keeps the subtrees cheap. */
+body.con-start-prep .con-res-host,
+body.con-start-prep .con-status {
     visibility: hidden;
     pointer-events: none;
 }
-/* The FULL-BLEED wizard owns the whole surface, but the global status strip
-   stays readable above it — the frame starts below the strip. */
-body.con-start-prep .con-start__frame {
-    padding-top: 3.1rem;
-}
 
-/* RAIL MATERIALIZATION: the deployment begins → the player profile comes
-   into existence — the rail surfaces from the left as one calm entrance
-   (the corporation then fills it through the reward chips). Plays once, on
+/* GAME STATE MATERIALIZATION: the commit lands → the game state comes into
+   existence as ONE episode — the Top HUD band and the Player Rail enter
+   TOGETHER (same duration, same curve, two directions of one move), while
+   the scene's own status-preview proxy compacts into the strip's band and
+   the shell re-bounds (padding transition on .con-start). Plays once, on
    the prep → ceremony class swap. */
 body.con-start-ceremony .con-res {
     animation: con-start-rail-in calc(480ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
 }
+body.con-start-ceremony .con-status {
+    animation: con-start-hud-in calc(480ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
 @keyframes con-start-rail-in {
     from { opacity: 0; transform: translateX(-0.7rem); }
     to { opacity: 1; transform: translateX(0); }
+}
+@keyframes con-start-hud-in {
+    from { opacity: 0; transform: translateY(-0.55rem); }
+    to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    body.con-start-ceremony .con-res,
+    body.con-start-ceremony .con-status { animation: none; }
 }
 
 .con-start {
@@ -14615,36 +14755,104 @@ body.con-start-ceremony .con-res {
        the table simply stands where the player left it. */
     &__strip--settled > .con-start__deal { animation: none; }
 
-    /* ── THE CENTRAL ACTIVE-CARD STAGE (deployment) ── */
-    &__stage {
+    /* ── PARTICIPANT READINESS (the preparation's compact crew strip) ──
+       Seat dot · name · status through the SAME status brain the in-game
+       top strip reads — never the whole game HUD. Lives in the workspace
+       header's trailing zone; the real strip takes over at materialization. */
+    &__crewline {
         display: flex;
-        justify-content: center;
-        align-items: flex-start;
-        padding: .4rem 0 .6rem;
+        align-items: center;
+        gap: .5rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        min-width: 0;
     }
-    &__stage-front {
+    &__crewchip {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .22rem .65rem;
+        border-radius: 49.95rem;
+        background: rgba(12, 20, 30, 0.78);
+        box-shadow: inset 0 0 0 .05rem rgba(130, 165, 200, 0.2);
+        font-size: .74rem;
+        color: @con-text-dim;
+        white-space: nowrap;
+
+        &--self {
+            box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 55%);
+            color: @con-text;
+        }
+        &--ready {
+            .con-start__crewstate { color: fade(@con-mint, 90%); }
+        }
+    }
+    &__crewdot {
+        flex: 0 0 auto;
+        display: inline-block;
+        width: .55rem;
+        height: .55rem;
+        border-radius: 50%;
+        box-shadow: 0 0 .3rem rgba(0, 0, 0, 0.6);
+    }
+    &__crewname { font-weight: 700; }
+    &__crewstate {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        font-size: .68rem;
+        letter-spacing: .05em;
+        text-transform: uppercase;
+    }
+    &__crewtick { color: @con-mint; }
+
+    /* ── THE DEPLOYMENT ZONE: ask layer + the receiving stage ──────────
+       One zone, two layers. The ASK (corp column / pay / candidates /
+       prelude rail) is the flow layer; the RECEIVING STAGE is an absolute
+       overlay of the SAME zone that unfolds over the released ask — the
+       workspace-descend grammar, identical to the play composer's landing. */
+    &__deploy {
         position: relative;
-        width: 19.2rem;   /* 320px × 1.2 in the rem model */
-        height: 27.6rem;  /* 460px × 1.2 */
-        border-radius: .6rem;
-        background: linear-gradient(180deg, rgba(120, 155, 190, 0.05), rgba(120, 155, 190, 0.02));
-        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.12);
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
     }
-    &__stage-face {
+    &__ask {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: flex-start;
+        gap: 1.2rem;
+    }
+    &__playstage {
         position: absolute;
         inset: 0;
         display: flex;
-        align-items: flex-start;
+        align-items: stretch;
         justify-content: center;
-        > :is(.card-container, .pcard) { margin: 0; zoom: calc(1.2 * var(--con-ui-scale, 1)); }
-    }
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 
-    /* ── THE COMPACT START TABLEAU (the startup history) ── */
+        > .con-recv { flex: 1; min-height: 0; }
+
+        &--up { opacity: 1; }
+    }
+    /* The DEPLOYMENT SURFACE reveals only through Game State Materialization
+       (GSAP drives the entrance; this is the pre-reveal resting state). */
+    &__ceremony--hidden { opacity: 0; }
+
+    /* ── THE COMPACT START TABLEAU (the deployment's physical history) ──
+       A stable bottom shelf from the FIRST ceremony frame: resolved cards
+       fly down into their family row (peek faces — name band + upper art),
+       counts tick on arrival, the centre frees for the next card. */
     &__tableau {
         flex-shrink: 0;
         display: flex;
         align-items: flex-start;
         gap: 1.4rem;
+        min-height: 6.2rem;
         padding: .45rem .2rem .1rem;
         border-top: .05rem solid rgba(120, 155, 190, 0.12);
     }
@@ -14655,6 +14863,12 @@ body.con-start-ceremony .con-res {
         text-transform: uppercase;
         color: fade(@con-cyan, 75%);
         padding-top: .35rem;
+    }
+    &__tableau-empty {
+        align-self: center;
+        font-size: .74rem;
+        color: @con-text-dim;
+        letter-spacing: .04em;
     }
     &__tabgroup {
         display: flex;
@@ -14672,23 +14886,35 @@ body.con-start-ceremony .con-res {
         color: fade(@con-cyan, 78%);
         b { color: #dfe9f2; font-size: .72rem; }
     }
+    &__tabrow {
+        display: flex;
+        align-items: flex-start;
+        gap: .5rem;
+    }
     &__tabstack {
         position: relative;
-        display: flex;
-        flex-direction: column;
         width: 6.4rem; /* 320 × 0.4 in rem */
+        height: 5.2rem; /* the peek: name band + upper art */
         overflow: hidden;
         border-radius: .3rem;
-        box-shadow: inset 0 -0.3rem .5rem -0.4rem rgba(0, 0, 0, 0.55);
+        box-shadow:
+            inset 0 0 0 .05rem rgba(120, 155, 190, 0.18),
+            inset 0 -0.3rem .5rem -0.4rem rgba(0, 0, 0, 0.55);
+        /* The reserved slot mid-handoff (con-deal-hold) keeps its box —
+           the flying face covers it and reveals it at touchdown. */
     }
-    &__tabslot {
-        position: relative;
-        height: 1.5rem; /* the title strip (75 × 0.4) */
-        &:last-child { height: 4.4rem; } /* the open top card's upper body */
-    }
+    &__tabslot { position: absolute; inset: 0; }
     &__tabface {
         > :is(.card-container, .pcard) { margin: 0; }
         zoom: calc(0.4 * var(--con-ui-scale, 1));
+    }
+    /* The compact handoff's independent pixel proxy (fixed dock layer). */
+    &__handoff-proxy {
+        pointer-events: none;
+        will-change: transform, opacity;
+        overflow: hidden;
+        border-radius: .35rem;
+        box-shadow: 0 .7rem 1.8rem rgba(0, 0, 0, 0.5);
     }
 }
 
@@ -14750,9 +14976,13 @@ body.con-start-ceremony .con-res {
         gap: .55rem;
         border-radius: .4rem;
         padding: .15rem .4rem;
-        transition: box-shadow calc(180ms * var(--motion-scale, 1)) ease;
+        transition: box-shadow calc(180ms * var(--motion-scale, 1)) ease, opacity calc(180ms * var(--motion-scale, 1)) ease;
         &--hot { box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%); }
         &--empty .con-startdock__stack { opacity: .35; }
+        /* An UN-COLLECTED step's pile: a waiting shelf slot — present (a
+           flight destination must pre-exist), calm, clearly not yet holding
+           anything of the player's. */
+        &--waiting { opacity: .55; }
     }
     &__stack {
         position: relative;

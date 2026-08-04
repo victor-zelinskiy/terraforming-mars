@@ -1,24 +1,27 @@
 /*
- * CONSOLE PLAY → EMBEDDED «РАЗЫГРАНО» LANDING — the workspace completion probe.
+ * CONSOLE GAME START WORKSPACE + PLAY LANDING — the workspace completion probe.
  *
- * Drives a real solo game to a card play FROM the hand workspace and proves the
- * migrated completion path at the rendered surface:
+ * PART A (bootGame) drives the GAME START WORKSPACE end to end and proves the
+ * rework's hard contracts at the rendered surface:
  *
- *   1. the standalone «Разыграно» overlay NEVER mounts during the flow
- *      (`.con-played:not(.con-played--embedded)` stays absent);
- *   2. the workspace does not close at confirm — the landing stage
- *      (`.con-composer__playstage--up`) presents the EMBEDDED tableau inside
- *      the same frame, and the breadcrumb tail reads «РАЗЫГРАНО»;
- *   3. the card is physically laid ON TOP of its category pile: the reserved
- *      slot exists first (`--incoming`), the ONE proxy is visible while it
- *      travels, and after the reveal the card is the pile's LAST (top) slot
- *      with the previous cards still beneath it;
- *   4. the workspace folds to the board only after the episode — and a card
- *      with a follow-up (tile placement) hands over AFTER the docking.
+ *   1. PREPARATION is a true full-bleed workspace: the standard top HUD and
+ *      the player rail are HIDDEN (visibility), the compact participant strip
+ *      is present, the Selection Dock pre-mounts every pile, the summary
+ *      carries the Expanded Startup Status Preview;
+ *   2. the RT collect is PHYSICAL — a dock-flight proxy is airborne right
+ *      after the advance press;
+ *   3. after the summary commit the root `.con-start` NEVER unmounts until
+ *      the deployment settles (polled continuously — a single absent frame
+ *      fails the run: that gap is what stranded the corporation hero);
+ *   4. the deployment plays through the REAL receiving stage
+ *      (`.con-start__playstage .con-recv`), resolved cards physically reach
+ *      the compact start tableau (`[data-start-mini]` grows), and the
+ *      standalone «Разыграно» overlay never mounts;
+ *   5. only after the full settle the workspace releases to the board.
  *
- * Scenarios: green (Acquired Company), blue (Rover Construction), red event
- * (Investment Loan), tile-follow-up event (Nuclear Zone) at FHD; the green
- * card again at 4K TV and under reduced motion.
+ * PART B (the play scenarios) keeps the hand-workspace landing contract:
+ * green / blue / event / tile-follow-up at FHD; green again at 4K TV and
+ * under reduced motion.
  */
 import {expect, test, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'fs';
@@ -31,10 +34,13 @@ const BLUE = 'Rover Construction';
 const EVENT = 'Investment Loan';
 const TILE_EVENT = 'Nuclear Zone';
 
-function newGameConfig() {
+/** Follow-up-free preludes (plain printed gains → clean hero + reward beats). */
+const PRELUDES = ['Allied Bank', 'Loan', 'Dome Farming', 'Galilean Mining'];
+
+function newGameConfig(withPreludes: boolean) {
   const expansions: Record<string, boolean> = {
     corpera: true, promo: false, venus: false, colonies: false,
-    prelude: false, prelude2: false, turmoil: false, community: false,
+    prelude: withPreludes, prelude2: false, turmoil: false, community: false,
     ares: false, moon: false, pathfinders: false, ceo: false,
     starwars: false, underworld: false, deltaProject: false,
   };
@@ -70,7 +76,7 @@ function newGameConfig() {
     bannedCards: [],
     includedCards: [],
     customColoniesList: [],
-    customPreludes: [],
+    customPreludes: withPreludes ? PRELUDES : [],
     // Guaranteed first-hand project cards (dealt off the top of the deck).
     customProjectCards: [GREEN, BLUE, EVENT, TILE_EVENT],
     requiresMoonTrackCompletion: false,
@@ -96,15 +102,69 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
-/** Create a game and land on the console board home, wizard walked. */
-async function bootGame(page: Page, request: APIRequestContext): Promise<void> {
-  const created = await request.post('/api/creategame', {data: newGameConfig()});
+type StartLog = {
+  /** Preparation shell facts (sampled on the first wizard frame). */
+  topHudHidden: boolean,
+  railHidden: boolean,
+  sawCrewStrip: boolean,
+  dockPilesAtStart: number,
+  /** A dock-flight proxy was airborne right after an RT collect. */
+  sawDockProxy: boolean,
+  sawHudPreview: boolean,
+  /** The ceremony was reached inside the SAME `.con-start` root. */
+  sawCeremony: boolean,
+  /** Frames where `.con-start` was ABSENT between the commit and the settle. */
+  goneFramesDuringDeployment: number,
+  /** The REAL receiving stage presented during a start play. */
+  sawStartRecv: boolean,
+  /** The docked front carried a card (the play physically landed). */
+  sawStartDocked: boolean,
+  /** Max compact-tableau minis seen (corp = 1; + preludes = 3). */
+  maxTableauMinis: number,
+  /** The standalone «Разыграно» overlay NEVER mounts during the start. */
+  standaloneFrames: number,
+  /** The hand dock was visible during the deployment. */
+  sawHandDock: boolean,
+  trace: Array<string>,
+};
+
+/** Create a game and drive the WHOLE Game Start Workspace; returns the log. */
+async function bootGame(page: Page, request: APIRequestContext, withPreludes = false, shotPrefix = 'gsw'): Promise<StartLog> {
+  const log: StartLog = {
+    topHudHidden: false, railHidden: false, sawCrewStrip: false, dockPilesAtStart: 0,
+    sawDockProxy: false, sawHudPreview: false, sawCeremony: false,
+    goneFramesDuringDeployment: 0, sawStartRecv: false, sawStartDocked: false,
+    maxTableauMinis: 0, standaloneFrames: 0, sawHandDock: false, trace: [],
+  };
+  const created = await request.post('/api/creategame', {data: newGameConfig(withPreludes)});
   expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
   const model = await created.json() as {players: Array<{id: string}>};
   await page.goto(`/player?id=${model.players[0].id}&console=1`);
   await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
+  // The ASSET WARM-UP veil (.boot-loader) sits over the scene long on a cold
+  // bundle — pressing through it works (input bridges), but every screenshot
+  // would show the curtain instead of the workspace. Wait it out.
+  await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000}).catch(() => {});
   await page.waitForTimeout(3500); // deal cinematic settle
+
+  // ── PREPARATION SHELL facts (the full-bleed contract). ──
+  const shell = await page.evaluate(() => {
+    const vis = (sel: string) => {
+      const el = document.querySelector(sel);
+      return el === null ? 'absent' : getComputedStyle(el).visibility;
+    };
+    return {
+      status: vis('.con-status'),
+      rail: vis('.con-res-host'),
+      crew: document.querySelector('.con-start__crewline') !== null,
+      piles: document.querySelectorAll('.con-startdock [data-start-pile]').length,
+    };
+  });
+  log.topHudHidden = shell.status === 'hidden' || shell.status === 'absent';
+  log.railHidden = shell.rail === 'hidden' || shell.rail === 'absent';
+  log.sawCrewStrip = shell.crew;
+  log.dockPilesAtStart = shell.piles;
 
   // ── the start wizard: STATE-DRIVEN by the active step chip (a blind key
   //    walk drifts — the 4K deal cinematic swallowed its first press). ──
@@ -113,8 +173,6 @@ async function bootGame(page: Page, request: APIRequestContext): Promise<void> {
   let lastFocused = '';
   let stalls = 0;
   const queue: Array<string> = [];
-  /** Walk one nav step toward an unvisited slot: right, then down at a right
-   *  edge, and a serpentine escape back home from a dead corner. */
   const step = async (focused: string) => {
     if (focused === '') {
       await page.waitForTimeout(400); // the deal cinematic is still dealing
@@ -135,7 +193,19 @@ async function bootGame(page: Page, request: APIRequestContext): Promise<void> {
     }
     lastFocused = focused;
   };
-  for (let i = 0; i < 220 && await frame.count() > 0; i++) {
+  /** RT advance + a fast proxy sniff (the collect must be PHYSICAL). */
+  const advance = async () => {
+    await page.keyboard.press('Period');
+    for (let p = 0; p < 8 && !log.sawDockProxy; p++) {
+      if (await page.locator('.con-startdock-proxy').count() > 0) {
+        log.sawDockProxy = true;
+      }
+      await page.waitForTimeout(60);
+    }
+    await page.waitForTimeout(1100);
+    lastFocused = '';
+  };
+  for (let i = 0; i < 260 && await frame.count() > 0; i++) {
     if (queue.length > 0) {
       await key(page, queue.shift() as string, 200);
       continue;
@@ -143,23 +213,38 @@ async function bootGame(page: Page, request: APIRequestContext): Promise<void> {
     const s = await page.evaluate(() => ({
       active: (document.querySelector('.con-jrail__item--current')?.textContent ?? '').toUpperCase(),
       focused: document.querySelector('.con-cards__slot--focused')?.getAttribute('data-zoom-slot') ?? '',
-      picked: Array.from(document.querySelectorAll('.con-cards__slot--picked')).map((el) => el.getAttribute('data-zoom-slot') ?? ''),
+      // VISIBLE picks only — the parked panes keep every earlier step's picked
+      // slots in the DOM (that is the caching contract), so an unscoped query
+      // counts the corporation on the preludes step and lies to the walker.
+      picked: Array.from(document.querySelectorAll('.con-cards__slot--picked'))
+        .filter((el) => (el as HTMLElement).offsetParent !== null)
+        .map((el) => el.getAttribute('data-zoom-slot') ?? ''),
       ceremony: document.querySelector('.con-start--ceremony') !== null,
+      hudprev: document.querySelector('.con-start__hudprev') !== null,
     }));
     // The wizard flows STRAIGHT into the deployment inside the same frame
-    // now (no unmount gap — the whole point): hand over to the ceremony loop.
+    // (no unmount gap — the whole point): hand over to the ceremony loop.
     if (s.ceremony) {
+      log.sawCeremony = true;
       break;
     }
     if (s.active.includes('КОРПОРАЦ')) {
-      // CrediCor specifically: no first action, no on-pick choices — the
-      // post-start board is idle. Walk to it, pick, RT advances.
       if (s.picked.includes('CrediCor')) {
-        await shoot(page, 'gsw-1-corp-picked');
-        await key(page, 'Period', 1800);
-        lastFocused = '';
+        await shoot(page, `${shotPrefix}-1-corp-picked`);
+        await advance();
       } else if (s.focused === 'CrediCor') {
         await key(page, 'Enter', 700);
+      } else {
+        await step(s.focused);
+      }
+      continue;
+    }
+    if (s.active.includes('ПРОЛОГ')) {
+      if (s.picked.length >= 2) {
+        await advance();
+      } else if (s.focused !== '' && !s.picked.includes(s.focused)) {
+        await key(page, 'Enter', 420);
+        lastFocused = '';
       } else {
         await step(s.focused);
       }
@@ -168,8 +253,7 @@ async function bootGame(page: Page, request: APIRequestContext): Promise<void> {
     if (s.active.includes('ПРОЕКТ')) {
       const missing = targets.filter((t) => !s.picked.includes(t));
       if (missing.length === 0) {
-        await key(page, 'Period', 1600);
-        lastFocused = '';
+        await advance();
       } else if (missing.includes(s.focused)) {
         await key(page, 'Enter', 420);
         lastFocused = ''; // a pick re-reads fresh — never counts as a stall
@@ -178,37 +262,104 @@ async function bootGame(page: Page, request: APIRequestContext): Promise<void> {
       }
       continue;
     }
-    // The summary (or a transition beat): A launches the game.
+    // The summary: the Expanded Startup Status Preview must stand; A commits.
     if (s.active.includes('СВОДКА') || s.active.includes('SUMMARY')) {
-      await shoot(page, 'gsw-2-summary');
+      log.sawHudPreview = log.sawHudPreview || s.hudprev;
+      await shoot(page, `${shotPrefix}-2-summary`);
     }
     await key(page, 'Enter', 1300);
   }
 
-  // ── the start CEREMONY: the scene RE-MOUNTS after a gap (longer at 4K —
-  //    corp hero + deal render slower). Press A whenever the scene is up; a
-  //    mandatory ANNOUNCE / deferred chip opens with B; call it done only
-  //    after everything has stayed away for a while. ──
-  let quietPolls = 0;
-  let shotCeremony = false;
-  for (let i = 0; i < 90 && quietPolls < 12; i++) {
-    if (await page.locator('.con-start').count() > 0) {
-      quietPolls = 0;
-      if (!shotCeremony && await page.locator('.con-start__tableau').count() > 0) {
-        shotCeremony = true;
-        await shoot(page, 'gsw-3-deployment');
-      }
-      await key(page, 'Enter', 1100);
-    } else if (await page.locator('.con-mandatory').count() > 0) {
-      quietPolls = 0;
-      await key(page, 'Escape', 900); // B opens the announced / restores the deferred prompt
-    } else {
-      quietPolls++;
-      await page.waitForTimeout(800);
+  // ── the DEPLOYMENT: the root `.con-start` must exist CONTINUOUSLY from the
+  //    commit to the settle (the lifetime hold) — a single absent frame while
+  //    anything is still pending is the workspace-close bug. Press A whenever
+  //    a CTA stands; the release (scene gone AND stays gone) ends the loop. ──
+  let shotDeploy = false;
+  let shotStage = false;
+  let goneStreak = 0;
+  for (let i = 0; i < 200; i++) {
+    const s = await page.evaluate(() => {
+      const start = document.querySelector('.con-start') !== null;
+      const recv = document.querySelector('.con-start__playstage .con-recv');
+      const front = recv?.querySelector('[data-recv-front]');
+      return {
+        start,
+        cta: start && document.querySelector('.con-start__slot-a') !== null,
+        recv: recv !== null,
+        docked: (front?.getAttribute('data-played-key') ?? '') !== '',
+        minis: document.querySelectorAll('.con-start [data-start-mini]').length,
+        standalone: document.querySelector('.con-played:not(.con-played--embedded)') !== null,
+        handDock: document.querySelector('.con-handdock, .con-hand-dock, [data-hand-dock]') !== null,
+        mandatory: document.querySelector('.con-mandatory') !== null,
+        tableau: document.querySelector('.con-start__tableau') !== null,
+      };
+    });
+    log.trace.push(`d${i} start:${s.start ? 1 : 0} cta:${s.cta ? 1 : 0} recv:${s.recv ? 1 : 0} dock:${s.docked ? 1 : 0} minis:${s.minis} hd:${s.handDock ? 1 : 0}`);
+    if (s.standalone) {
+      log.standaloneFrames++;
     }
+    if (s.start) {
+      goneStreak = 0;
+      if (s.recv) {
+        log.sawStartRecv = true;
+      }
+      if (s.docked) {
+        log.sawStartDocked = true;
+        if (!shotStage) {
+          shotStage = true;
+          await shoot(page, `${shotPrefix}-4-receiving-stage`);
+        }
+      }
+      if (s.handDock) {
+        log.sawHandDock = true;
+      }
+      log.maxTableauMinis = Math.max(log.maxTableauMinis, s.minis);
+      if (!shotDeploy && s.tableau) {
+        shotDeploy = true;
+        await shoot(page, `${shotPrefix}-3-deployment`);
+      }
+      if (s.cta) {
+        await key(page, 'Enter', 700);
+      } else {
+        await page.waitForTimeout(180);
+      }
+      continue;
+    }
+    // The scene is gone. Before the ceremony that's the old close bug; after
+    // it, it's the release — confirm it STAYS gone (not a gap re-mount).
+    goneStreak++;
+    if (log.sawCeremony && log.maxTableauMinis === 0 && goneStreak === 1) {
+      log.goneFramesDuringDeployment++;
+    }
+    if (goneStreak >= 8) {
+      break;
+    }
+    if (s.mandatory) {
+      break; // post-release first-action announce — the start flow is over
+    }
+    await page.waitForTimeout(300);
   }
   await expect(page.locator('.con-start')).toHaveCount(0, {timeout: 30_000});
-  await page.waitForTimeout(4000); // corp hero + hand intake settle
+  await page.waitForTimeout(4500); // hand intake settle (slower at 4K)
+  return log;
+}
+
+function assertStart(log: StartLog, opts: {withPreludes: boolean, strictMotion: boolean}): void {
+  console.log(`[start trace]\n${log.trace.join('\n')}`);
+  expect(log.topHudHidden, 'the standard top HUD must be HIDDEN through the preparation').toBeTruthy();
+  expect(log.railHidden, 'the player rail must be HIDDEN through the preparation').toBeTruthy();
+  expect(log.sawCrewStrip, 'the compact participant strip must serve readiness instead').toBeTruthy();
+  expect(log.dockPilesAtStart, 'EVERY Selection-Dock pile pre-mounts from the first frame').toBeGreaterThanOrEqual(opts.withPreludes ? 3 : 2);
+  expect(log.sawHudPreview, 'the summary carries the Expanded Startup Status Preview').toBeTruthy();
+  expect(log.sawCeremony, 'the deployment began INSIDE the same .con-start root').toBeTruthy();
+  expect(log.goneFramesDuringDeployment, 'the workspace must NOT close between the commit and the first play').toBe(0);
+  expect(log.sawStartRecv, 'the REAL receiving stage presented the start plays').toBeTruthy();
+  expect(log.sawStartDocked, 'a start play physically DOCKED on the receiving stage').toBeTruthy();
+  expect(log.maxTableauMinis, 'resolved cards physically reached the compact tableau').toBeGreaterThanOrEqual(opts.withPreludes ? 3 : 1);
+  expect(log.standaloneFrames, 'the standalone «Разыграно» overlay never mounts during the start').toBe(0);
+  if (opts.strictMotion) {
+    expect(log.sawDockProxy, 'the RT collect flew a PHYSICAL dock proxy').toBeTruthy();
+  }
 }
 
 /** Walk the hand cursor onto `card` and open the workspace descent. */
@@ -221,15 +372,35 @@ async function descendIntoPlay(page: Page, card: string): Promise<void> {
     await key(page, 'Enter', 1100);
   }
   await expect(page.locator('.con-hand__frame')).toBeVisible({timeout: 10_000});
+  // The hand INTAKE may still be flying the starting cards in (slower at 4K)
+  // — walk the cursor only over a populated grid, never into a void.
+  await expect(page.locator('.con-hand__slot').first()).toBeVisible({timeout: 20_000});
   await page.waitForTimeout(800);
 
   // Cursor onto the target card (right-major adaptive walk with a down fallback).
   const onTarget = () => page.locator(`.con-hand__slot--selected[data-zoom-slot="${card}"]`).count();
   let lastSelected = '';
-  for (let i = 0; i < 40 && await onTarget() === 0; i++) {
-    const selected = await page.locator('.con-hand__slot--selected').getAttribute('data-zoom-slot') ?? '';
+  const walkTrace: Array<string> = [];
+  // 60 patient iterations: right after the start release the hand's OPEN
+  // reveal episode gates nav until its flights settle (longest at 4K) — the
+  // walk simply keeps knocking until the grid answers.
+  for (let i = 0; i < 60 && await onTarget() === 0; i++) {
+    const st = await page.evaluate(() => ({
+      selected: document.querySelector('.con-hand__slot--selected')?.getAttribute('data-zoom-slot') ?? '',
+      wheel: document.querySelector('.con-quick, .con-wheel, [class*="quickwheel"]') !== null,
+      zoom: document.querySelector('.con-zoom') !== null,
+      start: document.querySelector('.con-start') !== null,
+      mandatory: document.querySelector('.con-mandatory') !== null,
+      slots: document.querySelectorAll('.con-hand__slot').length,
+      overlays: Array.from(document.querySelectorAll('[data-motion-surface]')).map((el) => el.getAttribute('data-motion-surface')).join(','),
+    }));
+    const selected = st.selected;
+    walkTrace.push(`${i}:${selected}|w${st.wheel ? 1 : 0}z${st.zoom ? 1 : 0}s${st.start ? 1 : 0}m${st.mandatory ? 1 : 0}n${st.slots}|${st.overlays}`);
     await key(page, selected === lastSelected && i > 0 ? 'ArrowDown' : 'ArrowRight', 260);
     lastSelected = selected;
+  }
+  if (await onTarget() === 0) {
+    console.log(`[hand walk trace] ${walkTrace.join(' ')}`);
   }
   expect(await onTarget(), `hand cursor never reached ${card}`).toBeGreaterThan(0);
 
@@ -373,12 +544,14 @@ function assertScene(log: SceneLog, opts: {isEvent: boolean, minEvents?: number}
   }
 }
 
-test.describe('console play → embedded «Разыграно» landing', () => {
+test.describe('console Game Start Workspace + play landing', () => {
   test.describe.configure({mode: 'serial'});
 
-  test('green (Automated) card lands on its pile inside the workspace', async ({page, request}) => {
-    test.setTimeout(240_000);
-    await bootGame(page, request);
+  test('the FULL start flow (preludes on) + the four hand plays', async ({page, request}) => {
+    test.setTimeout(900_000);
+    const startLog = await bootGame(page, request, true, 'gsw-fhd');
+    assertStart(startLog, {withPreludes: true, strictMotion: true});
+
     await descendIntoPlay(page, GREEN);
     const log = await runLandingScene(page, GREEN, false, 'fhd-green');
     assertScene(log, {isEvent: false});
@@ -414,10 +587,11 @@ test.describe('console play → embedded «Разыграно» landing', () => 
     await shoot(page, 'fhd-tile-4-placement');
   });
 
-  test('4K TV: the landing stage keeps the same grammar', async ({page, request}) => {
-    test.setTimeout(420_000);
+  test('4K TV: the start workspace + the landing keep the same grammar', async ({page, request}) => {
+    test.setTimeout(600_000);
     await page.setViewportSize({width: 3840, height: 2160});
-    await bootGame(page, request);
+    const startLog = await bootGame(page, request, false, 'gsw-4k');
+    assertStart(startLog, {withPreludes: false, strictMotion: true});
     await descendIntoPlay(page, GREEN);
     const log = await runLandingScene(page, GREEN, false, 'tv4k-green');
     assertScene(log, {isEvent: false});
@@ -425,13 +599,14 @@ test.describe('console play → embedded «Разыграно» landing', () => 
   });
 
   test('reduced motion keeps the physical continuity (no overlay, same dock)', async ({page, request}) => {
-    test.setTimeout(240_000);
+    test.setTimeout(480_000);
     await page.emulateMedia({reducedMotion: 'reduce'});
-    await bootGame(page, request);
+    const startLog = await bootGame(page, request, false, 'gsw-red');
+    // Reduced motion: flights resolve instantly — proxies are exempt, the
+    // structural contract (lifetime, receiving stage, tableau) still holds.
+    assertStart(startLog, {withPreludes: false, strictMotion: false});
     await descendIntoPlay(page, GREEN);
     const log = await runLandingScene(page, GREEN, false, 'reduced-green');
-    // Reduced motion: the hop is short and may complete between polls — the
-    // proxy sighting is not required; the structural contract still is.
     expect(log.standaloneFrames, 'no standalone overlay under reduced motion').toBe(0);
     expect(log.sawStage, 'the receiving stage presented').toBeTruthy();
     expect(log.sawDocked || log.sawReserved, 'the card reached its stack').toBeTruthy();

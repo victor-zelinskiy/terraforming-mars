@@ -944,3 +944,76 @@ receivingMinis / foreignTargetMinis / splitPlayRewards / cardTargetGroups):
   (handoff/эмердженс/foreign-mini), hero-спек (порядок emerge→chips→settle;
   overlay-хост хуки не зовёт), e2e-проба переписана на `.con-recv`
   (+fullOverlayFrames=0, cardColHidden, docked=front key).
+
+## THE GAME START WORKSPACE (полный реворк 2026-08-04)
+
+Старт партии — ОДИН корневой workspace `.con-start` от первого выбора
+корпорации до стабилизированного поля. Никаких keyed `out-in` фреймов: один
+persistent `.con-start__frame`, этапы = слои (parked panes) под управлением
+motion-директора (`consoleStartState.flow` — state machine с input-lock:
+docking/returning/revealing-summary/stowing-summary/committing/materializing/
+deploying/releasing; `startFlowBusy()` глотает ввод в переходах).
+
+**PREPARATION (full-bleed, обратимая).** `body.con-start-prep` прячет
+`visibility`-ю И `.con-status` (весь стандартный top HUD), И `.con-res-host`
+— до развёртывания игрового состояния НЕТ, и стандартный HUD не конкурирует с
+выбором (это осознанное UX-решение, не workaround; visibility, не display —
+материализация меряет их ректы заранее). Readiness участников — компактный
+crew-strip в trailing-зоне ConsoleWsHead (`startParticipants`, тот же
+status-brain, что у strip'а). Фон `.con-start__bg` НЕПРОЗРАЧНЫЙ (панели
+игры не просвечивают). Selection Dock пре-монтирует ВСЕ пилы с первого кадра
+(`startDockPiles` без фильтра по railPos — полёт не может целиться в
+элемент, который смонтируется после полёта; несобранные = `--waiting`).
+Свап панелей шага — `animatePaneSwap` ПОД полётами collectToDock/
+returnFromDock; сводка = parked pane (v-show `summaryShown` — держится и
+через материализацию), её тайлы «held» с ПЕРВОГО кадра (pre-hold
+`summaryArriving` в onCovered коллекта — карты приходят в сводку ТОЛЬКО
+полётами раскрытия пил).
+
+**EXPANDED STARTUP STATUS PREVIEW** (`startStatusPreview.ts`, чистый):
+финансовое ядро через shared `initialDraftMoney`; производство — ТОЛЬКО
+печатные top-level production-box из renderData (консервативный парсер:
+любой экзотический узел — весь вклад карты опускается, никогда не
+approximation); метки — printed tags разворачиваемых карт (корп+прологи;
+купленные проекты идут в РУКУ и меток не дают). productionBox у ClientCard
+НЕ заполняется у современных карт — источник только renderData.
+
+**COMMIT + LIFETIME HOLD.** `holdStartScene()` взводится В ТОМ ЖЕ нажатии,
+что и submit сводки; шелл сервит сцену по `startSceneServes = startTask
+!== undefined || startSceneHeld()` (маунт, роутинг ввода, suppression,
+foreground-lease, приоритет shell-секций — ВСЕ presence-сайты). Промпт-гэпы
+развёртывания больше НЕ размонтируют workspace — это и был баг «workspace
+закрывается после commit / корпорация висит без destination». Отпускает
+hold ТОЛЬКО `runSceneRelease` (deploymentSettled: нет start-промптов, hero
+idle, handoff завершён) — либо commit-safety при отказе сервера. Гоча:
+watcher startTask, сбрасывавший hand-delivery withhold на `now===undefined`,
+обязан игнорировать гэпы под hold'ом (иначе купленные карты вспыхивали в
+доке до оплаты).
+
+**GAME STATE MATERIALIZATION** (`runMaterialization`, на wizard→ceremony
+mode-флипе при flow==='committing'): resolved-бит превью → recede сводки/
+дока/crew → пиксельный прокси превью компактируется к ленте `.con-status`
+→ ОДИН class-swap запускает ОБА входа (`con-start-hud-in` для strip +
+`con-start-rail-in` для рельсы, одинаковые кривые/длительности) + фрейм
+re-bounds транзишеном padding-left (inset-var публикуется ДО свапа классов)
+→ reveal ceremony-body. Reduced motion: один settled кадр.
+
+**DEPLOYMENT.** Зона `.con-start__deploy` = ask-слой (корп-колонка / оплата
+/ кандидаты / прологи) + АБСОЛЮТНЫЙ `.con-start__playstage` с НАСТОЯЩИМ
+`ConsolePlayedReceivingStage` (никаких start-специфичных стейджей — компонент
+сам регистрирует hero-target и effect-хуки; landingUp/landingMounted — те же
+предикаты, что у play-композера). Ask release'ится на landingUp (GSAP, как
+setup-release композера). destinationReady: actByName не принимает нажатие,
+пока `ceremonyRevealed` false или handoff в полёте. Compact handoff
+('closing') = НЕЗАВИСИМЫЙ пиксельный прокси в fixed-слое (стейдж
+размонтируется раньше конца полёта) → мини-слот `[data-start-mini]`
+всегда-смонтированного нижнего стола `.con-start__tableau` (peek-лица
+ConsolePlayedCardLite; incoming держится `con-deal-hold`). B заблокирован,
+пока hero активен или handoff летит (defer размонтировал бы цель).
+
+Гварды: `consoleStartState.spec` (все пилы с кадра 0, flow/hold, rematch
+сбрасывает hold, participants), `startStatusPreview.spec`, e2e-проба
+`console-play-landing-probe` (СТРОГО: top HUD hidden в prep, crew-strip,
+пилы≥N, dock-прокси в полёте, hudprev на сводке, `.con-start` непрерывен
+через commit, `.con-recv` в playstage, docked front, рост
+`[data-start-mini]` до 3 с прологами, standalone «Разыграно» = 0 кадров).

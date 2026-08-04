@@ -697,12 +697,12 @@ function escapeName(name: string): string {
 function heroRewardSourceSelectors(card: string): Array<string> {
   const esc = escapeName(card);
   return [
+    // The receiving stage serves BOTH workspace hosts now — the hand
+    // workspace's landing AND the Game Start Workspace's deployment centre
+    // (the corp / prelude plays land on the same .con-recv front).
     '.con-recv [data-recv-front] .con-recv__face',
     '.con-recv [data-recv-front]',
     '.con-recv .con-recv__backpile',
-    // The GAME START workspace's central stage (the corp / prelude plays).
-    '.con-start [data-recv-front] .con-start__stage-face',
-    '.con-start [data-recv-front]',
     `.con-played [data-played-key="${esc}"] .con-played__face`,
     `.con-played [data-played-key="${esc}"]`,
     // An EVENT lands face-down on the events backstack — its rewards

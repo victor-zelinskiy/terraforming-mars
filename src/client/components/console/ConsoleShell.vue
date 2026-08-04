@@ -562,7 +562,7 @@
          start-sequence ceremony) — the console-native replacement for
          both desktop start surfaces. B defers to the amber chip. -->
     <transition name="con-layer">
-      <ConsoleStartScene v-if="startTask !== undefined && !govScaleFocusState.holding && !consoleState.task.deferred"
+      <ConsoleStartScene v-if="startSceneServes && !govScaleFocusState.holding && !consoleState.task.deferred"
                          ref="startScene"
                          :playerView="playerView"
                          :waitingOnPlayers="waitingOnPlayers"
@@ -944,7 +944,7 @@
       <waiting-for v-if="game.phase !== 'end'" ref="waitingFor"
                    :playerView="playerView"
                    :waitingfor="playerView.waitingFor"
-                   :modal-suppressed="hostServesPrompt || tilePlacementHolds || presentationHeld || consoleRevealMode !== undefined || startTask !== undefined || draftWaitActive || govScaleFocusState.holding || govScaleFocusState.closing || playedHeroHolds"></waiting-for>
+                   :modal-suppressed="hostServesPrompt || tilePlacementHolds || presentationHeld || consoleRevealMode !== undefined || startSceneServes || draftWaitActive || govScaleFocusState.holding || govScaleFocusState.closing || playedHeroHolds"></waiting-for>
       <select-space v-if="convertPlantsPrompt !== undefined"
                     :playerView="playerView"
                     :playerinput="convertPlantsPrompt"
@@ -1190,6 +1190,7 @@ import {CardType} from '@/common/cards/CardType';
 import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi} from '@/client/console/consoleColoniesModel';
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
+import {startSceneHeld} from '@/client/console/consoleStartState';
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
@@ -1818,7 +1819,7 @@ export default defineComponent({
       }
       return !(
         this.hostTask !== undefined ||
-        this.startTask !== undefined ||
+        this.startSceneServes ||
         this.govSupportActive ||
         this.productionLossActive ||
         this.nativeCompositeTask !== undefined ||
@@ -1934,7 +1935,7 @@ export default defineComponent({
         return false;
       }
       return (this.hostTask !== undefined && this.taskSpacePending === undefined) ||
-        this.startTask !== undefined ||
+        this.startSceneServes ||
         this.govSupportActive;
     },
     /** The played-card hero scene owns the foreground (spec §13: a follow-up
@@ -2282,6 +2283,19 @@ export default defineComponent({
       // DEFERRED corporationPlay press + the hero landing carry that beat,
       // and the reveal never activates in console mode.)
       return undefined;
+    },
+    /**
+     * The Game Start Workspace SERVES — a live start prompt OR the workspace
+     * LIFETIME HOLD (consoleStartState.hold). The hold spans the summary
+     * commit and every prompt gap of the deployment: one root workspace from
+     * the first corporation card to the settled start, never a close/open
+     * between beats (the close mid-hero is exactly what stranded the
+     * corporation card in the motion layer). Every presence-semantics site
+     * (mount, input routing, prompt suppression, foreground lease) reads THIS,
+     * never raw `startTask`.
+     */
+    startSceneServes(): boolean {
+      return this.startTask !== undefined || startSceneHeld();
     },
     /** OPTIONAL draft re-pick — the fork shows a calm "waiting for the other
      *  players" banner instead of offering to change the pick (desktop parity). */
@@ -3252,7 +3266,7 @@ export default defineComponent({
         // keeps the grid scrollable; any OTHER shell task means the hand is
         // not the focus surface.
         (this.shellTask === undefined || this.handShellServed) &&
-        this.startTask === undefined &&
+        !this.startSceneServes &&
         this.consoleRevealMode === undefined;
     },
     // ── banner ──────────────────────────────────────────────────────────
@@ -3417,7 +3431,7 @@ export default defineComponent({
     journalHardBlocked(): boolean {
       return this.placementActive ||
         this.consoleRevealMode !== undefined ||
-        (this.startTask !== undefined && !this.consoleState.task.deferred) ||
+        (this.startSceneServes && !this.consoleState.task.deferred) ||
         (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) ||
         this.shellTaskActive;
     },
@@ -3729,7 +3743,7 @@ export default defineComponent({
         }
         return 'Cards';
       }
-      if (this.startTask !== undefined && !this.consoleState.task.deferred) {
+      if (this.startSceneServes && !this.consoleState.task.deferred) {
         // The scene's own header already reads «СТАРТ ПАРТИИ» (kicker +
         // title) — repeating it in the bar is noise. The bar carries ONLY
         // the physical commands during the initial setup.
@@ -3946,7 +3960,7 @@ export default defineComponent({
         }
         return cmds;
       }
-      if (this.startTask !== undefined && !this.consoleState.task.deferred) {
+      if (this.startSceneServes && !this.consoleState.task.deferred) {
         // The scene publishes its live contract (consoleStartUi — wizard step
         // vs. summary vs. ceremony: X inspects, RT continues / begins, etc.);
         // the bar mirrors it verbatim so it can never diverge from the buttons
@@ -4974,8 +4988,12 @@ export default defineComponent({
      *  fired on defer (`startTask` stays defined while the scene is deferred,
      *  so the hold correctly survives a board inspection). */
     startTask(now: ConsoleTask | undefined, was: ConsoleTask | undefined): void {
-      // Never yank a LIVE flight — its own safety timeout reconciles it.
-      if (now === undefined && was !== undefined && handDeliveryState.held.length > 0 && !isHandDeliveryActive()) {
+      // Never yank a LIVE flight — its own safety timeout reconciles it. And
+      // never a HELD workspace's withhold: `startTask` flickers undefined in
+      // every prompt gap of the deployment (submit round trips), while the
+      // bought cards must stay out of the dock until the payment flies them in.
+      if (now === undefined && was !== undefined && !startSceneHeld() &&
+          handDeliveryState.held.length > 0 && !isHandDeliveryActive()) {
         resetHandDelivery();
       }
     },
@@ -5713,7 +5731,7 @@ export default defineComponent({
       // CTS T5: the start scene owns input while it serves (B inside =
       // wizard back-step, else defer). The journal is a BOARD-HOME surface
       // now — no View-peek here (safe context policy).
-      if (this.startTask !== undefined && !this.consoleState.task.deferred) {
+      if (this.startSceneServes && !this.consoleState.task.deferred) {
         const scene = this.$refs.startScene as InstanceType<typeof ConsoleStartScene> | undefined;
         scene?.handleIntent(intent);
         return true;
@@ -7941,7 +7959,7 @@ export default defineComponent({
         this.openSheet('cardActions');
         return;
       }
-      if (this.hostTask === undefined && this.startTask === undefined && this.shellTask !== undefined) {
+      if (this.hostTask === undefined && !this.startSceneServes && this.shellTask !== undefined) {
         this.openShellTaskSurface(this.shellTask);
       }
     },
@@ -8040,7 +8058,7 @@ export default defineComponent({
     onNotificationGoToAction(): void {
       if (this.consoleState.task.deferred) {
         this.consoleState.task.deferred = false;
-        if (this.hostTask === undefined && this.startTask === undefined && this.shellTask !== undefined) {
+        if (this.hostTask === undefined && !this.startSceneServes && this.shellTask !== undefined) {
           this.openShellTaskSurface(this.shellTask);
         }
       }
