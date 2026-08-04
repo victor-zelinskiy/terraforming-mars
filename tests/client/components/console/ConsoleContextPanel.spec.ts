@@ -80,23 +80,26 @@ describe('ConsoleContextPanel', () => {
 
   /**
    * The panel grew several fact blocks, so everything that did NOT carry its own
-   * weight had to go: the confirm CTA already sits at the top, and a permanent
-   * "cancelling is not available" note stated a non-event on every placement.
+   * weight had to go: the confirm CTA already sits at the top, a permanent
+   * "cancelling is not available" note stated a non-event on every placement,
+   * and the cancel legend duplicated the command bar's own B entry (registered
+   * in ConsoleShell's `placementActive` branch, independent of this panel).
    */
   describe('the panel earns its height', () => {
     it('does not repeat the confirm CTA at the bottom', () => {
       const wrapper = mountPanel({preview, info, selectedLegal: true});
       expect(wrapper.findAll('.con-inspector__placement')).to.have.lengthOf(1);
-      expect(wrapper.findAll('.con-context__cmd')).to.have.lengthOf(0);
     });
 
-    it('shows the bottom command row ONLY for a real cancel', () => {
-      const wrapper = mountPanel({preview, info, selectedLegal: true, cancellable: true});
-      expect(wrapper.findAll('.con-context__cmd')).to.have.lengthOf(1);
+    it('renders NO command rows — every verb lives in the command bar', () => {
+      const wrapper = mountPanel({preview, info, selectedLegal: true});
+      expect(wrapper.findAll('.con-context__cmd')).to.have.lengthOf(0);
+      expect(wrapper.findAll('.con-context__commands')).to.have.lengthOf(0);
+      expect(wrapper.text()).to.not.match(/Cancel placement/i);
     });
 
     it('never renders a note about cancelling being unavailable', () => {
-      const wrapper = mountPanel({preview, info, selectedLegal: true, cancellable: false});
+      const wrapper = mountPanel({preview, info, selectedLegal: true});
       expect(wrapper.find('.con-context__mandatory-note').exists()).to.be.false;
     });
   });

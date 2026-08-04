@@ -49,18 +49,13 @@
         <BoardFactGroups :facts="info.facts" :viewerColor="viewerColor" :players="players" />
       </div>
 
-      <!-- P21: the panel commands stay MINIMAL — and the confirm CTA already
-           sits at the TOP of the panel, so repeating it at the bottom only
-           lengthened a panel that now carries several fact blocks. What remains
-           is the one thing the top row cannot show: a real cancel.
-           The "cancelling is not available" note is gone on purpose too — it
-           appeared on EVERY placement to state a non-event, and pressing B
-           answers the question the moment it is actually asked. -->
-      <div v-if="cancellable" class="con-context__commands">
-        <div class="con-context__cmd">
-          <GamepadGlyph control="back" /><span>{{ $t('Cancel placement') }}</span>
-        </div>
-      </div>
+      <!-- P21: the panel carries NO command rows of its own. The confirm CTA
+           sits at the TOP, and the cancel is registered in the command bar
+           (ConsoleShell's placementActive branch) — repeating it here only ate
+           height in a panel that now carries several fact blocks, and a second
+           copy of a bar verb reads as a second, differently-scoped control.
+           The "cancelling is not available" note is gone for the same reason:
+           it stated a non-event on EVERY placement. -->
     </template>
 
     <!-- ── TRACK MODE (P27b): a focused global-parameter track bonus ── -->
@@ -350,7 +345,6 @@ export default defineComponent({
     placementTitle: {type: String, default: ''},
     selectedLegal: {type: Boolean, default: false},
     illegalReason: {type: String, default: ''},
-    cancellable: {type: Boolean, default: false},
     /** P20: the R3 inspect-all toggle is on (labels + the mode chip). */
     inspectAll: {type: Boolean, default: false},
     /** WHO asked for this placement — normalized by the shared model. */

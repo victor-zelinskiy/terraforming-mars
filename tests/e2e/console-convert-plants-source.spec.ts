@@ -121,8 +121,12 @@ test.describe('console placement panel · convert plants', () => {
     await expect(page.locator('.con-cmdbar, .con-commands').first()).toContainText(/ИСТОЧНИК/i);
 
     // …and the marker's OTHER half arrives with it: this placement is genuinely
-    // cancellable (the plants are spent only once a cell is chosen).
-    await expect(panel).toContainText(/Отменить размещение/i);
+    // cancellable (the plants are spent only once a cell is chosen). The cancel
+    // lives in the COMMAND BAR only — the panel used to legend it a second time
+    // and that duplicate is gone, so assert on the bar and on the panel's
+    // silence.
+    await expect(page.locator('.con-cmdbar, .con-commands').first()).toContainText(/Отменить размещение/i);
+    await expect(panel).not.toContainText(/Отменить размещение/i);
 
     // L3 opens the real standard-action card; the placement survives.
     await key(page, 'KeyC', 1800);

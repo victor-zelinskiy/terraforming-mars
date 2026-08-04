@@ -794,19 +794,27 @@ body.con-zoom-open .con-handdock {
     .con-footer--behind-workspace {
         z-index: -1;
     }
-    .con-res-host {
-        z-index: 11520;
-    }
+    /* The lift lands on the RAIL PANEL, never on its host. A z-index on
+       `.con-res-host` makes the host a stacking context, which drags the
+       absolutely-positioned ДОП.РЕСУРСЫ satellite up WITH the rail — it would
+       then paint over the panels, and the old answer to that was to hide the
+       satellite outright. Hiding is the wrong answer twice over: the card
+       resource counts vanished exactly while a card action was being
+       configured (the one moment they matter most), and the resource-transfer
+       flights lost the landing anchor they measure
+       (`.con-res-aux__cell[data-aux-resource]` — `consoleResourceTransfer.ts`).
+       `.con-res` is a flex item, so `z-index` applies to it without a
+       `position` change: the satellite stays anchored to the host box and the
+       host's own containing-block role is untouched. */
     .con-res {
+        z-index: 11520;
         box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 40%),
             0 .4rem 1.6rem rgba(0, 0, 0, 0.5);
     }
-    /* The ДОП.РЕСУРСЫ satellite pokes RIGHT of the rail — exactly into the
-       workspace band; with the lifted host it would paint OVER the panels.
-       Any open workspace hides it (the numbers live on the cards anyway). */
-    .con-res-aux {
-        display: none;
-    }
+    /* The satellite is deliberately NOT lifted: it keeps its board-level z
+       (50, see `.con-res-aux`) and is simply COVERED where a workspace panel
+       reaches it — which is the base rule for it all along ("paints OVER the
+       board, covered by every full-screen overlay"). Z-ORDER, NOT VISIBILITY. */
 
     /* ── BACKGROUND CINEMATICS RECEDE UNDER THE SHADE ────────────────────
        The flight layers live at 11620–11670, i.e. ABOVE the shade (11460),
@@ -6097,43 +6105,9 @@ html.console-mode {
         color: @con-text;
         b { color: @con-mint; font-size: 1.15rem; }
     }
-    &__commands {
-        margin-top: auto;
-        padding-top: .6rem;
-        border-top: .05rem solid fade(@con-cyan, 18%);
-        display: flex;
-        flex-direction: column;
-        gap: .35rem;
-    }
-    &__cmd {
-        display: flex;
-        align-items: center;
-        gap: .5rem;
-        font-size: .95rem;
-        color: @con-text;
-
-        &--off {
-            opacity: 0.45;
-            filter: saturate(0.5);
-        }
-        &--hot .gp-glyph {
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 70%), 0 0 .5rem fade(@con-mint, 30%);
-        }
-    }
-    &__cmd-badge {
-        min-width: 1.2rem;
-        height: 1.2rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 0 .3rem;
-        border-radius: 49.95rem;
-        background: fade(@con-mint, 18%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 65%);
-        color: @con-mint;
-        font-size: .75rem;
-        font-weight: 700;
-    }
+    /* (No `&__commands` / `&__cmd` block: the panel carries no command rows of
+       its own — every verb it used to legend is registered in the command bar,
+       and a second copy only ate panel height.) */
 }
 
 /* ── Sheets (standard projects / milestones / awards) ────────────── */

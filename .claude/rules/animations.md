@@ -34,6 +34,9 @@ Every CRITICAL animation is a first-class foreground occupant via `presentation/
 
 Bot turns are notification-first with staged visual commits (`marsBotPresentation.ts`); read the archive, never re-derive scripts.
 
+## A reward that lands must FLY — the spec comes from the preview, not the chip alone
+`extractPlayRewards` (`resourceTransfer/resourceTransferModel.ts`) turns a play preview into transfer specs. A card-resource gain reaches it two ways: an `ActionEffect` chip noted `'to a card'`, **and** a bespoke card-target STEP (`actionPreviews.selectCardStep` with a positive `amount`) that carries no chip at all — the whole Freyja Biodomes / Venusian Plants family, whose resources used to land on the target with no flight. The step is authoritative by the same rule `selectCardStep` already trusts to derive `vpBox` from that amount. **The resource is the PICKED card's own `resourceType`** (read off the step's candidate models), because a card that adds "a microbe or an animal, depending on your choice" has no honest icon up front. Excluded: `repeatAction` picks (candidates are actions) and `copyProductionBox` picks (handled as production).
+
 ## Test gotcha
 Module state is bundle-shared in mochapack: a spec that leaves a flow's `active`/`current` set keeps its animation hold live and blocks notification delivery in every later spec. Reset in `after()` (the `maCeremonyState.spec` reset is the reference).
 

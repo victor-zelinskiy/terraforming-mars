@@ -214,6 +214,26 @@ export type ExtractPlayRewardsArgs = {
   stepResponses: Readonly<Record<number, unknown>>;
 };
 
+/**
+ * The card resource a card-target step ADDS: the server's explicit icon when it
+ * set one (the declarative walker does), else the PICKED CARD'S OWN type, read
+ * off that card's model in the step's own candidate list.
+ *
+ * The fallback is what makes the bespoke family work at all, and it is the only
+ * HONEST answer for it: Freyja Biodomes adds a microbe or an animal depending on
+ * which card you chose, so no single icon could have been stated up front.
+ */
+function stepCardResource(step: ActionPreviewStep, picked: CardName): string | undefined {
+  if (step.kind !== 'input') {
+    return undefined;
+  }
+  if (step.cardResource !== undefined) {
+    return step.cardResource;
+  }
+  const input = step.input as {cards?: ReadonlyArray<{name: CardName, resourceType?: string}>};
+  return input.cards?.find((c) => c.name === picked)?.resourceType;
+}
+
 function pickedCardOf(response: unknown): CardName | undefined {
   const r = response as {type?: string, cards?: ReadonlyArray<string>} | undefined;
   if (r !== undefined && r.type === 'card' && Array.isArray(r.cards) && r.cards.length > 0) {
@@ -273,6 +293,43 @@ export function extractPlayRewards(args: ExtractPlayRewardsArgs): Array<Resource
       out.push({channel: 'card-resource', resource: e.icon, amount: e.amount, targetCard: claimTargetStep(e.icon)});
     }
   }
+
+  /*
+   * BESPOKE card-target steps — "pick a card, add N resources to it" with NO
+   * gain chip behind them (Freyja Biodomes, Venusian Plants, …). Those cards
+   * state the move as the STEP ITSELF (`selectCardStep` with a positive
+   * `amount`), not as an `ActionEffect`, so the chip loop above finds nothing
+   * and the resources landed on the target with no flight at all — the reward
+   * beat's card-to-card machinery was never handed a spec.
+   *
+   * This reads the SAME fact `selectCardStep` already trusts unconditionally:
+   * it derives `vpBox` from this very `amount` because "a step that moves a card
+   * resource ALWAYS knows what that does to the card's victory points". If the
+   * amount is authoritative enough to compute VP from, it is authoritative
+   * enough to fly. Excluded, because their amount means something else: a
+   * copy-production pick (handled below) and a repeat-action pick (the
+   * candidates are ACTIONS, not resource targets).
+   */
+  args.steps.forEach((step, i) => {
+    if (claimedSteps.has(i) || step.kind !== 'input' || step.repeatAction === true ||
+        step.copyProductionBox !== undefined) {
+      return;
+    }
+    const amount = step.amount ?? 0;
+    if (amount <= 0) {
+      return; // a REMOVE pick is never a reward
+    }
+    const picked = pickedCardOf(args.stepResponses[i]);
+    if (picked === undefined) {
+      return;
+    }
+    const resource = stepCardResource(step, picked);
+    if (resource === undefined || resource === 'resources') {
+      return;
+    }
+    claimedSteps.add(i);
+    out.push({channel: 'card-resource', resource, amount, targetCard: picked});
+  });
 
   // Copy-production picks (Robotic Workforce / Cyberia Systems): the chosen
   // card's positive copied units are REAL immediate production gains.

@@ -98,9 +98,10 @@
            player (ONE source: infoModeState.playerColor) — TR / VP /
            resources / production / tags all re-read there. Read-only: the
            override never touches gameplay state or submissions. -->
-      <!-- (The ДОП.РЕСУРСЫ aux satellite hides under ANY open workspace
-           surface via CSS — `.con-root:has(.con-ws) .con-res-aux` — so the
-           prop only gates the section/info states it always did.) -->
+      <!-- (The ДОП.РЕСУРСЫ aux satellite is never HIDDEN by a workspace — it
+           simply keeps its board-level z and is covered where a panel reaches
+           it; only the rail panel itself is lifted above the shade. The prop
+           gates the section/info states it always did.) -->
       <ConsoleResourcePanel :player="railPlayer" :epoch="playerView.runId"
                             :gameTags="playerView.game.tags"
                             :convertPlants="convertPlantsReady && railShowsSelf" :convertHeat="convertHeatReady && railShowsSelf"
@@ -127,7 +128,6 @@
                            :selectedLegal="selectedCellLegal"
                            :illegalReason="selectedCellIllegalReason"
                            :inspectAll="consoleState.freeRoam"
-                           :cancellable="placementCancellable"
                            :sourceView="placementSourceView"
                            :myTurn="myTurn"
                            :actionsAvailable="actionsAvailableCount"

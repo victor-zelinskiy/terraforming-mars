@@ -79,7 +79,9 @@ type BandProbe = {
   hasMarker: boolean,
   bandLeft: number,
   railRight: number,
+  railZ: string,
   railHostZ: string,
+  auxHidden: boolean,
   bandRight: number,
   viewportW: number,
   panelOverflow: number,
@@ -90,6 +92,9 @@ async function probe(page: Page, selector: string): Promise<BandProbe> {
     const root = document.querySelector(sel) as HTMLElement;
     const rail = document.querySelector('.con-res') as HTMLElement;
     const host = document.querySelector('.con-res-host') as HTMLElement;
+    // The ДОП.РЕСУРСЫ satellite only exists once a card resource does, so this
+    // is a "if it is there, it must not be hidden" check, not a presence one.
+    const aux = document.querySelector('.con-res-aux') as HTMLElement | null;
     const rootBox = root.getBoundingClientRect();
     const railBox = rail.getBoundingClientRect();
     // The widest painted child box — catches a `vw` width cap overrunning the
@@ -106,7 +111,9 @@ async function probe(page: Page, selector: string): Promise<BandProbe> {
       bandLeft: rootBox.left,
       bandRight: rootBox.right,
       railRight: railBox.right,
+      railZ: getComputedStyle(rail).zIndex,
       railHostZ: getComputedStyle(host).zIndex,
+      auxHidden: aux !== null && getComputedStyle(aux).display === 'none',
       viewportW: window.innerWidth,
       panelOverflow: overflow,
     };
@@ -120,9 +127,20 @@ async function assertBand(page: Page, selector: string, label: string): Promise<
   // for sub-pixel rounding under the TV profile's zoom/scale model.
   expect(p.bandLeft, `${label}: band left ${p.bandLeft} must clear the rail right ${p.railRight}`)
     .toBeGreaterThanOrEqual(p.railRight - 2);
-  // The rail is LIT: its host is lifted above the shared shade (11460).
-  expect(Number(p.railHostZ), `${label}: the rail host must be lifted (was z=${p.railHostZ})`)
+  // The rail is LIT: the PANEL itself is lifted above the shared shade
+  // (11460). The lift sits on `.con-res`, not on `.con-res-host` — a stacking
+  // context on the host would drag the ДОП.РЕСУРСЫ satellite up with it.
+  expect(Number(p.railZ), `${label}: the rail panel must be lifted (was z=${p.railZ})`)
     .toBeGreaterThan(11460);
+  // …and the HOST must stay z-auto. This is the mechanism, not a detail: a
+  // z-index here makes the host a stacking context, the satellite is dragged
+  // above the panels with it, and the historical answer to that was to hide the
+  // satellite outright — which blanked the card-resource counts exactly while a
+  // card action was configured AND killed the landing anchor the resource
+  // flights measure. Z-ORDER, NOT VISIBILITY.
+  expect(p.railHostZ, `${label}: the rail HOST must not be a stacking context (was z=${p.railHostZ})`)
+    .toBe('auto');
+  expect(p.auxHidden, `${label}: the ДОП.РЕСУРСЫ satellite must be covered, never hidden`).toBeFalsy();
   // Nothing sticks out past the viewport (the min(Xrem, 100%) width rule).
   expect(p.panelOverflow, `${label}: content overflows the viewport by ${p.panelOverflow}px`).toBeLessThan(2);
 }

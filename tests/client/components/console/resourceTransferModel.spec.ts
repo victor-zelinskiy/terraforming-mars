@@ -131,6 +131,97 @@ describe('resourceTransferModel (pure math of the shared resource-transfer langu
       ]);
     });
 
+    it('a BESPOKE card-target step flies even with NO gain chip behind it', () => {
+      // Freyja Biodomes: the server states the move as the STEP (`selectCardStep`
+      // with an amount) and emits no `'to a card'` chip, so the chip loop found
+      // nothing and the resources landed with no flight at all. The resource is
+      // the PICKED card's own type — microbe or animal depending on the choice,
+      // which is exactly why no single icon could be stated up front.
+      const steps: Array<ActionPreviewStep> = [{
+        kind: 'input',
+        amount: 2,
+        input: {cards: [
+          {name: CardName.VENUSIAN_INSECTS, resourceType: 'microbe'},
+          {name: CardName.BIRDS, resourceType: 'animal'},
+        ]} as never,
+      }];
+      const specs = extractPlayRewards({
+        cardName: CardName.FREYJA_BIODOMES,
+        effects: [gain('megacredits', 2, 'production')],
+        steps,
+        stepResponses: {0: {type: 'card', cards: [CardName.VENUSIAN_INSECTS]}},
+      });
+      expect(specs).to.deep.eq([
+        {channel: 'production', resource: 'megacredits', amount: 2},
+        {channel: 'card-resource', resource: 'microbe', amount: 2, targetCard: CardName.VENUSIAN_INSECTS},
+      ]);
+    });
+
+    it('the same step picking an ANIMAL card carries the animal, not a fixed icon', () => {
+      const steps: Array<ActionPreviewStep> = [{
+        kind: 'input',
+        amount: 2,
+        input: {cards: [
+          {name: CardName.VENUSIAN_INSECTS, resourceType: 'microbe'},
+          {name: CardName.BIRDS, resourceType: 'animal'},
+        ]} as never,
+      }];
+      const specs = extractPlayRewards({
+        cardName: CardName.FREYJA_BIODOMES,
+        effects: [],
+        steps,
+        stepResponses: {0: {type: 'card', cards: [CardName.BIRDS]}},
+      });
+      expect(specs).to.deep.eq([
+        {channel: 'card-resource', resource: 'animal', amount: 2, targetCard: CardName.BIRDS},
+      ]);
+    });
+
+    it('a REPEAT-ACTION pick never flies — its candidates are actions, not targets', () => {
+      const steps: Array<ActionPreviewStep> = [{
+        kind: 'input',
+        amount: 2,
+        repeatAction: true,
+        input: {cards: [{name: CardName.BIRDS, resourceType: 'animal'}]} as never,
+      }];
+      expect(extractPlayRewards({
+        cardName: CardName.PROJECT_INSPECTION,
+        effects: [],
+        steps,
+        stepResponses: {0: {type: 'card', cards: [CardName.BIRDS]}},
+      })).to.deep.eq([]);
+    });
+
+    it('a REMOVE pick (negative amount) is never a reward', () => {
+      const steps: Array<ActionPreviewStep> = [{
+        kind: 'input',
+        amount: -2,
+        input: {cards: [{name: CardName.BIRDS, resourceType: 'animal'}]} as never,
+      }];
+      expect(extractPlayRewards({
+        cardName: CardName.PREDATORS,
+        effects: [],
+        steps,
+        stepResponses: {0: {type: 'card', cards: [CardName.BIRDS]}},
+      })).to.deep.eq([]);
+    });
+
+    it('a chip-claimed step is not double-counted by the bespoke pass', () => {
+      const steps: Array<ActionPreviewStep> = [
+        {kind: 'input', input: {cards: [{name: CardName.TARDIGRADES, resourceType: 'microbe'}]} as never,
+          amount: 3, cardResource: 'microbe'},
+      ];
+      const specs = extractPlayRewards({
+        cardName: CardName.IMPORTED_NITROGEN,
+        effects: [gain('microbe', 3, 'to a card')],
+        steps,
+        stepResponses: {0: {type: 'card', cards: [CardName.TARDIGRADES]}},
+      });
+      expect(specs).to.deep.eq([
+        {channel: 'card-resource', resource: 'microbe', amount: 3, targetCard: CardName.TARDIGRADES},
+      ]);
+    });
+
     it('a "to a card" gain lands on its PRE-SELECTED host, steps claimed in order', () => {
       const steps: Array<ActionPreviewStep> = [
         {kind: 'input', input: {} as never, amount: 3, cardResource: 'microbe'},
