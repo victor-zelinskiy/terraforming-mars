@@ -672,16 +672,20 @@ function captureSourceRect(): HeroRect | undefined {
   if (typeof document === 'undefined') {
     return undefined;
   }
-  const el = document.querySelector<HTMLElement>(sourceSelector);
-  if (el === null) {
-    return undefined;
+  // The first MEASURABLE match wins — never just the first match: a parked
+  // (display:none) layer can legitimately hold the same card identity (the
+  // Game Start Workspace parks its summary under the deployment), and its
+  // zero-rect element shadowing the live slot silently degraded the whole
+  // play to the no-flight fallback — the card TELEPORTED onto the tableau.
+  const els = document.querySelectorAll<HTMLElement>(sourceSelector);
+  for (const el of els) {
+    const r = el.getBoundingClientRect();
+    if (r.width >= 10 && r.height >= 10) {
+      heldSourceEl = el;
+      return {x: r.left, y: r.top, w: r.width, h: r.height};
+    }
   }
-  const r = el.getBoundingClientRect();
-  if (r.width < 10 || r.height < 10) {
-    return undefined;
-  }
-  heldSourceEl = el;
-  return {x: r.left, y: r.top, w: r.width, h: r.height};
+  return undefined;
 }
 
 function holdSource(): void {

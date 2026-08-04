@@ -228,6 +228,13 @@ import {abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardC
 import {abortConsoleActionCommit} from '@/client/console/consoleActionCommit';
 import {isConsolePlacementHeld} from '@/client/console/consolePromptAdmission';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
+// The GAME START WORKSPACE holds the deployment across prompt gaps. While it
+// does, a submit's response must COMMIT INLINE: the staged-bot pipeline
+// defers the commit to notification deliveries the start scene suppresses —
+// the view then only advances via the poll, seconds late, and every armed
+// hero (the corporation / prelude landing) times out into a TELEPORT. The
+// bot's setup turns present normally with the first post-start response.
+import {startSceneHeld} from '@/client/console/consoleStartState';
 import {isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
 import {acknowledgeFlowHoldingCards} from '@/client/components/notifications/notificationState';
 import {
@@ -930,7 +937,7 @@ export default defineComponent({
              * conversion marker is picked up by the next poll (the same
              * documented behaviour as the poll path).
              */
-            if (presentFreshBotTurns(this.playerView, newView, {
+            if (!startSceneHeld() && presentFreshBotTurns(this.playerView, newView, {
               commitLatest: () => {
                 // Console: the batch's LAST-turn tiles (this closure IS that
                 // full commit) land with the premium remote flight — staged

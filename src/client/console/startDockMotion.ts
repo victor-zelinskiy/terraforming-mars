@@ -95,11 +95,18 @@ function fillFace(proxy: HTMLElement, sourceCard: HTMLElement | undefined): void
   }
   const clone = sourceCard.cloneNode(true) as HTMLElement;
   clone.style.margin = '0';
-  // The slot renders the face through a CSS zoom — carry it onto the clone so
-  // the proxy's first frame is the same pixels the slot showed.
-  const zoom = getComputedStyle(sourceCard).zoom;
-  if (zoom !== '' && zoom !== 'normal' && zoom !== '1') {
-    (clone.style as unknown as {zoom: string}).zoom = zoom;
+  // THE EFFECTIVE zoom, measured — visual box ÷ layout box. The fit zoom
+  // usually sits on an ANCESTOR (the strip/slot), where the card's own
+  // computed `zoom` reads '1': cloning with that left the face at natural
+  // size inside a zoom-sized proxy — the art filled only the top-left of the
+  // flying card and snapped to full size at the handoff.
+  const rect = sourceCard.getBoundingClientRect();
+  const layoutW = sourceCard.offsetWidth;
+  if (rect.width > 4 && layoutW > 4) {
+    const eff = rect.width / layoutW;
+    if (Math.abs(eff - 1) > 0.001) {
+      (clone.style as unknown as {zoom: string}).zoom = String(eff);
+    }
   }
   face.appendChild(clone);
 }
@@ -260,15 +267,13 @@ function addFlight(tl: gsap.core.Timeline, proxy: HTMLElement, from: Rect, to: R
     duration: carry * 0.32,
   }, at + take + carry * 0.68);
 
-  // 3) LAY — contact: the pile answers, the count may tick.
-  if (opts.onDock !== undefined) {
-    tl.call(opts.onDock, undefined, at + take + carry);
-  }
+  // 3) LAY — contact: the pile answers under the weight, the card presses
+  // and squares. The PROXY is the only visible owner through the whole
+  // settle — the real element appears strictly AFTER it (see 4).
   if (opts.pressEl !== undefined && opts.pressEl !== null) {
     const pressEl = opts.pressEl;
     tl.call(() => pressPile(pressEl), undefined, at + take + carry);
   }
-  // A microscopic weight settle on the card itself.
   tl.to(proxy, {
     scale: targetScale * 0.988,
     duration: settle * 0.4,
@@ -280,7 +285,14 @@ function addFlight(tl: gsap.core.Timeline, proxy: HTMLElement, from: Rect, to: R
     ease: 'power2.inOut',
   }, at + take + carry + settle * 0.4);
 
-  // 4) HANDOFF — the real element is already standing under the proxy.
+  // 4) HANDOFF — ONE moment, one owner: the settle has finished, the proxy
+  // stands at the exact final geometry; the real element materializes UNDER
+  // it in this same timeline slot and the proxy releases right on top of it.
+  // (Revealing at contact — while the proxy still pressed — was the visible
+  // "doubling": two copies at slightly different scales for a beat.)
+  if (opts.onDock !== undefined) {
+    tl.call(opts.onDock, undefined, at + take + carry + settle);
+  }
   tl.to(proxy, {autoAlpha: 0, duration: 0.09}, at + take + carry + settle);
 }
 
@@ -309,7 +321,12 @@ export async function collectToDock(
 ): Promise<void> {
   const pile = rectOf(pileEl);
   const live = sources
-    .map((s) => ({name: s.name, el: s.el, from: rectOf(s.el), card: s.el.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? undefined}))
+    .map((s) => {
+      const card = s.el.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? undefined;
+      // Measure the CARD, not the slot: a slot's padding/band would misplace
+      // and mis-size the proxy against the pixels the player actually sees.
+      return {name: s.name, el: s.el, from: rectOf(card ?? s.el), card};
+    })
     .filter((s): s is typeof s & {from: Rect} => s.from !== undefined);
   if (pile === undefined || live.length === 0 || consoleReducedMotionActive() || layerEl === undefined) {
     onCovered?.();
@@ -335,12 +352,13 @@ export async function collectToDock(
         onDock?.(src.name);
         return;
       }
-      // Land INTO the pile box (the clone keeps its own pixels — the flight
-      // scales it by WIDTH into the pile's footprint, centred on the stack).
+      // Land INTO the pile box — the target rect is CENTRED ON THE STACK
+      // (its own centre, never the source-width offset that drifted every
+      // landing left of the shelf), sized to the pile's footprint.
       const fit = pile.w / Math.max(1, src.from.w);
       addFlight(tl, proxy, src.from, {
-        x: pile.x + pile.w / 2 - src.from.w / 2,
-        y: pile.y + pile.h / 2 - src.from.h / 2,
+        x: pile.x + pile.w / 2 - (src.from.w * fit) / 2,
+        y: pile.y + pile.h / 2 - (src.from.h * fit) / 2,
         w: src.from.w * fit,
         h: src.from.h * fit,
       }, {
@@ -478,6 +496,122 @@ export async function reseatCards(
     });
   }, batchBudget(live.length, true));
   clearLayer();
+}
+
+// ── CAPTURE → FLY: the two-phase transfer (a stage may SWAP underneath) ─────
+
+export type CapturedFlight = {
+  /** The names whose sources were measurable (a proxy carries each). */
+  names: ReadonlyArray<CardName>,
+  /** The rise beat — every card lifts slightly toward the viewer, the
+   *  `accent` card (the corporation — the player's face) a notch more. */
+  lift(accent?: CardName): Promise<void>,
+  /** Measure the targets NOW (the new stage must already stand in its final
+   *  geometry) and carry every card into its slot — take/carry/lay grammar,
+   *  convoy in the reading order of the DESTINATIONS. */
+  flyTo(targetFor: (name: CardName) => HTMLElement | null, onLanded?: (name: CardName) => void): Promise<void>,
+  /** Abort — drop the proxies instantly (idempotent). */
+  dispose(): void,
+};
+
+/**
+ * CAPTURE the cards where they stand: proxies spawn over the live faces in
+ * the SAME synchronous call (the host hides the originals in the same tick),
+ * so the entire surface under them may then re-bound, swap or unmount —
+ * exactly how a stage transition slides a new screen UNDER moving cards.
+ */
+export function captureCards(sources: ReadonlyArray<DockFlightSource>): CapturedFlight {
+  const reduced = consoleReducedMotionActive() || layerEl === undefined;
+  const live = reduced ? [] : sources
+    .map((s) => {
+      const card = s.el.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? undefined;
+      return {name: s.name, from: rectOf(card ?? s.el), card};
+    })
+    .filter((s): s is {name: CardName, from: Rect, card: HTMLElement | undefined} => s.from !== undefined);
+  const proxies = new Map<CardName, {el: HTMLElement, from: Rect}>();
+  for (const s of live) {
+    const p = spawnProxy(s.name, s.from, true);
+    if (p !== undefined) {
+      fillFace(p, s.card);
+      proxies.set(s.name, {el: p, from: s.from});
+    }
+  }
+  let disposed = false;
+  const allNames = sources.map((s) => s.name);
+
+  return {
+    names: allNames,
+    lift(accent?: CardName): Promise<void> {
+      if (disposed || proxies.size === 0) {
+        return Promise.resolve();
+      }
+      const ui = conUiScale();
+      return new Promise<void>((resolve) => {
+        const safety = window.setTimeout(resolve, motionMs(220) + 600);
+        const tl = gsap.timeline({onComplete: () => {
+          window.clearTimeout(safety);
+          resolve();
+        }});
+        proxies.forEach(({el, from}, name) => {
+          const boost = name === accent ? 1.055 : 1.03;
+          tl.to(el, {
+            y: from.y - 8 * ui,
+            scale: boost,
+            boxShadow: '0 16px 34px rgba(0,0,0,0.52)',
+            duration: motionMs(180) / 1000,
+            ease: 'power2.out',
+          }, 0);
+        });
+      });
+    },
+    async flyTo(targetFor: (name: CardName) => HTMLElement | null, onLanded?: (name: CardName) => void): Promise<void> {
+      if (disposed) {
+        allNames.forEach((n) => onLanded?.(n));
+        return;
+      }
+      const flights = allNames
+        .map((name) => {
+          const proxy = proxies.get(name);
+          const slot = targetFor(name);
+          const card = slot?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? undefined;
+          return {name, proxy, to: rectOf(card ?? slot ?? undefined)};
+        });
+      const flyable = flights
+        .filter((f): f is typeof f & {proxy: {el: HTMLElement, from: Rect}, to: Rect} =>
+          f.proxy !== undefined && f.to !== undefined)
+        .sort((a, b) => (a.to.y - b.to.y) || (a.to.x - b.to.x));
+      // Degenerate entries (no proxy / no target) resolve honestly right away.
+      for (const f of flights) {
+        if (f.proxy === undefined || f.to === undefined) {
+          if (f.proxy !== undefined) {
+            gsap.to(f.proxy.el, {autoAlpha: 0, duration: 0.12});
+          }
+          onLanded?.(f.name);
+        }
+      }
+      if (flyable.length === 0) {
+        return;
+      }
+      await guarded((done) => {
+        const tl = gsap.timeline({onComplete: done});
+        flyable.forEach((f, i) => {
+          addFlight(tl, f.proxy.el, f.proxy.from, f.to, {
+            at: (motionMs(STAGGER_MS) * i) / 1000,
+            reseat: true,
+            onDock: () => onLanded?.(f.name),
+          });
+        });
+      }, batchBudget(flyable.length, true));
+      clearLayer();
+    },
+    dispose(): void {
+      if (!disposed) {
+        disposed = true;
+        proxies.forEach(({el}) => gsap.killTweensOf(el));
+        clearLayer();
+      }
+    },
+  };
 }
 
 /** Abort/unmount: drop every proxy (idempotent). */

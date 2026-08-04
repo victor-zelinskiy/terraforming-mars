@@ -12388,6 +12388,17 @@ body.con-start-ceremony {
        re-bounds as one calm move, never a snap, and no panel ever flies. */
     transition: padding calc(480ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 
+    /* THE MATERIALIZATION CUT — the one turn the screen swaps UNDER the
+       captured cards: every shell transition is disabled so the new bounds,
+       the veil and the frame apply INSTANTLY (a live padding transition
+       re-flowed the still-visible summary — clipped cards, the rejected
+       mid-state). The flying proxies are all the player sees moving. */
+    &--matcut,
+    &--matcut .con-start__bg,
+    &--matcut .con-start__frame {
+        transition: none !important;
+    }
+
     /* THE BOUNDED DEPLOYMENT — the system workspace band box. */
     &--bounded {
         padding-top: var(--con-ws-top, var(--con-band-top, 3.4rem));
@@ -15131,16 +15142,12 @@ body.con-start-ceremony .con-status {
         inset: 0;
         border-radius: .25rem;
         overflow: hidden;
-        /* A real stacked-paper edge; the weight-settle rides the INNER back
-           (the outer div carries the per-index inline stack offset — an
-           animation on the same transform would snap at its end). */
+        /* A real stacked-paper edge. NO entry animation: the physical
+           arrival IS the proxy's landing — the back simply materializes
+           under the settling proxy (an own pop here doubled the card). */
         box-shadow: 0 .12rem .3rem rgba(0, 0, 0, 0.5), 0 0 0 .04rem rgba(150, 185, 220, 0.18);
-        .con-card-back {
-            width: 100%;
-            height: 100%;
-            animation: con-startdock-land calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
-        }
-        &--ghost { opacity: .4; box-shadow: none; .con-card-back { animation: none; } }
+        .con-card-back { width: 100%; height: 100%; }
+        &--ghost { opacity: .4; box-shadow: none; }
     }
     &__meta { display: flex; flex-direction: column; gap: .1rem; }
     &__label {
@@ -15161,13 +15168,6 @@ body.con-start-ceremony .con-status {
     inset: 0;
     z-index: 11640;
     pointer-events: none;
-}
-@keyframes con-startdock-land {
-    from { transform: translateY(-.14rem) scale(1.04); }
-    to { transform: translateY(0) scale(1); }
-}
-@media (prefers-reduced-motion: reduce) {
-    .con-startdock__back .con-card-back { animation: none; }
 }
 .con-startdock-proxy {
     position: absolute;

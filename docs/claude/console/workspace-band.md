@@ -1060,7 +1060,36 @@ queue-колонки (`--live` = мягкий rise; зона стоит с ка�
   полосе) и settle обратно на release; reveal капнут «комнатой»
   (max-height 31rem, stage-title = supporting voice).
 
+**ит.6 (2026-08-05) — 7 production-фиксов.** (1) Прокси-клон: эффективный
+zoom = rect/offsetWidth (fit-zoom живёт на ПРЕДКЕ — computed zoom карты '1';
+клон занимал верх-лево летящей карты); from меряется по КАРТЕ, не слоту.
+(2) Цель collect центрируется на ЦЕНТР стопки (`pile.c − fit·w/2` — старая
+формула уносила посадку влево на (1−fit)·w/2). (3) Handoff: real-элемент
+материализуется ПОСЛЕ settle прокси (в одном tl-слоте с его fade);
+посадочный поп рубашек удалён — двоение невозможно. (4) Проекты →
+Сводка ЛЕТЯТ НАПРЯМУЮ grid→tiles (и обратно) одним конвоем с пилами
+corp/prelude — примитив **`captureCards` → {lift(accent), flyTo, dispose}**
+(двухфазный: спавн над живыми пикселями СЕЙЧАС, полёт после — экран под
+прокси можно менять). (5) **МАТЕРИАЛИЗАЦИЯ ПЕРЕПИСАНА** по принципу
+hand-workspace: resolved-бит → capture всех карт → LIFT (корпорация —
+акцент «лицо игрока») → **SWAP-UNDER одним cut-ходом** (`--matcut` глушит
+все transition'ы; `shellUp` — bounded+`con-ws`+бары отвязаны от mode-флипа
+и встают В ФИНАЛЬНОЙ геометрии с held-слотами и шелфом) → flyTo в
+измеренные слоты; после посадок layout не меняется. (6) **ДВА корня
+телепорта героя убиты**: (а) staged-bot ветка WaitingFor глотала commit
+ответа под стартом (вью приходила поллом секундами позже, hero протухал) —
+гейт `!startSceneHeld()` у `presentFreshBotTurns`; (б)
+`captureSourceRect` брал ПЕРВЫЙ матч документа — ПРИПАРКОВАННАЯ сводка
+(v-show, zero-rect) с теми же `data-zoom-slot` затеняла живой слот →
+no-flight fallback. Захват теперь берёт первый ИЗМЕРИМЫЙ матч
+(`querySelectorAll` + rect≥10), стартовый селектор скоупит zoom-ветку на
+`.con-start__ceremony`. (7) Порядок очереди = порядок действий: корпорация
+(order 1) → покупка (`#buy` keyed-блок ВНУТРИ transition-group, order 2) →
+прологи (order 3).
+
 Гварды: `consoleStartState.spec` (24), `ConsoleStartPlayedDock.spec` (6:
 + art-identity), `startStatusPreview.spec`, e2e `console-play-landing-probe`
 (FHD+4K+reduced), `console-start-summary` (сводка = v-show: видимость, не
-count), `start-scene-profiles` (4 профиля + no-scroll).
+count), `start-scene-profiles` (4 профиля + no-scroll). Диагностика героя —
+burst-пробой (`.con-played-hero__proxy` per-frame + сетевой лог): телепорт =
+proxy 0 кадров при RESP 200.

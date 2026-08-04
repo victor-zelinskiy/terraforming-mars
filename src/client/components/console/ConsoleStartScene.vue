@@ -11,8 +11,9 @@
   <div class="con-start"
        :class="{
          'con-start--ceremony': mode === 'ceremony',
-         'con-start--bounded': mode === 'ceremony',
-         'con-ws': mode === 'ceremony',
+         'con-start--bounded': shellBounded,
+         'con-ws': shellBounded,
+         'con-start--matcut': matCut,
          'con-start--materializing': state.flow === 'materializing',
          'con-start--releasing': state.flow === 'releasing',
          'con-start--resolved': state.flow === 'releasing',
@@ -300,9 +301,15 @@
           <div class="con-start__deploy">
             <div class="con-start__queuecol" :class="{'con-start__queuecol--yield': embedActive}">
               <div class="con-start__queue" ref="queueEl">
+                <!-- ONE transition-group holds the whole reading order of the
+                     start: КОРПОРАЦИЯ (order 1) → КУПЛЕННЫЕ ПРОЕКТЫ (the buy
+                     block, order 2) → ПРОЛОГИ (order 3) — the player's real
+                     action sequence, kept by flex `order` so the FLIP moves
+                     still share one container. -->
                 <transition-group name="con-start-shift" tag="div" class="con-start__queue-row">
                   <div v-for="entry in queueCards" :key="entry.name"
                        class="con-start__qcard con-start__deal"
+                       :style="{order: entry.kind === 'prelude' ? 3 : 1}"
                        :class="{
                          'con-start__qcard--focused': isFocused(entry.kind, entry.name),
                          'con-start__qcard--awaiting': entry.dimmed,
@@ -317,29 +324,30 @@
                       <GamepadGlyph control="confirm" /><span>{{ $t(entry.verb) }}</span>
                     </div>
                   </div>
-                </transition-group>
 
-                <!-- The BOUGHT PROJECTS — part of the queue until the payment
-                     resolves them into the hand (they keep their pay-grid
-                     identity: runHandDelivery measures [data-pay-card]). -->
-                <div v-if="payProjects.length > 0" class="con-start__buy"
-                     :class="{'con-start__buy--focused': isFocused('pay', PAY_KEY)}">
-                  <div class="con-start__buy-row" ref="payGrid">
-                    <div v-for="name in payProjects" :key="name"
-                         class="con-start__buycard"
-                         :class="{'con-deal-hold': queueArriving.has(name)}"
-                         :data-pay-card="name">
-                      <Card :card="{name}" :key="name" lightweight />
+                  <!-- The BOUGHT PROJECTS — part of the queue until the payment
+                       resolves them into the hand (they keep their pay-grid
+                       identity: runHandDelivery measures [data-pay-card]). -->
+                  <div v-if="payProjects.length > 0" key="#buy" class="con-start__buy"
+                       :style="{order: 2}"
+                       :class="{'con-start__buy--focused': isFocused('pay', PAY_KEY)}">
+                    <div class="con-start__buy-row" ref="payGrid">
+                      <div v-for="name in payProjects" :key="name"
+                           class="con-start__buycard"
+                           :class="{'con-deal-hold': queueArriving.has(name)}"
+                           :data-pay-card="name">
+                        <Card :card="{name}" :key="name" lightweight />
+                      </div>
+                    </div>
+                    <div class="con-start__buy-meta">
+                      <span class="con-start__buy-cap">{{ $t('Bought cards') }} · <b>{{ payProjects.length }}</b></span>
+                      <span v-if="corpPayCost !== undefined" class="con-start__buy-amount">−{{ corpPayCost.megacredits }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
+                      <div v-if="isFocused('pay', PAY_KEY)" class="con-start__slot-a">
+                        <GamepadGlyph control="confirm" /><span>{{ $t('Pay') }}</span>
+                      </div>
                     </div>
                   </div>
-                  <div class="con-start__buy-meta">
-                    <span class="con-start__buy-cap">{{ $t('Bought cards') }} · <b>{{ payProjects.length }}</b></span>
-                    <span v-if="corpPayCost !== undefined" class="con-start__buy-amount">−{{ corpPayCost.megacredits }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
-                    <div v-if="isFocused('pay', PAY_KEY)" class="con-start__slot-a">
-                      <GamepadGlyph control="confirm" /><span>{{ $t('Pay') }}</span>
-                    </div>
-                  </div>
-                </div>
+                </transition-group>
               </div>
 
               <!-- EMBEDDED FOLLOW-UP: the shared reveal teleports HERE (claim
@@ -525,7 +533,7 @@ import {
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
-import {collectToDock, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, DockFlightSource, ReseatPair} from '@/client/console/startDockMotion';
+import {captureCards, collectToDock, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, DockFlightSource} from '@/client/console/startDockMotion';
 import {gsap} from 'gsap';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -687,6 +695,17 @@ export default defineComponent({
       embedSourceShown: undefined as CardName | undefined,
       /** The column slot is held empty (its card is still in flight). */
       embedSourceArriving: false,
+      /** GAME FRAME MATERIALIZATION: the summary layer has been SWAPPED OUT
+       *  under the flying cards (the deployment stands in its place). */
+      matSwap: false,
+      /** The one-frame re-bound: every shell transition is cut so the new
+       *  bounds apply INSTANTLY under the proxies (never a live reflow). */
+      matCut: false,
+      /** The STANDARD SHELL is up: bounded band + `con-ws` + bars. Decoupled
+       *  from the mode flip — the swap moment of the materialization owns it
+       *  (binding it to `mode` re-bounded the LIVE summary mid-transition:
+       *  clipped cards, early bars — the exact rejected frame). */
+      shellUp: false,
     };
   },
   computed: {
@@ -738,6 +757,11 @@ export default defineComponent({
     },
     wsStage(): string {
       return this.crumb.stage;
+    },
+    /** The bounded system shell (band + `con-ws` + bars) — up only when the
+     *  materialization's swap says so, never at the raw mode flip. */
+    shellBounded(): boolean {
+      return this.mode === 'ceremony' && this.shellUp;
     },
     /** The embed's source GROUP (its card's manifest type) — keeps the crumb's
      *  subject honest while the reveal owns the stage tail. */
@@ -994,11 +1018,12 @@ export default defineComponent({
     onSummary(): boolean {
       return this.mode === 'wizard' && this.currentStep === undefined;
     },
-    /** The summary pane KEEPS RENDERING through the materialization — the
-     *  episode recedes it under its own control; a v-show hard cut at the
-     *  mode flip would be the exact blink this workspace forbids. */
+    /** The summary pane KEEPS RENDERING through the materialization until
+     *  the SWAP moment (`matSwap`): the capture proxies stand over its cards
+     *  by then, and the deployment replaces it UNDER them in one turn. */
     summaryShown(): boolean {
-      return this.onSummary || this.state.flow === 'committing' || this.state.flow === 'materializing';
+      return this.onSummary || this.state.flow === 'committing' ||
+        (this.state.flow === 'materializing' && !this.matSwap);
     },
     /**
      * The summary is the setup's WAITING ROOM as much as it is a review: the
@@ -1498,10 +1523,15 @@ export default defineComponent({
           return;
         }
         if (now === 'ceremony') {
+          // Any other path into the ceremony (a reload mid-start, a defer /
+          // restore) skips the episode: the standard shell simply stands.
+          this.shellUp = true;
           this.ceremonyRevealed = true;
           if (this.state.flow === 'committing' || this.state.flow === 'materializing') {
             this.state.flow = 'deploying';
           }
+        } else {
+          this.shellUp = false;
         }
         void this.$nextTick(() => this.syncCeremonyLayout());
       },
@@ -1711,14 +1741,56 @@ export default defineComponent({
         return;
       }
       this.dockBusy = true;
-      this.state.flow = 'docking';
       const fromPane = this.paneElAt(this.railPos);
+      const goingToSummary = this.railPos + 1 >= this.steps.length;
       try {
         const names = picksForStep(this.picks, step.id);
+
+        if (goingToSummary) {
+          // ── DIRECT TO THE SUMMARY: the current step's picks glide from
+          // their GRID SLOTS straight into their summary tiles (never a
+          // detour through the shelf pile), while the earlier piles open
+          // into theirs — ONE combined convoy, one transition. ──
+          this.state.flow = 'revealing-summary';
+          const capture = captureCards(names
+            .map((name) => ({name, el: this.stepSlotEl(step.id, name)}))
+            .filter((sc): sc is DockFlightSource => sc.el !== null));
+          names.forEach((n) => this.returningNames.add(`${step.id}|${n}`));
+          // Every pick lands in a HELD summary tile (no tile paints early).
+          this.steps.forEach((st) => picksForStep(this.picks, st.id).forEach((n) => this.summaryArriving.add(n)));
+          // The earlier piles keep their lying backs through the target flip
+          // (targets drop to 0 on the summary; the physique must not blink).
+          this.steps.forEach((st, i) => {
+            if (i < this.railPos) {
+              driftDockPile(st.id, picksForStep(this.picks, st.id).length);
+            }
+          });
+          this.state.stepIdx = this.railPos + 1;
+          await this.$nextTick();
+          this.fitSummary();
+          await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+          const paneMotion = this.animatePaneSwap(fromPane, this.paneElAt(this.railPos));
+          await Promise.all([
+            this.revealSummaryFromPiles(step.id),
+            capture.flyTo(
+              (n) => this.summaryTileFor(n),
+              (n) => {
+                this.summaryArriving.delete(n);
+                this.returningNames.delete(`${step.id}|${n}`);
+              }),
+          ]);
+          names.forEach((n) => this.returningNames.delete(`${step.id}|${n}`));
+          this.summaryArriving.clear();
+          clearDockDrift();
+          await paneMotion;
+          return;
+        }
+
+        // ── A STEP ADVANCE: the picks collect onto their shelf pile. ──
+        this.state.flow = 'docking';
         const sources: Array<DockFlightSource> = names
           .map((name) => ({name, el: this.stepSlotEl(step.id, name)}))
           .filter((sc): sc is DockFlightSource => sc.el !== null);
-        const goingToSummary = this.railPos + 1 >= this.steps.length;
         let paneMotion: Promise<void> = Promise.resolve();
         // The pile's backs follow the CARDS: pre-drift −N so the state flip
         // shows an (honest) empty pile, then each touchdown adds one back.
@@ -1726,32 +1798,13 @@ export default defineComponent({
         await collectToDock(sources, this.pileElFor(step.id), () => {
           // The picks are COVERED by their proxies: the pane may swap now —
           // the entering surface rises under the flight, one continuous move.
-          if (goingToSummary) {
-            // The summary's tiles are HELD from their very first frame — the
-            // cards arrive there ONLY by the pile-reveal flights (a tile that
-            // painted early and then hid would be the double the physical
-            // story forbids).
-            this.steps.forEach((st) => picksForStep(this.picks, st.id).forEach((n) => this.summaryArriving.add(n)));
-            // Crossing INTO the summary drops every pile's TARGET backs to 0
-            // (the cards are about to lie in the tiles) — the PHYSICAL backs
-            // must not blink out under that flip: shift each pile's drift by
-            // its pick count so what is lying there keeps lying there until
-            // its card actually departs in the reveal.
-            this.steps.forEach((st) => driftDockPile(st.id, picksForStep(this.picks, st.id).length));
-          }
           this.state.stepIdx = this.railPos + 1;
           paneMotion = this.$nextTick().then(() => this.animatePaneSwap(fromPane, this.paneElAt(this.railPos)));
         }, () => {
           driftDockPile(step.id, 1);
         });
-        if (!goingToSummary) {
-          clearDockDrift(step.id);
-        }
+        clearDockDrift(step.id);
         await paneMotion;
-        if (goingToSummary && this.onSummary) {
-          this.state.flow = 'revealing-summary';
-          await this.revealSummaryFromPiles();
-        }
       } finally {
         this.dockBusy = false;
         this.state.flow = 'idle';
@@ -1771,12 +1824,6 @@ export default defineComponent({
       const fromPane = this.paneElAt(this.railPos);
       try {
         const leavingSummary = this.onSummary;
-        if (leavingSummary) {
-          // The laid-out set gathers back into its piles FIRST — the summary
-          // physically closes before the step surface returns.
-          await this.collectSummaryToPiles();
-          this.state.flow = 'returning';
-        }
         const target = this.railPos - 1;
         const step = this.steps[target];
         if (step === undefined) {
@@ -1784,28 +1831,58 @@ export default defineComponent({
           clearDockDrift();
           return;
         }
-        // Reserve the slots BEFORE the pane shows (the returning cards' own
-        // touchdown reveals each one) — the restored table rises empty-handed
-        // under the flight, never with doubles.
         const names = picksForStep(this.picks, step.id);
-        names.forEach((n) => this.returningNames.add(`${step.id}|${n}`));
-        // The flip un-collects the TARGET step (its backs' target → 0) and,
-        // off the summary, re-collects the earlier piles (targets → picks):
-        // hold the physique steady across it, then drain per departure.
-        // (Off the summary the stow already parked +N on the target pile.)
-        if (!leavingSummary) {
-          driftDockPile(step.id, names.length);
-        }
-        this.state.stepIdx = target;
+
         if (leavingSummary) {
-          // Every OTHER pile's target just rose from 0 to its picks — cancel
-          // against the stow's accumulated +picks drift (backs stay put).
-          this.steps.forEach((st, i) => {
-            if (i < target) {
-              driftDockPile(st.id, -picksForStep(this.picks, st.id).length);
-            }
+          // ── DIRECT FROM THE SUMMARY: the target step's cards glide from
+          // their tiles straight back into their GRID SLOTS, while the other
+          // sections gather into their shelf piles — one combined convoy,
+          // the exact reverse of the way in. ──
+          const capture = captureCards(names
+            .map((name) => ({name, el: this.summaryTileFor(name)}))
+            .filter((sc): sc is DockFlightSource => sc.el !== null));
+          names.forEach((n) => {
+            this.summaryStowing.add(n);
+            this.returningNames.add(`${step.id}|${n}`);
           });
+          const stowGroups = this.steps
+            .filter((_st, i) => i !== target)
+            .map((st) => ({st, names: picksForStep(this.picks, st.id)}))
+            .filter((g) => g.names.length > 0);
+          // The flip re-collects the earlier piles (targets 0 → picks): hold
+          // the physique at zero until each card physically lands back.
+          stowGroups.forEach((g) => driftDockPile(g.st.id, -g.names.length));
+          this.state.stepIdx = target;
+          await this.$nextTick();
+          this.fitCardStrip();
+          await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+          const paneMotion = this.animatePaneSwap(fromPane, this.paneElAt(target));
+          await Promise.all([
+            ...stowGroups.map((g) => collectToDock(
+              g.names
+                .map((name) => ({name, el: this.summaryTileFor(name)}))
+                .filter((sc): sc is DockFlightSource => sc.el !== null),
+              this.pileElFor(g.st.id),
+              () => g.names.forEach((n) => this.summaryStowing.add(n)),
+              () => driftDockPile(g.st.id, 1),
+            )),
+            capture.flyTo(
+              (n) => this.stepSlotEl(step.id, n),
+              (n) => this.returningNames.delete(`${step.id}|${n}`)),
+          ]);
+          names.forEach((n) => this.returningNames.delete(`${step.id}|${n}`));
+          clearDockDrift();
+          await paneMotion;
+          return;
         }
+
+        // ── A STEP RETURN: the collected cards fly OUT of their pile back
+        // into their reserved slots (held empty until each touchdown). ──
+        names.forEach((n) => this.returningNames.add(`${step.id}|${n}`));
+        // The flip un-collects the TARGET step (its backs' target → 0):
+        // hold the physique steady across it, then drain per departure.
+        driftDockPile(step.id, names.length);
+        this.state.stepIdx = target;
         await this.$nextTick();
         const paneMotion = this.animatePaneSwap(fromPane, this.paneElAt(target));
         await returnFromDock(
@@ -1826,13 +1903,17 @@ export default defineComponent({
         this.state.flow = 'idle';
       }
     },
-    /** The SUMMARY REVEAL: every pile opens — its cards fly into their summary
-     *  tiles face-up, and each pile's backs DRAIN as its cards depart (the
-     *  backs disappear BECAUSE the cards left — one physical owner; only the
-     *  informational count trace remains under the open tiles). */
-    async revealSummaryFromPiles(): Promise<void> {
+    /** The SUMMARY REVEAL: the collected piles open — their cards fly into
+     *  their summary tiles face-up, and each pile's backs DRAIN as its cards
+     *  depart (the backs disappear BECAUSE the cards left — one physical
+     *  owner). `exclude` = the step whose cards travel their own DIRECT path
+     *  (the projects glide grid → tiles, never through the shelf). The
+     *  CALLER owns the hold sets and the drift reconciliation — this may run
+     *  as one leg of a combined convoy. */
+    async revealSummaryFromPiles(exclude?: StartWizardStep['id']): Promise<void> {
       this.summaryStowing.clear();
       const groups = this.steps
+        .filter((st) => st.id !== exclude)
         .map((st) => ({st, names: picksForStep(this.picks, st.id)}))
         .filter((g) => g.names.length > 0);
       groups.forEach((g) => g.names.forEach((n) => this.summaryArriving.add(n)));
@@ -1845,8 +1926,6 @@ export default defineComponent({
           (name) => this.summaryArriving.delete(name),
           () => driftDockPile(g.st.id, -1),
         )));
-      this.summaryArriving.clear();
-      clearDockDrift();
     },
     /** Leaving the summary backwards: the laid-out set gathers back into its
      *  piles first (the reverse of the reveal) — a back reappears only when
@@ -2196,6 +2275,35 @@ export default defineComponent({
      *
      * Reduced motion: values swap in one settled frame (no travel).
      */
+    /** The queue / purchase-row slot a start card lands into. */
+    queueTargetEl(name: CardName): HTMLElement | null {
+      const root = this.$el as HTMLElement | undefined;
+      if (root === undefined || typeof root.querySelector !== 'function') {
+        return null;
+      }
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
+      return root.querySelector<HTMLElement>(`[data-queue-slot="${esc}"], [data-pay-card="${esc}"]`);
+    },
+    /**
+     * GAME FRAME MATERIALIZATION — the screen is replaced UNDER the moving
+     * cards (the hand-workspace principle: the new surface is prepared in
+     * its FINAL geometry before anything travels):
+     *
+     *  1. the resolved beat — the status preview states its final numbers;
+     *  2. CAPTURE — every chosen card gets a proxy over its exact live
+     *     pixels; the originals hide in the same tick;
+     *  3. LIFT — the cards rise slightly toward the viewer, the CORPORATION
+     *     (the player's face) a notch more; the summary's chrome fades;
+     *  4. THE SWAP — one cut turn with every shell transition disabled: the
+     *     summary layer unmounts, the root re-bounds to the SYSTEM band, the
+     *     bars materialize from their edges, and the deployment stands
+     *     already FINAL — queue slots held, «РАЗЫГРАНО» shelf in place;
+     *  5. FLY — the captured cards carry into the measured slots (convoy in
+     *     reading order). After the landings NOTHING re-flows — the layout
+     *     they landed into is the layout that stays.
+     *
+     * Reduced motion: the same swap in one settled frame (no travel).
+     */
     async runMaterialization(): Promise<void> {
       this.state.flow = 'materializing';
       if (this.commitSafety !== undefined) {
@@ -2205,73 +2313,69 @@ export default defineComponent({
       const reduced = consoleReducedMotionActive();
       const summary = this.$refs.summaryPane as HTMLElement | undefined;
       const prev = this.$refs.hudPrev as HTMLElement | undefined;
-      const root = this.$el as HTMLElement | undefined;
-      const dock = root?.querySelector<HTMLElement>('.con-startdock') ?? undefined;
-      const crew = root?.querySelector<HTMLElement>('.con-start__crewline') ?? undefined;
+      const moving: Array<CardName> = [];
+      if (this.state.corp !== undefined) {
+        moving.push(this.state.corp);
+      }
+      moving.push(...this.state.preludes, ...this.state.projects);
 
-      if (!reduced && summary !== undefined && summary.isConnected) {
-        // 1) the resolved beat — the preview states its final numbers; the
-        // cards stay exactly where they are.
-        if (prev !== undefined) {
-          prev.classList.add('con-start__hudprev--resolved');
-        }
-        await new Promise<void>((r) => window.setTimeout(r, motionMs(240)));
-        // 2) the preparation-only chrome ends its role IN PLACE.
-        const ending = [dock, crew].filter((el): el is HTMLElement => el !== undefined);
-        if (ending.length > 0) {
-          gsap.to(ending, {autoAlpha: 0, y: -4 * conUiScale(), duration: motionMs(260) / 1000, ease: 'power2.in'});
-        }
-        // The full-bleed surface recedes a breath into depth — the frame is
-        // about to form around it (transform only, no layout).
-        gsap.to(summary, {scale: 0.992, transformOrigin: '50% 40%', duration: motionMs(300) / 1000, ease: 'power2.out'});
+      if (reduced || summary === undefined || !summary.isConnected) {
+        this.matSwap = true;
+        this.matCut = true;
+        this.shellUp = true;
+        this.ceremonyRevealed = true;
+        this.syncCeremonyLayout();
+        await this.$nextTick();
+        this.matCut = false;
+        this.matSwap = false;
+        this.state.flow = 'deploying';
+        return;
       }
 
-      // 3) ONE swap: the Top Bar surfaces from the top edge, the Player Rail
-      // from the left edge, the bounds transition carries the re-bound. The
-      // summary cards ride the smooth padding change — no jump, no flight.
-      this.syncCeremonyLayout();
-      if (!reduced) {
-        await new Promise<void>((r) => window.setTimeout(r, motionMs(480)));
+      // 1) THE RESOLVED BEAT — the preview states its final numbers; the
+      // cards stay exactly where they are.
+      if (prev !== undefined) {
+        prev.classList.add('con-start__hudprev--resolved');
       }
+      await new Promise<void>((r) => window.setTimeout(r, motionMs(240)));
 
-      // 4) the CONTENT adapts: mount the deployment surface (hidden), then
-      // the summary cards physically REGROUP into the startup queue and the
-      // purchase row — the same cards, one continuous move each.
+      // 2) CAPTURE the cards where they stand (originals hide in this tick;
+      // the queue slots are held empty from before their first paint).
+      const sources: Array<DockFlightSource> = moving
+        .map((name) => ({name, el: this.summaryTileFor(name)}))
+        .filter((s): s is DockFlightSource => s.el !== null);
+      const capture = captureCards(sources);
+      moving.forEach((n) => {
+        this.summaryArriving.add(n);
+        this.queueArriving.add(n);
+      });
+
+      // 3) LIFT — toward the viewer, corporation accented; the summary's
+      // chrome calmly finishes its role underneath.
+      const liftBeat = capture.lift(this.state.corp);
+      gsap.to(summary, {autoAlpha: 0, duration: motionMs(200) / 1000, ease: 'power2.in', delay: 0.06});
+      await liftBeat;
+
+      // 4) THE SWAP — one cut turn: summary out, system band + bars + the
+      // fully-prepared deployment in, zero transitions, zero reflow after.
+      this.matSwap = true;
+      this.matCut = true;
+      this.shellUp = true;
       this.ceremonyRevealed = true;
+      this.syncCeremonyLayout();
+      gsap.set(summary, {clearProps: 'opacity,visibility'});
       await this.$nextTick();
-      const body = this.$refs.ceremonyBody as HTMLElement | undefined;
-      if (!reduced && body !== undefined && summary !== undefined) {
-        const pairs: Array<ReseatPair> = [];
-        const queueTarget = (name: CardName) => {
-          const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
-          return (this.$el as HTMLElement).querySelector<HTMLElement>(
-            `[data-queue-slot="${esc}"], [data-pay-card="${esc}"]`);
-        };
-        const moving: Array<CardName> = [];
-        if (this.state.corp !== undefined) {
-          moving.push(this.state.corp);
-        }
-        moving.push(...this.state.preludes, ...this.state.projects);
-        for (const name of moving) {
-          const from = this.summaryTileFor(name);
-          const to = queueTarget(name);
-          if (from !== null && to !== null) {
-            pairs.push({name, fromEl: from, toEl: to});
-            this.queueArriving.add(name);
-          }
-        }
-        // The queue's slots are HELD empty; the preview + launch finish their
-        // role locally under the flights; the surface crossfades beneath.
-        const flight = reseatCards(pairs, (name) => this.queueArriving.delete(name));
-        pairs.forEach((p) => this.summaryArriving.add(p.name)); // hide sources under proxies
-        gsap.to(summary, {autoAlpha: 0, duration: motionMs(300) / 1000, ease: 'power2.in', delay: 0.05});
-        gsap.fromTo(body, {autoAlpha: 0}, {autoAlpha: 1, duration: motionMs(280) / 1000, ease: 'power2.out'});
-        await flight;
-        this.queueArriving.clear();
-        this.summaryArriving.clear();
-        gsap.set(body, {clearProps: 'opacity,visibility'});
-        gsap.set(summary, {clearProps: 'opacity,transform,visibility'});
-      }
+      await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+
+      // 5) FLY into the measured slots; each landing reveals its real card.
+      await capture.flyTo(
+        (name) => this.queueTargetEl(name),
+        (name) => this.queueArriving.delete(name));
+
+      this.summaryArriving.clear();
+      this.queueArriving.clear();
+      this.matCut = false;
+      this.matSwap = false;
       this.state.flow = 'deploying';
     },
     /**
@@ -2312,9 +2416,12 @@ export default defineComponent({
      * MATERIALIZES both from their own edges (the entrance keyframes).
      */
     syncCeremonyLayout(): void {
-      const isCeremony = this.mode === 'ceremony';
-      document.body.classList.toggle('con-start-ceremony', isCeremony);
-      document.body.classList.toggle('con-start-prep', !isCeremony);
+      // The bars follow the BOUNDED SHELL, not the raw mode: through the
+      // materialization they materialize at the SWAP moment (shellUp), never
+      // over the still-standing summary.
+      const shellUp = this.shellBounded;
+      document.body.classList.toggle('con-start-ceremony', shellUp);
+      document.body.classList.toggle('con-start-prep', !shellUp);
     },
     /** rAF-coalesced fit for resize bursts (never fires per focus move). */
     scheduleFit(): void {
@@ -2883,10 +2990,13 @@ export default defineComponent({
       // (ConsoleStartPlayedDock.measureFrontAnchor) — a short, causal
       // trajectory: queue → «РАЗЫГРАНО». Effects then resolve FROM the docked
       // card; the queue reflows over the freed slot.
+      // The zoom-slot fallback is scoped to the CEREMONY layer: the parked
+      // summary pane (v-show) keeps the same zoom-slot identities hidden in
+      // the DOM, and an unscoped query used to shadow the live queue slot.
       armPlayedHero(name, false, {
         manualTableOpen: false,
         host: 'workspace',
-        sourceSelector: `.con-start [data-queue-slot="${esc}"] :is(.card-container, .pcard), .con-start [data-zoom-slot="${esc}"] :is(.card-container, .pcard)`,
+        sourceSelector: `.con-start [data-queue-slot="${esc}"] :is(.card-container, .pcard), .con-start__ceremony [data-zoom-slot="${esc}"] :is(.card-container, .pcard)`,
         rewards: this.playRewards.get(name),
       });
     },
