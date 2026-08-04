@@ -57,17 +57,13 @@ async function key(page: Page, code: string, settleMs = 700): Promise<void> {
   await page.waitForTimeout(settleMs);
 }
 
-/** Which wizard step is live (by the active step chip's ordinal). */
-async function activeStep(page: Page): Promise<number> {
-  const chips = page.locator('.con-start__step');
-  const n = await chips.count();
-  for (let i = 0; i < n; i++) {
-    const cls = await chips.nth(i).getAttribute('class') ?? '';
-    if (cls.includes('con-start__step--active')) {
-      return i;
-    }
-  }
-  return -1;
+/** The live wizard step — the workspace breadcrumb's SUBJECT (lower-cased;
+ *  '' while the deal cinematic still owns the frame). */
+async function activeSubject(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const el = document.querySelector('.con-wshead__layer--deep .con-wshead__subject');
+    return (el?.textContent ?? '').trim().toLowerCase();
+  });
 }
 
 /** No native scrollbar anywhere (console-native invariant). Non-fatal: logs
@@ -108,30 +104,30 @@ for (const preset of PRESETS) {
       await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
       await page.waitForTimeout(4000); // deal cinematic + fit settle
 
-      // Adaptive walk: A selects (single-pick corp advances), ArrowRight moves,
-      // KeyE (RB) advances a completed multi-pick step. Capture each screen.
+      // Adaptive walk on the breadcrumb SUBJECT: A selects, RT (Period)
+      // advances with the physical collect. Capture each screen.
       let shotPre = false;
       let shotProj = false;
       for (let round = 0; round < 26; round++) {
         if (await page.locator('.con-start__frame').count() === 0) {
           break;
         }
-        const step = await activeStep(page);
-        const onSummary = await page.getByText('НАЧАТЬ ПАРТИЮ').count() > 0;
-        // step chip labels: 0 corp, 1 preludes, 2 projects (base+prelude game).
-        if (step === 1 && !shotPre) {
+        const subject = await activeSubject(page);
+        const onSummary = subject.includes('сводка') &&
+          await page.locator('.con-start__summary').isVisible().catch(() => false);
+        if (subject.includes('пролог') && !shotPre) {
           await page.waitForTimeout(1200);
           await shoot(page, preset, '01-preludes');
           await assertNoScroll(page, preset.id + ' preludes');
           shotPre = true;
-          // pick two preludes then advance
+          // pick two preludes then advance (RT — the collect flight)
           await key(page, 'Enter', 700);
           await key(page, 'ArrowRight', 400);
           await key(page, 'Enter', 700);
-          await key(page, 'KeyE', 1300);
+          await key(page, 'Period', 1600);
           continue;
         }
-        if (step === 2 && !shotProj) {
+        if (subject.includes('проект') && !shotProj) {
           await page.waitForTimeout(1200);
           await shoot(page, preset, '02-projects');
           await assertNoScroll(page, preset.id + ' projects');
@@ -142,7 +138,7 @@ for (const preset of PRESETS) {
           await key(page, 'Enter', 500);
           await key(page, 'ArrowRight', 300);
           await key(page, 'Enter', 500);
-          await key(page, 'KeyE', 1300);
+          await key(page, 'Period', 1600);
           continue;
         }
         if (onSummary) {
@@ -151,7 +147,13 @@ for (const preset of PRESETS) {
           await assertNoScroll(page, preset.id + ' summary');
           break;
         }
-        // Otherwise (corp step / mid-deal) — a press advances / skips.
+        if (subject.includes('корпорац')) {
+          // A = select the focused corporation, RT = advance with collect.
+          await key(page, 'Enter', 700);
+          await key(page, 'Period', 1600);
+          continue;
+        }
+        // Mid-deal — a press skips the cinematic.
         await key(page, 'Enter', 900);
       }
 

@@ -125,11 +125,58 @@ the LONGER of the two moves and both ride an expo-out tail.
   not enough: the stage's own handback goes through `scheduleFit`, which
   re-opens the pass budget and lets calibration correct the replayed
   framing anyway. Only a real viewport change lifts the lock.
+- **A VISIBILITY FLIP IS NOT A GEOMETRY CHANGE** (`fitKey`) — the same
+  lesson as `calibrateLock`, one level up, and the one that made the planet
+  "slightly shift" every time the player closed the hand. The board is
+  `v-show`n, so EVERY section round trip (hand / colonies / hydro) takes the
+  stage to 0×0 and back and the `ResizeObserver` fires twice; `scheduleFit`
+  answered both with a full re-derivation, calibration budget included. The
+  framing the board comes back to is the one it left with — already on
+  screen, already correct — so there is nothing to derive. The fit now
+  remembers the FRAME it was derived for (stage box + viewport, as one key)
+  and a resize back to that same key is a no-op. Frame-traced before the
+  fix: the framing was untouched when the board returned, then re-derived
+  ~800ms later and glided — 997→902px wide on one trip and back to 910 on
+  the next, oscillating, never converging.
+- **…which means the convergence has to FINISH where it starts.** The old
+  budget was 2 passes per "fit cycle", and any stage resize re-opened it —
+  so an unfinished boot convergence was not a bug that showed, it was a bug
+  that WAITED, and the section round trip was merely what let it out. Making
+  the round trip a no-op therefore *froze* the wrong framing until the
+  convergence itself was fixed; the two are one change, not two.
+- **THE OFFSET FOLD IS A TRANSFORM CHANGE TOO** — the root cause, and the
+  one the earlier `boardTweening` guard just missed. `--con-board-dx/dy`
+  ride the SAME declaration as the scale, so folding an offset starts a
+  300ms glide exactly like a re-fit does — but only a re-fit armed the
+  guard. The next pass therefore measured a planet mid-flight and folded a
+  partial correction **on top of a partial correction** (the fold is
+  cumulative), and the convergence chased itself until the budget ran out.
+  Device trace at 4K: the boot stopped at `scale 3.5052` with the content
+  **371px right and 200px above** the stage centre and stayed there. With
+  the fold arming the same guard, the same boot converges to `3.0910` at
+  `dx≈0, dy≈0`. Rule: anything that writes the board's transform arms
+  `armBoardTween` — there is exactly one transform, so there is exactly one
+  guard.
+- **"Settled" has no single timestamp** (`armLateVerify`) — the deal
+  cinematic, the arcs' travel and the start scene's handback all finish at
+  their own pace, so a convergence that ran before them measured a board
+  that no longer exists. A bounded WIDENING ladder (4 rungs, 1.5s apart and
+  growing, each with a fresh budget) re-measures until it lands; it arms
+  both when a pass converges *and* when the budget runs out, because "ran
+  out of road" is exactly the case that must look again. It cannot fire
+  during play — the frame key does not change during play. This matters
+  because **the union bbox is bounded left and right by the ARC MARKERS**,
+  which travel to their values (≤1280ms).
 - **Diagnose this class of bug with a per-frame trace, not by reading
   code** — sample `--board-scale`, the computed `transform`, the stage
   height and the phase classes every rAF through the return. The
   discontinuity's timestamp names its cause immediately; two of the three
-  fixes above were wrong guesses before the trace existed.
+  fixes above were wrong guesses before the trace existed. The guard that
+  came out of it is `tests/e2e/console-board-framing.spec.ts` — per-rAF, and
+  it asserts BOTH halves (nothing moves on a round trip; a real resize still
+  re-fits, so the guard cannot be satisfied by an engine that stopped
+  working). Note the older `console-surface-motion` check samples only
+  ~450ms after a section exit, which is why it stayed green through this.
 - **The disc is a 2.6k-px box carrying a 100px drop-shadow**, so
   `will-change: transform` is set for the transition's lifetime — without
   it the first frames pay for the layer promotion, which is most of what

@@ -1,9 +1,9 @@
 import {expect} from 'chai';
 import {
-  buildInitialCardsResponse, clearDockDrift, consoleStartState, driftDockPile, ensureStartWizard,
-  holdStartScene, initialCardsSignature, picksForStep, releaseStartScene, startFlowBusy,
-  startLaunchState, startParticipants, startSceneHeld, stepComplete, wizardSteps,
-  startJourneyItems, deploymentJourneyItems, startDockPiles,
+  buildInitialCardsResponse, clearDockDrift, consoleStartState, deploymentCrumb, driftDockPile,
+  ensureStartWizard, holdStartScene, initialCardsSignature, picksForStep, releaseStartScene,
+  startFlowBusy, startLaunchState, startParticipants, startSceneHeld, stepComplete, wizardCrumb,
+  wizardSteps, startJourneyItems, deploymentJourneyItems, startDockPiles,
 } from '@/client/console/consoleStartState';
 import {SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -319,6 +319,43 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       // The live poll says only BLUE is still owed — RED reads ready.
       expect(crew[0].status.category).to.eq('active');
       expect(crew[1].status.category).to.not.eq('active');
+    });
+  });
+
+  describe('the workspace breadcrumb (СТАРТ ПАРТИИ › <ГРУППА> › <ЭТАП>)', () => {
+    it('wizard: subject = the step GROUP, stage = Selection / Purchase', () => {
+      expect(wizardCrumb('corp')).to.deep.eq({subject: 'Corporation', stage: 'Selection'});
+      expect(wizardCrumb('prelude')).to.deep.eq({subject: 'Preludes', stage: 'Selection'});
+      expect(wizardCrumb('ceo')).to.deep.eq({subject: 'CEO', stage: 'Selection'});
+      // The projects step IS a purchase — its stage says so.
+      expect(wizardCrumb('projects')).to.deep.eq({subject: 'Projects', stage: 'Purchase'});
+      // The summary is a subject of its own, no mutable stage.
+      expect(wizardCrumb(undefined)).to.deep.eq({subject: 'Summary', stage: ''});
+    });
+
+    it('deployment: the beat drives the tail — corp play / payment / preludes', () => {
+      const base = {embedActive: false, corpPending: false, payPending: false, corpPick: false};
+      expect(deploymentCrumb({...base, corpPending: true}))
+        .to.deep.eq({subject: 'Corporation', stage: 'Playing'});
+      // Merger's corporation pick is still the CORPORATION group.
+      expect(deploymentCrumb({...base, corpPick: true}))
+        .to.deep.eq({subject: 'Corporation', stage: 'Playing'});
+      expect(deploymentCrumb({...base, payPending: true}))
+        .to.deep.eq({subject: 'Projects', stage: 'Purchase'});
+      expect(deploymentCrumb(base)).to.deep.eq({subject: 'Preludes', stage: 'Playing'});
+    });
+
+    it('an embedded reveal advances ONLY the tail: the source group keeps the subject', () => {
+      const base = {embedActive: true, corpPending: false, payPending: false, corpPick: false};
+      // No published phase → the honest generic «ДОБОР КАРТ».
+      expect(deploymentCrumb({...base, embedSubject: 'Preludes'}))
+        .to.deep.eq({subject: 'Preludes', stage: 'Card draw'});
+      // The embedded surface hands its stage name UP — the crumb says it.
+      expect(deploymentCrumb({...base, embedSubject: 'Corporation', embedPhase: 'Card draw'}))
+        .to.deep.eq({subject: 'Corporation', stage: 'Card draw'});
+      // The embed outranks a simultaneously-live pay beat (it is the deeper step).
+      expect(deploymentCrumb({...base, payPending: true, embedSubject: 'Preludes'}).stage)
+        .to.eq('Card draw');
     });
   });
 });

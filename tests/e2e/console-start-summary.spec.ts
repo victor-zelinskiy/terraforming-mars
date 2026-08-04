@@ -82,35 +82,38 @@ function newGameConfig(twoHumans = false) {
 
 /**
  * Walk the wizard to its final summary step. This config's steps are
- * corporation → project buy (`prelude: false`), and the two take DIFFERENT
- * presses: a single-pick step commits with A, the multi-pick buy advances
- * with RB (KeyE — the symmetric LB/RB step navigation; RT is unused in the
- * setup) — pressing A there would silently toggle a card into the buy and
- * quietly void the zero-projects case. So read the active step chip and
- * decide, rather than alternating keys blindly.
+ * corporation → project buy (`prelude: false`). The workspace breadcrumb
+ * (`СТАРТ ПАРТИИ › <ГРУППА> › <ЭТАП>`) names the live step; a single-pick
+ * step needs A (select) THEN RT (advance with collect), the zero-projects
+ * buy advances with RT alone — pressing A there would silently toggle a
+ * card into the buy and quietly void the zero-projects case. The summary
+ * pane is a PARKED `v-show` layer, so visibility (never count) is the
+ * arrival signal.
  */
 async function walkToSummary(page: Page): Promise<void> {
   await page.waitForSelector('.con-start__frame', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
   const summary = page.locator('.con-start__summary');
-  const activeStep = page.locator('.con-start__step--active');
+  const subject = page.locator('.con-wshead__layer--deep .con-wshead__subject').first();
 
-  for (let i = 0; i < 8 && await summary.count() === 0; i++) {
-    // The context rail renders only once the deal cinematic has finished
-    // (`v-if="focusedCard && !deal.state.active"`), so it is the exact "this
-    // press acts instead of skipping the cinematic" gate.
-    await page.waitForSelector('.con-cards__verdictbar', {timeout: 25_000});
+  for (let i = 0; i < 8 && !(await summary.isVisible().catch(() => false)); i++) {
+    // The pinned status rail's inner is HELD (opacity) while the deal
+    // cinematic runs — its release is the exact "presses act now" gate.
+    await page.waitForSelector('.con-start__status-inner:not(.con-start__status-inner--held)', {timeout: 25_000});
     await page.waitForTimeout(400);
-    const before = (await activeStep.innerText()).toLowerCase();
-    await key(page, /корпорац|директор/.test(before) ? 'Enter' : 'KeyE', 1200);
+    const before = (await subject.innerText()).toLowerCase();
+    if (/корпорац|директор/.test(before)) {
+      await key(page, 'Enter', 700); // A — select the focused corporation
+    }
+    await key(page, 'Period', 1400); // RT — advance with the physical collect
     // Let the step actually change before looking again — otherwise the next
     // iteration fires into the outgoing frame.
-    for (let w = 0; w < 20 && await summary.count() === 0 &&
-         (await activeStep.innerText()).toLowerCase() === before; w++) {
+    for (let w = 0; w < 20 && !(await summary.isVisible().catch(() => false)) &&
+         (await subject.innerText()).toLowerCase() === before; w++) {
       await page.waitForTimeout(250);
     }
   }
-  await expect(summary).toHaveCount(1);
+  await expect(summary).toBeVisible();
   await page.waitForTimeout(600);
 }
 
@@ -163,13 +166,15 @@ test.describe('console start scene · the summary launch', () => {
     // 3 · Zero projects bought → the first A arms the warning, not a submit.
     await key(page, 'Enter', 700);
     await expect(page.locator('.con-start__skipwarn')).toHaveCount(1);
-    await expect(summary).toHaveCount(1); // still here — nothing was sent
+    await expect(summary).toBeVisible(); // still here — nothing was sent
     await shoot(page, '02-skip-armed');
 
-    // The second A submits: the wizard resolves and the scene leaves the
-    // summary (the ceremony takes over, or the scene unmounts entirely).
+    // The second A submits: the wizard resolves and the workspace leaves the
+    // summary. The pane is a PARKED `v-show` layer of the SAME root (the
+    // whole point of the one-workspace start), so the arrival signal is
+    // VISIBILITY — the node itself stays in the DOM through the deployment.
     await key(page, 'Enter', 2500);
-    await expect(summary).toHaveCount(0);
+    await expect(summary).toBeHidden({timeout: 15_000});
     // The setup is over — the hand dock (the ceremony's delivery target)
     // is back, with the REAL hand as its source of truth.
     await expect(page.locator('.con-handdock')).toBeVisible({timeout: 15_000});

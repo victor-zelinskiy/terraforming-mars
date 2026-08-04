@@ -1,9 +1,21 @@
 <template>
+  <!-- THE GAME START WORKSPACE. One root, two bounds of one surface:
+        · PREPARATION — full-bleed (the standard Top Bar and the Player Rail
+          are hidden: the player has no game state yet), the frame is a real
+          bounded workspace plate on an opaque premium room;
+        · DEPLOYMENT (`--bounded` + the `con-ws` marker) — the SYSTEM
+          workspace band: right of the player rail, between the two bars,
+          on the shared seam tokens (--con-ws-left / --con-band-*). The
+          `con-ws` marker lifts + rings the rail exactly like every other
+          workspace of the family — never a hand-measured inset. -->
   <div class="con-start"
        :class="{
          'con-start--ceremony': mode === 'ceremony',
+         'con-start--bounded': mode === 'ceremony',
+         'con-ws': mode === 'ceremony',
          'con-start--materializing': state.flow === 'materializing',
          'con-start--releasing': state.flow === 'releasing',
+         'con-start--resolved': state.flow === 'releasing',
        }"
        role="dialog" :aria-label="$t('Start of the game')">
     <div class="con-start__bg" aria-hidden="true"></div>
@@ -29,8 +41,18 @@
                        :subject="wsSubject"
                        :stage="wsStage"
                        :committed="mode === 'ceremony'">
+          <!-- The aux BROWSE layer only RESERVES the zone's height (the crumb
+               is always deep here: СТАРТ ПАРТИИ › <ГРУППА> › <ЭТАП>); the
+               live journey renders in the deep tail beside the stage. -->
           <div class="con-start__auxrow">
-            <ConsoleJourneyRail v-if="mode === 'wizard'" :items="journeyItems" mode="tabs" />
+            <ConsoleJourneyRail :items="journeyItems" :mode="mode === 'wizard' ? 'tabs' : 'progress'" />
+          </div>
+          <template #deep>
+            <ConsoleJourneyRail class="con-start__jtail"
+                                :items="journeyItems"
+                                :mode="mode === 'wizard' ? 'tabs' : 'progress'" />
+          </template>
+          <template #trailing>
             <!-- Card-step pick counter (wizard): a plain «Выбрано N из M»;
                  re-keyed on a blocked RB press so the chip replays its
                  one-shot nudge (what still gates the step). -->
@@ -39,11 +61,6 @@
                   :class="{'con-start__count--ready': currentStepComplete, 'con-start__count--nudge': counterNudge > 0}">
               {{ $t('Selected') }} <b>{{ picksHere.length }}</b> {{ ofMaxText }}
             </span>
-          </div>
-          <template #deep>
-            <ConsoleJourneyRail v-if="mode === 'ceremony'" class="con-start__jprogress" :items="journeyItems" mode="progress" />
-          </template>
-          <template #trailing>
             <!-- PARTICIPANT READINESS (preparation only — in the deployment
                  the real top strip is back and owns this). Compact by design:
                  seat dot · name · status. Never the whole game HUD. -->
@@ -116,7 +133,7 @@
                 <div class="con-start__section-title">{{ $t('Corporation') }}</div>
                 <div class="con-start__minirow">
                   <div class="con-start__mini con-start__mini--id con-start__deal"
-                       :class="{'con-start__mini--focused': isSummaryFocused(0), 'con-deal-hold': state.corp !== undefined && summaryArriving.has(state.corp)}"
+                       :class="{'con-start__mini--focused': isSummaryFocused(0), 'con-deal-hold': state.corp !== undefined && (summaryArriving.has(state.corp) || summaryStowing.has(state.corp))}"
                        :ref="isSummaryFocused(0) ? 'focusedCardSlot' : undefined"
                        :data-zoom-slot="state.corp">
                     <Card :card="{name: state.corp}" :key="state.corp" lightweight />
@@ -128,7 +145,7 @@
                 <div class="con-start__minirow">
                   <div v-for="(name, i) in state.preludes" :key="name"
                        class="con-start__mini con-start__mini--id con-start__deal"
-                       :class="{'con-start__mini--focused': isSummaryFocused(summaryPreludeBase + i), 'con-deal-hold': summaryArriving.has(name)}"
+                       :class="{'con-start__mini--focused': isSummaryFocused(summaryPreludeBase + i), 'con-deal-hold': summaryArriving.has(name) || summaryStowing.has(name)}"
                        :ref="isSummaryFocused(summaryPreludeBase + i) ? 'focusedCardSlot' : undefined"
                        :data-zoom-slot="name">
                     <Card :card="{name}" :key="name" lightweight />
@@ -150,7 +167,7 @@
               <div v-if="state.projects.length > 0" class="con-start__minirow con-start__minirow--wrap">
                 <div v-for="(name, i) in state.projects" :key="name"
                      class="con-start__mini con-start__deal"
-                     :class="{'con-start__mini--focused': isSummaryFocused(summaryProjectBase + i), 'con-deal-hold': summaryArriving.has(name)}"
+                     :class="{'con-start__mini--focused': isSummaryFocused(summaryProjectBase + i), 'con-deal-hold': summaryArriving.has(name) || summaryStowing.has(name)}"
                      :ref="isSummaryFocused(summaryProjectBase + i) ? 'focusedCardSlot' : undefined"
                      :data-zoom-slot="name">
                   <Card :card="{name}" :key="name" lightweight />
@@ -269,76 +286,73 @@
                 piles on the shared ConsolePlayedPile primitive). A pressed
                 card flies DIRECTLY down into its reserved pile slot — no
                 central holding presentation, no handoff copies. -->
-        <div v-if="mode === 'ceremony'" class="con-start__body con-start__ceremony con-info__scroll"
-             :class="{'con-start__ceremony--hidden': !ceremonyRevealed, 'con-start__ceremony--yield': embedActive}" ref="ceremonyBody">
-          <div class="con-start__queue" ref="queueEl">
-            <transition-group name="con-start-shift" tag="div" class="con-start__queue-row">
-              <div v-for="entry in queueCards" :key="entry.name"
-                   class="con-start__qcard con-start__deal"
-                   :class="{
-                     'con-start__qcard--focused': isFocused(entry.kind, entry.name),
-                     'con-start__qcard--awaiting': entry.dimmed,
-                     'con-deal-hold': queueArriving.has(entry.name) || deal.isHeld(entry.name + '#' + entry.dealIdx),
-                   }"
-                   :data-zoom-slot="entry.name"
-                   :data-queue-slot="entry.name">
-                <Card :card="{name: entry.name}" :key="entry.name" lightweight />
-                <span v-if="entry.badge !== undefined" class="con-cards__pickband" :class="entry.badgeClass">{{ $t(entry.badge) }}</span>
-                <div v-if="entry.reason !== undefined" class="con-cards__reason">{{ $t(entry.reason) }}</div>
-                <div v-else-if="isFocused(entry.kind, entry.name) && entry.verb !== undefined" class="con-start__slot-a">
-                  <GamepadGlyph control="confirm" /><span>{{ $t(entry.verb) }}</span>
+        <div v-if="mode === 'ceremony'" class="con-start__body con-start__ceremony"
+             :class="{'con-start__ceremony--hidden': !ceremonyRevealed}" ref="ceremonyBody">
+          <!-- ── THE DEPLOYMENT — one row, three physical places ──
+                · the QUEUE COLUMN (left, the protagonist): every unresolved
+                  start card + the bought-projects purchase row; the embedded
+                  follow-up (the shared reveal) is an OVERLAY LAYER of this
+                  same column — the queue recedes in place, never unmounts;
+                · the COMPACT PLAYED DOCK (right): «РАЗЫГРАНО · owner», the
+                  destination-focused receiving stacks;
+                · the HAND DOCK (the shell's own footer bay, visible below the
+                  band by construction) — the bought / drawn cards' landing. -->
+          <div class="con-start__deploy">
+            <div class="con-start__queuecol" :class="{'con-start__queuecol--yield': embedActive}">
+              <div class="con-start__queue" ref="queueEl">
+                <transition-group name="con-start-shift" tag="div" class="con-start__queue-row">
+                  <div v-for="entry in queueCards" :key="entry.name"
+                       class="con-start__qcard con-start__deal"
+                       :class="{
+                         'con-start__qcard--focused': isFocused(entry.kind, entry.name),
+                         'con-start__qcard--awaiting': entry.dimmed,
+                         'con-deal-hold': queueArriving.has(entry.name) || heroDepartedName === entry.name || deal.isHeld(entry.name + '#' + entry.dealIdx),
+                       }"
+                       :data-zoom-slot="entry.name"
+                       :data-queue-slot="entry.name">
+                    <Card :card="{name: entry.name}" :key="entry.name" lightweight />
+                    <span v-if="entry.badge !== undefined" class="con-cards__pickband" :class="entry.badgeClass">{{ $t(entry.badge) }}</span>
+                    <div v-if="entry.reason !== undefined" class="con-cards__reason">{{ $t(entry.reason) }}</div>
+                    <div v-else-if="isFocused(entry.kind, entry.name) && entry.verb !== undefined" class="con-start__slot-a">
+                      <GamepadGlyph control="confirm" /><span>{{ $t(entry.verb) }}</span>
+                    </div>
+                  </div>
+                </transition-group>
+
+                <!-- The BOUGHT PROJECTS — part of the queue until the payment
+                     resolves them into the hand (they keep their pay-grid
+                     identity: runHandDelivery measures [data-pay-card]). -->
+                <div v-if="payProjects.length > 0" class="con-start__buy"
+                     :class="{'con-start__buy--focused': isFocused('pay', PAY_KEY)}">
+                  <div class="con-start__buy-row" ref="payGrid">
+                    <div v-for="name in payProjects" :key="name"
+                         class="con-start__buycard"
+                         :class="{'con-deal-hold': queueArriving.has(name)}"
+                         :data-pay-card="name">
+                      <Card :card="{name}" :key="name" lightweight />
+                    </div>
+                  </div>
+                  <div class="con-start__buy-meta">
+                    <span class="con-start__buy-cap">{{ $t('Bought cards') }} · <b>{{ payProjects.length }}</b></span>
+                    <span v-if="corpPayCost !== undefined" class="con-start__buy-amount">−{{ corpPayCost.megacredits }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
+                    <div v-if="isFocused('pay', PAY_KEY)" class="con-start__slot-a">
+                      <GamepadGlyph control="confirm" /><span>{{ $t('Pay') }}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </transition-group>
 
-            <!-- The BOUGHT PROJECTS — part of the queue until the payment
-                 resolves them into the hand (they keep their pay-grid
-                 identity: runHandDelivery measures [data-pay-card]). -->
-            <div v-if="payProjects.length > 0" class="con-start__buy"
-                 :class="{'con-start__buy--focused': isFocused('pay', PAY_KEY)}">
-              <div class="con-start__buy-row" ref="payGrid">
-                <div v-for="name in payProjects" :key="name"
-                     class="con-start__buycard"
-                     :class="{'con-deal-hold': queueArriving.has(name)}"
-                     :data-pay-card="name">
-                  <Card :card="{name}" :key="name" lightweight />
-                </div>
-              </div>
-              <div class="con-start__buy-meta">
-                <span class="con-start__buy-cap">{{ $t('Bought cards') }} · <b>{{ payProjects.length }}</b></span>
-                <span v-if="corpPayCost !== undefined" class="con-start__buy-amount">−{{ corpPayCost.megacredits }}<i class="resource_icon resource_icon--megacredits con-start__mc" aria-hidden="true"></i></span>
-                <div v-if="isFocused('pay', PAY_KEY)" class="con-start__slot-a">
-                  <GamepadGlyph control="confirm" /><span>{{ $t('Pay') }}</span>
-                </div>
-              </div>
+              <!-- EMBEDDED FOLLOW-UP: the shared reveal teleports HERE (claim
+                   'start') as an overlay LAYER of the queue column — the same
+                   Header / Status Rail / Footer frame it deepens, never a
+                   modal over the workspace. The zone stands from the claim's
+                   first frame (a teleport needs its target before the search). -->
+              <div class="con-start__embed" data-embed-slot="start"
+                   :class="{'con-start__embed--live': embedActive}"></div>
             </div>
-          </div>
 
-          <!-- EMBEDDED FOLLOW-UP zone: the shared reveal teleports HERE when a
-               start card draws/picks other cards (claimWorkspaceOutcome). -->
-          <div class="con-start__embed" data-embed-slot="start"></div>
-
-          <!-- ── THE PLAYED ZONE — the real «РАЗЫГРАНО» ── -->
-          <div class="con-start__played" ref="playedZone">
-            <div class="con-start__played-head">
-              <span class="con-start__played-title">{{ $t('Played') }}</span>
-              <span class="con-start__played-owner">
-                <span :class="'con-start__crewdot player_bg_color_' + playerView.thisPlayer.color" aria-hidden="true"></span>
-                {{ viewerName }}
-              </span>
-            </div>
-            <div class="con-start__played-groups">
-              <div v-for="fam in playedFamilies" :key="fam.id" class="con-start__pgroup"
-                   :class="{'con-start__pgroup--receiving': fam.receiving, 'con-start__pgroup--empty': fam.cards.length === 0}">
-                <span class="con-start__pgroup-cap">{{ $t(fam.label) }} <b v-if="fam.cards.length > 0">{{ fam.cards.length }}</b></span>
-                <ConsolePlayedPile v-if="fam.cards.length > 0"
-                                   :cards="fam.cards"
-                                   :hiddenKey="fam.hiddenKey"
-                                   :zoom="pilePlan.zoom" :slotW="pilePlan.slotW"
-                                   :cardH="pilePlan.cardH" :peekH="pilePlan.peekH" />
-                <div v-else class="con-start__pgroup-plate" :style="{width: pilePlan.slotW + 'px', height: pilePlan.peekH * 2 + 'px'}"></div>
-              </div>
-            </div>
+            <!-- ── THE COMPACT PLAYED DESTINATION — «РАЗЫГРАНО · owner» ── -->
+            <ConsoleStartPlayedDock :playerView="playerView" />
           </div>
         </div>
 
@@ -360,7 +374,11 @@
         <!-- CEREMONY status rail — the same shared workspace status line:
              the focused queue card + its resolution context. Never the full
              startup status, never an effect breakdown. -->
-        <div v-if="mode === 'ceremony' && ceremonyRevealed && !embedActive"
+        <!-- The rail STAYS through the embedded reveal (its height is part of
+             the deploy zone's geometry — unmounting it mid-embed re-flowed
+             the queue and the dock under the open surface): the content
+             simply names the deeper step. -->
+        <div v-if="mode === 'ceremony' && ceremonyRevealed"
              class="con-start__statusrail con-start__statusrail--hint">
           <div class="con-start__status-inner">
             <span class="con-start__status-name" :key="ceremonyStatusName">{{ ceremonyStatusName }}</span>
@@ -468,11 +486,11 @@ import {consoleActionOf, ConsoleAction, ConsoleActionOverrides} from '@/client/c
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {
-  buildInitialCardsResponse, clearDockDrift, consoleStartState, deploymentJourneyItems,
+  buildInitialCardsResponse, clearDockDrift, consoleStartState, deploymentCrumb, deploymentJourneyItems,
   driftDockPile, ensureStartWizard, holdStartScene, initialCardsInputOf, initialCardsSignature,
-  picksForStep, releaseStartScene, StartCrewMate, StartDockPileModel, startFlowBusy,
+  picksForStep, releaseStartScene, StartCrewMate, StartCrumb, StartDockPileModel, startFlowBusy,
   StartLaunchState, StartParticipant, startDockPiles, startJourneyItems, startLaunchState,
-  startParticipants, StartWizardStep, stepComplete, wizardSteps,
+  startParticipants, StartWizardStep, stepComplete, wizardCrumb, wizardSteps,
 } from '@/client/console/consoleStartState';
 import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/startStatusPreview';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -483,10 +501,9 @@ import {
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {
-  armPlayedHero, isPlayedHeroActive, playedHeroState, providePlayedHeroTarget,
+  armPlayedHero, isPlayedHeroActive, playedHeroState,
 } from '@/client/console/played/consolePlayedHero';
-import {HeroRect} from '@/client/console/played/playedHeroModel';
-import ConsolePlayedPile from '@/client/components/console/played/ConsolePlayedPile.vue';
+import ConsoleStartPlayedDock from '@/client/components/console/ConsoleStartPlayedDock.vue';
 import {
   claimWorkspaceOutcome, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome,
   setWorkspaceOutcomeSlot, workspaceOutcomeState,
@@ -563,7 +580,7 @@ function deliveryHoldKey(names: ReadonlyArray<CardName>): string {
 
 export default defineComponent({
   name: 'ConsoleStartScene',
-  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsolePlayedPile},
+  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** The LIVE `/api/waitingFor` poll (App → shell → here) — see `launch`. */
@@ -646,7 +663,10 @@ export default defineComponent({
       ceremonyRevealed: false,
       /** The commit's refusal safety (a submit that never flips the mode). */
       commitSafety: undefined as number | undefined,
-      unregisterHeroTarget: undefined as (() => void) | undefined,
+      /** Summary tiles whose card is being STOWED back into its pile (held
+       *  empty under the departing proxies — one visual owner on the way
+       *  back too, never an open tile below a flying copy). */
+      summaryStowing: new Set<CardName>(),
     };
   },
   computed: {
@@ -671,32 +691,42 @@ export default defineComponent({
     currentStep(): StartWizardStep | undefined {
       return this.steps[this.railPos];
     },
-    /** The workspace breadcrumb SUBJECT. The WIZARD keeps it EMPTY on
-     *  purpose: ConsoleWsHead's aux zone then stays on its BROWSE layer —
-     *  the Journey Rail (which IS the stage readout there). The ceremony
-     *  descends for real: subject = the beat, stage = its phase, and the
-     *  journey becomes the deep layer's progress tail. */
-    wsSubject(): string {
+    /**
+     * THE WORKSPACE BREADCRUMB — the one continuous line of the whole start:
+     * `СТАРТ ПАРТИИ › <ГРУППА> › <ЭТАП>` from the first pick to the last
+     * prelude. The subject is the stable stage GROUP, only the tail advances
+     * (consoleWorkspaceHeader grammar); past the commit the header renders it
+     * amber. An embedded reveal advances the tail to ITS stage name
+     * (`phaseKey`, honest generic «ДОБОР КАРТ» until published) — the
+     * embedded surface never titles the workspace itself.
+     */
+    crumb(): StartCrumb {
       if (this.mode === 'wizard') {
-        return '';
+        return wizardCrumb(this.currentStep?.id);
       }
-      if (this.corpPayCost !== undefined) {
-        return 'Projects';
-      }
-      if (this.corpPlayPrompt !== undefined || this.corpCandidatePick) {
-        return 'Corporation';
-      }
-      return 'Preludes';
+      return deploymentCrumb({
+        embedActive: this.embedActive,
+        embedPhase: this.outcome.phaseKey,
+        embedSubject: this.embedSubject,
+        corpPending: this.corpPlayPrompt !== undefined,
+        payPending: this.corpPayCost !== undefined,
+        corpPick: this.corpCandidatePick,
+      });
     },
-    /** The mutable STAGE tail (ceremony only — the wizard's subject is enough). */
+    wsSubject(): string {
+      return this.crumb.subject;
+    },
     wsStage(): string {
-      if (this.mode !== 'ceremony') {
-        return '';
+      return this.crumb.stage;
+    },
+    /** The embed's source GROUP (its card's manifest type) — keeps the crumb's
+     *  subject honest while the reveal owns the stage tail. */
+    embedSubject(): string | undefined {
+      const source = this.outcome.sourceCard;
+      if (source === '') {
+        return undefined;
       }
-      if (this.corpPayCost !== undefined) {
-        return 'Payment';
-      }
-      return 'Playing';
+      return getCard(source as CardName)?.type === CardType.CORPORATION ? 'Corporation' : 'Preludes';
     },
     /** The Journey Rail items: reversible TABS through the preparation,
      *  a linear PROGRESS readout through the deployment. */
@@ -757,8 +787,12 @@ export default defineComponent({
     revealEventKey(): string {
       return currentRevealEvent() === undefined ? '' : 'ev';
     },
-    /** The ceremony status rail: the focused queue card's NAME. */
+    /** The ceremony status rail: the focused queue card's NAME (the SOURCE
+     *  card while an embedded reveal owns the zone). */
     ceremonyStatusName(): string {
+      if (this.embedActive && this.outcome.sourceCard !== '') {
+        return translateText(this.outcome.sourceCard);
+      }
       const f = this.focusedItem;
       if (f === undefined) {
         return '';
@@ -767,6 +801,9 @@ export default defineComponent({
     },
     /** …and its resolution CONTEXT — one short state, never a breakdown. */
     ceremonyStatusText(): string {
+      if (this.embedActive) {
+        return translateText('Card draw');
+      }
       const f = this.focusedItem;
       if (f === undefined) {
         return this.heroState.active ? '' : translateText('Waiting for other players');
@@ -783,11 +820,6 @@ export default defineComponent({
         return idx <= 0 ? translateText('Ready to play') : translateText('Next prelude');
       }
       }
-    },
-    /** The viewer's display name (the played zone's owner line). */
-    viewerName(): string {
-      const me = this.playerView.players.find((p) => p.color === this.playerView.thisPlayer.color);
-      return participantDisplayName({name: me?.name ?? this.playerView.thisPlayer.name ?? '', isMarsBot: me?.isMarsBot === true});
     },
     /**
      * THE DEPLOYMENT SETTLED — the whole start sequence is resolved for this
@@ -862,37 +894,18 @@ export default defineComponent({
       return out;
     },
     /**
-     * THE PLAYED ZONE families — the REAL «Разыграно» presentation (owner +
-     * category piles). Both families stand from the first ceremony frame
-     * (a destination exists before anything flies); the hero's reserved slot
-     * rides `hiddenKey` exactly like the standalone tableau overlay.
+     * ONE VISUAL OWNER — the queue slot of a card whose hero has physically
+     * left it. From the lift to the transaction's end the slot stands
+     * empty-held (`.con-deal-hold`); the tableau commit then removes the
+     * entry and the neighbours FLIP over the freed space. The source face can
+     * never coexist with the flying hero.
      */
-    playedFamilies(): ReadonlyArray<{id: string, label: string, cards: ReadonlyArray<CardModel>, hiddenKey: string | undefined, receiving: boolean}> {
-      if (this.mode !== 'ceremony') {
-        return [];
-      }
+    heroDepartedName(): CardName | undefined {
       const hero = this.heroState;
-      const incoming = hero.active && hero.card !== undefined &&
-        hero.phase !== 'armed' && hero.phase !== 'idle' && hero.phase !== 'failed' ? hero.card : undefined;
-      const incomingType = incoming !== undefined ? getCard(incoming)?.type : undefined;
-      const fam = (id: string, label: string, names: ReadonlyArray<CardName>, mine: boolean) => {
-        const withIncoming = incoming !== undefined && mine && !names.includes(incoming) ? [...names, incoming] : names;
-        return {
-          id, label,
-          cards: withIncoming.map((name) => ({name}) as CardModel),
-          hiddenKey: mine && incoming !== undefined && !hero.revealed ? incoming : undefined,
-          receiving: mine && incoming !== undefined,
-        };
-      };
-      return [
-        fam('corp', 'Corporation', corporationCardNames(this.playerView), incomingType === CardType.CORPORATION),
-        fam('preludes', 'Preludes', this.playedPreludes, incomingType === CardType.PRELUDE),
-      ];
-    },
-    /** The played zone's pile metrics (screen px — profile-scaled). */
-    pilePlan(): {zoom: number, slotW: number, cardH: number, peekH: number} {
-      const zoom = 0.42 * conUiScale();
-      return {zoom, slotW: 320 * zoom, cardH: 460 * zoom, peekH: 66 * zoom};
+      if (!hero.active || hero.card === undefined) {
+        return undefined;
+      }
+      return hero.phase === 'idle' || hero.phase === 'armed' || hero.phase === 'failed' ? undefined : hero.card;
     },
     picks() {
       return {
@@ -1194,32 +1207,6 @@ export default defineComponent({
         return '';
       }
       return deliveryHoldKey(this.ceremonyBoughtNames);
-    },
-    /**
-     * The corporation column. Two honest shapes:
-     *  - PENDING (`played: false`): the deferred corporationPlay prompt is
-     *    live — the card is actionable and, once pressed, physically LEAVES
-     *    for the «Разыграно» table (the column goes, the preludes FLIP in).
-     *  - CONTEXT (`played: true`): the corp was played WITHOUT the start-scene
-     *    press — a game whose corp is assigned (beginner), test mode, or a
-     *    save from before the deferred-play rework. The scene never staged
-     *    that landing, so it shows the corp calmly instead of hiding it: the
-     *    player must always SEE which corporation they are starting with.
-     *    (`sawCorpPlayPrompt` distinguishes the two: once THIS session staged
-     *    the landing, the played corp belongs to the table, not here.)
-     */
-    corpColumn(): ReadonlyArray<{name: CardName, played: boolean}> {
-      if (this.mode !== 'ceremony') {
-        return [];
-      }
-      const pending = this.corpPlayCard;
-      if (pending !== undefined) {
-        return [{name: pending.name, played: false}];
-      }
-      if (this.sawCorpPlayPrompt) {
-        return []; // the hero carried it to the table — never a ghost twin
-      }
-      return corporationCardNames(this.playerView).map((name) => ({name, played: true}));
     },
     /** Identity of the pressable ceremony set — drives the reward pre-fetch
      *  (the deferred corp + Merger's offered corps / drew-N candidates + the
@@ -1554,9 +1541,8 @@ export default defineComponent({
       this.syncCeremonyLayout();
       registerStartDockLayer(this.$refs.dockLayer as HTMLElement | undefined);
     });
-    // A start play lands DIRECTLY in the bottom played zone: the hero's
-    // target is the reserved pile slot (hiddenKey) of the card's family.
-    this.unregisterHeroTarget = providePlayedHeroTarget(() => this.measurePlayedSlot());
+    // (The hero's landing target — the compact played dock's reserved front
+    // anchor — is registered by ConsoleStartPlayedDock itself on its mount.)
     // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
     this.stopStripObs = useResizeObserver(this.$el as HTMLElement, () => this.scheduleFit()).stop;
     this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
@@ -1564,8 +1550,6 @@ export default defineComponent({
   beforeUnmount() {
     document.body.classList.remove('con-start-ceremony');
     document.body.classList.remove('con-start-prep');
-    document.body.style.removeProperty('--con-start-rail-inset');
-    this.unregisterHeroTarget?.();
     if (this.outcome.host === 'start') {
       releaseWorkspaceOutcome(); // an orphaned claim suppresses presenters
     }
@@ -1802,6 +1786,9 @@ export default defineComponent({
         clearDockDrift();
         await paneMotion;
       } finally {
+        // The stow's tile holds release only now — the summary pane is long
+        // hidden, so no face can flash under a dead proxy.
+        this.summaryStowing.clear();
         this.dockBusy = false;
         this.state.flow = 'idle';
       }
@@ -1811,6 +1798,7 @@ export default defineComponent({
      *  backs disappear BECAUSE the cards left — one physical owner; only the
      *  informational count trace remains under the open tiles). */
     async revealSummaryFromPiles(): Promise<void> {
+      this.summaryStowing.clear();
       const groups = this.steps
         .map((st) => ({st, names: picksForStep(this.picks, st.id)}))
         .filter((g) => g.names.length > 0);
@@ -1829,7 +1817,10 @@ export default defineComponent({
     },
     /** Leaving the summary backwards: the laid-out set gathers back into its
      *  piles first (the reverse of the reveal) — a back reappears only when
-     *  its card physically lands back on the shelf — then the step returns. */
+     *  its card physically lands back on the shelf — then the step returns.
+     *  ONE VISUAL OWNER: the tiles are held empty (`summaryStowing`) in the
+     *  same paint their proxies spawn — a card can never lie open in the
+     *  summary while its copy flies to the shelf. */
     async collectSummaryToPiles(): Promise<void> {
       const groups = this.steps
         .map((st) => ({st, names: picksForStep(this.picks, st.id)}))
@@ -1838,11 +1829,14 @@ export default defineComponent({
         const sources: Array<DockFlightSource> = g.names
           .map((name) => ({name, el: this.summaryTileFor(name)}))
           .filter((sc): sc is DockFlightSource => sc.el !== null);
-        return collectToDock(sources, this.pileElFor(g.st.id), undefined,
+        return collectToDock(sources, this.pileElFor(g.st.id),
+          () => sources.forEach((sc) => this.summaryStowing.add(sc.name)),
           () => driftDockPile(g.st.id, 1));
       }));
       // (The drift is reconciled by the caller AFTER the step flip — clearing
-      // here, still on the summary, would blink every just-landed back out.)
+      // here, still on the summary, would blink every just-landed back out.
+      // The stow holds release then too: the tiles are off-screen by that
+      // point, and an early release would flash the faces under dead proxies.)
     },
     summaryTileFor(name: CardName): HTMLElement | null {
       const root = this.$el as HTMLElement | undefined;
@@ -1851,39 +1845,6 @@ export default defineComponent({
       }
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
       return root.querySelector<HTMLElement>(`.con-start__summary [data-zoom-slot="${esc}"], .con-start__mini[data-zoom-slot="${esc}"]`);
-    },
-    /**
-     * The hero's landing target — the RESERVED slot of the played zone's
-     * family pile (`hiddenKey`, rendered with full layout, kept invisible
-     * until the commit): the card flies DIRECTLY into the real «Разыграно».
-     * Stability-looped: the arc lands on settled geometry only.
-     */
-    async measurePlayedSlot(): Promise<HeroRect | undefined> {
-      const name = this.heroState.card;
-      if (name === undefined) {
-        return undefined;
-      }
-      await this.$nextTick();
-      const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || typeof root.querySelector !== 'function') {
-        return undefined;
-      }
-      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
-      const el = root.querySelector<HTMLElement>(`.con-start__played [data-played-key="${esc}"]`);
-      if (el === null) {
-        return undefined;
-      }
-      let last: HeroRect | undefined = undefined;
-      for (let i = 0; i < 30; i++) {
-        await new Promise<void>((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => r()) : setTimeout(r, 16)));
-        const r = el.getBoundingClientRect();
-        if (r.width > 4 && last !== undefined &&
-            Math.abs(r.left - last.x) < 0.5 && Math.abs(r.top - last.y) < 0.5 && Math.abs(r.width - last.w) < 0.5) {
-          return last;
-        }
-        last = r.width > 4 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
-      }
-      return last;
     },
     dealDelay(i: number): Record<string, string> {
       if (consoleReducedMotionActive()) {
@@ -2170,7 +2131,7 @@ export default defineComponent({
         return;
       }
       const body = (this.$refs.ceremonyBody ?? this.$refs.body) as HTMLElement | undefined;
-      const focused = body?.querySelector('.con-start__corp--focused, .con-start__prelude--focused');
+      const focused = body?.querySelector('.con-start__qcard--focused');
       focused?.scrollIntoView({block: 'nearest', behavior: 'smooth'});
     },
     /** The participant strip's display name (bot-safe). */
@@ -2293,6 +2254,10 @@ export default defineComponent({
       this.state.flow = 'releasing';
       const el = this.$el as HTMLElement | undefined;
       if (!consoleReducedMotionActive() && el !== undefined && el.isConnected) {
+        // THE RESOLVED BEAT — a short settled frame (the `--resolved` accent:
+        // queue empty, dock stable, tableau standing) BEFORE the dissolve, so
+        // the release reads as "the start is complete", never as a cut.
+        await new Promise<void>((r) => window.setTimeout(r, motionMs(380)));
         await new Promise<void>((resolve) => {
           const safety = window.setTimeout(resolve, motionMs(360) + 700);
           gsap.to(el, {autoAlpha: 0, duration: motionMs(320) / 1000, ease: 'power2.in', onComplete: () => {
@@ -2305,41 +2270,18 @@ export default defineComponent({
       this.state.flow = 'idle';
     },
     /**
-     * CEREMONY layout: yield the left resource panel (+ top HUD) so the start
-     * reveal's delta chips are visible. Toggles the body class (which lifts the
-     * rail / status strip above the scene in console.less) and measures the
-     * rail's right edge into `--con-start-rail-inset` (robust across profiles) so
-     * the scene's frame + backdrop start just after it. The wizard (card
-     * selection) keeps the full width — the reveal stages live in the ceremony.
+     * SHELL BOUNDS. The deployment's bounds are the SYSTEM workspace band
+     * (`--con-ws-left` / `--con-band-*` seam tokens + the `con-ws` marker on
+     * the root — the same geometry every workspace of the family stands on;
+     * no hand-measured rail inset, ever). This toggle only drives WHAT EXISTS
+     * around the workspace: the preparation hides the standard Top Bar and
+     * the Player Rail (the player has no game state yet); the ceremony swap
+     * MATERIALIZES both from their own edges (the entrance keyframes).
      */
     syncCeremonyLayout(): void {
       const isCeremony = this.mode === 'ceremony';
-      // Measure + publish the rail inset BEFORE the class swap: the frame's
-      // `padding-left` transitions from the full-bleed 0 to the rail bound in
-      // the SAME episode the HUD materializes (a var set after the class flip
-      // would snap instead of travel). The rail is measurable even hidden —
-      // the preparation hides it with `visibility`, never `display`.
-      if (isCeremony) {
-        const rail = document.querySelector('.con-res-host');
-        if (rail !== null) {
-          const right = rail.getBoundingClientRect().right;
-          if (right > 0) {
-            // +26 (was +14): the focused corp card's ring/CTA glow needs the
-            // extra clearance so it never bleeds into the left resource rail.
-            document.body.style.setProperty('--con-start-rail-inset', `${Math.round(right + 26 * conUiScale())}px`);
-          }
-        }
-      }
-      // FULL-BLEED PREPARATION: the standard top HUD and the player rail have
-      // no physical meaning before the deployment (no identity, no resources,
-      // nothing the strip states is the player's yet) — BOTH stay entirely
-      // away and the wizard owns the whole surface. They MATERIALIZE together
-      // on this one swap (the ceremony classes play both entrances).
       document.body.classList.toggle('con-start-ceremony', isCeremony);
       document.body.classList.toggle('con-start-prep', !isCeremony);
-      if (!isCeremony) {
-        document.body.style.removeProperty('--con-start-rail-inset');
-      }
     },
     /** rAF-coalesced fit for resize bursts (never fires per focus move). */
     scheduleFit(): void {
@@ -2791,9 +2733,10 @@ export default defineComponent({
         CSS.escape(name) : name.replace(/"/g, '\\"');
       // HOST 'workspace': the standalone «Разыграно» overlay never opens for
       // a start play. The card lifts out of its QUEUE slot and flies the hero
-      // arc DIRECTLY into the bottom played zone's reserved pile slot
-      // (measurePlayedSlot) — a short, causal trajectory: queue → «Разыграно».
-      // Effects then resolve FROM the docked card; the queue reflows.
+      // arc DIRECTLY into the compact played dock's reserved FRONT ANCHOR
+      // (ConsoleStartPlayedDock.measureFrontAnchor) — a short, causal
+      // trajectory: queue → «РАЗЫГРАНО». Effects then resolve FROM the docked
+      // card; the queue reflows over the freed slot.
       armPlayedHero(name, false, {
         manualTableOpen: false,
         host: 'workspace',

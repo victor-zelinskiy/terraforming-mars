@@ -948,66 +948,81 @@ receivingMinis / foreignTargetMinis / splitPlayRewards / cardTargetGroups):
   overlay-хост хуки не зовёт), e2e-проба переписана на `.con-recv`
   (+fullOverlayFrames=0, cardColHidden, docked=front key).
 
-## THE GAME START WORKSPACE (ит.3 — физическая непрерывность, 2026-08-04)
+## THE GAME START WORKSPACE (ит.4 — СИСТЕМНЫЙ workspace, 2026-08-04)
 
 Старт партии — ОДИН корневой workspace `.con-start` от первого выбора до
-стабилизированного поля. Механика жизни (LIFETIME HOLD `consoleStartState.hold`,
-`startSceneServes` во всех presence-сайтах шелла, state machine `flow` +
-`startFlowBusy()` input-lock) — без изменений с ит.2; поверх неё ит.3 добавила
-ФИЗИЧЕСКУЮ модель карт:
+стабилизированного поля, и с ит.4 он говорит на ЯЗЫКЕ СЕМЬИ целиком: одна
+рамка-плита (`__frame`), общий `ConsoleWsHead` с непрерывной крошкой, band-
+геометрия и `con-ws`-маркер в развёртывании, compact destination-focused
+«РАЗЫГРАНО» вместо полного обзора. Механика жизни (LIFETIME HOLD
+`consoleStartState.hold`, `startSceneServes` во всех presence-сайтах шелла,
+state machine `flow` + `startFlowBusy()` input-lock) и MOTION CORE
+(`startDockMotion.addFlight` на hero-математике: lift→arc→dock→settle, флип в
+середине дуги, апекс в safe-band) + `dockDrift` (рубашки следуют за картами;
+сводка = counts-trace) — без изменений с ит.3.
 
-**MOTION CORE (`startDockMotion.ts`).** ВСЕ карточные переезды старта
-(collect/return/summary-reveal/stow/reseat) летят одним примитивом
-`addFlight`: MECHANICAL LIFT (130ms ease-out, рост тени) → TRAVEL (400ms,
-квадратичная дуга через `heroPoint` + монотонный профиль скорости
-`heroProgressAt` из playedHeroModel — БЫСТРЫЙ круиз, решительное торможение;
-scale меняется ПО ХОДУ; флип в середине дуги; апекс клампится к safe-band —
-карта не выходит за экран) → DOCK (контактная тень, `onDock` per card) →
-SETTLE (микро-осадка). Никакого linear, никаких мгновенных скейлов.
+**ДВА BOUNDS ОДНОЙ ПОВЕРХНОСТИ.** Preparation — full-bleed safe area (Top Bar
+и рельса скрыты: игрового состояния ещё нет), workspace-плита `__frame` несёт
+видимую границу на опак-фоне `__bg`. Deployment — `.con-start--bounded` +
+маркер `con-ws` на ТОМ ЖЕ корне: паддинги корня переезжают ОДНИМ transition
+на семейные токены (`--con-ws-left` / `--con-ws-top/bottom` / `--con-pad-x`;
+НИКАКОГО ручного замера рельсы — старый `--con-start-rail-inset` УДАЛЁН),
+`:has(.con-ws)` поднимает и подсвечивает рельсу штатно, `__bg` тончает до
+band-шейда (opacity .6). GAME FRAME MATERIALIZATION = resolved-бит превью →
+prep-хром гаснет НА МЕСТЕ → class-swap (bounded + edge-проявления
+`con-start-hud-in`/`con-start-rail-in`) → `reseatCards` сводка→очередь.
+Полётов UI-панелей нет по построению.
 
-**ЧЕСТНЫЙ СЧЁТ ПИЛ (`dockDrift`).** Рубашки следуют за КАРТАМИ, не за
-state-флипом: collect пре-дрейфит −N и каждый тачдаун добавляет рубашку;
-return/reveal дрейфят + и каждый вылет убирает. На СВОДКЕ пилы физически
-ПУСТЫ (карты лежат в тайлах) — остаётся только counts-trace
-(`--trace`: стек-бокс невидим, «КОРПОРАЦИЯ · 1»); ни одна рубашка не
-дублирует открытую карту. Кросс-флипы (в сводку/из) компенсируются
-`driftDockPile`-сдвигами в момент смены railPos.
+**КРОШКА (`ConsoleWsHead`).** `СТАРТ ПАРТИИ › <ГРУППА> › <ЭТАП>` во ВСЁМ
+флоу: wizard — `wizardCrumb(stepId)` (КОРПОРАЦИЯ/ПРОЛОГИ/CEO›ВЫБОР,
+ПРОЕКТЫ›ПОКУПКА, СВОДКА), deployment — `deploymentCrumb(signals)`
+(КОРПОРАЦИЯ›РОЗЫГРЫШ, ПРОЕКТЫ›ПОКУПКА, ПРОЛОГИ›РОЗЫГРЫШ; committed=amber).
+EMBEDDED REVEAL двигает ТОЛЬКО хвост: `subject` = группа source-карты (по
+manifest-типу), `stage` = `workspaceOutcomeState.phaseKey` или честный
+generic «Card draw» (ДОБОР КАРТ). Journey Rail живёт в deep-хвосте шапки
+(браузерный слой aux только резервирует высоту); счётчик выбора и crew-чипы —
+trailing с `order: 3` (крошка ведёт строку); в bounded-режиме не-текущие
+journey-чипы сворачиваются до знака (лейбл у текущего) — хвост не давит
+крошку на узкой полосе.
 
-**SHELL MATERIALIZATION (без полётов UI).** Отвергнуто и УДАЛЕНО: полёт
-статус-панели в Top HUD и перенос participant-чипов. Теперь: resolved-бит
-превью → prep-хром (crew + counts-shelf) гаснет НА МЕСТЕ → ОДИН class-swap
-проявляет Top Bar из ВЕРХНЕЙ кромки и рельсу из ЛЕВОЙ (`con-start-hud-in`/
-`con-start-rail-in`) + padding-транзишен фрейма → карты сводки ФИЗИЧЕСКИ
-перегруппируются в стартовую очередь (`reseatCards`), проекты — в purchase-
-row (`[data-pay-card]` сохранён для delivery). Startup Status упрощён до
-quick-decision (деньги + рука + прологи; production/tags УДАЛЕНЫ из модели).
+**DEPLOYMENT = QUEUE COLUMN + COMPACT PLAYED DOCK.** `__deploy` — один ряд:
+слева персистентная очередь `[data-queue-slot]` (transition-group move) +
+purchase-row `[data-pay-card]`; справа — **`ConsoleStartPlayedDock`**
+(`.con-start__played.con-splayed`): компактный destination-focused
+«РАЗЫГРАНО · owner» НА ПРИМИТИВАХ receiving-стадии, НИКОГДА полный обзор.
+Каждая семья = один физический стек: peek-полосы (кап 2) + ОТКРЫТЫЙ верх;
+receiving-семья несёт reserved front-anchor `[data-start-front]`
+(геометрический Top Card Handoff: prev-top лежит в своей будущей полосе и
+переполняет её открытым лицом до дока; счётчик тикает НА доке; пустая семья
+= waiting-плита). Док сам регистрирует `providePlayedHeroTarget`
+(stability-loop front-анкера); `[data-played-key]` на полосах/фронте держит
+цепочки reward-source и resourceTransfer (`.con-start__played
+[data-played-key]`). Слот очереди пустеет на lift (`heroDepartedName` →
+`.con-deal-hold`) — источник и hero не сосуществуют ни кадра; фокус в
+очереди — КОЛЬЦО, не transform (прокси спавнится pixel-true).
 
-**STARTUP QUEUE + DIRECT-TO-BOTTOM.** Центр = персистентная очередь
-`[data-queue-slot]` (transition-group move — уходящая карта освобождает
-место, остальные СДВИГАЮТСЯ, не перемонтируются; кандидаты дилятся деком в
-свои слоты). Розыгрыш: hero стартует ИЗ queue-слота и летит НАПРЯМУЮ в
-нижнюю зону `.con-start__played` — настоящее «РАЗЫГРАНО · <owner>» на
-`ConsolePlayedPile` (семьи corporation/preludes всегда смонтированы; пустая
-семья = waiting-плита; reserved slot = `hiddenKey`; reveal-under-proxy как в
-оверлее). НИКАКОГО центрального стейджа и НИКАКОГО «СТОЛ» — probe держит
-`centralStageFrames === 0` и `stolFrames === 0`. Reward-источники heroes:
-`.con-start__played [data-played-key]` (+ resourceTransfer targetPointFor).
+**EMBEDDED REVEAL — слой той же зоны.** `.con-start__embed` — absolute-слой
+queue-колонки (`--live` = мягкий rise; зона стоит с кадра клейма); очередь
+получает `__queuecol--yield` (transform/opacity, не unmount), dock и рельса
+стоят. Клейм в НАЖАТИИ: `claimWorkspaceOutcome('start', name,
+['draw','pick'], 0, drawExpected)` + слот; lifecycle по `revealEventKey`
+(presenting/release + backstop). `deploymentSettled` ждёт: пустую очередь,
+`!embedActive`, `currentRevealEvent()===undefined`,
+`!isHandDeliveryActive()`, `held.length===0` — последний пролог с добором НЕ
+закрывает workspace до полного интейка; затем resolved-бит
+(`--resolved`: mint-граница, ~380ms) → dissolve. B в развёртывании УДАЛЁН
+из грамматики — свернуть необратимую церемонию нельзя.
 
-**EMBEDDED REVEAL.** Карта старта, тянущая карты (structural: `gain cards`
-в preview branch → `drawExpected`), в НАЖАТИИ клеймит
-`claimWorkspaceOutcome('start', name, ['draw','pick'], 0, N)` + публикует
-слот `.con-start__embed` — шелловский reveal-телепорт (`revealEmbedTarget`)
-сажает ТОТ ЖЕ ConsoleRevealOverlay внутрь workspace; очередь уходит в
-`--yield` (transform, не unmount). Lifecycle: watcher `revealEventKey` —
-presenting при появлении события, release при его очистке (+ backstop 20s;
-release и на unmount сцены). `deploymentSettled` ждёт: пустую очередь,
-`!embedActive`, `currentRevealEvent()===undefined`, `!isHandDeliveryActive()`,
-`held.length===0` — последний пролог с добором НЕ закрывает workspace до
-полного интейка. B в развёртывании УДАЛЁН из грамматики (и из бара, и из
-onPress) — свернуть необратимую церемонию нельзя.
+**ONE VISUAL OWNER — закрытые дыры ит.3:** stow сводки прячет source-тайлы
+под прокси тем же кадром (`summaryStowing` → `.con-deal-hold`; release после
+скрытия панели); прежний большой `__played`-блок на `ConsolePlayedPile`,
+центральные колонны ит.2 (`__corp/__prelude/__cands/__pay*`) и «СТОЛ»
+удалены совсем.
 
-Гварды: `consoleStartState.spec` (27: + drift/summary-trace),
-`startStatusPreview.spec` (минимальность модели контрактом), e2e-проба:
-FHD-сценарий с прологом-добором (Biolab) — embedded reveal обязан
-присутствовать; «СТОЛ»/центральный стейдж — 0 кадров; очередь ≥3;
-пилы «Разыграно» ≥3; standalone «Разыграно» 0; dock-прокси в полёте.
+Гварды: `consoleStartState.spec` (24: + wizardCrumb/deploymentCrumb),
+`ConsoleStartPlayedDock.spec` (5: компакт/receiving/handoff/адрес цепочек/
+пост-транзакция), `startStatusPreview.spec` (минимальность контрактом),
+e2e `console-play-landing-probe` (FHD+4K+reduced: continuous root, embedded
+reveal обязан, «СТОЛ»=0, `.con-recv` в старте=0, standalone «Разыграно»=0,
+пилы дока ≥3, dock-прокси в полёте), `console-start-summary`,
+`start-scene-profiles` (воки переписаны на subject-крошку + Period=RT).

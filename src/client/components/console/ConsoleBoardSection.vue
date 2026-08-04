@@ -108,8 +108,20 @@ const NATURAL_H_MAX = 620;
 /** Re-fit only on a meaningful drift (px of natural size / px of offset). */
 const CALIBRATE_SIZE_EPS = 3;
 const CALIBRATE_OFFSET_EPS = 2;
-/** Bounded convergence per fit cycle (measure → refit → measure → done). */
-const CALIBRATE_MAX_PASSES = 2;
+/**
+ * Bounded convergence per FRAME (see `fitKey`) — a runaway guard, not a
+ * budget. It used to be 2 per "fit cycle", where a cycle was re-opened by any
+ * stage resize: a board that measured mid-deal (arcs and off-Mars flanks not
+ * composed yet) spent both passes on an incomplete union, locked in a natural
+ * box several percent off, and then finished converging much later — at
+ * whatever moment next re-opened the budget, which in practice was the player
+ * coming back from the hand. Traced on the device: the disc re-framed itself
+ * ~800ms after the board returned (997→902px wide over two round trips),
+ * gliding all the way, because the transform transition is permanent now.
+ * The convergence must therefore RUN TO STABILITY where it starts, and the
+ * frame it converged for is what licenses it to run again.
+ */
+const CALIBRATE_MAX_PASSES = 6;
 
 /**
  * P29c — the tuned console board scale multiplier. ×1.05 was dialled in
@@ -154,6 +166,10 @@ const PFOCUS_MAX_SCALE = 4.8;
 const BOARD_TWEEN_MS = 300;
 /** Margin over a board transition before measurements are trusted again. */
 const TWEEN_SETTLE_MS = 60;
+/** Past the arc markers' own glide (≤1280ms) — see `armLateVerify`. */
+const LATE_VERIFY_MS = 1500;
+/** Rungs of the late-verification ladder (1.5s, 3s, 4.5s, 6s from each arm). */
+const LATE_VERIFY_MAX = 4;
 
 export default defineComponent({
   name: 'ConsoleBoardSection',
@@ -192,6 +208,20 @@ export default defineComponent({
        * it goes through scheduleFit, which re-opens the pass budget).
        */
       calibrateLock: undefined as {w: number, h: number} | undefined,
+      /**
+       * THE FRAME THE CURRENT FRAMING WAS DERIVED FOR — the stage box and the
+       * viewport, as one key. The board is `v-show`n, so EVERY section round
+       * trip (hand / colonies / hydro / the journal) takes the stage to 0×0
+       * and back; the ResizeObserver sees two resizes and used to answer both
+       * with a full re-derivation, calibration budget included. But a
+       * visibility flip is not a geometry change: the framing the board comes
+       * back to is the one it left with, already on screen and already
+       * correct. Re-deriving it there is pure loss — it is how an unfinished
+       * boot convergence surfaced as «планета сдвигается» when the player
+       * closed the hand. Only a key CHANGE (a real resize, a profile flip)
+       * licenses a new fit.
+       */
+      fitKey: undefined as string | undefined,
       /** The first fit has landed — from here every scale change GLIDES. */
       fitted: false,
       /** A board transform is in flight: measurements are meaningless until
@@ -205,6 +235,20 @@ export default defineComponent({
       appliedScale: 1,
       calibrateRaf: 0,
       calibratePasses: 0,
+      /**
+       * The frame whose convergence has already had its LATE VERIFICATION.
+       * The union bbox is bounded left and right by the ARC MARKERS, and a
+       * marker GLIDES to its value (≤1280ms) — so a convergence that starts
+       * while the board is composing can settle, self-consistently, on a
+       * footprint that no longer exists a second later, and then never look
+       * again. One deferred re-check per frame closes that: on a settled
+       * board it is a no-op, and it can only ever fire while the entry
+       * cinematic still covers the board — never during play, because the
+       * frame key does not change during play.
+       */
+      lateVerifyKey: undefined as string | undefined,
+      lateVerifyRuns: 0,
+      lateVerifyTimer: 0,
       /** P27b: the vertical-run COLUMN anchor (set on horizontal moves /
        *  landings; keeps an up/down run in ONE visual hex column). */
       colAnchor: undefined as number | undefined,
@@ -374,6 +418,10 @@ export default defineComponent({
       ) * SCALE_BOOST;
       const clamped = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
       this.applyBoardScale(clamped);
+      // This framing now belongs to THIS frame — a later resize back to the
+      // same box is a no-op (`scheduleFit`), and the convergence below is the
+      // only thing still allowed to refine it.
+      this.fitKey = `${Math.round(r.width)}x${Math.round(r.height)}@${window.innerWidth}x${window.innerHeight}`;
       // P29: refine against the REAL rendered content (next frame — the new
       // scale must paint first so the union bbox reflects it).
       this.scheduleCalibrate();
@@ -470,6 +518,9 @@ export default defineComponent({
         // would "improve" it ~400ms after the landing — an unanimated
         // second correction, which is precisely the jump this replaces.
         this.calibrateLock = {w: window.innerWidth, h: window.innerHeight};
+        // …and it belongs to the frame it was replayed into, so the stage's
+        // own handback (which arrives as a resize) does not re-derive it.
+        this.fitKey = this.stageKey() ?? this.fitKey;
         return;
       }
       this.restoreStageOffsets(stage);
@@ -495,20 +546,92 @@ export default defineComponent({
       this.savedBoardDx = undefined;
       this.savedBoardDy = undefined;
     },
+    /**
+     * The frame the framing is derived for: the stage box + the viewport.
+     * `undefined` while the board is hidden — there is nothing to fit, and
+     * nothing to remember either (the framing it will come back to is the one
+     * it left with). Rounded, so sub-pixel jitter is not a "change".
+     */
+    stageKey(): string | undefined {
+      const stage = this.$refs.stage as HTMLElement | undefined;
+      if (stage === undefined) {
+        return undefined;
+      }
+      const r = stage.getBoundingClientRect();
+      if (r.width < 40 || r.height < 40) {
+        return undefined;
+      }
+      return `${Math.round(r.width)}x${Math.round(r.height)}@${window.innerWidth}x${window.innerHeight}`;
+    },
     scheduleFit(): void {
       if (this.fitRaf !== 0) {
         return;
       }
       this.fitRaf = window.requestAnimationFrame(() => {
         this.fitRaf = 0;
-        // A fresh fit cycle (mount / stage resize) restarts the bounded
-        // calibration convergence.
+        const key = this.stageKey();
+        // HIDDEN: a section owns the screen. Keep the framing untouched — and
+        // in particular do NOT re-open the calibration budget, or the board's
+        // return becomes the moment an unfinished convergence plays out.
+        if (key === undefined) {
+          return;
+        }
+        // The SAME frame it was already fitted for (a v-show round trip):
+        // nothing to re-derive. Re-fitting here is what moved the planet.
+        if (key === this.fitKey) {
+          return;
+        }
+        // A real change (window resize / profile flip): a fresh convergence.
         this.calibratePasses = 0;
+        this.calibrateLock = undefined;
         this.fitBoard();
       });
     },
+    /**
+     * ONE deferred re-measurement per frame, after the arc markers have
+     * finished gliding to their values. A convergence that ran against a
+     * composing board is otherwise final — that is how a boot could lock a
+     * framing several percent off, which then surfaced as a "jump" the first
+     * time anything re-opened the budget.
+     */
+    armLateVerify(): void {
+      const key = this.fitKey;
+      if (key === undefined) {
+        return;
+      }
+      if (this.lateVerifyKey !== key) {
+        this.lateVerifyKey = key;
+        this.lateVerifyRuns = 0;
+      }
+      if (this.lateVerifyRuns >= LATE_VERIFY_MAX) {
+        return;
+      }
+      this.lateVerifyRuns++;
+      if (this.lateVerifyTimer !== 0) {
+        window.clearTimeout(this.lateVerifyTimer);
+      }
+      // A WIDENING ladder, because "settled" has no single timestamp: the
+      // deal cinematic, the arcs' travel and the start scene's handback all
+      // finish at their own pace, and a convergence that ran before them is
+      // measuring a board that no longer exists. Each rung starts from a
+      // fresh budget; on an already-settled board a rung is one no-op sweep.
+      this.lateVerifyTimer = window.setTimeout(() => {
+        this.lateVerifyTimer = 0;
+        this.calibratePasses = 0;
+        this.scheduleCalibrate();
+      }, consoleMotionMs(LATE_VERIFY_MS * this.lateVerifyRuns));
+    },
     scheduleCalibrate(): void {
-      if (this.calibrateRaf !== 0 || this.calibratePasses >= CALIBRATE_MAX_PASSES) {
+      if (this.calibrateRaf !== 0) {
+        return;
+      }
+      if (this.calibratePasses >= CALIBRATE_MAX_PASSES) {
+        // The convergence ran out of road — it did NOT finish. Looking again
+        // once the board is quiet is the whole point of the ladder; without
+        // this the framing simply froze wherever the budget happened to end,
+        // and only a section round trip could ever re-open it (which is
+        // exactly the re-framing the player saw as the planet shifting).
+        this.armLateVerify();
         return;
       }
       this.calibrateRaf = window.requestAnimationFrame(() => {
@@ -580,6 +703,7 @@ export default defineComponent({
         Math.abs(natH - this.naturalH) > CALIBRATE_SIZE_EPS;
       const offsetDrift = Math.abs(dx) > CALIBRATE_OFFSET_EPS || Math.abs(dy) > CALIBRATE_OFFSET_EPS;
       if (!sizeDrift && !offsetDrift) {
+        this.armLateVerify(); // …unless the board was still composing
         return; // converged
       }
       this.calibratePasses++;
@@ -595,14 +719,28 @@ export default defineComponent({
         const prevY = rawY !== '' ? parseFloat(rawY) : -4;
         stage.style.setProperty('--con-board-dx', `${(prevX + dx).toFixed(1)}px`);
         stage.style.setProperty('--con-board-dy', `${(prevY + dy).toFixed(1)}px`);
+        // ⚠ THE FOLD IS A TRANSFORM CHANGE, so it GLIDES like any other — the
+        // planet's transition is permanent, and `--con-board-dx/dy` ride the
+        // same declaration as the scale. Only a SCALE change used to arm the
+        // tween guard, so the very next pass measured a planet mid-flight,
+        // folded a partial correction on top of a partial correction (the
+        // fold is cumulative!), and the convergence chased itself until the
+        // pass budget ran out. Device trace, 4K: the boot stopped 371px
+        // off-centre and stayed there — until a section round trip re-opened
+        // the budget and the board visibly re-framed itself, which is the
+        // «планета сдвигается» the player actually reported.
+        this.armBoardTween();
       }
       if (sizeDrift) {
         this.naturalW = natW;
         this.naturalH = natH;
-        this.fitBoard(); // re-fit at the honest natural box (schedules the next pass)
-      } else {
-        this.scheduleCalibrate(); // verify the offset settled
+        this.fitBoard(); // re-fit at the honest natural box
       }
+      if (!this.boardTweening) {
+        // Nothing is in flight — the next measurement is honest right away.
+        this.scheduleCalibrate();
+      }
+      // …otherwise the tween's own expiry re-schedules it, at rest.
     },
     cellEl(spaceId: string | undefined): HTMLElement | undefined {
       if (spaceId === undefined) {
@@ -847,6 +985,9 @@ export default defineComponent({
   beforeUnmount() {
     if (this.tweenTimer !== 0) {
       window.clearTimeout(this.tweenTimer);
+    }
+    if (this.lateVerifyTimer !== 0) {
+      window.clearTimeout(this.lateVerifyTimer);
     }
     this.stageObserver?.disconnect();
     if (this.fitRaf !== 0) {

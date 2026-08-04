@@ -12354,25 +12354,20 @@ each(@players, {
     }
 }
 
-/* ── START SCENE (CTS T5): the game-opening ceremony ──────────────────
-   Full-screen premium scene: hero header + step rail + budget capsule,
-   the shared .con-cards inspector/filmstrip, the corp column and prelude
-   progress rail. Deliberately CINEMATIC but calm: one dealt-in stagger on
-   entry, cross-fades between steps, no looping motion. */
-/* ── Start-of-game setup reveal: yield the left resource panel + top HUD ──
-   In CEREMONY mode (the corp-bonus / card-payment reveal + preludes) the scene
-   steps aside for the left rail and the top status strip so the player WATCHES
-   the delta chips land — it occupies everything to the RIGHT of the rail. The
-   rail + strip are lifted above the scene (z 11480), and the scene's frame +
-   backdrop are inset by the measured rail width (`--con-start-rail-inset`, set
-   by ConsoleStartScene.syncCeremonyLayout — robust across profiles). The wizard
-   (card selection) is untouched: it keeps the full width. */
+/* ── THE GAME START WORKSPACE (`.con-start`) ──────────────────────────
+   ONE root surface, two bounds:
+    · PREPARATION — full-bleed safe area (the standard Top Bar + Player Rail
+      are hidden: no game state exists yet). The frame is a REAL bounded
+      workspace plate standing on an opaque premium room;
+    · DEPLOYMENT (`--bounded` + the `con-ws` marker) — the SYSTEM workspace
+      band: the root's padding re-bounds to the family seam tokens
+      (`--con-ws-left` / `--con-band-*`) in one calm transition, the `con-ws`
+      marker lifts + rings the player rail exactly like every other workspace
+      (never a hand-measured inset), and the room's opaque bg thins to the
+      band shade over the (already committed) board. */
 body.con-start-ceremony {
     .con-status { position: relative; z-index: 11490; }
     .con-res-host { z-index: 11490; }
-    /* Padding shifts BOTH the centred frame AND the absolute backdrop (its
-       containing block is the padding box), so the rail strip stays clean. */
-    .con-start { padding-left: var(--con-start-rail-inset, 0); }
 }
 
 .con-start {
@@ -12384,32 +12379,36 @@ body.con-start-ceremony {
     justify-content: center;
     font-family: @con-font;
     color: @con-text;
-    /* The FULL-BLEED → STANDARD BOUNDS re-bound of Game State Materialization
-       travels (the rail inset var is published BEFORE the class swap) — the
-       shell resizes as one calm move, never a snap. */
-    transition: padding-left calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    /* PREPARATION bounds: the full-bleed safe area — the frame plate reads as
+       a bounded system surface, not content loose on a backdrop. The bottom
+       clears the shell's command bar (its geometry token), so the workspace
+       boundary is VISIBLE above the bar on every profile. */
+    padding: .55rem var(--con-pad-x, .9rem) var(--con-band-bottom, 3rem);
+    /* GAME FRAME MATERIALIZATION travels this one padding change — the shell
+       re-bounds as one calm move, never a snap, and no panel ever flies. */
+    transition: padding calc(480ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+
+    /* THE BOUNDED DEPLOYMENT — the system workspace band box. */
+    &--bounded {
+        padding-top: var(--con-ws-top, var(--con-band-top, 3.4rem));
+        padding-right: var(--con-pad-x, .9rem);
+        padding-bottom: var(--con-ws-bottom, var(--con-band-bottom, 3rem));
+        padding-left: var(--con-ws-left, 11.3rem);
+    }
 
     &__bg {
         position: absolute;
-        /* NOT `inset: 0`: an absolute child fills the PADDING box, so the
-           ceremony's `padding-left` on `.con-start` shifts the content frame
-           but NOT this backdrop — it kept dimming the left resource rail during
-           the corp-reveal / prelude-PLAY (the whole point of yielding the rail
-           was defeated). Inset the veil's LEFT by the SAME measured rail width
-           (`--con-start-rail-inset`, set by syncCeremonyLayout in ceremony mode;
-           unset → 0 in the wizard, so the veil stays full-width there). Now the
-           left rail reads BRIGHT on the start-of-game screens. */
-        top: 0;
-        right: 0;
-        bottom: 0;
-        left: var(--con-start-rail-inset, 0);
-        transition: left calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+        inset: 0;
         /* An OPAQUE premium surface — the Game Start Workspace is a real
            room, not a veil over the live game: no board, no side panels, no
            legacy chrome may read through the preparation (the old 0.92
            translucency ghosted the whole right sidebar through the card
            grid). Controlled depth stays: a cool zenith light, a warm floor
-           glow, sparse stars — calm enough that the cards own every eye. */
+           glow, sparse stars — calm enough that the cards own every eye.
+           In the BOUNDED deployment the same layer thins to the band shade
+           (the rail z11520, the bars z11700 and the hand dock z11490 all
+           stand above it by the family ladder — nothing bright is dimmed). */
+        transition: opacity calc(480ms * var(--motion-scale, 1)) ease;
         background:
             radial-gradient(ellipse at 50% -10%, fade(@con-cyan, 8%), transparent 55%),
             radial-gradient(ellipse at 50% 118%, rgba(150, 78, 40, 0.09), transparent 60%),
@@ -12437,17 +12436,45 @@ body.con-start-ceremony {
        mid-deal, so the post-deal layout never jumps. */
     --con-start-verdict-h: 2.4rem;
 
+    /* The room thins to the band shade once the game frame stands. */
+    /* Dense enough that the board home's right panel can never ghost through
+       the (0.96) frame on a 4K panel — the veil carries what the family gets
+       from the shared shade. */
+    &--bounded .con-start__bg { opacity: .8; }
+
     &__frame {
         position: relative;
-        /* Wider than before (was 84rem): the freed width lets the 10-project
-           grid + the summary tableau grow into the 4K frame. */
-        width: min(90rem, 96vw);
+        /* THE WORKSPACE PLATE — one visible, bounded system surface holding
+           header · journey · content · shelf · status rail. It fills the
+           root's padded bounds in BOTH modes, so the materialization is ONE
+           surface re-bounding (the padding transition), never a re-dress. */
+        width: 100%;
         display: flex;
         flex-direction: column;
-        /* Bottom padding = the shell command bar clearance (52px bar + air)
-           — it replaced the inline footer that used to sit under the bar. */
-        padding: 1.3rem 1.7rem 3.2rem;
+        padding: .85rem 1.2rem .8rem;
         min-height: 0;
+        border-radius: .7rem;
+        /* A shade brighter than the room behind it — the plate must READ as a
+           bounded system surface against the opaque preparation bg. */
+        background: linear-gradient(180deg, rgba(13, 21, 32, 0.78), rgba(9, 15, 24, 0.66));
+        box-shadow:
+            inset 0 0 0 .07rem rgba(96, 176, 232, 0.24),
+            inset 0 .06rem 0 rgba(170, 215, 255, 0.07),
+            0 1rem 2.6rem rgba(0, 0, 0, 0.42);
+    }
+    /* Bounded: the plate is the family workspace panel (near-opaque — the
+       shade behind it carries the board dim, the panel carries the work). */
+    &--bounded .con-start__frame {
+        background: rgba(7, 12, 19, 0.96);
+    }
+    /* The final RESOLVED beat — the boundary answers in mint before the
+       workspace releases the field (state, not decoration). */
+    &--resolved .con-start__frame {
+        box-shadow:
+            inset 0 0 0 .07rem fade(@con-mint, 45%),
+            inset 0 .06rem 0 rgba(170, 255, 215, 0.06),
+            0 1rem 2.6rem rgba(0, 0, 0, 0.42);
+        transition: box-shadow calc(300ms * var(--motion-scale, 1)) ease;
     }
 
     /* ── Header ────────────────────────────────────────────────────── */
@@ -12530,6 +12557,8 @@ body.con-start-ceremony {
     /* The pick counter lives IN the rail row (steps · counter · budget) —
        its old standalone line went back to the cards. */
     &__count {
+        order: 3; /* trailing: after ident + aux — the crumb leads the line */
+        flex-shrink: 0;
         display: inline-flex;
         align-items: center;
         gap: .4rem;
@@ -13112,182 +13141,11 @@ body.con-start-ceremony {
         font-weight: 700;
     }
 
-    /* Ceremony. */
-    &__ceremony {
-        /* The deployment surface is a COLUMN: the deploy zone (ask layer +
-           the receiving-stage overlay) above, the compact start tableau as
-           the stable bottom shelf. The old side-by-side row lives on the
-           ASK layer inside the zone. */
-        display: flex;
-        flex-direction: column;
-        gap: .8rem;
-        align-items: stretch;
-    }
-    &__corps {
-        flex-shrink: 0;
-        display: flex;
-        flex-direction: column;
-        gap: .8rem;
-    }
-    &__corp {
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: .5rem;
-        padding: .5rem;
-        border-radius: .7rem;
-        zoom: calc(0.92 * var(--con-ui-scale, 1));
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease;
-        > :is(.card-container, .pcard) { margin: 0; }
-
-        &--ready {
-            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 35%);
-        }
-        /* Start-of-game setup reveal: the corp is the ONE actionable card (apply
-           bonus → pay for cards). A calm mint aura — it's a positive gain step,
-           not a hostile prompt — and the body stays FULL brightness. */
-        &--reveal {
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%), 0 0 1.1rem fade(@con-mint, 12%);
-        }
-        &--focused {
-            box-shadow: 0 0 0 .1rem fade(@con-cyan, 85%), 0 0 1.3rem fade(@con-cyan, 25%);
-        }
-        /* P18: state badges anchor to the card top; the body dims while
-           the badge stays bright. */
-        .con-cards__pickband { top: -.1rem; }
-        &--done > :is(.card-container, .pcard) {
-            opacity: 0.75;
-            filter: saturate(0.8);
-        }
-        &--pending > :is(.card-container, .pcard) {
-            opacity: 0.55;
-            filter: saturate(0.6) brightness(0.85);
-        }
-    }
-    /* The setup-reveal affordance under the corp card (apply / pay). Reuses the
-       verdict pill; the payment line carries the −N M€ so the player sees the
-       exact cost BEFORE pressing A. */
-    &__corp-reveal-cta {
-        margin-top: .1rem;
-    }
-    &__corp-pay {
-        display: inline-flex;
-        align-items: center;
-        gap: .2rem;
-        .con-start__mc { width: .85rem; height: .85rem; }
-    }
-    /* ── The ceremony PAYMENT beat ────────────────────────────────────────
-       The bought project cards shown FACE UP (a compact, non-navigable grid
-       — the player sees exactly WHICH cards they are buying) over the
-       cost + «Оплатить» CTA. On confirm these cards physically fly into the
-       hand dock (handDeliveryDirector); they are held out of the dock until
-       then, so this grid is their only home in the meantime. */
-    &__pay {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: .5rem;
-    }
-    &__pay-card {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: .55rem;
-        padding: .7rem .85rem;
-        border-radius: .7rem;
-        background: rgba(14, 22, 33, 0.55);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, background calc(160ms * var(--motion-scale, 1)) ease;
-        &--focused {
-            background: fade(@con-mint, 14%);
-            box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 1.3rem fade(@con-mint, 30%);
-        }
-    }
-    &__pay-grid {
-        display: grid;
-        grid-template-columns: repeat(var(--con-pay-cols, 4), auto);
-        gap: .45rem;
-        justify-content: center;
-        align-items: start;
-    }
-    /* Each bought card: a compact FACE (readable enough to identify), zeroed
-       legacy margin, inert. Same footprint feel as a hand card, never
-       navigable inside the payment element. */
-    &__pay-proxy {
-        display: flex;
-        > :is(.card-container, .pcard) {
-            margin: 0;
-            zoom: calc(0.36 * var(--con-ui-scale, 1));
-        }
-    }
-    &__pay-meta {
-        display: flex;
-        align-items: center;
-        gap: .75rem;
-    }
-    &__pay-cards {
-        font-size: .72rem; color: @con-text-dim;
-        b { font-size: .85rem; font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
-    }
-    &__pay-amount {
-        display: inline-flex; align-items: center; gap: .15rem;
-        font-size: .95rem; font-weight: 800; color: #ffd88a; font-variant-numeric: tabular-nums;
-    }
-    &__pay-cta {
-        margin-left: .1rem;
-    }
-    &__right {
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-        gap: .9rem;
-    }
-    &__prelude-grid {
-        display: flex;
-        flex-wrap: wrap;
-        gap: .9rem;
-        padding-top: .7rem; /* P18: headroom for the state band overhang */
-    }
-    /* Small-zoom contexts scale the band back up to readable. Keeps the base
-       rule's TV double-scale guard (same property → this would drop it). */
-    &__prelude .con-cards__pickband { zoom: calc(1.15 / var(--con-ui-scale, 1)); }
-    &__prelude {
-        position: relative;
-        border-radius: .6rem;
-        zoom: calc(0.86 * var(--con-ui-scale, 1));
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, transform calc(160ms * var(--motion-scale, 1)) ease;
-        > :is(.card-container, .pcard) { margin: 0; }
-
-        &--played {
-            box-shadow: 0 0 0 .1rem rgba(150, 180, 208, 0.45);
-
-            /* P18: the BODY dims (clearly not an active option); the
-               «Разыграна» band above stays bright. */
-            > :is(.card-container, .pcard) {
-                opacity: 0.6;
-                filter: saturate(0.55) brightness(0.82);
-            }
-        }
-        &--playable {
-            box-shadow: 0 0 0 .1rem fade(@con-cyan, 45%), 0 0 .9rem fade(@con-cyan, 12%);
-        }
-        &--awaiting > :is(.card-container, .pcard) {
-            opacity: 0.6;
-            filter: saturate(0.6) brightness(0.85);
-        }
-        /* The preludes WAIT while the corp bonus / card payment reveal runs —
-           dimmed + non-interactive (not in the focus ring) until it completes. */
-        &--reveal-wait > :is(.card-container, .pcard) {
-            opacity: 0.5;
-            filter: saturate(0.5) brightness(0.8);
-        }
-        &--focused {
-            transform: translateY(-.2rem);
-            box-shadow: 0 0 0 .1rem fade(@con-cyan, 90%), 0 0 1.3rem fade(@con-cyan, 28%);
-        }
-    }
+    /* (The old iteration-2 ceremony centre columns — __corps / __corp /
+       __pay* / __right / __prelude* / __cands — are DELETED with their
+       markup: the deployment is the queue row + the compact played dock,
+       styled in the deployment section below. The `__slot-a` affordance and
+       the `__deal` stagger live on — the queue and the wizard both use them.) */
     &__slot-a {
         position: absolute;
         left: 50%;
@@ -13308,13 +13166,6 @@ body.con-start-ceremony {
         white-space: nowrap;
         z-index: 3;
     }
-    &__cands { min-width: 0; }
-    /* P17: ceremony candidates scale DOWN (X fullscreen is the detailed
-       read); a Merger CORPORATION pick goes further - five corp cards
-       read as a calm comparison row, never giant overflow. */
-    &__cands .con-cards__strip > .con-cards__slot { zoom: calc(0.78 * var(--con-ui-scale, 1)); }
-    &__cands--corps .con-cards__strip > .con-cards__slot { zoom: calc(0.64 * var(--con-ui-scale, 1)); }
-
     /* The dealt-in stagger (entry only; delay via inline style).
        `backwards` (NOT `both`): a forwards fill would pin the final
        keyframe's transform forever and kill the --focused lift. */
@@ -14734,12 +14585,16 @@ body.con-start-ceremony .con-status {
        top strip reads — never the whole game HUD. Lives in the workspace
        header's trailing zone; the real strip takes over at materialization. */
     &__crewline {
+        /* Trailing content of the workspace header: AFTER ident (1) and the
+           aux zone (2) — the workspace name leads the line, always. */
+        order: 3;
         display: flex;
         align-items: center;
         gap: .5rem;
         flex-wrap: wrap;
         justify-content: flex-end;
         min-width: 0;
+        flex-shrink: 0;
     }
     &__crewchip {
         display: inline-flex;
@@ -14780,24 +14635,48 @@ body.con-start-ceremony .con-status {
     }
     &__crewtick { color: @con-mint; }
 
-    /* ── THE DEPLOYMENT: startup queue · embed zone · the played zone ──
-       A column of three physical places. The QUEUE holds every unresolved
-       start card (persistent row — a resolved card leaves, the others only
-       slide over via the transition-group move); the EMBED zone hosts the
-       shared reveal when a start card draws; the PLAYED zone is the real
-       «Разыграно» (owner + category piles on ConsolePlayedPile). */
+    /* ── THE DEPLOYMENT: queue column (+ embed layer) · the played dock ──
+       One row of three physical places inside the bounded workspace. The
+       QUEUE COLUMN holds every unresolved start card + the purchase row
+       (persistent — a resolved card leaves, the others only slide over via
+       the transition-group move); the EMBED layer is an OVERLAY of that same
+       column (the shared reveal deepens the workspace in place — the queue
+       recedes, never unmounts); the PLAYED DOCK is the compact
+       destination-focused «РАЗЫГРАНО · owner» column on the right. */
     &__ceremony--hidden { opacity: 0; }
-    /* An embedded follow-up owns the centre: the queue yields visual
-       priority (calms + compacts through transform only) but stays mounted. */
-    &__ceremony--yield .con-start__queue {
-        opacity: .38;
-        transform: scale(.965);
-        transform-origin: 50% 0;
+    &__ceremony {
+        /* The deployment never scrolls — the root workspace is a bounded
+           surface, and everything in it is planned to fit. */
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        padding-right: 0;
+    }
+    &__deploy {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        align-items: stretch;
+        gap: 1rem;
+    }
+    &__queuecol {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    /* An embedded follow-up owns the column: the queue yields visual
+       priority IN PLACE (transform/opacity only) but stays mounted. */
+    &__queuecol--yield .con-start__queue {
+        opacity: .22;
+        transform: scale(.972);
+        transform-origin: 50% 42%;
     }
     &__queue {
         /* ONE shared row: the unresolved cards AND the purchase group sit
            side by side (never stacked — the FHD height budget), centred in
-           the zone between the header and the played shelf. */
+           the zone between the header and the status rail. */
         flex: 1;
         min-height: 0;
         display: flex;
@@ -14822,11 +14701,13 @@ body.con-start-ceremony .con-status {
         position: relative;
         border-radius: .6rem;
         zoom: calc(0.62 * var(--con-ui-scale, 1));
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, transform calc(160ms * var(--motion-scale, 1)) ease;
+        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease;
         > :is(.card-container, .pcard) { margin: 0; }
 
+        /* Focus is a RING, never a transform: the hero proxy spawns over the
+           slot's live rect, and a focus-lifted card would hand the flight a
+           displaced first frame (the visible "jump at liftoff"). */
         &--focused {
-            transform: translateY(-.25rem);
             box-shadow: 0 0 0 .12rem fade(@con-cyan, 85%), 0 .6rem 1.4rem rgba(0, 0, 0, 0.45);
             z-index: 2;
         }
@@ -14869,10 +14750,24 @@ body.con-start-ceremony .con-status {
             zoom: calc(0.34 * var(--con-ui-scale, 1));
         }
     }
+    /* SHORT VIEWPORTS (a 720/800-class window at ui-scale 1): the queue and
+       the purchase row may stack — step the card faces down one notch so the
+       stacked pair still fits INSIDE the zone (the workspace never clips its
+       own cards; X = the fullscreen detailed read). Profile-scaled displays
+       (TV / Deck) never hit this: their zone scales with the cards. */
+    @media (max-height: 880px) {
+        &__qcard { zoom: calc(0.52 * var(--con-ui-scale, 1)); }
+        &__buycard > :is(.card-container, .pcard) { zoom: calc(0.28 * var(--con-ui-scale, 1)); }
+    }
     &__buy-meta {
         display: flex;
         align-items: center;
         gap: .75rem;
+
+        /* The PAY affordance rides the meta row IN FLOW (the base __slot-a is
+           an absolute under-card pill — here it would anchor to the queue
+           column and drift; the row is its honest home). */
+        .con-start__slot-a { position: static; transform: none; margin-left: .1rem; }
     }
     &__buy-cap {
         font-size: .72rem; color: @con-text-dim;
@@ -14883,78 +14778,215 @@ body.con-start-ceremony .con-status {
         display: inline-flex; align-items: center; gap: .15rem;
         font-size: .95rem; font-weight: 800; color: #ffd88a; font-variant-numeric: tabular-nums;
     }
-    /* The embed zone — empty (zero height) until the shared reveal teleports
-       in; the reveal's own panel brings its size. */
+    /* The embed layer — the workspace's INTERNAL deeper step. An overlay of
+       the queue column (same Header, same Status Rail, same Footer around
+       it): the zone exists from the claim's first frame (a teleport needs a
+       standing target), sizes the reveal to the column, and never draws a
+       frame of its own — a surface that dressed itself here would read as a
+       modal that arrived. */
     &__embed {
-        flex-shrink: 0;
-        display: flex;
-        justify-content: center;
-    }
-
-    /* ── THE PLAYED ZONE — the real «РАЗЫГРАНО» ── */
-    &__played {
-        flex-shrink: 0;
+        position: absolute;
+        inset: 0;
+        min-height: 0;
         display: flex;
         flex-direction: column;
-        gap: .35rem;
-        padding: .45rem .6rem .35rem;
-        border-radius: .7rem .7rem 0 0;
-        background: linear-gradient(180deg, rgba(14, 22, 33, 0.66), rgba(10, 16, 24, 0.5));
-        box-shadow: inset 0 .05rem 0 rgba(120, 155, 190, 0.14);
+        justify-content: center;
+        pointer-events: none;
+
+        > * { width: 100%; min-height: 0; }
     }
-    &__played-head {
+    &__embed--live {
+        pointer-events: auto;
+        /* The zone's content SURFACES from inside the workspace (REVEAL of the
+           descend phrase — the queue released in place a beat earlier). One
+           calm rise; the card physics (deck → slots) is the batch arrival's. */
+        animation: con-start-embed-in calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* The deep-tail journey (beside the crumb) — one size tighter than the
+       aux rail so the line reads breadcrumb-first, progress-second. */
+    &__jtail .con-jrail__item {
+        padding: .16rem .5rem;
+        font-size: .64rem;
+        gap: .3rem;
+    }
+    &__jtail .con-jrail__num { font-size: .56rem; }
+    &__jtail .con-jrail__arrow { font-size: .62rem; }
+    /* Non-current journey chips collapse to their mark (✓ / № / ●) wherever
+       the header line is tight, so the tail can never crowd the breadcrumb —
+       the current stage always keeps its word. Tight = the BOUNDED band
+       (right of the rail) and any sub-FHD window in the full-bleed prep. */
+    &--ceremony .con-start__jtail .con-jrail__item:not(.con-jrail__item--current) .con-jrail__label {
+        display: none;
+    }
+    @media (max-width: 1600px) {
+        &__jtail .con-jrail__item:not(.con-jrail__item--current) .con-jrail__label {
+            display: none;
+        }
+    }
+}
+@keyframes con-start-embed-in {
+    from { opacity: 0; transform: translateY(.45rem) scale(.992); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-start__embed--live { animation: none; }
+}
+
+/* ── THE COMPACT PLAYED DESTINATION — «РАЗЫГРАНО · owner» (ConsoleStartPlayedDock)
+   The deployment's receiving dock: each start family is ONE physical stack
+   (peek strips + the open top card); the receiving family carries the
+   reserved front anchor the hero lands into. Destination-focused by
+   construction — never the tableau overview. */
+.con-splayed {
+    flex: 0 0 auto;
+    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    gap: .55rem;
+    min-height: 0;
+    padding: .6rem .75rem .7rem;
+    border-radius: .6rem;
+    background: linear-gradient(180deg, rgba(13, 21, 32, 0.85), rgba(9, 15, 23, 0.78));
+    box-shadow: inset 0 0 0 .06rem rgba(96, 176, 232, 0.15);
+    overflow: hidden;
+
+    &__head {
         display: flex;
         align-items: baseline;
-        gap: .7rem;
+        gap: .6rem;
+        flex-shrink: 0;
     }
-    &__played-title {
+    &__title {
         font-size: .72rem;
         font-weight: 800;
         letter-spacing: .14em;
         text-transform: uppercase;
         color: fade(@con-cyan, 85%);
+        white-space: nowrap;
     }
-    &__played-owner {
+    &__owner {
         display: inline-flex;
         align-items: center;
-        gap: .4rem;
-        font-size: .74rem;
+        gap: .35rem;
+        min-width: 0;
+        font-size: .72rem;
         font-weight: 700;
         color: @con-text;
     }
-    &__played-groups {
-        display: flex;
-        align-items: flex-start;
-        gap: 1.6rem;
-        /* Reserve the receiving room: a full card + one peek band. The pile
-           grows INSIDE this reserve (top-anchored), so an arriving card never
-           reflows the frame — nothing outside the zone moves. */
-        min-height: 12.4rem;
+    &__owner-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
-    &__pgroup {
+    &__dot {
+        flex: 0 0 auto;
+        display: inline-block;
+        width: .5rem;
+        height: .5rem;
+        border-radius: 50%;
+        box-shadow: 0 0 .3rem rgba(0, 0, 0, 0.6);
+    }
+    &__families {
+        flex: 1;
+        min-height: 0;
         display: flex;
         flex-direction: column;
-        gap: .25rem;
-        &--receiving .con-start__pgroup-cap { color: @con-mint; }
+        gap: .7rem;
     }
-    &__pgroup-cap {
+    &__fam {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+        transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
+
+        /* Another family is receiving: this one recedes in place. */
+        &--aside { opacity: .55; }
+        &--empty .con-splayed__cap-label { opacity: .7; }
+        &--receiving {
+            .con-splayed__cap-label { color: fade(@con-mint, 92%); }
+            .con-splayed__stack {
+                box-shadow: 0 0 0 .07rem fade(@con-mint, 50%), 0 0 1rem fade(@con-mint, 16%);
+            }
+        }
+    }
+    &__cap {
         display: inline-flex;
         align-items: baseline;
         gap: .4rem;
+    }
+    &__cap-label {
         font-size: .6rem;
         font-weight: 700;
         letter-spacing: .1em;
         text-transform: uppercase;
         color: fade(@con-cyan, 78%);
-        b { color: #dfe9f2; font-size: .72rem; }
+        transition: color calc(220ms * var(--motion-scale, 1)) ease;
     }
-    /* An EMPTY category: a calm waiting plate — the destination visibly
-       exists before anything flies (readiness is a place, not a promise). */
-    &__pgroup-plate {
+    &__cap-count {
+        color: #dfe9f2;
+        font-size: .72rem;
+        font-variant-numeric: tabular-nums;
+        animation: con-splayed-tick calc(300ms * var(--motion-scale, 1)) ease-out;
+    }
+    &__stack {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        border-radius: .4rem;
+        transition: box-shadow calc(220ms * var(--motion-scale, 1)) ease;
+    }
+    /* One strip = one lying card's visible title band (the peek crop). */
+    &__strip {
+        position: relative;
+        overflow: hidden;
+        border-radius: .25rem .25rem 0 0;
+
+        /* The OPEN TOP card (idle) — the full face in a full-height slot. */
+        &--top {
+            overflow: hidden;
+            border-radius: .35rem;
+        }
+        /* The PREVIOUS TOP while receiving: it sits in its FUTURE strip slot
+           and OVERFLOWS it downward with the same open face until the
+           arriving card is revealed (the geometric Top Card Handoff) —
+           nothing ever moves, the new card simply covers it back to a strip. */
+        &--prev {
+            overflow: visible;
+            z-index: 4;
+        }
+    }
+    &__face {
+        position: relative;
+        width: 100%;
+    }
+    /* THE RESERVED FRONT ANCHOR — the hero's landing box: real geometry from
+       the arm frame (the flight measures it), quietly marked until filled. */
+    &__front {
+        position: relative;
+        z-index: 1;
+        border-radius: .4rem;
+        background: rgba(255, 255, 255, 0.03);
+        box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 30%);
+        transition: box-shadow calc(220ms * var(--motion-scale, 1)) ease;
+
+        &--filled {
+            background: none;
+            box-shadow: none;
+            overflow: hidden;
+        }
+    }
+    /* An EMPTY family: a calm waiting plate — the destination visibly exists
+       before anything flies (readiness is a place, not a promise). */
+    &__plate {
         border-radius: .35rem;
         background: rgba(255, 255, 255, 0.03);
         box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.14);
     }
+}
+@keyframes con-splayed-tick {
+    from { transform: translateY(-.12rem); color: @con-mint; }
+    to { transform: translateY(0); }
 }
 
 /* ── THE WORKSPACE JOURNEY RAIL (reusable multi-stage primitive) ── */
@@ -19516,13 +19548,8 @@ html.con-profile-large {
 /* ── START SCENE: the deferred-corporation ceremony recomposition ─────────
    (the corporationPlay rework: the corp column exists only while its play is
    pending; playing it runs the hero landing and the column LEAVES, the
-   preludes FLIP into the freed space.) */
-.con-start--ceremony .con-start__frame {
-    /* Clear of the lifted top status strip (body.con-start-ceremony raises it
-       above the scene) — the header title never renders behind it. */
-    margin-top: 2.9rem;
-    max-height: calc(100vh - 7.4rem);
-}
+   preludes FLIP into the freed space. The frame's clearance under the lifted
+   top strip is the root's BOUNDED padding now — the system band box.) */
 /* The corp column's exit: absolute during leave so the layout frees the
    space IMMEDIATELY (the prelude FLIP below animates the reflow), while the
    column itself calmly fades out where it stood. */

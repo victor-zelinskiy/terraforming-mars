@@ -21,11 +21,16 @@ describe('UndergroundHabitat', () => {
     expect(player.production.plants).eq(1);
     runAllActions(game);
 
-    assertIsExcavationAction(player, player.popWaitingFor());
-    runAllActions(game);
-
+    // The card-target pick prompts FIRST (PLAY_CARD_RESOURCE_CHOICE elevates it
+    // ahead of the excavation) — the order the play preview promises, so the
+    // premium modal's pre-collected pick lands and the excavation rides the
+    // board banner instead of the pick re-surfacing after it.
     const selectCard = cast(player.popWaitingFor(), SelectCard);
     selectCard.cb([birds]);
     expect(birds.resourceCount).eq(1);
+
+    runAllActions(game);
+
+    assertIsExcavationAction(player, player.popWaitingFor());
   });
 });

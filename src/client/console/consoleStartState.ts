@@ -356,6 +356,72 @@ export function deploymentJourneyItems(signals: {
   return items;
 }
 
+// ── the workspace breadcrumb (СТАРТ ПАРТИИ › <ГРУППА> › <ЭТАП>) ────────────
+
+export type StartCrumb = {
+  /** The crumb's SUBJECT (i18n key) — the stable stage group. '' = root only. */
+  subject: string,
+  /** The mutable STAGE tail (i18n key) — the only animating segment. */
+  stage: string,
+};
+
+const STEP_SUBJECT: Record<StartWizardStepId, string> = {
+  corp: 'Corporation',
+  prelude: 'Preludes',
+  ceo: 'CEO',
+  projects: 'Projects',
+};
+
+/**
+ * The PREPARATION crumb: stable context BEFORE the mutable stage —
+ * `СТАРТ ПАРТИИ › КОРПОРАЦИЯ › ВЫБОР` … `СТАРТ ПАРТИИ › ПРОЕКТЫ › ПОКУПКА` →
+ * `СТАРТ ПАРТИИ › СВОДКА`. The subject is the step GROUP (never the focused
+ * card — focus moves every d-pad press, the line must not).
+ */
+export function wizardCrumb(stepId: StartWizardStepId | undefined): StartCrumb {
+  if (stepId === undefined) {
+    return {subject: 'Summary', stage: ''};
+  }
+  return {
+    subject: STEP_SUBJECT[stepId],
+    stage: stepId === 'projects' ? 'Purchase' : 'Selection',
+  };
+}
+
+/**
+ * The DEPLOYMENT crumb — the same grammar past the commit boundary (the
+ * header renders it amber): `… › КОРПОРАЦИЯ › РОЗЫГРЫШ`, `… › ПРОЕКТЫ ›
+ * ПОКУПКА`, `… › ПРОЛОГИ › РОЗЫГРЫШ`, and `… › <ГРУППА> › ДОБОР КАРТ` while
+ * an embedded reveal presents inside the workspace. Signals are the live
+ * ceremony predicates the scene already owns; this is presentation math only.
+ */
+export function deploymentCrumb(signals: {
+  /** The embedded follow-up's OWN stage name (workspaceOutcomeState.phaseKey),
+   *  '' when it published nothing — the crumb then says the honest generic. */
+  embedPhase?: string,
+  /** An embedded reveal is presenting (the source group keeps the subject). */
+  embedActive: boolean,
+  /** The embed's source group ('Corporation' | 'Preludes'), when known. */
+  embedSubject?: string,
+  corpPending: boolean,
+  payPending: boolean,
+  corpPick: boolean,
+}): StartCrumb {
+  if (signals.embedActive) {
+    return {
+      subject: signals.embedSubject ?? 'Preludes',
+      stage: signals.embedPhase !== undefined && signals.embedPhase !== '' ? signals.embedPhase : 'Card draw',
+    };
+  }
+  if (signals.payPending) {
+    return {subject: 'Projects', stage: 'Purchase'};
+  }
+  if (signals.corpPending || signals.corpPick) {
+    return {subject: 'Corporation', stage: 'Playing'};
+  }
+  return {subject: 'Preludes', stage: 'Playing'};
+}
+
 export type StartDockPileModel = {
   id: StartWizardStepId,
   label: string,

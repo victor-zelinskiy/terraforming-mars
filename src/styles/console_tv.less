@@ -814,12 +814,11 @@ html.con-profile-tv {
     /* ═══ 18 · START SCENE + REVEAL ═══════════════════════════════ */
     .con-start {
         --con-start-verdict-h: 3rem;
-        /* The frame is FULL-HEIGHT (root align-items:stretch) with a bottom
-           pad = command-bar clearance; the dock is hidden under the scene
-           now, so the bar clearance is all that's reserved. A wider frame +
-           extra TOP headroom so the selected-card «ВЫБРАНА» band (which
-           overhangs above the card) never clips against the header. */
-        &__frame { width: min(90rem, 96vw); padding-top: 2.2rem; }
+        /* The frame fills the root's padded bounds on every profile (the
+           workspace plate is the boundary); extra TOP headroom so the
+           selected-card «ВЫБРАНА» band (which overhangs above the card)
+           never clips against the header. */
+        &__frame { padding-top: 2.2rem; }
         /* The «A РАЗЫГРАТЬ» affordance pill sits INSIDE a card that is itself
            zoomed (corp/prelude/candidate = BASE·--con-ui-scale) — so its
            rem sizing compounded with the card zoom to a ~50px slab. Cancel
@@ -832,34 +831,16 @@ html.con-profile-tv {
            only grows from there as the couch scale grows — the first pass at
            0.7rem undershot and read too small on real hardware. */
         &__slot-a { zoom: calc(1 / var(--con-ui-scale, 1)); font-size: 0.85rem; padding: .2rem .6rem; }
-        /* The PAYMENT cta (`.con-start__pay-cta`, same element also carries
-           `.con-start__slot-a`) sits in `.con-start__pay-meta` — a plain flex
-           row with NO ambient BASE·--con-ui-scale card zoom around it (unlike
-           corp/prelude/candidate, where the pill's own ÷scale cancels the
-           card's ×scale down to a stable net BASE — 0.76 for the prelude
-           reference). With nothing to cancel, the shared rule above left it
-           at a fixed, scale-INDEPENDENT ~17px slab — never growing with the
-           couch scale, reading tiny next to «A РАЗЫГРАТЬ».
-           ⚠️ FIRST FIX OVERSHOT: `calc(0.76 * var(--con-ui-scale, 1))` double-
-           counts the scale — the pill's `font-size` is already root-rem
-           (`20px·scale`), so the prelude reference's NET zoom (ambient
-           `BASE·scale` × own `÷scale`) is a flat `BASE` with no leftover
-           scale factor; re-multiplying by `--con-ui-scale` here squared the
-           TV factor (≈2× too big at scale≈2, matching the regression). A
-           FLAT `0.76` (no scale term) reproduces the exact same rendered px
-           as the prelude pill at every scale. */
-        &__pay-cta { zoom: 0.76; }
-        /* CEREMONY fit: the corp column + the candidate strip stacked OVER the
-           prelude rail must not overflow the frame's vertical budget on TV.
-           The base BASE·--con-ui-scale zooms (corp 0.92 · prelude 0.86 ·
-           candidate 0.78) compounded on a 4K panel to a body taller than the
-           scroll port — so a scrollbar appeared and clipped a card while the
-           wide frame still had unused HORIZONTAL room. Trim each ceremony card
-           a notch (kept ·--con-ui-scale, so still couch-large) so the whole
-           ceremony fits without scrolling; X = the fullscreen detailed read. */
-        &__corp { zoom: calc(0.84 * var(--con-ui-scale, 1)); }
-        &__prelude { zoom: calc(0.76 * var(--con-ui-scale, 1)); }
-        &__cands .con-cards__strip > .con-cards__slot { zoom: calc(0.68 * var(--con-ui-scale, 1)); }
+        /* The PAY affordance in the purchase row's meta line (`__buy-meta` —
+           a plain flex row with NO ambient card zoom around it): a flat zoom
+           reproduces the queue pill's rendered px at every scale (the pill's
+           font-size is already root-rem; multiplying by --con-ui-scale here
+           would square the TV factor — the documented overshoot). */
+        &__buy-meta .con-start__slot-a { zoom: 0.76; position: static; transform: none; }
+        /* (The old ceremony centre-column zooms — __corp / __prelude /
+           __cands — are gone with the columns themselves: the deployment is
+           the queue row (`__qcard`, its own BASE·--con-ui-scale zoom) beside
+           the compact played dock, both profile-scaled by construction.) */
         &__title { font-size: 1.6rem; }
         &__kicker { font-size: var(--con-t-secondary); }
         &__verdict-name { font-size: 1.15rem; }
@@ -1228,8 +1209,7 @@ html.con-profile-tv {
     .con-composer__row--focused,
     .con-composer__opt--focused,
     .con-start__mini--focused,
-    .con-start__corp--focused,
-    .con-start__prelude--focused,
+    .con-start__qcard--focused,
     .con-journal__node--focused,
     .con-colinspect__payrow--focused,
     .con-prodloss__row--focused,
