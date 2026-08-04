@@ -146,6 +146,19 @@ export function playChoiceMode(
   c: ComposerChoice,
   handNames: ReadonlySet<string>,
   playedNames: ReadonlySet<string>,
+  /**
+   * The card being PLAYED right now, when there is one.
+   *
+   * It is still sitting in `cardsInHand` while its play preview is open, which
+   * is what made a card whose on-play effect legally targets ITSELF (Titan
+   * Floating Launch-pad adds its own two floaters; Jovian Lanterns likewise)
+   * read as «every candidate is in hand» and get sent to the HAND screen — which
+   * then said «нет карт на руке», because the card being played is not offered
+   * there. It cannot be a HAND target of its own on-play effect: by the time the
+   * effect resolves the card is on the table, which is exactly where the player
+   * must be pointed.
+   */
+  playedCardName?: string,
 ): PlayChoiceMode {
   if (c.repeatAction === true) {
     return 'repeat';
@@ -158,13 +171,21 @@ export function playChoiceMode(
       return 'followup';
     }
     const candidates = [...model.cards, ...(model.disabledCards ?? [])];
-    if (candidates.every((cd) => handNames.has(cd.name))) {
+    // SELECTABLE is the discriminator, not mere presence. Sponsored Academies
+    // also lists the card being played — as a DISABLED row reading «эта карта
+    // разыгрывается» — and that prompt really is about the hand. Only a card
+    // being played that is genuinely CHOOSABLE is choosable as a table object.
+    const selfTarget = playedCardName !== undefined &&
+      model.cards.some((cd) => cd.name === playedCardName);
+    const isSelf = (name: string) => selfTarget && name === playedCardName;
+    if (candidates.every((cd) => handNames.has(cd.name) && !isSelf(cd.name))) {
       return 'handPick';
     }
     // Cards already ON THE TABLE, whoever owns them → the embedded step. Not
     // limited to single selection: the step hosts the server's merged up-to-N
-    // ask too.
-    if (candidates.every((cd) => playedNames.has(cd.name))) {
+    // ask too. The card being played joins them: it is one press away from
+    // being a table card, and it is the target the player is looking at.
+    if (candidates.every((cd) => playedNames.has(cd.name) || isSelf(cd.name))) {
       return 'playedTarget';
     }
     // Candidates the console doesn't own a surface for (SRR-hosted cards):

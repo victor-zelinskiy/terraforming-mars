@@ -50,7 +50,16 @@
              NO cascade marker on the card — the occlusion bridge's sweep
              reveals it already standing on the anchor; a fade on top of that
              would be a second, contradictory entrance for the carried object. -->
-        <div class="con-composer__playcard" data-zoom-handoff="play-card" ref="playCard">
+        <!-- …and when the embedded step's «Эта карта» HANDLE is under the cursor,
+             THIS is the card it points at. The same two accents the blue-action
+             workspace uses, for the same reason: the handle is a pointer, so the
+             thing it points at has to answer, or the player is asked to trust an
+             arrow into empty space. -->
+        <div class="con-composer__playcard" data-zoom-handoff="play-card" ref="playCard"
+             :class="{
+               'con-composer__playcard--targetfocus': selfTargetFocused,
+               'con-composer__playcard--targetlock': selfTargetLocked,
+             }">
           <Card v-if="card !== undefined" :card="card" :key="card.name" />
         </div>
 
@@ -437,6 +446,7 @@ import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {targetImpactRows, targetImpactText, targetImpactIsLoss} from '@/client/components/modalInputs/targetImpactRows';
+import {playedTargetSelfState} from '@/client/console/played/consolePlayedTargetSelf';
 import {TargetImpactChange} from '@/common/models/TargetImpactModel';
 import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
@@ -815,9 +825,13 @@ export default defineComponent({
         players: this.playerView.players,
         viewerColor: this.thisPlayer.color,
         ask: textOf(model.title),
-        // The card being PLAYED is not on a tableau yet, so it can never be a
-        // candidate here — passing it costs nothing and keeps the two hosts
-        // symmetrical.
+        // The card being PLAYED, which CAN be a candidate for its own on-play
+        // effect: Titan Floating Launch-pad adds two floaters to any Jovian card
+        // and is itself Jovian, so with no other Jovian card in play it is the
+        // only legal target the rules offer. It has no tableau row yet, so the
+        // model seats it with the viewer, and it renders as the SAME handle the
+        // blue actions use — an arrow pointing at the card already standing in
+        // the hero slot, never a second full-size copy of one physical object.
         sourceCardName: this.cardName,
         typeOf: (name) => getCard(name)?.type,
         // A NEGATIVE delta means the step takes FROM the chosen card, which is
@@ -828,6 +842,14 @@ export default defineComponent({
       });
     },
     /** The embedded selector holds the surface right now. */
+    /** The embedded step's self-handle is focused — the played card answers. */
+    selfTargetFocused(): boolean {
+      return this.sub?.kind === 'playedTarget' && playedTargetSelfState.focused;
+    },
+    /** …and stays lit once it is the chosen target. */
+    selfTargetLocked(): boolean {
+      return playedTargetSelfState.locked;
+    },
     playedTargetStepOpen(): boolean {
       return this.sub?.kind === 'playedTarget' && this.playedTargetModel !== undefined;
     },
@@ -1982,7 +2004,7 @@ export default defineComponent({
     /** HOW a choice is served: inline sub / the hand pick / the tableau pick /
      *  an honest post-submit follow-up (the PURE classification). */
     choiceMode(c: ComposerChoice): PlayChoiceMode {
-      return playChoiceMode(c, this.handNamesSet, this.playedNamesSet);
+      return playChoiceMode(c, this.handNamesSet, this.playedNamesSet, this.cardName);
     },
     /**
      * THE CONTEXTUAL PREVIEW for one candidate — the ONE place this flow's

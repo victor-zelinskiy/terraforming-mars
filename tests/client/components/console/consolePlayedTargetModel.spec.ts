@@ -124,6 +124,37 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
     });
   });
 
+  /**
+   * THE CARD BEING PLAYED HAS NO TABLEAU ROW YET — and is still a candidate.
+   *
+   * Titan Floating Launch-pad puts its own two floaters on any Jovian card and
+   * IS one, so with nothing else in play the rules leave exactly one target:
+   * itself. The model dropped it as «nobody's tableau claims this», so the
+   * picker came up empty for a choice the printed rules plainly allow. It is
+   * seated with the VIEWER — they are the one playing it — and marked
+   * `source-card`, which is what renders the arrow HANDLE pointing at the card
+   * already standing in the hero slot instead of a second copy of one object.
+   */
+  it('seats the card being played with the viewer, as the source-card handle', () => {
+    const model = buildPlayedTargetModel({
+      candidates: [{name: 'Titan Floating Launch-pad'}] as never,
+      players: [
+        {color: 'red', name: 'admin', tableau: []},
+        {color: 'blue', name: 'victor', tableau: [{name: 'Pets'}]},
+      ] as never,
+      viewerColor: 'red',
+      sourceCardName: 'Titan Floating Launch-pad' as never,
+      ask: 'Add 2 floaters',
+      typeOf: () => undefined,
+      preview: () => [],
+    } as never);
+    expect(model.owners, 'the candidate is not dropped').to.have.length(1);
+    expect(model.owners[0].self, 'and it belongs to the player playing it').to.eq(true);
+    expect(model.owners[0].candidates[0].relation, 'rendered as the handle, not a second card')
+      .to.eq('source-card');
+  });
+
+
   describe('the model', () => {
     /**
      * THE CORE PROMISE: the step costs what the CHOICES cost, never what the

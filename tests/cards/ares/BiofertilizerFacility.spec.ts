@@ -47,19 +47,23 @@ describe('BiofertilizerFacility', () => {
     expect(card.canPlay(player)).is.true;
     card.play(player);
     runAllActions(game);
-    const action = cast(player.popWaitingFor(), SelectSpace);
     expect(player.production.plants).is.eq(1);
 
+    // The card-target pick prompts FIRST (PLAY_CARD_RESOURCE_CHOICE elevates
+    // it ahead of the tile) — the order the play preview promises, so the
+    // premium modal's pre-collected pick lands and the tile placement rides
+    // the board banner instead of the pick re-surfacing after the tile.
+    const selectCard = cast(player.popWaitingFor(), SelectCard<ICard>);
+    selectCard.cb([microbeHost]);
+    expect(microbeHost.resourceCount).is.eq(2);
+
+    runAllActions(game);
+    const action = cast(player.popWaitingFor(), SelectSpace);
     const citySpace = game.board.getAvailableSpacesForCity(player)[0];
     action.cb(citySpace);
 
     expect(citySpace.player).to.eq(player);
     expect(citySpace.tile!.tileType).to.eq(TileType.BIOFERTILIZER_FACILITY);
     expect(citySpace.adjacency).to.deep.eq({bonus: [SpaceBonus.PLANT, SpaceBonus.MICROBE]});
-
-    const selectCard = cast(game.deferredActions.peek()!.execute(), SelectCard<ICard>);
-    selectCard.cb([microbeHost]);
-
-    expect(microbeHost.resourceCount).is.eq(2);
   });
 });

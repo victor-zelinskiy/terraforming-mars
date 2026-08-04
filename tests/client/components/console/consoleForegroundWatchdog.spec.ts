@@ -16,7 +16,14 @@ import {
   currentBlockReason,
   resetPresentationLeases,
 } from '@/client/components/presentation/presentationFlow';
-import {beginAnimationHold, resetAnimationHoldsForTest} from '@/client/components/presentation/animationHold';
+import {
+  activeAnimationHoldLabels,
+  animationHoldCount,
+  beginAnimationHold,
+  registerAnimationHoldSupplier,
+  resetAnimationHoldsForTest,
+  unregisterAnimationHoldSupplier,
+} from '@/client/components/presentation/animationHold';
 import {QUEUE_STARVATION_MS, clearTransient, notificationState} from '@/client/components/notifications/notificationState';
 import {NOTIFICATION_PRIORITY} from '@/client/components/notifications/notificationTypes';
 
@@ -266,6 +273,32 @@ describe('consoleForegroundWatchdog', () => {
       fresh();
       ghost();
       expect(currentBlockReason()).eq(undefined);
+    });
+
+    it('evaporates a PHANTOM count from a NON-REACTIVE supplier (the shipped dead game)', () => {
+      // Reproduces the production bug exactly: `hand-delivery`'s predicate read
+      // a plain module `let`, so the counts computed never re-derived. It stuck
+      // at 1 with no hold behind it — `foregroundBlockReason()` said 'animation'
+      // forever, the ceiling never armed, and every expiry found nothing to
+      // expire because reading the predicate directly correctly says false
+      // («leaked hold: none named»).
+      let phantom = false;
+      try {
+        registerAnimationHoldSupplier('watchdog-spec-phantom', () => phantom);
+        phantom = true;
+        expect(animationHoldCount()).eq(1, 'the computed caches 1 here');
+
+        phantom = false; // …and NOTHING reactive changed, so the cache survives
+        expect(animationHoldCount()).eq(1, 'the stale count — the hazard itself');
+        expect(activeAnimationHoldLabels().length).eq(0, 'while the predicate is honest');
+
+        // One watchdog pass forces the registry to re-derive: the phantom goes.
+        runForegroundWatchdog({surfaceRendered: true, promptLive: false});
+        expect(animationHoldCount()).eq(0);
+        expect(currentBlockReason()).eq(undefined);
+      } finally {
+        unregisterAnimationHoldSupplier('watchdog-spec-phantom');
+      }
     });
 
     it('leaves a YOUNG animation hold alone — a slow cinematic is not a leak', () => {

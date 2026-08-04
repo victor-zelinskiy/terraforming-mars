@@ -171,6 +171,26 @@ describe('previewableCard (which of the player\'s OWN cards may be previewed)', 
 });
 
 describe('cardPlayPreview', () => {
+  /**
+   * A CARD CAN BE THE ONLY LEGAL TARGET OF ITS OWN ON-PLAY EFFECT.
+   *
+   * Titan Floating Launch-pad adds two floaters to ANY Jovian card and is itself
+   * a Jovian floater card, so with nothing else in play the rules leave exactly
+   * one target: itself. `AddResourcesToCard` is handed `cardBeingPlayed` for
+   * precisely this, and the picker must be offered — not skipped, and not
+   * answered with an empty list.
+   */
+  it('offers the card being played as a candidate for its own effect', () => {
+    const [/* game */, player] = testGame(2);
+    const card = new TitanFloatingLaunchPad();
+    const steps = stepsForBehavior(player, card, card.behavior ?? {});
+    const input = steps.find((s) => s.kind === 'input');
+    expect(input, 'the target picker is offered').to.not.eq(undefined);
+    const cards = input?.kind === 'input' && input.input.type === 'card' ? input.input.cards : [];
+    expect(cards.map((c) => c.name), 'and it is the card itself')
+      .to.deep.eq([CardName.TITAN_FLOATING_LAUNCHPAD]);
+  });
+
   // PRELUDES preview through the SAME path as a project card: the opening
   // ceremony plays them straight from the start scene (no play modal), and
   // the console arms its premium on-play reward beat from this preview.

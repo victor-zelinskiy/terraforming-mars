@@ -74,6 +74,41 @@ describe('played-target layout contract (LESS ⇄ solver)', () => {
   });
 
   /**
+   * A PHASE MAY NOT RE-ALIGN THE FRAME.
+   *
+   * `.con-composer--ptsel` is the marker for «the embedded target step is
+   * open». It once carried `align-self: stretch; justify-content: flex-start`,
+   * which flipped the decision column from the grid's centred default to
+   * stretched-and-top the instant the step appeared — card, panel and header all
+   * slid about 230px upward, and the descend read as one screen replacing
+   * another instead of one surface advancing.
+   *
+   * Alignment belongs to the LAYOUT, which is the same in every phase. A phase
+   * marker may change what is INSIDE the frame; the moment it changes where the
+   * frame sits, the seam is visible. Sizing caps (`max-height`) are fine — they
+   * bound content, they do not move it.
+   */
+  it('the target-step phase marker never re-aligns the frame', () => {
+    const text = fs.readFileSync(LESS, 'utf8');
+    const offenders: Array<string> = [];
+    // Every rule whose SELECTOR mentions the phase marker.
+    const rule = /(^|\n)([^\n{}]*con-composer--ptsel[^\n{}]*)\{([^{}]*)\}/g;
+    let m: RegExpExecArray | null = rule.exec(text);
+    while (m !== null) {
+      const [, , selector, body] = m;
+      const bad = /(align-self|align-items|align-content|justify-content|justify-items)\s*:\s*([^\s;]+)/.exec(body);
+      if (bad !== null) {
+        offenders.push(`${selector.trim()} → ${bad[1]}: ${bad[2]}`);
+      }
+      m = rule.exec(text);
+    }
+    expect(offenders,
+      'a phase that re-aligns the frame IS the jump:\n' + offenders.join('\n') +
+      '\nPut the alignment on the layout (unconditional), not on the phase marker.',
+    ).to.be.empty;
+  });
+
+  /**
    * The category rail is subtracted from the HEIGHT BUDGET the solver fits the
    * cards into. If the stylesheet's rail grows and `SECTION_RAIL_H` does not,
    * the solver over-estimates the room and the bottom row is cropped — which

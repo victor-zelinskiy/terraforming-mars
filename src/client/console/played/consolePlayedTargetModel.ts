@@ -364,7 +364,16 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
   type Grouping = Omit<PlayedTargetOwner, 'selfHarm'> & {candidates: Array<PlayedTargetCandidate>};
   const byColor = new Map<string, Grouping>();
   for (const model of input.candidates) {
-    const owner = input.players.find((p) => p.tableau.some((c) => c.name === model.name));
+    const owner = input.players.find((p) => p.tableau.some((c) => c.name === model.name)) ??
+      // THE CARD BEING PLAYED owns no tableau row YET, and for an on-play effect
+      // that legally targets itself (Titan Floating Launch-pad puts its own two
+      // floaters on any Jovian card — it IS a Jovian card) it is a real, often
+      // the ONLY, candidate. Dropping it as «nobody's tableau claims this» left
+      // the player with an empty picker for a choice the rules plainly allow.
+      // It belongs to the viewer: they are the one playing it.
+      (model.name === input.sourceCardName ?
+        input.players.find((p) => p.color === input.viewerColor) :
+        undefined);
     if (owner === undefined) {
       // A candidate nobody's tableau claims (a hosted / virtual card) has no
       // physical origin to show, and this surface is ABOUT physical origin.

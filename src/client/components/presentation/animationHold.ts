@@ -300,6 +300,26 @@ export function holdForGsapAnimation(label: string, animation: GsapLikeAnimation
 
 // ── reads (the orchestrator + diagnostics) ──────────────────────────────────
 
+/**
+ * Force the counts to re-derive, whatever the suppliers read.
+ *
+ * THE HAZARD THIS CLOSES. `counts` is a Vue `computed` over predicates the
+ * registry does not own, and the ceiling is a `watch` over the same predicates.
+ * Both silently assume every supplier reads REACTIVE state — and a supplier
+ * that reads a plain module `let` invalidates neither. The cached count then
+ * sticks at whatever it last was: `foregroundBlockReason()` reports 'animation'
+ * with nothing holding, the ceiling never arms, and an expiry finds nothing to
+ * expire (reading the predicate directly correctly says false), so it can never
+ * be cured. That shipped as a dead game — `hand-delivery`'s `activeRuns`.
+ *
+ * The predicate contract still stands and is still the fix at the source; this
+ * is the net under it. The console's 1 s tick calls it, so the registry can
+ * never be more than one second stale for ANY supplier, present or future.
+ */
+export function refreshAnimationHolds(): void {
+  store.version++;
+}
+
 /** Every live hold (both scopes) — blocks notification delivery. */
 export function animationHoldCount(): number {
   return counts.value.all;

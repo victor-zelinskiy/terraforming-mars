@@ -505,27 +505,47 @@ export class Executor implements BehaviorExecutor {
 
     if (behavior.addResourcesToAnyCard) {
       const array = asArray(behavior.addResourcesToAnyCard);
+      // When the SAME card also queues a placement (Bio-Fertilizer Facility
+      // adds 2 microbes AND places its tile; Maxwell Base / Stratopolis place
+      // a city), elevate the card-target pick ahead of the placement. The
+      // default GAIN_RESOURCE_OR_PRODUCTION priority drains AFTER the
+      // placement's DEFAULT, so the SelectSpace prompted FIRST — and the
+      // premium play modal's pre-collected pick (its preview emits this
+      // SelectCard as the first step) hit the SelectSpace, was dropped by the
+      // batch's graceful fallback, and re-surfaced as a redundant follow-up
+      // AFTER the tile. Rules-neutral — the effects are independent, only the
+      // prompt order changes (pick → tile, the order the preview promises).
+      // Mirrors removeAnyPlants / gainOrAddResource / Imported Hydrogen.
+      const hasPlacement =
+        behavior.ocean !== undefined || behavior.city !== undefined ||
+        behavior.greenery !== undefined || behavior.tile !== undefined ||
+        behavior.colonies?.buildColony !== undefined || behavior.moon !== undefined ||
+        behavior.underworld !== undefined;
       for (const arctac of array) {
         const count = ctx.count(arctac.count);
         if (count > 0) {
-          player.game.defer(
-            new AddResourcesToCard(
-              player,
-              arctac.type,
-              {
-                count,
-                restrictedTag: arctac.tag,
-                min: arctac.min,
-                robotCards: arctac.robotCards !== undefined,
-                // ALWAYS ask WHERE the resource goes — even with one candidate —
-                // so "add to ANY card" never resolves silently behind the board.
-                // The premium play / action-confirm modal pre-collects this pick
-                // (its preview emits the same SelectCard), and the legacy path
-                // shows it live. (The instant-apply-on-single shortcut was
-                // removed fork-wide; see Behavior.AddResourcesToAnyCard.)
-                autoSelect: false,
-                cause: cardSource(card),
-              }));
+          const action = new AddResourcesToCard(
+            player,
+            arctac.type,
+            {
+              count,
+              restrictedTag: arctac.tag,
+              min: arctac.min,
+              robotCards: arctac.robotCards !== undefined,
+              // ALWAYS ask WHERE the resource goes — even with one candidate —
+              // so "add to ANY card" never resolves silently behind the board.
+              // The premium play / action-confirm modal pre-collects this pick
+              // (its preview emits the same SelectCard), and the legacy path
+              // shows it live. (The instant-apply-on-single shortcut was
+              // removed fork-wide; see Behavior.AddResourcesToAnyCard.)
+              autoSelect: false,
+              cause: cardSource(card),
+            });
+          if (hasPlacement) {
+            player.game.defer(action, Priority.PLAY_CARD_RESOURCE_CHOICE);
+          } else {
+            player.game.defer(action);
+          }
         }
       }
     }

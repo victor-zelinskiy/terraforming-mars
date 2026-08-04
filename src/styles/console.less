@@ -16369,11 +16369,18 @@ html.console-mode {
         pointer-events: none;
         > :is(.card-container, .pcard) { margin: 0; }
     }
+    /* The DECISION column owns the full frame height and anchors its content at
+       the TOP — in browse, in configure and with the embedded target step open
+       alike. That fixed top edge is what makes the descend read as one surface
+       advancing: the panel grows DOWNWARD into room that was already reserved,
+       and nothing that was already on screen shifts. (The hero column keeps its
+       own `align-self: center`, so the card stays put through all of it.) */
     &__actright {
         display: flex;
         flex-direction: column;
         gap: .6rem;
         min-height: 0;
+        justify-content: flex-start;
     }
 
     &__kicker {
@@ -17556,6 +17563,15 @@ html.console-mode {
        right column's content — the source card stands pixel-identical across
        actions AND across the confirm ⇄ reveal phases (the load-bearing
        stability contract of the reveal transition). */
+    /* THE FRAME DOES NOT MOVE. The row fills the band and stays that height in
+       every phase, so nothing above or beside the decision can be pushed by it.
+       It used to be `align-items: center` over an AUTO row: the row was then as
+       tall as its tallest child, so the moment the embedded target step sized
+       itself to the remaining band the row grew, and card, panel and header all
+       slid ~230px upward. The player read that as the screen being replaced
+       rather than one surface advancing — the exact thing the workspace contract
+       forbids. A fixed row + per-column alignment gives each column its own
+       stable anchor instead. */
     .con-composer__actmain--stage {
         flex: 1 1 auto;
         min-height: 0;
@@ -17563,7 +17579,8 @@ html.console-mode {
         max-width: 74rem;
         margin: 0 auto;
         column-gap: 1.7rem;
-        align-items: center;
+        grid-template-rows: minmax(0, 1fr);
+        align-items: stretch;
     }
     /* The hero column: the source card + its live stored-resource chip. */
     .con-composer__actside {
@@ -17992,10 +18009,13 @@ html.console-mode {
    measurement and the room are the same number. Scoped to the step: the review
    layout keeps its centred composition, which is load-bearing for the way the
    work column sits beside the hero card. ── */
+/* (The `--ptsel` alignment override that used to live here is GONE. It flipped
+   the decision column from the grid's centred default to stretched+top the
+   instant the target step opened, which is precisely the ~230px jump the player
+   saw. Both alignments are now unconditional — see `__actmain--stage` and
+   `__actright` — so opening the step changes CONTENT and nothing else.) */
 .con-composer--ptsel .con-composer__playright,
 .con-composer--ptsel .con-composer__actright {
-    align-self: stretch;
-    justify-content: flex-start;
     max-height: none;
 }
 
@@ -18015,6 +18035,25 @@ html.console-mode {
     border-radius: .5rem;
 }
 .con-composer__actcardwrap--targetfocus.con-composer__actcardwrap--targetlock > .con-composer__actcard {
+    box-shadow: 0 0 0 .16rem fade(@con-mint, 98%), 0 0 1.5rem fade(@con-mint, 42%);
+}
+
+/* THE SAME TWO ACCENTS on the PLAY side. The card being played can be the only
+   legal target of its own on-play effect (Titan Floating Launch-pad is a Jovian
+   card and adds two floaters to any Jovian card), so the embedded step offers
+   the «Эта карта» handle here too — and a handle that points at something which
+   does not answer is just an arrow into empty space. Cyan = under the cursor,
+   mint = chosen; `box-shadow`, so the perf profile keeps them. */
+.con-composer__playcard--targetfocus {
+    box-shadow: 0 0 0 .14rem fade(@con-cyan, 90%), 0 0 1.4rem fade(@con-cyan, 34%);
+    border-radius: .5rem;
+    transition: box-shadow calc(140ms * var(--motion-scale, 1)) ease;
+}
+.con-composer__playcard--targetlock {
+    box-shadow: 0 0 0 .14rem fade(@con-mint, 92%), 0 0 1.2rem fade(@con-mint, 32%);
+    border-radius: .5rem;
+}
+.con-composer__playcard--targetfocus.con-composer__playcard--targetlock {
     box-shadow: 0 0 0 .16rem fade(@con-mint, 98%), 0 0 1.5rem fade(@con-mint, 42%);
 }
 
@@ -18104,7 +18143,7 @@ html.con-profile-handheld .con-composer--stage {
     .con-composer__panel--stage { width: 100%; padding: .1rem 0 0; }
     .con-composer__actside { display: flex; }
     .con-composer__actcard--stage { zoom: calc(0.62 * var(--con-ui-scale, 1)); }
-    .con-composer__actmain--stage { grid-template-columns: auto minmax(0, 1fr); max-width: none; column-gap: .9rem; align-items: center; }
+    .con-composer__actmain--stage { grid-template-columns: auto minmax(0, 1fr); max-width: none; column-gap: .9rem; grid-template-rows: minmax(0, 1fr); align-items: stretch; }
 }
 
 /* The Deck's EMBEDDED PLAY STAGE — the same two-column composition, tightened

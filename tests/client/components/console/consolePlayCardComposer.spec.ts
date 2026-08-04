@@ -435,6 +435,37 @@ describe('consolePlayCardComposer.playChoiceMode', () => {
     } as never;
   }
 
+  /**
+   * THE CARD BEING PLAYED IS A TABLE CARD, NOT A HAND CARD.
+   *
+   * It is still in `cardsInHand` while its own play preview is open, so a card
+   * whose on-play effect legally targets ITSELF (Titan Floating Launch-pad adds
+   * two floaters to any Jovian card and is Jovian) read as «every candidate is
+   * in hand» and was sent to the HAND screen — which answered «нет карт на
+   * руке», because the card being played is not offered there. The player was
+   * left with an empty picker for the one target the rules do allow.
+   */
+  it('a self-target on play goes to the embedded step, never the hand screen', () => {
+    const self = CardName.ANTS; // stands in for the card being played, still in HAND
+    expect(playChoiceMode(cardChoice([self]), HAND, TABLE, self)).to.equal('playedTarget');
+    // …and it joins real table cards rather than splitting the pick in two.
+    expect(playChoiceMode(cardChoice([self, CardName.PETS]), HAND, TABLE, self)).to.equal('playedTarget');
+  });
+
+  /**
+   * …but a prompt that really IS about the hand keeps its screen. Sponsored
+   * Academies lists the card being played as a DISABLED row («эта карта
+   * разыгрывается»), which is why SELECTABLE — not mere presence — is the
+   * discriminator.
+   */
+  it('a hand prompt that merely MENTIONS the played card stays a hand pick', () => {
+    const played = CardName.DECOMPOSERS;
+    const c = cardChoice([CardName.ANTS, CardName.BIRDS], {
+      disabledCards: [{name: played, reason: 'This card is being played'}],
+    });
+    expect(playChoiceMode(c, HAND, TABLE, played)).to.equal('handPick');
+  });
+
   it('a single pick whose candidates are all in hand → handPick', () => {
     expect(playChoiceMode(cardChoice([CardName.ANTS, CardName.BIRDS]), HAND, TABLE)).to.equal('handPick');
   });

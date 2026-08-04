@@ -49,9 +49,11 @@ import {AdmissionSignals} from '@/client/console/consolePromptAdmission';
 import {presentationStalled} from '@/client/components/presentation/presentationPolicy';
 import {
   activeAnimationHoldLabels,
+  animationHoldCount,
   blockingAnimationHoldCount,
   expireActiveAnimationHolds,
   oldestAnimationHoldAgeMs,
+  refreshAnimationHolds,
 } from '@/client/components/presentation/animationHold';
 import {
   currentBlockReason,
@@ -208,7 +210,12 @@ function foregroundClaimed(): boolean {
   // Only a hold past EVERY flow's own safety is a lie — before that the DOM
   // evidence is simply not yet meaningful, and acting on it made the watchdog
   // announce «Экран завис» over a working cinematic.
-  const animationClaimIsStale = oldestAnimationHoldAgeMs() >= ANIMATION_STALL_GRACE_MS;
+  // A count with NO live hold behind it is a lie we can prove on the spot, so it
+  // skips the grace entirely: the age of nothing is 0, and waiting 20 s for a
+  // hold that does not exist is just 20 s of a dead game.
+  const animationCountIsPhantom = animationHoldCount() > 0 && activeAnimationHoldLabels().length === 0;
+  const animationClaimIsStale = animationCountIsPhantom ||
+    oldestAnimationHoldAgeMs() >= ANIMATION_STALL_GRACE_MS;
   const reason = currentBlockReason();
   if (reason !== undefined && (reason !== 'animation' || animationClaimIsStale)) {
     return true;
@@ -324,6 +331,12 @@ export type WatchdogPass = {
  * it recovered, so the caller can skip its own reporting for that pass.
  */
 export function runForegroundWatchdog(pass: WatchdogPass): boolean {
+  // FIRST of all: force the animation-hold counts to re-derive. They are a Vue
+  // computed over predicates the registry does not own, so a supplier reading
+  // non-reactive state can leave the count cached at a value nothing can ever
+  // invalidate — a permanent 'animation' block with no hold behind it, immune
+  // to every expiry because the predicates themselves read false.
+  refreshAnimationHolds();
   // UNCONDITIONAL, every pass and in every scope: the queue's own starvation
   // deadline needs a clock, and a backlog starving behind a leaked animation
   // hold is a bug wherever the player happens to be standing. This is the

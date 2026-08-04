@@ -47,7 +47,7 @@
  * convention. A safety timeout force-finishes a stalled run.
  */
 
-import {nextTick} from 'vue';
+import {nextTick, reactive} from 'vue';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -120,13 +120,26 @@ export type HandIntakeOptions = {
 
 /* ── run bookkeeping ─────────────────────────────────────────────────── */
 
-let activeRuns = 0;
+/**
+ * ⚠️ REACTIVE ON PURPOSE. This counter is read by an animation-hold SUPPLIER,
+ * and that registry's whole contract is that a predicate reads REACTIVE state:
+ * the count of live holds is a Vue `computed`, and the safety ceiling is a
+ * `watch` over the predicate. A plain module `let` (what this was) tracks
+ * nothing, so neither ever re-evaluates — the cached count sticks at whatever
+ * it last happened to be, `foregroundBlockReason()` returns `'animation'`
+ * forever with NOTHING actually holding, the 35 s ceiling never arms, and the
+ * watchdog's expiry finds nothing to expire because reading the predicate
+ * directly correctly reports false. That is precisely the reported deadlock:
+ * «1 queued event(s) held behind an ANIMATION hold … (leaked hold: none named)»
+ * — a count with no holds behind it.
+ */
+const runs = reactive({active: 0});
 /** Bumped by resetHandDelivery — in-progress runs abort at their next gate. */
 let gen = 0;
 
 /** True while ANY intake flight is running — the notification hold. */
 export function isHandDeliveryActive(): boolean {
-  return activeRuns > 0;
+  return runs.active > 0;
 }
 // The intake plays OVER whatever surface released the cards (its proxies
 // land in the always-on-top footer dock) — a blocking hold would withhold
@@ -360,7 +373,7 @@ export async function runHandIntake(entries: ReadonlyArray<HandIntakeEntry>, opt
     return;
   }
 
-  activeRuns++;
+  runs.active++;
   try {
     await fly(entries, snapshots, opts, dock, {myGen, land, releaseRemaining, runCommit});
   } finally {
@@ -368,7 +381,7 @@ export async function runHandIntake(entries: ReadonlyArray<HandIntakeEntry>, opt
     // A run that aborted before its staging seam must still commit — the
     // player pressed take, and the state may not stay behind the animation.
     runCommit();
-    activeRuns--;
+    runs.active = Math.max(0, runs.active - 1);
   }
 }
 
@@ -864,6 +877,10 @@ export function releaseDockCards(names: ReadonlyArray<CardName>): void {
 /** A game switch / error / stall: reconcile so the dock never sticks empty. */
 export function resetHandDelivery(): void {
   gen++;
+  // A teardown ends every run by definition. The `finally` of an in-flight run
+  // still decrements (clamped, so it cannot go negative) — but this is what
+  // guarantees the hold drops even if a run is wedged somewhere without one.
+  runs.active = 0;
   phase = 'idle';
   deliveryKey = '';
   handDeliveryState.held = [];

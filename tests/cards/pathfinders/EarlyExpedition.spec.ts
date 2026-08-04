@@ -40,6 +40,16 @@ describe('EarlyExpedition', () => {
 
     cast(card.play(player), undefined);
     runAllActions(game);
+
+    // The card-target pick prompts FIRST (PLAY_CARD_RESOURCE_CHOICE elevates
+    // it ahead of the tile) — the order the play preview promises, so the
+    // premium modal's pre-collected pick lands and the tile placement rides
+    // the board banner instead of the pick re-surfacing after the tile.
+    const selectCard = cast(player.popWaitingFor(), SelectCard);
+    selectCard.cb([lunarObservationPost]);
+    expect(lunarObservationPost.resourceCount).eq(1);
+
+    runAllActions(game);
     const selectSpace = cast(player.popWaitingFor(), SelectSpace);
 
     expect(player.production.asUnits()).eql(Units.of({megacredits: 3}));
@@ -55,12 +65,5 @@ describe('EarlyExpedition', () => {
     expect(tiles).eq(0);
 
     selectSpace.cb(selectSpace.spaces[0]);
-
-    runAllActions(game);
-
-    const selectCard = cast(player.popWaitingFor(), SelectCard);
-    selectCard.cb([lunarObservationPost]);
-
-    expect(lunarObservationPost.resourceCount).eq(1);
   });
 });
