@@ -396,7 +396,19 @@ async function executeFlight(): Promise<void> {
     playedHeroState.tableOpen = true;
   }
   const reduced = consoleReducedMotionActive();
-  const sourceRect = captureSourceRect();
+  let sourceRect = captureSourceRect();
+  // The source can be TRANSIENTLY unmeasurable: a fullscreen viewer's
+  // close-flight still holds the slot empty (`con-zoom-hold`), a layout is a
+  // frame from settling. A single-shot miss here used to degrade the whole
+  // play to the no-flight fallback — the card TELEPORTED onto the tableau.
+  // Poll briefly (≈430ms — covers the zoom return) before giving up; the
+  // proxy then lifts from the settled slot, exactly where the card stands.
+  if (sourceRect === undefined) {
+    for (let i = 0; i < 26 && sourceRect === undefined && playedHeroState.active; i++) {
+      await frame();
+      sourceRect = captureSourceRect();
+    }
+  }
 
   if (sourceRect !== undefined) {
     playedHeroState.proxy = {card, isEvent: playedHeroState.isEvent, rect: sourceRect};

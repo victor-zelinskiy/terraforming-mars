@@ -4,23 +4,27 @@
          aria-hidden="true">
     <!--
       THE COMPACT PLAYED DESTINATION of the Game Start Workspace deployment —
-      «РАЗЫГРАНО · <owner>» as a destination-focused RECEIVING dock, never the
-      full tableau overview (that layout answers "what has this player
-      played?"; this one answers "where does THIS card physically go?").
+      «РАЗЫГРАНО · <owner>» as a HORIZONTAL tabletop shelf along the bottom
+      of the workspace, never the full tableau overview. Each start family is
+      ONE physical stack standing on the shelf floor (bottom-aligned): capped
+      peek strips + THE TOP SLOT.
 
-      Composition mirrors the Card Play Workspace finale's receiving stage
-      (ConsolePlayedReceivingStage / receivingStageModel) scaled to a column:
-       - each start family (corporation / preludes …) is ONE physical stack:
-         capped peek strips + the OPEN top card — the played cards stay
-         physically visible, compact by construction;
-       - the RECEIVING family carries the reserved FRONT ANCHOR
-         (`[data-start-front]`) the played-card hero flies into. The final
-         silhouette is laid out from the arm frame: the previous top keeps its
-         open face OVERFLOWING its future strip until the dock, and the
-         arriving card covers it back to a strip — the Top Card Handoff is
-         geometric, nothing ever moves;
-       - counts are honest: the caption ticks to N+1 exactly at the dock
-         (the incoming card is excluded from the lying set until revealed).
+      THE TOP SLOT (`__top`) is ONE PERSISTENT element per family and it IS
+      the landing place:
+       - idle with cards      → the top card lying OPEN;
+       - idle empty           → a PREPARED CARD PLACE (card-shaped, quiet
+                                inner ring) — the destination visibly exists
+                                before anything flies;
+       - receiving, pre-dock  → the same prepared place, marked
+                                `[data-start-front]` (the hero measures it);
+       - revealed             → the landed card occupies it AND STAYS: the
+                                face node is keyed by the card name, so the
+                                receiving → idle transition reuses the very
+                                same node — the art can never blink through
+                                the handoff.
+      While receiving, the PREVIOUS top holds its open face on its future
+      strip (overflowing downward) until the arriving card covers it back to
+      a strip — the geometric Top Card Handoff of the receiving stage.
 
       The root keeps the legacy `.con-start__played` class ON PURPOSE: the
       resource-transfer framework and the played-hero reward sources resolve
@@ -43,7 +47,6 @@
                :class="{
                  'con-splayed__fam--receiving': fam.receiving,
                  'con-splayed__fam--aside': receivingKey !== undefined && !fam.receiving,
-                 'con-splayed__fam--empty': fam.empty && !fam.receiving,
                }"
                :data-splayed-fam="fam.key">
         <div class="con-splayed__cap">
@@ -51,7 +54,7 @@
           <b v-if="fam.count > 0" class="con-splayed__cap-count" :key="'c' + fam.count">{{ fam.count }}</b>
         </div>
         <div class="con-splayed__stack" :style="{width: plan.slotW + 'px'}">
-          <!-- Depth strips: everything under the top card, oldest → newest. -->
+          <!-- Depth strips: everything under the (previous) top, oldest → newest. -->
           <div v-for="s in fam.strips" :key="s"
                class="con-splayed__strip"
                :data-played-key="s" :data-zoom-slot="s"
@@ -60,37 +63,32 @@
               <ConsolePlayedCardLite :name="s" peek />
             </div>
           </div>
-          <!-- The TOP card. Idle: an open face in a full-height slot. While
-               RECEIVING it sits in its FUTURE strip slot and overflows it
-               downward with the same open face (the geometric handoff) until
-               the arriving card is revealed, when it crops back to the strip. -->
-          <div v-if="fam.top !== undefined"
-               class="con-splayed__strip"
-               :class="fam.receiving ? 'con-splayed__strip--prev' : 'con-splayed__strip--top'"
-               :data-played-key="fam.top" :data-zoom-slot="fam.top"
-               :style="{height: (fam.receiving ? plan.stripH : plan.cardH) + 'px'}">
+          <!-- While RECEIVING: the previous top waits on its FUTURE strip,
+               open face overflowing downward (the geometric handoff) until
+               the arriving card is revealed, when it crops back to a strip. -->
+          <div v-if="fam.receiving && fam.prevTop !== undefined"
+               class="con-splayed__strip con-splayed__strip--prev"
+               :data-played-key="fam.prevTop" :data-zoom-slot="fam.prevTop"
+               :style="{height: plan.stripH + 'px'}">
             <div class="con-splayed__face" :style="{zoom: String(plan.zoom)}">
-              <ConsolePlayedCardLite :name="fam.top" :peek="fam.receiving && revealed" />
+              <ConsolePlayedCardLite :name="fam.prevTop" :peek="revealed" />
             </div>
           </div>
-          <!-- The RESERVED FRONT ANCHOR — the hero's landing box. Mounted from
-               the arm (the flight measures a real rect), empty until the
-               reveal, then the landed card occupies it and STAYS. -->
-          <div v-if="fam.receiving"
-               class="con-splayed__front"
-               data-start-front
-               :data-played-key="revealed && incomingName !== undefined ? incomingName : undefined"
-               :data-zoom-slot="revealed && incomingName !== undefined ? incomingName : undefined"
-               :class="{'con-splayed__front--filled': revealed}"
+          <!-- THE TOP SLOT — one persistent element: the open top card, or
+               the prepared card place a landing is measured against. -->
+          <div class="con-splayed__top"
+               :class="{'con-splayed__top--empty': fam.topFace === undefined, 'con-splayed__top--armed': fam.receiving && !revealed}"
+               :data-start-front="fam.receiving && !revealed ? '' : undefined"
+               :data-played-key="fam.topFace"
+               :data-zoom-slot="fam.topFace"
                :style="{height: plan.cardH + 'px'}">
-            <div v-if="revealed && incomingName !== undefined" class="con-splayed__face" :style="{zoom: String(plan.zoom)}">
-              <ConsolePlayedCardLite :name="incomingName" />
+            <div v-if="fam.topFace !== undefined" class="con-splayed__face" :key="fam.topFace" :style="{zoom: String(plan.zoom)}">
+              <ConsolePlayedCardLite :name="fam.topFace" />
+            </div>
+            <div v-else class="con-splayed__place" aria-hidden="true">
+              <span class="con-splayed__place-ring"></span>
             </div>
           </div>
-          <!-- An EMPTY family: the calm waiting plate — the destination
-               visibly exists before anything flies. -->
-          <div v-if="fam.empty && !fam.receiving" class="con-splayed__plate"
-               :style="{height: (plan.stripH * 2) + 'px'}"></div>
         </div>
       </section>
     </div>
@@ -124,10 +122,12 @@ type StartPlayedFamily = {
   count: number,
   /** Peek strips under the top (oldest → newest, capped). */
   strips: ReadonlyArray<CardName>,
-  /** The open top card (undefined — empty family). */
-  top: CardName | undefined,
+  /** The previous top (only meaningful while receiving — it waits on its
+   *  future strip while the top slot stands as the front anchor). */
+  prevTop: CardName | undefined,
+  /** The face lying OPEN in the top slot (undefined = the prepared place). */
+  topFace: CardName | undefined,
   receiving: boolean,
-  empty: boolean,
 };
 
 /** The start families, in tableau order. Corporation and preludes ALWAYS
@@ -206,20 +206,23 @@ export default defineComponent({
         const receiving = receivingKey === key;
         const top = lying.length > 0 ? lying[lying.length - 1] : undefined;
         const rest = lying.slice(0, Math.max(0, lying.length - 1));
+        // While receiving, the lying top moves onto its FUTURE strip and the
+        // top slot becomes the front anchor (empty until the reveal fills it).
+        const topFace = receiving ? (this.revealed ? incoming : undefined) : top;
         return {
           key,
           label: PLAYED_CATEGORY_LABEL[key],
           count: lying.length + (receiving && this.revealed ? 1 : 0),
           strips: rest.slice(Math.max(0, rest.length - STRIP_CAP)),
-          top,
+          prevTop: top,
+          topFace,
           receiving,
-          empty: lying.length === 0,
         };
       };
       const out = CORE_FAMILIES.map(build);
       for (const key of EXTRA_FAMILIES) {
         const fam = build(key);
-        if (!fam.empty || fam.receiving) {
+        if (fam.count > 0 || fam.receiving) {
           out.push(fam);
         }
       }
@@ -227,7 +230,7 @@ export default defineComponent({
     },
   },
   mounted() {
-    // The hero's landing target IS this dock's reserved front anchor.
+    // The hero's landing target IS this dock's prepared top slot.
     this.unregisterTarget = providePlayedHeroTarget(() => this.measureFrontAnchor());
   },
   beforeUnmount() {
@@ -235,7 +238,7 @@ export default defineComponent({
   },
   methods: {
     /** The front anchor's settled rect — stability-looped so the arc lands on
-     *  final geometry only (the expansion has finished shaping the column). */
+     *  final geometry only (the expansion has finished shaping the shelf). */
     async measureFrontAnchor(): Promise<HeroRect | undefined> {
       await this.$nextTick();
       const root = this.$el as HTMLElement | undefined;

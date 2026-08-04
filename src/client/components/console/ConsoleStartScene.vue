@@ -126,7 +126,7 @@
              a fixed side rail right), never a loose scrollable leftovers
              page. X browses the whole setup fullscreen. -->
         <div v-show="summaryShown" class="con-start__body con-start__summary con-info__scroll"
-             :class="{'con-start__summary--dense': summaryDense}" ref="summaryPane">
+             ref="summaryPane">
           <div class="con-start__summary-cards">
             <div class="con-start__summary-row">
               <div v-if="state.corp !== undefined" class="con-start__summary-block">
@@ -346,9 +346,22 @@
                    'start') as an overlay LAYER of the queue column — the same
                    Header / Status Rail / Footer frame it deepens, never a
                    modal over the workspace. The zone stands from the claim's
-                   first frame (a teleport needs its target before the search). -->
+                   first frame (a teleport needs its target before the search).
+                   THE SOURCE CARD STAYS IN THE STEP: it physically EMERGES
+                   from its dock stack into the left column (its slot keeps
+                   geometry, face away — one visual owner), presides over the
+                   draw, and SETTLES back into the stack on release. -->
               <div class="con-start__embed" data-embed-slot="start"
-                   :class="{'con-start__embed--live': embedActive}"></div>
+                   :class="{'con-start__embed--live': embedActive}">
+                <div v-if="embedSourceShown !== undefined" class="con-start__embedsource" ref="embedSourceCol">
+                  <span class="con-start__embedsource-cap">{{ $t('Source') }}</span>
+                  <div class="con-start__embedsource-card"
+                       :class="{'con-deal-hold': embedSourceArriving}"
+                       data-embed-source-slot>
+                    <ConsolePlayedCardLite :name="embedSourceShown" />
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- ── THE COMPACT PLAYED DESTINATION — «РАЗЫГРАНО · owner» ── -->
@@ -504,6 +517,7 @@ import {
   armPlayedHero, isPlayedHeroActive, playedHeroState,
 } from '@/client/console/played/consolePlayedHero';
 import ConsoleStartPlayedDock from '@/client/components/console/ConsoleStartPlayedDock.vue';
+import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 import {
   claimWorkspaceOutcome, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome,
   setWorkspaceOutcomeSlot, workspaceOutcomeState,
@@ -580,7 +594,7 @@ function deliveryHoldKey(names: ReadonlyArray<CardName>): string {
 
 export default defineComponent({
   name: 'ConsoleStartScene',
-  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock},
+  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** The LIVE `/api/waitingFor` poll (App → shell → here) — see `launch`. */
@@ -667,6 +681,14 @@ export default defineComponent({
        *  empty under the departing proxies — one visual owner on the way
        *  back too, never an open tile below a flying copy). */
       summaryStowing: new Set<CardName>(),
+      /** THE EMBED'S SOURCE COLUMN — the card that caused the draw, kept IN
+       *  the step: emerges physically from its dock stack when the reveal
+       *  presents, settles back when it releases. */
+      embedSourceShown: undefined as CardName | undefined,
+      /** The column slot is held empty (its card is still in flight). */
+      embedSourceArriving: false,
+      /** The dock face standing AWAY while its card presides over the step. */
+      embedSourceHeldEl: undefined as HTMLElement | undefined,
     };
   },
   computed: {
@@ -905,7 +927,12 @@ export default defineComponent({
       if (!hero.active || hero.card === undefined) {
         return undefined;
       }
-      return hero.phase === 'idle' || hero.phase === 'armed' || hero.phase === 'failed' ? undefined : hero.card;
+      // NOT during 'preparing': the director is still measuring/covering the
+      // source there (its own holdSource blanks it in the same turn the proxy
+      // lands over it) — hiding a frame earlier reads as the card blinking
+      // out before anything picks it up.
+      const p = hero.phase;
+      return p === 'idle' || p === 'armed' || p === 'failed' || p === 'preparing' ? undefined : hero.card;
     },
     picks() {
       return {
@@ -1252,11 +1279,6 @@ export default defineComponent({
     corpCandidatePick(): boolean {
       return startFlowCorpSelectPrompt(this.playerView) !== undefined;
     },
-    /** P17: >5 bought projects → the summary goes one density notch down
-     *  (fit by design — the summary never scrolls in the normal case). */
-    summaryDense(): boolean {
-      return this.state.projects.length > 5;
-    },
     /** The flat actionable list the focus cycles over. */
     focusables(): Array<Focusable> {
       const out: Array<Focusable> = [];
@@ -1512,6 +1534,10 @@ export default defineComponent({
       }
       if (now !== '' && was === '') {
         markWorkspaceOutcomePresenting();
+        // THE SOURCE STAYS IN THE STEP — and it emerges only NOW: the reveal
+        // event follows the hero's commit, so the source card is physically
+        // lying in the dock (at the claim's press it was still in flight).
+        void this.runEmbedSourceEmerge();
         return;
       }
       if (now === '' && was !== '') {
@@ -1519,6 +1545,13 @@ export default defineComponent({
         // Back to the queue context: focus the next unresolved card.
         this.focusIdx = 0;
         void this.$nextTick(() => this.scrollFocusedIntoView());
+      }
+    },
+    /** The claim released (any exit — the take finished, the backstop, the
+     *  unmount): the source card settles back into its stack slot. */
+    'embedActive'(now: boolean, was: boolean) {
+      if (!now && was) {
+        void this.runEmbedSourceSettle();
       }
     },
     /** Withhold the bought project cards from the dock the instant the
@@ -1550,6 +1583,10 @@ export default defineComponent({
   beforeUnmount() {
     document.body.classList.remove('con-start-ceremony');
     document.body.classList.remove('con-start-prep');
+    // A dock face stepped away for the embed's source column must never stay
+    // hidden past the scene (the class is DOM-held, not reactive).
+    this.embedSourceHeldEl?.classList.remove('con-deal-hold');
+    this.embedSourceHeldEl = undefined;
     if (this.outcome.host === 'start') {
       releaseWorkspaceOutcome(); // an orphaned claim suppresses presenters
     }
@@ -1589,6 +1626,7 @@ export default defineComponent({
       void this.$nextTick(() => {
         this.scrollFocusedIntoView();
         this.fitCardStrip();
+        this.fitSummary();
       });
       if (this.fitTimer !== undefined) {
         window.clearTimeout(this.fitTimer);
@@ -1596,6 +1634,7 @@ export default defineComponent({
       this.fitTimer = window.setTimeout(() => {
         this.fitTimer = undefined;
         this.fitCardStrip();
+        this.fitSummary();
       }, motionMs(240));
     },
     /** Parked-pane strip refs (index = step position). */
@@ -2292,8 +2331,64 @@ export default defineComponent({
       requestAnimationFrame(() => {
         this.fitScheduled = false;
         this.fitCardStrip();
+        this.fitSummary();
         this.syncCeremonyLayout();
       });
+    },
+    /**
+     * SUMMARY FIT — one zoom for the whole review so EVERY card fits the
+     * pane without clipping and the width is genuinely used: the identity
+     * row (corp + preludes + CEO, one notch larger) and the wrapped project
+     * rows are solved TOGETHER against the cards column's live box, largest
+     * zoom first. Pure math over measured bounds — no per-tile DOM probing,
+     * so it is safe to run while pile flights still hold the tiles.
+     */
+    fitSummary(): void {
+      if (!this.summaryShown) {
+        return;
+      }
+      const pane = this.$refs.summaryPane as HTMLElement | undefined;
+      if (pane === undefined || pane === null || typeof pane.querySelector !== 'function') {
+        return;
+      }
+      const col = pane.querySelector<HTMLElement>('.con-start__summary-cards');
+      if (col === null || col.clientWidth < 60 || pane.clientHeight < 120) {
+        return;
+      }
+      const ui = conUiScale();
+      const availW = col.clientWidth;
+      const availH = pane.clientHeight;
+      const idCount = (this.state.corp !== undefined ? 1 : 0) + this.state.preludes.length +
+        (this.state.ceo !== undefined ? 1 : 0);
+      const projCount = this.state.projects.length;
+      const NAT_W = 320;
+      const NAT_H = 460;
+      const ID_BOOST = 1.12;
+      const titleH = 34 * ui;
+      const gap = 14 * ui;
+      const rowPad = 12 * ui;
+      const fits = (z: number): boolean => {
+        const zs = z * ui;
+        const idW = NAT_W * zs * ID_BOOST + gap;
+        const idCols = Math.max(1, Math.floor((availW + gap) / idW));
+        const idRows = idCount > 0 ? Math.ceil(idCount / idCols) : 0;
+        const idH = idRows * (NAT_H * zs * ID_BOOST) + Math.max(0, idRows - 1) * gap +
+          (idRows > 0 ? titleH + rowPad : 0);
+        const prW = NAT_W * zs + gap;
+        const prCols = Math.max(1, Math.floor((availW + gap) / prW));
+        const prRows = projCount > 0 ? Math.ceil(projCount / prCols) : 0;
+        const prH = titleH + rowPad + prRows * (NAT_H * zs) + Math.max(0, prRows - 1) * gap;
+        return idH + gap + prH <= availH;
+      };
+      let zoom = 0.4;
+      for (let z = 0.82; z >= 0.4; z -= 0.02) {
+        if (fits(z)) {
+          zoom = z;
+          break;
+        }
+      }
+      pane.style.setProperty('--con-start-mini-zoom', zoom.toFixed(3));
+      pane.style.setProperty('--con-start-mini-id-zoom', (zoom * ID_BOOST).toFixed(3));
     },
     /** The height the strip may occupy. The status rail is now PINNED OUTSIDE
      *  the scrollable body (a frame-level element above the command bar), so
@@ -2426,17 +2521,13 @@ export default defineComponent({
         }
         return;
       case 'back':
-        // B = minimize (intentional: inspect the board, the amber chip
-        // returns; picks + step progress live in module state). NEVER while
-        // a play is physically in flight — a defer unmounts the scene and
-        // with it the hero's landing target (the stranded-card bug).
-        if (this.mode === 'ceremony') {
-          // The deployment is IRREVERSIBLE and its every beat is causal —
-          // minimizing here would hide a live queue / an embedded follow-up
-          // / a flight mid-air. B is simply not a deployment verb.
-          return;
-        }
-        if (isPlayedHeroActive()) {
+        // B = minimize (inspect the board; the amber chip returns — picks,
+        // step progress and the whole deployment claim live in module
+        // state). NEVER while a play is physically in flight or an embedded
+        // follow-up is open — a defer unmounts the scene and with it the
+        // hero's landing target / the reveal's zone (the stranded-card bug).
+        if (isPlayedHeroActive() || this.embedActive ||
+            isHandDeliveryActive() || this.queueArriving.size > 0) {
           return;
         }
         this.$emit('defer');
@@ -2681,6 +2772,67 @@ export default defineComponent({
         }
       }
       submit();
+    },
+    /**
+     * THE SOURCE EMERGE — the card that caused the draw comes physically
+     * forward: its dock face steps AWAY (geometry held), a proxy carries the
+     * same pixels into the step's source column, the column card reveals on
+     * touchdown. The same take/carry/lay grammar as every start transfer.
+     */
+    async runEmbedSourceEmerge(): Promise<void> {
+      const source = this.outcome.sourceCard as CardName;
+      if (source === '' || this.embedSourceShown !== undefined) {
+        return;
+      }
+      this.embedSourceShown = source;
+      this.embedSourceArriving = true;
+      await this.$nextTick();
+      const root = this.$el as HTMLElement | undefined;
+      if (root === undefined || typeof root.querySelector !== 'function') {
+        this.embedSourceArriving = false;
+        return;
+      }
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(source) : source;
+      const dockFace = root.querySelector<HTMLElement>(`.con-start__played [data-played-key="${esc}"] .con-splayed__face`);
+      const colSlot = root.querySelector<HTMLElement>('[data-embed-source-slot]');
+      if (dockFace === null || colSlot === null) {
+        this.embedSourceArriving = false; // degraded: the column simply shows
+        return;
+      }
+      // Spawn the carry FIRST (the proxy clones the face's live pixels),
+      // then step the dock face away in the same tick — one visual owner.
+      const flight = reseatCards([{name: source, fromEl: dockFace, toEl: colSlot}],
+        () => {
+          this.embedSourceArriving = false;
+        });
+      dockFace.classList.add('con-deal-hold');
+      this.embedSourceHeldEl = dockFace;
+      await flight;
+      this.embedSourceArriving = false;
+    },
+    /** THE SOURCE SETTLE — the step is over: the source card returns along
+     *  the same physical path into the very stack slot it left. */
+    async runEmbedSourceSettle(): Promise<void> {
+      const source = this.embedSourceShown;
+      if (source === undefined) {
+        return;
+      }
+      const root = this.$el as HTMLElement | undefined;
+      const colSlot = root !== undefined && typeof root.querySelector === 'function' ?
+        root.querySelector<HTMLElement>('[data-embed-source-slot]') : null;
+      const held = this.embedSourceHeldEl;
+      if (colSlot !== null && held !== undefined && held.isConnected) {
+        const flight = reseatCards([{name: source, fromEl: colSlot, toEl: held}],
+          () => {
+            held.classList.remove('con-deal-hold');
+          });
+        this.embedSourceArriving = true; // the column empties under the proxy
+        await flight;
+      }
+      this.embedSourceHeldEl?.classList.remove('con-deal-hold');
+      this.embedSourceHeldEl = undefined;
+      this.embedSourceShown = undefined;
+      this.embedSourceArriving = false;
     },
     /**
      * The play's FOLLOW-UP claim: a start card that DRAWS other cards hosts

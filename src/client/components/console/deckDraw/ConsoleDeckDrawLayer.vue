@@ -99,7 +99,7 @@ import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale'
 import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {colonyTradeClaimsReveal, isColonyTradeRevealStaged, isPresentedTradeReveal} from '@/client/console/colonyTrade/consoleColonyTrade';
-import {workspaceClaimsDrawReveal} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeArrivalDone, workspaceClaimOwnsArrival, workspaceClaimsDrawReveal} from '@/client/console/consoleWorkspaceOutcome';
 import {
   DeckDrawTimings, DrawBeat, RectLike, deckCountAfter, deckDrawTimings, holdScale, holdSlots,
   inspectPoint, inspectScale, planDeckDraw, reducedDeckDrawTimings,
@@ -243,13 +243,15 @@ export default defineComponent({
       // while the cards are still untaken. A FOREIGN trade's bonus batch
       // (an opponent traded, we own a cube) stays ours — those cards honestly
       // come off the deck.
-      // …and a batch an open WORKSPACE claimed is that workspace's: its
-      // execution beat already pulls the card off this very pile and lands it
-      // in the workspace's own zone. Running this scene too means TWO flights
-      // for one card, aiming at two different places — the player watches it
-      // fly somewhere and then appear somewhere else.
+      // …and a batch a workspace claimed WITH ITS OWN ARRIVAL BEAT (the
+      // card-actions composer's prepared stage) is that workspace's: its
+      // beat already pulls the card off this very pile and lands it in the
+      // workspace's own zone — running this scene too means TWO flights for
+      // one card. The GAME START host has no beat of its own: this scene
+      // SERVES its claim, flying the cards from the HUD pile into the
+      // embedded reveal's slots (`workspaceClaimOwnsArrival` draws the line).
       if (!isDeckDrawSource(e.source) ||
-          workspaceClaimsDrawReveal(e.source) ||
+          workspaceClaimOwnsArrival(e.source) ||
           boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id) ||
           colonyTradeClaimsReveal(e.source) || isColonyTradeRevealStaged(e.id) ||
           isPresentedTradeReveal(e.source)) {
@@ -567,7 +569,10 @@ export default defineComponent({
       // (that reveal is HEADLESS — no modal, no slots to fly into). The hold
       // pose IS the hand-over: release the viewer's held auto-open, and it
       // lifts THIS proxy via the existing zoom FLIP (registerDeckDrawZoomOrigin).
-      if (e.cards.length === 1) {
+      // NOT when a workspace claimed the batch: the EMBEDDED reveal renders a
+      // real slot even for one card (the card belongs inside the workspace,
+      // never in a fullscreen hand-over) — fall through to the slot flight.
+      if (e.cards.length === 1 && !workspaceClaimsDrawReveal(e.source)) {
         setDeckDrawPhase('frame');
         markDeckDrawZoomReady();
         // End once the viewer has taken over: the input gate must not stay
@@ -618,6 +623,13 @@ export default defineComponent({
         return;
       }
       setDeckDrawPhase('handoff');
+      // A workspace-claimed batch (the Game Start host) has physically
+      // ARRIVED — the real cards release under the proxies in this phase.
+      // Open the claim's arrival gate NOW (its 5 s backstop is a failure
+      // path, not the schedule).
+      if (workspaceClaimsDrawReveal(currentRevealEvent()?.source)) {
+        markWorkspaceOutcomeArrivalDone();
+      }
       ctx.sceneHandle = runDeckDrawHandoff({
         proxies: held,
         t: this.timings(),

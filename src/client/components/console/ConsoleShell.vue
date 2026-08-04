@@ -105,7 +105,7 @@
       <ConsoleResourcePanel :player="railPlayer" :epoch="playerView.runId"
                             :gameTags="playerView.game.tags"
                             :convertPlants="convertPlantsReady && railShowsSelf" :convertHeat="convertHeatReady && railShowsSelf"
-                            :boardVisible="consoleState.section === 'board' && !infoModeState.open"
+                            :boardVisible="consoleState.section === 'board' && !infoModeState.open && !startSceneServes"
                             :own="railShowsSelf"
                             :vpHidden="railVpHidden"
                             :automa="railAutoma" />

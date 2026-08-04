@@ -35,48 +35,54 @@ describe('ConsoleStartPlayedDock (the compact «РАЗЫГРАНО · owner» de
     await settle(5);
   });
 
-  it('is the COMPACT destination dock — owner line + both start families standing, never the tableau overview', () => {
+  it('is the COMPACT destination shelf — owner line + both start families standing, never the tableau overview', () => {
     const wrapper = make(view([]));
     // Never the full «Разыграно» overview (its layout answers a different question).
     expect(wrapper.find('.con-played').exists()).to.be.false;
     // The owner line: «РАЗЫГРАНО · <owner>».
     expect(wrapper.find('.con-splayed__title').text()).to.eq('Played');
     expect(wrapper.find('.con-splayed__owner-name').text()).to.eq('Вы');
-    // Both start families stand from the first frame — a destination exists
-    // before anything flies; an empty one shows the calm waiting plate.
-    expect(wrapper.find('[data-splayed-fam="corporation"]').exists()).to.be.true;
-    expect(wrapper.find('[data-splayed-fam="prelude"]').exists()).to.be.true;
-    expect(wrapper.findAll('.con-splayed__plate').length).to.eq(2);
-    // Idle: no reserved front anchor (nothing is inbound).
+    // Both start families stand from the first frame; an empty one shows the
+    // PREPARED CARD PLACE — card-shaped, real geometry, quiet inner ring.
+    const corp = wrapper.find('[data-splayed-fam="corporation"]');
+    const pre = wrapper.find('[data-splayed-fam="prelude"]');
+    expect(corp.exists()).to.be.true;
+    expect(pre.exists()).to.be.true;
+    expect(corp.find('.con-splayed__top--empty .con-splayed__place-ring').exists()).to.be.true;
+    expect(pre.find('.con-splayed__top--empty .con-splayed__place-ring').exists()).to.be.true;
+    // Idle: nothing is inbound — no armed front anchor.
     expect(wrapper.find('[data-start-front]').exists()).to.be.false;
     // The root keeps the legacy physical address of the transfer chains.
     expect(wrapper.classes()).to.contain('con-start__played');
     wrapper.unmount();
   });
 
-  it('RECEIVING an empty family (the corporation play): the front anchor reserves real room, fills at the reveal, the count ticks 0 → 1', async () => {
+  it('RECEIVING an empty family (the corporation play): the top slot becomes the armed front anchor, fills at the reveal, the count ticks 0 → 1', async () => {
     armPlayedHero(CardName.THARSIS_REPUBLIC, false, {manualTableOpen: false, host: 'workspace'});
     playedHeroState.phase = 'preparing';
     const wrapper = make(view([]));
     await wrapper.vm.$nextTick();
     const fam = wrapper.find('[data-splayed-fam="corporation"]');
     expect(fam.classes()).to.contain('con-splayed__fam--receiving');
-    // Pre-dock: the anchor is EMPTY room — no face, no played-key, no count.
-    const front = fam.find('[data-start-front]');
-    expect(front.exists()).to.be.true;
-    expect(front.attributes('data-played-key')).to.be.undefined;
-    expect(front.find('.con-splayed__face').exists()).to.be.false;
+    // Pre-dock: the top slot IS the front anchor — armed, card-shaped, EMPTY.
+    const top = fam.find('.con-splayed__top');
+    expect(top.attributes('data-start-front')).to.not.be.undefined;
+    expect(top.classes()).to.contain('con-splayed__top--armed');
+    expect(top.attributes('data-played-key')).to.be.undefined;
+    expect(top.find('.con-splayed__face').exists()).to.be.false;
+    expect(top.find('.con-splayed__place-ring').exists()).to.be.true;
     expect(fam.find('.con-splayed__cap-count').exists()).to.be.false;
-    // THE DOCK: the landed card occupies the front and STAYS; the count ticks.
+    // THE DOCK: the landed card occupies the slot and STAYS; the count ticks.
     playedHeroState.revealed = true;
     await wrapper.vm.$nextTick();
-    expect(front.attributes('data-played-key')).to.eq(CardName.THARSIS_REPUBLIC);
-    expect(front.find('.con-splayed__face').exists()).to.be.true;
+    expect(top.attributes('data-start-front')).to.be.undefined;
+    expect(top.attributes('data-played-key')).to.eq(CardName.THARSIS_REPUBLIC);
+    expect(top.find('.con-splayed__face').exists()).to.be.true;
     expect(fam.find('.con-splayed__cap-count').text()).to.eq('1');
     wrapper.unmount();
   });
 
-  it('RECEIVING onto a standing stack (a prelude): geometric Top Card Handoff — the previous top holds its open face on its future strip, crops at the reveal; the other family recedes aside', async () => {
+  it('RECEIVING onto a standing stack (a prelude): geometric Top Card Handoff — the previous top waits open on its future strip, crops at the reveal; the other family recedes aside', async () => {
     armPlayedHero(CardName.BIOLAB, false, {manualTableOpen: false, host: 'workspace'});
     playedHeroState.phase = 'preparing';
     const wrapper = make(view([CardName.THARSIS_REPUBLIC, CardName.ECOLOGY_EXPERTS]));
@@ -93,8 +99,24 @@ describe('ConsoleStartPlayedDock (the compact «РАЗЫГРАНО · owner» de
     playedHeroState.revealed = true;
     await wrapper.vm.$nextTick();
     expect(prev.findComponent({name: 'ConsolePlayedCardLite'}).props('peek')).to.be.true;
-    expect(fam.find('[data-start-front]').attributes('data-played-key')).to.eq(CardName.BIOLAB);
+    expect(fam.find('.con-splayed__top').attributes('data-played-key')).to.eq(CardName.BIOLAB);
     expect(fam.find('.con-splayed__cap-count').text()).to.eq('2');
+    wrapper.unmount();
+  });
+
+  it('THE ART CANNOT BLINK: the face node of the landed card is REUSED across the receiving → idle transition (same element, no remount)', async () => {
+    armPlayedHero(CardName.THARSIS_REPUBLIC, false, {manualTableOpen: false, host: 'workspace'});
+    playedHeroState.phase = 'preparing';
+    playedHeroState.revealed = true;
+    const wrapper = make(view([CardName.THARSIS_REPUBLIC]));
+    await wrapper.vm.$nextTick();
+    const faceBefore = wrapper.find('[data-splayed-fam="corporation"] .con-splayed__top .con-splayed__face').element;
+    // The transaction closes (hero returns to idle) — the SAME top slot now
+    // presents the same card as the family's lying top.
+    abortPlayedHero();
+    await wrapper.vm.$nextTick();
+    const faceAfter = wrapper.find('[data-splayed-fam="corporation"] .con-splayed__top .con-splayed__face').element;
+    expect(faceAfter).to.eq(faceBefore);
     wrapper.unmount();
   });
 
@@ -110,13 +132,13 @@ describe('ConsoleStartPlayedDock (the compact «РАЗЫГРАНО · owner» de
     wrapper.unmount();
   });
 
-  it('AFTER the transaction: the landed card stays physically in the stack as its open top — the dock is compact again', async () => {
+  it('AFTER the transaction: the landed card stays physically as the open top of its stack — the shelf is compact again', async () => {
     // No live hero (the transaction closed); the tableau now carries the corp.
     const wrapper = make(view([CardName.THARSIS_REPUBLIC]));
     const fam = wrapper.find('[data-splayed-fam="corporation"]');
     expect(fam.classes()).to.not.contain('con-splayed__fam--receiving');
     expect(fam.find('[data-start-front]').exists()).to.be.false;
-    const top = fam.find('.con-splayed__strip--top');
+    const top = fam.find('.con-splayed__top');
     expect(top.attributes('data-played-key')).to.eq(CardName.THARSIS_REPUBLIC);
     // Open face (peek=false): the corporation stays readable in the tableau.
     expect(top.findComponent({name: 'ConsolePlayedCardLite'}).props('peek')).to.be.false;

@@ -107,18 +107,21 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
     hints.push({control: 'back', label: 'Minimize'});
     return hints;
   }
-  // The ceremony (the DEPLOYMENT). Deliberately NO B here: the deployment is
-  // irreversible and every beat is causal — «Свернуть» would hide a live
-  // queue / an embedded follow-up / a flight mid-air, so it is not a verb of
-  // this stage at all (the bar never advertises what the gate would swallow).
+  // The ceremony (the DEPLOYMENT). B = MINIMIZE (the committed-workspace
+  // collapse verb): the deployment is irreversible, but hiding it to READ
+  // THE BOARD is a legitimate wish — the amber deferred chip brings the
+  // player back to the exact same beat. The scene's own input gate still
+  // swallows B mid-flight / mid-embed (never mid-motion).
   if (s.payBeat) {
     return [
       {control: 'confirm', label: 'Pay'},
+      {control: 'back', label: 'Minimize'},
     ];
   }
   return [
     {control: 'confirm', label: s.ceremonyVerb, enabled: s.hasFocusables},
     {control: 'secondary', label: 'Inspect', enabled: s.hasFocusables},
+    {control: 'back', label: 'Minimize'},
   ];
 }
 

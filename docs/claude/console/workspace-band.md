@@ -1019,10 +1019,48 @@ queue-колонки (`--live` = мягкий rise; зона стоит с ка�
 центральные колонны ит.2 (`__corp/__prelude/__cands/__pay*`) и «СТОЛ»
 удалены совсем.
 
-Гварды: `consoleStartState.spec` (24: + wizardCrumb/deploymentCrumb),
-`ConsoleStartPlayedDock.spec` (5: компакт/receiving/handoff/адрес цепочек/
-пост-транзакция), `startStatusPreview.spec` (минимальность контрактом),
-e2e `console-play-landing-probe` (FHD+4K+reduced: continuous root, embedded
-reveal обязан, «СТОЛ»=0, `.con-recv` в старте=0, standalone «Разыграно»=0,
-пилы дока ≥3, dock-прокси в полёте), `console-start-summary`,
-`start-scene-profiles` (воки переписаны на subject-крошку + Period=RT).
+**ит.5 (2026-08-05) — НАСТОЛЬНАЯ ФИЗИКА + ШАГ-ВНУТРЬ.** По реджекту
+«аркадных» полётов:
+- `startDockMotion.addFlight` переписан С НУЛЯ: TAKE (220ms подъём к зрителю
+  на месте, tilt-сид ±1.6°) → CARRY (один power2.inOut-глайд по НИЗКОЙ дуге
+  — провис 6% дистанции, кап 46px; флип в сердце 28–72% с page-turn pitch
+  rotationX; scale подходит к следу ПЛАВНО весь путь) → LAY (стопка
+  ОТВЕЧАЕТ: `pressPile` 2px + весовой settle карты) → handoff.
+  `heroProgressAt`-профиль (V_START .55 = «запуск») из стартовых полётов
+  УДАЛЁН. Рубашки шелфа: посадочный settle-кейфрейм на ВНУТРЕННЕМ
+  `.con-card-back` (внешний несёт inline-офсет стека — анимация того же
+  transform снапалась бы), бумажная кромка box-shadow. Reseat = конвой в
+  порядке чтения ЦЕЛЕЙ (sort по to.y,to.x), лёгкий грип.
+- **Hero-телепорт закрыт**: `captureSourceRect` ПОЛЛИТ ~26 кадров (гонка с
+  zoom-close, державшим слот `con-zoom-hold`, роняла полёт в no-flight
+  fallback); `heroDepartedName`-hold сцены исключает 'preparing' (director
+  меряет источник там же — ранний hold прятал карту до прокси).
+- **Арт не мигает**: у дока ОДИН персистентный `__top`-слот на семью = и
+  front-anchor (`[data-start-front]`, `--armed` ring), и открытый верх;
+  face keyed именем → receiving→idle реюзает узел (guard-спека «THE ART
+  CANNOT BLINK»). Пустая семья = карточное prepared place
+  (`__place-ring`), не плоская плита.
+- **«РАЗЫГРАНО» — горизонтальный нижний шелф** (`__deploy` = column;
+  `.con-splayed` = row, стеки bottom-aligned — receiving растёт ВВЕРХ от
+  пола полки), плита bounded НЕПРОЗРАЧНА (#0a1119 — ghost-текст боковой
+  панели на 4K).
+- **B = Свернуть в развёртывании** (deferred-механизм; гейт: hero/embed/
+  delivery/arrivals глотают B), «ДОП.РЕСУРСЫ» скрыт весь старт santioned-
+  путём (`boardVisible += !startSceneServes` — как прячет гидросеть).
+- **Сводка** — fit-движок `fitSummary` (леддер 0.82→0.40 против живого
+  бокса: id-ряд ×1.12 + wrap проектов; `--con-start-mini-zoom` vars;
+  dense-режим и хардкоды профилей удалены).
+- **Добор = шаг внутрь**: deck-draw сцена БОЛЬШЕ НЕ пропускает клейм
+  host='start' (`workspaceClaimOwnsArrival` — свой beat есть только у
+  card-actions): карты ФИЗИЧЕСКИ летят из HUD-колоды в embedded-слоты во
+  всех кейсах (drawn / single / conditional), `markWorkspaceOutcomeArrivalDone`
+  на handoff; single-card клейм-ветка не уходит в fullscreen. SOURCE-карта
+  ОСТАЁТСЯ В ШАГЕ: emerge из своей стопки дока в левую колонку
+  (`__embedsource`, «ИСТОЧНИК», reseat-полёт + `.con-deal-hold` на своей
+  полосе) и settle обратно на release; reveal капнут «комнатой»
+  (max-height 31rem, stage-title = supporting voice).
+
+Гварды: `consoleStartState.spec` (24), `ConsoleStartPlayedDock.spec` (6:
++ art-identity), `startStatusPreview.spec`, e2e `console-play-landing-probe`
+(FHD+4K+reduced), `console-start-summary` (сводка = v-show: видимость, не
+count), `start-scene-profiles` (4 профиля + no-scroll).

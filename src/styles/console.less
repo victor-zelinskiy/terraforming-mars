@@ -12462,10 +12462,11 @@ body.con-start-ceremony {
             inset 0 .06rem 0 rgba(170, 215, 255, 0.07),
             0 1rem 2.6rem rgba(0, 0, 0, 0.42);
     }
-    /* Bounded: the plate is the family workspace panel (near-opaque — the
-       shade behind it carries the board dim, the panel carries the work). */
+    /* Bounded: the plate is the family workspace panel. FULLY opaque — the
+       board home's side panels must never ghost through the work surface on
+       a high-contrast panel (the shade behind carries the board dim). */
     &--bounded .con-start__frame {
-        background: rgba(7, 12, 19, 0.96);
+        background: #0a1119;
     }
     /* The final RESOLVED beat — the boundary answers in mint before the
        workspace releases the field (state, not decoration). */
@@ -12781,16 +12782,18 @@ body.con-start-ceremony {
     }
     &__mini {
         flex-shrink: 0;
-        /* Larger than before (0.62): the summary is the review screen — the
-           cards earn the freed space so the tableau reads finished on 4K. */
-        zoom: calc(0.72 * var(--con-ui-scale, 1));
+        /* The FIT ENGINE owns the size (fitSummary solves one zoom against
+           the pane's live box, largest first — every card always fits, the
+           width is genuinely used); the fallbacks only cover the pre-measure
+           frame. */
+        zoom: calc(var(--con-start-mini-zoom, 0.62) * var(--con-ui-scale, 1));
         position: relative;
         border-radius: .6rem;
         transition: transform var(--con-motion-fast, 140ms) ease;
         > :is(.card-container, .pcard) { margin: 0; }
 
         /* Identity cards (corp / preludes / CEO) read one notch larger. */
-        &--id { zoom: calc(0.82 * var(--con-ui-scale, 1)); }
+        &--id { zoom: calc(var(--con-start-mini-id-zoom, 0.7) * var(--con-ui-scale, 1)); }
 
         /* Summary focus cursor: the browsed tile lifts + leads; the gliding
            ConsoleCardFocusFrame draws the ring around it (X inspects it). */
@@ -12798,14 +12801,6 @@ body.con-start-ceremony {
             transform: translateY(-.2rem) scale(1.04);
             z-index: 2;
         }
-    }
-    /* P17: >5 bought projects drop the summary one density notch so the
-       confirmation screen FITS without scrolling (X = the detailed read). */
-    &__summary--dense {
-        .con-start__mini { zoom: calc(0.58 * var(--con-ui-scale, 1)); }
-        .con-start__mini--id { zoom: calc(0.68 * var(--con-ui-scale, 1)); }
-        .con-start__summary-cards { gap: .5rem; }
-        .con-start__minirow { gap: .5rem; }
     }
 
     /* ── The LAUNCH block: the side rail's ONE decision slot ──────────────
@@ -14656,8 +14651,9 @@ body.con-start-ceremony .con-status {
         flex: 1;
         min-height: 0;
         display: flex;
+        flex-direction: column;
         align-items: stretch;
-        gap: 1rem;
+        gap: .7rem;
     }
     &__queuecol {
         position: relative;
@@ -14789,19 +14785,60 @@ body.con-start-ceremony .con-status {
         inset: 0;
         min-height: 0;
         display: flex;
-        flex-direction: column;
         justify-content: center;
         pointer-events: none;
-
-        > * { width: 100%; min-height: 0; }
     }
     &__embed--live {
         pointer-events: auto;
         /* The zone's content SURFACES from inside the workspace (REVEAL of the
            descend phrase — the queue released in place a beat earlier). One
-           calm rise; the card physics (deck → slots) is the batch arrival's. */
+           calm rise; the card physics (deck → slots) is the deck-draw scene's. */
         animation: con-start-embed-in calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
     }
+    /* A STEP, not a modal: the source column left + the received cards right
+       share one row; the reveal's chassis is capped to a step-sized room
+       (the zone is the room — a full-height fit read as a fullscreen modal). */
+    &__embed {
+        flex-direction: row;
+        align-items: center;
+        gap: 1.1rem;
+
+        > .con-reveal {
+            flex: 1;
+            min-width: 0;
+            max-height: min(31rem, 100%);
+            align-self: center;
+        }
+    }
+    /* THE SOURCE COLUMN — the card that caused the draw, kept in the step
+       (it physically emerged from the dock stack and returns there). */
+    &__embedsource {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .35rem;
+        padding-left: .4rem;
+    }
+    &__embedsource-cap {
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 80%);
+    }
+    &__embedsource-card {
+        position: relative;
+        width: calc(320px * 0.5 * var(--con-ui-scale, 1));
+        border-radius: .45rem;
+        box-shadow: 0 .7rem 1.6rem rgba(0, 0, 0, 0.45), 0 0 0 .06rem fade(@con-cyan, 30%);
+        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+
+        > * { zoom: calc(0.5 * var(--con-ui-scale, 1)); }
+    }
+    /* The reveal's stage instruction inside the step is a SUPPORTING voice,
+       never a page title (a second big heading is what read as a modal). */
+    &__embed .con-ws-stage-title { font-size: .95rem; letter-spacing: .1em; }
 
     /* The deep-tail journey (beside the crumb) — one size tighter than the
        aux rail so the line reads breadcrumb-first, progress-second. */
@@ -14834,28 +14871,36 @@ body.con-start-ceremony .con-status {
 }
 
 /* ── THE COMPACT PLAYED DESTINATION — «РАЗЫГРАНО · owner» (ConsoleStartPlayedDock)
-   The deployment's receiving dock: each start family is ONE physical stack
-   (peek strips + the open top card); the receiving family carries the
-   reserved front anchor the hero lands into. Destination-focused by
-   construction — never the tableau overview. */
+   The deployment's receiving dock: a HORIZONTAL tabletop shelf along the
+   workspace bottom. Each start family is ONE physical stack STANDING ON THE
+   SHELF FLOOR (bottom-aligned — a receiving stack grows UPWARD while the
+   floor holds still); the receiving family's top slot is the reserved,
+   card-shaped landing place. Destination-focused by construction — never
+   the tableau overview. */
 .con-splayed {
     flex: 0 0 auto;
-    align-self: stretch;
     display: flex;
-    flex-direction: column;
-    gap: .55rem;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 1.3rem;
     min-height: 0;
-    padding: .6rem .75rem .7rem;
+    padding: .55rem .9rem .6rem;
     border-radius: .6rem;
-    background: linear-gradient(180deg, rgba(13, 21, 32, 0.85), rgba(9, 15, 23, 0.78));
-    box-shadow: inset 0 0 0 .06rem rgba(96, 176, 232, 0.15);
+    background: linear-gradient(180deg, rgba(13, 21, 32, 0.9), rgba(9, 15, 23, 0.86));
+    box-shadow:
+        inset 0 0 0 .06rem rgba(96, 176, 232, 0.15),
+        inset 0 .5rem 1.2rem rgba(0, 0, 0, 0.25);
     overflow: hidden;
 
     &__head {
+        align-self: stretch;
         display: flex;
-        align-items: baseline;
-        gap: .6rem;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: .3rem;
         flex-shrink: 0;
+        padding-bottom: .2rem;
+        max-width: 9.5rem;
     }
     &__title {
         font-size: .72rem;
@@ -14889,25 +14934,23 @@ body.con-start-ceremony .con-status {
     }
     &__families {
         flex: 1;
-        min-height: 0;
+        min-width: 0;
         display: flex;
-        flex-direction: column;
-        gap: .7rem;
+        flex-direction: row;
+        align-items: flex-end;
+        gap: 1.3rem;
     }
     &__fam {
         display: flex;
         flex-direction: column;
+        justify-content: flex-end;
         gap: .3rem;
         transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
 
         /* Another family is receiving: this one recedes in place. */
         &--aside { opacity: .55; }
-        &--empty .con-splayed__cap-label { opacity: .7; }
         &--receiving {
             .con-splayed__cap-label { color: fade(@con-mint, 92%); }
-            .con-splayed__stack {
-                box-shadow: 0 0 0 .07rem fade(@con-mint, 50%), 0 0 1rem fade(@con-mint, 16%);
-            }
         }
     }
     &__cap {
@@ -14933,8 +14976,8 @@ body.con-start-ceremony .con-status {
         position: relative;
         display: flex;
         flex-direction: column;
+        justify-content: flex-end;
         border-radius: .4rem;
-        transition: box-shadow calc(220ms * var(--motion-scale, 1)) ease;
     }
     /* One strip = one lying card's visible title band (the peek crop). */
     &__strip {
@@ -14942,11 +14985,6 @@ body.con-start-ceremony .con-status {
         overflow: hidden;
         border-radius: .25rem .25rem 0 0;
 
-        /* The OPEN TOP card (idle) — the full face in a full-height slot. */
-        &--top {
-            overflow: hidden;
-            border-radius: .35rem;
-        }
         /* The PREVIOUS TOP while receiving: it sits in its FUTURE strip slot
            and OVERFLOWS it downward with the same open face until the
            arriving card is revealed (the geometric Top Card Handoff) —
@@ -14960,28 +14998,47 @@ body.con-start-ceremony .con-status {
         position: relative;
         width: 100%;
     }
-    /* THE RESERVED FRONT ANCHOR — the hero's landing box: real geometry from
-       the arm frame (the flight measures it), quietly marked until filled. */
-    &__front {
+    /* THE TOP SLOT — one persistent element: the open top card, or the
+       PREPARED CARD PLACE a landing is measured against. Card-shaped by
+       construction (the slot IS a card box at the dock zoom). */
+    &__top {
         position: relative;
         z-index: 1;
         border-radius: .4rem;
-        background: rgba(255, 255, 255, 0.03);
-        box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 30%);
         transition: box-shadow calc(220ms * var(--motion-scale, 1)) ease;
 
-        &--filled {
-            background: none;
-            box-shadow: none;
-            overflow: hidden;
+        &--empty {
+            background:
+                radial-gradient(ellipse at 50% 42%, rgba(120, 190, 240, 0.05), transparent 70%),
+                rgba(255, 255, 255, 0.025);
+            box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.2);
+        }
+        /* ARMED — the destination is prepared and waiting for its card: a
+           quiet cyan readiness, never a blink (state, not decoration). */
+        &--armed {
+            box-shadow:
+                inset 0 0 0 .06rem fade(@con-cyan, 55%),
+                0 0 1rem fade(@con-cyan, 14%);
         }
     }
-    /* An EMPTY family: a calm waiting plate — the destination visibly exists
-       before anything flies (readiness is a place, not a promise). */
-    &__plate {
+    /* The prepared place's inner card outline — reads as "a card belongs
+       exactly here": card corners, inset a strip's breadth. */
+    &__place {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    &__place-ring {
+        position: absolute;
+        inset: .3rem;
         border-radius: .35rem;
-        background: rgba(255, 255, 255, 0.03);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.14);
+        border: .07rem dashed rgba(130, 175, 215, 0.28);
+
+        .con-splayed__top--armed & {
+            border-color: fade(@con-cyan, 55%);
+        }
     }
 }
 @keyframes con-splayed-tick {
@@ -15070,8 +15127,16 @@ body.con-start-ceremony .con-status {
         inset: 0;
         border-radius: .25rem;
         overflow: hidden;
-        .con-card-back { width: 100%; height: 100%; }
-        &--ghost { opacity: .4; }
+        /* A real stacked-paper edge; the weight-settle rides the INNER back
+           (the outer div carries the per-index inline stack offset — an
+           animation on the same transform would snap at its end). */
+        box-shadow: 0 .12rem .3rem rgba(0, 0, 0, 0.5), 0 0 0 .04rem rgba(150, 185, 220, 0.18);
+        .con-card-back {
+            width: 100%;
+            height: 100%;
+            animation: con-startdock-land calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
+        &--ghost { opacity: .4; box-shadow: none; .con-card-back { animation: none; } }
     }
     &__meta { display: flex; flex-direction: column; gap: .1rem; }
     &__label {
@@ -15092,6 +15157,13 @@ body.con-start-ceremony .con-status {
     inset: 0;
     z-index: 11640;
     pointer-events: none;
+}
+@keyframes con-startdock-land {
+    from { transform: translateY(-.14rem) scale(1.04); }
+    to { transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-startdock__back .con-card-back { animation: none; }
 }
 .con-startdock-proxy {
     position: absolute;
@@ -19218,15 +19290,10 @@ html.con-profile-handheld {
         &__summary { gap: .7rem; }
         &__summary-row { gap: .8rem; }
         &__summary-side { flex-basis: 13rem; }
-        &__mini { zoom: 0.5; }
-        &__mini--id { zoom: 0.56; }
-        /* P17: the dense summary (>5 projects) fits 800px by design. */
-        &__summary--dense {
-            .con-start__mini { zoom: 0.36; }
-            .con-start__mini--id { zoom: 0.44; }
-        }
-        &__cands .con-cards__strip > .con-cards__slot { zoom: 0.6; }
-        &__cands--corps .con-cards__strip > .con-cards__slot { zoom: 0.5; }
+        /* The summary tiles are FIT-driven (fitSummary measures the live
+           pane) — the handheld profile only lowers the pre-measure fallback. */
+        &__mini { zoom: calc(var(--con-start-mini-zoom, 0.44) * var(--con-ui-scale, 1)); }
+        &__mini--id { zoom: calc(var(--con-start-mini-id-zoom, 0.5) * var(--con-ui-scale, 1)); }
         &__beginline { font-size: .75rem; padding: .4rem .6rem; }
         &__wait { gap: .35rem; padding: .45rem .55rem .4rem; }
         &__wait-title { font-size: .6rem; }

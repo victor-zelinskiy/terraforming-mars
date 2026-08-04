@@ -3,23 +3,25 @@
  *
  * One physical grammar for every start-flow transfer (collect / return /
  * summary reveal / summary stow / queue re-seat / extra-prelude arrival),
- * built on the SAME trajectory mathematics the played-card hero flies
- * (playedHeroModel: quadratic arc + the monotone progress profile), so a
- * card moves identically wherever it travels in this workspace.
+ * written as a TABLETOP gesture — a hand takes a card, carries it, and lays
+ * it down — never an arcade throw:
  *
- * EVERY significant transfer reads as one physical object:
- *   1. MECHANICAL LIFT — the card separates from its surface: a short rise,
- *      a few percent of growth, the shadow deepens (ease-out — the hand
- *      picked it up, it did not teleport into motion);
- *   2. RELEASE + TRAVEL — a shallow arc driven through the hero progress
- *      profile: brisk cruise, decisive brake into the target (never linear,
- *      never full speed from frame one). Scale changes THROUGH the travel —
- *      the card approaches the destination, it is never snap-shrunk. A flip
- *      (face ↔ back) rides the middle of the arc;
- *   3. LOWERING + DOCK — the last stretch settles into the exact target box,
- *      the shadow collapses to a contact line;
- *   4. SETTLE — a microscopic damped drop; the handoff to the real DOM
- *      element happens only on this stable frame.
+ *   1. TAKE — the card rises TOWARD THE VIEWER in place: a small lift, a
+ *      few percent of growth, a whisper of tilt, the shadow deepens. The
+ *      take is readable AT THE SOURCE before anything travels.
+ *   2. CARRY — one soft glide along a LOW arc (a gentle sag of a straight
+ *      line, never a parabola over the screen), eased power2.inOut — the
+ *      card accelerates gently and brakes gently, no launch snap, no hard
+ *      stop. Scale approaches the destination footprint THROUGH the carry;
+ *      the flip (face ↔ back) turns through the heart of the path with a
+ *      slight page-turn pitch; the tilt breathes and squares out before
+ *      arrival.
+ *   3. LAY — the last stretch of the same glide IS the lowering: the card
+ *      settles into the exact target box (pixel coordinates, never "toward
+ *      the area"), the shadow collapses to a contact line, and the PILE
+ *      ANSWERS — a small physical press of the stack under the new weight.
+ *   4. HANDOFF — the real DOM back/tile appears under the proxy on the
+ *      stable contact frame; the proxy releases above it.
  *
  * Ownership honesty: pile COUNTS follow the physical cards (dockDrift) —
  * a back never appears before its card lands, and never remains after its
@@ -31,20 +33,22 @@ import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {heroPoint, heroProgressAt, HeroPathPlan} from '@/client/console/played/playedHeroModel';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 
 export type DockFlightSource = {name: CardName, el: HTMLElement};
 
 type Rect = {x: number, y: number, w: number, h: number};
 
-/** Flight timing (ms @ motion scale 1) — quick, never abrupt. */
-const LIFT_MS = 130;
-const TRAVEL_MS = 400;
-const DOCK_SETTLE_MS = 110;
-const STAGGER_MS = 70;
-/** Follower cards in a multi-card package travel a touch faster. */
-const FOLLOWER_TRAVEL_MS = 340;
-/** The pile's press when a card lands (px @ uiScale 1 — the host scales). */
+/** Flight timing (ms @ motion scale 1) — deliberate, never abrupt. */
+const TAKE_MS = 220;
+const CARRY_MS = 780;
+const SETTLE_MS = 150;
+/** Convoy spacing — uniform speed, deliberate rhythm (never a race). */
+const STAGGER_MS = 95;
+/** Re-seats reposition rather than take — a lighter grip. */
+const RESEAT_TAKE_MS = 160;
+const RESEAT_CARRY_MS = 680;
+/** The pile's physical answer to a landing card (px @ uiScale 1). */
 export const DOCK_PRESS_PX = 2;
 
 let layerEl: HTMLElement | undefined;
@@ -121,133 +125,181 @@ function clearLayer(): void {
   }
 }
 
-// ── the ONE flight primitive ────────────────────────────────────────────────
+/** A tiny deterministic per-card tilt seed (±1.6°) — tabletop hands are
+ *  never machine-straight, and determinism keeps replays identical. */
+function tiltSeedFor(name: string): number {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) {
+    h = (h * 31 + name.charCodeAt(i)) & 0xffff;
+  }
+  return ((h % 33) - 16) / 10; // -1.6 … +1.6
+}
+
+/** THE PILE ANSWERS — a small press of the stack under the landing card.
+ *  Transform-only, self-clearing; safe on any element. */
+export function pressPile(el: HTMLElement | null | undefined): void {
+  if (el === null || el === undefined || consoleReducedMotionActive()) {
+    return;
+  }
+  const dy = DOCK_PRESS_PX * conUiScale();
+  gsap.timeline()
+    .to(el, {y: dy, duration: motionMs(70) / 1000, ease: 'power2.out', overwrite: 'auto'})
+    .to(el, {y: 0, duration: motionMs(160) / 1000, ease: 'power2.inOut', clearProps: 'transform'});
+}
+
+// ── the ONE flight primitive — TAKE · CARRY · LAY ───────────────────────────
 
 type FlightOpts = {
   /** Flip target (deg): 0 = land face-up, 180 = land face-down. */
   flipTo?: number,
   /** Timeline offset (s). */
   at?: number,
-  /** Follower cards use the shorter cruise. */
-  follower?: boolean,
-  /** Fired the moment the card touches down (the stable dock frame). */
+  /** A re-seat repositions (lighter grip, no flip drama). */
+  reseat?: boolean,
+  /** Deterministic tilt seed (deg). */
+  tilt?: number,
+  /** The pile/stack element that physically ANSWERS the landing. */
+  pressEl?: HTMLElement | null,
+  /** Fired the moment the card touches down (the stable contact frame). */
   onDock?: () => void,
-  /** Fired when the card LEAVES its source (end of the lift). */
+  /** Fired when the card LEAVES its source (end of the take). */
   onRelease?: () => void,
 };
 
 /**
- * Fly one proxy from where it stands to `to` — lift → arc travel (hero
- * progress profile, flip mid-arc) → dock → settle. Added onto `tl`.
+ * Fly one proxy from where it stands to `to` — take → carry (low-arc glide,
+ * flip through the heart) → lay + pile press → handoff. Added onto `tl`.
  */
 function addFlight(tl: gsap.core.Timeline, proxy: HTMLElement, from: Rect, to: Rect, opts: FlightOpts): void {
   const at = opts.at ?? 0;
-  const lift = motionMs(LIFT_MS) / 1000;
-  const travel = motionMs(opts.follower === true ? FOLLOWER_TRAVEL_MS : TRAVEL_MS) / 1000;
-  const settle = motionMs(DOCK_SETTLE_MS) / 1000;
+  const take = motionMs(opts.reseat === true ? RESEAT_TAKE_MS : TAKE_MS) / 1000;
+  const carry = motionMs(opts.reseat === true ? RESEAT_CARRY_MS : CARRY_MS) / 1000;
+  const settle = motionMs(SETTLE_MS) / 1000;
+  const ui = conUiScale();
   const flip = proxy.querySelector<HTMLElement>('.con-deal-proxy__flip');
   const flipFrom = flip !== null ? Number(gsap.getProperty(flip, 'rotationY')) : 0;
   const flipTo = opts.flipTo ?? flipFrom;
+  const turns = flipTo !== flipFrom;
+  const tilt = opts.reseat === true ? 0 : (opts.tilt ?? 0);
 
-  // The arc: a shallow quadratic through an apex slightly above the higher
-  // endpoint — same construction as the hero path, scaled to shelf hops.
-  // The apex is CLAMPED to the safe viewport band: a card may crest, it may
-  // never clip out of the top of the screen.
+  // Endpoints are CENTRES; the proxy's own x/y is its top-left at FROM size.
   const s = {x: from.x + from.w / 2, y: from.y + from.h / 2};
   const t = {x: to.x + to.w / 2, y: to.y + to.h / 2};
-  const dist = Math.hypot(t.x - s.x, t.y - s.y);
-  const arcLift = Math.min(Math.max(dist * 0.1, from.h * 0.1), from.h * 0.45);
-  const apexX = s.x + (t.x - s.x) * 0.5;
-  const apexY = Math.max(from.h * 0.55 + 12, Math.min(s.y, t.y) - arcLift);
-  const plan: HeroPathPlan = {
-    p0: s,
-    c: {x: 2 * apexX - (s.x + t.x) / 2, y: 2 * apexY - (s.y + t.y) / 2},
-    p1: t,
-    peakTilt: 0,
-    targetScale: to.w / Math.max(1, from.w),
-    apexScale: 1,
-  };
-  const liftScale = 1.045;
-  const targetScale = plan.targetScale;
+  const targetScale = to.w / Math.max(1, from.w);
+  const takeScale = opts.reseat === true ? 1.015 : 1.035;
+  const takeLift = (opts.reseat === true ? 0.03 : 0.05) * from.h;
 
-  // 1) MECHANICAL LIFT — separate from the surface (ease-out, shadow grows).
+  // THE LOW ARC — a straight line with a gentle upward sag, never a lob:
+  // the peak rises 6% of the distance, capped at ~46 logical px. A tabletop
+  // carry stays close to the table.
+  const dist = Math.hypot(t.x - s.x, t.y - s.y);
+  const sag = Math.min(dist * 0.06, 46 * ui);
+  const midX = (s.x + t.x) / 2;
+  const midY = (s.y + t.y) / 2 - sag;
+  // Quadratic Bézier through the sagged midpoint (control = 2M - (S+T)/2).
+  const c = {x: 2 * midX - (s.x + t.x) / 2, y: 2 * midY - (s.y + t.y) / 2};
+  const pointAt = (p: number) => {
+    const inv = 1 - p;
+    return {
+      x: inv * inv * s.x + 2 * inv * p * c.x + p * p * t.x,
+      y: inv * inv * s.y + 2 * inv * p * c.y + p * p * t.y,
+    };
+  };
+
+  // 1) TAKE — toward the viewer, in place (the grip is readable at the source).
   tl.to(proxy, {
-    y: from.y - from.h * 0.055,
-    scale: liftScale,
-    boxShadow: '0 14px 30px rgba(0,0,0,0.5)',
-    duration: lift,
+    y: from.y - takeLift,
+    scale: takeScale,
+    rotationZ: tilt,
+    boxShadow: '0 16px 34px rgba(0,0,0,0.52)',
+    duration: take,
     ease: 'power2.out',
   }, at);
   if (opts.onRelease !== undefined) {
-    tl.call(opts.onRelease, undefined, at + lift);
+    tl.call(opts.onRelease, undefined, at + take);
   }
 
-  // 2) RELEASE + TRAVEL — the arc through the shared progress profile. One
-  // driver tween maps linear q → path progress, so position, scale and the
-  // flip share a single speed curve (brisk cruise, decisive brake).
+  // 2) CARRY — ONE eased glide: position, scale, flip and tilt share the
+  // same soft power2.inOut clock, so nothing ever snaps or races.
   const drive = {q: 0};
-  const liftedY = from.y - from.h * 0.055;
+  const liftedY = from.y - takeLift;
   tl.to(drive, {
     q: 1,
-    duration: travel,
-    ease: 'none', // the profile IS the easing — heroProgressAt shapes it
+    duration: carry,
+    ease: 'power2.inOut',
     onUpdate: () => {
-      const p = heroProgressAt(drive.q);
-      const pt = heroPoint(plan, p);
-      // Scale eases across the WHOLE travel — the card approaches its
-      // destination; it is never snap-shrunk at either end.
-      const k = p < 0.25 ? 0 : (p - 0.25) / 0.75;
-      const scale = liftScale + (targetScale - liftScale) * (k * k * (3 - 2 * k));
+      const p = drive.q;
+      const pt = pointAt(p);
+      // The footprint approaches its destination smoothly across the WHOLE
+      // carry — the card is being brought somewhere, never snap-shrunk.
+      const k = p * p * (3 - 2 * p);
+      const scale = takeScale + (targetScale - takeScale) * k;
+      // The residual take-lift blends out over the first third.
+      const liftBlend = p >= 0.33 ? 0 : 1 - p / 0.33;
       gsap.set(proxy, {
         x: pt.x - from.w / 2,
-        y: pt.y - from.h / 2 + (1 - p) * (liftedY - from.y),
+        y: pt.y - from.h / 2 + liftBlend * (liftedY - from.y),
         scale,
+        // The tilt breathes through the middle and squares out by 85%.
+        rotationZ: tilt * (p < 0.85 ? Math.cos(p * Math.PI * 0.5) : 0),
       });
-      if (flip !== null && flipTo !== flipFrom) {
-        // The flip occupies the middle of the arc (0.25 → 0.8).
-        const f = p <= 0.25 ? 0 : p >= 0.8 ? 1 : (p - 0.25) / 0.55;
+      if (flip !== null && turns) {
+        // The turn owns the HEART of the carry (28% → 72%) with a slight
+        // page-turn pitch — a half-turn in the hand, not a coin toss.
+        const f = p <= 0.28 ? 0 : p >= 0.72 ? 1 : (p - 0.28) / 0.44;
         const eased = f * f * (3 - 2 * f);
         gsap.set(flip, {rotationY: flipFrom + (flipTo - flipFrom) * eased});
+        gsap.set(proxy, {rotationX: Math.sin(eased * Math.PI) * 5});
       }
     },
-  }, at + lift);
+  }, at + take);
 
-  // 3) LOWERING + DOCK — the contact frame: shadow collapses, count may tick.
+  // The shadow collapses to a contact line through the approach.
   tl.to(proxy, {
     boxShadow: '0 2px 6px rgba(0,0,0,0.45)',
-    duration: travel * 0.3,
-  }, at + lift + travel * 0.7);
-  if (opts.onDock !== undefined) {
-    tl.call(opts.onDock, undefined, at + lift + travel);
-  }
+    duration: carry * 0.32,
+  }, at + take + carry * 0.68);
 
-  // 4) SETTLE — a microscopic damped drop, then the invisible handoff.
+  // 3) LAY — contact: the pile answers, the count may tick.
+  if (opts.onDock !== undefined) {
+    tl.call(opts.onDock, undefined, at + take + carry);
+  }
+  if (opts.pressEl !== undefined && opts.pressEl !== null) {
+    const pressEl = opts.pressEl;
+    tl.call(() => pressPile(pressEl), undefined, at + take + carry);
+  }
+  // A microscopic weight settle on the card itself.
   tl.to(proxy, {
-    y: `+=${Math.max(1, to.h * 0.008)}`,
-    duration: settle * 0.5,
-    ease: 'power1.out',
-  }, at + lift + travel);
+    scale: targetScale * 0.988,
+    duration: settle * 0.4,
+    ease: 'power2.out',
+  }, at + take + carry);
   tl.to(proxy, {
-    y: `-=${Math.max(1, to.h * 0.008)}`,
-    duration: settle * 0.5,
-    ease: 'power1.inOut',
-  }, at + lift + travel + settle * 0.5);
-  tl.to(proxy, {autoAlpha: 0, duration: 0.1}, at + lift + travel + settle);
+    scale: targetScale,
+    duration: settle * 0.6,
+    ease: 'power2.inOut',
+  }, at + take + carry + settle * 0.4);
+
+  // 4) HANDOFF — the real element is already standing under the proxy.
+  tl.to(proxy, {autoAlpha: 0, duration: 0.09}, at + take + carry + settle);
 }
 
 /** Total budget of one staggered flight batch (ms). */
-function batchBudget(count: number): number {
-  return motionMs(LIFT_MS + TRAVEL_MS + DOCK_SETTLE_MS + STAGGER_MS * Math.max(0, count - 1)) + 400;
+function batchBudget(count: number, reseat = false): number {
+  const take = reseat ? RESEAT_TAKE_MS : TAKE_MS;
+  const carry = reseat ? RESEAT_CARRY_MS : CARRY_MS;
+  return motionMs(take + carry + SETTLE_MS + STAGGER_MS * Math.max(0, count - 1)) + 400;
 }
 
 // ── COLLECT: grid slots → a dock pile (face-down) ───────────────────────────
 
 /**
  * The selected cards fly from their slots onto the dock pile, flipping
- * face-down mid-arc. `onCovered` fires the moment every source is covered by
- * its proxy (the host may swap panes / hide the sources there); `onDock`
- * fires PER CARD at its touchdown (the pile's count grows physically);
- * resolves at the last settle.
+ * face-down mid-carry and LAYING onto the stack coordinates exactly.
+ * `onCovered` fires the moment every source is covered by its proxy (the
+ * host may swap panes / hide the sources there); `onDock` fires PER CARD at
+ * its touchdown (the pile physically answers and its count grows); resolves
+ * at the last settle.
  */
 export async function collectToDock(
   sources: ReadonlyArray<DockFlightSource>,
@@ -293,8 +345,9 @@ export async function collectToDock(
         h: src.from.h * fit,
       }, {
         at: (motionMs(STAGGER_MS) * i) / 1000,
-        follower: i > 0,
         flipTo: 180,
+        tilt: tiltSeedFor(src.name),
+        pressEl: pileEl,
         onDock: () => onDock?.(src.name),
       });
     });
@@ -305,11 +358,11 @@ export async function collectToDock(
 // ── RETURN / REVEAL: a pile → target slots (face-up) ────────────────────────
 
 /**
- * Cards fly OUT of a pile into their target slots, flipping face-up. The
- * targets stay held (invisible) under the proxies; `onDepart` fires per card
- * as it LEAVES the pile (the pile physically empties); `onLanded` fires per
- * card at its touchdown — the host reveals that slot in the same frame
- * (proxy → real card, pixel-true).
+ * Cards fly OUT of a pile into their target slots, flipping face-up through
+ * the carry. The targets stay held (invisible) under the proxies; `onDepart`
+ * fires per card as it LEAVES the pile (the pile physically empties);
+ * `onLanded` fires per card at its touchdown — the host reveals that slot in
+ * the same frame (proxy → real card, pixel-true).
  */
 export async function returnFromDock(
   names: ReadonlyArray<CardName>,
@@ -334,7 +387,7 @@ export async function returnFromDock(
     return;
   }
   // The proxy is born at the TARGET's natural size, scaled down into the
-  // pile — its outbound flight simply scales back to 1 (pixel-true landing).
+  // pile — its outbound carry simply scales back to 1 (pixel-true landing).
   const proxies = targets.map((t) => {
     const p = spawnProxy(t.name, {x: pile.x + pile.w / 2 - t.to.w / 2, y: pile.y + pile.h / 2 - t.to.h / 2, w: t.to.w, h: t.to.h}, false);
     if (p !== undefined) {
@@ -358,10 +411,12 @@ export async function returnFromDock(
         y: pile.y + pile.h / 2 - t.to.h / 2,
         w: t.to.w, h: t.to.h,
       };
+      // Leaving lightens the pile — a small counter-press upward.
+      tl.call(() => pressPile(pileEl instanceof HTMLElement ? pileEl : undefined), undefined, at);
       addFlight(tl, proxy, born, t.to, {
         at,
-        follower: i > 0,
         flipTo: 0,
+        tilt: tiltSeedFor(t.name),
         onRelease: () => onDepart?.(t.name),
         onDock: () => onLanded?.(t.name),
       });
@@ -375,10 +430,12 @@ export async function returnFromDock(
 export type ReseatPair = {name: CardName, fromEl: HTMLElement, toEl: HTMLElement};
 
 /**
- * Cards physically MOVE between two layouts of the same workspace (the
+ * Cards physically GLIDE between two layouts of the same workspace (the
  * summary regrouping into the deployment queue; an extra prelude joining the
- * queue). Face-up the whole way, same lift/travel/dock grammar. `onLanded`
- * fires per card at touchdown (the host reveals the target slot then).
+ * queue). Face-up the whole way, the same take/carry/lay grammar with a
+ * lighter grip; the convoy moves in reading order of its DESTINATIONS, so
+ * the new layout assembles left-to-right. `onLanded` fires per card at
+ * touchdown (the host reveals the target slot then).
  */
 export async function reseatCards(
   pairs: ReadonlyArray<ReseatPair>,
@@ -391,7 +448,9 @@ export async function reseatCards(
       to: rectOf(p.toEl.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? p.toEl),
       card: p.fromEl.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? undefined,
     }))
-    .filter((p): p is typeof p & {from: Rect, to: Rect} => p.from !== undefined && p.to !== undefined);
+    .filter((p): p is typeof p & {from: Rect, to: Rect} => p.from !== undefined && p.to !== undefined)
+    // Reading order of the DESTINATION layout (top row first, then left→right).
+    .sort((a, b) => (a.to.y - b.to.y) || (a.to.x - b.to.x));
   if (live.length === 0 || consoleReducedMotionActive() || layerEl === undefined) {
     pairs.forEach((p) => onLanded?.(p.name));
     return;
@@ -413,11 +472,11 @@ export async function reseatCards(
       }
       addFlight(tl, proxy, p.from, p.to, {
         at: (motionMs(STAGGER_MS) * i) / 1000,
-        follower: i > 0,
+        reseat: true,
         onDock: () => onLanded?.(p.name),
       });
     });
-  }, batchBudget(live.length));
+  }, batchBudget(live.length, true));
   clearLayer();
 }
 

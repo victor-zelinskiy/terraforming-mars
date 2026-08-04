@@ -323,7 +323,7 @@
   "Activated when any player plays a card with a floater resource": "Активируется, когда любой игрок разыграет карту с ресурсом «аэростат»",
   "Activated when any player plays a Venus-tag card with a resource type": "Активируется, когда любой игрок разыграет карту с меткой «Венера», у которой есть ресурс на карте",
   "Colony is full": "Колония заполнена",
-  "You already have a colony here": "Вы уже колонизировали эту колонию",
+  "You already have a colony here": "У вас здесь уже есть колония",
   "Cannot build on this colony right now": "Сейчас нельзя строить здесь (не хватает рейтинга или ресурсов)",
   "Another trade fleet is already here": "Здесь уже торгует другой флот",
   "You already traded with this colony this generation": "Вы уже торговали с этой колонией в этом поколении",

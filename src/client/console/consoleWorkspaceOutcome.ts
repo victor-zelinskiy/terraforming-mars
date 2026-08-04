@@ -382,6 +382,18 @@ export function workspaceOutcomeAdmits(kind: WorkspaceOutcomeKind): boolean {
  * draw naming the claimed card — a tile bonus, a colony bonus, a global-parameter
  * reward and an untagged draw all stay with their own presenters.
  */
+/**
+ * The claiming workspace flies its OWN arrival beat for this batch — the
+ * deck-draw scene must step aside (two flights for one card would aim at two
+ * places). ONLY the card-actions composer owns such a beat (its prepared
+ * `beatstage` + runBatchArrival); the START host deliberately has none — the
+ * deck-draw scene SERVES it, flying the cards from the HUD pile into the
+ * embedded reveal's own slots.
+ */
+export function workspaceClaimOwnsArrival(source: CardDrawRevealSource | undefined): boolean {
+  return workspaceClaimsDrawReveal(source) && workspaceOutcomeState.host === 'card-actions';
+}
+
 export function workspaceClaimsDrawReveal(source: CardDrawRevealSource | undefined): boolean {
   return workspaceOutcomeAdmits('draw') &&
     source?.type === 'card' &&
