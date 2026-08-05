@@ -12774,6 +12774,32 @@ body.con-start-ceremony {
         gap: 1.4rem;
         align-items: flex-start;
     }
+    /* PREWARM — the summary mounted at exactly the box it will occupy once it
+       becomes the active body, but invisible and inert. Its tiles are the
+       destinations the convoy must MEASURE before a single card leaves the
+       previous stage; a `v-show`-hidden pane has no geometry at all, and a
+       summary that lays itself out while cards are already arriving cannot
+       give them a stable rect to land on (which is how cards ended up simply
+       appearing instead of flying). The host writes left/top/width/height
+       inline from the live cards-body rect, so releasing the prewarm is a
+       pure paint change: nothing re-flows and every measured rect stays
+       valid across the swap.
+
+       `visibility: hidden` (not `opacity: 0`) because only `display: none`
+       destroys geometry: a hidden pane still lays out and still answers
+       `getBoundingClientRect`, so the tiles stay fully measurable while being
+       genuinely unseeable — by the player, by hit-testing and by a driver. */
+    &__summary--prewarm {
+        position: absolute;
+        /* The host writes the BORDER-box rect it measured on the cards body;
+           the pane must therefore size the same way, or its padding would add
+           itself on top and every tile would be measured a few px off. */
+        box-sizing: border-box;
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
+        z-index: 0;
+    }
     &__summary-cards {
         flex: 1;
         min-width: 0;
@@ -12850,6 +12876,21 @@ body.con-start-ceremony {
         border-radius: .6rem;
         background: rgba(14, 22, 33, 0.6);
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 0 .9rem fade(@con-cyan, 10%);
+    }
+    /* SENT, AND THE TABLE IS STILL CONFIRMING. The same plate, one state
+       further on: the player's own part is DONE (mint, not cyan — the
+       colour carries the state), and there is no CTA at all because
+       nothing is asked of them. */
+    &__await {
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%), 0 0 .9rem fade(@con-mint, 10%);
+
+        .con-start__wait-title { color: fade(@con-mint, 95%); }
+        .con-start__wait-scan { background: linear-gradient(90deg, transparent, fade(@con-mint, 13%), transparent); }
+    }
+    &__await-line {
+        font-size: .7rem;
+        line-height: 1.35;
+        color: @con-text-dim;
     }
     /* A slow sweep across the plate — the "still listening" pulse of the
        whole block (transform-only; the plate itself never moves). */
@@ -15150,11 +15191,66 @@ body.con-start-barshold .con-status {
         }
         &--done { color: fade(@con-mint, 85%); }
         &--locked { opacity: .5; }
+
+        /* THE DIRECTIONAL PULSE — the rail's ONLY part in a stage change.
+           While the cards are physically moving the active marker stays put
+           (the stage has not changed yet); the REQUESTED stage takes a single
+           short light sweep entering from the side the move comes from, plus
+           a breath of edge. Restrained on purpose: the cards are the subject
+           of the transition, the rail only confirms which way it is going.
+           Never a label change — a word that lives 300 ms only flickers. */
+        &--anticipate {
+            position: relative;
+            overflow: hidden;
+            animation: con-jrail-anticipate calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1) 1 both;
+
+            &::after {
+                content: '';
+                position: absolute;
+                inset: 0;
+                pointer-events: none;
+                border-radius: inherit;
+                background: linear-gradient(90deg,
+                    transparent 0%,
+                    fade(@con-cyan, 34%) 42%,
+                    rgba(226, 244, 255, 0.5) 52%,
+                    fade(@con-cyan, 30%) 62%,
+                    transparent 100%);
+                mix-blend-mode: screen;
+                animation: con-jrail-sweep-fwd calc(380ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0, 0.3, 1) 1 both;
+            }
+        }
+        &--from-right::after {
+            animation-name: con-jrail-sweep-back;
+        }
     }
     &__num { font-size: .62rem; opacity: .8; }
     &__arrow { color: @con-text-dim; font-size: .7rem; }
 
     &--progress .con-jrail__item { border-radius: .4rem; }
+}
+@keyframes con-jrail-anticipate {
+    0%   { box-shadow: inset 0 0 0 .05rem rgba(150, 185, 220, 0.16); }
+    38%  { box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 62%), 0 0 .7rem fade(@con-cyan, 14%); }
+    100% { box-shadow: inset 0 0 0 .05rem rgba(150, 185, 220, 0.16); }
+}
+@keyframes con-jrail-sweep-fwd {
+    from { transform: translateX(-110%); opacity: 0; }
+    22%  { opacity: 1; }
+    to   { transform: translateX(110%); opacity: 0; }
+}
+@keyframes con-jrail-sweep-back {
+    from { transform: translateX(110%); opacity: 0; }
+    22%  { opacity: 1; }
+    to   { transform: translateX(-110%); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    /* The direction still reads — the edge simply states it instead of a
+       travelling light (reduced motion removes flourish, not information). */
+    .con-jrail__item--anticipate::after { animation: none; opacity: 0; }
+    .con-jrail__item--anticipate {
+        animation-duration: calc(240ms * var(--motion-scale, 1));
+    }
 }
 
 /* ── THE SELECTION DOCK (preparation shelf) + its flight layer ── */
@@ -15262,6 +15358,15 @@ body.con-start-barshold .con-status {
         margin: 0;
     }
 }
+/* One flying start-flow card. The 3D BODY (perspective owner, both sides,
+   the paper edge) is `.con-card3d-outer` / `.con-card3d`, added by
+   `buildCard3DInner` — see console_card3d.less. This rule only places the
+   flyer on the layer.
+
+   ⚠️ It used to own no `perspective`, which is why every turn in the start
+   flow looked like one picture being swapped for another: the rotation was
+   real, but with no projecting parent it was ORTHOGRAPHIC — the face just
+   narrowed to a line and the back widened out of the same line. */
 .con-startdock-proxy {
     position: absolute;
     top: 0;

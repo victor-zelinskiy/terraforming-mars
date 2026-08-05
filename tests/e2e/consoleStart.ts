@@ -231,13 +231,23 @@ export async function walkToSummary(page: Page, opts: WalkOptions = {}): Promise
  */
 export async function submitSummary(page: Page): Promise<void> {
   const warn = page.locator('.con-start__skipwarn');
-  for (let i = 0; i < 6 && await summaryVisible(page); i++) {
+  for (let i = 0; i < 6 && await summaryVisible(page) && !await awaitingOthers(page); i++) {
     await press(page, 'Enter', 900);
     if (await warn.count() > 0) {
       await press(page, 'Enter', 1400); // the confirmation press
     }
   }
-  await expect(page.locator('.con-start > .con-start__frame .con-start__summary')).toBeHidden({timeout: 25_000});
+  // ACCEPTED means one of TWO honest outcomes: the deployment took the screen
+  // (solo / everyone ready), or the summary STAYS in its waiting state
+  // because the table is still confirming — the multiplayer hand-over is
+  // simultaneous by design, so «the summary disappeared» is not the contract.
+  await expect.poll(async () => !(await summaryVisible(page)) || await awaitingOthers(page),
+    {timeout: 25_000}).toBeTruthy();
+}
+
+/** The setup is SENT and the table is still confirming (the waiting summary). */
+export async function awaitingOthers(page: Page): Promise<boolean> {
+  return page.locator('.con-start__await').isVisible().catch(() => false);
 }
 
 /**

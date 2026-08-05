@@ -26,7 +26,7 @@
          panes, the summary and the deployment are LAYERS of one workspace —
          a stage change is a pane motion under the dock flights (the director),
          never a page replacement through an empty slot. -->
-    <div class="con-start__frame">
+    <div class="con-start__frame" ref="frame">
         <!-- ── Header: the ONE system Workspace header (ConsoleWsHead) ──
              The Game Start Workspace speaks the project's header grammar
              from the first second: СТАРТ ПАРТИИ › <ЭТАП> [› <ФАЗА>]. The aux
@@ -47,12 +47,16 @@
                is always deep here: СТАРТ ПАРТИИ › <ГРУППА> › <ЭТАП>); the
                live journey renders in the deep tail beside the stage. -->
           <div class="con-start__auxrow">
-            <ConsoleJourneyRail :items="journeyItems" :mode="mode === 'wizard' ? 'tabs' : 'progress'" />
+            <ConsoleJourneyRail :items="journeyItems" :mode="mode === 'wizard' ? 'tabs' : 'progress'"
+                                :pending-index="pendingStageIndex" :pulse-key="railPulse" :pulse-dir="railPulseDir" />
           </div>
           <template #deep>
             <ConsoleJourneyRail class="con-start__jtail"
                                 :items="journeyItems"
-                                :mode="mode === 'wizard' ? 'tabs' : 'progress'" />
+                                :mode="mode === 'wizard' ? 'tabs' : 'progress'"
+                                :pending-index="pendingStageIndex"
+                                :pulse-key="railPulse"
+                                :pulse-dir="railPulseDir" />
           </template>
           <template #trailing>
             <!-- Card-step pick counter (wizard): a plain «Выбрано N из M»;
@@ -128,6 +132,8 @@
              a fixed side rail right), never a loose scrollable leftovers
              page. X browses the whole setup fullscreen. -->
         <div v-show="summaryShown" class="con-start__body con-start__summary con-info__scroll"
+             :class="{'con-start__summary--prewarm': summaryPrewarm}"
+             :style="prewarmStyle"
              ref="summaryPane">
           <div class="con-start__summary-cards">
             <div class="con-start__summary-row">
@@ -240,7 +246,33 @@
                  of the setup on the least obvious control. -->
             <div class="con-start__launch" role="status" aria-live="polite">
               <transition name="con-start-launch" mode="out-in">
-                <div v-if="!launch.launches" key="wait" class="con-start__wait">
+                <!-- SENT — the table is still confirming. The player's own
+                     part is DONE: no CTA, no verb, nothing to press but B.
+                     The deployment opens for everyone at the same moment,
+                     so the honest state here is a calm readout of WHO the
+                     game is still waiting for (never an empty deployment). -->
+                <div v-if="awaitingOthers" key="await" class="con-start__wait con-start__await">
+                  <span class="con-start__wait-scan" aria-hidden="true"></span>
+                  <div class="con-start__wait-head">
+                    <span class="con-start__wait-orbit" aria-hidden="true"><i></i><i></i><i></i></span>
+                    <span class="con-start__wait-title">{{ $t('Your setup is confirmed') }}</span>
+                  </div>
+                  <div class="con-start__await-line">{{ $t('The game starts when everyone is ready') }}</div>
+                  <div class="con-start__crew">
+                    <span v-for="mate in launch.others" :key="mate.color"
+                          class="con-start__mate"
+                          :class="'con-start__mate--' + mate.status.category">
+                      <span :class="'con-start__mate-dot player_bg_color_' + mate.color" aria-hidden="true"></span>
+                      <span class="con-start__mate-name">{{ crewName(mate) }}</span>
+                      <span class="con-start__mate-state">
+                        <span v-if="!mate.picking" class="con-start__mate-tick" aria-hidden="true">✓</span>
+                        <span>{{ $t(mate.status.textKey) }}</span>
+                        <i v-if="mate.picking" class="con-start__mate-dots" aria-hidden="true"><b></b><b></b><b></b></i>
+                      </span>
+                    </span>
+                  </div>
+                </div>
+                <div v-else-if="!launch.launches" key="wait" class="con-start__wait">
                   <span class="con-start__wait-scan" aria-hidden="true"></span>
                   <div class="con-start__wait-head">
                     <span class="con-start__wait-orbit" aria-hidden="true"><i></i><i></i><i></i></span>
@@ -522,6 +554,7 @@ import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {
   buildInitialCardsResponse, clearDockDrift, consoleStartState, deploymentCrumb, deploymentJourneyItems,
   driftDockPile, ensureStartWizard, holdStartScene, initialCardsInputOf, initialCardsSignature,
+  markStartDeploymentBegun, startAwaitingOthers, startDeploymentBegun,
   picksForStep, releaseStartScene, StartCrewMate, StartCrumb, StartDockPileModel, startFlowBusy,
   StartLaunchState, StartParticipant, startDockPiles, startJourneyItems, startLaunchState,
   startParticipants, StartWizardStep, stepComplete, wizardCrumb, wizardSteps,
@@ -549,7 +582,12 @@ import {
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
-import {captureCards, CapturedFlight, collectToDock, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, convoyBeats, liveFlightProxies, DockFlightSource} from '@/client/console/startDockMotion';
+import {captureCards, CapturedFlight, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, convoyBeats, liveFlightProxies, DockFlightSource, parkSurface, unparkSurface, clearSurfaceParking, measureTargets, pressPile} from '@/client/console/startDockMotion';
+import {FACE_DOWN_DEG, FACE_UP_DEG} from '@/client/console/cardFlight/card3dInner';
+import {
+  beginStartTransition, endStartTransition, resetStartTransition, setStartTransitionPhase,
+  startTransition, transitionKind,
+} from '@/client/console/startStageDirector';
 import {gsap} from 'gsap';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -608,6 +646,19 @@ const START_INPUT_OVERRIDES: ConsoleActionOverrides = {
  */
 const ROW_ZOOM_CEIL = 1.35;
 const GRID_ZOOM_CEIL = 1.2;
+
+/**
+ * The offset between «the picks have left the table» and «the table starts to
+ * retire» (ms @ motion scale 1). Short enough to feel like one gesture, long
+ * enough that the eye reads the CAUSE: these cards were taken off THAT table,
+ * and the table went away afterwards. A zero offset reads as the whole screen
+ * dissolving at once; anything much longer reads as two separate events.
+ *
+ * This is a CHOREOGRAPHIC offset inside this scene's own phrase, not a guess
+ * about when some other animation has finished — every hand-off in the flow
+ * waits on a real completion signal.
+ */
+const SEPARATION_BEAT_MS = 55;
 
 /** The stable delivery-hold key for a bought-cards set (name-derived, so it
  *  survives a reload mid-ceremony and matches between the summary-submit arm
@@ -700,6 +751,27 @@ export default defineComponent({
       queueArriving: new Set<CardName>(),
       /** A dock flight is running — step navigation waits it out. */
       dockBusy: false,
+      /** The live stage transition (module reactive — the ONE director; the
+       *  rail, the input gate and the panes all read it, never a private
+       *  boolean). Mirrored into `data` so template paths stay reactive. */
+      transition: startTransition,
+      /** The journey rail's directional impulse: a re-key that replays a
+       *  one-shot connector sweep. NEVER a label change (see pulseJourney). */
+      railPulse: 0,
+      railPulseDir: 0 as 1 | -1 | 0,
+      /** The summary pane is mounted INVISIBLE at its final box so its tiles
+       *  can be laid out and measured before any card leaves (§prewarm). */
+      summaryPrewarm: false,
+      /** The prewarmed pane's box, relative to the workspace frame. */
+      prewarmBox: undefined as {left: number, top: number, width: number, height: number} | undefined,
+      /**
+       * FIT IS FROZEN while cards are airborne. The fit engines re-solve a
+       * zoom from the live DOM; running one mid-flight moves the destinations
+       * out from under cards that were planned against the old rects. The
+       * prewarm has already solved the FINAL geometry by then, so there is
+       * nothing to re-solve until everything is down.
+       */
+      fitLocked: false,
       /** Parked per-step strips (v-show panes) — index = step position. */
       stripEls: [] as Array<HTMLElement | undefined>,
       /** Parked pane roots (the stage-transition motion targets). */
@@ -744,6 +816,14 @@ export default defineComponent({
        *  (binding it to `mode` re-bounded the LIVE summary mid-transition:
        *  clipped cards, early bars — the exact rejected frame). */
       shellUp: false,
+      /**
+       * The commit was ACCEPTED but the table is still confirming — this
+       * player waited on their summary. The materialization then plays when
+       * the deployment finally arrives (it re-arms its own freeze there, on
+       * the live summary), so the hand-over is the same cinematic for
+       * everyone, just later.
+       */
+      sentAwaiting: false,
       /** The «КУПЛЕНО» box's CHROME (plate + caption) through the
        *  materialization: held away while the bought projects are airborne,
        *  entering only when the LAST of them stands in the row — the box
@@ -758,8 +838,33 @@ export default defineComponent({
     wizardInput(): SelectInitialCardsModel | undefined {
       return initialCardsInputOf(this.wf);
     },
+    /**
+     * THE TWO BOUNDS OF THE WORKSPACE. `ceremony` is the DEPLOYMENT, and it
+     * begins when the SERVER hands this player their start sequence — never
+     * merely because their wizard input is gone. In a multiplayer table the
+     * gap between «I confirmed» and «everyone confirmed» is exactly that
+     * state, and treating it as the deployment opened an empty one (no
+     * queue, no hand dock, no way back once minimized).
+     */
     mode(): 'wizard' | 'ceremony' {
-      return this.wizardInput !== undefined ? 'wizard' : 'ceremony';
+      if (this.deploymentLatched) {
+        return 'ceremony';
+      }
+      return this.wizardInput !== undefined || this.awaitingOthers ? 'wizard' : 'ceremony';
+    },
+    /** The latch (module state — it must survive this component's own
+     *  re-renders and the deployment's prompt gaps). */
+    deploymentLatched(): boolean {
+      return startDeploymentBegun();
+    },
+    /**
+     * SENT, AND THE TABLE IS STILL WAITING. The player's picks are final and
+     * nothing is asked of them: the summary STAYS (its cards, its numbers),
+     * the launch CTA becomes a calm waiting readout, and the deployment
+     * opens for everyone at the same moment.
+     */
+    awaitingOthers(): boolean {
+      return startAwaitingOthers(this.playerView);
     },
     // ── wizard ───────────────────────────────────────────────────────
     steps(): Array<StartWizardStep> {
@@ -828,6 +933,16 @@ export default defineComponent({
         preludesLeft: this.preludeRail.length,
         hasPreludes: this.preludeRail.length > 0 || this.playedPreludes.length > 0,
       });
+    },
+    /**
+     * THE PENDING STAGE — what the player asked for, while it is still not
+     * what is on screen. The rail shows it as a directional anticipation and
+     * NOTHING else: `journeyItems` keeps `current` on the ACTIVE stage for the
+     * whole transition, so no chip ever claims a stage whose cards have not
+     * arrived yet.
+     */
+    pendingStageIndex(): number {
+      return this.mode === 'wizard' && this.transition.kind !== undefined ? this.transition.to : -1;
     },
     /** The Selection Dock piles — EVERY step's pile, pre-mounted from the
      *  first frame (a flight can never target an unmounted element). Through
@@ -1097,8 +1212,14 @@ export default defineComponent({
      *  the SWAP moment (`matSwap`): the capture proxies stand over its cards
      *  by then, and the deployment replaces it UNDER them in one turn. */
     summaryShown(): boolean {
-      return this.onSummary || this.state.flow === 'committing' ||
-        (this.state.flow === 'materializing' && !this.matSwap);
+      // PREWARM: mounted (and laid out at its final box) but held invisible —
+      // its tiles are the destinations the convoy has to measure BEFORE it
+      // starts, and a `v-show`-hidden pane has no geometry at all.
+      return this.summaryPrewarm || this.onSummary || this.state.flow === 'committing' ||
+        (this.state.flow === 'materializing' && !this.matSwap) ||
+        // SENT, WAITING FOR THE TABLE: the summary is still the player's
+        // screen — their picks, their numbers, nothing asked of them.
+        this.awaitingOthers;
     },
     /**
      * The summary is the setup's WAITING ROOM as much as it is a review: the
@@ -1119,6 +1240,22 @@ export default defineComponent({
      */
     launchVerb(): string {
       return this.launch.launches ? 'Begin the game' : 'Submit your choice';
+    },
+    /** The prewarmed summary's inline box: an absolute copy of the cards
+     *  body's rect, so the fit engine solves the geometry the pane will
+     *  ACTUALLY have once it becomes the body — nothing re-flows at the swap
+     *  and every measured tile rect stays valid across it. */
+    prewarmStyle(): Record<string, string> {
+      const box = this.prewarmBox;
+      if (!this.summaryPrewarm || box === undefined) {
+        return {};
+      }
+      return {
+        left: `${box.left}px`,
+        top: `${box.top}px`,
+        width: `${box.width}px`,
+        height: `${box.height}px`,
+      };
     },
     /** Flat-index offsets so each summary section maps onto `summaryCards`. */
     summaryPreludeBase(): number {
@@ -1475,6 +1612,7 @@ export default defineComponent({
         launchVerb: this.launchVerb,
         launches: this.launch.launches,
         wizardReady: this.wizardReady,
+        awaiting: this.awaitingOthers,
         payBeat: this.corpPayCost !== undefined,
         ceremonyVerb: this.candidatePrompt !== undefined ? this.candidateVerb : 'Play now',
         hasFocusables: this.focusables.length > 0,
@@ -1584,6 +1722,41 @@ export default defineComponent({
       },
     },
     /**
+     * SENT → WAITING. The submit was accepted but the deployment is not this
+     * player's yet: the frozen snapshot (armed at the press for the
+     * hand-over cinematic) must let go at once — the player is going to look
+     * at this screen until the table finishes — and the flow leaves its
+     * committing state so B (minimize) works again.
+     */
+    'awaitingOthers'(now: boolean, was: boolean) {
+      if (now && !was) {
+        this.disposeMaterializationFreeze(true);
+        this.summaryArriving.clear();
+        this.sentAwaiting = true;
+        if (this.state.flow === 'committing') {
+          this.state.flow = 'idle';
+        }
+        if (this.commitSafety !== undefined) {
+          window.clearTimeout(this.commitSafety);
+          this.commitSafety = undefined;
+        }
+      }
+    },
+    /**
+     * THE DEPLOYMENT LATCH. The server handing this player a start-sequence
+     * prompt is the ONE honest signal that their deployment has begun — in a
+     * multiplayer table it arrives only once EVERY player has confirmed, so
+     * this is also what makes the hand-over simultaneous.
+     */
+    'task': {
+      immediate: true,
+      handler(task: ConsoleTask | undefined) {
+        if (task?.kind === 'startSequence' && !startDeploymentBegun()) {
+          markStartDeploymentBegun();
+        }
+      },
+    },
+    /**
      * The PREPARATION → DEPLOYMENT boundary. A commit in flight that flips
      * the mode runs GAME STATE MATERIALIZATION (the status preview transforms
      * into the Top HUD + Player Rail, the shell re-bounds, the deployment
@@ -1593,7 +1766,8 @@ export default defineComponent({
     'mode': {
       immediate: true,
       handler(now: 'wizard' | 'ceremony', was?: 'wizard' | 'ceremony') {
-        if (now === 'ceremony' && was === 'wizard' && this.state.flow === 'committing') {
+        if (now === 'ceremony' && was === 'wizard' &&
+            (this.state.flow === 'committing' || this.sentAwaiting)) {
           void this.runMaterialization();
           return;
         }
@@ -1727,6 +1901,11 @@ export default defineComponent({
     // the deployment claim; the release beat is what clears it). A transient
     // motion flow does not: a scene torn down mid-flight must come back
     // pressable, so any busy flow resets to its resting state.
+    // A stage transition dies with the scene: its phases name DOM that no
+    // longer exists, and a live director would keep the input gate shut on the
+    // restored scene forever (its own `finally` may still be parked on an
+    // await that can no longer resolve against a torn-down tree).
+    resetStartTransition();
     if (startFlowBusy()) {
       this.state.flow = this.state.hold ? 'deploying' : 'idle';
     }
@@ -1774,32 +1953,98 @@ export default defineComponent({
       return this.paneEls[pos];
     },
     /**
-     * THE STAGE TRANSITION — the same phrase as every workspace descend,
-     * scaled to a sibling swap: the leaving pane RELEASES in place (a short
-     * settle down, no travel), the entering pane SURFACES from where the old
-     * one stood. Runs UNDER the dock flights (the moving cards own the eye);
-     * a `v-if`/`v-show` hard cut on its own is exactly the page-swap this
-     * replaces. Resolves on its own completion — reduced motion skips it.
+     * TWO settled animation frames — the honest «the layout has painted»
+     * wait. One rAF still runs BEFORE the paint of the frame it belongs to,
+     * so a single one measures a layout the compositor has not shown yet.
      */
-    animatePaneSwap(from: HTMLElement | undefined, to: HTMLElement | undefined): Promise<void> {
-      if (consoleReducedMotionActive() || from === undefined || to === undefined || from === to) {
-        return Promise.resolve();
+    settledFrame(): Promise<void> {
+      return new Promise<void>((resolve) => (typeof requestAnimationFrame === 'function' ?
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())) :
+        window.setTimeout(resolve, 32)));
+    },
+    /**
+     * A deliberate CHOREOGRAPHIC offset between two beats of this scene's own
+     * sequence (never a guess about when someone else's animation finished —
+     * every completion in this file is a real signal). Motion-scaled, so the
+     * speed preset keeps the whole phrase in proportion.
+     */
+    beat(ms: number): Promise<void> {
+      return new Promise<void>((resolve) => window.setTimeout(resolve, motionMs(ms)));
+    },
+    /**
+     * THE JOURNEY RAIL'S DIRECTIONAL PULSE. The rail must NOT move its
+     * active marker at the press — the stage has not changed yet, and a chip
+     * that lights up before its cards exist is the same lie the old early
+     * stage commit told. It shows DIRECTION instead: a short light impulse
+     * along the connector toward the requested stage. No text changes
+     * anywhere during a transition (the player cannot read a label that lives
+     * for 300 ms — it would only ever register as a flicker).
+     */
+    pulseJourney(dir: 1 | -1): void {
+      this.railPulseDir = dir;
+      this.railPulse++;
+    },
+    /** Retire a step pane as ONE cached layer (never card by card). */
+    parkPane(pos: number, dir: 1 | -1): Promise<void> {
+      return parkSurface(this.paneElAt(pos), dir);
+    },
+    /** Bring a parked pane back — same table, same cards, no re-deal. */
+    revealPane(pos: number, dir: 1 | -1): Promise<void> {
+      return unparkSurface(this.paneElAt(pos), dir);
+    },
+    /**
+     * HOLD THE ENTERING SURFACE DOWN BEFORE THE COMMIT.
+     *
+     * Every pane is mounted and merely `v-show`n, so the frame in which the
+     * stage commits is the frame in which the incoming pane goes
+     * `display:block` — at FULL opacity, because its reveal has not started
+     * yet. That is one painted frame of the next stage arriving at full
+     * strength and then fading in from zero: a blink, and precisely the
+     * «two surfaces» artefact in miniature. Held here, released by the
+     * reveal, which owns the whole entrance.
+     */
+    holdPaneForReveal(el: HTMLElement | null | undefined): void {
+      if (el !== null && el !== undefined) {
+        gsap.killTweensOf(el);
+        gsap.set(el, {autoAlpha: 0});
       }
-      gsap.killTweensOf([from, to]);
-      return new Promise<void>((resolve) => {
-        const safety = window.setTimeout(resolve, motionMs(260) + 700);
-        const done = () => {
-          window.clearTimeout(safety);
-          gsap.set(to, {clearProps: 'opacity,transform,visibility'});
-          resolve();
-        };
-        // The OLD pane is already display:none (v-show flipped before this
-        // runs) — its release is carried by the dock proxies covering its
-        // cards. The NEW pane surfaces from a settled-down state.
-        gsap.fromTo(to,
-          {autoAlpha: 0, y: 10 * conUiScale(), scale: 0.995, transformOrigin: '50% 30%'},
-          {autoAlpha: 1, y: 0, scale: 1, duration: motionMs(260) / 1000, ease: 'power3.out', onComplete: done});
-      });
+    },
+    /**
+     * PREWARM THE SUMMARY (§ every destination measured before anything
+     * moves). The pane is mounted INVISIBLE at exactly the box it will occupy
+     * once it becomes the active body — an absolute copy of the cards body's
+     * rect — so the fit engine solves the FINAL geometry and nothing re-flows
+     * at the swap. Without this the summary assembled itself while cards were
+     * already arriving: the tiles that had not laid out yet had no rect to
+     * fly to, and every one of them degraded into «just appear».
+     */
+    async prewarmSummary(): Promise<void> {
+      const frameEl = this.$refs.frame as HTMLElement | undefined;
+      const body = this.$refs.body as HTMLElement | undefined;
+      if (frameEl !== undefined && frameEl !== null && body !== undefined && body !== null &&
+          typeof body.getBoundingClientRect === 'function') {
+        const fr = frameEl.getBoundingClientRect();
+        const br = body.getBoundingClientRect();
+        if (br.width > 8 && br.height > 8) {
+          this.prewarmBox = {
+            left: br.left - fr.left, top: br.top - fr.top,
+            width: br.width, height: br.height,
+          };
+        }
+      }
+      this.summaryPrewarm = true;
+      await this.$nextTick();
+      // The zoom search is a handful of forced reflows; run it, let the frame
+      // paint, then re-verify on the settled layout.
+      this.fitSummary();
+      await this.settledFrame();
+      this.fitSummary();
+      await this.settledFrame();
+    },
+    /** The prewarmed pane becomes the real body — same box, zero shift. */
+    releaseSummaryPrewarm(): void {
+      this.summaryPrewarm = false;
+      this.prewarmBox = undefined;
     },
     activeStrip(): HTMLElement | undefined {
       return this.stripEls[this.railPos];
@@ -1826,225 +2071,365 @@ export default defineComponent({
       return root.querySelector<HTMLElement>(`[data-step-slot="${esc}"]`);
     },
     /**
-     * RT — ADVANCE WITH COLLECT: the current step's picked cards physically
-     * fly off their slots onto their Selection-Dock pile (flipping face-down
-     * mid-arc); the pane swap happens UNDER the flight. Entering the summary
-     * afterwards opens every pile into the summary tiles.
+     * RT — ADVANCE. The one FORWARD stage change, in the order a physical
+     * table demands (see `startStageDirector` for why the old order could not
+     * work):
+     *
+     *   press → the picks compress and lift OUT of the table
+     *         → they travel (turning over in the air)
+     *         → the table they came from retires behind them, as ONE layer
+     *         → they land on the shelf / in their summary tiles
+     *         → ONLY THEN is the stage committed and the next surface opened.
+     *
+     * Nothing textual changes anywhere along it: the response is the cards'
+     * own movement plus the rail's directional pulse.
      */
     async advanceWithCollect(): Promise<void> {
       const step = this.currentStep;
       if (step === undefined || this.dockBusy || startFlowBusy()) {
         return;
       }
+      const from = this.railPos;
+      const to = from + 1;
+      const kind = transitionKind(from, to, this.steps.length);
+      if (kind === undefined) {
+        return;
+      }
       this.dockBusy = true;
-      const fromPane = this.paneElAt(this.railPos);
-      const goingToSummary = this.railPos + 1 >= this.steps.length;
+      beginStartTransition(kind, from, to);
+      this.pulseJourney(1);
+      this.state.flow = kind === 'to-summary' ? 'revealing-summary' : 'docking';
+      const names = picksForStep(this.picks, step.id);
+      // The corporation is the player's own face — it lifts a notch higher.
+      const accent = step.id === 'corp' ? names[0] : undefined;
+      // ① CAPTURE — the pixels are ours from THIS frame, which is what lets
+      // the table underneath retire without the cards going down with it.
+      const capture = captureCards(names
+        .map((name) => ({name, el: this.stepSlotEl(step.id, name)}))
+        .filter((sc): sc is DockFlightSource => sc.el !== null));
+      names.forEach((n) => this.returningNames.add(`${step.id}|${n}`));
       try {
-        const names = picksForStep(this.picks, step.id);
-
-        if (goingToSummary) {
-          // ── DIRECT TO THE SUMMARY: the current step's picks glide from
-          // their GRID SLOTS straight into their summary tiles (never a
-          // detour through the shelf pile), while the earlier piles open
-          // into theirs — ONE combined convoy, one transition. ──
-          this.state.flow = 'revealing-summary';
-          const capture = captureCards(names
-            .map((name) => ({name, el: this.stepSlotEl(step.id, name)}))
-            .filter((sc): sc is DockFlightSource => sc.el !== null));
-          names.forEach((n) => this.returningNames.add(`${step.id}|${n}`));
-          // Every pick lands in a HELD summary tile (no tile paints early).
-          this.steps.forEach((st) => picksForStep(this.picks, st.id).forEach((n) => this.summaryArriving.add(n)));
-          // The earlier piles keep their lying backs through the target flip
-          // (targets drop to 0 on the summary; the physique must not blink).
-          this.steps.forEach((st, i) => {
-            if (i < this.railPos) {
-              driftDockPile(st.id, picksForStep(this.picks, st.id).length);
-            }
-          });
-          this.state.stepIdx = this.railPos + 1;
-          await this.$nextTick();
-          this.fitSummary();
-          await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-          const paneMotion = this.animatePaneSwap(fromPane, this.paneElAt(this.railPos));
-          await Promise.all([
-            this.revealSummaryFromPiles(step.id),
-            capture.flyTo(
-              (n) => this.summaryTileFor(n),
-              (n) => {
-                this.summaryArriving.delete(n);
-                this.returningNames.delete(`${step.id}|${n}`);
-              }),
-          ]);
-          names.forEach((n) => this.returningNames.delete(`${step.id}|${n}`));
-          this.summaryArriving.clear();
-          clearDockDrift();
-          await paneMotion;
-          return;
+        // ② IMPULSE — the press is answered in its own interaction frame.
+        setStartTransitionPhase('compressing-selection');
+        await capture.impulse(accent);
+        setStartTransitionPhase('lifting-selection');
+        if (kind === 'to-summary') {
+          await this.toSummaryConvoy(step, capture, from);
+        } else {
+          await this.stepForwardCollect(step, capture, from, to);
         }
-
-        // ── A STEP ADVANCE: the picks collect onto their shelf pile. ──
-        this.state.flow = 'docking';
-        const sources: Array<DockFlightSource> = names
-          .map((name) => ({name, el: this.stepSlotEl(step.id, name)}))
-          .filter((sc): sc is DockFlightSource => sc.el !== null);
-        let paneMotion: Promise<void> = Promise.resolve();
-        // The pile's backs follow the CARDS: pre-drift −N so the state flip
-        // shows an (honest) empty pile, then each touchdown adds one back.
-        driftDockPile(step.id, -names.length);
-        await collectToDock(sources, this.pileElFor(step.id), () => {
-          // The picks are COVERED by their proxies: the pane may swap now —
-          // the entering surface rises under the flight, one continuous move.
-          this.state.stepIdx = this.railPos + 1;
-          paneMotion = this.$nextTick().then(() => this.animatePaneSwap(fromPane, this.paneElAt(this.railPos)));
-        }, () => {
-          driftDockPile(step.id, 1);
-        });
-        clearDockDrift(step.id);
-        await paneMotion;
       } finally {
+        capture.dispose();
+        names.forEach((n) => this.returningNames.delete(`${step.id}|${n}`));
+        this.summaryArriving.clear();
+        clearDockDrift();
+        this.fitLocked = false;
         this.dockBusy = false;
         this.state.flow = 'idle';
+        setStartTransitionPhase('stabilizing-focus');
+        await this.settledFrame();
+        endStartTransition();
       }
     },
     /**
-     * LT — BACK WITH RETURN: the previous step's pane restores (same table,
-     * same slots, no re-deal) and its collected cards fly OUT of their pile
-     * back into their reserved slots, face-up (held empty until touchdown).
+     * FORWARD, step → step: the picks collect onto their shelf pile, and the
+     * NEXT step's table is opened only once the shelf physically has them.
+     */
+    async stepForwardCollect(
+      step: StartWizardStep, capture: CapturedFlight, from: number, to: number,
+    ): Promise<void> {
+      const pileEl = this.pileElFor(step.id);
+      // ③ TRANSFER. The pile's backs follow the CARDS (dockDrift): +1 per
+      // touchdown, so a back appears exactly when — and because — its card
+      // lands on it.
+      //
+      // ⚠️ NO pre-drift of −N here. The step is not `collected` until the
+      // stage commits, so its target back count is still 0: a −N pre-drift
+      // would be cancelled by the +1 landings and the pile would stay empty
+      // until the commit — the card's proxy retires onto NOTHING and the
+      // card is briefly gone from the world. (That worked before only
+      // because the stage used to commit at t=0, which is the bug this whole
+      // rework removes.) The drift is squared with the state in the commit's
+      // own tick, below.
+      setStartTransitionPhase('transferring-selection');
+      this.fitLocked = true;
+      const flight = capture.flyTo(
+        () => pileEl,
+        () => driftDockPile(step.id, 1),
+        {flipTo: FACE_DOWN_DEG, reseat: false, pressElFor: () => pileEl});
+      // ④ …and only once they have VISIBLY separated does the table they came
+      // from begin to retire — whole, in one piece, with its unpicked cards
+      // still lying exactly where they lie. That small offset is what makes
+      // the gesture read as «I took THESE cards off THAT table».
+      await this.beat(SEPARATION_BEAT_MS);
+      setStartTransitionPhase('parking-current-surface');
+      const parked = this.parkPane(from, 1);
+      setStartTransitionPhase('docking-selection');
+      await Promise.all([flight, parked]);
+      // ⑤ THE COMMIT. The shelf has the cards and nothing of the old stage is
+      // on screen: only now may a card of the next stage exist — and it is
+      // held down until its own reveal opens it (never a full-strength frame).
+      setStartTransitionPhase('committing-stage');
+      this.holdPaneForReveal(this.paneElAt(to));
+      // ONE TICK: the step becomes `collected` (its target back count rises
+      // to its picks) and the physical drift that was standing in for that
+      // is dropped in the same mutation batch — Vue renders once, so the
+      // shelf never flickers through an intermediate count.
+      clearDockDrift(step.id);
+      this.state.stepIdx = to;
+      await this.$nextTick();
+      clearSurfaceParking(this.paneElAt(from));
+      this.fitLocked = false;
+      this.fitCardStrip();
+      await this.settledFrame();
+      setStartTransitionPhase('revealing-next-surface');
+      await this.revealPane(to, 1);
+    },
+    /**
+     * FORWARD, last step → SUMMARY. Every selected card physically travels
+     * into its own summary tile: the current step's picks straight out of the
+     * player's hand, every earlier step's out of its shelf pile — two legs of
+     * ONE convoy, each owning its own proxies.
+     *
+     * ⚠️ Both legs used to share one proxy layer that each of them CLEARED on
+     * completion, so the shorter leg wiped the longer one's still-airborne
+     * cards while their timelines kept firing landings. That is the bug that
+     * looked like «the last projects teleport into the summary», and it got
+     * worse the more projects were bought. Ownership is per-batch now
+     * (`startDockMotion`), and there is no instant-placement path left.
+     */
+    async toSummaryConvoy(step: StartWizardStep, capture: CapturedFlight, from: number): Promise<void> {
+      // ③ PREWARM. Every tile mounted, laid out and MEASURED while the cards
+      // are still in the player's hand — a summary that assembles itself as
+      // cards arrive has no stable rect to offer them.
+      setStartTransitionPhase('preparing-summary-layout');
+      const everyPick: Array<CardName> = [];
+      for (const st of this.steps) {
+        for (const n of picksForStep(this.picks, st.id)) {
+          everyPick.push(n);
+        }
+      }
+      // HELD FROM THE FIRST PAINT: not one tile may show a card before that
+      // card has physically landed in it (one visual owner, always).
+      everyPick.forEach((n) => this.summaryArriving.add(n));
+      await this.prewarmSummary();
+      const {missing} = await measureTargets(everyPick, (n) => this.summaryTileFor(n), 40);
+      if (missing.length > 0 && process.env.NODE_ENV !== 'production') {
+        console.warn('[console-start] summary tiles never measured: ' + missing.join(', ') +
+          ' — those cards cannot be carried physically.');
+      }
+      // ④ The table retires, with the taken cards already held above it.
+      setStartTransitionPhase('parking-current-surface');
+      await this.parkPane(from, 1);
+      // ⑤ THE COMMIT. The summary becomes the stage while every tile is still
+      // empty — so there is never a frame with two card surfaces on it.
+      setStartTransitionPhase('committing-stage');
+      const summaryPane = this.$refs.summaryPane as HTMLElement | undefined;
+      this.holdPaneForReveal(summaryPane);
+      // ONE TICK, again: on the summary every pile's target drops to 0, but
+      // the earlier steps' cards are still physically LYING there until they
+      // fly out — the drift stands in for them, and it is applied in the same
+      // mutation batch as the flip so the shelf never shows a doubled (or an
+      // emptied) count for a frame.
+      this.steps.forEach((st, i) => {
+        if (i < from) {
+          driftDockPile(st.id, picksForStep(this.picks, st.id).length);
+        }
+      });
+      this.state.stepIdx = from + 1;
+      this.releaseSummaryPrewarm();
+      await this.$nextTick();
+      clearSurfaceParking(this.paneElAt(from));
+      await this.settledFrame();
+      // The summary's own frame opens EMPTY (every tile is still held): the
+      // player sees where the cards are going before they get there, and
+      // there is never a frame carrying two card surfaces.
+      await unparkSurface(summaryPane, 1);
+      // ⑥ DISTRIBUTE — every card, no exceptions, adaptive to the count.
+      setStartTransitionPhase('distributing-summary-cards');
+      this.fitLocked = true;
+      const legs: Array<Promise<void>> = [
+        capture.flyTo((n) => this.summaryTileFor(n), (n) => {
+          this.summaryArriving.delete(n);
+          this.returningNames.delete(`${step.id}|${n}`);
+        }),
+      ];
+      for (const st of this.steps) {
+        if (st.id === step.id) {
+          continue;
+        }
+        const groupNames = picksForStep(this.picks, st.id);
+        if (groupNames.length === 0) {
+          continue;
+        }
+        legs.push(returnFromDock(
+          groupNames,
+          this.pileElFor(st.id),
+          (n) => this.summaryTileFor(n),
+          (n) => this.summaryArriving.delete(n),
+          () => driftDockPile(st.id, -1)));
+      }
+      setStartTransitionPhase('docking-all-summary-cards');
+      // THE SUMMARY IS NOT «DONE» UNTIL THE LAST CARD IS DOWN — the controls
+      // (and the input lock) release off this promise, never off a clock.
+      await Promise.all(legs);
+      setStartTransitionPhase('revealing-summary-status');
+      this.fitLocked = false;
+      this.fitSummary();
+    },
+    /**
+     * LT — GO BACK. The BACKWARD phrase is deliberately NOT the forward one
+     * reversed: a card can only come home to a table that already exists, so
+     * the receiving surface is restored FIRST and the card is released from
+     * the shelf only afterwards.
      */
     async backWithReturn(): Promise<void> {
       if (this.railPos === 0 || this.dockBusy || startFlowBusy()) {
         return;
       }
-      this.dockBusy = true;
-      this.state.flow = this.onSummary ? 'stowing-summary' : 'returning';
-      const fromPane = this.paneElAt(this.railPos);
-      try {
-        const leavingSummary = this.onSummary;
-        const target = this.railPos - 1;
-        const step = this.steps[target];
-        if (step === undefined) {
-          this.state.stepIdx = target;
-          clearDockDrift();
-          return;
-        }
-        const names = picksForStep(this.picks, step.id);
-
-        if (leavingSummary) {
-          // ── DIRECT FROM THE SUMMARY: the target step's cards glide from
-          // their tiles straight back into their GRID SLOTS, while the other
-          // sections gather into their shelf piles — one combined convoy,
-          // the exact reverse of the way in. ──
-          const capture = captureCards(names
-            .map((name) => ({name, el: this.summaryTileFor(name)}))
-            .filter((sc): sc is DockFlightSource => sc.el !== null));
-          names.forEach((n) => {
-            this.summaryStowing.add(n);
-            this.returningNames.add(`${step.id}|${n}`);
-          });
-          const stowGroups = this.steps
-            .filter((_st, i) => i !== target)
-            .map((st) => ({st, names: picksForStep(this.picks, st.id)}))
-            .filter((g) => g.names.length > 0);
-          // The flip re-collects the earlier piles (targets 0 → picks): hold
-          // the physique at zero until each card physically lands back.
-          stowGroups.forEach((g) => driftDockPile(g.st.id, -g.names.length));
-          this.state.stepIdx = target;
-          await this.$nextTick();
-          this.fitCardStrip();
-          await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
-          const paneMotion = this.animatePaneSwap(fromPane, this.paneElAt(target));
-          await Promise.all([
-            ...stowGroups.map((g) => collectToDock(
-              g.names
-                .map((name) => ({name, el: this.summaryTileFor(name)}))
-                .filter((sc): sc is DockFlightSource => sc.el !== null),
-              this.pileElFor(g.st.id),
-              () => g.names.forEach((n) => this.summaryStowing.add(n)),
-              () => driftDockPile(g.st.id, 1),
-            )),
-            capture.flyTo(
-              (n) => this.stepSlotEl(step.id, n),
-              (n) => this.returningNames.delete(`${step.id}|${n}`)),
-          ]);
-          names.forEach((n) => this.returningNames.delete(`${step.id}|${n}`));
-          clearDockDrift();
-          await paneMotion;
-          return;
-        }
-
-        // ── A STEP RETURN: the collected cards fly OUT of their pile back
-        // into their reserved slots (held empty until each touchdown). ──
-        names.forEach((n) => this.returningNames.add(`${step.id}|${n}`));
-        // The flip un-collects the TARGET step (its backs' target → 0):
-        // hold the physique steady across it, then drain per departure.
-        driftDockPile(step.id, names.length);
+      const from = this.railPos;
+      const target = from - 1;
+      const step = this.steps[target];
+      const kind = transitionKind(from, target, this.steps.length);
+      if (step === undefined || kind === undefined) {
         this.state.stepIdx = target;
-        await this.$nextTick();
-        const paneMotion = this.animatePaneSwap(fromPane, this.paneElAt(target));
-        await returnFromDock(
-          names,
-          this.pileElFor(step.id),
-          (name) => this.stepSlotEl(step.id, name),
-          (name) => this.returningNames.delete(`${step.id}|${name}`),
-          () => driftDockPile(step.id, -1),
-        );
-        names.forEach((n) => this.returningNames.delete(`${step.id}|${n}`));
         clearDockDrift();
-        await paneMotion;
+        return;
+      }
+      this.dockBusy = true;
+      beginStartTransition(kind, from, target);
+      this.pulseJourney(-1);
+      this.state.flow = kind === 'from-summary' ? 'stowing-summary' : 'returning';
+      try {
+        if (kind === 'from-summary') {
+          await this.fromSummaryReturn(step, target);
+        } else {
+          await this.stepBackReturn(step, target, from);
+        }
       } finally {
         // The stow's tile holds release only now — the summary pane is long
         // hidden, so no face can flash under a dead proxy.
         this.summaryStowing.clear();
+        this.summaryArriving.clear();
+        picksForStep(this.picks, step.id).forEach((n) => this.returningNames.delete(`${step.id}|${n}`));
+        clearDockDrift();
+        this.fitLocked = false;
         this.dockBusy = false;
         this.state.flow = 'idle';
+        setStartTransitionPhase('stabilizing-focus');
+        await this.settledFrame();
+        endStartTransition();
       }
     },
-    /** The SUMMARY REVEAL: the collected piles open — their cards fly into
-     *  their summary tiles face-up, and each pile's backs DRAIN as its cards
-     *  depart (the backs disappear BECAUSE the cards left — one physical
-     *  owner). `exclude` = the step whose cards travel their own DIRECT path
-     *  (the projects glide grid → tiles, never through the shelf). The
-     *  CALLER owns the hold sets and the drift reconciliation — this may run
-     *  as one leg of a combined convoy. */
-    async revealSummaryFromPiles(exclude?: StartWizardStep['id']): Promise<void> {
-      this.summaryStowing.clear();
-      const groups = this.steps
-        .filter((st) => st.id !== exclude)
-        .map((st) => ({st, names: picksForStep(this.picks, st.id)}))
-        .filter((g) => g.names.length > 0);
-      groups.forEach((g) => g.names.forEach((n) => this.summaryArriving.add(n)));
+    /** BACKWARD, step → step: the pile gives its cards back into the reserved
+     *  slots of a table that is already standing. */
+    async stepBackReturn(step: StartWizardStep, target: number, from: number): Promise<void> {
+      const names = picksForStep(this.picks, step.id);
+      // ① THE KINETIC ANSWER, in the press's own frame: the shelf pile that
+      // is about to give the cards back physically stirs, and the table the
+      // player is leaving starts to retire. Neither of them is text.
+      pressPile(this.pileElFor(step.id));
+      setStartTransitionPhase('parking-current-surface');
+      await this.parkPane(from, -1);
+      // ② THE RECEIVING TABLE COMES BACK FIRST — cached, never re-dealt: the
+      // same cards in the same slots, with the returning card's slot RESERVED
+      // (held empty) so the layout is final before anything flies into it.
+      setStartTransitionPhase('committing-previous-stage');
+      names.forEach((n) => this.returningNames.add(`${step.id}|${n}`));
+      driftDockPile(step.id, names.length);
+      this.holdPaneForReveal(this.paneElAt(target));
+      this.state.stepIdx = target;
       await this.$nextTick();
-      await Promise.all(groups.map((g) =>
-        returnFromDock(
-          g.names,
-          this.pileElFor(g.st.id),
-          (name) => this.summaryTileFor(name),
-          (name) => this.summaryArriving.delete(name),
-          () => driftDockPile(g.st.id, -1),
-        )));
+      clearSurfaceParking(this.paneElAt(from));
+      this.fitCardStrip();
+      setStartTransitionPhase('revealing-previous-surface');
+      await this.revealPane(target, -1);
+      // ③ The reserved slots are measured on the settled table…
+      setStartTransitionPhase('preparing-reserved-slots');
+      await measureTargets(names, (n) => this.stepSlotEl(step.id, n), 40);
+      this.fitLocked = true;
+      // ④ …and only NOW does the card leave the shelf, back-side up, turning
+      // face-up in the air and settling into the slot it came from.
+      setStartTransitionPhase('releasing-selection-from-dock');
+      setStartTransitionPhase('transferring-selection-home');
+      await returnFromDock(
+        names,
+        this.pileElFor(step.id),
+        (name) => this.stepSlotEl(step.id, name),
+        (name) => this.returningNames.delete(`${step.id}|${name}`),
+        () => driftDockPile(step.id, -1),
+      );
+      setStartTransitionPhase('docking-selection-home');
     },
-    /** Leaving the summary backwards: the laid-out set gathers back into its
-     *  piles first (the reverse of the reveal) — a back reappears only when
-     *  its card physically lands back on the shelf — then the step returns.
-     *  ONE VISUAL OWNER: the tiles are held empty (`summaryStowing`) in the
-     *  same paint their proxies spawn — a card can never lie open in the
-     *  summary while its copy flies to the shelf. */
-    async collectSummaryToPiles(): Promise<void> {
-      const groups = this.steps
+    /** BACKWARD, summary → last step: the laid-out set is picked up as one —
+     *  the target step's picks go home to their grid slots, every other group
+     *  gathers back onto its shelf pile. Two batches, two destinations, one
+     *  gesture; neither can wipe the other (per-batch ownership). */
+    async fromSummaryReturn(step: StartWizardStep, target: number): Promise<void> {
+      const names = picksForStep(this.picks, step.id);
+      const stowGroups = this.steps
+        .filter((st) => st.id !== step.id)
         .map((st) => ({st, names: picksForStep(this.picks, st.id)}))
         .filter((g) => g.names.length > 0);
-      await Promise.all(groups.map((g) => {
-        const sources: Array<DockFlightSource> = g.names
-          .map((name) => ({name, el: this.summaryTileFor(name)}))
-          .filter((sc): sc is DockFlightSource => sc.el !== null);
-        return collectToDock(sources, this.pileElFor(g.st.id),
-          () => sources.forEach((sc) => this.summaryStowing.add(sc.name)),
-          () => driftDockPile(g.st.id, 1));
-      }));
-      // (The drift is reconciled by the caller AFTER the step flip — clearing
-      // here, still on the summary, would blink every just-landed back out.
-      // The stow holds release then too: the tiles are off-screen by that
-      // point, and an early release would flash the faces under dead proxies.)
+      const pileOf = new Map<CardName, StartWizardStep['id']>();
+      stowGroups.forEach((g) => g.names.forEach((n) => pileOf.set(n, g.st.id)));
+      const tileSource = (n: CardName): DockFlightSource | undefined => {
+        const el = this.summaryTileFor(n);
+        return el === null ? undefined : {name: n, el};
+      };
+      const homeSources = names.map(tileSource).filter((s): s is DockFlightSource => s !== undefined);
+      const stowSources = [...pileOf.keys()].map(tileSource).filter((s): s is DockFlightSource => s !== undefined);
+      const homeCapture = captureCards(homeSources);
+      const stowCapture = captureCards(stowSources);
+      // ONE VISUAL OWNER: the tiles are held empty in the same paint their
+      // proxies spawn — a card can never lie open in the summary while its
+      // copy is in the air.
+      [...homeSources, ...stowSources].forEach((s) => this.summaryStowing.add(s.name));
+      names.forEach((n) => this.returningNames.add(`${step.id}|${n}`));
+      try {
+        setStartTransitionPhase('compressing-selection');
+        await Promise.all([homeCapture.impulse(), stowCapture.impulse()]);
+        setStartTransitionPhase('lifting-selection');
+        setStartTransitionPhase('parking-current-surface');
+        await parkSurface(this.$refs.summaryPane as HTMLElement | undefined, -1);
+        // The receiving table first, exactly as in the step→step return.
+        setStartTransitionPhase('committing-previous-stage');
+        stowGroups.forEach((g) => driftDockPile(g.st.id, -g.names.length));
+        this.holdPaneForReveal(this.paneElAt(target));
+        this.state.stepIdx = target;
+        await this.$nextTick();
+        clearSurfaceParking(this.$refs.summaryPane as HTMLElement | undefined);
+        this.fitCardStrip();
+        setStartTransitionPhase('revealing-previous-surface');
+        await this.revealPane(target, -1);
+        setStartTransitionPhase('preparing-reserved-slots');
+        await measureTargets(names, (n) => this.stepSlotEl(step.id, n), 40);
+        this.fitLocked = true;
+        setStartTransitionPhase('transferring-selection-home');
+        await Promise.all([
+          homeCapture.flyTo(
+            (n) => this.stepSlotEl(step.id, n),
+            (n) => this.returningNames.delete(`${step.id}|${n}`),
+            {flipTo: FACE_UP_DEG}),
+          stowCapture.flyTo(
+            (n) => this.pileElFor(pileOf.get(n) ?? ''),
+            (n) => {
+              const id = pileOf.get(n);
+              if (id !== undefined) {
+                driftDockPile(id, 1);
+              }
+            },
+            {
+              flipTo: FACE_DOWN_DEG,
+              reseat: false,
+              pressElFor: (n) => this.pileElFor(pileOf.get(n) ?? ''),
+            }),
+        ]);
+        setStartTransitionPhase('docking-selection-home');
+      } finally {
+        homeCapture.dispose();
+        stowCapture.dispose();
+      }
     },
     summaryTileFor(name: CardName): HTMLElement | null {
       const root = this.$el as HTMLElement | undefined;
@@ -2578,6 +2963,13 @@ export default defineComponent({
      * Reduced motion (or a degraded capture): one settled frame swap.
      */
     async runMaterialization(): Promise<void> {
+      // The MULTIPLAYER path arrives here with no armed snapshot (the one
+      // from the press was let go when the wait began) — arm it now, on the
+      // live summary the player has been looking at.
+      if (!this.matFrozen && this.sentAwaiting) {
+        this.prepareMaterializationFreeze();
+      }
+      this.sentAwaiting = false;
       this.state.flow = 'materializing';
       if (this.commitSafety !== undefined) {
         window.clearTimeout(this.commitSafety);
@@ -2723,7 +3115,10 @@ export default defineComponent({
      * so it is safe to run while pile flights still hold the tiles.
      */
     fitSummary(): void {
-      if (!this.summaryShown) {
+      // FROZEN while cards are in the air: re-solving the zoom would move the
+      // tiles the convoy was planned against. The prewarm already solved the
+      // final geometry — there is nothing to re-solve until everything lands.
+      if (!this.summaryShown || this.fitLocked) {
         return;
       }
       const pane = this.$refs.summaryPane as HTMLElement | undefined;
@@ -2837,6 +3232,9 @@ export default defineComponent({
      * candidate strip (no ref) keeps its tuned `__cands` zoom.
      */
     fitCardStrip(): void {
+      if (this.fitLocked) {
+        return; // see fitSummary — a destination may not move mid-flight
+      }
       const strip = this.activeStrip();
       if (strip === undefined || strip === null) {
         // The keyed frame swaps `out-in` — a fresh step's strip mounts only
@@ -2913,6 +3311,9 @@ export default defineComponent({
     onPress(action: ConsoleAction): void {
       if (this.yielded) {
         return; // the board owns the screen (see the `yielded` prop)
+      }
+      if (this.awaitingOthers && action !== 'back' && action !== 'inspect') {
+        return; // sent — nothing is asked of this player (see awaitingOthers)
       }
       switch (action) {
       case 'primary':

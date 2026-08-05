@@ -27,6 +27,7 @@ function state(overrides: Partial<StartSceneCommandState>): StartSceneCommandSta
     launchVerb: 'Begin the game',
     launches: true,
     wizardReady: true,
+    awaiting: false,
     payBeat: false,
     ceremonyVerb: 'Play now',
     hasFocusables: true,
@@ -119,5 +120,16 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     expect(labelOf(cmds, 'secondary')).to.eq('Inspect');
     const pay = startSceneCommands(state({mode: 'ceremony', payBeat: true}));
     expect(pay.map((c) => c.label)).to.deep.eq(['Pay', 'Minimize']);
+  });
+  /**
+   * SENT — the setup is confirmed and the table is still finishing. Nothing
+   * is asked of this player, so the bar must not advertise a verb that does
+   * nothing: only the inspect (base behaviour) and «свернуть».
+   */
+  it('the WAITING summary offers no verb it cannot honour — inspect + minimize only', () => {
+    const cmds = startSceneCommands(state({onSummary: true, awaiting: true}));
+    expect(cmds.map((c) => c.control)).to.deep.eq(['secondary', 'back']);
+    expect(labelOf(cmds, 'confirm'), 'A must not claim a press that does nothing').to.be.undefined;
+    expect(labelOf(cmds, 'back')).to.eq('Minimize');
   });
 });

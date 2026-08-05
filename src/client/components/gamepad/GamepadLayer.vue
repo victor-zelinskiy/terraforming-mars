@@ -9,26 +9,33 @@
     <GamepadHintBar v-if="(!consoleModeState.enabled || !consoleState.shellMounted) && menuPadState.mountedCount === 0" />
     <ConsoleEntryPrompt v-if="consoleModeState.entryPromptVisible && !consoleModeState.enabled" />
 
-    <!-- The console SYSTEM overlay (Menu button): Settings / Controls / Exit. -->
+    <!-- The console SYSTEM overlay (Menu button): the action list and the
+         settings console it opens are two members of ONE chassis, so ONE
+         transition wraps the whole overlay and the swap between them is
+         INSTANT. Giving each its own `con-layer` crossfaded two full-screen
+         cards over two stacked backdrops for ~200 ms on every «Настройки» —
+         and left both mounted meanwhile, which is a lie about where input is.
+         The host must be fixed+full-bleed: an opacity below 1 makes it the
+         containing block for its `position: fixed` children. -->
     <transition name="con-layer">
-      <ConsoleSystemMenu v-if="systemMenuOpen && systemMenuSettings === undefined && consoleModeState.enabled"
-                         :index="systemMenuIndex"
-                         :confirmExit="systemMenuConfirmExit"
-                         :inGame="screen === 'player-home'"
-                         @activate="onSystemMenuActivate"
-                         @cursor="systemMenuIndex = $event" />
-    </transition>
-    <!-- «Настройки» / «Диагностика» — the SHARED settings console, opened
-         in-game from the system menu (the ONE home of persistent console
-         settings AND of the read-only readout, CLAUDE.md). B returns to the
-         system list. In-game context drops the shell switch (that stays a
-         main-menu affordance) and the launch-time network rows. -->
-    <transition name="con-layer">
-      <ConsoleOptionsPanel v-if="systemMenuOpen && systemMenuSettings !== undefined && consoleModeState.enabled"
-                           ref="systemOptions"
-                           context="game"
-                           :initialCategory="systemMenuSettings"
-                           @close="systemMenuSettings = undefined" />
+      <div v-if="systemMenuOpen && consoleModeState.enabled" class="con-sys-host">
+        <ConsoleSystemMenu v-if="systemMenuSettings === undefined"
+                           :index="systemMenuIndex"
+                           :confirmExit="systemMenuConfirmExit"
+                           :inGame="screen === 'player-home'"
+                           @activate="onSystemMenuActivate"
+                           @cursor="systemMenuIndex = $event" />
+        <!-- «Настройки» / «Диагностика» — the SHARED settings console (the ONE
+             home of persistent console settings AND of the read-only readout,
+             CLAUDE.md). B returns to the system list. The in-game context drops
+             the shell switch (a main-menu affordance) and the launch-time
+             network rows. -->
+        <ConsoleOptionsPanel v-else
+                             ref="systemOptions"
+                             context="game"
+                             :initialCategory="systemMenuSettings"
+                             @close="systemMenuSettings = undefined" />
+      </div>
     </transition>
 
     <!-- Controller mapping legend (Menu button). Its OWN mini-scope: while

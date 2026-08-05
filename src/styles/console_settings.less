@@ -34,6 +34,17 @@
 
 @cs-gold: rgb(240, 168, 80);
 
+/* The overlay HOST (GamepadLayer): one `con-layer` fade owns the whole system
+   overlay, and the swap between its two members happens INSIDE it, instantly.
+   It must be fixed + full-bleed in its own right — the fade drops `opacity`
+   below 1, which makes this element the containing block for the `position:
+   fixed` surface inside it. */
+.con-sys-host {
+    position: fixed;
+    inset: 0;
+    z-index: 12760;
+}
+
 /* ── The shell ────────────────────────────────────────────────────── */
 .con-sys {
     position: fixed;
@@ -66,10 +77,11 @@
         overflow: hidden;
         animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
     }
-    /* The settings console is a two-pane surface — it needs the width the
-       action list does not. ONE card class, one modifier. */
+    /* The settings console runs wider than the action list: its rows carry a
+       label AND a fixed-width stepper, and the tab strip has to hold every
+       category on one line. ONE card class, one modifier. */
     &--settings &__card {
-        width: min(56rem, 96vw);
+        width: min(48rem, 96vw);
     }
 
     /* A single sci-fi hairline along the top of the card: the family mark
@@ -171,6 +183,25 @@
             text-transform: none;
             color: @con-text-dim;
         }
+    }
+
+    /* ── The TAB BAND: a sub-header the LB/RB chips bracket ──
+       LB/RB is a horizontal gesture, so the thing it moves through runs
+       horizontally, and the chips sit at the ENDS of that very strip. The
+       affordance is then spatial — which is why the foot bar no longer
+       spends a line saying «Категория». */
+    &__tabs {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+        padding: .45rem 1.2rem;
+        border-bottom: .05rem solid fade(@con-cyan, 16%);
+        background: rgba(8, 14, 22, 0.5);
+    }
+    &__tabs-chip {
+        flex: 0 0 auto;
+        opacity: .85;
     }
 
     &__body {
@@ -309,99 +340,82 @@
 }
 
 /* ── The SETTINGS console ─────────────────────────────────────────── */
+/* The category TABS live in the chassis' tab band (`.con-sys__tabs`); the
+   tuned ones read loud, the technical pair sits after a hairline, small and
+   dim — «мелкие незначительные категории». Nothing here changes SIZE with the
+   selection (only paint), so the strip can never re-flow under LB/RB. */
+.con-set__tabs {
+    flex: 1 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: .15rem;
+}
+.con-set__tab {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .3rem .6rem;
+    border: 0;
+    border-radius: .35rem .35rem 0 0;
+    background: transparent;
+    color: @con-text-dim;
+    font-family: inherit;
+    white-space: nowrap;
+    cursor: pointer;
+    /* The active mark is an INSET bottom rule, so it costs no layout and the
+       strip's height is identical for every tab. */
+    box-shadow: inset 0 -0.12rem 0 0 transparent;
+    .con-visual-transition(140ms);
+
+    &--current {
+        background: fade(@con-cyan, 12%);
+        box-shadow: inset 0 -0.12rem 0 0 fade(@con-cyan, 95%);
+        color: @con-text;
+    }
+    &--minor { opacity: .68; }
+    &--minor&--current { opacity: 1; }
+}
+.con-set__tab-glyph {
+    font-size: .9rem;
+    line-height: 1;
+    color: fade(@con-cyan, 78%);
+}
+.con-set__tab--minor .con-set__tab-glyph { font-size: .72rem; }
+.con-set__tab-name {
+    font-size: .8rem;
+    font-weight: 700;
+    letter-spacing: .07rem;
+    text-transform: uppercase;
+}
+.con-set__tab--minor .con-set__tab-name {
+    font-size: .65rem;
+    font-weight: 600;
+    letter-spacing: .1rem;
+}
+/* The seam before the technical pair — a hairline, not a word: a «ДОПОЛНИТЕЛЬНО»
+   caption in a horizontal strip would out-shout the tabs it introduces. */
+.con-set__tabs-sep {
+    flex: 0 0 auto;
+    width: .05rem;
+    height: 1.1rem;
+    margin: 0 .5rem;
+    background: fade(@con-cyan, 26%);
+}
+
 .con-set {
     display: flex;
-    gap: 1rem;
+    flex-direction: column;
+    gap: .55rem;
     width: 100%;
+    min-width: 0;
     /* A CONSTANT body height across categories: switching category with LB/RB
        must not resize the card (the same layout-shift contract the cursor
        obeys). Fixed, not `min-height` — a tall category (the diagnostics
        readout) has to scroll INSIDE the pane rather than grow the frame.
        Short categories leave breathing room above the pinned detail strip. */
-    height: 21rem;
+    height: 19rem;
 
-    /* The category RAIL: the four tuned categories loud, the technical pair
-       small and dim under a hairline — «мелкие незначительные категории». */
-    &__rail {
-        flex: 0 0 auto;
-        width: 12.5rem;
-        display: flex;
-        flex-direction: column;
-        gap: .2rem;
-        padding-right: .9rem;
-        border-right: .05rem solid fade(@con-cyan, 14%);
-    }
-    &__cat {
-        display: flex;
-        align-items: center;
-        gap: .6rem;
-        min-height: 2.3rem;
-        padding: .3rem .55rem;
-        border: 0;
-        border-radius: .4rem;
-        background: transparent;
-        color: @con-text-dim;
-        font-family: inherit;
-        text-align: left;
-        cursor: pointer;
-        .con-visual-transition(140ms);
-
-        /* The category the pane is showing — a cyan bar on the seam side plus
-           full-strength type. Reads at 2 m without relying on a glow. */
-        &--current {
-            background: fade(@con-cyan, 11%);
-            box-shadow: inset .16rem 0 0 0 fade(@con-cyan, 92%), inset 0 0 0 .05rem fade(@con-cyan, 26%);
-            color: @con-text;
-        }
-        &--minor {
-            min-height: 1.9rem;
-            opacity: .72;
-        }
-        &--minor&--current { opacity: 1; }
-    }
-    &__cat-glyph {
-        flex: 0 0 auto;
-        width: 1.25rem;
-        text-align: center;
-        font-size: 1rem;
-        color: fade(@con-cyan, 78%);
-    }
-    &__cat--minor &__cat-glyph { font-size: .8rem; }
-    &__cat-name {
-        flex: 1 1 auto;
-        min-width: 0;
-        font-size: .85rem;
-        font-weight: 700;
-        letter-spacing: .06rem;
-        text-transform: uppercase;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    &__cat--minor &__cat-name {
-        font-size: .68rem;
-        font-weight: 600;
-        letter-spacing: .1rem;
-    }
-    &__rail-sep {
-        margin: .5rem .55rem .15rem;
-        padding-top: .35rem;
-        border-top: .05rem dashed fade(@con-cyan, 20%);
-        font-size: .55rem;
-        letter-spacing: .16rem;
-        text-transform: uppercase;
-        color: fade(@con-text-dim, 70%);
-    }
-
-    /* The PANE: the rows scroll, the detail strip is pinned under them. */
-    &__pane {
-        flex: 1 1 auto;
-        min-width: 0;
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-        gap: .55rem;
-    }
     &__scroll {
         flex: 1 1 auto;
         min-height: 0;

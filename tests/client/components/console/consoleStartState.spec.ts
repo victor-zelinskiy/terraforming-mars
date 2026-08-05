@@ -4,6 +4,7 @@ import {
   ensureStartWizard, holdStartScene, initialCardsSignature, picksForStep, releaseStartScene,
   startFlowBusy, startLaunchState, startParticipants, startSceneHeld, stepComplete, wizardCrumb,
   wizardSteps, startJourneyItems, deploymentJourneyItems, startDockPiles,
+  startAwaitingOthers, startDeferredSummary, startDeploymentBegun, markStartDeploymentBegun,
 } from '@/client/console/consoleStartState';
 import {SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -356,6 +357,56 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       // The embed outranks a simultaneously-live pay beat (it is the deeper step).
       expect(deploymentCrumb({...base, payPending: true, embedSubject: 'Preludes'}).stage)
         .to.eq('Card draw');
+    });
+  });
+  /**
+   * THE MULTIPLAYER HAND-OVER. A submitted setup is NOT a started game: the
+   * server holds the table until the last player confirms, so between the
+   * commit and the real start sequence the viewer has NO prompt. Deriving
+   * «the deployment began» from the missing wizard input turned that gap
+   * into an EMPTY deployment (no queue, no hand dock, no way back once
+   * minimized) — the latch below is the honest signal.
+   */
+  describe('the deployment LATCH + the waiting state', () => {
+    const view = (waitingFor: unknown): PlayerViewModel => ({
+      id: 'p1', thisPlayer: {color: 'red' as Color}, players: [], waitingFor,
+    } as unknown as PlayerViewModel);
+
+    beforeEach(() => {
+      ensureStartWizard('owner', 'sig-await'); // a fresh deal clears the latch
+      releaseStartScene();
+    });
+    afterEach(() => {
+      ensureStartWizard('owner', 'sig-reset');
+      releaseStartScene();
+    });
+
+    it('a fresh deal starts un-latched, and the latch survives the deployment prompt gaps', () => {
+      expect(startDeploymentBegun()).to.be.false;
+      markStartDeploymentBegun();
+      expect(startDeploymentBegun()).to.be.true;
+      // A prompt gap (no waitingFor at all) must NOT undo it.
+      expect(startAwaitingOthers(view(undefined)), 'a latched deployment is never «awaiting»').to.be.false;
+    });
+
+    it('AWAITING = committed (the hold is armed), no wizard input, and the deployment has not begun', () => {
+      // Before the commit there is no hold — the player is still picking.
+      expect(startAwaitingOthers(view(undefined))).to.be.false;
+      holdStartScene();
+      expect(startAwaitingOthers(view(undefined)), 'sent, and the table is still confirming').to.be.true;
+      // …and never while the viewer still holds their own wizard input.
+      const wizard = {type: 'initialCards', options: []};
+      expect(startAwaitingOthers(view(wizard)), 'the viewer still owes their own picks').to.be.false;
+    });
+
+    it('the minimized start names ITSELF (the shared task summary has no task to describe)', () => {
+      const waiting = startDeferredSummary(true);
+      const live = startDeferredSummary(false);
+      expect(waiting.kickerKey).to.not.eq(live.kickerKey);
+      expect(waiting.askKey).to.eq('Waiting for the rest of the table');
+      expect(live.askKey).to.eq('Continue the start of the game');
+      // Both offer the same way back — A returns to the start workspace.
+      expect(waiting.returnKey).to.eq(live.returnKey);
     });
   });
 });

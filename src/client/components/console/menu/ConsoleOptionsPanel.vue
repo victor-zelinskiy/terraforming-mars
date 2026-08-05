@@ -3,106 +3,102 @@
     <div class="con-sys__backdrop" aria-hidden="true"></div>
 
     <div class="con-sys__card">
-      <!-- Stable context BEFORE the mutable stage: «НАСТРОЙКИ › УПРАВЛЕНИЕ».
-           Root and emblem never move; only the tail crossfades. -->
+      <!-- The head names the surface; WHERE you are is the tab strip's job
+           (a category is a lateral move, not a descent — printing it here too
+           would just repeat the highlighted tab one line below). -->
       <div class="con-sys__head">
         <span class="con-sys__emblem" aria-hidden="true">⚙</span>
         <span class="con-sys__crumb">
           <span class="con-sys__crumb-root">{{ $t('Settings') }}</span>
-          <span class="con-sys__crumb-slot">
-            <transition name="con-sys-stage">
-              <span :key="current.id" class="con-sys__crumb-tail">
-                <span class="con-sys__crumb-sep" aria-hidden="true">›</span>
-                <span class="con-sys__crumb-stage">{{ $t(current.label) }}</span>
-              </span>
-            </transition>
-          </span>
         </span>
+      </div>
+
+      <!-- CATEGORY TABS. LB/RB is a HORIZONTAL gesture, so the categories run
+           horizontally and the two chips sit at the ends of the very strip they
+           move through — the affordance is spatial, which is why the foot no
+           longer needs a «Категория» line. The technical pair sits after a
+           hairline, small and dim: present, never competing. -->
+      <div class="con-sys__tabs">
+        <GamepadGlyph v-if="categories.length > 1" control="bumperL" class="con-sys__tabs-chip" />
+        <nav class="con-set__tabs" :aria-label="$t('Category')">
+          <template v-for="(cat, i) in categories" :key="cat.id">
+            <span v-if="cat.minor && !categories[i - 1]?.minor" class="con-set__tabs-sep" aria-hidden="true"></span>
+            <button
+              type="button"
+              class="con-set__tab"
+              :class="{'con-set__tab--current': i === categoryIndex, 'con-set__tab--minor': cat.minor}"
+              @click="selectCategory(i)"
+            >
+              <span class="con-set__tab-glyph" aria-hidden="true">{{ cat.glyph }}</span>
+              <span class="con-set__tab-name">{{ $t(cat.label) }}</span>
+            </button>
+          </template>
+        </nav>
+        <GamepadGlyph v-if="categories.length > 1" control="bumperR" class="con-sys__tabs-chip" />
       </div>
 
       <div class="con-sys__body">
         <div class="con-set">
-          <!-- Category rail. The technical pair sits small and dim under the
-               «ДОПОЛНИТЕЛЬНО» hairline — present, never competing. -->
-          <nav class="con-set__rail" :aria-label="$t('Category')">
-            <template v-for="(cat, i) in categories" :key="cat.id">
-              <div v-if="cat.minor && !categories[i - 1]?.minor" class="con-set__rail-sep">{{ $t('Advanced') }}</div>
-              <button
-                type="button"
-                class="con-set__cat"
-                :class="{'con-set__cat--current': i === categoryIndex, 'con-set__cat--minor': cat.minor}"
-                @click="selectCategory(i)"
-              >
-                <span class="con-set__cat-glyph" aria-hidden="true">{{ cat.glyph }}</span>
-                <span class="con-set__cat-name">{{ $t(cat.label) }}</span>
-              </button>
-            </template>
-          </nav>
-
-          <div class="con-set__pane">
-            <ConsoleScrollArea ref="scroll" class="con-set__scroll" contentClass="con-set__rows">
-              <!-- Dialable rows: one line each, value on a fixed-width stepper. -->
-              <div
-                v-for="(row, i) in current.rows"
-                :key="row.id"
-                class="con-set__row"
-                :class="{'con-set__row--cursor': i === cursor}"
-                role="button"
-                :aria-label="$t(row.label)"
-                @click="step(1)"
-                @mousemove="cursor = i"
-              >
-                <span class="con-set__row-label">{{ $t(row.label) }}</span>
-                <span v-if="row.note !== '' && row.noteTone === 'pending'" class="con-set__row-pending" aria-hidden="true"></span>
-                <span class="con-set__stepper">
-                  <span class="con-set__arrow" aria-hidden="true" @click.stop="stepAt(i, -1)">‹</span>
-                  <span class="con-set__value">{{ row.value }}</span>
-                  <span class="con-set__arrow" aria-hidden="true" @click.stop="stepAt(i, 1)">›</span>
-                  <span class="con-set__pips" aria-hidden="true">
-                    <span
-                      v-for="n in row.count"
-                      :key="n"
-                      class="con-set__pip"
-                      :class="{'con-set__pip--on': n - 1 === row.index}"
-                    ></span>
-                  </span>
+          <ConsoleScrollArea ref="scroll" class="con-set__scroll" contentClass="con-set__rows">
+            <!-- Dialable rows: one line each, value on a fixed-width stepper. -->
+            <div
+              v-for="(row, i) in current.rows"
+              :key="row.id"
+              class="con-set__row"
+              :class="{'con-set__row--cursor': i === cursor}"
+              role="button"
+              :aria-label="$t(row.label)"
+              @click="step(1)"
+              @mousemove="cursor = i"
+            >
+              <span class="con-set__row-label">{{ $t(row.label) }}</span>
+              <span v-if="row.note !== '' && row.noteTone === 'pending'" class="con-set__row-pending" aria-hidden="true"></span>
+              <span class="con-set__stepper">
+                <span class="con-set__arrow" aria-hidden="true" @click.stop="stepAt(i, -1)">‹</span>
+                <span class="con-set__value">{{ row.value }}</span>
+                <span class="con-set__arrow" aria-hidden="true" @click.stop="stepAt(i, 1)">›</span>
+                <span class="con-set__pips" aria-hidden="true">
+                  <span
+                    v-for="n in row.count"
+                    :key="n"
+                    class="con-set__pip"
+                    :class="{'con-set__pip--on': n - 1 === row.index}"
+                  ></span>
                 </span>
-              </div>
-
-              <!-- Read-only readout (the diagnostics category) — the groups sit
-                   SIDE BY SIDE so the whole readout lands inside the constant
-                   body height instead of scrolling half of itself away. -->
-              <div v-if="current.readout.length > 0" class="con-set__readout">
-                <div v-for="group in current.readout" :key="group.label" class="con-set__rogroup">
-                  <div class="con-set__group">{{ $t(group.label) }}</div>
-                  <div v-for="ro in group.rows" :key="ro.label" class="con-set__ro">
-                    <span class="con-set__ro-key">{{ ro.raw ? ro.label : $t(ro.label) }}</span>
-                    <span class="con-set__ro-val" :class="'con-set__ro-val--' + ro.tone">{{ ro.value }}</span>
-                  </div>
-                  <div v-if="group.note !== ''" class="con-set__ro-note" :class="{'con-set__ro-note--bad': group.noteBad}">{{ group.note }}</div>
-                </div>
-              </div>
-            </ConsoleScrollArea>
-
-            <!-- The detail strip: what the cursored row does, in full. Always
-                 the same height (both text lines reserved) — the reason the
-                 rows above could shed their subtitles and fit the screen. -->
-            <div class="con-set__detail" aria-live="polite">
-              <div class="con-set__detail-head">
-                <span class="con-set__detail-title">{{ detail.title }}</span>
-                <span class="con-set__detail-value">{{ detail.value }}</span>
-              </div>
-              <div class="con-set__detail-desc">{{ detail.desc }}</div>
-              <div class="con-set__detail-note" :class="{'con-set__detail-note--pending': detail.notePending}">{{ detail.note }}</div>
+              </span>
             </div>
+
+            <!-- Read-only readout (the diagnostics category) — the groups sit
+                 SIDE BY SIDE so the whole readout lands inside the constant
+                 body height instead of scrolling half of itself away. -->
+            <div v-if="current.readout.length > 0" class="con-set__readout">
+              <div v-for="group in current.readout" :key="group.label" class="con-set__rogroup">
+                <div class="con-set__group">{{ $t(group.label) }}</div>
+                <div v-for="ro in group.rows" :key="ro.label" class="con-set__ro">
+                  <span class="con-set__ro-key">{{ ro.raw ? ro.label : $t(ro.label) }}</span>
+                  <span class="con-set__ro-val" :class="'con-set__ro-val--' + ro.tone">{{ ro.value }}</span>
+                </div>
+                <div v-if="group.note !== ''" class="con-set__ro-note" :class="{'con-set__ro-note--bad': group.noteBad}">{{ group.note }}</div>
+              </div>
+            </div>
+          </ConsoleScrollArea>
+
+          <!-- The detail strip: what the cursored row does, in full. Always
+               the same height (both text lines reserved) — the reason the
+               rows above could shed their subtitles and fit the screen. -->
+          <div class="con-set__detail" aria-live="polite">
+            <div class="con-set__detail-head">
+              <span class="con-set__detail-title">{{ detail.title }}</span>
+              <span class="con-set__detail-value">{{ detail.value }}</span>
+            </div>
+            <div class="con-set__detail-desc">{{ detail.desc }}</div>
+            <div class="con-set__detail-note" :class="{'con-set__detail-note--pending': detail.notePending}">{{ detail.note }}</div>
           </div>
         </div>
       </div>
 
       <div class="con-sys__foot">
-        <span v-if="categories.length > 1" class="con-sys__hint">
-          <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />{{ $t('Category') }}
-        </span>
+        <!-- No «Категория» line: the LB/RB chips live on the tab strip itself. -->
         <!-- A read-only category has no row to walk, so the SAME control means
              «scroll the readout» there. Naming it honestly beats dimming a
              verb that in fact still does something. -->
@@ -131,11 +127,13 @@
  * settings menu, which is the definition of a surface that stopped being
  * designed. Three changes fixed it, and they belong together:
  *
- *  1. A CATEGORY RAIL (`consoleSettingsModel.ts` owns the grouping) — LB/RB
- *     switch categories, so no category ever needs to scroll. The technical
- *     pair (СЕТЬ, ДИАГНОСТИКА — `minor: true`) renders small and dim under a
- *     «ДОПОЛНИТЕЛЬНО» hairline: reachable, never competing with the four a
- *     player actually tunes.
+ *  1. A CATEGORY STRIP (`consoleSettingsModel.ts` owns the grouping) — LB/RB
+ *     switch categories, so no category ever needs to scroll. It runs
+ *     HORIZONTALLY, along the axis LB/RB moves, with the two chips bracketing
+ *     the very strip they drive: the affordance is spatial, so the foot bar
+ *     spends no line on it. The technical pair (СЕТЬ, ДИАГНОСТИКА —
+ *     `minor: true`) sits past a hairline seam, small and dim: reachable,
+ *     never competing with the four a player actually tunes.
  *  2. ONE-LINE ROWS + a fixed DETAIL STRIP. The description moved off the row
  *     into a big always-mounted strip under the list, which reads better at
  *     2 m AND halves the row height. The strip reserves both its text lines,

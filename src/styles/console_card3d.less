@@ -1,0 +1,96 @@
+/* ═══ Card3DInner — THE PHYSICAL CARD BODY ═══════════════════════════════
+   The chassis of `src/client/console/cardFlight/card3dInner.ts`. Read that
+   file first: this stylesheet only gives the structure its geometry.
+
+   THE ONE THING THIS FILE EXISTS FOR: `perspective` on the OUTER. A rotateY
+   without a projecting parent is ORTHOGRAPHIC — the face does not turn away,
+   it simply narrows to a line while the back widens out of the same line,
+   which the eye reads as one picture being replaced by another. That is
+   exactly what the Game Start Workspace's flights looked like: the flip
+   plumbing was all there (`.con-deal-proxy__flip` + `backface-visibility`),
+   but `.con-startdock-proxy` never declared a perspective, so the turn had
+   no depth to happen in.
+
+   The faces deliberately keep their `.con-deal-proxy__face / __back` class
+   names as well, so every shared rule that rides them (the `--revealing`
+   glint sweep, the hand-reveal dim recipes, the margin resets) applies to a
+   Card3DInner unchanged — this is the fork's existing chassis formalized,
+   not a second one.
+
+   ⚠️ Never put `opacity` (or animate it) on `.con-card3d`: any value below 1
+   forces `transform-style: flat`, backface culling stops, and the turn shows
+   a MIRROR of the face instead of the back. Fade the OUTER (flat by
+   construction) or dim the `__back` leaf. */
+
+/* The card's paper thickness. Restrained by contract — a card, not a tile. */
+@con-card3d-thickness: .16rem;
+
+.con-card3d-outer {
+    /* CardMotionOuter: the caller moves THIS (x/y/scale/shadow/opacity). */
+    perspective: 45rem;
+    /* Flat by construction: it is the projector, never a projected body — so
+       the caller may safely fade it. */
+    transform-style: flat;
+    will-change: transform, opacity;
+}
+
+.con-card3d {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    will-change: transform;
+    /* The turn pivots about the card's own middle — a hand turns a card over
+       its centre line, never about an edge. */
+    transform-origin: 50% 50%;
+}
+
+.con-card3d__face,
+.con-card3d__back {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    /* REAL THICKNESS: the two sides sit half a thickness apart in Z, so the
+       body between them is a box and not a zero-volume sheet. */
+    transform: translateZ(@con-card3d-thickness / 2);
+}
+.con-card3d__back {
+    transform: rotateY(180deg) translateZ(@con-card3d-thickness / 2);
+}
+
+/* THE EDGE — the lit paper side, seen as the card passes through its own
+   plane. A plane through the card's centre line, rotated into the YZ plane:
+   when the body is flat it is perpendicular to the viewer (invisible), and
+   at the edge-on moment it is exactly what remains on screen. Without it a
+   turning card thins to a mathematical line and blinks out of existence for
+   a frame, which is what made the turn read as a swap.
+
+   Opacity is DRIVEN BY THE TURN (card3dInner.ts) rather than left to
+   perpendicular-plane culling: an explicit fade is deterministic across GPU
+   profiles and lets the edge brighten exactly at the crossing. */
+.con-card3d__edge {
+    position: absolute;
+    top: .5%;
+    bottom: .5%;
+    left: 50%;
+    width: @con-card3d-thickness;
+    margin-left: -(@con-card3d-thickness / 2);
+    transform: rotateY(90deg);
+    transform-origin: 50% 50%;
+    border-radius: .05rem;
+    opacity: 0;
+    pointer-events: none;
+    /* Paper seen edge-on: a bright lit rim, a dim core, a shadowed far side. */
+    background: linear-gradient(90deg,
+        rgba(232, 242, 252, 0.96) 0%,
+        rgba(176, 197, 219, 0.92) 38%,
+        rgba(96, 116, 138, 0.94) 78%,
+        rgba(52, 66, 82, 0.96) 100%);
+    box-shadow: 0 0 .22rem rgba(196, 226, 255, 0.35);
+}
+
+/* Performance mode keeps the edge (it is geometry + a box-shadow, both of
+   which `con-perf-lite` deliberately keeps) — only the glow softens. */
+.con-perf-lite .con-card3d__edge {
+    box-shadow: none;
+}

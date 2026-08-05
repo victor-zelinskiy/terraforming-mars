@@ -32,6 +32,7 @@ import {InputResponse, SelectInitialCardsResponse} from '@/common/inputs/InputRe
 import * as titles from '@/common/inputs/SelectInitialCards';
 import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overview/playerLabels';
 import {presentPlayerStatus, StatusPresentation} from '@/client/components/overview/playerStatusPresenter';
+import {resetStartTransition, startTransitionActive} from '@/client/console/startStageDirector';
 
 export type StartWizardStepId = 'corp' | 'prelude' | 'ceo' | 'projects';
 
@@ -97,6 +98,21 @@ export const consoleStartState = reactive({
    * release beat (the deployment settled) — never by a prompt gap.
    */
   hold: false,
+  /**
+   * THE DEPLOYMENT HAS BEGUN — latched the first time the SERVER actually
+   * hands this player their start sequence (the corporation play / a
+   * prelude / a Merger pick).
+   *
+   * A submitted setup is NOT a started game: in a multiplayer table the
+   * server holds everyone until the last player confirms, so between the
+   * commit and the real start sequence the viewer has NO prompt at all.
+   * Deriving the deployment from «the wizard input is gone» turned that gap
+   * into an EMPTY deployment — no queue, no hand dock, and (once minimized)
+   * no way back. The latch is the honest signal: until it flips, the player
+   * is WAITING on their own summary; once it flips it never flips back (the
+   * deployment's own prompt gaps must not undo it).
+   */
+  deploymentBegun: false,
 });
 
 /** Reset picks when the prompt identity (player / deal) changes. */
@@ -117,6 +133,8 @@ export function ensureStartWizard(ownerId: string, signature: string): void {
   // A FRESH deal identity is a fresh game start — a stale lifetime hold from
   // an earlier game (rematch) must never leak into this one's preparation.
   consoleStartState.hold = false;
+  consoleStartState.deploymentBegun = false;
+  resetStartTransition();
 }
 
 /** Shift one pile's physical drift (see dockDrift). */
@@ -133,9 +151,17 @@ export function clearDockDrift(id?: string): void {
   delete consoleStartState.dockDrift[id];
 }
 
-/** The scene is mid-motion / mid-commit — selection input must wait. */
+/**
+ * The scene is mid-motion / mid-commit — selection input must wait.
+ *
+ * A live STAGE TRANSITION counts: the director owns the whole press-to-stable
+ * -frame window, and input reopens only when it ends (its last phase). The
+ * lock is never FELT, because the physical response to the press starts in
+ * the same interaction frame — see `startStageDirector`.
+ */
 export function startFlowBusy(): boolean {
-  return consoleStartState.flow !== 'idle' && consoleStartState.flow !== 'deploying';
+  return startTransitionActive() ||
+    (consoleStartState.flow !== 'idle' && consoleStartState.flow !== 'deploying');
 }
 
 /** Keep the Game Start Workspace mounted across prompt gaps (the shell reads
@@ -152,6 +178,46 @@ export function releaseStartScene(): void {
 
 export function startSceneHeld(): boolean {
   return consoleStartState.hold;
+}
+
+/** The server handed this player their start sequence — see the latch. */
+export function markStartDeploymentBegun(): void {
+  consoleStartState.deploymentBegun = true;
+}
+
+export function startDeploymentBegun(): boolean {
+  return consoleStartState.deploymentBegun;
+}
+
+/**
+ * THE SETUP IS SENT AND THE TABLE IS STILL WAITING — the viewer has no
+ * wizard input (their picks are final) and the deployment has not begun.
+ * The one predicate both the scene (its waiting summary) and the shell (the
+ * minimized announce) read, so they can never disagree about it.
+ */
+/**
+ * The MINIMIZED start workspace's announcement copy — the one surface that
+ * legitimately stands with no live prompt (the table is still confirming),
+ * so `consoleTaskSummary` (which keys on a TaskKind) has nothing for it. Pure
+ * + key-based, exactly like that module: the shell never writes a label.
+ */
+export function startDeferredSummary(awaiting: boolean): {kickerKey: string, askKey: string, returnKey: string} {
+  return awaiting ?
+    {
+      kickerKey: 'Start of the game · waiting',
+      askKey: 'Waiting for the rest of the table',
+      returnKey: 'Return to the start of the game',
+    } :
+    {
+      kickerKey: 'Start of the game',
+      askKey: 'Continue the start of the game',
+      returnKey: 'Return to the start of the game',
+    };
+}
+
+export function startAwaitingOthers(view: PlayerViewModel): boolean {
+  return consoleStartState.hold && !consoleStartState.deploymentBegun &&
+    initialCardsInputOf(view.waitingFor) === undefined;
 }
 
 function rawTitle(t: string | Message | undefined): string {

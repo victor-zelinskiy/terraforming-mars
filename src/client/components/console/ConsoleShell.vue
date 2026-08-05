@@ -1191,7 +1191,7 @@ import {CardType} from '@/common/cards/CardType';
 import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi} from '@/client/console/consoleColoniesModel';
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
-import {startSceneHeld} from '@/client/console/consoleStartState';
+import {startAwaitingOthers, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
@@ -2549,7 +2549,13 @@ export default defineComponent({
     /** A task the player OPENED then DEFERRED (set aside) — the "return" state
      *  of the unified mandatory prompt (replaces the legacy amber chip). */
     mandatoryDeferredActive(): boolean {
-      return (this.hostTask !== undefined || this.shellTask !== undefined || this.startTask !== undefined) &&
+      // The START WORKSPACE has no live task while the table finishes its
+      // setup (the server holds everyone), and a minimized workspace with no
+      // task used to have NO announcement at all — the player could not get
+      // back to their own start. It SERVES throughout (the lifetime hold),
+      // and that is exactly the right signal here.
+      return (this.hostTask !== undefined || this.shellTask !== undefined ||
+        this.startTask !== undefined || this.startSceneServes) &&
         this.consoleState.task.deferred;
     },
     /**
@@ -4565,14 +4571,34 @@ export default defineComponent({
     },
     /** P15: the deferred-chip return verb, by what is actually pending. */
     deferReturnLabel(): string {
-      return this.activeTaskSummary?.returnKey ?? 'Return to the decision';
+      return this.startDeferSummary?.returnKey ?? this.activeTaskSummary?.returnKey ?? 'Return to the decision';
     },
     /** The deferred chip's classification chip ("ОПЛАТА" / "ДРАФТ"). */
     deferKicker(): string {
+      const start = this.startDeferSummary;
+      if (start !== undefined) {
+        return translateText(start.kickerKey);
+      }
       return translateText(this.activeTaskSummary?.kickerKey ?? 'Awaiting decision');
+    },
+    /**
+     * The MINIMIZED START's own copy — the start workspace is the one surface
+     * that legitimately stands with NO live prompt (the table is still
+     * confirming), so the shared task summary has nothing to say about it.
+     * The keys come from the start's own pure model (never a literal here).
+     */
+    startDeferSummary(): {kickerKey: string, askKey: string, returnKey: string} | undefined {
+      if (this.activeTaskSummary !== undefined || !this.startSceneServes) {
+        return undefined;
+      }
+      return startDeferredSummary(startAwaitingOthers(this.playerView));
     },
     /** The deferred chip's CONCRETE ask ("Сбросьте 1 карту") — the whole point. */
     deferAsk(): string {
+      const start = this.startDeferSummary;
+      if (start !== undefined) {
+        return translateText(start.askKey);
+      }
       const ask = this.activeTaskSummary?.ask;
       if (ask === undefined) {
         return '';

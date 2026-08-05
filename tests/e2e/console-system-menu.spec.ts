@@ -149,26 +149,35 @@ test.describe('the in-game system overlay + its settings console', () => {
     // ── «Диагностика» deep-links into the settings console ───────────
     await page.locator('.con-sysact__plate', {hasText: 'Диагностика'}).click();
     await page.waitForTimeout(500);
-    // The SAME chassis — a settings surface, opened on its minor category.
+    // The SAME chassis — a settings surface, opened on its minor category. The
+    // swap is INSTANT: exactly ONE `.con-sys` exists at any moment, never two
+    // cards crossfading over two stacked backdrops.
+    await expect(page.locator('.con-sys')).toHaveCount(1);
     await expect(page.locator('.con-sys--settings')).toHaveCount(1);
     await expect(page.locator('.con-sys__crumb-root')).toHaveText('Настройки');
-    await expect(page.locator('.con-sys__crumb-stage')).toHaveText('Диагностика');
+    await expect(page.locator('.con-set__tab', {hasText: 'Диагностика'})).toHaveClass(/con-set__tab--current/);
     // ONE readout, not a second hand-built panel: the connection group is here.
     await expect(page.locator('.con-set__group').filter({hasText: 'Связь'})).toHaveCount(1);
     await shoot(page, '03-diagnostics-deeplink');
     await key(page, 'Escape', 500);
+    await expect(page.locator('.con-sys')).toHaveCount(1);
     await expect(page.locator('.con-sys--menu')).toHaveCount(1);
 
     // ── «Настройки»: the in-game shape of the settings console ───────
     await page.locator('.con-sysact__plate', {hasText: 'Настройки'}).click();
     await page.waitForTimeout(500);
-    await expect(page.locator('.con-sys__crumb-stage')).toHaveText('Интерфейс');
+    await expect(page.locator('.con-set__tab', {hasText: 'Интерфейс'})).toHaveClass(/con-set__tab--current/);
     // In-game drops the shell switch (swapping shells mid-game is jarring)…
     await expect(page.locator('.con-set__row', {hasText: 'Оболочка'})).toHaveCount(0);
     // …and gains the per-game category with the private-score mask.
-    await page.locator('.con-set__cat', {hasText: 'Партия'}).click();
+    await page.locator('.con-set__tab', {hasText: 'Партия'}).click();
     await page.waitForTimeout(400);
     await expect(page.locator('.con-set__row', {hasText: 'Приватный счёт'})).toHaveCount(1);
+    // The HIGHLIGHT must follow the pane — exactly one tab is current, and it
+    // is this one. (A strip that marks a category the pane is not showing is
+    // worse than no strip at all.)
+    await expect(page.locator('.con-set__tab--current')).toHaveCount(1);
+    await expect(page.locator('.con-set__tab', {hasText: 'Партия'})).toHaveClass(/con-set__tab--current/);
     await shoot(page, '04-settings-in-game');
 
     // ── B walks back one level at a time, and the game is still there ─

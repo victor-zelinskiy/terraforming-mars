@@ -810,12 +810,13 @@ html.con-profile-tv {
            html.con-profile-tv .con-sys__card`), i.e. a selector that matches
            nothing. The settings card silently kept the ACTION-menu width and its
            row labels were squeezed out. Spell both classes instead. */
-        &--settings .con-sys__card { width: min(68rem, 96vw); }
+        &--settings .con-sys__card { width: min(60rem, 96vw); }
         &__emblem { width: 2.4rem; height: 2.4rem; font-size: 1.4rem; }
         &__crumb-root { font-size: var(--con-t-section); }
         &__crumb-stage { font-size: var(--con-t-secondary); }
         &__tag { font-size: var(--con-t-floor); b { font-size: var(--con-t-caption); } }
         &__hint { font-size: var(--con-t-caption); }
+        &__tabs { padding: .5rem 1.2rem; }
     }
     .con-sysact {
         &__plate { min-height: var(--con-hit-min); }
@@ -827,15 +828,15 @@ html.con-profile-tv {
         &__body { font-size: var(--con-t-body); }
         &__note { font-size: var(--con-t-secondary); }
     }
+    .con-set__tab { padding: .35rem .7rem; }
+    .con-set__tab-name { font-size: var(--con-t-secondary); }
+    /* NOT `&__tab--minor &__tab-name` inside a nested block — the second `&`
+       re-expands the whole parent into a selector that matches nothing. */
+    .con-set__tab--minor .con-set__tab-name { font-size: var(--con-t-caption); }
+    .con-set__tab-glyph { font-size: 1.1rem; }
+    .con-set__tab--minor .con-set__tab-glyph { font-size: .9rem; }
     .con-set {
-        height: 26rem;
-        &__rail { width: 15.5rem; }
-        &__cat { min-height: 2.9rem; }
-        &__cat-name { font-size: 1.05rem; }
-        &__cat--minor { min-height: 2.4rem; }
-        /* Same trap as `.con-sys--settings` above — spell the second class. */
-        &__cat--minor .con-set__cat-name { font-size: var(--con-t-caption); }
-        &__rail-sep { font-size: 0.7rem; }
+        height: 24rem;
         &__row { min-height: var(--con-hit-min); }
         &__row-label { font-size: var(--con-t-body); }
         &__stepper { width: 22rem; }

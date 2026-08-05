@@ -8,10 +8,11 @@ import * as path from 'node:path';
  * this proves about the rail / stepper / detail strip holds in both places.
  *
  * What it guards, beyond "it renders":
- *  · the CATEGORY rail exists and switching category swaps the row list (the
- *    fix for "the settings no longer fit the screen") — no category scrolls;
- *  · the technical categories are the MINOR ones, under the «ДОПОЛНИТЕЛЬНО»
- *    hairline — «мелкие незначительные категории»;
+ *  · the CATEGORY strip runs horizontally — the axis LB/RB moves along, with
+ *    the two chips bracketing it — and switching category swaps the row list
+ *    (the fix for "the settings no longer fit the screen"); no category scrolls;
+ *  · the technical categories are the MINOR ones, past the hairline seam —
+ *    «мелкие незначительные категории»;
  *  · the stepper steps a value BOTH ways and persists it, without the row
  *    resizing around a longer value (the layout-shift contract);
  *  · the DETAIL strip follows the cursor at a CONSTANT height — the property
@@ -29,7 +30,7 @@ async function shoot(page: import('@playwright/test').Page, name: string): Promi
 test.describe('the settings console — categories, stepper, detail strip', () => {
   test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1});
 
-  test('a category rail groups the settings; the stepper dials a value both ways', async ({page}) => {
+  test('a horizontal category strip groups the settings; the stepper dials a value both ways', async ({page}) => {
     test.setTimeout(120_000);
     // Deterministic: default layout.
     await page.addInitScript(() => localStorage.removeItem('tm_gp_button_layout'));
@@ -42,30 +43,39 @@ test.describe('the settings console — categories, stepper, detail strip', () =
     await page.waitForSelector('.con-sys--settings', {timeout: 10_000});
     await page.waitForTimeout(500);
 
-    // The crumb is continuous: a stable root plus the category as the tail.
+    // The head names the surface; WHERE you are is the tab strip's job.
     // (the caps are `text-transform`, so the assertions read the source text)
     await expect(page.locator('.con-sys__crumb-root')).toHaveText('Настройки');
-    await expect(page.locator('.con-sys__crumb-stage')).toHaveText('Интерфейс');
+    await expect(page.locator('.con-sys__crumb-stage')).toHaveCount(0);
 
-    // The rail carries the tuned categories loud and the technical ones minor.
-    const rail = page.locator('.con-set__cat');
-    await expect(rail.filter({hasText: 'Интерфейс'})).toHaveCount(1);
-    await expect(rail.filter({hasText: 'Управление'})).toHaveCount(1);
-    await expect(rail.filter({hasText: 'Графика'})).toHaveCount(1);
-    await expect(page.locator('.con-set__rail-sep')).toHaveText('Дополнительно');
-    await expect(page.locator('.con-set__cat--minor').filter({hasText: 'Диагностика'})).toHaveCount(1);
+    // The tabs run HORIZONTALLY — the axis LB/RB moves along — and the chips
+    // that drive them bracket the very strip they move through.
+    const tabs = page.locator('.con-set__tab');
+    await expect(tabs.filter({hasText: 'Интерфейс'})).toHaveCount(1);
+    await expect(tabs.filter({hasText: 'Управление'})).toHaveCount(1);
+    await expect(tabs.filter({hasText: 'Графика'})).toHaveCount(1);
+    await expect(page.locator('.con-sys__tabs .con-set__tab--minor').filter({hasText: 'Диагностика'})).toHaveCount(1);
+    await expect(page.locator('.con-sys__tabs-chip')).toHaveCount(2);
+    // ONE strip, one line: every tab shares the row's vertical CENTRE (not its
+    // top — the minor tabs are smaller and centred, so their top sits lower).
+    const centres = await tabs.evaluateAll((els) => [...new Set(els.map((el) => {
+      const r = el.getBoundingClientRect();
+      return Math.round(r.top + r.height / 2);
+    }))]);
+    expect(centres, 'the tabs are on one row').toHaveLength(1);
+    await expect(tabs.filter({hasText: 'Интерфейс'})).toHaveClass(/con-set__tab--current/);
     await shoot(page, '01-settings-interface');
 
-    // Every category fits WITHOUT scrolling — the whole point of the rail (the
+    // Every category fits WITHOUT scrolling — the whole point of the strip (the
     // flat list had outgrown the screen). No overflow ⇒ no progress rail.
     await expect(page.locator('.con-set__scroll .con-scroll-area__rail')).toHaveCount(0);
 
-    // Switching category swaps the pane and the crumb tail; the row this spec
-    // was written around (Раскладка кнопок) lives under «Управление».
+    // Switching category swaps the pane; the row this spec was written around
+    // (Раскладка кнопок) lives under «Управление».
     await expect(page.locator('.con-set__row', {hasText: 'Раскладка кнопок'})).toHaveCount(0);
-    await rail.filter({hasText: 'Управление'}).click();
+    await tabs.filter({hasText: 'Управление'}).click();
     await page.waitForTimeout(400);
-    await expect(page.locator('.con-sys__crumb-stage')).toHaveText('Управление');
+    await expect(tabs.filter({hasText: 'Управление'})).toHaveClass(/con-set__tab--current/);
     await expect(page.locator('.con-set__row', {hasText: 'Раскладка кнопок'})).toHaveCount(1);
     // The per-game mask is offered only in-game (context='game').
     await expect(page.locator('.con-set__row', {hasText: 'Приватный счёт'})).toHaveCount(0);
@@ -99,7 +109,7 @@ test.describe('the settings console — categories, stepper, detail strip', () =
 
     // The minor DIAGNOSTICS category is a read-only readout, not a settings list
     // — it is the ONE home of the readout the system menu used to duplicate.
-    await rail.filter({hasText: 'Диагностика'}).click();
+    await tabs.filter({hasText: 'Диагностика'}).click();
     await page.waitForTimeout(400);
     await expect(page.locator('.con-set__row')).toHaveCount(0);
     await expect(page.locator('.con-set__group').filter({hasText: 'Связь'})).toHaveCount(1);
@@ -127,7 +137,7 @@ test.describe('the settings console — categories, stepper, detail strip', () =
     expect(box!.y + box!.height).toBeLessThanOrEqual(1080);
 
     for (const category of ['Управление', 'Графика', 'Диагностика']) {
-      await page.locator('.con-set__cat', {hasText: category}).click();
+      await page.locator('.con-set__tab', {hasText: category}).click();
       await page.waitForTimeout(350);
       // Constant frame: switching category must not move or resize the card.
       const next = await card.boundingBox();

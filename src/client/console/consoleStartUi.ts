@@ -53,6 +53,12 @@ export type StartSceneCommandState = {
   launches: boolean,
   /** Every step complete → the summary A can submit. */
   wizardReady: boolean,
+  /**
+   * SENT — the setup is confirmed and the table is still finishing. Nothing
+   * is asked of this player, so the bar must not offer a verb it cannot
+   * honour: only «свернуть» (and the inspect that is always base behaviour).
+   */
+  awaiting: boolean,
   // ── ceremony ──
   /** The card-payment beat is the one live decision. */
   payBeat: boolean,
@@ -73,6 +79,15 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
     return [{control: 'confirm', label: 'Skip'}];
   }
   if (s.mode === 'wizard') {
+    if (s.awaiting) {
+      // The player's part is done — an A here would advertise a press that
+      // does nothing. B minimizes (the board announces the wait, and the
+      // deployment invites everyone back at the same moment).
+      return [
+        {control: 'secondary', label: 'Inspect'},
+        {control: 'back', label: 'Minimize'},
+      ];
+    }
     if (s.onSummary) {
       // The launch is the explicit A commit — RT deliberately does NOT
       // exist here (step navigation stops AT the summary; a second,
