@@ -1140,10 +1140,42 @@ mode-флип мгновенно меняет крошку/journey/`--ceremony`-
   `opacity`: в префазе бары скрыты `visibility` НА ПРЕДКЕ
   (`body.con-start-prep`) — opacity-only чтение даёт ложные срабатывания.
 
+**ит.8 (2026-08-05) — START EFFECT FLOW: интерактивный draw/reveal = ОДНА
+анимация розыгрыша с паузой.** Реджект: reveal вставал ПОВЕРХ пригашенной
+очереди (`--yield` opacity .22) — читался как модалка; карта успевала сесть
+в «Разыграно» ДО эффекта. Теперь:
+- **Промежуточная посадка у ИСТОЧНИКА**: `armPlayedHero` получил arm-scoped
+  `targetSelector` (в `awaitTargetRect` он ВЫИГРЫВАЕТ у зарегистрированного
+  измерителя дока; чистится в arm/finish/abort). Старт передаёт
+  `[data-embed-source-slot]` когда `drawExpected>0`; `claimStartFollowUp`
+  МОНТИРУЕТ колонку источника в то же нажатие (`embedSourceShown` + held) —
+  цель измерима до полёта. `heroRewardSourceSelectors` начинается с
+  `[data-embed-source-slot]` — наградный бит рождается из карты на месте
+  эффекта. Атомарный handoff = штатный `revealed`-флип героя (сцена снимает
+  held по биту 'landed').
+- **Очередь ЧЕСТНО УХОДИТ**: `--yield`-дим удалён; `runQueueRelease` /
+  `runQueueReturn` = descend-грамматика (`descendRecede` от центра слота
+  нажатой карты / `descendReturn` из той же точки; guardedDescend, reduced =
+  gsap.set). Релиз стартует с фазы 'lifting' (прокси уже владеет пикселями
+  — ноль поп-инов); reveal получает max-height:100% зоны.
+- **Оркестрация = ОДИН вотчер** `startEffectBeat`
+  ('idle|staged|depart|landed|failed' — деривация из claim+hero+seat) +
+  `embedActive`-false → `runStartEffectReturn` (возврат очереди → settle).
+  Существующий settle (колонка→док, reseat) стал «второй половиной» полёта
+  розыгрыша; гейт `embedSourceLanded` — карта, физически не вставшая в
+  колонку (abort), очищается БЕЗ призрачного полёта. Деградация «клейм без
+  reveal»: reconcile снимает клейм → тот же возврат → карта всё равно
+  доезжает в док.
+- Старый emerge (док→колонка) остался fallback'ом для клейма, представшего
+  без нашего hero (гард по `embedSourceShown`).
+
 Гварды: `consoleStartState.spec` (24), `ConsoleStartPlayedDock.spec` (6:
-+ art-identity), `startStatusPreview.spec`, e2e `console-play-landing-probe`
-(FHD+4K+reduced), `console-start-summary` (сводка = v-show: видимость, не
-count), `start-scene-profiles` (4 профиля + no-scroll), `mat-stage-probe`
-(стейджинг материализации: hold→полёт→хром, серия ~100ms). Диагностика
-героя — burst-пробой (`.con-played-hero__proxy` per-frame + сетевой лог):
-телепорт = proxy 0 кадров при RESP 200.
++ art-identity), `startStatusPreview.spec`, `consolePlayedHero.spec`, e2e
+`console-play-landing-probe` (FHD+4K+reduced), `console-start-summary`
+(сводка = v-show: видимость, не count), `start-scene-profiles` (4 профиля +
+no-scroll), `mat-stage-probe` (стейджинг материализации: hold→полёт→хром),
+`start-effect-flow-probe` (Pharmacy Union + SF Memorial + Biolab:
+per-frame свидетель — ghost=0 под reveal, standalone=0, источник стоит весь
+reveal, док не получает карту до завершения эффекта). Диагностика героя —
+burst-пробой (`.con-played-hero__proxy` per-frame + сетевой лог): телепорт
+= proxy 0 кадров при RESP 200.

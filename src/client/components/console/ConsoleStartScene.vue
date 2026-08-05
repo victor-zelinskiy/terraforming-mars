@@ -299,7 +299,7 @@
                 · the HAND DOCK (the shell's own footer bay, visible below the
                   band by construction) — the bought / drawn cards' landing. -->
           <div class="con-start__deploy">
-            <div class="con-start__queuecol" :class="{'con-start__queuecol--yield': embedActive}">
+            <div class="con-start__queuecol">
               <div class="con-start__queue" ref="queueEl">
                 <!-- ONE transition-group holds the whole reading order of the
                      start: КОРПОРАЦИЯ (order 1) → КУПЛЕННЫЕ ПРОЕКТЫ (the buy
@@ -534,8 +534,11 @@ import {
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {
-  armPlayedHero, isPlayedHeroActive, playedHeroState,
+  armPlayedHero, isPlayedHeroActive, playedHeroHolding, playedHeroState,
 } from '@/client/console/played/consolePlayedHero';
+import {
+  descendRecede, descendReturn, guardedDescend,
+} from '@/client/console/surfaceMotion/workspaceDescend';
 import ConsoleStartPlayedDock from '@/client/components/console/ConsoleStartPlayedDock.vue';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 import {
@@ -701,12 +704,20 @@ export default defineComponent({
        *  empty under the departing proxies — one visual owner on the way
        *  back too, never an open tile below a flying copy). */
       summaryStowing: new Set<CardName>(),
-      /** THE EMBED'S SOURCE COLUMN — the card that caused the draw, kept IN
-       *  the step: emerges physically from its dock stack when the reveal
-       *  presents, settles back when it releases. */
+      /** THE EMBED'S SOURCE COLUMN — the card that causes the draw, kept IN
+       *  the step. For a play pressed HERE the hero flight lands DIRECTLY in
+       *  this column (the effect-source seat — the card never reaches the
+       *  tableau first); a claim that presents without our hero falls back to
+       *  the physical emerge from the dock stack. */
       embedSourceShown: undefined as CardName | undefined,
       /** The column slot is held empty (its card is still in flight). */
       embedSourceArriving: false,
+      /** The source card PHYSICALLY stands in the column (the hero landed /
+       *  the emerge finished) — only then may the settle FLY it to the dock;
+       *  an aborted flow clears the column with no ghost flight. */
+      embedSourceLanded: false,
+      /** The queue scene has RELEASED (the draw-effect flow owns the room). */
+      queueReleased: false,
       /** GAME FRAME MATERIALIZATION: the summary layer has been SWAPPED OUT
        *  under the flying cards (the deployment stands in its place). */
       matSwap: false,
@@ -848,6 +859,38 @@ export default defineComponent({
      *  workspace's zone — the queue yields visual priority, never unmounts. */
     embedActive(): boolean {
       return this.outcome.host === 'start' && this.outcome.sourceCard !== '';
+    },
+    /**
+     * THE START EFFECT FLOW — one derived beat for the whole draw-effect
+     * episode, so the scene choreography advances from ONE watcher instead of
+     * scattered listeners racing each other. The physical timeline:
+     *
+     *   press  — claim armed, the source seat mounts held, hero armed at it;
+     *   depart — the hero proxy is UP and carrying (the queue scene releases
+     *            under it — the pressed slot is already blanked, zero pop);
+     *   landed — the hero's atomic handoff (real column card under the proxy);
+     *   (the shared reveal then presents in the freed zone; its own lifecycle
+     *    — deck flights, picks, intake — is the deck-draw scene's);
+     *   return — the claim released: the queue scene returns, THEN the source
+     *            card carries on into «Разыграно» (the settle flight);
+     *   failed — the submit died: restore everything, no ghost flights.
+     */
+    startEffectBeat(): 'idle' | 'staged' | 'depart' | 'landed' | 'failed' {
+      if (this.embedSourceShown === undefined) {
+        return 'idle';
+      }
+      if (playedHeroState.card !== this.embedSourceShown) {
+        return this.embedSourceLanded ? 'landed' : 'staged';
+      }
+      if (playedHeroState.phase === 'failed') {
+        return 'failed';
+      }
+      if (playedHeroState.revealed || this.embedSourceLanded) {
+        return 'landed';
+      }
+      // 'preparing' still measures/blanks the pressed slot — the release
+      // starts one phase later, when the proxy already owns the pixels.
+      return playedHeroHolding() && playedHeroState.phase !== 'preparing' ? 'depart' : 'staged';
     },
     /** Presence key of the live drawn-reveal event (claim lifecycle driver). */
     revealEventKey(): string {
@@ -1597,11 +1640,31 @@ export default defineComponent({
         void this.$nextTick(() => this.scrollFocusedIntoView());
       }
     },
+    /**
+     * THE START EFFECT FLOW's beat advance — the ONE watcher that drives the
+     * scene-side choreography of a draw-effect play (see startEffectBeat).
+     */
+    'startEffectBeat'(now: 'idle' | 'staged' | 'depart' | 'landed' | 'failed', was: string) {
+      if (now === 'depart' && was === 'staged') {
+        this.runQueueRelease();
+      }
+      if (now === 'landed' && !this.embedSourceLanded) {
+        // THE ATOMIC HANDOFF at the effect-source seat: the hero flipped
+        // `revealed` and paints the real column card under its proxy in this
+        // same flush — release the hold, remember the card is physical.
+        this.embedSourceArriving = false;
+        this.embedSourceLanded = true;
+      }
+      if (now === 'failed') {
+        void this.abortStartEffectFlow();
+      }
+    },
     /** The claim released (any exit — the take finished, the backstop, the
-     *  unmount): the source card settles back into its stack slot. */
+     *  unmount): the main scene RETURNS first, then the source card carries
+     *  on into «Разыграно» (the second half of its interrupted journey). */
     'embedActive'(now: boolean, was: boolean) {
       if (!now && was) {
-        void this.runEmbedSourceSettle();
+        void this.runStartEffectReturn();
       }
     },
     /** Withhold the bought project cards from the dock the instant the
@@ -3113,6 +3176,7 @@ export default defineComponent({
       const colSlot = root.querySelector<HTMLElement>('[data-embed-source-slot]');
       if (dockFace === null || colSlot === null) {
         this.embedSourceArriving = false; // degraded: the column simply shows
+        this.embedSourceLanded = true;
         return;
       }
       // Spawn the carry FIRST (the proxy clones the face's live pixels);
@@ -3124,13 +3188,96 @@ export default defineComponent({
           this.embedSourceArriving = false;
         });
       this.embedSourceArriving = false;
+      this.embedSourceLanded = true; // the card physically stands in the seat
     },
-    /** THE SOURCE SETTLE — the step is over: the source card returns along
-     *  the same physical path into the very stack slot it left; the shelf
-     *  face returns REACTIVELY the moment the proxy touches down. */
+    /**
+     * THE QUEUE RELEASE — the main scene lets go so the effect owns the room.
+     * Not a dim: the queue content genuinely leaves (recede grammar, origin at
+     * the departed card's slot — the whole scene breathes away from the press
+     * point), and the zone behind it is clean for the reveal. The pressed
+     * card's slot is already blanked under the hero proxy, so nothing pops.
+     */
+    runQueueRelease(): void {
+      if (this.queueReleased) {
+        return;
+      }
+      this.queueReleased = true;
+      const queue = this.$refs.queueEl as HTMLElement | undefined;
+      if (queue === undefined || queue === null || !queue.isConnected) {
+        return;
+      }
+      const name = this.embedSourceShown;
+      const esc = name !== undefined && typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
+      const slot = esc === undefined ? null :
+        queue.querySelector<HTMLElement>(`[data-queue-slot="${esc}"], [data-pay-card="${esc}"]`);
+      const r = slot?.getBoundingClientRect();
+      const point = r !== undefined && r.width > 0 ? {x: r.left + r.width / 2, y: r.top + r.height / 2} : undefined;
+      if (consoleReducedMotionActive()) {
+        gsap.set(queue, {autoAlpha: 0});
+        return;
+      }
+      guardedDescend(queue, 420, () => {}, (finish) => {
+        const tl = gsap.timeline({onComplete: finish});
+        descendRecede(tl, queue, point, motionMs(380) / 1000, 0);
+        return tl;
+      });
+    },
+    /** THE QUEUE RETURN — the reverse of the same phrase: the (already
+     *  reflowed) queue breathes back from the remembered origin, fully ready
+     *  before the source card's continuation flight measures anything. */
+    async runQueueReturn(): Promise<void> {
+      if (!this.queueReleased) {
+        return;
+      }
+      this.queueReleased = false;
+      const queue = this.$refs.queueEl as HTMLElement | undefined;
+      if (queue === undefined || queue === null || !queue.isConnected) {
+        return;
+      }
+      await this.$nextTick(); // the post-effect queue state settles first
+      if (consoleReducedMotionActive()) {
+        gsap.set(queue, {clearProps: 'transform,opacity,visibility'});
+        return;
+      }
+      await new Promise<void>((resolve) => {
+        guardedDescend(queue, 470, resolve, (finish) => {
+          const tl = gsap.timeline({onComplete: finish});
+          descendReturn(tl, queue, motionMs(430) / 1000, 0);
+          return tl;
+        });
+      });
+    },
+    /** THE RETURN HALF of the effect flow, in order: the main scene comes
+     *  back FULLY READY (queue standing, dock untouched), and only then the
+     *  source card continues its interrupted journey into «Разыграно». */
+    async runStartEffectReturn(): Promise<void> {
+      await this.runQueueReturn();
+      await this.runEmbedSourceSettle();
+    },
+    /** The submit died mid-flow: nothing landed anywhere — clear the held
+     *  seat with NO ghost flight, drop the orphaned claim, restore the queue. */
+    async abortStartEffectFlow(): Promise<void> {
+      this.embedSourceShown = undefined;
+      this.embedSourceArriving = false;
+      this.embedSourceLanded = false;
+      if (this.outcome.host === 'start') {
+        releaseWorkspaceOutcome();
+      }
+      await this.runQueueReturn();
+    },
+    /** THE SOURCE SETTLE — the effect is over: the source card carries on
+     *  from its seat into the dock's family slot (the second half of the
+     *  play's journey); the shelf face turns real the moment the proxy
+     *  touches down. A card that never PHYSICALLY reached the seat (an
+     *  aborted flow) just clears — a flight of a ghost is worse than none. */
     async runEmbedSourceSettle(): Promise<void> {
       const source = this.embedSourceShown;
       if (source === undefined) {
+        return;
+      }
+      if (!this.embedSourceLanded) {
+        this.embedSourceShown = undefined;
+        this.embedSourceArriving = false;
         return;
       }
       const root = this.$el as HTMLElement | undefined;
@@ -3149,6 +3296,7 @@ export default defineComponent({
       }
       this.embedSourceShown = undefined;
       this.embedSourceArriving = false;
+      this.embedSourceLanded = false;
     },
     /**
      * The play's FOLLOW-UP claim: a start card that DRAWS other cards hosts
@@ -3164,6 +3312,12 @@ export default defineComponent({
       }
       setWorkspaceOutcomeSlot('.con-start__embed');
       claimWorkspaceOutcome('start', name, ['draw', 'pick'], 0, expected);
+      // The EFFECT-SOURCE seat mounts IN THE SAME PRESS: the hero flight
+      // needs its intermediate landing slot measurable before it flies, and
+      // the column card stays held until the hero's atomic handoff.
+      this.embedSourceShown = name;
+      this.embedSourceArriving = true;
+      this.embedSourceLanded = false;
     },
     /**
      * The starting-cards DELIVERY (handDeliveryDirector). Fire on the payment
@@ -3212,6 +3366,11 @@ export default defineComponent({
         manualTableOpen: false,
         host: 'workspace',
         sourceSelector: `.con-start [data-queue-slot="${esc}"] :is(.card-container, .pcard), .con-start__ceremony [data-zoom-slot="${esc}"] :is(.card-container, .pcard)`,
+        // A play with an interactive DRAW pauses its journey at the effect-
+        // source seat: the hero lands in the embed column (claimStartFollowUp
+        // mounts it in this same press), presides over the reveal, and the
+        // settle carries it on into «Разыграно» when the effect completes.
+        targetSelector: (this.drawExpected.get(name) ?? 0) > 0 ? '[data-embed-source-slot]' : undefined,
         rewards: this.playRewards.get(name),
       });
     },

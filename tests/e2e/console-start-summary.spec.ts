@@ -99,7 +99,16 @@ async function walkToSummary(page: Page): Promise<void> {
   for (let i = 0; i < 8 && !(await summary.isVisible().catch(() => false)); i++) {
     // The pinned status rail's inner is HELD (opacity) while the deal
     // cinematic runs — its release is the exact "presses act now" gate.
-    await page.waitForSelector('.con-start__status-inner:not(.con-start__status-inner--held)', {timeout: 25_000});
+    // A press SKIPS the cinematic, so nudge while waiting: on a loaded /
+    // backgrounded context the deal's GSAP can stretch far past any budget.
+    for (let w = 0; w < 40 &&
+         (await page.locator('.con-start__status-inner:not(.con-start__status-inner--held)').count()) === 0; w++) {
+      if (w % 4 === 3) {
+        await page.keyboard.press('Enter');
+      }
+      await page.waitForTimeout(500);
+    }
+    await page.waitForSelector('.con-start__status-inner:not(.con-start__status-inner--held)', {timeout: 10_000});
     await page.waitForTimeout(400);
     const before = (await subject.innerText()).toLowerCase();
     if (/корпорац|директор/.test(before)) {

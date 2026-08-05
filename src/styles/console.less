@@ -14696,13 +14696,10 @@ body.con-start-barshold .con-status {
         display: flex;
         flex-direction: column;
     }
-    /* An embedded follow-up owns the column: the queue yields visual
-       priority IN PLACE (transform/opacity only) but stays mounted. */
-    &__queuecol--yield .con-start__queue {
-        opacity: .22;
-        transform: scale(.972);
-        transform-origin: 50% 42%;
-    }
+    /* An embedded follow-up owns the column: the queue scene RELEASES for
+       real (the recede/return grammar, GSAP-owned — runQueueRelease /
+       runQueueReturn in the scene). The old in-place dim read as a modal
+       floating over a ghosted interface — deliberately gone. */
     &__queue {
         /* ONE shared row: the unresolved cards AND the purchase group sit
            side by side (never stacked — the FHD height budget), centred in
@@ -14857,7 +14854,9 @@ body.con-start-barshold .con-status {
         > .con-reveal {
             flex: 1;
             min-width: 0;
-            max-height: min(31rem, 100%);
+            /* The zone IS the main scene while the effect runs (the queue has
+               genuinely released) — the reveal gets the whole room. */
+            max-height: 100%;
             align-self: center;
         }
     }

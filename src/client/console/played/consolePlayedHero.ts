@@ -267,13 +267,14 @@ registerAnimationHoldSupplier('played-hero', playedHeroHolding);
  * the tableau. `sourceSelector` overrides WHERE the card physically lifts
  * from (default: the play composer's card slot).
  */
-export function armPlayedHero(card: CardName, isEvent: boolean, opts: {manualTableOpen: boolean, sourceSelector?: string, rewards?: ReadonlyArray<ResourceTransferSpec>, host?: PlayedHeroHost}): void {
+export function armPlayedHero(card: CardName, isEvent: boolean, opts: {manualTableOpen: boolean, sourceSelector?: string, targetSelector?: string, rewards?: ReadonlyArray<ResourceTransferSpec>, host?: PlayedHeroHost}): void {
   clearTimers();
   claimed = false;
   followUpPending = false;
   pendingRewards = opts.rewards ?? [];
   rewardHoldSeeded = false;
   sourceSelector = opts.sourceSelector ?? COMPOSER_SOURCE_SELECTOR;
+  targetSelectorOverride = opts.targetSelector;
   playedHeroState.active = true;
   playedHeroState.phase = 'armed';
   playedHeroState.nonce++;
@@ -624,6 +625,7 @@ export function abortPlayedHero(): void {
   clearPanelRewardHold();
   pendingRewards = [];
   rewardHoldSeeded = false;
+  targetSelectorOverride = undefined;
   playedHeroState.proxy = undefined;
   playedHeroState.revealed = false;
   playedHeroState.tableOpen = false;
@@ -650,6 +652,7 @@ function finish(): void {
   clearPanelRewardHold(); // safety — the reward beat leaves it empty
   pendingRewards = [];
   rewardHoldSeeded = false;
+  targetSelectorOverride = undefined;
   playedHeroState.active = false;
   playedHeroState.phase = 'idle';
   playedHeroState.card = undefined;
@@ -665,6 +668,9 @@ function finish(): void {
 const COMPOSER_SOURCE_SELECTOR = '.con-composer--play [data-zoom-handoff="play-card"] :is(.card-container, .pcard)';
 /** WHERE the current transaction's card lifts from (set at arm). */
 let sourceSelector: string = COMPOSER_SOURCE_SELECTOR;
+/** An arm-scoped LANDING override (undefined → the registered tableau
+ *  anchor). The start scene points a draw-effect play at its source column. */
+let targetSelectorOverride: string | undefined;
 /** The shared "slot is empty" cascade rule (cardExitDirector.HOLD_CLASS). */
 const HOLD_CLASS = 'con-deal-hold';
 
@@ -713,6 +719,9 @@ function escapeName(name: string): string {
 function heroRewardSourceSelectors(card: string): Array<string> {
   const esc = escapeName(card);
   return [
+    // The start scene's EFFECT-SOURCE column — a draw-effect play lands (and
+    // resolves its rewards) THERE, while its tableau face is still away.
+    '[data-embed-source-slot]',
     // The receiving stage (the hand workspace's landing).
     '.con-recv [data-recv-front] .con-recv__face',
     '.con-recv [data-recv-front]',
@@ -731,6 +740,24 @@ function heroRewardSourceSelectors(card: string): Array<string> {
 
 async function awaitTargetRect(): Promise<HeroRect | undefined> {
   const deadline = Date.now() + TARGET_WAIT_BUDGET_MS;
+  // An ARM-SCOPED target override (the start scene's effect-source column):
+  // this transaction's card deliberately lands at an INTERMEDIATE position —
+  // the source seat of the effect it is about to run — instead of the
+  // registered tableau anchor. Poll until it is measurable (it mounts in the
+  // same press that armed us), first measurable match wins.
+  const override = targetSelectorOverride;
+  if (override !== undefined) {
+    while (playedHeroState.active && Date.now() < deadline) {
+      for (const el of document.querySelectorAll<HTMLElement>(override)) {
+        const r = el.getBoundingClientRect();
+        if (r.width >= 10 && r.height >= 10) {
+          return {x: r.left, y: r.top, w: r.width, h: r.height};
+        }
+      }
+      await frame();
+    }
+    return undefined;
+  }
   while (playedHeroState.active && targetMeasure === undefined && Date.now() < deadline) {
     await frame();
   }
