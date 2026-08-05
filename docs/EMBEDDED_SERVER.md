@@ -102,6 +102,15 @@ imports are dynamic/require so the cwd-relative module state resolves under the 
 `LOCAL_FS_DB=1` → `startGameServer({port: TM_EMBEDDED_PORT ?? 17325, host: bind})` → on
 `EADDRINUSE` retry with port 0 → `parentPort.postMessage({type:'ready', port, bind})`.
 
+⚠️ **The realtime gateway attaches only AFTER `listen()` resolves** (`GameServer.ts`), because
+that EADDRINUSE retry creates a *second* `http.Server`. Attaching before the bind left the
+process-wide `RealtimeServer` singleton pointing at the dead first server, and `attach()` then
+no-op'd for the live one — and a server with no `'upgrade'` listener does not refuse the
+handshake: **Node hands it to the normal request router**, which answers `404 Not found GET /ws`
+while the client silently reconnect-loops on legacy polling. `attach()` is now idempotent per
+server (not per process) so a second server can never be skipped. Guard:
+`tests/server/GameServer.spec.ts` "EADDRINUSE retry still gets the realtime gateway".
+
 **Bind address:** `0.0.0.0` when LAN visibility is on (default in host mode), else `127.0.0.1`.
 Changing visibility takes effect on next launch (v1; live rebind is listed under future work).
 Windows Firewall will prompt once on the first LAN bind — expected.

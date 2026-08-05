@@ -1,7 +1,9 @@
 import {expect} from 'chai';
 import * as fs from 'fs';
+import * as http from 'http';
 import * as os from 'os';
 import * as path from 'path';
+import {AddressInfo} from 'net';
 import WebSocket from 'ws';
 import {startGameServer, RunningGameServer} from '../../src/server/GameServer';
 import {LocalFilesystem} from '../../src/server/database/LocalFilesystem';
@@ -113,4 +115,45 @@ describe('GameServer', () => {
     const res = await fetch(url('api/games/joinable?name=nobody'));
     expect(res.status).to.eq(200);
   });
+
+  it('EADDRINUSE retry still gets the realtime gateway (embedded fallback path)', async function() {
+    // Occupy a port so the first start fails INSIDE listen() — exactly the
+    // embedded main's preferred-port collision (embeddedServerMain.ts).
+    const blocker = http.createServer();
+    await new Promise<void>((resolve) => blocker.listen(0, '127.0.0.1', resolve));
+    const busyPort = (blocker.address() as AddressInfo).port;
+
+    let code: string | undefined;
+    try {
+      await startGameServer({port: busyPort, host: '127.0.0.1', enableBotScheduler: false, collectDefaultMetrics: false});
+    } catch (err) {
+      code = (err as {code?: string}).code;
+    }
+    expect(code, 'a busy port must reject with EADDRINUSE').to.eq('EADDRINUSE');
+
+    // The fallback: retry on an ephemeral port. The gateway must live on the
+    // server that actually listens — otherwise Node routes the handshake to the
+    // request handler and answers 404, and realtime is silently dead.
+    const retry = await startGameServer({port: 0, host: '127.0.0.1', enableBotScheduler: false, collectDefaultMetrics: false});
+    try {
+      const ws = new WebSocket(`ws://127.0.0.1:${retry.port}/ws`);
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => reject(new Error('no WebSocket handshake within 1.8s')), 1800);
+        ws.on('open', () => {
+          clearTimeout(timer);
+          resolve();
+        });
+        ws.on('error', (err) => {
+          clearTimeout(timer);
+          reject(err);
+        });
+      });
+      ws.close();
+    } finally {
+      // stop() closes the process-wide realtime singleton (detaching EVERY
+      // server it holds, `running` included) — so this stays the last test here.
+      await retry.stop();
+      await new Promise<void>((resolve) => blocker.close(() => resolve()));
+    }
+  }).timeout(10_000); // two full startGameServer sequences (one of them failing)
 });

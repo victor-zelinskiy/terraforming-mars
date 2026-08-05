@@ -155,11 +155,9 @@ export async function startGameServer(options: GameServerOptions = {}): Promise<
 
   const server = createServer();
 
-  // Realtime: wire the game-subscription lookup then attach the WebSocket
-  // gateway to the HTTP(S) server. No-op if REALTIME_ENABLED disables it —
-  // gameplay is untouched.
+  // Realtime: wire the game-subscription lookup here; the WebSocket gateway
+  // itself is attached only once this server is actually LISTENING (below).
   RealtimeHub.getInstance().configureResolver(gameLoaderSubscriptionResolver);
-  RealtimeServer.getInstance().attach(server);
 
   // Server-authoritative MarsBot turn pacing: the bot's turn resolves on a
   // bounded, non-blocking server timer (players first see it become the active
@@ -193,6 +191,16 @@ export async function startGameServer(options: GameServerOptions = {}): Promise<
   const port = options.port ?? process.env.PORT ?? 8080;
   const host = options.host ?? process.env.HOST;
   await listen(server, port, host);
+
+  // Attach the gateway to the server that really listens, and only after the
+  // bind succeeded. Attaching earlier poisoned the process-wide RealtimeServer
+  // singleton whenever the bind failed: the embedded server's EADDRINUSE
+  // fallback (embeddedServerMain.ts) starts a SECOND server, whose attach() then
+  // no-op'd — leaving it without an 'upgrade' listener, so Node handed every
+  // /ws handshake to the normal router (404 'Not found GET /ws') and the client
+  // reconnect-looped forever on legacy polling. No-op if REALTIME_ENABLED
+  // disables it — gameplay is untouched.
+  RealtimeServer.getInstance().attach(server);
 
   const address = server.address();
   const boundPort = (address !== null && typeof address === 'object') ? address.port : Number(port);

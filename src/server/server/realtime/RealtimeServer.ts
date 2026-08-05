@@ -38,6 +38,8 @@ import {
 const HEARTBEAT_INTERVAL_MS = 30_000;
 const WS_UPGRADE_PATH = '/' + paths.WEBSOCKET;
 
+type UpgradeListener = (req: IncomingMessage, socket: Duplex, head: Buffer) => void;
+
 const metrics = {
   activeConnections: new prometheus.Gauge({
     name: 'realtime_active_connections',
@@ -104,6 +106,13 @@ export class RealtimeServer {
   private static instance: RealtimeServer | undefined;
 
   private wss: WebSocketServer | undefined;
+  /**
+   * The HTTP(S) servers we hold an 'upgrade' listener on, and that listener — so
+   * attach() is idempotent PER SERVER (not per process) and close() can detach
+   * cleanly. A guard on `wss` alone silently skipped a second, different server
+   * in the same process, which then answered 404 to every /ws handshake.
+   */
+  private readonly attached = new Map<HttpServer | HttpsServer, UpgradeListener>();
   private readonly connections = new Set<RealtimeConnection>();
   private heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   private nextConnectionId = 1;
@@ -127,8 +136,13 @@ export class RealtimeServer {
 
   /**
    * Wire the WebSocket gateway onto an existing HTTP(S) server. No-op (with a
-   * log line) when disabled. `options.enabled` overrides the env flag — used by
-   * tests to force-enable.
+   * log line) when disabled, and idempotent for a server already wired.
+   * `options.enabled` overrides the env flag — used by tests to force-enable.
+   *
+   * ⚠️ Call this only for a server that is (or will be) listening: an unattached
+   * server hands /ws handshakes to the normal request router, which 404s them
+   * (Node routes an upgrade request to the request handler when nothing listens
+   * for 'upgrade'), and the client then reconnect-loops on legacy polling.
    */
   public attach(server: HttpServer | HttpsServer, options: {enabled?: boolean} = {}): void {
     const enabled = options.enabled ?? realtimeEnabled();
@@ -136,12 +150,16 @@ export class RealtimeServer {
       console.log('[realtime] WebSocket gateway disabled via REALTIME_ENABLED (default is enabled) — legacy polling only');
       return;
     }
-    if (this.wss !== undefined) {
+    if (this.attached.has(server)) {
       return;
     }
-    this.wss = new WebSocketServer({noServer: true});
-    server.on('upgrade', (req, socket, head) => this.onUpgrade(req, socket as Duplex, head));
-    this.startHeartbeat();
+    if (this.wss === undefined) {
+      this.wss = new WebSocketServer({noServer: true});
+      this.startHeartbeat();
+    }
+    const onUpgrade: UpgradeListener = (req, socket, head) => this.onUpgrade(req, socket, head);
+    this.attached.set(server, onUpgrade);
+    server.on('upgrade', onUpgrade);
     console.log(`[realtime] WebSocket gateway enabled on ${WS_UPGRADE_PATH}`);
   }
 
@@ -151,6 +169,10 @@ export class RealtimeServer {
 
   /** Tear everything down (tests / graceful shutdown). */
   public close(): void {
+    for (const [server, onUpgrade] of this.attached) {
+      server.off('upgrade', onUpgrade);
+    }
+    this.attached.clear();
     if (this.heartbeatTimer !== undefined) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = undefined;
