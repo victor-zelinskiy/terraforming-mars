@@ -473,7 +473,7 @@ import {
   bonusDiscardStep, bonusZones, BonusDiscardStep, BonusZone,
 } from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {CardName} from '@/common/cards/CardName';
-import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
+import {handDockReachable, runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
 import {RevealMeta} from '@/client/components/notifications/notificationTypes';
 import {closeRevealViewer, revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {
@@ -561,6 +561,16 @@ export default defineComponent({
       takingIdx: undefined as number | undefined,
       collecting: false,
       /**
+       * IS THE HAND DOCK REACHABLE for this batch (sampled once per batch —
+       * see `refreshDockReachable`)? It picks the take grammar (per-card
+       * intake flights vs take-in-place), and it is sampled ONCE because it
+       * also drives what the strip RENDERS: re-deciding mid-batch would
+       * re-flow the row under the player's hand. A dock that disappears
+       * later degrades safely anyway — `runHandIntake` commits honestly with
+       * no flight when it finds no dock.
+       */
+      dockReachable: false,
+      /**
        * THE LAST CARD, TURNED BUT DELIBERATELY NOT COMMITTED.
        *
        * `currentRevealEvent()` is `!dismissed && untakenCount > 0` — so marking
@@ -647,16 +657,22 @@ export default defineComponent({
       return {income, bonus};
     },
     /**
-     * TAKE-IN-PLACE mode: an EMBEDDED batch of several cards. The hand dock
-     * is unreachable while the workspace is up, so per-card intake flights
-     * would aim at a covered target — instead A turns the focused card
-     * face-down IN ITS SLOT and the whole batch rides ONE stack intake at
-     * the end. Merged colony trades and discard-owing payouts keep their own
-     * grammar (they are never workspace-embedded; guarded anyway).
+     * TAKE-IN-PLACE mode — the FALLBACK grammar for a multi-card batch: A
+     * turns the focused card face-down IN ITS SLOT and the whole batch rides
+     * ONE stack intake at the end.
+     *
+     * It is chosen by the DESTINATION, never by the surface's identity: when
+     * the hand dock is genuinely reachable (`dockReachable` — mounted,
+     * painted, measurable) every take flies there the moment it is taken and
+     * the survivors re-flow behind it, which is the premium grammar and the
+     * one the standalone reveal has always used. Only a batch whose cards
+     * have nowhere to fly (dock unmounted / hidden / covered — a pre-game
+     * host, a fullscreen cinematic) takes in place. Merged colony trades and
+     * discard-owing payouts keep their own grammar (guarded anyway).
      */
     embeddedMulti(): boolean {
       const e = this.drawnEvent;
-      return this.embedded && e !== undefined && e.cards.length > 1 &&
+      return this.embedded && !this.dockReachable && e !== undefined && e.cards.length > 1 &&
         e.tradeSegments === undefined && this.bonusDiscard === undefined;
     },
     /**
@@ -1070,6 +1086,8 @@ export default defineComponent({
     },
     revealKey() {
       this.focusIdx = 0;
+      // A NEW BATCH decides its take grammar once, against the live dock.
+      this.refreshDockReachable();
       // A fresh reveal (result mode) restarts the deck→slot flight from the top.
       if (this.mode === 'result' && this.lastReveal !== undefined) {
         this.scheduleResultFlight();
@@ -1106,6 +1124,13 @@ export default defineComponent({
     },
   },
   mounted() {
+    // The take grammar is decided by WHERE THE CARDS CAN GO, so it is sampled
+    // the moment this batch has a surface (and again per batch — see the
+    // revealKey watcher). `nextTick` because an embedded host may still be
+    // unfolding: the dock is what we measure, but its own layer settles in
+    // the same flush the workspace opens in.
+    this.refreshDockReachable();
+    void this.$nextTick(() => this.refreshDockReachable());
     if (this.singleCardNeedsFullscreen) {
       this.openSingleCardFullscreen();
     }
@@ -1661,8 +1686,8 @@ export default defineComponent({
      *  flight lives on the app-level delivery layer, surviving the overlay
      *  closing on the last take. Reduced motion → the bare commit. */
     takeFocused(): void {
-      // EMBEDDED MULTI: the take happens IN THE SLOT (flip face-down + stay),
-      // never a per-card flight at a dock the workspace is covering.
+      // FALLBACK GRAMMAR: no reachable dock → the take happens IN THE SLOT
+      // (flip face-down + stay) and the batch flies as one stack at the end.
       if (this.embeddedMulti) {
         this.takeInPlace();
         return;
@@ -1672,6 +1697,10 @@ export default defineComponent({
       if (e === undefined || entry === undefined) {
         return;
       }
+      // EMBEDDED, several cards, dock reachable: this take is one of MANY —
+      // the stage may only detach on the LAST one, or the workspace would
+      // fold while the player still owes takes.
+      const lastOfBatch = this.drawnUntaken.length === 1;
       const commit = () => {
         if (this.drawnUntaken.length > 1) {
           markCardTaken(e.id, entry.index);
@@ -1702,8 +1731,15 @@ export default defineComponent({
         // where the proxies already stand over them, so releasing the frame
         // there overlaps the collapse with the flight instead of sequencing
         // them. Identical to the purchase handoff; one language for both.
-        onStaged: this.embedded ? () => this.$emit('result-detached') : undefined,
+        // Only on the LAST take: with a reachable dock every card flies as it
+        // is taken, and the stage has to stand until the batch is finished.
+        onStaged: this.embedded && lastOfBatch ? () => this.$emit('result-detached') : undefined,
       });
+    },
+    /** Sample the destination (see `handDockReachable`) — the ONE input that
+     *  picks this batch's take grammar. */
+    refreshDockReachable(): void {
+      this.dockReachable = handDockReachable();
     },
     /**
      * TAKE-IN-PLACE (embedded multi): A starts the in-slot press+turn on the

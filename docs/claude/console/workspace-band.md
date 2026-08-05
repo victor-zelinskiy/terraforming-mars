@@ -1169,13 +1169,33 @@ mode-флип мгновенно меняет крошку/journey/`--ceremony`-
 - Старый emerge (док→колонка) остался fallback'ом для клейма, представшего
   без нашего hero (гард по `embedSourceShown`).
 
+**ит.8b (2026-08-05) — ГРАММАТИКУ ВЗЯТИЯ ВЫБИРАЕТ НАЗНАЧЕНИЕ.** Раньше
+`embeddedMulti` (взятие переворотом в слоте + один стек-полёт в конце) был
+свойством ИДЕНТИЧНОСТИ поверхности («я embedded ⇒ док недостижим») — и в
+стартовом workspace, где док ВИДЕН, игрок получал fallback-грамматику.
+Теперь развилка — один предикат **`handDockReachable()`**
+(handDeliveryDirector: узел `.con-handdock` + `checkVisibility` +
+измеримый рект в пределах вьюпорта); `embeddedMulti = embedded && !dockReachable
+&& …`. Док достижим → КАЖДОЕ взятие сразу летит в руку (`runHandIntake` на
+одну карту), полоса перестраивается FLIP'ом `con-reveal-shift-move`, а
+`result-detached` эмитится ТОЛЬКО на последней карте (иначе workspace
+свернётся, пока игрок ещё берёт). Док недостижим (префейз старта,
+fullscreen-хост) → прежний переворот+стек. Предикат сэмплируется ОДИН раз
+на батч (mounted + вотчер `revealKey`): он же решает, что РИСУЕТ полоса —
+пере-решение на середине перестроило бы ряд под рукой игрока; исчезнувший
+позже док деградирует сам (`runHandIntake` без дока коммитит без полёта).
+⚠️ Видимость дока читать только `checkVisibility` — он `v-show`-слой,
+скрываемый ПРЕДКОМ.
+
 Гварды: `consoleStartState.spec` (24), `ConsoleStartPlayedDock.spec` (6:
-+ art-identity), `startStatusPreview.spec`, `consolePlayedHero.spec`, e2e
++ art-identity), `startStatusPreview.spec`, `consolePlayedHero.spec`,
+`handDockReachable.spec` (5), e2e
 `console-play-landing-probe` (FHD+4K+reduced), `console-start-summary`
 (сводка = v-show: видимость, не count), `start-scene-profiles` (4 профиля +
 no-scroll), `mat-stage-probe` (стейджинг материализации: hold→полёт→хром),
 `start-effect-flow-probe` (Pharmacy Union + SF Memorial + Biolab:
 per-frame свидетель — ghost=0 под reveal, standalone=0, источник стоит весь
-reveal, док не получает карту до завершения эффекта). Диагностика героя —
+reveal, док не получает карту до завершения эффекта, интейк-прокси ЛЕТИТ
+пока reveal ещё стоит, полоса ужимается после взятия). Диагностика героя —
 burst-пробой (`.con-played-hero__proxy` per-frame + сетевой лог): телепорт
 = proxy 0 кадров при RESP 200.

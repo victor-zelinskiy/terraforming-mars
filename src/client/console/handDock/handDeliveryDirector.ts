@@ -141,6 +141,39 @@ let gen = 0;
 export function isHandDeliveryActive(): boolean {
   return runs.active > 0;
 }
+
+/**
+ * IS THE HAND DOCK A REACHABLE DESTINATION RIGHT NOW — mounted, painted and
+ * measurable on screen?
+ *
+ * This is the ONE question a surface releasing cards has to ask before
+ * choosing its take grammar, and it is deliberately a property of the DOCK,
+ * never of the surface's own identity ("am I embedded?"). A batch whose cards
+ * can physically reach the dock lets EVERY take fly there the moment it is
+ * taken (the survivors re-flow behind it — the premium grammar); a batch that
+ * cannot (the dock unmounted, hidden, or covered off-screen — the pre-game
+ * setup, a fullscreen cinematic host) falls back to taking in place and
+ * carrying the whole batch at the end.
+ *
+ * `checkVisibility` is what makes this honest: the dock is a `v-show` layer
+ * with ancestors that hide it, so an existence check (or a raw opacity read)
+ * would call a dock nobody can see "reachable" and aim flights at nothing.
+ */
+export function handDockReachable(): boolean {
+  if (typeof document === 'undefined' || typeof window === 'undefined') {
+    return false;
+  }
+  const dock = document.querySelector<HTMLElement>('.con-handdock');
+  if (dock === null) {
+    return false;
+  }
+  if (typeof dock.checkVisibility === 'function' &&
+      !dock.checkVisibility({opacityProperty: true, visibilityProperty: true})) {
+    return false;
+  }
+  const r = dock.getBoundingClientRect();
+  return r.width > 40 && r.height > 20 && r.bottom > 0 && r.top < window.innerHeight;
+}
 // The intake plays OVER whatever surface released the cards (its proxies
 // land in the always-on-top footer dock) — a blocking hold would withhold
 // surfaces the player continues into. Like deck-draw: hold NOTIFICATIONS

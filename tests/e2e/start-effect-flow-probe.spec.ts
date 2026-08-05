@@ -68,20 +68,29 @@ async function focusedName(page: Page): Promise<string> {
     (document.querySelector('.con-start__status-name')?.textContent ?? '').trim());
 }
 
-/** Toggle the picks whose names match `targets` on the current wizard step. */
-async function pickByName(page: Page, targets: Array<string>, maxMoves = 8): Promise<number> {
-  let picked = 0;
-  for (let i = 0; i < maxMoves && picked < targets.length; i++) {
-    const name = await focusedName(page);
-    if (targets.some((t) => name.toLowerCase().includes(t.toLowerCase()))) {
+/**
+ * Toggle the picks whose names match `targets` on the current wizard step.
+ * The walk is name-driven and wraps around the row (a step deals its cards in
+ * server order, so the targets can sit anywhere), and it never presses A on a
+ * card it already picked — `seen` keys on the focused name.
+ */
+async function pickByName(page: Page, targets: Array<Array<string>>, maxMoves = 18): Promise<number> {
+  const hit = new Set<number>();
+  for (let i = 0; i < maxMoves && hit.size < targets.length; i++) {
+    const name = (await focusedName(page)).toLowerCase();
+    const idx = targets.findIndex((alts) => alts.some((t) => name.includes(t.toLowerCase())));
+    if (idx >= 0 && !hit.has(idx)) {
       await key(page, 'Enter', 550);
-      picked++;
+      hit.add(idx);
     }
-    if (picked < targets.length) {
+    if (hit.size < targets.length) {
       await key(page, 'ArrowRight', 300);
     }
   }
-  return picked;
+  if (hit.size < targets.length) {
+    console.warn(`[pick] missing ${targets.filter((_t, i) => !hit.has(i)).map((a) => a[0]).join(', ')}`);
+  }
+  return hit.size;
 }
 
 type Frame = {
@@ -117,10 +126,10 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
       await page.waitForTimeout(350);
       const subject = await activeSubject(page);
       if (subject.includes('корпорац')) {
-        expect(await pickByName(page, ['Pharmacy']), 'picked Pharmacy Union').toBe(1);
+        expect(await pickByName(page, [['Pharmacy']]), 'picked Pharmacy Union').toBe(1);
         await key(page, 'Period', 1500);
       } else if (subject.includes('пролог')) {
-        expect(await pickByName(page, ['Мемориал', 'SF Memorial', 'Биолаборатор', 'Biolab']), 'picked both draw preludes').toBe(2);
+        expect(await pickByName(page, [['Мемориал', 'SF Memorial'], ['Биолаборатор', 'Biolab']]), 'picked both draw preludes').toBe(2);
         await key(page, 'Period', 1500);
       } else if (subject.includes('проект')) {
         await key(page, 'Period', 1500); // buy nothing
@@ -150,6 +159,10 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
         el !== null && (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
       const tick = () => {
         const t = Math.round(performance.now() - t0);
+        // PER-TAKE INTAKE: with a reachable dock a take flies to the hand the
+        // moment it is taken — so intake proxies must exist WHILE the reveal
+        // still stands (the fallback grammar only flies after the last card).
+        const intakeUp = document.querySelectorAll('.con-handdelivery-layer .con-deal-proxy').length > 0;
         const queue = document.querySelector<HTMLElement>('.con-start__queue');
         const queueOp = queue === null ? -1 : parseFloat(getComputedStyle(queue).opacity);
         const reveal = document.querySelector('.con-reveal');
@@ -163,7 +176,8 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
         // embed source) — visible DURING the reveal = the premature dock.
         const away = document.querySelector<HTMLElement>('.con-start__played [data-played-key] .con-splayed__face');
         const dockFaceUp = vis(away);
-        state.frames.push({t, queueOp, revealUp, colUp, dockFaceUp});
+        state.frames.push({t, queueOp, revealUp, colUp, dockFaceUp, intakeUp,
+          strip: document.querySelectorAll('.con-reveal__strip .con-cards__slot').length});
         if (revealUp && queue !== null && queueOp > 0.1 && vis(queue)) {
           state.ghost++; // the old scene ghosting under the reveal
         }
@@ -224,7 +238,8 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
 
     // ── THE WITNESS VERDICT.
     const watch = await page.evaluate(() => (window as unknown as {
-      __flowWatch: {frames: Array<{t: number, queueOp: number, revealUp: boolean, colUp: boolean, dockFaceUp: boolean}>,
+      __flowWatch: {frames: Array<{t: number, queueOp: number, revealUp: boolean, colUp: boolean,
+        dockFaceUp: boolean, intakeUp: boolean, strip: number}>,
         ghost: number, standalone: number}}).__flowWatch);
     const frames = watch.frames;
     console.log(`[flow-watch] frames=${frames.length} ghost=${watch.ghost} standalone=${watch.standalone}`);
@@ -246,5 +261,15 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
     // 5 · Queue fully away at SOME point of each reveal window (the release
     //     genuinely completed — 0.0, not the old 0.22 dim).
     expect(revealFrames.some((f) => f.queueOp <= 0.05), 'queue never fully released').toBeTruthy();
+    // 6 · PER-TAKE INTAKE (the hand dock is reachable here): a take flies to
+    //     the dock WHILE the reveal is still standing — the fallback grammar
+    //     (turn in place, one stack at the end) would show zero such frames.
+    expect(revealFrames.some((f) => f.intakeUp), 'no intake flight ran while the reveal stood').toBeTruthy();
+    // 7 · …and the strip RE-FLOWS: the taken card leaves the row, so the slot
+    //     count shrinks inside a single reveal window (Biolab draws 3).
+    const stripCounts = revealFrames.map((f) => f.strip);
+    expect(Math.max(...stripCounts), 'a multi-card reveal stood').toBeGreaterThan(1);
+    expect(stripCounts.some((c, i) => i > 0 && c < stripCounts[i - 1] && c > 0),
+      'the strip never re-flowed after a take (cards stayed in their slots)').toBeTruthy();
   });
 });
