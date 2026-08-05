@@ -105,7 +105,7 @@
       <ConsoleResourcePanel :player="railPlayer" :epoch="playerView.runId"
                             :gameTags="playerView.game.tags"
                             :convertPlants="convertPlantsReady && railShowsSelf" :convertHeat="convertHeatReady && railShowsSelf"
-                            :boardVisible="consoleState.section === 'board' && !infoModeState.open && !startSceneServes"
+                            :boardVisible="consoleState.section === 'board' && !infoModeState.open && !startSceneVisible"
                             :own="railShowsSelf"
                             :vpHidden="railVpHidden"
                             :automa="railAutoma" />
@@ -562,7 +562,8 @@
          start-sequence ceremony) — the console-native replacement for
          both desktop start surfaces. B defers to the amber chip. -->
     <transition name="con-layer">
-      <ConsoleStartScene v-if="startSceneServes && !govScaleFocusState.holding && !consoleState.task.deferred"
+      <ConsoleStartScene v-if="startSceneMounted"
+                         :yielded="placementActive"
                          ref="startScene"
                          :playerView="playerView"
                          :waitingOnPlayers="waitingOnPlayers"
@@ -2296,6 +2297,27 @@ export default defineComponent({
      */
     startSceneServes(): boolean {
       return this.startTask !== undefined || startSceneHeld();
+    },
+    /**
+     * The workspace is on SCREEN. It SERVES through the whole start (above),
+     * but it steps aside for the one interaction it cannot host: a BOARD
+     * PLACEMENT. A start prelude that places a tile («Great Aquifer» — two
+     * oceans) leaves the server waiting for a space while the board — with
+     * its highlighted cells — is behind the workspace, and the workspace's
+     * own status honestly has nothing to say («ожидаем других игроков»). The
+     * board is an always-mounted host, so the yield IS the hand-off: the
+     * scene hides while the placement stands and comes back by itself when
+     * it resolves (collapse, never close — the lifetime hold is untouched,
+     * so nothing about the deployment is lost).
+     */
+    startSceneVisible(): boolean {
+      return this.startSceneMounted && !this.placementActive;
+    },
+    /** MOUNTED ≠ VISIBLE. The scene owns the start's lifetime (its hold, its
+     *  claims, its release beat), so it stays mounted through a yield and
+     *  only stops painting — see the scene's `yielded` prop. */
+    startSceneMounted(): boolean {
+      return this.startSceneServes && !govScaleFocusState.holding && !this.consoleState.task.deferred;
     },
     /** OPTIONAL draft re-pick — the fork shows a calm "waiting for the other
      *  players" banner instead of offering to change the pick (desktop parity). */

@@ -8540,6 +8540,18 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &--live {
         pointer-events: auto;
         cursor: pointer;
+        /* THE CLICK MUST LAND ON WHAT THE PLAYER SEES. The dock's ROOT has no
+           z-index by contract (so the pack can tuck under `.con-main`), which
+           means the board — inside `.con-main` (z1) — hit-tests ABOVE the
+           root: a click on the dock reached the BOARD, and the dock's own
+           `@click` / `:hover` affordances were dead code. The parts that
+           genuinely paint above the scene (the chassis plate + the card pack,
+           z11703/11705) take the pointer instead — the flights overhead live
+           in fixed, pointer-inert layers, so nothing else changes. */
+        .con-handdock__plate,
+        .con-handdock__pack {
+            pointer-events: auto;
+        }
     }
     /* The hand overlay (or a reveal flight) owns SOME cards ("in the
        player's hand"): those backs are held invisible the same frame their
@@ -14521,6 +14533,19 @@ html.console-mode .notifications-layer {
    so the old re-position rule is gone. */
 
 /* ═══ GAME START WORKSPACE (the Workspace North Star start rework) ═══ */
+
+/* YIELDED — the workspace steps aside for a BOARD PLACEMENT (a start prelude
+   that owes a tile: the board is the only surface that can serve it, and the
+   workspace's own status has nothing honest to say meanwhile). COLLAPSE, not
+   close: the component stays mounted (it owns the start's lifetime hold and
+   its release beat — unmounting it strands the deployment), it just stops
+   painting and stops taking presses. `visibility` keeps its box measurable,
+   so the flights that resume afterwards still find their anchors. */
+.con-start--yielded {
+    visibility: hidden;
+    pointer-events: none;
+}
+
 
 /* FULL-BLEED PREPARATION: before the deployment the player has NO game state
    — no identity, no resources, no reason for the game chrome. The STANDARD

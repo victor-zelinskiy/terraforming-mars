@@ -2,6 +2,7 @@ import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {WS_STAGE_BOX, WS_STAGE_HEAD, stageProbe} from './wsStageParity';
+import {bootToBoard, fillPicks, offeredCards, pickCards, press} from './consoleStart';
 
 /**
  * Console BLUE ACTION · the RECEIVE (plain draw) stage — the twin of the
@@ -123,58 +124,30 @@ for (const profile of PROFILES) {
       await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
       await page.waitForTimeout(3800);
 
-      // ── The start wizard (the shared drive). ────────────────────────────
-      const startScene = page.locator('.con-start__frame');
-      await page.waitForSelector('.con-start__frame .con-cards__slot', {timeout: 25_000});
-      const corpWithFirstAction = new Set(['Inventrix', 'Tharsis Republic', 'CrediCor', 'United Nations Mars Initiative', 'Helion']);
-      for (let step = 0; step < 12; step++) {
-        const focusedCorp = await page.locator('.con-start__frame .con-cards__slot[class*="--focused"]').first()
-          .getAttribute('data-zoom-slot').catch(() => null);
-        if (focusedCorp !== null && !corpWithFirstAction.has(focusedCorp)) {
-          break;
-        }
-        await key(page, 'ArrowRight', 240);
-      }
-      const targetSlot = page.locator('.con-cards__slot[data-zoom-slot="Development Center"]');
-      for (let tries = 0; tries < 4; tries++) {
-        await key(page, 'Enter', 1400);
-        const picked = await page.locator('.con-start__frame', {hasText: 'Выбрано 1'}).count() > 0;
-        if (picked || await targetSlot.count() > 0) {
-          break;
-        }
-      }
-      for (let hop = 0; hop < 5 && await targetSlot.count() === 0; hop++) {
-        const onSummary = await page.locator('.con-start__frame', {hasText: 'Сводка'}).count() > 0;
-        await key(page, onSummary ? 'Comma' : 'Period', 1400);
-      }
-      await targetSlot.waitFor({timeout: 8000});
-      for (let step = 0; step < 40; step++) {
-        const focused = await page.locator('.con-cards__slot[data-zoom-slot="Development Center"][class*="--focused"]').count() > 0;
-        if (focused) {
-          break;
-        }
-        await key(page, 'ArrowRight', 230);
-      }
-      const pickedTarget = page.locator('.con-cards__slot[data-zoom-slot="Development Center"][class*="--picked"]');
-      for (let tries = 0; tries < 3 && await pickedTarget.count() === 0; tries++) {
-        await key(page, 'Enter', 700);
-      }
-      expect(await pickedTarget.count(), 'Development Center must be picked').toBeGreaterThan(0);
-      await key(page, 'Period', 1400);
-      for (let i = 0; i < 10 && await startScene.count() > 0; i++) {
-        await key(page, i % 2 === 0 ? 'Enter' : 'Period', 1100);
-      }
-      await page.waitForSelector('.con-start__frame', {state: 'detached', timeout: 30_000});
-      const turnChip = page.locator('.con-status', {hasText: 'ДЕЙСТВИЕ'});
-      for (let i = 0; i < 12 && await turnChip.count() === 0; i++) {
-        if (await page.locator('.con-start').count() > 0) {
-          await key(page, 'Enter', 1300);
-        } else {
-          await page.waitForTimeout(1000);
-        }
-      }
-      await expect(turnChip).toHaveCount(1, {timeout: 20_000});
-      await page.waitForTimeout(4000);
+      // ── The pregame: the shared start driver puts Development Center in
+      //    hand. The walk is SETUP — this spec's subject is the blue action,
+      //    so a start-flow change is adapted in `consoleStart`, never here.
+      await bootToBoard(page, {
+        onStep: async (p, kind) => {
+          if (kind === 'corporation') {
+            // Any corporation that does NOT open a first-action composer —
+            // it would sit between the boot and the subject.
+            const corpFirst = ['Inventrix', 'Tharsis Republic', 'CrediCor', 'United Nations Mars Initiative', 'Helion'];
+            const offered = await offeredCards(p);
+            const calm = offered.find((c) => !corpFirst.includes(c));
+            if (calm !== undefined) {
+              await pickCards(p, [calm]);
+            } else {
+              await fillPicks(p, 1);
+            }
+          } else if (kind === 'project') {
+            const picked = await pickCards(p, ['Development Center']);
+            expect(picked, `Development Center must be dealt (offered: ${(await offeredCards(p)).join(', ')})`)
+              .toContain('Development Center');
+          }
+        },
+      });
+      await page.waitForTimeout(1500);
 
       // ── Play Development Center from the hand. ─────────────────────────────
       // Retried as a WHOLE: on a heavy 4K frame a press can be swallowed
@@ -403,7 +376,8 @@ for (const profile of PROFILES) {
       await page.waitForTimeout(1200);
       const dockCountAfter = await page.locator('.con-handdock').innerText().catch(() => '');
       expect(dockCountAfter, `dock ${dockCountBefore} → ${dockCountAfter}`).not.toEqual(dockCountBefore);
-      await expect(turnChip).toHaveCount(1, {timeout: 15_000});
+      // …and the turn is live again (the workspace released the player).
+      await expect(page.locator('.con-status', {hasText: 'ДЕЙСТВИЕ'})).toHaveCount(1, {timeout: 15_000});
       await shoot(page, `${profile.tag}-02-after-take`);
     });
   });

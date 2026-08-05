@@ -11,6 +11,7 @@
   <div class="con-start"
        :class="{
          'con-start--ceremony': mode === 'ceremony',
+         'con-start--yielded': yielded,
          'con-start--bounded': shellBounded,
          'con-ws': shellBounded,
          'con-start--matcut': matCut,
@@ -625,6 +626,15 @@ export default defineComponent({
     /** The live start prompt's task — undefined through the deployment's
      *  prompt gaps (the LIFETIME HOLD keeps the scene mounted then). */
     task: {type: Object as PropType<ConsoleTask | undefined>, default: undefined},
+    /**
+     * YIELDED — the workspace steps aside for an interaction it cannot host:
+     * a BOARD PLACEMENT (a start prelude that owes a tile). COLLAPSE, never
+     * close: the component stays mounted (its lifetime hold, its claims and
+     * its release watcher are what finish the start — unmounting it here
+     * would strand the whole deployment), it just stops painting and stops
+     * taking presses while the board serves.
+     */
+    yielded: {type: Boolean, default: false},
   },
   emits: ['submit', 'defer'],
   data() {
@@ -2861,6 +2871,9 @@ export default defineComponent({
     // wizard-step navigation, B(back) minimize. LB/RB are deliberately UNUSED
     // in the initial setup (they keep their in-game role only outside it).
     onPress(action: ConsoleAction): void {
+      if (this.yielded) {
+        return; // the board owns the screen (see the `yielded` prop)
+      }
       switch (action) {
       case 'primary':
         this.onPrimary();

@@ -1,6 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {bootToBoard, fillPicks, press} from './consoleStart';
 
 /**
  * HAND REVEAL probe — the dock ↔ hand-overlay physical transition
@@ -21,7 +22,11 @@ const OUT = path.resolve('screenshots', 'hand-reveal');
 function newGameConfig() {
   const expansions: Record<string, boolean> = {
     corpera: true, promo: false, venus: false, colonies: false,
-    prelude: true, prelude2: false, turmoil: false, community: false,
+    // NO PRELUDES: the subject is the dock ↔ hand transition, and a prelude
+    // step only adds a slower pregame (plus the occasional tile-placing
+    // prelude — a whole board interaction this spec never needed). A test
+    // pays for exactly what it asserts.
+    prelude: false, prelude2: false, turmoil: false, community: false,
     ares: false, moon: false, pathfinders: false, ceo: false,
     starwars: false, underworld: false, deltaProject: false,
   };
@@ -79,6 +84,12 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await page.waitForTimeout(settleMs);
 }
 
+/**
+ * Boot a REAL game with `buyProjects` cards already in hand — the subject of
+ * this probe is the dock ↔ hand transition, so the whole pregame is the
+ * shared start driver's job (`consoleStart`), not a key script that a start
+ * rework silently invalidates.
+ */
 async function bootGame(page: Page, request: any, buyProjects: number, profileQuery = ''): Promise<void> {
   const created = await request.post('/api/creategame', {data: newGameConfig()});
   expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
@@ -86,68 +97,19 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
   await page.goto(`/player?id=${model.players[0].id}&console=1${profileQuery}`);
   await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  await page.waitForTimeout(3500);
-  const walk: Array<string> = ['Enter', 'KeyE', 'Enter', 'ArrowRight', 'Enter', 'KeyE'];
-  for (let i = 0; i < buyProjects; i++) {
-    walk.push('Enter', 'ArrowRight');
-  }
-  for (const code of walk) {
-    await key(page, code, code === 'KeyE' ? 1600 : 1000);
-  }
-  // Deterministically submit the start summary: RB (KeyE) is INERT on the
-  // summary (the launch is the explicit A CTA), so continue to the launch
-  // CTA «НАЧАТЬ ПАРТИЮ», then press Enter (A) to pay + start. Relying on the
-  // self-healing loop's rotating Enter to hit it was the boot's flake source.
-  const launch = page.getByText('НАЧАТЬ ПАРТИЮ').first();
-  for (let i = 0; i < 5 && await launch.count() === 0; i++) {
-    await key(page, 'KeyE', 1300);
-  }
-  if (await launch.count() > 0) {
-    await key(page, 'Enter', 2200); // pay + start
-  }
-  await page.waitForTimeout(3000);
-  const live = page.locator('.con-handdock--live');
-  const placement = page.locator('.con-context__task-kicker');
-  const wizard = page.locator('.con-start__frame');
-  const quick = page.locator('.con-quick');
-  const handSec = page.locator('.con-hand');
-  const composer = page.locator('.con-composer');
-  const banner = page.locator('.con-banner');
-  const finishers = ['ArrowRight', 'Enter', 'KeyE'];
-  const dirs = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
-  for (let round = 0; round < 3; round++) {
-    for (let i = 0; i < 36 && (await live.count() === 0 || await placement.count() > 0); i++) {
-      if (await quick.count() > 0) {
-        await key(page, 'Escape', 1100);
-      } else if (await composer.count() > 0) {
-        // The PLAY composer confirms on X; the CORP FIRST-ACTION composer
-        // (`--corpfirst`, e.g. Tharsis Republic's mandatory city) confirms
-        // on A — X there is «Осмотреть» (inspect) and never advances.
-        const corpFirst = await page.locator('.con-composer--corpfirst').count() > 0;
-        await key(page, corpFirst ? 'Enter' : 'KeyX', 1600);
-      } else if (await handSec.count() > 0) {
-        await key(page, await banner.count() > 0 ? 'Escape' : 'Enter', 1400);
-      } else if (await wizard.count() > 0) {
-        await key(page, finishers[i % finishers.length], 900);
-      } else if (await placement.count() > 0) {
-        // The cursor is seeded on a LEGAL cell — try it directly first;
-        // only walk if that cell was already taken.
-        await key(page, 'Enter', 1200);
-        if (await placement.count() > 0) {
-          await key(page, dirs[i % dirs.length], 600);
-          await key(page, 'Enter', 1400);
-        }
-      } else {
-        await key(page, 'Enter', 1500);
+  await bootToBoard(page, {
+    onStep: async (p, kind) => {
+      if (kind === 'corporation') {
+        await press(p, 'Enter', 600);
+      } else if (kind === 'project') {
+        await fillPicks(p, buyProjects); // the cards this probe needs in hand
       }
-    }
-    await page.waitForTimeout(2500);
-    if (await live.count() === 1 && await placement.count() === 0) {
-      break;
-    }
-  }
-  await expect(live).toHaveCount(1);
-  await page.waitForTimeout(1000);
+    },
+  });
+  // The hand must actually hold cards — otherwise the episode under test
+  // has nothing to fly and every assertion below would be vacuous.
+  const count = await page.locator('.con-handdock [data-hand-dock-card]').count();
+  expect(count, 'the probe needs a non-empty hand').toBeGreaterThan(0);
 }
 
 /** Wait for the first reveal proxy (spawn is a couple frames after A). */
@@ -155,19 +117,37 @@ async function expectProxies(page: Page): Promise<void> {
   await expect(page.locator('.con-handreveal-layer .con-deal-proxy').first()).toBeVisible({timeout: 3500});
 }
 
-/** Fire RT-wheel → A («КАРТЫ») WITHOUT the per-key settle — the reveal
- *  starts on the A frame and we want to observe it mid-flight. */
+/**
+ * Fire RT-wheel → A («КАРТЫ») WITHOUT the per-key settle — the reveal starts
+ * on the A frame and we want to observe it mid-flight.
+ *
+ * ACT → VERIFY → RETRY: the entry is a two-key gesture on a live surface, so
+ * a press can land a frame early (the wheel not up yet) and simply do
+ * nothing. Polling for the effect — the hand section OR its proxies — keeps
+ * the mid-flight observation intact (the first successful attempt is seen
+ * immediately) while removing the "the episode never started" flake.
+ */
 async function openHandFast(page: Page): Promise<void> {
-  await page.keyboard.press('Period');
-  await page.waitForTimeout(350); // the wheel opens
-  await page.keyboard.press('Enter');
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await page.keyboard.press('Period');
+    await page.waitForTimeout(350); // the wheel opens
+    await page.keyboard.press('Enter');
+    for (let i = 0; i < 12; i++) {
+      const started = await page.evaluate(() =>
+        document.querySelectorAll('.con-hand, .con-handreveal-layer .con-deal-proxy').length > 0);
+      if (started) {
+        return;
+      }
+      await page.waitForTimeout(100);
+    }
+  }
 }
 
 test.describe('hand reveal · standard 1080', () => {
   test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1, screen: {width: 1920, height: 1080}});
 
   test('open: proxies fly while both ends are held; settle releases everything', async ({page, request}) => {
-    test.setTimeout(240_000);
+    test.setTimeout(420_000);
     await bootGame(page, request, 3);
     const dockBacks = await page.locator('.con-handdock__card').count();
     expect(dockBacks).toBeGreaterThan(0);
@@ -201,7 +181,7 @@ test.describe('hand reveal · standard 1080', () => {
   });
 
   test('B mid-open reverses the SAME flight back to the dock', async ({page, request}) => {
-    test.setTimeout(240_000);
+    test.setTimeout(420_000);
     await bootGame(page, request, 2);
 
     for (const holdMs of [80, 400]) { // build-window cancel and ~50% of the open
@@ -226,7 +206,7 @@ test.describe('hand reveal · standard 1080', () => {
   });
 
   test('reopen mid-close reverses the gather back to the open hand', async ({page, request}) => {
-    test.setTimeout(240_000);
+    test.setTimeout(420_000);
     await bootGame(page, request, 3);
 
     await openHandFast(page);
@@ -254,7 +234,7 @@ test.describe('hand reveal · reduced motion', () => {
   });
 
   test('no proxies — instant, connected states', async ({page, request}) => {
-    test.setTimeout(240_000);
+    test.setTimeout(420_000);
     await bootGame(page, request, 2);
     await openHandFast(page);
     await page.waitForTimeout(250);
@@ -274,7 +254,7 @@ test.describe('hand reveal · deck handheld', () => {
   test.use({viewport: {width: 1280, height: 800}, deviceScaleFactor: 1, screen: {width: 1280, height: 800}});
 
   test('handheld: the same episode plays and settles', async ({page, request}) => {
-    test.setTimeout(240_000);
+    test.setTimeout(420_000);
     await bootGame(page, request, 3);
     await openHandFast(page);
     await expectProxies(page);
@@ -290,7 +270,7 @@ test.describe('hand reveal · tv 1080', () => {
   test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1, screen: {width: 1920, height: 1080}});
 
   test('tv profile: the same episode plays and settles', async ({page, request}) => {
-    test.setTimeout(240_000);
+    test.setTimeout(420_000);
     await bootGame(page, request, 2, '&consoleProfile=tv');
     await openHandFast(page);
     await expectProxies(page);

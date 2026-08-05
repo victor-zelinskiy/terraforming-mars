@@ -1,6 +1,10 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {
+  fillPicks, offeredCards, pickCards, playQueueCard, playQueueUntil, press, queueCards,
+  submitSummary, walkToSummary,
+} from './consoleStart';
 
 /**
  * The DECK-DRAW hero scene: cards physically come off the top-bar project
@@ -89,63 +93,51 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 /**
- * Walk the start wizard, making sure «Космическое агенство» is one of the two
- * chosen preludes. The prelude step is a multi-pick: A toggles the focused
- * card, RT continues. Corp / project steps take their own presses.
+ * The SETUP: reach the deployment with «Acquired Space Agency» among the two
+ * chosen preludes. The walk itself belongs to the shared start driver
+ * (`consoleStart`) — this spec only says WHAT it needs picked, so a change in
+ * the start flow is adapted in one place instead of here.
  */
-async function walkWizardPickingSearchPrelude(page: Page): Promise<void> {
-  await page.waitForSelector('.con-start__frame', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  const summary = page.locator('.con-start__summary');
-  const activeStep = page.locator('.con-start__step--active');
+const SEARCH_PRELUDE = 'Acquired Space Agency';
 
-  for (let i = 0; i < 10 && await summary.count() === 0; i++) {
-    await page.waitForSelector('.con-cards__verdictbar', {timeout: 25_000});
-    await page.waitForTimeout(400);
-    const step = (await activeStep.innerText()).toLowerCase();
-
-    if (/пролог/.test(step)) {
-      // Find the search prelude in the strip and toggle it, then one more.
-      for (let n = 0; n < 6; n++) {
-        const focused = page.locator('.con-cards__slot--focused');
-        const text = (await focused.innerText()).toLowerCase();
-        if (/агенств/.test(text)) {
-          break;
-        }
-        await key(page, 'ArrowRight', 400);
+async function setUpSearchPrelude(page: Page): Promise<void> {
+  await walkToSummary(page, {
+    onStep: async (p, kind) => {
+      if (kind === 'corporation') {
+        await press(p, 'Enter', 600);
+        return;
       }
-      await key(page, 'Enter', 500); // pick the search prelude
-      await key(page, 'ArrowRight', 400);
-      await key(page, 'Enter', 500); // pick any second prelude
-      await key(page, 'KeyE', 1200); // RB → next step
-      continue;
-    }
-    await key(page, /корпорац|директор/.test(step) ? 'Enter' : 'KeyE', 1200);
-  }
-
-  await expect(summary).toHaveCount(1);
-  await page.waitForTimeout(500);
-  await key(page, 'Enter', 700); // arms the zero-projects warning
-  await key(page, 'Enter', 1800); // submits → the PRELUDE PHASE opens
+      if (kind === 'prelude') {
+        // The pool is PINNED by the config, so the search prelude is always
+        // dealt. It is picked FIRST (the step's limit is two — filling first
+        // would spend the limit on the harmless ones and silently drop the
+        // subject of this whole spec), then the second slot is filled.
+        const picked = await pickCards(p, [SEARCH_PRELUDE]);
+        expect(picked, `the search prelude must be dealt (offered: ${(await offeredCards(p)).join(', ')})`)
+          .toContain(SEARCH_PRELUDE);
+        await fillPicks(p, 2);
+      }
+      // The project step buys nothing — the search prelude is the subject.
+    },
+  });
+  await submitSummary(page);
 }
 
 /**
- * The prelude phase («Выберите карту Прологов, чтобы разыграть её»): each
- * prelude is played explicitly with A. Walk focus onto the search prelude and
- * play it — that press is what fires the deck-draw scene.
+ * The PRELUDE PHASE: focus «Космическое агентство» in the deployment queue
+ * and play it — that press is what fires the deck-draw scene. (The corp is
+ * played first if the queue offers it, exactly as a player would.)
  */
 async function playSearchPrelude(page: Page): Promise<void> {
-  await page.waitForSelector('.con-start__frame', {timeout: 30_000});
-  const focused = page.locator('.con-start__prelude--focused');
-  await expect(focused).toHaveCount(1, {timeout: 20_000});
-  for (let n = 0; n < 6; n++) {
-    if (/агенств/i.test(await focused.innerText())) {
-      break;
-    }
-    await key(page, 'ArrowRight', 450);
-  }
-  expect(await focused.innerText(), 'the search prelude should be focusable').toMatch(/агенств/i);
-  await page.keyboard.press('Enter'); // no settle — the scene starts at once
+  await page.waitForSelector('.con-start__queue [data-queue-slot]', {timeout: 30_000});
+  // The rest of the queue (the corporation, the filler prelude) is played
+  // first — the scene under test is THIS prelude's, so it goes last and the
+  // press that fires it is ours (and is verified to have landed: a press
+  // during a commit is absorbed by design).
+  const ready = await playQueueUntil(page, SEARCH_PRELUDE);
+  expect(ready, `the search prelude must reach the queue (queue: ${(await queueCards(page)).join(', ')})`).toBeTruthy();
+  const played = await playQueueCard(page, SEARCH_PRELUDE);
+  expect(played, 'the search prelude must actually play').toBeTruthy();
 }
 
 test.describe('console · deck-draw hero scene', () => {
@@ -160,7 +152,7 @@ test.describe('console · deck-draw hero scene', () => {
     const playerId = model.players[0].id;
 
     await page.goto(`/player?id=${playerId}&console=1`);
-    await walkWizardPickingSearchPrelude(page);
+    await setUpSearchPrelude(page);
     await playSearchPrelude(page);
 
     // 1 · The scene stage exists and the modal is WITHHELD while it plays.

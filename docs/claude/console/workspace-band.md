@@ -1187,6 +1187,42 @@ fullscreen-хост) → прежний переворот+стек. Преди�
 ⚠️ Видимость дока читать только `checkVisibility` — он `v-show`-слой,
 скрываемый ПРЕДКОМ.
 
+**ит.8c (2026-08-05) — WORKSPACE УСТУПАЕТ ДОСКЕ + ОБЩИЙ E2E-ДРАЙВЕР.**
+1. **Баг, найденный адаптацией тестов:** стартовый пролог с размещением
+   тайла (Great Aquifer) оставлял workspace ПОВЕРХ подсвеченной доски,
+   статус честно писал «ожидаем других игроков», а сервер ждал клетку —
+   выход был только через ручное «свернуть». Теперь `ConsoleShell` различает
+   **`startSceneMounted`** (владение жизненным циклом — hold, клеймы,
+   release-бит) и **`startSceneVisible`**; при `placementActive` сцена
+   получает проп **`yielded`**: класс `.con-start--yielded`
+   (`visibility:hidden; pointer-events:none` — бокс остаётся измеримым для
+   последующих полётов) + ранний выход в `onPress`. **Никогда `v-if`** —
+   размонтированная сцена не отпустит собственный hold и деплоймент
+   застрянет навсегда (проверено). Возврат — автоматический, по завершении
+   размещения. Гвард: e2e `console-start-placement`.
+2. **Второй баг оттуда же — КЛИК ПО ХЭНД-ДОКУ был мёртв.** Корень
+   `.con-handdock` намеренно БЕЗ z-index (чтобы пачка могла нырять под
+   `.con-main`), поэтому доска (внутри `.con-main`, z1) хит-тестится ВЫШЕ
+   корня, а видимые части (плита/пачка, z11703/11705) стояли
+   `pointer-events:none` → `@click`/`:hover` дока никогда не срабатывали
+   (единственный вход — RT-колесо). Фикс: в `--live` возвращаем
+   `pointer-events:auto` плите и пачке (полёты над ними живут в fixed
+   pointer-inert слоях, доска в зоне пачки не задета). Побочно чинится
+   «переоткрыть руку кликом в середине сбора».
+3. **`tests/e2e/consoleStart.ts` — ОДИН драйвер пре-гейма для всех спеков**
+   (`walkToSummary`/`submitSummary`/`playStartQueue`/`waitForBoardHome`/
+   `bootToBoard` + примитивы `focusedCard`/`pickCards`/`fillPicks`/
+   `playQueueUntil`/`playQueueCard`/`payStartPurchase`). Правила, добытые
+   болью: идентичность карты — **английский `CardName` из data-атрибута**
+   (лейблы локализованы: «Acquired Space Agency» = «Космическое агенство»);
+   шаг — subject крошки, не класс списка; сводка — по ВИДИМОСТИ; **нажатие
+   может быть ПОГЛОЩЕНО by design** (гейт коммита), поэтому каждое действие
+   — «act → verify → retry», а не «нажал = сделал»; при лимите пиков
+   сначала выбирать НУЖНУЮ карту, потом добор; блок «ОПЛАТИТЬ» — тоже
+   элемент очереди; **следовать фокусу поверхности**, а не навязывать свой.
+   Переведены `console-deck-draw`, `hand-reveal-probe`,
+   `console-blue-action-receive`.
+
 Гварды: `consoleStartState.spec` (24), `ConsoleStartPlayedDock.spec` (6:
 + art-identity), `startStatusPreview.spec`, `consolePlayedHero.spec`,
 `handDockReachable.spec` (5), e2e
