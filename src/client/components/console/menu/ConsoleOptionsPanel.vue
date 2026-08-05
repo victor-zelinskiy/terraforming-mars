@@ -104,6 +104,7 @@ import {
 } from '@/client/components/motion/motionTokens';
 import {applyGsapTickerFps} from '@/client/components/motion/gsapMotionBridge';
 import {consolePerfState, setConsolePerfLite} from '@/client/console/consolePerfMode';
+import {desktopBridge, DesktopAppModeInfo, DesktopLanState} from '@/client/components/desktop/desktopUpdateState';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 
 // English i18n keys ('Standard' / 'Auto' already exist in console.json — reused).
@@ -121,7 +122,7 @@ const MOTION_FPS_LABELS: Record<'auto' | '30' | '60', string> = {
 const MOTION_FPS_CYCLE: ReadonlyArray<MotionFpsCap> = ['auto', 60, 30];
 
 type OptionRowId =
-  'interface' | 'display' | 'controller' | 'buttons' | 'wheelControl' | 'motionSpeed' | 'motionRate' | 'perfMode' | 'privateScore';
+  'interface' | 'gameServer' | 'lanVisible' | 'display' | 'controller' | 'buttons' | 'wheelControl' | 'motionSpeed' | 'motionRate' | 'perfMode' | 'privateScore';
 type OptionRow = {id: OptionRowId, label: string, sub: string, glyph: string, value: string};
 
 export default defineComponent({
@@ -144,6 +145,11 @@ export default defineComponent({
       motionSpeed: motionSpeedPreset() as MotionSpeedPreset,
       motionRate: motionFpsCap() as MotionFpsCap,
       cursor: 0,
+      // Host-as-server (desktop shell only; undefined on the web hides the rows).
+      // Loaded async on mount; toggles persist for the NEXT launch and the value
+      // shows ⟳ while the persisted choice differs from this session's reality.
+      serverInfo: undefined as DesktopAppModeInfo | undefined,
+      lanInfo: undefined as DesktopLanState | undefined,
     };
   },
   computed: {
@@ -161,6 +167,27 @@ export default defineComponent({
           glyph: '◫',
           value: translateText(this.consoleModeState.enabled ? 'Console' : 'Desktop'),
         });
+      }
+      // Host-as-server (docs/EMBEDDED_SERVER.md) — desktop shell, main menu only.
+      // The mode / bind are launch-time properties, so a changed value carries ⟳
+      // until the app is restarted (the sub says so; subs stay value-independent).
+      if (this.context !== 'game' && this.serverInfo !== undefined) {
+        rows.push({
+          id: 'gameServer',
+          label: 'Game server',
+          sub: 'Local on this device or the online server; restart applies',
+          glyph: '🌐',
+          value: this.gameServerValue,
+        });
+        if (this.serverInfo.requested === 'host' && this.lanInfo !== undefined) {
+          rows.push({
+            id: 'lanVisible',
+            label: 'LAN visibility',
+            sub: 'Show hosted games on your local network; restart applies',
+            glyph: '📡',
+            value: this.lanVisibleValue,
+          });
+        }
       }
       rows.push(
         {
@@ -265,6 +292,24 @@ export default defineComponent({
         `${value} (${translateText(GLYPHSET_LABELS[resolveGlyphSetId()])})` :
         value;
     },
+    gameServerValue(): string {
+      const info = this.serverInfo;
+      if (info === undefined) {
+        return '';
+      }
+      const base = translateText(info.requested === 'host' ? 'Local' : 'Remote server');
+      // ⟳ = the persisted choice differs from what THIS session runs.
+      return info.requested === info.effective ? base : `${base} ⟳`;
+    },
+    lanVisibleValue(): string {
+      const lan = this.lanInfo;
+      if (lan === undefined) {
+        return '';
+      }
+      const base = translateText(lan.visible ? 'On' : 'Off');
+      const active = lan.active ?? lan.visible;
+      return lan.visible === active ? base : `${base} ⟳`;
+    },
     displayValue(): string {
       const override = currentProfileOverride();
       const value = translateText(PROFILE_LABELS[override] ?? override);
@@ -278,6 +323,23 @@ export default defineComponent({
       // reactive; viewport values are read fresh each time).
       return consoleDisplayDiagnostics();
     },
+  },
+  mounted() {
+    // Host-as-server rows load async from the desktop bridge; absent bridge
+    // (web build / older shell) leaves them undefined and the rows hidden.
+    const bridge = desktopBridge();
+    if (this.context !== 'game' && bridge?.getAppMode !== undefined) {
+      void bridge.getAppMode().then((info) => {
+        if (info !== undefined) {
+          this.serverInfo = info;
+        }
+      }).catch(() => {});
+      void bridge.getLanState?.().then((lan) => {
+        if (lan !== undefined) {
+          this.lanInfo = lan;
+        }
+      }).catch(() => {});
+    }
   },
   methods: {
     /** Host-routed pad intents. Returns true when consumed. */
@@ -305,6 +367,26 @@ export default defineComponent({
         // auto-enable heuristics honour; picking Console stores '1'.
         setConsoleMode(!this.consoleModeState.enabled);
         break;
+      case 'gameServer': {
+        // Toggle host ↔ remote; persists for the NEXT launch (the embedded
+        // server + endpoint injection are launch-time), value shows ⟳ meanwhile.
+        const info = this.serverInfo;
+        if (info !== undefined) {
+          const next = info.requested === 'host' ? 'remote' : 'host';
+          info.requested = next;
+          void desktopBridge()?.setAppMode?.(next);
+        }
+        break;
+      }
+      case 'lanVisible': {
+        // Toggle the LAN bind + mDNS advertising; applies on the next launch.
+        const lan = this.lanInfo;
+        if (lan !== undefined) {
+          lan.visible = !lan.visible;
+          void desktopBridge()?.setLanVisible?.(lan.visible);
+        }
+        break;
+      }
       case 'display':
         // Cycle Auto → Handheld → Standard → Large → TV 4K in place — the
         // change applies instantly (reversible) and the diag block reacts.

@@ -33,6 +33,7 @@ files here are the deeper dives it points at.
 ## Desktop client / transport (Electron, WebSocket)
 - [ELECTRON_MIGRATION_PLAN.md](ELECTRON_MIGRATION_PLAN.md) — phased Electron desktop-client roadmap.
 - [WEBSOCKET_MIGRATION_PLAN.md](WEBSOCKET_MIGRATION_PLAN.md) — realtime transport migration plan.
+- [EMBEDDED_SERVER.md](EMBEDDED_SERVER.md) — host-as-server app modes: embedded server in a utility process, LAN discovery/join, future WebRTC public hosting.
 
 ## Cards / expansion adaptation
 - [ARES_ADAPTATION_AUDIT.md](ARES_ADAPTATION_AUDIT.md) — Ares premium-subsystem adaptation audit.

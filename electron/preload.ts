@@ -75,4 +75,22 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   // TV display profile diagnostics: the Electron view of the current display
   // (bounds / scaleFactor / physical size / internal-vs-external / fullscreen).
   getDisplayInfo: (): Promise<unknown> => ipcRenderer.invoke('desktop:getDisplayInfo'),
+  // ---- Host-as-server (docs/EMBEDDED_SERVER.md): app mode + LAN discovery ----
+  // {requested, effective, embeddedStatus, embeddedPort} — the settings row and
+  // diagnostics read this; `effective` is what THIS session actually runs.
+  getAppMode: (): Promise<unknown> => ipcRenderer.invoke('desktop:getAppMode'),
+  // Persisted for the next launch ('host' | 'remote').
+  setAppMode: (mode: string): Promise<void> => ipcRenderer.invoke('desktop:setAppMode', mode),
+  // {visible, name, hosts} — LAN advertise state + the current browse results.
+  getLanState: (): Promise<unknown> => ipcRenderer.invoke('desktop:getLanState'),
+  setLanVisible: (visible: boolean): Promise<void> => ipcRenderer.invoke('desktop:setLanVisible', visible === true),
+  // Live mDNS re-publish under the active profile's name.
+  setLanName: (name: string): Promise<void> => ipcRenderer.invoke('desktop:setLanName', name),
+  getLanHosts: (): Promise<unknown> => ipcRenderer.invoke('desktop:getLanHosts'),
+  // Push channel: browse add/remove re-emits the full LanHost[] list.
+  onLanHosts: (cb: (hosts: unknown) => void): void => {
+    ipcRenderer.on('desktop:lan-hosts', (_event, hosts) => cb(hosts));
+  },
+  // Settings-row "apply now": relaunch into the newly persisted mode.
+  relaunchApp: (): Promise<void> => ipcRenderer.invoke('desktop:relaunchApp'),
 });

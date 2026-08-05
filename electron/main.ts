@@ -28,7 +28,8 @@ import {installDevtoolsPadCursor} from './devtoolsPadCursor';
 import {installConsoleCapture} from './consoleExport';
 import {addToSteam, isAddedToSteam} from './steamShortcut';
 import {readSteamPersonaName} from './steamPersona';
-import {getSteamPromptDismissed, setSteamPromptDismissed} from './session';
+import {getSteamPromptDismissed, setSteamPromptDismissed, getAppMode, setAppMode, getLanVisible, setLanVisible, getLanName, setLanName} from './session';
+import {startEmbeddedServer, stopEmbeddedServer, embeddedServerStatus, embeddedServerPort, getLanHosts, onLanHostsChanged, setLanName as renameLanAdvertisement} from './embeddedServer';
 import {VelopackApp} from 'velopack';
 
 // Velopack sets VELOPACK_FIRSTRUN when it launches the app for the FIRST time after install.
@@ -92,6 +93,31 @@ function serverBase(): string {
   return (raw !== '' ? raw : DEFAULT_SERVER_BASE).replace(/\/+$/, '');
 }
 
+// ---- App mode: host-as-server vs remote thin client (docs/EMBEDDED_SERVER.md §3) ----
+type AppMode = 'host' | 'remote';
+
+/** Launch-scoped mode: `--tm-mode=` / TM_APP_MODE env → settings row (session store) → host. */
+function requestedAppMode(): AppMode {
+  const env = (process.env.TM_APP_MODE ?? '').trim().toLowerCase();
+  if (env === 'host' || env === 'remote') {
+    return env;
+  }
+  return getAppMode() ?? 'host';
+}
+
+// The mode actually RUNNING this session. Host mode requires the app:// renderer:
+// a dev-server-loaded page (origin http://localhost:8080) would be cross-origin
+// to the embedded server, whose CORS allowlist is app://bundle only. It also
+// DOWNGRADES to remote if the embedded server fails to start (whenReady).
+let effectiveMode: AppMode = requestedAppMode() === 'host' && APP_LOAD ? 'host' : 'remote';
+if (requestedAppMode() === 'host' && !APP_LOAD) {
+  // eslint-disable-next-line no-console
+  console.warn('[embedded] host mode requires the app:// renderer (TM_ELECTRON_LOAD=app) — running remote');
+}
+// LAN visibility is a launch-time bind property; captured so the settings row
+// can tell "persisted choice" from "what this session actually runs".
+const lanVisibleAtLaunch = getLanVisible();
+
 /** ws:// from http://, wss:// from https://. */
 function wsBaseFrom(httpBase: string): string {
   return httpBase.replace(/^http(s?):/i, 'ws$1:');
@@ -110,7 +136,11 @@ interface RuntimeConfig {
 }
 
 function runtimeConfig(): RuntimeConfig {
-  const base = serverBase();
+  // Host mode: the default endpoint is the LOCAL embedded server (its port is
+  // known by the time the window is created — whenReady awaits the handshake).
+  // Loopback works regardless of the LAN bind (0.0.0.0 covers 127.0.0.1).
+  const embeddedPort = embeddedServerPort();
+  const base = (effectiveMode === 'host' && embeddedPort !== undefined) ? `http://127.0.0.1:${embeddedPort}` : serverBase();
   const cfg: RuntimeConfig = {apiBase: base, wsBase: wsBaseFrom(base)};
   const pid = (process.env.TM_PARTICIPANT_ID ?? '').trim();
   if (pid !== '') {
@@ -577,6 +607,46 @@ ipcMain.handle('desktop:getSteamName', () => {
     return undefined;
   }
 });
+// ---- Host-as-server bridge (docs/EMBEDDED_SERVER.md §3, §6) ----
+// requested = what the settings/env asked for; effective = what THIS session
+// runs (host downgrades to remote on embedded startup failure / non-app load).
+ipcMain.handle('desktop:getAppMode', () => ({
+  requested: requestedAppMode(),
+  effective: effectiveMode,
+  embeddedStatus: embeddedServerStatus(),
+  embeddedPort: embeddedServerPort(),
+}));
+// Persisted for the NEXT launch (the settings row says so); no live switch.
+ipcMain.handle('desktop:setAppMode', (_event: IpcMainInvokeEvent, mode: unknown) => {
+  if (mode === 'host' || mode === 'remote') {
+    setAppMode(mode);
+  }
+});
+ipcMain.handle('desktop:getLanState', () => ({
+  visible: getLanVisible(),
+  // What THIS session's embedded server was actually started with (bind is a
+  // launch-time property) — lets the settings row show "restart to apply".
+  active: lanVisibleAtLaunch,
+  name: getLanName(),
+  hosts: getLanHosts(),
+}));
+// Bind address changes require an embedded-server restart → applies next launch.
+ipcMain.handle('desktop:setLanVisible', (_event: IpcMainInvokeEvent, visible: unknown) => {
+  setLanVisible(visible === true);
+});
+// The advertised name follows the active profile LIVE (mDNS re-publish).
+ipcMain.handle('desktop:setLanName', (_event: IpcMainInvokeEvent, name: unknown) => {
+  if (typeof name === 'string') {
+    setLanName(name);
+    renameLanAdvertisement(name);
+  }
+});
+ipcMain.handle('desktop:getLanHosts', () => getLanHosts());
+// Settings-row "apply now": relaunch into the newly persisted mode.
+ipcMain.handle('desktop:relaunchApp', () => {
+  app.relaunch();
+  app.quit();
+});
 
 // The app:// scheme must be registered as privileged BEFORE 'ready'.
 if (APP_LOAD) {
@@ -622,11 +692,31 @@ if (!app.requestSingleInstanceLock()) {
         console.log(`[electron] asset cache cleared for version ${app.getVersion()}`);
       }
     }
+    // Host-as-server: the embedded game server must be READY before the window
+    // exists — runtimeConfig() bakes its port into the preload arguments. A
+    // startup failure downgrades this session to remote mode (kill-switch UX).
+    if (effectiveMode === 'host') {
+      try {
+        const port = await startEmbeddedServer({lanVisible: lanVisibleAtLaunch, lanName: getLanName()});
+        // eslint-disable-next-line no-console
+        console.log(`[embedded] game server ready on 127.0.0.1:${port}`);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('[embedded] startup failed — falling back to remote mode', err);
+        effectiveMode = 'remote';
+      }
+    }
     // eslint-disable-next-line no-console
-    console.log(`[electron] ${APP_LOAD ? 'Phase 2A (app://)' : 'Phase 1 (server)'} — loading ${initialUrl()}`);
+    console.log(`[electron] ${APP_LOAD ? 'Phase 2A (app://)' : 'Phase 1 (server)'} · mode=${effectiveMode} — loading ${initialUrl()}`);
     registerUpdateIpc();
     registerInstallerCheckIpc();
     createWindow();
+    // LAN browse results (from the embedded utility process) → renderer push.
+    onLanHostsChanged((hosts) => {
+      if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('desktop:lan-hosts', hosts);
+      }
+    });
     // Confirm hardware acceleration is actually live (one line; see perf.ts).
     logGpuStatus(app);
     // Tell the renderer WHEN GPU compositing is actually live, so the boot warm-up
@@ -651,6 +741,12 @@ if (!app.requestSingleInstanceLock()) {
         createWindow();
       }
     });
+  });
+
+  app.on('before-quit', () => {
+    // Best-effort graceful stop; never blocks quit (saves are already durable —
+    // every action is a completed synchronous file write).
+    stopEmbeddedServer();
   });
 
   app.on('window-all-closed', () => {

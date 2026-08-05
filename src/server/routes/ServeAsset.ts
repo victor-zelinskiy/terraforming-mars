@@ -45,13 +45,21 @@ export class ServeAsset extends Handler {
     private cacheAssets: boolean = isProduction(),
     private fileApi: FileAPI = FileAPI.INSTANCE) {
     super();
-    // prime the cache with styles.css and a compressed copy of it styles.css
-    const styles = fileApi.readFileSync('build/styles.css');
-    this.cache.set('build/styles.css', styles);
-    const compressed = fileApi.readFileSync('build/styles.css.gz');
-    this.cache.set('build/styles.css.gz', compressed);
-    const brotli = fileApi.readFileSync('build/styles.css.br');
-    this.cache.set('build/styles.css.br', brotli);
+    // prime the cache with styles.css and a compressed copy of it styles.css.
+    // Best-effort: the INSTANCE is constructed at import of the route table, and
+    // the embedded desktop server (host-as-server mode) runs with a userData cwd
+    // that has no build/ tree — its clients load UI from app://, so a missing
+    // stylesheet must not make importing the routes fatal.
+    try {
+      const styles = fileApi.readFileSync('build/styles.css');
+      this.cache.set('build/styles.css', styles);
+      const compressed = fileApi.readFileSync('build/styles.css.gz');
+      this.cache.set('build/styles.css.gz', compressed);
+      const brotli = fileApi.readFileSync('build/styles.css.br');
+      this.cache.set('build/styles.css.br', brotli);
+    } catch (err) {
+      console.warn('ServeAsset: skipped styles.css cache priming (no build tree at cwd):', (err as Error).message);
+    }
   }
 
   public override async get(req: Request, res: Response, _ctx: Context): Promise<void> {

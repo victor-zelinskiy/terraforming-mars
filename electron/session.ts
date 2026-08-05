@@ -17,6 +17,15 @@ interface DesktopSession {
   // True once the user chose "Not now" on the first-run "Add to Steam" prompt — so we never
   // ask again (Windows only; the in-menu button stays available).
   steamPromptDismissed?: boolean;
+  // Host-as-server mode (docs/EMBEDDED_SERVER.md §3). 'host' runs the embedded
+  // game server locally (default); 'remote' is the thin-client fallback
+  // (TM_SERVER_BASE / Heroku). Applied at launch; the settings row writes it.
+  appMode?: 'host' | 'remote';
+  // LAN visibility of the embedded server (bind 0.0.0.0 + mDNS advertise).
+  // Default true in host mode; applied at launch.
+  lanVisible?: boolean;
+  // Friendly host name advertised over mDNS (player profile name). Live-renames.
+  lanName?: string;
 }
 
 function sessionFile(): string {
@@ -77,5 +86,36 @@ export function getSteamPromptDismissed(): boolean {
 export function setSteamPromptDismissed(dismissed: boolean): void {
   const session = readSession();
   session.steamPromptDismissed = dismissed;
+  writeSession(session);
+}
+
+export function getAppMode(): 'host' | 'remote' | undefined {
+  const mode = readSession().appMode;
+  return mode === 'host' || mode === 'remote' ? mode : undefined;
+}
+
+export function setAppMode(mode: 'host' | 'remote'): void {
+  const session = readSession();
+  session.appMode = mode;
+  writeSession(session);
+}
+
+export function getLanVisible(): boolean {
+  return readSession().lanVisible !== false;
+}
+
+export function setLanVisible(visible: boolean): void {
+  const session = readSession();
+  session.lanVisible = visible;
+  writeSession(session);
+}
+
+export function getLanName(): string {
+  return readSession().lanName ?? '';
+}
+
+export function setLanName(name: string): void {
+  const session = readSession();
+  session.lanName = name;
   writeSession(session);
 }

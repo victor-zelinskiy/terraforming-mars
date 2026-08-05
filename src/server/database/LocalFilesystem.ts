@@ -29,7 +29,9 @@ export class LocalFilesystem implements IDatabase {
     const dirs = [this.dbFolder, this.historyFolder, this.completedFolder, this.sessionsFolder];
     for (const folder of dirs) {
       if (!existsSync(folder)) {
-        mkdirSync(folder);
+        // recursive: the embedded desktop server roots the db under a fresh
+        // <userData>/embedded dir whose parents may not exist yet.
+        mkdirSync(folder, {recursive: true});
       }
     }
     return Promise.resolve();

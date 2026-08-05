@@ -12,7 +12,12 @@
  * `window.location`), so wiring a call site through here is a no-op change in the
  * browser. An Electron host (or any embedder) sets `window.tmRuntimeConfig`
  * (e.g. from a preload script) to override.
+ *
+ * Host-as-server (docs/EMBEDDED_SERVER.md §6): a game joined on ANOTHER server
+ * (a LAN host) is PINNED per participant id (`serverEndpoints.ts`); the pin
+ * outranks the injected default, scoping the redirect to that one game session.
  */
+import {ServerEndpoint, pinnedServerEndpoint} from './serverEndpoints';
 
 export interface TMRuntimeConfig {
   /** API origin, e.g. 'https://tm.example.com'. Default '' = same origin (relative). */
@@ -37,8 +42,36 @@ function config(): TMRuntimeConfig {
   }
 }
 
+/**
+ * The participant id this page is scoped to (injected id, else the URL `?id=`).
+ * Used to look up a PINNED per-game server endpoint (a LAN-joined game lives on
+ * the host's server while the app default stays the local/remote one).
+ */
+function currentParticipantId(): string | undefined {
+  const injected = config().participantId;
+  if (injected !== undefined && injected !== '') {
+    return injected;
+  }
+  try {
+    const id = new URLSearchParams(window.location.search).get('id');
+    return id === null || id === '' ? undefined : id;
+  } catch {
+    return undefined;
+  }
+}
+
+/** The pinned endpoint for the current participant, if this game is pinned to another server. */
+function pinnedEndpoint(): ServerEndpoint | undefined {
+  const pid = currentParticipantId();
+  return pid === undefined ? undefined : pinnedServerEndpoint(pid);
+}
+
 /** Base for HTTP API URLs. '' (relative, same origin) unless a host overrides. */
 export function apiBaseUrl(): string {
+  const pinned = pinnedEndpoint();
+  if (pinned !== undefined) {
+    return pinned.apiBase;
+  }
   return config().apiBase ?? '';
 }
 
@@ -56,8 +89,12 @@ export function apiUrl(path: string): string {
   return base.replace(/\/$/, '') + '/' + path.replace(/^\//, '');
 }
 
-/** ws(s):// origin (no trailing slash). Overridable; else derived from location. */
+/** ws(s):// origin (no trailing slash). Pinned per game → override → derived from location. */
 export function wsBaseUrl(): string {
+  const pinned = pinnedEndpoint();
+  if (pinned !== undefined) {
+    return pinned.wsBase;
+  }
   const override = config().wsBase;
   if (override !== undefined && override !== '') {
     return override;

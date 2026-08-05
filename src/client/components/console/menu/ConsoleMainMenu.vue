@@ -46,8 +46,8 @@
       <div class="cm-overlay__card cm-overlay__card--wide">
         <div class="cm-overlay__title">{{ $t('My games') }}</div>
         <div v-if="joinGamesState.loading && !joinGamesState.loadedOnce" class="cm-gamelist__empty">{{ $t('Loading') }}…</div>
-        <div v-else-if="joinGamesState.error" class="cm-gamelist__empty cm-gamelist__empty--error">{{ $t('Could not load your games') }}</div>
-        <div v-else-if="games.length === 0" class="cm-gamelist__empty">{{ $t('You have no unfinished games yet.') }}</div>
+        <div v-else-if="joinGamesState.error && lanRows.length === 0" class="cm-gamelist__empty cm-gamelist__empty--error">{{ $t('Could not load your games') }}</div>
+        <div v-else-if="games.length === 0 && lanRows.length === 0" class="cm-gamelist__empty">{{ $t('You have no unfinished games yet.') }}</div>
         <ConsoleScrollArea v-else ref="gamesScroll" class="cm-gamelist-scroll">
           <div class="cm-gamelist">
           <button
@@ -99,6 +99,50 @@
               </span>
             </div>
           </button>
+
+          <!-- LAN hosts (host-as-server mode): games discovered over mDNS on other
+               couches. Joining pins the seat to that host's server and navigates —
+               the session then talks to the host directly (docs/EMBEDDED_SERVER.md §6). -->
+          <template v-if="lanRows.length > 0">
+            <div class="cm-gamelist__lanhead">{{ $t('On your local network') }}</div>
+            <button
+              v-for="(row, k) in lanRows"
+              :key="'lan:' + row.host.id + ':' + row.game.id"
+              type="button"
+              class="cm-game cm-game--lan"
+              :class="{'cm-game--cursor': games.length + k === gamesCursor, 'cm-game--disabled': !joinable(row.game)}"
+              @click="enterGameAt(games.length + k)"
+              @mousemove="gamesCursor = games.length + k"
+            >
+              <div class="cm-game__head">
+                <span class="cm-game__name">{{ row.game.name }}</span>
+                <span class="cm-game__lanhost">{{ row.host.name }}</span>
+                <span v-if="yourTurn(row.game)" class="cm-game__turn">{{ $t('Your turn') }}</span>
+                <span v-else-if="!joinable(row.game)" class="cm-game__note">{{ $t(row.game.ambiguous ? 'Several players share your name here' : 'No seat with your name') }}</span>
+                <span v-else-if="row.versionMismatch" class="cm-game__note">{{ $t('Host version differs from yours') }}</span>
+              </div>
+              <div class="cm-game__crew">
+                <span
+                  v-for="p in gameCrew(row.game)"
+                  :key="p.color"
+                  class="cm-game__player"
+                  :class="{'cm-game__player--you': p.isYou, 'cm-game__player--active': p.isActive}"
+                >
+                  <span v-if="p.isActive" class="cm-game__pturn" aria-hidden="true"></span>
+                  <span class="cm-game__pcube" :class="'player_bg_color_' + p.color" aria-hidden="true"></span>
+                  <span class="cm-game__pname">{{ p.name }}</span>
+                  <span v-if="p.isYou" class="cm-game__ptag">{{ $t('You') }}</span>
+                </span>
+              </div>
+              <div class="cm-game__foot">
+                <span class="cm-game__meta">
+                  <span>{{ $t('Generation') }} {{ row.game.generation }}</span>
+                  <span class="cm-game__dot" aria-hidden="true">·</span>
+                  <span>{{ boardLabel(row.game) }}</span>
+                </span>
+              </div>
+            </button>
+          </template>
           </div>
         </ConsoleScrollArea>
       </div>
@@ -210,6 +254,8 @@ import {identityState, ensureIdentityLoaded} from '@/client/components/mainMenu/
 import {ensureProfilesLoaded} from '@/client/components/mainMenu/profilesState';
 import {prefillIdentityFromSteam} from '@/client/components/mainMenu/identity/steamIdentity';
 import {joinGamesState, hydrateJoinableGames, loadJoinableGames, startJoinPolling, stopJoinPolling} from '@/client/components/mainMenu/joinGamesState';
+import {lanState, LanGameRow, initLanDiscovery, publishLanName, startLanPolling, stopLanPolling} from '@/client/components/mainMenu/lanState';
+import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
 import {quitApp, supportsNativeQuit} from '@/client/console/runtimeMode';
@@ -237,6 +283,7 @@ export default defineComponent({
     return {
       identityState,
       joinGamesState,
+      lanState,
       cursor: 0,
       gamesCursor: 0,
       overlay: undefined as MenuOverlay,
@@ -258,6 +305,14 @@ export default defineComponent({
     },
     games(): ReadonlyArray<JoinableGameSummary> {
       return this.joinGamesState.games;
+    },
+    /** Games on OTHER hosts discovered over the LAN (host-as-server mode). */
+    lanRows(): ReadonlyArray<LanGameRow> {
+      return this.lanState.games;
+    },
+    /** Cursor range of the games overlay: local rows first, then LAN rows. */
+    gamesCount(): number {
+      return this.games.length + this.lanRows.length;
     },
     continueItem(): JoinableGameSummary | undefined {
       const mine = this.games.filter((g) => g.you !== undefined);
@@ -440,10 +495,14 @@ export default defineComponent({
     initSteamShortcut();
     this.maybeShowSteamPrompt();
     this.offPad = installMenuPad((intent) => this.onIntent(intent));
+    // Host-as-server: subscribe to LAN discovery pushes + advertise under the
+    // active profile's name (both no-op on the web / remote mode).
+    initLanDiscovery();
     const name = this.identityName;
     if (name !== '') {
       void loadJoinableGames(name, {silent: true});
       startJoinPolling();
+      publishLanName(name);
     }
     // Version readout (desktop shell prefers the baked app version; web uses settings.json).
     const bridge = desktopBridge();
@@ -459,6 +518,7 @@ export default defineComponent({
   beforeUnmount() {
     this.offPad?.();
     stopJoinPolling();
+    stopLanPolling();
     stopMenuUpdateWatch();
   },
   methods: {
@@ -511,7 +571,7 @@ export default defineComponent({
       }
       if (this.overlay === 'games') {
         if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
-          this.gamesCursor = stepIndex(this.gamesCursor, intent.dir === 'down' ? 1 : -1, this.games.length);
+          this.gamesCursor = stepIndex(this.gamesCursor, intent.dir === 'down' ? 1 : -1, this.gamesCount);
           this.keepGamesCursorVisible();
           return true;
         }
@@ -588,6 +648,8 @@ export default defineComponent({
         this.gamesCursor = 0;
         if (this.identityName !== '') {
           void loadJoinableGames(this.identityName);
+          // LAN hosts are re-queried while the list is open (they answer in ~ms).
+          startLanPolling(this.identityName);
         }
         break;
       case 'profile':
@@ -648,10 +710,13 @@ export default defineComponent({
     closeOverlay(): void {
       this.overlay = undefined;
       menuPadState.textEntry = false;
-      // The profile may have just set the identity — refresh the games list.
+      stopLanPolling();
+      // The profile may have just set the identity — refresh the games list and
+      // re-advertise this host under the (possibly new) name.
       const name = this.identityName;
       if (name !== '') {
         void loadJoinableGames(name, {silent: true});
+        publishLanName(name);
       }
     },
     joinable(g: JoinableGameSummary): boolean {
@@ -678,10 +743,21 @@ export default defineComponent({
     },
     enterGameAt(i: number): void {
       this.gamesCursor = i;
-      const g = this.games[i];
-      if (g?.you !== undefined) {
-        recordLastGameEntered(g.id);
-        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(g.you.id), 'expedition');
+      if (i < this.games.length) {
+        const g = this.games[i];
+        if (g?.you !== undefined) {
+          recordLastGameEntered(g.id);
+          navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(g.you.id), 'expedition');
+        }
+        return;
+      }
+      // A LAN row: pin the seat to the HOST's server first — from then on every
+      // request and the WebSocket for this game go to that host (§6).
+      const row = this.lanRows[i - this.games.length];
+      if (row?.game.you !== undefined) {
+        pinServerEndpoint(row.game.you.id, row.endpoint);
+        recordLastGameEntered(row.game.id);
+        navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(row.game.you.id), 'expedition');
       }
     },
     onQuitConfirm(): void {

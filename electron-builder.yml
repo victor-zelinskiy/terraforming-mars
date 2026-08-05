@@ -66,8 +66,13 @@ asar: true
 # velopack loads a native .node (velopack/lib/native/*.node) — native modules CANNOT be loaded
 # from inside an asar, so unpack the whole velopack package to app.asar.unpacked/. Electron's
 # require() transparently redirects the .node load to the unpacked copy.
+# The EMBEDDED game server (host-as-server mode, docs/EMBEDDED_SERVER.md) is a single webpack
+# bundle forked as a utilityProcess — fork needs a real on-disk script, so it unpacks too. It
+# ships NO server node_modules (everything is bundled; pg/better-sqlite3 stay external and are
+# never loaded — the embedded server uses the LocalFilesystem backend).
 asarUnpack:
   - '**/node_modules/velopack/**'
+  - build/electron/embedded-server.js
 
 # No installer target — `electron-builder --dir --win` produces win-unpacked/ (exe name =
 # productName "Terraforming Mars.exe"), which vpk packs.

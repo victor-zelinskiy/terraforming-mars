@@ -112,6 +112,49 @@ interface DesktopBridge {
   // on renderer signals (works on the web too); this feeds the System-menu
   // diagnostics + the decision log with the authoritative panel data.
   getDisplayInfo?(): Promise<DesktopDisplayInfo | undefined>;
+  // ---- Host-as-server (docs/EMBEDDED_SERVER.md) — ALL OPTIONAL (feature-detect;
+  // absent on the web and on shells that predate the embedded server). ----
+  // {requested, effective, embeddedStatus, embeddedPort}: requested = the persisted
+  // choice, effective = what THIS session runs (host downgrades to remote when the
+  // embedded server failed to start).
+  getAppMode?(): Promise<DesktopAppModeInfo | undefined>;
+  // Persist 'host' | 'remote' for the NEXT launch.
+  setAppMode?(mode: string): Promise<void>;
+  // {visible, name, hosts}: LAN advertise state + current mDNS browse results.
+  getLanState?(): Promise<DesktopLanState | undefined>;
+  setLanVisible?(visible: boolean): Promise<void>;
+  // Live mDNS re-publish under the active profile's display name.
+  setLanName?(name: string): Promise<void>;
+  getLanHosts?(): Promise<DesktopLanHost[] | undefined>;
+  // Push channel: every browse add/remove re-emits the FULL host list.
+  onLanHosts?(cb: (hosts: DesktopLanHost[]) => void): void;
+  // Settings-row "apply now": relaunch into the newly persisted mode.
+  relaunchApp?(): Promise<void>;
+}
+
+/** A LAN host discovered over mDNS (mirrors src/server/embedded/lanDiscovery.ts). */
+export interface DesktopLanHost {
+  id: string;
+  name: string;
+  addresses: string[];
+  port: number;
+  version: string;
+}
+
+export interface DesktopAppModeInfo {
+  requested: 'host' | 'remote';
+  effective: 'host' | 'remote';
+  embeddedStatus: 'stopped' | 'starting' | 'ready' | 'failed';
+  embeddedPort?: number;
+}
+
+export interface DesktopLanState {
+  /** The persisted choice (next launch). */
+  visible: boolean;
+  /** What THIS session's embedded server was started with (bind is launch-time). */
+  active?: boolean;
+  name: string;
+  hosts: DesktopLanHost[];
 }
 
 export interface DesktopDisplayInfo {
