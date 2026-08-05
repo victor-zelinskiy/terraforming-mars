@@ -303,6 +303,27 @@ function batchBudget(count: number, reseat = false): number {
   return motionMs(take + carry + SETTLE_MS + STAGGER_MS * Math.max(0, count - 1)) + 400;
 }
 
+/**
+ * The beats of a CAPTURED convoy (the `flyTo` grammar, which flies `reseat`):
+ * `arriving` — the first card is deep in its carry, the convoy is visibly
+ * near home; `landed` — the last card has settled. A host that must time
+ * something AGAINST the flight (a shell entrance, a chrome reveal) reads
+ * these instead of copying the constants and drifting from them.
+ */
+export function convoyBeats(count: number): {arriving: number, landed: number} {
+  const n = Math.max(1, count);
+  return {
+    arriving: motionMs(RESEAT_TAKE_MS + RESEAT_CARRY_MS * 0.74),
+    landed: motionMs(RESEAT_TAKE_MS + RESEAT_CARRY_MS + SETTLE_MS + STAGGER_MS * (n - 1)),
+  };
+}
+
+/** The live flight proxies (empty once the layer is cleared). */
+export function liveFlightProxies(): ReadonlyArray<HTMLElement> {
+  return layerEl === undefined ? [] :
+    Array.from(layerEl.querySelectorAll<HTMLElement>('.con-startdock-proxy'));
+}
+
 // ── COLLECT: grid slots → a dock pile (face-down) ───────────────────────────
 
 /**

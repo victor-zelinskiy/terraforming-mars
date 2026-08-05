@@ -164,7 +164,12 @@ test.describe('console start scene · the summary launch', () => {
     await expect(page.locator('.con-handdock')).toBeHidden();
 
     // 3 · Zero projects bought → the first A arms the warning, not a submit.
-    await key(page, 'Enter', 700);
+    // Press-verify-retry: a press that lands while the summary's reveal
+    // convoy still runs is ABSORBED by the flow gate (the double-submit
+    // guard) — a real player simply presses again, and so does the spec.
+    for (let i = 0; i < 5 && (await page.locator('.con-start__skipwarn').count()) === 0; i++) {
+      await key(page, 'Enter', 700);
+    }
     await expect(page.locator('.con-start__skipwarn')).toHaveCount(1);
     await expect(summary).toBeVisible(); // still here — nothing was sent
     await shoot(page, '02-skip-armed');
@@ -218,7 +223,12 @@ test.describe('console start scene · the summary launch', () => {
     const annaPage = await (await browser.newContext()).newPage();
     await annaPage.goto(`/player?id=${anna.id}&console=1`);
     await walkToSummary(annaPage);
-    await key(annaPage, 'Enter', 700); // arms the zero-projects warning
+    // Press-verify-retry (see test 1): a press absorbed by the reveal
+    // convoy's flow gate is pressed again, exactly like a real player.
+    for (let i = 0; i < 5 && (await annaPage.locator('.con-start__skipwarn').count()) === 0; i++) {
+      await key(annaPage, 'Enter', 700); // arms the zero-projects warning
+    }
+    await expect(annaPage.locator('.con-start__skipwarn')).toHaveCount(1);
     await key(annaPage, 'Enter', 2500); // submits
 
     // …and Victor's rail morphs to the launch CTA on its own. The freshness

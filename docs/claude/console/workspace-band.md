@@ -1117,18 +1117,28 @@ mode-флип мгновенно меняет крошку/journey/`--ceremony`-
   проявляло уже стоящие бары ПОВЕРХ замороженных карт сводки. Теперь своп
   добавляет body-класс **`con-start-barshold`** (`animation:none; opacity:0`
   на `.con-res`/`.con-status`; правило ПОСЛЕ entrance-правил — побеждает
-  каскад равной специфичности порядком), а `runMaterialization` снимает его
-  ровно в бит `flyTo` — keyframes `con-start-rail-in`/`hud-in` играют во
-  время полёта под растворяющимся снапшотом (`backwards`-филл держит 0 и в
-  зазоре recalc→первый кадр). Ремень: dispose снимает класс при любом
-  исходе. Хром зоны «КУПЛЕНО» (`__buy--chromehold` — paint-only: фон/тень
+  каскад равной специфичности порядком). Снимает его **`releaseBarsWithConvoy`**
+  — не таймер, а ИЗМЕРЕНИЕ: rAF-цикл ждёт, пока (а) конвой уже в фазе
+  подлёта (`convoyBeats(n).arriving` — единственный источник таймингов
+  полёта, хосты не копируют константы) И (б) НИ ОДНА живая прокси
+  (`liveFlightProxies()`) не пересекает рект `.con-status`/`.con-res` (+6px
+  margin); хард-кап — `beats.landed`. Отсюда «бар никогда не рисуется по
+  летящей карте» — свойство геометрии, а не удачного тайминга: не зависит
+  ни от числа карт, ни от профиля, ни от темпа кадров. Ремень: dispose
+  снимает класс при любом исходе. Хром зоны «КУПЛЕНО» (`__buy--chromehold` — paint-only: фон/тень
   плиты + `__buy-meta` в 0, ГЕОМЕТРИЯ слотов нетронута — цели конвоя не
   двигаются) держится до посадки ПОСЛЕДНЕГО купленного проекта
   (`noteBuyLanding` на onLanded) и входит `--chromein`-анимациями
   (`con-start-buybox-in`/`buymeta-in`, только `from` — раскрывается к
   собственному computed-состоянию, фокус-акцент не ломается); ремень после
-  `Promise.all` — no-flight fallback не оставит плиту скрытой. Порядок битов
-  гвардится серией `mat-stage-probe` (ordering, не тайминги).
+  `Promise.all` — no-flight fallback не оставит плиту скрытой. Гвард —
+  `mat-stage-probe`: серия ~100ms (ordering, не тайминги) + **пер-кадровый
+  свидетель** в странице (кадры, где ВИДИМЫЙ бар пересекается с летящей
+  прокси → ассерт ровно 0; плюс «первый кадр видимости бара не раньше
+  подлёта»). ⚠️ Видимость в таком свидетеле читать
+  `el.checkVisibility({opacityProperty, visibilityProperty})`, а не
+  `opacity`: в префазе бары скрыты `visibility` НА ПРЕДКЕ
+  (`body.con-start-prep`) — opacity-only чтение даёт ложные срабатывания.
 
 Гварды: `consoleStartState.spec` (24), `ConsoleStartPlayedDock.spec` (6:
 + art-identity), `startStatusPreview.spec`, e2e `console-play-landing-probe`

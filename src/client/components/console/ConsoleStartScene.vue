@@ -545,7 +545,7 @@ import {
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
-import {captureCards, CapturedFlight, collectToDock, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, DockFlightSource} from '@/client/console/startDockMotion';
+import {captureCards, CapturedFlight, collectToDock, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, convoyBeats, liveFlightProxies, DockFlightSource} from '@/client/console/startDockMotion';
 import {gsap} from 'gsap';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -2307,6 +2307,43 @@ export default defineComponent({
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
       return root.querySelector<HTMLElement>(`[data-queue-slot="${esc}"], [data-pay-card="${esc}"]`);
     },
+    /**
+     * THE BARS' ENTRANCE BEAT — measured against the convoy, never a timer.
+     * The standard shell (Top HUD + Player Rail) may only start materializing
+     * when BOTH hold:
+     *   · the convoy is ARRIVING (the cards are deep in their carry — the
+     *     room appearing while they still cross the screen reads as the shell
+     *     landing ON them), and
+     *   · no card physically OVERLAPS a bar's zone at that instant — a
+     *     per-frame rect test, so the release can never paint a bar over a
+     *     card in flight whatever the pacing, profile or card count.
+     * The last landing is the hard cap (by then the layer is empty anyway).
+     */
+    releaseBarsWithConvoy(count: number): void {
+      const beats = convoyBeats(count);
+      const zones = ['.con-status', '.con-res']
+        .map((sel) => document.querySelector<HTMLElement>(sel)?.getBoundingClientRect())
+        .filter((r): r is DOMRect => r !== undefined && r.width > 4 && r.height > 4);
+      const margin = 6 * conUiScale();
+      const overlapsAZone = (r: DOMRect): boolean => zones.some((z) =>
+        r.right > z.left - margin && r.left < z.right + margin &&
+        r.bottom > z.top - margin && r.top < z.bottom + margin);
+      const start = performance.now();
+      const step = () => {
+        if (!this.matFrozen && this.matCapture === undefined) {
+          document.body.classList.remove('con-start-barshold'); // transition over
+          return;
+        }
+        const t = performance.now() - start;
+        const clear = liveFlightProxies().every((p) => !overlapsAZone(p.getBoundingClientRect()));
+        if ((t >= beats.arriving && clear) || t >= beats.landed) {
+          document.body.classList.remove('con-start-barshold');
+          return;
+        }
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    },
     /** The «КУПЛЕНО» chrome enters only once the LAST bought project stands
      *  in the row — the box materializes around cards, never around a
      *  landing still in progress. */
@@ -2521,10 +2558,10 @@ export default defineComponent({
       // lands on geometry that no longer changes.
       const fade = this.dissolveFreeze();
       await new Promise<void>((r) => window.setTimeout(r, motionMs(150)));
-      // THE BARS ENTER WITH THE FLIGHT: the Top HUD and the Player Rail run
-      // their entrance keyframes from this exact beat — under the dissolving
-      // snapshot, beside the airborne cards — never earlier.
-      document.body.classList.remove('con-start-barshold');
+      // THE BARS ENTER AS THE CONVOY ARRIVES — never at take-off: the watcher
+      // releases them the first frame the cards are deep in their carry AND
+      // no card overlaps a bar's zone (see releaseBarsWithConvoy).
+      this.releaseBarsWithConvoy(capture.names.length);
       await Promise.all([
         capture.flyTo(
           (name) => this.queueTargetEl(name),

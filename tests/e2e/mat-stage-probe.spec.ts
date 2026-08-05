@@ -137,6 +137,51 @@ test.describe('materialization staging probe', () => {
     await expect(page.locator('.con-start > .con-start__frame .con-start__summary')).toBeVisible();
     await page.waitForTimeout(600);
 
+    // THE PER-FRAME WITNESS. The sampling series below is ~100ms coarse; the
+    // load-bearing claim — «a visible bar never overlaps a card in flight» —
+    // is checked EVERY FRAME in page, so no pacing can hide a violation.
+    await page.evaluate(() => {
+      const w = window as unknown as {__barWatch: {frames: number, violations: number,
+        firstVisibleAt: number, lastFlightAt: number, worst: string}};
+      const state = {frames: 0, violations: 0, firstVisibleAt: -1, lastFlightAt: -1, worst: ''};
+      w.__barWatch = state;
+      const t0 = performance.now();
+      const tick = () => {
+        state.frames++;
+        const t = Math.round(performance.now() - t0);
+        // PAINTED, not merely "opacity > 0": through the preparation the bars
+        // are `visibility: hidden` on an ANCESTOR (body.con-start-prep), so an
+        // opacity-only read calls a bar that nobody can see "visible".
+        const bars = ['.con-status', '.con-res']
+          .map((s) => document.querySelector(s))
+          .filter((el): el is HTMLElement => el !== null)
+          .filter((el) => el.checkVisibility({opacityProperty: true, visibilityProperty: true}));
+        const proxies = Array.from(document.querySelectorAll<HTMLElement>('.con-startdock-proxy'));
+        if (proxies.length > 0) {
+          state.lastFlightAt = t;
+        }
+        if (bars.length > 0 && state.firstVisibleAt < 0) {
+          state.firstVisibleAt = t;
+        }
+        for (const bar of bars) {
+          const b = bar.getBoundingClientRect();
+          for (const p of proxies) {
+            const r = p.getBoundingClientRect();
+            if (r.right > b.left && r.left < b.right && r.bottom > b.top && r.top < b.bottom) {
+              state.violations++;
+              if (state.worst === '') {
+                state.worst = `t${t} ${bar.className.split(' ')[0]} × proxy`;
+              }
+            }
+          }
+        }
+        if (performance.now() - t0 < 6000) {
+          requestAnimationFrame(tick);
+        }
+      };
+      requestAnimationFrame(tick);
+    });
+
     // THE PRESS — projects were bought, so one A submits (no skip warning).
     await page.keyboard.press('Enter');
 
@@ -147,6 +192,12 @@ test.describe('materialization staging probe', () => {
       if (SHOT_AT.has(i)) {
         await page.screenshot({path: path.join(OUT_DIR, `t${String(i * 100).padStart(4, '0')}.png`)});
       }
+      // Absorbed-press belt: a press during the summary's reveal convoy is
+      // eaten by the flow gate (double-submit guard) — press again, exactly
+      // like a real player, and keep the sampling cadence intact.
+      if (i === 8 && !series.some((s) => s.ceremony)) {
+        await page.keyboard.press('Enter');
+      }
       await page.waitForTimeout(80);
     }
     for (const s of series) {
@@ -154,6 +205,24 @@ test.describe('materialization staging probe', () => {
         `frz=${s.freeze ? s.freezeOp.toFixed(2) : '--'} res=${s.resOp.toFixed(2)} hud=${s.statusOp.toFixed(2)} ` +
         `buy=${s.buy ? 1 : 0} bgA=${s.buyBgA.toFixed(2)} meta=${s.buyMetaOp.toFixed(2)} prox=${s.proxies}`);
     }
+
+    const watch = await page.evaluate(() =>
+      (window as unknown as {__barWatch: {frames: number, violations: number,
+        firstVisibleAt: number, lastFlightAt: number, worst: string}}).__barWatch);
+    console.log('[bar-watch]', JSON.stringify(watch));
+
+    // 0 · THE LOAD-BEARING CLAIM: no frame ever painted a visible bar over a
+    //     card in flight, and the bars did not enter before the convoy was
+    //     deep in its carry (they may not appear at take-off).
+    // Sanity only — a parallel worker's rAF is throttled hard (47 frames over
+    // the same 6s window has been observed), so this proves the witness ran,
+    // nothing more. The claims below are what matter.
+    expect(watch.frames, 'per-frame witness ran').toBeGreaterThan(20);
+    expect(watch.violations, `bar painted over an airborne card (${watch.worst})`).toBe(0);
+    expect(watch.firstVisibleAt, 'bars entered').toBeGreaterThan(0);
+    // …and they entered ON THE APPROACH, never at take-off (the swap, the
+    // stability wait and the lift alone already take ~600ms).
+    expect(watch.firstVisibleAt, 'bars entered late enough to be an arrival beat').toBeGreaterThan(700);
 
     // a · The hold engaged after the swap (ceremony + barshold together).
     expect(series.some((s) => s.ceremony && s.barshold), 'bars were held through the swap').toBeTruthy();
