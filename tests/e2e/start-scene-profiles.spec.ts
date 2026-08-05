@@ -114,7 +114,7 @@ for (const preset of PRESETS) {
         }
         const subject = await activeSubject(page);
         const onSummary = subject.includes('сводка') &&
-          await page.locator('.con-start__summary').isVisible().catch(() => false);
+          await page.locator('.con-start > .con-start__frame .con-start__summary').isVisible().catch(() => false);
         if (subject.includes('пролог') && !shotPre) {
           await page.waitForTimeout(1200);
           await shoot(page, preset, '01-preludes');

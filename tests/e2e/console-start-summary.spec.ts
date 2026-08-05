@@ -93,7 +93,7 @@ function newGameConfig(twoHumans = false) {
 async function walkToSummary(page: Page): Promise<void> {
   await page.waitForSelector('.con-start__frame', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  const summary = page.locator('.con-start__summary');
+  const summary = page.locator('.con-start > .con-start__frame .con-start__summary');
   const subject = page.locator('.con-wshead__layer--deep .con-wshead__subject').first();
 
   for (let i = 0; i < 8 && !(await summary.isVisible().catch(() => false)); i++) {
@@ -139,7 +139,7 @@ test.describe('console start scene · the summary launch', () => {
 
     await page.goto(`/player?id=${model.players[0].id}&console=1`);
     await walkToSummary(page);
-    const summary = page.locator('.con-start__summary');
+    const summary = page.locator('.con-start > .con-start__frame .con-start__summary');
     await shoot(page, '01-summary');
 
     // 1 + 2 · A bot owes no pick → the CTA, never the waiting readout.

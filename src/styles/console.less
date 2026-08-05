@@ -15166,8 +15166,41 @@ body.con-start-ceremony .con-status {
 .con-startdock-layer {
     position: fixed;
     inset: 0;
-    z-index: 11640;
+    /* ABOVE the bars (11700) and the freeze snapshot (11740): a start card
+       in transit is the front-most object of its scene — it may never duck
+       under the command bar near the shelf, and the materialization's cards
+       must ride OVER the frozen summary while the real screens swap below. */
+    z-index: 11745;
     pointer-events: none;
+}
+
+/* ── THE FREEZE LAYER — the summary → deployment scene transition ──────
+   A NON-REACTIVE snapshot of the summary frame (a plain DOM clone): the
+   live tree under it may re-render freely; the player sees only this until
+   it cross-dissolves over the fully-prepared deployment. Above the bars
+   (they "materialize" as the snapshot fades), below the card overlay. */
+.con-start-freeze {
+    position: fixed;
+    z-index: 11740;
+    pointer-events: none;
+    display: none;
+    /* The snapshot's own room: the cloned frame plate is semi-transparent by
+       design, and the deployment assembling UNDERNEATH must never ghost
+       through the frozen picture — the host carries the preparation room's
+       base gradient behind the clone. */
+    background: linear-gradient(180deg, #060b12, #04070d 58%, #05080e);
+    border-radius: .7rem;
+    overflow: hidden;
+
+    &--live { display: block; }
+
+    /* The snapshot fills the host exactly (the host carries the measured
+       frame rect); the clone keeps its own classes for paint. */
+    > .con-start__frame {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+    }
 }
 .con-startdock-proxy {
     position: absolute;

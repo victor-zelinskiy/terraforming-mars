@@ -1087,6 +1087,32 @@ no-flight fallback. Захват теперь берёт первый ИЗМЕР
 (order 1) → покупка (`#buy` keyed-блок ВНУТРИ transition-group, order 2) →
 прологи (order 3).
 
+**ит.7 (2026-08-05) — МАТЕРИАЛИЗАЦИЯ = FREEZE SCENE TRANSITION.** Реджект
+ит.6-свопа: хореография поверх ЖИВОГО реактивного дерева рассыпается —
+mode-флип мгновенно меняет крошку/journey/`--ceremony`-стили, а
+ответы/поллы ре-рендерят DOM под замерами. Решение — переход между ДВУМЯ
+НЕЗАВИСИМЫМИ состояниями:
+- **FREEZE-СЛОЙ** (`.con-start-freeze`, z11740): в НАЖАТИЕ коммита (до
+  сабмита!) весь `__frame` сводки клонируется `cloneNode(true)` в fixed-хост
+  с ректом кадра — нереактивный снимок, который не тронет ни один
+  ре-рендер. В клоне летящие карты скрыты (оверлей владеет ими), ВСЕ живые
+  identity-атрибуты вычищены (`data-zoom-slot`/`queue-slot`/… — снапшот
+  нематчабелен по построению, урок затенения); хост несёт непрозрачный фон
+  комнаты (плита клона полупрозрачна — деплоймент не должен просвечивать).
+- **CARD OVERLAY**: `captureCards` в тот же момент; `.con-startdock-layer`
+  поднят на **z11745** (над барами 11700 и freeze — стартовая карта в
+  полёте не ныряет под command bar).
+- **Хореография** (`runMaterialization` v3): mode-флип → своп ПОД снапшотом
+  одним cut-ходом (held-слоты → matSwap/matCut/shellUp/bars) → nextTick +
+  2 rAF + **awaitQueueStability** (рект corp-цели стоит 2 кадра) → LIFT
+  оверлея (корп-акцент) → **dissolveFreeze** (~640ms power2.inOut) ∥ через
+  150ms **flyTo** → атомарные посадки → dispose. Отказ сервера / unmount —
+  `disposeMaterializationFreeze(true)` (снапшот и оверлей уходят, живая
+  сводка под ними цела). Reduced — прежний одно-кадровый своп без freeze.
+- Покадровая проба: t0 = freeze+3 прокси над нетронутой сводкой; t100 =
+  финальная сцена целиком (bounded+bars+shelf+held:3) под снапшотом;
+  посадки t1100-1300; t1400+ — ноль изменений layout.
+
 Гварды: `consoleStartState.spec` (24), `ConsoleStartPlayedDock.spec` (6:
 + art-identity), `startStatusPreview.spec`, e2e `console-play-landing-probe`
 (FHD+4K+reduced), `console-start-summary` (сводка = v-show: видимость, не

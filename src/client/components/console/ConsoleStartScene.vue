@@ -447,6 +447,14 @@
              padding keeps the body clear of the bar. -->
       </div>
 
+    <!-- THE FREEZE LAYER of the summary → deployment scene transition: a
+         NON-REACTIVE DOM snapshot of the whole summary frame. The live tree
+         underneath may re-render, re-bound and re-title as much as it needs —
+         no poll, no mode flip, no bot response can touch this snapshot. The
+         card overlay flies ABOVE it; the prepared deployment materializes
+         UNDER it; the snapshot cross-dissolves between the two. -->
+    <div class="con-start-freeze" ref="freezeHost" aria-hidden="true"></div>
+
     <!-- The Selection-Dock flight layer (collect / return / summary reveal
          proxies — startDockMotion). ONE fixed stage, scene-owned. -->
     <div class="con-startdock-layer" ref="dockLayer" aria-hidden="true"></div>
@@ -533,7 +541,7 @@ import {
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
-import {captureCards, collectToDock, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, DockFlightSource} from '@/client/console/startDockMotion';
+import {captureCards, CapturedFlight, collectToDock, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, DockFlightSource} from '@/client/console/startDockMotion';
 import {gsap} from 'gsap';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
@@ -698,6 +706,11 @@ export default defineComponent({
       /** GAME FRAME MATERIALIZATION: the summary layer has been SWAPPED OUT
        *  under the flying cards (the deployment stands in its place). */
       matSwap: false,
+      /** The scene transition's CARD OVERLAY (captured at the commit press —
+       *  before the submit, over the still-untouched summary). */
+      matCapture: undefined as CapturedFlight | undefined,
+      /** The frozen summary snapshot is live in the freeze layer. */
+      matFrozen: false,
       /** The one-frame re-bound: every shell transition is cut so the new
        *  bounds apply INSTANTLY under the proxies (never a live reflow). */
       matCut: false,
@@ -1611,6 +1624,7 @@ export default defineComponent({
   beforeUnmount() {
     document.body.classList.remove('con-start-ceremony');
     document.body.classList.remove('con-start-prep');
+    this.disposeMaterializationFreeze(true);
     if (this.outcome.host === 'start') {
       releaseWorkspaceOutcome(); // an orphaned claim suppresses presenters
     }
@@ -2284,25 +2298,150 @@ export default defineComponent({
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
       return root.querySelector<HTMLElement>(`[data-queue-slot="${esc}"], [data-pay-card="${esc}"]`);
     },
+    /** The names travelling through the materialization, in play order. */
+    materializationNames(): Array<CardName> {
+      const moving: Array<CardName> = [];
+      if (this.state.corp !== undefined) {
+        moving.push(this.state.corp);
+      }
+      moving.push(...this.state.projects, ...this.state.preludes);
+      return moving;
+    },
     /**
-     * GAME FRAME MATERIALIZATION — the screen is replaced UNDER the moving
-     * cards (the hand-workspace principle: the new surface is prepared in
-     * its FINAL geometry before anything travels):
+     * ARM THE SCENE TRANSITION — at the commit press, on the untouched
+     * summary: the card overlay captures every chosen card's live pixels
+     * (fixed layer ABOVE the bars and the snapshot), then the whole summary
+     * frame is SNAPSHOTTED into the freeze layer as a plain, non-reactive
+     * DOM clone. From here the live tree may re-render, re-bound and
+     * re-title freely — the player sees only the snapshot and the cards.
      *
-     *  1. the resolved beat — the status preview states its final numbers;
-     *  2. CAPTURE — every chosen card gets a proxy over its exact live
-     *     pixels; the originals hide in the same tick;
-     *  3. LIFT — the cards rise slightly toward the viewer, the CORPORATION
-     *     (the player's face) a notch more; the summary's chrome fades;
-     *  4. THE SWAP — one cut turn with every shell transition disabled: the
-     *     summary layer unmounts, the root re-bounds to the SYSTEM band, the
-     *     bars materialize from their edges, and the deployment stands
-     *     already FINAL — queue slots held, «РАЗЫГРАНО» shelf in place;
-     *  5. FLY — the captured cards carry into the measured slots (convoy in
-     *     reading order). After the landings NOTHING re-flows — the layout
-     *     they landed into is the layout that stays.
+     * The clone is inert by construction: the moving cards are hidden inside
+     * it (the overlay owns them), and every live identity attribute is
+     * stripped so no selector, director or flight can ever match the
+     * snapshot instead of the real surface (the parked-summary lesson).
+     */
+    prepareMaterializationFreeze(): void {
+      if (consoleReducedMotionActive() || this.matFrozen) {
+        return;
+      }
+      const host = this.$refs.freezeHost as HTMLElement | undefined;
+      const root = this.$el as HTMLElement | undefined;
+      const frame = root !== undefined && typeof root.querySelector === 'function' ?
+        root.querySelector<HTMLElement>('.con-start__frame') : null;
+      if (host === undefined || host === null || frame === null) {
+        return;
+      }
+      const moving = this.materializationNames();
+      const sources: Array<DockFlightSource> = moving
+        .map((name) => ({name, el: this.summaryTileFor(name)}))
+        .filter((s): s is DockFlightSource => s.el !== null);
+      const capture = captureCards(sources);
+      if (capture.names.length === 0) {
+        capture.dispose();
+        return; // degraded: the settled one-frame swap will carry the turn
+      }
+      const rect = frame.getBoundingClientRect();
+      const clone = frame.cloneNode(true) as HTMLElement;
+      // The overlay owns the moving cards — hide them INSIDE the snapshot.
+      for (const name of moving) {
+        const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
+        clone.querySelectorAll<HTMLElement>(`[data-zoom-slot="${esc}"]`).forEach((el) => {
+          el.style.visibility = 'hidden';
+        });
+      }
+      // Strip every live identity — the snapshot must be unmatchable.
+      const LIVE_ATTRS = ['data-zoom-slot', 'data-queue-slot', 'data-step-slot', 'data-start-pile',
+        'data-played-key', 'data-start-front', 'data-embed-slot', 'data-pay-card', 'data-splayed-fam'];
+      clone.querySelectorAll<HTMLElement>(LIVE_ATTRS.map((a) => `[${a}]`).join(',')).forEach((el) => {
+        LIVE_ATTRS.forEach((a) => el.removeAttribute(a));
+      });
+      host.innerHTML = '';
+      host.style.left = `${rect.left}px`;
+      host.style.top = `${rect.top}px`;
+      host.style.width = `${rect.width}px`;
+      host.style.height = `${rect.height}px`;
+      host.appendChild(clone);
+      host.classList.add('con-start-freeze--live');
+      this.matCapture = capture;
+      this.matFrozen = true;
+      // The live originals hide under the snapshot (belt — nobody sees them).
+      moving.forEach((n) => this.summaryArriving.add(n));
+    },
+    /** Drop the snapshot (and optionally the card overlay) — refusal,
+     *  unmount, or the transition's own completion. Idempotent. */
+    disposeMaterializationFreeze(alsoCapture: boolean): void {
+      const host = this.$refs.freezeHost as HTMLElement | undefined;
+      if (host !== undefined && host !== null) {
+        gsap.killTweensOf(host);
+        host.classList.remove('con-start-freeze--live');
+        host.innerHTML = '';
+        gsap.set(host, {clearProps: 'all'});
+      }
+      this.matFrozen = false;
+      if (alsoCapture) {
+        this.matCapture?.dispose();
+        this.matCapture = undefined;
+      }
+    },
+    /** The snapshot cross-dissolves over the prepared deployment. */
+    dissolveFreeze(): Promise<void> {
+      const host = this.$refs.freezeHost as HTMLElement | undefined;
+      if (host === undefined || host === null || !this.matFrozen) {
+        return Promise.resolve();
+      }
+      return new Promise<void>((resolve) => {
+        const safety = window.setTimeout(resolve, motionMs(680) + 600);
+        gsap.to(host, {
+          autoAlpha: 0,
+          scale: 0.995,
+          transformOrigin: '50% 45%',
+          duration: motionMs(640) / 1000,
+          ease: 'power2.inOut',
+          onComplete: () => {
+            window.clearTimeout(safety);
+            resolve();
+          },
+        });
+      });
+    },
+    /** The corp's target slot rect must stand STILL before anything flies. */
+    async awaitQueueStability(): Promise<void> {
+      const probe = this.state.corp ?? this.materializationNames()[0];
+      if (probe === undefined) {
+        return;
+      }
+      let last: {x: number, y: number} | undefined;
+      for (let i = 0; i < 30; i++) {
+        await new Promise<void>((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => r()) : setTimeout(r, 16)));
+        const el = this.queueTargetEl(probe);
+        const r = el?.getBoundingClientRect();
+        if (r !== undefined && r.width > 4 && last !== undefined &&
+            Math.abs(r.left - last.x) < 0.5 && Math.abs(r.top - last.y) < 0.5) {
+          return;
+        }
+        last = r !== undefined && r.width > 4 ? {x: r.left, y: r.top} : undefined;
+      }
+    },
+    /**
+     * GAME FRAME MATERIALIZATION — a true SCENE TRANSITION between two
+     * independent states, armed at the commit press (see
+     * prepareMaterializationFreeze):
      *
-     * Reduced motion: the same swap in one settled frame (no travel).
+     *  · the FROZEN SUMMARY (a non-reactive snapshot) is all the player
+     *    sees — no header change, no re-size, no clipping can reach it;
+     *  · UNDER it the final game surface assembles instantly and completely
+     *    (band bounds, bars, «РАЗЫГРАНО» shelf, held queue slots) — one cut
+     *    turn with every shell transition disabled;
+     *  · the CARD OVERLAY rises toward the viewer (the corporation — the
+     *    player's face — a notch more) above everything;
+     *  · once the new surface's geometry has PROVEN still, the snapshot
+     *    cross-dissolves — the prepared screen (bars included) materializes
+     *    visually under the airborne cards — and the cards carry into their
+     *    final slots. After the landings nothing re-flows, ever;
+     *  · the handoff is atomic per card (the real card appears in the same
+     *    timeline slot the proxy releases).
+     *
+     * Reduced motion (or a degraded capture): one settled frame swap.
      */
     async runMaterialization(): Promise<void> {
       this.state.flow = 'materializing';
@@ -2310,16 +2449,12 @@ export default defineComponent({
         window.clearTimeout(this.commitSafety);
         this.commitSafety = undefined;
       }
-      const reduced = consoleReducedMotionActive();
-      const summary = this.$refs.summaryPane as HTMLElement | undefined;
-      const prev = this.$refs.hudPrev as HTMLElement | undefined;
-      const moving: Array<CardName> = [];
-      if (this.state.corp !== undefined) {
-        moving.push(this.state.corp);
-      }
-      moving.push(...this.state.preludes, ...this.state.projects);
+      const capture = this.matCapture;
+      const moving = this.materializationNames();
 
-      if (reduced || summary === undefined || !summary.isConnected) {
+      if (capture === undefined || !this.matFrozen || consoleReducedMotionActive()) {
+        // The settled one-frame swap (reduced motion / degraded capture).
+        this.disposeMaterializationFreeze(true);
         this.matSwap = true;
         this.matCut = true;
         this.shellUp = true;
@@ -2328,50 +2463,41 @@ export default defineComponent({
         await this.$nextTick();
         this.matCut = false;
         this.matSwap = false;
+        this.summaryArriving.clear();
         this.state.flow = 'deploying';
         return;
       }
 
-      // 1) THE RESOLVED BEAT — the preview states its final numbers; the
-      // cards stay exactly where they are.
-      if (prev !== undefined) {
-        prev.classList.add('con-start__hudprev--resolved');
-      }
-      await new Promise<void>((r) => window.setTimeout(r, motionMs(240)));
-
-      // 2) CAPTURE the cards where they stand (originals hide in this tick;
-      // the queue slots are held empty from before their first paint).
-      const sources: Array<DockFlightSource> = moving
-        .map((name) => ({name, el: this.summaryTileFor(name)}))
-        .filter((s): s is DockFlightSource => s.el !== null);
-      const capture = captureCards(sources);
-      moving.forEach((n) => {
-        this.summaryArriving.add(n);
-        this.queueArriving.add(n);
-      });
-
-      // 3) LIFT — toward the viewer, corporation accented; the summary's
-      // chrome calmly finishes its role underneath.
-      const liftBeat = capture.lift(this.state.corp);
-      gsap.to(summary, {autoAlpha: 0, duration: motionMs(200) / 1000, ease: 'power2.in', delay: 0.06});
-      await liftBeat;
-
-      // 4) THE SWAP — one cut turn: summary out, system band + bars + the
-      // fully-prepared deployment in, zero transitions, zero reflow after.
+      // THE SWAP UNDER THE SNAPSHOT — the final surface assembles complete:
+      // held queue slots first (they must never paint occupied), then one
+      // cut turn for bounds + bars + shelf.
+      moving.forEach((n) => this.queueArriving.add(n));
       this.matSwap = true;
       this.matCut = true;
       this.shellUp = true;
       this.ceremonyRevealed = true;
       this.syncCeremonyLayout();
-      gsap.set(summary, {clearProps: 'opacity,visibility'});
       await this.$nextTick();
       await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
+      await this.awaitQueueStability();
 
-      // 5) FLY into the measured slots; each landing reveals its real card.
-      await capture.flyTo(
-        (name) => this.queueTargetEl(name),
-        (name) => this.queueArriving.delete(name));
+      // THE RISE — the cards come toward the viewer over the frozen summary.
+      await capture.lift(this.state.corp);
 
+      // THE CROSS-DISSOLVE + THE CARRY: the prepared screen surfaces under
+      // the airborne cards; the convoy leaves a beat into the dissolve and
+      // lands on geometry that no longer changes.
+      const fade = this.dissolveFreeze();
+      await new Promise<void>((r) => window.setTimeout(r, motionMs(150)));
+      await Promise.all([
+        capture.flyTo(
+          (name) => this.queueTargetEl(name),
+          (name) => this.queueArriving.delete(name)),
+        fade,
+      ]);
+
+      this.disposeMaterializationFreeze(false);
+      this.matCapture = undefined;
       this.summaryArriving.clear();
       this.queueArriving.clear();
       this.matCut = false;
@@ -2757,6 +2883,12 @@ export default defineComponent({
       if (this.state.projects.length > 0) {
         armDeliveryHold(deliveryHoldKey(this.state.projects), [...this.state.projects]);
       }
+      // THE SCENE TRANSITION ARMS NOW — on the still-untouched summary:
+      // the card overlay captures the live pixels, the freeze layer snapshots
+      // the whole frame. From this press to the deployment the player only
+      // ever sees the snapshot + the flying cards, whatever the live tree
+      // re-renders underneath.
+      this.prepareMaterializationFreeze();
       // THE COMMIT BOUNDARY. The workspace's LIFETIME HOLD arms in the same
       // press as the submit: from here the root Game Start Workspace exists
       // continuously to the end of the deployment — the response's prompt
@@ -2773,7 +2905,11 @@ export default defineComponent({
         this.commitSafety = undefined;
         if (this.state.flow === 'committing' && this.mode === 'wizard') {
           // The server never accepted (error / network) — the preparation
-          // returns pressable and the lifetime claim lets go.
+          // returns pressable, the frozen snapshot + card overlay let go
+          // (the live summary stands untouched beneath), and the lifetime
+          // claim releases.
+          this.disposeMaterializationFreeze(true);
+          this.summaryArriving.clear();
           this.state.flow = 'idle';
           releaseStartScene();
         }
