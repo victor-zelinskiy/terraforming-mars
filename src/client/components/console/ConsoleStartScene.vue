@@ -330,7 +330,11 @@
                        identity: runHandDelivery measures [data-pay-card]). -->
                   <div v-if="payProjects.length > 0" key="#buy" class="con-start__buy"
                        :style="{order: 2}"
-                       :class="{'con-start__buy--focused': isFocused('pay', PAY_KEY)}">
+                       :class="{
+                         'con-start__buy--focused': isFocused('pay', PAY_KEY),
+                         'con-start__buy--chromehold': buyChrome === 'hold',
+                         'con-start__buy--chromein': buyChrome === 'entering',
+                       }">
                     <div class="con-start__buy-row" ref="payGrid">
                       <div v-for="name in payProjects" :key="name"
                            class="con-start__buycard"
@@ -719,6 +723,11 @@ export default defineComponent({
        *  (binding it to `mode` re-bounded the LIVE summary mid-transition:
        *  clipped cards, early bars — the exact rejected frame). */
       shellUp: false,
+      /** The «КУПЛЕНО» box's CHROME (plate + caption) through the
+       *  materialization: held away while the bought projects are airborne,
+       *  entering only when the LAST of them stands in the row — the box
+       *  materializes AROUND landed cards, never as an empty frame waiting. */
+      buyChrome: 'shown' as 'shown' | 'hold' | 'entering',
     };
   },
   computed: {
@@ -2298,6 +2307,17 @@ export default defineComponent({
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
       return root.querySelector<HTMLElement>(`[data-queue-slot="${esc}"], [data-pay-card="${esc}"]`);
     },
+    /** The «КУПЛЕНО» chrome enters only once the LAST bought project stands
+     *  in the row — the box materializes around cards, never around a
+     *  landing still in progress. */
+    noteBuyLanding(name: CardName): void {
+      if (this.buyChrome !== 'hold' || !this.state.projects.includes(name)) {
+        return;
+      }
+      if (!this.state.projects.some((p) => this.queueArriving.has(p))) {
+        this.buyChrome = 'entering';
+      }
+    },
     /** The names travelling through the materialization, in play order. */
     materializationNames(): Array<CardName> {
       const moving: Array<CardName> = [];
@@ -2378,9 +2398,13 @@ export default defineComponent({
         gsap.set(host, {clearProps: 'all'});
       }
       this.matFrozen = false;
+      // The bars hold may never outlive the transition (the success path has
+      // already released it at the flight beat — this is the abort belt).
+      document.body.classList.remove('con-start-barshold');
       if (alsoCapture) {
         this.matCapture?.dispose();
         this.matCapture = undefined;
+        this.buyChrome = 'shown'; // aborted / degraded: the box stands normally
       }
     },
     /** The snapshot cross-dissolves over the prepared deployment. */
@@ -2470,8 +2494,16 @@ export default defineComponent({
 
       // THE SWAP UNDER THE SNAPSHOT — the final surface assembles complete:
       // held queue slots first (they must never paint occupied), then one
-      // cut turn for bounds + bars + shelf.
+      // cut turn for bounds + bars + shelf. Two entrances are deliberately
+      // HELD through the swap: the standard bars (they enter WITH the flight
+      // — released below; entering here, under the snapshot, they surfaced
+      // mid-dissolve over the still-standing summary) and the «КУПЛЕНО»
+      // box's chrome (it frames landed cards, never an empty landing).
       moving.forEach((n) => this.queueArriving.add(n));
+      if (this.state.projects.length > 0) {
+        this.buyChrome = 'hold';
+      }
+      document.body.classList.add('con-start-barshold');
       this.matSwap = true;
       this.matCut = true;
       this.shellUp = true;
@@ -2489,12 +2521,22 @@ export default defineComponent({
       // lands on geometry that no longer changes.
       const fade = this.dissolveFreeze();
       await new Promise<void>((r) => window.setTimeout(r, motionMs(150)));
+      // THE BARS ENTER WITH THE FLIGHT: the Top HUD and the Player Rail run
+      // their entrance keyframes from this exact beat — under the dissolving
+      // snapshot, beside the airborne cards — never earlier.
+      document.body.classList.remove('con-start-barshold');
       await Promise.all([
         capture.flyTo(
           (name) => this.queueTargetEl(name),
-          (name) => this.queueArriving.delete(name)),
+          (name) => {
+            this.queueArriving.delete(name);
+            this.noteBuyLanding(name);
+          }),
         fade,
       ]);
+      if (this.buyChrome === 'hold') {
+        this.buyChrome = 'entering'; // a no-flight fallback never leaves the box hidden
+      }
 
       this.disposeMaterializationFreeze(false);
       this.matCapture = undefined;

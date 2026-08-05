@@ -14557,9 +14557,32 @@ body.con-start-ceremony .con-status {
     from { opacity: 0; transform: translateY(-0.55rem); }
     to { opacity: 1; transform: translateY(0); }
 }
+/* The «КУПЛЕНО» box materializes AROUND its landed cards (only `from` is
+   declared — each animation resolves to the element's own computed state,
+   so the focused variant keeps its accent). */
+@keyframes con-start-buybox-in {
+    from { background-color: rgba(14, 22, 33, 0); box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0); }
+}
+@keyframes con-start-buymeta-in {
+    from { opacity: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
     body.con-start-ceremony .con-res,
     body.con-start-ceremony .con-status { animation: none; }
+}
+/* THE BARS RIDE THE FLIGHT. Through the freeze scene transition the class
+   swap happens UNDER the opaque snapshot — bars that ran their entrance
+   there were already fully standing when the dissolve began, so they
+   surfaced mid-fade OVER the still-frozen summary cards (the "early bars"
+   note of the transition review). The scene HOLDS them (this rule wins the
+   equal-specificity cascade by order) and releases at the exact beat the
+   card convoy leaves: removing the class re-arms the entrance keyframes
+   above (animation-name none → name plays fresh), so the HUD and the rail
+   materialize beside the airborne cards, under the dissolving snapshot. */
+body.con-start-barshold .con-res,
+body.con-start-barshold .con-status {
+    animation: none;
+    opacity: 0;
 }
 
 .con-start {
@@ -14784,6 +14807,19 @@ body.con-start-ceremony .con-status {
     &__buy-amount {
         display: inline-flex; align-items: center; gap: .15rem;
         font-size: .95rem; font-weight: 800; color: #ffd88a; font-variant-numeric: tabular-nums;
+    }
+    /* MATERIALIZATION: the purchase box's CHROME (plate + caption) stays
+       away while the bought projects are still airborne — the cards land
+       bare, THEN the box materializes around them. Paint-only: the slots
+       keep full geometry, so the convoy's targets never move. */
+    &__buy--chromehold {
+        background: transparent;
+        box-shadow: none;
+        .con-start__buy-meta { opacity: 0; }
+    }
+    &__buy--chromein {
+        animation: con-start-buybox-in calc(520ms * var(--motion-scale, 1)) ease backwards;
+        .con-start__buy-meta { animation: con-start-buymeta-in calc(560ms * var(--motion-scale, 1)) ease backwards; }
     }
     /* The embed layer — the workspace's INTERNAL deeper step. An overlay of
        the queue column (same Header, same Status Rail, same Footer around

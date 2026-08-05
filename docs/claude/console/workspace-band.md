@@ -1112,10 +1112,28 @@ mode-флип мгновенно меняет крошку/journey/`--ceremony`-
 - Покадровая проба: t0 = freeze+3 прокси над нетронутой сводкой; t100 =
   финальная сцена целиком (bounded+bars+shelf+held:3) под снапшотом;
   посадки t1100-1300; t1400+ — ноль изменений layout.
+- **STAGED ENTRANCES (раунд-5 фидбек «бары слишком рано»):** под freeze'ом
+  entrance-анимации баров успевали ОТЫГРАТЬ (480ms от свапа) — растворение
+  проявляло уже стоящие бары ПОВЕРХ замороженных карт сводки. Теперь своп
+  добавляет body-класс **`con-start-barshold`** (`animation:none; opacity:0`
+  на `.con-res`/`.con-status`; правило ПОСЛЕ entrance-правил — побеждает
+  каскад равной специфичности порядком), а `runMaterialization` снимает его
+  ровно в бит `flyTo` — keyframes `con-start-rail-in`/`hud-in` играют во
+  время полёта под растворяющимся снапшотом (`backwards`-филл держит 0 и в
+  зазоре recalc→первый кадр). Ремень: dispose снимает класс при любом
+  исходе. Хром зоны «КУПЛЕНО» (`__buy--chromehold` — paint-only: фон/тень
+  плиты + `__buy-meta` в 0, ГЕОМЕТРИЯ слотов нетронута — цели конвоя не
+  двигаются) держится до посадки ПОСЛЕДНЕГО купленного проекта
+  (`noteBuyLanding` на onLanded) и входит `--chromein`-анимациями
+  (`con-start-buybox-in`/`buymeta-in`, только `from` — раскрывается к
+  собственному computed-состоянию, фокус-акцент не ломается); ремень после
+  `Promise.all` — no-flight fallback не оставит плиту скрытой. Порядок битов
+  гвардится серией `mat-stage-probe` (ordering, не тайминги).
 
 Гварды: `consoleStartState.spec` (24), `ConsoleStartPlayedDock.spec` (6:
 + art-identity), `startStatusPreview.spec`, e2e `console-play-landing-probe`
 (FHD+4K+reduced), `console-start-summary` (сводка = v-show: видимость, не
-count), `start-scene-profiles` (4 профиля + no-scroll). Диагностика героя —
-burst-пробой (`.con-played-hero__proxy` per-frame + сетевой лог): телепорт =
-proxy 0 кадров при RESP 200.
+count), `start-scene-profiles` (4 профиля + no-scroll), `mat-stage-probe`
+(стейджинг материализации: hold→полёт→хром, серия ~100ms). Диагностика
+героя — burst-пробой (`.con-played-hero__proxy` per-frame + сетевой лог):
+телепорт = proxy 0 кадров при RESP 200.
