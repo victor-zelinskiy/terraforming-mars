@@ -2746,7 +2746,13 @@ export default defineComponent({
       const titleH = 34 * ui;
       const gap = 14 * ui;
       const rowPad = 12 * ui;
-      const fits = (z: number): boolean => {
+      // THE MODEL IS ONLY A SEED. It cannot know the pane's real furniture
+      // (the counts shelf, paddings, a wrapped section title), and every
+      // count where it guessed a row too optimistically shipped a SCROLLBAR
+      // — a console-native bug by contract. So the model picks a starting
+      // guess and the LIVE PANE is then asked the only honest question:
+      // «do you overflow?»
+      const seedFits = (z: number): boolean => {
         const zs = z * ui;
         const idW = NAT_W * zs * ID_BOOST + gap;
         const idCols = Math.max(1, Math.floor((availW + gap) / idW));
@@ -2759,15 +2765,49 @@ export default defineComponent({
         const prH = titleH + rowPad + prRows * (NAT_H * zs) + Math.max(0, prRows - 1) * gap;
         return idH + gap + prH <= availH;
       };
-      let zoom = 0.4;
-      for (let z = 0.82; z >= 0.4; z -= 0.02) {
-        if (fits(z)) {
-          zoom = z;
+      const MIN_Z = 0.26;
+      const MAX_Z = 0.86;
+      const STEP = 0.02;
+      let seed = MIN_Z;
+      for (let z = MAX_Z; z >= MIN_Z; z -= STEP) {
+        if (seedFits(z)) {
+          seed = z;
           break;
         }
       }
-      pane.style.setProperty('--con-start-mini-zoom', zoom.toFixed(3));
-      pane.style.setProperty('--con-start-mini-id-zoom', (zoom * ID_BOOST).toFixed(3));
+      const apply = (z: number) => {
+        pane.style.setProperty('--con-start-mini-zoom', z.toFixed(3));
+        pane.style.setProperty('--con-start-mini-id-zoom', (z * ID_BOOST).toFixed(3));
+      };
+      // Reading `scrollHeight` forces the pending layout, so each probe below
+      // measures the zoom it just applied — the whole search is a handful of
+      // reflows on ONE transition, and it can never disagree with the DOM.
+      const overflows = (): boolean =>
+        pane.scrollHeight > pane.clientHeight + 1 || col.scrollWidth > col.clientWidth + 1;
+      apply(seed);
+      let best = seed;
+      if (overflows()) {
+        // Walk DOWN until the pane genuinely stops scrolling.
+        best = MIN_Z;
+        for (let z = seed - STEP; z >= MIN_Z; z -= STEP) {
+          apply(z);
+          if (!overflows()) {
+            best = z;
+            break;
+          }
+        }
+      } else {
+        // …or UP while the space is still there — an under-used pane is the
+        // other half of the same bug (tiny cards on a 4K screen).
+        for (let z = seed + STEP; z <= MAX_Z; z += STEP) {
+          apply(z);
+          if (overflows()) {
+            break;
+          }
+          best = z;
+        }
+      }
+      apply(best);
     },
     /** The height the strip may occupy. The status rail is now PINNED OUTSIDE
      *  the scrollable body (a frame-level element above the command bar), so

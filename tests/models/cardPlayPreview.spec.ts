@@ -21,7 +21,10 @@ import {TitanFloatingLaunchPad} from '../../src/server/cards/colonies/TitanFloat
 import {SelectCardModel, OrOptionsModel, SelectOptionModel} from '../../src/common/models/PlayerInputModel';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
 import {cast} from '../../src/common/utils/utils';
-import {runAllActions} from '../TestingUtils';
+import {runAllActions, addCity} from '../TestingUtils';
+import {TollStation} from '../../src/server/cards/base/TollStation';
+import {Satellites} from '../../src/server/cards/base/Satellites';
+import {MolecularPrinting} from '../../src/server/cards/colonies/MolecularPrinting';
 import {VenusianPlants} from '../../src/server/cards/venusNext/VenusianPlants';
 import {Extremophiles} from '../../src/server/cards/venusNext/Extremophiles';
 import {Thermophiles} from '../../src/server/cards/venusNext/Thermophiles';
@@ -1517,6 +1520,75 @@ describe('cardPlayPreview', () => {
       expect(player.plants).eq(before.plants);
       expect(player.heat).eq(before.heat);
       expect(pets.resourceCount).eq(before.pets);
+    });
+  });
+
+  /**
+   * A VARIABLE amount is the card's whole proposition, and its CURRENT value is
+   * the only thing that makes the price judgeable. Toll Station («+1 M€
+   * production per space tag your OPPONENTS have») previewed as nothing but its
+   * own tag when the opponents had none: the preview dropped every zero-valued
+   * chip, so the one number worth 12 M€ of thought was the one number the player
+   * never saw — a silent loss in the purest form, on the screen whose entire job
+   * is to prevent one.
+   */
+  describe('a variable amount that currently counts to ZERO', () => {
+    it('TollStation: states the +0 production, with the opponent tag count that explains it', () => {
+      const [/* game */, player] = testGame(2);
+      const card = new TollStation();
+
+      const effects = cardPlayPreview(player, card).branches[0].effects;
+      const production = effects.find((e) => e.note === 'production');
+      expect(production, 'the production clause must be reported even at zero').is.not.undefined;
+      expect(production?.amount).eq(0);
+      // current === resulting → the chip renders muted with a «no effect» note.
+      expect(production?.current).eq(production?.resulting);
+      expect(production?.basis).deep.eq([{count: 0, label: 'Opponent tags', tag: Tag.SPACE}]);
+    });
+
+    it('TollStation: the same chip counts the opponents\' real space tags once they have some', () => {
+      const [/* game */, player, opponent] = testGame(2);
+      opponent.playedCards.push(new Satellites()); // a SPACE tag on the other tableau
+      const card = new TollStation();
+
+      const production = cardPlayPreview(player, card).branches[0].effects.find((e) => e.note === 'production');
+      expect(production?.amount).eq(1);
+      expect(production?.basis).deep.eq([{count: 1, label: 'Opponent tags', tag: Tag.SPACE}]);
+    });
+
+    /**
+     * The scope is part of the label. `{tag}` counts YOURS (including the card
+     * being played, which is not yet on the tableau) — labelling that the same
+     * way as an opponents-only count would describe a different card.
+     */
+    it('Satellites: a SELF-tag count is labelled as the player\'s own and includes the card being played', () => {
+      const [/* game */, player] = testGame(2);
+
+      const production = cardPlayPreview(player, new Satellites()).branches[0].effects
+        .find((e) => e.note === 'production');
+      expect(production?.amount).eq(1);
+      expect(production?.basis).deep.eq([{count: 1, label: 'Your tags', tag: Tag.SPACE}]);
+    });
+
+    /**
+     * A COMPOSITE countable sums two different entities, and each one is counted
+     * on its own. The single-label version took its name from the first key and
+     * its number from the whole sum — «Cities: 3» on a board holding one city
+     * and two colonies, which is not a rounding error but a false statement.
+     */
+    it('MolecularPrinting: cities and colonies are separate basis terms with their own counts', () => {
+      const [game, player] = testGame(2, {coloniesExtension: true});
+      addCity(player);
+      game.colonies[0].addColony(player);
+      game.colonies[1].addColony(player);
+
+      const gain = cardPlayPreview(player, new MolecularPrinting()).branches[0].effects
+        .find((e) => e.icon === Resource.MEGACREDITS);
+      expect(gain?.amount).eq(3); // 1 city + 2 colonies
+      expect(gain?.basis).deep.eq([
+        {count: 1, label: 'Cities'},
+        {count: 2, label: 'Colonies in play'},
+      ]);
     });
   });
 });

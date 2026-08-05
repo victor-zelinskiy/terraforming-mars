@@ -31,6 +31,7 @@ import {CONSOLE_KEY_BUTTON, CONSOLE_KEY_NAV, keyboardConsoleIntent} from '@/clie
 import {GamepadIntent, SemanticButton} from '@/client/gamepad/gamepadPollModel';
 import {dispatchConsoleIntent} from '@/client/console/consoleRouter';
 import {menuPadState} from '@/client/console/menu/consoleMenuPad';
+import {consoleSystemMenuIntent} from '@/client/console/consoleSystemMenuBridge';
 import {clickDesktopUpdatePrimary, desktopUpdateBlocking} from '@/client/components/desktop/desktopUpdateState';
 
 /** A real editable element owns the physical keyboard. */
@@ -59,6 +60,14 @@ function onKeydown(e: KeyboardEvent): void {
     if (intent.kind === 'press' && intent.button === 'confirm') {
       clickDesktopUpdatePrimary();
     }
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    return;
+  }
+  // The SYSTEM overlay is asked first: it is owned by GamepadLayer (off the
+  // console router), so while it is open it must own the keyboard too —
+  // otherwise the arrows would drive the board BEHIND it.
+  if (consoleSystemMenuIntent(intent)) {
     e.preventDefault();
     e.stopImmediatePropagation();
     return;
@@ -97,6 +106,11 @@ function onKeyup(e: KeyboardEvent): void {
   }
   const intent: GamepadIntent = dir !== undefined ?
     {kind: 'navEnd', dir} : {kind: 'release', button: button as SemanticButton};
+  if (consoleSystemMenuIntent(intent)) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    return;
+  }
   if (dispatchConsoleIntent(intent)) {
     e.preventDefault();
     e.stopImmediatePropagation();

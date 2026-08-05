@@ -60,7 +60,10 @@
                :data-played-key="s" :data-zoom-slot="s"
                :style="{height: plan.stripH + 'px'}">
             <div class="con-splayed__face" :class="{'con-deal-hold': awayCard === s}" :style="{zoom: String(plan.zoom)}">
-              <ConsolePlayedCardLite :name="s" peek />
+              <!-- keep-art: the start shelf holds a HANDFUL of cards, so the
+                   tableau's peek crop buys nothing here and costs the card's
+                   own picture (see ConsolePlayedCardLite.keepArt). -->
+              <ConsolePlayedCardLite :name="s" peek keep-art />
             </div>
           </div>
           <!-- While RECEIVING: the previous top waits on its FUTURE strip,
@@ -71,7 +74,7 @@
                :data-played-key="fam.prevTop" :data-zoom-slot="fam.prevTop"
                :style="{height: plan.stripH + 'px'}">
             <div class="con-splayed__face" :class="{'con-deal-hold': awayCard === fam.prevTop}" :style="{zoom: String(plan.zoom)}">
-              <ConsolePlayedCardLite :name="fam.prevTop" :peek="revealed" />
+              <ConsolePlayedCardLite :name="fam.prevTop" :peek="revealed" keep-art />
             </div>
           </div>
           <!-- THE TOP SLOT — one persistent element: the open top card, or
@@ -85,7 +88,7 @@
             <div v-if="fam.topFace !== undefined" class="con-splayed__face"
                  :class="{'con-deal-hold': awayCard === fam.topFace}"
                  :key="fam.topFace" :style="{zoom: String(plan.zoom)}">
-              <ConsolePlayedCardLite :name="fam.topFace" />
+              <ConsolePlayedCardLite :name="fam.topFace" keep-art />
             </div>
             <div v-else class="con-splayed__place" aria-hidden="true">
               <span class="con-splayed__place-ring"></span>

@@ -148,6 +148,28 @@
       </div>
     </div>
 
+    <!-- ── Local-game deletion confirm (host mode; stacked over the games list) ── -->
+    <div v-if="overlay === 'games' && gamesConfirm !== undefined" class="cm-overlay" role="alertdialog" :aria-label="$t(gamesConfirm.kind === 'all' ? 'Delete all local games?' : 'Delete this game?')">
+      <div class="cm-overlay__card">
+        <div class="cm-overlay__title">{{ $t(gamesConfirm.kind === 'all' ? 'Delete all local games?' : 'Delete this game?') }}</div>
+        <div class="cm-overlay__body">
+          <template v-if="gamesConfirm.kind === 'one'">
+            <b>{{ gamesConfirm.game.name }}</b> — {{ $t('The game and its whole history will be permanently deleted.') }}
+          </template>
+          <template v-else>{{ $t('Every game stored on this device will be permanently deleted, including games of other profiles.') }}</template>
+        </div>
+        <div v-if="gamesError" class="cm-gamelist__empty cm-gamelist__empty--error">{{ $t('Could not delete the game') }}</div>
+        <div class="cm-confirm__pad">
+          <button type="button" class="cm-confirm__btn cm-confirm__btn--danger" :disabled="gamesDeleting" @click="executeGamesDelete">
+            <GamepadGlyph control="confirm" /><span>{{ $t('Delete') }}</span>
+          </button>
+          <button type="button" class="cm-confirm__btn" @click="gamesConfirm = undefined">
+            <GamepadGlyph control="back" /><span>{{ $t('Cancel') }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- ── Profile editor ──────────────────────────────────────────────── -->
     <ConsoleProfileEditor v-if="overlay === 'profile'" ref="profile" @close="closeOverlay" @manage-friends="openFriends" @manage-profiles="openProfiles" />
 
@@ -206,7 +228,10 @@
       </span>
     </footer>
 
-    <ConsoleCommandBar :context="commandContext" :commands="commands" />
+    <!-- The settings console carries its OWN foot bar (it has to — in-game
+         there is no menu bar under it), so showing the menu's bar behind it
+         would print the same four verbs twice, in two sizes. -->
+    <ConsoleCommandBar v-if="overlay !== 'options'" :context="commandContext" :commands="commands" />
   </div>
 </template>
 
@@ -258,6 +283,7 @@ import {lanState, LanGameRow, initLanDiscovery, publishLanName, startLanPolling,
 import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
 import {navigateWithCurtain} from '@/client/console/loadingScreenState';
+import {apiUrl} from '@/client/utils/runtimeConfig';
 import {quitApp, supportsNativeQuit} from '@/client/console/runtimeMode';
 import {mapLabelKey} from '@/client/components/create/premium/createGameMeta';
 import {expansionIconUrl, expansionLabel} from '@/client/components/mainMenu/expansionMeta';
@@ -290,6 +316,11 @@ export default defineComponent({
       offPad: undefined as (() => void) | undefined,
       desktopVersion: '',
       steamState: steamShortcutState,
+      // Host-as-server: local-game deletion (X = one, Y = all; both confirmed).
+      appModeEffective: undefined as 'host' | 'remote' | undefined,
+      gamesConfirm: undefined as undefined | {kind: 'one', game: JoinableGameSummary} | {kind: 'all'},
+      gamesDeleting: false,
+      gamesError: false,
     };
   },
   computed: {
@@ -313,6 +344,10 @@ export default defineComponent({
     /** Cursor range of the games overlay: local rows first, then LAN rows. */
     gamesCount(): number {
       return this.games.length + this.lanRows.length;
+    },
+    /** Deletion is offered only for games on THIS device's embedded server. */
+    canDeleteLocal(): boolean {
+      return this.appModeEffective === 'host';
     },
     continueItem(): JoinableGameSummary | undefined {
       const mine = this.games.filter((g) => g.you !== undefined);
@@ -398,14 +433,30 @@ export default defineComponent({
     },
     commands(): ReadonlyArray<ConsoleCommand> {
       if (this.overlay === 'games') {
-        const g = this.games[this.gamesCursor];
-        return [
+        if (this.gamesConfirm !== undefined) {
+          return [
+            {control: 'confirm', label: 'Delete'},
+            {control: 'back', label: 'Cancel'},
+          ];
+        }
+        const cursorLocal = this.gamesCursor < this.games.length ? this.games[this.gamesCursor] : undefined;
+        const row = cursorLocal ?? this.lanRows[this.gamesCursor - this.games.length]?.game;
+        const bar: Array<ConsoleCommand> = [
           {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Enter game', enabled: g !== undefined && this.joinable(g), highlight: g !== undefined && this.yourTurn(g)},
-          {control: 'back', label: 'Back'},
+          {control: 'confirm', label: 'Enter game', enabled: row !== undefined && this.joinable(row), highlight: row !== undefined && this.yourTurn(row)},
         ];
+        if (this.canDeleteLocal) {
+          bar.push(
+            {control: 'secondary', label: 'Delete', enabled: cursorLocal !== undefined},
+            {control: 'inspect', label: 'Delete all', enabled: this.games.length > 0},
+          );
+        }
+        bar.push({control: 'back', label: 'Back'});
+        return bar;
       }
-      if (this.overlay === 'profile' || this.overlay === 'options') {
+      // No 'options' branch: the settings console owns its own foot bar and the
+      // menu's is hidden while it is open (see the template).
+      if (this.overlay === 'profile') {
         return [
           {control: 'dpad', label: 'Navigate'},
           {control: 'confirm', label: 'Change'},
@@ -496,8 +547,14 @@ export default defineComponent({
     this.maybeShowSteamPrompt();
     this.offPad = installMenuPad((intent) => this.onIntent(intent));
     // Host-as-server: subscribe to LAN discovery pushes + advertise under the
-    // active profile's name (both no-op on the web / remote mode).
+    // active profile's name (both no-op on the web / remote mode). The effective
+    // app mode gates the local-game deletion verbs in the games overlay.
     initLanDiscovery();
+    void desktopBridge()?.getAppMode?.().then((info) => {
+      if (info !== undefined) {
+        this.appModeEffective = info.effective;
+      }
+    }).catch(() => {});
     const name = this.identityName;
     if (name !== '') {
       void loadJoinableGames(name, {silent: true});
@@ -570,6 +627,16 @@ export default defineComponent({
         return admin?.handleIntent?.(intent) ?? true;
       }
       if (this.overlay === 'games') {
+        // The deletion confirm swallows everything but confirm/cancel.
+        if (this.gamesConfirm !== undefined) {
+          if (action === 'primary') {
+            void this.executeGamesDelete();
+          } else if (action === 'back') {
+            this.gamesConfirm = undefined;
+            this.gamesError = false;
+          }
+          return true;
+        }
         if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
           this.gamesCursor = stepIndex(this.gamesCursor, intent.dir === 'down' ? 1 : -1, this.gamesCount);
           this.keepGamesCursorVisible();
@@ -577,6 +644,16 @@ export default defineComponent({
         }
         if (action === 'primary') {
           this.enterGameAt(this.gamesCursor);
+          return true;
+        }
+        if (action === 'inspect') {
+          // X — delete the cursored LOCAL game (LAN rows are another host's).
+          this.requestDeleteAt(this.gamesCursor);
+          return true;
+        }
+        if (action === 'fullscreen') {
+          // Y — delete ALL local games.
+          this.requestDeleteAll();
           return true;
         }
         if (action === 'back') {
@@ -646,6 +723,8 @@ export default defineComponent({
       case 'games':
         this.overlay = 'games';
         this.gamesCursor = 0;
+        this.gamesConfirm = undefined;
+        this.gamesError = false;
         if (this.identityName !== '') {
           void loadJoinableGames(this.identityName);
           // LAN hosts are re-queried while the list is open (they answer in ~ms).
@@ -710,6 +789,8 @@ export default defineComponent({
     closeOverlay(): void {
       this.overlay = undefined;
       menuPadState.textEntry = false;
+      this.gamesConfirm = undefined;
+      this.gamesError = false;
       stopLanPolling();
       // The profile may have just set the identity — refresh the games list and
       // re-advertise this host under the (possibly new) name.
@@ -758,6 +839,50 @@ export default defineComponent({
         pinServerEndpoint(row.game.you.id, row.endpoint);
         recordLastGameEntered(row.game.id);
         navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(row.game.you.id), 'expedition');
+      }
+    },
+    /** X on a LOCAL row (host mode) — ask before deleting that one game. */
+    requestDeleteAt(i: number): void {
+      if (!this.canDeleteLocal || i >= this.games.length) {
+        return;
+      }
+      const g = this.games[i];
+      if (g !== undefined) {
+        this.gamesCursor = i;
+        this.gamesError = false;
+        this.gamesConfirm = {kind: 'one', game: g};
+      }
+    },
+    /** Y (host mode) — ask before wiping the whole local library. */
+    requestDeleteAll(): void {
+      if (this.canDeleteLocal && this.games.length > 0) {
+        this.gamesError = false;
+        this.gamesConfirm = {kind: 'all'};
+      }
+    },
+    async executeGamesDelete(): Promise<void> {
+      const confirm = this.gamesConfirm;
+      if (confirm === undefined || this.gamesDeleting) {
+        return;
+      }
+      this.gamesDeleting = true;
+      this.gamesError = false;
+      try {
+        const query = confirm.kind === 'all' ? 'all=1' : 'id=' + encodeURIComponent(confirm.game.id);
+        const res = await fetch(apiUrl(paths.API_LOCAL_GAME_DELETE) + '?' + query, {method: 'POST'});
+        if (!res.ok) {
+          throw new Error(`delete failed (${res.status})`);
+        }
+        this.gamesConfirm = undefined;
+        // Refresh the list (also rewrites the joinable cache → CONTINUE/badge).
+        if (this.identityName !== '') {
+          await loadJoinableGames(this.identityName, {silent: true});
+        }
+        this.gamesCursor = Math.min(this.gamesCursor, Math.max(0, this.gamesCount - 1));
+      } catch {
+        this.gamesError = true;
+      } finally {
+        this.gamesDeleting = false;
       }
     },
     onQuitConfirm(): void {

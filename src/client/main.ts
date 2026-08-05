@@ -7,7 +7,7 @@ import {getPreferences} from '@/client/utils/PreferencesManager';
 import i18nPlugin from '@/client/plugins/i18n.plugin';
 import {startOauth} from '@/client/oauth';
 import {perfMark, perfMeasure, startLongTaskObserver} from '@/client/utils/perfMarks';
-import {applyMotionCssScale} from '@/client/components/motion/motionTokens';
+import {applyMotionCssScale, onMotionFpsCapChange} from '@/client/components/motion/motionTokens';
 import {applyGsapTickerFps} from '@/client/components/motion/gsapMotionBridge';
 import {applyConsolePerfClass} from '@/client/console/consolePerfMode';
 const PlayerInputFactory = defineAsyncComponent(() => import(/* webpackChunkName: "player-input" */ '@/client/components/PlayerInputFactory.vue'));
@@ -49,7 +49,9 @@ async function bootstrap() {
   // Bridge the FPS cap onto GSAP's global ticker so the player's Animation-rate
   // preference reaches the heavy card-deal / FLIP cinematics (motionFpsCap alone
   // only throttles createFrameGate loops). 'auto' = native rAF (unchanged).
-  applyGsapTickerFps();
+  // Registering (rather than calling) also applies every LATER change — the
+  // settings surface just persists the cap and never touches gsap itself.
+  onMotionFpsCapChange((cap) => applyGsapTickerFps(cap));
   // Apply the console performance-mode class (cuts decorative paint; motion
   // untouched) from the persisted preference before first paint.
   applyConsolePerfClass();

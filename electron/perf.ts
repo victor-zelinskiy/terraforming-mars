@@ -162,6 +162,9 @@ export function parseExtraSwitches(raw: string): ExtraSwitch[] {
 //   --tm-features=none                        (→ TM_ELECTRON_FEATURES)
 //   --tm-priority=above                       (→ TM_ELECTRON_PRIORITY)
 //   --tm-software  --tm-no-perf  --tm-devtools  --tm-windowed  (booleans → "1")
+//   --tm-local-build                          (→ TM_LOCAL_BUILD; not a perf knob, but it rides
+//                                              the same bridge so a locally-packed build can be
+//                                              launched update-free from a shortcut / Steam)
 const CLI_VALUE_FLAGS: Record<string, string> = {
   'tm-switches': 'TM_ELECTRON_SWITCHES',
   'tm-features': 'TM_ELECTRON_FEATURES',
@@ -173,6 +176,7 @@ const CLI_BOOL_FLAGS: Record<string, string> = {
   'tm-no-perf': 'TM_ELECTRON_NO_PERF',
   'tm-devtools': 'TM_ELECTRON_DEVTOOLS',
   'tm-windowed': 'TM_ELECTRON_WINDOWED',
+  'tm-local-build': 'TM_LOCAL_BUILD',
 };
 
 /**

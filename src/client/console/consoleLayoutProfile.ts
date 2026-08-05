@@ -32,8 +32,8 @@
  *    Display picker (or `?consoleProfile=tv`) there.
  *
  * PROFILE SELECTION PRIORITY (highest wins):
- *  1. The user's explicit pick (main menu → Options → Display; persisted to
- *     `tm_console_profile`, the same store the debug override uses).
+ *  1. The user's explicit pick («Настройки» → ИНТЕРФЕЙС → Дисплей; persisted
+ *     to `tm_console_profile`, the same store the debug override uses).
  *  2. `?consoleProfile=handheld|standard|large|tv` URL override
  *     (persists; `?consoleProfile=auto` clears back to heuristics).
  *  3. The viewport/physical-panel heuristic (resolveProfile).
@@ -51,6 +51,11 @@ export type ConsoleLayoutProfile = 'handheld' | 'standard' | 'large' | 'tv';
 
 const STORAGE_KEY = 'tm_console_profile';
 const PROFILES: ReadonlyArray<ConsoleLayoutProfile> = ['handheld', 'standard', 'large', 'tv'];
+
+/** The settings ring for the display picker: 'auto' + every profile, in
+ * order. Exported so the settings model can STEP it in both directions
+ * (the panel's ‹ / › stepper) instead of only cycling forward. */
+export const PROFILE_CHOICES: ReadonlyArray<ConsoleLayoutProfile | 'auto'> = ['auto', ...PROFILES];
 
 /** English i18n keys for the picker values (translated at render). Lives
  * here — next to the profile vocabulary itself — so any surface that shows
@@ -275,7 +280,7 @@ export function currentProfileOverride(): ConsoleLayoutProfile | 'auto' {
 }
 
 export function cycleConsoleProfileOverride(): ConsoleLayoutProfile | 'auto' {
-  const ring: ReadonlyArray<ConsoleLayoutProfile | 'auto'> = ['auto', ...PROFILES];
+  const ring = PROFILE_CHOICES;
   const next = ring[(ring.indexOf(currentProfileOverride()) + 1) % ring.length];
   setConsoleProfileOverride(next);
   return next;

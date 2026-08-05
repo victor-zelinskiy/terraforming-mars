@@ -423,6 +423,10 @@ describe('electron/perf', () => {
       });
     });
 
+    it('maps --tm-local-build onto TM_LOCAL_BUILD (launch a locally-packed build update-free)', () => {
+      expect(parseCliEnvOverrides(['--tm-local-build'])).to.deep.equal({TM_LOCAL_BUILD: '1'});
+    });
+
     it('returns {} when no --tm-* flags are present', () => {
       expect(parseCliEnvOverrides(['--enable-features=Foo', 'bar'])).to.deep.equal({});
       expect(parseCliEnvOverrides([])).to.deep.equal({});

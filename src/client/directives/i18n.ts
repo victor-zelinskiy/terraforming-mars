@@ -87,6 +87,15 @@ export function translateMessage(message: Message): string {
       // Fixes prompts like "Select space for Deimos Down:promo tile".
       return translateCardName(String(datum.value));
     }
+    case LogMessageDataType.RAW_STRING:
+      // RAW means RAW (LogMessageDataType: "Raw strings are untranslated") —
+      // it is the type for a value that is already final: a glyph label, a
+      // player-typed string, a formatted number. Running it through the
+      // dictionary lets any short value COLLIDE with an unrelated key: the
+      // «Раскладка кнопок» value read «Обмен Н / B» in Russian, because
+      // game_end.json keys 'A' (an endgame column head) — i.e. the one setting
+      // that names the face buttons was lying about their names.
+      return String(datum.value);
     default:
       return translateText(String(datum.value));
     }

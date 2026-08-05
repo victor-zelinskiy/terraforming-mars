@@ -29,7 +29,7 @@
 import {app, BrowserWindow, ipcMain, shell} from 'electron';
 import * as fs from 'fs';
 import {UpdateManager, type UpdateInfo} from 'velopack';
-import {AppImageIdentity, CompatSnapshot, planPostPendingBridge, resolveUpdateDecision, restartMarkerStamp} from './updatePolicy';
+import {AppImageIdentity, CompatSnapshot, isLocalBuild, planPostPendingBridge, resolveUpdateDecision, restartMarkerStamp} from './updatePolicy';
 import {getLastKnownGood, setLastKnownGood} from './session';
 
 export type DesktopUpdateMode =
@@ -302,7 +302,9 @@ async function runCheck(): Promise<boolean> {
   const wasPending = state.mode === 'pending';
   // Every run cancels the pending poll; the branches below re-arm it only if still pending.
   clearPendingPoll();
-  if (!app.isPackaged) {
+  // Nothing to check: a dev run has no install to replace, and a LOCAL build is already the
+  // newest version there is (see isLocalBuild) — chasing a published release would downgrade it.
+  if (!app.isPackaged || isLocalBuild(process.env.TM_LOCAL_BUILD)) {
     push({mode: 'idle'});
     return false;
   }
@@ -408,6 +410,11 @@ async function runCheck(): Promise<boolean> {
 export async function resolveStartupUpdate(serverBase: string, window: BrowserWindow): Promise<boolean> {
   win = window;
   serverBaseUrl = serverBase;
+  // Announce the local-build opt-out ONCE (runCheck also re-runs on the menu timer): a packaged
+  // build that never checks for updates must say why, or it reads as a broken updater.
+  if (app.isPackaged && isLocalBuild(process.env.TM_LOCAL_BUILD)) {
+    logUpdate('TM_LOCAL_BUILD=1 — this build is treated as the latest version; update checks are off');
+  }
   return runCheck();
 }
 

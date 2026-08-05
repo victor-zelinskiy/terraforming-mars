@@ -129,8 +129,11 @@
  *
  * The rollback deletes every save ahead of the chosen one and reloads the game
  * there; the server broadcasts a realtime invalidation so a connected player
- * sees the rolled-back state. Host-routed pad intents via `handleIntent`,
- * mirroring ConsoleOptionsPanel.
+ * sees the rolled-back state. Host-routed pad intents via `handleIntent`, the
+ * same contract every main-menu overlay follows. (This one still wears the
+ * pre-game `.cm-overlay` chassis — the settings surface moved to the shared
+ * `.con-sys` one because it also has an IN-GAME host; a dev tool has only this
+ * one, so it stays with its neighbours.)
  */
 import {defineComponent} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';

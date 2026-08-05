@@ -102,12 +102,25 @@ export type ActionEffect = {
   /**
    * For a VARIABLE amount computed from game state ("1 M€ per city on Mars"),
    * the live BASIS of that computation — so the player sees WHY the amount is
-   * what it is (e.g. `{count: 3, label: 'Cities on Mars'}` → "+3 M€ · Cities on
-   * Mars: 3"). `label` is an English i18n key; `count` is the current count of
-   * the counted entity. Omitted for plain fixed amounts.
+   * what it is (e.g. `[{count: 3, label: 'Cities on Mars'}]` → "+3 M€ · Cities
+   * on Mars: 3"). Omitted for plain fixed amounts.
+   *
+   * It is a LIST because a countable may sum several entities at once
+   * («1 M€ per city AND colony in play»), and each term carries its OWN count:
+   * a single term labelled from the first key while counting the whole sum
+   * reported a number the board does not contain.
    */
-  basis?: {count: number, label: string};
+  basis?: ReadonlyArray<ActionEffectBasis>;
 };
+
+/**
+ * ONE counted entity behind a variable amount. `label` is an English i18n key;
+ * `count` is that entity's live count (the per-unit rate — `each` / `per` — is
+ * deliberately NOT applied: the basis explains WHAT was counted, the chip's own
+ * amount is the result). `tag` names the counted TAG, rendered as its icon so
+ * the label stays one key per SCOPE instead of one per tag.
+ */
+export type ActionEffectBasis = {count: number, label: string, tag?: Tag};
 
 /**
  * Describes a REVEAL / DECK-CHECK action: it reveals the top card of a deck and

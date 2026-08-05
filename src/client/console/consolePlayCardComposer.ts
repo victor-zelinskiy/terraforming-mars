@@ -256,7 +256,13 @@ export function foldCopiedProductionEffects(
   const prodChips: Array<ActionEffect> = [];
   for (const res of STANDARD_PROD_RESOURCES) {
     const delta = totals[res] ?? 0;
-    if (delta === 0) {
+    // A resource the fold CANCELS to zero (the card's own −1 energy against the
+    // copied +1) must stay on screen: its base chip was consumed into `totals`
+    // and is not in `passthrough`, so dropping the folded row deletes the whole
+    // energy story from the result — the player sees no trace that the pick
+    // touched it. A resource this card never mentions is a different thing:
+    // it was never in `totals`, and it stays absent.
+    if (delta === 0 && totals[res] === undefined) {
       continue;
     }
     const current = currentByRes[res] ?? playerProduction(res);

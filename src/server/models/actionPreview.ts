@@ -9,7 +9,8 @@ import {Units} from '../../common/Units';
 import {TileType} from '../../common/TileType';
 import {MAX_OXYGEN_LEVEL, MAX_TEMPERATURE, MIN_TEMPERATURE, MAX_VENUS_SCALE} from '../../common/constants';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
-import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect} from '../../common/models/ActionPreviewModel';
+import {ActionPreview, ActionPreviewBranch, ActionPreviewStep, ActionEffect, ActionEffectBasis} from '../../common/models/ActionPreviewModel';
+import {_Countable} from '../behavior/Countable';
 import {collectActionBehaviorReasons} from './actionUnavailableReasons';
 import {DecreaseAnyProduction} from '../deferredActions/DecreaseAnyProduction';
 import {RemoveAnyPlants} from '../deferredActions/RemoveAnyPlants';
@@ -195,36 +196,121 @@ function addAnyCardCandidates(player: IPlayer, card: ICard, a: AddToAnyCard): Re
 }
 
 /**
+ * TRUE when a behavior amount is VARIABLE — a `Countable` object read from live
+ * game state ("1 M€ per space tag your opponents have") rather than a printed
+ * number. The distinction is what makes a ZERO worth showing: a fixed 0 is
+ * nothing (no card declares one), while a variable 0 is the whole answer to
+ * «what does this card give me right now» — see `effectsForBehavior`.
+ */
+function isVariableAmount(raw: unknown): boolean {
+  return raw !== null && typeof raw === 'object';
+}
+
+/**
  * For a VARIABLE amount counted from game state (e.g. "1 M€ per city on Mars"),
- * the live BASIS — how many of the counted entity exist right now — so the chip
+ * the live BASIS — how many of each counted entity exist right now — so the chip
  * can explain the amount ("+3 M€ · Cities on Mars: 3") instead of a bare number
  * the player can't account for. `raw` is the behavior's countable; a plain number
  * (a fixed amount) has no basis. Read-only (counts board / tableau state).
+ *
+ * TWO rules this pays for, both learned from the single-label version:
+ *  - ONE TERM PER COUNTED ENTITY, each counted ON ITS OWN. A composite
+ *    («1 M€ per city AND colony in play») used to take its label from the first
+ *    key while counting the SUM, i.e. it reported a city count the board did
+ *    not contain.
+ *  - THE SCOPE IS PART OF THE LABEL. `{colonies}` counts YOUR colonies and
+ *    `{colonies, all}` counts everyone's; labelling both «Colonies» makes the
+ *    two indistinguishable, and for tags the scope IS the card's rule
+ *    (Toll Station counts opponents' space tags and nothing of yours).
  */
-function countableBasis(ctx: Counter, raw: unknown): {count: number, label: string} | undefined {
-  if (raw === null || typeof raw !== 'object') {
+function countableBasis(ctx: Counter, raw: unknown): ReadonlyArray<ActionEffectBasis> | undefined {
+  if (!isVariableAmount(raw)) {
     return undefined;
   }
-  const r = raw as {cities?: {where?: string}, oceans?: unknown, greeneries?: unknown, colonies?: unknown, each?: number, per?: number};
-  let label: string | undefined;
+  const r = raw as _Countable;
+  // Each term is counted in isolation, but keeps the countable's SCOPE / filter
+  // modifiers (they select which of the entity is counted, not which entity).
+  // `each` / `per` are deliberately dropped: they convert the count into the
+  // amount, and the amount is already the chip's headline number.
+  const count = (part: Partial<_Countable>): number => ctx.count({
+    ...part,
+    all: r.all,
+    others: r.others,
+    includeEvents: r.includeEvents,
+    nextToThis: r.nextToThis,
+  });
+  const terms: Array<ActionEffectBasis> = [];
+  if (r.tag !== undefined) {
+    // Scope-keyed label + the tag ICON, so a rule that counts one of thirteen
+    // tags needs three keys rather than thirty-nine. An ARRAY of tags («Venus
+    // OR Earth tags») has no single icon — it keeps the label alone.
+    const label = r.others === true ? 'Opponent tags' : r.all === true ? 'Tags in play' : 'Your tags';
+    const term: ActionEffectBasis = {count: count({tag: r.tag}), label};
+    if (!Array.isArray(r.tag)) {
+      term.tag = r.tag;
+    }
+    terms.push(term);
+  }
   if (r.cities !== undefined) {
-    label = r.cities.where === 'offmars' ? 'Cities off Mars' : r.cities.where === 'onmars' ? 'Cities on Mars' : 'Cities';
-  } else if (r.oceans !== undefined) {
-    label = 'Oceans';
-  } else if (r.greeneries !== undefined) {
-    label = 'Greeneries';
-  } else if (r.colonies !== undefined) {
-    label = 'Colonies';
+    // `all: false` is the only thing that narrows tiles to the player's own.
+    const mine = r.all === false;
+    const label = r.cities.where === 'offmars' ? (mine ? 'Your cities off Mars' : 'Cities off Mars') :
+      r.cities.where === 'onmars' ? (mine ? 'Your cities on Mars' : 'Cities on Mars') :
+        (mine ? 'Your cities' : 'Cities');
+    terms.push({count: count({cities: r.cities}), label});
   }
-  if (label === undefined) {
-    return undefined;
+  if (r.oceans !== undefined) {
+    terms.push({count: count({oceans: r.oceans}), label: 'Oceans'});
   }
-  // The count of the counted entity itself (drop the each/per rate multiplier),
-  // so "1 M€ per city" shows the CITY count, not the M€ amount (they're equal at
-  // rate 1, but distinct when the per-unit rate isn't 1).
-  const count = ctx.count({...r, each: undefined, per: undefined} as Parameters<Counter['count']>[0]);
-  return {count, label};
+  if (r.greeneries !== undefined) {
+    terms.push({count: count({greeneries: r.greeneries}), label: r.all === false ? 'Your greeneries' : 'Greeneries'});
+  }
+  if (r.colonies !== undefined) {
+    // Colonies invert the tile convention: WITHOUT `all` only the player's own
+    // colonies count (Counter's `colonies` branch), with it everyone's.
+    terms.push({count: count({colonies: r.colonies}), label: r.all === true ? 'Colonies in play' : 'Your colonies'});
+  }
+  if (r.floaters !== undefined) {
+    terms.push({count: count({floaters: r.floaters}), label: 'Your floaters'});
+  }
+  if (r.resourcesHere !== undefined) {
+    terms.push({count: count({resourcesHere: r.resourcesHere}), label: 'Resources on this card'});
+  }
+  // Moon / Underworld group several distinct entities under ONE key
+  // («roads AND habitats»), so each sub-key becomes its own term.
+  for (const key of MOON_KEYS) {
+    if (r.moon?.[key] !== undefined) {
+      const moon: NonNullable<_Countable['moon']> = {};
+      moon[key] = {};
+      terms.push({count: count({moon}), label: MOON_LABEL[key]});
+    }
+  }
+  for (const key of UNDERWORLD_KEYS) {
+    if (r.underworld?.[key] !== undefined) {
+      const underworld: NonNullable<_Countable['underworld']> = {};
+      underworld[key] = {};
+      terms.push({count: count({underworld}), label: UNDERWORLD_LABEL[key]});
+    }
+  }
+  return terms.length > 0 ? terms : undefined;
 }
+
+const MOON_KEYS = ['habitatRate', 'miningRate', 'logisticRate', 'habitat', 'mine', 'road'] as const;
+const MOON_LABEL: Record<typeof MOON_KEYS[number], string> = {
+  habitatRate: 'Habitat rate',
+  miningRate: 'Mining rate',
+  logisticRate: 'Logistic rate',
+  habitat: 'Habitat tiles',
+  mine: 'Mine tiles',
+  road: 'Road tiles',
+};
+
+const UNDERWORLD_KEYS = ['corruption', 'excavationMarkers', 'undergroundTokens'] as const;
+const UNDERWORLD_LABEL: Record<typeof UNDERWORLD_KEYS[number], string> = {
+  corruption: 'Corruption',
+  excavationMarkers: 'Excavation markers',
+  undergroundTokens: 'Underground tokens',
+};
 
 /**
  * The branch's costs + gains as display chips. NEVER mutates — reads current
@@ -271,6 +357,14 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
       out.push({direction: delta >= 0 ? 'gain' : 'cost', icon: g.key, amount: Math.abs(delta), current: cur, resulting: clampValue(cur + delta, g.min, g.max), unit: g.unit});
     }
   }
+  // A VARIABLE amount that currently counts to ZERO stays on screen. Dropping it
+  // hid the card's headline clause outright: Toll Station («+1 M€ production per
+  // space tag your OPPONENTS have») previewed as nothing but its own tag against
+  // a bot with no space tags, so the one number worth 12 M€ of thought was the
+  // one number the player never saw. A fixed 0 is still dropped — no card prints
+  // one, and it would carry no information if it did. The chip renders it muted
+  // with its basis («0 → 0 · Метки соперников: 0»), which is the honest reading.
+  const zeroIsNews = (raw: unknown, n: number): boolean => n !== 0 || isVariableAmount(raw);
   if (behavior.stock !== undefined) {
     for (const s of STANDARD) {
       const raw = behavior.stock[s.key];
@@ -278,7 +372,7 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
         continue;
       }
       const n = ctx.count(raw);
-      if (n === 0) {
+      if (!zeroIsNews(raw, n)) {
         continue;
       }
       const cur = player.stock.get(s.resource);
@@ -292,7 +386,7 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
         continue;
       }
       const n = ctx.count(raw);
-      if (n === 0) {
+      if (!zeroIsNews(raw, n)) {
         continue;
       }
       const cur = player.production.get(s.resource);
@@ -301,15 +395,18 @@ export function effectsForBehavior(player: IPlayer, card: ICard, behavior: Behav
   }
   if (behavior.tr !== undefined) {
     const n = ctx.count(behavior.tr);
-    if (n !== 0) {
+    if (zeroIsNews(behavior.tr, n)) {
       out.push({direction: n >= 0 ? 'gain' : 'cost', icon: 'tr', amount: Math.abs(n), current: player.terraformRating, resulting: player.terraformRating + n, basis: countableBasis(ctx, behavior.tr)});
     }
   }
   if (behavior.drawCard !== undefined) {
     const dc = behavior.drawCard;
-    const n = typeof dc === 'number' ? dc : ctx.count(dc.count);
-    if (n > 0) {
-      out.push({direction: 'gain', icon: 'cards', amount: n, note: 'draw'});
+    const raw = typeof dc === 'number' ? dc : dc.count;
+    const n = ctx.count(raw);
+    if (n > 0 || isVariableAmount(raw)) {
+      // A draw has no pool, so it carries no `current → resulting`: the chip
+      // reads the zero off the amount itself and mutes on that.
+      out.push({direction: 'gain', icon: 'cards', amount: Math.max(0, n), note: 'draw', basis: countableBasis(ctx, raw)});
     }
   }
 

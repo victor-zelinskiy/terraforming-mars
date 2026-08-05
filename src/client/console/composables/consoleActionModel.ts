@@ -119,6 +119,11 @@ export const CONSOLE_KEY_BUTTON: Readonly<Record<string, SemanticButton>> = {
   KeyX: 'secondary',
   KeyY: 'inspect',
   KeyR: 'view',
+  // The Menu/Start button — the system overlay (settings / controls / exit to
+  // the main menu). Without it a desktop-fallback player in console mode could
+  // not reach the settings or leave the game at all; routed to the overlay by
+  // `consoleSystemMenuBridge` (GamepadLayer owns it, not the console router).
+  KeyM: 'menu',
   // The stick PRESSES (board inspection / scale ring; the Information
   // Workspace's per-seat readers) — keyboard parity so a desktop-fallback
   // player is never locked out of an L3/R3-only surface.

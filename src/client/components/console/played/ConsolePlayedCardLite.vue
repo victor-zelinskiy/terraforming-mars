@@ -12,7 +12,7 @@
     read in «Информация» → «Доп. ресурсы» and on the card's own face in the
     fullscreen inspector, so a resource change never patches the table.
   -->
-  <PremiumCard v-if="premium" :name="name" :inert="true" :lightweight="true" :peek="peek" aria-hidden="true" />
+  <PremiumCard v-if="premium" :name="name" :inert="true" :lightweight="true" :peek="peek && !keepArt" aria-hidden="true" />
   <ConsoleCardFaceLite v-else :name="name" />
 </template>
 
@@ -36,6 +36,24 @@ export default defineComponent({
      *  renders its peek crop (no art <img>, no mechanics subtree). The legacy
      *  fallback face (CEO …) has no peek mode and stays full. */
     peek: {
+      type: Boolean,
+      required: false,
+      default: false,
+    },
+    /**
+     * KEEP THE ART — opt out of the peek crop while keeping every other
+     * peek behaviour of the host (the strip still CLIPS the face to its
+     * band; only the art/lower subtree stays mounted).
+     *
+     * The crop is an optimization for the FULL tableau, where a pile can be
+     * dozens of covered cards and their arts would be pure cost. A surface
+     * that holds a handful of them (the Game Start deployment shelf — one
+     * corporation, a couple of preludes) pays nothing for the arts and pays
+     * a real price for the crop: a covered card reads as a blank sliver
+     * instead of itself, and every peek ↔ full swap re-mounts the art
+     * subtree, so the picture flashes in late. Opt in ONLY there.
+     */
+    keepArt: {
       type: Boolean,
       required: false,
       default: false,

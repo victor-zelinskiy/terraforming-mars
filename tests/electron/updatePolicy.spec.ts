@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {CompatSnapshot, planPostPendingBridge, resolveUpdateDecision, restartMarkerStamp} from '../../electron/updatePolicy';
+import {CompatSnapshot, isLocalBuild, planPostPendingBridge, resolveUpdateDecision, restartMarkerStamp} from '../../electron/updatePolicy';
 
 // Pure unit test of the Phase 8 last-known-good update policy.
 //   npx mocha --import=tsx "tests/electron/updatePolicy.spec.ts"
@@ -129,5 +129,19 @@ describe('electron/updatePolicy restartMarkerStamp', () => {
     // A NEW wrapper treats a non-`applying` marker as "relaunch immediately" (old behaviour);
     // an OLD wrapper never reads the content at all — every pairing stays safe.
     expect(restartMarkerStamp(undefined, 1752760661987)).to.eq('1752760661987');
+  });
+});
+
+describe('electron/updatePolicy isLocalBuild', () => {
+  it('opts a locally-packed build out of the update gate', () => {
+    expect(isLocalBuild('1')).to.be.true;
+    expect(isLocalBuild(' 1 ')).to.be.true; // a shell / run-config value may carry whitespace
+  });
+
+  it('stays OFF unless explicitly set to 1 — a released build must never skip the gate', () => {
+    expect(isLocalBuild(undefined)).to.be.false;
+    expect(isLocalBuild('')).to.be.false;
+    expect(isLocalBuild('0')).to.be.false;
+    expect(isLocalBuild('true')).to.be.false;
   });
 });

@@ -43,22 +43,37 @@
       <span v-else class="action-effect-chip__amount">{{ sign }}{{ effect.amount }}{{ unit }}</span>
     </span>
 
-    <!-- Variable-amount BASIS — "why is it this much": the live count of the
-         counted entity (e.g. Cities on Mars: 3). Reads as a quiet sub-tag. -->
-    <span v-if="effect.basis !== undefined" class="action-effect-chip__basis">
-      <span class="action-effect-chip__basis-label" v-i18n>{{ effect.basis.label }}</span>
-      <span class="action-effect-chip__basis-sep" aria-hidden="true">:</span>
-      <span class="action-effect-chip__basis-count">{{ effect.basis.count }}</span>
-    </span>
+    <!-- The note and "no effect" are BOTH shown: they answer different
+         questions (WHICH pool this touches vs whether it moves). The note used
+         to be replaced, which made a zero PRODUCTION chip indistinguishable
+         from a zero STOCK chip of the same resource — the same hazard the VP
+         badge above is spelled out for. -->
+    <span v-if="effect.note" class="action-effect-chip__note" v-i18n>{{ effect.note }}</span>
+    <span v-if="noEffect" class="action-effect-chip__note action-effect-chip__note--noeffect" v-i18n>no effect</span>
 
-    <span v-if="noEffect" class="action-effect-chip__note" v-i18n>no effect</span>
-    <span v-else-if="effect.note" class="action-effect-chip__note" v-i18n>{{ effect.note }}</span>
+    <!-- Variable-amount BASIS — "why is it this much": the live count of each
+         counted entity (e.g. Cities on Mars: 3). It comes LAST, behind its own
+         hairline: the chip states the change first and the reason after, so the
+         count never lands in the middle of the reading («0 → 0 производство ·
+         без эффекта | Метки соперников: 0»). It is also what makes a ZERO
+         legible rather than baffling — the answer to the question a bare 0 asks. -->
+    <span v-if="basisTerms.length > 0" class="action-effect-chip__basis">
+      <span v-for="(b, i) in basisTerms" :key="i" class="action-effect-chip__basis-term">
+        <span class="action-effect-chip__basis-label" v-i18n>{{ b.label }}</span>
+        <!-- The counted TAG as its own icon: one label per SCOPE instead of one
+             per tag, and no translation can get the tag's name wrong. -->
+        <span v-if="b.tag !== undefined" class="resource-tag action-effect-chip__basis-tag"
+              :class="'tag-' + b.tag" aria-hidden="true"></span>
+        <span class="action-effect-chip__basis-sep" aria-hidden="true">:</span>
+        <span class="action-effect-chip__basis-count">{{ b.count }}</span>
+      </span>
+    </span>
   </span>
 </template>
 
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
-import {ActionEffect} from '@/common/models/ActionPreviewModel';
+import {ActionEffect, ActionEffectBasis} from '@/common/models/ActionPreviewModel';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 
 export default defineComponent({
@@ -91,6 +106,9 @@ export default defineComponent({
     isVictoryPoints(): boolean {
       return this.effect.icon === 'vp';
     },
+    basisTerms(): ReadonlyArray<ActionEffectBasis> {
+      return this.effect.basis ?? [];
+    },
     hasDelta(): boolean {
       return this.effect.current !== undefined && this.effect.resulting !== undefined;
     },
@@ -102,13 +120,19 @@ export default defineComponent({
         this.effect.current !== undefined &&
         this.effect.current < this.effect.amount;
     },
-    // A gain that changes nothing because the pool is already capped (e.g. raising
-    // a maxed global parameter) — shown muted with a "no effect" note.
+    // A gain that changes nothing — because the pool is already capped (raising a
+    // maxed global parameter) or because the amount itself counted to zero (a
+    // "per X" reward on a board with no X). Shown muted with a "no effect" note.
+    // The POOL-LESS form ("+N to a card", "draw N") has no `current` to compare,
+    // so a zero amount is the only signal it has.
     noEffect(): boolean {
-      return this.effect.direction === 'gain' &&
-        this.effect.current !== undefined &&
-        this.effect.resulting !== undefined &&
-        this.effect.current === this.effect.resulting;
+      if (this.effect.direction !== 'gain') {
+        return false;
+      }
+      if (this.effect.current === undefined || this.effect.resulting === undefined) {
+        return this.effect.amount === 0;
+      }
+      return this.effect.current === this.effect.resulting;
     },
     unit(): string {
       return this.effect.unit ?? '';
@@ -241,7 +265,8 @@ export default defineComponent({
 }
 
 /* Variable-amount basis ("Cities on Mars: 3") — a quiet pill inside the chip,
-   set off by a hairline so it reads as the reason for the amount. */
+   set off by a hairline so it reads as the reason for the amount. Several terms
+   («Cities: 2 · Colonies: 1») share the one pill, separated by a middle dot. */
 .action-effect-chip__basis {
   display: inline-flex;
   align-items: center;
@@ -253,10 +278,42 @@ export default defineComponent({
   font-variant-numeric: tabular-nums;
   color: rgba(200, 224, 240, 0.66);
 }
+.action-effect-chip__basis-term {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+
+  & + & {
+    padding-left: 5px;
+    &::before {
+      content: '·';
+      padding-right: 4px;
+      opacity: 0.55;
+    }
+  }
+}
 .action-effect-chip__basis-label { letter-spacing: 0.01em; }
+/* The counted tag, sized down to the basis line — the global `.resource-tag`
+   is a 30px card badge with a card-face margin, neither of which belongs here. */
+.action-effect-chip__basis-tag {
+  width: 14px;
+  height: 14px;
+  background-size: 16px 16px;
+  background-position: -1px -1px;
+  line-height: 12px;
+  margin-bottom: 0;
+  box-shadow: none;
+  vertical-align: middle;
+}
 .action-effect-chip__basis-sep { margin: 0 1px; opacity: 0.6; }
 .action-effect-chip__basis-count {
   font-weight: 700;
   color: var(--chip-accent);
+}
+/* "no effect" sits AFTER the pool note, so it needs its own quieter voice —
+   the note says WHAT this touches, this says that it does not move. */
+.action-effect-chip__note--noeffect {
+  font-style: italic;
+  opacity: 0.85;
 }
 </style>

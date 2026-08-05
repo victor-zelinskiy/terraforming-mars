@@ -30,6 +30,10 @@ export const paths = {
   // reconcile a seat's cube colour with the player's chosen identity colour.
   API_GAMES_JOINABLE: 'api/games/joinable',
   API_GAME_PLAYER_COLOR: 'api/game/player-color',
+  // Host-as-server (docs/EMBEDDED_SERVER.md): delete a local game (?id=) or ALL
+  // local games (?all=1) on the embedded server. Loopback-only — the host
+  // machine owns its local games; never reachable from the LAN.
+  API_LOCAL_GAME_DELETE: 'api/local-game-delete',
   API_HEAP_SNAPSHOT: 'api/heapsnapshot',
   API_IPS: 'api/ips',
   API_METRICS: 'api/metrics',

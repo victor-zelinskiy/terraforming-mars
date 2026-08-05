@@ -5,23 +5,38 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 /**
  * THE SCROLL RAIL IS AN AFFORDANCE, NOT A MEASUREMENT REPORT.
  *
- * `scrollHeight > clientHeight` is true for a few sub-pixel rows of any
- * fractionally-laid-out content, and the rail that produced was the worst
- * possible shape: a nearly-full-height thumb, which reads as a scrollbar on a
- * surface that has nothing to scroll. It shipped that way down the right edge
- * of the card-play composer — a permanent bright line on a screen that fits.
+ * It states «there is somewhere to go», and a few pixels of travel is not
+ * somewhere. The content still scrolls if something forces it; it just stops
+ * advertising a journey the player cannot make. Two ways that promise has been
+ * broken, both of which shipped as a permanent bright line down the right edge
+ * of the card-play composer — a scrollbar on a screen that fits:
  *
- * So the rail states «there is somewhere to go», and a few pixels of travel is
- * not somewhere. The content still scrolls if something forces it; it just
- * stops advertising a journey the player cannot make.
+ *  1. a sub-pixel row of fractional layout counting as overflow;
+ *  2. an ENTRANCE TRANSFORM counting as overflow. Every console surface tweens
+ *     its groups in from `y: 9 * uiScale`, which inflates the viewport's
+ *     scrollable overflow for the length of the cascade — and because a
+ *     transform fires no ResizeObserver, the flag latched true mid-animation
+ *     and nothing ever ran `measure` again to clear it.
+ *
+ * Both are answered by measuring the CONTENT'S LAYOUT SIZE rather than
+ * `scrollHeight`: it is integer-rounded, immune to a transform, and it is
+ * exactly what the component's ResizeObservers watch — so the measured quantity
+ * and the observed quantity are the same thing and the state cannot go stale.
  */
-function box(el: Element | null | undefined, client: number, scroll: number): void {
+function viewportBox(el: Element | null | undefined, client: number, scroll: number): void {
   if (el === null || el === undefined) {
     throw new Error('expected the scroll viewport to exist');
   }
   Object.defineProperty(el, 'clientHeight', {value: client, configurable: true});
   Object.defineProperty(el, 'scrollHeight', {value: scroll, configurable: true});
   Object.defineProperty(el, 'scrollTop', {value: 0, writable: true, configurable: true});
+}
+
+function contentBox(el: Element | null | undefined, offset: number): void {
+  if (el === null || el === undefined) {
+    throw new Error('expected the scroll content wrapper to exist');
+  }
+  Object.defineProperty(el, 'offsetHeight', {value: offset, configurable: true});
 }
 
 type RafHost = {requestAnimationFrame?: (cb: (t: number) => void) => number};
@@ -33,13 +48,23 @@ function nextFrame(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-async function railOf(client: number, scroll: number): Promise<boolean> {
+/**
+ * Mount, size the two boxes, measure. `scroll` is the viewport's scrollable
+ * overflow and `layout` the content's laid-out height — normally equal, and
+ * deliberately DIFFERENT while a transform is in flight.
+ */
+async function mountMeasured(client: number, layout: number, scroll = layout) {
   const wrapper = mount(ConsoleScrollArea);
-  const viewport = wrapper.element.querySelector('.con-scroll-area__viewport');
-  box(viewport, client, scroll);
+  viewportBox(wrapper.element.querySelector('.con-scroll-area__viewport'), client, scroll);
+  contentBox(wrapper.element.querySelector('.con-scroll-area__content'), layout);
   (wrapper.vm as unknown as {measure: () => void}).measure();
   await nextFrame();
   await wrapper.vm.$nextTick();
+  return wrapper;
+}
+
+async function railOf(client: number, layout: number, scroll = layout): Promise<boolean> {
+  const wrapper = await mountMeasured(client, layout, scroll);
   const shown = wrapper.element.querySelector('.con-scroll-area__rail') !== null;
   wrapper.unmount();
   return shown;
@@ -66,10 +91,21 @@ describe('ConsoleScrollArea — the rail only promises a journey that exists', (
     expect(await railOf(400, 400)).to.eq(false);
   });
 
-  /** THE REGRESSION. A hairline of overflow is a rounding artifact of
-   *  fractional layout, not a scroll. */
+  /** A hairline of overflow is a rounding artifact of fractional layout — both
+   *  readings are integer-rounded, so they can disagree by one pixel. */
   it('draws NO rail for a sub-pixel-rounding overflow', async () => {
-    expect(await railOf(400, 403)).to.eq(false);
+    expect(await railOf(400, 401)).to.eq(false);
+  });
+
+  /**
+   * THE REGRESSION. The entrance cascade holds the work-surface groups at
+   * `translateY(9px)` for the length of its tween: the viewport reports 9px of
+   * scrollable overflow while the CONTENT still measures exactly the viewport's
+   * height. Nothing has moved, so nothing may be advertised — and since the
+   * transform ends without a resize, a rail raised here would never come down.
+   */
+  it('draws NO rail while an entrance transform inflates the scroll range', async () => {
+    expect(await railOf(400, 400, 415)).to.eq(false);
   });
 
   it('draws the rail once there is real travel', async () => {
@@ -79,12 +115,7 @@ describe('ConsoleScrollArea — the rail only promises a journey that exists', (
   /** The thumb reflects the REAL position and proportion — a rail that always
    *  showed a full-height thumb would be the same lie in a different shape. */
   it('sizes the thumb to the visible proportion', async () => {
-    const wrapper = mount(ConsoleScrollArea);
-    const viewport = wrapper.element.querySelector('.con-scroll-area__viewport');
-    box(viewport, 400, 1600);
-    (wrapper.vm as unknown as {measure: () => void}).measure();
-    await nextFrame();
-    await wrapper.vm.$nextTick();
+    const wrapper = await mountMeasured(400, 1600);
     const thumb = wrapper.element.querySelector('.con-scroll-area__thumb') as HTMLElement | null;
     expect(thumb, 'expected a thumb inside the rail').to.not.eq(null);
     expect(thumb?.style.height).to.eq('25%');

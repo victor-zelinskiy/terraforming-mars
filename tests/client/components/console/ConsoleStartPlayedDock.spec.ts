@@ -145,4 +145,29 @@ describe('ConsoleStartPlayedDock (the compact «РАЗЫГРАНО · owner» de
     expect(fam.find('.con-splayed__cap-count').text()).to.eq('1');
     wrapper.unmount();
   });
+  /**
+   * THE ARTS STAY. The full tableau crops a covered card to its title band
+   * (`peek`) — with dozens of piled cards their arts are pure cost. The START
+   * shelf holds a handful (one corporation, a couple of preludes), so the
+   * crop buys nothing and costs the card's own picture: a covered card reads
+   * as a blank sliver, and every peek ↔ full swap re-mounts the art subtree
+   * so the picture flashes in late. The opt-out is a FLAG, and it is set
+   * HERE ONLY — the tableau and the piles keep the crop.
+   */
+  it('every face on the start shelf keeps its art (keepArt) — the peek crop is opted OUT of here', () => {
+    // Two cards of the SAME family (both preludes) — that is what produces a
+    // covered strip; SF Memorial, despite the name, is an AUTOMATED card and
+    // would open its own family instead.
+    const wrapper = make(view([CardName.THARSIS_REPUBLIC, CardName.BIOLAB, CardName.ACQUIRED_SPACE_AGENCY]));
+    const faces = wrapper.findAllComponents({name: 'ConsolePlayedCardLite'});
+    expect(faces.length, 'the shelf rendered faces').to.be.greaterThan(0);
+    for (const face of faces) {
+      expect(face.props('keepArt'), `${String(face.props('name'))} must keep its art`).to.be.true;
+    }
+    // …and a COVERED one is still a peek by geometry — the flag changes what
+    // is mounted inside the band, never the band itself.
+    const covered = faces.filter((f) => f.props('peek') === true);
+    expect(covered.length, 'a covered card is still cropped to its strip').to.be.greaterThan(0);
+    wrapper.unmount();
+  });
 });

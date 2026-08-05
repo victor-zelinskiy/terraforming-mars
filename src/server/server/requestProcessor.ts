@@ -28,6 +28,7 @@ import {ApiAdminRollbackHistory} from '../routes/ApiAdminRollbackHistory';
 import {ApiAdminRollback} from '../routes/ApiAdminRollback';
 import {ApiGamesJoinable} from '../routes/ApiGamesJoinable';
 import {ApiGamePlayerColor} from '../routes/ApiGamePlayerColor';
+import {ApiLocalGameDelete} from '../routes/ApiLocalGameDelete';
 import {ApiHeapSnapshot} from '../routes/ApiHeapSnapshot';
 import {ApiIPs} from '../routes/ApiIPs';
 import {ApiLogout} from '../routes/ApiLogout';
@@ -111,6 +112,7 @@ const handlers: Map<string, IHandler> = new Map(
     [paths.API_ADMIN_ROLLBACK, ApiAdminRollback.INSTANCE],
     [paths.API_GAMES_JOINABLE, ApiGamesJoinable.INSTANCE],
     [paths.API_GAME_PLAYER_COLOR, ApiGamePlayerColor.INSTANCE],
+    [paths.API_LOCAL_GAME_DELETE, ApiLocalGameDelete.INSTANCE],
     [paths.API_HEAP_SNAPSHOT, ApiHeapSnapshot.INSTANCE],
     [paths.API_IPS, ApiIPs.INSTANCE],
     [paths.API_METRICS, ApiMetrics.INSTANCE],

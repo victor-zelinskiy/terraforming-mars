@@ -799,9 +799,58 @@ html.con-profile-tv {
     .con-confirm__title { font-size: 1.4rem; }
     .con-confirm__body { font-size: var(--con-t-body); }
     .con-notice { font-size: var(--con-t-body); }
-    .con-sysmenu {
-        &__item { min-height: var(--con-hit-min); font-size: 1.3rem; }
-        &__title { font-size: var(--con-t-title); }
+    /* THE system surface (system menu + settings console — ONE chassis, so one
+       couch calibration serves both). Nothing here changes GEOMETRY that the
+       layout-shift contract depends on: the stepper cell and the detail strip
+       grow as fixed sizes, never per-value. */
+    .con-sys {
+        &__card { width: min(38rem, 94vw); }
+        /* NOT `&--settings &__card` — inside a nested profile block the second
+           `&` re-expands the WHOLE parent (`html.con-profile-tv .con-sys--settings
+           html.con-profile-tv .con-sys__card`), i.e. a selector that matches
+           nothing. The settings card silently kept the ACTION-menu width and its
+           row labels were squeezed out. Spell both classes instead. */
+        &--settings .con-sys__card { width: min(68rem, 96vw); }
+        &__emblem { width: 2.4rem; height: 2.4rem; font-size: 1.4rem; }
+        &__crumb-root { font-size: var(--con-t-section); }
+        &__crumb-stage { font-size: var(--con-t-secondary); }
+        &__tag { font-size: var(--con-t-floor); b { font-size: var(--con-t-caption); } }
+        &__hint { font-size: var(--con-t-caption); }
+    }
+    .con-sysact {
+        &__plate { min-height: var(--con-hit-min); }
+        &__glyph { font-size: 1.5rem; }
+        &__label { font-size: 1.3rem; }
+        &__sub { font-size: var(--con-t-caption); }
+    }
+    .con-sysconfirm {
+        &__body { font-size: var(--con-t-body); }
+        &__note { font-size: var(--con-t-secondary); }
+    }
+    .con-set {
+        height: 26rem;
+        &__rail { width: 15.5rem; }
+        &__cat { min-height: 2.9rem; }
+        &__cat-name { font-size: 1.05rem; }
+        &__cat--minor { min-height: 2.4rem; }
+        /* Same trap as `.con-sys--settings` above — spell the second class. */
+        &__cat--minor .con-set__cat-name { font-size: var(--con-t-caption); }
+        &__rail-sep { font-size: 0.7rem; }
+        &__row { min-height: var(--con-hit-min); }
+        &__row-label { font-size: var(--con-t-body); }
+        &__stepper { width: 22rem; }
+        &__arrow { width: 1.6rem; height: 2rem; font-size: 1.2rem; }
+        &__value { font-size: var(--con-t-secondary); }
+        &__detail { min-height: 6.6rem; }
+        &__detail-title { font-size: var(--con-t-secondary); }
+        &__detail-value { font-size: var(--con-t-secondary); }
+        &__detail-desc { min-height: 2.9rem; font-size: var(--con-t-secondary); }
+        &__detail-note { min-height: 1.2rem; font-size: var(--con-t-caption); }
+        &__group { font-size: var(--con-t-floor); }
+        &__ro { min-height: 2.5rem; }
+        &__ro-key { font-size: var(--con-t-secondary); }
+        &__ro-val { font-size: var(--con-t-secondary); &--mono { font-size: var(--con-t-caption); } }
+        &__ro-note { font-size: var(--con-t-caption); }
     }
     .con-stranded {
         &__title { font-size: 1.4rem; }
@@ -1197,7 +1246,6 @@ html.con-profile-tv {
     .con-task__tile--focused,
     .con-task__lane--focused,
     .con-sheet__row--focused,
-    .con-sysmenu__item--focused,
     .con-trade__payrow--focused,
     .con-trade__steprow--focused,
     .con-coltile--focused,
@@ -1249,12 +1297,8 @@ html.con-profile-tv {
     .cm-row__value { font-size: 1.15rem; }
     .cm-menu__items { width: min(36rem, 44vw); }
     .cm-hint, .cm-menu__hint { font-size: var(--con-t-secondary); }
-    /* Options rows read from the couch; the diagnostics stay fine print. */
-    .cm-opt { min-height: var(--con-hit-min); }
-    .cm-opt__label { font-size: 1.15rem; }
-    .cm-opt__sub { font-size: var(--con-t-secondary); }
-    .cm-opt__value { font-size: 1.1rem; max-width: 14rem; }
-    .cm-optdiag__row { font-size: var(--con-t-floor); }
+    /* The settings rows are NOT a menu overlay any more — they ride the shared
+       system surface, calibrated once in §17 (`.con-set`). */
 }
 
 /* ═══ 24 · LIFECYCLE (legacy px surfaces ride their zoom boost) ═══ */

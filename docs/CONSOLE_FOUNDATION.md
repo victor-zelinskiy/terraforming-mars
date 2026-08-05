@@ -113,6 +113,18 @@ consoleActionModel.spec.ts` / `consoleOverflowGuard.spec.ts` / `consoleNativeSur
    ТОЛЬКО по своему viewport — не `scrollIntoView`, который может скроллить внешние
    контейнеры), `scrollByPx(delta)` (правый стик), `scrollToStart()`, `measure()`.
    Новый скроллящийся список = обёртка в ConsoleScrollArea, НЕ `overflow-y:auto`.
+   **Overflow меряется по LAYOUT-высоте content-обёртки (`offsetHeight`), НИКОГДА
+   по `vp.scrollHeight`.** Scrollable overflow считает TRANSFORM В ПОЛЁТЕ: каждая
+   console-поверхность въезжает каскадом `[data-unfold-item]` с `y: 9 * uiScale`
+   ВНУТРИ вьюпорта, и на время каскада вьюпорт рапортует ~9–15px несуществующего
+   хода. Само по себе безобидно — но transform НЕ поднимает ResizeObserver, поэтому
+   флаг залипал посреди анимации и `measure()` больше никогда не вызывался: на
+   экране, который полностью помещается, навсегда оставался rail по правому краю
+   (так это и жило в композере розыгрыша). Layout-высота иммунна к твину И ровно
+   её слушают оба ResizeObserver'а — измеряемая величина и наблюдаемая совпали,
+   состояние больше не может протухнуть. Порог `RAIL_MIN_TRAVEL_PX` = 2px (обе
+   величины целочисленные — расхождение возможно только на округлении).
+   Страж: `tests/client/components/console/consoleScrollArea.spec.ts`.
 4. **Overflow-safe анимации** — паттерн `.con-motion-clip` (обёртка клипает) +
    `.con-motion-layer` (внутренний слой двигается transform/opacity). Запрещено в
    console-native коде: `transition: all`; анимация width/height/top/left/margin/

@@ -1,0 +1,624 @@
+/*
+ * THE CONSOLE SYSTEM SURFACE — one premium chassis for the two surfaces the
+ * player reaches OUTSIDE the game's own flow:
+ *
+ *   .con-sys            the shell: backdrop, glass card, crumb head, foot bar
+ *     .con-sys--menu      the in-game SYSTEM menu (action plates)
+ *     .con-sys--settings  the SETTINGS console (category rail + rows + detail)
+ *
+ * Before this file the two looked like different products: the settings panel
+ * borrowed the pre-game `.cm-overlay` (gold title, no rail), the system menu
+ * had its own `.con-sysmenu` (cyan title, fixed plates). They are now ONE
+ * material, one type scale, one focus language, one foot bar — which also
+ * means the settings surface looks identical whether it was opened from the
+ * main menu or from the in-game system menu, its two hosts.
+ *
+ * HEAD GRAMMAR (CLAUDE.md § workspace header): stable context BEFORE the
+ * mutable stage — `НАСТРОЙКИ › УПРАВЛЕНИЕ`. Root and emblem are the same
+ * vnodes all flow long; only the STAGE segment crossfades, inside a shared
+ * grid cell (a `mode="out-in"` swap empties the cell and reads as a blink).
+ *
+ * LAYOUT-SHIFT CONTRACT (load-bearing — this is why the settings moved out of
+ * the fixed-shape system menu in the first place): moving the cursor must
+ * never re-lay the card out. Therefore
+ *   · rows are ONE line tall, with the description in the detail strip;
+ *   · the value column has a fixed width and the stepper arrows only change
+ *     OPACITY on cursor;
+ *   · the detail strip reserves its description AND note lines always;
+ *   · the pips count is constant per row.
+ *
+ * PERF (`con-perf-lite` cuts filter + text-shadow): every functional cue
+ * here — cursor, current category, pending value, tone — is a box-shadow or
+ * a colour, never a shadow-blur, so the surface stays fully readable.
+ */
+
+@cs-gold: rgb(240, 168, 80);
+
+/* ── The shell ────────────────────────────────────────────────────── */
+.con-sys {
+    position: fixed;
+    inset: 0;
+    z-index: 12760; /* above every game surface, below the gamepad ring / curtain */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.2rem;
+    font-family: @con-font;
+    color: @con-text;
+
+    &__backdrop {
+        position: absolute;
+        inset: 0;
+        .con-backdrop-dim(); // no blur (Steam Deck / OLED rule)
+    }
+
+    &__card {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        width: min(30rem, 94vw);
+        max-height: 88vh;
+        border-radius: .7rem;
+        background: @con-glass;
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-cyan, 44%),
+            0 1.2rem 4rem rgba(0, 0, 0, 0.68);
+        overflow: hidden;
+        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    /* The settings console is a two-pane surface — it needs the width the
+       action list does not. ONE card class, one modifier. */
+    &--settings &__card {
+        width: min(56rem, 96vw);
+    }
+
+    /* A single sci-fi hairline along the top of the card: the family mark
+       both surfaces share. Decorative — safe to lose under perf-lite. */
+    &__card::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: .1rem;
+        background: linear-gradient(90deg, transparent, fade(@con-cyan, 75%) 22%, fade(@cs-gold, 60%) 55%, transparent);
+        pointer-events: none;
+    }
+
+    /* ── Head: emblem + continuous crumb + a quiet right-hand tag ── */
+    &__head {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: .7rem;
+        padding: .9rem 1.2rem .75rem;
+        border-bottom: .05rem solid fade(@con-cyan, 16%);
+    }
+    &__emblem {
+        flex: 0 0 auto;
+        width: 1.9rem;
+        height: 1.9rem;
+        display: grid;
+        place-items: center;
+        border-radius: .35rem;
+        background: fade(@con-cyan, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
+        color: fade(@con-cyan, 95%);
+        font-size: 1.1rem;
+        line-height: 1;
+    }
+    &__crumb {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        align-items: baseline;
+        gap: .5rem;
+    }
+    /* The workspace name: ONE style through every stage (never re-scaled,
+       never re-animated) — it behaves like the source of the flow. */
+    &__crumb-root {
+        font-size: 1.1rem;
+        font-weight: 700;
+        letter-spacing: .14rem;
+        text-transform: uppercase;
+        color: @con-text;
+        white-space: nowrap;
+    }
+    &__crumb-sep {
+        font-size: .95rem;
+        color: fade(@con-cyan, 55%);
+    }
+    /* The ONE animated cell — the stage tail. Both transition children share
+       this grid cell, so the line never re-flows while they crossfade. */
+    &__crumb-slot {
+        display: grid;
+        min-width: 0;
+    }
+    &__crumb-tail {
+        grid-area: 1 / 1;
+        align-self: baseline;
+        display: inline-flex;
+        align-items: baseline;
+        gap: .5rem;
+        min-width: 0;
+    }
+    &__crumb-stage {
+        font-size: .8rem;
+        font-weight: 700;
+        letter-spacing: .16rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 92%);
+        white-space: nowrap;
+
+        /* Past the point of no return the accent goes amber — and survives
+           desaturation by WEIGHT, not by colour alone. */
+        &--commit { color: fade(@con-amber, 95%); }
+    }
+    &__tag {
+        flex: 0 0 auto;
+        align-self: center;
+        display: inline-flex;
+        align-items: baseline;
+        gap: .35rem;
+        font-size: .6rem;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: fade(@con-text-dim, 80%);
+
+        b {
+            font-size: .7rem;
+            letter-spacing: .04rem;
+            text-transform: none;
+            color: @con-text-dim;
+        }
+    }
+
+    &__body {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        padding: .8rem 1.2rem .5rem;
+    }
+
+    /* ── Foot: the ONE command bar of the surface ── */
+    &__foot {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        gap: 1.2rem;
+        padding: .6rem 1.2rem .7rem;
+        border-top: .05rem solid fade(@con-cyan, 16%);
+    }
+    &__hint {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .75rem;
+        color: @con-text-dim;
+
+        &--go { color: @con-mint; font-weight: 700; }
+        &--danger { color: fade(@con-red, 92%); font-weight: 700; }
+        &--off { opacity: .4; }
+    }
+}
+
+/* The stage crumb crossfade: the tail dissolves into the next stage in place.
+   Overflow-safe — opacity only, both children in the same grid cell. */
+.con-sys-stage-enter-active,
+.con-sys-stage-leave-active {
+    transition: opacity calc(150ms * var(--motion-scale, 1)) ease;
+}
+.con-sys-stage-enter-from,
+.con-sys-stage-leave-to {
+    opacity: 0;
+}
+
+/* ── The in-game SYSTEM menu: action plates ───────────────────────── */
+.con-sys--menu {
+    .con-sys__body {
+        flex-direction: column;
+        gap: .5rem;
+        padding-bottom: .8rem;
+    }
+}
+.con-sysact {
+    display: flex;
+    flex-direction: column;
+    gap: .4rem;
+
+    &__plate {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        min-height: var(--con-hit-min, 2.6rem);
+        padding: .45rem .85rem;
+        border: 0;
+        border-radius: .5rem;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
+        color: @con-text;
+        font-family: inherit;
+        text-align: left;
+        cursor: pointer;
+        .con-visual-transition(140ms);
+
+        &--cursor {
+            background: fade(@con-cyan, 13%);
+            box-shadow: inset 0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 80%), 0 0 var(--con-glow-r, .9rem) fade(@con-cyan, 20%);
+            transform: translateX(.2rem);
+        }
+        /* Leaving the game is the one plate with a consequence — its cursor
+           state names that in colour, and the foot verb follows. */
+        &--exit&--cursor {
+            background: fade(@con-amber, 12%);
+            box-shadow: inset 0 0 0 var(--con-focus-ring, .1rem) fade(@con-amber, 78%), 0 0 var(--con-glow-r, .9rem) fade(@con-amber, 18%);
+        }
+    }
+    &__glyph {
+        flex: 0 0 auto;
+        width: 1.6rem;
+        text-align: center;
+        font-size: 1.15rem;
+        color: fade(@con-cyan, 88%);
+    }
+    &__plate--exit&__plate--cursor &__glyph { color: fade(@con-amber, 92%); }
+    &__text {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .05rem;
+    }
+    &__label {
+        font-size: 1rem;
+        font-weight: 700;
+        letter-spacing: .03rem;
+    }
+    &__sub {
+        font-size: .7rem;
+        color: @con-text-dim;
+    }
+    &__go {
+        flex: 0 0 auto;
+        opacity: 0;
+        .con-visual-transition(140ms);
+    }
+    &__plate--cursor &__go { opacity: 1; }
+}
+
+/* The exit CONFIRMATION — an embedded stage in the same card (the crumb
+   gained a tail, the frame did not move), not a second dialog. */
+.con-sysconfirm {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+    width: 100%;
+    padding: .3rem .2rem .5rem;
+
+    &__body {
+        font-size: 1rem;
+        line-height: 1.45;
+    }
+    &__note {
+        font-size: .8rem;
+        line-height: 1.4;
+        color: @con-text-dim;
+    }
+}
+
+/* ── The SETTINGS console ─────────────────────────────────────────── */
+.con-set {
+    display: flex;
+    gap: 1rem;
+    width: 100%;
+    /* A CONSTANT body height across categories: switching category with LB/RB
+       must not resize the card (the same layout-shift contract the cursor
+       obeys). Fixed, not `min-height` — a tall category (the diagnostics
+       readout) has to scroll INSIDE the pane rather than grow the frame.
+       Short categories leave breathing room above the pinned detail strip. */
+    height: 21rem;
+
+    /* The category RAIL: the four tuned categories loud, the technical pair
+       small and dim under a hairline — «мелкие незначительные категории». */
+    &__rail {
+        flex: 0 0 auto;
+        width: 12.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: .2rem;
+        padding-right: .9rem;
+        border-right: .05rem solid fade(@con-cyan, 14%);
+    }
+    &__cat {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        min-height: 2.3rem;
+        padding: .3rem .55rem;
+        border: 0;
+        border-radius: .4rem;
+        background: transparent;
+        color: @con-text-dim;
+        font-family: inherit;
+        text-align: left;
+        cursor: pointer;
+        .con-visual-transition(140ms);
+
+        /* The category the pane is showing — a cyan bar on the seam side plus
+           full-strength type. Reads at 2 m without relying on a glow. */
+        &--current {
+            background: fade(@con-cyan, 11%);
+            box-shadow: inset .16rem 0 0 0 fade(@con-cyan, 92%), inset 0 0 0 .05rem fade(@con-cyan, 26%);
+            color: @con-text;
+        }
+        &--minor {
+            min-height: 1.9rem;
+            opacity: .72;
+        }
+        &--minor&--current { opacity: 1; }
+    }
+    &__cat-glyph {
+        flex: 0 0 auto;
+        width: 1.25rem;
+        text-align: center;
+        font-size: 1rem;
+        color: fade(@con-cyan, 78%);
+    }
+    &__cat--minor &__cat-glyph { font-size: .8rem; }
+    &__cat-name {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: .85rem;
+        font-weight: 700;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    &__cat--minor &__cat-name {
+        font-size: .68rem;
+        font-weight: 600;
+        letter-spacing: .1rem;
+    }
+    &__rail-sep {
+        margin: .5rem .55rem .15rem;
+        padding-top: .35rem;
+        border-top: .05rem dashed fade(@con-cyan, 20%);
+        font-size: .55rem;
+        letter-spacing: .16rem;
+        text-transform: uppercase;
+        color: fade(@con-text-dim, 70%);
+    }
+
+    /* The PANE: the rows scroll, the detail strip is pinned under them. */
+    &__pane {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .55rem;
+    }
+    &__scroll {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+    &__rows {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+        padding-right: .2rem;
+    }
+
+    /* ── A dialable row: label · stepper · pips. ONE line tall. ── */
+    &__row {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        min-height: 2.5rem;
+        padding: .3rem .5rem .3rem .75rem;
+        border-radius: .45rem;
+        background: rgba(12, 20, 30, 0.72);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 15%);
+        cursor: pointer;
+        .con-visual-transition(140ms);
+
+        &--cursor {
+            background: fade(@con-cyan, 10%);
+            box-shadow: inset 0 0 0 var(--con-focus-ring, .1rem) fade(@con-cyan, 85%), 0 0 var(--con-glow-r, .9rem) fade(@con-cyan, 18%);
+        }
+    }
+    &__row-label {
+        flex: 1 1 auto;
+        min-width: 0;
+        font-size: .9rem;
+        font-weight: 700;
+        letter-spacing: .02rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    /* A value awaiting a restart wears a dot — the honest replacement for the
+       old «⟳» glued onto the value string. */
+    &__row-pending {
+        flex: 0 0 auto;
+        width: .4rem;
+        height: .4rem;
+        border-radius: 49.95rem;
+        background: fade(@con-amber, 95%);
+        box-shadow: 0 0 0 .12rem fade(@con-amber, 22%);
+    }
+
+    /* The STEPPER — a fixed-width cell, so a longer value can never move the
+       row's geometry; the arrows only fade in on the cursored row. Wide enough
+       for the longest resolved value («Авто (Стандартный)») WITHOUT ellipsis:
+       a settings value the player cannot finish reading is not a value. */
+    &__stepper {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .35rem;
+        width: 19rem;
+    }
+    &__arrow {
+        flex: 0 0 auto;
+        width: 1.2rem;
+        height: 1.5rem;
+        display: grid;
+        place-items: center;
+        border-radius: .3rem;
+        font-size: .95rem;
+        color: fade(@con-cyan, 90%);
+        opacity: 0;
+        cursor: pointer;
+        .con-visual-transition(140ms);
+    }
+    &__row--cursor &__arrow {
+        opacity: 1;
+        background: fade(@con-cyan, 12%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 34%);
+    }
+    &__value {
+        flex: 1 1 auto;
+        min-width: 0;
+        text-align: right;
+        font-size: .85rem;
+        font-weight: 700;
+        color: fade(@con-cyan, 95%);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    /* Ring position: uniform dots, never a bar — an elongated "current" pip
+       read as a stray dash sitting next to the value. */
+    &__pips {
+        flex: 0 0 auto;
+        display: flex;
+        align-items: center;
+        gap: .18rem;
+        width: 2.8rem;
+        justify-content: flex-end;
+    }
+    &__pip {
+        width: .22rem;
+        height: .22rem;
+        border-radius: 49.95rem;
+        background: fade(@con-text-dim, 40%);
+        .con-visual-transition(140ms);
+
+        &--on {
+            width: .34rem;
+            height: .34rem;
+            background: fade(@con-cyan, 95%);
+        }
+    }
+
+    /* ── The DETAIL strip: what the cursored row actually does. ──
+       Reserves both text lines unconditionally, so cursoring never resizes
+       it — the property that let the rows drop their subtitles. */
+    &__detail {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: .2rem;
+        min-height: 5.1rem;
+        padding: .55rem .75rem;
+        border-radius: .45rem;
+        background: rgba(9, 16, 25, 0.78);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 20%);
+    }
+    &__detail-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: .8rem;
+    }
+    &__detail-title {
+        font-size: .8rem;
+        font-weight: 700;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: @con-text;
+    }
+    &__detail-value {
+        flex: 0 0 auto;
+        font-size: .8rem;
+        font-weight: 700;
+        color: fade(@con-cyan, 95%);
+    }
+    &__detail-desc {
+        min-height: 2.1rem;
+        font-size: .75rem;
+        line-height: 1.35;
+        color: @con-text-dim;
+    }
+    &__detail-note {
+        min-height: 1rem;
+        font-size: .7rem;
+        line-height: 1.3;
+        color: fade(@con-text-dim, 78%);
+
+        &--pending { color: fade(@con-amber, 95%); font-weight: 700; }
+    }
+
+    /* ── The read-only READOUT (the diagnostics category) ── */
+    /* A readout is READ, not navigated: tighter rows AND two columns, so the
+       whole thing lands inside the constant body height. A diagnostics screen
+       that hides half of itself behind a scroll is not a diagnostics screen. */
+    &__readout {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: .2rem .9rem;
+        align-content: start;
+    }
+    &__rogroup {
+        display: flex;
+        flex-direction: column;
+        gap: .25rem;
+        min-width: 0;
+    }
+    &__group {
+        font-size: .6rem;
+        letter-spacing: .16rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 72%);
+    }
+    &__ro {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        min-height: 1.7rem;
+        padding: .2rem .75rem;
+        border-radius: .4rem;
+        background: rgba(12, 20, 30, 0.62);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 12%);
+    }
+    &__ro-key {
+        font-size: .78rem;
+        color: @con-text-dim;
+    }
+    &__ro-val {
+        font-size: .8rem;
+        font-weight: 700;
+        text-align: right;
+        color: @con-text;
+
+        &--ok { color: @con-mint; }
+        &--warn { color: @con-amber; }
+        &--bad { color: @con-red; }
+        &--mono { font-family: monospace; font-size: .75rem; }
+    }
+    &__ro-note {
+        margin: .1rem .2rem 0;
+        font-size: .65rem;
+        line-height: 1.35;
+        color: fade(@con-text-dim, 75%);
+
+        &--bad { color: fade(@con-red, 95%); font-weight: 700; }
+    }
+}

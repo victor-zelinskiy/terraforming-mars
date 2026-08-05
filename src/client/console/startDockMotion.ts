@@ -296,11 +296,30 @@ function addFlight(tl: gsap.core.Timeline, proxy: HTMLElement, from: Rect, to: R
   tl.to(proxy, {autoAlpha: 0, duration: 0.09}, at + take + carry + settle);
 }
 
+/**
+ * The per-card STAGGER of a convoy. A convoy is a physical queue, so it may
+ * take longer when there are more cards — but a 12-card buy at the full
+ * per-card stagger would deal for over a second before the last card even
+ * lifts, and the tail reads as a separate, slower event. The spread is
+ * COMPRESSED as the batch grows (never below a beat that still reads as
+ * one-after-another), so the whole convoy stays one continuous gesture.
+ */
+function staggerFor(count: number): number {
+  const n = Math.max(1, count - 1);
+  return Math.max(46, Math.min(STAGGER_MS, Math.round(900 / n)));
+}
+
 /** Total budget of one staggered flight batch (ms). */
 function batchBudget(count: number, reseat = false): number {
   const take = reseat ? RESEAT_TAKE_MS : TAKE_MS;
   const carry = reseat ? RESEAT_CARRY_MS : CARRY_MS;
-  return motionMs(take + carry + SETTLE_MS + STAGGER_MS * Math.max(0, count - 1)) + 400;
+  return motionMs(take + carry + SETTLE_MS + staggerFor(count) * Math.max(0, count - 1)) + 600;
+}
+
+/** One animation frame (the honest "let the layout settle" wait). */
+function frame(): Promise<void> {
+  return new Promise<void>((r) => (typeof requestAnimationFrame === 'function' ?
+    requestAnimationFrame(() => r()) : setTimeout(r, 16)));
 }
 
 /**
@@ -383,7 +402,7 @@ export async function collectToDock(
         w: src.from.w * fit,
         h: src.from.h * fit,
       }, {
-        at: (motionMs(STAGGER_MS) * i) / 1000,
+        at: (motionMs(staggerFor(live.length)) * i) / 1000,
         flipTo: 180,
         tilt: tiltSeedFor(src.name),
         pressEl: pileEl,
@@ -444,7 +463,7 @@ export async function returnFromDock(
         onLanded?.(t.name);
         return;
       }
-      const at = (motionMs(STAGGER_MS) * i) / 1000;
+      const at = (motionMs(staggerFor(targets.length)) * i) / 1000;
       const born: Rect = {
         x: pile.x + pile.w / 2 - t.to.w / 2,
         y: pile.y + pile.h / 2 - t.to.h / 2,
@@ -510,7 +529,7 @@ export async function reseatCards(
         return;
       }
       addFlight(tl, proxy, p.from, p.to, {
-        at: (motionMs(STAGGER_MS) * i) / 1000,
+        at: (motionMs(staggerFor(live.length)) * i) / 1000,
         reseat: true,
         onDock: () => onLanded?.(p.name),
       });
@@ -590,13 +609,28 @@ export function captureCards(sources: ReadonlyArray<DockFlightSource>): Captured
         allNames.forEach((n) => onLanded?.(n));
         return;
       }
-      const flights = allNames
+      const readFlights = () => allNames
         .map((name) => {
           const proxy = proxies.get(name);
           const slot = targetFor(name);
           const card = slot?.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? undefined;
           return {name, proxy, to: rectOf(card ?? slot ?? undefined)};
         });
+      // TARGETS ARE POLLED, NEVER ASSUMED. A big batch's destination tiles
+      // are laid out over SEVERAL frames (the grid re-flows, the fit engine
+      // re-zooms, arts decode), so a single-shot read finds the first few
+      // and misses the rest — and every missed one silently degraded to
+      // «just appear», which is exactly the physicality this convoy exists
+      // to keep. Poll until every proxy has a measurable target (or the
+      // budget is out); only what is genuinely absent degrades.
+      let flights = readFlights();
+      for (let i = 0; i < 30 && flights.some((f) => f.proxy !== undefined && f.to === undefined); i++) {
+        await frame();
+        if (disposed) {
+          return;
+        }
+        flights = readFlights();
+      }
       const flyable = flights
         .filter((f): f is typeof f & {proxy: {el: HTMLElement, from: Rect}, to: Rect} =>
           f.proxy !== undefined && f.to !== undefined)
@@ -617,7 +651,7 @@ export function captureCards(sources: ReadonlyArray<DockFlightSource>): Captured
         const tl = gsap.timeline({onComplete: done});
         flyable.forEach((f, i) => {
           addFlight(tl, f.proxy.el, f.proxy.from, f.to, {
-            at: (motionMs(STAGGER_MS) * i) / 1000,
+            at: (motionMs(staggerFor(flyable.length)) * i) / 1000,
             reseat: true,
             onDock: () => onLanded?.(f.name),
           });

@@ -46,6 +46,22 @@ export interface UpdateDecisionInput {
   strictOffline: boolean;
 }
 
+/**
+ * LOCAL-BUILD escape hatch (`TM_LOCAL_BUILD=1`, or the `--tm-local-build` launch option).
+ *
+ * A build made on this machine is by definition AHEAD of every published release — it carries
+ * work that CI has never seen. The gate only knows published versions, so a PACKAGED local run
+ * (`npm run pack:dir:win`, whose `app.isPackaged` is true) is told it is outdated and Velopack
+ * happily replaces the build under test with an older CI release. Declaring the build local means
+ * "this IS the newest version": the compatibility gate and Velopack never run at all.
+ *
+ * Unpackaged dev runs (`npm run electron:desktop` / `electron:run`) are already exempt via
+ * `app.isPackaged` — this flag is what covers the packaged local ones. Pure (unit-tested).
+ */
+export function isLocalBuild(raw: string | undefined): boolean {
+  return (raw ?? '').trim() === '1';
+}
+
 export function resolveUpdateDecision(input: UpdateDecisionInput): UpdateDecision {
   if (input.fresh !== undefined) {
     // A build in flight OUTRANKS `required`: it will publish a version newer than anything on the

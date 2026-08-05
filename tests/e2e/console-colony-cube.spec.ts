@@ -134,7 +134,7 @@ async function startBuildColony(page: Page, tag: string): Promise<void> {
     if (!open) {
       // Close only what actually popped (a stuck wheel / the system menu a
       // stray B would open) — NEVER blind-Escape on the bare board.
-      if (await page.locator('.con-quick, .con-sysmenu').count() > 0) {
+      if (await page.locator('.con-quick, .con-sys').count() > 0) {
         await key(page, 'Escape', 600);
       }
       await page.waitForTimeout(1400);

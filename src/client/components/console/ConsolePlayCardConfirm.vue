@@ -1042,11 +1042,21 @@ export default defineComponent({
         },
         // The repeat slot IS the meaningful result for ProjectInspection — count
         // it so the block is never the misleading "applied after confirming".
-        {hasImmediate: this.hasImmediateResult, hasFollowUp: this.followUpNotes.length > 0 || this.repeatChoice !== undefined},
+        // A skipped-effect WARNING counts too: when the card's only on-play
+        // content is an effect that will be lost, the fallback would promise
+        // «применится после подтверждения» directly beside the warning saying
+        // it will not — the block contradicting itself in two adjacent lines.
+        {hasImmediate: this.hasImmediateResult, hasFollowUp: this.hasFollowUpResult},
       );
     },
     hasImmediateResult(): boolean {
       return this.branches.some((b) => b.effects.length > 0 || b.reveal !== undefined);
+    },
+    /** Everything the block states about what happens AFTER the confirm —
+     *  placement notes, the repeat slot, and the warnings that name a skipped
+     *  effect. All three make the "applied after confirming" fallback a lie. */
+    hasFollowUpResult(): boolean {
+      return this.followUpNotes.length > 0 || this.repeatChoice !== undefined || this.warningSteps.length > 0;
     },
     // Skipped-effect warnings: WHICH effect is lost (title + muted chip) and why.
     // Derived by the SAME shared helper the desktop modal uses, then translated —
@@ -1502,7 +1512,7 @@ export default defineComponent({
       this.focusIdx = this.firstActionableIndex();
       // Dev audit: a genuine preview gap (no immediate result, no follow-up) —
       // surface it once per load so it can be found and closed (audit contract).
-      if (isFallbackOnlyResult(this.resultSections, {hasImmediate: this.hasImmediateResult, hasFollowUp: this.followUpNotes.length > 0})) {
+      if (isFallbackOnlyResult(this.resultSections, {hasImmediate: this.hasImmediateResult, hasFollowUp: this.hasFollowUpResult})) {
         console.warn(`[console play] no computable preview for ${this.cardName} — showing fallback result`);
       }
     },

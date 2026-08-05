@@ -11,21 +11,24 @@
 
     <!-- The console SYSTEM overlay (Menu button): Settings / Controls / Exit. -->
     <transition name="con-layer">
-      <ConsoleSystemMenu v-if="systemMenuOpen && !systemMenuSettings && consoleModeState.enabled"
+      <ConsoleSystemMenu v-if="systemMenuOpen && systemMenuSettings === undefined && consoleModeState.enabled"
                          :index="systemMenuIndex"
                          :confirmExit="systemMenuConfirmExit"
-                         :showDiagnostics="systemMenuDiagnostics"
-                         :inGame="screen === 'player-home'" />
+                         :inGame="screen === 'player-home'"
+                         @activate="onSystemMenuActivate"
+                         @cursor="systemMenuIndex = $event" />
     </transition>
-    <!-- «Настройки» — the SHARED console Options panel, opened in-game from the
-         system menu (the ONE home of persistent console settings, CLAUDE.md).
-         B returns to the system list. In-game context hides the Interface
-         (console↔desktop) row — that shell switch stays a main-menu affordance. -->
+    <!-- «Настройки» / «Диагностика» — the SHARED settings console, opened
+         in-game from the system menu (the ONE home of persistent console
+         settings AND of the read-only readout, CLAUDE.md). B returns to the
+         system list. In-game context drops the shell switch (that stays a
+         main-menu affordance) and the launch-time network rows. -->
     <transition name="con-layer">
-      <ConsoleOptionsPanel v-if="systemMenuOpen && systemMenuSettings && consoleModeState.enabled"
+      <ConsoleOptionsPanel v-if="systemMenuOpen && systemMenuSettings !== undefined && consoleModeState.enabled"
                            ref="systemOptions"
                            context="game"
-                           @close="systemMenuSettings = false" />
+                           :initialCategory="systemMenuSettings"
+                           @close="systemMenuSettings = undefined" />
     </transition>
 
     <!-- Controller mapping legend (Menu button). Its OWN mini-scope: while
@@ -94,6 +97,7 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleEntryPrompt from '@/client/components/console/ConsoleEntryPrompt.vue';
 import ConsoleSystemMenu, {SYSTEM_MENU_ITEMS} from '@/client/components/console/ConsoleSystemMenu.vue';
 import ConsoleOptionsPanel from '@/client/components/console/menu/ConsoleOptionsPanel.vue';
+import {ConsoleSettingsCategoryId} from '@/client/console/settings/consoleSettingsModel';
 import {buttonLayoutState, remapConsoleIntent} from '@/client/gamepad/buttonLayout';
 import {consoleModeState, consoleModeExplicitlyDisabled, dismissConsoleOffer, maybeOfferConsoleMode, requestConsoleFullscreen, setConsoleMode} from '@/client/console/consoleModeState';
 import {initialGamepadDetected, isElectronApp, isLinuxPlatform} from '@/client/console/runtimeMode';
@@ -104,6 +108,7 @@ import {menuPadState} from '@/client/console/menu/consoleMenuPad';
 import {desktopUpdateBlocking} from '@/client/components/desktop/desktopUpdateState';
 import {leakDetectorState} from '@/client/console/consoleLeakDetector';
 import {installConsoleKeyBridge, uninstallConsoleKeyBridge} from '@/client/console/composables/consoleKeyBridge';
+import {setConsoleSystemMenuInput} from '@/client/console/consoleSystemMenuBridge';
 import {installConsoleOverflowGuard, uninstallConsoleOverflowGuard} from '@/client/console/composables/consoleOverflowGuard';
 
 const FOCUS_TICK_MS = 400;
@@ -172,9 +177,13 @@ export default defineComponent({
       systemMenuOpen: false,
       systemMenuIndex: 0,
       systemMenuConfirmExit: false,
-      systemMenuDiagnostics: false,
-      /** «Настройки» sub-panel of the system menu — the console Options panel. */
-      systemMenuSettings: false,
+      /**
+       * The settings console opened FROM the system menu, and which category it
+       * opened on (undefined = the system list itself is showing). «Настройки»
+       * opens it on its default category, «Диагностика» straight on the
+       * read-only readout — the readout has no second implementation any more.
+       */
+      systemMenuSettings: undefined as ConsoleSettingsCategoryId | undefined,
       legendOpen: false,
       toast: '',
       toastTimer: undefined as number | undefined,
@@ -373,39 +382,61 @@ export default defineComponent({
       this.systemMenuOpen = true;
       this.systemMenuIndex = 0;
       this.systemMenuConfirmExit = false;
-      this.systemMenuDiagnostics = false;
-      this.systemMenuSettings = false;
+      this.systemMenuSettings = undefined;
     },
     closeSystemMenu(): void {
       this.systemMenuOpen = false;
       this.systemMenuConfirmExit = false;
-      this.systemMenuDiagnostics = false;
-      this.systemMenuSettings = false;
+      this.systemMenuSettings = undefined;
+    },
+    /**
+     * The KEYBOARD's view of the system overlay (the pad path is `onIntent`).
+     * Returns true for everything it consumed, so the key bridge stops routing:
+     * while the overlay is open it owns the keyboard entirely — otherwise the
+     * arrows would drive the board behind it.
+     */
+    keyboardSystemMenuIntent(intent: GamepadIntent): boolean {
+      if (!this.consoleModeState.enabled || desktopUpdateBlocking()) {
+        return false;
+      }
+      if (this.systemMenuOpen) {
+        // The Menu key closes it again; everything else is the overlay's.
+        if (intent.kind === 'press' && intent.button === 'menu') {
+          this.closeSystemMenu();
+        } else {
+          this.handleSystemMenuIntent(intent);
+        }
+        return true;
+      }
+      if (intent.kind === 'press' && intent.button === 'menu') {
+        // Same rule as the pad: the overlay is an IN-GAME affordance (at the
+        // lifecycle screens there is nowhere to "return to").
+        if (this.screen === 'player-home') {
+          this.openSystemMenu();
+        }
+        return true;
+      }
+      // Swallow the matching release so it cannot reach a surface below.
+      return intent.kind === 'release' && intent.button === 'menu';
     },
     handleSystemMenuIntent(intent: GamepadIntent): void {
-      // The «Настройки» sub-panel is a full component that owns its own nav /
-      // primary / back — delegate the whole intent to it (it emits close on B).
-      if (this.systemMenuSettings) {
+      // The settings console is a full component that owns its own nav /
+      // category ring / primary / back — delegate the whole intent to it (it
+      // emits close on B, which returns to the system list).
+      if (this.systemMenuSettings !== undefined) {
         const options = this.$refs.systemOptions as {handleIntent?: (i: GamepadIntent) => boolean} | undefined;
         options?.handleIntent?.(intent);
         return;
       }
       if (intent.kind === 'nav') {
-        // No list navigation while a sub-panel (exit confirm / diagnostics) owns
-        // the card — the menu index is hidden underneath.
-        if (!this.systemMenuConfirmExit && !this.systemMenuDiagnostics && (intent.dir === 'up' || intent.dir === 'down')) {
+        // No list navigation while the exit confirmation owns the card — the
+        // menu index is hidden underneath it.
+        if (!this.systemMenuConfirmExit && (intent.dir === 'up' || intent.dir === 'down')) {
           this.systemMenuIndex = stepIndex(this.systemMenuIndex, intent.dir === 'down' ? 1 : -1, SYSTEM_MENU_ITEMS.length);
         }
         return;
       }
       if (intent.kind !== 'press') {
-        return;
-      }
-      if (this.systemMenuDiagnostics) {
-        // A read-only sub-panel — Back returns to the menu list; nothing else acts.
-        if (intent.button === 'back') {
-          this.systemMenuDiagnostics = false;
-        }
         return;
       }
       if (this.systemMenuConfirmExit) {
@@ -424,25 +455,31 @@ export default defineComponent({
         return;
       }
       if (intent.button === 'confirm') {
-        const item = SYSTEM_MENU_ITEMS[this.systemMenuIndex];
-        switch (item?.id) {
-        case 'settings':
-          this.systemMenuSettings = true;
-          break;
-        case 'controls':
-          this.closeSystemMenu();
-          this.legendOpen = true;
-          break;
-        case 'diagnostics':
-          this.systemMenuDiagnostics = true;
-          break;
-        case 'exit':
-          this.systemMenuConfirmExit = true;
-          break;
-        case 'return':
-          this.closeSystemMenu();
-          break;
-        }
+        this.onSystemMenuActivate(this.systemMenuIndex);
+      }
+    },
+    /** Run the plate at `i` — the ONE branch A and a mouse click share. */
+    onSystemMenuActivate(i: number): void {
+      this.systemMenuIndex = i;
+      switch (SYSTEM_MENU_ITEMS[i]?.id) {
+      case 'settings':
+        this.systemMenuSettings = 'interface';
+        break;
+      case 'controls':
+        this.closeSystemMenu();
+        this.legendOpen = true;
+        break;
+      case 'diagnostics':
+        // The readout lives in the settings console's minor ДИАГНОСТИКА
+        // category — this plate is a deep link, not a second panel.
+        this.systemMenuSettings = 'diagnostics';
+        break;
+      case 'exit':
+        this.systemMenuConfirmExit = true;
+        break;
+      case 'return':
+        this.closeSystemMenu();
+        break;
       }
     },
     onModeChange(mode: InputMode): void {
@@ -493,6 +530,10 @@ export default defineComponent({
     installConsoleOverflowGuard();
     this.offIntent = onGamepadIntent((intent) => this.onIntent(intent));
     this.offMode = onInputModeChange((mode) => this.onModeChange(mode));
+    // The KEYBOARD route into the system overlay. Pads reach `onIntent`
+    // directly; the keyboard bridge speaks to the console router, which this
+    // layer is not part of — so it asks here first (consoleSystemMenuBridge).
+    setConsoleSystemMenuInput((intent) => this.keyboardSystemMenuIntent(intent));
     if (this.gamepadActive) {
       this.startTick();
     }
@@ -503,7 +544,7 @@ export default defineComponent({
     // boots console-first on EITHER robust signal: a pad already visible
     // OR the Deck posture (LINUX shell + the HANDHELD layout profile —
     // the platform anchor keeps a small-screen Windows laptop out of it).
-    // An explicit player opt-out (?console=0 / Options → Interface →
+    // An explicit player opt-out (?console=0 / «Настройки» → ИНТЕРФЕЙС → Оболочка →
     // Desktop, stored) always wins and is never overridden.
     //
     // NOTE: console mode now DEFAULTS on (consoleModeState) — so `!enabled`
@@ -518,6 +559,7 @@ export default defineComponent({
   beforeUnmount() {
     this.offIntent?.();
     this.offMode?.();
+    setConsoleSystemMenuInput(undefined);
     this.stopTick();
     if (this.toastTimer !== undefined) {
       window.clearTimeout(this.toastTimer);

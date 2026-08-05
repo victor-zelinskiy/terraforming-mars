@@ -68,6 +68,31 @@ a Phase 2B milestone.
 You can force `app://` mode on an already-built desktop bundle with
 `TM_ELECTRON_LOAD=app electron build/electron/main.js`.
 
+## Local run — the app, without building an installer
+
+| Command | What it does | When |
+|---|---|---|
+| `npm run electron:run` | Launches the LAST desktop build instantly (no build step, ~2 s). `app://` renderer + host mode → the embedded server starts in-process, so **no `dev:server` needed**. | The everyday button. Nothing changed, or only the last build matters. |
+| `npm run electron:desktop` | `build:desktop` (static + desktop renderer + main + embedded server) **then** launches. | After touching `src/client/**` or `electron/**`. |
+| `npm run electron:build:main && npm run electron:run` | tsc for `electron/**` only, then launch. | Main-process change only — seconds instead of a webpack pass. |
+| `npm run pack:dir:win` → `npm run electron:run:packed` | The real **packaged** app (asar, `app.isPackaged`) from `dist-desktop/win-unpacked/`, **no installer / Velopack packaging**. `scripts/run-packed.mjs` resolves the exe and forwards extra args (`-- --tm-windowed`). | Verifying something that only behaves like itself when packaged. |
+
+`electron:run` needs `build/electron/embedded-server.js` (produced by `build:desktop`) for host
+mode; without it the app downgrades to remote and expects a server at `TM_SERVER_BASE`.
+
+IntelliJ IDEA: the matching one-click configurations live in `.idea/runConfigurations/`
+(`Electron: запуск (без сборки)`, `… (окно + DevTools)`, `сборка + запуск`, `запуск собранного .exe`).
+`.idea/` is git-ignored, so they are local to the machine.
+
+### The local build is the newest version (`TM_LOCAL_BUILD=1`)
+
+A local build is AHEAD of every published release, but the compatibility gate only knows published
+versions — so a **packaged** local run would be told to update and Velopack would replace the build
+under test with an older CI release. `TM_LOCAL_BUILD=1` (or the `--tm-local-build` launch option)
+declares the running build latest: the gate and Velopack never run, the update overlay stays `idle`.
+`electron:run` / `electron:run:packed` set it; unpackaged dev runs are exempt anyway
+(`app.isPackaged === false`). Pure decision + tests: `updatePolicy.ts` `isLocalBuild`.
+
 ## Configuration (env vars)
 
 | Env var | Default | Purpose |
@@ -84,6 +109,7 @@ You can force `app://` mode on an already-built desktop bundle with
 | `TM_ELECTRON_FEATURES` | platform default | REPLACES the default `--enable-features` list (Windows default: `SkiaGraphite,SkiaGraphitePrecompilation,DXGIWaitableSwapChain:…`). `none`/`off` = no list at all — the Graphite rollback. |
 | `TM_ELECTRON_SWITCHES` | — | Semicolon-separated raw Chromium switches (`key` or `key=value`), appended LAST so they override same-key defaults. E.g. `skia-graphite-dawn-backend=d3d12` (re-test D3D12 against the pinned D3D11 Graphite backend), `disable-direct-composition`, `use-angle=d3d9`, `js-flags=--max-old-space-size=1024`, `ozone-platform=wayland;use-angle=vulkan` (a GL/display key on Linux also skips the default `--disable-gpu`). Replaces the retired per-knob env vars. |
 | `TM_UPDATE_CHANNEL` | `latest` | Update channel (dev/staging/prod/latest) — selects the feed `<channel>.yml` and is sent to the compatibility gate as `?channel=`. |
+| `TM_LOCAL_BUILD` | — | `=1` treats THIS build as the latest version: the compatibility gate and Velopack never run, so a locally-packed build is never "updated" back to a published release. Set by `electron:run` / `electron:run:packed`; also `--tm-local-build`. No effect on an unpackaged dev run (already exempt). |
 | `TM_DESKTOP_STRICT_OFFLINE` | — | `=1` blocks the app when compatibility was **never** verified and the server is unreachable (default fails open so a first-run offline launch isn't bricked). A known-outdated client (last check said "update required") is always blocked offline regardless. |
 
 ### Server-side CORS (Phase 2B — set on the SERVER process, not Electron)
@@ -134,6 +160,7 @@ Options**, clear the field to remove; no `setx`, no Steam restart, no registry.
 | `--tm-no-perf` | `TM_ELECTRON_NO_PERF=1` | vanilla-Electron baseline |
 | `--tm-devtools` | `TM_ELECTRON_DEVTOOLS=1` | auto-open DevTools |
 | `--tm-windowed` | `TM_ELECTRON_WINDOWED=1` | windowed instead of fullscreen |
+| `--tm-local-build` | `TM_LOCAL_BUILD=1` | treat this build as latest — no update check, no self-update |
 
 Value flags take `=value`; boolean flags are presence-on. A launch option WINS
 over an unset/stale env var. Verify what took effect via the renderer-console

@@ -15582,161 +15582,12 @@ body.con-start-barshold .con-status {
     }
 }
 
-/* ── System overlay menu (Menu button — any lifecycle context) ───── */
-.con-sysmenu {
-    position: fixed;
-    inset: 0;
-    z-index: 12760; /* above every game surface, below the gamepad ring/entry */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    &__backdrop {
-        position: absolute;
-        inset: 0;
-        .con-backdrop-dim(); // no blur (Steam Deck)
-    }
-    &__card {
-        position: relative;
-        min-width: 22rem;
-        max-width: 28rem;
-        padding: 1.3rem 1.6rem 1rem;
-        border-radius: .7rem;
-        background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 50%), 0 1.2rem 4rem rgba(0, 0, 0, 0.65), 0 0 2.1rem fade(@con-cyan, 8%);
-        font-family: @con-font;
-        color: @con-text;
-        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    &__title {
-        font-size: 1.2rem;
-        font-weight: 700;
-        letter-spacing: .12rem;
-        text-transform: uppercase;
-        text-align: center;
-        color: fade(@con-cyan, 95%);
-        margin-bottom: .9rem;
-    }
-    &__items {
-        display: flex;
-        flex-direction: column;
-        gap: .4rem;
-    }
-    &__item {
-        display: flex;
-        align-items: center;
-        gap: .7rem;
-        min-height: 2.9rem;
-        padding: .4rem .9rem;
-        border-radius: .5rem;
-        background: rgba(14, 22, 33, 0.55);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
-        .con-visual-transition(140ms);
-
-        &--selected {
-            background: fade(@con-cyan, 13%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 75%), 0 0 .9rem fade(@con-cyan, 18%);
-            transform: translateX(.2rem);
-        }
-    }
-    &__item-glyph {
-        width: 1.6rem;
-        text-align: center;
-        font-size: 1.2rem;
-    }
-    &__item-label {
-        font-size: 1.15rem;
-        font-weight: 700;
-        letter-spacing: .02rem;
-    }
-    &__item-a { margin-left: auto; }
-    &__body {
-        font-size: 1.05rem;
-        line-height: 1.45;
-        text-align: center;
-        margin-bottom: .4rem;
-    }
-    &__note {
-        font-size: .85rem;
-        color: @con-text-dim;
-        text-align: center;
-        margin-bottom: 1rem;
-    }
-    &__confirm-actions {
-        display: flex;
-        justify-content: center;
-        gap: 1.6rem;
-    }
-    &__confirm-action {
-        display: inline-flex;
-        align-items: center;
-        gap: .5rem;
-        font-size: 1.05rem;
-        font-weight: 700;
-
-        &--yes { color: @con-mint; }
-    }
-    &__foot {
-        display: flex;
-        justify-content: center;
-        gap: 1.4rem;
-        margin-top: .8rem;
-        padding-top: .6rem;
-        border-top: .05rem solid fade(@con-cyan, 18%);
-    }
-    &__foot-item {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        color: @con-text-dim;
-        font-size: .85rem;
-    }
-
-    /* Diagnostics sub-panel (Menu → Diagnostics): live realtime / poll status. */
-    &__diag {
-        display: flex;
-        flex-direction: column;
-        gap: .35rem;
-        margin-bottom: .4rem;
-    }
-    &__diag-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        min-height: 2.1rem;
-        padding: .3rem .8rem;
-        border-radius: .5rem;
-        background: rgba(14, 22, 33, 0.55);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
-    }
-    &__diag-key {
-        font-size: .95rem;
-        color: @con-text-dim;
-        letter-spacing: .02rem;
-    }
-    &__diag-val {
-        font-size: 1.05rem;
-        font-weight: 700;
-        color: @con-text;
-        text-align: right;
-
-        &--ok { color: @con-mint; }
-        &--warn { color: @con-amber; }
-        &--bad { color: @con-red; }
-        &--dim { color: @con-text-dim; font-weight: 600; }
-        &--mono { font-family: monospace; font-size: .95rem; letter-spacing: .01rem; }
-    }
-    &__diag-note {
-        margin-top: .5rem;
-        font-size: .9rem;
-        font-weight: 600;
-        text-align: center;
-        letter-spacing: .02rem;
-
-        &--bad { color: @con-red; }
-    }
-}
+/* -- System overlay menu (Menu button) ------------------------------
+   The in-game system menu now stands on the SHARED console system surface
+   (`.con-sys--menu` + `.con-sysact`, console_settings.less) - the same card,
+   crumb head and foot bar as the settings console. The former `.con-sysmenu`
+   chassis (and its hand-built diagnostics sub-panel, now the settings
+   console's diagnostics category) lived here. */
 
 /* ── P10: PREMIUM LOADING SCREEN (the game-boundary curtain) ───────────
    Covers the deliberate reload between the pre-game shell and the board:
@@ -19640,7 +19491,9 @@ html.con-profile-handheld {
     .con-load__btn { font-size: .75rem; padding: .5rem 1rem; }
 
     /* ── 25 · system overlay / quit / stranded / confirm ─────────── */
-    .con-sysmenu { zoom: 0.92; }
+    /* The system surface (menu + settings console) compacts as ONE — its two
+       members share a chassis, so one zoom keeps them identical on handheld. */
+    .con-sys { zoom: 0.92; }
     .con-quit__card { min-width: 20rem; padding: 1rem 1.1rem .7rem; }
     .con-quit__body { font-size: .8rem; margin: .4rem 0 .7rem; }
     .con-quit__btn { font-size: .75rem; padding: .5rem .8rem; }

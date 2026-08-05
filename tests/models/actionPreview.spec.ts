@@ -349,8 +349,26 @@ describe('actionPreview', () => {
       expect(mc, 'expected an M€ gain effect').is.not.undefined;
       expect(mc?.amount).eq(2); // 1 M€ × 2 cities
       expect(mc?.basis, 'the gain should carry a basis').is.not.undefined;
-      expect(mc?.basis?.label).eq('Cities on Mars');
-      expect(mc?.basis?.count).eq(2);
+      expect(mc?.basis).deep.eq([{count: 2, label: 'Cities on Mars'}]);
+    });
+
+    /**
+     * THE SAME BRANCH ON AN EMPTY BOARD. «1 M€ per city on Mars» with no city
+     * is the whole answer to «what does spending this floater buy me», so the
+     * chip stays — muted, at zero, with the count that explains it. Dropping it
+     * left the branch showing only its COST, which reads as a free lunch.
+     */
+    it('keeps the chip at ZERO — a variable amount that counts to nothing still states itself', () => {
+      const [/* game */, player] = testGame(2);
+      const card = new WeatherBalloons();
+      card.resourceCount = 1;
+
+      const spend = actionPreview(player, card).branches[0];
+      const mc = spend.effects.find((e) => e.icon === 'megacredits' && e.direction === 'gain');
+      expect(mc, 'a zero-count gain must still be reported').is.not.undefined;
+      expect(mc?.amount).eq(0);
+      expect(mc?.current).eq(mc?.resulting); // → the chip renders it as "no effect"
+      expect(mc?.basis).deep.eq([{count: 0, label: 'Cities on Mars'}]);
     });
   });
 

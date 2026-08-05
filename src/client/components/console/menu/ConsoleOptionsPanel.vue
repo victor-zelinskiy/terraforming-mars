@@ -1,40 +1,118 @@
 <template>
-  <div class="cm-overlay" role="dialog" :aria-label="$t('Options')">
-    <div class="cm-overlay__card">
-      <div class="cm-overlay__title">{{ $t('Options') }}</div>
+  <div class="con-sys con-sys--settings" role="dialog" :aria-label="$t('Settings')">
+    <div class="con-sys__backdrop" aria-hidden="true"></div>
 
-      <div class="cm-optlist">
-        <button
-          v-for="(row, i) in rows"
-          :key="row.id"
-          type="button"
-          class="cm-opt"
-          :class="{'cm-opt--cursor': i === cursor}"
-          @click="activateAt(i)"
-          @mousemove="cursor = i"
-        >
-          <span class="cm-opt__glyph" aria-hidden="true">{{ row.glyph }}</span>
-          <span class="cm-opt__text">
-            <span class="cm-opt__label">{{ $t(row.label) }}</span>
-            <span class="cm-opt__sub">{{ $t(row.sub) }}</span>
+    <div class="con-sys__card">
+      <!-- Stable context BEFORE the mutable stage: «НАСТРОЙКИ › УПРАВЛЕНИЕ».
+           Root and emblem never move; only the tail crossfades. -->
+      <div class="con-sys__head">
+        <span class="con-sys__emblem" aria-hidden="true">⚙</span>
+        <span class="con-sys__crumb">
+          <span class="con-sys__crumb-root">{{ $t('Settings') }}</span>
+          <span class="con-sys__crumb-slot">
+            <transition name="con-sys-stage">
+              <span :key="current.id" class="con-sys__crumb-tail">
+                <span class="con-sys__crumb-sep" aria-hidden="true">›</span>
+                <span class="con-sys__crumb-stage">{{ $t(current.label) }}</span>
+              </span>
+            </transition>
           </span>
-          <span class="cm-opt__value">{{ row.value }}</span>
-        </button>
+        </span>
       </div>
 
-      <!-- Display diagnostics — always mounted (never a layout jump on
-           navigation), dimmed while another row is cursored. -->
-      <div class="cm-optdiag" :class="{'cm-optdiag--muted': rows[cursor]?.id !== 'display'}" aria-live="polite">
-        <div class="cm-optdiag__row"><span>{{ $t('Profile') }}</span><b>{{ diag.profile }} · {{ diag.forced ? $t('manual') : $t('auto') }}</b></div>
-        <div class="cm-optdiag__row"><span>Viewport</span><b>{{ diag.viewport }}</b></div>
-        <div class="cm-optdiag__row"><span>{{ $t('Panel') }}</span><b>{{ diag.physical }} · DPR {{ diag.devicePixelRatio }}</b></div>
-        <div class="cm-optdiag__row"><span>UI scale</span><b>×{{ diag.uiScale }}</b></div>
-        <div class="cm-optdiag__row cm-optdiag__row--why"><span>{{ diag.reason }}</span></div>
+      <div class="con-sys__body">
+        <div class="con-set">
+          <!-- Category rail. The technical pair sits small and dim under the
+               «ДОПОЛНИТЕЛЬНО» hairline — present, never competing. -->
+          <nav class="con-set__rail" :aria-label="$t('Category')">
+            <template v-for="(cat, i) in categories" :key="cat.id">
+              <div v-if="cat.minor && !categories[i - 1]?.minor" class="con-set__rail-sep">{{ $t('Advanced') }}</div>
+              <button
+                type="button"
+                class="con-set__cat"
+                :class="{'con-set__cat--current': i === categoryIndex, 'con-set__cat--minor': cat.minor}"
+                @click="selectCategory(i)"
+              >
+                <span class="con-set__cat-glyph" aria-hidden="true">{{ cat.glyph }}</span>
+                <span class="con-set__cat-name">{{ $t(cat.label) }}</span>
+              </button>
+            </template>
+          </nav>
+
+          <div class="con-set__pane">
+            <ConsoleScrollArea ref="scroll" class="con-set__scroll" contentClass="con-set__rows">
+              <!-- Dialable rows: one line each, value on a fixed-width stepper. -->
+              <div
+                v-for="(row, i) in current.rows"
+                :key="row.id"
+                class="con-set__row"
+                :class="{'con-set__row--cursor': i === cursor}"
+                role="button"
+                :aria-label="$t(row.label)"
+                @click="step(1)"
+                @mousemove="cursor = i"
+              >
+                <span class="con-set__row-label">{{ $t(row.label) }}</span>
+                <span v-if="row.note !== '' && row.noteTone === 'pending'" class="con-set__row-pending" aria-hidden="true"></span>
+                <span class="con-set__stepper">
+                  <span class="con-set__arrow" aria-hidden="true" @click.stop="stepAt(i, -1)">‹</span>
+                  <span class="con-set__value">{{ row.value }}</span>
+                  <span class="con-set__arrow" aria-hidden="true" @click.stop="stepAt(i, 1)">›</span>
+                  <span class="con-set__pips" aria-hidden="true">
+                    <span
+                      v-for="n in row.count"
+                      :key="n"
+                      class="con-set__pip"
+                      :class="{'con-set__pip--on': n - 1 === row.index}"
+                    ></span>
+                  </span>
+                </span>
+              </div>
+
+              <!-- Read-only readout (the diagnostics category) — the groups sit
+                   SIDE BY SIDE so the whole readout lands inside the constant
+                   body height instead of scrolling half of itself away. -->
+              <div v-if="current.readout.length > 0" class="con-set__readout">
+                <div v-for="group in current.readout" :key="group.label" class="con-set__rogroup">
+                  <div class="con-set__group">{{ $t(group.label) }}</div>
+                  <div v-for="ro in group.rows" :key="ro.label" class="con-set__ro">
+                    <span class="con-set__ro-key">{{ ro.raw ? ro.label : $t(ro.label) }}</span>
+                    <span class="con-set__ro-val" :class="'con-set__ro-val--' + ro.tone">{{ ro.value }}</span>
+                  </div>
+                  <div v-if="group.note !== ''" class="con-set__ro-note" :class="{'con-set__ro-note--bad': group.noteBad}">{{ group.note }}</div>
+                </div>
+              </div>
+            </ConsoleScrollArea>
+
+            <!-- The detail strip: what the cursored row does, in full. Always
+                 the same height (both text lines reserved) — the reason the
+                 rows above could shed their subtitles and fit the screen. -->
+            <div class="con-set__detail" aria-live="polite">
+              <div class="con-set__detail-head">
+                <span class="con-set__detail-title">{{ detail.title }}</span>
+                <span class="con-set__detail-value">{{ detail.value }}</span>
+              </div>
+              <div class="con-set__detail-desc">{{ detail.desc }}</div>
+              <div class="con-set__detail-note" :class="{'con-set__detail-note--pending': detail.notePending}">{{ detail.note }}</div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="cm-overlay__foot">
-        <span class="cm-overlay__foot-hint"><GamepadGlyph control="confirm" />{{ $t('Change') }}</span>
-        <span class="cm-overlay__foot-hint"><GamepadGlyph control="back" />{{ $t('Done') }}</span>
+      <div class="con-sys__foot">
+        <span v-if="categories.length > 1" class="con-sys__hint">
+          <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />{{ $t('Category') }}
+        </span>
+        <!-- A read-only category has no row to walk, so the SAME control means
+             «scroll the readout» there. Naming it honestly beats dimming a
+             verb that in fact still does something. -->
+        <span class="con-sys__hint">
+          <GamepadGlyph control="dpad" />{{ $t(current.rows.length === 0 ? 'Scroll' : 'Navigate') }}
+        </span>
+        <span v-if="current.rows.length > 0" class="con-sys__hint">
+          <GamepadGlyph control="confirm" />{{ $t('Change') }}
+        </span>
+        <span class="con-sys__hint"><GamepadGlyph control="back" />{{ $t('Done') }}</span>
       </div>
     </div>
   </div>
@@ -42,293 +120,155 @@
 
 <script lang="ts">
 /**
- * CONSOLE-NATIVE OPTIONS — THE home of every PERSISTENT console preference
- * (CLAUDE.md: settings live here, NOT in the fixed-shape in-game System menu).
- * Reachable from the main menu AND, in-game, from the System overlay's
- * «Настройки» item (GamepadLayer hosts it there with `context="game"`).
+ * THE CONSOLE SETTINGS CONSOLE — the home of every PERSISTENT console
+ * preference (CLAUDE.md: settings live here, NOT in the fixed-shape in-game
+ * System menu). Two hosts, ONE surface: the main menu's «Настройки» item and,
+ * in-game, the System overlay's «Настройки» plate (GamepadLayer mounts it with
+ * `context="game"`).
  *
- *  - INTERFACE (console ↔ desktop) — MAIN-MENU ONLY (`context !== 'game'`): the
- *    desktop UI is deprecated and reachable ONLY from the menu, and switching
- *    the shell mid-game is jarring. Picking Desktop stores the opt-out
- *    (`tm_console_mode`='0') the auto-enable heuristics honour.
- *  - DISPLAY — the layout profile (Auto / Handheld / Standard / Large / TV 4K,
- *    `tm_console_profile`); the diag block shows what it resolves to.
- *  - CONTROLLER — the button GLYPH set (Auto / Xbox / PlayStation / Steam).
- *  - BUTTON LAYOUT — the confirm/cancel (A↔B) gamepad remap (buttonLayout.ts):
- *    cycling it swaps the input funnels + the glyph layer in lockstep.
- *  - WHEEL CONTROL — the LT/RT quick wheel's control style
- *    (wheelControlMode.ts): Quick select (a direction chooses AND activates
- *    on release/neutral) vs Focus & confirm (navigation moves a persistent
- *    focus, A activates it). Applies instantly — the shell's watcher safely
- *    cancels any mid-wheel armed/tracking state without executing.
- *  - PRIVATE SCORE — IN-GAME ONLY (`context === 'game'`): a PER-GAME display
- *    pref masking the viewer's OWN victory points on the console score cap /
- *    passive surfaces (privateScoreState, keyed by the game's participant id).
- *    Hidden in the main menu, where there is no game to scope it to.
+ * ITERATION 2 — CATEGORIES. The flat list had grown to eleven rows with
+ * two-line subtitles and no longer fit a TV screen; the player scrolled a
+ * settings menu, which is the definition of a surface that stopped being
+ * designed. Three changes fixed it, and they belong together:
  *
- * Every row carries its value on a fixed-width right rail and the diag block is
- * ALWAYS mounted (dimmed when another row is cursored), so navigation never
- * relayouts — the exact property the fixed-shape System menu lacks. Both hosts
- * (ConsoleMainMenu / GamepadLayer) route pad intents via `handleIntent`.
+ *  1. A CATEGORY RAIL (`consoleSettingsModel.ts` owns the grouping) — LB/RB
+ *     switch categories, so no category ever needs to scroll. The technical
+ *     pair (СЕТЬ, ДИАГНОСТИКА — `minor: true`) renders small and dim under a
+ *     «ДОПОЛНИТЕЛЬНО» hairline: reachable, never competing with the four a
+ *     player actually tunes.
+ *  2. ONE-LINE ROWS + a fixed DETAIL STRIP. The description moved off the row
+ *     into a big always-mounted strip under the list, which reads better at
+ *     2 m AND halves the row height. The strip reserves both its text lines,
+ *     so cursoring never re-lays the card out — the same layout-shift contract
+ *     that keeps settings out of the System menu.
+ *  3. A STEPPER, not a cycler. Every setting is a RING in the model, so ‹ / ›
+ *     (d-pad left/right, A = forward) step in both directions and the pips
+ *     show the position. A five-option row (Display) is no longer a
+ *     press-A-four-times affair.
+ *
+ * The IN-GAME context (`context === 'game'`) drops the shell switch (the
+ * desktop UI is frozen and swapping shells mid-game is jarring) and the
+ * network category (launch-time properties), and gains ЭТА ПАРТИЯ with the
+ * per-game private-score mask. That whole decision lives in the model.
+ *
+ * Both hosts route pad intents through `handleIntent`. `revision` is what
+ * makes a stepped value re-render: the motion prefs are module-CACHED, not
+ * reactive, so the rebuild has to be forced rather than tracked.
  */
 import {defineComponent} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {stepIndex} from '@/client/console/consoleRouter';
 import {
-  PROFILE_LABELS,
-  consoleDisplayDiagnostics,
-  consoleLayoutState,
-  currentProfileOverride,
-  cycleConsoleProfileOverride,
-} from '@/client/console/consoleLayoutProfile';
-import {consoleModeState, setConsoleMode} from '@/client/console/consoleModeState';
-import {
-  GLYPHSET_LABELS,
-  cycleGlyphSetOverride,
-  glyphSetState,
-  layoutSwapLabels,
-  resolveGlyphSetId,
-} from '@/client/gamepad/glyphSets';
-import {BUTTON_LAYOUT_LABELS, buttonLayoutState, cycleButtonLayout} from '@/client/gamepad/buttonLayout';
-import {WHEEL_CONTROL_LABELS, wheelControlState, cycleWheelControlMode} from '@/client/console/quickWheel/wheelControlMode';
-import {privateScoreState, togglePrivateScore} from '@/client/components/overview/privateScoreState';
-import {
-  type MotionFpsCap,
-  type MotionSpeedPreset,
-  motionFpsCap,
-  motionSpeedPreset,
-  setMotionFpsCap,
-  setMotionSpeedPreset,
-} from '@/client/components/motion/motionTokens';
-import {applyGsapTickerFps} from '@/client/components/motion/gsapMotionBridge';
-import {consolePerfState, setConsolePerfLite} from '@/client/console/consolePerfMode';
+  type ConsoleSettingsCategory,
+  type ConsoleSettingsCategoryId,
+  type ConsoleSettingsContext,
+  buildConsoleSettings,
+} from '@/client/console/settings/consoleSettingsModel';
 import {desktopBridge, DesktopAppModeInfo, DesktopLanState} from '@/client/components/desktop/desktopUpdateState';
-import {translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {translateText} from '@/client/directives/i18n';
 
-// English i18n keys ('Standard' / 'Auto' already exist in console.json — reused).
-const MOTION_SPEED_LABELS: Record<MotionSpeedPreset, string> = {
-  standard: 'Standard',
-  calm: 'Calm',
-  swift: 'Swift',
+/** An empty category can never be selected, but the template must be total. */
+const EMPTY_CATEGORY: ConsoleSettingsCategory = {
+  id: 'interface', label: 'Settings', glyph: '⚙', minor: false, rows: [], readout: [],
 };
-const MOTION_SPEED_CYCLE: ReadonlyArray<MotionSpeedPreset> = ['standard', 'calm', 'swift'];
-const MOTION_FPS_LABELS: Record<'auto' | '30' | '60', string> = {
-  auto: 'Auto',
-  60: '60 FPS',
-  30: '30 FPS',
-};
-const MOTION_FPS_CYCLE: ReadonlyArray<MotionFpsCap> = ['auto', 60, 30];
-
-type OptionRowId =
-  'interface' | 'gameServer' | 'lanVisible' | 'display' | 'controller' | 'buttons' | 'wheelControl' | 'motionSpeed' | 'motionRate' | 'perfMode' | 'privateScore';
-type OptionRow = {id: OptionRowId, label: string, sub: string, glyph: string, value: string};
 
 export default defineComponent({
   name: 'ConsoleOptionsPanel',
-  components: {GamepadGlyph},
+  components: {GamepadGlyph, ConsoleScrollArea},
   props: {
     /**
-     * Where the panel is hosted. 'game' (opened from the in-game system menu)
-     * hides the Interface (console↔desktop) row — switching the shell mid-game
-     * stays a main-menu-only affordance (CLAUDE.md). 'menu' shows every row.
+     * Where the panel is hosted. 'game' (the in-game system menu) hides the
+     * shell switch + the launch-time network rows and adds ЭТА ПАРТИЯ.
      */
-    context: {type: String as () => 'menu' | 'game', default: 'menu'},
+    context: {type: String as () => ConsoleSettingsContext, default: 'menu'},
+    /**
+     * Open straight onto a category — the System menu's «Диагностика» plate
+     * rides this, so the readout has exactly ONE home (it used to be a second
+     * hand-built panel inside the system menu).
+     */
+    initialCategory: {type: String as () => ConsoleSettingsCategoryId | undefined, default: undefined},
   },
   emits: ['close'],
   data() {
     return {
-      consoleLayoutState, consoleModeState, glyphSetState, buttonLayoutState, wheelControlState, privateScoreState, consolePerfState,
-      // Motion prefs are module-cached (motionTokens), not reactive — mirror
-      // them here so the row value re-renders when this panel cycles them.
-      motionSpeed: motionSpeedPreset() as MotionSpeedPreset,
-      motionRate: motionFpsCap() as MotionFpsCap,
+      categoryIndex: 0,
       cursor: 0,
-      // Host-as-server (desktop shell only; undefined on the web hides the rows).
-      // Loaded async on mount; toggles persist for the NEXT launch and the value
-      // shows ⟳ while the persisted choice differs from this session's reality.
+      /**
+       * Bumped after every applied step. The settings live in module state,
+       * and the motion prefs are module-CACHED rather than reactive — so the
+       * rebuild is forced, not tracked. (Reactive states the model touches
+       * re-render on their own; this covers the rest.)
+       */
+      revision: 0,
+      // Host-as-server (desktop shell only; undefined on the web hides the
+      // whole network category). Loaded async on mount.
       serverInfo: undefined as DesktopAppModeInfo | undefined,
       lanInfo: undefined as DesktopLanState | undefined,
+      /** Baked Electron app version for the diagnostics readout. */
+      desktopVersion: '',
     };
   },
   computed: {
-    rows(): ReadonlyArray<OptionRow> {
-      const rows: Array<OptionRow> = [];
-      // Interface (shell switch) — main menu only; hidden in-game.
-      if (this.context !== 'game') {
-        rows.push({
-          // The sub describes the SETTING, never the current value — a
-          // value-dependent subtitle would relabel to a different line
-          // count and move the rows under the cursor.
-          id: 'interface',
-          label: 'Interface',
-          sub: 'Controller shell or mouse and keyboard',
-          glyph: '◫',
-          value: translateText(this.consoleModeState.enabled ? 'Console' : 'Desktop'),
-        });
+    categories(): ReadonlyArray<ConsoleSettingsCategory> {
+      // `revision` is read for its dependency, not its value.
+      void this.revision;
+      return buildConsoleSettings({
+        context: this.context,
+        server: this.serverInfo,
+        lan: this.lanInfo,
+        desktopVersion: this.desktopVersion,
+      });
+    },
+    current(): ConsoleSettingsCategory {
+      return this.categories[this.categoryIndex] ?? this.categories[0] ?? EMPTY_CATEGORY;
+    },
+    /**
+     * The detail strip's content. A read-only category has no cursored row, so
+     * it describes the CATEGORY instead — the strip is never empty and never
+     * changes height.
+     */
+    detail(): {title: string, value: string, desc: string, note: string, notePending: boolean} {
+      const row = this.current.rows[this.cursor];
+      if (row === undefined) {
+        return {
+          title: translateText(this.current.label),
+          value: '',
+          desc: translateText('Read-only status of this device and its connection'),
+          note: '',
+          notePending: false,
+        };
       }
-      // Host-as-server (docs/EMBEDDED_SERVER.md) — desktop shell, main menu only.
-      // The mode / bind are launch-time properties, so a changed value carries ⟳
-      // until the app is restarted (the sub says so; subs stay value-independent).
-      if (this.context !== 'game' && this.serverInfo !== undefined) {
-        rows.push({
-          id: 'gameServer',
-          label: 'Game server',
-          sub: 'Local on this device or the online server; restart applies',
-          glyph: '🌐',
-          value: this.gameServerValue,
-        });
-        if (this.serverInfo.requested === 'host' && this.lanInfo !== undefined) {
-          rows.push({
-            id: 'lanVisible',
-            label: 'LAN visibility',
-            sub: 'Show hosted games on your local network; restart applies',
-            glyph: '📡',
-            value: this.lanVisibleValue,
-          });
-        }
-      }
-      rows.push(
-        {
-          id: 'display',
-          label: 'Display',
-          sub: 'Layout profile for this screen',
-          glyph: '🖥',
-          value: this.displayValue,
-        },
-        {
-          id: 'controller',
-          label: 'Controller',
-          sub: 'Button glyph set',
-          glyph: '🎮',
-          value: this.controllerValue,
-        },
-        {
-          id: 'buttons',
-          label: 'Button layout',
-          sub: 'Which face button confirms',
-          // A platform-NEUTRAL swap mark: the row icon used to be «🅰», an Xbox
-          // letter frozen into the one row that renames those very buttons.
-          glyph: '⇄',
-          value: this.buttonsValue,
-        },
-        {
-          // The LT/RT wheel's control STYLE — a first-class choice, not a
-          // flag: Quick select = a direction chooses and activates on its
-          // release / the stick's confirmed neutral; Focus & confirm =
-          // navigation moves a persistent focus and A activates it.
-          id: 'wheelControl',
-          label: 'Wheel control',
-          sub: 'How the action wheel activates',
-          glyph: '🎯',
-          value: translateText(WHEEL_CONTROL_LABELS[this.wheelControlState.mode]),
-        },
-        {
-          // Animation SPEED preset — Calm lengthens easings (fewer per-frame
-          // deltas); Swift shortens them. A CPU-side smoothness lever.
-          id: 'motionSpeed',
-          label: 'Motion speed',
-          sub: 'Pace of animations',
-          glyph: '🎞',
-          value: translateText(MOTION_SPEED_LABELS[this.motionSpeed]),
-        },
-        {
-          // Animation FRAME-RATE cap — 'Auto' = native; 60/30 throttle both the
-          // rAF loops AND (via the GSAP ticker bridge) the card-deal / FLIP
-          // cinematics, cutting per-second main-thread work on a weak CPU.
-          id: 'motionRate',
-          label: 'Animation smoothness',
-          sub: 'Frame-rate cap for animations',
-          glyph: '⚡',
-          value: translateText(MOTION_FPS_LABELS[this.motionRate === 'auto' ? 'auto' : (String(this.motionRate) as '30' | '60')]),
-        },
-        {
-          // Performance mode — cuts the expensive DECORATIVE paint (filter
-          // blur/drop-shadow + box/text shadows) for smoothness on weak /
-          // Windows-hybrid hardware. MOTION IS UNTOUCHED (transforms/opacity/
-          // animations run identically) — only per-frame paint/layer cost drops.
-          id: 'perfMode',
-          label: 'Performance mode',
-          sub: 'Cut shadows and blur for smoothness',
-          glyph: '🚀',
-          value: translateText(this.consolePerfState.enabled ? 'On' : 'Off'),
-        },
-      );
-      // Private score is a per-GAME preference — offered ONLY in-game (from the
-      // system menu), never in the main-menu Options where there is no game to
-      // scope it to (`bindPrivateScoreGame` is unbound there).
-      if (this.context === 'game') {
-        rows.push({
-          // Local display preference (not a game option) — masks the viewer's
-          // OWN victory points on the console score cap / passive surfaces.
-          id: 'privateScore',
-          label: 'Private score',
-          sub: 'Hide your own victory points on screen',
-          glyph: '🛡',
-          value: translateText(this.privateScoreState.enabled ? 'Hidden' : 'Shown'),
-        });
-      }
-      return rows;
-    },
-    buttonsValue(): string {
-      // The swap value NAMES two physical face buttons, so it follows the glyph
-      // set: «Обмен A / B» on Xbox/Steam, «Обмен ✕ / ◯» on PlayStation. Reads
-      // buttonLayoutState + (through layoutSwapLabels) glyphSetState, so the
-      // row re-renders on either change.
-      const layout = this.buttonLayoutState.layout;
-      const labels = layoutSwapLabels(layout);
-      return labels.length === 0 ?
-        translateText(BUTTON_LAYOUT_LABELS[layout]) :
-        translateTextWithParams(BUTTON_LAYOUT_LABELS[layout], [...labels]);
-    },
-    controllerValue(): string {
-      // Reads glyphSetState (override + detected) so the row reacts to both a
-      // manual change and a newly-detected pad.
-      const choice = this.glyphSetState.override;
-      const value = translateText(GLYPHSET_LABELS[choice]);
-      // Auto shows the set it currently resolves to, so the pick is informed.
-      return choice === 'auto' ?
-        `${value} (${translateText(GLYPHSET_LABELS[resolveGlyphSetId()])})` :
-        value;
-    },
-    gameServerValue(): string {
-      const info = this.serverInfo;
-      if (info === undefined) {
-        return '';
-      }
-      const base = translateText(info.requested === 'host' ? 'Local' : 'Remote server');
-      // ⟳ = the persisted choice differs from what THIS session runs.
-      return info.requested === info.effective ? base : `${base} ⟳`;
-    },
-    lanVisibleValue(): string {
-      const lan = this.lanInfo;
-      if (lan === undefined) {
-        return '';
-      }
-      const base = translateText(lan.visible ? 'On' : 'Off');
-      const active = lan.active ?? lan.visible;
-      return lan.visible === active ? base : `${base} ⟳`;
-    },
-    displayValue(): string {
-      const override = currentProfileOverride();
-      const value = translateText(PROFILE_LABELS[override] ?? override);
-      // Auto shows what it currently resolves to, so the pick is informed.
-      return override === 'auto' ?
-        `${value} (${translateText(PROFILE_LABELS[this.consoleLayoutState.profile] ?? this.consoleLayoutState.profile)})` :
-        value;
-    },
-    diag() {
-      // Recomputed on every re-render the state provokes (profile/scale are
-      // reactive; viewport values are read fresh each time).
-      return consoleDisplayDiagnostics();
+      return {
+        title: translateText(row.label),
+        value: row.value,
+        desc: translateText(row.desc),
+        note: row.note,
+        notePending: row.noteTone === 'pending',
+      };
     },
   },
   mounted() {
-    // Host-as-server rows load async from the desktop bridge; absent bridge
-    // (web build / older shell) leaves them undefined and the rows hidden.
+    // Open on the requested category when it exists in this context.
+    if (this.initialCategory !== undefined) {
+      const at = this.categories.findIndex((c) => c.id === this.initialCategory);
+      if (at >= 0) {
+        this.categoryIndex = at;
+      }
+    }
+    // The network category + the diagnostics client version come from the
+    // desktop bridge; an absent bridge (web build / older shell) simply
+    // leaves the category out and falls back to settings.json for the version.
     const bridge = desktopBridge();
-    if (this.context !== 'game' && bridge?.getAppMode !== undefined) {
+    if (bridge === undefined) {
+      return;
+    }
+    void bridge.getVersion().then((v) => {
+      this.desktopVersion = typeof v === 'string' ? v : '';
+    }).catch(() => {});
+    if (this.context !== 'game' && bridge.getAppMode !== undefined) {
       void bridge.getAppMode().then((info) => {
         if (info !== undefined) {
           this.serverInfo = info;
@@ -342,15 +282,28 @@ export default defineComponent({
     }
   },
   methods: {
-    /** Host-routed pad intents. Returns true when consumed. */
+    /** Host-routed pad intents. Returns true when consumed (always). */
     handleIntent(intent: GamepadIntent): boolean {
       const action = consoleActionOf(intent);
-      if (intent.kind === 'nav' && (intent.dir === 'up' || intent.dir === 'down')) {
-        this.cursor = stepIndex(this.cursor, intent.dir === 'down' ? 1 : -1, this.rows.length);
+      if (intent.kind === 'nav') {
+        if (intent.dir === 'up' || intent.dir === 'down') {
+          this.moveCursor(intent.dir === 'down' ? 1 : -1);
+        } else if (intent.dir === 'left') {
+          this.step(-1);
+        } else if (intent.dir === 'right') {
+          this.step(1);
+        }
+        return true;
+      }
+      // LB/RB — the category ladder (the established «section ring» control).
+      // It CLAMPS at the ends like every other console list (stepIndex); only
+      // a VALUE wraps, which is what makes the ‹ arrow useful.
+      if (action === 'prevSection' || action === 'nextSection') {
+        this.stepCategory(action === 'nextSection' ? 1 : -1);
         return true;
       }
       if (action === 'primary') {
-        this.activateAt(this.cursor);
+        this.step(1);
         return true;
       }
       if (action === 'back') {
@@ -359,83 +312,50 @@ export default defineComponent({
       }
       return true;
     },
-    activateAt(i: number): void {
+    /**
+     * Up/down. A read-only category has no rows to walk — the same press
+     * scrolls the readout instead, so the stick/d-pad is never dead.
+     */
+    moveCursor(delta: 1 | -1): void {
+      const rows = this.current.rows.length;
+      if (rows === 0) {
+        (this.$refs.scroll as {scrollByPx?: (dy: number) => void} | undefined)?.scrollByPx?.(delta * 60);
+        return;
+      }
+      this.cursor = stepIndex(this.cursor, delta, rows);
+      this.keepCursorVisible();
+    },
+    stepCategory(delta: 1 | -1): void {
+      if (this.categories.length === 0) {
+        return;
+      }
+      this.categoryIndex = stepIndex(this.categoryIndex, delta, this.categories.length);
+      this.cursor = 0;
+    },
+    selectCategory(i: number): void {
+      this.categoryIndex = i;
+      this.cursor = 0;
+    },
+    /** Apply the option `dir` steps away from the cursored row's current one. */
+    step(dir: 1 | -1): void {
+      this.stepAt(this.cursor, dir);
+    },
+    stepAt(i: number, dir: 1 | -1): void {
       this.cursor = i;
-      switch (this.rows[i]?.id) {
-      case 'interface':
-        // Persisted both ways: picking Desktop stores the opt-out that the
-        // auto-enable heuristics honour; picking Console stores '1'.
-        setConsoleMode(!this.consoleModeState.enabled);
-        break;
-      case 'gameServer': {
-        // Toggle host ↔ remote; persists for the NEXT launch (the embedded
-        // server + endpoint injection are launch-time), value shows ⟳ meanwhile.
-        const info = this.serverInfo;
-        if (info !== undefined) {
-          const next = info.requested === 'host' ? 'remote' : 'host';
-          info.requested = next;
-          void desktopBridge()?.setAppMode?.(next);
-        }
-        break;
+      const row = this.current.rows[i];
+      if (row === undefined) {
+        return;
       }
-      case 'lanVisible': {
-        // Toggle the LAN bind + mDNS advertising; applies on the next launch.
-        const lan = this.lanInfo;
-        if (lan !== undefined) {
-          lan.visible = !lan.visible;
-          void desktopBridge()?.setLanVisible?.(lan.visible);
-        }
-        break;
-      }
-      case 'display':
-        // Cycle Auto → Handheld → Standard → Large → TV 4K in place — the
-        // change applies instantly (reversible) and the diag block reacts.
-        cycleConsoleProfileOverride();
-        break;
-      case 'controller':
-        // Cycle Auto → Xbox → PlayStation → Steam in place — every button
-        // glyph across the shell re-renders instantly and the choice persists.
-        cycleGlyphSetOverride();
-        break;
-      case 'buttons':
-        // Cycle Standard → Swap A/B in place — the intent funnels + the glyph
-        // layer swap in lockstep (buttonLayout.ts), so the change is instant
-        // and consistent (glyph shows the button that now confirms) + persists.
-        cycleButtonLayout();
-        break;
-      case 'wheelControl':
-        // Cycle Quick select → Focus & confirm in place — applies instantly
-        // (the shell cancels any mid-wheel state without executing) + persists.
-        cycleWheelControlMode();
-        break;
-      case 'motionSpeed': {
-        // Cycle Standard → Calm → Swift in place; setMotionSpeedPreset persists
-        // and applies the CSS `--motion-scale` bridge live.
-        const next = MOTION_SPEED_CYCLE[(MOTION_SPEED_CYCLE.indexOf(this.motionSpeed) + 1) % MOTION_SPEED_CYCLE.length];
-        this.motionSpeed = next;
-        setMotionSpeedPreset(next);
-        break;
-      }
-      case 'motionRate': {
-        // Cycle Auto → 60 → 30 in place; setMotionFpsCap persists + the GSAP
-        // ticker bridge applies it to the heavy cinematics live.
-        const next = MOTION_FPS_CYCLE[(MOTION_FPS_CYCLE.indexOf(this.motionRate) + 1) % MOTION_FPS_CYCLE.length];
-        this.motionRate = next;
-        setMotionFpsCap(next);
-        applyGsapTickerFps(next);
-        break;
-      }
-      case 'perfMode':
-        // Toggle the paint-cut mode in place; setConsolePerfLite persists +
-        // flips the `<html>.con-perf-lite` class live (console_perf.less).
-        setConsolePerfLite(!this.consolePerfState.enabled);
-        break;
-      case 'privateScore':
-        // Local, per-browser display pref — masks only THIS viewer's own VP on
-        // passive surfaces (the console score cap reads shouldMaskOwnPassiveVp).
-        togglePrivateScore();
-        break;
-      }
+      row.step(dir);
+      // Force the rebuild — see `revision`.
+      this.revision++;
+    },
+    /** Keep the cursored row inside the ConsoleScrollArea viewport. */
+    keepCursorVisible(): void {
+      void this.$nextTick(() => {
+        const scroll = this.$refs.scroll as {ensureVisible?: (el: Element | null) => void} | undefined;
+        scroll?.ensureVisible?.(this.$el.querySelector('.con-set__row--cursor'));
+      });
     },
   },
 });

@@ -70,6 +70,11 @@ const CORS_PATHS: ReadonlySet<string> = new Set<string>([
   paths.API_GAME_PLAYER_COLOR,
   paths.API_CREATEGAME,
   paths.API_CLONEABLEGAME,
+  // Local-game deletion (host-as-server). CORS-eligible because the desktop
+  // renderer's app://bundle origin is cross-origin even to 127.0.0.1 — but the
+  // route itself additionally rejects every non-loopback CONNECTION, so being
+  // in this list opens nothing to the LAN.
+  paths.API_LOCAL_GAME_DELETE,
   paths.LOAD_GAME,
   // Dev-only game-rollback tool. Named "admin" but IN SCOPE deliberately: it
   // lives in the console main menu, which runs in the desktop (app://bundle)

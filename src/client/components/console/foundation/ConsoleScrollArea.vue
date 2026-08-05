@@ -36,19 +36,15 @@ import {defineComponent, ref, computed, CSSProperties} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 
 /**
- * How much scrollable distance makes the rail worth drawing.
+ * How much travel makes the rail worth drawing.
  *
- * `scrollHeight > clientHeight` is true for a few sub-pixel rows of any
- * fractionally-laid-out content, and the rail it produced was the WORST possible
- * shape: a nearly-full-height thumb, which reads as a scrollbar on a surface
- * that has nothing to scroll. It shipped that way on the play composer — a
- * permanent bright line down the right edge of a screen that fits.
- *
- * A few pixels of travel is not navigation. Below this the content is treated as
- * fitting: it still scrolls if something forces it (wheel, ensureVisible), it
- * just stops ADVERTISING a journey the player cannot make.
+ * `clientHeight` and the content's layout height are both integer-rounded, so a
+ * fractionally-laid-out column can disagree with itself by one pixel. Below this
+ * the content is treated as fitting: it still scrolls if something forces it
+ * (wheel, ensureVisible), it just stops ADVERTISING a journey the player cannot
+ * make. It does NOT have to absorb transient motion any more — see `measure`.
  */
-const RAIL_MIN_TRAVEL_PX = 8;
+const RAIL_MIN_TRAVEL_PX = 2;
 
 export default defineComponent({
   name: 'ConsoleScrollArea',
@@ -92,6 +88,7 @@ export default defineComponent({
       requestAnimationFrame(() => {
         measurePending = false;
         const vp = viewport.value;
+        const body = content.value;
         // Vue nulls a template ref on unmount, so a pending rAF/ResizeObserver
         // callback can land here with `null` (not `undefined`) — `== null`
         // catches both (else `null.clientHeight` throws).
@@ -99,7 +96,20 @@ export default defineComponent({
           return;
         }
         const size = props.axis === 'y' ? vp.clientHeight : vp.clientWidth;
-        const total = props.axis === 'y' ? vp.scrollHeight : vp.scrollWidth;
+        // THE CONTENT'S LAYOUT SIZE, NEVER `scrollHeight`. Scrollable overflow
+        // counts a TRANSFORM in flight, and every console surface enters by
+        // tweening its groups in from `y: 9 * uiScale` — so for the length of
+        // the cascade the viewport reports ~9-15px of travel it does not have.
+        // That alone would be harmless, except a transform fires NO
+        // ResizeObserver: the flag latched true mid-animation and nothing ever
+        // ran `measure` again to clear it, leaving a permanent rail down the
+        // right edge of a screen that fits (the play composer shipped that way).
+        // The layout height is immune to the tween AND is exactly what the
+        // observers below watch — so the measured quantity and the observed
+        // quantity are now the same thing, and the state cannot go stale.
+        const total = body === undefined || body === null ?
+          (props.axis === 'y' ? vp.scrollHeight : vp.scrollWidth) :
+          (props.axis === 'y' ? body.offsetHeight : body.offsetWidth);
         const pos = props.axis === 'y' ? vp.scrollTop : vp.scrollLeft;
         const max = Math.max(0, total - size);
         const was = overflowing.value;

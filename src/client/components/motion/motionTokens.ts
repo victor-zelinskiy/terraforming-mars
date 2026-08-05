@@ -169,6 +169,26 @@ export function motionFpsCap(): MotionFpsCap {
   return cachedFps;
 }
 
+/**
+ * Registered appliers run on every cap change — this is how the GSAP ticker
+ * bridge reaches the heavy cinematics without any SETTINGS surface having to
+ * know it exists. `main.ts` registers `applyGsapTickerFps` at bootstrap.
+ *
+ * Why a registry and not a direct call: the bridge lazily `import('gsap')`s,
+ * and a webpack async chunk anywhere in a spec's dependency graph silently
+ * zeroes that whole spec file under mochapack (the settings panel's spec was
+ * falsely green for exactly this reason). Keeping the bridge on the BOOTSTRAP
+ * side of the seam means the settings model stays unit-testable.
+ */
+type MotionFpsApplier = (cap: MotionFpsCap) => void;
+const fpsAppliers: Array<MotionFpsApplier> = [];
+
+/** Register an applier and run it once with the current cap. */
+export function onMotionFpsCapChange(apply: MotionFpsApplier): void {
+  fpsAppliers.push(apply);
+  apply(motionFpsCap());
+}
+
 /** Persist + apply a new FPS cap for rAF-driven animation loops. */
 export function setMotionFpsCap(cap: MotionFpsCap): void {
   cachedFps = cap;
@@ -176,6 +196,9 @@ export function setMotionFpsCap(cap: MotionFpsCap): void {
     storage()?.setItem(FPS_STORAGE_KEY, cap === 'auto' ? 'auto' : String(cap));
   } catch (err) {
     // Ignore — in-session value applies.
+  }
+  for (const apply of fpsAppliers) {
+    apply(cap);
   }
 }
 
