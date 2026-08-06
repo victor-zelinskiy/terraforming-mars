@@ -125,6 +125,14 @@ export type ShellSurfaceContext = {
    * place, not two surfaces to choose between.
    */
   handEmbedded: boolean,
+  /**
+   * The COLONIES are currently hosted as an embedded step of a live workspace
+   * (a played card's / an activation's / a prelude's SelectColony). Exactly
+   * the `handEmbedded` case one surface over: the player IS standing where
+   * the pick is answered, so the central ask banner would be a second title
+   * — and it lands straight across the host's breadcrumb tail.
+   */
+  coloniesEmbedded: boolean,
 };
 
 /**
@@ -153,7 +161,7 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
   case 'handSelect':
     return ctx.section === 'hand';
   case 'colony':
-    return ctx.section === 'colonies';
+    return ctx.section === 'colonies' || ctx.coloniesEmbedded;
   case 'awardFunding':
     return ctx.sheet === 'awards';
   case 'corpFirstAction':

@@ -22,10 +22,48 @@ the section lands in the freed `hand-play` STAGE zone, the crumb reads
 `[data-embed-slot="action-colonies"]` in the composer's outcome column). The
 shell's `colonyEmbedLatch` records WHICH live flow the SelectColony arrived
 inside of on the prompt's rising edge and holds through the whole follow-up
-— prompt → fleet flight → rewards → Pluto reveal (`colonyFollowUpLive`);
-the falling edge runs the host's deferred fold. B on the embedded step =
-MINIMIZE (defer); restore degrades to the standalone section when the host
-has meanwhile finished — honest, never a soft-lock.)*
+— prompt → fleet flight → rewards → cube landing → Pluto reveal
+(`colonyFollowUpLive`); the falling edge runs the host's deferred fold. B on
+the embedded step = MINIMIZE (defer); restore degrades to the standalone
+section when the host has meanwhile finished — honest, never a soft-lock.
+
+Iteration 2 hardened the latch into a CONTINUATION rule: **the latch picks the
+NEAREST unfinished step, depth-first** — an open hand stage (`workspaceStageOpen('hand')`)
+beats the card-actions sheet beats the start scene. That is what makes the
+sponsor chain work: Start ⊃ hand (sponsor's play step) ⊃ card play ⊃
+SelectColony lands `latch = 'hand'`, the colonies teleport into the hand's
+freed stage zone — THREE deep, still just the teleport chain — and the START
+never resurfaces early because `startSponsorEmbed` itself holds on
+`latch === 'hand' && colonyFollowUpLive` (the sponsor step is not "done" while
+the card it played still owes a colony). The finalize unwinds inside-out:
+close the colony focus, close the hand stage, and only then the sponsor step
+completes on its own signal. Never route the latch to a fixed root — that was
+the double-nesting bug this rule replaces.
+
+**Three teardown paths had to learn the same thing** — a chain is only as deep
+as its shallowest holder, and each of these silently cut it:
+
+1. **`playedHeroState.active` falling is only HALF of «the step is over».** It
+   says the card LANDED, not that its effects resolved. Releasing the claim
+   there while the played card still owed a colony pulled the start's zone
+   out, the hand lost its host, its stage zone unmounted, and the colonies
+   teleported nowhere (the screen sat on the deployment queue with a live
+   `SelectColony` and no surface). The release now waits for the follow-up's
+   falling edge — and when it finally runs it CLEARS and then RE-ASSERTS from
+   truth (`setWorkspaceEmbed('start', undefined)`, then re-set if
+   `startSponsorEmbed` is still true), because the mirror watcher only fires
+   on a CHANGE of the computed: a brand-new play-from-hand step would
+   otherwise be left with no mirror at all.
+2. **The `consoleState.section` watcher closes the hand's stage on any leave**
+   — correct, except while that stage is the ZONE the deeper step lives in.
+3. **Surface-identity consumers must know the embedded case.**
+   `shellTaskOnSurface` knew only `section === 'colonies'`, so the central ask
+   banner painted «ВЫБЕРИТЕ КОЛОНИЮ» across the host's breadcrumb tail (fixed
+   with `coloniesEmbedded`, the exact parallel of `handEmbedded`), and the
+   command-bar branches keyed on `section === 'hand'` outranked the colony
+   branch, advertising «A Разыграть» over a colony grid. **A host that keeps
+   its own `section` while hosting must gate every section-keyed branch on
+   the embed flag** — the player drives the surface they SEE.)*
 
 ## The six rules
 

@@ -121,18 +121,25 @@ export function resetConsoleColoniesUi(): void {
 // section's own re-renders. It deliberately does NOT persist across a section
 // close — reopening the colonies always lands on the browse surface.
 
+/**
+ * What the player came INTO the focus stage to do. ONE stage serves them all
+ * (one source of truth); the intent decides the ACTION half of the layout:
+ *  'trade'   — the payment/decision configuration + the trade CTA;
+ *  'build'   — the destination slot + the build brief + the build CTA
+ *              (a Build SelectColony no longer commits from the overview);
+ *  'pick'    — a generic server pick (setup remove / Aridor add-tile): the
+ *              verb brief + the pick CTA;
+ *  'inspect' — the dossier composition (no fake configuration controls).
+ */
+export type ColonyFocusIntent = 'trade' | 'build' | 'pick' | 'inspect';
+
 export const colonyFocusState = reactive({
   /** The focus stage is open (the browse grid is parked behind it). */
   open: false,
   /** The colony descended into ('' while browsing). */
   colonyName: '' as ColonyName | '',
-  /**
-   * Which verb opened the stage. 'trade' = the player came to ACT (the trade
-   * composer rows lead); 'inspect' = the player came to READ (the dossier
-   * leads). One stage, one truth — the intent only decides the presentation
-   * emphasis, never the data.
-   */
-  intent: 'trade' as 'trade' | 'inspect',
+  /** Which verb opened the stage (see ColonyFocusIntent). */
+  intent: 'trade' as ColonyFocusIntent,
   /**
    * The stage's own crumb tail (i18n key), published UP by the stage —
    * «Trade» / «Inspection». The stage never titles itself (workspace rule 5).
@@ -147,7 +154,7 @@ export const colonyFocusState = reactive({
 });
 
 /** Enter the focus stage for `colony` (the descend). */
-export function openColonyFocus(colony: ColonyName, intent: 'trade' | 'inspect'): void {
+export function openColonyFocus(colony: ColonyName, intent: ColonyFocusIntent): void {
   colonyFocusState.open = true;
   colonyFocusState.colonyName = colony;
   colonyFocusState.intent = intent;

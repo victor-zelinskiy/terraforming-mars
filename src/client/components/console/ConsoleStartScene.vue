@@ -47,16 +47,18 @@
           <!-- The aux BROWSE layer only RESERVES the zone's height (the crumb
                is always deep here: СТАРТ ПАРТИИ › <ГРУППА> › <ЭТАП>); the
                live journey renders in the deep tail beside the stage. -->
-          <!-- The journey rail names the STARTUP stage. Inside the hand step
-               it would state a stage the player is no longer looking at
-               («ПРОЛОГИ» over a hand screen), so it goes with the rest of the
-               deployment chrome and returns with it. -->
-          <div v-if="!sponsorStep" class="con-start__auxrow">
+          <!-- The journey rail names the STARTUP stage. Inside a hosted step
+               (the sponsor's hand, an embedded colonies pick) it would state
+               a stage the player is no longer looking at («ПРОЛОГИ» over a
+               colony grid), so it goes with the rest of the deployment
+               chrome and returns with the parent surface — parent-specific
+               UI never leaks into a child workspace. -->
+          <div v-if="!sponsorStep && !colonyStep" class="con-start__auxrow">
             <ConsoleJourneyRail :items="journeyItems" :mode="mode === 'wizard' ? 'tabs' : 'progress'"
                                 :pending-index="pendingStageIndex" :pulse-key="railPulse" :pulse-dir="railPulseDir" />
           </div>
           <template #deep>
-            <ConsoleJourneyRail v-if="!sponsorStep"
+            <ConsoleJourneyRail v-if="!sponsorStep && !colonyStep"
                                 class="con-start__jtail"
                                 :items="journeyItems"
                                 :mode="mode === 'wizard' ? 'tabs' : 'progress'"
@@ -466,7 +468,11 @@
              the deploy zone's geometry — unmounting it mid-embed re-flowed
              the queue and the dock under the open surface): the content
              simply names the deeper step. -->
-        <div v-if="mode === 'ceremony' && ceremonyRevealed && !sponsorStep"
+        <!-- The COLONIES step hides it too: the colony workspace carries its
+             own status rail, and with the queue unfocused this one degrades
+             to «Ожидаем других игроков» — a lie while the player IS the one
+             being waited for (the iteration-2 false-wait bug). -->
+        <div v-if="mode === 'ceremony' && ceremonyRevealed && !sponsorStep && !colonyStep"
              class="con-start__statusrail con-start__statusrail--hint">
           <div class="con-start__status-inner">
             <span class="con-start__status-name" :key="ceremonyStatusName">{{ ceremonyStatusName }}</span>

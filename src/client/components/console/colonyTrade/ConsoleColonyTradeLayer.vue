@@ -233,10 +233,17 @@ export default defineComponent({
 
       const name = colonyTradeState.colonyName;
       const tileSel = `[data-test="con-colony-${name}"]`;
-      const incomeRect = await stableRect(() => document.querySelector<HTMLElement>(
-        `${tileSel} [data-colony-trade-source]`) ?? document.querySelector<HTMLElement>(tileSel));
-      const bonusRect = await stableRect(() => document.querySelector<HTMLElement>(
-        `${tileSel} [data-colony-bonus-source]`) ?? document.querySelector<HTMLElement>(tileSel));
+      // The FOCUS STAGE's launch cells lead when the stage is up (the trade
+      // resolves on the stage — iteration 2); the overview tile is the
+      // fallback for a closed stage.
+      const incomeRect = await stableRect(() =>
+        document.querySelector<HTMLElement>('.con-colfocus [data-colony-trade-source]') ??
+        document.querySelector<HTMLElement>(`${tileSel} [data-colony-trade-source]`) ??
+        document.querySelector<HTMLElement>(tileSel));
+      const bonusRect = await stableRect(() =>
+        document.querySelector<HTMLElement>('.con-colfocus [data-colony-bonus-source]') ??
+        document.querySelector<HTMLElement>(`${tileSel} [data-colony-bonus-source]`) ??
+        document.querySelector<HTMLElement>(tileSel));
       if (!colonyTradeState.active) {
         return;
       }
@@ -376,10 +383,14 @@ export default defineComponent({
         finishColonyTrackReset();
         return;
       }
-      const cellSel = (pos: number) =>
-        `[data-test="con-colony-${name}"] [data-colony-track-cell="${cssEscape(`${name}#${pos}`)}"]`;
-      const fromRect = await stableRect(() => document.querySelector<HTMLElement>(cellSel(plan.from)));
-      const cellRects = await Promise.all(plan.path.map((pos) => stableRect(() => document.querySelector<HTMLElement>(cellSel(pos)))));
+      // The FOCUS STAGE's expanded track leads when the stage is up — the
+      // white marker physically steps home along the BIG cells the player is
+      // looking at; the overview tile's strip is the fallback.
+      const cellEl = (pos: number) =>
+        document.querySelector<HTMLElement>(`.con-colfocus [data-colony-track-cell="${cssEscape(`${name}#${pos}`)}"]`) ??
+        document.querySelector<HTMLElement>(`[data-test="con-colony-${name}"] [data-colony-track-cell="${cssEscape(`${name}#${pos}`)}"]`);
+      const fromRect = await stableRect(() => cellEl(plan.from));
+      const cellRects = await Promise.all(plan.path.map((pos) => stableRect(() => cellEl(pos))));
       if (!colonyTradeState.active) {
         return;
       }
@@ -398,7 +409,7 @@ export default defineComponent({
         finishColonyTrackReset();
         return;
       }
-      const cellEls = plan.path.map((pos) => document.querySelector<HTMLElement>(cellSel(pos)));
+      const cellEls = plan.path.map((pos) => cellEl(pos));
       ctx.handles.push(runColonyTrackGlide({
         marker,
         fromRect: fromRect as RectLike,

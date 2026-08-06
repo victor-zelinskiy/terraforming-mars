@@ -80,6 +80,17 @@ describe('consoleColoniesModel — the COLONY WORKSPACE model', () => {
       setColonyFocusStage('Trading');
       expect(colonyFocusState.stage).to.eq('');
     });
+
+    it('carries every intent — build and pick descend too (nothing commits from the overview)', () => {
+      openColonyFocus(ColonyName.PLUTO, 'build');
+      expect(colonyFocusState.intent).to.eq('build');
+      closeColonyFocus();
+      openColonyFocus(ColonyName.PLUTO, 'pick');
+      expect(colonyFocusState.intent).to.eq('pick');
+      closeColonyFocus();
+      openColonyFocus(ColonyName.PLUTO, 'inspect');
+      expect(colonyFocusState.intent).to.eq('inspect');
+    });
   });
 
   describe('the workspace PHASE + B\'s verb (derived, never hand-rolled)', () => {

@@ -88,13 +88,17 @@ export default defineComponent({
         return;
       }
       const colony = tradeFleetState.colonyName;
-      // Resolve the launch anchor (the composer's fleet emblem) + the berth
-      // (the target colony tile) — both are laid out (the grid sits behind the
-      // composer). A missing anchor degrades to a graceful no-flight (the
-      // controller's dock still resolves the gate).
+      // Resolve the launch anchor (the fleet dock's own pad — always top
+      // right, alive through the focus descent) + the berth. The FOCUS
+      // STAGE's ORBITAL berth on the hero planet leads when the stage is up
+      // (the trade resolves on the stage — iteration 2); the overview tile's
+      // dock is the fallback. A missing anchor degrades to a graceful
+      // no-flight (the controller's dock still resolves the gate).
       const [from, to] = await Promise.all([
         stableRect(() => document.querySelector<HTMLElement>('[data-fleet-launch]')),
-        stableRect(() => document.querySelector<HTMLElement>(`[data-fleet-berth="${this.esc(colony)}"]`)),
+        stableRect(() =>
+          document.querySelector<HTMLElement>(`.con-colfocus [data-fleet-berth="${this.esc(colony)}"]`) ??
+          document.querySelector<HTMLElement>(`[data-fleet-berth="${this.esc(colony)}"]`)),
       ]);
       if (!tradeFleetState.active) {
         return; // aborted while probing

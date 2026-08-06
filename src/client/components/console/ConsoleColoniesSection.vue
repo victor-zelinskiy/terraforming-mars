@@ -14,63 +14,41 @@
            'con-colonies--focus': focusState.open,
          },
        ]"
+       :data-colony-mode="pick !== undefined ? 'pick' : 'browse'"
        :style="{'--coltile-scale': String(tileScale)}">
     <div class="con-colonies__frame">
       <!-- ── THE WORKSPACE HEADER — the shared ConsoleWsHead: root «КОЛОНИИ»
            + the fleet dock as the aux browse layer; descending into a colony
            grows the crumb tail «› <колония> › ТОРГОВЛЯ». When embedded, the
            host draws the crumb (rule 5) and only the fleet TOOLBAR remains. -->
-      <component :is="embedded ? 'div' : 'ConsoleWsHead'"
-                 :class="embedded ? ['con-colonies__toolbar', {'con-colonies__toolbar--held': focusState.open}] : 'con-colonies__head'"
-                 v-bind="embedded ? {} : {
-                   root: 'Colonies',
-                   emblem: 'colonies',
-                   wheelAnchor: 'trading',
-                   subject: crumbSubject,
-                   stage: crumbStage,
-                   committed: crumbCommitted,
-                 }">
-        <!-- The aux browse layer: mode chip (pick) + EVERY player's trade
-             fleets. Game state, not browse chrome — but the shared header
-             still crossfades it away past the descent (the stage's own hero
-             column carries the fleet facts then). -->
+      <!-- ── THE HEADER. The FLEET DOCK is ONE component in ONE place — the
+           right edge — in EVERY mode (standalone / embedded / focus): spatial
+           memory, no conflict with the crumb, and the launching ship's pad
+           stays live through the focus descent (the trade resolves INSIDE the
+           Focus Stage now). ── -->
+      <ConsoleWsHead v-if="!embedded"
+                     class="con-colonies__head"
+                     root="Colonies"
+                     emblem="colonies"
+                     wheelAnchor="trading"
+                     :subject="crumbSubject"
+                     :stage="crumbStage"
+                     :committed="crumbCommitted">
+        <!-- The aux browse layer: the pick-mode chip only (crossfades away
+             past the descent — the crumb tail then names the mode). -->
         <span v-if="pick !== undefined" class="con-colonies__mode-chip">{{ $t(pick.buttonLabel) }}</span>
-        <!-- Fleet DOCK for ALL players (viewer first): every fleet is a physical
-             SVG ship on its OWN launch pad. A free fleet berths (ship on the
-             pad); an out/spent fleet leaves its pad EMPTY (the slot never
-             collapses → no reflow, no gap). The viewer's launching fleet lifts
-             off its OWN pad (`data-fleet-launch`) toward the colony. A very
-             large fleet (>6, never in-game) degrades to a compact numeric. -->
-        <div class="con-colonies__fleetbar" :aria-label="$t('Free trade fleets')">
-          <span v-for="chip in fleetChips" :key="chip.color"
-                class="con-colonies__fleetchip"
-                :class="{
-                  'con-colonies__fleetchip--me': chip.me,
-                  'con-colonies__fleetchip--none': chip.free === 0,
-                }">
-            <span class="con-colonies__fleetchip-name">{{ chip.name }}</span>
-            <span v-if="chip.total <= 6" class="con-colonies__fleetdock"
-                  :class="['fleet-hue--' + chip.color, {'con-fleet-launching': tradeFleetState.active && chip.me}]"
-                  :aria-label="chip.free + '/' + chip.total">
-              <span v-for="n in chip.total" :key="n"
-                    class="con-colonies__fleetberth"
-                    :class="{'con-colonies__fleetberth--empty': n > chip.free}">
-                <!-- The ship SLOT is always laid out (even when its ship is
-                     hidden mid-launch) so it stays a stable launch anchor. -->
-                <span class="con-colonies__fleetship"
-                      :data-fleet-launch="isLaunchAnchor(chip, n) ? '' : undefined">
-                  <ColonyFleetIcon v-if="n <= chip.free && !isLaunchingSlot(chip, n)"
-                                   :color="chip.color" :free="true" />
-                </span>
-                <ColonyFleetPad :color="chip.color" :occupied="n <= chip.free" />
-              </span>
-            </span>
-            <b v-else class="con-colonies__fleetchip-count">
-              <ColonyFleetIcon :color="chip.color" :free="chip.free > 0" />{{ chip.free }}/{{ chip.total }}
-            </b>
-          </span>
-        </div>
-      </component>
+        <template #trailing>
+          <ConsoleColonyFleetBar :chips="fleetChips" :launchingColor="launchingFleetColor" />
+        </template>
+      </ConsoleWsHead>
+      <!-- EMBEDDED: the host draws the crumb (rule 5); this toolbar keeps the
+           screen's OWN game state — the mode chip (held past the descent) and
+           the SAME fleet dock on the SAME right edge. -->
+      <div v-else class="con-colonies__toolbar">
+        <span v-if="pick !== undefined" class="con-colonies__mode-chip"
+              :class="{'con-colonies__mode-chip--held': focusState.open}">{{ $t(pick.buttonLabel) }}</span>
+        <ConsoleColonyFleetBar class="con-colonies__toolbar-fleets" :chips="fleetChips" :launchingColor="launchingFleetColor" />
+      </div>
 
       <!-- ── The stage wrap: the BROWSE layer (the colony surface — islands
            over open space) and the COLONY FOCUS stage occupy the same region.
@@ -101,50 +79,38 @@
             </div>
           </div>
 
-          <!-- COMPACT STATUS RAIL — one line, fixed height, the workspace
-               family's language: what will happen if I confirm HERE. Never
-               repeats what the focused tile already says (its name, its
-               availability dot) — the rail carries the CONSEQUENCE. -->
+          <!-- COMPACT STATUS RAIL — ONE line, fixed height: the quick summary
+               of the FOCUSED colony and the CONSEQUENCE of the primary action.
+               Information architecture (iteration 2): name + track position
+               lead (the anchor), then «→ what you get», then «· the owners'
+               bonus», then the ONE critical warning. What the tile itself
+               already states perfectly (its availability dot, its reward
+               cells) is NOT repeated — a BLOCKED colony swaps the consequence
+               for the ONE honest reason instead of adding a second badge. -->
           <footer v-if="focusedMeta !== undefined" class="con-colonies__rail">
-            <!-- ── BUILD pick: what BUILDING here grants. ── -->
-            <template v-if="railMode === 'build'">
-              <span class="con-colonies__rail-cell">
-                <PlayerCube v-if="viewerColor !== undefined" class="con-colonies__rail-cube" :color="viewerColor" :size="16" />
-                <span class="con-colonies__rail-label">{{ $t('You build') }}</span>
+            <span class="con-colonies__rail-name">{{ $t(colonies[index] !== undefined ? colonies[index].name : '') }}</span>
+            <span v-if="railMode === 'trade'" class="con-colonies__rail-track">{{ focusedTrackDisplay }}</span>
+
+            <!-- ── BLOCKED (trade window): the one reason, nothing else. ── -->
+            <template v-if="railMode === 'trade' && focusedStatus.kind !== 'ok'">
+              <span class="con-colonies__rail-reason" :class="'con-colonies__rail-reason--' + focusedStatus.kind">
+                <span aria-hidden="true">{{ focusedStatus.kind === 'inactive' ? '○' : '✕' }}</span>
+                <span>{{ focusedStatus.text !== '' ? focusedStatus.text : $t('Trade unavailable') }}</span>
               </span>
-              <span class="con-colonies__rail-arrow" aria-hidden="true">→</span>
-              <span class="con-colonies__rail-cell">
-                <template v-if="focusedBuildQty > 0">
-                  <b v-if="focusedBuildQty > 1">{{ focusedBuildQty }}</b>
-                  <BenefitGlyph :benefit="focusedBuildBenefit" :idx="focusedBuildSlot" :cardResource="focusedMeta.cardResource" />
-                </template>
-                <span v-else class="con-colonies__rail-muted">{{ $t('No placement bonus') }}</span>
-              </span>
-              <span v-if="focusedBuildLost" class="con-colonies__rail-warn">⚠ {{ $t('Resource will be lost — no card') }}</span>
             </template>
 
-            <!-- ── SELECT pick (setup remove / add-tile): identity only. ── -->
-            <template v-else-if="railMode === 'select'">
-              <span class="con-colonies__rail-note">{{ $t(pick ? pick.buttonLabel : '') }}</span>
-            </template>
-
-            <!-- ── TRADE: send a fleet → income at the effective position ·
-                 the owners' bonus. ── -->
-            <template v-else>
-              <span class="con-colonies__rail-cell">
-                <ColonyFleetIcon v-if="viewerColor !== undefined" :color="viewerColor" :free="true" />
-                <span class="con-colonies__rail-track">{{ focusedTrackDisplay }}</span>
-              </span>
+            <!-- ── TRADE consequence: → income · owners' bonus · warning. ── -->
+            <template v-else-if="railMode === 'trade'">
               <span class="con-colonies__rail-arrow" aria-hidden="true">→</span>
               <span class="con-colonies__rail-cell con-colonies__rail-cell--get">
                 <b v-if="focusedReward.quantity > 1">{{ focusedReward.quantity }}</b>
                 <BenefitGlyph :benefit="focusedTradeBenefit" :idx="focusedPosition" :cardResource="focusedMeta.cardResource" />
                 <span v-if="focusedOffset > 0" class="con-colonies__rail-offset">+{{ focusedOffset }}</span>
               </span>
-              <span class="con-colonies__rail-sep" aria-hidden="true">·</span>
-              <span class="con-colonies__rail-cell">
-                <span class="con-colonies__rail-label">{{ $t('Colony bonus') }}</span>
-                <template v-if="focusedOwners.length > 0">
+              <template v-if="focusedOwners.length > 0">
+                <span class="con-colonies__rail-sep" aria-hidden="true">·</span>
+                <span class="con-colonies__rail-cell">
+                  <span class="con-colonies__rail-label">{{ $t('Owner bonus') }}</span>
                   <b v-if="focusedBonusQty > 1">{{ focusedBonusQty }}</b>
                   <BenefitGlyph :benefit="focusedColonyBenefit" :idx="0" :cardResource="focusedMeta.cardResource" />
                   <span class="con-colonies__rail-owners">
@@ -153,15 +119,41 @@
                       <PlayerCube :color="c" :size="14" />
                     </span>
                   </span>
-                </template>
-                <span v-else class="con-colonies__rail-muted">{{ $t('No colony owners') }}</span>
-              </span>
+                </span>
+              </template>
               <span v-if="focusedTradeLost" class="con-colonies__rail-warn">⚠ {{ $t('Resource will be lost — no card') }}</span>
             </template>
 
-            <span class="con-colonies__rail-status" :class="'con-colonies__rail-status--' + focusedStatus.kind">
-              {{ focusedStatus.text !== '' ? focusedStatus.text : $t('Trade available') }}
-            </span>
+            <!-- ── BUILD pick: → build a colony · the placement grant. ── -->
+            <template v-else-if="railMode === 'build'">
+              <span class="con-colonies__rail-arrow" aria-hidden="true">→</span>
+              <span class="con-colonies__rail-cell">
+                <PlayerCube v-if="viewerColor !== undefined" class="con-colonies__rail-cube" :color="viewerColor" :size="16" />
+                <span class="con-colonies__rail-label">{{ $t('You build') }}</span>
+              </span>
+              <template v-if="focusedBuildQty > 0">
+                <span class="con-colonies__rail-sep" aria-hidden="true">·</span>
+                <span class="con-colonies__rail-cell con-colonies__rail-cell--get">
+                  <b v-if="focusedBuildQty > 1">{{ focusedBuildQty }}</b>
+                  <BenefitGlyph :benefit="focusedBuildBenefit" :idx="focusedBuildSlot" :cardResource="focusedMeta.cardResource" />
+                </span>
+              </template>
+              <span class="con-colonies__rail-sep" aria-hidden="true">·</span>
+              <span class="con-colonies__rail-muted">{{ $t('Free slots') }}: {{ 3 - focusedOwners.length }}</span>
+              <span v-if="focusedBuildLost" class="con-colonies__rail-warn">⚠ {{ $t('Resource will be lost — no card') }}</span>
+              <span v-if="pick !== undefined && focusedStatus.kind === 'blocked'" class="con-colonies__rail-reason con-colonies__rail-reason--blocked">
+                <span aria-hidden="true">✕</span><span>{{ focusedStatus.text }}</span>
+              </span>
+            </template>
+
+            <!-- ── SELECT pick (setup remove / add-tile): verb + verdict. ── -->
+            <template v-else>
+              <span class="con-colonies__rail-arrow" aria-hidden="true">→</span>
+              <span class="con-colonies__rail-note">{{ $t(pick ? pick.buttonLabel : '') }}</span>
+              <span v-if="focusedStatus.kind === 'blocked'" class="con-colonies__rail-reason con-colonies__rail-reason--blocked">
+                <span aria-hidden="true">✕</span><span>{{ focusedStatus.text }}</span>
+              </span>
+            </template>
           </footer>
         </div>
 
@@ -185,8 +177,10 @@
           <ConsoleColonyFocusStage v-if="focusState.open && focusColonyModel !== undefined"
                                    ref="focusStage"
                                    :colony="focusColonyModel"
-                                   :tradeable="focusTradeable"
+                                   :intent="focusState.intent"
+                                   :actionAvailable="focusActionAvailable"
                                    :blockReason="focusBlockReason"
+                                   :pickLabel="pick !== undefined ? pick.buttonLabel : ''"
                                    :options="tradePaymentOptions"
                                    :disabledOptions="tradeDisabledPayments"
                                    :players="players"
@@ -195,6 +189,8 @@
                                    :viewerColor="viewerColor"
                                    :tradeOffset="tradeOffset"
                                    @confirm="onFocusConfirm"
+                                   @build-confirm="$emit('build-confirm')"
+                                   @pick-confirm="$emit('pick-confirm')"
                                    @cancel="closeFocus()" />
         </transition>
       </div>
@@ -229,7 +225,7 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {SelectOptionModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {
-  colonyGridLayout, colonyGridCols, ColonyGridLayout,
+  colonyGridLayout, colonyGridCols, ColonyGridLayout, ColonyFocusIntent,
   colonyFocusState, openColonyFocus, closeColonyFocus,
 } from '@/client/console/consoleColoniesModel';
 import {workspaceOutcomeState, setWorkspaceOutcomeSlot} from '@/client/console/consoleWorkspaceOutcome';
@@ -241,14 +237,15 @@ import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
+import ConsoleColonyFleetBar, {ColonyFleetChip} from '@/client/components/console/ConsoleColonyFleetBar.vue';
 import ConsoleColonyTile, {ConsoleColonyTileStatus} from '@/client/components/console/ConsoleColonyTile.vue';
 import ConsoleColonyFocusStage from '@/client/components/console/ConsoleColonyFocusStage.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
-import ColonyFleetPad from '@/client/components/colonies/ColonyFleetPad.vue';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
-import {colonyTradeTileStatusText, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {colonyTradeState, colonyTradeTileStatusText, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {colonyBuildState} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {cssLengthPx} from '@/client/console/cssUnits';
@@ -260,7 +257,6 @@ import {
   colonyFocusLeaveHook,
   colonyFocusEnterCancelledHook,
   colonyFocusLeaveCancelledHook,
-  markColonyFocusConfirmLeave,
   resetColonyFocusMotion,
 } from '@/client/console/consoleColonyFocusMotion';
 
@@ -281,7 +277,6 @@ export type ColonyTradeConfirmPayload = {
   captures: Readonly<Record<number, unknown>>,
 };
 
-type FleetChip = {color: Color, name: string, free: number, total: number, me: boolean};
 
 /** The tile-fit bounds: how far the base tile may shrink / grow to fill space.
  *  The grow cap is deliberately generous — on the 4K tv profile the grid's
@@ -303,7 +298,7 @@ const FIT_SLACK = 12;
 
 export default defineComponent({
   name: 'ConsoleColoniesSection',
-  components: {ConsoleWsHead, ConsoleColonyTile, ConsoleColonyFocusStage, ColonyFleetIcon, ColonyFleetPad, BenefitGlyph, PlayerCube},
+  components: {ConsoleWsHead, ConsoleColonyFleetBar, ConsoleColonyTile, ConsoleColonyFocusStage, ColonyFleetIcon, BenefitGlyph, PlayerCube},
   props: {
     colonies: {type: Array as PropType<ReadonlyArray<ColonyModel>>, required: true},
     index: {type: Number, required: true},
@@ -332,11 +327,15 @@ export default defineComponent({
      */
     embedded: {type: Boolean, default: false},
   },
-  emits: ['trade-confirm'],
+  emits: ['trade-confirm', 'build-confirm', 'pick-confirm'],
   data() {
     return {
       /** The trade-launch controller — drives the launching-ship hide. */
       tradeFleetState,
+      /** The reward transaction + build hero — the auto-fold watchers'
+       *  mirrors (module reactives must sit in data for path watchers). */
+      tradeState: colonyTradeState,
+      buildState: colonyBuildState,
       /** The workspace flow state (module-level — the shell reads it too). */
       focusState: colonyFocusState,
       /** The embedded-outcome claim (the Pluto reveal re-homes into us). */
@@ -363,8 +362,8 @@ export default defineComponent({
       return this.gridMaxW > 0 && this.layout !== 'catalog' ? {maxWidth: this.gridMaxW + 'px'} : {};
     },
     /** Every player's fleet situation, the viewer first. */
-    fleetChips(): Array<FleetChip> {
-      const chips: Array<FleetChip> = this.players.map((player) => ({
+    fleetChips(): Array<ColonyFleetChip> {
+      const chips: Array<ColonyFleetChip> = this.players.map((player) => ({
         color: player.color,
         name: participantDisplayName(player),
         free: this.freeFleetsFor(player),
@@ -372,6 +371,11 @@ export default defineComponent({
         me: player.color === this.viewerColor,
       }));
       return chips.sort((a, b) => Number(b.me) - Number(a.me));
+    },
+    /** The colour whose fleet is lifting off right now (the viewer's own —
+     *  only the console shell arms flights for this client). */
+    launchingFleetColor(): Color | '' {
+      return this.tradeFleetState.active && this.viewerColor !== undefined ? this.viewerColor : '';
     },
     // ── The workspace crumb (ConsoleWsHead) ────────────────────────────────
     // Two depths share the one line: the FOCUS STAGE (pre-commit — cyan) and
@@ -387,6 +391,12 @@ export default defineComponent({
       return '';
     },
     crumbStage(): string {
+      // The PAYOUT REVEAL is the deeper step — while it presents (over the
+      // focus stage or over the grid alike) the tail names IT: «… › ПЛУТОН ›
+      // ДОБОР КАРТ». Otherwise the focus stage's own name leads.
+      if (this.revealEmbedPresenting) {
+        return this.outcomeState.phaseKey !== '' ? this.outcomeState.phaseKey : 'Card draw';
+      }
       if (this.focusState.open) {
         return this.focusState.stage;
       }
@@ -396,7 +406,8 @@ export default defineComponent({
       return '';
     },
     crumbCommitted(): boolean {
-      return this.focusState.committing || this.tradeFleetState.active || this.revealEmbedActive;
+      return this.focusState.committing || this.tradeFleetState.active ||
+        this.tradeState.active || this.revealEmbedActive;
     },
     // ── The embedded-outcome zone (the Pluto payout reveal) ────────────────
     /** The claim is ours — the zone must stand (rendered from SUBMIT time). */
@@ -418,8 +429,24 @@ export default defineComponent({
       const model = this.focusColonyModel;
       return this.pick === undefined && model !== undefined && this.tradeable.includes(model.name);
     },
+    /** The focused intent's action is genuinely offerable (server truth):
+     *  trade → the trade window names this colony; build/pick → the server's
+     *  SelectColony accepts it. Inspect never acts. */
+    focusActionAvailable(): boolean {
+      const model = this.focusColonyModel;
+      if (model === undefined) {
+        return false;
+      }
+      if (this.focusState.intent === 'trade') {
+        return this.focusTradeable;
+      }
+      if (this.focusState.intent === 'build' || this.focusState.intent === 'pick') {
+        return this.pick !== undefined && this.pick.selectable.includes(model.name);
+      }
+      return false;
+    },
     focusBlockReason(): string {
-      if (this.focusTradeable) {
+      if (this.focusActionAvailable) {
         return '';
       }
       const model = this.focusColonyModel;
@@ -427,6 +454,10 @@ export default defineComponent({
         return '';
       }
       if (this.pick !== undefined) {
+        // A pick refused THIS colony: the server's own reason.
+        if (this.focusState.intent === 'build' || this.focusState.intent === 'pick') {
+          return this.pickReasonFor(model.name);
+        }
         // Mid-pick the trade window simply is not open — the stage's verdict
         // states that plainly rather than inventing a colony-intrinsic fault.
         return 'Trade unavailable';
@@ -547,6 +578,22 @@ export default defineComponent({
         setWorkspaceOutcomeSlot(active ? '[data-embed-slot="colonies-reveal"]' : '');
       },
     },
+    // THE RESOLUTION'S FALLING EDGE auto-folds the focus stage back to the
+    // overview: the trade (fleet → waves → payout → glide → settle) or the
+    // build (cube seated, grant delivered) completed ON the stage — the fold
+    // is the completion's own signal, never a timer. The updated overview
+    // (new track position, the seated cube, the docked fleet) is what the
+    // fold reveals. Embedded flows fold through their own latch finalize.
+    'tradeState.active'(active: boolean, was: boolean): void {
+      if (!active && was && this.focusState.open && !this.tradeFleetState.active) {
+        closeColonyFocus();
+      }
+    },
+    'buildState.active'(active: boolean, was: boolean): void {
+      if (!active && was && this.focusState.open) {
+        closeColonyFocus();
+      }
+    },
   },
   methods: {
     /** A card-resource benefit (`ADD_RESOURCES_TO_CARD` / `…_VENUS_CARD`) is
@@ -615,25 +662,6 @@ export default defineComponent({
         this.fitRaf = undefined;
         this.fit();
       });
-    },
-    /**
-     * The viewer's LAUNCH berth — the last currently-free fleet slot (its ship
-     * is what lifts off). `data-fleet-launch` marks its (always-laid-out) ship
-     * slot so the flight proxy has a stable start rect even while the ship is
-     * hidden mid-launch. Only the viewer's own fleet launches from here.
-     */
-    isLaunchAnchor(chip: FleetChip, n: number): boolean {
-      return chip.me && chip.free > 0 && n === chip.free;
-    },
-    /**
-     * The berth whose ship is CURRENTLY lifting off (hide it — the flight
-     * proxy carries it). During the flight the server view is gated, so
-     * `chip.free` is unchanged and `n === chip.free` is still the launch slot;
-     * once the trade commits the slot is genuinely empty (no reflow — the
-     * fixed `total` pads stay). Same slot as the launch anchor.
-     */
-    isLaunchingSlot(chip: FleetChip, n: number): boolean {
-      return this.tradeFleetState.active && this.isLaunchAnchor(chip, n);
     },
     /**
      * How many of a player's fleets are truly FREE (in their supply, not
@@ -739,12 +767,15 @@ export default defineComponent({
     },
     // ── The COLONY FOCUS descend (browse → focus and back) ─────────────────
     /**
-     * Descend into the FOCUSED colony (A = trade intent, X = inspect intent —
-     * one stage either way). Arms the descend origin SYNCHRONOUSLY at the
-     * press: the tile's rect (the unfold source) + its planet medallion's
-     * rect (the carried subject's FLIP source).
+     * Descend into the FOCUSED colony (A = the act intent — trade / build /
+     * pick, X = inspect — ONE stage either way; nothing irreversible happens
+     * on the overview any more). Arms the descend origins SYNCHRONOUSLY at
+     * the press: the tile's rect (the unfold source) plus the THREE carried
+     * identities' rects — the planet medallion, the compact track strip and
+     * the build-slot row — so each physically continues into its expanded
+     * counterpart (never a new unrelated detail page).
      */
-    enterFocus(intent: 'trade' | 'inspect'): void {
+    enterFocus(intent: ColonyFocusIntent): void {
       const colony = this.colonies[this.index];
       if (colony === undefined || this.focusState.open) {
         return;
@@ -753,29 +784,36 @@ export default defineComponent({
       const el = Array.isArray(slot) ? slot[0] : slot;
       const tile = el?.querySelector<HTMLElement>('.con-coltile');
       const planet = tile?.querySelector<HTMLElement>('.con-coltile__planet-berth');
+      const track = tile?.querySelector<HTMLElement>('.con-coltile__track');
+      const slots = tile?.querySelector<HTMLElement>('.con-coltile__build');
       const rectOf = (node: HTMLElement | null | undefined) => {
         const r = node?.getBoundingClientRect();
         return r === undefined || r.width < 10 ? undefined : {left: r.left, top: r.top, width: r.width, height: r.height};
       };
-      armColonyFocusOrigin(rectOf(tile), rectOf(planet));
+      armColonyFocusOrigin(rectOf(tile), rectOf(planet), rectOf(track), rectOf(slots));
       openColonyFocus(colony.name as ColonyName, intent);
     },
     /** Fold back to the browse surface (B / cancel). */
     closeFocus(): void {
       closeColonyFocus();
     },
-    /** The stage confirmed the trade: fold briskly (the confirm variant of the
-     *  same phrase) and hand the payload UP — the shell arms the fleet flight
-     *  + the reward transaction and submits, all against the browse surface
-     *  the fold is revealing. */
+    /** The stage confirmed the trade — hand the payload UP. The stage STAYS:
+     *  the fleet, the reward waves, the Pluto reveal and the track glide all
+     *  resolve on the stage's own live anchors (iteration 2), and the
+     *  transaction's falling edge auto-folds back to the overview. */
     onFocusConfirm(payload: ColonyTradeConfirmPayload): void {
-      markColonyFocusConfirmLeave();
       this.$emit('trade-confirm', payload);
     },
     /** The shell routes the pad here while the focus stage is open. */
     handleFocusIntent(intent: GamepadIntent): void {
       const stage = this.$refs.focusStage as InstanceType<typeof ConsoleColonyFocusStage> | undefined;
       stage?.handleIntent(intent);
+    },
+    /** The shell ACCEPTED a stage confirm — pin the stage's presentation
+     *  across the commit boundary (see the stage's `holdPresentation`). */
+    holdFocusStage(): void {
+      const stage = this.$refs.focusStage as InstanceType<typeof ConsoleColonyFocusStage> | undefined;
+      stage?.holdPresentation();
     },
     async loadFocusPreview(name: ColonyName): Promise<void> {
       if (this.playerId === '') {

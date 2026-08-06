@@ -9300,20 +9300,23 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__toolbar {
         display: flex;
         align-items: center;
-        justify-content: flex-end;
+        justify-content: space-between;
         gap: .9rem;
         flex-wrap: wrap;
         min-width: 0;
         flex-shrink: 0;
         padding: .1rem 0 .15rem;
         border-bottom: .05rem solid rgba(120, 155, 190, 0.12);
-        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
-
-        &--held {
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
-        }
+    }
+    /* The FLEET DOCK keeps the right edge in every mode (spatial memory) and
+       stays through the focus descent — the launch pads are live anchors. */
+    &__toolbar-fleets { margin-left: auto; }
+    /* Past the descent the browse-mode chip yields (opacity-held, height
+       reserved) — the crumb tail names the mode then. The fleets do NOT. */
+    &__mode-chip--held {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
     }
 
     &__mode-chip {
@@ -9558,7 +9561,34 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         color: @con-text-dim;
         font-weight: 700;
     }
+    /* The focused colony's NAME — the rail's anchor voice (said ONCE: the
+       tile under the cursor is highlighted, but the couch reads the summary
+       line first). */
+    &__rail-name {
+        font-size: .9rem;
+        font-weight: 800;
+        letter-spacing: .05rem;
+        text-transform: uppercase;
+        color: @con-text;
+        flex-shrink: 0;
+    }
     &__rail-track { font-size: .8rem; font-weight: 800; color: fade(@con-cyan, 90%); font-variant-numeric: tabular-nums; }
+    /* A BLOCKED focus swaps the consequence for the ONE honest reason —
+       inline, never a second badge row. */
+    &__rail-reason {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        font-size: .78rem;
+        font-weight: 700;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+
+        &--blocked { color: #ffb0a6; }
+        &--inactive, &--none { color: @con-text-dim; }
+    }
     &__rail-offset { font-size: 11px; font-weight: 700; color: @con-cyan; } /* keep-px: inside the zoom */
     &__rail-arrow, &__rail-sep { font-size: 1rem; color: fade(@con-cyan, 65%); font-weight: 800; flex-shrink: 0; }
     &__rail .colony-fleet-icon { width: 1.3rem; height: 1.3rem; }
@@ -9589,22 +9619,19 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__rail-note {
         font-size: .85rem; font-weight: 700; letter-spacing: .04rem; text-transform: uppercase; color: fade(@con-cyan, 90%);
     }
-    &__rail-status {
-        margin-left: auto; flex-shrink: 0;
-        padding: .25rem .7rem; border-radius: 49.95rem;
-        font-size: .75rem; font-weight: 700;
-        background: fade(@con-mint, 12%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%); color: @con-mint;
-        &--blocked { background: fade(@con-red, 12%); box-shadow: inset 0 0 0 .05rem fade(@con-red, 45%); color: #ffb0a6; }
-        &--inactive, &--none { background: rgba(120, 140, 160, 0.12); box-shadow: inset 0 0 0 .05rem rgba(160, 180, 200, 0.28); color: @con-text-dim; }
-    }
 }
 
-/* ── THE COLONY FOCUS STAGE — the workspace one level deeper ─────────────── *
- * A layer of the section's stagewrap (never a modal): the HERO column (the
- * colony as a physical object — planet, full track, owners, verdict) beside
- * the WORK column (payment → decisions → outcome). The descend hooks unfold
- * `__surface` from the pressed tile's rect; `[data-unfold-item]` groups
- * cascade from inside it. */
+/* ── THE COLONY FOCUS STAGE (iteration 2) — the premium action surface ── *
+ * One surface, three physical bands:
+ *   TOP  identity (hero planet + orbital berth) · the EXPANDED TRADE TRACK
+ *        (the overview strip grown into a game component) · the ACTION
+ *        RESULT grouped by source;
+ *   MID  the COLONY SLOTS (three physical berths, real player tokens) · the
+ *        ACTION CONFIGURATION (adaptive by mode — never an empty skeleton).
+ * The descend carries the planet, the compact track and the build row into
+ * their expanded twins ([data-colony-focus-*] FLIP targets); the resolution
+ * anchors (fleet berth / track cells / launch cells / build slots) are LIVE
+ * here while the stage is up. */
 .con-colfocus {
     position: absolute;
     inset: 0;
@@ -9616,52 +9643,85 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         min-width: 0;
         min-height: 0;
         display: flex;
-        gap: 1rem;
+        flex-direction: column;
+        gap: .7rem;
         padding: .7rem .9rem;
         border-radius: .6rem;
-        background: rgba(11, 18, 27, 0.94);
+        background:
+            radial-gradient(ellipse 60% 45% at 18% 20%, rgba(40, 70, 100, 0.20), transparent 70%),
+            rgba(11, 18, 27, 0.94);
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
     }
 
-    /* The launch fold is under way — the chrome goes inert (no focus ring
-       churn while the surface collapses into the traded tile). */
-    &--launching { pointer-events: none; }
+    /* The action is RESOLVING on this stage — chrome inert, anchors live. */
+    &--resolving &__surface { pointer-events: none; }
 
-    /* ── HERO — the colony itself ─────────────────────────────────── */
-    &__hero {
-        flex: 0 0 24rem;
+    /* ═══ TOP BAND ═══ */
+    &__top {
+        display: flex;
+        gap: 1.1rem;
+        min-height: 0;
+        flex-shrink: 0;
+    }
+
+    /* ── IDENTITY — the colony as a physical object. ── */
+    &__identity {
+        flex: 0 0 17.5rem;
         min-width: 0;
         display: flex;
-        flex-direction: column;
-        gap: .4rem;
-        min-height: 0;
-        overflow: hidden;
-
-        /* NOTHING in this column may flex-shrink: a squeezed block paints its
-           own content over its neighbour (the 7-row track once bled under the
-           build row). The ONE sanctioned pressure valve is the track table
-           below — it clips its own tail instead. */
-        > * { flex-shrink: 0; }
+        gap: .8rem;
+        align-items: flex-start;
     }
-    &__hero-top { display: flex; align-items: center; gap: .8rem; }
-    &__planetwrap { position: relative; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: .3rem; }
-    /* The carried subject: the tile's planet medallion FLIPs into this. */
+    &__planetwrap {
+        position: relative;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .35rem;
+    }
+    /* THE HERO PLANET — the stage's visual anchor: the same round art the
+       tile carries, grown, with a restrained key-light and depth shadow
+       (never a loud hologram, never a decorative giant). */
     &__planet {
         position: relative;
-        width: 4.9rem;
-        height: 4.9rem;
+        width: 8.6rem;
+        height: 8.6rem;
         border-radius: 50%;
         background-size: cover;
         background-position: center;
-        box-shadow: inset 0 0 .9rem rgba(0, 0, 0, 0.55), 0 0 1.4rem fade(@con-cyan, 18%), 0 .4rem 1.2rem rgba(0, 0, 0, 0.5);
+        box-shadow:
+            inset -1.1rem -1.3rem 2.2rem rgba(0, 0, 0, 0.62),
+            inset .4rem .5rem 1.4rem rgba(180, 220, 255, 0.14),
+            0 0 1.8rem fade(@con-cyan, 16%),
+            0 .6rem 1.8rem rgba(0, 0, 0, 0.55);
     }
-    &__visitor {
+    /* The key light — a soft top-left sheen riding OVER the art. */
+    &__planet-light {
         position: absolute;
-        right: -.4rem;
-        bottom: -.2rem;
-        display: inline-flex;
+        inset: 0;
+        border-radius: 50%;
+        background: radial-gradient(circle at 30% 26%, rgba(220, 240, 255, 0.20), transparent 46%);
+        pointer-events: none;
+    }
+    /* THE ORBITAL BERTH — the fleet's live landing anchor while the stage is
+       up (the same data key the tile's dock carries; directors pick the
+       VISIBLE match). Sits on the planet's lower-right orbit. */
+    &__orbit {
+        position: absolute;
+        right: -.3rem;
+        bottom: .4rem;
+        width: 2.1rem;
+        height: 2.1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        background: rgba(8, 14, 22, 0.85);
+        box-shadow: inset 0 0 0 .05rem fade(@con-text, 25%), 0 .15rem .5rem rgba(0, 0, 0, 0.5);
 
-        .colony-fleet-icon { width: 1.8rem; height: 1.8rem; }
+        .colony-fleet-icon { width: 1.6rem; height: 1.6rem; }
+        &--occupied { box-shadow: inset 0 0 0 .08rem var(--fleet-fill, fade(@con-cyan, 60%)), 0 0 .7rem var(--fleet-glow, fade(@con-cyan, 25%)); }
     }
     &__state {
         padding: .12rem .55rem;
@@ -9674,18 +9734,302 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--on { background: fade(@con-mint, 12%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%); color: @con-mint; }
         &--off { background: rgba(120, 140, 160, 0.12); box-shadow: inset 0 0 0 .05rem rgba(160, 180, 200, 0.28); color: @con-text-dim; }
     }
-    &__desc {
+    &__idmeta {
         flex: 1;
         min-width: 0;
-        font-size: .75rem;
+        display: flex;
+        flex-direction: column;
+        gap: .45rem;
+    }
+    &__desc {
+        font-size: .78rem;
         line-height: 1.35;
         color: @con-text-dim;
-        /* Long trade descriptions clamp — the hero column's height budget is
-           the track's, not prose's. */
         display: -webkit-box;
         -webkit-box-orient: vertical;
-        -webkit-line-clamp: 3;
+        -webkit-line-clamp: 4;
         overflow: hidden;
+    }
+    &__fleetline {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .7rem;
+        color: @con-text-dim;
+
+        .colony-fleet-icon { width: 1.2rem; height: 1.2rem; }
+    }
+    /* The honest verdict — beside the identity it judges, inline. */
+    &__verdict {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .3rem .55rem;
+        border-radius: .45rem;
+        font-size: .75rem;
+        font-weight: 700;
+        align-self: flex-start;
+        max-width: 100%;
+
+        &--ok { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%); color: @con-mint; }
+        &--no { background: fade(@con-red, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-red, 40%); color: #ffb0a6; }
+    }
+
+    /* ── THE EXPANDED TRADE TRACK — the overview strip, grown. ── */
+    &__trackzone {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .4rem;
+    }
+    /* SEVEN cells always fit the room they are given — the strip is sized for
+       the TIGHTEST host (the embedded step's narrow zone), and every part of
+       it scales with the same `--con-ui-scale`, so the fit is identical on
+       every profile. A fixed 32px sprite beside a big number does NOT fit
+       there: the cells smeared into one another on the sponsor flow. */
+    &__xtrack {
+        display: flex;
+        align-items: stretch;
+        gap: .25rem;
+        min-width: 0;
+    }
+    /* One position: number on top, VALUE + resource icon in the body, the
+       marker / read-here tag underneath. A game component, not a table. */
+    &__xcell {
+        flex: 1 1 0;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .15rem;
+        padding: .3rem .1rem .25rem;
+        border-radius: .45rem;
+        background: rgba(120, 155, 190, 0.07);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.16);
+
+        &--passed { background: rgba(120, 155, 190, 0.035); }
+        &--marker {
+            background: fade(@con-cyan, 15%);
+            box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 75%), 0 0 .8rem fade(@con-cyan, 18%);
+        }
+        &--effective {
+            background: fade(@con-mint, 11%);
+            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 60%);
+        }
+    }
+    &__xcell-num {
+        font-size: .62rem;
+        font-weight: 700;
+        color: @con-text-dim;
+        font-variant-numeric: tabular-nums;
+
+        .con-colfocus__xcell--marker & { color: fade(@con-cyan, 95%); }
+    }
+    &__xcell-body {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .12rem;
+        min-height: 1.7rem;
+        min-width: 0;
+        max-width: 100%;
+    }
+    &__xcell-qty {
+        font-size: .85rem;
+        font-weight: 800;
+        color: @con-text;
+        font-variant-numeric: tabular-nums;
+
+        .con-colfocus__xcell--effective & { color: @con-mint; }
+    }
+    &__xcell-void { font-size: .9rem; color: @con-text-dim; }
+    /* `.benefit-glyph` is `width/height: 100%` and its icon is a fixed 32px
+       box — an inline-flex wrapper with no intrinsic size lets that icon
+       overflow SYMMETRICALLY over both neighbours (7 cells then read as one
+       smeared row). The wrapper therefore states its own box; the icon is
+       clipped to it, never to the neighbour's. */
+    &__xcell-glyph {
+        display: inline-flex;
+        flex: 0 0 auto;
+        width: 32px; /* keep-px: the glyph's own sprite box, scaled by zoom */
+        height: 32px; /* keep-px */
+        overflow: hidden;
+        /* 32px sprite → ~0.9rem of strip: seven of these plus their numbers
+           fit the narrowest host with room to spare. */
+        zoom: calc(0.56 * var(--con-ui-scale, 1));
+        .benefit-glyph__num { display: none; }
+    }
+    /* The tag line is RESERVED (fixed height) — the marker and the read-here
+       caption swap without reflowing the strip. */
+    &__xcell-tag {
+        height: .95rem;
+        font-size: .55rem;
+        font-weight: 700;
+        letter-spacing: .04rem;
+        text-transform: uppercase;
+        color: @con-mint;
+        white-space: nowrap;
+        overflow: hidden;
+
+        .con-colfocus__xcell--marker & { color: fade(@con-cyan, 95%); font-size: .8rem; line-height: .95rem; }
+    }
+    &__tracknote {
+        display: flex;
+        gap: .9rem;
+        flex-wrap: wrap;
+        font-size: .62rem;
+        color: @con-text-dim;
+    }
+    &__tracknote-adv { color: fade(@con-cyan, 85%); font-weight: 700; }
+
+    /* ── THE ACTION RESULT — grouped by SOURCE. ── */
+    &__result {
+        flex: 0 0 16.5rem;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .45rem;
+        padding: .5rem .6rem;
+        border-radius: .5rem;
+        background: rgba(9, 15, 23, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.14);
+        overflow: hidden;
+    }
+    &__rsec {
+        display: flex;
+        flex-direction: column;
+        gap: .18rem;
+        padding-bottom: .3rem;
+
+        & + & { border-top: .05rem solid rgba(120, 155, 190, 0.10); padding-top: .35rem; }
+    }
+    &__rsec-label {
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 75%);
+    }
+    &__rrow {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .8rem;
+        min-width: 0;
+
+        b { font-weight: 800; font-variant-numeric: tabular-nums; }
+        em { font-style: normal; font-size: .68rem; color: @con-text-dim; font-variant-numeric: tabular-nums; }
+
+        &--gain b { color: @con-mint; }
+        &--cost b { color: #ffb0a6; }
+        &--target { font-size: .72rem; }
+    }
+    &__rrow-card { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    &__rglyph {
+        display: inline-flex;
+        zoom: var(--con-ui-scale, 1);
+        .benefit-glyph__num { display: none; }
+    }
+    &__rcube { zoom: var(--con-ui-scale, 1); }
+    &__rowners {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .2rem .6rem;
+        font-size: .68rem;
+        color: @con-text;
+        min-width: 0;
+    }
+    &__rowner { display: inline-flex; align-items: center; gap: .3rem; font-weight: 700; }
+    &__muted { font-size: .7rem; font-weight: 600; color: @con-text-dim; }
+    &__notice {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        font-size: .66rem;
+        color: @con-text-dim;
+
+        &--warn { color: @con-amber; font-weight: 700; }
+    }
+
+    /* ═══ MID BAND ═══ */
+    &__mid {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        gap: 1.1rem;
+    }
+
+    /* ── THE COLONY SLOTS — three physical berths. ── */
+    &__slotszone {
+        flex: 0 0 17.5rem;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .45rem;
+    }
+    &__bigslots {
+        display: flex;
+        gap: .6rem;
+    }
+    &__bigslot {
+        position: relative;
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 4.6rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .3rem;
+        padding: .4rem .3rem;
+        border-radius: .55rem;
+        background: rgba(120, 155, 190, 0.07);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.20);
+        zoom: var(--con-ui-scale, 1); /* px PlayerCube / BenefitGlyph content */
+
+        .benefit-glyph__num { display: none; }
+
+        &--taken {
+            background: rgba(18, 30, 44, 0.85);
+            box-shadow: inset 0 0 0 .05rem rgba(150, 180, 210, 0.30);
+        }
+        /* The build DESTINATION — where the token will physically land. */
+        &--dest {
+            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 80%), 0 0 .8rem fade(@con-mint, 20%);
+            animation: con-colfocus-dest calc(2200ms * var(--motion-scale, 1)) ease-in-out infinite;
+        }
+    }
+    &__bigslot-name {
+        font-size: 10px; /* keep-px: inside the ×ui-scale zoom */
+        font-weight: 700;
+        letter-spacing: .02em;
+        color: @con-text-dim;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+
+        .con-colfocus__bigslot--taken & { color: @con-text; }
+    }
+
+    /* ── THE ACTION CONFIGURATION — adaptive by mode. ── */
+    &__config {
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .35rem;
+    }
+    &__configscroll { flex: 1; min-height: 0; }
+    &__sub-title {
+        font-size: .8rem;
+        font-weight: 700;
+        letter-spacing: .05rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 85%);
+        padding-bottom: .2rem;
     }
     &__sec-title {
         font-size: .65rem;
@@ -9695,139 +10039,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         color: fade(@con-cyan, 80%);
     }
     &__sec-title--steps { margin-top: .45rem; }
-
-    /* The full 7-position track table — [pos | qty | reward | tag]. The ONE
-       block allowed to give ground on a starved viewport: it clips its own
-       tail rather than painting over the build row below. */
-    &__track { display: flex; flex-direction: column; gap: .25rem; min-height: 4rem; flex-shrink: 1; overflow: hidden; }
-    &__track-table { display: flex; flex-direction: column; gap: .1rem; }
-    &__track-row {
-        display: grid;
-        grid-template-columns: 1.4rem 1.6rem 2.6rem 1fr;
-        align-items: center;
-        gap: .45rem;
-        height: 1.3rem;
-        padding: 0 .45rem;
-        border-radius: .3rem;
-        background: rgba(120, 155, 190, 0.06);
-
-        &--marker {
-            background: fade(@con-cyan, 14%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%);
-        }
-        &--effective {
-            background: fade(@con-mint, 10%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%);
-        }
-    }
-    &__track-num { font-size: .7rem; font-weight: 700; color: @con-text-dim; font-variant-numeric: tabular-nums; }
-    &__track-qty { font-size: .8rem; font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
-    &__track-glyph {
-        display: inline-flex;
-        align-items: center;
-        zoom: calc(0.72 * var(--con-ui-scale, 1));
-        .benefit-glyph__num { display: none; }
-    }
-    &__track-tag {
-        font-size: .6rem;
-        font-weight: 700;
-        letter-spacing: .04rem;
-        text-transform: uppercase;
-        color: @con-mint;
-        text-align: right;
-
-        &--void { visibility: hidden; }
-    }
-    &__note { font-size: .68rem; color: fade(@con-cyan, 80%); }
-
-    /* Build slots + owners + fleet line. */
-    &__owners { display: flex; flex-direction: column; gap: .25rem; }
-    &__ownrow { display: flex; align-items: center; justify-content: space-between; gap: .6rem; min-height: 1.3rem; flex-wrap: wrap; }
-    &__slots { display: inline-flex; align-items: center; gap: .3rem; }
-    &__slot {
-        width: 1.7rem;
-        height: 1.7rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: .35rem;
-        background: rgba(120, 155, 190, 0.08);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.22);
-        overflow: hidden;
-        zoom: var(--con-ui-scale, 1); /* px PlayerCube / BenefitGlyph content */
-
-        &--taken { background: rgba(20, 32, 46, 0.85); }
-        .benefit-glyph__num { display: none; }
-    }
-    &__bonusline {
-        display: inline-flex;
-        align-items: center;
-        gap: .45rem;
-        min-width: 0;
-        zoom: var(--con-ui-scale, 1);
-        .benefit-glyph__num { display: none; }
-    }
-    &__owner {
-        display: inline-flex;
-        align-items: center;
-        gap: .25rem;
-        font-size: 12px; /* keep-px: inside the ×ui-scale zoom */
-        font-weight: 700;
-        color: @con-text;
-    }
-    &__owner-mult { color: @con-text-dim; }
-    &__muted { font-size: 12px; font-weight: 700; color: @con-text-dim; } /* keep-px: inside the zoom */
-    &__fleetline {
-        display: flex;
-        align-items: center;
-        gap: .4rem;
-        font-size: .72rem;
-        color: @con-text-dim;
-
-        .colony-fleet-icon { width: 1.2rem; height: 1.2rem; }
-    }
-
-    /* The honest verdict — pinned under the hero column. */
-    &__verdict {
-        margin-top: auto;
-        display: flex;
-        align-items: center;
-        gap: .45rem;
-        padding: .3rem .6rem;
-        border-radius: .45rem;
-        font-size: .78rem;
-        font-weight: 700;
-
-        &--ok { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%); color: @con-mint; }
-        &--no { background: fade(@con-red, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-red, 40%); color: #ffb0a6; }
-    }
-
-    /* ── WORK — payment · decisions · outcome (the trade composer rows,
-       value-identical to the retired modal). ─────────────────────── */
-    &__work {
-        flex: 1;
-        min-width: 0;
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-    }
-    &__sub { display: flex; flex-direction: column; gap: .4rem; min-height: 0; overflow: hidden; }
-    &__sub-title {
-        font-size: .8rem;
-        font-weight: 700;
-        letter-spacing: .05rem;
-        text-transform: uppercase;
-        color: fade(@con-cyan, 85%);
-        padding-bottom: .2rem;
-    }
-    &__columns { flex: 1; min-height: 0; }
-    &__columns-grid {
-        display: grid;
-        grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-        gap: .9rem;
-        align-items: start;
-    }
-    &__paysec, &__outsec { display: flex; flex-direction: column; gap: .3rem; min-width: 0; }
     &__payrow {
         display: flex;
         align-items: center;
@@ -9845,7 +10056,6 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%);
         }
         &--off { opacity: .78; }
-        &--readonly { background: rgba(120, 155, 190, 0.04); }
     }
     &__payrow-pick {
         width: .9rem;
@@ -9857,7 +10067,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         justify-content: center;
         flex-shrink: 0;
 
-        .con-colfocus__payrow--readonly &, .con-colfocus__payrow--off & { visibility: hidden; }
+        .con-colfocus__payrow--off & { visibility: hidden; }
     }
     &__payrow-dot { width: .5rem; height: .5rem; border-radius: 50%; background: @con-mint; }
     &__payrow-icon { flex-shrink: 0; }
@@ -9896,63 +10106,42 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         .benefit-glyph__num { display: none; }
     }
     &__track-rewardqty { font-size: 14px; font-weight: 800; color: @con-mint; } /* keep-px: inside the zoom */
-    &__out-grid { display: flex; flex-direction: column; gap: .5rem; }
-    &__out-block { display: flex; flex-direction: column; gap: .2rem; }
-    &__out-label { font-size: .62rem; font-weight: 700; letter-spacing: .07rem; text-transform: uppercase; color: @con-text-dim; }
-    &__outrow {
+
+    /* The BUILD / PICK brief — one calm confirm surface. */
+    &__brief {
+        display: flex;
+        flex-direction: column;
+        gap: .45rem;
+        padding: .6rem .7rem;
+        border-radius: .5rem;
+        background: rgba(9, 15, 23, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.14);
+        align-self: flex-start;
+        min-width: min(22rem, 100%);
+    }
+    &__brief-line {
         display: flex;
         align-items: center;
-        gap: .4rem;
-        font-size: .78rem;
+        gap: .45rem;
+        font-size: .85rem;
+        font-weight: 700;
 
-        b { font-weight: 800; font-variant-numeric: tabular-nums; }
-        em { font-style: normal; font-size: .7rem; color: @con-text-dim; font-variant-numeric: tabular-nums; }
-
-        &--cost b { color: #ffb0a6; }
-        &--gain b { color: @con-mint; }
-        &--prod .con-colfocus__outrow-icon { box-shadow: 0 0 0 .1rem rgba(140, 90, 40, 0.9); }
+        b { color: @con-mint; font-weight: 800; }
     }
-    &__outrow-icon { flex-shrink: 0; }
-    &__outrow-badge {
-        padding: .05rem .4rem;
-        border-radius: .3rem;
-        background: fade(@con-cyan, 14%);
-        font-size: .62rem;
-        font-weight: 800;
-        letter-spacing: .04rem;
-        text-transform: uppercase;
-        color: @con-cyan;
+    &__brief-note { font-size: .68rem; font-weight: 500; color: @con-text-dim; }
 
-        &--tr { background: fade(@con-amber, 16%); color: @con-amber; }
-    }
-    &__outrow-text { font-weight: 700; }
-    &__outrow-note { font-style: normal; }
-    &__notice {
+    /* INSPECT — the informational sections take the configuration room. */
+    &__inspect {
         display: flex;
-        align-items: center;
-        gap: .35rem;
-        font-size: .68rem;
-        color: @con-text-dim;
+        flex-direction: column;
+        gap: .45rem;
+        min-width: 0;
+    }
+}
 
-        &--warn { color: @con-amber; }
-        &--lost { font-weight: 700; }
-    }
-    &__notice-icon { flex-shrink: 0; }
-    &__bonus {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: .4rem;
-        margin-top: .2rem;
-        font-size: .7rem;
-        color: @con-text-dim;
-    }
-    &__bonus-label { font-weight: 700; }
-    &__bonus-glyph {
-        display: inline-flex;
-        zoom: calc(0.85 * var(--con-ui-scale, 1));
-        .benefit-glyph__num { display: none; }
-    }
+@keyframes con-colfocus-dest {
+    0%, 100% { box-shadow: inset 0 0 0 .1rem fade(@con-mint, 70%), 0 0 .6rem fade(@con-mint, 16%); }
+    50%      { box-shadow: inset 0 0 0 .1rem fade(@con-mint, 95%), 0 0 1.1rem fade(@con-mint, 30%); }
 }
 
 /* ── The premium console colony TILE (compact, couch-readable) ────── *

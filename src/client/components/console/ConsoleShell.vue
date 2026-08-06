@@ -211,7 +211,9 @@
                                 :tradeDisabledPayments="tradeColonyContext !== undefined ? tradeColonyContext.disabledPayments : []"
                                 :thisPlayer="thisPlayer"
                                 :playerId="playerView.id"
-                                @trade-confirm="onColonyTradeComposerConfirm($event)" />
+                                @trade-confirm="onColonyTradeComposerConfirm($event)"
+                                @build-confirm="onColonyBuildConfirm()"
+                                @pick-confirm="onColonyPickConfirm()" />
         </Teleport>
       </transition>
       <!-- The console-NATIVE Hydronetwork screen (the full rework — the
@@ -1211,7 +1213,7 @@ import {
 import {CardType} from '@/common/cards/CardType';
 import {
   colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi,
-  colonyFocusState, closeColonyFocus, resetColonyFocus,
+  colonyFocusState, closeColonyFocus, resetColonyFocus, ColonyFocusIntent,
 } from '@/client/console/consoleColoniesModel';
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
@@ -1241,7 +1243,7 @@ import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.v
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {
   markWorkspaceEmbedCommitting, setWorkspaceEmbed, workspaceEmbedCommitting, workspaceEmbedSlot,
-  WorkspaceEmbedHost,
+  workspaceEmbedSource, workspaceEmbedState, WorkspaceEmbedHost,
 } from '@/client/console/consoleWorkspaceEmbed';
 
 /** The kinds served by a DEDICATED composite surface (not by the task host). */
@@ -1556,6 +1558,13 @@ export default defineComponent({
        * transaction plays past the prompt's own lifetime.
        */
       colonyEmbedLatch: undefined as WorkspaceEmbedHost | undefined,
+      /**
+       * The STANDALONE colonies section was opened BY A PROMPT (corp first
+       * action, a stranded-latch heal) — not by the player. When the whole
+       * follow-up ends (`colonyFollowUpLive` falling) such a visit hands the
+       * screen back to the board; a visit the player opened themselves stays.
+       */
+      colonyOpenedByPrompt: false,
       /** X on the board home — the «Разыграно» tableau overlay (view-only). */
       playedOpen: false,
       /** A colony name opened READ-ONLY from the journal (X on a colony row). */
@@ -2715,6 +2724,7 @@ export default defineComponent({
         sheet: this.consoleState.sheet,
         corpFirstActionOpen: this.corpFirstActionOpen,
         handEmbedded: this.startSponsorEmbed,
+        coloniesEmbedded: this.colonyEmbedActive,
       });
     },
     /** The std-projects source: the TOP-LEVEL prompt (EstablishedMethods) or the action menu. */
@@ -3110,6 +3120,18 @@ export default defineComponent({
       if (workspaceEmbedCommitting()) {
         return true;
       }
+      // THE PLAYED CARD'S OWN CONTINUATION keeps the step alive: a sponsored
+      // project whose effect asks for a colony (Trading Colony …) raises a
+      // SelectColony NEXT — the prompt is no longer play-from-hand, but the
+      // card-play step is UNFINISHED until that effect resolves. The hand
+      // stays hosted (the colonies teleport into ITS stage zone, one level
+      // deeper); dropping the claim here was the «Start Game came back before
+      // the colony was placed» bug. The latch + the live follow-up are the
+      // structural truth of that continuation.
+      if (this.colonyEmbedLatch === 'hand' && workspaceStageOpen('hand') &&
+          this.colonyFollowUpLive) {
+        return true;
+      }
       const task = taskFor(this.playerView);
       return task?.kind === 'projectCard' && task.mode === 'playFromHand';
     },
@@ -3321,6 +3343,14 @@ export default defineComponent({
      *  source of a contextual selection flow (a decision screen's hand pick, a
      *  composer's target pick). Drives the L3 verb and its command hint. */
     contextualSourceCard(): CardName | undefined {
+      // A colony step OWED BY A CARD (played card / activation / prelude):
+      // the pick and its follow-up present inside that card's workspace, so
+      // L3 = the source — the console-wide inspection grammar (X inspects
+      // the current object, L3 the card that produced it). Standalone
+      // colonies (the player walked in) have no source and no L3.
+      if (this.colonyEmbedHostKind !== undefined) {
+        return this.colonyEmbedSourceCard;
+      }
       if (this.consoleState.section !== 'hand') {
         return undefined;
       }
@@ -3624,7 +3654,8 @@ export default defineComponent({
      */
     colonyFollowUpLive(): boolean {
       return this.colonyPromptRaw || this.colonyTradeState.active ||
-        this.tradeFleetState.active || workspaceOutcomeState.host === 'colonies';
+        this.tradeFleetState.active || isColonyBuildActive() ||
+        workspaceOutcomeState.host === 'colonies';
     },
     /**
      * Which workspace HOSTS the colonies right now — the latch, gated on the
@@ -3661,6 +3692,31 @@ export default defineComponent({
     },
     colonyEmbedActive(): boolean {
       return this.colonyEmbedTarget !== undefined;
+    },
+    /**
+     * The CARD whose effect owes this colony step — the L3 «Источник» target
+     * (§ inspection grammar: X = the current object, L3 = what produced it).
+     * Resolution follows the host: the hand stage carries the played card as
+     * its subject; an activation runs under the card-actions outcome claim;
+     * a prelude's step was noted by the start scene. '' → no verb, never a
+     * broken zoom — a standalone entry has no source by definition.
+     */
+    colonyEmbedSourceCard(): CardName | undefined {
+      switch (this.colonyEmbedHostKind) {
+      case 'hand': {
+        const subject = workspaceStageState.subject;
+        return subject === '' ? undefined : subject as CardName;
+      }
+      case 'card-actions': {
+        const claimed = workspaceOutcomeState.sourceCard;
+        return claimed === '' ? undefined : claimed as CardName;
+      }
+      case 'start': {
+        const noted = workspaceEmbedSource();
+        return noted === '' ? undefined : noted;
+      }
+      default: return undefined;
+      }
     },
     /** Claimed but the zone is not up yet — render NOWHERE (embed rule 4). */
     coloniesHeldForWorkspace(): boolean {
@@ -4347,7 +4403,9 @@ export default defineComponent({
       }
       if (this.colonyFocusOpen) {
         // The COLONY FOCUS STAGE mirrors its live state (consoleColoniesUi) —
-        // the bar is the ONLY hint surface (no inline duplicates).
+        // the bar is the ONLY hint surface (no inline duplicates). The verbs
+        // follow the INTENT: trade = rows + the one X confirm; build / pick =
+        // A IS the confirm (nothing else to choose); inspect = B only.
         if (consoleColoniesUi.composerSub === 'lanes') {
           return [
             {control: 'triggerR', label: 'Max'},
@@ -4361,8 +4419,21 @@ export default defineComponent({
             {control: 'back', label: 'Back'},
           ];
         }
-        // A non-tradeable colony's stage is a dossier: B is the only verb.
-        if (!this.colonyFocusTradeable) {
+        const intent = this.colonyFocus.intent;
+        if (intent === 'build') {
+          return [
+            {control: 'confirm', label: 'Build', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
+            {control: 'back', label: 'Back'},
+          ];
+        }
+        if (intent === 'pick') {
+          return [
+            {control: 'confirm', label: this.colonyPick?.buttonLabel ?? 'Select', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
+            {control: 'back', label: 'Back'},
+          ];
+        }
+        if (intent !== 'trade' || !this.colonyFocusTradeable) {
+          // The dossier composition: B is the only verb.
           return [{control: 'back', label: 'Back'}];
         }
         return [
@@ -4563,7 +4634,7 @@ export default defineComponent({
       }
       // MANDATORY hand SELECT — the pick verbs (no tag filter; the "suitable
       // only" toggle takes LT), submit on A (single) / RT (multi), B minimizes.
-      if (this.handSelectTaskActive && this.consoleState.section === 'hand') {
+      if (this.handSelectTaskActive && this.consoleState.section === 'hand' && !this.colonyEmbedActive) {
         const focusName = this.handEntries[this.consoleState.handIndex]?.card.name;
         const canPick = focusName !== undefined && this.handSelectSelectableNames.includes(focusName);
         const verb = this.handSelectModel?.buttonLabel || 'Select';
@@ -4585,7 +4656,12 @@ export default defineComponent({
         cmds.push({control: 'back', label: 'Minimize'});
         return cmds;
       }
-      if (this.consoleState.section === 'hand') {
+      // The HAND's own browse verbs — but never over an EMBEDDED colony step:
+      // the colonies are teleported INTO the hand's stage zone, so `section`
+      // is still 'hand' while the screen the player is looking at (and the
+      // pad they are driving) is the colony grid. The bar must name what the
+      // buttons DO — «A Разыграть» over a colony pick is a lie.
+      if (this.consoleState.section === 'hand' && !this.colonyEmbedActive) {
         const playable = this.handEntries[this.consoleState.handIndex]?.playable === true;
         const cmds: Array<ConsoleCommand> = [
           {control: 'confirm', label: 'Play now', enabled: playable},
@@ -4609,19 +4685,26 @@ export default defineComponent({
         // minimizes its host).
         const pick = this.colonyPick;
         if (pick !== undefined) {
-          const selected = this.coloniesForRail[this.consoleState.colonyIndex];
-          const pickable = selected !== undefined && pick.selectable.includes(selected.name);
+          // The overview SELECTS; the focus stage resolves — A's label says
+          // where it goes, never pretends the commit happens here.
           return [
-            {control: 'confirm', label: pick.buttonLabel, enabled: pickable},
+            {control: 'confirm', label: pick.buttonLabel === 'Build' ? 'To building' : pick.buttonLabel === 'trade' ? 'To trade' : 'Select'},
             {control: 'secondary', label: 'Inspect'},
+            // The pick is OWED BY A CARD → the console-wide source verb.
+            ...(this.colonyEmbedSourceCard !== undefined ?
+              [{control: 'stickL' as GlyphControl, label: 'Inspect the source'}] : []),
             {control: 'back', label: this.colonyCancellable ? 'Cancel' : 'Minimize'},
           ];
         }
         const selected = this.game.colonies[this.consoleState.colonyIndex];
         const tradeable = selected !== undefined && this.tradeableColonyNames.includes(selected.name);
         return [
-          {control: 'confirm', label: 'Trade', enabled: tradeable},
+          // A always ENTERS the focus stage; the label says what it enters
+          // INTO — the trade configuration, or (blocked) the plain dossier.
+          {control: 'confirm', label: tradeable ? 'To trade' : 'Select'},
           {control: 'secondary', label: 'Inspect'},
+          ...(this.colonyEmbedSourceCard !== undefined ?
+            [{control: 'stickL' as GlyphControl, label: 'Inspect the source'}] : []),
           {control: 'back', label: this.colonyEmbedActive ? 'Minimize' : 'To the board'},
         ];
       }
@@ -4944,7 +5027,9 @@ export default defineComponent({
         claimWorkspaceOutcome('colonies', colonyTradeState.colonyName, ['draw']);
         markWorkspaceOutcomeArrivalDone();
       }
-      if (this.consoleState.section !== 'colonies') {
+      // EMBEDDED colonies already stand inside their host — never swap the
+      // section under the hosting workspace (the continuation owns the screen).
+      if (!this.colonyEmbedActive && this.consoleState.section !== 'colonies') {
         this.consoleState.section = 'colonies';
       }
     },
@@ -4966,36 +5051,88 @@ export default defineComponent({
       if (!on || this.colonyEmbedLatch !== undefined) {
         return;
       }
-      if (this.startSceneMounted || this.playerView.game.phase === Phase.PRELUDES) {
-        // Embed rule 6 fallback: in PRELUDES a SelectColony can only be a
-        // prelude's effect, so the claim survives a reload (the module-level
-        // scene hold is wiped, the game phase is server truth).
-        this.colonyEmbedLatch = 'start';
-      } else if (workspaceStageOpen('hand') && !this.startSponsorEmbed) {
+      // THE CONTINUATION RULE: the host is the NEAREST live unfinished step,
+      // never the outermost root. DEPTH-FIRST on purpose — inside the start's
+      // play-from-hand prelude (Eccentric Sponsor) a played card's
+      // SelectColony belongs to the CARD-PLAY step (the hand's stage, itself
+      // teleported into the start), so the colonies land one level deeper in
+      // the same teleport chain: start ⊃ hand ⊃ colonies. Latching 'start'
+      // there used to OVERWRITE the sponsor's own embed claim
+      // (host 'start' × surface 'hand' → '…colonies'), which tore the hand
+      // out and showed the Start Game surface while the project's effect was
+      // still unresolved — the exact «returned to Start Game too early» bug.
+      if (workspaceStageOpen('hand')) {
         this.colonyEmbedLatch = 'hand';
-        // The stage's crumb advances: «КАРТЫ В РУКЕ › <карта> › КОЛОНИИ».
-        // Post-commit follow-up: input live, B = collapse (flow vocabulary).
+        // The stage's crumb advances: «… › <карта> › КОЛОНИИ» (the ROOT stays
+        // whoever draws the hand's shell — the hand itself, or the start
+        // hosting it). Post-commit follow-up: input live, B = collapse.
         markWorkspaceStageFollowUp('Colonies');
       } else if (this.consoleState.sheet === 'cardActions') {
         this.colonyEmbedLatch = 'card-actions';
+      } else if (this.startSceneMounted || this.playerView.game.phase === Phase.PRELUDES) {
+        // Embed rule 6 fallback: in PRELUDES a SelectColony with no deeper
+        // live step can only be a prelude's own effect, so the claim survives
+        // a reload (the module-level scene hold is wiped, the game phase is
+        // server truth).
+        this.colonyEmbedLatch = 'start';
       }
     },
     // The follow-up ended (rewards granted, Pluto resolved, track reset) —
     // the host workspace finishes its own deferred fold and the latch clears.
     colonyFollowUpLive(live: boolean, was: boolean) {
-      if (live || !was || this.colonyEmbedLatch === undefined) {
+      if (live || !was) {
+        return;
+      }
+      if (this.colonyEmbedLatch === undefined) {
+        // STANDALONE, but the PROMPT brought the player here (a corp
+        // first-action Build Colony after the start dissolved, a stranded
+        // heal): the decision and every visual consequence have settled —
+        // return the screen to the board. The player's own visits
+        // (`colonyOpenedByPrompt` false) stay exactly where they are.
+        if (this.colonyOpenedByPrompt) {
+          this.colonyOpenedByPrompt = false;
+          if (this.consoleState.section === 'colonies') {
+            closeColonyFocus();
+            this.consoleState.section = 'board';
+          }
+        }
         return;
       }
       const latch = this.colonyEmbedLatch;
       this.colonyEmbedLatch = undefined;
+      this.colonyOpenedByPrompt = false;
+      // The focus stage (if the follow-up resolved on it) folds with the
+      // step — the parent continuation gets a clean surface back.
+      closeColonyFocus();
       if (latch === 'hand' && workspaceStageOpen('hand')) {
         // The play-from-hand workspace held itself open to host the colony
         // follow-up — its deferred fold runs now (the played hero's 'closing'
-        // teardown was gated on us).
+        // teardown was gated on us). CONTINUATION, not a hardcoded root:
+        // closing the STAGE completes the card-play step; what the screen
+        // becomes next belongs to the NEXT unfinished ancestor. Standalone —
+        // the hand section closes to the board. Inside the start's sponsor
+        // step — the section/layers are NOT ours to close: the sponsor claim
+        // (`startSponsorEmbed`) resolves off the server's next prompt, folds
+        // the hand back into the start, and the deployment continues from
+        // exactly where it left off.
         closeWorkspaceStage();
-        closeConsoleLayers();
-        if (this.consoleState.section === 'hand') {
-          this.consoleState.section = 'board';
+        // The DEFERRED half of the sponsor release: the played card had landed
+        // long ago, but its colony was still owed, so `playedHeroState.active`
+        // deliberately skipped the release. Now the chain is genuinely done —
+        // clear the claim, then RE-ASSERT it from truth, so a brand-new
+        // play-from-hand step (a second prelude effect) is not left mirrorless
+        // (the mirror watcher only fires on a CHANGE of the computed).
+        if (workspaceEmbedCommitting() && !playedHeroState.active) {
+          setWorkspaceEmbed('start', undefined);
+          if (this.startSponsorEmbed) {
+            setWorkspaceEmbed('start', 'hand');
+          }
+        }
+        if (!this.startSponsorEmbed) {
+          closeConsoleLayers();
+          if (this.consoleState.section === 'hand') {
+            this.consoleState.section = 'board';
+          }
         }
         return;
       }
@@ -5179,7 +5316,13 @@ export default defineComponent({
       // the player was standing inside of is no longer on screen, so a claim
       // that outlived it would park a shelf behind nothing and keep the
       // composer teleporting into a detached zone.
-      if (section !== 'hand') {
+      // EXCEPT while the played card's own follow-up (a SelectColony) lives
+      // IN the stage's zone: the colonies are teleported into that slot, and
+      // closing the stage here tore the whole nested chain down mid-prompt
+      // (the sponsor flow resumed with the colony unplaced). The finalize
+      // (`colonyFollowUpLive` falling) closes the stage when the chain ends.
+      if (section !== 'hand' &&
+          !(this.colonyEmbedLatch === 'hand' && this.colonyFollowUpLive)) {
         closeWorkspaceStage();
       }
       // The hand-reveal presentation follows the section on EVERY path, not
@@ -5268,9 +5411,19 @@ export default defineComponent({
      * normal task and is served by the workspace it is already inside.
      */
     'playedHeroState.active'(active: boolean): void {
-      if (!active && workspaceEmbedCommitting()) {
-        setWorkspaceEmbed('start', undefined);
+      if (active || !workspaceEmbedCommitting()) {
+        return;
       }
+      // …UNLESS the project that just landed still OWES an effect that the
+      // step is hosting: a SelectColony raised by the played card lives in
+      // the hand's own stage zone, INSIDE this claim. Releasing here tore the
+      // whole nested chain down — the start's deployment came back while the
+      // colony was unplaced (the double-nesting bug). The follow-up's falling
+      // edge runs this release instead; landing is only HALF the signal.
+      if (this.colonyEmbedLatch === 'hand' && this.colonyFollowUpLive) {
+        return;
+      }
+      setWorkspaceEmbed('start', undefined);
     },
     // Mirror the live gate-held state into the module so the leak detector (a
     // timer that can't recompute the shell signals) treats a held prompt as
@@ -6295,6 +6448,12 @@ export default defineComponent({
       // T8: the COLONY FOCUS STAGE owns input while open (the section routes
       // the pad into the stage's own composer rows) — standalone AND embedded.
       if (this.colonyFocusOpen || (this.colonyEmbedActive && this.colonyFocus.open)) {
+        // L3 = the source card, on the stage exactly as on the overview (the
+        // viewer opens OVER it — selection and focus survive underneath).
+        if (intent.kind === 'press' && intent.button === 'stickL' && this.colonyEmbedSourceCard !== undefined) {
+          this.inspectColonyEmbedSource();
+          return true;
+        }
         const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
         section?.handleFocusIntent(intent);
         return true;
@@ -6310,6 +6469,10 @@ export default defineComponent({
           const count = this.coloniesForRail.length;
           const cols = colonyGridCols(colonyGridLayout(count, this.colonyPick !== undefined), count);
           this.consoleState.colonyIndex = colonyNavStep(intent.dir, this.consoleState.colonyIndex, count, cols);
+          return true;
+        }
+        if (intent.kind === 'press' && intent.button === 'stickL' && this.colonyEmbedSourceCard !== undefined) {
+          this.inspectColonyEmbedSource();
           return true;
         }
         if (action === 'primary') {
@@ -6786,6 +6949,7 @@ export default defineComponent({
       case 'trading':
         this.deferShellTask();
         this.consoleState.section = 'colonies';
+        this.colonyOpenedByPrompt = false; // the player's own visit — it stays
         this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.coloniesForRail.length);
         break;
       case 'hydro':
@@ -7263,6 +7427,7 @@ export default defineComponent({
         return;
       }
       if (this.consoleState.section === 'colonies' || this.consoleState.section === 'hydro') {
+        this.colonyOpenedByPrompt = false;
         this.consoleState.section = 'board';
         return;
       }
@@ -7946,7 +8111,7 @@ export default defineComponent({
      * arms the descend origin (the pressed tile's rect) and opens the flow;
      * the shell only gates re-entry during a live transaction.
      */
-    enterColonyFocus(intent: 'trade' | 'inspect'): void {
+    enterColonyFocus(intent: ColonyFocusIntent): void {
       if (this.coloniesForRail.length === 0 || this.colonyFocus.open) {
         return;
       }
@@ -7966,59 +8131,16 @@ export default defineComponent({
      * the full dossier, which beats a bare refusal notice).
      */
     confirmColonySelection(): void {
+      // THE OVERVIEW SELECTS; THE FOCUS STAGE RESOLVES (iteration 2). A on
+      // the grid never performs an irreversible action any more — every verb
+      // descends into the ONE detail surface, where the destination, the
+      // grant and the consequences are on screen before the confirm.
       const pick = this.colonyPick;
       if (pick !== undefined) {
-        // A colony-build hero is already playing — never re-submit.
         if (isColonyBuildActive()) {
-          return;
+          return; // a build hero is already flying — never re-enter
         }
-        const selected = this.coloniesForRail[this.consoleState.colonyIndex];
-        if (selected === undefined) {
-          return;
-        }
-        if (!pick.selectable.includes(selected.name)) {
-          const reason = pick.reasons[selected.name];
-          this.showNotice(reason !== undefined && reason !== '' ? reason : 'Unavailable right now');
-          return;
-        }
-        closeConsoleLayers();
-        this.consoleState.task.deferred = false;
-        // BUILD: arm the premium colony-build hero and STAY on the colonies
-        // surface — the cube drop + one-time bonus lift plays where it
-        // happens (standalone section or the embedded step alike). A board
-        // follow-up (an ocean/hazard build bonus) self-heals via the
-        // `placementActive` watcher. (Mirrors the trade-fleet arm-then-submit.)
-        if (pick.buttonLabel === 'Build') {
-          const slotIndex = Math.min(2, selected.colonies.length);
-          armColonyBuild(selected.name, slotIndex, this.thisPlayer.color);
-          this.submit(colonyResponse(selected.name));
-          return;
-        }
-        // A TRADE pick (the server verb is 'trade' — Coordinated Raid's
-        // free trade and the trade window's own SelectColony family): the
-        // full premium launch plays — the fleet lifts off toward the picked
-        // colony and the reward transaction claims the payout — exactly as
-        // a composed paid trade would. ('Select'-labelled picks — trade
-        // income sources, Titan FLP — keep the plain submit until a server
-        // marker distinguishes a full trade from an income-only grant.)
-        if (pick.buttonLabel === 'trade') {
-          armColonyTrade(selected.name as ColonyName, this.thisPlayer.color, {});
-          armTradeFleet(selected.name as ColonyName, this.thisPlayer.color);
-          claimWorkspaceOutcome('colonies', selected.name, ['draw']);
-          markWorkspaceOutcomeArrivalDone();
-          this.submit(colonyResponse(selected.name));
-          return;
-        }
-        this.submit(colonyResponse(selected.name));
-        // The other SelectColony picks (Aridor's extra tile, setup remove …)
-        // are ONE-SHOT: leave the colonies screen so the player isn't
-        // stranded wondering whether another colony choice is expected — the
-        // server's next prompt (or the turn) drives what surfaces next.
-        // (An EMBEDDED step never swaps the section — its host owns the
-        // screen, and the latch folds it once the follow-up settles.)
-        if (!this.colonyEmbedActive) {
-          this.consoleState.section = 'board';
-        }
+        this.enterColonyFocus(pick.buttonLabel === 'Build' ? 'build' : 'pick');
         return;
       }
       if (this.placementActive) {
@@ -8026,6 +8148,71 @@ export default defineComponent({
         return;
       }
       this.enterColonyFocus('trade');
+    },
+    /**
+     * The FOCUS STAGE's build confirm (A on the build brief): arm the
+     * premium colony-build hero and submit — the cube physically flies into
+     * the stage's own destination slot (the big berth is the live anchor
+     * while the stage is up). The stage STAYS: the build resolves where it
+     * was configured. A board follow-up (an ocean/hazard build bonus)
+     * self-heals via the `placementActive` watcher.
+     */
+    onColonyBuildConfirm(): void {
+      const pick = this.colonyPick;
+      const name = this.colonyFocus.colonyName;
+      if (pick === undefined || name === '' || isColonyBuildActive()) {
+        return;
+      }
+      const selected = this.coloniesForRail.find((c) => c.name === name);
+      if (selected === undefined || !pick.selectable.includes(selected.name)) {
+        return;
+      }
+      closeConsoleLayers();
+      this.consoleState.task.deferred = false;
+      // The guards accepted: freeze the stage's presentation for the whole
+      // resolution (the answer flips its props under the flying cube).
+      (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+      const slotIndex = Math.min(2, selected.colonies.length);
+      armColonyBuild(selected.name, slotIndex, this.thisPlayer.color);
+      this.submit(colonyResponse(selected.name));
+    },
+    /**
+     * The FOCUS STAGE's generic pick confirm (setup remove / Aridor add-tile
+     * / a card's free-trade SelectColony). A trade-labelled pick gets the
+     * full premium launch (fleet + reward transaction + Pluto claim) and
+     * resolves ON the stage; the one-shot picks fold back to the overview —
+     * the server's next prompt (or the latch's finalize) drives what
+     * surfaces next.
+     */
+    onColonyPickConfirm(): void {
+      const pick = this.colonyPick;
+      const name = this.colonyFocus.colonyName;
+      if (pick === undefined || name === '') {
+        return;
+      }
+      const selected = this.coloniesForRail.find((c) => c.name === name);
+      if (selected === undefined || !pick.selectable.includes(selected.name)) {
+        return;
+      }
+      closeConsoleLayers();
+      this.consoleState.task.deferred = false;
+      if (pick.buttonLabel === 'trade') {
+        if (isTradeFleetActive() || colonyTradeState.active) {
+          return;
+        }
+        (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
+        armColonyTrade(selected.name as ColonyName, this.thisPlayer.color, {});
+        armTradeFleet(selected.name as ColonyName, this.thisPlayer.color);
+        claimWorkspaceOutcome('colonies', selected.name, ['draw']);
+        markWorkspaceOutcomeArrivalDone();
+        this.submit(colonyResponse(selected.name));
+        return;
+      }
+      this.submit(colonyResponse(selected.name));
+      closeColonyFocus();
+      if (!this.colonyEmbedActive) {
+        this.consoleState.section = 'board';
+      }
     },
     /** X on a JOURNAL colony row — open the READ-ONLY dossier over the journal. */
     openJournalColonyInspect(name: ColonyName): void {
@@ -8097,23 +8284,17 @@ export default defineComponent({
       if (bonusPicks.length > 0) {
         targets.bonusTargetCards = bonusPicks;
       }
-      // PREMIUM LAUNCH — «подтвердил → вернулся на поверхность → флот
-      // полетел», one continuous sentence:
-      //  1. the FOCUS STAGE folds back into the traded tile (the confirm
-      //     variant of the descend fold — armed by the section);
-      //  2. the trade-fleet flight ARMS (client-side) — the ship lifts off
-      //     the player's own fleet pad toward that very tile, independent of
-      //     the server; the WaitingFor `holdingForTradeFleet` gate blocks the
-      //     view commit (delta chips / next prompt / docked board state)
-      //     until the ship DOCKS;
-      //  3. the submit rides out. Desktop is unaffected (never arms).
-      //
-      // The trade-REWARD transaction arms WITH the flight: the same submit's
-      // response carries the atomic reward manifest (WaitingFor claims it,
-      // freezes the traded track, seeds the reward holds), and after the dock
-      // the reward waves → merged reveal → track reset play as ONE story —
-      // all on the browse surface the fold just revealed.
-      closeColonyFocus();
+      // PREMIUM LAUNCH — ITERATION 2: the trade RESOLVES ON THE FOCUS STAGE.
+      // The stage does NOT fold at the confirm: the fleet lifts off the
+      // always-visible fleet dock and docks at the HERO PLANET's orbital
+      // berth, the reward waves launch from the stage's own result groups,
+      // the Pluto payout reveals over the stage, and the white marker glides
+      // home along the EXPANDED track — the action completes exactly where
+      // it was configured. The WaitingFor `holdingForTradeFleet` gate blocks
+      // the view commit until the ship docks; the section auto-folds back to
+      // the overview only when the WHOLE transaction has settled (its
+      // `colonyTradeState.active` falling edge). Desktop is unaffected.
+      (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
       armColonyTrade(colonyName, this.thisPlayer.color, targets);
       armTradeFleet(colonyName, this.thisPlayer.color);
       // EMBEDDED OUTCOMES (north star): the player confirmed the trade INSIDE
@@ -8321,6 +8502,10 @@ export default defineComponent({
       }
       if (task.kind === 'colony') {
         this.consoleState.section = 'colonies';
+        // The PROMPT brought the player here — after the follow-up settles
+        // the section returns to the board on its own (never strands the
+        // player in a workspace they did not open).
+        this.colonyOpenedByPrompt = true;
         // Land on the first PICKABLE tile so A is meaningful immediately.
         const pick = this.colonyPick;
         const rail = this.coloniesForRail;
@@ -9432,6 +9617,16 @@ export default defineComponent({
       }
       openConsoleCardZoom([{name}], 0);
     },
+    /** L3 inside the colony step (overview AND focus stage): the card whose
+     *  effect owes the colony — fullscreen over the stage, which stays
+     *  mounted with its picks and focus intact underneath. */
+    inspectColonyEmbedSource(): void {
+      const name = this.colonyEmbedSourceCard;
+      if (name === undefined) {
+        return;
+      }
+      openConsoleCardZoom([{name}], 0, undefined, undefined, {statusLabel: 'Source'});
+    },
     /**
      * X mid-placement — the card that is placing this tile, fullscreen. The
      * viewer names its role, and the board is never unmounted: the cursor,
@@ -9565,6 +9760,23 @@ export default defineComponent({
     },
   },
   mounted() {
+    // READ-ONLY e2e/diagnostics probe: the nested-continuation state in one
+    // snapshot (the e2e specs dump it on a failure instead of guessing from
+    // pixels). Never used by product code.
+    (window as unknown as Record<string, unknown>).__conColonyDiag = () => ({
+      latch: this.colonyEmbedLatch ?? null,
+      hostKind: this.colonyEmbedHostKind ?? null,
+      embedTarget: this.colonyEmbedTarget ?? null,
+      promptRaw: this.colonyPromptRaw,
+      followUp: this.colonyFollowUpLive,
+      openedByPrompt: this.colonyOpenedByPrompt,
+      section: this.consoleState.section,
+      sponsorEmbed: this.startSponsorEmbed,
+      taskDeferred: this.consoleState.task.deferred,
+      stage: {...workspaceStageState},
+      embed: {...workspaceEmbedState},
+      wfType: this.playerView.waitingFor?.type ?? null,
+    });
     // Phase D of the discard cinematic reuses the ORDINARY hand-close episode;
     // the transaction awaits this instead of the shell watching a phase.
     registerDiscardOverlayHandoff((discarded) => this.handOffHandForDiscard(discarded));

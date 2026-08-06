@@ -372,13 +372,24 @@ function escapeName(name: string): string {
     CSS.escape(name) : name.replace(/"/g, '\\"');
 }
 
+/**
+ * The build slot ELEMENT — the FOCUS STAGE's big berth leads when the stage
+ * is up (the build resolves on the stage — iteration 2: the cube physically
+ * lands in the destination the player just confirmed at); the overview
+ * tile's compact slot is the fallback.
+ */
+function buildSlotEl(colonyName: string, slotIndex: number): HTMLElement | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  const key = escapeName(colonyName + '#' + slotIndex);
+  return document.querySelector<HTMLElement>(`.con-colfocus [data-colony-build-slot="${key}"]`) ??
+    document.querySelector<HTMLElement>(`[data-colony-build-slot="${key}"]`);
+}
+
 /** The live rect of the build slot (post fit/zoom). */
 function measureBuildSlot(colonyName: string, slotIndex: number): BuildRect | undefined {
-  if (typeof document === 'undefined') {
-    return undefined;
-  }
-  const el = document.querySelector<HTMLElement>(
-    `[data-colony-build-slot="${escapeName(colonyName + '#' + slotIndex)}"]`);
+  const el = buildSlotEl(colonyName, slotIndex);
   if (el === null) {
     return undefined;
   }
@@ -389,11 +400,8 @@ function measureBuildSlot(colonyName: string, slotIndex: number): BuildRect | un
 /** Blank the REAL benefit glyph as the bonus leaves (the `con-deal-hold` swap
  *  discipline) — the slot is empty before the cube descends into it. */
 function blankSlotGlyph(): void {
-  if (typeof document === 'undefined') {
-    return;
-  }
-  const slotSel = `[data-colony-build-slot="${escapeName(colonyBuildState.colonyName + '#' + colonyBuildState.slotIndex)}"]`;
-  const el = document.querySelector<HTMLElement>(`${slotSel} .benefit-glyph`);
+  const slot = buildSlotEl(colonyBuildState.colonyName, colonyBuildState.slotIndex);
+  const el = slot?.querySelector<HTMLElement>('.benefit-glyph') ?? null;
   if (el !== null) {
     heldGlyphEl = el;
     el.classList.add('con-deal-hold');

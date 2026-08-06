@@ -60,8 +60,6 @@ const BROWSE_OUT_MS = 170;
 const BROWSE_IN_MS = 180;
 const UNFOLD_MS = 270;
 const FOLD_MS = 200;
-/** The confirm fold is brisker — the fleet launch is already the next beat. */
-const CONFIRM_FOLD_MS = 160;
 const CASCADE_MS = 170;
 const CASCADE_OUT_MS = 90;
 const PLANET_FLIP_MS = 300;
@@ -72,33 +70,35 @@ const UNFOLD_AT_MS = 60;
 
 const TILE_KEY = 'colony-tile';
 const PLANET_KEY = 'colony-planet';
+const TRACK_KEY = 'colony-track';
+const SLOTS_KEY = 'colony-slots';
 export const COLONY_PRESS_KEY = 'colony-browse';
 
+type Rect = {left: number, top: number, width: number, height: number};
+
 /** Called by the section right before mounting the focus stage: remember the
- *  pressed tile's rect + its planet medallion's rect (the FLIP source). */
+ *  pressed tile's rect + the THREE carried identities' rects — the planet
+ *  medallion, the compact track strip and the build-slot row. Each FLIPs
+ *  into its expanded counterpart: the colony physically continues, it is
+ *  never replaced by a new detail page. */
 export function armColonyFocusOrigin(
-  tile: {left: number, top: number, width: number, height: number} | undefined,
-  planet: {left: number, top: number, width: number, height: number} | undefined,
+  tile: Rect | undefined,
+  planet: Rect | undefined,
+  track?: Rect | undefined,
+  slots?: Rect | undefined,
 ): void {
   armDescendRect(TILE_KEY, tile);
   armDescendRect(PLANET_KEY, planet);
+  armDescendRect(TRACK_KEY, track);
+  armDescendRect(SLOTS_KEY, slots);
 }
 
 /** The rect (and roundness) the stage unfolded FROM — kept for the fold. */
 let unfoldedFrom: {rect: {left: number, top: number, width: number, height: number}, radius: number | undefined} | undefined;
 
-/** One-shot: the NEXT leave is a CONFIRM fold (brisk, no planet fly-home race
- *  with the fleet launch), not a cancel. Armed by the confirm handler. */
-let confirmLeave = false;
-
-export function markColonyFocusConfirmLeave(): void {
-  confirmLeave = true;
-}
-
 /** Game-switch / unmount boundary. */
 export function resetColonyFocusMotion(): void {
   unfoldedFrom = undefined;
-  confirmLeave = false;
 }
 
 // ── element resolution ──────────────────────────────────────────────────────
@@ -135,6 +135,14 @@ function surfaceOf(el: Element): HTMLElement | null {
 
 function heroPlanetOf(el: Element): HTMLElement | null {
   return el.querySelector<HTMLElement>('[data-colony-focus-planet]');
+}
+
+function heroTrackOf(el: Element): HTMLElement | null {
+  return el.querySelector<HTMLElement>('[data-colony-focus-track]');
+}
+
+function heroSlotsOf(el: Element): HTMLElement | null {
+  return el.querySelector<HTMLElement>('[data-colony-focus-slots]');
 }
 
 function cascadeItemsOf(el: Element): Array<HTMLElement> {
@@ -183,6 +191,8 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
 
   const pressPoint = takeDescendOrigin(COLONY_PRESS_KEY);
   const planetRect = takeDescendRect(PLANET_KEY);
+  const trackRect = takeDescendRect(TRACK_KEY);
+  const slotsRect = takeDescendRect(SLOTS_KEY);
   guardedDescend(el, UNFOLD_AT_MS + PLANET_FLIP_MS + 140, done, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
     // 1. RELEASE — the pressed tile's own content dissolves where it stands.
@@ -196,8 +206,8 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
     if (browse !== null) {
       descendRecede(tl, browse, pressPoint, s(BROWSE_OUT_MS), s(40));
     }
-    // 3. UNFOLD — the stage surface opens FROM the tile's rect; the planet
-    //    FLIP shares the window so the two read as ONE phrase.
+    // 3. UNFOLD — the stage surface opens FROM the tile's rect; the carried
+    //    identities share the window so it all reads as ONE phrase.
     const unfolded = surface !== null &&
       descendUnfold(tl, surface, tileRect, s(UNFOLD_MS), s(UNFOLD_AT_MS), tileRadius);
     if (surface !== null && !unfolded) {
@@ -205,19 +215,30 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
         {autoAlpha: 0},
         {autoAlpha: 1, duration: s(CASCADE_MS), ease: 'expo.out', clearProps: 'opacity,visibility'}, s(UNFOLD_AT_MS));
     }
-    if (heroPlanet !== null) {
-      const from = planetRect !== undefined ? descendFlipFrom(heroPlanet, planetRect) : undefined;
-      if (from !== undefined) {
-        tl.fromTo(heroPlanet,
-          {x: from.x, y: from.y, scale: from.scale, transformOrigin: 'top left'},
-          {x: 0, y: 0, scale: 1, duration: s(PLANET_FLIP_MS), ease: 'power3.inOut', clearProps: 'transform', overwrite: 'auto'}, 0);
-      } else {
-        tl.fromTo(heroPlanet,
-          {autoAlpha: 0, scale: 0.9, transformOrigin: '50% 50%'},
-          {autoAlpha: 1, scale: 1, duration: s(CASCADE_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility', overwrite: 'auto'}, 0);
+    // 4. CARRY — the colony's three physical identities FLIP from their
+    //    compact overview forms into the expanded ones: the planet medallion
+    //    → the hero planet, the 7-cell strip → the expanded track, the build
+    //    row → the big slots (the player tokens ride inside them). Each is
+    //    the SAME object growing, never a new frame over an old one.
+    const carry = (target: HTMLElement | null, fromRect: Rect | undefined, atS: number) => {
+      if (target === null) {
+        return;
       }
-    }
-    // 4. REVEAL — the stage's columns surface from INSIDE the opening panel.
+      const from = fromRect !== undefined ? descendFlipFrom(target, fromRect) : undefined;
+      if (from !== undefined) {
+        tl.fromTo(target,
+          {x: from.x, y: from.y, scale: from.scale, transformOrigin: 'top left'},
+          {x: 0, y: 0, scale: 1, duration: s(PLANET_FLIP_MS), ease: 'power3.inOut', clearProps: 'transform', overwrite: 'auto'}, atS);
+      } else {
+        tl.fromTo(target,
+          {autoAlpha: 0, scale: 0.94, transformOrigin: '50% 50%'},
+          {autoAlpha: 1, scale: 1, duration: s(CASCADE_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility', overwrite: 'auto'}, atS);
+      }
+    };
+    carry(heroPlanet, planetRect, 0);
+    carry(heroTrackOf(el), trackRect, s(30));
+    carry(heroSlotsOf(el), slotsRect, s(50));
+    // 5. REVEAL — the stage's remaining groups surface from INSIDE the panel.
     descendCascade(tl, items, s(CASCADE_MS), s(UNFOLD_AT_MS + 90));
     return tl;
   });
@@ -226,8 +247,6 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
 // ── the leave hook (focus → browse: cancel OR the confirm fold) ─────────────
 
 export function colonyFocusLeaveHook(el: Element, done: () => void): void {
-  const isConfirm = confirmLeave;
-  confirmLeave = false;
   if (typeof window === 'undefined' || hiddenHost(el)) {
     killDescendEpisode(el);
     unfoldedFrom = undefined;
@@ -259,7 +278,7 @@ export function colonyFocusLeaveHook(el: Element, done: () => void): void {
   }
 
   const heroRect = heroPlanet?.getBoundingClientRect();
-  const foldMs = isConfirm ? CONFIRM_FOLD_MS : FOLD_MS;
+  const foldMs = FOLD_MS;
   guardedDescend(el, Math.max(PLANET_FLIP_BACK_MS, foldMs) + 160, done, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
     // 1. The controls let go in place.

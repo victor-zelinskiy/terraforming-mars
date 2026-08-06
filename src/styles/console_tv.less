@@ -690,7 +690,8 @@ html.con-profile-tv {
         &__rail-muted { font-size: var(--con-t-caption); }
         &__rail-warn { font-size: var(--con-t-caption); }
         &__rail-note { font-size: var(--con-t-body); }
-        &__rail-status { font-size: var(--con-t-secondary); padding: 0.35rem 0.9rem; }
+        &__rail-name { font-size: var(--con-t-body); }
+        &__rail-reason { font-size: var(--con-t-secondary); }
     }
     .con-colinspect {
         &__frame { width: min(62rem, 94vw); }
@@ -698,20 +699,31 @@ html.con-profile-tv {
         &__row { font-size: var(--con-t-secondary); }
         &__fleet-line .colony-fleet-icon { width: 1.9rem; height: 1.9rem; }
     }
-    /* The COLONY FOCUS STAGE — couch typography (the geometry is rem and
-       scales with the profile; only the type + hit targets move). */
+    /* The COLONY FOCUS STAGE (iteration 2) — couch typography; the geometry
+       is rem and scales with the profile, only the type + hit targets move. */
     .con-colfocus {
-        &__hero { flex-basis: 30rem; }
-        &__planet { width: 8rem; height: 8rem; }
-        &__desc { font-size: var(--con-t-caption); }
+        &__identity { flex-basis: 21rem; }
+        &__planet { width: 10rem; height: 10rem; }
+        &__desc { font-size: var(--con-t-caption); -webkit-line-clamp: 5; }
         &__sec-title { font-size: var(--con-t-floor); }
-        &__track-row { height: 1.75rem; }
-        &__track-num { font-size: var(--con-t-floor); }
-        &__track-qty { font-size: var(--con-t-secondary); }
-        &__track-tag { font-size: var(--con-t-floor); }
-        &__note { font-size: var(--con-t-floor); }
+        &__xcell-num { font-size: var(--con-t-floor); }
+        /* NOT bigger than the base: the strip's fit is a RATIO (seven cells
+           in the host's width), and every part already scales with
+           `--con-ui-scale`. Growing the number here re-broke the embedded
+           step at 4K, where the zone is proportionally just as narrow. */
+        &__xcell-qty { font-size: .95rem; }
+        &__xcell-tag { height: 1.1rem; font-size: var(--con-t-floor); }
+        &__xcell-tag { .con-colfocus__xcell--marker & { font-size: 1rem; line-height: 1.1rem; } }
+        &__tracknote { font-size: var(--con-t-floor); }
         &__fleetline { font-size: var(--con-t-caption); }
         &__verdict { font-size: var(--con-t-secondary); }
+        &__result { flex-basis: 20rem; }
+        &__rsec-label { font-size: var(--con-t-floor); }
+        &__rrow { font-size: var(--con-t-secondary); }
+        &__rowners { font-size: var(--con-t-caption); }
+        &__notice { font-size: var(--con-t-floor); }
+        &__slotszone { flex-basis: 21rem; }
+        &__bigslot { min-height: 5.4rem; }
         &__payrow { min-height: var(--con-hit-min); }
         &__payrow-title { font-size: var(--con-t-secondary); }
         &__payrow-delta { font-size: var(--con-t-caption); }
@@ -719,10 +731,9 @@ html.con-profile-tv {
         &__steprow { min-height: var(--con-hit-min); }
         &__steprow-label { font-size: var(--con-t-caption); }
         &__steprow-value { font-size: var(--con-t-secondary); }
-        &__outrow { font-size: var(--con-t-secondary); }
-        &__notice { font-size: var(--con-t-caption); }
-        &__notice--lost { font-size: var(--con-t-secondary); }
-        &__bonus { font-size: var(--con-t-caption); }
+        &__brief-line { font-size: var(--con-t-body); }
+        &__brief-note { font-size: var(--con-t-floor); }
+        &__muted { font-size: var(--con-t-caption); }
     }
 
     /* ═══ 15 · JOURNAL (line length capped — never full-4K rows) ══

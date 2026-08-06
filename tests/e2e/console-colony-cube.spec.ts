@@ -179,14 +179,16 @@ async function buildAndVerify(page: Page, tag: string): Promise<string> {
   // build bonus KEEPS the colonies screen mounted: Europa's ocean bonus flips
   // to a board placement and Pluto's draw rides the reveal flow — either
   // unmounts the slot the assertions watch. Any other colony works.
-  const summaryStatus = page.locator('.con-colonies__rail-status');
+  // OK = the rail carries NO blocked-reason line (the iteration-2 rail swaps
+  // the consequence for the one honest reason when the pick is refused).
+  const railReason = page.locator('.con-colonies__rail-reason--blocked');
   const focusedTile = page.locator('.con-coltile--focused');
   const blocked = /Europa|Pluto/i;
   let testAttr = '';
   for (let i = 0; i < 10; i++) {
-    const cls = (await summaryStatus.getAttribute('class', {timeout: 1500}).catch(() => '')) ?? '';
+    const refused = await railReason.count() > 0;
     const focused = (await focusedTile.getAttribute('data-test', {timeout: 1500}).catch(() => '')) ?? '';
-    if (cls.includes('rail-status--ok') && focused !== '' && !blocked.test(focused)) {
+    if (!refused && focused !== '' && !blocked.test(focused)) {
       testAttr = focused;
       break;
     }
@@ -199,7 +201,14 @@ async function buildAndVerify(page: Page, tag: string): Promise<string> {
   const slotCubes = page.locator(`[data-test="${testAttr}"] [data-colony-build-slot] .player-cube`);
   const before = await slotCubes.count();
 
-  // A → arm + submit; the hero flies the REAL PlayerCube into the slot.
+  // ITERATION 2 — the overview never commits: A descends into the BUILD
+  // FOCUS STAGE (destination slot ringed, the grant on screen)…
+  await key(page, 'Enter', 1400);
+  await page.waitForSelector('.con-colfocus', {timeout: 10_000});
+  expect(await page.locator('.con-colfocus__bigslot--dest').count(), 'the destination berth is ringed').toBe(1);
+  await shoot(page, `${tag}-11b-build-focus`);
+  // …and A CONFIRMS there: arm + submit; the hero flies the REAL PlayerCube
+  // into the stage's own big berth (the live anchor while the stage is up).
   await page.keyboard.press('Enter');
 
   // The proxy stage must appear (the transaction is live)…
@@ -210,11 +219,26 @@ async function buildAndVerify(page: Page, tag: string): Promise<string> {
   await page.waitForTimeout(420);
   await shoot(page, `${tag}-13-hero-landing`);
 
-  // The stage clears at the handoff; the slot now holds EXACTLY one more cube.
+  // The stage clears at the handoff…
   await page.waitForSelector('.con-colonybuild__cube', {state: 'detached', timeout: 20_000});
-  await page.waitForTimeout(900);
+  // …and the PROMPT-driven visit hands the screen back to the BOARD on the
+  // transaction's own falling edge (iteration 2 — RETURN TO PARENT: the
+  // player never strands in a workspace they did not open).
+  await page.waitForSelector('.con-colonies', {state: 'detached', timeout: 10_000});
+  await shoot(page, `${tag}-14-returned`);
+
+  // Re-open the colonies (the RT quick wheel's «Торговля» slot — the same
+  // route a player takes): the seated cube renders STATICALLY at once — one
+  // more cube than before, and NO hero replay.
+  for (let i = 0; i < 4 && await page.locator('.con-colonies').count() === 0; i++) {
+    await key(page, 'Period', 1100); // RT — action categories wheel
+    await key(page, 'ArrowRight', 1300); // trading
+  }
+  await page.waitForSelector('.con-colonies', {timeout: 10_000});
+  await page.waitForTimeout(600);
   expect(await slotCubes.count(), 'the seated static cube did not paint').toBe(before + 1);
-  await shoot(page, `${tag}-14-seated`);
+  expect(await page.locator('.con-colonybuild__cube').count(), 'the hero replayed on reopen').toBe(0);
+  await shoot(page, `${tag}-15-seated`);
   return testAttr;
 }
 
@@ -227,15 +251,8 @@ test.describe('console colonies · premium PlayerCube marker', () => {
       await bootToBoard(page, request, 'red');
       await startBuildColony(page, 'red1080');
       const testAttr = await buildAndVerify(page, 'red1080');
-
-      // ── Re-open the screen: the seated cube renders at once, NO replay. ──
-      await key(page, 'KeyQ', 1200); // back to the board section
-      await key(page, 'KeyE', 1500); // forward to colonies again
-      await page.waitForSelector('.con-colonies', {timeout: 10_000});
-      const seated = page.locator(`[data-test="${testAttr}"] [data-colony-build-slot] .player-cube`);
-      expect(await seated.count(), 'seated cube missing after reopen').toBe(1);
-      expect(await page.locator('.con-colonybuild__cube').count(), 'the hero replayed on reopen').toBe(0);
-      await shoot(page, 'red1080-15-reopened');
+      // buildAndVerify already proved the RETURN TO PARENT + the static
+      // reopen — the section now stands open on the seated cube.
 
       // ── Inspect (X): the FOCUS STAGE's build slots seat the same PlayerCube
       // (the workspace descend — the standalone dossier modal is gone). ──
@@ -249,7 +266,7 @@ test.describe('console colonies · premium PlayerCube marker', () => {
       await key(page, 'KeyX', 1400);
       const stage = page.locator('.con-colfocus');
       if (await stage.count() > 0) {
-        expect(await stage.locator('.con-colfocus__slot .player-cube').count()).toBeGreaterThan(0);
+        expect(await stage.locator('.con-colfocus__bigslot .player-cube').count()).toBeGreaterThan(0);
         await shoot(page, 'red1080-16-inspect');
         await key(page, 'Escape', 800);
       }

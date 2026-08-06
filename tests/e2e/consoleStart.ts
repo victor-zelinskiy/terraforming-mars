@@ -59,7 +59,8 @@ export async function focusedName(page: Page): Promise<string> {
 export async function focusedCard(page: Page): Promise<string> {
   return page.evaluate(() => {
     const el = document.querySelector(
-      '.con-cards__slot--focused[data-zoom-slot], .con-start__qcard--focused[data-queue-slot]');
+      '.con-cards__slot--focused[data-zoom-slot], .con-start__qcard--focused[data-queue-slot], ' +
+      '.con-hand__slot--selected[data-zoom-slot]');
     return el?.getAttribute('data-zoom-slot') ?? el?.getAttribute('data-queue-slot') ?? '';
   });
 }
@@ -548,17 +549,39 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
     } else if (await placement.count() > 0) {
       await placeTile(page);
     } else if (await colonies.count() > 0) {
-      // Answer the SelectColony with A on the focused tile — steering OFF a
-      // colony the spec needs alive (`keepColony`) first. The pick either
-      // submits (the section closes / advances) or the press is swallowed by
-      // an unpickable tile — act → verify → retry, as everywhere.
-      if (opts.keepColony !== undefined) {
-        const keepFocused = page.locator(`.con-coltile--focused[data-test="con-colony-${opts.keepColony}"]`);
-        for (let j = 0; j < 6 && await keepFocused.count() > 0; j++) {
-          await press(page, 'ArrowRight', 500);
+      // ITERATION 2 — the overview never commits: A DESCENDS into the FOCUS
+      // STAGE and the stage's own A resolves a pick/build. Read the
+      // STRUCTURAL markers (`data-colony-intent` on the stage,
+      // `data-colony-mode` on the section) — never a footer label.
+      const stage = page.locator('.con-colfocus');
+      if (await stage.count() > 0) {
+        if (await page.locator('.con-colfocus--resolving').count() > 0) {
+          await page.waitForTimeout(900); // a transaction is landing — let it
+        } else {
+          const intent = await stage.getAttribute('data-colony-intent').catch(() => null);
+          if (intent === 'pick' || intent === 'build') {
+            await press(page, 'Enter', 1800); // confirm ON the stage
+          } else {
+            // An idle trade/inspect descent is NOT the way home — fold back.
+            await press(page, 'Escape', 1200);
+          }
         }
+      } else if ((await colonies.first().getAttribute('data-colony-mode').catch(() => null)) === 'pick') {
+        // A live SelectColony: steer OFF a colony the spec needs alive
+        // (`keepColony`), then A descends into the pick stage; the next
+        // round confirms there. Act → verify → retry, as everywhere.
+        if (opts.keepColony !== undefined) {
+          const keepFocused = page.locator(`.con-coltile--focused[data-test="con-colony-${opts.keepColony}"]`);
+          for (let j = 0; j < 6 && await keepFocused.count() > 0; j++) {
+            await press(page, 'ArrowRight', 500);
+          }
+        }
+        await press(page, 'Enter', 1800);
+      } else {
+        // No live pick — the standing section itself blocks the home
+        // verdict (a follow-up that has already settled): close it.
+        await press(page, 'Escape', 1200);
       }
-      await press(page, 'Enter', 1800);
     } else {
       await page.waitForTimeout(700);
     }

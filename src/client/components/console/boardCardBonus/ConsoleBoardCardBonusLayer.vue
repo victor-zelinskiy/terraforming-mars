@@ -251,8 +251,16 @@ export default defineComponent({
       } else if (source.kind === 'colony-cell') {
         // The build slot's card ICON (`.benefit-glyph__card` = the SAME
         // card.webp art as the cover, card aspect 24×32) — NOT the square
-        // `.benefit-glyph` container, which would squash the cover.
-        sel = `[data-colony-build-slot="${cssEscape(source.colonyName + '#' + source.slotIndex)}"] .benefit-glyph__card`;
+        // `.benefit-glyph` container, which would squash the cover. The
+        // FOCUS STAGE's big slot leads while the stage is up (the build
+        // resolves there — iteration 2); the overview slot is the fallback.
+        const key = cssEscape(source.colonyName + '#' + source.slotIndex);
+        const staged = Array.from(document.querySelectorAll<HTMLElement>(
+          `.con-colfocus [data-colony-build-slot="${key}"] .benefit-glyph__card`));
+        if (staged.length > 0) {
+          return staged;
+        }
+        sel = `[data-colony-build-slot="${key}"] .benefit-glyph__card`;
       } else {
         sel = VENUS_MARKER_SEL;
       }

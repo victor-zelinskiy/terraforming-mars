@@ -218,8 +218,15 @@ export function startDeferredSummary(awaiting: boolean): {kickerKey: string, ask
 }
 
 export function startAwaitingOthers(view: PlayerViewModel): boolean {
+  // AWAITING means «my choices are in and the server asks NOTHING of me».
+  // Any live prompt — a setup SelectColony, a prelude's follow-up — is the
+  // opposite of waiting: the player IS the acting one, the hosting workspace
+  // is the interaction owner, and painting «ожидаем других игроков» over an
+  // active mandatory choice was a false blocked state (the embedded-colonies
+  // field report). The one prompt that does NOT break the wait is the wizard
+  // itself — that case is already excluded by the initialCards check.
   return consoleStartState.hold && !consoleStartState.deploymentBegun &&
-    initialCardsInputOf(view.waitingFor) === undefined;
+    view.waitingFor === undefined;
 }
 
 function rawTitle(t: string | Message | undefined): string {

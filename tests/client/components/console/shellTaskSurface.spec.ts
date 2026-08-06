@@ -17,6 +17,7 @@ describe('shellTaskOnSurface — where a shell-section task is answered', () => 
     sheet: undefined,
     corpFirstActionOpen: false,
     handEmbedded: false,
+    coloniesEmbedded: false,
     ...over,
   });
 
@@ -63,6 +64,20 @@ describe('shellTaskOnSurface — where a shell-section task is answered', () => 
   it('a colony pick is answered on the colonies rail', () => {
     expect(shellTaskOnSurface({kind: 'colony'}, at({section: 'colonies'}))).to.eq(true);
     expect(shellTaskOnSurface({kind: 'colony'}, at({section: 'hand'}))).to.eq(false);
+  });
+
+  /**
+   * …and an EMBEDDED colony step is that same place: the section is teleported
+   * INTO the workspace the player is standing in (a played card's / a
+   * prelude's SelectColony), whatever `section` says. Without this row the
+   * banner painted «ВЫБЕРИТЕ КОЛОНИЮ» straight across the host's breadcrumb
+   * tail — a second title over the very screen the prompt IS.
+   */
+  it('an EMBEDDED colony step is the same place — no banner over its host', () => {
+    expect(shellTaskOnSurface({kind: 'colony'}, at({section: 'hand', coloniesEmbedded: true}))).to.eq(true);
+    expect(shellTaskOnSurface({kind: 'colony'}, at({section: 'board', coloniesEmbedded: true}))).to.eq(true);
+    // The flag is the COLONIES' own: it never answers another kind.
+    expect(shellTaskOnSurface({kind: 'handSelect'}, at({section: 'board', coloniesEmbedded: true}))).to.eq(false);
   });
 
   it('free award funding is answered on the awards sheet', () => {

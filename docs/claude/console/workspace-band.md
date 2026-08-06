@@ -60,11 +60,18 @@ x/y. Направленный толчок wheel-handoff'а и «подъём» 
 секция-workspace тем же контрактом, 2026-08-06: маркер + `__frame` +
 `ConsoleWsHead` c крошкой «КОЛОНИИ › ‹колония› › ТОРГОВЛЯ/ОСМОТР», компактный
 однострочный `__rail`, stagewrap c паркуемым browse и COLONY FOCUS STAGE
-`.con-colfocus` — descend из ректа нажатой плитки, carry = планета-медальон;
-модалки trade-confirm/section-inspect УДАЛЕНЫ — обе жили здесь; confirm
-играет brisk-fold обратно на поверхность и полёт флота стартует над живой
-сеткой; Плутон-выплата reveal'ится EMBEDDED в зоне `__embed` по клейму
-host='colonies', sourceCard = ИМЯ КОЛОНИИ)**, `.con-cardactions` (Действия
+`.con-colfocus` — descend из ректа нажатой плитки, carry = планета-медальон
++ FLIP горизонтального трека и слотов из их ректов на плитке; модалки
+trade-confirm/section-inspect УДАЛЕНЫ — обе жили здесь. Ит.2 (2026-08-06):
+intents trade/build/pick/inspect — A на overview только спускается, commit
+происходит НА стадии; **RESOLUTION остаётся ВНУТРИ Focus** — confirm НЕ
+закрывает стадию, флот уходит с орбитального берса hero-планеты, глайд идёт
+по expanded-треку, куб садится в большой слот; каждый директор ищет анкер
+лестницей «`.con-colfocus [data-…]` первым → плитка overview fallback»
+(data-атрибуты дублируются на стадии и плитке), стадия auto-fold'ится на
+falling-edge своей транзакции — таймеров нет, а уход section (Плутон-discard)
+деградирует на плитку сам; Плутон-выплата reveal'ится EMBEDDED в зоне
+`__embed` по клейму host='colonies', sourceCard = ИМЯ КОЛОНИИ)**, `.con-cardactions` (Действия
 карт + repeat), `.con-stdp`, `.con-ma`,
 `.con-mainspect`, `.con-maconfirm`, `.con-sheet`, `.con-task-host` (шасси:
 `.con-task`/`--wide`, `.con-play`, `.con-colinspect` (теперь ТОЛЬКО

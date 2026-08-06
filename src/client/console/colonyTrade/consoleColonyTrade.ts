@@ -497,11 +497,16 @@ export async function runColonyTradeRewards(): Promise<void> {
   tradeLog('chip waves start');
   const name = colonyTradeState.colonyName;
   const tileSel = `[data-test="con-colony-${name}"]`;
+  // ITERATION 2 — the trade RESOLVES ON THE FOCUS STAGE when it is up: the
+  // income launches from the stage's own «Торговая награда» group, the
+  // owners' bonus from its colony-slots block. The stage's anchors lead the
+  // selector ladder; a closed stage simply doesn't match and the wave falls
+  // back to the overview tile (the Pluto hand-discard detour case).
   const income = manifest.trader === viewer ? incomeTransferSpecs(manifest, ctx.targets) : [];
   if (income.length > 0) {
     await runResourceTransfers({
       specs: income,
-      source: {selectors: [`${tileSel} [data-colony-trade-source]`, tileSel]},
+      source: {selectors: ['.con-colfocus [data-colony-trade-source]', `${tileSel} [data-colony-trade-source]`, tileSel]},
       arrival: 'auto',
       onArrive: releasePanelRewardHold,
     });
@@ -514,7 +519,7 @@ export async function runColonyTradeRewards(): Promise<void> {
     colonyTradeState.beat = 'bonus';
     await runResourceTransfers({
       specs: bonus,
-      source: {selectors: [`${tileSel} [data-colony-bonus-source]`, tileSel]},
+      source: {selectors: ['.con-colfocus [data-colony-bonus-source]', `${tileSel} [data-colony-bonus-source]`, tileSel]},
       arrival: 'auto',
       onArrive: releasePanelRewardHold,
     });
