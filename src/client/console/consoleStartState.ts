@@ -33,6 +33,7 @@ import * as titles from '@/common/inputs/SelectInitialCards';
 import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overview/playerLabels';
 import {presentPlayerStatus, StatusPresentation} from '@/client/components/overview/playerStatusPresenter';
 import {resetStartTransition, startTransitionActive} from '@/client/console/startStageDirector';
+import {resetStartSponsor} from '@/client/console/consoleStartSponsor';
 
 export type StartWizardStepId = 'corp' | 'prelude' | 'ceo' | 'projects';
 
@@ -135,6 +136,7 @@ export function ensureStartWizard(ownerId: string, signature: string): void {
   consoleStartState.hold = false;
   consoleStartState.deploymentBegun = false;
   resetStartTransition();
+  resetStartSponsor();
 }
 
 /** Shift one pile's physical drift (see dockDrift). */
@@ -486,6 +488,30 @@ export function deploymentCrumb(signals: {
     return {subject: 'Corporation', stage: 'Playing'};
   }
   return {subject: 'Preludes', stage: 'Playing'};
+}
+
+/**
+ * The PLAY-FROM-HAND crumb («Эпатажный спонсор» / «Эксперты по экологии»).
+ *
+ * Stable context BEFORE the mutable stage, exactly like every other workspace
+ * of the family: the SOURCE CARD is the subject and never changes for the
+ * whole effect, while the tail advances КАРТЫ В РУКЕ → РОЗЫГРЫШ → РАЗЫГРАНО.
+ * The stage names come from the composer itself (`setWorkspaceStageName`), so
+ * the crumb can never disagree with the screen — it only supplies the honest
+ * default for the browse layer, where no composer has published anything yet.
+ */
+export function sponsorCrumb(signals: {
+  /** The card whose effect asked for the play ('' / undefined → generic). */
+  source?: string,
+  /** The composer's own published stage key ('' while browsing the hand). */
+  stage: string,
+  /** Past the commit boundary — the header renders the tail amber. */
+  committed: boolean,
+}): StartCrumb {
+  return {
+    subject: signals.source !== undefined && signals.source !== '' ? signals.source : 'Preludes',
+    stage: signals.stage !== '' ? signals.stage : 'Cards in hand',
+  };
 }
 
 export type StartDockPileModel = {

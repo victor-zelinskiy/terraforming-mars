@@ -9,8 +9,8 @@
        picking, the last one being «the stage is claimed but a pick bridge has
        borrowed the shelf»), read by the chrome and by e2e; never inferred from
        an animation's side effects. -->
-  <div class="con-hand con-hand--grid con-ws"
-       :class="{'con-hand--transit': transitHold, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined, 'con-hand--discarding': discarding, 'con-hand--staged': stageOpen, 'con-hand--stagepaused': stagePaused}"
+  <div class="con-hand con-hand--grid"
+       :class="{'con-ws': !embedded, 'con-hand--embedded': embedded, 'con-hand--transit': transitHold, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined, 'con-hand--discarding': discarding, 'con-hand--staged': stageOpen, 'con-hand--stagepaused': stagePaused}"
        :data-flow="stageOpen ? (stagePaused ? 'picking' : 'configure') : 'browse'"
        :style="rootStyle">
   <!-- The workspace FRAME — ONE chrome for both presentation states (the card
@@ -24,12 +24,23 @@
          browse-layer content (counts + tag filters + the mode bars) goes in its
          default slot; the breadcrumb tail is the component's own. Button hints
          live ONLY in the footer command bar — never here. -->
-    <ConsoleWsHead class="con-hand__head"
-                   root="Cards in hand"
-                   emblem="cards"
-                   :subject="stage !== undefined ? stage.subject : ''"
-                   :stage="stage !== undefined ? stage.name : ''"
-                   :committed="stage !== undefined && stage.committed">
+    <!-- EMBEDDED (this screen is a STEP of another workspace — the Game Start
+         Workspace's play-from-hand prelude): the shared header comes OFF and
+         the host's own `ConsoleWsHead` carries the whole breadcrumb. Two
+         headers inside one frame is the exact «content pasted into an old
+         modal» reading this component was built to remove — and the crumb
+         root would lie («КАРТЫ В РУКЕ» when the player is inside СТАРТ
+         ПАРТИИ). The slot content (counts · filters · the mode bars) is NOT
+         chrome — it is this screen's own toolbar and stays either way. -->
+    <component :is="embedded ? 'div' : 'ConsoleWsHead'"
+               :class="embedded ? 'con-hand__toolbar' : 'con-hand__head'"
+               v-bind="embedded ? {} : {
+                 root: 'Cards in hand',
+                 emblem: 'cards',
+                 subject: stage !== undefined ? stage.subject : '',
+                 stage: stage !== undefined ? stage.name : '',
+                 committed: stage !== undefined && stage.committed,
+               }">
       <div class="con-hand__head-left">
         <span v-if="countText !== ''" class="con-hand__count">{{ countText }}</span>
         <span v-if="!selectActive && playableCount > 0" class="con-hand__playable">{{ $t('Playable now') }}: <b>{{ playableCount }}</b></span>
@@ -127,7 +138,7 @@
           <b class="con-hand__salebar-num con-hand__salebar-num--after">{{ selectPayout.current + pickGain }}</b>
         </span>
       </div>
-    </ConsoleWsHead>
+    </component>
 
     <!-- ── The STAGE WRAP: the BROWSE layer (shelf + status rail) and the
          embedded stage occupy the same region. Descending recomposes the frame
@@ -466,6 +477,18 @@ export default defineComponent({
      * for the shell's play composer.
      */
     stage: {type: Object as PropType<ConsoleHandStage | undefined>, default: undefined},
+    /**
+     * THIS SCREEN IS A STEP OF ANOTHER WORKSPACE (the Game Start Workspace's
+     * play-from-hand prelude). The SHELL comes off — the shared header, the
+     * frame plate, the `con-ws` rail marker — and the host draws all three;
+     * the CONTENT (the shelf, the filters, the status rail, the playability
+     * presentation, the stage zone the composer descends into) is untouched,
+     * which is the whole point: the player gets their real hand, not a picker.
+     *
+     * Mirrors `ConsolePlayCardConfirm.embedded` / `ConsoleTaskHost.embedded`:
+     * one prop, never one per flavour.
+     */
+    embedded: {type: Boolean, default: false},
     /**
      * THE DESCENT IS PAUSED — a pick BRIDGE is out (the composer sent the
      * player back to this very shelf to choose a card for the play it is

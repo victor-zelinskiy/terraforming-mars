@@ -4920,6 +4920,35 @@ html.console-mode {
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 .9rem 2.6rem rgba(0, 0, 0, 0.6);
     }
 
+    /* ── EMBEDDED (a STEP of another workspace — the Game Start Workspace's
+       play-from-hand prelude). The SHELL comes off and the host's frame is
+       the room: no second plate, no second rounded border, no second shadow —
+       a frame inside a frame is exactly the «pasted into a modal» reading
+       this screen exists to avoid. The CONTENT is untouched: same shelf, same
+       card size, same filters, same status rail, same stage zone. */
+    &--embedded {
+        > .con-hand__frame {
+            padding: 0;
+            gap: .5rem;
+            border-radius: 0;
+            background: none;
+            box-shadow: none;
+        }
+        /* The host's ConsoleWsHead already carries the crumb; this is the
+           screen's own TOOLBAR (counts · playable · tag filters · mode bars),
+           laid out on the same line the header's aux zone used. */
+        .con-hand__toolbar {
+            display: flex;
+            align-items: center;
+            gap: .9rem;
+            flex-wrap: wrap;
+            min-width: 0;
+            flex-shrink: 0;
+            padding: .1rem 0 .15rem;
+            border-bottom: .05rem solid rgba(120, 155, 190, 0.12);
+        }
+    }
+
     /* The browse layer and the embedded stage share ONE region — entering the
        stage recomposes the frame in place, it never swaps a screen. */
     &__stagewrap {
@@ -12485,6 +12514,43 @@ body.con-start-ceremony {
             inset 0 .06rem 0 rgba(170, 215, 255, 0.07),
             0 1rem 2.6rem rgba(0, 0, 0, 0.42);
     }
+    /* ── «ЭПАТАЖНЫЙ СПОНСОР»: the workspace is hosting the play-from-hand
+       step. The deployment content PARKS as one layer (it is not unmounted —
+       the queue keeps its order, its focus and its played cards, and comes
+       back untouched), and the embed zone becomes the room so the hand is a
+       REAL full hand screen, not a picker squeezed into a column. The compact
+       «РАЗЫГРАНО» shelf stays visible: the project is going to land there,
+       and a destination you cannot see is a teleport waiting to happen. */
+    /* ── «ЭПАТАЖНЫЙ СПОНСОР» — THE HAND STEP'S ROOM ───────────────────────
+       The deployment is `v-if`'d away for the duration (see the scene), so
+       this zone simply IS the workspace body: the hand teleports in and lays
+       itself out against exactly the box it gets as a normal screen — same
+       card size, same columns, same virtualization budget.
+
+       `position: relative` is load-bearing: the hand's browse layer is
+       `position: absolute; inset: 0` and resolves against its nearest
+       positioned ancestor. Under a static host it escapes to the workspace
+       frame, measures the wrong box, and the virtualized grid renders ZERO
+       rows — a hand screen with no cards on it. */
+    &__handstep {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        min-width: 0;
+        display: flex;
+
+        > .con-hand {
+            flex: 1;
+            min-height: 0;
+            min-width: 0;
+        }
+    }
+    /* The workspace's own plate is the room now — the deployment's padding
+       would inset a full screen for no reason. */
+    &--sponsor .con-start__frame {
+        gap: .45rem;
+    }
+
     /* Bounded: the plate is the family workspace panel. FULLY opaque — the
        board home's side panels must never ghost through the work surface on
        a high-contrast panel (the shade behind carries the board dim). */

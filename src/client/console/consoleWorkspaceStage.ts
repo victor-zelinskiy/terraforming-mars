@@ -43,7 +43,17 @@ import {WorkspacePhase, backVerbFor, WorkspaceBackVerb, acceptsInput, isCommitte
  * one is a deliberate addition — never a string that silently starts matching.
  */
 export type WorkspaceStageHost =
-  /** «КАРТЫ В РУКЕ» → the play-a-card flow (ConsoleHandSection + ConsolePlayCardConfirm). */
+  /**
+   * «КАРТЫ В РУКЕ» → the play-a-card flow (ConsoleHandSection +
+   * ConsolePlayCardConfirm).
+   *
+   * NB the hand can itself be a STEP of a bigger workspace (the Game Start
+   * Workspace's play-from-hand prelude — Eccentric Sponsor). That does NOT
+   * add a host here: the composer still descends into the hand's own zone,
+   * because that is structurally where it lands. What changes is only which
+   * shell the hand wears, and therefore who draws the breadcrumb ROOT — see
+   * `ConsoleHandSection.embedded` / `consoleStartSponsor.ts`.
+   */
   | 'hand';
 
 /** The breadcrumb ROOT of each host — one table, so the crumb cannot drift

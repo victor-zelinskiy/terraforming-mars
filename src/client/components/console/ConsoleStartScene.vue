@@ -14,6 +14,7 @@
          'con-start--yielded': yielded,
          'con-start--bounded': shellBounded,
          'con-ws': shellBounded,
+         'con-start--sponsor': sponsorStep,
          'con-start--matcut': matCut,
          'con-start--materializing': state.flow === 'materializing',
          'con-start--releasing': state.flow === 'releasing',
@@ -46,12 +47,17 @@
           <!-- The aux BROWSE layer only RESERVES the zone's height (the crumb
                is always deep here: СТАРТ ПАРТИИ › <ГРУППА> › <ЭТАП>); the
                live journey renders in the deep tail beside the stage. -->
-          <div class="con-start__auxrow">
+          <!-- The journey rail names the STARTUP stage. Inside the hand step
+               it would state a stage the player is no longer looking at
+               («ПРОЛОГИ» over a hand screen), so it goes with the rest of the
+               deployment chrome and returns with it. -->
+          <div v-if="!sponsorStep" class="con-start__auxrow">
             <ConsoleJourneyRail :items="journeyItems" :mode="mode === 'wizard' ? 'tabs' : 'progress'"
                                 :pending-index="pendingStageIndex" :pulse-key="railPulse" :pulse-dir="railPulseDir" />
           </div>
           <template #deep>
-            <ConsoleJourneyRail class="con-start__jtail"
+            <ConsoleJourneyRail v-if="!sponsorStep"
+                                class="con-start__jtail"
                                 :items="journeyItems"
                                 :mode="mode === 'wizard' ? 'tabs' : 'progress'"
                                 :pending-index="pendingStageIndex"
@@ -320,7 +326,23 @@
                 piles on the shared ConsolePlayedPile primitive). A pressed
                 card flies DIRECTLY down into its reserved pile slot — no
                 central holding presentation, no handoff copies. -->
-        <div v-if="mode === 'ceremony'" class="con-start__body con-start__ceremony"
+        <!-- ── «ЭПАТАЖНЫЙ СПОНСОР»: THE WORKSPACE BECOMES THE HAND ──────
+             A prelude whose effect is «play a card from your hand» does not
+             put a picker inside the deployment layout — the deployment
+             DISSOLVES and the player's real hand screen takes the body, with
+             the workspace HEADER standing still as the spatial anchor. That
+             is the whole illusion: one surface going deeper, never a second
+             screen arriving. Everything the deployment owns (queue, shelf,
+             compact «Разыграно», status rail, journey rail) is `v-if`'d away
+             for the duration — its STATE is module-level and untouched, so it
+             all comes back exactly as it was when the effect resolves.
+
+             The zone is a plain full-size host: the hand teleports in and is
+             laid out by its own engine, against the same box it would get as
+             a normal screen. -->
+        <div v-if="sponsorStep" class="con-start__handstep" data-embed-slot="start-hand"></div>
+
+        <div v-if="mode === 'ceremony' && !sponsorStep" class="con-start__body con-start__ceremony"
              :class="{'con-start__ceremony--hidden': !ceremonyRevealed}" ref="ceremonyBody">
           <!-- ── THE DEPLOYMENT — one row, three physical places ──
                 · the QUEUE COLUMN (left, the protagonist): every unresolved
@@ -397,7 +419,7 @@
                    geometry, face away — one visual owner), presides over the
                    draw, and SETTLES back into the stack on release. -->
               <div class="con-start__embed" data-embed-slot="start"
-                   :class="{'con-start__embed--live': embedActive}">
+                   :class="{'con-start__embed--live': embedActive || sponsorStep}">
                 <div v-if="embedSourceShown !== undefined" class="con-start__embedsource" ref="embedSourceCol">
                   <span class="con-start__embedsource-cap">{{ $t('Source') }}</span>
                   <div class="con-start__embedsource-card"
@@ -436,7 +458,7 @@
              the deploy zone's geometry — unmounting it mid-embed re-flowed
              the queue and the dock under the open surface): the content
              simply names the deeper step. -->
-        <div v-if="mode === 'ceremony' && ceremonyRevealed"
+        <div v-if="mode === 'ceremony' && ceremonyRevealed && !sponsorStep"
              class="con-start__statusrail con-start__statusrail--hint">
           <div class="con-start__status-inner">
             <span class="con-start__status-name" :key="ceremonyStatusName">{{ ceremonyStatusName }}</span>
@@ -557,7 +579,7 @@ import {
   markStartDeploymentBegun, startAwaitingOthers, startDeploymentBegun,
   picksForStep, releaseStartScene, StartCrewMate, StartCrumb, StartDockPileModel, startFlowBusy,
   StartLaunchState, StartParticipant, startDockPiles, startJourneyItems, startLaunchState,
-  startParticipants, StartWizardStep, stepComplete, wizardCrumb, wizardSteps,
+  sponsorCrumb, startParticipants, StartWizardStep, stepComplete, wizardCrumb, wizardSteps,
 } from '@/client/console/consoleStartState';
 import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/startStatusPreview';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -584,6 +606,8 @@ import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
 import {captureCards, CapturedFlight, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, convoyBeats, liveFlightProxies, DockFlightSource, parkSurface, unparkSurface, clearSurfaceParking, measureTargets, pressPile} from '@/client/console/startDockMotion';
 import {FACE_DOWN_DEG, FACE_UP_DEG} from '@/client/console/cardFlight/card3dInner';
+import {noteStartPlaySource, setStartSponsorSlot, startSponsorState} from '@/client/console/consoleStartSponsor';
+import {workspaceStageState} from '@/client/console/consoleWorkspaceStage';
 import {
   beginStartTransition, endStartTransition, resetStartTransition, setStartTransitionPhase,
   startTransition, transitionKind,
@@ -741,6 +765,10 @@ export default defineComponent({
       heroState: playedHeroState,
       /** The shared claim state (embed zone presence derives from it). */
       outcome: workspaceOutcomeState,
+      /** «Эпатажный спонсор» — the play-from-hand step this workspace hosts. */
+      sponsor: startSponsorState,
+      /** The live descent of the embedded hand (the composer's crumb tail). */
+      stageState: workspaceStageState,
       /** Slots whose card is FLYING BACK from a dock pile (held empty until
        *  its touchdown) — keys are `stepId|name`. */
       returningNames: new Set<string>(),
@@ -891,6 +919,20 @@ export default defineComponent({
       if (this.mode === 'wizard') {
         return wizardCrumb(this.currentStep?.id);
       }
+      // «ЭПАТАЖНЫЙ СПОНСОР»: the crumb states the CAUSE, then the stage the
+      // player is standing in — `СТАРТ ПАРТИИ › ЭПАТАЖНЫЙ СПОНСОР › КАРТЫ В
+      // РУКЕ`, deepening to `… › РОЗЫГРЫШ` and `… › РАЗЫГРАНО` as the descent
+      // goes on. Stable context BEFORE the mutable stage: the source card is
+      // the same vnode all the way through, only the tail advances.
+      if (this.sponsorStep) {
+        return sponsorCrumb({
+          source: this.sponsorSource,
+          stage: this.stageState.host === 'hand' ? this.stageState.stage : '',
+          committed: this.stageState.host === 'hand' &&
+            (this.stageState.phase === 'committed' || this.stageState.phase === 'completing' ||
+             this.stageState.phase === 'executing'),
+        });
+      }
       return deploymentCrumb({
         embedActive: this.embedActive,
         embedPhase: this.outcome.phaseKey,
@@ -982,6 +1024,35 @@ export default defineComponent({
     },
     /** An embedded follow-up (the shared reveal) is presenting in THIS
      *  workspace's zone — the queue yields visual priority, never unmounts. */
+    /**
+     * «ЭПАТАЖНЫЙ СПОНСОР» — this workspace is hosting the play-from-hand step
+     * (the hand is teleported into our embed zone and wears our shell). The
+     * deployment queue does NOT unmount: it parks, keeps its order, its focus
+     * and its already-played cards, and comes back untouched.
+     */
+    sponsorStep(): boolean {
+      return this.sponsor.embedded;
+    },
+    /**
+     * A play-from-hand effect is still owed — the server is holding its
+     * `SelectProjectCardToPlay`, or the player's commit is on the wire. Read
+     * from the RAW prompt (not from the embed claim) on purpose: the claim
+     * derives from the workspace serving, and the workspace serving must not
+     * derive from the claim.
+     */
+    sponsorPending(): boolean {
+      const wf = this.playerView.waitingFor;
+      if (wf !== undefined && wf.type === 'projectCard') {
+        const hand = new Set(this.playerView.cardsInHand.map((c) => c.name));
+        return wf.cards.length > 0 && wf.cards.every((c) => hand.has(c.name));
+      }
+      return this.sponsor.committing;
+    },
+    /** The card whose effect asked for the play — the crumb's subject. */
+    sponsorSource(): CardName | undefined {
+      const src = this.sponsor.source;
+      return src === '' ? undefined : src;
+    },
     embedActive(): boolean {
       return this.outcome.host === 'start' && this.outcome.sourceCard !== '';
     },
@@ -1068,7 +1139,14 @@ export default defineComponent({
       if (this.mode !== 'ceremony' || !this.state.hold || this.state.flow === 'materializing') {
         return false;
       }
-      return this.corpPlayPrompt === undefined &&
+      // «ЭПАТАЖНЫЙ СПОНСОР» — a prelude whose effect is «play a card from your
+      // hand» is NOT finished when its own card docks: the server is holding a
+      // live `SelectProjectCardToPlay` for it, and the project it buys has yet
+      // to be chosen, played, landed and resolved. Releasing here is what used
+      // to throw the player onto a bare board (or, worse, close the last
+      // prelude's workspace before its own effect had run).
+      return !this.sponsorPending &&
+        this.corpPlayPrompt === undefined &&
         this.corpPayCost === undefined &&
         this.candidatePrompt === undefined &&
         startFlowPreludePrompt(this.playerView) === undefined &&
@@ -1640,6 +1718,22 @@ export default defineComponent({
       immediate: true,
       handler() {
         this.prefetchPlayRewards();
+      },
+    },
+    /**
+     * PUBLISH THE HAND STEP'S ZONE — `flush: 'post'`, never `pre`. A `pre`
+     * watcher names a node this component has not rendered yet: the shell
+     * resolves the teleport first, finds nothing, and Vue drops the hand to
+     * `body` — a full-screen hand standing OUTSIDE the workspace, which is
+     * precisely the artefact the step exists to remove. Retracted the moment
+     * the step ends, so a stale selector can never teleport into a detached
+     * node. (Same contract as `setWorkspaceStageSlot` in the hand.)
+     */
+    'sponsorStep': {
+      immediate: true,
+      flush: 'post',
+      handler(on: boolean) {
+        setStartSponsorSlot(on ? '.con-start__handstep' : '');
       },
     },
     /** Step position (the panes swap under this): reseed focus, mark the
@@ -3805,6 +3899,11 @@ export default defineComponent({
      *  PRE-FETCHED on-play rewards so the landing gets the same premium
      *  reward beat a composer-played card gets. */
     armStartHero(name: CardName): void {
+      // The one place the client legitimately knows WHICH card is being
+      // played. If its effect turns out to ask for a play-from-hand
+      // («Эпатажный спонсор»), this is the source the crumb names — the
+      // server's prompt carries no attribution of its own.
+      noteStartPlaySource(name);
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
         CSS.escape(name) : name.replace(/"/g, '\\"');
       // HOST 'workspace': the standalone «Разыграно» overlay never opens for

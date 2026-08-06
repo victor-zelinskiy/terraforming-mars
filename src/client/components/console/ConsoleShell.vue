@@ -150,8 +150,18 @@
                              @notice="showNotice($event)"
                              @inspect-colony="openJournalColonyInspect($event)" />
       </transition>
+      <!-- EMBEDDED HOSTING — «Эпатажный спонсор» (consoleStartSponsor.ts).
+           A prelude whose effect is «play a card from your hand» must NOT
+           throw the player out of the Game Start Workspace they are standing
+           in: the very same hand instance is TELEPORTED into that workspace's
+           embed zone and wears its shell (`:embedded`), exactly the pattern
+           the reveal / task host / play composer already use. One instance,
+           one input path, one set of captures — never a second copy and
+           never a picker standing in for the player's real hand. -->
+      <Teleport :to="handEmbedTarget ?? 'body'" :disabled="handEmbedTarget === undefined">
       <ConsoleHandSection v-if="consoleState.section === 'hand'"
                           ref="handSection"
+                          :embedded="handEmbedTarget !== undefined"
                           :entries="handEntries"
                           :index="consoleState.handIndex"
                           :saleActive="consoleState.sale.active"
@@ -168,6 +178,7 @@
                           :transitHold="handRevealState.holdSlots"
                           :filterBusy="handRevealState.filterActive"
                           :underScene="sceneOverHand || consoleRevealMode !== undefined" />
+      </Teleport>
       <!-- Surface-motion 'section': a workspace switch gets a light rise
            (no dim) — never the bare v-if pop it used to be. The wheel's
            «Торговля» slot hands off directionally into it. -->
@@ -1211,12 +1222,15 @@ import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, p
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, TaskKind, taskFor, taskServedByHost, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskServedByHost, shellTaskOnSurface, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
 
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
+import {
+  markStartSponsorCommitting, setStartSponsorEmbedded, startSponsorCommitting, startSponsorSlot,
+} from '@/client/console/consoleStartSponsor';
 
 /** The kinds served by a DEDICATED composite surface (not by the task host). */
 const NATIVE_COMPOSITE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['venusBonus', 'spendHeat', 'aresGlobal']);
@@ -2623,6 +2637,29 @@ export default defineComponent({
     shellTaskActive(): boolean {
       return this.shellTask !== undefined && !this.consoleState.task.deferred;
     },
+    /**
+     * IS THE PLAYER STANDING WHERE THE TASK IS ANSWERED?
+     *
+     * Each shell-section kind has ONE target surface — the screen
+     * `openShellTaskSurface` opens for it. This answers «is that screen the
+     * one in front of the player right now», which is the only honest basis
+     * for telling them something is waiting: on the target surface the ask is
+     * already stated by that surface's own header and command bar, so a chip
+     * repeating it is noise; anywhere else it is the only thing that says
+     * where to go back to.
+     *
+     * The `playFromHand` row carries the Game Start Workspace's step: there
+     * the hand is hosted INSIDE the workspace, so «on the hand» and «inside
+     * the start» are the same place, not two.
+     */
+    shellTaskOnSurface(): boolean {
+      return shellTaskOnSurface(this.shellTask, {
+        section: this.consoleState.section,
+        sheet: this.consoleState.sheet,
+        corpFirstActionOpen: this.corpFirstActionOpen,
+        startSponsorEmbed: this.startSponsorEmbed,
+      });
+    },
     /** The std-projects source: the TOP-LEVEL prompt (EstablishedMethods) or the action menu. */
     standardProjectsAction(): {path: ReadonlyArray<number>, input: SelectProjectCardToPlayModel} | undefined {
       const task = this.shellTask;
@@ -2971,6 +3008,42 @@ export default defineComponent({
       };
     },
     /**
+     * «ЭПАТАЖНЫЙ СПОНСОР» — the play-from-hand prompt belongs to the workspace
+     * the player is ALREADY INSIDE.
+     *
+     * Structural, never a card-name or title match: the server's
+     * `SelectProjectCardToPlay` over hand cards (`projectCard/playFromHand` —
+     * raised by the `PlayProjectCard` deferred action, i.e. Eccentric Sponsor
+     * and Ecology Experts) arriving while the Game Start Workspace SERVES can
+     * only be that workspace's own follow-up. It is therefore hosted as a STEP
+     * of it instead of flipping the shell to a second full screen with its own
+     * «КАРТЫ В РУКЕ» crumb root.
+     *
+     * The claim holds across the COMMIT round trip (`startSponsorCommitting`):
+     * `waitingFor` briefly names nothing between the submit and the project's
+     * landing, and letting the claim lapse there would tear the hand out from
+     * under a card that is still flying.
+     */
+    startSponsorEmbed(): boolean {
+      if (!this.startSceneServes || this.consoleState.task.deferred) {
+        return false;
+      }
+      if (startSponsorCommitting()) {
+        return true;
+      }
+      const task = taskFor(this.playerView);
+      return task?.kind === 'projectCard' && task.mode === 'playFromHand';
+    },
+    /**
+     * The workspace slot the HAND is teleported into — the Game Start
+     * Workspace's embed zone while it hosts the play-from-hand step. Same
+     * ownership≠readiness discipline as `playEmbedTarget`: the zone must
+     * actually exist (the scene renders it) before we hand the hand over.
+     */
+    handEmbedTarget(): string | undefined {
+      return this.startSponsorEmbed ? startSponsorSlot() : undefined;
+    },
+    /**
      * The workspace slot the PLAY COMPOSER is teleported into (undefined → its
      * own band). Same shape as `taskEmbedTarget` / `revealEmbedTarget`.
      */
@@ -3314,8 +3387,25 @@ export default defineComponent({
         return this.deferAsk !== '' ? this.deferAsk : translateText('Awaiting decision');
       }
       // A shell-section task (play-from-hand / std project / colony pick):
-      // the banner names the server's ask over the serving section.
-      if (this.shellTaskActive) {
+      // the banner means «what you owe is NOT on the screen you are looking
+      // at». It is therefore gated on the player being AWAY from the task's
+      // own surface — never on the task merely existing.
+      //
+      // ⚠️ `shellTaskActive` alone is «the task exists AND is not deferred»,
+      // i.e. its surface is OPEN — so keying the banner on it showed the chip
+      // exactly when it was pointless and hid it the moment it would have
+      // helped. Over an open workspace it is not information but a SECOND
+      // TITLE: it reads as «a prompt has arrived» on top of the very screen
+      // that prompt IS (inside the Game Start Workspace it landed straight
+      // across the breadcrumb tail).
+      //
+      // The MINIMIZED case is deliberately NOT here either: a deferred task is
+      // served by the unified mandatory card (`.con-mandatory`), whose CTA
+      // relabels itself «Открыть» / «Вернуться к решению». One state, one
+      // voice — the banner is only for «live, un-deferred, and you are
+      // elsewhere» (a task admitted while a sheet / the journal / another
+      // section still owns the screen).
+      if (this.shellTaskActive && !this.shellTaskOnSurface) {
         return this.deferAsk;
       }
       return '';
@@ -3988,7 +4078,12 @@ export default defineComponent({
         }
         return cmds;
       }
-      if (this.startSceneServes && !this.consoleState.task.deferred) {
+      // …but NOT while the workspace is hosting the play-from-hand step: the
+      // player is browsing a real hand, so the bar must carry the HAND's
+      // contract (A разыграть · X осмотреть · LB/RB фильтр · B назад), not the
+      // deployment's. The scene's own verbs would advertise presses that do
+      // nothing on the surface actually in front of the player.
+      if (this.startSceneServes && !this.startSponsorEmbed && !this.consoleState.task.deferred) {
         // The scene publishes its live contract (consoleStartUi — wizard step
         // vs. summary vs. ceremony: X inspects, RT continues / begins, etc.);
         // the bar mirrors it verbatim so it can never diverge from the buttons
@@ -4860,6 +4955,31 @@ export default defineComponent({
     corpFirstActionOpen(open: boolean): void {
       if (open) {
         this.consoleState.section = 'board';
+      }
+    },
+    /**
+     * Mirror the sponsor claim into its module: the leak detector, the start
+     * scene's own parking and the input gate all read it from plain TS, and
+     * they must never each re-derive it (four hand-copied gate expressions had
+     * already drifted once — `consolePromptAdmission` exists because of it).
+     */
+    startSponsorEmbed: {
+      immediate: true,
+      handler(on: boolean): void {
+        setStartSponsorEmbedded(on);
+      },
+    },
+    /**
+     * THE SPONSOR STEP IS OVER when the project has physically LANDED — not
+     * when the submit returned. The hero transaction is the honest completion
+     * signal (it spans the request, the flight and the docking), so the claim
+     * that held the hand in place through the prompt gap releases exactly
+     * here. Whatever the project's own effects then ask for arrives as a
+     * normal task and is served by the workspace it is already inside.
+     */
+    'playedHeroState.active'(active: boolean): void {
+      if (!active && startSponsorCommitting()) {
+        setStartSponsorEmbedded(false);
       }
     },
     // Mirror the live gate-held state into the module so the leak detector (a
@@ -5779,7 +5899,11 @@ export default defineComponent({
       // CTS T5: the start scene owns input while it serves (B inside =
       // wizard back-step, else defer). The journal is a BOARD-HOME surface
       // now — no View-peek here (safe context policy).
-      if (this.startSceneServes && !this.consoleState.task.deferred) {
+      // …EXCEPT while it hosts the play-from-hand step: the hand it is holding
+      // is a real screen with a real cursor, and the player is browsing THAT.
+      // Falling through hands input to the normal hand/composer path — the
+      // same one they would get outside the start, which is the point.
+      if (this.startSceneServes && !this.startSponsorEmbed && !this.consoleState.task.deferred) {
         const scene = this.$refs.startScene as InstanceType<typeof ConsoleStartScene> | undefined;
         scene?.handleIntent(intent);
         return true;
@@ -6198,7 +6322,7 @@ export default defineComponent({
      * gather instead. Falls back to the plain section switch when the
      * geometry isn't measurable.
      */
-    async openHandWithReveal(): Promise<void> {
+    async openHandWithReveal(opts?: {keepTask?: boolean}): Promise<void> {
       if (isHandRevealEpisodeRunning()) {
         if (handRevealState.phase === 'closing') {
           reverseHandReveal(); // reopen mid-close: same timeline, back to open
@@ -6208,7 +6332,15 @@ export default defineComponent({
       if (this.consoleState.section === 'hand') {
         return;
       }
-      this.deferShellTask(); // navigation-away (the RT path's contract)
+      // `keepTask`: the Game Start Workspace's play-from-hand step OPENS the
+      // hand because of a live prompt — deferring it would be the opposite of
+      // navigating away, and would drop the very claim that keeps the hand
+      // inside the workspace. Everything below (the real dock → slot
+      // choreography) is exactly the same, which is the point: the player
+      // gets the hand opening they already know.
+      if (opts?.keepTask !== true) {
+        this.deferShellTask(); // navigation-away (the RT path's contract)
+      }
       // Phase BEFORE the section flip: the section watcher must see a
       // director-owned transition, not an untracked open (which would lift
       // the dock instantly and skip the choreography).
@@ -7211,7 +7343,11 @@ export default defineComponent({
       // SYNCHRONOUSLY (before any render) so no frame can hand the composer to
       // the standalone band first. Opened from anywhere else there is no
       // workspace to be inside of, and the band is the honest presentation.
-      if (this.consoleState.section === 'hand') {
+      // …and INSIDE the Game Start Workspace's play-from-hand step the player
+      // is likewise standing in a hand — the composer must descend into its
+      // stage zone, never open its own band on top of the workspace (that band
+      // is the «modal arrived» reading the whole step exists to remove).
+      if (this.consoleState.section === 'hand' || this.startSponsorEmbed) {
         openWorkspaceStage('hand', cardName, 'Playing');
       }
       this.pendingPlayCard = {cardName, input: {...action.input, cards: [card]}};
@@ -7371,6 +7507,13 @@ export default defineComponent({
       // goes amber (a committed step is a statement, not an invitation) and the
       // depth model stops offering «back» for a move the server already has.
       markWorkspaceStageCommitted();
+      // …and, inside the Game Start Workspace, the sponsor step must survive
+      // the round trip: between this submit and the project's landing the
+      // server names no prompt at all, and a claim that lapsed there would
+      // tear the hand out from under a card that is still in the air.
+      if (this.startSponsorEmbed) {
+        markStartSponsorCommitting();
+      }
       this.submitBatch(batch);
     },
     /**
@@ -7817,9 +7960,17 @@ export default defineComponent({
       }
       if (task.kind === 'projectCard') {
         if (task.mode === 'playFromHand') {
-          this.consoleState.section = 'hand';
           const firstPlayable = this.handEntries.findIndex((e) => e.playable);
           this.consoleState.handIndex = firstPlayable !== -1 ? firstPlayable : 0;
+          if (this.startSponsorEmbed) {
+            // INSIDE the Game Start Workspace the hand does not "appear": it
+            // OPENS, with the same dock → slot cinematic every other route
+            // gets. The cards are already the player's — they unfold from the
+            // dock they are lying in, they are never re-dealt.
+            void this.openHandWithReveal({keepTask: true});
+            return;
+          }
+          this.consoleState.section = 'hand';
         } else {
           this.consoleState.section = 'board';
           this.openSheet('standardProjects');

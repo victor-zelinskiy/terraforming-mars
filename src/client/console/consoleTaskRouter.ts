@@ -110,6 +110,59 @@ export const SHELL_NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['act
  */
 export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'awardFunding', 'corpFirstAction']);
 
+/** Where the player is standing right now, as the surface map sees it. */
+export type ShellSurfaceContext = {
+  /** `consoleState.section`. */
+  section: string,
+  /** `consoleState.sheet` (undefined = no sheet open). */
+  sheet: string | undefined,
+  /** The corporation's first-action confirm is up (it has no section). */
+  corpFirstActionOpen: boolean,
+  /**
+   * The Game Start Workspace is hosting the play-from-hand step. There the
+   * hand lives INSIDE the workspace, so «on the hand» and «inside the start»
+   * are the same place — not two surfaces to choose between.
+   */
+  startSponsorEmbed: boolean,
+};
+
+/**
+ * IS THE PLAYER STANDING WHERE THIS TASK IS ANSWERED?
+ *
+ * Every shell-section kind has exactly ONE target surface — the screen
+ * `openShellTaskSurface` opens for it. This is that map, stated once.
+ *
+ * It exists because the alternative is an inline gate expression, and the
+ * console has already paid for four of those drifting apart
+ * (`consolePromptAdmission`). Its consumer is the central ask BANNER, whose
+ * whole meaning is «what you owe is NOT on the screen you are looking at»:
+ * on the target surface the ask is already stated by that surface's own
+ * header and command bar, so repeating it is noise; anywhere else it is the
+ * only thing that says where to go back to.
+ */
+export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurfaceContext): boolean {
+  if (task === undefined) {
+    return false;
+  }
+  switch (task.kind) {
+  case 'projectCard':
+    return task.mode === 'playFromHand' ?
+      (ctx.section === 'hand' || ctx.startSponsorEmbed) :
+      ctx.sheet === 'standardProjects';
+  case 'handSelect':
+    return ctx.section === 'hand';
+  case 'colony':
+    return ctx.section === 'colonies';
+  case 'awardFunding':
+    return ctx.sheet === 'awards';
+  case 'corpFirstAction':
+    return ctx.corpFirstActionOpen;
+  default:
+    // Not a shell-section kind — it has no surface of this family at all.
+    return false;
+  }
+}
+
 /**
  * Kinds served by the full-screen START SCENE (T5): the `initialCards`
  * wizard (corporation / preludes / CEO / project buy / summary) and the
