@@ -42,6 +42,9 @@ A card **always leaves from its real on-screen source** — an action that took 
 
 **Every card action has ONE universal ACTION COMMIT** between «A Подтвердить» and the result (`consoleActionCommit*.ts`): button press → the source card mechanically fixes → an impulse runs the SELECTED variant's printed graphic and lands on its result icon → the category handoff (draw = the deck answers and the existing pull starts; resources = the reward wave materializes FROM the card's own icons into the rail, counters ticking on touchdown; tile/global = the existing flows). The commit never depicts the result; a fast server never cuts its minimum beat (the dismiss gates on the motion's settle); a rejected submit rolls it back cleanly. Anchors resolve from the real graphic (`data-graphic-node` + sprite URLs) — never a per-card coordinate table.
 
+### Embedded step surfaces COMPOSE (the architecture's whole advantage)
+A workspace may host a FULL existing screen as a step (the start workspace hosts «Карты в руке» for a play-from-hand prelude), and hosts NEST for free — because every hostable surface is **host-agnostic** (one `embedded` prop strips its shell; content/input/state untouched) and every host publishes its own `[data-embed-slot]` even while itself embedded, so depth is just the teleport chain. Guaranteed by the six-rule contract in `consoleWorkspaceEmbed.ts` + `.claude/rules/console-ui.md` § EMBEDDED STEP SURFACES — never by per-case wiring.
+
 Mechanism + gotchas: `docs/claude/console/workspace-band.md` § EMBEDDED OUTCOMES / WORKSPACE DESCEND. Reference: `docs/CONSOLE_BLUE_ACTION_PARITY.md`.
 
 Before UI work read `docs/CONSOLE_MODE_CONCEPT.md`; to decide whether a file is frozen or live, read `docs/DESKTOP_DEPRECATION_AUDIT.md`.

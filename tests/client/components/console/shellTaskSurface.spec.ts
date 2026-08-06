@@ -16,7 +16,7 @@ describe('shellTaskOnSurface — where a shell-section task is answered', () => 
     section: 'board',
     sheet: undefined,
     corpFirstActionOpen: false,
-    startSponsorEmbed: false,
+    handEmbedded: false,
     ...over,
   });
 
@@ -39,9 +39,9 @@ describe('shellTaskOnSurface — where a shell-section task is answered', () => 
    * this row the player would be told to go to a screen they are standing on.
    */
   it('…and INSIDE the Game Start Workspace that is the same place', () => {
-    expect(shellTaskOnSurface(playFromHand, at({section: 'hand', startSponsorEmbed: true}))).to.eq(true);
+    expect(shellTaskOnSurface(playFromHand, at({section: 'hand', handEmbedded: true}))).to.eq(true);
     // Even mid-transition, before the section has settled on 'hand'.
-    expect(shellTaskOnSurface(playFromHand, at({section: 'board', startSponsorEmbed: true}))).to.eq(true);
+    expect(shellTaskOnSurface(playFromHand, at({section: 'board', handEmbedded: true}))).to.eq(true);
   });
 
   it('a standard project is answered on ITS SHEET, not merely on the board', () => {
@@ -57,7 +57,7 @@ describe('shellTaskOnSurface — where a shell-section task is answered', () => 
     expect(shellTaskOnSurface({kind: 'handSelect'}, at({section: 'board'}))).to.eq(false);
     // …and the sponsor embed does NOT vouch for it: that flag is about the
     // play-from-hand step only.
-    expect(shellTaskOnSurface({kind: 'handSelect'}, at({section: 'board', startSponsorEmbed: true}))).to.eq(false);
+    expect(shellTaskOnSurface({kind: 'handSelect'}, at({section: 'board', handEmbedded: true}))).to.eq(false);
   });
 
   it('a colony pick is answered on the colonies rail', () => {

@@ -1,4 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
+import {bootToBoard, fillPicks, press} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -91,67 +92,23 @@ async function bootGame(page: Page, request: any, buyProjects: number, profileQu
   const model = await created.json() as {players: Array<{id: string}>};
   const playerId = model.players[0].id;
   await page.goto(`/player?id=${playerId}&console=1${profileQuery}`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  await page.waitForTimeout(3500); // deal cinematic settles
-
-  // Start wizard: corp → preludes ×2 → projects (buy N) → verdict. Longer
-  // settles after each step-advance (KeyE = RB) — a press landing mid step
-  // transition doesn't move the focus.
-  const walk: Array<string> = ['Enter', 'KeyE', 'Enter', 'ArrowRight', 'Enter', 'KeyE'];
-  for (let i = 0; i < buyProjects; i++) {
-    walk.push('Enter', 'ArrowRight');
-  }
-  walk.push('KeyE', 'KeyE', 'KeyE'); // verdict → summary (RB stops there — zero-buy double-confirm safe)
-  for (const code of walk) {
-    await key(page, code, code === 'KeyE' ? 1600 : 1000);
-  }
-  await page.waitForTimeout(3000);
-  // Finish adaptively until the CALM board home — the dock is `live` (no
-  // overlay) AND no placement is pending (the dock stays live during
-  // placements by design). Three stuck states self-heal:
-  //  - the wizard is still up (a press drifted): rotate move/pick/continue;
-  //  - a placement pends: RT jumps to the NEXT legal cell (a back-to-back
-  //    SelectSpace keeps the cursor on the now-occupied cell), then A;
-  //  - anything else (prelude play, reveal, task): A confirms the focus.
-  const live = page.locator('.con-handdock--live');
-  const placement = page.locator('.con-context__task-kicker');
-  const wizard = page.locator('.con-start__frame');
-  const quick = page.locator('.con-quick'); // a drifted RT/LT wheel
-  const handSec = page.locator('.con-hand');
-  const banner = page.locator('.con-banner'); // the placement band
-  const finishers = ['ArrowRight', 'Enter', 'KeyE'];
-  // Rounds: a follow-up prompt (e.g. a drifted corp pick's mandatory first
-  // action) may mount right AFTER the home flashes live — settle, re-check,
-  // finish it too.
-  for (let round = 0; round < 3; round++) {
-    const dirs = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
-    for (let i = 0; i < 36 && (await live.count() === 0 || await placement.count() > 0); i++) {
-      if (await quick.count() > 0) {
-        await key(page, 'Escape', 1100); // a stray wheel — back out
-      } else if (await handSec.count() > 0) {
-        // The hand section is either a VALID serving surface (a prelude's
-        // play-from-hand / hand-select → A picks the focused card) or a
-        // stray drift over a pending placement (→ back out).
-        await key(page, await banner.count() > 0 ? 'Escape' : 'Enter', 1400);
-      } else if (await wizard.count() > 0) {
-        await key(page, finishers[i % finishers.length], 900);
-      } else if (await placement.count() > 0) {
-        // Walk the (available-constrained) cursor, then place. NEVER RT
-        // here — a stale placement snapshot would open the quick wheel.
-        await key(page, dirs[i % dirs.length], 700);
-        await key(page, 'Enter', 1500);
-      } else {
-        await key(page, 'Enter', 1500);
+  // THE SHARED DRIVER, never a hand-rolled key script (the project contract —
+  // consoleStart.ts): the walk is SETUP, and this spec must fail on its own
+  // dock claims, not on the road to them. The previous scripted walk advanced
+  // steps with RB (KeyE) — a verb the 2026-07 wizard polish removed — and its
+  // recovery rotation had no RT at all, so any swallowed press livelocked the
+  // boot on the corporation step.
+  await bootToBoard(page, {
+    onStep: async (p, kind) => {
+      if (kind === 'corporation') {
+        await press(p, 'Enter', 700);
+      } else if (kind === 'prelude') {
+        await fillPicks(p, 2);
+      } else if (kind === 'project' && buyProjects > 0) {
+        await fillPicks(p, buyProjects, 30);
       }
-    }
-    await page.waitForTimeout(2500);
-    if (await live.count() === 1 && await placement.count() === 0) {
-      break;
-    }
-  }
-  await expect(live).toHaveCount(1);
-  await expect(placement).toHaveCount(0);
+    },
+  });
   await page.waitForTimeout(1200);
   return playerId;
 }
@@ -209,17 +166,18 @@ test.describe('hand dock · standard 1080', () => {
     await shoot(page, '02-board-hover');
     await page.mouse.move(400, 400);
 
-    // ── RT wheel: dock stays LIVE and coaxial with the centre slot ──
+    // ── RT wheel: the dock stays WELDED and live under it ───────────
+    // (The old «coaxial with the centre slot» claim described the pre-polish
+    // wheel that anchored itself over the dock bay. Today the wheel lays out
+    // on its own grid and its «КАРТЫ» slot ANIMATES into the dock plate
+    // (`data-wheel-anchor="hand-dock"`) — the bond is the handoff flight,
+    // not static geometry. What must hold: the dock does not move, dim or
+    // lose its live state while the wheel is open.)
     await key(page, 'Period', 1000);
-    const centerSlot = page.locator('.con-quick__slot--center');
-    await expect(centerSlot).toHaveCount(1);
-    const slotBox = await centerSlot.boundingBox();
-    const dockBox = await dock.boundingBox();
-    const slotCenter = slotBox!.x + slotBox!.width / 2;
-    const dockCenter = dockBox!.x + dockBox!.width / 2;
-    expect(Math.abs(slotCenter - dockCenter), 'dock coaxial with the RT wheel').toBeLessThan(1.5);
+    await expect(page.locator('.con-quick__slot--center')).toHaveCount(1);
+    await assertDockCentered(page);
     await expect(dock).toHaveClass(/con-handdock--live/);
-    await shoot(page, '03-rt-wheel-coaxial');
+    await shoot(page, '03-rt-wheel-open');
     await key(page, 'Escape', 700);
 
     // ── LT → Standard Projects screen: the dock stays WELDED (identical

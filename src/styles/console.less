@@ -186,9 +186,12 @@ html.console-native {
    already covers the whole table — it reads as a darkened silhouette
    underneath, and its `--lifted` fade-out reveals the table gradually
    UNDER the returning card. One dim, one continuous scene. */
+/* NB the HAND DOCK is deliberately NOT in this list (the presence contract —
+   hand-dock-presence.md): it is never hidden by a screen. The zoom veil
+   (z11890) simply paints over it — the dock reads as part of the darkened
+   table silhouette and is back the instant the viewer closes. */
 body.con-zoom-open .con-drafttray,
-body.con-zoom-open .con-journal,
-body.con-zoom-open .con-handdock {
+body.con-zoom-open .con-journal {
     visibility: hidden;
 }
 
@@ -4946,6 +4949,18 @@ html.console-mode {
             flex-shrink: 0;
             padding: .1rem 0 .15rem;
             border-bottom: .05rem solid rgba(120, 155, 190, 0.12);
+            transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+
+            /* Past the descent (the play stage is open) the browse toolbar
+               yields — same law the shared header enforces in the normal
+               shell. Held by opacity/visibility, never unmounted: the row
+               keeps its height (zero layout shift at the descend) and the
+               filter state survives untouched. */
+            &--held {
+                opacity: 0;
+                visibility: hidden;
+                pointer-events: none;
+            }
         }
     }
 
@@ -8413,11 +8428,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         width: 0; /* cards centre themselves around this axis */
         height: var(--hd-card-h);
         pointer-events: none;
-        /* Board home: ABOVE `.con-main` (z1) so the raised pack sits over the
-           board, but UNDER the plate (z11705) which paints in front of the card
-           bottoms. In a scene it drops to z0 (below) — see the `:not(--live)`
-           rule after this block. The card children keep their own inline
-           z (3+i), stacked WITHIN this pack. */
+        /* ALWAYS at the top of the section/band ladder — under only the
+           dock's own plate (z11705, in front of the card bottoms) and the
+           full-bleed cinematic layers (reveal/zoom/endgame). A busy screen is
+           answered by the COMPACT POSE, never by re-layering (the presence
+           contract — hand-dock-presence.md). Card children keep their own
+           inline z (3+i), stacked WITHIN this pack. */
         z-index: 11704;
         /* The WHOLE-PACK pose (compact / default). Origin = the tray axis,
            so a shrink seats the pack DEEPER into the plate instead of
@@ -8657,34 +8673,23 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
 }
 
-/* ── The rising card PACK slides UNDER any scene/modal — the ONE dock fix ────
-   The dock chassis NEVER moves: the «КАРТЫ N/M» plate/counter (z11705), the
-   wings (z11703) and the command bar (z11700) stay ABOVE every scene/modal —
-   bright, welded, always readable. Only the rising card PACK changes layer:
-   the instant the dock is not the interactive board-home hand (`:not(--live)`
-   ⟺ `!handDockInteractive` — a task host / buy / draft / prelude / sheet /
-   colonies·hydro section / … owns the screen) it drops to z0, BELOW `.con-main`
-   (z1), so the cards sit UNDER the modal instead of over it. It stays fully
-   RENDERED (a z change, NOT visibility/opacity) → the pack never blinks in/out,
-   just re-layers; the modal's own backdrop is what sits over it. Board home
-   (`--live`) keeps the pack at z11704, over the board, exactly as before. */
-.con-handdock:not(.con-handdock--live) .con-handdock__pack {
-    z-index: 0;
-}
-/* EXCEPTION — the start-of-game screen (`.con-start`: corp / prelude wizard).
-   There the board-separating layer IS the start scene itself (con-start,
-   z11480, fixed over the board), and there's plenty of room (the pack never
-   overlaps the prelude grid). So instead of tucking the pack UNDER everything
-   (z0), lift it to z11490 — ABOVE the start scene's veil (it reads as start-
-   scene foreground over the dimmed board) but BELOW every modal that can open
-   there (MA 11500 / gov 11520 / info 11560 / reveal 11900 / fallback 12000) and
-   BELOW the dock's own chassis plate (z11705, counter in front of the card
-   bottoms). Detected structurally — `.con-start` only exists while `startTask`
-   is up. */
-.con-root:has(.con-start) .con-handdock:not(.con-handdock--live) .con-handdock__pack {
-    z-index: 11490;
-}
+/* ── THE DOCK IS ONE WELDED UNIT, ALWAYS ON TOP OF THE LADDER ────────────────
+   (docs/claude/console/hand-dock-presence.md — the presence contract.)
 
+   The whole dock — chassis plate/counter (z11705), wings (z11703) AND the
+   card pack (z11704) — stands above every section, sheet, band surface and
+   workspace (11480–11560), always. The pack no longer re-layers under a
+   scene: a collision with an open surface is answered by the COMPACT POSE
+   (the pack steps back into the tray — the shell's `handDockCompact`), never
+   by hiding and never by diving under. What the player learns once and keeps:
+   the hand is ALWAYS at the bottom centre, from the first dealt card to the
+   end of the game.
+
+   Full-bleed CINEMATIC layers (the reveal overlay 11900, the fullscreen zoom
+   veil 11890+, the endgame) legitimately paint OVER the dock — they are the
+   moments the whole table steps back, and the reveal's own card flights must
+   fly ABOVE the pack they are landing into. The dock stays mounted and
+   returns the instant they release. */
 /* Pack enter/leave (a card joins / leaves the hand): rise out of / sink
    into the tray. `--hd-pop` folds into the card's own transform, so the
    x-placement never snaps. */

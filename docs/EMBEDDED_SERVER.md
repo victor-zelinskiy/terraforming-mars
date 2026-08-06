@@ -117,8 +117,12 @@ Windows Firewall will prompt once on the first LAN bind — expected.
 
 **Supervision (`electron/embeddedServer.ts`):** spawn → await ready (timeout → fallback to
 remote mode) → on unexpected exit, one respawn with backoff, then fallback. On `before-quit`:
-`{type:'shutdown'}` with a 2 s grace, then kill. Every save is a synchronous file write, so a
-hard kill loses nothing. A restart changes `runId`; the client's existing `INVALID_RUN_ID`
+`{type:'shutdown'}` with a 2 s grace, then kill. Saves are written atomically (temp file +
+rename) off the event loop, serialized on one queue, so a kill can never truncate a file or
+reorder saves — at worst the last few milliseconds of writes are still in flight and that one
+action is lost. Everything before it is on disk. The 2 s grace is far longer than the queue
+needs to drain, so a graceful quit loses nothing. (No write is `fsync`ed, so sudden power loss
+is a weaker guarantee than process death.) A restart changes `runId`; the client's existing `INVALID_RUN_ID`
 handling (server-restart reload prompt) self-heals mid-game sessions.
 
 **Message protocol (utility ↔ main):**

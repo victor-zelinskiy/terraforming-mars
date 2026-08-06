@@ -1,4 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
+import {bootToBoard, fillPicks, press} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -83,103 +84,29 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await page.waitForTimeout(settleMs);
 }
 
-/** Boot a solo game and land on the board home (verbatim from hand-reveal-probe). */
+/** Boot a solo game and land on the board home — via the SHARED driver
+ *  (consoleStart.ts): the walk is setup, never the subject. The old scripted
+ *  walk raced the wizard's physical transitions (a swallowed press livelocked
+ *  it — its recovery rotation had no RT), which is exactly the drift the
+ *  driver exists to absorb. The hand stays intact by construction: the driver
+ *  plays only the ceremony QUEUE (corp/preludes) and pays the purchase; it
+ *  never plays cards out of the hand. */
 async function bootGame(page: Page, request: any, buyProjects: number, profileQuery = ''): Promise<void> {
   const created = await request.post('/api/creategame', {data: newGameConfig()});
   expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
   const model = await created.json() as {players: Array<{id: string}>};
   await page.goto(`/player?id=${model.players[0].id}&console=1${profileQuery}`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  await page.waitForTimeout(3500);
-  // The start wizard, driven STEP BY STEP rather than by one flat key walk: a
-  // step that has hit its own limit («Лимит 2/2», «Недостаточно средств»)
-  // swallows A, so a rotating sequence stalls there forever — which is exactly
-  // how the first two cuts of this spec hung.
-  // NB: the step advance is RT (`Period`) — «СЛЕД. ШАГ» in the wizard's own
-  // footer. RB (`KeyE`) is a different verb and leaves the step where it was,
-  // which is how an earlier cut bought 14 cards and ran the wallet dry.
-  const launch = page.getByText('НАЧАТЬ ПАРТИЮ').first();
-  // 1 · CORPORATION — exactly one pick, then advance.
-  await key(page, 'Enter', 900);
-  await key(page, 'Period', 1700);
-  // 2 · PROJECTS — buy a small, affordable handful (3 M€ each of 36). A step
-  // that has hit its own limit swallows A, so the presses are BOUNDED rather
-  // than repeated until a counter says stop: an over-buy would only stall on
-  // «Недостаточно средств», and the hand recovery below covers a short deal.
-  await page.getByText('стартовые карты для покупки').first().waitFor({timeout: 12_000}).catch(() => {});
-  for (let i = 0; i < buyProjects; i++) {
-    await key(page, 'Enter', 700);
-    await key(page, 'ArrowRight', 260);
-  }
-  await key(page, 'Period', 1700);
-  // 3 · SUMMARY — the launch is the explicit A CTA.
-  for (let i = 0; i < 4 && await launch.count() === 0; i++) {
-    await key(page, 'Period', 1300);
-  }
-  if (await launch.count() > 0) {
-    await key(page, 'Enter', 2400); // pay + start
-  }
-  await page.waitForTimeout(3000);
-  const live = page.locator('.con-handdock--live');
-  const placement = page.locator('.con-context__task-kicker');
-  const wizard = page.locator('.con-start__frame');
-  const quick = page.locator('.con-quick');
-  const handSec = page.locator('.con-hand');
-  const composer = page.locator('.con-composer');
-  const banner = page.locator('.con-banner');
-  const finishers = ['ArrowRight', 'Enter', 'KeyE'];
-  const dirs = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
-  for (let round = 0; round < 3; round++) {
-    for (let i = 0; i < 36 && (await live.count() === 0 || await placement.count() > 0); i++) {
-      if (await page.locator('.con-zoom').count() > 0) {
-        // The fullscreen viewer's A is «Разыграть» — never walk INTO it.
-        await key(page, 'Escape', 1100);
-      } else if (await quick.count() > 0) {
-        await key(page, 'Escape', 1100);
-      } else if (await composer.count() > 0) {
-        // CANCEL a play composer, never advance it: X here opens the fullscreen
-        // viewer, and the walk's next blind A on that viewer PLAYS the card.
-        // That is how this spec kept arriving at «КАРТЫ 0/0» with production
-        // already ticked up — the boot had spent the hand it was meant to deal.
-        const corpFirst = await page.locator('.con-composer--corpfirst').count() > 0;
-        await key(page, corpFirst ? 'Enter' : 'Escape', 1600);
-      } else if (await handSec.count() > 0) {
-        // CLOSE the hand — never A. This spec needs the hand to still HOLD the
-        // cards it was dealt; a self-healing Enter here plays them, and the
-        // test then walks into an empty shelf («КАРТЫ 0/0»).
-        await key(page, 'Escape', 1400);
-      } else if (await wizard.count() > 0) {
-        await key(page, finishers[i % finishers.length], 900);
-      } else if (await placement.count() > 0) {
-        await key(page, 'Enter', 1200);
-        if (await placement.count() > 0) {
-          await key(page, dirs[i % dirs.length], 600);
-          await key(page, 'Enter', 1400);
-        }
-      } else {
-        await key(page, 'Enter', 1500);
+  await bootToBoard(page, {
+    onStep: async (p, kind) => {
+      if (kind === 'corporation') {
+        await press(p, 'Enter', 700);
+      } else if (kind === 'prelude') {
+        await fillPicks(p, 2);
+      } else if (kind === 'project' && buyProjects > 0) {
+        await fillPicks(p, buyProjects, 30);
       }
-    }
-    await page.waitForTimeout(2500);
-    if (await live.count() === 1 && await placement.count() === 0) {
-      break;
-    }
-  }
-  if (await live.count() === 0) {
-    await shoot(page, 'boot-stuck');
-  }
-  await expect(live).toHaveCount(1);
-  // Resolve anything the self-healing walk MINIMIZED on the way here. A
-  // deferred prompt keeps the action window shut, and then every card in hand
-  // reads «нельзя разыграть» — which looks exactly like a broken hand and is
-  // really just a boot artifact.
-  for (let i = 0; i < 8 && await page.locator('.con-mandatory').count() > 0; i++) {
-    await key(page, 'Enter', 1400);
-    if (await placement.count() > 0) {
-      await key(page, 'Enter', 1400);
-    }
-  }
+    },
+  });
   await page.waitForTimeout(1000);
 }
 

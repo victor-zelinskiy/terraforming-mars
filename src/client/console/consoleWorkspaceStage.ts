@@ -52,7 +52,7 @@ export type WorkspaceStageHost =
    * add a host here: the composer still descends into the hand's own zone,
    * because that is structurally where it lands. What changes is only which
    * shell the hand wears, and therefore who draws the breadcrumb ROOT — see
-   * `ConsoleHandSection.embedded` / `consoleStartSponsor.ts`.
+   * `ConsoleHandSection.embedded` / `consoleWorkspaceEmbed.ts`.
    */
   | 'hand';
 

@@ -93,6 +93,35 @@ async function surfaces(page: Page) {
       firstCardY: document.querySelector('.con-hand__slot')?.getBoundingClientRect().top ?? -1,
       /** The player's own «Разыграно» — the normal play flow's destination. */
       tableauCards: document.querySelectorAll('[data-played-key]').length,
+      /** The embedded hand's browse toolbar (filters/counters) is VISIBLE. */
+      toolbarShown: (() => {
+        const el = document.querySelector('.con-hand__toolbar');
+        if (el === null) {
+          return false;
+        }
+        const st = getComputedStyle(el);
+        return st.visibility !== 'hidden' && Number(st.opacity) > 0.05;
+      })(),
+      /** The hand dock's presence-contract state. */
+      dockMounted: document.querySelector('.con-handdock') !== null,
+      dockCompact: document.querySelector('.con-handdock')?.classList.contains('con-handdock--compact') ?? false,
+      /** The dock's card backs do not overlap the embedded hand's status
+       *  rail (the divergence this rework closes). */
+      dockOverRail: (() => {
+        const rail = document.querySelector('.con-hand__verdictbar, .con-hand__statusrail, .con-start__statusrail');
+        if (rail === null) {
+          return false;
+        }
+        const rr = rail.getBoundingClientRect();
+        return Array.from(document.querySelectorAll('.con-handdock__card'))
+          .some((c) => {
+            const cr = c.getBoundingClientRect();
+            const st = getComputedStyle(c);
+            return st.visibility !== 'hidden' && cr.height > 4 &&
+              cr.top < rr.bottom - 2 && cr.bottom > rr.top + 2 &&
+              cr.left < rr.right && cr.right > rr.left;
+          });
+      })(),
       /** The board took the screen for a tile placement the project asked for.
        *  ⚠️ Match case-INSENSITIVELY: the kicker is uppercased by CSS
        *  (`text-transform`), so `textContent` carries the sentence case. */
@@ -186,6 +215,14 @@ test.describe('console start — «Эпатажный спонсор» as a work
     // ⑤ THE DEPLOYMENT DISSOLVED: no stage chips naming «ПРОЛОГИ» over a hand
     // screen, no queue, no compact shelf, and certainly no full tableau.
     expect(s.banner, 'no floating ask-banner over an OPEN workspace').toBe('');
+    // THE DOCK PRESENCE CONTRACT: mounted, in its compact pose (a workspace
+    // owns the screen), and its backs never overlap the status rail.
+    expect(s.dockMounted, 'the hand dock is never hidden by a screen').toBeTruthy();
+    expect(s.dockCompact, 'the dock stepped into its compact pose').toBeTruthy();
+    expect(s.dockOverRail, 'no dock card overlaps the status rail').toBeFalsy();
+    // …and the browse toolbar IS visible while browsing (it only hides for
+    // the configure stage).
+    expect(s.toolbarShown, 'filters visible on the browse layer').toBeTruthy();
     expect(s.journeyRail, 'the startup journey rail is gone').toBe(0);
     expect(s.startQueue, 'the deployment queue is gone').toBe(0);
     expect(s.startPlayed, 'the compact played shelf is gone').toBe(0);
@@ -225,6 +262,9 @@ test.describe('console start — «Эпатажный спонсор» as a work
     expect(setup.composerEmbedded, 'the composer descended INSIDE the hand').toBeTruthy();
     expect(setup.startUp, 'the Game Start Workspace still owns the screen').toBeTruthy();
     expect(setup.headCount, 'still exactly one header').toBe(1);
+    // Browse-layer chrome hides past the descent (contract rule 5): the tag
+    // filters belong to browsing, not to configuring a play.
+    expect(setup.toolbarShown, 'the filters/toolbar hid for the configure stage').toBeFalsy();
 
     // A again → commit. The card leaves the hand, flies the ordinary hero arc
     // and lands in «Разыграно»; the workspace comes back around it.

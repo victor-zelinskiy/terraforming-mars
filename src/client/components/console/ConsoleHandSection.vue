@@ -32,8 +32,15 @@
          root would lie («КАРТЫ В РУКЕ» when the player is inside СТАРТ
          ПАРТИИ). The slot content (counts · filters · the mode bars) is NOT
          chrome — it is this screen's own toolbar and stays either way. -->
+    <!-- BROWSE-LAYER CHROME HIDES PAST THE DESCENT (embed contract rule 5):
+         in the normal shell ConsoleWsHead does this itself — its browse layer
+         (holding these filters/counters) yields to the deep crumb when the
+         stage opens. The embedded toolbar must keep the same law, or the
+         filters stand over a configure stage they no longer apply to. Held,
+         not unmounted: the row keeps its height (no layout shift) and the
+         filter state survives untouched. -->
     <component :is="embedded ? 'div' : 'ConsoleWsHead'"
-               :class="embedded ? 'con-hand__toolbar' : 'con-hand__head'"
+               :class="embedded ? ['con-hand__toolbar', {'con-hand__toolbar--held': stageOpen}] : 'con-hand__head'"
                v-bind="embedded ? {} : {
                  root: 'Cards in hand',
                  emblem: 'cards',

@@ -606,7 +606,7 @@ import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
 import {captureCards, CapturedFlight, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, convoyBeats, liveFlightProxies, DockFlightSource, parkSurface, unparkSurface, clearSurfaceParking, measureTargets, pressPile} from '@/client/console/startDockMotion';
 import {FACE_DOWN_DEG, FACE_UP_DEG} from '@/client/console/cardFlight/card3dInner';
-import {noteStartPlaySource, setStartSponsorSlot, startSponsorState} from '@/client/console/consoleStartSponsor';
+import {noteWorkspaceEmbedSource, setWorkspaceEmbedSlot, workspaceEmbedState} from '@/client/console/consoleWorkspaceEmbed';
 import {workspaceStageState} from '@/client/console/consoleWorkspaceStage';
 import {
   beginStartTransition, endStartTransition, resetStartTransition, setStartTransitionPhase,
@@ -765,8 +765,8 @@ export default defineComponent({
       heroState: playedHeroState,
       /** The shared claim state (embed zone presence derives from it). */
       outcome: workspaceOutcomeState,
-      /** «Эпатажный спонсор» — the play-from-hand step this workspace hosts. */
-      sponsor: startSponsorState,
+      /** The embedded step this workspace hosts («Эпатажный спонсор»). */
+      embed: workspaceEmbedState,
       /** The live descent of the embedded hand (the composer's crumb tail). */
       stageState: workspaceStageState,
       /** Slots whose card is FLYING BACK from a dock pile (held empty until
@@ -1031,7 +1031,7 @@ export default defineComponent({
      * and its already-played cards, and comes back untouched.
      */
     sponsorStep(): boolean {
-      return this.sponsor.embedded;
+      return this.embed.host === 'start' && this.embed.surface === 'hand';
     },
     /**
      * A play-from-hand effect is still owed — the server is holding its
@@ -1046,11 +1046,11 @@ export default defineComponent({
         const hand = new Set(this.playerView.cardsInHand.map((c) => c.name));
         return wf.cards.length > 0 && wf.cards.every((c) => hand.has(c.name));
       }
-      return this.sponsor.committing;
+      return this.embed.committing;
     },
     /** The card whose effect asked for the play — the crumb's subject. */
     sponsorSource(): CardName | undefined {
-      const src = this.sponsor.source;
+      const src = this.embed.source;
       return src === '' ? undefined : src;
     },
     embedActive(): boolean {
@@ -1733,7 +1733,7 @@ export default defineComponent({
       immediate: true,
       flush: 'post',
       handler(on: boolean) {
-        setStartSponsorSlot(on ? '.con-start__handstep' : '');
+        setWorkspaceEmbedSlot(on ? '.con-start__handstep' : '');
       },
     },
     /** Step position (the panes swap under this): reseed focus, mark the
@@ -3903,7 +3903,7 @@ export default defineComponent({
       // played. If its effect turns out to ask for a play-from-hand
       // («Эпатажный спонсор»), this is the source the crumb names — the
       // server's prompt carries no attribution of its own.
-      noteStartPlaySource(name);
+      noteWorkspaceEmbedSource(name);
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
         CSS.escape(name) : name.replace(/"/g, '\\"');
       // HOST 'workspace': the standalone «Разыграно» overlay never opens for

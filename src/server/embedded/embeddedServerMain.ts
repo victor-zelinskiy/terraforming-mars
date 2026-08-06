@@ -67,6 +67,29 @@ async function main(): Promise<void> {
   const {startGameServer} = require('../GameServer') as typeof import('../GameServer');
   const {LanDiscovery} = require('./lanDiscovery') as typeof import('./lanDiscovery');
 
+  // Silence the per-save / per-load trace. It fires on essentially every player
+  // action, and console.log from a utilityProcess is a SYNCHRONOUS pipe write to
+  // the main process on Windows — routine chatter on the hot path. Errors,
+  // startup and LAN diagnostics are unaffected.
+  const {LocalFilesystem} = require('../database/LocalFilesystem') as typeof import('../database/LocalFilesystem');
+  LocalFilesystem.quiet = true;
+
+  // The filesystem backend writes off the event loop, so a save can still be in
+  // flight when the server stops. Settle the queue before exiting, or the
+  // player's last action dies with the process. Best-effort: shutdown must
+  // never hang on it.
+  const flushDatabase = async (): Promise<void> => {
+    try {
+      const {Database} = require('../database/Database') as typeof import('../database/Database');
+      const db = Database.getInstance();
+      if (db instanceof LocalFilesystem) {
+        await db.flushPendingWrites();
+      }
+    } catch (err) {
+      console.error('[embedded] flushing the database failed', err);
+    }
+  };
+
   const preferredPort = Number(process.env.TM_EMBEDDED_PORT ?? DEFAULT_EMBEDDED_PORT);
   const bind = process.env.TM_EMBEDDED_BIND === 'local' ? '127.0.0.1' : '0.0.0.0';
 
@@ -102,6 +125,7 @@ async function main(): Promise<void> {
       discovery.destroy();
       running.stop()
         .catch((err) => console.error('[embedded] stop failed', err))
+        .then(() => flushDatabase())
         .finally(() => process.exit(0));
     } else if (data.type === 'lan-rename') {
       discovery.rename(String(data.name ?? ''));
@@ -109,7 +133,7 @@ async function main(): Promise<void> {
   });
   process.on('SIGTERM', () => {
     discovery.destroy();
-    void running.stop().finally(() => process.exit(0));
+    void running.stop().then(() => flushDatabase()).finally(() => process.exit(0));
   });
 
   send({type: 'ready', port: running.port, bind});

@@ -22,6 +22,8 @@ class TestLocalFilesystem extends LocalFilesystem implements ITestDatabase {
   }
 
   // Tests can wait for saveGamePromise since save() is called inside other methods.
+  // The backend defers its writes, but saveGame still resolves only once they have
+  // landed, so this keeps meaning "fully written".
   public override async saveGame(game: IGame): Promise<void> {
     this.lastSaveGamePromise = super.saveGame(game);
     this.promises.push(this.lastSaveGamePromise);
@@ -29,6 +31,9 @@ class TestLocalFilesystem extends LocalFilesystem implements ITestDatabase {
   }
 
   public async afterEach() {
+    // Settle any write queued without being awaited before the folder goes away,
+    // or it lands on a deleted directory and spews ENOENT through the rest of the suite.
+    await this.flushPendingWrites();
     fs.rmSync(this.dbFolder, {recursive: true});
   }
 

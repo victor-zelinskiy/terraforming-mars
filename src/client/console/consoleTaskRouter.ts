@@ -119,11 +119,12 @@ export type ShellSurfaceContext = {
   /** The corporation's first-action confirm is up (it has no section). */
   corpFirstActionOpen: boolean,
   /**
-   * The Game Start Workspace is hosting the play-from-hand step. There the
-   * hand lives INSIDE the workspace, so «on the hand» and «inside the start»
-   * are the same place — not two surfaces to choose between.
+   * The HAND is currently hosted as an embedded step of a live workspace
+   * (`consoleWorkspaceEmbed` — e.g. the Game Start Workspace's play-from-hand
+   * prelude). There «on the hand» and «inside that workspace» are the same
+   * place, not two surfaces to choose between.
    */
-  startSponsorEmbed: boolean,
+  handEmbedded: boolean,
 };
 
 /**
@@ -147,7 +148,7 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
   switch (task.kind) {
   case 'projectCard':
     return task.mode === 'playFromHand' ?
-      (ctx.section === 'hand' || ctx.startSponsorEmbed) :
+      (ctx.section === 'hand' || ctx.handEmbedded) :
       ctx.sheet === 'standardProjects';
   case 'handSelect':
     return ctx.section === 'hand';

@@ -502,7 +502,12 @@ export async function waitForBoardHome(page: Page, maxRounds = 70): Promise<void
     if (await reveal.count() > 0) {
       await press(page, 'Enter', 1200);
     } else if (await hand.count() > 0) {
-      await press(page, 'Escape', 900); // B — the hand screen is not the home
+      // INSIDE the start workspace the hand IS the pending start work (a
+      // play-from-hand prelude — Eccentric Sponsor / Ecology Experts): play
+      // the focused playable card through the ordinary flow (pick → the
+      // composer's commit — both are A). B here would fight a task that must
+      // resolve. A STANDALONE hand screen is simply not the home — close it.
+      await press(page, await start.count() > 0 ? 'Enter' : 'Escape', 1400);
     } else if (await mandatory.count() > 0) {
       // A held / DEFERRED decision (incl. a minimized start workspace) —
       // A brings it back; leaving it parked keeps the dock non-interactive.

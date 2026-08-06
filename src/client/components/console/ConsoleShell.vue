@@ -928,14 +928,21 @@
            therefore stay laid out + measurable at all times WHILE VISIBLE —
            the hand-intake director can always land a card, and the counter
            only ticks on the physical touchdown. -->
-      <ConsoleHandDock v-show="handDockVisible && !dockParkedUnderScene"
+      <!-- THE HAND DOCK PRESENCE CONTRACT (docs/claude/console/hand-dock-
+           presence.md): once the dock appears after setup it stays to the end
+           of the game — NEVER unmounted, NEVER v-show'n away by a screen. It
+           is always the top layer of the section/band ladder; where a status
+           rail or an embedded surface would collide it steps into the COMPACT
+           pose instead of hiding, and while cards are physically arriving it
+           always rises to FULL (the intake accent) whatever is open. -->
+      <ConsoleHandDock v-show="handDockVisible"
                        ref="handDock"
                        :cards="handDockCards"
                        :playableCount="cardsPlayableCount"
                        :epoch="playerView.runId"
                        :interactive="handDockInteractive"
                        :raised="consoleState.quick === 'actions'"
-                       :compact="planetFocusState.phase !== 'idle'"
+                       :compact="handDockCompact"
                        :liftedNames="dockLiftedNames"
                        :deliveryHeld="dockHeld"
                        @open="onHandDockOpen" />
@@ -1229,8 +1236,8 @@ import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.v
 
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {
-  markStartSponsorCommitting, setStartSponsorEmbedded, startSponsorCommitting, startSponsorSlot,
-} from '@/client/console/consoleStartSponsor';
+  markWorkspaceEmbedCommitting, setWorkspaceEmbed, workspaceEmbedCommitting, workspaceEmbedSlot,
+} from '@/client/console/consoleWorkspaceEmbed';
 
 /** The kinds served by a DEDICATED composite surface (not by the task host). */
 const NATIVE_COMPOSITE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['venusBonus', 'spendHeat', 'aresGlobal']);
@@ -1827,6 +1834,32 @@ export default defineComponent({
      *  everything but the endgame and the pre-game initial setup. */
     handDockVisible(): boolean {
       return this.game.phase !== 'end' && !this.setupHandPending;
+    },
+    /**
+     * CARDS ARE PHYSICALLY ARRIVING at (or leaving) the dock — the INTAKE
+     * ACCENT. For its duration the dock stands in its FULL pose whatever is
+     * open: the landing is the one moment the pack must be seen at size, and
+     * every flight in these episodes measures the dock's rects — a pose
+     * change mid-episode would move the targets out from under the proxies.
+     */
+    dockIntakeAccent(): boolean {
+      return isHandDeliveryActive() || isHandRevealEpisodeRunning() ||
+        this.handRevealState.holdSlots || this.dockHeld.length > 0;
+    },
+    /**
+     * THE COMPACT POSE — the dock's answer to a busy screen (the presence
+     * contract above): it never hides and never re-layers below a surface;
+     * where a status rail / a workspace band / a sheet / an embedded step
+     * would collide with the pack, the pack steps back into the tray instead.
+     * `!handDockInteractive` is exactly «something owns the screen» — the one
+     * predicate that already enumerates every such surface — plus Planet
+     * Focus, which is a board-home state that makes the BOARD the subject.
+     */
+    handDockCompact(): boolean {
+      if (this.dockIntakeAccent) {
+        return false;
+      }
+      return planetFocusState.phase !== 'idle' || !this.handDockInteractive;
     },
     handDockInteractive(): boolean {
       if (this.consoleState.section !== 'board' || this.consoleState.fallbackActive || this.game.phase === 'end') {
@@ -2657,7 +2690,7 @@ export default defineComponent({
         section: this.consoleState.section,
         sheet: this.consoleState.sheet,
         corpFirstActionOpen: this.corpFirstActionOpen,
-        startSponsorEmbed: this.startSponsorEmbed,
+        handEmbedded: this.startSponsorEmbed,
       });
     },
     /** The std-projects source: the TOP-LEVEL prompt (EstablishedMethods) or the action menu. */
@@ -3028,7 +3061,7 @@ export default defineComponent({
       if (!this.startSceneServes || this.consoleState.task.deferred) {
         return false;
       }
-      if (startSponsorCommitting()) {
+      if (workspaceEmbedCommitting()) {
         return true;
       }
       const task = taskFor(this.playerView);
@@ -3041,7 +3074,7 @@ export default defineComponent({
      * actually exist (the scene renders it) before we hand the hand over.
      */
     handEmbedTarget(): string | undefined {
-      return this.startSponsorEmbed ? startSponsorSlot() : undefined;
+      return this.startSponsorEmbed ? workspaceEmbedSlot() : undefined;
     },
     /**
      * The workspace slot the PLAY COMPOSER is teleported into (undefined → its
@@ -4966,7 +4999,7 @@ export default defineComponent({
     startSponsorEmbed: {
       immediate: true,
       handler(on: boolean): void {
-        setStartSponsorEmbedded(on);
+        setWorkspaceEmbed('start', on ? 'hand' : undefined);
       },
     },
     /**
@@ -4978,8 +5011,8 @@ export default defineComponent({
      * normal task and is served by the workspace it is already inside.
      */
     'playedHeroState.active'(active: boolean): void {
-      if (!active && startSponsorCommitting()) {
-        setStartSponsorEmbedded(false);
+      if (!active && workspaceEmbedCommitting()) {
+        setWorkspaceEmbed('start', undefined);
       }
     },
     // Mirror the live gate-held state into the module so the leak detector (a
@@ -6925,6 +6958,17 @@ export default defineComponent({
         this.consoleState.section = 'board';
         return;
       }
+      // THE EMBEDDED HAND STEP (workspace-embed): B minimizes the WHOLE
+      // hosting workspace — its standard verb — never a bare section close.
+      // The close path below is race-prone here: `shellTaskActive` can be
+      // momentarily undefined (an admission hold), and closing without the
+      // defer left the workspace standing with an EMPTY step zone, the claim
+      // still held and no card offering the way back — a soft-lock.
+      if (this.startSponsorEmbed) {
+        this.consoleState.task.deferred = true;
+        this.consoleState.section = 'board';
+        return;
+      }
       // B on a shell-task surface: CANCEL when the server marker allows
       // (pay-on-commit Build Colony), else DEFER to inspect the board.
       if (this.shellTaskActive) {
@@ -7512,7 +7556,7 @@ export default defineComponent({
       // server names no prompt at all, and a claim that lapsed there would
       // tear the hand out from under a card that is still in the air.
       if (this.startSponsorEmbed) {
-        markStartSponsorCommitting();
+        markWorkspaceEmbedCommitting();
       }
       this.submitBatch(batch);
     },
@@ -8156,6 +8200,18 @@ export default defineComponent({
       // stage from the claim (same card, same variant, no replayed cinematic).
       if (workspaceOutcomeClaimed()) {
         this.openSheet('cardActions');
+        return;
+      }
+      // The EMBEDDED HAND STEP returns WITH its workspace: the scene remounts
+      // via its own v-if, but the hand surface must be re-opened explicitly —
+      // the generic guard below skips while the start serves, and an un-defer
+      // that left the section on 'board' stood the workspace up around an
+      // empty step zone.
+      if (this.startSponsorEmbed) {
+        const task = taskFor(this.playerView);
+        if (task !== undefined && task.kind === 'projectCard') {
+          this.openShellTaskSurface(task);
+        }
         return;
       }
       if (this.hostTask === undefined && !this.startSceneServes && this.shellTask !== undefined) {
