@@ -144,6 +144,16 @@
         </div>
       </div>
 
+      <!-- THE COLONIES STEP — a SelectColony this activation raised (a free
+           trade / a colony pick): the COLONY WORKSPACE is teleported here as
+           an embedded step (workspace-embed host 'card-actions'). The zone
+           owns the whole outcome column; the section wears no shell of its
+           own (rule 1) and the crumb above reads «… › КОЛОНИИ». -->
+      <div v-else-if="colonyStepOn"
+           class="con-composer__revealzone con-composer__colonyzone"
+           data-outcome-zone
+           data-embed-slot="action-colonies"></div>
+
       <div v-else class="con-composer__revealzone" data-outcome-zone>
           <div class="con-composer__revealslot" ref="revealSlot" data-outcome-item
                :class="{
@@ -628,6 +638,7 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceEmbedActive, setWorkspaceEmbedSlot} from '@/client/console/consoleWorkspaceEmbed';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {actionCommitState, armActionCommit, commitKindForBranch, commitRewardSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
@@ -1227,6 +1238,11 @@ export default defineComponent({
     drawOutcomeOn(): boolean {
       return this.outcome?.kind === 'draw' || this.outcome?.kind === 'pending';
     },
+    /** A SelectColony this activation raised is HOSTED here — the colonies
+     *  section teleports into the outcome column (workspace-embed). */
+    colonyStepOn(): boolean {
+      return workspaceEmbedActive('colonies', 'card-actions');
+    },
     /** Still waiting: the zone is standing but nothing has been re-homed yet. */
     outcomePendingBeat(): boolean {
       return this.drawOutcomeOn && workspaceOutcomeState.stage !== 'presenting';
@@ -1690,6 +1706,15 @@ export default defineComponent({
         setWorkspaceOutcomeSlot(on ? '[data-embed-slot="workspace-reveal"]' : '');
       },
     },
+    // The COLONIES STEP zone — same discipline (embed rule 4: `flush:'post'`
+    // so the element genuinely stands before the teleport looks for it,
+    // retract on the way out).
+    colonyStepOn: {
+      flush: 'post' as const,
+      handler(on: boolean) {
+        setWorkspaceEmbedSlot(on ? '[data-embed-slot="action-colonies"]' : '');
+      },
+    },
     /**
      * SETUP → OUTCOME, played as the SAME phrase that opened the action, one
      * level deeper (consoleActionOutcomeMotion). The configuration content
@@ -1870,6 +1895,10 @@ export default defineComponent({
     // presenter falls back to its band instead of into a detached node. The
     // watcher does not fire on unmount, so this cannot be left to it.
     setWorkspaceOutcomeSlot('');
+    // Same for the colonies-step zone (embed rule 4, the retract half).
+    if (this.colonyStepOn) {
+      setWorkspaceEmbedSlot('');
+    }
     resetOutcomeOrigin();
     if (this.revealGainPopTimer !== undefined) {
       window.clearTimeout(this.revealGainPopTimer);

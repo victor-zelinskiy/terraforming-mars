@@ -676,25 +676,21 @@ html.con-profile-tv {
         &__fleetchip-count { font-size: var(--con-t-secondary); }
         &__fleetchip-count .colony-fleet-icon { width: 1.6rem; height: 1.6rem; }
         .colony-fleet-pad { width: 2.2rem; height: 1.05rem; }
-        /* Focused-colony summary — the couch hero band. FIXED height (content
-           varies per mode/colony; a varying height jumped the tile grid). */
-        &__summary { gap: 1.6rem; padding: 0.8rem 1.3rem; height: 5.2rem; }
-        &__summary-name { font-size: 1.35rem; }
-        &__summary-track { font-size: var(--con-t-secondary); }
-        &__summary-label { font-size: var(--con-t-floor); }
-        &__summary-paytext { font-size: var(--con-t-secondary); }
-        &__summary-sub { font-size: var(--con-t-floor); }
-        &__summary-pay .colony-fleet-icon { width: 2.1rem; height: 2.1rem; }
-        &__summary-arrow, &__summary-sep { font-size: 1.9rem; }
-        /* The summary PlayerCube tokens ride the ui-scale zoom channel — the
+        /* Compact status rail — one line, couch-readable. FIXED height
+           (content varies per mode/colony; a varying height jumped the grid). */
+        &__rail { gap: 1rem; padding: 0.4rem 1rem; height: 3rem; }
+        &__rail-track { font-size: var(--con-t-secondary); }
+        &__rail-label { font-size: var(--con-t-floor); }
+        &__rail .colony-fleet-icon { width: 1.7rem; height: 1.7rem; }
+        &__rail-arrow, &__rail-sep { font-size: 1.4rem; }
+        /* The rail PlayerCube tokens ride the ui-scale zoom channel — the
            tv couch boost multiplies that zoom (mirrors the old rem bumps). */
-        &__summary-owner .player-cube { zoom: calc(1.35 * var(--con-ui-scale, 1)); }
-        &__summary-ownernote { font-size: var(--con-t-floor); }
-        &__summary-none { font-size: var(--con-t-secondary); }
-        &__summary-cube.player-cube { zoom: calc(1.3 * var(--con-ui-scale, 1)); }
-        &__summary-warn { font-size: var(--con-t-secondary); }
-        &__summary-selectnote { font-size: var(--con-t-body); }
-        &__summary-status { font-size: var(--con-t-secondary); padding: 0.4rem 1rem; }
+        &__rail-owner .player-cube { zoom: calc(1.3 * var(--con-ui-scale, 1)); }
+        &__rail-cube.player-cube { zoom: calc(1.3 * var(--con-ui-scale, 1)); }
+        &__rail-muted { font-size: var(--con-t-caption); }
+        &__rail-warn { font-size: var(--con-t-caption); }
+        &__rail-note { font-size: var(--con-t-body); }
+        &__rail-status { font-size: var(--con-t-secondary); padding: 0.35rem 0.9rem; }
     }
     .con-colinspect {
         &__frame { width: min(62rem, 94vw); }
@@ -702,15 +698,31 @@ html.con-profile-tv {
         &__row { font-size: var(--con-t-secondary); }
         &__fleet-line .colony-fleet-icon { width: 1.9rem; height: 1.9rem; }
     }
-    .con-trade {
-        &__frame { width: min(58rem, 94vw); }
-        &__title { font-size: 1.4rem; }
+    /* The COLONY FOCUS STAGE — couch typography (the geometry is rem and
+       scales with the profile; only the type + hit targets move). */
+    .con-colfocus {
+        &__hero { flex-basis: 30rem; }
+        &__planet { width: 8rem; height: 8rem; }
+        &__desc { font-size: var(--con-t-caption); }
+        &__sec-title { font-size: var(--con-t-floor); }
+        &__track-row { height: 1.75rem; }
+        &__track-num { font-size: var(--con-t-floor); }
+        &__track-qty { font-size: var(--con-t-secondary); }
+        &__track-tag { font-size: var(--con-t-floor); }
+        &__note { font-size: var(--con-t-floor); }
+        &__fleetline { font-size: var(--con-t-caption); }
+        &__verdict { font-size: var(--con-t-secondary); }
         &__payrow { min-height: var(--con-hit-min); }
-        &__payrow-icon { width: 1.6rem; height: 1.6rem; }
-        &__row-label { font-size: var(--con-t-secondary); }
+        &__payrow-title { font-size: var(--con-t-secondary); }
+        &__payrow-delta { font-size: var(--con-t-caption); }
+        &__payrow-reason { font-size: var(--con-t-floor); }
+        &__steprow { min-height: var(--con-hit-min); }
+        &__steprow-label { font-size: var(--con-t-caption); }
+        &__steprow-value { font-size: var(--con-t-secondary); }
+        &__outrow { font-size: var(--con-t-secondary); }
         &__notice { font-size: var(--con-t-caption); }
         &__notice--lost { font-size: var(--con-t-secondary); }
-        &__notice-icon { width: 1.3rem; height: 1.3rem; }
+        &__bonus { font-size: var(--con-t-caption); }
     }
 
     /* ═══ 15 · JOURNAL (line length capped — never full-4K rows) ══
@@ -1247,8 +1259,8 @@ html.con-profile-tv {
     .con-task__tile--focused,
     .con-task__lane--focused,
     .con-sheet__row--focused,
-    .con-trade__payrow--focused,
-    .con-trade__steprow--focused,
+    .con-colfocus__payrow--focused,
+    .con-colfocus__steprow--focused,
     .con-coltile--focused,
     .con-ma__card--focused,
     .con-stdp__card--focused,

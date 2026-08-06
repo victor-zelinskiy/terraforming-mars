@@ -60,10 +60,10 @@ import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 
 /** Workspaces that can host an embedded step surface. */
-export type WorkspaceEmbedHost = 'start';
+export type WorkspaceEmbedHost = 'start' | 'hand' | 'card-actions';
 
 /** Full screens that can serve as an embedded step. */
-export type WorkspaceEmbedSurface = 'hand';
+export type WorkspaceEmbedSurface = 'hand' | 'colonies';
 
 export const workspaceEmbedState = reactive({
   /** The hosting workspace, or undefined when nothing is embedded. */

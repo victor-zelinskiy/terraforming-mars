@@ -1,6 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {bootToBoard, fillPicks, press} from './consoleStart';
 
 /**
  * COLONY-TRADE REWARD PROBE — drives a REAL game (colonies on, Pluto
@@ -98,59 +99,34 @@ async function createGame(request: APIRequestContext, automa: boolean, seed?: nu
   return {playerId: human.id, colonies: await dealtColonies(request, human.id)};
 }
 
+/**
+ * The whole pregame through the SHARED console-start driver (the ONE way
+ * console e2e boots a game — walkToSummary → submit → deployment → board
+ * home), steering the setup «remove a colony» pick OFF the probe's trade
+ * target so it survives into the action phase.
+ */
+async function walkUntilActionReady(page: Page, keep: string): Promise<void> {
+  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
+  await bootToBoard(page, {
+    keepColony: keep,
+    // A REAL hand: the board home's dock only goes live with cards in it, and
+    // the probe's action phase should look like a game, not a stub.
+    onStep: async (p, kind) => {
+      if (kind === 'corporation') {
+        await press(p, 'Enter', 600);
+      } else if (kind === 'project') {
+        await fillPicks(p, 2);
+      }
+    },
+  });
+  await page.waitForTimeout(1500); // entry animations settle
+}
+
 async function bootGame(page: Page, playerId: string): Promise<void> {
   await page.goto(`/player?id=${playerId}&console=1`);
   await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
   await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
   await page.waitForTimeout(3500); // deal cinematic settles
-}
-
-/**
- * Drive the WHOLE start of the game adaptively until the action phase is
- * live: the start wizard, the corp/payment ceremony, the mandatory announce
- * card (A opens it), the corp first action (including a city placement —
- * the cursor wiggles until a legal cell takes the tile), and the solo
- * "remove a colony" setup pick (steering off `keep` so the probe's trade
- * target survives). One loop, condition-driven — fixed key sequences drift
- * the moment a step's focus differs.
- */
-async function walkUntilActionReady(page: Page, keep: string): Promise<void> {
-  const startBadge = page.getByText('СТАРТОВЫЙ ВЫБОР').first();
-  const basicsChip = page.getByText('БАЗОВЫЕ').first();
-  const placement = page.getByText(/Выберите клетку/i).first();
-  const wiggle = ['Enter', 'ArrowRight', 'Enter', 'ArrowUp', 'Enter', 'ArrowLeft', 'Enter', 'ArrowDown'];
-  for (let i = 0; i < 70; i++) {
-    const ready = await basicsChip.isVisible().catch(() => false) &&
-      !(await startBadge.isVisible().catch(() => false)) &&
-      await page.locator('.con-mandatory').count() === 0 &&
-      !(await placement.isVisible().catch(() => false)) &&
-      !(await removalPickLive(page));
-    if (ready) {
-      await page.waitForTimeout(1500); // entry animations settle
-      return;
-    }
-    if (await removalPickLive(page)) {
-      const keepFocused = page.locator(`.con-coltile--focused[data-test="con-colony-${keep}"]`);
-      for (let j = 0; j < 6 && await keepFocused.count() > 0; j++) {
-        await key(page, 'ArrowRight', 500);
-      }
-      await key(page, 'Enter', 2200); // A = remove the focused colony
-      continue;
-    }
-    if (await page.locator('.con-mandatory').count() > 0) {
-      await key(page, 'Enter', 1100); // A = open the announced surface
-      continue;
-    }
-    if (await placement.isVisible().catch(() => false)) {
-      await key(page, wiggle[i % wiggle.length], 700); // hunt a legal cell
-      continue;
-    }
-    // Wizard steps commit on A, multi-pick steps advance on RB; the
-    // ceremony's pay/apply steps are all A. Alternate.
-    await key(page, i % 3 === 2 ? 'KeyE' : 'Enter', 1100);
-  }
-  await shoot(page, 'walk-stuck');
-  expect(false, 'never reached the action phase').toBeTruthy();
 }
 
 /** The colony names actually in play (the automa deal is seeded-random). */
@@ -161,13 +137,15 @@ async function dealtColonies(request: APIRequestContext, playerId: string): Prom
   return view.game.colonies.map((c) => c.name);
 }
 
-/** The colonies section is showing the setup "remove a colony" pick. */
+/** The colonies section is showing the setup "remove a colony" pick.
+ *  (The compact status RAIL replaced the old summary band — the pick's verb
+ *  chip lives there now.) */
 async function removalPickLive(page: Page): Promise<boolean> {
   if (await page.locator('.con-colonies').count() === 0) {
     return false;
   }
-  const text = (await page.locator('.con-colonies__summary').textContent().catch(() => '')) ?? '';
-  return text.includes('УБРАТЬ КОЛОНИЮ');
+  const text = (await page.locator('.con-colonies__rail').textContent().catch(() => '')) ?? '';
+  return text.toUpperCase().includes('УБРАТЬ КОЛОНИЮ');
 }
 
 /**
@@ -233,11 +211,11 @@ type Observation = {
 };
 
 async function tradeAndObserve(page: Page, tag: string, journal: Array<string>, windowTicks: number): Promise<Observation> {
-  await key(page, 'Enter', 1400); // A = Trade → composer
-  const composer = page.locator('.con-trade');
-  expect(await composer.count(), 'trade composer did not open').toBeGreaterThan(0);
+  await key(page, 'Enter', 1400); // A = Trade → the COLONY FOCUS STAGE (the workspace descend)
+  const stage = page.locator('.con-colfocus');
+  expect(await stage.count(), 'the colony focus stage did not open').toBeGreaterThan(0);
   await shoot(page, `${tag}-composer`);
-  await key(page, 'KeyX', 200); // X = confirm
+  await key(page, 'KeyX', 200); // X = confirm (folds back to the surface, the fleet lifts off)
 
   const obs: Observation = {journal, deckDrawSightings: [], sawTradeProxy: false, sawMarker: false, sawBonusMode: false, sawReveal: false};
   for (let tick = 0; tick < windowTicks; tick++) {
@@ -285,9 +263,12 @@ test('visual: a merged trade batch renders the labelled colony-bonus zone', asyn
   test.setTimeout(120_000);
   const game = await createGame(request, false);
 
-  // Inject a merged Pluto trade batch (2 income + 2 bonus cards) into every
-  // /api/player response — the route-interception harness the reveal modal's
-  // TV matrix already uses for arbitrary counts.
+  // Inject a merged Pluto trade batch (2 income + 1 bonus card of a 2-colony
+  // sequence) into every /api/player response — the route-interception
+  // harness the reveal modal's TV matrix already uses for arbitrary counts.
+  // The BONUS ZONE renders off the server's structural discard marker
+  // (`discardPrompt.colonyBonus` — one zone per owned colony, exactly one
+  // active), so the marker is injected alongside the batch.
   await page.route('**/api/player*', async (route) => {
     const response = await route.fetch();
     const body = await response.json();
@@ -296,10 +277,17 @@ test('visual: a merged trade batch renders the labelled colony-bonus zone', asyn
       source: {type: 'colony', colonyName: 'Pluto', trade: {tradeId: 'probe:g1:a1', role: 'income'}},
       cards: [
         {name: 'Micro-Mills'}, {name: 'Insulation'},
-        {name: 'Windmills'}, {name: 'Bushes'},
+        {name: 'Windmills'},
       ],
-      tradeSegments: [{role: 'income', count: 2}, {role: 'bonus', count: 2}],
+      tradeSegments: [{role: 'income', count: 2}, {role: 'bonus', count: 1}],
     }];
+    body.waitingFor = {
+      ...(body.waitingFor ?? {type: 'option', title: ''}),
+      discardPrompt: {
+        title: 'Select a card to discard',
+        colonyBonus: {colonyName: 'Pluto', index: 1, total: 2},
+      },
+    };
     await route.fulfill({response, json: body});
   });
 
@@ -310,13 +298,15 @@ test('visual: a merged trade batch renders the labelled colony-bonus zone', asyn
   await page.waitForTimeout(3000); // entrance settles
   await shoot(page, 'bonus-zone');
 
+  // ONE zone per owned colony (index 1 of 2 → an ACTIVE zone + a FUTURE
+  // placeholder), each labelled — the sequence reads as a table.
   const zone = page.locator('.con-reveal__bonus-zone');
-  expect(await zone.count(), 'the bonus zone did not render').toBe(1);
-  expect(await zone.locator('.con-cards__slot').count(), 'the zone must hold the 2 bonus cards').toBe(2);
-  await expect(page.locator('.con-reveal__bonus-zone-label')).toHaveText(/Бонус колонии/i);
-  // The income cards stay OUTSIDE the zone.
+  expect(await zone.count(), 'one zone per colony of the sequence').toBe(2);
+  expect(await page.locator('.con-reveal__bonus-zone--active').count(), 'exactly one ACTIVE zone').toBe(1);
+  await expect(page.locator('.con-reveal__bonus-zone-label').first()).toHaveText(/Бонус колонии/i);
+  // The income cards stay OUTSIDE the zones, on the ordinary strip.
   const strip = page.locator('.con-reveal__strip');
-  expect(await strip.locator('.con-cards__slot').count()).toBe(4);
+  expect(await strip.locator('.con-cards__slot').count()).toBeGreaterThanOrEqual(2);
 });
 
 test('solo (gated path): the trade cinematic claims the Pluto reveal', async ({page, request}) => {

@@ -45,7 +45,11 @@ export type WorkspaceOutcomeHost =
   | 'card-actions'
   /** The GAME START WORKSPACE — a start card (corporation / prelude) that
    *  draws or picks other cards hosts the follow-up in its own embed zone. */
-  | 'start';
+  | 'start'
+  /** The COLONY WORKSPACE — a trade the player confirmed there hosts its
+   *  drawn-cards payout (Pluto's income / colony bonuses) in the section's
+   *  own embed zone. `sourceCard` carries the COLONY name for this host. */
+  | 'colonies';
 
 /**
  * What an outcome can BE. The claimant declares which kinds it can host, so a
@@ -398,6 +402,22 @@ export function workspaceClaimsDrawReveal(source: CardDrawRevealSource | undefin
   return workspaceOutcomeAdmits('draw') &&
     source?.type === 'card' &&
     source.cardName === workspaceOutcomeState.sourceCard;
+}
+
+/**
+ * Does the COLONY WORKSPACE own this COLONY-sourced batch? The colony
+ * analogue of `workspaceClaimsDrawReveal`: a trade the player confirmed in
+ * the colonies section claims its own drawn payout (Pluto), keyed on the
+ * server's own `CardDrawRevealSource {type:'colony', colonyName}` — an
+ * OPPONENT's trade granting the viewer a colony bonus stays with the
+ * standalone presenters (the claim only exists between the section's own
+ * confirm and its outcome).
+ */
+export function workspaceClaimsColonyReveal(source: CardDrawRevealSource | undefined): boolean {
+  return workspaceOutcomeState.host === 'colonies' &&
+    workspaceOutcomeAdmits('draw') &&
+    source?.type === 'colony' &&
+    source.colonyName === workspaceOutcomeState.sourceCard;
 }
 
 /**

@@ -56,12 +56,21 @@ x/y. Направленный толчок wheel-handoff'а и «подъём» 
 ## Кто в семье (маркер + ws-band)
 
 `.con-hand` (Карты в руке — секция-workspace: маркер + `__frame`, геометрия
-уже своя, она flex-ребёнок `.con-main`), `.con-cardactions` (Действия карт +
-repeat), `.con-stdp`, `.con-ma`,
+уже своя, она flex-ребёнок `.con-main`), **`.con-colonies` (КОЛОНИИ —
+секция-workspace тем же контрактом, 2026-08-06: маркер + `__frame` +
+`ConsoleWsHead` c крошкой «КОЛОНИИ › ‹колония› › ТОРГОВЛЯ/ОСМОТР», компактный
+однострочный `__rail`, stagewrap c паркуемым browse и COLONY FOCUS STAGE
+`.con-colfocus` — descend из ректа нажатой плитки, carry = планета-медальон;
+модалки trade-confirm/section-inspect УДАЛЕНЫ — обе жили здесь; confirm
+играет brisk-fold обратно на поверхность и полёт флота стартует над живой
+сеткой; Плутон-выплата reveal'ится EMBEDDED в зоне `__embed` по клейму
+host='colonies', sourceCard = ИМЯ КОЛОНИИ)**, `.con-cardactions` (Действия
+карт + repeat), `.con-stdp`, `.con-ma`,
 `.con-mainspect`, `.con-maconfirm`, `.con-sheet`, `.con-task-host` (шасси:
-`.con-task`/`--wide`, `.con-play`, `.con-trade`, `.con-colinspect`,
-`.con-hydroconfirm`, hydro help), `.con-composer` (play / corp-first;
-`--stage` живёт внутри cardactions), `.con-govsupport`, `.con-decision`,
+`.con-task`/`--wide`, `.con-play`, `.con-colinspect` (теперь ТОЛЬКО
+read-only журнальный досье-путь), `.con-hydroconfirm`, hydro help),
+`.con-composer` (play / corp-first; `--stage` живёт внутри cardactions),
+`.con-govsupport`, `.con-decision`,
 `.con-finale`, `.con-prodloss`, `.con-confirm`, `.con-quick` (командные
 колёса LT/RT — на них ВЫБИРАЕТСЯ ход, значит ресурсы рядом обязаны гореть;
 слот-полёты меряются по живым ректам и следуют за сдвигом), `.con-played`

@@ -476,12 +476,12 @@ function contentCascade(id: SurfaceMotionId, el: Element, tl: gsap.core.Timeline
     return;
   }
   if (id === 'section' && el.querySelector('.con-colonies') !== null) {
-    // The TRADING workspace: the fleet bar docks from above, the colony
-    // tiles compose in reading order, the selected-trade summary seats
+    // The COLONY WORKSPACE: the fleet bar docks from above, the colony
+    // tiles compose in reading order, the compact status rail seats
     // last — the strategic context assembles, never pops.
     const fleet = el.querySelector<HTMLElement>('.con-colonies__fleetbar');
     const tiles = [...el.querySelectorAll<HTMLElement>('.con-coltile')].slice(0, 8);
-    const summary = el.querySelector<HTMLElement>('.con-colonies__summary');
+    const rail = el.querySelector<HTMLElement>('.con-colonies__rail');
     if (fleet !== null) {
       tl.fromTo(fleet,
         {y: -6 * u, opacity: 0},
@@ -492,8 +492,8 @@ function contentCascade(id: SurfaceMotionId, el: Element, tl: gsap.core.Timeline
         {y: 12 * u, opacity: 0},
         {y: 0, opacity: 1, duration: s(180), ease: 'power2.out', stagger: 0.026, clearProps: 'transform,opacity'}, at + s(40));
     }
-    if (summary !== null) {
-      tl.fromTo(summary,
+    if (rail !== null) {
+      tl.fromTo(rail,
         {y: 8 * u, opacity: 0},
         {y: 0, opacity: 1, duration: s(160), ease: 'power2.out', clearProps: 'transform,opacity'}, at + s(120));
     }

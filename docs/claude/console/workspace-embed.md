@@ -13,6 +13,20 @@ sits down with no new machinery**. That is guaranteed by six rules, not by
 per-case wiring. A new host or a new hostable surface is a row in two closed
 unions plus compliance with the rules; nothing else.
 
+*(2026-08-06: the promise was cashed — surface `'colonies'` joined the union
+with hosts `'start'` (a prelude's Build Colony, zone
+`.con-start__colonystep`), `'hand'` (a played card's SelectColony follow-up —
+the section lands in the freed `hand-play` STAGE zone, the crumb reads
+`КАРТЫ В РУКЕ › <карта> › КОЛОНИИ` via `markWorkspaceStageFollowUp`) and
+`'card-actions'` (an activation's colony pick, zone
+`[data-embed-slot="action-colonies"]` in the composer's outcome column). The
+shell's `colonyEmbedLatch` records WHICH live flow the SelectColony arrived
+inside of on the prompt's rising edge and holds through the whole follow-up
+— prompt → fleet flight → rewards → Pluto reveal (`colonyFollowUpLive`);
+the falling edge runs the host's deferred fold. B on the embedded step =
+MINIMIZE (defer); restore degrades to the standalone section when the host
+has meanwhile finished — honest, never a soft-lock.)*
+
 ## The six rules
 
 1. **A step surface is HOST-AGNOSTIC.** It renders content only; shell chrome

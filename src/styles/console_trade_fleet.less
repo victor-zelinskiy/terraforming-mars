@@ -85,21 +85,16 @@
     }
 }
 
-/* ── Composer LAUNCH state — the chrome dissolves so the flight is seen ─
-   The composer frame + backdrop fade out (revealing the colony grid the
-   ship flies over), while the composer's own fleet emblem lifts + ignites
-   as the launch anchor. The trade is NOT "done" — the overlay only fully
-   closes after the ship docks (the shell clears pendingTradeColony then). */
-.con-trade--launching {
-    /* (The composer renders no own backdrop anymore — the shared `.con-shade`
-       thins to its --veil tier for the flight via the shell's fleet watch,
-       keeping the colony grid readable while the ship is focal.) */
-    .con-trade__frame {
+/* ── LAUNCH state — the surface hands the screen to the flight ─
+   The COLONY FOCUS STAGE has already FOLDED back into the traded tile at
+   the confirm (the descend fold's confirm variant), so the ship lifts off
+   over the live browse surface; the shared `.con-shade` thins to its
+   --veil tier for the flight via the shell's fleet watch, keeping the
+   colony grid readable while the ship is focal. */
+.con-colfocus--launching {
+    .con-colfocus__surface {
         opacity: 0;
-        transform: translateY(-.5rem) scale(0.985);
-        transition:
-            opacity calc(300ms * var(--motion-scale, 1)) ease,
-            transform calc(360ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.7, 0.2);
+        transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
         pointer-events: none;
     }
 }
@@ -157,7 +152,7 @@
 /* ── Reduced motion: short/static — the path (sent → arrived → docked)
    still reads, no arc/trail/loops. ─────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-    .con-trade--launching .con-trade__frame { transition-duration: 1ms; }
+    .con-colfocus--launching .con-colfocus__surface { transition-duration: 1ms; }
     .con-colonies__fleetdock.con-fleet-launching .con-colonies__fleetship[data-fleet-launch]::after { animation: none; }
     .con-coltile__planet-berth--docking .con-coltile__planet,
     .con-coltile--just-docked .con-coltile__dock { animation: none; }

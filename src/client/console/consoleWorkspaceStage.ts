@@ -112,6 +112,20 @@ export function markWorkspaceStageCommitted(): void {
 }
 
 /**
+ * A POST-COMMIT follow-up decision presents inside the stage (the played
+ * card asked for a colony / a target): the move is made and cannot be
+ * unmade, but the pad must be live for the decision ABOUT ITS RESULT —
+ * `committed` in the flow vocabulary (B = collapse, input accepted). The
+ * embedded surface's name goes up as the new crumb tail.
+ */
+export function markWorkspaceStageFollowUp(stage: string): void {
+  if (workspaceStageState.host !== undefined) {
+    workspaceStageState.phase = 'committed';
+    workspaceStageState.stage = stage;
+  }
+}
+
+/**
  * The server REFUSED the move — the descent goes back to being configurable.
  *
  * A commit that the server rejected never happened, so leaving the phase past

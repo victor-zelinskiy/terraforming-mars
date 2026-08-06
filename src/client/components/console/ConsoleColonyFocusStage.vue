@@ -1,126 +1,231 @@
 <template>
-  <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
-       director — no own backdrop (the host-chassis backdrop div is gone). -->
-  <div class="con-task-host con-trade con-ws" role="dialog" :aria-label="$t('Trade')" data-motion-surface="trade-composer"
-       :class="{'con-trade--launching': launching}">
-    <div class="con-task con-trade__frame" data-motion-panel>
-      <!-- ── Header ────────────────────────────────────────────────── -->
-      <header class="con-task__head con-trade__head">
-        <div class="con-trade__head-text">
-          <div class="con-task__kicker">
-            <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
-            <span>{{ $t('Trade') }}</span>
-          </div>
-          <div class="con-task__title">{{ $t(colonyName) }}</div>
-        </div>
-        <!-- The launch cinematic lifts the ship off the player's OWN fleet pad
-             in the top HEADER dock (behind this dissolving composer), not from
-             here — so the fleet visibly departs its home berth. -->
-        <div class="con-trade__planet" :class="planetClass" aria-hidden="true"></div>
-      </header>
+  <!--
+    COLONY FOCUS STAGE — the workspace's DEEPER state for ONE colony. Opened
+    by A (trade) and X (inspect) alike: ONE stage, ONE source of truth. The
+    crumb above (the section's ConsoleWsHead) already says
+    «КОЛОНИИ › <colony> › <stage>», so the stage never titles itself.
 
-      <div class="con-task__main con-trade__main">
-        <!-- ── SUB: the trade fee — the SHARED payment panel in its EXPANDED
-             density. Same rows / verdict / geometry as every other payment in
-             the game; the command bar carries the controls. ─────────────── -->
-        <template v-if="sub === 'lanes' && paymentView !== undefined">
-          <ConsolePaymentPanel :view="paymentView"
-                               mode="expanded"
-                               hint-mode="none"
-                               :focus-unit="payFocusUnit"
-                               :flash-nonce="payFlashNonce" /></template>
+    Layout: the HERO column (the colony itself — planet, live 7-position
+    track, build slots + owners, fleet line, verdict) beside the WORK column
+    (payment paths → your decisions → the live trade outcome — the exact
+    rows the old trade-confirm modal carried, over the same pure modules).
+    A non-tradeable colony keeps the SAME anatomy: the work column simply
+    has no live payment pick and the verdict carries the honest reason.
 
-        <!-- ── SUB: track advance choice (IncreaseColonyTrack). ──────── -->
-        <template v-else-if="sub === 'track' && trackStep !== undefined">
-          <div class="con-trade__sub-title">{{ $t('Increase colony track before trade') }}</div>
-          <div v-for="(opt, i) in trackOptions" :key="'tr' + i"
-               class="con-task__option"
-               :class="{
-                 'con-task__option--focused': subIdx === i,
-                 'con-trade__option--chosen': captures['track'] === opt.steps,
-               }"
-               :ref="subIdx === i ? 'focusedEl' : undefined">
-            <div class="con-task__option-main">
-              <span class="con-task__opt-title">{{ opt.title }}</span>
-              <span class="con-trade__track-reward">
-                <span v-if="opt.quantity > 1" class="con-trade__track-qty">{{ opt.quantity }}</span>
-                <BenefitGlyph :benefit="tradeBenefitAt(opt.position)" :idx="opt.position" :cardResource="metadata?.cardResource" />
+    Controls live ONLY in the shell's bottom command bar (consoleColoniesUi
+    mirror). B = one level back to the browse grid.
+  -->
+  <div class="con-colfocus" :class="{'con-colfocus--launching': launching}">
+    <div class="con-colfocus__surface" data-unfold-surface>
+      <!-- ── HERO — the colony as a physical object ─────────────────── -->
+      <section class="con-colfocus__hero">
+        <div class="con-colfocus__hero-top" data-unfold-item>
+          <div class="con-colfocus__planetwrap">
+            <div class="con-colfocus__planet" :class="planetClass" data-colony-focus-planet aria-hidden="true">
+              <!-- The parked trade fleet rides the planet, same as the tile. -->
+              <span v-if="colony.visitor !== undefined" class="con-colfocus__visitor" :class="'fleet-hue--' + colony.visitor">
+                <ColonyFleetIcon :color="colony.visitor" />
               </span>
-              <span v-if="captures['track'] === opt.steps" class="con-trade__opt-check" aria-hidden="true">✓</span>
+            </div>
+            <span class="con-colfocus__state" :class="colony.isActive ? 'con-colfocus__state--on' : 'con-colfocus__state--off'">
+              {{ $t(colony.isActive ? 'Active' : 'Not active yet') }}
+            </span>
+          </div>
+          <div class="con-colfocus__desc" v-i18n>{{ metadata.trade.description }}</div>
+        </div>
+
+        <!-- The full 7-position trade track — the dossier's strongest asset,
+             kept verbatim: [position | quantity | reward | tag]. -->
+        <div class="con-colfocus__track" data-unfold-item>
+          <div class="con-colfocus__sec-title">{{ $t('Trade track') }}</div>
+          <div class="con-colfocus__track-table">
+            <div v-for="cell in trackRows" :key="cell.index"
+                 class="con-colfocus__track-row"
+                 :class="{
+                   'con-colfocus__track-row--marker': cell.marker,
+                   'con-colfocus__track-row--effective': cell.effective,
+                 }">
+              <span class="con-colfocus__track-num">{{ cell.index + 1 }}</span>
+              <span class="con-colfocus__track-qty">{{ cell.quantity > 0 ? cell.quantity : '—' }}</span>
+              <span class="con-colfocus__track-glyph">
+                <BenefitGlyph :benefit="tradeBenefitAt(cell.index)" :idx="cell.index" :cardResource="metadata.cardResource" />
+              </span>
+              <span v-if="cell.effective" class="con-colfocus__track-tag">{{ $t('Trade reads here') }}</span>
+              <span v-else class="con-colfocus__track-tag con-colfocus__track-tag--void" aria-hidden="true"></span>
             </div>
           </div>
-        </template>
-
-        <!-- ── SUB: card-target picker (where the resources land). ───── -->
-        <template v-else-if="sub === 'targets' && activeTargetStep !== undefined">
-          <div class="con-trade__sub-title">{{ targetSubTitle }}</div>
-          <div v-for="(card, i) in activeTargetStep.pick.cards" :key="card.name"
-               class="con-task__option"
-               :class="{
-                 'con-task__option--focused': subIdx === i,
-                 'con-trade__option--chosen': captures[activeTargetKey] === card.name,
-               }"
-               :ref="subIdx === i ? 'focusedEl' : undefined">
-            <div class="con-task__option-main">
-              <i v-if="targetIconClass !== ''" class="con-task__opt-icon" :class="targetIconClass" aria-hidden="true"></i>
-              <span class="con-task__opt-title">{{ cardLabel(card.name) }}</span>
-              <span class="con-task__opt-preview">{{ card.resources ?? 0 }} → {{ (card.resources ?? 0) + activeTargetStep.amount }}</span>
-              <span v-if="captures[activeTargetKey] === card.name" class="con-trade__opt-check" aria-hidden="true">✓</span>
-            </div>
+          <div v-if="offsetSteps > 0" class="con-colfocus__note">
+            {{ $t('Your trade advances the track first') }} (+{{ offsetSteps }})
           </div>
-        </template>
+        </div>
 
-        <!-- ── REVIEW: payment methods → decisions → the trade outcome. ── -->
-        <template v-else>
-          <ConsoleScrollArea class="con-trade__columns" content-class="con-trade__columns-grid" ref="scroll">
-            <!-- 1 · EVERY payment path, affordable AND not (never hidden). -->
-            <section class="con-trade__paysec">
-              <div class="con-trade__sec-title">{{ $t('Payment method') }}</div>
-              <div v-for="(entry, i) in payEntries" :key="'p' + i"
-                   class="con-trade__payrow"
-                   :class="{
-                     'con-trade__payrow--focused': isFocused('pay', i),
-                     'con-trade__payrow--chosen': payIdx === i,
-                   }"
-                   :ref="isFocused('pay', i) ? 'focusedEl' : undefined">
-                <span class="con-trade__payrow-pick" aria-hidden="true">
-                  <span v-if="payIdx === i" class="con-trade__payrow-dot"></span>
+        <!-- Build slots + owners + the per-trade colony bonus recipients. -->
+        <div class="con-colfocus__owners" data-unfold-item>
+          <div class="con-colfocus__ownrow">
+            <span class="con-colfocus__sec-title">{{ $t('Build a colony') }}</span>
+            <span class="con-colfocus__slots">
+              <span v-for="idx in [0, 1, 2]" :key="idx"
+                    class="con-colfocus__slot"
+                    :class="{'con-colfocus__slot--taken': colony.colonies[idx] !== undefined}">
+                <PlayerCube v-if="colony.colonies[idx] !== undefined" :color="colony.colonies[idx]" :size="17" />
+                <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResource="metadata.cardResource" />
+              </span>
+            </span>
+          </div>
+          <div class="con-colfocus__ownrow">
+            <span class="con-colfocus__sec-title">{{ $t('Colony bonus (each trade)') }}</span>
+            <span class="con-colfocus__bonusline">
+              <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
+              <template v-if="owners.length > 0">
+                <span v-for="owner in owners" :key="owner.color" class="con-colfocus__owner">
+                  <span :class="'con-status__dot player_bg_color_' + owner.color"></span>
+                  <span>{{ owner.name }}</span>
+                  <span v-if="owner.count > 1" class="con-colfocus__owner-mult">×{{ owner.count }}</span>
                 </span>
-                <i v-if="entry.iconClass !== ''" class="con-trade__payrow-icon" :class="entry.iconClass" aria-hidden="true"></i>
-                <span class="con-trade__payrow-title">{{ entry.title }}</span>
-                <span v-if="entry.preview !== ''" class="con-trade__payrow-delta">{{ entry.preview }}</span>
+              </template>
+              <span v-else class="con-colfocus__muted">{{ $t('No colonies built here yet') }}</span>
+            </span>
+          </div>
+          <div v-if="visitorLine !== ''" class="con-colfocus__fleetline">
+            <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
+            <span>{{ visitorLine }}</span>
+          </div>
+        </div>
+
+        <!-- The honest verdict — tied to the colony it judges. -->
+        <div class="con-colfocus__verdict" data-unfold-item
+             :class="tradeable ? 'con-colfocus__verdict--ok' : 'con-colfocus__verdict--no'">
+          <template v-if="tradeable">
+            <span class="con-coltile__status-dot" aria-hidden="true"></span>
+            <span>{{ $t('Trade available') }}</span>
+          </template>
+          <template v-else>
+            <span aria-hidden="true">✕</span>
+            <span>{{ blockReason !== '' ? $t(blockReason) : $t('Trade unavailable') }}</span>
+          </template>
+        </div>
+      </section>
+
+      <!-- ── WORK — payment · decisions · outcome (the trade composer) ── -->
+      <section class="con-colfocus__work">
+        <!-- SUB: the M€ lanes mix — the SHARED payment panel, expanded. -->
+        <template v-if="sub === 'lanes' && paymentView !== undefined">
+          <div class="con-colfocus__sub" data-unfold-item>
+            <ConsolePaymentPanel :view="paymentView"
+                                 mode="expanded"
+                                 hint-mode="none"
+                                 :focus-unit="payFocusUnit"
+                                 :flash-nonce="payFlashNonce" />
+          </div>
+        </template>
+
+        <!-- SUB: track advance choice (IncreaseColonyTrack). -->
+        <template v-else-if="sub === 'track' && trackStep !== undefined">
+          <div class="con-colfocus__sub" data-unfold-item>
+            <div class="con-colfocus__sub-title">{{ $t('Increase colony track before trade') }}</div>
+            <div v-for="(opt, i) in trackOptions" :key="'tr' + i"
+                 class="con-task__option"
+                 :class="{
+                   'con-task__option--focused': subIdx === i,
+                   'con-colfocus__option--chosen': captures['track'] === opt.steps,
+                 }"
+                 :ref="subIdx === i ? 'focusedEl' : undefined">
+              <div class="con-task__option-main">
+                <span class="con-task__opt-title">{{ opt.title }}</span>
+                <span class="con-colfocus__track-reward">
+                  <span v-if="opt.quantity > 1" class="con-colfocus__track-rewardqty">{{ opt.quantity }}</span>
+                  <BenefitGlyph :benefit="tradeBenefitAt(opt.position)" :idx="opt.position" :cardResource="metadata.cardResource" />
+                </span>
+                <span v-if="captures['track'] === opt.steps" class="con-colfocus__opt-check" aria-hidden="true">✓</span>
               </div>
-              <div v-for="(d, i) in disabledEntries" :key="'d' + i" class="con-trade__payrow con-trade__payrow--off">
-                <span class="con-trade__payrow-pick" aria-hidden="true"></span>
-                <i v-if="d.iconClass !== ''" class="con-trade__payrow-icon" :class="d.iconClass" aria-hidden="true"></i>
-                <span class="con-trade__payrow-title">{{ d.title }}</span>
-                <span class="con-trade__payrow-reason">{{ d.reason }}</span>
+            </div>
+          </div>
+        </template>
+
+        <!-- SUB: card-target picker (where the reward resources land). -->
+        <template v-else-if="sub === 'targets' && activeTargetStep !== undefined">
+          <div class="con-colfocus__sub" data-unfold-item>
+            <div class="con-colfocus__sub-title">{{ targetSubTitle }}</div>
+            <div v-for="(card, i) in activeTargetStep.pick.cards" :key="card.name"
+                 class="con-task__option"
+                 :class="{
+                   'con-task__option--focused': subIdx === i,
+                   'con-colfocus__option--chosen': captures[activeTargetKey] === card.name,
+                 }"
+                 :ref="subIdx === i ? 'focusedEl' : undefined">
+              <div class="con-task__option-main">
+                <i v-if="targetIconClass !== ''" class="con-task__opt-icon" :class="targetIconClass" aria-hidden="true"></i>
+                <span class="con-task__opt-title">{{ cardLabel(card.name) }}</span>
+                <span class="con-task__opt-preview">{{ card.resources ?? 0 }} → {{ (card.resources ?? 0) + activeTargetStep.amount }}</span>
+                <span v-if="captures[activeTargetKey] === card.name" class="con-colfocus__opt-check" aria-hidden="true">✓</span>
+              </div>
+            </div>
+          </div>
+        </template>
+
+        <!-- REVIEW: payment methods → decisions → the trade outcome. -->
+        <template v-else>
+          <ConsoleScrollArea class="con-colfocus__columns" content-class="con-colfocus__columns-grid" ref="scroll">
+            <!-- 1 · EVERY payment path, affordable AND not (never hidden). -->
+            <section class="con-colfocus__paysec" data-unfold-item>
+              <div class="con-colfocus__sec-title">{{ $t('Payment method') }}</div>
+              <template v-if="tradeable">
+                <div v-for="(entry, i) in payEntries" :key="'p' + i"
+                     class="con-colfocus__payrow"
+                     :class="{
+                       'con-colfocus__payrow--focused': isFocused('pay', i),
+                       'con-colfocus__payrow--chosen': payIdx === i,
+                     }"
+                     :ref="isFocused('pay', i) ? 'focusedEl' : undefined">
+                  <span class="con-colfocus__payrow-pick" aria-hidden="true">
+                    <span v-if="payIdx === i" class="con-colfocus__payrow-dot"></span>
+                  </span>
+                  <i v-if="entry.iconClass !== ''" class="con-colfocus__payrow-icon" :class="entry.iconClass" aria-hidden="true"></i>
+                  <span class="con-colfocus__payrow-title">{{ entry.title }}</span>
+                  <span v-if="entry.preview !== ''" class="con-colfocus__payrow-delta">{{ entry.preview }}</span>
+                </div>
+              </template>
+              <!-- Not tradeable: the same table, read-only — the full picture
+                   stays visible (what a trade HERE would cost when possible). -->
+              <template v-else>
+                <div v-for="(entry, i) in payEntries" :key="'r' + i" class="con-colfocus__payrow con-colfocus__payrow--readonly">
+                  <span class="con-colfocus__payrow-pick" aria-hidden="true"></span>
+                  <i v-if="entry.iconClass !== ''" class="con-colfocus__payrow-icon" :class="entry.iconClass" aria-hidden="true"></i>
+                  <span class="con-colfocus__payrow-title">{{ entry.title }}</span>
+                  <span v-if="entry.preview !== ''" class="con-colfocus__payrow-delta">{{ entry.preview }}</span>
+                </div>
+              </template>
+              <div v-for="(d, i) in disabledEntries" :key="'d' + i" class="con-colfocus__payrow con-colfocus__payrow--off">
+                <span class="con-colfocus__payrow-pick" aria-hidden="true"></span>
+                <i v-if="d.iconClass !== ''" class="con-colfocus__payrow-icon" :class="d.iconClass" aria-hidden="true"></i>
+                <span class="con-colfocus__payrow-title">{{ d.title }}</span>
+                <span class="con-colfocus__payrow-reason">{{ d.reason }}</span>
               </div>
 
               <!-- Follow-up decisions (M€ mix / track / card targets). -->
-              <template v-if="stepRows.length > 0">
-                <div class="con-trade__sec-title con-trade__sec-title--steps">{{ $t('Your choices') }}</div>
+              <template v-if="tradeable && stepRows.length > 0">
+                <div class="con-colfocus__sec-title con-colfocus__sec-title--steps">{{ $t('Your choices') }}</div>
                 <div v-for="(row, i) in stepRows" :key="row.key"
-                     class="con-trade__steprow"
+                     class="con-colfocus__steprow"
                      :class="{
-                       'con-trade__steprow--focused': isFocused('step', i),
-                       'con-trade__steprow--missing': rowMissing(row),
+                       'con-colfocus__steprow--focused': isFocused('step', i),
+                       'con-colfocus__steprow--missing': rowMissing(row),
                      }"
                      :ref="isFocused('step', i) ? 'focusedEl' : undefined">
-                  <div class="con-trade__steprow-label">{{ $t(row.label) }}</div>
-                  <div class="con-trade__steprow-value">
+                  <div class="con-colfocus__steprow-label">{{ $t(row.label) }}</div>
+                  <div class="con-colfocus__steprow-value">
                     <template v-if="row.kind === 'payment'">
                       <span v-if="paymentSummary !== ''">{{ paymentSummary }}</span>
-                      <span v-else class="con-trade__steprow-empty">{{ $t('Configure payment') }}…</span>
+                      <span v-else class="con-colfocus__steprow-empty">{{ $t('Configure payment') }}…</span>
                     </template>
                     <template v-else-if="row.kind === 'trackChoice'">
                       <span v-if="captures['track'] !== undefined">{{ trackSummary }}</span>
-                      <span v-else class="con-trade__steprow-empty">{{ $t('Choose the track advance') }}…</span>
+                      <span v-else class="con-colfocus__steprow-empty">{{ $t('Choose the track advance') }}…</span>
                     </template>
                     <template v-else-if="row.kind === 'cardTarget' && row.step !== undefined">
-                      <i v-if="row.iconClass !== ''" class="con-trade__steprow-icon" :class="row.iconClass" aria-hidden="true"></i>
+                      <i v-if="row.iconClass !== ''" class="con-colfocus__steprow-icon" :class="row.iconClass" aria-hidden="true"></i>
                       <span v-if="captures[row.key] !== undefined">{{ $t(String(captures[row.key])) }}</span>
-                      <span v-else class="con-trade__steprow-empty">{{ $t('Choose a card') }}…</span>
+                      <span v-else class="con-colfocus__steprow-empty">{{ $t('Choose a card') }}…</span>
                       <em v-if="captures[row.key] !== undefined">{{ targetImpact(row) }}</em>
                     </template>
                   </div>
@@ -128,62 +233,58 @@
               </template>
             </section>
 
-            <!-- 2 · The live trade outcome (Итог торговли). -->
-            <section class="con-trade__outsec">
-              <div class="con-trade__sec-title">{{ $t('Trade outcome') }}</div>
-              <div class="con-trade__out-grid">
-                <div v-if="outcome.cost.length > 0" class="con-trade__out-block">
-                  <div class="con-trade__out-label">{{ $t('Payment') }}</div>
-                  <div v-for="(chip, k) in outcome.cost" :key="'c' + k" class="con-trade__outrow con-trade__outrow--cost">
-                    <i v-if="chip.icon" class="con-trade__outrow-icon" :class="chipIconClass(chip)" aria-hidden="true"></i>
+            <!-- 2 · The live trade outcome. -->
+            <section class="con-colfocus__outsec" data-unfold-item>
+              <div class="con-colfocus__sec-title">{{ $t('Trade outcome') }}</div>
+              <div class="con-colfocus__out-grid">
+                <div v-if="tradeable && outcome.cost.length > 0" class="con-colfocus__out-block">
+                  <div class="con-colfocus__out-label">{{ $t('Payment') }}</div>
+                  <div v-for="(chip, k) in outcome.cost" :key="'c' + k" class="con-colfocus__outrow con-colfocus__outrow--cost">
+                    <i v-if="chip.icon" class="con-colfocus__outrow-icon" :class="chipIconClass(chip)" aria-hidden="true"></i>
                     <b>−{{ chip.amount }}</b>
                     <em v-if="chip.current !== undefined">{{ chip.current }} → {{ chip.resulting }}</em>
                   </div>
                 </div>
-                <div class="con-trade__out-block">
-                  <div class="con-trade__out-label">{{ $t('You will receive') }}</div>
-                  <div v-for="(chip, k) in heroGains" :key="'g' + k" class="con-trade__outrow con-trade__outrow--gain" :class="{'con-trade__outrow--prod': chip.production}">
-                    <i v-if="chip.icon && chip.icon !== 'cards' && chip.icon !== 'tr'" class="con-trade__outrow-icon" :class="chipIconClass(chip)" aria-hidden="true"></i>
-                    <span v-else-if="chip.icon === 'cards'" class="con-trade__outrow-badge">{{ $t('Cards') }}</span>
-                    <span v-else-if="chip.icon === 'tr'" class="con-trade__outrow-badge con-trade__outrow-badge--tr">{{ $t('TR') }}</span>
-                    <span v-if="chip.label" class="con-trade__outrow-text">{{ $t(chip.label) }}</span>
+                <div class="con-colfocus__out-block">
+                  <div class="con-colfocus__out-label">{{ $t('You will receive') }}</div>
+                  <div v-for="(chip, k) in heroGains" :key="'g' + k" class="con-colfocus__outrow con-colfocus__outrow--gain" :class="{'con-colfocus__outrow--prod': chip.production}">
+                    <i v-if="chip.icon && chip.icon !== 'cards' && chip.icon !== 'tr'" class="con-colfocus__outrow-icon" :class="chipIconClass(chip)" aria-hidden="true"></i>
+                    <span v-else-if="chip.icon === 'cards'" class="con-colfocus__outrow-badge">{{ $t('Cards') }}</span>
+                    <span v-else-if="chip.icon === 'tr'" class="con-colfocus__outrow-badge con-colfocus__outrow-badge--tr">{{ $t('TR') }}</span>
+                    <span v-if="chip.label" class="con-colfocus__outrow-text">{{ $t(chip.label) }}</span>
                     <b>+{{ chip.amount }}</b>
                     <em v-if="chip.current !== undefined">{{ chip.current }} → {{ chip.resulting }}</em>
-                    <em v-else-if="chip.note" class="con-trade__outrow-note">{{ $t(chip.note) }}</em>
+                    <em v-else-if="chip.note" class="con-colfocus__outrow-note">{{ $t(chip.note) }}</em>
                   </div>
-                  <!-- Captured card targets: the concrete on-card before → after. -->
-                  <div v-for="line in targetOutcomeLines" :key="line.key" class="con-trade__outrow con-trade__outrow--gain">
-                    <i v-if="line.iconClass !== ''" class="con-trade__outrow-icon" :class="line.iconClass" aria-hidden="true"></i>
+                  <div v-for="line in targetOutcomeLines" :key="line.key" class="con-colfocus__outrow con-colfocus__outrow--gain">
+                    <i v-if="line.iconClass !== ''" class="con-colfocus__outrow-icon" :class="line.iconClass" aria-hidden="true"></i>
                     <b>+{{ line.amount }}</b>
-                    <span class="con-trade__outrow-text">{{ $t(line.card) }}</span>
+                    <span class="con-colfocus__outrow-text">{{ $t(line.card) }}</span>
                     <em>{{ line.before }} → {{ line.after }}</em>
                   </div>
                 </div>
               </div>
 
-              <!-- Card-resource reward with no card to hold it ⇒ LOST. A
-                   prominent client-side warning (always shown, independent of
-                   the server preview's notices). -->
-              <div v-if="resourceLost" class="con-trade__notice con-trade__notice--warn con-trade__notice--lost">
+              <!-- Card-resource reward with no card to hold it ⇒ LOST. -->
+              <div v-if="resourceLost" class="con-colfocus__notice con-colfocus__notice--warn con-colfocus__notice--lost">
                 <span aria-hidden="true">⚠</span>
-                <i v-if="metadata !== undefined" class="con-trade__notice-icon" :class="resourceIconClass(metadata.cardResource)" aria-hidden="true"></i>
+                <i v-if="metadata !== undefined" class="con-colfocus__notice-icon" :class="resourceIconClass(metadata.cardResource)" aria-hidden="true"></i>
                 <span>{{ $t('Resource will be lost — no card') }}</span>
               </div>
 
-              <!-- Display-only notices: explicit auto target / lost resource /
-                   what still follows after confirming. -->
+              <!-- Auto target / lost resource / what follows the confirm. -->
               <div v-for="(notice, i) in noticeRows" :key="'n' + i"
-                   class="con-trade__notice"
-                   :class="'con-trade__notice--' + notice.tone">
+                   class="con-colfocus__notice"
+                   :class="'con-colfocus__notice--' + notice.tone">
                 <span aria-hidden="true">{{ notice.tone === 'warn' ? '!' : '›' }}</span>
-                <i v-if="notice.iconClass !== ''" class="con-trade__notice-icon" :class="notice.iconClass" aria-hidden="true"></i>
+                <i v-if="notice.iconClass !== ''" class="con-colfocus__notice-icon" :class="notice.iconClass" aria-hidden="true"></i>
                 <span>{{ notice.text }}</span>
               </div>
 
               <!-- The fixed tile bonus to OTHER colony owners (transparency). -->
-              <div v-if="otherOwners.length > 0" class="con-trade__bonus">
-                <span class="con-trade__bonus-label">{{ $t('Trade bonus to colonies here') }}:</span>
-                <span v-if="metadata !== undefined" class="con-trade__bonus-glyph">
+              <div v-if="otherOwners.length > 0" class="con-colfocus__bonus">
+                <span class="con-colfocus__bonus-label">{{ $t('Trade bonus to colonies here') }}:</span>
+                <span class="con-colfocus__bonus-glyph">
                   <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
                 </span>
                 <span v-for="owner in otherOwners" :key="owner.color" class="con-task__opt-player">
@@ -194,25 +295,24 @@
             </section>
           </ConsoleScrollArea>
         </template>
-      </div>
+      </section>
     </div>
   </div>
 </template>
 
 <script lang="ts">
 /**
- * CONSOLE COLONY-TRADE COMPOSER (iteration 2). Three-part flow in ONE view:
- * (1) «Способ оплаты» — EVERY payment path, affordable AND unaffordable
- * (disabled with its reason; the full picture is never hidden), each with
- * required / current → resulting; d-pad walks the affordable rows, A picks.
- * (2) «Ваши решения» — the pre-collect follow-ups (M€ lanes mix / track
- * advance / card targets), each a row A opens. (3) «Итог торговли» — the
- * live outcome: payment → gains with before → after (incl. flat modifiers
- * like Venus Trade Hub and the captured on-card targets), honest notices,
- * and the other owners' fixed tile bonus. X = the one final confirm (gated
- * on every capture), B = back/cancel. Hints live ONLY in the shell's bottom
- * bar (mirrored via consoleColoniesUi). The parent builds the byte-identical
- * PlayerInputBatch via colonyTradePlan.buildTradeBatch.
+ * The COLONY FOCUS STAGE — the trade-confirm composer and the colony dossier
+ * merged into ONE workspace stage (the two modals are gone). All numbers come
+ * from the same pure modules both modals already read (`colonyTradePlan`,
+ * `paymentPlan`, the server `ColonyTradePreviewModel`), so there is exactly
+ * one source of truth for «what does trading here do».
+ *
+ * Input arrives via `handleIntent` (the shell routes the pad here while the
+ * stage is open): d-pad walks payment rows + decision rows, A picks/opens,
+ * X = the ONE final confirm (gated on every capture), RT = max the focused
+ * lane, B = close a sub-editor / fold back to the browse grid (the shell owns
+ * the fold). The bar mirrors через consoleColoniesUi.
  */
 import {defineComponent, PropType} from 'vue';
 import {ColonyModel} from '@/common/models/ColonyModel';
@@ -232,7 +332,7 @@ import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay
 import {translateMessage, translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
-import {consoleColoniesUi} from '@/client/console/consoleColoniesModel';
+import {consoleColoniesUi, setColonyFocusStage} from '@/client/console/consoleColoniesModel';
 import {
   paymentLanes,
   megacreditsAvailable,
@@ -254,10 +354,13 @@ import {
   TradeOutcomeChip,
   tradeSteps,
 } from '@/client/components/colonies/colonyTradePlan';
+import {presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
+import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
+import PlayerCube from '@/client/components/PlayerCube.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
-import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -277,23 +380,27 @@ type StepRow = {
 type Sub = undefined | 'lanes' | 'track' | 'targets';
 type NoticeRow = {tone: 'warn' | 'info', iconClass: string, text: string};
 type Focusable = {zone: 'pay' | 'step', index: number};
+type TrackRow = {index: number, quantity: number, marker: boolean, effective: boolean};
 
 export default defineComponent({
-  name: 'ConsoleColonyTradeConfirm',
-  components: {BenefitGlyph, ConsoleScrollArea, ConsolePaymentPanel},
+  name: 'ConsoleColonyFocusStage',
+  components: {BenefitGlyph, ColonyFleetIcon, PlayerCube, ConsoleScrollArea, ConsolePaymentPanel},
   props: {
-    colony: {type: Object as PropType<ColonyModel | undefined>, default: undefined},
-    colonyName: {type: String as PropType<ColonyName>, required: true},
+    colony: {type: Object as PropType<ColonyModel>, required: true},
+    /** The trade window is open AND this colony is in its SelectColony set. */
+    tradeable: {type: Boolean, default: false},
+    /** Honest reason when trade is impossible right now ('' when tradeable). */
+    blockReason: {type: String, default: ''},
     /** The inner "Pay trade fee" OrOptions options (server-affordable). */
-    options: {type: Array as PropType<ReadonlyArray<SelectOptionModel>>, required: true},
+    options: {type: Array as PropType<ReadonlyArray<SelectOptionModel>>, default: () => []},
     /** Unaffordable paths — shown disabled with the server reason. */
     disabledOptions: {type: Array as PropType<NonNullable<OrOptionsModel['disabledOptions']>>, default: () => []},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
     /** The shared server trade preview (undefined while loading — degrades). */
     preview: {type: Object as PropType<ColonyTradePreviewModel | undefined>, default: undefined},
-    /** The viewer (stocks / production for the outcome's before → after). */
     thisPlayer: {type: Object as PropType<PublicPlayerModel | undefined>, default: undefined},
     viewerColor: {type: String as PropType<Color | undefined>, default: undefined},
+    tradeOffset: {type: Number, default: 0},
   },
   emits: ['confirm', 'cancel'],
   data() {
@@ -308,25 +415,79 @@ export default defineComponent({
       paymentCounts: {} as Partial<Record<SpendableResource, number>>,
       /** Re-keyed on each adjust so the dialed row's one-shot pulse replays. */
       payFlashNonce: 0,
-      /** The trade-launch controller — drives the dissolve while the fleet flies. */
       tradeFleetState,
     };
   },
   computed: {
-    /** The launch cinematic is running for THIS colony: dissolve the chrome so
-     *  the fleet lifts off + the colony grid behind is revealed for the flight. */
-    launching(): boolean {
-      return this.tradeFleetState.active && this.tradeFleetState.colonyName === this.colonyName;
+    colonyName(): ColonyName {
+      return this.colony.name as ColonyName;
     },
-    metadata(): ColonyMetadata | undefined {
-      try {
-        return getColony(this.colonyName);
-      } catch (err) {
-        return undefined;
-      }
+    /** The launch cinematic is running for THIS colony (the stage is folding
+     *  under the lifting ship — keep the chrome inert). */
+    launching(): boolean {
+      return this.tradeFleetState.active && this.tradeFleetState.colonyName === this.colony.name;
+    },
+    metadata(): ColonyMetadata {
+      return getColony(this.colony.name);
     },
     planetClass(): string {
-      return this.colonyName.replace(' ', '-') + '-background';
+      return this.colony.name.replace(' ', '-') + '-background';
+    },
+    /** The colony as PRESENTED (mid-trade the committed track reset stays
+     *  frozen — the same shared helper the tile reads). */
+    presented(): ColonyModel {
+      return presentedColonyModel(this.colony);
+    },
+    trackMax(): number {
+      return this.metadata.trade.quantity.length - 1;
+    },
+    effectivePosition(): number {
+      const offset = this.colony.isActive ? this.tradeOffset : 0;
+      return effectiveTradePosition(this.presented, this.metadata, offset);
+    },
+    offsetSteps(): number {
+      return Math.max(0, this.effectivePosition - Math.min(this.presented.trackPosition, this.trackMax));
+    },
+    trackRows(): Array<TrackRow> {
+      const marker = Math.min(this.presented.trackPosition, this.trackMax);
+      const rows: Array<TrackRow> = [];
+      for (let i = 0; i <= this.trackMax; i++) {
+        rows.push({
+          index: i,
+          quantity: this.metadata.trade.quantity[i] ?? 0,
+          marker: i === marker,
+          effective: i === this.effectivePosition && this.effectivePosition !== marker,
+        });
+      }
+      return rows;
+    },
+    buildBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
+      const b = this.metadata.build;
+      return {type: b.type, quantity: b.quantity, resource: Array.isArray(b.resource) ? b.resource[0] : b.resource};
+    },
+    colonyBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
+      const c = this.metadata.colony;
+      return {type: c.type, quantity: [c.quantity ?? 1], resource: c.resource};
+    },
+    owners(): Array<{color: Color, count: number, name: string}> {
+      return colonyOwnerCounts(this.colony).map((owner) => {
+        const player = this.players.find((p) => p.color === owner.color);
+        return {...owner, name: player !== undefined ? participantDisplayName(player) : owner.color};
+      });
+    },
+    visitorLine(): string {
+      const visitor = this.colony.visitor;
+      if (visitor === undefined) {
+        return '';
+      }
+      if (visitor === this.viewerColor) {
+        return translateText('Your trade fleet is currently here');
+      }
+      const player = this.players.find((p) => p.color === visitor);
+      if (player !== undefined) {
+        return translateTextWithParams('Trade fleet of ${0} is currently here', [participantDisplayName(player)]);
+      }
+      return translateText('Trade fleet currently here');
     },
     payEntries(): Array<PayEntry> {
       return this.options.map((o) => {
@@ -351,12 +512,11 @@ export default defineComponent({
         };
       });
     },
-    /** The chosen payment path uses M€ (its own prompt may need the lanes mix). */
     isMcSelected(): boolean {
       return this.options[this.payIdx]?.metadata?.icon === 'megacredits';
     },
     steps(): Array<TradeStep> {
-      return tradeSteps(this.preview, this.isMcSelected);
+      return this.tradeable ? tradeSteps(this.preview, this.isMcSelected) : [];
     },
     stepKeys(): Array<string> {
       let target = 0;
@@ -388,8 +548,10 @@ export default defineComponent({
         };
       });
     },
-    /** The d-pad walk: affordable payment rows first, then the step rows. */
     focusables(): Array<Focusable> {
+      if (!this.tradeable) {
+        return [];
+      }
       const out: Array<Focusable> = this.payEntries.map((_, i) => ({zone: 'pay' as const, index: i}));
       this.stepRows.forEach((_, i) => out.push({zone: 'step', index: i}));
       return out;
@@ -404,7 +566,7 @@ export default defineComponent({
     trackOptions(): Array<{steps: number, position: number, quantity: number, title: string}> {
       const step = this.trackStep;
       const current = this.preview?.track.current ?? 0;
-      if (step === undefined || this.metadata === undefined) {
+      if (step === undefined) {
         return [];
       }
       const options: Array<{steps: number, position: number, quantity: number, title: string}> = [];
@@ -430,10 +592,6 @@ export default defineComponent({
         translateTextWithParams('Advance ${0} step(s)', [String(chosen)]) :
         translateText('Don\'t increase colony track');
     },
-    targetStepsList(): Array<Extract<TradeStep, {kind: 'cardTarget'}>> {
-      return this.steps.filter((s): s is Extract<TradeStep, {kind: 'cardTarget'}> => s.kind === 'cardTarget');
-    },
-    /** The card-target step the open 'targets' sub edits (by focused row). */
     activeTargetStep(): Extract<TradeStep, {kind: 'cardTarget'}> | undefined {
       const focused = this.focused;
       if (focused?.zone !== 'step') {
@@ -456,7 +614,6 @@ export default defineComponent({
       }
       return textOf(step.pick.title) || translateText('Choose a card');
     },
-    // ── payment lanes (the M€ prompt pre-collected in place) ────────────
     paymentStep(): Extract<TradeStep, {kind: 'payment'}> | undefined {
       const step = this.steps.find((s) => s.kind === 'payment');
       return step?.kind === 'payment' ? step : undefined;
@@ -466,8 +623,6 @@ export default defineComponent({
       const player = this.thisPlayer;
       return step === undefined || player === undefined ? [] : paymentLanes(step.model, player);
     },
-    /** The SHARED payment presentation model — the identical rows / verdict /
-     *  geometry the card-play, blue-action and standalone payment prompts use. */
     paymentView(): PaymentView | undefined {
       const step = this.paymentStep;
       const player = this.thisPlayer;
@@ -481,13 +636,10 @@ export default defineComponent({
         mcAvailable: megacreditsAvailable(player),
       });
     },
-    /** The lane list and the panel's editable rows are the SAME sequence, so
-     *  the sub cursor indexes both. */
     payFocusUnit(): string | undefined {
       const v = this.paymentView;
       return v === undefined || this.sub !== 'lanes' ? undefined : editableRows(v)[this.subIdx]?.unit;
     },
-    /** The one-line «2 Сталь + 3 M€» recap on the collapsed row. */
     paymentSummary(): string {
       const view = this.paymentView;
       if (view === undefined) {
@@ -508,40 +660,27 @@ export default defineComponent({
       }
       return parts.join(' + ');
     },
-    // ── outcome (Итог торговли) ──────────────────────────────────────────
     rewardPosition(): number {
       const track = this.preview?.track;
       const chosen = this.captures['track'];
-      // An explicit track-advance choice (a willAsk colony) always wins.
       if (typeof chosen === 'number') {
-        const current = track?.current ?? this.colony?.trackPosition ?? 0;
-        return Math.min(current + chosen, (this.metadata?.trade.quantity.length ?? 7) - 1);
+        const current = track?.current ?? this.colony.trackPosition;
+        return Math.min(current + chosen, this.metadata.trade.quantity.length - 1);
       }
-      // Auto-advance: the server preview is authoritative once loaded. Until it
-      // arrives (it fetches in the background), compute the effective
-      // (offset-advanced) position CLIENT-side — the SAME calc the inspect uses
-      // — so the reward is correct IMMEDIATELY, never the un-advanced marker
-      // (the +1 offset would otherwise be dropped, showing a lower reward).
       if (track !== undefined) {
         return track.effective;
       }
-      if (this.colony !== undefined && this.metadata !== undefined) {
-        return effectiveTradePosition(this.colony, this.metadata, this.thisPlayer?.colonyTradeOffset ?? 0);
-      }
-      return Math.min(this.colony?.trackPosition ?? 0, 6);
+      return this.effectivePosition;
     },
     ownColonyCount(): number {
-      if (this.colony === undefined || this.viewerColor === undefined) {
+      if (this.viewerColor === undefined) {
         return 0;
       }
       return this.colony.colonies.filter((c) => c === this.viewerColor).length;
     },
     outcome(): {cost: Array<TradeOutcomeChip>, gains: Array<TradeOutcomeChip>} {
-      if (this.metadata === undefined) {
-        return {cost: [], gains: []};
-      }
       const player = this.thisPlayer;
-      const meta = this.options[this.payIdx]?.metadata;
+      const meta = this.tradeable ? this.options[this.payIdx]?.metadata : undefined;
       const payment = meta?.icon !== undefined && meta.amount !== undefined ?
         {icon: meta.icon, amount: meta.amount} :
         undefined;
@@ -569,14 +708,11 @@ export default defineComponent({
         } : {},
       });
     },
-    /** Gains with the captured card targets resolved (the chip collapses —
-     *  the concrete on-card line below carries the before → after). */
     heroGains(): Array<TradeOutcomeChip> {
       const capturedIcons = new Set(this.targetOutcomeLines.map((l) => l.resourceKey));
       return this.outcome.gains.filter((chip) =>
         !(chip.note === 'to a card' && chip.icon !== undefined && capturedIcons.has(chip.icon)));
     },
-    /** Concrete captured targets: card + on-card before → after. */
     targetOutcomeLines(): Array<{key: string, card: string, amount: number, before: number, after: number, iconClass: string, resourceKey: string}> {
       const lines: Array<{key: string, card: string, amount: number, before: number, after: number, iconClass: string, resourceKey: string}> = [];
       let ordinal = -1;
@@ -604,20 +740,9 @@ export default defineComponent({
       }
       return lines;
     },
-    colonyBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
-      const c = this.metadata?.colony;
-      if (c === undefined) {
-        return {type: ColonyBenefit.GAIN_RESOURCES, quantity: [1]};
-      }
-      return {type: c.type, quantity: [c.quantity ?? 1], resource: c.resource};
-    },
-    /** The trade reward is a card resource the viewer has NO card to hold ⇒
-     *  it is LOST. Computed CLIENT-SIDE (not only from the server preview's
-     *  notices, which may not surface when there is no card-selection step),
-     *  so the warning always shows at the confirm. Mirrors the section rail. */
     resourceLost(): boolean {
       const meta = this.metadata;
-      if (meta === undefined || meta.cardResource === undefined) {
+      if (meta.cardResource === undefined) {
         return false;
       }
       const t = meta.trade.type;
@@ -629,9 +754,6 @@ export default defineComponent({
       return !tableau.some((card) => getCard(card.name)?.resourceType === meta.cardResource);
     },
     otherOwners(): Array<{color: Color, count: number, name: string}> {
-      if (this.colony === undefined) {
-        return [];
-      }
       return colonyOwnerCounts(this.colony)
         .filter((owner) => owner.color !== this.viewerColor)
         .map((owner) => {
@@ -640,6 +762,9 @@ export default defineComponent({
         });
     },
     noticeRows(): Array<NoticeRow> {
+      if (!this.tradeable) {
+        return [];
+      }
       const rows: Array<NoticeRow> = [];
       for (const notice of tradeNotices(this.preview)) {
         if (notice.kind === 'autoTarget') {
@@ -661,6 +786,9 @@ export default defineComponent({
       return rows;
     },
     canConfirm(): boolean {
+      if (!this.tradeable) {
+        return false;
+      }
       if (this.paymentView !== undefined && !this.paymentView.status.ok) {
         return false;
       }
@@ -690,8 +818,6 @@ export default defineComponent({
     },
   },
   watch: {
-    // A different payment path re-derives the steps; captured targets keep
-    // their keys (payment lanes reseed for the M€ prompt).
     isMcSelected() {
       this.seedPaymentDefault();
     },
@@ -708,17 +834,29 @@ export default defineComponent({
     focusedRowEditable() {
       this.syncUiMirror();
     },
+    // Paging to another colony (LB/RB) re-bases every decision: captures are
+    // per-colony truths and must never leak across.
+    'colony.name'() {
+      this.captures = {};
+      this.sub = undefined;
+      this.subIdx = 0;
+      this.payIdx = 0;
+      this.focusIdx = 0;
+      this.seedPaymentDefault();
+      this.publishStageName();
+      this.syncUiMirror();
+    },
+    tradeable() {
+      this.publishStageName();
+      this.syncUiMirror();
+    },
   },
   methods: {
-    /** Localized card name, tolerating a `Name:variant` id (drops the suffix). */
     cardLabel(name: string): string {
       return translateCardName(name);
     },
     isFocused(zone: 'pay' | 'step', index: number): boolean {
       return this.sub === undefined && this.focused?.zone === zone && this.focused.index === index;
-    },
-    iconClass(unit: string): string {
-      return iconClassFor(unit);
     },
     chipIconClass(chip: TradeOutcomeChip): string {
       return chip.icon !== undefined ? iconClassFor(chip.icon) : '';
@@ -731,10 +869,7 @@ export default defineComponent({
       return key !== undefined ? iconClassFor(key) + ' con-task__opt-res' : '';
     },
     tradeBenefitAt(position: number): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
-      const t = this.metadata?.trade;
-      if (t === undefined) {
-        return {type: ColonyBenefit.GAIN_RESOURCES, quantity: [0]};
-      }
+      const t = this.metadata.trade;
       const resource = Array.isArray(t.resource) ? t.resource[position] : t.resource;
       return {type: t.type, quantity: t.quantity, resource};
     },
@@ -762,13 +897,16 @@ export default defineComponent({
       const lanes = paymentLanes(step.model, player);
       this.paymentCounts = initialCounts(step.model.amount, lanes, megacreditsAvailable(player));
     },
+    /** The stage names its crumb tail (rule 5 — never a header of its own). */
+    publishStageName(): void {
+      setColonyFocusStage(this.tradeable ? 'Trading' : 'Inspection');
+    },
     syncUiMirror(): void {
       consoleColoniesUi.composerSub = this.sub === undefined ? '' : (this.sub === 'lanes' ? 'lanes' : 'list');
       consoleColoniesUi.composerReady = this.canConfirm;
       consoleColoniesUi.composerEditable = this.focusedRowEditable;
     },
-    /** The shell routes every intent here while the confirm is open.
-     *  Foundation: presses resolve to SEMANTIC actions (no raw button names). */
+    /** The shell routes every intent here while the stage is open. */
     handleIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
         this.onNav(intent.dir);
@@ -807,7 +945,6 @@ export default defineComponent({
       }
       this.adjustPayLane(this.subIdx, dir === 'right' ? 1 : -1);
     },
-    /** Dial ONE payment source of the trade fee (shared clamp + pulse). */
     adjustPayLane(idx: number, step: number, toMax = false): void {
       const view = this.paymentView;
       const lane = this.payLanes[idx];
@@ -846,7 +983,6 @@ export default defineComponent({
         }
         return;
       case 'nextTab':
-        // RT in the lanes = MAX the focused source (mirrors the composers).
         if (this.sub === 'lanes') {
           this.adjustPayLane(this.subIdx, 0, true);
         }
@@ -886,7 +1022,6 @@ export default defineComponent({
         }
         return;
       }
-      // Review: A on a payment row PICKS it; A on a step row opens its editor.
       const focused = this.focused;
       if (focused === undefined) {
         return;
@@ -933,12 +1068,10 @@ export default defineComponent({
       void this.$nextTick(() => {
         const el = this.$refs.focusedEl as HTMLElement | Array<HTMLElement> | undefined;
         const node = Array.isArray(el) ? el[0] : el;
-        // Foundation: bounded to the ConsoleScrollArea viewport (never scrollIntoView).
         (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
       });
     },
     emitConfirm(): void {
-      // Build the by-index captures the pure batch builder consumes.
       const capturesByIndex: Record<number, unknown> = {};
       this.steps.forEach((step, i) => {
         const key = this.stepKeys[i];
@@ -957,6 +1090,7 @@ export default defineComponent({
   },
   mounted() {
     this.seedPaymentDefault();
+    this.publishStageName();
     this.syncUiMirror();
   },
   beforeUnmount() {

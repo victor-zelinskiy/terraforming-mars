@@ -342,7 +342,15 @@
              a normal screen. -->
         <div v-if="sponsorStep" class="con-start__handstep" data-embed-slot="start-hand"></div>
 
-        <div v-if="mode === 'ceremony' && !sponsorStep" class="con-start__body con-start__ceremony"
+        <!-- THE COLONIES STEP — a prelude's SelectColony (Early Colonization's
+             Build Colony …): the COLONY WORKSPACE is teleported into this zone
+             and wears the start's shell (workspace-embed host 'start' ×
+             surface 'colonies'). Same contract as the sponsor step: full-size
+             host, the deployment parks (module state, returns untouched), the
+             crumb reads «СТАРТ ПАРТИИ › <пролог> › КОЛОНИИ». -->
+        <div v-if="colonyStep" class="con-start__handstep con-start__colonystep" data-embed-slot="start-colonies"></div>
+
+        <div v-if="mode === 'ceremony' && !sponsorStep && !colonyStep" class="con-start__body con-start__ceremony"
              :class="{'con-start__ceremony--hidden': !ceremonyRevealed}" ref="ceremonyBody">
           <!-- ── THE DEPLOYMENT — one row, three physical places ──
                 · the QUEUE COLUMN (left, the protagonist): every unresolved
@@ -924,6 +932,16 @@ export default defineComponent({
       // РУКЕ`, deepening to `… › РОЗЫГРЫШ` and `… › РАЗЫГРАНО` as the descent
       // goes on. Stable context BEFORE the mutable stage: the source card is
       // the same vnode all the way through, only the tail advances.
+      // A prelude's COLONIES step: «СТАРТ ПАРТИИ › <пролог> › КОЛОНИИ» —
+      // post-commit (the prelude is played; the colony pick is its effect),
+      // so the tail is amber from the first frame.
+      if (this.colonyStep) {
+        return sponsorCrumb({
+          source: this.sponsorSource,
+          stage: 'Colonies',
+          committed: true,
+        });
+      }
       if (this.sponsorStep) {
         return sponsorCrumb({
           source: this.sponsorSource,
@@ -1032,6 +1050,11 @@ export default defineComponent({
      */
     sponsorStep(): boolean {
       return this.embed.host === 'start' && this.embed.surface === 'hand';
+    },
+    /** A prelude's SelectColony — this workspace hosts the COLONIES step
+     *  (same shape as the sponsor's hand step, different surface). */
+    colonyStep(): boolean {
+      return this.embed.host === 'start' && this.embed.surface === 'colonies';
     },
     /**
      * A play-from-hand effect is still owed — the server is holding its
@@ -1736,6 +1759,14 @@ export default defineComponent({
         this.publishHandStepSlot(on);
       },
     },
+    /** The colonies step's zone — same publish/retract discipline. */
+    'colonyStep': {
+      immediate: true,
+      flush: 'post',
+      handler(on: boolean) {
+        setWorkspaceEmbedSlot(on ? '.con-start__colonystep' : '');
+      },
+    },
     /** Step position (the panes swap under this): reseed focus, mark the
      *  step visited (its first-visit stagger never replays), refit. */
     railPos() {
@@ -1964,6 +1995,10 @@ export default defineComponent({
     // a restore re-creates the component without `sponsorStep` ever changing,
     // so the watcher has nothing to fire on.
     this.publishHandStepSlot(this.sponsorStep);
+    // Same for the colonies step (a restore mid Build-Colony prelude).
+    if (this.colonyStep) {
+      setWorkspaceEmbedSlot('.con-start__colonystep');
+    }
     void this.$nextTick(() => {
       this.fitCardStrip();
       this.syncCeremonyLayout();

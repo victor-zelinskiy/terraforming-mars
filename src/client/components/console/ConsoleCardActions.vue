@@ -34,7 +34,7 @@
                      :context="repeat && repeatRequest !== undefined ? (repeatRequest.source.label ?? repeatRequest.source.card) : ''"
                      :subject="composer !== undefined ? composer.cardName : ''"
                      :stage="composer !== undefined ? focusKickerKey : ''"
-                     :committed="outcomeFlow !== undefined">
+                     :committed="outcomeFlow !== undefined || colonyStepHosted">
         <!-- ── Filters: two labeled groups with their OWN trigger chips
              (the sanctioned exception to the one-bottom-bar rule). They
              live in the header line and yield to the focus stage. ── -->
@@ -480,6 +480,7 @@ import {
   resetActionFocusMotion,
 } from '@/client/console/consoleActionFocusMotion';
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
+import {workspaceEmbedActive} from '@/client/console/consoleWorkspaceEmbed';
 import {backVerbFor, WorkspacePhase, workspacePhaseOf} from '@/client/console/consoleWorkspaceFlow';
 import {
   claimWorkspaceOutcome,
@@ -744,6 +745,12 @@ export default defineComponent({
      * command bar reads, so breadcrumb and bar can never disagree.
      */
     focusKickerKey(): string {
+      // A SelectColony follow-up HOSTED here: the crumb's tail is the step —
+      // «ДЕЙСТВИЯ КАРТ › <карта> › КОЛОНИИ» (the embedded section never
+      // titles itself — rule 5).
+      if (workspaceEmbedActive('colonies', 'card-actions')) {
+        return 'Colonies';
+      }
       const kind = this.outcomeFlow?.kind;
       if (kind === 'deck-check') {
         return focusKicker('reveal');
@@ -759,6 +766,11 @@ export default defineComponent({
       // twice.
       const published = workspaceOutcomeState.phaseKey;
       return published !== '' ? published : focusKicker('draw');
+    },
+    /** A SelectColony follow-up is hosted in the composer's outcome zone —
+     *  the crumb goes amber (post-commit) and names the step. */
+    colonyStepHosted(): boolean {
+      return workspaceEmbedActive('colonies', 'card-actions');
     },
     /** Total variants of the focused card (the header's «Вариант N/M» chip);
      *  1 hides the chip (single-action card / a Viron repeat with no node). */

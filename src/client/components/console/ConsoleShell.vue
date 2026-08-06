@@ -186,8 +186,18 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleColoniesSection v-if="consoleState.section === 'colonies'"
+        <!-- THE COLONY WORKSPACE — standalone section, OR an embedded STEP of
+             another live workspace (a prelude's Build Colony, a played card's
+             trade pick, a blue action's free trade): the very same instance is
+             TELEPORTED into that workspace's zone and wears its shell
+             (`:embedded`) — one instance, one input path, one set of captures
+             (workspace-embed rules 1-4; `coloniesHeldForWorkspace` covers the
+             claim-to-slot gap frame). -->
+        <Teleport :to="colonyEmbedTarget ?? 'body'" :disabled="colonyEmbedTarget === undefined">
+        <ConsoleColoniesSection v-if="(consoleState.section === 'colonies' && !coloniesHeldForWorkspace) || colonyEmbedActive"
+                                ref="coloniesSection"
                                 data-motion-surface="section"
+                                :embedded="colonyEmbedActive"
                                 :colonies="coloniesForRail"
                                 :index="consoleState.colonyIndex"
                                 :tradeable="tradeableColonyNames"
@@ -196,7 +206,13 @@
                                 :players="playerView.players"
                                 :viewerColor="thisPlayer.color"
                                 :dockedColony="tradeFleetState.dockedColonyName"
-                                :tradeOffset="thisPlayer.colonyTradeOffset ?? 0" />
+                                :tradeOffset="thisPlayer.colonyTradeOffset ?? 0"
+                                :tradePaymentOptions="tradeColonyContext !== undefined ? tradeColonyContext.paymentOptions : []"
+                                :tradeDisabledPayments="tradeColonyContext !== undefined ? tradeColonyContext.disabledPayments : []"
+                                :thisPlayer="thisPlayer"
+                                :playerId="playerView.id"
+                                @trade-confirm="onColonyTradeComposerConfirm($event)" />
+        </Teleport>
       </transition>
       <!-- The console-NATIVE Hydronetwork screen (the full rework — the
            desktop overlay is no longer re-hosted here). One shared brain:
@@ -278,28 +294,14 @@
       </transition>
     </div>
 
-    <!-- Colony trade — the console-native pre-select COMPOSER (payment path +
-         M€ mix + track choice + card targets + the live «Итог торговли»);
-         confirms as ONE PlayerInputBatch (colonyTradePlan.buildTradeBatch). -->
-    <transition :css="false" appear
-                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
-                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleColonyTradeConfirm v-if="pendingTradeColony !== undefined"
-                                 ref="tradeConfirm"
-                                 :colony="pendingTradeColonyModel"
-                                 :colonyName="pendingTradeColony.colonyName"
-                                 :options="pendingTradeColony.paymentOptions"
-                                 :disabledOptions="pendingTradeColony.disabledPayments"
-                                 :players="playerView.players"
-                                 :preview="pendingTradeColony.preview"
-                                 :thisPlayer="thisPlayer"
-                                 :viewerColor="thisPlayer.color"
-                                 @confirm="onColonyTradeComposerConfirm($event)"
-                                 @cancel="pendingTradeColony = undefined" />
-    </transition>
+    <!-- (The colony trade composer + the section's X-inspect dossier are GONE
+         as standalone modals: both live INSIDE the colony workspace now — the
+         COLONY FOCUS STAGE (ConsoleColonyFocusStage), a descend of the
+         colonies section itself. See consoleColoniesModel.colonyFocusState.) -->
 
-    <!-- Colony inspect (X = «Осмотреть») — the read-only full dossier for ANY
-         colony; ←/→ page through the colonies while open. -->
+    <!-- Colony inspect — the READ-ONLY dossier a JOURNAL colony row opens
+         (X on a colony chip). Journal-only: pinned to its one colony, pure
+         history, B closes. -->
     <transition :css="false" appear
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
@@ -309,11 +311,8 @@
                             :viewerColor="thisPlayer.color"
                             :playerId="playerView.id"
                             :tradeOffset="thisPlayer.colonyTradeOffset ?? 0"
-                            :readonly="colonyInspectReadonly"
-                            :tradeable="colonyInspectTradeable"
-                            :blockReason="colonyInspectReadonly ? '' : colonyTradeBlockReason"
-                            :paymentOptions="colonyInspectReadonly || tradeColonyContext === undefined ? [] : tradeColonyContext.paymentOptions"
-                            :disabledPayments="colonyInspectReadonly || tradeColonyContext === undefined ? [] : tradeColonyContext.disabledPayments" />
+                            :readonly="true"
+                            :tradeable="false" />
     </transition>
 
     <!-- «Разыграно» (X from the board home) — the console-native played-cards
@@ -1152,6 +1151,7 @@ import {
   openWorkspaceStage,
   closeWorkspaceStage,
   markWorkspaceStageCommitted,
+  markWorkspaceStageFollowUp,
   rollbackWorkspaceStageCommit,
   resetWorkspaceStage,
   workspaceStageOpen,
@@ -1190,13 +1190,12 @@ import {
   draftPickBeatActive, draftTrayState, observeDraftTransition, riseSceneEngaged, skipDraftPickBeat,
 } from '@/client/console/cardDeal/consoleDraftTray';
 import {Phase} from '@/common/Phase';
-import ConsoleColonyTradeConfirm from '@/client/components/console/ConsoleColonyTradeConfirm.vue';
 import ConsoleTradeFleetLayer from '@/client/components/console/colonyFleet/ConsoleTradeFleetLayer.vue';
 import {armTradeFleet, abortTradeFleet, isTradeFleetActive, tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import ConsoleColonyTradeLayer from '@/client/components/console/colonyTrade/ConsoleColonyTradeLayer.vue';
 import {
-  abortColonyTrade, armColonyTrade, colonyTradeState, isColonyTradeInputLocked,
-  noticeColonyTradeCommit, notifyColonyTradeTrackCommitted,
+  abortColonyTrade, armColonyTrade, colonyTradeClaimsReveal, colonyTradeState,
+  isColonyTradeInputLocked, noticeColonyTradeCommit, notifyColonyTradeTrackCommitted,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 import {ColonyTradeTargets} from '@/client/console/colonyTrade/colonyTradeModel';
 import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspect.vue';
@@ -1210,7 +1209,10 @@ import {
   abortPlayedHero, armPlayedHero, isPlayedHeroActive, playedHeroHolding, playedHeroState, skipPlayedHeroResult,
 } from '@/client/console/played/consolePlayedHero';
 import {CardType} from '@/common/cards/CardType';
-import {colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi} from '@/client/console/consoleColoniesModel';
+import {
+  colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi,
+  colonyFocusState, closeColonyFocus, resetColonyFocus,
+} from '@/client/console/consoleColoniesModel';
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {startAwaitingOthers, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
@@ -1220,8 +1222,6 @@ import {focusKicker} from '@/client/console/consoleActionFlow';
 import {buildTradeBatch, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
-import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
-import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
 import ConsoleCardRulesPanel, {cardHasRules} from '@/client/components/console/ConsoleCardRulesPanel.vue';
@@ -1241,6 +1241,7 @@ import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.v
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {
   markWorkspaceEmbedCommitting, setWorkspaceEmbed, workspaceEmbedCommitting, workspaceEmbedSlot,
+  WorkspaceEmbedHost,
 } from '@/client/console/consoleWorkspaceEmbed';
 
 /** The kinds served by a DEDICATED composite surface (not by the task host). */
@@ -1258,7 +1259,7 @@ import ConsoleHydroDrawLayer from '@/client/components/console/hydroDraw/Console
 import {armHydroDraw, abortHydroDraw, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
-import {workspaceClaimsDrawReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {
@@ -1325,7 +1326,6 @@ import {
   findSellPatentsAction,
   findStandardProjectsAction,
   findTradeColonyContext,
-  TradeColonyContext,
   hasTurn,
   inputTitleText,
   promptIdentityKey,
@@ -1430,7 +1430,6 @@ export default defineComponent({
     ConsoleHydroDrawLayer,
     ConsoleBoardCardBonusLayer,
     ConsoleDeckDrawLayer,
-    ConsoleColonyTradeConfirm,
     ConsoleTradeFleetLayer,
     ConsoleColonyTradeLayer,
     ConsoleColonyInspect,
@@ -1516,6 +1515,8 @@ export default defineComponent({
       botTurnReviewState,
       /** The colony trade-launch controller (drives the docked-settle glow). */
       tradeFleetState,
+      /** The colony trade-REWARD transaction (the Pluto return-home watcher). */
+      colonyTradeState,
       /** The hydronetwork marker-advance controller (the plan-reset watcher). */
       hydroMarkerState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
@@ -1541,9 +1542,20 @@ export default defineComponent({
       pendingClientPayment: undefined as PendingClientPayment | undefined,
       /** P24: the hydro pick-sheet candidates (name + live animal count). */
       hydroPickCards: [] as Array<{name: CardName, current?: number}>,
-      pendingTradeColony: undefined as {colonyName: ColonyName, paymentOptions: TradeColonyContext['paymentOptions'], disabledPayments: TradeColonyContext['disabledPayments'], preview?: ColonyTradePreviewModel} | undefined,
-      /** X = «Осмотреть» — the read-only colony dossier overlay. */
-      colonyInspectOpen: false,
+      /** The colony workspace flow (browse ⇄ focus stage) — module reactive,
+       *  mirrored here for path watchers (vue-path-watcher rule). */
+      colonyFocus: colonyFocusState,
+      /**
+       * THE COLONY EMBED LATCH — which live workspace flow a SelectColony
+       * prompt arrived INSIDE of ('start' prelude / 'hand' play / a
+       * 'card-actions' activation). Set on the prompt's rising edge (the
+       * host is provably alive then), held through the whole follow-up
+       * (prompt → fleet flight → rewards → Pluto reveal), released when the
+       * follow-up genuinely ends or the player minimizes. The latch — not a
+       * re-derivation — is what keeps the section embedded while the
+       * transaction plays past the prompt's own lifetime.
+       */
+      colonyEmbedLatch: undefined as WorkspaceEmbedHost | undefined,
       /** X on the board home — the «Разыграно» tableau overlay (view-only). */
       playedOpen: false,
       /** A colony name opened READ-ONLY from the journal (X on a colony row). */
@@ -1766,7 +1778,7 @@ export default defineComponent({
       }
       return (
         this.pendingPlayCard !== undefined ||
-        this.pendingTradeColony !== undefined ||
+        this.colonyFocusOpen ||
         this.corpFirstActionOpen ||
         this.govSupportActive ||
         this.productionLossActive ||
@@ -1882,7 +1894,7 @@ export default defineComponent({
         this.consoleState.sheet !== undefined ||
         this.consoleState.confirm !== undefined ||
         this.pendingPlayCard !== undefined ||
-        this.pendingTradeColony !== undefined ||
+        this.colonyFocusOpen ||
         this.maConfirmView !== undefined ||
         this.maInspectItem !== undefined ||
         this.colonyInspectModel !== undefined ||
@@ -2442,7 +2454,8 @@ export default defineComponent({
       if (this.consoleRevealMode !== 'drawn') {
         return undefined;
       }
-      if (!workspaceClaimsDrawReveal(currentRevealEvent()?.source)) {
+      const source = currentRevealEvent()?.source;
+      if (!workspaceClaimsDrawReveal(source) && !workspaceClaimsColonyReveal(source)) {
         return undefined;
       }
       const slot = workspaceOutcomeState.embedSlot;
@@ -2719,7 +2732,15 @@ export default defineComponent({
     },
     colonyPick(): ConsoleColonyPick | undefined {
       const model = this.colonyModel;
-      if (model === undefined || this.shellTask?.kind !== 'colony') {
+      if (model === undefined) {
+        return undefined;
+      }
+      // Standalone: only while the shell-section task actually serves (the
+      // admission gate holds it back behind cinematics). EMBEDDED: the host
+      // workspace IS the serving surface — `shellTask` is legitimately gated
+      // under a live scene there (the start), so the raw prompt + the latch
+      // are the truth instead.
+      if (this.shellTask?.kind !== 'colony' && this.colonyEmbedHostKind === undefined) {
         return undefined;
       }
       const reasons: Record<string, string> = {};
@@ -3558,40 +3579,104 @@ export default defineComponent({
         translateTextWithParams(reason.key, reason.params.map(String)) :
         translateText(reason.key);
     },
-    /** The colony the X = «Осмотреть» overlay shows. Two sources: the colonies
-     *  SECTION (←/→ pages the rail, A can trade) and the JOURNAL (a fixed
-     *  colony by name, read-only — only B closes). */
+    /** The colony the JOURNAL dossier shows (X on a journal colony row —
+     *  read-only, pinned to its one colony, only B closes). The colonies
+     *  SECTION's own inspect verb descends into the COLONY FOCUS STAGE
+     *  instead — it never opens this overlay. */
     colonyInspectModel(): ColonyModel | undefined {
-      if (this.journalColonyInspect !== undefined) {
-        return this.game.colonies.find((c) => c.name === this.journalColonyInspect);
-      }
-      if (!this.colonyInspectOpen || this.consoleState.section !== 'colonies') {
+      if (this.journalColonyInspect === undefined) {
         return undefined;
       }
-      return this.coloniesForRail[this.consoleState.colonyIndex];
+      return this.game.colonies.find((c) => c.name === this.journalColonyInspect);
     },
-    /** The inspect overlay is up (either source). */
-    colonyInspectActive(): boolean {
-      return this.journalColonyInspect !== undefined ||
-        (this.colonyInspectOpen && this.consoleState.section === 'colonies');
+    /** The colony workspace's FOCUS STAGE is open (browse grid parked) —
+     *  standalone section AND embedded step alike. */
+    colonyFocusOpen(): boolean {
+      return (this.consoleState.section === 'colonies' || this.colonyEmbedActive) &&
+        this.colonyFocus.open;
     },
-    /** A journal-opened inspect is READ-ONLY (no trade bridge — only B closes). */
-    colonyInspectReadonly(): boolean {
-      return this.journalColonyInspect !== undefined;
+    /** The descended-into colony is live-tradeable (the stage's CTA verbs). */
+    colonyFocusTradeable(): boolean {
+      return this.colonyFocus.colonyName !== '' && this.colonyPick === undefined &&
+        this.tradeableColonyNames.includes(this.colonyFocus.colonyName);
     },
-    /** A = trade from inspect is offered only for a live-tradeable colony
-     *  opened from the section (never the read-only journal dossier). */
-    colonyInspectTradeable(): boolean {
-      const model = this.colonyInspectModel;
-      return !this.colonyInspectReadonly && model !== undefined &&
-        this.tradeableColonyNames.includes(model.name);
+    /**
+     * A payout batch of the LIVE trade transaction is waiting to be presented
+     * — the signal the colonies section must be on screen for (the covers
+     * launch from the traded tile; the reveal lands in the section's embed
+     * zone). Between two Pluto colony bonuses the discard runs on the HAND
+     * (select mode), and the next payout is what brings the player home.
+     */
+    tradePayoutIncoming(): boolean {
+      return this.colonyTradeState.active &&
+        colonyTradeClaimsReveal(currentRevealEvent()?.source);
     },
-    pendingTradeColonyModel(): ColonyModel | undefined {
-      const pending = this.pendingTradeColony;
-      if (pending === undefined) {
+    // ── THE COLONY EMBED — SelectColony inside a live workspace flow ──────
+    /** A SelectColony prompt stands, structurally (no admission gating — the
+     *  latch must land before any surface routing runs). */
+    colonyPromptRaw(): boolean {
+      return this.playerView.waitingFor?.type === 'colony';
+    },
+    /**
+     * The colony FOLLOW-UP is still running: the prompt itself, the armed
+     * fleet flight, the reward transaction, or the claimed Pluto payout. The
+     * latch lives exactly as long as this does.
+     */
+    colonyFollowUpLive(): boolean {
+      return this.colonyPromptRaw || this.colonyTradeState.active ||
+        this.tradeFleetState.active || workspaceOutcomeState.host === 'colonies';
+    },
+    /**
+     * Which workspace HOSTS the colonies right now — the latch, gated on the
+     * host being genuinely alive and the task not minimized. Undefined =
+     * the colonies stand alone (their own section), the pre-embed behaviour.
+     */
+    colonyEmbedHostKind(): WorkspaceEmbedHost | undefined {
+      const latch = this.colonyEmbedLatch;
+      if (latch === undefined || this.consoleState.task.deferred) {
         return undefined;
       }
-      return this.game.colonies.find((c) => c.name === pending.colonyName);
+      if (latch === 'start') {
+        return this.startSceneMounted ? 'start' : undefined;
+      }
+      if (latch === 'hand') {
+        return workspaceStageOpen('hand') ? 'hand' : undefined;
+      }
+      return this.consoleState.sheet === 'cardActions' ? 'card-actions' : undefined;
+    },
+    /**
+     * The zone the colonies section is TELEPORTED into (embed rule 4:
+     * ownership ≠ readiness — undefined until the host's zone genuinely
+     * stands). The hand hosts in its own STAGE zone (freed by the composer's
+     * departure); start and card-actions publish through the shared
+     * workspace-embed slot.
+     */
+    colonyEmbedTarget(): string | undefined {
+      switch (this.colonyEmbedHostKind) {
+      case 'hand': return workspaceStageTarget('hand');
+      case 'start':
+      case 'card-actions': return workspaceEmbedSlot();
+      default: return undefined;
+      }
+    },
+    colonyEmbedActive(): boolean {
+      return this.colonyEmbedTarget !== undefined;
+    },
+    /** Claimed but the zone is not up yet — render NOWHERE (embed rule 4). */
+    coloniesHeldForWorkspace(): boolean {
+      return this.colonyEmbedHostKind !== undefined && this.colonyEmbedTarget === undefined;
+    },
+    /**
+     * A live SelectColony that NOBODY serves: no host claims it (the latch's
+     * host died, or a latch was taken on a flow that folded the same tick)
+     * and the standalone section is not open either. The watcher heals this
+     * by dropping the latch and opening the section — a prompt may degrade
+     * from embedded to standalone, but it may never strand.
+     */
+    colonyPromptStranded(): boolean {
+      return this.colonyPromptRaw && !this.consoleState.task.deferred &&
+        this.colonyEmbedHostKind === undefined &&
+        this.consoleState.section !== 'colonies';
     },
     hydroActionAvailable(): boolean {
       return findHydroActionPath(this.playerView.waitingFor) !== undefined;
@@ -3977,10 +4062,7 @@ export default defineComponent({
       if (this.corpFirstActionOpen) {
         return 'First action';
       }
-      if (this.pendingTradeColony !== undefined) {
-        return 'Trade';
-      }
-      if (this.colonyInspectActive) {
+      if (this.colonyInspectModel !== undefined) {
         return 'Colony';
       }
       if (this.maInspectItem !== undefined) {
@@ -4160,7 +4242,9 @@ export default defineComponent({
       // contract (A разыграть · X осмотреть · LB/RB фильтр · B назад), not the
       // deployment's. The scene's own verbs would advertise presses that do
       // nothing on the surface actually in front of the player.
-      if (this.startSceneServes && !this.startSponsorEmbed && !this.consoleState.task.deferred) {
+      // Same for the hosted COLONIES step — the colony grid's contract leads.
+      if (this.startSceneServes && !this.startSponsorEmbed && !this.colonyEmbedActive &&
+          !this.consoleState.task.deferred) {
         // The scene publishes its live contract (consoleStartUi — wizard step
         // vs. summary vs. ceremony: X inspects, RT continues / begins, etc.);
         // the bar mirrors it verbatim so it can never diverge from the buttons
@@ -4261,9 +4345,9 @@ export default defineComponent({
           [...consolePlayCardUi.commands] :
           [{control: 'confirm', label: 'Play now'}, {control: 'back', label: 'Cancel'}];
       }
-      if (this.pendingTradeColony !== undefined) {
-        // The composer mirrors its live state (consoleColoniesUi) — the bar
-        // is the ONLY hint surface (no inline duplicates).
+      if (this.colonyFocusOpen) {
+        // The COLONY FOCUS STAGE mirrors its live state (consoleColoniesUi) —
+        // the bar is the ONLY hint surface (no inline duplicates).
         if (consoleColoniesUi.composerSub === 'lanes') {
           return [
             {control: 'triggerR', label: 'Max'},
@@ -4277,20 +4361,19 @@ export default defineComponent({
             {control: 'back', label: 'Back'},
           ];
         }
+        // A non-tradeable colony's stage is a dossier: B is the only verb.
+        if (!this.colonyFocusTradeable) {
+          return [{control: 'back', label: 'Back'}];
+        }
         return [
           {control: 'confirm', label: 'Select', enabled: consoleColoniesUi.composerEditable},
           {control: 'secondary', label: 'Confirm trade', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
-          {control: 'back', label: 'Cancel'},
+          {control: 'back', label: 'Back'},
         ];
       }
-      if (this.colonyInspectActive) {
-        const cmds: Array<ConsoleCommand> = [];
-        // Section source: ←/→ pages colonies + A trades a live-tradeable one.
-        if (this.journalColonyInspect === undefined && this.colonyInspectTradeable) {
-          cmds.push({control: 'confirm', label: 'Trade'});
-        }
-        cmds.push({control: 'back', label: 'Close'});
-        return cmds;
+      if (this.colonyInspectModel !== undefined) {
+        // The read-only JOURNAL colony dossier: B closes, nothing else.
+        return [{control: 'back', label: 'Close'}];
       }
       if (this.maInspectItem !== undefined) {
         const cmds: Array<ConsoleCommand> = [];
@@ -4519,8 +4602,11 @@ export default defineComponent({
         cmds.push({control: 'back', label: this.shellTaskActive ? 'Minimize' : 'To the board'});
         return cmds;
       }
-      if (this.consoleState.section === 'colonies') {
+      if (this.consoleState.section === 'colonies' || this.colonyEmbedActive) {
         // T4 pick mode: A = the server verb; B = cancel (marker) / minimize.
+        // Standalone section AND the embedded step publish the SAME contract
+        // (one grid, one grammar — only B's label differs: an embedded step
+        // minimizes its host).
         const pick = this.colonyPick;
         if (pick !== undefined) {
           const selected = this.coloniesForRail[this.consoleState.colonyIndex];
@@ -4536,7 +4622,7 @@ export default defineComponent({
         return [
           {control: 'confirm', label: 'Trade', enabled: tradeable},
           {control: 'secondary', label: 'Inspect'},
-          {control: 'back', label: 'To the board'},
+          {control: 'back', label: this.colonyEmbedActive ? 'Minimize' : 'To the board'},
         ];
       }
       if (this.consoleState.section === 'hydro') {
@@ -4836,14 +4922,120 @@ export default defineComponent({
     taskSpacePending(pending: {index: number, spacePrompt: PlayerInputModel} | undefined) {
       setConsoleTaskSpacePlacement(pending !== undefined);
     },
-    // TRADE-FLEET LAUNCH lifecycle: the composer stays mounted (dissolved via
-    // `--launching`) through the whole flight; the trade overlay only fully
-    // CLOSES once the ship has DOCKED (success) or the flight was recalled
-    // (error/stall). Both land here as active → false.
-    'tradeFleetState.active'(active: boolean) {
-      if (!active && this.pendingTradeColony !== undefined) {
-        this.pendingTradeColony = undefined;
+    // (The old trade-composer close-on-dock watcher is gone: the COLONY FOCUS
+    // STAGE folds back to the browse surface AT the confirm — the flight and
+    // the reward transaction play over the surface they belong to.)
+    //
+    // PLUTO COMES HOME. The colony workspace is the trade transaction's HOME
+    // surface. A Pluto sequence legitimately walks away from it (each colony
+    // bonus's discard runs on the hand in select mode); the moment the NEXT
+    // payout batch arrives — or the closing track glide needs the traded tile
+    // — the section returns, so the covers/marker have their physical anchors
+    // and the reveal lands EMBEDDED in the workspace again (never a detached
+    // fullscreen modal mid-flow). The claim is re-established structurally
+    // from the transaction itself: the hand trip released it (the embed's
+    // falling edge), and the transaction — not a timer — is the truth that
+    // says the flow is still ours.
+    tradePayoutIncoming(incoming: boolean) {
+      if (!incoming) {
+        return;
       }
+      if (workspaceOutcomeState.host !== 'colonies' && colonyTradeState.colonyName !== '') {
+        claimWorkspaceOutcome('colonies', colonyTradeState.colonyName, ['draw']);
+        markWorkspaceOutcomeArrivalDone();
+      }
+      if (this.consoleState.section !== 'colonies') {
+        this.consoleState.section = 'colonies';
+      }
+    },
+    // The closing track glide measures the traded tile's own track cells —
+    // the section must be mounted for the marker to physically step home.
+    // (While EMBEDDED the section already stands inside its host.)
+    'colonyTradeState.glideNonce'() {
+      if (this.colonyTradeState.active && !this.colonyEmbedActive &&
+          this.consoleState.section !== 'colonies') {
+        this.consoleState.section = 'colonies';
+      }
+    },
+    // ── THE COLONY EMBED LATCH lifecycle ──────────────────────────────────
+    // Rising edge of a SelectColony prompt: record WHICH live workspace flow
+    // it arrived inside of. The host is provably alive at this instant —
+    // deriving it later (after a section change, after the composer left)
+    // answers a different question.
+    colonyPromptRaw(on: boolean) {
+      if (!on || this.colonyEmbedLatch !== undefined) {
+        return;
+      }
+      if (this.startSceneMounted || this.playerView.game.phase === Phase.PRELUDES) {
+        // Embed rule 6 fallback: in PRELUDES a SelectColony can only be a
+        // prelude's effect, so the claim survives a reload (the module-level
+        // scene hold is wiped, the game phase is server truth).
+        this.colonyEmbedLatch = 'start';
+      } else if (workspaceStageOpen('hand') && !this.startSponsorEmbed) {
+        this.colonyEmbedLatch = 'hand';
+        // The stage's crumb advances: «КАРТЫ В РУКЕ › <карта> › КОЛОНИИ».
+        // Post-commit follow-up: input live, B = collapse (flow vocabulary).
+        markWorkspaceStageFollowUp('Colonies');
+      } else if (this.consoleState.sheet === 'cardActions') {
+        this.colonyEmbedLatch = 'card-actions';
+      }
+    },
+    // The follow-up ended (rewards granted, Pluto resolved, track reset) —
+    // the host workspace finishes its own deferred fold and the latch clears.
+    colonyFollowUpLive(live: boolean, was: boolean) {
+      if (live || !was || this.colonyEmbedLatch === undefined) {
+        return;
+      }
+      const latch = this.colonyEmbedLatch;
+      this.colonyEmbedLatch = undefined;
+      if (latch === 'hand' && workspaceStageOpen('hand')) {
+        // The play-from-hand workspace held itself open to host the colony
+        // follow-up — its deferred fold runs now (the played hero's 'closing'
+        // teardown was gated on us).
+        closeWorkspaceStage();
+        closeConsoleLayers();
+        if (this.consoleState.section === 'hand') {
+          this.consoleState.section = 'board';
+        }
+        return;
+      }
+      if (latch === 'card-actions' && this.consoleState.sheet === 'cardActions') {
+        // The activation's follow-up is done — the action workspace folds the
+        // way every completed action does.
+        this.foldWorkspaceAfterResult();
+      }
+    },
+    // THE STRANDED-COLONY SELF-HEAL: an embedded plan whose host died (the
+    // start scene dissolved under the latch, the hand stage folded) degrades
+    // to the STANDALONE section — never to a prompt with no surface. The
+    // deferred flush gives a mounting host its tick before the verdict.
+    colonyPromptStranded: {
+      flush: 'post',
+      handler(stranded: boolean): void {
+        if (!stranded) {
+          return;
+        }
+        this.colonyEmbedLatch = undefined;
+        const task = taskFor(this.playerView);
+        if (task !== undefined && task.kind === 'colony') {
+          this.openShellTaskSurface(task);
+        }
+      },
+    },
+    // Mirror the claim into the embed module (the leak detector, the host
+    // scenes and the zone publishers read it from plain TS — never re-derive
+    // at a call site). The HAND host deliberately stays out of this mirror:
+    // its zone is the stage slot (workspaceStage), not the embed slot.
+    colonyEmbedHostKind: {
+      immediate: true,
+      handler(kind: WorkspaceEmbedHost | undefined, prev: WorkspaceEmbedHost | undefined): void {
+        if (prev !== undefined && prev !== 'hand' && prev !== kind) {
+          setWorkspaceEmbed(prev, undefined);
+        }
+        if (kind !== undefined && kind !== 'hand') {
+          setWorkspaceEmbed(kind, 'colonies');
+        }
+      },
     },
     // TRADE-REWARD transaction: report the traded colony's COMMITTED track
     // position to the orchestrator. The server sequences its reset AFTER
@@ -4913,6 +5105,16 @@ export default defineComponent({
         return;
       }
       if (phase === 'closing' && playedHeroState.host === 'workspace') {
+        // THE PLAYED CARD ASKED FOR A COLONY (Coordinated Raid / Market
+        // Manipulation): the workspace does NOT fold — the composer leaves,
+        // but the stage stays open and HOSTS the colonies as its next step
+        // («КАРТЫ В РУКЕ › <карта> › КОЛОНИИ»). The deferred fold runs from
+        // the colonyFollowUpLive falling edge, once the whole follow-up
+        // (pick → fleet → rewards) has played out inside the workspace.
+        if (this.colonyEmbedLatch === 'hand' && this.colonyPromptRaw) {
+          this.pendingPlayCard = undefined;
+          return;
+        }
         // One synchronous turn, one patch: clearing the pending play closes
         // the stage claim (its own watcher), and the section change takes the
         // whole workspace down through the section leave — the board is
@@ -4965,11 +5167,12 @@ export default defineComponent({
         }
       },
     },
-    // Leaving the colonies section closes the X-inspect dossier (and clears
-    // the composer's command-bar mirror so stale hints can't linger).
+    // Leaving the colonies section ends the workspace flow with it: the focus
+    // stage folds away and the command-bar mirror is cleared so stale hints
+    // can't linger. Reopening the section always lands on the browse surface.
     'consoleState.section'(section: string) {
-      if (section !== 'colonies' && this.colonyInspectOpen) {
-        this.colonyInspectOpen = false;
+      if (section !== 'colonies' && this.colonyFocus.open) {
+        resetColonyFocus();
         resetConsoleColoniesUi();
       }
       // Leaving the hand by ANY route ends the descent with it: the workspace
@@ -5179,7 +5382,10 @@ export default defineComponent({
       // successful play (the composer closes under the lifted card), and a
       // prompt-identity change that moved the flow on. One place, so a claim
       // can never outlive its flow and leave the shelf parked behind nothing.
-      if (now === undefined) {
+      // ONE exception: the played card's own COLONY follow-up — the stage
+      // outlives the composer to host the colonies step (the latch owns the
+      // eventual close).
+      if (now === undefined && this.colonyEmbedLatch !== 'hand') {
         closeWorkspaceStage();
       }
     },
@@ -5436,7 +5642,11 @@ export default defineComponent({
               consoleActionComposerUi.revealClaim !== '' &&
               lr !== undefined && lr.action === consoleActionComposerUi.revealClaim) ||
               workspaceClaimsDrawReveal(currentRevealEvent()?.source) ||
-              workspaceOutcomeState.sourceCard !== '';
+              workspaceOutcomeState.sourceCard !== '' ||
+              // A SelectColony follow-up LATCHED to the action workspace: the
+              // composer stays and HOSTS the colonies step — dismissing it
+              // here would tear down the very frame the step lands in.
+              this.colonyEmbedLatch === 'card-actions';
             if (claimedInFrame) {
               clearAwaitingHandoff();
               // The workspace's own stages carry the outcome from here — the
@@ -5517,10 +5727,9 @@ export default defineComponent({
           stepIndex(this.consoleState.sheetIndex, 0, this.stdProjectItems.length) :
           stepSelectable(this.consoleState.sheetIndex, 0, this.sheetRows.map((r) => r.kind !== 'header'));
         this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.coloniesForRail.length);
-        // The trade window closed externally → drop the stale payment modal.
-        if (this.pendingTradeColony !== undefined && this.tradeColonyContext === undefined) {
-          this.pendingTradeColony = undefined;
-        }
+        // (The trade window closing externally no longer force-closes
+        // anything: the COLONY FOCUS STAGE is reactive — its CTA drops and
+        // the verdict states the reason, an honest dossier, not a stale form.)
         // A resolved convert-plants prompt (server moved on) drops the local picker.
         if (this.convertPlantsPending !== undefined &&
             findConvertPlantsOption(this.playerView.waitingFor, this.thisPlayer.canConvertPlants === true) === undefined) {
@@ -5578,9 +5787,12 @@ export default defineComponent({
           // an unrelated window take its place. A claimed prompt is not
           // another surface's — it is the next stage of the action the player
           // just confirmed HERE, so the workspace stays and hosts it.
+          // The COLONY EMBED latch is the same fact for a SelectColony
+          // follow-up: the workspace is about to HOST the colonies step.
           if (this.consoleState.sheet === 'cardActions' &&
               taskFor(this.playerView)?.kind !== 'actionMenu' &&
-              !workspaceOutcomeClaimed()) {
+              !workspaceOutcomeClaimed() &&
+              this.colonyEmbedLatch !== 'card-actions') {
             this.consoleState.sheet = undefined;
             this.consoleState.sheetIndex = 0;
           }
@@ -5990,7 +6202,10 @@ export default defineComponent({
       // is a real screen with a real cursor, and the player is browsing THAT.
       // Falling through hands input to the normal hand/composer path — the
       // same one they would get outside the start, which is the point.
-      if (this.startSceneServes && !this.startSponsorEmbed && !this.consoleState.task.deferred) {
+      // Same for the hosted COLONIES step (a prelude's Build Colony): the
+      // colony grid is the surface in front of the player.
+      if (this.startSceneServes && !this.startSponsorEmbed && !this.colonyEmbedActive &&
+          !this.consoleState.task.deferred) {
         const scene = this.$refs.startScene as InstanceType<typeof ConsoleStartScene> | undefined;
         scene?.handleIntent(intent);
         return true;
@@ -6077,15 +6292,42 @@ export default defineComponent({
         confirm?.handleIntent(intent);
         return true;
       }
-      // T8: the native colony-trade composer owns input while open.
-      if (this.pendingTradeColony !== undefined) {
-        const confirm = this.$refs.tradeConfirm as InstanceType<typeof ConsoleColonyTradeConfirm> | undefined;
-        confirm?.handleIntent(intent);
+      // T8: the COLONY FOCUS STAGE owns input while open (the section routes
+      // the pad into the stage's own composer rows) — standalone AND embedded.
+      if (this.colonyFocusOpen || (this.colonyEmbedActive && this.colonyFocus.open)) {
+        const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+        section?.handleFocusIntent(intent);
         return true;
       }
-      // X = «Осмотреть»: the colony dossier owns the pad while open.
-      if (this.colonyInspectOpen) {
-        this.handleColonyInspectIntent(intent);
+      // THE EMBEDDED COLONIES STEP owns the pad while hosted: the same grid
+      // grammar as the standalone section (2D d-pad, A = the server verb /
+      // trade, X = inspect-descend), B = MINIMIZE the hosting workspace (the
+      // embed contract's verb — never a bare section close). The Pluto reveal
+      // NESTED inside the step outranks it (cards must be takeable) — the
+      // reveal branch below owns the pad then.
+      if (this.colonyEmbedActive && this.consoleRevealMode === undefined) {
+        if (intent.kind === 'nav') {
+          const count = this.coloniesForRail.length;
+          const cols = colonyGridCols(colonyGridLayout(count, this.colonyPick !== undefined), count);
+          this.consoleState.colonyIndex = colonyNavStep(intent.dir, this.consoleState.colonyIndex, count, cols);
+          return true;
+        }
+        if (action === 'primary') {
+          this.confirmColonySelection();
+          return true;
+        }
+        if (action === 'inspect') {
+          this.enterColonyFocus('inspect');
+          return true;
+        }
+        if (action === 'back') {
+          // Minimize: the prompt defers (the board-home card offers the way
+          // back); the host workspace hides with it. Restoring re-opens the
+          // colonies — standalone if the host has meanwhile finished.
+          this.deferShellTask();
+          this.consoleState.section = 'board';
+          return true;
+        }
         return true;
       }
       // The premium Milestones/Awards confirm owns input while open (A =
@@ -6828,13 +7070,15 @@ export default defineComponent({
         return true;
       case 'inspect':
         // P13 global rule: X reads the focused object fullscreen — in the
-        // colonies section X = «Осмотреть» (the full colony dossier); on the
-        // BOARD HOME (the main field context only — never mid-placement,
-        // never inside an inspection mode) X opens the «Разыграно» tableau.
+        // colonies section X = «Осмотреть» DESCENDS into the focused colony's
+        // FOCUS STAGE (the workspace's one detail surface — never a modal);
+        // on the BOARD HOME (the main field context only — never
+        // mid-placement, never inside an inspection mode) X opens the
+        // «Разыграно» tableau.
         if (this.consoleState.section === 'hand') {
           this.zoomHandCard();
         } else if (this.consoleState.section === 'colonies') {
-          this.toggleColonyInspect();
+          this.enterColonyFocus('inspect');
         } else if (onBoard && !this.placementActive &&
             !this.consoleState.inspecting && !this.consoleState.scaleInspecting) {
           this.openPlayedOverlay();
@@ -6918,48 +7162,7 @@ export default defineComponent({
         return;
       }
       if (this.consoleState.section === 'colonies') {
-        // T4: a server SelectColony pick outranks the trade flow.
-        const pick = this.colonyPick;
-        if (pick !== undefined) {
-          // A colony-build hero is already playing — never re-submit.
-          if (isColonyBuildActive()) {
-            return;
-          }
-          const selected = this.coloniesForRail[this.consoleState.colonyIndex];
-          if (selected === undefined) {
-            return;
-          }
-          if (!pick.selectable.includes(selected.name)) {
-            const reason = pick.reasons[selected.name];
-            this.showNotice(reason !== undefined && reason !== '' ? reason : 'Unavailable right now');
-            return;
-          }
-          closeConsoleLayers();
-          this.consoleState.task.deferred = false;
-          // BUILD: arm the premium colony-build hero and STAY on the colonies
-          // screen — the cube drop + one-time bonus lift plays where it
-          // happens. A board follow-up (an ocean/hazard build bonus) self-heals
-          // via the `placementActive` watcher, which flips to the board on the
-          // next `space` prompt. (Mirrors the trade-fleet arm-then-submit.)
-          if (pick.buttonLabel === 'Build') {
-            const slotIndex = Math.min(2, selected.colonies.length);
-            armColonyBuild(selected.name, slotIndex, this.thisPlayer.color);
-            this.submit(colonyResponse(selected.name));
-            return;
-          }
-          this.submit(colonyResponse(selected.name));
-          // The other SelectColony picks (Aridor's extra tile, setup remove …)
-          // are ONE-SHOT: leave the colonies screen so the player isn't stranded
-          // wondering whether another colony choice is expected — the server's
-          // next prompt (or the turn) drives what surfaces next.
-          this.consoleState.section = 'board';
-          return;
-        }
-        if (this.placementActive) {
-          this.showNotice('Finish your current action first');
-          return;
-        }
-        this.tryOpenColonyTrade();
+        this.confirmColonySelection();
         return;
       }
       const entry = this.handEntries[this.consoleState.handIndex];
@@ -7032,6 +7235,14 @@ export default defineComponent({
       if (this.startSponsorEmbed) {
         this.consoleState.task.deferred = true;
         this.consoleState.section = 'board';
+        return;
+      }
+      // THE COLONY FOCUS STAGE: B folds ONE level back to the browse surface
+      // (workspace flow: configure → browse) — before the shell-task branch,
+      // so an X-opened dossier during a SelectColony pick closes to the grid
+      // instead of deferring the whole prompt.
+      if (this.colonyFocusOpen) {
+        closeColonyFocus();
         return;
       }
       // B on a shell-task surface: CANCEL when the server marker allows
@@ -7728,44 +7939,107 @@ export default defineComponent({
       this.submit(wrapPath([...found.path, innerIdx], {type: 'option' as const}));
       return true;
     },
-    // ── colonies trade (mirrors the desktop contract byte-for-byte) ─────
-    /** X = «Осмотреть» from the colonies SECTION — toggle the dossier (A can
-     *  then trade). */
-    toggleColonyInspect(): void {
-      if (this.colonyInspectOpen) {
-        this.colonyInspectOpen = false;
-        consoleColoniesUi.inspectOpen = false;
+    // ── the colony workspace (browse ⇄ focus; submit mirrors desktop) ─────
+    /**
+     * Descend into the FOCUSED colony's stage (A = trade, X = inspect — ONE
+     * stage either way; consoleColoniesModel.colonyFocusState). The section
+     * arms the descend origin (the pressed tile's rect) and opens the flow;
+     * the shell only gates re-entry during a live transaction.
+     */
+    enterColonyFocus(intent: 'trade' | 'inspect'): void {
+      if (this.coloniesForRail.length === 0 || this.colonyFocus.open) {
         return;
       }
-      if (this.coloniesForRail.length === 0) {
+      // A trade in flight owns the moment (its own gates already swallow A/X;
+      // this is the belt for the first frame before they engage).
+      if (isTradeFleetActive() || colonyTradeState.active) {
         return;
       }
-      this.colonyInspectOpen = true;
-      consoleColoniesUi.inspectOpen = true;
+      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      section?.enterFocus(intent);
+    },
+    /**
+     * A on the colony grid — standalone section AND embedded step alike.
+     * T4: a server SelectColony pick outranks the trade flow; without a pick
+     * A descends into the focused colony's FOCUS STAGE (trade intent —
+     * blocked colonies descend too: the stage carries the honest verdict and
+     * the full dossier, which beats a bare refusal notice).
+     */
+    confirmColonySelection(): void {
+      const pick = this.colonyPick;
+      if (pick !== undefined) {
+        // A colony-build hero is already playing — never re-submit.
+        if (isColonyBuildActive()) {
+          return;
+        }
+        const selected = this.coloniesForRail[this.consoleState.colonyIndex];
+        if (selected === undefined) {
+          return;
+        }
+        if (!pick.selectable.includes(selected.name)) {
+          const reason = pick.reasons[selected.name];
+          this.showNotice(reason !== undefined && reason !== '' ? reason : 'Unavailable right now');
+          return;
+        }
+        closeConsoleLayers();
+        this.consoleState.task.deferred = false;
+        // BUILD: arm the premium colony-build hero and STAY on the colonies
+        // surface — the cube drop + one-time bonus lift plays where it
+        // happens (standalone section or the embedded step alike). A board
+        // follow-up (an ocean/hazard build bonus) self-heals via the
+        // `placementActive` watcher. (Mirrors the trade-fleet arm-then-submit.)
+        if (pick.buttonLabel === 'Build') {
+          const slotIndex = Math.min(2, selected.colonies.length);
+          armColonyBuild(selected.name, slotIndex, this.thisPlayer.color);
+          this.submit(colonyResponse(selected.name));
+          return;
+        }
+        // A TRADE pick (the server verb is 'trade' — Coordinated Raid's
+        // free trade and the trade window's own SelectColony family): the
+        // full premium launch plays — the fleet lifts off toward the picked
+        // colony and the reward transaction claims the payout — exactly as
+        // a composed paid trade would. ('Select'-labelled picks — trade
+        // income sources, Titan FLP — keep the plain submit until a server
+        // marker distinguishes a full trade from an income-only grant.)
+        if (pick.buttonLabel === 'trade') {
+          armColonyTrade(selected.name as ColonyName, this.thisPlayer.color, {});
+          armTradeFleet(selected.name as ColonyName, this.thisPlayer.color);
+          claimWorkspaceOutcome('colonies', selected.name, ['draw']);
+          markWorkspaceOutcomeArrivalDone();
+          this.submit(colonyResponse(selected.name));
+          return;
+        }
+        this.submit(colonyResponse(selected.name));
+        // The other SelectColony picks (Aridor's extra tile, setup remove …)
+        // are ONE-SHOT: leave the colonies screen so the player isn't
+        // stranded wondering whether another colony choice is expected — the
+        // server's next prompt (or the turn) drives what surfaces next.
+        // (An EMBEDDED step never swaps the section — its host owns the
+        // screen, and the latch folds it once the follow-up settles.)
+        if (!this.colonyEmbedActive) {
+          this.consoleState.section = 'board';
+        }
+        return;
+      }
+      if (this.placementActive) {
+        this.showNotice('Finish your current action first');
+        return;
+      }
+      this.enterColonyFocus('trade');
     },
     /** X on a JOURNAL colony row — open the READ-ONLY dossier over the journal. */
     openJournalColonyInspect(name: ColonyName): void {
-      this.colonyInspectOpen = false;
       this.journalColonyInspect = name;
       consoleColoniesUi.inspectOpen = true;
     },
-    /** Close whichever inspect source is open (section or journal). */
     closeColonyInspect(): void {
-      this.colonyInspectOpen = false;
       this.journalColonyInspect = undefined;
       consoleColoniesUi.inspectOpen = false;
     },
-    /** The inspect overlay owns the pad: ←/→ page colonies (section source
-     *  only), ↑/↓ scroll, A trades a live-tradeable colony (section), B/X close. */
+    /** The JOURNAL dossier owns the pad while open: ↑/↓ scroll, B/X close.
+     *  (Pinned to its one colony — no paging, no trade bridge.) */
     handleColonyInspectIntent(intent: GamepadIntent): void {
       if (intent.kind === 'nav') {
-        // ←/→ pages the rail ONLY for the section source (a journal dossier is
-        // pinned to its one colony).
-        if ((intent.dir === 'left' || intent.dir === 'right') && this.journalColonyInspect === undefined) {
-          this.consoleState.colonyIndex = stepIndex(
-            this.consoleState.colonyIndex, intent.dir === 'right' ? 1 : -1, this.coloniesForRail.length);
-          return;
-        }
         if (intent.dir === 'up' || intent.dir === 'down') {
           const scroller = document.querySelector<HTMLElement>('.con-colinspect .con-colinspect__main');
           scroller?.scrollBy({top: intent.dir === 'down' ? 140 : -140, behavior: 'smooth'});
@@ -7775,66 +8049,36 @@ export default defineComponent({
       if (intent.kind !== 'press') {
         return;
       }
-      // A = trade this colony (section source, live-tradeable only) — close the
-      // dossier and open the composer. Read-only journal dossier: A does nothing.
       const a = consoleActionOf(intent);
-      if (a === 'primary' && this.colonyInspectTradeable) {
-        this.closeColonyInspect();
-        this.tryOpenColonyTrade();
-        return;
-      }
       if (a === 'back' || a === 'inspect') {
         this.closeColonyInspect();
       }
     },
-    tryOpenColonyTrade(): void {
-      const ctx = this.tradeColonyContext;
-      const selected = this.game.colonies[this.consoleState.colonyIndex];
-      if (selected === undefined) {
-        return;
-      }
-      if (ctx === undefined || !ctx.colonies.includes(selected.name)) {
-        this.showNotice(this.colonyTradeBlockReason);
-        return;
-      }
-      // ALWAYS confirm through the premium trade composer — never instant.
-      const pending = {
-        colonyName: selected.name,
-        paymentOptions: ctx.paymentOptions,
-        disabledPayments: ctx.disabledPayments,
-      };
-      this.pendingTradeColony = pending;
-      // The shared server preview (track advance / card targets / M€ prompt)
-      // loads in the background; the composer degrades gracefully meanwhile.
-      void fetchColonyTradePreview(this.playerView.id, selected.name).then((preview) => {
-        if (this.pendingTradeColony === pending && preview !== undefined && preview.colonyName === pending.colonyName) {
-          this.pendingTradeColony = {...pending, preview};
-        }
-      });
-    },
     /**
-     * The composer's ONE confirm: the trade and-response + every pre-collected
-     * follow-up (M€ payment mix / track choice / card targets) as a single
-     * PlayerInputBatch — byte-identical to answering the live prompts one at a
-     * time (a diverged later step gracefully arrives as a live prompt).
+     * The FOCUS STAGE's ONE confirm: the trade and-response + every
+     * pre-collected follow-up (M€ payment mix / track choice / card targets)
+     * as a single PlayerInputBatch — byte-identical to answering the live
+     * prompts one at a time (a diverged later step gracefully arrives as a
+     * live prompt).
      */
     onColonyTradeComposerConfirm(payload: {paymentIndex: number, steps: ReadonlyArray<TradeStep>, captures: Readonly<Record<number, unknown>>}): void {
-      const pending = this.pendingTradeColony;
+      const colonyName = this.colonyFocus.colonyName;
       const ctx = this.tradeColonyContext;
       // Guard a double-confirm: once the launch is armed the flight (and then
       // the whole reward transaction) owns the moment, so a second press can
       // never re-submit — even after the ship has already docked.
-      if (pending === undefined || ctx === undefined || isTradeFleetActive() || colonyTradeState.active) {
+      if (colonyName === '' || ctx === undefined || !ctx.colonies.includes(colonyName) ||
+          isTradeFleetActive() || colonyTradeState.active) {
         return;
       }
       const batch = buildTradeBatch({
         tradePath: ctx.path,
         paymentIndex: payload.paymentIndex,
-        colonyName: pending.colonyName,
+        colonyName,
         steps: payload.steps,
         captures: payload.captures,
       });
-      // The composer's pre-collected card-resource DESTINATIONS (Titan /
+      // The stage's pre-collected card-resource DESTINATIONS (Titan /
       // Enceladus / Miranda picks) ride into the reward transaction so each
       // chip can fly onto the exact chosen host card.
       const targets: ColonyTradeTargets = {};
@@ -7853,22 +8097,38 @@ export default defineComponent({
       if (bonusPicks.length > 0) {
         targets.bonusTargetCards = bonusPicks;
       }
-      // PREMIUM LAUNCH: ARM the trade-fleet flight (client-side) FIRST — the
-      // composer dissolves + the ship lifts off toward the colony immediately,
-      // independent of the server — THEN submit. The `pendingTradeColony`
-      // overlay is deliberately KEPT (dissolved via `--launching`, not closed)
-      // until the ship DOCKS; the WaitingFor `holdingForTradeFleet` gate
-      // blocks the view commit (delta chips / next prompt / docked board
-      // state) until then. A watcher on `tradeFleetState.active` closes the
-      // composer once the flight ends (dock or abort). Desktop is unaffected
-      // (never arms → detectTradeFleet returns undefined → no hold).
+      // PREMIUM LAUNCH — «подтвердил → вернулся на поверхность → флот
+      // полетел», one continuous sentence:
+      //  1. the FOCUS STAGE folds back into the traded tile (the confirm
+      //     variant of the descend fold — armed by the section);
+      //  2. the trade-fleet flight ARMS (client-side) — the ship lifts off
+      //     the player's own fleet pad toward that very tile, independent of
+      //     the server; the WaitingFor `holdingForTradeFleet` gate blocks the
+      //     view commit (delta chips / next prompt / docked board state)
+      //     until the ship DOCKS;
+      //  3. the submit rides out. Desktop is unaffected (never arms).
       //
       // The trade-REWARD transaction arms WITH the flight: the same submit's
       // response carries the atomic reward manifest (WaitingFor claims it,
       // freezes the traded track, seeds the reward holds), and after the dock
-      // the reward waves → merged reveal → track reset play as ONE story.
-      armColonyTrade(pending.colonyName, this.thisPlayer.color, targets);
-      armTradeFleet(pending.colonyName, this.thisPlayer.color);
+      // the reward waves → merged reveal → track reset play as ONE story —
+      // all on the browse surface the fold just revealed.
+      closeColonyFocus();
+      armColonyTrade(colonyName, this.thisPlayer.color, targets);
+      armTradeFleet(colonyName, this.thisPlayer.color);
+      // EMBEDDED OUTCOMES (north star): the player confirmed the trade INSIDE
+      // the colony workspace, so its drawn payout (Pluto's income / colony
+      // bonuses) presents INSIDE it — the section publishes an embed zone and
+      // the reveal re-homes there. The claim is synchronous with the submit
+      // (nothing may slip to a standalone band for a frame); `sourceCard`
+      // carries the COLONY name (the claim key `workspaceClaimsColonyReveal`
+      // matches the server's own `{type:'colony', colonyName}` batch source).
+      // A trade with no card payout is released by `reconcileWorkspaceOutcome`
+      // a tick after the answer. The arrival gate is opened up front: the
+      // trade transaction OWNS the pacing (veil + cover flight + input lock),
+      // so the generic batch-arrival gate must not double-hold the pad.
+      claimWorkspaceOutcome('colonies', colonyName, ['draw']);
+      markWorkspaceOutcomeArrivalDone();
       this.submitBatch(batch);
     },
     // ── hydro advance (mirrors PlayerHome.submitHydroAdvance; the stage-7
@@ -8040,6 +8300,17 @@ export default defineComponent({
     // ── shell-section tasks (T3 projectCard / T4 colony) ─────────────────
     /** Open (or re-open after un-defer) the section that serves the task. */
     openShellTaskSurface(task: ConsoleTask): void {
+      // A SelectColony HOSTED by a live workspace (the colony embed latch):
+      // the section is teleported INTO that workspace — nothing to open, no
+      // section swap, and the host's own chrome (its sheet, its scene) must
+      // stay standing. Only the cursor lands on the first pickable tile.
+      if (task.kind === 'colony' && this.colonyEmbedHostKind !== undefined) {
+        const pick = this.colonyPick;
+        const rail = this.coloniesForRail;
+        const first = pick !== undefined ? rail.findIndex((c) => pick.selectable.includes(c.name)) : -1;
+        this.consoleState.colonyIndex = first !== -1 ? first : 0;
+        return;
+      }
       closeConsoleLayers();
       if (task.kind === 'awardFunding') {
         // FREE award funding rides the premium awards MA screen (its own
@@ -8130,8 +8401,15 @@ export default defineComponent({
      * workspace) also covers the case where the workspace has already gone.
      */
     onEmbeddedDrawnComplete(): void {
+      const host = workspaceOutcomeState.host;
       releaseWorkspaceOutcome();
-      this.foldWorkspaceAfterResult();
+      // The COLONY host has nothing to fold: the section IS the surface, and
+      // the trade transaction (glide → settle) finishes on the browse grid
+      // the embed zone just handed back. Folding here would reset the ACTION
+      // workspace's command contract for a flow that never touched it.
+      if (host !== 'colonies') {
+        this.foldWorkspaceAfterResult();
+      }
     },
     /**
      * The flow is FINISHED and its result is airborne — fold the WHOLE
@@ -8161,8 +8439,11 @@ export default defineComponent({
      * still hidden (or at a guessed rect, which this flow forbids).
      */
     onWorkspaceResultDetached(): void {
+      const host = workspaceOutcomeState.host;
       releaseWorkspaceOutcome();
-      this.foldWorkspaceAfterResult();
+      if (host !== 'colonies') {
+        this.foldWorkspaceAfterResult();
+      }
     },
     /**
      * The ACTION COMMIT's reward wave: the resources the activated mechanic

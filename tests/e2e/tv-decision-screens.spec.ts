@@ -242,8 +242,8 @@ test.describe('tv-4k decision screens', () => {
       }
     }
     if (await page.locator('.con-colonies').count() > 0) {
-      await key(page, 'Enter', 1400); // A = trade the focused colony → confirm
-      if (await page.locator('.con-trade').count() > 0) {
+      await key(page, 'Enter', 1400); // A = descend into the COLONY FOCUS STAGE
+      if (await page.locator('.con-colfocus').count() > 0) {
         await page.waitForTimeout(800);
         await shoot(page, '09-trade-confirm');
       }

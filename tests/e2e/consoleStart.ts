@@ -209,6 +209,14 @@ export async function walkToSummary(page: Page, opts: WalkOptions = {}): Promise
     if (await summaryVisible(page)) {
       return;
     }
+    // The wizard is BEHIND us: on a slow profile an advance press can land on
+    // the just-arrived summary and submit it (the same A), and the next thing
+    // on screen is already the deployment — a hosted SelectColony step
+    // (`.con-colonies` inside the start) is one such next thing. Not an
+    // error: bootToBoard's later stages drive the deployment home.
+    if (await page.locator('.con-colonies').count() > 0) {
+      return;
+    }
     await waitPressable(page);
     await page.waitForTimeout(300);
     const kind = stepKind(await stepSubject(page));
@@ -219,7 +227,8 @@ export async function walkToSummary(page: Page, opts: WalkOptions = {}): Promise
       await page.waitForTimeout(250);
     }
   }
-  expect(await summaryVisible(page), 'the wizard reached its summary').toBeTruthy();
+  expect(await summaryVisible(page) || await page.locator('.con-colonies').count() > 0,
+    'the wizard reached its summary').toBeTruthy();
 }
 
 /**
@@ -482,7 +491,7 @@ export async function takeRevealCards(page: Page, maxTakes = 12): Promise<void> 
 // The budget is a LOAD allowance, not a behaviour claim: a full pregame on a
 // busy machine (wizard → summary → deployment → a placing prelude) is minutes
 // of real game, and every round here does real work.
-export async function waitForBoardHome(page: Page, maxRounds = 70): Promise<void> {
+export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepColony?: string} = {}): Promise<void> {
   const live = page.locator('.con-handdock--live');
   const start = page.locator('.con-start');
   const composer = page.locator('.con-composer');
@@ -490,9 +499,14 @@ export async function waitForBoardHome(page: Page, maxRounds = 70): Promise<void
   const hand = page.locator('.con-hand');
   const mandatory = page.locator('.con-mandatory');
   const placement = page.locator('.con-context__task-kicker');
+  // A server SelectColony on the way home (the solo setup «remove a colony»,
+  // a prelude's Build Colony): the COLONY WORKSPACE serves it (standalone or
+  // embedded — same root class either way).
+  const colonies = page.locator('.con-colonies');
   for (let i = 0; i < maxRounds; i++) {
     if (await live.count() > 0 && await placement.count() === 0 && await hand.count() === 0 &&
-        await start.count() === 0 && await composer.count() === 0) {
+        await start.count() === 0 && await composer.count() === 0 && await colonies.count() === 0 &&
+        await mandatory.count() === 0) {
       await page.waitForTimeout(600);
       return;
     }
@@ -533,6 +547,18 @@ export async function waitForBoardHome(page: Page, maxRounds = 70): Promise<void
       await press(page, corpFirst ? 'Enter' : 'KeyX', 1500);
     } else if (await placement.count() > 0) {
       await placeTile(page);
+    } else if (await colonies.count() > 0) {
+      // Answer the SelectColony with A on the focused tile — steering OFF a
+      // colony the spec needs alive (`keepColony`) first. The pick either
+      // submits (the section closes / advances) or the press is swallowed by
+      // an unpickable tile — act → verify → retry, as everywhere.
+      if (opts.keepColony !== undefined) {
+        const keepFocused = page.locator(`.con-coltile--focused[data-test="con-colony-${opts.keepColony}"]`);
+        for (let j = 0; j < 6 && await keepFocused.count() > 0; j++) {
+          await press(page, 'ArrowRight', 500);
+        }
+      }
+      await press(page, 'Enter', 1800);
     } else {
       await page.waitForTimeout(700);
     }
@@ -562,9 +588,9 @@ export async function visibleSurfaces(page: Page): Promise<Array<string>> {
  * The whole pregame in one call: wizard → summary → deployment → board home.
  * A spec that only needs "a live game" says exactly that.
  */
-export async function bootToBoard(page: Page, opts: WalkOptions & {first?: string} = {}): Promise<void> {
+export async function bootToBoard(page: Page, opts: WalkOptions & {first?: string, keepColony?: string} = {}): Promise<void> {
   await walkToSummary(page, opts);
   await submitSummary(page);
   await playStartQueue(page, {first: opts.first});
-  await waitForBoardHome(page);
+  await waitForBoardHome(page, 70, {keepColony: opts.keepColony});
 }

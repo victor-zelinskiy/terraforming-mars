@@ -1,6 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {bootToBoard as driveToBoard, fillPicks, press} from './consoleStart';
 
 /**
  * Console colonies · the premium PlayerCube settlement marker.
@@ -83,39 +84,26 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await page.waitForTimeout(settleMs);
 }
 
-/** Boot a game, walk the start wizard, land on the main board. */
+/** Boot a game and land on the LIVE board through the SHARED console-start
+ *  driver (the one way console e2e boots — the local wizard walk this spec
+ *  used to carry drifted the moment a step's key changed). The driver also
+ *  resolves the solo Colonies setup «remove a colony» picks on the way. */
 async function bootToBoard(page: Page, request: APIRequestContext, color: string, profileQuery = ''): Promise<void> {
   const created = await request.post('/api/creategame', {data: newGameConfig(color)});
   expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
   const model = await created.json() as {players: Array<{id: string}>};
   await page.goto(`/player?id=${model.players[0].id}&console=1${profileQuery}`);
   await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  await page.waitForTimeout(3500);
-  // A picks / confirms; RT («СЛЕД. ШАГ» in the wizard's own bottom bar)
-  // advances a completed step. Alternate them adaptively until the scene
-  // unmounts — extra presses are inert per step.
-  const startScene = page.locator('.con-start__frame');
-  for (let i = 0; i < 14 && await startScene.count() > 0; i++) {
-    await key(page, i % 2 === 0 ? 'Enter' : 'Period', 1100);
-  }
-  await page.waitForTimeout(5000); // deal cinematic + entry holds settle
-  expect(await startScene.count(), 'start wizard never completed').toBe(0);
-
-  // Solo Colonies SETUP: the game first asks to REMOVE colonies (a mandatory
-  // SelectColony pick, status chip «СТАРТОВЫЙ ВЫБОР»). Resolve every pick:
-  // A returns to / confirms the focused colony until the turn proper starts
-  // (the status chip flips to «ДЕЙСТВИЕ»).
-  const statusStrip = page.locator('.con-status__pstatus');
-  for (let i = 0; i < 14; i++) {
-    const status = await statusStrip.first().innerText({timeout: 2500}).catch(() => '');
-    if (/действ/i.test(status)) {
-      break;
-    }
-    await key(page, 'Enter', 1900);
-  }
-  const finalStatus = await statusStrip.first().innerText({timeout: 2500}).catch(() => '');
-  expect(/действ/i.test(finalStatus), `the turn never started (status: ${finalStatus})`).toBeTruthy();
+  await driveToBoard(page, {
+    // A real hand: the board home's dock only reads LIVE with cards in it.
+    onStep: async (p, kind) => {
+      if (kind === 'corporation') {
+        await press(p, 'Enter', 600);
+      } else if (kind === 'project') {
+        await fillPicks(p, 2);
+      }
+    },
+  });
   await page.waitForTimeout(1500);
 }
 
@@ -141,12 +129,17 @@ async function startBuildColony(page: Page, tag: string): Promise<void> {
     }
   }
   expect(open, 'standard projects sheet never opened').toBeTruthy();
-  // The sheet is a GRID (2 columns on desktop profiles) — serpentine over it.
+  // The sheet is a GRID (1 or 2 columns per profile; the bottom row can span
+  // full width) — hop RIGHT first (Build Colony sits in the second column's
+  // upper half on 2-column profiles), then walk the right column down, then
+  // sweep the left column for the 1-column profiles.
   const focusedRow = page.locator('.con-stdp__card--focused');
   const gridWalk = [
-    'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowRight',
-    'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowRight',
-    'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown',
+    'ArrowRight',
+    'ArrowDown', 'ArrowDown', 'ArrowDown',
+    'ArrowLeft',
+    'ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp',
+    'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown',
   ];
   let found = false;
   for (let i = 0; i <= gridWalk.length; i++) {
@@ -170,6 +163,15 @@ async function startBuildColony(page: Page, tag: string): Promise<void> {
  * Returns the built colony's data-test name.
  */
 async function buildAndVerify(page: Page, tag: string): Promise<string> {
+  // A corp with an ALT-RESOURCE payment (Helion's heat) gets the payment
+  // panel BEFORE the SelectColony — X pays the pre-filled exact amount.
+  for (let i = 0; i < 3 && await page.locator('.con-colonies').count() === 0; i++) {
+    if (await page.locator('.con-pay').count() > 0) {
+      await key(page, 'KeyX', 1800);
+    } else {
+      await page.waitForTimeout(900);
+    }
+  }
   await page.waitForSelector('.con-colonies', {timeout: 15_000});
   await page.waitForTimeout(800);
 
@@ -177,14 +179,14 @@ async function buildAndVerify(page: Page, tag: string): Promise<string> {
   // build bonus KEEPS the colonies screen mounted: Europa's ocean bonus flips
   // to a board placement and Pluto's draw rides the reveal flow — either
   // unmounts the slot the assertions watch. Any other colony works.
-  const summaryStatus = page.locator('.con-colonies__summary-status');
+  const summaryStatus = page.locator('.con-colonies__rail-status');
   const focusedTile = page.locator('.con-coltile--focused');
   const blocked = /Europa|Pluto/i;
   let testAttr = '';
   for (let i = 0; i < 10; i++) {
     const cls = (await summaryStatus.getAttribute('class', {timeout: 1500}).catch(() => '')) ?? '';
     const focused = (await focusedTile.getAttribute('data-test', {timeout: 1500}).catch(() => '')) ?? '';
-    if (cls.includes('summary-status--ok') && focused !== '' && !blocked.test(focused)) {
+    if (cls.includes('rail-status--ok') && focused !== '' && !blocked.test(focused)) {
       testAttr = focused;
       break;
     }
@@ -235,7 +237,8 @@ test.describe('console colonies · premium PlayerCube marker', () => {
       expect(await page.locator('.con-colonybuild__cube').count(), 'the hero replayed on reopen').toBe(0);
       await shoot(page, 'red1080-15-reopened');
 
-      // ── Inspect (X): the dossier's slots seat the same PlayerCube. ──
+      // ── Inspect (X): the FOCUS STAGE's build slots seat the same PlayerCube
+      // (the workspace descend — the standalone dossier modal is gone). ──
       for (let i = 0; i < 8; i++) {
         const focused = (await page.locator('.con-coltile--focused').getAttribute('data-test', {timeout: 1500}).catch(() => '')) ?? '';
         if (focused === testAttr) {
@@ -244,9 +247,9 @@ test.describe('console colonies · premium PlayerCube marker', () => {
         await key(page, 'ArrowRight', 450);
       }
       await key(page, 'KeyX', 1400);
-      const inspect = page.locator('.con-colinspect');
-      if (await inspect.count() > 0) {
-        expect(await inspect.locator('.con-colinspect__slot .player-cube').count()).toBeGreaterThan(0);
+      const stage = page.locator('.con-colfocus');
+      if (await stage.count() > 0) {
+        expect(await stage.locator('.con-colfocus__slot .player-cube').count()).toBeGreaterThan(0);
         await shoot(page, 'red1080-16-inspect');
         await key(page, 'Escape', 800);
       }

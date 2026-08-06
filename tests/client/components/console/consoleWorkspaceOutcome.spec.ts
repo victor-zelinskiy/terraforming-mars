@@ -8,6 +8,7 @@ import {
   releaseWorkspaceOutcome,
   resetWorkspaceOutcome,
   setWorkspaceOutcomeSlot,
+  workspaceClaimsColonyReveal,
   workspaceClaimsDeckCheck,
   workspaceClaimsDrawReveal,
   workspaceClaimsPick,
@@ -248,6 +249,31 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
       claimWorkspaceOutcome('card-actions', RESTRICTED, ['draw'], 0, 1);
       expect(workspaceOutcomeState.expectedCards).to.eq(1);
       expect(workspaceOutcomeArrivalPending()).to.eq(true);
+    });
+  });
+
+  describe('the COLONY host (the trade\'s Pluto payout)', () => {
+    const colonySource = (colonyName: string, tradeId = 'Pluto:g3:a120'): CardDrawRevealSource =>
+      ({type: 'colony', colonyName, trade: {tradeId, role: 'income'}} as CardDrawRevealSource);
+
+    it('claims a COLONY-sourced batch only for the traded colony', () => {
+      claimWorkspaceOutcome('colonies', 'Pluto', ['draw']);
+      expect(workspaceClaimsColonyReveal(colonySource('Pluto'))).to.eq(true);
+      expect(workspaceClaimsColonyReveal(colonySource('Luna'))).to.eq(false);
+      expect(workspaceClaimsColonyReveal(undefined)).to.eq(false);
+    });
+
+    it('a CARD-sourced batch is never the colony host\'s (and vice versa)', () => {
+      claimWorkspaceOutcome('colonies', 'Pluto', ['draw']);
+      expect(workspaceClaimsColonyReveal(cardSource(AI_CENTRAL))).to.eq(false);
+      // The card-claim predicate must not cross-match a colony claim either:
+      // 'Pluto' the colony is not a card name, but the guard is structural.
+      expect(workspaceClaimsDrawReveal(colonySource('Pluto'))).to.eq(false);
+    });
+
+    it('another workspace\'s claim never answers for the colonies', () => {
+      claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw']);
+      expect(workspaceClaimsColonyReveal(colonySource(AI_CENTRAL))).to.eq(false);
     });
   });
 });
