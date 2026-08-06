@@ -88,6 +88,48 @@ describe('ApiGameBoardCellPreview', () => {
     expect(facts.some((f: {id: string}) => f.id === 'place-greenery-self'), 'greenery VP shown').eq(true);
   });
 
+  it('effect=marker drops the placement bonus the commit never grants', async () => {
+    // A CLAIM (Land Claim, an Arcadian community) puts a cube on the cell and
+    // grants nothing. Without `effect` the route defaulted to `'tile'`, so the
+    // panel promised «вы получите: бонус клетки» — and the tile-driven facts —
+    // for a placement that pays out to nobody.
+    const {game, player} = await freshGame();
+    const bonusCell = game.board.spaces.find((s) =>
+      s.spaceType === 'land' && s.tile === undefined && s.bonus.length > 0 &&
+      game.board.getAvailableSpacesOnLand(player).some((a) => a.id === s.id));
+    expect(bonusCell, 'a free land cell with a printed bonus').to.not.be.undefined;
+    const base = `/api/game/board-cell-preview?id=${player.id}&space=${bonusCell!.id}&kind=land`;
+    // A fresh MockResponse per request — `content` APPENDS, so reusing one
+    // makes the second JSON.parse read two documents concatenated.
+    const fetchPreview = async (url: string) => {
+      const out = new MockResponse();
+      scaffolding.url = url;
+      await scaffolding.get(ApiGameBoardCellPreview.INSTANCE, out);
+      return JSON.parse(out.content);
+    };
+
+    const asTile = await fetchPreview(base);
+    expect(asTile.immediateFacts.some((f: {category: string}) => f.category === 'printed-placement-bonus'),
+      'the default tile placement DOES collect the cell').eq(true);
+
+    const asMarker = await fetchPreview(`${base}&effect=marker`);
+    const markerFacts = [
+      ...asMarker.immediateFacts, ...asMarker.futureScoringFacts, ...asMarker.progressFacts,
+    ];
+    expect(markerFacts.some((f: {category: string}) => f.category === 'printed-placement-bonus'),
+      'a claim promises no cell bonus').eq(false);
+    expect(markerFacts.some((f: {id: string}) => f.id.startsWith('place-')),
+      'a claim promises no tile scoring').eq(false);
+  });
+
+  it('an unknown effect falls back to the default, never a throw', async () => {
+    const {game, player} = await freshGame();
+    const city = game.board.getAvailableSpacesForCity(player)[0];
+    scaffolding.url = `/api/game/board-cell-preview?id=${player.id}&space=${city.id}&kind=city&effect=nonsense`;
+    await scaffolding.get(ApiGameBoardCellPreview.INSTANCE, res);
+    expect(JSON.parse(res.content).kind).eq('city');
+  });
+
   it('allows a spectator to fetch (board is open info)', async () => {
     const {game} = await freshGame();
     const spaceId = game.board.spaces[0].id;

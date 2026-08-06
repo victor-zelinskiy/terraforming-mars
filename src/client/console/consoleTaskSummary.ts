@@ -41,7 +41,7 @@
 
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
-import {PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {PlacementEffect, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {nestedDiscardBranch} from '@/client/console/cardDiscard/discardIntent';
@@ -143,6 +143,19 @@ function compositeKicker(wf: PlayerInputModel | undefined): string {
   return 'Choice';
 }
 
+/**
+ * A cell pick is not always a TILE pick. The server says what this one puts
+ * down (`SelectSpaceModel.placementEffect`): a claim / a camp move places a
+ * MARKER and no tile, so labelling it «размещение тайла» over a prompt that
+ * literally reads «выберите место для выкладывания своего маркера» names the
+ * wrong object. One key covers both non-tile effects — what moves is a marker
+ * either way; only `'tile'` places a tile.
+ */
+export function placementKicker(wf: PlayerInputModel | undefined): string {
+  const effect = (wf as {placementEffect?: PlacementEffect} | undefined)?.placementEffect;
+  return effect === undefined || effect === 'tile' ? 'Tile placement' : 'Marker placement';
+}
+
 function startSequenceKicker(prompt: string): string {
   switch (prompt) {
   case 'corporationPlay': return 'Corporation';
@@ -182,7 +195,7 @@ export function consoleTaskSummary(
 
   case 'space':
     return {
-      kickerKey: 'Tile placement',
+      kickerKey: placementKicker(wf),
       ask: ask(wf, 'Choose a location on the board'),
       sourceCard: source,
       returnKey: 'Return to placement',

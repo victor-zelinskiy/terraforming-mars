@@ -10,14 +10,24 @@
  *
  * The TXT record carries: `iid` (random per process — how a browser filters its
  * OWN advertisement out), `v` (build version, soft compat warning on the guest),
- * `name` (friendly player/host name; instance names get mangled for uniqueness
- * by mDNS responders, TXT keeps the display value stable).
+ * `name` (friendly player/host name; the INSTANCE name gets disambiguated on a
+ * conflict — see `publishAttempt` — so TXT is what keeps the display value stable).
  */
 import os from 'os';
 import {Bonjour, Browser, Service} from 'bonjour-service';
 
 /** mDNS service type — rendered as `_tmars._tcp` on the wire. */
 export const LAN_SERVICE_TYPE = 'tmars';
+
+/**
+ * How long a publish gets to come `up` before we judge it (probe is ≤ ~1 s:
+ * a 0-250 ms initial delay plus three 250 ms retries, then one announce).
+ */
+const PUBLISH_CONFIRM_MS = 3_000;
+/** Name attempts before giving up — `X`, `X (2)`, … `X (5)`. */
+const MAX_NAME_ATTEMPTS = 5;
+/** mDNS instance names are capped; leave room for the ` (n)` disambiguator. */
+const NAME_LIMIT = 56;
 
 export type LanHostInfo = {
   /** Unique key for the row (the advertisement's instance id). */
@@ -60,9 +70,25 @@ export function toLanHostInfo(service: FoundService, selfInstanceId: string): La
   };
 }
 
+/** The name the UI shows (TXT `name`) — the profile name, hostname as fallback. */
+export function lanDisplayName(name: string, hostname: string = os.hostname()): string {
+  return name.trim() !== '' ? name.trim() : hostname;
+}
+
+/**
+ * The mDNS INSTANCE name (what must be unique on the wire). `attempt` implements
+ * the RFC 6762 §9 disambiguation the library skips: 1 → `Имя (HOST)`, 2 →
+ * `Имя (HOST) (2)`, … The display name rides in TXT, so a suffix never reaches the UI.
+ */
+export function lanInstanceName(display: string, attempt: number, hostname: string = os.hostname()): string {
+  const base = `${display} (${hostname})`.slice(0, NAME_LIMIT);
+  return attempt > 1 ? `${base} (${attempt})` : base;
+}
+
 export class LanDiscovery {
   private bonjour: Bonjour | undefined;
   private published: Service | undefined;
+  private confirmTimer: ReturnType<typeof setTimeout> | undefined;
   private browser: Browser | undefined;
   private advertiseOptions: AdvertiseOptions | undefined;
   private readonly hosts = new Map<string, LanHostInfo>();
@@ -81,16 +107,59 @@ export class LanDiscovery {
   /** Publish (or re-publish) this host's embedded server on the LAN. */
   public advertise(options: AdvertiseOptions): void {
     this.advertiseOptions = options;
+    this.publishAttempt(1);
+  }
+
+  /**
+   * Publish under the `attempt`-th candidate name and VERIFY it actually went up.
+   *
+   * `name (hostname)` is unique per machine+profile, NOT per process — a dev build
+   * beside the packaged one, a second install, or an orphaned utility process from
+   * the previous run all probe for the very same instance name. bonjour-service
+   * does not implement RFC 6762 §9 renaming there: it tears the service down and
+   * only `console.log`s an Error, so without this retry the loser stays silently
+   * invisible on the LAN for the whole session, with nothing ever retrying.
+   */
+  private publishAttempt(attempt: number): void {
+    const options = this.advertiseOptions;
+    if (options === undefined) {
+      return;
+    }
     this.stopPublishing();
-    const name = options.name.trim() !== '' ? options.name.trim() : os.hostname();
-    this.published = this.ensureBonjour().publish({
-      // The instance name must be network-unique; mDNS renames on conflict, so
-      // the DISPLAY name rides in TXT and the instance carries the hostname.
-      name: `${name} (${os.hostname()})`.slice(0, 60),
+    const display = lanDisplayName(options.name);
+    const service = this.ensureBonjour().publish({
+      name: lanInstanceName(display, attempt),
       type: LAN_SERVICE_TYPE,
       port: options.port,
-      txt: {iid: this.instanceId, v: options.version, name},
+      txt: {iid: this.instanceId, v: options.version, name: display},
     });
+    this.published = service;
+    service.once('up', () => this.clearConfirmTimer());
+    this.confirmTimer = setTimeout(() => this.confirmPublished(service, attempt), PUBLISH_CONFIRM_MS);
+    this.confirmTimer.unref?.();
+  }
+
+  /**
+   * Judge a publish that never emitted `up`. The library's conflict path calls
+   * `service.stop()`, which clears `activated` — that flag is what separates a
+   * TAKEN name (retry under the next one) from a merely slow/quiet network
+   * (still activated: leave it, `up` may yet arrive).
+   */
+  private confirmPublished(service: Service, attempt: number): void {
+    this.confirmTimer = undefined;
+    if (this.published !== service || service.published) {
+      return;
+    }
+    if (service.activated) {
+      console.warn(`[lan] "${service.name}" has not been confirmed yet — the announce is slow, leaving it to settle`);
+      return;
+    }
+    if (attempt >= MAX_NAME_ATTEMPTS) {
+      console.error(`[lan] "${service.name}" is taken and ${MAX_NAME_ATTEMPTS} names were refused — this host stays hidden on the LAN`);
+      return;
+    }
+    console.warn(`[lan] "${service.name}" is already advertised on the network (another instance of the app?) — retrying as attempt ${attempt + 1}`);
+    this.publishAttempt(attempt + 1);
   }
 
   /** Live rename (profile change on the host) — re-publish under the new name. */
@@ -129,7 +198,15 @@ export class LanDiscovery {
     this.onHostsChanged([...this.hosts.values()]);
   }
 
+  private clearConfirmTimer(): void {
+    if (this.confirmTimer !== undefined) {
+      clearTimeout(this.confirmTimer);
+      this.confirmTimer = undefined;
+    }
+  }
+
   private stopPublishing(): void {
+    this.clearConfirmTimer();
     if (this.published !== undefined) {
       try {
         this.published.stop?.();

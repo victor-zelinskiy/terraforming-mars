@@ -51,6 +51,7 @@ import {nextTick, reactive} from 'vue';
 import {gsap} from 'gsap';
 import {CardName} from '@/common/cards/CardName';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {beginDockIntakeAccent} from '@/client/console/handDock/consoleDockAccent';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
@@ -349,6 +350,21 @@ function dockOrderKeys(dock: HTMLElement, entries: ReadonlyArray<HandIntakeEntry
  * caller unmounting.
  */
 export async function runHandIntake(entries: ReadonlyArray<HandIntakeEntry>, opts?: HandIntakeOptions): Promise<void> {
+  // THE INTAKE ACCENT: cards are physically arriving, so the dock stands in
+  // its FULL pose for the whole flight whatever screen is open — the landing
+  // is the one moment the pack must be seen at size, and this flight MEASURES
+  // the dock's rects (a pose change mid-flight would move the targets out
+  // from under the proxies). A bounded lease, released on BOTH outcomes and
+  // ceiling-capped, so a flight that dies can never disable the compact pose.
+  const releaseAccent = beginDockIntakeAccent('hand-intake');
+  try {
+    return await runHandIntakeInner(entries, opts);
+  } finally {
+    releaseAccent();
+  }
+}
+
+async function runHandIntakeInner(entries: ReadonlyArray<HandIntakeEntry>, opts?: HandIntakeOptions): Promise<void> {
   const names = entries.map((e) => e.name);
   // The commit fires EXACTLY ONCE on every path (staged seam, degenerate
   // batch, reduced motion, missing dock, abort) — a take that never commits

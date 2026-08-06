@@ -70,14 +70,19 @@ export type ActionEntry = {
  *   - `text: <i18n key>`  → a TEXT-ONLY block with this description (no graphic).
  * The generic renderData scan handles everything else. Populate this as the
  * ?actionsPlayground "flagged" tab surfaces problem cards.
+ *
+ * ⚠️ AN OVERRIDE IS A DEBT, NOT A DECORATION. It SUPPRESSES the generic scan,
+ * so the day a card's renderData gains a real `action()` box the override keeps
+ * winning and the printed graphic silently disappears from every action surface
+ * — that is exactly how Arcadian Communities ended up drawing an EMPTY canvas
+ * with a clipped sentence in it long after its corp box was re-authored with a
+ * proper `ce.action()`. `staleActionOverrides()` (guarded by
+ * actionExtraction.spec) fails the build with the list the moment an override
+ * outlives its reason; delete the entry, don't re-word it.
  */
 type ActionOverride = {exclude?: boolean; renderWhole?: boolean; descFromMeta?: boolean; text?: string};
-const ACTION_OVERRIDES: Partial<Record<CardName, ActionOverride>> = {
-  // Arcadian Communities draws its action as a raw ce.text() inside the corp
-  // box (no action() node), and its metadata.description is the FIRST-action
-  // text — use a concise descriptor of the repeatable action instead.
-  [CardName.ARCADIAN_COMMUNITIES]: {text: 'Place a community (player marker) on an area adjacent to your tiles or markers'},
-};
+// Empty today: every in-scope action card draws from its own render node.
+const ACTION_OVERRIDES: Partial<Record<CardName, ActionOverride>> = {};
 
 /** The (prefixed) description string of an action node, if present. */
 function descriptionString(node: ICardRenderEffect): string | undefined {
@@ -367,6 +372,23 @@ export function overriddenActionCards(): Array<CardName> {
     .filter((name) => {
       const o = ACTION_OVERRIDES[name];
       return o !== undefined && o.exclude !== true;
+    });
+}
+
+/**
+ * Overrides that have OUTLIVED their reason: the card now carries a real,
+ * extractable `action()` render node, so the override is suppressing the
+ * printed graphic in favour of a hand-written sentence. Deliberately scanned
+ * over EVERY module (an override is a fork-authored entry — it rots whether or
+ * not its card is in premium scope). Guard-asserted empty; the fix is always
+ * to DELETE the entry.
+ */
+export function staleActionOverrides(): Array<CardName> {
+  return (Object.keys(ACTION_OVERRIDES) as Array<CardName>)
+    .filter((name) => {
+      const o = ACTION_OVERRIDES[name];
+      // `exclude` is a game-level decision, never invalidated by a render node.
+      return o !== undefined && o.exclude !== true && collectActionNodes(name).length > 0;
     });
 }
 

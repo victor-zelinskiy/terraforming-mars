@@ -115,6 +115,21 @@ server (not per process) so a second server can never be skipped. Guard:
 Changing visibility takes effect on next launch (v1; live rebind is listed under future work).
 Windows Firewall will prompt once on the first LAN bind — expected.
 
+⚠️ **The mDNS instance name is unique per machine+profile, NOT per process** — `<имя> (<hostname>)`
+is identical for a dev build running beside the packaged one, a second install, or an orphaned
+utility process from the previous run. `bonjour-service` does **not** implement RFC 6762 §9
+conflict renaming: on a probe conflict it tears the service down and only prints
+`Error: Service name is already in use on the network` — the loser then stays silently invisible
+on the LAN for the whole session with nothing ever retrying (the port half self-heals via the
+EADDRINUSE retry, the name half did not). `lanDiscovery.publishAttempt` supplies the missing
+half: it waits `PUBLISH_CONFIRM_MS` for the service to come `up` and, if the library tore it
+down instead (`activated === false` — the flag that separates a taken name from a merely slow
+announce), re-publishes as `… (2)`, `… (3)`, up to 5 names. The friendly name lives in TXT
+`name`, so a disambiguated instance still lists under the plain profile name on the guest.
+That library `Error:` line still prints before the retry — it is a `console.log` we don't own;
+our own `[lan]` line right after it is the one that says what actually happened.
+Guard: `tests/electron/lanDiscovery.spec.ts`.
+
 **Supervision (`electron/embeddedServer.ts`):** spawn → await ready (timeout → fallback to
 remote mode) → on unexpected exit, one respawn with backoff, then fallback. On `before-quit`:
 `{type:'shutdown'}` with a 2 s grace, then kill. Saves are written atomically (temp file +

@@ -444,6 +444,7 @@ import {
   shouldHoldForTilePlacement,
 } from '@/client/components/board/tilePlacementAnimation';
 import {shouldHoldForMarkerPlacement} from '@/client/components/board/markerPlacementAnimation';
+import {shouldHoldForOwnerCubePlacement} from '@/client/components/board/cubeDropState';
 import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {endgameAvailable} from '@/client/components/endgame/endgameState';
 import {PlayerViewModel, ViewModel} from '@/common/models/PlayerModel';
@@ -846,10 +847,14 @@ export default defineComponent({
               viewerColor: (model as PlayerViewModel).thisPlayer?.color,
             });
             // …and an OVERLAY MARKER an opponent just placed (a cathedral in
-            // one of their cities) gets its own landing instead of popping in.
+            // one of their cities) gets its own landing instead of popping in —
+            // as does a PLAYER MARKER on an empty cell (their Land Claim / an
+            // Arcadian community), which is a colour-only diff and so matches
+            // neither of the tile-shaped predicates.
             if (prevView !== undefined &&
                 (shouldHoldForTilePlacement(prevView.game.spaces, model.game.spaces) ||
-                 shouldHoldForMarkerPlacement(prevView.game.spaces, model.game.spaces))) {
+                 shouldHoldForMarkerPlacement(prevView.game.spaces, model.game.spaces) ||
+                 shouldHoldForOwnerCubePlacement(prevView.game.spaces, model.game.spaces))) {
               armPlacementAnimations();
             }
             // Structural sharing (viewSnapshotShare.ts): the assigned tree is

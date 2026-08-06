@@ -26,13 +26,35 @@ z-index» model — this is a deliberate contract REVERSAL.)*
    pack shrink (`--hd-compact-scale/sink`, tuned per profile) — the same
    object, further away; the «КАРТЫ N/M» counter stays fully readable.
 4. **THE INTAKE ACCENT: while cards are physically arriving, the dock is
-   FULL — whatever is open.** `dockIntakeAccent` = hand delivery active ∨ a
-   hand-reveal episode running ∨ `holdSlots` ∨ delivery-held names. Two
-   reasons, both load-bearing: the landing is the one moment the pack must be
-   seen at size (the visual accent of receiving cards), and every one of those
-   episodes MEASURES dock rects — a pose change mid-episode would move the
-   targets out from under the proxies. When the episode ends, the pose eases
-   back to whatever the screen calls for.
+   FULL — whatever is open.** Two reasons, both load-bearing: the landing is
+   the one moment the pack must be seen at size, and every such episode
+   MEASURES dock rects — a pose change mid-flight would move the targets out
+   from under the proxies.
+
+   **It is a BOUNDED LEASE, never a predicate over foreign flags**
+   (`consoleDockAccent.ts`): `beginDockIntakeAccent(label)` → release, plus
+   `holdDockIntakeAccent(label, promise)` which releases on BOTH outcomes.
+   Leases nest (an intake landing while the hand opens) and **every one of
+   them expires on its own after `ACCENT_MAX_MS`**, so no director can pin the
+   pose. Held by: `runHandIntake`, the hand open/close reveal episodes.
+
+   ⚠️ THE BUG THIS REPLACES. The first cut ORed four booleans owned by four
+   directors (`isHandDeliveryActive() || isHandRevealEpisodeRunning() ||
+   handRevealState.holdSlots || dockHeld.length > 0`). Any one sticking pinned
+   the accent ON — i.e. **silently disabled the compact pose for the rest of
+   the game**, which is exactly what shipped: `openHandWithReveal` sets
+   `phase='opening'` + `holdSlots=true` BEFORE it measures, and the section
+   watcher deliberately skipped resetting `opening`/`closing`, so a section
+   change inside that pre-install window latched `holdSlots` true forever.
+   (That leak also rendered every hand slot held/invisible — the same latch
+   was behind «карты в руке не отображаются».) Both halves are fixed: the
+   watcher now resets on leaving the hand from ANY phase — safe, because the
+   birth happens with the section set TO `'hand'`, so that branch can never
+   kill it — and the accent can no longer be poisoned by a foreign flag.
+
+   *A pose that silently stops working is worse than a pose that is briefly
+   wrong.* The worst case is now «full a few seconds too long», never «compact
+   is dead until restart».
 5. **Full-bleed cinematics may COVER the dock; nothing may UNMOUNT it.** The
    reveal overlay (z11900), the fullscreen zoom veil (z11890) and the endgame
    legitimately paint over it — those are the moments the whole table steps
@@ -54,9 +76,13 @@ compact when the screen is busy, full while receiving.
 
 ## Guards
 
-`tests/e2e/hand-dock-probe.spec.ts` (poses, centring, welded-under-the-wheel,
-placement clearance), `tests/e2e/console-start-sponsor.spec.ts` (compact pose
-inside the workspace step; no card over the status rail; dock mounted
-throughout). The probe boots through the SHARED driver — never a hand-rolled
+`tests/client/components/console/consoleDockAccent.spec.ts` (the lease: nesting,
+out-of-order release, idempotence, release on reject — and **a leaked lease
+expiring on its own ceiling**, which is the guarantee the compact pose rests
+on), `tests/e2e/hand-dock-probe.spec.ts` (poses, centring,
+welded-under-the-wheel, placement clearance), `tests/e2e/console-start-sponsor.spec.ts`
+(compact pose inside the workspace step; no card over the status rail; dock
+mounted throughout; **and that the compact pose still works AFTER the whole
+sponsor flow** — the regression that started this). The probe boots through the SHARED driver — never a hand-rolled
 key walk (that walk livelocked the moment the wizard's input lock landed a
 press differently).

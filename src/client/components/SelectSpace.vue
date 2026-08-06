@@ -253,7 +253,7 @@ export default defineComponent({
         return;
       }
       const myToken = ++this.previewToken;
-      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId), this.playerinput.tileType, this.playerinput.sourceCard).then((preview) => {
+      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId), this.playerinput.tileType, this.playerinput.sourceCard, this.playerinput.placementEffect).then((preview) => {
         if (myToken === this.previewToken && this.previewSpaceId === spaceId) {
           this.previewData = preview;
         }
@@ -357,7 +357,7 @@ export default defineComponent({
         return;
       }
       const myToken = ++this.confirmToken;
-      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId), this.playerinput.tileType, this.playerinput.sourceCard).then((preview) => {
+      fetchBoardCellPreview(spaceId, kind, this.isClearedTarget(spaceId), this.playerinput.tileType, this.playerinput.sourceCard, this.playerinput.placementEffect).then((preview) => {
         if (myToken === this.confirmToken) {
           this.confirmPreview = preview;
         }

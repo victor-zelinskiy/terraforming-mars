@@ -32,8 +32,22 @@ export type CubePhase = 'hidden' | 'dropping' | 'rest';
 
 // Must match the `pc-place` keyframe length in `player_cube.less` (0.9s) + a
 // small buffer so the `--animate-in` class is dropped only after it settles.
+// Deliberately RAW ms, never `motionMs()`: the keyframe it mirrors is authored
+// as a plain `0.9s` (shared stylesheet, no `--motion-scale` factor), so scaling
+// this side would desync the class removal from the animation it times.
 const CUBE_DROP_MS = 900;
 const CUBE_DROP_BUFFER_MS = 90;
+/**
+ * Where `pc-place` makes CONTACT: 62% of the keyframe (≈560 ms). Everything
+ * after it is the squash recovery, which a follow-up prompt may safely overlap
+ * — so this, not the full 900 ms, is the window a commit holds for (the same
+ * "hold to the beat that carries the meaning, not to the last frame"
+ * convention as `placementHoldDurationMs`).
+ */
+const CUBE_CONTACT_MS = 560;
+/** Reduced motion: the keyframe is off, the cube simply appears — a token wait
+ *  so the player still SEES the marker land before the rest of the response. */
+const CUBE_MARKER_HOLD_REDUCED_MS = 100;
 
 const phases = reactive<Partial<Record<SpaceId, CubePhase>>>({});
 const colorBaseline = new Map<SpaceId, Color | undefined>();
@@ -100,25 +114,38 @@ export function observeCube(space: SpaceModel): void {
     return;
   }
 
-  // Real placement: hold the cube hidden for the tile placement animation,
-  // then drop it in, then settle. Owner cubes only land on city / greenery /
-  // special tiles (never hazards), so the tile length is the normal/reduced
-  // placement duration.
+  // Real placement. A cube that lands ON A TILE waits for that tile's own
+  // entrance first (tile materialises → cube drops onto it), so it is held
+  // hidden for the normal/reduced placement duration — owner cubes only land
+  // on city / greenery / special tiles, never hazards.
+  //
+  // A cube WITHOUT a tile is a PLAYER MARKER — a claimed cell (Land Claim, an
+  // Arcadian community). There is no tile entrance to wait behind, and a dead
+  // 720 ms pause before the drop is indistinguishable from the "it just
+  // appeared" pop this state machine exists to prevent: drop it NOW, in the
+  // same synchronous turn the colour was painted, so the cube mounts already
+  // carrying `--animate-in`.
   const reduced = prefersReducedMotion();
+  if (space.tileType === undefined) {
+    startCubeDrop(id, reduced);
+    return;
+  }
   const tileMs = reduced ? PLACEMENT_ANIMATION_REDUCED_MS : PLACEMENT_ANIMATION_MS;
   phases[id] = 'hidden';
+  addTimer(id, window.setTimeout(() => startCubeDrop(id, reduced), tileMs));
+}
+
+/** The drop itself: play `pc-place`, then settle to rest. Reduced motion has
+ *  no keyframe to play (PlayerCube disables it), so the cube simply rests. */
+function startCubeDrop(id: SpaceId, reduced: boolean): void {
+  if (reduced) {
+    phases[id] = 'rest';
+    return;
+  }
+  phases[id] = 'dropping';
   addTimer(id, window.setTimeout(() => {
-    if (reduced) {
-      // Reduced motion: the cube simply appears (PlayerCube disables the drop
-      // keyframe), no separate settle beat.
-      phases[id] = 'rest';
-      return;
-    }
-    phases[id] = 'dropping';
-    addTimer(id, window.setTimeout(() => {
-      phases[id] = 'rest';
-    }, CUBE_DROP_MS + CUBE_DROP_BUFFER_MS));
-  }, tileMs));
+    phases[id] = 'rest';
+  }, CUBE_DROP_MS + CUBE_DROP_BUFFER_MS));
 }
 
 /*
@@ -156,17 +183,89 @@ export function holdCubeForHeroPlacement(id: SpaceId): void {
 
 export function dropCubeForHeroPlacement(id: SpaceId): void {
   clearTimers(id);
-  if (prefersReducedMotion()) {
-    phases[id] = 'rest';
-    return;
-  }
-  phases[id] = 'dropping';
-  addTimer(id, window.setTimeout(() => {
-    phases[id] = 'rest';
-  }, CUBE_DROP_MS + CUBE_DROP_BUFFER_MS));
+  startCubeDrop(id, prefersReducedMotion());
 }
 
 export function restCubeForHeroPlacement(id: SpaceId): void {
   clearTimers(id);
   phases[id] = 'rest';
+}
+
+/*
+ * ── PLAYER-MARKER (cube-only) placement ─────────────────────────────────────
+ *
+ * A CLAIM puts a cube on the board with NO tile: Land Claim, and the community
+ * an Arcadian Communities player places (as their first action and as their
+ * repeatable action). Every existing entrance is keyed on a tile appearing —
+ * `shouldHoldForTilePlacement` / the console `verifyPlacement` hero both demand
+ * `tileType: undefined → defined`, and `shouldHoldForMarkerPlacement` covers
+ * overlay markers (`space.cathedral`) — so a colour-only diff matched nothing
+ * and the cube simply POPPED in, in the same frame as whatever followed.
+ *
+ * These two mirror the tile / overlay-marker frameworks 1:1 so WaitingFor's
+ * commit gate and App's poll path can treat all three the same way. There is
+ * deliberately NO reward beat here and nothing is captured off the cell: a
+ * marker collects no placement bonus (`placementEffect: 'marker'` — see
+ * `BoardInformationEngine.grantsPlacementBonus`), so the hex keeps its printed
+ * icons and no counter may move at the drop.
+ */
+
+/** Did this response put a player MARKER (a cube on a tile-less cell) down? */
+export function shouldHoldForOwnerCubePlacement(
+  oldSpaces: ReadonlyArray<SpaceModel>,
+  newSpaces: ReadonlyArray<SpaceModel>,
+): boolean {
+  return eachFreshOwnerCube(oldSpaces, newSpaces, () => {}) > 0;
+}
+
+/**
+ * Stage 1 of the marker hold (mirrors `applyTilePlacementPreview`): copy JUST
+ * the fresh owner colours onto the displayed spaces, so the cube lands while
+ * the REST of the response (the prompt it caused, the turn handover) is still
+ * held. Nothing else about the cell is touched — a claim changes nothing else.
+ */
+export function applyOwnerCubePlacementPreview(
+  oldSpaces: ReadonlyArray<SpaceModel>,
+  newSpaces: ReadonlyArray<SpaceModel>,
+): void {
+  eachFreshOwnerCube(oldSpaces, newSpaces, (oldSpace, newSpace) => {
+    oldSpace.color = newSpace.color;
+  });
+}
+
+/** How long the commit waits: to the cube's CONTACT with the cell. */
+export function ownerCubeHoldDurationMs(): number {
+  return prefersReducedMotion() ? CUBE_MARKER_HOLD_REDUCED_MS : CUBE_CONTACT_MS + 40;
+}
+
+/**
+ * Walk the index-aligned diff for cells that gained an owner colour WITHOUT
+ * gaining a tile, returning how many there were. A tile arriving in the same
+ * response is a build, not a claim — that rides the tile framework (which
+ * drops the cube itself, after the tile seats). Defensive id alignment, like
+ * every sibling framework.
+ */
+function eachFreshOwnerCube(
+  oldSpaces: ReadonlyArray<SpaceModel>,
+  newSpaces: ReadonlyArray<SpaceModel>,
+  visit: (oldSpace: SpaceModel, newSpace: SpaceModel) => void,
+): number {
+  let count = 0;
+  const len = Math.min(oldSpaces.length, newSpaces.length);
+  for (let i = 0; i < len; i++) {
+    const oldSpace = oldSpaces[i];
+    const newSpace = newSpaces[i];
+    if (oldSpace.id !== newSpace.id) {
+      continue;
+    }
+    if (oldSpace.color !== undefined || newSpace.color === undefined) {
+      continue;
+    }
+    if (oldSpace.tileType !== undefined || newSpace.tileType !== undefined) {
+      continue;
+    }
+    count++;
+    visit(oldSpace, newSpace);
+  }
+  return count;
 }

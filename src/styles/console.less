@@ -16716,11 +16716,12 @@ html.console-mode {
     &__formula { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; &--lg { gap: .6rem; } }
     &__arrow { font-size: 1.1rem; font-weight: 800; color: fade(@con-cyan, 90%); }
     /* The action graphic. ICON content (CardRender*) is px-authored → it
-       rides the ui-scale zoom. TEXT-override content (a bespoke-rendered
-       action like Arcadian Communities that draws as a SENTENCE, not icons)
-       is rem text and MUST NOT be zoomed — the zoom×ui-scale turned it into a
-       page-filling, overflowing, duplicated block. `:has()` splits the two:
-       a text graphic drops the zoom and reads as controlled, wrapping prose. */
+       rides the ui-scale zoom. TEXT content (a bespoke-rendered action that
+       draws as a SENTENCE, not icons — every CEO's once-per-game ability, and
+       any card whose renderData carries no action() box) is rem text and MUST
+       NOT be zoomed — the zoom×ui-scale turned it into a page-filling,
+       overflowing, duplicated block. `:has()` splits the two: a text graphic
+       drops the zoom and reads as controlled, wrapping prose. */
     &__graphic {
         margin: 0 !important; min-width: 0;
         flex: 0 0 auto;
@@ -16736,7 +16737,13 @@ html.console-mode {
         transform-origin: 50% 50%;
         zoom: var(--con-ui-scale, 1);
         .card-description { display: none; }
-        &:has(> .con-cardactions__graphic-text) { zoom: 1; }
+        /* PROSE takes the stage's WIDTH as its measure. A formula is
+           shrink-to-fit (`flex: 0 0 auto`) because its natural width IS the
+           art; a sentence has no natural width — left shrink-to-fit it sizes
+           itself to the whole string's max-content, never wraps (the child's
+           `max-width: 100%` resolves against that same max-content), and the
+           canvas' `overflow: hidden` clips it to one unreadable middle line. */
+        &:has(> .con-cardactions__graphic-text) { zoom: 1; flex: 1 1 auto; width: 100%; }
     }
     &__graphic-text {
         display: block; font-size: .85rem; line-height: 1.3; color: @con-text;

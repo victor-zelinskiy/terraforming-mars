@@ -6,7 +6,11 @@
          @scroll.passive="measureScroll">
     <!-- ── TASK MODE: active placement ─────────────────────────────── -->
     <template v-if="mode === 'placement'">
-      <div class="con-context__task-kicker">{{ $t('Tile placement') }}</div>
+      <!-- The kicker names WHAT LANDS, and the host supplies it — a cell pick
+           is not always a tile pick (a claim / a camp move puts a MARKER
+           down). Hardcoding «Размещение тайла» here announced a tile over a
+           prompt reading «выберите место для выкладывания своего маркера». -->
+      <div class="con-context__task-kicker">{{ $t(placementKickerKey) }}</div>
       <div class="con-context__task-title">{{ placementTitle }}</div>
       <!-- WHO is placing. The server has named the card on every card-driven
            placement all along (`placementContext.source`) and nothing showed
@@ -342,6 +346,9 @@ export default defineComponent({
     viewerColor: {type: String as PropType<Color>, required: true},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, required: true},
     // placement mode
+    /** i18n KEY for the kicker — from `consoleTaskSummary.placementKicker`,
+     *  never composed here (that module is the ONE source of prompt copy). */
+    placementKickerKey: {type: String, default: 'Tile placement'},
     placementTitle: {type: String, default: ''},
     selectedLegal: {type: Boolean, default: false},
     illegalReason: {type: String, default: ''},

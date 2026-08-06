@@ -363,6 +363,14 @@ test.describe('console start — «Эпатажный спонсор» as a work
     } else {
       expect(after.startUp, 'the workspace came back').toBeTruthy();
       expect(after.startPlayed, 'the compact «Разыграно» returned').toBeGreaterThan(0);
+      // THE COMPACT POSE STILL WORKS. A workspace owns the screen, so the dock
+      // must be compact — this is the exact regression the intake accent's
+      // bounded lease exists for: the accent used to read flags that could
+      // stick, and one stuck flag disabled the compact pose for the REST OF
+      // THE GAME (it survived the whole sponsor flow and never came back).
+      expect(after.dockMounted, 'the dock is still there').toBeTruthy();
+      expect(after.dockCompact,
+        'the compact pose died somewhere in the flow (a leaked intake accent)').toBeTruthy();
     }
   });
 });

@@ -160,6 +160,19 @@ describe('consoleTaskSummary (no prompt is ever a bare «awaiting decision»)', 
     expect(s.sourceCard).to.eq('Lunar Beam');
   });
 
+  it('a cell pick that places NO tile is a marker placement, not a tile one', () => {
+    // Land Claim / an Arcadian community (`'marker'`) and Mars Nomads moving
+    // its camp (`'bonus-only'`) both put a MARKER down — the kicker must not
+    // announce a tile over a prompt asking for a marker's spot.
+    expect(summaryOf({type: 'space', title: 'Select space for claim', spaces: [], placementEffect: 'marker'}).kickerKey)
+      .to.eq('Marker placement');
+    expect(summaryOf({type: 'space', title: 'Select new space', spaces: [], placementEffect: 'bonus-only'}).kickerKey)
+      .to.eq('Marker placement');
+    // …and the default (absent / explicit `'tile'`) still reads as a tile.
+    expect(summaryOf({type: 'space', title: 'Select space', spaces: [], placementEffect: 'tile'}).kickerKey)
+      .to.eq('Tile placement');
+  });
+
   it('a CLIENT-built payment reads its own prompt, not the action menu behind it', () => {
     const v = view({type: 'or', title: 'Take your next action', options: []});
     const s = consoleTaskSummary({kind: 'payment'}, v, {

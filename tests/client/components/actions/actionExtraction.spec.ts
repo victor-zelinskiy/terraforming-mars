@@ -8,8 +8,10 @@ import {
   playerActionSourceCount,
   allScopeActionCardNames,
   overriddenActionCards,
+  staleActionOverrides,
   flaggedActionCandidates,
   branchActionNode,
+  actionNodeDescription,
 } from '@/client/components/actions/actionExtraction';
 import {ICardRenderEffect, isICardRenderSymbol} from '@/common/cards/render/Types';
 import {CardRenderSymbolType} from '@/common/cards/render/CardRenderSymbolType';
@@ -101,14 +103,35 @@ describe('actionExtraction', () => {
     expect(flagged).to.have.length(0);
   });
 
+  it('AUDIT: no override outlives the render node it was standing in for', () => {
+    // An override SUPPRESSES the generic scan, so one left behind after its card
+    // gained a real `action()` box silently replaces the printed graphic with a
+    // sentence — which is exactly how Arcadian Communities shipped an EMPTY
+    // action canvas. Fails with the list; the fix is to delete the entry.
+    const stale = staleActionOverrides();
+    if (stale.length > 0) {
+      console.log('Stale action overrides (card now has a real action node):', stale.join(', '));
+    }
+    expect(stale).to.have.length(0);
+  });
+
+  it('draws a CORP-BOX action from its own render node (Arcadian Communities)', () => {
+    // Its corp box carries a proper `ce.action()` beside the `ce.effect()`, so
+    // the generic scan pulls the ACTION only — no override, no text fallback.
+    expect(cardHasAction(CardName.ARCADIAN_COMMUNITIES)).to.eq(true);
+    expect(overriddenActionCards()).to.not.include(CardName.ARCADIAN_COMMUNITIES);
+    expect(flaggedActionCandidates()).to.not.include(CardName.ARCADIAN_COMMUNITIES);
+    const entries = playerActions([model(CardName.ARCADIAN_COMMUNITIES)]);
+    expect(entries).to.have.length(1);
+    expect(entries[0].isCorporation).to.eq(true);
+    expect(entries[0].actionNode, 'expected a real action graphic').to.not.eq(undefined);
+    expect(entries[0].text).to.eq(undefined);
+    // The ACTION was taken, not the sibling EFFECT ("...gain 3 M€").
+    expect(actionNodeDescription(entries[0])).to.match(/^Action: /);
+  });
+
   it('covers the bespoke-render edge cases via overrides', () => {
     const overridden = overriddenActionCards();
-    // Arcadian Communities still needs a text override (action drawn as raw ce.text()).
-    expect(cardHasAction(CardName.ARCADIAN_COMMUNITIES)).to.eq(true);
-    expect(overridden).to.include(CardName.ARCADIAN_COMMUNITIES);
-    expect(flaggedActionCandidates()).to.not.include(CardName.ARCADIAN_COMMUNITIES);
-    expect(playerActions([model(CardName.ARCADIAN_COMMUNITIES)])[0].text).to.not.eq(undefined);
-
     // Weather Balloons now uses proper action() boxes — generic scan picks it up,
     // no override needed.
     expect(cardHasAction(CardName.WEATHER_BALLOONS)).to.eq(true);

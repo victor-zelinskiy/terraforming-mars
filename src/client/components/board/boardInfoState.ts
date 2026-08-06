@@ -9,6 +9,7 @@ import {Color} from '@/common/Color';
 import {BoardName} from '@/common/boards/BoardName';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {BoardCellInfo, BoardPlacementKind, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
+import {PlacementEffect} from '@/common/models/PlayerInputModel';
 import {CardName} from '@/common/cards/CardName';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
@@ -80,11 +81,11 @@ export function configureBoardInfo(cfg: Partial<Config>): void {
   }
 }
 
-function cacheKey(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName): string {
-  return `${boardInfoState.cfg.color ?? ''}:${spaceId}:${kind ?? ''}:${cleared ? 'c' : ''}:${tileType ?? ''}:${sourceCard ?? ''}`;
+function cacheKey(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect): string {
+  return `${boardInfoState.cfg.color ?? ''}:${spaceId}:${kind ?? ''}:${cleared ? 'c' : ''}:${tileType ?? ''}:${sourceCard ?? ''}:${placementEffect ?? ''}`;
 }
 
-function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName): string | undefined {
+function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, tileType?: number, sourceCard?: CardName, placementEffect?: PlacementEffect): string | undefined {
   const cfg = boardInfoState.cfg;
   if (cfg.participantId === undefined) {
     return undefined;
@@ -109,6 +110,16 @@ function buildUrl(spaceId: SpaceId, kind?: BoardPlacementKind, cleared = false, 
   // (Solar Farm's energy production per plant bonus on THIS cell, …).
   if (sourceCard !== undefined) {
     params.set('card', sourceCard);
+  }
+  // NOT every "pick a cell" places a tile. The server declares what this one
+  // actually does (`SelectSpaceModel.placementEffect`), and the engine already
+  // suppresses what a marker / camp-move does NOT earn — but only if it is
+  // TOLD. Omitting it defaulted every prompt to `'tile'`, so an Arcadian
+  // community's cell promised «ВЫ ПОЛУЧИТЕ · бонус клетки» (plus Ares
+  // adjacency, VP and milestone progress) that the commit then granted to
+  // nobody. `'tile'` is the default on both sides — send only the exceptions.
+  if (placementEffect !== undefined && placementEffect !== 'tile') {
+    params.set('effect', placementEffect);
   }
   return `${apiUrl(paths.API_GAME_BOARD_CELL_PREVIEW)}?${params.toString()}`;
 }
@@ -176,13 +187,14 @@ export function fetchBoardCellPreview(
   kind: BoardPlacementKind,
   cleared = false,
   tileType?: number,
-  sourceCard?: CardName): Promise<BoardPlacementPreview | undefined> {
-  const key = cacheKey(spaceId, kind, cleared, tileType, sourceCard);
+  sourceCard?: CardName,
+  placementEffect?: PlacementEffect): Promise<BoardPlacementPreview | undefined> {
+  const key = cacheKey(spaceId, kind, cleared, tileType, sourceCard, placementEffect);
   const cached = previewCache.get(key);
   if (cached !== undefined) {
     return Promise.resolve(cached);
   }
-  const url = buildUrl(spaceId, kind, cleared, tileType, sourceCard);
+  const url = buildUrl(spaceId, kind, cleared, tileType, sourceCard, placementEffect);
   if (url === undefined || typeof fetch === 'undefined') {
     return Promise.resolve(undefined);
   }

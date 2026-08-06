@@ -9,11 +9,14 @@ import {boardCellInfo, boardCellPreview} from '../boards/BoardInformationEngine'
 import {BoardPlacementKind} from '../../common/boards/BoardInformationFacts';
 import {TileType} from '../../common/TileType';
 import {CardName} from '../../common/cards/CardName';
+import {PlacementEffect} from '../../common/models/PlayerInputModel';
 
 const PLACEMENT_KINDS: ReadonlyArray<BoardPlacementKind> = [
   'land', 'ocean', 'greenery', 'city', 'away-from-cities', 'isolated',
   'volcanic', 'upgradeable-ocean', 'upgradeable-ocean-new-holland',
 ];
+
+const PLACEMENT_EFFECTS: ReadonlyArray<PlacementEffect> = ['tile', 'bonus-only', 'marker'];
 
 const CARD_NAMES: ReadonlySet<string> = new Set(Object.values(CardName));
 
@@ -98,7 +101,15 @@ export class ApiGameBoardCellPreview extends Handler {
       // registry — an unknown name simply yields no card facts, never a throw.
       const cardParam = ctx.url.searchParams.get('card');
       const sourceCard = cardParam !== null && isCardName(cardParam) ? cardParam : undefined;
-      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind, {cleared, tileType, sourceCard}));
+      // `effect=<PlacementEffect>` → what picking this cell actually DOES
+      // (`SelectSpaceModel.placementEffect`). Without it every prompt defaulted
+      // to `'tile'` and a claim's cell promised the placement bonus, Ares
+      // adjacency, VP and milestone progress that the commit grants to nobody.
+      // An unknown value falls back to the default — never a throw.
+      const effectParam = ctx.url.searchParams.get('effect');
+      const placementEffect = effectParam !== null && PLACEMENT_EFFECTS.includes(effectParam as PlacementEffect) ?
+        effectParam as PlacementEffect : undefined;
+      responses.writeJson(res, ctx, boardCellPreview(player, space, kindParam as BoardPlacementKind, {cleared, tileType, sourceCard, placementEffect}));
     } else {
       responses.writeJson(res, ctx, boardCellInfo(player, space));
     }

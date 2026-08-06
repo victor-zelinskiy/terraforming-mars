@@ -124,6 +124,7 @@
                            :loading="cellInfoLoading"
                            :viewerColor="thisPlayer.color"
                            :players="playerView.players"
+                           :placementKickerKey="placementKickerKey"
                            :placementTitle="placementTitle"
                            :selectedLegal="selectedCellLegal"
                            :illegalReason="selectedCellIllegalReason"
@@ -1174,6 +1175,9 @@ import {
 import ConsoleHandRevealLayer from '@/client/components/console/ConsoleHandRevealLayer.vue';
 import ConsoleHandDeliveryLayer from '@/client/components/console/ConsoleHandDeliveryLayer.vue';
 import {handRevealState, RevealVisual} from '@/client/console/handDock/handRevealState';
+import {
+  beginDockIntakeAccent, dockIntakeAccentActive, holdDockIntakeAccent, resetDockIntakeAccent,
+} from '@/client/console/handDock/consoleDockAccent';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive, resetHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {
@@ -1241,7 +1245,7 @@ import {
 
 /** The kinds served by a DEDICATED composite surface (not by the task host). */
 const NATIVE_COMPOSITE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['venusBonus', 'spendHeat', 'aresGlobal']);
-import {ConsoleTaskSummary, consoleTaskSummary} from '@/client/console/consoleTaskSummary';
+import {ConsoleTaskSummary, consoleTaskSummary, placementKicker} from '@/client/console/consoleTaskSummary';
 import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
 import {cancelResponse, cardsResponse, colonyResponse, orWrappedResponse} from '@/client/console/taskResponses';
@@ -1843,8 +1847,11 @@ export default defineComponent({
      * change mid-episode would move the targets out from under the proxies.
      */
     dockIntakeAccent(): boolean {
-      return isHandDeliveryActive() || isHandRevealEpisodeRunning() ||
-        this.handRevealState.holdSlots || this.dockHeld.length > 0;
+      // A BOUNDED LEASE, never a read of foreign flags (consoleDockAccent.ts).
+      // The first cut ORed four booleans owned by four different directors —
+      // and any one of them sticking disabled the compact pose for the REST OF
+      // THE GAME. One of them did exactly that.
+      return dockIntakeAccentActive();
     },
     /**
      * THE COMPACT POSE — the dock's answer to a busy screen (the presence
@@ -2877,6 +2884,11 @@ export default defineComponent({
       }
       const cleared = (prompt.hiddenTiles ?? []).includes(id as SpaceId) ? 'c' : '';
       return `${id}|${prompt.placementType}|${prompt.tileType ?? ''}|${cleared}|${prompt.sourceCard ?? ''}`;
+    },
+    /** What this cell pick actually PUTS DOWN — a tile, or a marker (a claim /
+     *  a camp move). The key comes from the ONE prompt-copy source. */
+    placementKickerKey(): string {
+      return placementKicker(this.placementSpaceModel);
     },
     placementTitle(): string {
       const t = this.placementSpaceModel?.title;
@@ -4007,7 +4019,9 @@ export default defineComponent({
         return this.sheetTitle;
       }
       if (this.placementActive) {
-        return 'Tile placement';
+        // Same source as the right panel's kicker — the bar and the panel can
+        // never disagree about what this cell pick puts down.
+        return this.placementKickerKey;
       }
       if (this.consoleState.sale.active) {
         return 'Sell patents';
@@ -4976,10 +4990,20 @@ export default defineComponent({
       if (!isHandRevealEpisodeRunning()) {
         if (section === 'hand' && handRevealState.phase === 'docked') {
           handRevealState.phase = 'open';
-        } else if (section !== 'hand' && (handRevealState.phase === 'open' ||
-            (handRevealState.phase === 'docked' && (handRevealState.holdSlots || handRevealState.dockExtraLift.length > 0)))) {
-          // NOT 'opening'/'closing': those belong to a director episode in
-          // its pre-install flush — resetting there would kill it mid-birth.
+        } else if (section !== 'hand') {
+          // LEAVING the hand by any route resets the presentation — including
+          // from 'opening'/'closing'.
+          //
+          // ⚠️ Those two used to be excluded «because they belong to a
+          // director episode in its pre-install flush». The fear was real but
+          // the exclusion was over-broad: that birth happens with the section
+          // set TO 'hand', so this `section !== 'hand'` branch can never kill
+          // it. What the exclusion DID do was strand the pre-install window —
+          // `phase='opening'` + `holdSlots=true` are set BEFORE the measure,
+          // so a section change in that gap latched `holdSlots` true FOREVER:
+          // every hand slot rendered held (invisible), and the dock's intake
+          // accent (which used to read this flag) disabled the compact pose
+          // for the rest of the game.
           resetHandReveal();
         }
       }
@@ -5597,7 +5621,7 @@ export default defineComponent({
       }
       const spaceId = id as SpaceId;
       const cleared = (prompt.hiddenTiles ?? []).includes(spaceId);
-      fetchBoardCellPreview(spaceId, prompt.placementType, cleared, prompt.tileType, prompt.sourceCard).then((preview) => {
+      fetchBoardCellPreview(spaceId, prompt.placementType, cleared, prompt.tileType, prompt.sourceCard, prompt.placementEffect).then((preview) => {
         if (token === this.cellPreviewToken) {
           this.cellPreview = preview;
         }
@@ -6409,23 +6433,32 @@ export default defineComponent({
       // the dock instantly and skip the choreography).
       handRevealState.phase = 'opening';
       handRevealState.holdSlots = true;
-      this.consoleState.section = 'hand';
-      await this.$nextTick();
-      // Two frames: the grid measures itself + ensureSelectedVisible seats
-      // the scroll — the targets below are the settled layout.
-      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(undefined))));
-      const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
-      const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
-      const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
-      const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
-      const pairs: Array<RevealPair> = [];
-      for (const p of t.pairs) {
-        const source = sources.get(p.name);
-        if (source !== undefined) {
-          pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
+      // The dock stands FULL for the whole opening — its backs are the flight
+      // sources, so the pose must not change while they are measured. The
+      // lease covers the pre-install window too (measure + two frames), which
+      // is precisely where the old flag-reading accent could latch forever.
+      const releaseAccent = beginDockIntakeAccent('hand-open');
+      try {
+        this.consoleState.section = 'hand';
+        await this.$nextTick();
+        // Two frames: the grid measures itself + ensureSelectedVisible seats
+        // the scroll — the targets below are the settled layout.
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(undefined))));
+        const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+        const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
+        const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
+        const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
+        const pairs: Array<RevealPair> = [];
+        for (const p of t.pairs) {
+          const source = sources.get(p.name);
+          if (source !== undefined) {
+            pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
+          }
         }
+        await runHandOpenEpisode(pairs);
+      } finally {
+        releaseAccent();
       }
-      await runHandOpenEpisode(pairs);
     },
     /**
      * CLOSE the hand as the physical gather: measure the LIVE slot rects
@@ -6455,7 +6488,9 @@ export default defineComponent({
           pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
         }
       }
-      await runHandCloseEpisode(pairs, t.scrollTop);
+      // The gather measures the dock's back positions too — same lease, same
+      // reason (see openHandWithReveal).
+      await holdDockIntakeAccent('hand-close', runHandCloseEpisode(pairs, t.scrollTop));
     },
     /**
      * THE DISCARD HAND-OFF (phase D), registered with the discard transaction.
@@ -9291,6 +9326,7 @@ export default defineComponent({
     resetPlanetFocus(); // never carry a held HUD / mid-exit phase across games
     resetHandReveal(); // never leak a mid-episode timeline / held dock
     resetHandDelivery(); // never leak a mid-flight delivery / held dock
+    resetDockIntakeAccent(); // a leaked lease would disable the compact pose
     resetConsoleHandPick(); // never leak a client pick across games/sessions
     // A descent can never outlive the shell: an orphaned claim suppresses the
     // standalone band, so the next play would be presented NOWHERE.

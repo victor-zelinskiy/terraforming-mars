@@ -161,6 +161,11 @@ import {
   markerPlacementHoldDurationMs,
   shouldHoldForMarkerPlacement,
 } from '@/client/components/board/markerPlacementAnimation';
+import {
+  applyOwnerCubePlacementPreview,
+  ownerCubeHoldDurationMs,
+  shouldHoldForOwnerCubePlacement,
+} from '@/client/components/board/cubeDropState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {nextViewSnapshot} from '@/client/utils/viewSnapshotShare';
 import {
@@ -1039,6 +1044,16 @@ export default defineComponent({
               this.playerView.game.spaces,
               newView.game.spaces,
             );
+            // A PLAYER MARKER claimed an empty cell (Land Claim, an Arcadian
+            // community): a colour-only diff, so neither the tile hold, the
+            // console hero (which verifies `undefined → tile` and unwinds here)
+            // nor the overlay-marker hold above ever fired — the cube popped in.
+            // A claim collects NOTHING, so this branch stays a pure landing: no
+            // reward hold, no printed-bonus lift, no counter moves.
+            const ownerCubeHold = shouldHoldForOwnerCubePlacement(
+              this.playerView.game.spaces,
+              newView.game.spaces,
+            );
             /*
              * Energy→heat conversion hold (end of generation). Detect BEFORE
              * the marker/tile previews mutate the displayed view; claims the
@@ -1054,7 +1069,7 @@ export default defineComponent({
             // tile-placement hold above never fires for it). Mutually exclusive
             // with the conversion in practice (placement vs production phase).
             const hazardCleanups = detectHazardCleanup(this.playerView, newView);
-            if (markerHold || tileHold || cathedralHold) {
+            if (markerHold || tileHold || cathedralHold || ownerCubeHold) {
               if (markerHold) {
                 this.applyGlobalParamPreview(newView);
                 this.holdingForMarker = true;
@@ -1091,12 +1106,25 @@ export default defineComponent({
                 );
                 this.holdingForTilePlacement = true;
               }
+              if (ownerCubeHold) {
+                // Same ordering contract as the two branches above: observeCube
+                // reads the gate synchronously from the colour watcher this
+                // mutation wakes, so arming afterwards would let it read a
+                // CLOSED gate and show the cube already at rest.
+                armPlacementAnimations();
+                applyOwnerCubePlacementPreview(
+                  this.playerView.game.spaces,
+                  newView.game.spaces,
+                );
+                this.holdingForTilePlacement = true;
+              }
               const holdMs = Math.max(
                 markerHold ? motionMs(WGT_MARKER_HOLD_MS) : 0,
                 tileHold ? placementHoldDurationMs() : 0,
                 // The FULL landing (not the shorter perceptual window): the
                 // prompt this marker causes opens strictly after it settles.
                 cathedralHold ? markerPlacementHoldDurationMs() : 0,
+                ownerCubeHold ? ownerCubeHoldDurationMs() : 0,
               );
               try {
                 await new Promise<void>((resolve) => setTimeout(resolve, holdMs));
