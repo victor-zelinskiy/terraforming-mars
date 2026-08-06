@@ -33,10 +33,21 @@ unions plus compliance with the rules; nothing else.
    `consoleWorkspaceStage` — the descent landed in the hand's zone, which
    happened to live inside the start.
 4. **OWNERSHIP ≠ READINESS.** The host publishes its zone selector from a
-   `flush: 'post'` watcher (a teleport whose target does not resolve drops the
-   content to `body` — a full-screen surface OUTSIDE the workspace), retracts
-   it before the zone unmounts, and the claimant renders NOWHERE for the one
-   frame between claim and slot — never in its standalone band first.
+   `flush: 'post'` watcher, retracts it in `beforeUnmount` (never from the flow
+   side — a stale selector teleports into a detached node), **also publishes
+   from `mounted()`**, and the claimant **renders NOWHERE while the slot is
+   missing** (`handHeldForWorkspace`, mirroring `playHeldForWorkspace`).
+   Two traps, both paid for:
+   - *A `<Teleport>` whose target is absent AT MOUNT keeps its content in
+     place, and the target's later arrival does not reliably relocate an
+     already-mounted subtree.* After minimize→restore the workspace re-mounted
+     (zone present) while the hand had already mounted into `.con-main` — and
+     it STAYED there: grid trapped under the workspace plate, status rail and
+     footer escaping by z. The player saw «КАРТЫ 10/13» over an empty screen.
+     Hence the mount hold: the teleport resolves at mount, always.
+   - *A restore re-creates the host while the claim value never changes*, so
+     an `immediate` watcher has nothing to fire on and the zone stands
+     unannounced. Hence publishing from `mounted()` too.
 5. **The CRUMB is the host's; browse chrome hides past the descent.** Root and
    subject come from the outermost workspace; the embedded surface hands its
    stage name UP (`setWorkspaceStageName` / `setWorkspaceOutcomePhase`) and
@@ -46,12 +57,21 @@ unions plus compliance with the rules; nothing else.
    an embedded surface's own toolbar must do it explicitly
    (`.con-hand__toolbar--held` — held by opacity/visibility, height reserved,
    state untouched).
-6. **The claim is STRUCTURAL and survives the commit.** Derived from server
-   truth (which prompt + which workspace serves) — never a card name or title
-   match. `committing` holds it across the round trip: between the submit and
-   the result landing, `waitingFor` names nothing, and a lapsed claim would
-   tear the surface out from under a card still in the air. Release on the
-   result's own completion signal (the played hero settling), never a timer.
+6. **The claim is STRUCTURAL, survives the commit AND a reload.** Derived from
+   server truth (which prompt + which workspace serves) — never a card name or
+   title match. `committing` holds it across the round trip: between the
+   submit and the result landing, `waitingFor` names nothing, and a lapsed
+   claim would tear the surface out from under a card still in the air;
+   release on the result's own completion signal (the played hero settling),
+   never a timer. **A workspace's lifetime hold is module state that a RELOAD
+   wipes** — so the claim must have a server-truth fallback, or the same
+   prompt re-opens the standalone screen and the player is thrown out of a
+   flow they never left. For the start it is `game.phase === PRELUDES` (the
+   deployment IS that phase, and a play-from-hand raised in it can only be a
+   prelude's effect); the host must then be mountable from the claim too
+   (`startSceneMounted` ORs it in). The crumb SUBJECT degrades honestly — the
+   source card is a client capture, so after a reload the crumb reads the
+   generic «ПРОЛОГИ» rather than lying.
 
 ## The sponsor flow, as the reference implementation
 

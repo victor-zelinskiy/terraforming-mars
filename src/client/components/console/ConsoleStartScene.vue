@@ -1733,7 +1733,7 @@ export default defineComponent({
       immediate: true,
       flush: 'post',
       handler(on: boolean) {
-        setWorkspaceEmbedSlot(on ? '.con-start__handstep' : '');
+        this.publishHandStepSlot(on);
       },
     },
     /** Step position (the panes swap under this): reseed focus, mark the
@@ -1960,6 +1960,10 @@ export default defineComponent({
     },
   },
   mounted() {
+    // Announce the hand step's zone for THIS mount (see publishHandStepSlot):
+    // a restore re-creates the component without `sponsorStep` ever changing,
+    // so the watcher has nothing to fire on.
+    this.publishHandStepSlot(this.sponsorStep);
     void this.$nextTick(() => {
       this.fitCardStrip();
       this.syncCeremonyLayout();
@@ -1978,6 +1982,10 @@ export default defineComponent({
     if (this.outcome.host === 'start') {
       releaseWorkspaceOutcome(); // an orphaned claim suppresses presenters
     }
+    // Retract the hand step's zone HERE, never from the flow side: a stale
+    // selector teleports the next surface into a detached node, and the
+    // unmount watcher does not fire (Vue tears watchers down first).
+    setWorkspaceEmbedSlot('');
     resetStartDockMotion();
     registerStartDockLayer(undefined);
     this.stopStripObs?.();
@@ -2077,6 +2085,16 @@ export default defineComponent({
     pulseJourney(dir: 1 | -1): void {
       this.railPulseDir = dir;
       this.railPulse++;
+    },
+    /**
+     * Publish (or retract) the hand step's zone selector. Called from the
+     * `flush: 'post'` watcher AND from `mounted()`: a minimize→restore
+     * re-creates this component while `sponsorStep` never changes value, so
+     * the watcher has nothing to fire on — and the zone would stand
+     * unannounced, leaving the hand teleport-less in `.con-main`.
+     */
+    publishHandStepSlot(on: boolean): void {
+      setWorkspaceEmbedSlot(on ? '.con-start__handstep' : '');
     },
     /** Retire a step pane as ONE cached layer (never card by card). */
     parkPane(pos: number, dir: 1 | -1): Promise<void> {

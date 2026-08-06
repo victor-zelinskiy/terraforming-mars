@@ -93,6 +93,22 @@ async function surfaces(page: Page) {
       firstCardY: document.querySelector('.con-hand__slot')?.getBoundingClientRect().top ?? -1,
       /** The player's own «Разыграно» — the normal play flow's destination. */
       tableauCards: document.querySelectorAll('[data-played-key]').length,
+      /** Does the host zone exist at all, and where did the hand land? */
+      zoneExists: document.querySelector('.con-start__handstep') !== null,
+      handParent: (() => {
+        const h = document.querySelector('.con-hand');
+        return h?.parentElement === null || h?.parentElement === undefined ?
+          'none' : `${h.parentElement.tagName}.${h.parentElement.className}`.slice(0, 60);
+      })(),
+      /** Why a card might not be painted — the diagnostic set. */
+      diag: {
+        transit: document.querySelector('.con-hand')?.classList.contains('con-hand--transit') ?? false,
+        staged: document.querySelector('.con-hand')?.classList.contains('con-hand--staged') ?? false,
+        flow: document.querySelector('.con-hand')?.getAttribute('data-flow') ?? '',
+        rows: document.querySelectorAll('.con-hand__row').length,
+        heldSlots: document.querySelectorAll('.con-hand__slot.con-deal-hold').length,
+        gridH: Math.round(document.querySelector('.con-hand__grid')?.getBoundingClientRect().height ?? -1),
+      },
       /** The embedded hand's browse toolbar (filters/counters) is VISIBLE. */
       toolbarShown: (() => {
         const el = document.querySelector('.con-hand__toolbar');
@@ -227,6 +243,62 @@ test.describe('console start — «Эпатажный спонсор» as a work
     expect(s.startQueue, 'the deployment queue is gone').toBe(0);
     expect(s.startPlayed, 'the compact played shelf is gone').toBe(0);
     expect(s.playedOverlay, 'the full played overlay must not open').toBeFalsy();
+  });
+
+  /**
+   * THE STEP SURVIVES BEING PUT DOWN AND PICKED UP — twice over:
+   *  · B (свернуть) then A (вернуться): the hand comes back WITH ITS CARDS.
+   *    The restore re-runs the dock→grid opening, and if that episode cannot
+   *    complete it leaves `holdSlots` armed — every card stays invisible while
+   *    the counter still says «КАРТЫ 10/13», which is what the player saw.
+   *  · a RELOAD mid-step: the workspace's lifetime hold is module state that a
+   *    reload wipes, so the claim must rest on SERVER truth (the prelude
+   *    phase) — otherwise the very same prompt re-opens the standalone hand
+   *    and the player is thrown out of a flow they never left.
+   */
+  test('the step survives minimize→restore and a reload, with its cards', async ({page, request}) => {
+    test.setTimeout(300_000);
+    const created = await request.post('/api/creategame', {
+      data: cfg({preludes: ['Eccentric Sponsor', 'Metals Company', 'Supplier', 'Business Empire']}),
+    });
+    expect(created.ok()).toBeTruthy();
+    const {players} = await created.json();
+    const playerId = players[0].id;
+    await page.goto(`/player?id=${playerId}&console=1`);
+    await reachDeployment(page);
+    expect(await openSponsorHand(page), 'the hand step opened').toBeTruthy();
+    await page.waitForTimeout(1200);
+    const opened = await surfaces(page);
+    expect(opened.paintedCards, 'cards painted on first open').toBeGreaterThan(0);
+
+    // ── B → the whole workspace minimizes (the deferred card offers the way
+    //    back); A → it comes back, WITH its cards. ──
+    await press(page, 'Escape', 1600);
+    const away = await surfaces(page);
+    expect(away.handEmbedded, 'the hand step is put down').toBeFalsy();
+    await press(page, 'Enter', 2600);
+    await page.waitForTimeout(1800);
+    const back = await surfaces(page);
+    await page.screenshot({path: 'screenshots/sponsor-4-restored.png'});
+    expect(back.handEmbedded,
+      `the hand came back OUTSIDE the workspace — zone=${back.zoneExists} ` +
+      `parent=${back.handParent} diag=${JSON.stringify(back.diag)}`).toBeTruthy();
+    expect(back.paintedCards,
+      `cards vanished on restore (diag ${JSON.stringify(back.diag)})`).toBeGreaterThan(0);
+    expect(back.toolbarShown, 'the browse toolbar came back too').toBeTruthy();
+
+    // ── a RELOAD mid-step: the same step, still inside the workspace. ──
+    await page.reload();
+    await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
+    await page.waitForTimeout(6000);
+    const reloaded = await surfaces(page);
+    await page.screenshot({path: 'screenshots/sponsor-5-reloaded.png'});
+    expect(reloaded.handUp, 'the hand step is up after the reload').toBeTruthy();
+    expect(reloaded.handEmbedded,
+      'the reload dropped the player into the STANDALONE hand').toBeTruthy();
+    expect(reloaded.handOwnHead, 'no second header after the reload').toBe(0);
+    expect(reloaded.paintedCards,
+      `cards vanished after the reload (diag ${JSON.stringify(reloaded.diag)})`).toBeGreaterThan(0);
   });
 
   /**

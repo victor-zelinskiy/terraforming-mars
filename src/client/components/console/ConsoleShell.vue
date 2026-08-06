@@ -159,7 +159,7 @@
            one input path, one set of captures — never a second copy and
            never a picker standing in for the player's real hand. -->
       <Teleport :to="handEmbedTarget ?? 'body'" :disabled="handEmbedTarget === undefined">
-      <ConsoleHandSection v-if="consoleState.section === 'hand'"
+      <ConsoleHandSection v-if="consoleState.section === 'hand' && !handHeldForWorkspace"
                           ref="handSection"
                           :embedded="handEmbedTarget !== undefined"
                           :entries="handEntries"
@@ -2364,7 +2364,11 @@ export default defineComponent({
      *  claims, its release beat), so it stays mounted through a yield and
      *  only stops painting — see the scene's `yielded` prop. */
     startSceneMounted(): boolean {
-      return this.startSceneServes && !govScaleFocusState.holding && !this.consoleState.task.deferred;
+      // The EMBEDDED STEP re-establishes the workspace after a reload: the
+      // step needs a host, and the lifetime hold that normally keeps the scene
+      // mounted is module state that a reload wipes (see startSponsorEmbed).
+      return (this.startSceneServes || this.startSponsorEmbed) &&
+        !govScaleFocusState.holding && !this.consoleState.task.deferred;
     },
     /** OPTIONAL draft re-pick — the fork shows a calm "waiting for the other
      *  players" banner instead of offering to change the pick (desktop parity). */
@@ -3058,7 +3062,16 @@ export default defineComponent({
      * under a card that is still flying.
      */
     startSponsorEmbed(): boolean {
-      if (!this.startSceneServes || this.consoleState.task.deferred) {
+      if (this.consoleState.task.deferred) {
+        return false;
+      }
+      // SERVER TRUTH, not the workspace's volatile lifetime hold. The hold is
+      // module state: after a RELOAD it is empty, so `startSceneServes` is
+      // false and the very same prompt used to open the standalone hand — the
+      // player was thrown out of a flow they had not left. The prelude phase
+      // IS the deployment, it survives a reload, and a play-from-hand raised
+      // in it can only be a prelude's effect (`PlayProjectCard`).
+      if (!this.startSceneServes && this.game.phase !== Phase.PRELUDES) {
         return false;
       }
       if (workspaceEmbedCommitting()) {
@@ -3075,6 +3088,23 @@ export default defineComponent({
      */
     handEmbedTarget(): string | undefined {
       return this.startSponsorEmbed ? workspaceEmbedSlot() : undefined;
+    },
+    /**
+     * OWNERSHIP ≠ READINESS (embed contract rule 4) — the hand must render
+     * NOWHERE until its host zone genuinely stands.
+     *
+     * ⚠️ This is not cosmetic. A `<Teleport>` whose target is missing AT MOUNT
+     * keeps its content in place, and the later arrival of the target does not
+     * reliably relocate an already-mounted subtree: after a minimize→restore
+     * the workspace re-mounted (zone present) while the hand had already
+     * mounted into `.con-main`, and it STAYED there — its grid trapped under
+     * the workspace plate while its status rail and footer escaped by z. The
+     * player saw «КАРТЫ 10/13» over an empty screen. Holding the mount for the
+     * one frame the slot is late makes the teleport resolve at mount, always.
+     * Same idiom as `playHeldForWorkspace` / `taskHeldForWorkspace`.
+     */
+    handHeldForWorkspace(): boolean {
+      return this.startSponsorEmbed && workspaceEmbedSlot() === undefined;
     },
     /**
      * The workspace slot the PLAY COMPOSER is teleported into (undefined → its
