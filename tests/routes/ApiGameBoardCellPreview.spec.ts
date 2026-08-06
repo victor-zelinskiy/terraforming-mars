@@ -70,7 +70,8 @@ describe('ApiGameBoardCellPreview', () => {
     expect(preview.legal).eq(true);
     expect(preview).to.have.keys(
       'space', 'kind', 'legal', 'costFacts', 'immediateFacts', 'recipientFacts',
-      'warningFacts', 'futureScoringFacts', 'ruleFacts', 'progressFacts');
+      'warningFacts', 'futureScoringFacts', 'ruleFacts', 'progressFacts', 'placesTile');
+    expect(preview.placesTile, 'a city placement really does place a tile').eq(true);
   });
 
   it('a greenery on an ocean-reserved cell reads oxygen via the tile param', async () => {
@@ -120,6 +121,9 @@ describe('ApiGameBoardCellPreview', () => {
       'a claim promises no cell bonus').eq(false);
     expect(markerFacts.some((f: {id: string}) => f.id.startsWith('place-')),
       'a claim promises no tile scoring').eq(false);
+    // …and the payload says so, so the "nothing else happens" line can name a
+    // MARKER instead of a tile that never lands.
+    expect(asMarker.placesTile, 'a claim places no tile').eq(false);
   });
 
   it('an unknown effect falls back to the default, never a throw', async () => {

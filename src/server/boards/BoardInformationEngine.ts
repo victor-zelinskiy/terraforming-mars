@@ -174,6 +174,9 @@ export function boardCellPreview(
   facts.push(...specialZoneFacts(player, space, {includePlacementRules: !cleared}));
 
   const preview = classifyPlacementFacts(stripRedundantSource(facts, options?.sourceCard), player, space.id, kind, legal);
+  // What this pick PUTS DOWN — so the panel's "nothing else happens" line can
+  // name the right object (a claim / a camp move lands a marker, not a tile).
+  preview.placesTile = ctx.placesTile;
   if (!legal) {
     preview.illegalReason = board.illegalReasonFor(player, kind as PlacementType, space);
   }

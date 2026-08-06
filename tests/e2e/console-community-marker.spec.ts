@@ -205,6 +205,9 @@ test.describe('console · Arcadian Communities', () => {
     const shout = preview.toUpperCase();
     expect(shout, 'the kicker names what actually lands').not.toContain('РАЗМЕЩЕНИЕ ТАЙЛА');
     expect(shout).toContain('РАЗМЕЩЕНИЕ МАРКЕРА');
+    // …down to the "no consequences" line, which must not describe a tile that
+    // never lands either.
+    expect(shout).not.toContain('КРОМЕ РАЗМЕЩЕНИЯ ТАЙЛА');
 
     // ── 1 · THE LANDING ───────────────────────────────────────────────────
     const bonusesBefore = await boardBonusIcons(page);

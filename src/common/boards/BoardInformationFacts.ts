@@ -207,6 +207,14 @@ export type BoardPlacementPreview = {
    * older cached payload still renders.
    */
   progressFacts?: ReadonlyArray<BoardFact>;
+  /**
+   * Does this pick actually put a TILE down? (`SelectSpace.placementEffect ===
+   * 'tile'`.) A claim / a camp move puts a MARKER on the cell instead, so the
+   * "nothing else happens" line must not promise a tile that never lands.
+   * Optional so an older cached payload still renders — absent reads as `true`,
+   * the overwhelming majority.
+   */
+  placesTile?: boolean;
   cancellable?: boolean;
   cancelReason?: string | Message;
 };

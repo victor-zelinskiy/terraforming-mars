@@ -38,7 +38,10 @@
       <board-fact-row v-for="fact in preview.ruleFacts" :key="fact.id" :fact="fact" />
     </div>
 
-    <div v-if="isEmpty" class="board-preview__empty" v-i18n>Nothing happens beyond placing the tile.</div>
+    <!-- The "no consequences" line names WHAT LANDS. A claim / a camp move
+         places a MARKER, so the tile wording would describe an object that
+         never arrives (the server says which via `preview.placesTile`). -->
+    <div v-if="isEmpty" class="board-preview__empty" v-i18n>{{ emptyLine }}</div>
   </div>
 </template>
 
@@ -84,6 +87,13 @@ export default defineComponent({
         p.recipientFacts.length === 0 && p.futureScoringFacts.length === 0 &&
         p.warningFacts.length === 0 && p.ruleFacts.length === 0 &&
         this.progressFacts.length === 0;
+    },
+    /** `placesTile` is absent on a payload from an older server build — the
+     *  overwhelming majority IS a tile, so undefined reads as the tile line. */
+    emptyLine(): string {
+      return this.preview.placesTile === false ?
+        'Nothing happens beyond placing the marker.' :
+        'Nothing happens beyond placing the tile.';
     },
   },
 });
