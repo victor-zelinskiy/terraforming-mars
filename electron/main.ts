@@ -385,6 +385,9 @@ async function applyPCoreAffinity(): Promise<void> {
   }
 }
 
+/** Windows AppUserModelID — must match `appId` in electron-builder.yml (see setAppUserModelId). */
+const APP_USER_MODEL_ID = 'io.github.victor-zelinskiy.terraforming-mars';
+
 // Window icon for an UNPACKED run only. A PACKAGED run needs nothing here — the window inherits
 // the icon rcedit embedded in "Terraforming Mars.exe" (electron-builder `win.icon`), which is also
 // what the taskbar, Alt-Tab and Steam's exe-icon extraction read. But `electron:dev` /
@@ -679,7 +682,13 @@ if (!app.requestSingleInstanceLock()) {
     }
   });
 
-  app.setAppUserModelId('io.github.victor-zelinskiy.terraforming-mars');
+  // Windows taskbar identity. Windows groups windows — and CACHES the group's icon — by
+  // AppUserModelID, so an UNPACKED dev run claiming the production id is treated as the very same
+  // app as the installed game: the dev window's icon gets cached against that id and then paints
+  // the INSTALLED game's taskbar button. That is exactly how the stock Electron atom leaked onto
+  // the shipped app. Dev therefore takes its own id; packaged keeps the appId electron-builder and
+  // Velopack ship. (Pairs with DEV_WINDOW_ICON, which fixes the dev window's own icon.)
+  app.setAppUserModelId(APP_USER_MODEL_ID + (app.isPackaged ? '' : '.dev'));
 
   void app.whenReady().then(async () => {
     // Drop the default application menu (Windows/Linux): a game shell needs none
