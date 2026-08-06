@@ -58,14 +58,20 @@
                same physical token the main board uses for tile ownership —
                sits centred in the vacated cell with clear air around it (the
                reward glyph is gone; never a flat colour fill). An empty slot
-               shows what building here would grant. The `data-colony-build-slot`
-               anchor is the landing geometry of the console colony-build hero
-               (consoleColonyBuild); CUBE_STATIC_SIZE pairs with its proxy's
-               CUBE_SLOT_F so the flying and the seated cube are identical. -->
-          <PlayerCube v-if="colony.colonies[idx] !== undefined"
-                      :color="colony.colonies[idx]"
-                      :size="cubeSize" />
-          <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResource="metadata.cardResource" />
+               shows what building here would grant.
+
+               The CUBE SEAT is the landing geometry of the console
+               colony-build hero (`data-colony-build-seat`): a box exactly the
+               size of the seated token, so the flying proxy is born at the
+               size it lands at on EVERY profile — the old contract measured
+               the whole cell and multiplied by a fraction calibrated for one
+               cell size, which the handheld profile's smaller cell broke. -->
+          <span class="con-coltile__build-seat" data-colony-build-seat>
+            <PlayerCube v-if="colony.colonies[idx] !== undefined"
+                        :color="colony.colonies[idx]"
+                        :size="cubeSize" />
+            <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResource="metadata.cardResource" />
+          </span>
         </div>
       </div>
       <div class="con-coltile__track" aria-hidden="true">

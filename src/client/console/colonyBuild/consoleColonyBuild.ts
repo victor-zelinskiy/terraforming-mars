@@ -48,6 +48,7 @@ import {
   ColonyBuildPhase, BuildRect, BonusExitMode,
   buildRewardSpecs, buildBonusMode, verifyColonyBuild,
   CUBE_APPROACH_MS, BONUS_CLEAR_MS, CUBE_DESCENT_MS, CUBE_SETTLE_MS, REDUCED_MS, ARM_SAFETY_MS,
+  CUBE_SLOT_F,
 } from '@/client/console/colonyBuild/colonyBuildModel';
 import {
   ColonyBuildStageEls, placeCubeProxy, playCubeApproach, playCubeDescent,
@@ -73,8 +74,15 @@ export const colonyBuildState = reactive({
   reducedMotion: false,
   /** How the slot's bonus leaves (resource chip / card cover / vacate). */
   mode: 'none' as BonusExitMode,
-  /** The captured build-slot cell rect (the cube proxy IS this rect). */
+  /** The captured landing rect (the cube proxy IS this rect). */
   slotRect: undefined as BuildRect | undefined,
+  /**
+   * How much of `slotRect.h` the flying cube occupies. `1` when the anchor
+   * declared a CUBE SEAT (the rect already IS the token's box — the only
+   * shape that can guarantee "flies at the size it lands at"); the legacy
+   * `CUBE_SLOT_F` fraction when it is a whole cell.
+   */
+  cubeFactor: CUBE_SLOT_F,
 });
 
 /** One-shot claim per response (mirrors the sibling transactions). */
@@ -135,6 +143,7 @@ export function armColonyBuild(colonyName: string, slotIndex: number, color: Col
   colonyBuildState.color = color;
   colonyBuildState.mode = 'none';
   colonyBuildState.slotRect = undefined;
+  colonyBuildState.cubeFactor = CUBE_SLOT_F;
   colonyBuildState.reducedMotion = consoleReducedMotionActive();
   armSafety = window.setTimeout(() => abortColonyBuild(), ARM_SAFETY_MS);
 }
@@ -164,7 +173,9 @@ export function detectColonyBuild(prevView: ViewModel, newView: ViewModel): {col
   const metadata = getColony(colonyBuildState.colonyName as ColonyName);
   pendingSpecs = buildRewardSpecs(metadata, proof.slotIndex);
   colonyBuildState.mode = buildBonusMode(metadata, proof.slotIndex);
-  colonyBuildState.slotRect = measureBuildSlot(colonyBuildState.colonyName, proof.slotIndex);
+  const landing = measureBuildSlot(colonyBuildState.colonyName, proof.slotIndex);
+  colonyBuildState.slotRect = landing?.rect;
+  colonyBuildState.cubeFactor = landing?.cubeFactor ?? CUBE_SLOT_F;
   return {colonyName: colonyBuildState.colonyName};
 }
 
@@ -365,6 +376,7 @@ function resetTransient(): void {
   colonyBuildState.color = '';
   colonyBuildState.mode = 'none';
   colonyBuildState.slotRect = undefined;
+  colonyBuildState.cubeFactor = CUBE_SLOT_F;
 }
 
 function escapeName(name: string): string {
@@ -373,38 +385,75 @@ function escapeName(name: string): string {
 }
 
 /**
- * The build slot ELEMENT — the FOCUS STAGE's big berth leads when the stage
- * is up (the build resolves on the stage — iteration 2: the cube physically
- * lands in the destination the player just confirmed at); the overview
- * tile's compact slot is the fallback.
+ * The build slot CANDIDATES, best first — the FOCUS STAGE's berth leads when
+ * the stage is up (the build resolves on the stage: the cube physically lands
+ * in the destination the player just confirmed at); the overview tile's
+ * compact slot is the fallback.
+ *
+ * ⚠️ A LADDER, NOT A `??` CHAIN. `??` only falls through on a MISSING element,
+ * so a stage anchor that exists but has collapsed (a fold in flight, a parked
+ * host) POISONED the lookup: the still-visible overview slot was never tried
+ * and the cube simply never flew. Every candidate is measured; the first one
+ * with a real box wins.
  */
-function buildSlotEl(colonyName: string, slotIndex: number): HTMLElement | null {
+function buildSlotEls(colonyName: string, slotIndex: number): Array<HTMLElement> {
   if (typeof document === 'undefined') {
-    return null;
+    return [];
   }
   const key = escapeName(colonyName + '#' + slotIndex);
-  return document.querySelector<HTMLElement>(`.con-colfocus [data-colony-build-slot="${key}"]`) ??
-    document.querySelector<HTMLElement>(`[data-colony-build-slot="${key}"]`);
+  const out: Array<HTMLElement> = [];
+  for (const sel of [`.con-colfocus [data-colony-build-slot="${key}"]`, `[data-colony-build-slot="${key}"]`]) {
+    document.querySelectorAll<HTMLElement>(sel).forEach((el) => {
+      if (!out.includes(el)) {
+        out.push(el);
+      }
+    });
+  }
+  return out;
 }
 
-/** The live rect of the build slot (post fit/zoom). */
-function measureBuildSlot(colonyName: string, slotIndex: number): BuildRect | undefined {
-  const el = buildSlotEl(colonyName, slotIndex);
-  if (el === null) {
-    return undefined;
+/**
+ * The live landing geometry (post fit/zoom).
+ *
+ * THE CUBE SEAT IS THE CONTRACT. An anchor that declares `data-colony-build-seat`
+ * IS the seated token's own box, so the flying proxy is `rect.h × 1` — it is
+ * born at the exact size it will rest at, and it centres where the real cube
+ * centres. Without it the proxy fell back to `slotHeight × CUBE_SLOT_F`, a
+ * fraction calibrated for the overview tile's 46 px cell — on the focus
+ * stage's 4.6rem berth that produced a 64 px cube flying into a 24 px seat
+ * (2.67×, a visible pop at the handoff), and it also centred on the berth
+ * RECT rather than on the cube, so the landing sat ~9 px low under the berth's
+ * name label.
+ */
+function measureBuildSlot(colonyName: string, slotIndex: number): {rect: BuildRect, cubeFactor: number} | undefined {
+  for (const el of buildSlotEls(colonyName, slotIndex)) {
+    const seat = el.hasAttribute('data-colony-build-seat') ?
+      el :
+      el.querySelector<HTMLElement>('[data-colony-build-seat]');
+    const target = seat ?? el;
+    const r = target.getBoundingClientRect();
+    if (r.width > 3 && r.height > 3) {
+      return {
+        rect: {x: r.left, y: r.top, w: r.width, h: r.height},
+        cubeFactor: seat === null ? CUBE_SLOT_F : 1,
+      };
+    }
   }
-  const r = el.getBoundingClientRect();
-  return r.width > 3 && r.height > 3 ? {x: r.left, y: r.top, w: r.width, h: r.height} : undefined;
+  return undefined;
 }
 
 /** Blank the REAL benefit glyph as the bonus leaves (the `con-deal-hold` swap
  *  discipline) — the slot is empty before the cube descends into it. */
 function blankSlotGlyph(): void {
-  const slot = buildSlotEl(colonyBuildState.colonyName, colonyBuildState.slotIndex);
-  const el = slot?.querySelector<HTMLElement>('.benefit-glyph') ?? null;
-  if (el !== null) {
-    heldGlyphEl = el;
-    el.classList.add('con-deal-hold');
+  for (const slot of buildSlotEls(colonyBuildState.colonyName, colonyBuildState.slotIndex)) {
+    const el = slot.querySelector<HTMLElement>('.benefit-glyph');
+    // The VISIBLE host's glyph is the one that must vacate — an offscreen
+    // twin's would be a no-op that costs the beat its meaning.
+    if (el !== null && el.getBoundingClientRect().width > 2) {
+      heldGlyphEl = el;
+      el.classList.add('con-deal-hold');
+      return;
+    }
   }
 }
 

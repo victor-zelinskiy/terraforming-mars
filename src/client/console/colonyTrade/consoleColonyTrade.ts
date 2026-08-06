@@ -497,16 +497,20 @@ export async function runColonyTradeRewards(): Promise<void> {
   tradeLog('chip waves start');
   const name = colonyTradeState.colonyName;
   const tileSel = `[data-test="con-colony-${name}"]`;
-  // ITERATION 2 — the trade RESOLVES ON THE FOCUS STAGE when it is up: the
-  // income launches from the stage's own «Торговая награда» group, the
-  // owners' bonus from its colony-slots block. The stage's anchors lead the
-  // selector ladder; a closed stage simply doesn't match and the wave falls
-  // back to the overview tile (the Pluto hand-discard detour case).
+  const sel = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;
+  // The trade RESOLVES ON THE FOCUS STAGE when it is up: the income launches
+  // from the stage's own TIGHT reward value and the owners' bonus from the
+  // berth zone that pays it — never from a whole panel, or the chips read as
+  // "born somewhere in that area" instead of "born from that number". The
+  // stage's anchors lead the selector ladder and are KEYED BY COLONY (the
+  // stage shows one colony, but an unkeyed match would fire for whichever it
+  // happens to be showing); a closed stage simply doesn't match and the wave
+  // falls back to the overview tile (the Pluto hand-discard detour case).
   const income = manifest.trader === viewer ? incomeTransferSpecs(manifest, ctx.targets) : [];
   if (income.length > 0) {
     await runResourceTransfers({
       specs: income,
-      source: {selectors: ['.con-colfocus [data-colony-trade-source]', `${tileSel} [data-colony-trade-source]`, tileSel]},
+      source: {selectors: [`.con-colfocus [data-colony-trade-source="${sel}"]`, `${tileSel} [data-colony-trade-source]`, tileSel]},
       arrival: 'auto',
       onArrive: releasePanelRewardHold,
     });
@@ -519,7 +523,7 @@ export async function runColonyTradeRewards(): Promise<void> {
     colonyTradeState.beat = 'bonus';
     await runResourceTransfers({
       specs: bonus,
-      source: {selectors: ['.con-colfocus [data-colony-bonus-source]', `${tileSel} [data-colony-bonus-source]`, tileSel]},
+      source: {selectors: [`.con-colfocus [data-colony-bonus-source="${sel}"]`, `${tileSel} [data-colony-bonus-source]`, tileSel]},
       arrival: 'auto',
       onArrive: releasePanelRewardHold,
     });

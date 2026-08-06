@@ -699,31 +699,36 @@ html.con-profile-tv {
         &__row { font-size: var(--con-t-secondary); }
         &__fleet-line .colony-fleet-icon { width: 1.9rem; height: 1.9rem; }
     }
-    /* The COLONY FOCUS STAGE (iteration 2) — couch typography; the geometry
+    /* The COLONY FOCUS STAGE (iteration 3) — couch typography; the geometry
        is rem and scales with the profile, only the type + hit targets move. */
     .con-colfocus {
-        &__identity { flex-basis: 21rem; }
-        &__planet { width: 10rem; height: 10rem; }
+        &__hero { flex-basis: 15rem; }
+        &__planet { width: 12rem; height: 12rem; }
         &__desc { font-size: var(--con-t-caption); -webkit-line-clamp: 5; }
         &__sec-title { font-size: var(--con-t-floor); }
+        &__zonehead-note { font-size: var(--con-t-floor); }
         &__xcell-num { font-size: var(--con-t-floor); }
         /* NOT bigger than the base: the strip's fit is a RATIO (seven cells
            in the host's width), and every part already scales with
            `--con-ui-scale`. Growing the number here re-broke the embedded
            step at 4K, where the zone is proportionally just as narrow. */
-        &__xcell-qty { font-size: .95rem; }
-        &__xcell-tag { height: 1.1rem; font-size: var(--con-t-floor); }
-        &__xcell-tag { .con-colfocus__xcell--marker & { font-size: 1rem; line-height: 1.1rem; } }
-        &__tracknote { font-size: var(--con-t-floor); }
+        &__xcell-qty { font-size: 1rem; }
+        &__resetnote { font-size: var(--con-t-caption); }
+        &__rn-label { font-size: var(--con-t-floor); }
         &__fleetline { font-size: var(--con-t-caption); }
         &__verdict { font-size: var(--con-t-secondary); }
-        &__result { flex-basis: 20rem; }
+        &__result { flex-basis: 17rem; }
         &__rsec-label { font-size: var(--con-t-floor); }
         &__rrow { font-size: var(--con-t-secondary); }
         &__rowners { font-size: var(--con-t-caption); }
         &__notice { font-size: var(--con-t-floor); }
-        &__slotszone { flex-basis: 21rem; }
-        &__bigslot { min-height: 5.4rem; }
+        &__berth { min-height: 5.8rem; }
+        &__berth-name { font-size: var(--con-t-floor); }
+        &__berth-step { font-size: var(--con-t-floor); }
+        &__ownerbonus { width: 9.5rem; }
+        &__ob-label { font-size: var(--con-t-floor); }
+        &__ob-note { font-size: var(--con-t-floor); }
+        &__rule-body span { font-size: var(--con-t-caption); }
         &__payrow { min-height: var(--con-hit-min); }
         &__payrow-title { font-size: var(--con-t-secondary); }
         &__payrow-delta { font-size: var(--con-t-caption); }

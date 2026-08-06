@@ -37,7 +37,6 @@ import {defineComponent} from 'vue';
 import {Color} from '@/common/Color';
 import {colonyBuildState, registerColonyBuildStage} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {ColonyBuildStageEls} from '@/client/console/colonyBuild/colonyBuildDirector';
-import {CUBE_SLOT_F} from '@/client/console/colonyBuild/colonyBuildModel';
 import PlayerCube from '@/client/components/PlayerCube.vue';
 
 export default defineComponent({
@@ -54,14 +53,17 @@ export default defineComponent({
     cubeColor(): Color | undefined {
       return colonyBuildState.color === '' ? undefined : colonyBuildState.color;
     },
-    /** The cube footprint in real screen px — the slot rect is already
-     *  TV-scaled + tile-fit-zoomed, so slot.h × CUBE_SLOT_F lands exactly on
-     *  the static in-cell cube's rendered size (32 logical px in the 46
-     *  logical-px cell). Fractional px on purpose: rounding would drift off
-     *  the zoomed static cube and shear the one-frame handoff. */
+    /**
+     * The cube footprint in real screen px. The captured rect is already
+     * TV-scaled + host-zoomed; `cubeFactor` says how much of it the token
+     * occupies — `1` when the host published a CUBE SEAT (the rect IS the
+     * token's box, so the proxy is born at its landing size), the legacy
+     * cell fraction otherwise. Fractional px on purpose: rounding would
+     * drift off the zoomed static cube and shear the one-frame handoff.
+     */
     cubeSize(): number {
       const r = colonyBuildState.slotRect;
-      return r === undefined ? 0 : r.h * CUBE_SLOT_F;
+      return r === undefined ? 0 : r.h * colonyBuildState.cubeFactor;
     },
     /** The captured slot rect IS the stage: the cube centres in it exactly
      *  like the static cube flex-centres in the real cell. */

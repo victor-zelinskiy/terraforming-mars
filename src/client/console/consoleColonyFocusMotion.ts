@@ -16,10 +16,17 @@
  *  · CARRY — the ONE genuinely semantic object travels: the tile's planet
  *    medallion FLIPs into the stage's hero planet (the colony itself — the
  *    subject of the decision, not a widget);
- *  · REVEAL — the stage's columns (track dossier, payment, outcome) surface
- *    from INSIDE the opened panel with a short stagger;
- *  · B reverses the same phrase: controls let go, the panel FOLDS back into
- *    the tile's rect, the planet FLIPs home, the grid breathes back.
+ *  · REVEAL — TWO WAVES, and the order is the whole point. Wave 1
+ *    (`[data-unfold-item]`) is STRUCTURE: the return-base rail, the berths,
+ *    the configuration and the result panel surface from INSIDE the opened
+ *    surface while the carry is still settling. Wave 2 (`[data-unfold-late]`)
+ *    is the FINE PRINT — labels, numbers, notes, the verdict — and it starts
+ *    only once the geometry has stopped moving. Space, then objects, then
+ *    words; a word that is legible while its panel is still opening is what
+ *    made the old entrance read as "a page that was already there";
+ *  · B reverses the same phrase: the fine print lets go first, then the
+ *    structure, then the panel FOLDS back into the tile's rect, the planet
+ *    FLIPs home and the grid breathes back.
  *
  * The CONFIRM path deliberately reuses the same fold (`focusConfirmLeave`
  * marker): the stage folds back into the traded tile — the very tile the
@@ -54,17 +61,39 @@ import {
 } from '@/client/console/surfaceMotion/workspaceDescend';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
+//
+// THE ORDER IS THE POINT: space first, objects second, words last. Every
+// number below serves that sentence — the surface has to have finished
+// opening before a single label is legible, or the scene reads as a page that
+// was already there and merely appeared. (It used to: the stage published no
+// `[data-unfold-item]` at all, so the REVEAL beat animated nothing and every
+// word was at full opacity from the first frame while the panel was still
+// clipped to a tile-sized window. That is the "резко / текст сразу" the
+// rework had to remove.)
 
-const RELEASE_MS = 110;
-const BROWSE_OUT_MS = 170;
-const BROWSE_IN_MS = 180;
-const UNFOLD_MS = 270;
-const FOLD_MS = 200;
-const CASCADE_MS = 170;
-const CASCADE_OUT_MS = 90;
-const PLANET_FLIP_MS = 300;
-const PLANET_FLIP_BACK_MS = 240;
-const UNFOLD_AT_MS = 60;
+const RELEASE_MS = 120;
+const BROWSE_OUT_MS = 190;
+const BROWSE_IN_MS = 200;
+const UNFOLD_MS = 360;
+const FOLD_MS = 220;
+/** Wave 1 — the structural groups surface from inside the opened panel. */
+const REVEAL_MS = 230;
+const REVEAL_STAGGER_S = 0.05;
+/** Wave 2 — the FINE PRINT. Deliberately later, softer and slower: numbers
+ *  and labels are the last thing to arrive, never the first. */
+const LATE_MS = 280;
+const LATE_STAGGER_S = 0.028;
+/** The whole late wave never spreads wider than this (see `lateStagger`). */
+const LATE_SPREAD_S = 0.26;
+const CASCADE_OUT_MS = 100;
+const PLANET_FLIP_MS = 380;
+const PLANET_FLIP_BACK_MS = 250;
+const UNFOLD_AT_MS = 70;
+/** When each beat starts (base ms from the press). */
+const CARRY_TRACK_AT_MS = 110;
+const CARRY_SLOTS_AT_MS = 150;
+const REVEAL_AT_MS = 250;
+const LATE_AT_MS = 410;
 
 // ── the armed origins ───────────────────────────────────────────────────────
 
@@ -145,8 +174,21 @@ function heroSlotsOf(el: Element): HTMLElement | null {
   return el.querySelector<HTMLElement>('[data-colony-focus-slots]');
 }
 
+/** WAVE 1 — the structural groups (panels, rails, rows of real objects). */
 function cascadeItemsOf(el: Element): Array<HTMLElement> {
   return Array.from(el.querySelectorAll<HTMLElement>('[data-unfold-item]'));
+}
+
+/** WAVE 2 — the FINE PRINT (labels, numbers, notes, verdict). Nested inside
+ *  a wave-1 group is fine and common: the group's own fade is already over
+ *  by the time this starts, so the two never fight for the same pixels. */
+function cascadeLateOf(el: Element): Array<HTMLElement> {
+  return Array.from(el.querySelectorAll<HTMLElement>('[data-unfold-late]'));
+}
+
+/** Everything the entrance hides — restored together on any abort. */
+function revealablesOf(el: Element): Array<HTMLElement> {
+  return [...cascadeItemsOf(el), ...cascadeLateOf(el)];
 }
 
 /** A hidden section (embedded teardown / v-show'd host) has no live geometry. */
@@ -171,6 +213,7 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
   const surface = surfaceOf(el);
   const heroPlanet = heroPlanetOf(el);
   const items = cascadeItemsOf(el);
+  const late = cascadeLateOf(el);
   const content = tileContentOf(el);
   const tilePlanet = tilePlanetOf(el);
 
@@ -189,11 +232,27 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
     return;
   }
 
+  // NOTHING SECONDARY IS PAINTED BEFORE ITS BEAT. The hooks run in the same
+  // task as the insert (`:css="false"`), so hiding here happens BEFORE the
+  // first paint — the player never sees a fully-drawn page get clipped open
+  // around it.
+  if (items.length > 0) {
+    gsap.set(items, {autoAlpha: 0});
+  }
+  if (late.length > 0) {
+    gsap.set(late, {autoAlpha: 0});
+  }
+
   const pressPoint = takeDescendOrigin(COLONY_PRESS_KEY);
   const planetRect = takeDescendRect(PLANET_KEY);
   const trackRect = takeDescendRect(TRACK_KEY);
   const slotsRect = takeDescendRect(SLOTS_KEY);
-  guardedDescend(el, UNFOLD_AT_MS + PLANET_FLIP_MS + 140, done, (finish) => {
+  // The stagger is a RHYTHM, not a queue: a colony with many labels must not
+  // make the entrance longer than one with few. Cap the whole late wave's
+  // spread, so the last word always arrives within the same beat.
+  const lateStagger = Math.min(LATE_STAGGER_S, LATE_SPREAD_S / Math.max(1, late.length));
+  const totalMs = LATE_AT_MS + LATE_MS + Math.round(late.length * lateStagger * 1000) + 120;
+  guardedDescend(el, totalMs, done, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
     // 1. RELEASE — the pressed tile's own content dissolves where it stands.
     descendRelease(tl, content, s(RELEASE_MS), 0);
@@ -207,20 +266,22 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
       descendRecede(tl, browse, pressPoint, s(BROWSE_OUT_MS), s(40));
     }
     // 3. UNFOLD — the stage surface opens FROM the tile's rect; the carried
-    //    identities share the window so it all reads as ONE phrase.
+    //    identities share the window so it all reads as ONE phrase. The
+    //    opening is deliberately the LONGEST beat in the phrase: it is the
+    //    physical move the whole entrance is about.
     const unfolded = surface !== null &&
       descendUnfold(tl, surface, tileRect, s(UNFOLD_MS), s(UNFOLD_AT_MS), tileRadius);
     if (surface !== null && !unfolded) {
       tl.fromTo(surface,
         {autoAlpha: 0},
-        {autoAlpha: 1, duration: s(CASCADE_MS), ease: 'expo.out', clearProps: 'opacity,visibility'}, s(UNFOLD_AT_MS));
+        {autoAlpha: 1, duration: s(REVEAL_MS), ease: 'expo.out', clearProps: 'opacity,visibility'}, s(UNFOLD_AT_MS));
     }
     // 4. CARRY — the colony's three physical identities FLIP from their
     //    compact overview forms into the expanded ones: the planet medallion
     //    → the hero planet, the 7-cell strip → the expanded track, the build
-    //    row → the big slots (the player tokens ride inside them). Each is
+    //    row → the big berths (the player tokens ride inside them). Each is
     //    the SAME object growing, never a new frame over an old one.
-    const carry = (target: HTMLElement | null, fromRect: Rect | undefined, atS: number) => {
+    const carry = (target: HTMLElement | null, fromRect: Rect | undefined, atS: number, durMs: number) => {
       if (target === null) {
         return;
       }
@@ -228,18 +289,23 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
       if (from !== undefined) {
         tl.fromTo(target,
           {x: from.x, y: from.y, scale: from.scale, transformOrigin: 'top left'},
-          {x: 0, y: 0, scale: 1, duration: s(PLANET_FLIP_MS), ease: 'power3.inOut', clearProps: 'transform', overwrite: 'auto'}, atS);
+          {x: 0, y: 0, scale: 1, duration: s(durMs), ease: 'power3.inOut', clearProps: 'transform', overwrite: 'auto'}, atS);
       } else {
         tl.fromTo(target,
           {autoAlpha: 0, scale: 0.94, transformOrigin: '50% 50%'},
-          {autoAlpha: 1, scale: 1, duration: s(CASCADE_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility', overwrite: 'auto'}, atS);
+          {autoAlpha: 1, scale: 1, duration: s(REVEAL_MS), ease: 'expo.out', clearProps: 'transform,opacity,visibility', overwrite: 'auto'}, atS);
       }
     };
-    carry(heroPlanet, planetRect, 0);
-    carry(heroTrackOf(el), trackRect, s(30));
-    carry(heroSlotsOf(el), slotsRect, s(50));
-    // 5. REVEAL — the stage's remaining groups surface from INSIDE the panel.
-    descendCascade(tl, items, s(CASCADE_MS), s(UNFOLD_AT_MS + 90));
+    carry(heroPlanet, planetRect, s(UNFOLD_AT_MS), PLANET_FLIP_MS);
+    carry(heroTrackOf(el), trackRect, s(CARRY_TRACK_AT_MS), PLANET_FLIP_MS - 20);
+    carry(heroSlotsOf(el), slotsRect, s(CARRY_SLOTS_AT_MS), PLANET_FLIP_MS - 40);
+    // 5. REVEAL — the structural groups surface from INSIDE the opened panel,
+    //    while the carry is still settling: space, then objects.
+    descendCascade(tl, items, s(REVEAL_MS), s(REVEAL_AT_MS), REVEAL_STAGGER_S);
+    // 6. THE FINE PRINT LAST. By the time a label is legible the geometry it
+    //    belongs to has already stopped moving — this is the whole difference
+    //    between "the scene opened" and "a page appeared".
+    descendCascade(tl, late, s(LATE_MS), s(LATE_AT_MS), lateStagger);
     return tl;
   });
 }
@@ -258,6 +324,7 @@ export function colonyFocusLeaveHook(el: Element, done: () => void): void {
   const surface = surfaceOf(el);
   const heroPlanet = heroPlanetOf(el);
   const items = cascadeItemsOf(el);
+  const late = cascadeLateOf(el);
   const content = tileContentOf(el);
   const tilePlanet = tilePlanetOf(el);
   const home = unfoldedFrom;
@@ -281,8 +348,12 @@ export function colonyFocusLeaveHook(el: Element, done: () => void): void {
   const foldMs = FOLD_MS;
   guardedDescend(el, Math.max(PLANET_FLIP_BACK_MS, foldMs) + 160, done, (finish) => {
     const tl = gsap.timeline({onComplete: finish});
-    // 1. The controls let go in place.
-    descendCascadeOut(tl, items, s(CASCADE_OUT_MS), 0);
+    // 1. The controls let go in place — the FINE PRINT first, exactly the
+    //    reverse of the way it arrived, so the panel is already wordless by
+    //    the time it starts folding (a fold with live text reads as a screen
+    //    being yanked away).
+    descendCascadeOut(tl, late, s(CASCADE_OUT_MS), 0);
+    descendCascadeOut(tl, items, s(CASCADE_OUT_MS), s(40));
     // The single physical object: the stage's planet goes dark the moment its
     // browse twin starts flying home.
     if (heroPlanet !== null) {
@@ -333,12 +404,24 @@ function restoreBrowse(el: Element): void {
 /** Cancelled-pair hooks (the surface-motion idiom). */
 export function colonyFocusEnterCancelledHook(el: Element): void {
   killDescendEpisode(el);
+  // A killed timeline never runs its `clearProps`, so the two reveal waves
+  // would stay at `autoAlpha: 0` for the stage's whole life — an entrance
+  // that is interrupted must not cost the player the content.
+  const hidden = revealablesOf(el);
+  if (hidden.length > 0) {
+    gsap.set(hidden, {clearProps: 'transform,opacity,visibility'});
+  }
 }
 
 export function colonyFocusLeaveCancelledHook(el: Element): void {
   killDescendEpisode(el);
-  // A cancelled leave means the stage STAYS — re-park the browse layer, the
-  // released tile content and the planet (the enter hook's end state).
+  // A cancelled leave means the stage STAYS — restore what the fold had
+  // started to let go, then re-park the browse layer, the released tile
+  // content and the planet (the enter hook's end state).
+  const hidden = revealablesOf(el);
+  if (hidden.length > 0) {
+    gsap.set(hidden, {clearProps: 'transform,opacity,visibility'});
+  }
   const browse = browseOf(el);
   if (browse !== null) {
     descendParkLayer(browse);

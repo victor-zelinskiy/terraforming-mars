@@ -550,5 +550,10 @@
     "Gamepad button map": "Схема кнопок геймпада",
     "Connection, versions, display": "Соединение, версии, дисплей",
     "The game will be saved": "Партия сохранится",
-    "Close this menu": "Закрыть меню"
+    "Close this menu": "Закрыть меню",
+
+    "Built here": "Построено здесь",
+    "Track returns to": "Трек вернётся на",
+    "Colony berths": "Места колоний",
+    "Each colony raises the return by one": "Каждая колония поднимает точку возврата на 1"
 }

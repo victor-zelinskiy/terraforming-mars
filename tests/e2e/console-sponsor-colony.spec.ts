@@ -76,7 +76,7 @@ async function surfaces(page: Page) {
       /** start ⊃ hand ⊃ colonies — the teleport chain, structurally. */
       tripleNested: document.querySelector('.con-start .con-hand .con-colonies') !== null,
       focusUp: vis('.con-colfocus'),
-      destRing: document.querySelectorAll('.con-colfocus__bigslot--dest').length,
+      destRing: document.querySelectorAll('.con-colfocus__berth--dest').length,
       // Parent isolation:
       journeyRails: document.querySelectorAll('.con-start .con-jrail').length,
       awaitPanel: document.querySelectorAll('.con-start__await').length,
@@ -89,7 +89,7 @@ async function surfaces(page: Page) {
         Math.round(fleetsHost.getBoundingClientRect().right - fleets.getBoundingClientRect().right) : -1,
       queueUp: vis('.con-start__queuecol') || document.querySelectorAll('.con-start [data-queue-slot]').length > 0,
       cubeFlying: document.querySelectorAll('.con-colonybuild__cube').length,
-      stageCubes: document.querySelectorAll('.con-colfocus__bigslot .player-cube').length,
+      stageCubes: document.querySelectorAll('.con-colfocus__berth-seat .player-cube').length,
       legacyModal: document.querySelectorAll('.wf-modal, .waitingfor-modal').length,
       /** The central ask banner must not repaint over the host's crumb: an
        *  embedded step IS the surface the prompt is answered on. */

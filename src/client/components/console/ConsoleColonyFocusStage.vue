@@ -1,243 +1,228 @@
 <template>
   <!--
-    COLONY FOCUS STAGE (iteration 2 — the premium action surface). The
+    COLONY FOCUS STAGE (iteration 3 — the premium detail scene). The
     workspace's DEEPER state for ONE colony; the crumb above already says
     «КОЛОНИИ › <colony> › <этап>», so the stage never titles itself.
 
-    COMPOSITION — one surface, three physical bands:
-      TOP    identity (planet hero + effect + fleet line)
-             · the EXPANDED TRADE TRACK (the overview strip's language, grown:
-               position number, reward value + icon under every cell, the live
-               marker, the read-here accent)
-             · the ACTION RESULT, grouped BY SOURCE (trade reward / owners'
-               bonus / extra effects / payment total — or the build grant /
-               the new colony / the future owner bonus).
-      MID    the COLONY SLOTS (three physical berths with the real player
-             tokens, owner names, the build DESTINATION ring)
-             · the ACTION CONFIGURATION (payment paths + decisions for trade;
-               the confirm brief for build/pick; nothing for inspect — the
-               informational sections take the room instead).
+    COMPOSITION — ONE surface, three columns, read left → right:
+
+      HERO      the colony as a physical object: the big planet with its
+                orbital berth (the fleet's live landing anchor), the active
+                state, what the colony IS, who is parked here, and the honest
+                verdict beside the identity it judges.
+
+      MAIN      the GAME OBJECT, top to bottom:
+                · the EXPANDED TRADE TRACK — one big cell per position with
+                  its reward, and a real marker SEAT on a rail underneath
+                  (the seat is what the glide proxy lands on, so the flying
+                  marker is the same size as the resting one);
+                · the RETURN BASE — the rule made visible: a bracket from
+                  position 1 to the built-colony count with the ⟲ anchor
+                  under the exact cell the track falls back to, the built
+                  cubes inline, and (in build mode) the +1 ghost one cell
+                  further right;
+                · the COLONY BERTHS — three real places, each carrying the
+                  return step it would buy («⟲ 2/3/4»), so «building raises
+                  my trade floor» is read, never deduced;
+                · the ACTION CONFIGURATION (payment paths + decisions for
+                  trade; the confirm brief for build/pick; the colony's own
+                  rules for inspect — never an empty payment skeleton).
+
+      RESULT    the outcome grouped BY SOURCE, one card per source: the trade
+                reward / the owners' bonus / extras / payment — or the build
+                grant / the new colony / the future owner bonus.
+
       (The command verbs live ONLY in the shell's bottom bar.)
 
-    RESOLUTION HAPPENS HERE (iteration 2): the hero planet carries the live
-    `data-fleet-berth`, the expanded track carries the live
-    `data-colony-track-cell` anchors, the result groups carry the
-    `data-colony-trade-source` / `data-colony-bonus-source` launch cells and
-    the big slots carry `data-colony-build-slot` — the existing trade-fleet /
-    reward / track-glide / build-cube directors land on THIS stage while it
-    is up (they pick the VISIBLE anchor; the parked overview tile is the
-    fallback when the stage is closed).
+    RESOLUTION HAPPENS HERE: the hero planet carries the live
+    `data-fleet-berth`, every track cell's SEAT carries
+    `data-colony-track-cell`, the tight reward values carry
+    `data-colony-trade-source` / `data-colony-bonus-source` and each berth's
+    cube seat carries `data-colony-build-slot` + `data-colony-build-seat` —
+    so the fleet, the reward chips, the marker glide and the build cube all
+    land on THIS stage at THIS stage's real geometry.
+
+    MOTION: `data-unfold-item` marks the structural groups (they surface from
+    inside the opened panel) and `data-unfold-late` the FINE PRINT — text and
+    numbers arrive only once the geometry has settled (consoleColonyFocusMotion).
   -->
-  <div class="con-colfocus" :class="['con-colfocus--' + presentMode, {'con-colfocus--resolving': resolving}]"
+  <div class="con-colfocus"
+       :class="['con-colfocus--' + presentMode, {
+         'con-colfocus--resolving': resolving,
+         'con-colfocus--gliding': trackGliding,
+       }]"
        :data-colony-intent="intent">
     <div class="con-colfocus__surface" data-unfold-surface>
-      <!-- ═══ TOP BAND — identity · expanded track · result ═══ -->
-      <div class="con-colfocus__top">
-        <!-- ── IDENTITY — the colony as a physical object. ── -->
-        <section class="con-colfocus__identity">
-          <div class="con-colfocus__planetwrap">
-            <div class="con-colfocus__planet" :class="planetClass" data-colony-focus-planet aria-hidden="true">
-              <span class="con-colfocus__planet-light" aria-hidden="true"></span>
-              <!-- The ORBITAL BERTH — the live landing anchor of the trade
-                   fleet while the stage is up (same data key as the tile's
-                   dock; the directors take the VISIBLE match). -->
-              <span class="con-colfocus__orbit"
-                    :data-fleet-berth="colony.name"
-                    :class="colony.visitor !== undefined ? ['con-colfocus__orbit--occupied', 'fleet-hue--' + colony.visitor] : []"
-                    aria-hidden="true">
-                <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
-              </span>
-            </div>
-            <span class="con-colfocus__state" :class="colony.isActive ? 'con-colfocus__state--on' : 'con-colfocus__state--off'">
-              {{ $t(colony.isActive ? 'Active' : 'Not active yet') }}
+      <!-- ═══ HERO — the colony as a physical object ═══ -->
+      <section class="con-colfocus__hero">
+        <div class="con-colfocus__planetwrap">
+          <div class="con-colfocus__planet" :class="planetClass" data-colony-focus-planet aria-hidden="true">
+            <span class="con-colfocus__planet-light" aria-hidden="true"></span>
+            <span class="con-colfocus__planet-rim" aria-hidden="true"></span>
+            <!-- The ORBITAL BERTH — the live landing anchor of the trade
+                 fleet while the stage is up (same data key as the tile's
+                 dock; the directors prefer the stage's match). -->
+            <span class="con-colfocus__orbit"
+                  :data-fleet-berth="colony.name"
+                  :class="colony.visitor !== undefined ? ['con-colfocus__orbit--occupied', 'fleet-hue--' + colony.visitor] : []"
+                  aria-hidden="true">
+              <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
             </span>
           </div>
-          <div class="con-colfocus__idmeta">
-            <div class="con-colfocus__desc" v-i18n>{{ metadata.trade.description }}</div>
-            <div v-if="visitorLine !== ''" class="con-colfocus__fleetline">
-              <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
-              <span>{{ visitorLine }}</span>
-            </div>
-            <!-- The honest verdict, beside the identity it judges — inline,
-                 never a stranded red bar at the bottom of an empty page. -->
-            <div class="con-colfocus__verdict"
-                 :class="presentAvailable ? 'con-colfocus__verdict--ok' : 'con-colfocus__verdict--no'">
-              <template v-if="presentAvailable">
-                <span class="con-coltile__status-dot" aria-hidden="true"></span>
-                <span>{{ $t(intent === 'build' ? 'Build here' : intent === 'pick' ? (pickLabel || 'Can select') : 'Trade available') }}</span>
-              </template>
-              <template v-else>
-                <span aria-hidden="true">✕</span>
-                <span>{{ blockReason !== '' ? $t(blockReason) : $t('Trade unavailable') }}</span>
-              </template>
-            </div>
+          <span class="con-colfocus__state" :class="colony.isActive ? 'con-colfocus__state--on' : 'con-colfocus__state--off'"
+                data-unfold-late>
+            {{ $t(colony.isActive ? 'Active' : 'Not active yet') }}
+          </span>
+        </div>
+        <div class="con-colfocus__idmeta" data-unfold-late>
+          <div class="con-colfocus__desc" v-i18n>{{ metadata.trade.description }}</div>
+          <div v-if="visitorLine !== ''" class="con-colfocus__fleetline">
+            <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
+            <span>{{ visitorLine }}</span>
           </div>
-        </section>
+        </div>
+        <!-- The honest verdict, under the identity it judges — never a
+             stranded red bar at the bottom of an empty page. -->
+        <div class="con-colfocus__verdict"
+             :class="presentAvailable ? 'con-colfocus__verdict--ok' : 'con-colfocus__verdict--no'"
+             data-unfold-late>
+          <template v-if="presentAvailable">
+            <span class="con-coltile__status-dot" aria-hidden="true"></span>
+            <span>{{ $t(intent === 'build' ? 'Build here' : intent === 'pick' ? (pickLabel || 'Can select') : 'Trade available') }}</span>
+          </template>
+          <template v-else>
+            <span aria-hidden="true">✕</span>
+            <span>{{ blockReason !== '' ? $t(blockReason) : $t('Trade unavailable') }}</span>
+          </template>
+        </div>
+      </section>
 
-        <!-- ── THE EXPANDED TRADE TRACK — the overview strip, grown into a
-             full game component: one cell per position, the reward VALUE and
-             ICON under each, the live marker and the read-here accent. The
-             cells are the LIVE glide anchors while the stage is up. ── -->
+      <!-- ═══ MAIN — the game object: track › return base › berths › setup ═══ -->
+      <div class="con-colfocus__main">
+        <!-- ── THE EXPANDED TRADE TRACK. One big cell per position with its
+             reward; the MARKER RAIL underneath carries a real seat per cell —
+             the seat is the glide anchor, so the flying marker is exactly the
+             size of the resting one and lands on it, not beside it. ── -->
         <section class="con-colfocus__trackzone">
-          <div class="con-colfocus__sec-title">{{ $t('Trade track') }}</div>
-          <div class="con-colfocus__xtrack" data-colony-focus-track aria-hidden="false">
+          <header class="con-colfocus__zonehead" data-unfold-late>
+            <span class="con-colfocus__sec-title">{{ $t('Trade track') }}</span>
+            <span v-if="offsetSteps > 0" class="con-colfocus__tracknote-adv">
+              {{ $t('Your trade advances the track first') }} <b>+{{ offsetSteps }}</b>
+            </span>
+            <!-- THE RULE IN WORDS, on the line that names the object it
+                 governs — the rail below draws the same sentence. -->
+            <span class="con-colfocus__resetnote">
+              <span class="con-colfocus__resetnote-built">
+                <span class="con-colfocus__rn-label">{{ $t('Built here') }}</span>
+                <span v-if="builtCount > 0" class="con-colfocus__rn-cubes">
+                  <PlayerCube v-for="(c, i) in colony.colonies" :key="'b' + i" :color="c" :size="11" />
+                </span>
+                <b>{{ builtCount }}</b>
+              </span>
+              <span class="con-colfocus__rn-arrow" aria-hidden="true">→</span>
+              <span class="con-colfocus__resetnote-target">
+                <span class="con-colfocus__rn-label">{{ $t('Track returns to') }}</span>
+                <b class="con-colfocus__rn-pos">{{ resetPosition + 1 }}</b>
+                <em v-if="buildPreview">→ <b>{{ resetPositionAfterBuild + 1 }}</b></em>
+              </span>
+            </span>
+          </header>
+
+          <div class="con-colfocus__xtrack" data-colony-focus-track>
             <div v-for="cell in trackCells" :key="cell.index"
                  class="con-colfocus__xcell"
-                 :data-colony-track-cell="colony.name + '#' + cell.index"
                  :class="{
                    'con-colfocus__xcell--marker': cell.marker,
                    'con-colfocus__xcell--effective': cell.effective,
                    'con-colfocus__xcell--passed': cell.passed,
+                   'con-colfocus__xcell--reset': cell.reset,
+                   'con-colfocus__xcell--settled': cell.index === settledCell,
                  }">
               <span class="con-colfocus__xcell-num">{{ cell.index + 1 }}</span>
               <span class="con-colfocus__xcell-body">
-                <b v-if="cell.quantity > 0" class="con-colfocus__xcell-qty">{{ cell.quantity }}</b>
-                <span v-else class="con-colfocus__xcell-void">—</span>
                 <span class="con-colfocus__xcell-glyph">
                   <BenefitGlyph :benefit="tradeBenefitAt(cell.index)" :idx="cell.index" :cardResource="metadata.cardResource" />
                 </span>
+                <b v-if="cell.quantity > 0" class="con-colfocus__xcell-qty">{{ cell.quantity }}</b>
+                <span v-else class="con-colfocus__xcell-void">—</span>
               </span>
-              <span class="con-colfocus__xcell-tag">
-                <template v-if="cell.marker">▲</template>
-                <template v-else-if="cell.effective">{{ $t('Trade reads here') }}</template>
+              <!-- THE MARKER RAIL SEAT — the glide's landing geometry. -->
+              <span class="con-colfocus__xcell-rail" aria-hidden="true">
+                <span class="con-colfocus__xcell-seat"
+                      :data-colony-track-cell="colony.name + '#' + cell.index"></span>
               </span>
             </div>
           </div>
-          <div class="con-colfocus__tracknote">
-            <span v-if="offsetSteps > 0" class="con-colfocus__tracknote-adv">{{ $t('Your trade advances the track first') }} (+{{ offsetSteps }})</span>
-            <span>{{ $t('The track resets to the built-colony count after a trade') }}</span>
+
+          <!-- ── THE RETURN BASE — the colony-count rule, drawn. The bracket
+               runs from position 1 to the built-colony count and plants the
+               ⟲ anchor under the EXACT cell the marker falls back to; a build
+               preview extends a ghost one cell further. ── -->
+          <div class="con-colfocus__resetrail" data-unfold-item aria-hidden="true">
+            <span v-for="cell in trackCells" :key="'r' + cell.index"
+                  class="con-colfocus__rrcell"
+                  :class="{
+                    'con-colfocus__rrcell--base': cell.index <= resetPosition,
+                    'con-colfocus__rrcell--anchor': cell.index === resetPosition,
+                    'con-colfocus__rrcell--ghost': buildPreview && cell.index === resetPositionAfterBuild,
+                    'con-colfocus__rrcell--span': trackWillReset && cell.index > resetPosition && cell.index <= markerPosition,
+                  }">
+              <span class="con-colfocus__rr-line"></span>
+              <span v-if="cell.index === resetPosition" class="con-colfocus__rr-anchor">⟲</span>
+              <span v-else-if="buildPreview && cell.index === resetPositionAfterBuild" class="con-colfocus__rr-ghost">+1</span>
+            </span>
           </div>
+
         </section>
 
-        <!-- ── THE ACTION RESULT — authoritative, grouped BY SOURCE. ── -->
-        <section class="con-colfocus__result">
-          <div class="con-colfocus__sec-title">{{ $t(resultTitle) }}</div>
-
-          <!-- TRADE / INSPECT: the income (launches from HERE), the owners'
-               bonus (launches from the slots block), extras, payment total. -->
-          <template v-if="intent !== 'build'">
-            <div class="con-colfocus__rsec" :data-colony-trade-source="anchorsLive ? colony.name : undefined">
-              <div class="con-colfocus__rsec-label">{{ $t(presentAvailable && intent !== 'pick' ? 'Trade reward here' : 'On the current level') }}</div>
-              <div class="con-colfocus__rrow con-colfocus__rrow--gain">
-                <b v-if="focusedReward.quantity > 0">+{{ focusedReward.quantity }}</b>
-                <span class="con-colfocus__rglyph">
-                  <BenefitGlyph :benefit="tradeBenefitAt(effectivePosition)" :idx="effectivePosition" :cardResource="metadata.cardResource" />
-                </span>
-                <em v-if="tradeGainDelta !== ''">{{ tradeGainDelta }}</em>
-              </div>
-              <div v-if="resourceLost" class="con-colfocus__notice con-colfocus__notice--warn">
-                <span aria-hidden="true">⚠</span>
-                <span>{{ $t('Resource will be lost — no card') }}</span>
-              </div>
-              <div v-for="line in targetOutcomeLines" :key="line.key" class="con-colfocus__rrow con-colfocus__rrow--target">
-                <i v-if="line.iconClass !== ''" :class="line.iconClass" aria-hidden="true"></i>
-                <span class="con-colfocus__rrow-card">{{ $t(line.card) }}</span>
-                <em>{{ line.before }} → {{ line.after }}</em>
-              </div>
-            </div>
-
-            <div class="con-colfocus__rsec">
-              <div class="con-colfocus__rsec-label">{{ $t('To the owners') }}</div>
-              <div v-if="owners.length > 0" class="con-colfocus__rrow con-colfocus__rrow--gain">
-                <b v-if="focusedBonusQty > 0">+{{ focusedBonusQty }}</b>
-                <span class="con-colfocus__rglyph">
-                  <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
-                </span>
-                <span class="con-colfocus__rowners">
-                  <span v-for="owner in owners" :key="owner.color" class="con-colfocus__rowner">
-                    <span :class="'con-status__dot player_bg_color_' + owner.color"></span>
-                    <span>{{ owner.name }}</span><span v-if="owner.count > 1"> ×{{ owner.count }}</span>
-                  </span>
-                </span>
-              </div>
-              <div v-else class="con-colfocus__muted">{{ $t('No colonies built here yet') }}</div>
-            </div>
-
-            <div v-if="noticeRows.length > 0" class="con-colfocus__rsec">
-              <div class="con-colfocus__rsec-label">{{ $t('Extras') }}</div>
-              <div v-for="(notice, i) in noticeRows" :key="'n' + i"
-                   class="con-colfocus__notice" :class="'con-colfocus__notice--' + notice.tone">
-                <span aria-hidden="true">{{ notice.tone === 'warn' ? '!' : '›' }}</span>
-                <i v-if="notice.iconClass !== ''" :class="notice.iconClass" aria-hidden="true"></i>
-                <span>{{ notice.text }}</span>
-              </div>
-            </div>
-
-            <div v-if="intent === 'trade' && presentAvailable && outcome.cost.length > 0" class="con-colfocus__rsec con-colfocus__rsec--pay">
-              <div class="con-colfocus__rsec-label">{{ $t('Payment') }}</div>
-              <div v-for="(chip, k) in outcome.cost" :key="'c' + k" class="con-colfocus__rrow con-colfocus__rrow--cost">
-                <i v-if="chip.icon" :class="chipIconClass(chip)" aria-hidden="true"></i>
-                <b>−{{ chip.amount }}</b>
-                <em v-if="chip.current !== undefined">{{ chip.current }} → {{ chip.resulting }}</em>
-              </div>
-            </div>
-          </template>
-
-          <!-- BUILD: the placement grant, the new colony, the future bonus. -->
-          <template v-else>
-            <div class="con-colfocus__rsec" :data-colony-trade-source="anchorsLive ? colony.name : undefined">
-              <div class="con-colfocus__rsec-label">{{ $t('Build grant') }}</div>
-              <div v-if="buildQty > 0" class="con-colfocus__rrow con-colfocus__rrow--gain">
-                <b>+{{ buildQty }}</b>
-                <span class="con-colfocus__rglyph">
-                  <BenefitGlyph :benefit="buildBenefit" :idx="nextBuildSlot" :cardResource="metadata.cardResource" />
-                </span>
-              </div>
-              <div v-else class="con-colfocus__muted">{{ $t('No placement bonus') }}</div>
-              <div v-if="buildLost" class="con-colfocus__notice con-colfocus__notice--warn">
-                <span aria-hidden="true">⚠</span>
-                <span>{{ $t('Resource will be lost — no card') }}</span>
-              </div>
-            </div>
-            <div class="con-colfocus__rsec">
-              <div class="con-colfocus__rsec-label">{{ $t('New colony') }}</div>
-              <div class="con-colfocus__rrow">
-                <PlayerCube v-if="viewerColor !== undefined" class="con-colfocus__rcube" :color="viewerColor" :size="16" />
-                <span>{{ $t('Slot') }} {{ nextBuildSlot + 1 }}</span>
-              </div>
-            </div>
-            <div class="con-colfocus__rsec">
-              <div class="con-colfocus__rsec-label">{{ $t('Future owner bonus') }}</div>
-              <div class="con-colfocus__rrow con-colfocus__rrow--gain">
-                <b v-if="focusedBonusQty > 0">+{{ focusedBonusQty }}</b>
-                <span class="con-colfocus__rglyph">
-                  <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
-                </span>
-                <em>{{ $t('Each trade here') }}</em>
-              </div>
-            </div>
-          </template>
-        </section>
-      </div>
-
-      <!-- ═══ MID BAND — colony slots · action configuration ═══ -->
-      <div class="con-colfocus__mid">
-        <!-- ── THE COLONY SLOTS — three physical berths. The real player
-             tokens seat here (the same premium 3D cubes); the build
-             DESTINATION carries a ring; the big slots are the LIVE build-cube
-             landing anchors and the owners'-bonus launch cell. ── -->
-        <section class="con-colfocus__slotszone" :data-colony-bonus-source="anchorsLive ? colony.name : undefined">
-          <div class="con-colfocus__sec-title">{{ $t('Build a colony') }}</div>
-          <div class="con-colfocus__bigslots" data-colony-focus-slots>
+        <!-- ── THE COLONY BERTHS — three real places. Each carries the RETURN
+             STEP it would buy, which is what makes «build raises my trade
+             floor» readable instead of deducible. The cube SEAT is both the
+             build-cube landing anchor and the owner-bonus launch cell. ── -->
+        <section class="con-colfocus__berthzone">
+          <header class="con-colfocus__zonehead" data-unfold-late>
+            <span class="con-colfocus__sec-title">{{ $t('Colony berths') }}</span>
+            <span class="con-colfocus__zonehead-note">{{ $t('Each colony raises the return by one') }}</span>
+          </header>
+          <div class="con-colfocus__berths" data-colony-focus-slots data-unfold-item>
             <div v-for="idx in [0, 1, 2]" :key="idx"
-                 class="con-colfocus__bigslot"
-                 :data-colony-build-slot="anchorsLive ? colony.name + '#' + idx : undefined"
+                 class="con-colfocus__berth"
                  :class="{
-                   'con-colfocus__bigslot--taken': colony.colonies[idx] !== undefined,
-                   'con-colfocus__bigslot--dest': intent === 'build' && presentAvailable && idx === nextBuildSlot,
+                   'con-colfocus__berth--taken': colony.colonies[idx] !== undefined,
+                   'con-colfocus__berth--mine': colony.colonies[idx] === viewerColor,
+                   'con-colfocus__berth--dest': buildPreview && idx === nextBuildSlot,
                  }">
-              <PlayerCube v-if="colony.colonies[idx] !== undefined" :color="colony.colonies[idx]" :size="24" />
-              <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResource="metadata.cardResource" />
-              <span class="con-colfocus__bigslot-name">
+              <span class="con-colfocus__berth-seat"
+                    :data-colony-build-slot="colony.name + '#' + idx"
+                    data-colony-build-seat
+                    :data-colony-bonus-source="colony.colonies[idx] !== undefined ? colony.name : undefined">
+                <PlayerCube v-if="colony.colonies[idx] !== undefined" :color="colony.colonies[idx]" :size="44" />
+                <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResource="metadata.cardResource" />
+              </span>
+              <span class="con-colfocus__berth-name" data-unfold-late>
                 {{ colony.colonies[idx] !== undefined ? ownerNameAt(idx) : $t('Open berth') }}
               </span>
+              <span class="con-colfocus__berth-step" data-unfold-late>⟲ {{ Math.min(idx + 1, trackMax) + 1 }}</span>
+            </div>
+            <!-- The OWNER BONUS belongs to this zone: it is what the berths
+                 pay out, so it stands beside them and not in a far column. -->
+            <div class="con-colfocus__ownerbonus"
+                 :data-colony-bonus-source="owners.length === 0 ? colony.name : undefined">
+              <span class="con-colfocus__ob-label" data-unfold-late>{{ $t('Owner bonus') }}</span>
+              <span class="con-colfocus__ob-value">
+                <b v-if="focusedBonusQty > 0">{{ focusedBonusQty }}</b>
+                <span class="con-colfocus__rglyph con-colfocus__rglyph--lg">
+                  <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
+                </span>
+              </span>
+              <span class="con-colfocus__ob-note" data-unfold-late>{{ $t('Each trade here') }}</span>
             </div>
           </div>
         </section>
 
         <!-- ── THE ACTION CONFIGURATION — adaptive by mode: never an empty
              «СПОСОБ ОПЛАТЫ» skeleton when there is nothing to choose. ── -->
-        <section class="con-colfocus__config">
+        <section class="con-colfocus__config" data-unfold-item>
           <!-- SUB: the M€ lanes mix — the SHARED payment panel, expanded. -->
           <template v-if="sub === 'lanes' && paymentView !== undefined">
             <ConsolePaymentPanel :view="paymentView"
@@ -290,7 +275,10 @@
           <!-- TRADE REVIEW: payment paths + the follow-up decisions. -->
           <template v-else-if="intent === 'trade' && presentAvailable">
             <ConsoleScrollArea class="con-colfocus__configscroll" ref="scroll">
-              <div class="con-colfocus__sec-title">{{ $t('Payment method') }}</div>
+              <!-- The heading belongs to the ROWS, not to the mode: past the
+                   commit the server takes the options away and a bare
+                   «СПОСОБ ОПЛАТЫ» over nothing read as a broken panel. -->
+              <div v-if="payEntries.length + disabledEntries.length > 0" class="con-colfocus__sec-title">{{ $t('Payment method') }}</div>
               <div v-for="(entry, i) in payEntries" :key="'p' + i"
                    class="con-colfocus__payrow"
                    :class="{
@@ -310,6 +298,20 @@
                 <i v-if="d.iconClass !== ''" class="con-colfocus__payrow-icon" :class="d.iconClass" aria-hidden="true"></i>
                 <span class="con-colfocus__payrow-title">{{ d.title }}</span>
                 <span class="con-colfocus__payrow-reason">{{ d.reason }}</span>
+              </div>
+              <!-- PAST THE COMMIT the server takes the options away, but the
+                   stage is still resolving the move the player made ON IT —
+                   so it keeps showing WHAT WAS CHOSEN. Blanking the zone here
+                   left a hole under a flying reward and read as the screen
+                   forgetting the decision the moment it was taken. -->
+              <div v-if="heldPayment !== undefined && payEntries.length === 0"
+                   class="con-colfocus__payrow con-colfocus__payrow--chosen con-colfocus__payrow--locked">
+                <span class="con-colfocus__payrow-pick" aria-hidden="true">
+                  <span class="con-colfocus__payrow-dot"></span>
+                </span>
+                <i v-if="heldPayment.iconClass !== ''" class="con-colfocus__payrow-icon" :class="heldPayment.iconClass" aria-hidden="true"></i>
+                <span class="con-colfocus__payrow-title">{{ heldPayment.title }}</span>
+                <span v-if="heldPayment.preview !== ''" class="con-colfocus__payrow-delta">{{ heldPayment.preview }}</span>
               </div>
 
               <template v-if="stepRows.length > 0">
@@ -368,29 +370,160 @@
             </div>
           </template>
 
-          <!-- INSPECT / UNAVAILABLE: the informational sections take the room
-               — no empty payment skeleton, no fake controls. -->
+          <!-- INSPECT / UNAVAILABLE: the colony's OWN RULES take the room —
+               no empty payment skeleton, no fake controls, and never a blank
+               half-screen: this is a dossier, so it reads like one. -->
           <template v-else>
-            <div class="con-colfocus__inspect">
-              <div class="con-colfocus__sec-title">{{ $t('Colony bonus (each trade)') }}</div>
-              <div class="con-colfocus__rrow con-colfocus__rrow--gain">
-                <b v-if="focusedBonusQty > 0">+{{ focusedBonusQty }}</b>
+            <ConsoleScrollArea class="con-colfocus__configscroll con-colfocus__rules">
+              <div class="con-colfocus__sec-title" data-unfold-late>{{ $t('How it works') }}</div>
+              <div class="con-colfocus__rule">
                 <span class="con-colfocus__rglyph">
-                  <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
+                  <BenefitGlyph :benefit="tradeBenefitAt(effectivePosition)" :idx="effectivePosition" :cardResource="metadata.cardResource" />
                 </span>
-                <span class="con-colfocus__brief-note" v-i18n>{{ metadata.colony.description }}</span>
+                <span class="con-colfocus__rule-body" data-unfold-late>
+                  <b>{{ $t('Trade') }}</b>
+                  <span v-i18n>{{ metadata.trade.description }}</span>
+                </span>
               </div>
-              <div class="con-colfocus__sec-title">{{ $t('Build a colony') }}</div>
-              <div class="con-colfocus__rrow">
+              <div class="con-colfocus__rule">
                 <span class="con-colfocus__rglyph">
                   <BenefitGlyph :benefit="buildBenefit" :idx="nextBuildSlot" :cardResource="metadata.cardResource" />
                 </span>
-                <span class="con-colfocus__brief-note" v-i18n>{{ metadata.build.description }}</span>
+                <span class="con-colfocus__rule-body" data-unfold-late>
+                  <b>{{ $t('Build a colony') }}</b>
+                  <span v-i18n>{{ metadata.build.description }}</span>
+                </span>
               </div>
-            </div>
+              <div class="con-colfocus__rule">
+                <span class="con-colfocus__rglyph">
+                  <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
+                </span>
+                <span class="con-colfocus__rule-body" data-unfold-late>
+                  <b>{{ $t('Colony bonus (each trade)') }}</b>
+                  <span v-i18n>{{ metadata.colony.description }}</span>
+                </span>
+              </div>
+            </ConsoleScrollArea>
           </template>
         </section>
       </div>
+
+      <!-- ═══ RESULT — the outcome, ONE CARD PER SOURCE ═══
+           Each group states WHERE its value comes from, so «what the trade
+           pays me» / «what the owners take» / «what building grants» / «what
+           changes for the future» are never one undifferentiated list. The
+           trade income's tight VALUE carries `data-colony-trade-source`: the
+           reward chips and card covers leave that exact number. -->
+      <section class="con-colfocus__result" data-unfold-item>
+        <div class="con-colfocus__sec-title" data-unfold-late>{{ $t(resultTitle) }}</div>
+
+        <!-- TRADE / INSPECT / PICK -->
+        <template v-if="intent !== 'build'">
+          <div class="con-colfocus__rsec con-colfocus__rsec--lead">
+            <div class="con-colfocus__rsec-label" data-unfold-late>{{ $t(presentAvailable && intent !== 'pick' ? 'Trade reward here' : 'On the current level') }}</div>
+            <div class="con-colfocus__rrow con-colfocus__rrow--gain con-colfocus__rrow--big">
+              <span class="con-colfocus__rvalue" :data-colony-trade-source="colony.name">
+                <b v-if="focusedReward.quantity > 0">+{{ focusedReward.quantity }}</b>
+                <span class="con-colfocus__rglyph con-colfocus__rglyph--lg">
+                  <BenefitGlyph :benefit="tradeBenefitAt(effectivePosition)" :idx="effectivePosition" :cardResource="metadata.cardResource" />
+                </span>
+              </span>
+              <em v-if="tradeGainDelta !== ''" data-unfold-late>{{ tradeGainDelta }}</em>
+            </div>
+            <div v-if="resourceLost" class="con-colfocus__notice con-colfocus__notice--warn" data-unfold-late>
+              <span aria-hidden="true">⚠</span>
+              <span>{{ $t('Resource will be lost — no card') }}</span>
+            </div>
+            <div v-for="line in targetOutcomeLines" :key="line.key" class="con-colfocus__rrow con-colfocus__rrow--target" data-unfold-late>
+              <i v-if="line.iconClass !== ''" :class="line.iconClass" aria-hidden="true"></i>
+              <span class="con-colfocus__rrow-card">{{ $t(line.card) }}</span>
+              <em>{{ line.before }} → {{ line.after }}</em>
+            </div>
+          </div>
+
+          <div class="con-colfocus__rsec" data-unfold-late>
+            <div class="con-colfocus__rsec-label">{{ $t('To the owners') }}</div>
+            <div v-if="owners.length > 0" class="con-colfocus__rrow con-colfocus__rrow--gain">
+              <b v-if="focusedBonusQty > 0">+{{ focusedBonusQty }}</b>
+              <span class="con-colfocus__rglyph">
+                <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
+              </span>
+              <span class="con-colfocus__rowners">
+                <span v-for="owner in owners" :key="owner.color" class="con-colfocus__rowner">
+                  <span :class="'con-status__dot player_bg_color_' + owner.color"></span>
+                  <span>{{ owner.name }}</span><span v-if="owner.count > 1"> ×{{ owner.count }}</span>
+                </span>
+              </span>
+            </div>
+            <div v-else class="con-colfocus__muted">{{ $t('No colonies built here yet') }}</div>
+          </div>
+
+          <div v-if="noticeRows.length > 0" class="con-colfocus__rsec" data-unfold-late>
+            <div class="con-colfocus__rsec-label">{{ $t('Extras') }}</div>
+            <div v-for="(notice, i) in noticeRows" :key="'n' + i"
+                 class="con-colfocus__notice" :class="'con-colfocus__notice--' + notice.tone">
+              <span aria-hidden="true">{{ notice.tone === 'warn' ? '!' : '›' }}</span>
+              <i v-if="notice.iconClass !== ''" :class="notice.iconClass" aria-hidden="true"></i>
+              <span>{{ notice.text }}</span>
+            </div>
+          </div>
+
+          <div v-if="intent === 'trade' && presentAvailable && outcome.cost.length > 0"
+               class="con-colfocus__rsec con-colfocus__rsec--pay" data-unfold-late>
+            <div class="con-colfocus__rsec-label">{{ $t('Payment') }}</div>
+            <div v-for="(chip, k) in outcome.cost" :key="'c' + k" class="con-colfocus__rrow con-colfocus__rrow--cost">
+              <i v-if="chip.icon" :class="chipIconClass(chip)" aria-hidden="true"></i>
+              <b>−{{ chip.amount }}</b>
+              <em v-if="chip.current !== undefined">{{ chip.current }} → {{ chip.resulting }}</em>
+            </div>
+          </div>
+        </template>
+
+        <!-- BUILD: the placement grant, the new colony, the future bonus. -->
+        <template v-else>
+          <div class="con-colfocus__rsec con-colfocus__rsec--lead">
+            <div class="con-colfocus__rsec-label" data-unfold-late>{{ $t('Build grant') }}</div>
+            <div v-if="buildQty > 0" class="con-colfocus__rrow con-colfocus__rrow--gain con-colfocus__rrow--big">
+              <span class="con-colfocus__rvalue" :data-colony-trade-source="colony.name">
+                <b>+{{ buildQty }}</b>
+                <span class="con-colfocus__rglyph con-colfocus__rglyph--lg">
+                  <BenefitGlyph :benefit="buildBenefit" :idx="nextBuildSlot" :cardResource="metadata.cardResource" />
+                </span>
+              </span>
+            </div>
+            <div v-else class="con-colfocus__muted" data-unfold-late>{{ $t('No placement bonus') }}</div>
+            <div v-if="buildLost" class="con-colfocus__notice con-colfocus__notice--warn" data-unfold-late>
+              <span aria-hidden="true">⚠</span>
+              <span>{{ $t('Resource will be lost — no card') }}</span>
+            </div>
+          </div>
+          <div class="con-colfocus__rsec" data-unfold-late>
+            <div class="con-colfocus__rsec-label">{{ $t('New colony') }}</div>
+            <div class="con-colfocus__rrow">
+              <PlayerCube v-if="viewerColor !== undefined" class="con-colfocus__rcube" :color="viewerColor" :size="18" />
+              <span>{{ $t('Slot') }} {{ nextBuildSlot + 1 }}</span>
+            </div>
+          </div>
+          <div class="con-colfocus__rsec" data-unfold-late>
+            <div class="con-colfocus__rsec-label">{{ $t('Future owner bonus') }}</div>
+            <div class="con-colfocus__rrow con-colfocus__rrow--gain">
+              <b v-if="focusedBonusQty > 0">+{{ focusedBonusQty }}</b>
+              <span class="con-colfocus__rglyph">
+                <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
+              </span>
+              <em>{{ $t('Each trade here') }}</em>
+            </div>
+          </div>
+          <div class="con-colfocus__rsec con-colfocus__rsec--rule" data-unfold-late>
+            <div class="con-colfocus__rsec-label">{{ $t('Track returns to') }}</div>
+            <div class="con-colfocus__rrow">
+              <b class="con-colfocus__rn-pos">{{ resetPosition + 1 }}</b>
+              <span aria-hidden="true">→</span>
+              <b class="con-colfocus__rn-pos con-colfocus__rn-pos--next">{{ resetPositionAfterBuild + 1 }}</b>
+            </div>
+          </div>
+        </template>
+      </section>
     </div>
   </div>
 </template>
@@ -453,6 +586,8 @@ import {
   tradeNotices,
   tradeOutcome,
   TradeOutcomeChip,
+  trackResetAfterBuild,
+  trackResetPosition,
   tradeSteps,
 } from '@/client/components/colonies/colonyTradePlan';
 import {presentedColonyModel, colonyTradeState} from '@/client/console/colonyTrade/consoleColonyTrade';
@@ -482,7 +617,15 @@ type StepRow = {
 type Sub = undefined | 'lanes' | 'track' | 'targets';
 type NoticeRow = {tone: 'warn' | 'info', iconClass: string, text: string};
 type Focusable = {zone: 'pay' | 'step', index: number};
-type TrackCell = {index: number, quantity: number, marker: boolean, effective: boolean, passed: boolean};
+type TrackCell = {
+  index: number,
+  quantity: number,
+  marker: boolean,
+  effective: boolean,
+  passed: boolean,
+  /** The cell the marker falls back to after a trade (= built colonies). */
+  reset: boolean,
+};
 
 export default defineComponent({
   name: 'ConsoleColonyFocusStage',
@@ -527,7 +670,7 @@ export default defineComponent({
        * the crumb «Осмотр» and swapped the verdict under a flying cube.
        * Released by the transaction's own falling edge, never a timer.
        */
-      heldView: undefined as {mode: string, available: boolean} | undefined,
+      heldView: undefined as {mode: string, available: boolean, payment?: PayEntry} | undefined,
     };
   },
   computed: {
@@ -542,16 +685,15 @@ export default defineComponent({
         (this.colonyTradeState.active && this.colonyTradeState.colonyName === this.colony.name) ||
         (this.colonyBuildState.active && this.colonyBuildState.colonyName === this.colony.name);
     },
-    /** The stage's LIVE anchors (berth / track cells / launch cells / build
-     *  slots) are published while it can host the resolution. Held OFF only
-     *  when the stage genuinely cannot anchor (never expected — belt). */
-    anchorsLive(): boolean {
-      return true;
-    },
     /** The availability the stage PRESENTS — pinned across the commit
      *  boundary (see `heldView`), live everywhere else. */
     presentAvailable(): boolean {
       return this.heldView !== undefined ? this.heldView.available : this.actionAvailable;
+    },
+    /** The payment path the player actually chose, pinned at the commit —
+     *  what the config zone keeps showing while the trade resolves. */
+    heldPayment(): PayEntry | undefined {
+      return this.heldView?.payment;
     },
     /** The presentation mode the adaptive layout keys off. */
     presentMode(): string {
@@ -595,10 +737,53 @@ export default defineComponent({
       return effectiveTradePosition(this.presented, this.metadata, offset);
     },
     offsetSteps(): number {
-      return Math.max(0, this.effectivePosition - Math.min(this.presented.trackPosition, this.trackMax));
+      return Math.max(0, this.effectivePosition - this.markerPosition);
+    },
+    /** The marker's DISPLAYED position — the presented one, so a committed
+     *  reset stays frozen behind the transaction and only the glide moves it
+     *  (the same `presentedColonyModel` the overview tile reads). */
+    markerPosition(): number {
+      return Math.min(this.presented.trackPosition, this.trackMax);
+    },
+    /** How many colonies stand here — the ONE number the reset rule reads. */
+    builtCount(): number {
+      return this.colony.colonies.length;
+    },
+    /**
+     * THE RULE, as a number: after a trade the track falls back to the
+     * BUILT-COLONY COUNT (`Colony.trade()` → `trackPosition = colonies.length`).
+     * The return base is therefore an index into the very same track, which is
+     * why the stage can draw it as an anchor under a real cell instead of
+     * explaining it in prose.
+     */
+    resetPosition(): number {
+      return trackResetPosition(this.colony, this.metadata);
+    },
+    /** Where the base would move if a colony were built here right now. */
+    resetPositionAfterBuild(): number {
+      return trackResetAfterBuild(this.colony, this.metadata);
+    },
+    /** The build preview is LIVE (build intent, genuinely offerable). */
+    buildPreview(): boolean {
+      return this.intent === 'build' && this.presentAvailable && this.builtCount < 3;
+    },
+    /** A trade from here would visibly pull the marker back. */
+    trackWillReset(): boolean {
+      return this.markerPosition > this.resetPosition;
+    },
+    /** This colony's marker is mid-glide — the resting marker yields to the
+     *  flying proxy (the overview tile's `--marker-gliding` contract, now
+     *  honoured on the stage the trade actually resolves on). */
+    trackGliding(): boolean {
+      return this.colonyTradeState.phase === 'glide' && this.colonyTradeState.colonyName === this.colony.name;
+    },
+    /** One-shot: the cell the reset marker just landed on (the settle glow). */
+    settledCell(): number {
+      return this.colonyTradeState.colonyName === this.colony.name ? this.colonyTradeState.settledCell : -1;
     },
     trackCells(): Array<TrackCell> {
-      const marker = Math.min(this.presented.trackPosition, this.trackMax);
+      const marker = this.markerPosition;
+      const reset = this.resetPosition;
       const cells: Array<TrackCell> = [];
       for (let i = 0; i <= this.trackMax; i++) {
         cells.push({
@@ -607,6 +792,7 @@ export default defineComponent({
           marker: i === marker,
           effective: i === this.effectivePosition && this.effectivePosition !== marker,
           passed: i < marker,
+          reset: i === reset,
         });
       }
       return cells;
@@ -1306,7 +1492,11 @@ export default defineComponent({
      *  — the transaction that releases it would never start). Released by
      *  the transaction's falling edge. */
     holdPresentation(): void {
-      this.heldView = {mode: this.presentMode, available: this.presentAvailable};
+      this.heldView = {
+        mode: this.presentMode,
+        available: this.presentAvailable,
+        payment: this.payEntries[this.payIdx],
+      };
     },
   },
   mounted() {

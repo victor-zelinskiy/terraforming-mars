@@ -9,6 +9,8 @@ import {
   tradeNotices,
   tradeSteps,
   trackChoiceResponse,
+  trackResetAfterBuild,
+  trackResetPosition,
 } from '../../../../src/client/components/colonies/colonyTradePlan';
 import {ColonyTradePreviewModel} from '../../../../src/common/models/ColonyTradePreviewModel';
 import {ColonyMetadata, colonyMetadata} from '../../../../src/common/colonies/ColonyMetadata';
@@ -179,5 +181,30 @@ describe('colonyTradePlan', () => {
       {color: red, count: 2},
       {color: blue, count: 1},
     ]);
+  });
+  it('trackResetPosition: the return base IS the built-colony count', () => {
+    const red = 'red' as Color;
+    const blue = 'blue' as Color;
+    // The rule the focus stage draws as the ⟲ anchor: after a trade the marker
+    // falls back to `colonies.length` (Colony.trade), so an empty colony
+    // returns to position 0 and each settlement pushes the base one right.
+    expect(trackResetPosition({colonies: []}, ENCELADUS_META)).to.eq(0);
+    expect(trackResetPosition({colonies: [red]}, ENCELADUS_META)).to.eq(1);
+    expect(trackResetPosition({colonies: [red, blue, red]}, ENCELADUS_META)).to.eq(3);
+    // …and the build preview is exactly one step further.
+    expect(trackResetAfterBuild({colonies: []}, ENCELADUS_META)).to.eq(1);
+    expect(trackResetAfterBuild({colonies: [red, blue]}, ENCELADUS_META)).to.eq(3);
+  });
+
+  it('trackResetPosition: never past the last cell of a short track', () => {
+    const red = 'red' as Color;
+    const short = colonyMetadata({
+      name: ColonyName.LUNA,
+      build: {description: '', type: ColonyBenefit.GAIN_RESOURCES, quantity: [2, 2, 2], resource: Resource.MEGACREDITS},
+      trade: {description: '', type: ColonyBenefit.GAIN_RESOURCES, quantity: [1, 2], resource: Resource.MEGACREDITS},
+      colony: {description: '', type: ColonyBenefit.GAIN_RESOURCES, resource: Resource.MEGACREDITS},
+    });
+    expect(trackResetPosition({colonies: [red, red, red]}, short)).to.eq(1);
+    expect(trackResetAfterBuild({colonies: [red, red, red]}, short)).to.eq(1);
   });
 });

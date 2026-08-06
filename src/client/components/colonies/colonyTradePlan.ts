@@ -230,6 +230,26 @@ export function effectiveTradePosition(colony: ColonyModel, metadata: ColonyMeta
   return target;
 }
 
+/**
+ * THE RETURN BASE — the track position a colony's marker falls back to after
+ * a trade: the number of colonies BUILT there (`Colony.trade()` sets
+ * `trackPosition = colonies.length`; `Colony.decreaseTrack` floors at the same
+ * number). Capped at the track's last position for safety.
+ *
+ * This is the rule the colony focus stage DRAWS — the ⟲ anchor under a real
+ * cell, and the «⟲ N» each empty berth advertises. It lives here, beside
+ * `effectiveTradePosition`, because a presentation that teaches a rule must
+ * read the rule from the same place every other surface does.
+ */
+export function trackResetPosition(colony: Pick<ColonyModel, 'colonies'>, metadata: ColonyMetadata): number {
+  return Math.min(colony.colonies.length, metadata.trade.quantity.length - 1);
+}
+
+/** Where the return base would move if ONE more colony were built here. */
+export function trackResetAfterBuild(colony: Pick<ColonyModel, 'colonies'>, metadata: ColonyMetadata): number {
+  return Math.min(colony.colonies.length + 1, metadata.trade.quantity.length - 1);
+}
+
 /** Free trade fleets = the player's fleet size minus the fleets already out. */
 export function freeTradeFleets(player: {fleetSize: number, tradesThisGeneration: number}): number {
   return Math.max(0, player.fleetSize - player.tradesThisGeneration);

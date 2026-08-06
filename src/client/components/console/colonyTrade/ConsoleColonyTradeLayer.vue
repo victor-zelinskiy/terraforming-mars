@@ -95,6 +95,35 @@ function cssEscape(value: string): string {
   return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(value) : value.replace(/"/g, '\\"');
 }
 
+/**
+ * The FIRST candidate that genuinely has a box.
+ *
+ * ⚠️ A MEASURED LADDER, NOT `a ?? b`. `??` falls through only on a MISSING
+ * element, so a focus-stage anchor that exists but has collapsed (a fold in
+ * flight, a host parked behind an embed) poisoned the whole lookup: the
+ * still-visible overview tile was never tried, `stableRect` polled 40 frames
+ * against the dead node and the scene silently degraded. Selectors are given
+ * best-first; a candidate with no usable rect is simply skipped.
+ */
+function pickAnchor(selectors: ReadonlyArray<string>): HTMLElement | null {
+  if (typeof document === 'undefined') {
+    return null;
+  }
+  let fallback: HTMLElement | null = null;
+  for (const sel of selectors) {
+    for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
+      const r = el.getBoundingClientRect();
+      if (r.width > 2 && r.height > 2) {
+        return el;
+      }
+      fallback = fallback ?? el;
+    }
+  }
+  // Nothing measurable YET — hand back the best-named candidate so
+  // `stableRect` can keep polling it while the layout settles.
+  return fallback;
+}
+
 /* Non-reactive scene context — GSAP handles must never enter Vue reactivity. */
 type SceneCtx = {
   handles: Array<TradeDirectorHandle>,
@@ -236,14 +265,17 @@ export default defineComponent({
       // The FOCUS STAGE's launch cells lead when the stage is up (the trade
       // resolves on the stage — iteration 2); the overview tile is the
       // fallback for a closed stage.
-      const incomeRect = await stableRect(() =>
-        document.querySelector<HTMLElement>('.con-colfocus [data-colony-trade-source]') ??
-        document.querySelector<HTMLElement>(`${tileSel} [data-colony-trade-source]`) ??
-        document.querySelector<HTMLElement>(tileSel));
-      const bonusRect = await stableRect(() =>
-        document.querySelector<HTMLElement>('.con-colfocus [data-colony-bonus-source]') ??
-        document.querySelector<HTMLElement>(`${tileSel} [data-colony-bonus-source]`) ??
-        document.querySelector<HTMLElement>(tileSel));
+      const key = cssEscape(name);
+      const incomeRect = await stableRect(() => pickAnchor([
+        `.con-colfocus [data-colony-trade-source="${key}"]`,
+        `${tileSel} [data-colony-trade-source]`,
+        tileSel,
+      ]));
+      const bonusRect = await stableRect(() => pickAnchor([
+        `.con-colfocus [data-colony-bonus-source="${key}"]`,
+        `${tileSel} [data-colony-bonus-source]`,
+        tileSel,
+      ]));
       if (!colonyTradeState.active) {
         return;
       }
@@ -384,11 +416,16 @@ export default defineComponent({
         return;
       }
       // The FOCUS STAGE's expanded track leads when the stage is up — the
-      // white marker physically steps home along the BIG cells the player is
-      // looking at; the overview tile's strip is the fallback.
-      const cellEl = (pos: number) =>
-        document.querySelector<HTMLElement>(`.con-colfocus [data-colony-track-cell="${cssEscape(`${name}#${pos}`)}"]`) ??
-        document.querySelector<HTMLElement>(`[data-test="con-colony-${name}"] [data-colony-track-cell="${cssEscape(`${name}#${pos}`)}"]`);
+      // white marker physically steps home along the BIG rail the player is
+      // looking at; the overview tile's strip is the fallback. Both hosts
+      // publish the anchor on a MARKER SEAT (a round chip the size of the
+      // resting marker), so the proxy is sized and posed from the very box it
+      // lands on instead of from a stretched flex cell — which is what made
+      // the same code read as a crisp dot on the tile and a blob on the stage.
+      const cellEl = (pos: number) => pickAnchor([
+        `.con-colfocus [data-colony-track-cell="${cssEscape(`${name}#${pos}`)}"]`,
+        `[data-test="con-colony-${name}"] [data-colony-track-cell="${cssEscape(`${name}#${pos}`)}"]`,
+      ]);
       const fromRect = await stableRect(() => cellEl(plan.from));
       const cellRects = await Promise.all(plan.path.map((pos) => stableRect(() => cellEl(pos))));
       if (!colonyTradeState.active) {

@@ -1,6 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {bootToBoard, fillPicks, press} from './consoleStart';
 
 /**
  * PLUTO'S PAYOUT CLOSES INSIDE THE REVEAL MODAL — ONE COLONY AT A TIME.
@@ -113,37 +114,23 @@ async function removalPickLive(page: Page): Promise<boolean> {
  * pack slots, so the take cinematic never commits and nothing could unlock.
  */
 async function walkUntilActionReady(page: Page): Promise<void> {
-  const startBadge = page.getByText('СТАРТОВЫЙ ВЫБОР').first();
-  const basicsChip = page.getByText('БАЗОВЫЕ').first();
-  const placement = page.getByText(/Выберите клетку/i).first();
-  const wiggle = ['Enter', 'ArrowRight', 'Enter', 'ArrowUp', 'Enter', 'ArrowLeft', 'Enter', 'ArrowDown'];
-  const advance = ['Enter', 'Enter', 'Period', 'Enter', 'KeyE', 'Period'];
-  for (let i = 0; i < 70; i++) {
-    const ready = await basicsChip.isVisible().catch(() => false) &&
-      !(await startBadge.isVisible().catch(() => false)) &&
-      await page.locator('.con-mandatory').count() === 0 &&
-      !(await placement.isVisible().catch(() => false)) &&
-      !(await removalPickLive(page));
-    if (ready) {
-      await page.waitForTimeout(1500);
-      return;
-    }
-    if (await removalPickLive(page)) {
-      await key(page, 'Enter', 2200);
-      continue;
-    }
-    if (await page.locator('.con-mandatory').count() > 0) {
-      await key(page, 'Enter', 1100);
-      continue;
-    }
-    if (await placement.isVisible().catch(() => false)) {
-      await key(page, wiggle[i % wiggle.length], 700);
-      continue;
-    }
-    await key(page, advance[i % advance.length], 1100);
-  }
-  await shoot(page, 'walk-stuck');
-  expect(false, 'never reached the action phase').toBeTruthy();
+  // THE SHARED DRIVER, never a bespoke walk. The hand-rolled loop this
+  // replaced could only reach the action phase by out-waiting every surface
+  // it did not understand — including the start workspace's embedded
+  // «убрать колонию» pick, which now DESCENDS into the colony focus stage
+  // and needs its own confirm there. `waitForBoardHome` knows that flow (and
+  // every other one on the way home), so the spec fails on ITS OWN claim
+  // instead of on the road to it.
+  await bootToBoard(page, {
+    onStep: async (p, kind) => {
+      if (kind === 'corporation') {
+        await press(p, 'Enter', 600);
+      } else if (kind === 'project') {
+        await fillPicks(p, 2);
+      }
+    },
+  });
+  await page.waitForTimeout(1500);
 }
 
 /**

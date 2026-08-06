@@ -59,7 +59,13 @@ function newGameConfig(color: string) {
     customCorporationsList: [],
     bannedCards: [],
     includedCards: [],
-    customColoniesList: [],
+    // DETERMINISTIC DEAL. The spec needs a colony whose build bonus keeps the
+    // colonies screen mounted (no board placement, no card reveal) and that is
+    // ACTIVE from the start (an inactive one — Miranda — cannot be built on at
+    // all). Left to the seeded random deal the green variant drew
+    // Europa/Miranda/Pluto, i.e. zero valid targets, and the walk below could
+    // only ever pass by racing its own rail check.
+    customColoniesList: ['Luna', 'Triton', 'Callisto', 'Ceres'],
     customPreludes: [],
     requiresMoonTrackCompletion: false,
     requiresVenusTrackCompletion: false,
@@ -185,16 +191,21 @@ async function buildAndVerify(page: Page, tag: string): Promise<string> {
   const focusedTile = page.locator('.con-coltile--focused');
   const blocked = /Europa|Pluto/i;
   let testAttr = '';
+  const seen: Array<string> = [];
   for (let i = 0; i < 10; i++) {
-    const refused = await railReason.count() > 0;
+    // Read the FOCUSED tile first, then its verdict — the rail follows the
+    // selection, so checking the rail first races a stale reason onto a fresh
+    // tile (and made this walk pass or fail by timing rather than by fact).
     const focused = (await focusedTile.getAttribute('data-test', {timeout: 1500}).catch(() => '')) ?? '';
+    const refused = await railReason.count() > 0;
+    seen.push(`${focused || '(none)'}${refused ? ' [blocked]' : ''}`);
     if (!refused && focused !== '' && !blocked.test(focused)) {
       testAttr = focused;
       break;
     }
     await key(page, 'ArrowRight', 500);
   }
-  expect(testAttr, 'no focused colony tile').not.toBe('');
+  expect(testAttr, `no buildable colony tile — walked ${seen.join(', ')}`).not.toBe('');
   const colonyName = testAttr.replace('con-colony-', '');
   await shoot(page, `${tag}-11-pick-mode`);
 
@@ -205,7 +216,7 @@ async function buildAndVerify(page: Page, tag: string): Promise<string> {
   // FOCUS STAGE (destination slot ringed, the grant on screen)…
   await key(page, 'Enter', 1400);
   await page.waitForSelector('.con-colfocus', {timeout: 10_000});
-  expect(await page.locator('.con-colfocus__bigslot--dest').count(), 'the destination berth is ringed').toBe(1);
+  expect(await page.locator('.con-colfocus__berth--dest').count(), 'the destination berth is ringed').toBe(1);
   await shoot(page, `${tag}-11b-build-focus`);
   // …and A CONFIRMS there: arm + submit; the hero flies the REAL PlayerCube
   // into the stage's own big berth (the live anchor while the stage is up).
@@ -266,7 +277,7 @@ test.describe('console colonies · premium PlayerCube marker', () => {
       await key(page, 'KeyX', 1400);
       const stage = page.locator('.con-colfocus');
       if (await stage.count() > 0) {
-        expect(await stage.locator('.con-colfocus__bigslot .player-cube').count()).toBeGreaterThan(0);
+        expect(await stage.locator('.con-colfocus__berth-seat .player-cube').count()).toBeGreaterThan(0);
         await shoot(page, 'red1080-16-inspect');
         await key(page, 'Escape', 800);
       }

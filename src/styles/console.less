@@ -9621,56 +9621,69 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
 }
 
-/* ── THE COLONY FOCUS STAGE (iteration 2) — the premium action surface ── *
- * One surface, three physical bands:
- *   TOP  identity (hero planet + orbital berth) · the EXPANDED TRADE TRACK
- *        (the overview strip grown into a game component) · the ACTION
- *        RESULT grouped by source;
- *   MID  the COLONY SLOTS (three physical berths, real player tokens) · the
- *        ACTION CONFIGURATION (adaptive by mode — never an empty skeleton).
+/* ── THE COLONY FOCUS STAGE (iteration 3) — the premium detail scene ──── *
+ * ONE surface, THREE COLUMNS, read left → right:
+ *   HERO    the colony as a physical object (big planet + its orbital berth,
+ *           active state, what it is, who is parked here, the verdict);
+ *   MAIN    the GAME OBJECT top-to-bottom — the EXPANDED TRADE TRACK with a
+ *           real marker rail, the RETURN BASE (the colony-count rule drawn
+ *           as an anchor under the exact cell the marker falls back to), the
+ *           COLONY BERTHS with the return step each one buys, and the
+ *           ACTION CONFIGURATION (adaptive by mode — never an empty skeleton);
+ *   RESULT  the outcome as ONE CARD PER SOURCE.
  * The descend carries the planet, the compact track and the build row into
- * their expanded twins ([data-colony-focus-*] FLIP targets); the resolution
- * anchors (fleet berth / track cells / launch cells / build slots) are LIVE
- * here while the stage is up. */
+ * their expanded twins ([data-colony-focus-*] FLIP targets); every resolution
+ * anchor (fleet berth / track SEATS / tight reward values / berth cube seats)
+ * is LIVE here while the stage is up, at THIS stage's real geometry — which
+ * is why the flying marker and the flying cube are the size of the resting
+ * ones and land ON them. */
 .con-colfocus {
     position: absolute;
     inset: 0;
     display: flex;
+    align-items: center;
     min-height: 0;
 
+    /* A DENSE PANEL, not a stretched one. The scene is a dossier: it is sized
+       by its own composition and centred in the band, so a tall host gives it
+       AIR AROUND it instead of a hole inside it. The height is a token, not
+       the content's — a panel that re-measured itself every time a sub-editor
+       opened would move the whole layout under the player's thumb. */
     &__surface {
-        flex: 1;
+        /* `flex: 1` is the WIDTH (the row axis); the height is the token and
+           `align-self` centres it on the cross axis. */
+        flex: 1 1 auto;
+        align-self: center;
+        height: min(100%, 30rem);
         min-width: 0;
         min-height: 0;
         display: flex;
-        flex-direction: column;
-        gap: .7rem;
-        padding: .7rem .9rem;
+        gap: .95rem;
+        padding: .85rem 1rem;
         border-radius: .6rem;
         background:
-            radial-gradient(ellipse 60% 45% at 18% 20%, rgba(40, 70, 100, 0.20), transparent 70%),
-            rgba(11, 18, 27, 0.94);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
+            radial-gradient(ellipse 46% 70% at 10% 24%, rgba(46, 84, 122, 0.26), transparent 72%),
+            radial-gradient(ellipse 70% 50% at 78% 96%, rgba(30, 56, 84, 0.20), transparent 70%),
+            rgba(10, 17, 26, 0.95);
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-cyan, 26%),
+            inset 0 .05rem 0 0 fade(@con-cyan, 12%);
     }
 
     /* The action is RESOLVING on this stage — chrome inert, anchors live. */
     &--resolving &__surface { pointer-events: none; }
 
-    /* ═══ TOP BAND ═══ */
-    &__top {
-        display: flex;
-        gap: 1.1rem;
-        min-height: 0;
-        flex-shrink: 0;
-    }
-
-    /* ── IDENTITY — the colony as a physical object. ── */
-    &__identity {
-        flex: 0 0 17.5rem;
+    /* ═══════════════ HERO — the colony as a physical object ═══════════════ */
+    /* A POSTER, centred in its column: planet, what it is, and the verdict
+       that judges it — one block, never three things pinned to three edges. */
+    &__hero {
+        flex: 0 0 12rem;
         min-width: 0;
         display: flex;
-        gap: .8rem;
-        align-items: flex-start;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .55rem;
     }
     &__planetwrap {
         position: relative;
@@ -9678,23 +9691,23 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: .35rem;
+        gap: .45rem;
     }
     /* THE HERO PLANET — the stage's visual anchor: the same round art the
-       tile carries, grown, with a restrained key-light and depth shadow
-       (never a loud hologram, never a decorative giant). */
+       tile carries, GROWN, with a restrained key light, a thin lit rim and a
+       depth shadow (never a loud hologram, never a decorative giant). */
     &__planet {
         position: relative;
-        width: 8.6rem;
-        height: 8.6rem;
+        width: 10.9rem;
+        height: 10.9rem;
         border-radius: 50%;
         background-size: cover;
         background-position: center;
         box-shadow:
-            inset -1.1rem -1.3rem 2.2rem rgba(0, 0, 0, 0.62),
-            inset .4rem .5rem 1.4rem rgba(180, 220, 255, 0.14),
-            0 0 1.8rem fade(@con-cyan, 16%),
-            0 .6rem 1.8rem rgba(0, 0, 0, 0.55);
+            inset -1.3rem -1.5rem 2.6rem rgba(0, 0, 0, 0.64),
+            inset .45rem .55rem 1.7rem rgba(180, 220, 255, 0.15),
+            0 0 2.6rem fade(@con-cyan, 15%),
+            0 .8rem 2.2rem rgba(0, 0, 0, 0.58);
     }
     /* The key light — a soft top-left sheen riding OVER the art. */
     &__planet-light {
@@ -9704,15 +9717,24 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         background: radial-gradient(circle at 30% 26%, rgba(220, 240, 255, 0.20), transparent 46%);
         pointer-events: none;
     }
+    /* The atmosphere rim: one hairline of lit edge so the sphere reads as an
+       object in space and not as a pasted circle. */
+    &__planet-rim {
+        position: absolute;
+        inset: -.12rem;
+        border-radius: 50%;
+        box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 26%);
+        pointer-events: none;
+    }
     /* THE ORBITAL BERTH — the fleet's live landing anchor while the stage is
-       up (the same data key the tile's dock carries; directors pick the
-       VISIBLE match). Sits on the planet's lower-right orbit. */
+       up (the same data key the tile's dock carries). Sits on the planet's
+       lower-right orbit. */
     &__orbit {
         position: absolute;
-        right: -.3rem;
-        bottom: .4rem;
-        width: 2.1rem;
-        height: 2.1rem;
+        right: -.35rem;
+        bottom: .5rem;
+        width: 2.5rem;
+        height: 2.5rem;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -9720,13 +9742,13 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         background: rgba(8, 14, 22, 0.85);
         box-shadow: inset 0 0 0 .05rem fade(@con-text, 25%), 0 .15rem .5rem rgba(0, 0, 0, 0.5);
 
-        .colony-fleet-icon { width: 1.6rem; height: 1.6rem; }
-        &--occupied { box-shadow: inset 0 0 0 .08rem var(--fleet-fill, fade(@con-cyan, 60%)), 0 0 .7rem var(--fleet-glow, fade(@con-cyan, 25%)); }
+        .colony-fleet-icon { width: 1.9rem; height: 1.9rem; }
+        &--occupied { box-shadow: inset 0 0 0 .08rem var(--fleet-fill, fade(@con-cyan, 60%)), 0 0 .8rem var(--fleet-glow, fade(@con-cyan, 25%)); }
     }
     &__state {
-        padding: .12rem .55rem;
+        padding: .14rem .6rem;
         border-radius: 49.95rem;
-        font-size: .6rem;
+        font-size: .62rem;
         font-weight: 700;
         letter-spacing: .06rem;
         text-transform: uppercase;
@@ -9735,287 +9757,476 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--off { background: rgba(120, 140, 160, 0.12); box-shadow: inset 0 0 0 .05rem rgba(160, 180, 200, 0.28); color: @con-text-dim; }
     }
     &__idmeta {
-        flex: 1;
+        flex: 0 1 auto;
         min-width: 0;
+        min-height: 0;
         display: flex;
         flex-direction: column;
-        gap: .45rem;
+        gap: .4rem;
+        text-align: center;
     }
     &__desc {
-        font-size: .78rem;
-        line-height: 1.35;
+        font-size: .74rem;
+        line-height: 1.34;
         color: @con-text-dim;
         display: -webkit-box;
         -webkit-box-orient: vertical;
-        -webkit-line-clamp: 4;
+        -webkit-line-clamp: 5;
         overflow: hidden;
     }
     &__fleetline {
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: .4rem;
-        font-size: .7rem;
+        font-size: .68rem;
         color: @con-text-dim;
 
         .colony-fleet-icon { width: 1.2rem; height: 1.2rem; }
     }
-    /* The honest verdict — beside the identity it judges, inline. */
+    /* The honest verdict — the LAST thing in the hero column, pinned to its
+       foot: the identity states itself, then judges itself. */
     &__verdict {
+        margin-top: .3rem;
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: .45rem;
-        padding: .3rem .55rem;
+        padding: .4rem .6rem;
         border-radius: .45rem;
-        font-size: .75rem;
+        font-size: .76rem;
         font-weight: 700;
-        align-self: flex-start;
-        max-width: 100%;
+        width: 100%;
+        text-align: center;
 
         &--ok { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%); color: @con-mint; }
         &--no { background: fade(@con-red, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-red, 40%); color: #ffb0a6; }
     }
 
-    /* ── THE EXPANDED TRADE TRACK — the overview strip, grown. ── */
+    /* ═══════════════ MAIN — the game object ═══════════════ */
+    &__main {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .6rem;
+    }
+    /* The zone head carries the title AND the zone's own rule caption, so the
+       rule never costs the scene a whole row of its own. */
+    &__zonehead {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        min-width: 0;
+        min-height: 1.25rem;
+    }
+    &__zonehead-note {
+        font-size: .62rem;
+        color: fade(@con-text-dim, 85%);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    /* ── THE EXPANDED TRADE TRACK ─────────────────────────────────────────
+       One big cell per position: the position number, the reward ICON at
+       full sprite weight with its value beneath, and a MARKER RAIL seat at
+       the foot. The SEAT is the glide anchor — a round chip the exact size
+       of the flying marker, so the proxy lands ON the resting marker instead
+       of beside a stretched flex cell. */
     &__trackzone {
-        flex: 1;
+        flex: 0 0 auto;
         min-width: 0;
         display: flex;
         flex-direction: column;
-        gap: .4rem;
+        gap: .3rem;
     }
-    /* SEVEN cells always fit the room they are given — the strip is sized for
-       the TIGHTEST host (the embedded step's narrow zone), and every part of
-       it scales with the same `--con-ui-scale`, so the fit is identical on
-       every profile. A fixed 32px sprite beside a big number does NOT fit
-       there: the cells smeared into one another on the sponsor flow. */
     &__xtrack {
+        flex: 0 1 auto;
         display: flex;
         align-items: stretch;
-        gap: .25rem;
+        gap: .3rem;
         min-width: 0;
+        height: 6.4rem;
+        min-height: 5.4rem;
     }
-    /* One position: number on top, VALUE + resource icon in the body, the
-       marker / read-here tag underneath. A game component, not a table. */
     &__xcell {
         flex: 1 1 0;
         min-width: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: .15rem;
-        padding: .3rem .1rem .25rem;
-        border-radius: .45rem;
-        background: rgba(120, 155, 190, 0.07);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.16);
+        justify-content: flex-start;
+        gap: .12rem;
+        padding: .32rem .12rem .16rem;
+        border-radius: .5rem;
+        background: linear-gradient(180deg, rgba(120, 155, 190, 0.10), rgba(120, 155, 190, 0.04));
+        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.17);
+        transition: background calc(220ms * var(--motion-scale, 1)) ease, box-shadow calc(220ms * var(--motion-scale, 1)) ease;
 
-        &--passed { background: rgba(120, 155, 190, 0.035); }
+        &--passed { background: rgba(120, 155, 190, 0.045); }
+        /* The RESTING MARKER cell — the loudest thing on the rail. */
         &--marker {
-            background: fade(@con-cyan, 15%);
-            box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 75%), 0 0 .8rem fade(@con-cyan, 18%);
+            background: linear-gradient(180deg, fade(@con-cyan, 20%), fade(@con-cyan, 7%));
+            box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%), 0 0 1rem fade(@con-cyan, 20%);
         }
+        /* The position a trade READS right now (the standing offset). */
         &--effective {
-            background: fade(@con-mint, 11%);
-            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 60%);
+            background: linear-gradient(180deg, fade(@con-mint, 16%), fade(@con-mint, 5%));
+            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 62%);
         }
+        /* The RETURN BASE cell — where the marker falls back to. */
+        &--reset { box-shadow: inset 0 0 0 .05rem fade(@con-amber, 42%); }
+        &--marker&--reset { box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%), 0 0 1rem fade(@con-cyan, 20%); }
+        /* The landed-marker settle (one-shot, driven by the transaction). */
+        &--settled { animation: con-colfocus-settle calc(560ms * var(--motion-scale, 1)) ease-out 1; }
     }
     &__xcell-num {
-        font-size: .62rem;
+        font-size: .66rem;
         font-weight: 700;
         color: @con-text-dim;
         font-variant-numeric: tabular-nums;
+        line-height: 1;
 
         .con-colfocus__xcell--marker & { color: fade(@con-cyan, 95%); }
+        .con-colfocus__xcell--effective & { color: fade(@con-mint, 95%); }
     }
     &__xcell-body {
+        flex: 1 1 auto;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        gap: .12rem;
-        min-height: 1.7rem;
+        gap: .1rem;
         min-width: 0;
+        min-height: 0;
         max-width: 100%;
     }
-    &__xcell-qty {
-        font-size: .85rem;
-        font-weight: 800;
-        color: @con-text;
-        font-variant-numeric: tabular-nums;
-
-        .con-colfocus__xcell--effective & { color: @con-mint; }
-    }
-    &__xcell-void { font-size: .9rem; color: @con-text-dim; }
-    /* `.benefit-glyph` is `width/height: 100%` and its icon is a fixed 32px
-       box — an inline-flex wrapper with no intrinsic size lets that icon
-       overflow SYMMETRICALLY over both neighbours (7 cells then read as one
-       smeared row). The wrapper therefore states its own box; the icon is
-       clipped to it, never to the neighbour's. */
+    /* `.benefit-glyph` is `width/height: 100%` over a fixed 32px sprite box —
+       the wrapper therefore STATES its own box and clips to it (an intrinsic
+       inline-flex let the icon overflow symmetrically over both neighbours
+       and seven cells read as one smeared row). The zoom channel is the
+       ui-scale, so the sprite grows with the TV profile like everything else. */
     &__xcell-glyph {
         display: inline-flex;
         flex: 0 0 auto;
         width: 32px; /* keep-px: the glyph's own sprite box, scaled by zoom */
         height: 32px; /* keep-px */
         overflow: hidden;
-        /* 32px sprite → ~0.9rem of strip: seven of these plus their numbers
-           fit the narrowest host with room to spare. */
-        zoom: calc(0.56 * var(--con-ui-scale, 1));
+        zoom: calc(1.35 * var(--con-ui-scale, 1));
         .benefit-glyph__num { display: none; }
     }
-    /* The tag line is RESERVED (fixed height) — the marker and the read-here
-       caption swap without reflowing the strip. */
-    &__xcell-tag {
-        height: .95rem;
-        font-size: .55rem;
-        font-weight: 700;
-        letter-spacing: .04rem;
-        text-transform: uppercase;
-        color: @con-mint;
-        white-space: nowrap;
-        overflow: hidden;
-
-        .con-colfocus__xcell--marker & { color: fade(@con-cyan, 95%); font-size: .8rem; line-height: .95rem; }
-    }
-    &__tracknote {
-        display: flex;
-        gap: .9rem;
-        flex-wrap: wrap;
-        font-size: .62rem;
-        color: @con-text-dim;
-    }
-    &__tracknote-adv { color: fade(@con-cyan, 85%); font-weight: 700; }
-
-    /* ── THE ACTION RESULT — grouped by SOURCE. ── */
-    &__result {
-        flex: 0 0 16.5rem;
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-        gap: .45rem;
-        padding: .5rem .6rem;
-        border-radius: .5rem;
-        background: rgba(9, 15, 23, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.14);
-        overflow: hidden;
-    }
-    &__rsec {
-        display: flex;
-        flex-direction: column;
-        gap: .18rem;
-        padding-bottom: .3rem;
-
-        & + & { border-top: .05rem solid rgba(120, 155, 190, 0.10); padding-top: .35rem; }
-    }
-    &__rsec-label {
-        font-size: .6rem;
-        font-weight: 700;
-        letter-spacing: .08rem;
-        text-transform: uppercase;
-        color: fade(@con-cyan, 75%);
-    }
-    &__rrow {
-        display: flex;
-        align-items: center;
-        gap: .4rem;
-        font-size: .8rem;
-        min-width: 0;
-
-        b { font-weight: 800; font-variant-numeric: tabular-nums; }
-        em { font-style: normal; font-size: .68rem; color: @con-text-dim; font-variant-numeric: tabular-nums; }
-
-        &--gain b { color: @con-mint; }
-        &--cost b { color: #ffb0a6; }
-        &--target { font-size: .72rem; }
-    }
-    &__rrow-card { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    &__rglyph {
-        display: inline-flex;
-        zoom: var(--con-ui-scale, 1);
-        .benefit-glyph__num { display: none; }
-    }
-    &__rcube { zoom: var(--con-ui-scale, 1); }
-    &__rowners {
-        display: flex;
-        flex-wrap: wrap;
-        gap: .2rem .6rem;
-        font-size: .68rem;
+    &__xcell-qty {
+        font-size: 1.15rem;
+        font-weight: 800;
+        line-height: 1.1;
         color: @con-text;
-        min-width: 0;
+        font-variant-numeric: tabular-nums;
+
+        .con-colfocus__xcell--effective & { color: @con-mint; }
+        .con-colfocus__xcell--marker & { color: #ffffff; }
     }
-    &__rowner { display: inline-flex; align-items: center; gap: .3rem; font-weight: 700; }
-    &__muted { font-size: .7rem; font-weight: 600; color: @con-text-dim; }
-    &__notice {
+    &__xcell-void { font-size: .95rem; color: fade(@con-text-dim, 70%); line-height: 1.1; }
+    /* THE MARKER RAIL — a continuous groove across the whole track with one
+       seat per cell. The seat is what the glide proxy is sized and posed
+       from, so «where the marker is» and «where it lands» are the same box. */
+    &__xcell-rail {
         display: flex;
         align-items: center;
-        gap: .35rem;
-        font-size: .66rem;
-        color: @con-text-dim;
+        justify-content: center;
+        width: 100%;
+        height: .95rem;
+        margin-top: auto;
+        position: relative;
 
-        &--warn { color: @con-amber; font-weight: 700; }
+        &::before {
+            content: '';
+            position: absolute;
+            left: -.35rem;
+            right: -.35rem;
+            top: 50%;
+            height: .14rem;
+            transform: translateY(-50%);
+            border-radius: 49.95rem;
+            background: rgba(150, 180, 210, 0.16);
+        }
     }
+    &__xcell-seat {
+        position: relative;
+        width: .8rem;
+        height: .8rem;
+        border-radius: 50%;
+        background: rgba(12, 20, 30, 0.9);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 180, 210, 0.34);
+        transition: background calc(200ms * var(--motion-scale, 1)) ease, box-shadow calc(200ms * var(--motion-scale, 1)) ease;
 
-    /* ═══ MID BAND ═══ */
-    &__mid {
-        flex: 1;
-        min-height: 0;
+        .con-colfocus__xcell--passed & { box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%); }
+        .con-colfocus__xcell--reset & { box-shadow: inset 0 0 0 .07rem fade(@con-amber, 55%); }
+        .con-colfocus__xcell--marker & {
+            background: radial-gradient(circle at 34% 30%, #ffffff 0%, #e8f4ff 52%, #b8d4e8 100%);
+            box-shadow: 0 0 .5rem fade(@con-cyan, 70%), 0 .1rem .25rem rgba(0, 0, 0, 0.5);
+        }
+    }
+    /* While the proxy flies, the RESTING marker yields — one physical object
+       on screen, never two (the overview tile's contract, now honoured on the
+       surface the trade actually resolves on). */
+    &--gliding &__xcell--marker &__xcell-seat { opacity: .22; }
+
+    /* ── THE RETURN BASE — the colony-count rule, DRAWN ────────────────────
+       A bracket from position 1 through the built-colony count, the ⟲ anchor
+       planted under the exact cell the marker returns to, the distance it
+       will travel back drawn as a dashed span, and (in build mode) a mint
+       +1 ghost one cell further right. Column geometry mirrors the track
+       (same flex basis, same gap) so every notch sits under its own cell. */
+    &__resetrail {
         display: flex;
-        gap: 1.1rem;
-    }
-
-    /* ── THE COLONY SLOTS — three physical berths. ── */
-    &__slotszone {
-        flex: 0 0 17.5rem;
+        gap: .3rem;
         min-width: 0;
-        display: flex;
-        flex-direction: column;
-        gap: .45rem;
+        height: 1.15rem;
     }
-    &__bigslots {
-        display: flex;
-        gap: .6rem;
-    }
-    &__bigslot {
+    &__rrcell {
         position: relative;
         flex: 1 1 0;
         min-width: 0;
-        min-height: 4.6rem;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+    }
+    &__rr-line {
+        position: absolute;
+        left: -.15rem;
+        right: -.15rem;
+        top: 0;
+        height: .12rem;
+        border-radius: 49.95rem;
+        background: transparent;
+
+        .con-colfocus__rrcell--base & { background: fade(@con-amber, 55%); }
+        .con-colfocus__rrcell--span & {
+            background: repeating-linear-gradient(90deg,
+                fade(@con-amber, 34%) 0 .22rem, transparent .22rem .44rem);
+        }
+        .con-colfocus__rrcell--ghost & { background: fade(@con-mint, 40%); }
+    }
+    /* The RETURN ANCHOR — a caret pointing UP at the cell the marker falls
+       back to, with the ⟲ mark under it. It is planted on the rail, so the
+       rule reads off the track's own geometry: «отсюда — сюда». */
+    &__rr-anchor {
+        position: relative;
+        margin-top: .44rem;
+        font-size: .6rem;
+        line-height: 1;
+        font-weight: 800;
+        color: @con-amber;
+        text-shadow: 0 0 .5rem fade(@con-amber, 45%);
+
+        &::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: -.3rem;
+            transform: translateX(-50%);
+            border-left: .22rem solid transparent;
+            border-right: .22rem solid transparent;
+            border-bottom: .26rem solid @con-amber;
+        }
+    }
+    &__rr-ghost {
+        position: relative;
+        margin-top: .32rem;
+        font-size: .58rem;
+        font-weight: 800;
+        letter-spacing: .02rem;
+        color: @con-mint;
+        padding: 0 .22rem;
+        border-radius: .3rem;
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%);
+    }
+    &__resetnote {
+        display: flex;
+        align-items: center;
+        gap: .28rem;
+        font-size: .68rem;
+        min-width: 0;
+        margin-left: auto;
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+    &__rn-label {
+        font-size: .52rem;
+        font-weight: 700;
+        letter-spacing: .04rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        white-space: nowrap;
+    }
+    &__resetnote-built,
+    &__resetnote-target {
+        display: inline-flex;
+        align-items: center;
+        gap: .25rem;
+        padding: .08rem .38rem;
+        border-radius: .35rem;
+        background: rgba(120, 155, 190, 0.07);
+
+        b { font-weight: 800; font-variant-numeric: tabular-nums; color: @con-text; }
+    }
+    &__resetnote-target {
+        background: fade(@con-amber, 10%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 32%);
+
+        em { font-style: normal; color: @con-mint; font-weight: 700; }
+    }
+    &__rn-cubes { display: inline-flex; gap: .1rem; zoom: var(--con-ui-scale, 1); }
+    &__rn-arrow { color: @con-text-dim; font-weight: 700; }
+    &__rn-pos {
+        font-size: .82rem;
+        font-weight: 800;
+        color: @con-amber;
+        font-variant-numeric: tabular-nums;
+
+        &--next { color: @con-mint; }
+    }
+
+    /* ── THE COLONY BERTHS — three real places ────────────────────────────
+       Each berth states the RETURN STEP it would buy («⟲ 2/3/4»), which is
+       what turns the reset rule from prose into geometry. The cube SEAT is a
+       fixed box exactly the size of the seated token — the build hero's
+       flying cube is measured from it, so the landing is 1:1 with no size
+       jump. The owner bonus stands beside the berths that pay it. */
+    &__berthzone {
+        flex: 0 0 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+    }
+    &__berths {
+        flex: 0 1 auto;
+        display: flex;
+        gap: .55rem;
+        align-items: stretch;
+        min-width: 0;
+        height: 5.6rem;
+        min-height: 5.6rem;
+    }
+    &__berth {
+        position: relative;
+        flex: 1 1 0;
+        min-width: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
         gap: .3rem;
-        padding: .4rem .3rem;
+        padding: .35rem .25rem .3rem;
         border-radius: .55rem;
-        background: rgba(120, 155, 190, 0.07);
+        background: linear-gradient(180deg, rgba(120, 155, 190, 0.09), rgba(120, 155, 190, 0.03));
         box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.20);
-        zoom: var(--con-ui-scale, 1); /* px PlayerCube / BenefitGlyph content */
 
-        .benefit-glyph__num { display: none; }
+        /* An EMPTY berth reads as an open dock, not as a missing thing. */
+        &::before {
+            content: '';
+            position: absolute;
+            inset: .28rem;
+            border-radius: .4rem;
+            box-shadow: inset 0 0 0 .05rem rgba(150, 180, 210, 0.10);
+            pointer-events: none;
+        }
 
         &--taken {
-            background: rgba(18, 30, 44, 0.85);
-            box-shadow: inset 0 0 0 .05rem rgba(150, 180, 210, 0.30);
+            background: linear-gradient(180deg, rgba(24, 40, 58, 0.92), rgba(14, 24, 36, 0.92));
+            box-shadow: inset 0 0 0 .05rem rgba(150, 180, 210, 0.32);
+            &::before { box-shadow: none; }
         }
+        &--mine { box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 45%); }
         /* The build DESTINATION — where the token will physically land. */
         &--dest {
-            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 80%), 0 0 .8rem fade(@con-mint, 20%);
+            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 80%), 0 0 1rem fade(@con-mint, 22%);
             animation: con-colfocus-dest calc(2200ms * var(--motion-scale, 1)) ease-in-out infinite;
         }
     }
-    &__bigslot-name {
-        font-size: 10px; /* keep-px: inside the ×ui-scale zoom */
+    /* The CUBE SEAT — the build hero's measured landing box (px content in
+       the ui-scale zoom channel, exactly like the seated token). Never give
+       this a different size from the `<PlayerCube :size>` inside it. */
+    &__berth-seat {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 44px; /* keep-px: pairs with `<PlayerCube :size="44">` */
+        height: 44px; /* keep-px */
+        zoom: var(--con-ui-scale, 1);
+
+        .benefit-glyph__num { font-size: 16px; right: 0; bottom: 0; } /* keep-px: inside the zoom */
+        .benefit-glyph__tile {
+            transform: none;
+            width: 38px; height: 44px; background-size: 38px 44px; /* keep-px: inside the zoom */
+            background-repeat: no-repeat; background-position: center; margin: 0;
+        }
+    }
+    /* Two lines are allowed on purpose: a truncated «Свободное …» reads as a
+       broken label, and these boxes are narrow by design. */
+    &__berth-name {
+        font-size: .6rem;
         font-weight: 700;
-        letter-spacing: .02em;
+        line-height: 1.15;
+        letter-spacing: .02rem;
         color: @con-text-dim;
         max-width: 100%;
+        text-align: center;
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
         overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
 
-        .con-colfocus__bigslot--taken & { color: @con-text; }
+        .con-colfocus__berth--taken & { color: @con-text; }
     }
+    /* «⟲ N» — what filling THIS berth does to the return base. */
+    &__berth-step {
+        font-size: .6rem;
+        font-weight: 800;
+        letter-spacing: .03rem;
+        color: fade(@con-amber, 85%);
+        padding: .04rem .3rem;
+        border-radius: .3rem;
+        background: fade(@con-amber, 9%);
+        font-variant-numeric: tabular-nums;
+    }
+    &__ownerbonus {
+        flex: 0 0 auto;
+        width: 8rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .18rem;
+        padding: .45rem .5rem;
+        border-radius: .55rem;
+        background: fade(@con-mint, 7%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 26%);
+        text-align: center;
+    }
+    &__ob-label {
+        font-size: .56rem;
+        font-weight: 700;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        color: fade(@con-mint, 85%);
+    }
+    &__ob-value {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+
+        b { font-size: 1.15rem; font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; }
+    }
+    &__ob-note { font-size: .56rem; color: @con-text-dim; }
 
     /* ── THE ACTION CONFIGURATION — adaptive by mode. ── */
     &__config {
-        flex: 1;
+        flex: 1 1 auto;
         min-width: 0;
         min-height: 0;
         display: flex;
@@ -10032,19 +10243,23 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         padding-bottom: .2rem;
     }
     &__sec-title {
-        font-size: .65rem;
+        font-size: .68rem;
         font-weight: 700;
         letter-spacing: .09rem;
         text-transform: uppercase;
-        color: fade(@con-cyan, 80%);
+        color: fade(@con-cyan, 82%);
+        white-space: nowrap;
+        flex: 0 1 auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     &__sec-title--steps { margin-top: .45rem; }
     &__payrow {
         display: flex;
         align-items: center;
         gap: .5rem;
-        min-height: 1.9rem;
-        padding: .2rem .55rem;
+        min-height: 2.05rem;
+        padding: .22rem .6rem;
         border-radius: .45rem;
         background: rgba(120, 155, 190, 0.06);
 
@@ -10056,6 +10271,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%);
         }
         &--off { opacity: .78; }
+        /* The pinned choice past the commit: chosen, and no longer a control. */
+        &--locked {
+            background: fade(@con-mint, 9%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%);
+        }
     }
     &__payrow-pick {
         width: .9rem;
@@ -10071,16 +10291,16 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     &__payrow-dot { width: .5rem; height: .5rem; border-radius: 50%; background: @con-mint; }
     &__payrow-icon { flex-shrink: 0; }
-    &__payrow-title { flex: 1; min-width: 0; font-size: .78rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
-    &__payrow-delta { font-size: .72rem; font-weight: 700; color: fade(@con-cyan, 85%); font-variant-numeric: tabular-nums; }
-    &__payrow-reason { font-size: .65rem; color: @con-amber; }
+    &__payrow-title { flex: 1; min-width: 0; font-size: .8rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+    &__payrow-delta { font-size: .74rem; font-weight: 700; color: fade(@con-cyan, 85%); font-variant-numeric: tabular-nums; }
+    &__payrow-reason { font-size: .66rem; color: @con-amber; }
     &__steprow {
         display: flex;
         align-items: center;
         justify-content: space-between;
         gap: .5rem;
-        min-height: 1.9rem;
-        padding: .2rem .55rem;
+        min-height: 2.05rem;
+        padding: .22rem .6rem;
         border-radius: .45rem;
         background: rgba(120, 155, 190, 0.06);
 
@@ -10093,7 +10313,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__steprow-label { font-size: .72rem; font-weight: 700; letter-spacing: .03rem; text-transform: uppercase; color: @con-text-dim; }
     &__steprow-value {
         display: inline-flex; align-items: center; gap: .35rem;
-        font-size: .75rem; font-weight: 700;
+        font-size: .76rem; font-weight: 700;
         em { font-style: normal; color: fade(@con-cyan, 85%); font-variant-numeric: tabular-nums; }
     }
     &__steprow-empty { color: @con-text-dim; font-weight: 600; }
@@ -10112,36 +10332,160 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: flex;
         flex-direction: column;
         gap: .45rem;
-        padding: .6rem .7rem;
+        padding: .7rem .8rem;
         border-radius: .5rem;
         background: rgba(9, 15, 23, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.14);
         align-self: flex-start;
-        min-width: min(22rem, 100%);
+        min-width: min(24rem, 100%);
     }
     &__brief-line {
         display: flex;
         align-items: center;
         gap: .45rem;
-        font-size: .85rem;
+        font-size: .88rem;
         font-weight: 700;
 
         b { color: @con-mint; font-weight: 800; }
     }
-    &__brief-note { font-size: .68rem; font-weight: 500; color: @con-text-dim; }
+    &__brief-note { font-size: .7rem; font-weight: 500; color: @con-text-dim; }
 
-    /* INSPECT — the informational sections take the configuration room. */
-    &__inspect {
+    /* INSPECT — the colony's OWN RULES take the configuration room: one row
+       per rule, each led by its real glyph at full weight. A dossier reads
+       like a dossier; it is never a trade screen with the controls removed. */
+    &__rules {
+        display: flex;
+        flex-direction: column;
+        gap: .25rem;
+        min-width: 0;
+    }
+    &__rule {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        padding: .18rem .5rem;
+        border-radius: .45rem;
+        background: rgba(120, 155, 190, 0.055);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.12);
+        min-width: 0;
+    }
+    &__rule-body {
+        display: flex;
+        flex-direction: column;
+        gap: .08rem;
+        min-width: 0;
+
+        b {
+            font-size: .6rem; font-weight: 700; letter-spacing: .07rem;
+            text-transform: uppercase; color: fade(@con-cyan, 80%);
+        }
+        span {
+            font-size: .72rem; line-height: 1.25; color: @con-text-dim;
+            display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+        }
+    }
+
+    /* ═══════════════ RESULT — one card per SOURCE ═══════════════ */
+    &__result {
+        flex: 0 0 13.2rem;
+        align-self: center;
+        max-height: 100%;
+        min-width: 0;
         display: flex;
         flex-direction: column;
         gap: .45rem;
+        padding: .6rem .7rem;
+        border-radius: .55rem;
+        background: linear-gradient(180deg, rgba(13, 21, 32, 0.82), rgba(9, 15, 23, 0.7));
+        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.16);
+        overflow: hidden;
+    }
+    &__rsec {
+        display: flex;
+        flex-direction: column;
+        gap: .2rem;
+        padding-bottom: .3rem;
+
+        & + & { border-top: .05rem solid rgba(120, 155, 190, 0.10); padding-top: .38rem; }
+    }
+    /* The LEAD group is what the player came for — it gets the weight. */
+    &__rsec--lead { padding-bottom: .38rem; }
+    &__rsec-label {
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 75%);
+    }
+    &__rrow {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .82rem;
+        min-width: 0;
+
+        b { font-weight: 800; font-variant-numeric: tabular-nums; }
+        em { font-style: normal; font-size: .7rem; color: @con-text-dim; font-variant-numeric: tabular-nums; }
+
+        &--gain b { color: @con-mint; }
+        &--cost b { color: #ffb0a6; }
+        &--target { font-size: .72rem; }
+        &--big b { font-size: 1.5rem; line-height: 1.1; }
+    }
+    &__rrow-card { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    /* The TIGHT launch anchor: the reward chips and the card covers leave
+       exactly this value, never a whole panel. */
+    &__rvalue {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+    }
+    &__rglyph {
+        display: inline-flex;
+        zoom: var(--con-ui-scale, 1);
+        .benefit-glyph__num { display: none; }
+
+        &--lg { zoom: calc(1.25 * var(--con-ui-scale, 1)); }
+    }
+    &__rcube { zoom: var(--con-ui-scale, 1); }
+    &__rowners {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .2rem .6rem;
+        font-size: .68rem;
+        color: @con-text;
         min-width: 0;
     }
+    &__rowner { display: inline-flex; align-items: center; gap: .3rem; font-weight: 700; }
+    &__muted { font-size: .72rem; font-weight: 600; color: @con-text-dim; }
+    &__notice {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        font-size: .68rem;
+        color: @con-text-dim;
+
+        &--warn { color: @con-amber; font-weight: 700; }
+    }
+
+    /* ── MODE DIFFERENTIATION — one scene, genuinely different priorities ──
+       INSPECT has no action, so the identity + rules carry it and the amber
+       action accents stand down. BUILD leads with the berths. */
+    &--inspect &__result { flex-basis: 12rem; }
+    &--inspect &__resetnote-target { background: rgba(120, 155, 190, 0.07); box-shadow: none; }
+    &--build &__berthzone { order: -1; }
+    &--build &__berth:not(&--build &__berth--dest) { opacity: .72; }
 }
 
 @keyframes con-colfocus-dest {
-    0%, 100% { box-shadow: inset 0 0 0 .1rem fade(@con-mint, 70%), 0 0 .6rem fade(@con-mint, 16%); }
-    50%      { box-shadow: inset 0 0 0 .1rem fade(@con-mint, 95%), 0 0 1.1rem fade(@con-mint, 30%); }
+    0%, 100% { box-shadow: inset 0 0 0 .1rem fade(@con-mint, 70%), 0 0 .7rem fade(@con-mint, 16%); }
+    50%      { box-shadow: inset 0 0 0 .1rem fade(@con-mint, 95%), 0 0 1.3rem fade(@con-mint, 32%); }
+}
+
+/* The landed marker's settle — the cell the reset glide finished on. */
+@keyframes con-colfocus-settle {
+    0%   { box-shadow: inset 0 0 0 .12rem fade(@con-cyan, 95%), 0 0 1.5rem fade(@con-cyan, 40%); }
+    100% { box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 80%), 0 0 1rem fade(@con-cyan, 20%); }
 }
 
 /* ── The premium console colony TILE (compact, couch-readable) ────── *
@@ -10327,8 +10671,22 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
            next to the rem cells. Add the ui-scale compensation (same channel
            as __cell-value) so the top preview icons + their ×N badge match
            the trade/bonus icons' weight. */
-        .benefit-glyph { zoom: calc(0.82 * var(--con-ui-scale, 1)); }
+        .benefit-glyph { zoom: 0.82; }
         .benefit-glyph__num { font-size: 15px; right: 2px; bottom: 1px; } /* keep-px: inside the zoomed glyph */
+    }
+    /* THE CUBE SEAT — a box exactly the size of the seated token, and the ONE
+       thing the build hero measures (`data-colony-build-seat`). It carries the
+       ui-scale zoom channel for all its px content (cube + benefit glyph), so
+       the flying proxy is born at its landing size on every profile. Do NOT
+       give the cube inside a size different from this box. */
+    &__build-seat {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 32px;  /* keep-px: pairs with CUBE_STATIC_SIZE */
+        height: 32px; /* keep-px */
+        zoom: var(--con-ui-scale, 1);
     }
     /* Occupied slot: the one-time build bonus is consumed and the owner's
        PREMIUM 3D PlayerCube — the same physical token the main board uses for
@@ -10340,9 +10698,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        (CUBE_SLOT_F) from the measured slot rect, so the post-landing one-frame
        handoff is pixel-identical. Do NOT add a TV-profile size bump here — it
        would shear the proxy↔static match. */
-    &__build-slot .player-cube {
-        zoom: var(--con-ui-scale, 1);
-    }
+    /* The cube's zoom lives on the SEAT (above) — a second zoom here would
+       multiply and shear the proxy↔static match. */
     &__track {
         flex: 1;
         min-width: 0;

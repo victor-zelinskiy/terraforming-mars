@@ -94,11 +94,13 @@ export default defineComponent({
       // (the trade resolves on the stage — iteration 2); the overview tile's
       // dock is the fallback. A missing anchor degrades to a graceful
       // no-flight (the controller's dock still resolves the gate).
+      // ⚠️ MEASURED ladder, never `a ?? b`: `??` only falls through on a
+      // MISSING element, so a focus-stage berth that exists but has collapsed
+      // (a fold in flight) would win the query and the ship would dock at
+      // nothing while the visible tile berth was never tried.
       const [from, to] = await Promise.all([
         stableRect(() => document.querySelector<HTMLElement>('[data-fleet-launch]')),
-        stableRect(() =>
-          document.querySelector<HTMLElement>(`.con-colfocus [data-fleet-berth="${this.esc(colony)}"]`) ??
-          document.querySelector<HTMLElement>(`[data-fleet-berth="${this.esc(colony)}"]`)),
+        stableRect(() => this.berthEl(colony)),
       ]);
       if (!tradeFleetState.active) {
         return; // aborted while probing
@@ -120,6 +122,23 @@ export default defineComponent({
     },
     esc(name: string): string {
       return typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name.replace(/"/g, '\\"');
+    },
+    /** The FIRST berth that genuinely has a box — the focus stage's orbital
+     *  berth leads (the trade resolves on the stage), the overview tile's
+     *  dock is the fallback. Measured, never `??`. */
+    berthEl(colony: string): HTMLElement | null {
+      const key = this.esc(colony);
+      let fallback: HTMLElement | null = null;
+      for (const sel of [`.con-colfocus [data-fleet-berth="${key}"]`, `[data-fleet-berth="${key}"]`]) {
+        for (const el of Array.from(document.querySelectorAll<HTMLElement>(sel))) {
+          const r = el.getBoundingClientRect();
+          if (r.width > 2 && r.height > 2) {
+            return el;
+          }
+          fallback = fallback ?? el;
+        }
+      }
+      return fallback;
     },
   },
   beforeUnmount() {
