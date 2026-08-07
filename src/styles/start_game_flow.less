@@ -783,11 +783,13 @@
 }
 
 /*
- * Withheld-play hint — shown instead of РАЗЫГРАТЬ for a prelude that would
- * fizzle right now (e.g. Double Down with nothing to copy). Amber, muted,
- * reads as "not yet, do something else first".
+ * Two notes, one look. `__blocked-note` is a real block (Merger's unaffordable
+ * corp — there is no button to press). `__fizzle-note` is a WARNING that sits
+ * ABOVE a live РАЗЫГРАТЬ: the prelude would fizzle into a 15 M€ discard, which
+ * the player is still allowed to do. Amber, muted — a caution, never an error.
  */
-.start-game-flow__blocked-note {
+.start-game-flow__blocked-note,
+.start-game-flow__fizzle-note {
     max-width: 150px;
     text-align: center;
     padding: 6px 11px;

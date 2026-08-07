@@ -41,39 +41,52 @@ describe('PlayerInputBatch.reconcileBatchResponse', () => {
     expect(reconcileBatchResponse(bareOption, bare)).to.eq(bareOption);
   });
 
-  describe('Factorum (the reported bug): action() collapses to a bare SelectOption', () => {
-    it('the RAW OR-wrapper WOULD fail against the bare input — the root cause', () => {
-      const [, player] = testGame(2);
-      const card = new Factorum();
-      player.playedCards.push(card);
-      player.megaCredits = 10;
-      player.energy = 1;
-
-      const bare = cast(card.action(player), SelectOption);
-      player.setWaitingFor(bare, () => {});
-      // The redundant follow-up modal came from THIS throw (batch stops, the
-      // bare input is left as the leftover prompt).
-      expect(() => player.process(orWrap)).to.throw();
-    });
-
-    it('the reconciled response LANDS on the bare input — no redundant follow-up', () => {
+  /*
+   * HISTORY, worth keeping: reconcile was built for Factorum and did not fix it.
+   *
+   * It reshapes a branch wrapper the batch ALREADY CONTAINS. But Factorum's
+   * preview auto-resolves its lone available branch (`orBranches`'
+   * `autoResolveSingle` → every branch at index -1), so the composer sent NO
+   * branch response at all — there was nothing for reconcile to unwrap, and the
+   * bare `SelectOption` `action()` returned stayed on screen as the redundant
+   * «Потратьте 3 M€…» confirmation. The mitigation was only ever verified
+   * against a hand-built `{or, index:1}`, never against the batch the composer
+   * actually builds from the preview.
+   *
+   * The source is fixed now — `action()` RESOLVES a lone option (see
+   * `tests/models/actionPromptCoverage.spec.ts` for the contract, enforced
+   * across every in-scope action card). Reconcile stays as defence in depth for
+   * the case it does cover, exercised by the synthetic unit tests above.
+   */
+  describe('Factorum (the reported bug): the source, not the wrapper', () => {
+    it('a lone legal branch is RESOLVED — no bare SelectOption to reconcile', () => {
       const [game, player] = testGame(2);
       const card = new Factorum();
       player.playedCards.push(card);
       player.megaCredits = 10;
-      player.energy = 1;
+      player.energy = 1; // energy > 0 → only the draw branch is legal
 
-      const bare = cast(card.action(player), SelectOption);
+      // Nothing is returned, so nothing is left waiting: the batch that submits
+      // no branch response is a COMPLETE answer to this action.
+      expect(card.action(player)).is.undefined;
+      runAllActions(game);
+      expect(player.cardsInHand).has.lengthOf(1);
+      expect(player.megaCredits).to.eq(7);
+      expect(player.getWaitingFor()).to.eq(undefined);
+    });
+
+    it('the reconciler still lands an OR-wrapper on a bare input generally', () => {
+      const [game, player] = testGame(2);
+      const bare = cast(new SelectOption('draw', 'Draw').andThen(() => {
+        player.drawCard(1);
+        return undefined;
+      }), SelectOption);
       player.setWaitingFor(bare, () => {});
       const live = player.getWaitingFor();
       expect(live).to.not.eq(undefined);
       player.process(reconcileBatchResponse(orWrap, live as OrOptions));
       runAllActions(game);
-
-      // The building card was drawn + paid for, and NO leftover Factorum prompt
-      // remains (the redundant «Потратьте 3 M€…» modal is gone).
       expect(player.cardsInHand).has.lengthOf(1);
-      expect(player.megaCredits).to.eq(7);
       expect(player.getWaitingFor()).to.eq(undefined);
     });
   });

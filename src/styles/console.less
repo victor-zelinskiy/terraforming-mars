@@ -12540,6 +12540,16 @@ html.con-scale-focus-oceans .global-numbers-oceans {
         box-shadow: inset 0 0 0 .075rem fade(@con-amber, 90%), 0 .2rem .7rem rgba(0, 0, 0, 0.55), 0 0 .8rem fade(@con-amber, 20%);
         color: #ffe9c4;
     }
+    /* WARN: the card IS pressable, but pressing it costs something the player
+       would not expect (a prelude that fizzles into a 15 M€ discard). Amber
+       like --sale (a caution, never the red --disabled "you can't"), and
+       deliberately a different STATE from it: --disabled withholds the action,
+       --warn only annotates it. The full sentence is the status rail's. */
+    &__pickband--warn {
+        background: linear-gradient(180deg, fade(@con-amber, 26%), fade(@con-amber, 12%)), @con-glass;
+        box-shadow: inset 0 0 0 .075rem fade(@con-amber, 88%), 0 .2rem .7rem rgba(0, 0, 0, 0.55), 0 0 .8rem fade(@con-amber, 18%);
+        color: #ffe3b0;
+    }
     /* SELECT mode (mandatory hand pick): the picked-card ✓ band in cyan — the
        canonical "selected" accent (distinct from the mint play / amber sale). */
     &__pickband--select {

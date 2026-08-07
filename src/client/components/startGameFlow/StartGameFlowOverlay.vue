@@ -240,23 +240,24 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
                      :class="'start-game-flow__prelude-status--' + entry.status">
                   <span v-i18n>{{ preludeStatusLabel(entry.status) }}</span>
                 </div>
-                <button v-if="!setupRevealActive && entry.status === 'playable' && !entry.blocked"
+                <!--
+                  Would FIZZLE right now (e.g. Double Down before any other
+                  prelude is played — nothing to copy; Eccentric Sponsor with
+                  no affordable card in hand). A WARNING beside РАЗЫГРАТЬ, never
+                  instead of it: the tabletop puts no order restriction on
+                  preludes, so burning one for the 15 M€ stays the player's call.
+                -->
+                <div v-if="!setupRevealActive && fizzleNotice(entry.name) !== undefined"
+                     class="start-game-flow__fizzle-note"
+                     :data-test="'start-game-flow-fizzle-' + entry.name">
+                  <span v-i18n>{{ fizzleNotice(entry.name) }}</span>
+                </div>
+                <button v-if="!setupRevealActive && entry.status === 'playable'"
                         class="start-game-flow__play-btn"
                         @click="playPrelude(entry.name)"
                         :data-test="'start-game-flow-play-' + entry.name">
                   <span v-i18n>Play now</span>
                 </button>
-                <!--
-                  Would FIZZLE right now (e.g. Double Down before any other
-                  prelude is played — nothing to copy). РАЗЫГРАТЬ is withheld
-                  with a clear hint so the player plays a productive prelude
-                  first instead of wasting this one for 15 M€.
-                -->
-                <div v-else-if="entry.blocked"
-                     class="start-game-flow__blocked-note"
-                     :data-test="'start-game-flow-blocked-' + entry.name">
-                  <span v-i18n>Play another prelude first</span>
-                </div>
                 <div v-else class="start-game-flow__action-reserve" aria-hidden="true"></div>
               </div>
             </div>
@@ -434,6 +435,7 @@ import {
   corporationCardNames,
   corpStatusFor,
   preludeEntries,
+  preludeFizzleNotice,
   markStartFlowActivated,
   markStartFlowCompleted,
   recordDrawChoice,
@@ -640,7 +642,10 @@ export default defineComponent({
     playableZoomNames(): ReadonlySet<CardName> {
       const s = new Set<CardName>();
       for (const e of this.preludes) {
-        if (e.status === 'playable' && !e.blocked) {
+        // A fizzling prelude is playable too (the grid warns, it does not withhold),
+        // so the fullscreen РАЗЫГРАТЬ must agree — the two used to disagree the
+        // moment `blocked` gated only one of them.
+        if (e.status === 'playable') {
           s.add(e.name);
         }
       }
@@ -818,6 +823,10 @@ export default defineComponent({
         return 'Ready to play';
       }
       return 'Awaiting';
+    },
+    /** The fizzle warning's i18n key for this prelude (undefined = no warning). */
+    fizzleNotice(name: CardName): string | undefined {
+      return preludeFizzleNotice(this.preludes, name);
     },
     playPrelude(name: CardName): void {
       this.onsave({type: 'card', cards: [name]});

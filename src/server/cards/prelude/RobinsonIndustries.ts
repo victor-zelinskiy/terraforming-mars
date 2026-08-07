@@ -13,6 +13,8 @@ import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 
+const RAISE_COST = 4;
+
 export class RobinsonIndustries extends CorporationCard implements ICorporationCard, IActionCard {
   constructor() {
     super({
@@ -39,7 +41,7 @@ export class RobinsonIndustries extends CorporationCard implements ICorporationC
     return player.canAfford(4);
   }
   public actionUnavailableReason(player: IPlayer) {
-    return actionReason.needMoreMC(player, 4);
+    return actionReason.needMoreMC(player, RAISE_COST);
   }
   // One branch per tied-lowest production (spend 4 M€ → +1 of it). Mirrors
   // action()'s push order: ALL_RESOURCES order, only the resources tied at the
@@ -57,14 +59,21 @@ export class RobinsonIndustries extends CorporationCard implements ICorporationC
         lowest.push(resource);
       }
     });
+    // The 4 M€ becomes a real payment PROMPT whenever something else can pay it
+    // (Helion heat, Luna titanium) — pre-collect it per branch, since the live
+    // `SelectPaymentDeferred` is deferred INSIDE the chosen branch's callback.
+    const pay = actionPreviews.paymentStep(player, RAISE_COST, {title: TITLES.payForCardAction(this.name)});
     return actionPreviews.orBranches(this, lowest.map((resource) => ({
       available,
       title: 'Increase ' + resource + ' production 1 step',
-      effects: [
-        actionPreviews.stockCost(player, Resource.MEGACREDITS, 4),
-        actionPreviews.productionChange(player, resource, 1),
-      ],
-      unavailableReason: actionReason.needMoreMC(player, 4),
+      effects: pay !== undefined ?
+        [actionPreviews.productionChange(player, resource, 1)] :
+        [
+          actionPreviews.stockCost(player, Resource.MEGACREDITS, RAISE_COST),
+          actionPreviews.productionChange(player, resource, 1),
+        ],
+      steps: [pay],
+      unavailableReason: actionReason.needMoreMC(player, RAISE_COST),
       // action() returns the OrOptions directly (never reduce()d), so even a lone
       // tied-lowest production is presented at index 0 — don't auto-resolve.
     })), {autoResolveSingle: false});
@@ -76,7 +85,7 @@ export class RobinsonIndustries extends CorporationCard implements ICorporationC
 
     ALL_RESOURCES.forEach((resource) => {
       const option = new SelectOption('Increase ' + resource + ' production 1 step').andThen(() => {
-        player.game.defer(new SelectPaymentDeferred(player, 4, {title: TITLES.payForCardAction(this.name)}))
+        player.game.defer(new SelectPaymentDeferred(player, RAISE_COST, {title: TITLES.payForCardAction(this.name)}))
           // Add production after payment, to prevent Manutech from being in the way.
           .andThen(() => player.production.add(resource, 1, {log: true}));
         return undefined;

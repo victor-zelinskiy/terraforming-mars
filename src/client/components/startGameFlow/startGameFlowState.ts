@@ -283,12 +283,22 @@ export type PreludeStatus = 'awaiting' | 'playable' | 'played';
 export type PreludeEntry = {
   name: CardName;
   status: PreludeStatus;
-  // A 'playable' prelude that would FIZZLE right now (server `preludeFizzle`
-  // warning — e.g. Double Down with nothing yet to copy) AND there is a better,
-  // non-fizzling prelude still to play. Its РАЗЫГРАТЬ is disabled so the player
-  // plays the productive one first. NOT set when every remaining prelude would
-  // fizzle (then the player must be allowed to play one — no trap).
-  blocked: boolean;
+  /**
+   * A 'playable' prelude the server flagged `preludeFizzle`: played RIGHT NOW it
+   * would do nothing and settle as a discard for 15 M€ (Double Down with nothing
+   * yet to copy; Eccentric Sponsor with no affordable card in hand).
+   *
+   * A WARNING, never a block. The tabletop puts no order restriction on preludes
+   * — burning one for the 15 M€ is a legal (bad) play, and an earlier iteration
+   * that withheld РАЗЫГРАТЬ removed that choice from the player. Upstream carries
+   * the same intent as a TODO on EccentricSponsor: "identify that the prelude will
+   * fizzle during canPlay, which will present a WARNING to the player".
+   *
+   * So it is set whenever the server says so, with no "…but only while a better
+   * prelude remains" gate: the fact is equally true either way, and the wording
+   * that depends on the alternatives ({@link preludeFizzleNotice}) is presentation.
+   */
+  fizzles: boolean;
 };
 
 /**
@@ -340,21 +350,34 @@ export function preludeEntries(view: PlayerViewModel): ReadonlyArray<PreludeEntr
   for (const name of order) {
     const status = statusByName.get(name);
     if (status !== undefined) {
-      entries.push({name, status, blocked: false});
-    }
-  }
-  // Block a would-fizzle playable prelude ONLY while a non-fizzling playable
-  // alternative exists — so the player plays the productive prelude first, but
-  // is never trapped when everything left would fizzle.
-  const hasNonFizzlePlayable = entries.some((e) => e.status === 'playable' && !fizzleNames.has(e.name));
-  if (hasNonFizzlePlayable) {
-    for (const e of entries) {
-      if (e.status === 'playable' && fizzleNames.has(e.name)) {
-        e.blocked = true;
-      }
+      entries.push({name, status, fizzles: status === 'playable' && fizzleNames.has(name)});
     }
   }
   return entries;
+}
+
+/**
+ * The line a fizzling prelude shows — the i18n KEY, or `undefined` when this
+ * prelude is not fizzling and has nothing to say.
+ *
+ * ONE decision for both surfaces (console status rail, desktop grid note): the
+ * two used to carry a hand-copied `hasLivePeer ? a : b` branch each, which is
+ * exactly the shape that drifts. It answers a question the entry alone cannot —
+ * whether ANOTHER playable prelude would not fizzle:
+ *   · yes → «сначала разыграйте другой пролог», real actionable advice (playing
+ *     the productive one first may well make this one live again);
+ *   · no  → the advice would point at nothing, so the honest line is what the
+ *     fizzle actually COSTS (the shared `cardWarnings` `preludeFizzle` copy).
+ * Neither wording withholds the play — see {@link PreludeEntry.fizzles}.
+ */
+export function preludeFizzleNotice(
+  entries: ReadonlyArray<PreludeEntry>, name: CardName): string | undefined {
+  if (entries.find((e) => e.name === name)?.fizzles !== true) {
+    return undefined;
+  }
+  return entries.some((e) => e.name !== name && e.status === 'playable' && !e.fizzles) ?
+    'Play another prelude first' :
+    'This prelude is not playable, so you will discard it and gain 15 M€.';
 }
 
 /** Every corporation on this player's tableau (CardType.CORPORATION), in play

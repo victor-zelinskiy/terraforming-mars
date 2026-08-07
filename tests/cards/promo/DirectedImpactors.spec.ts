@@ -105,4 +105,29 @@ describe('DirectedImpactors', () => {
     expect(preview.branches[0].available).is.true; // the remove-asteroid branch
     expect(preview.branches[1].available).is.false; // can't afford +asteroid
   });
+
+  /*
+   * The mirror case, and the one that was BROKEN: temperature maxed AND the add
+   * branch affordable. `action()` hides the (pointless) removal, so the live
+   * OrOptions holds one option — but the preview used to offer BOTH. The batch's
+   * `{or, index}` is POSITIONAL, so index 0 ran "add" where the player had picked
+   * "remove", and index 1 was rejected as an invalid index.
+   */
+  it('temperature maxed + the add branch affordable: preview and action() agree on ONE branch', () => {
+    player.playedCards.push(card);
+    card.resourceCount = 1;
+    player.megaCredits = 20; // the +asteroid branch is affordable
+    setTemperature(game, MAX_TEMPERATURE);
+
+    expect(card.canAct(player)).is.true;
+    const preview = card.actionPreview(player);
+    expect(preview.branches[0].available, 'removing buys nothing at max temperature').is.false;
+    expect(preview.branches[1].available).is.true;
+    // A lone available branch → no branch pick is submitted, so the live action
+    // must not ask for one.
+    expect(preview.branches.every((b) => b.index === -1)).is.true;
+    const live = card.action(player);
+    expect(live instanceof OrOptions, 'a one-option OrOptions would strand the batch').is.false;
+    cast(live, SelectCard); // straight to the asteroid target
+  });
 });

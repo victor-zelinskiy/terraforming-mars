@@ -14,6 +14,8 @@ import {ICorporationCard} from '../corporation/ICorporationCard';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 
+const DRAW_COST = 3;
+
 export class Factorum extends CorporationCard implements ICorporationCard, IActionCard {
   constructor() {
     super({
@@ -51,16 +53,21 @@ export class Factorum extends CorporationCard implements ICorporationCard, IActi
   }
 
   public canAct(player: IPlayer): boolean {
-    return player.energy === 0 || player.canAfford(3);
+    return player.energy === 0 || player.canAfford(DRAW_COST);
   }
 
   public actionUnavailableReason(player: IPlayer) {
-    return actionReason.needMoreMC(player, 3);
+    return actionReason.needMoreMC(player, DRAW_COST);
   }
 
   // Branch order MUST match action(): increase-energy-production (only with no
   // energy resources) pushed first, draw-a-building-card second.
   public actionPreview(player: IPlayer) {
+    // The 3 M€ is a real CHOICE whenever the player can pay with something else
+    // (Helion heat, Luna titanium) — `SelectPaymentDeferred` then prompts. Host
+    // it as a step so the confirm collects it, exactly like WaterImportFromEuropa;
+    // when only M€ can pay, the live path auto-pays and the flat cost chip stands.
+    const pay = actionPreviews.paymentStep(player, DRAW_COST, {title: TITLES.payForCardAction(this.name)});
     return actionPreviews.orBranches(this, [
       {
         available: player.energy === 0,
@@ -69,11 +76,13 @@ export class Factorum extends CorporationCard implements ICorporationCard, IActi
         unavailableReason: actionReason.ruleReason('Only available when you have no energy'),
       },
       {
-        // The payment for 3 M€ rides the follow-up routing after submit.
-        available: player.canAfford(3),
+        available: player.canAfford(DRAW_COST),
         title: 'Spend 3 M€ to draw a building card',
-        effects: [actionPreviews.stockCost(player, Resource.MEGACREDITS, 3), actionPreviews.drawGain(1)],
-        unavailableReason: actionReason.needMoreMC(player, 3),
+        effects: pay !== undefined ?
+          [actionPreviews.drawGain(1)] :
+          [actionPreviews.stockCost(player, Resource.MEGACREDITS, DRAW_COST), actionPreviews.drawGain(1)],
+        steps: [pay],
+        unavailableReason: actionReason.needMoreMC(player, DRAW_COST),
       },
     ]);
   }
@@ -89,18 +98,29 @@ export class Factorum extends CorporationCard implements ICorporationCard, IActi
 
     const drawBuildingCard = new SelectOption('Spend 3 M€ to draw a building card', 'Draw card')
       .andThen(() => {
-        player.game.defer(new SelectPaymentDeferred(player, 3, {title: TITLES.payForCardAction(this.name)}))
+        player.game.defer(new SelectPaymentDeferred(player, DRAW_COST, {title: TITLES.payForCardAction(this.name)}))
           .andThen(() => player.drawCard(1, {tag: Tag.BUILDING}));
         return undefined;
       });
 
-    if (player.energy > 0) {
-      return drawBuildingCard;
+    const options = [];
+    if (player.energy === 0) {
+      options.push(increaseEnergy);
     }
-    if (!player.canAfford(3)) {
-      return increaseEnergy;
+    if (player.canAfford(DRAW_COST)) {
+      options.push(drawBuildingCard);
     }
-
-    return new OrOptions(increaseEnergy, drawBuildingCard);
+    // RESOLVE the lone legal option instead of RETURNING it (the TitanAirScrapping
+    // idiom). Returning it left a `SelectOption` standing as the next `waitingFor`
+    // — a forced confirm of the only thing that could happen — which the preview's
+    // auto-resolve contract (`orBranches` gives a lone available branch index -1,
+    // so the batch submits nothing for it) says is not there. The premium/console
+    // confirm already showed the branch and its effects, so that prompt was a
+    // second confirmation of a decision the player had just made, and it arrived
+    // as a bare generic band outside the action workspace.
+    if (options.length === 1) {
+      return options[0].cb(undefined);
+    }
+    return new OrOptions(...options);
   }
 }

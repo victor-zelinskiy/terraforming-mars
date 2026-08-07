@@ -1570,6 +1570,11 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3): 
       }
       continue;
     }
+    // The card is rendered before the dock-to-hand reveal releases input.
+    // On a loaded 4K frame the fixed settle above can expire while A is still
+    // deliberately gated, so wait for the hand's own structural ready signal.
+    await page.locator('.con-hand:not(.con-hand--transit)')
+      .waitFor({state: 'visible', timeout: 15_000});
     await press(page, 'Enter', 900); // open the play composer
     for (let i = 0; i < 5 && await page.locator('.con-composer--play, .con-play').count() > 0; i++) {
       await press(page, 'Enter', 900);

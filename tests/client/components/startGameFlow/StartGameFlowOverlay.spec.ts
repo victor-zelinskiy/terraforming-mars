@@ -167,7 +167,7 @@ describe('StartGameFlowOverlay', () => {
     expect(lastBody?.cards).to.deep.eq([PRELUDE_A]);
   });
 
-  it('blocks Double Down РАЗЫГРАТЬ (fizzle) while another prelude is playable, with a hint', () => {
+  it('WARNS about a fizzling Double Down without withholding РАЗЫГРАТЬ', () => {
     markStartFlowActivated('p-blue-id');
     const DD = CardName.DOUBLE_DOWN;
     const w = harness(fakePlayerViewModel({
@@ -178,15 +178,36 @@ describe('StartGameFlowOverlay', () => {
         cards: [{name: DD, warnings: ['preludeFizzle']}, {name: PRELUDE_A}],
       } as any,
     }));
-    // No РАЗЫГРАТЬ for the fizzling Double Down — a hint note instead.
-    expect(document.body.querySelector(`[data-test="start-game-flow-play-${DD}"]`)).to.eq(null);
-    expect(document.body.querySelector(`[data-test="start-game-flow-blocked-${DD}"]`)).to.not.eq(null);
-    // The productive prelude is still playable.
+    // The tabletop puts no order restriction on preludes: burning one for the
+    // 15 M€ is a legal (bad) play, so the warning stands BESIDE a live button.
+    const note = document.body.querySelector(`[data-test="start-game-flow-fizzle-${DD}"]`);
+    expect(note).to.not.eq(null);
+    expect(note?.textContent).to.contain('Play another prelude first');
+    expect(document.body.querySelector(`[data-test="start-game-flow-play-${DD}"]`)).to.not.eq(null);
+    // The productive prelude is playable and carries no warning.
     expect(document.body.querySelector(`[data-test="start-game-flow-play-${PRELUDE_A}"]`)).to.not.eq(null);
-    // And it can't be played from fullscreen either.
+    expect(document.body.querySelector(`[data-test="start-game-flow-fizzle-${PRELUDE_A}"]`)).to.eq(null);
+    // Fullscreen agrees with the grid — one availability answer, not two.
     const vm: any = w.findComponent(StartGameFlowOverlay).vm;
-    expect(vm.playableZoomNames.has(DD)).to.eq(false);
+    expect(vm.playableZoomNames.has(DD)).to.eq(true);
     expect(vm.playableZoomNames.has(PRELUDE_A)).to.eq(true);
+  });
+
+  it('with nothing else live, the fizzle warning names the COST instead of the advice', () => {
+    markStartFlowActivated('p-blue-id');
+    const DD = CardName.DOUBLE_DOWN;
+    harness(fakePlayerViewModel({
+      preludeCardsInHand: [{name: DD}] as any,
+      waitingFor: {
+        type: 'card', title: 'Select prelude card to play', buttonLabel: 'Play',
+        startGamePrompt: {kind: 'preludeSelection', preludeMode: 'hand'},
+        cards: [{name: DD, warnings: ['preludeFizzle']}],
+      } as any,
+    }));
+    const note = document.body.querySelector(`[data-test="start-game-flow-fizzle-${DD}"]`);
+    expect(note?.textContent).to.contain('discard it and gain 15 M€');
+    expect(note?.textContent).to.not.contain('Play another prelude first');
+    expect(document.body.querySelector(`[data-test="start-game-flow-play-${DD}"]`)).to.not.eq(null);
   });
 
   it('Merger: renders the corp-selection block; unaffordable corp not selectable; select submits', async () => {

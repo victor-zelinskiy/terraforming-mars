@@ -18,6 +18,8 @@ import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 
+const ADD_COST = 6;
+
 export class DirectedImpactors extends Card implements IActionCard, IProjectCard {
   constructor() {
     super({
@@ -48,7 +50,7 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
 
   public canAct(player: IPlayer): boolean {
     const cardHasResources = this.resourceCount > 0;
-    const canPayForAsteroid = player.canAfford({cost: 6, titanium: true});
+    const canPayForAsteroid = this.canPayForAsteroid(player);
 
     if (player.game.getTemperature() === MAX_TEMPERATURE && cardHasResources) {
       return true;
@@ -64,31 +66,62 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
     return actionReason.ruleReason('Cannot pay for an asteroid right now');
   }
 
+  private canPayForAsteroid(player: IPlayer): boolean {
+    return player.canAfford({cost: ADD_COST, titanium: true});
+  }
+
+  /**
+   * Is REMOVE an option the player gets to pick? ONE reading, shared by the
+   * preview and `action()`.
+   *
+   * The two used to be written out separately and disagreed with temperature
+   * MAXED: the preview offered both branches while `action()` built a one-option
+   * OrOptions, so the batch's `{or, index}` — which is POSITIONAL — either ran
+   * the wrong branch (index 0 = "remove" in the preview, "add" live) or was
+   * rejected outright as an invalid index.
+   *
+   * The rule itself: raising a maxed temperature buys nothing and the Reds tax
+   * may be unaffordable, so the removal is normally hidden — UNLESS the add
+   * branch is out of reach, where removing is the only thing left and the card
+   * offers it regardless (that is the disjunct `canAct` relies on).
+   */
+  private removeIsOffered(player: IPlayer): boolean {
+    if (this.resourceCount === 0) {
+      return false;
+    }
+    const raiseIsWorthIt = player.game.getTemperature() !== MAX_TEMPERATURE &&
+      player.canAfford({cost: 0, tr: {temperature: 1}});
+    return raiseIsWorthIt || !this.canPayForAsteroid(player);
+  }
+
   // Branch order MUST match action(): remove-asteroid (raise temperature)
   // pushed first, pay-to-add-asteroid second.
   public actionPreview(player: IPlayer) {
-    const temperatureIsMaxed = player.game.getTemperature() === MAX_TEMPERATURE;
+    // The 6 M€ is a CHOICE whenever titanium (or Helion heat) can cover it — the
+    // live `SelectPaymentDeferred` then asks. Pre-collect it instead of letting
+    // it arrive as a modal after the action was already confirmed.
+    const pay = actionPreviews.paymentStep(player, ADD_COST, {canUseTitanium: true, title: TITLES.payForCardAction(this.name)});
     return actionPreviews.orBranches(this, [
       {
-        // MUST mirror canAct's disjuncts: with an asteroid you may always remove it
-        // when temperature is MAXED (the step is a capped no-op but the action is
-        // legal — action() falls through to spendResource), else when you can afford
-        // the Reds tax. (A stray `!temperatureIsMaxed` here made canAct=true while
-        // BOTH branches read unavailable — which wrongly blocked the action in the
-        // normal overlay AND the reuse pick-mode.)
-        available: this.resourceCount > 0 && (temperatureIsMaxed || player.canAfford({cost: 0, tr: {temperature: 1}})),
+        available: this.removeIsOffered(player),
         title: 'Remove 1 asteroid to raise temperature 1 step',
         effects: [actionPreviews.cardCost(this, 1), actionPreviews.globalGain(player, 'temperature', 1)],
+        // One blocker, named — checked in the order the rule reads.
         unavailableReason: this.resourceCount === 0 ?
           actionReason.ruleReason('No asteroid on this card') :
-          actionReason.ruleReason('Can\'t afford the Reds tax'),
+          (player.game.getTemperature() === MAX_TEMPERATURE ?
+            actionReason.ruleReason('Temperature is already maxed') :
+            actionReason.ruleReason('Can\'t afford the Reds tax')),
       },
       {
-        // The payment (titanium may be used) + asteroid target ride the follow-up routing.
-        available: player.canAfford({cost: 6, titanium: true}),
+        // The asteroid TARGET still rides the follow-up routing.
+        available: this.canPayForAsteroid(player),
         title: 'Pay 6 M€ to add 1 asteroid to a card',
-        effects: [actionPreviews.stockCost(player, Resource.MEGACREDITS, 6), actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)],
-        unavailableReason: actionReason.needMoreMC(player, 6),
+        effects: pay !== undefined ?
+          [actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)] :
+          [actionPreviews.stockCost(player, Resource.MEGACREDITS, ADD_COST), actionPreviews.cardResourceGain(CardResource.ASTEROID, 1)],
+        steps: [pay],
+        unavailableReason: actionReason.needMoreMC(player, ADD_COST),
       },
     ]);
   }
@@ -99,27 +132,25 @@ export class DirectedImpactors extends Card implements IActionCard, IProjectCard
 
     const addResource = new SelectOption('Pay 6 M€ to add 1 asteroid to a card', 'Pay').andThen(() => this.addResource(player, asteroidCards));
     const spendResource = new SelectOption('Remove 1 asteroid to raise temperature 1 step', 'Remove asteroid').andThen(() => this.spendResource(player));
-    const temperatureIsMaxed = player.game.getTemperature() === MAX_TEMPERATURE;
 
-    if (this.resourceCount > 0) {
-      if (!temperatureIsMaxed && player.canAfford({cost: 0, tr: {temperature: 1}})) {
-        opts.push(spendResource);
-      }
-    } else {
-      return this.addResource(player, asteroidCards);
+    if (this.removeIsOffered(player)) {
+      opts.push(spendResource);
     }
-
-    if (player.canAfford({cost: 6, titanium: true})) {
+    if (this.canPayForAsteroid(player)) {
       opts.push(addResource);
-    } else {
-      return this.spendResource(player);
     }
 
+    // RESOLVE a lone option rather than asking the player to pick from a list of
+    // one — the preview reports that case as "no branch pick" (index -1), so the
+    // batch submits nothing for it and a one-option OrOptions would strand.
+    if (opts.length === 1) {
+      return opts[0].cb(undefined);
+    }
     return new OrOptions(...opts);
   }
 
   private addResource(player: IPlayer, asteroidCards: ICard[]) {
-    player.game.defer(new SelectPaymentDeferred(player, 6, {canUseTitanium: true, title: TITLES.payForCardAction(this.name)}));
+    player.game.defer(new SelectPaymentDeferred(player, ADD_COST, {canUseTitanium: true, title: TITLES.payForCardAction(this.name)}));
 
     // ALWAYS ask which card — even a single candidate (which is this card itself) —
     // so the player SEES where the asteroid goes + its current → resulting (no silent

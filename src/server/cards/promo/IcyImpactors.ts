@@ -15,6 +15,8 @@ import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 
+const ASTEROID_COST = 10;
+
 export class IcyImpactors extends Card implements IActionCard {
   constructor() {
     super({
@@ -42,7 +44,7 @@ export class IcyImpactors extends Card implements IActionCard {
     });
   }
   private canAffordToBuyAsteroids(player: IPlayer) {
-    return player.canAfford({cost: 10, titanium: true});
+    return player.canAfford({cost: ASTEROID_COST, titanium: true});
   }
   private canAffordToPlaceOcean(player: IPlayer) {
     return this.resourceCount > 0 && player.canAfford({cost: 0, tr: {oceans: 1}});
@@ -67,6 +69,11 @@ export class IcyImpactors extends Card implements IActionCard {
 
   // Branch order MUST match action(): place-ocean pushed first, buy-asteroids second.
   public actionPreview(player: IPlayer) {
+    // Titanium (and Helion heat) can cover the 10 M€, so the live
+    // `SelectPaymentDeferred` asks — pre-collect it. The options MUST match the
+    // deferred's byte for byte (no title here), or the collected response answers
+    // a different prompt than the one that arrives.
+    const pay = actionPreviews.paymentStep(player, ASTEROID_COST, {canUseTitanium: true});
     return actionPreviews.orBranches(this, [
       {
         // The first player places the ocean on the board after submit (no step).
@@ -78,11 +85,13 @@ export class IcyImpactors extends Card implements IActionCard {
           actionReason.ruleReason('Can\'t afford to place the ocean'),
       },
       {
-        // The payment (titanium may be used) rides the follow-up routing.
         available: this.canAffordToBuyAsteroids(player),
         title: 'Spend 10 M€ to add 2 asteroids here',
-        effects: [actionPreviews.stockCost(player, Resource.MEGACREDITS, 10), actionPreviews.cardGain(this, 2)],
-        unavailableReason: actionReason.needMoreMC(player, 10),
+        effects: pay !== undefined ?
+          [actionPreviews.cardGain(this, 2)] :
+          [actionPreviews.stockCost(player, Resource.MEGACREDITS, ASTEROID_COST), actionPreviews.cardGain(this, 2)],
+        steps: [pay],
+        unavailableReason: actionReason.needMoreMC(player, ASTEROID_COST),
       },
     ]);
   }
@@ -109,7 +118,7 @@ export class IcyImpactors extends Card implements IActionCard {
     if (this.canAffordToBuyAsteroids(player)) {
       options.options.push(
         new SelectOption('Spend 10 M€ to add 2 asteroids here').andThen(() => {
-          player.game.defer(new SelectPaymentDeferred(player, 10, {canUseTitanium: true})).andThen(() => {
+          player.game.defer(new SelectPaymentDeferred(player, ASTEROID_COST, {canUseTitanium: true})).andThen(() => {
             player.addResourceTo(this, {qty: 2, log: true});
           });
           return undefined;

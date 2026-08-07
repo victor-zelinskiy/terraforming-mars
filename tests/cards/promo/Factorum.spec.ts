@@ -11,6 +11,7 @@ import {Tag} from '../../../src/common/cards/Tag';
 import {Helion} from '../../../src/server/cards/corporation/Helion';
 import {testGame} from '../../TestGame';
 import {cast} from '../../../src/common/utils/utils';
+import {actionPreview} from '../../../src/server/models/actionPreview';
 
 describe('Factorum', () => {
   let card: Factorum;
@@ -42,17 +43,34 @@ describe('Factorum', () => {
     expect(player.production.energy).to.eq(1);
   });
 
-  it('Only offer building card if player has energy', () => {
+  // The LONE legal option is RESOLVED, not returned. Returning it left a bare
+  // `SelectOption` standing as the next prompt — a forced confirm of the only
+  // thing that could happen — which the action preview says is not there
+  // (`orBranches` gives a lone available branch index -1, so the pre-collected
+  // batch submits nothing for it) and which surfaced as a generic confirmation
+  // band outside the console's action workspace.
+  it('Only offer building card if player has energy — and ask NOTHING extra', () => {
     cast(card.play(player), undefined);
     player.megaCredits = 10;
     player.energy = 1;
 
-    const selectOption = cast(card.action(player), SelectOption);
-    selectOption.cb(undefined);
+    cast(card.action(player), undefined);
     runAllActions(game);
     expect(player.cardsInHand).has.lengthOf(1);
     expect(player.cardsInHand[0].tags).includes(Tag.BUILDING);
     expect(player.megaCredits).to.eq(7);
+    expect(player.popWaitingFor(), 'no leftover confirm').is.undefined;
+  });
+
+  it('Only offer energy production when the draw is unaffordable', () => {
+    cast(card.play(player), undefined);
+    player.megaCredits = 0;
+    player.energy = 0;
+
+    cast(card.action(player), undefined);
+    runAllActions(game);
+    expect(player.production.energy).to.eq(1);
+    expect(player.popWaitingFor(), 'no leftover confirm').is.undefined;
   });
 
   it('Factorum + Helion', () => {
@@ -70,8 +88,7 @@ describe('Factorum', () => {
     // Setting a larger amount of heat just to make the test results more interesting
     player.heat = 5;
 
-    const selectOption = cast(card.action(player), SelectOption);
-    selectOption.cb(undefined);
+    cast(card.action(player), undefined);
     runAllActions(game);
 
     const selectPayment = cast(player.popWaitingFor(), SelectPayment);
@@ -80,5 +97,26 @@ describe('Factorum', () => {
     expect(player.cardsInHand).has.lengthOf(1);
     expect(player.megaCredits).to.eq(1);
     expect(player.heat).to.eq(3);
+  });
+
+  // The Helion payment above is a real CHOICE, so the preview must PRE-COLLECT
+  // it (a payment step) instead of letting it arrive as a follow-up modal after
+  // the action was already confirmed.
+  it('preview: the draw branch carries a payment step when heat can pay, a flat cost chip otherwise', () => {
+    cast(card.play(player), undefined);
+    player.megaCredits = 10;
+    player.energy = 1;
+
+    const plain = actionPreview(player, card).branches[1];
+    expect(plain.steps.some((s) => s.kind === 'input' && s.input.type === 'payment'), 'M€-only pays automatically').is.false;
+    expect(plain.effects.some((e) => e.icon === 'megacredits' && e.direction === 'cost')).is.true;
+
+    player.canUseHeatAsMegaCredits = true;
+    player.heat = 5;
+    const withHeat = actionPreview(player, card).branches[1];
+    const pay = withHeat.steps.find((s) => s.kind === 'input' && s.input.type === 'payment');
+    expect(pay, 'expected an interactive payment step').is.not.undefined;
+    // The widget states the cost — a flat chip beside it would say it twice.
+    expect(withHeat.effects.some((e) => e.icon === 'megacredits' && e.direction === 'cost')).is.false;
   });
 });

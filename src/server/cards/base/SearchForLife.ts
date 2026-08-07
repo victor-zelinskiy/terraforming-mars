@@ -75,9 +75,13 @@ export class SearchForLife extends Card implements IActionCard, IProjectCard {
   // a microbe tag. The outcome is random, so it rides the premium reveal slot
   // (check: microbe tag → reward: science here) instead of a fixed gain chip.
   public actionPreview(player: IPlayer) {
+    // The 1 M€ is a choice the moment anything but M€ can pay it (Helion heat,
+    // Luna titanium) — the live `SelectPaymentDeferred` asks, so pre-collect it
+    // rather than let it arrive after the action was already confirmed.
+    const pay = actionPreviews.paymentStep(player, 1, {title: TITLES.payForCardAction(this.name)});
     return actionPreviews.singleBranch(this, player,
-      [],
-      [actionPreviews.stockCost(player, Resource.MEGACREDITS, 1)],
+      pay === undefined ? [] : [pay],
+      pay === undefined ? [actionPreviews.stockCost(player, Resource.MEGACREDITS, 1)] : [],
       {reveal: {
         deck: 'project',
         check: {tag: Tag.MICROBE, label: 'Microbe tag'},

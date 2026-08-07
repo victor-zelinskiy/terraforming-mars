@@ -21,6 +21,7 @@ import {
   startGameFlowAllDone,
   startFlowHasFocusedSubAction,
   preludeEntries,
+  preludeFizzleNotice,
   recordDrawChoice,
   drawChoicesFor,
 } from '@/client/components/startGameFlow/startGameFlowState';
@@ -345,7 +346,7 @@ describe('startGameFlowState predicates', () => {
       expect(e1[1].status).to.eq('playable');
     });
 
-    it('BLOCKS a would-fizzle prelude (Double Down) while a non-fizzling one remains', () => {
+    it('FLAGS a would-fizzle prelude (Double Down) — and only that one', () => {
       const DD = CardName.DOUBLE_DOWN;
       const view = fakePlayerViewModel({
         preludeCardsInHand: [{name: DD}, {name: PRELUDE_A}] as any,
@@ -356,11 +357,14 @@ describe('startGameFlowState predicates', () => {
         } as any,
       });
       const entries = preludeEntries(view);
-      expect(entries.find((e) => e.name === DD)?.blocked).to.eq(true);
-      expect(entries.find((e) => e.name === PRELUDE_A)?.blocked).to.eq(false);
+      expect(entries.find((e) => e.name === DD)?.fizzles).to.eq(true);
+      expect(entries.find((e) => e.name === PRELUDE_A)?.fizzles).to.eq(false);
+      // …and the productive alternative makes «сначала другой пролог» real advice.
+      expect(preludeFizzleNotice(entries, DD)).to.eq('Play another prelude first');
+      expect(preludeFizzleNotice(entries, PRELUDE_A)).to.eq(undefined);
     });
 
-    it('does NOT block when EVERY remaining prelude would fizzle (no trap)', () => {
+    it('still FLAGS when EVERY remaining prelude would fizzle — but names no peer', () => {
       const DD = CardName.DOUBLE_DOWN;
       const view = fakePlayerViewModel({
         preludeCardsInHand: [{name: DD}] as any,
@@ -370,7 +374,34 @@ describe('startGameFlowState predicates', () => {
           cards: [{name: DD, warnings: ['preludeFizzle']}],
         } as any,
       });
-      expect(preludeEntries(view).find((e) => e.name === DD)?.blocked).to.eq(false);
+      const entries = preludeEntries(view);
+      // The fizzle is equally true with nothing else to play — what changes is only
+      // the WORDING: «play another one first» would point at nothing, so the line
+      // becomes what the fizzle costs. The flag itself never softens.
+      expect(entries.find((e) => e.name === DD)?.fizzles).to.eq(true);
+      expect(preludeFizzleNotice(entries, DD))
+        .to.eq('This prelude is not playable, so you will discard it and gain 15 M€.');
+    });
+
+    it('never flags a prelude the server did not warn about, nor a played one', () => {
+      const DD = CardName.DOUBLE_DOWN;
+      const view = fakePlayerViewModel({
+        preludeCardsInHand: [{name: DD}] as any,
+        thisPlayer: {tableau: [{name: PRELUDE_A}]} as any,
+        waitingFor: {
+          type: 'card', title: 'Select prelude card to play', buttonLabel: 'Play',
+          startGamePrompt: {kind: 'preludeSelection', preludeMode: 'hand'},
+          cards: [{name: DD}],
+        } as any,
+      });
+      const entries = preludeEntries(view);
+      expect(entries.find((e) => e.name === DD)?.fizzles).to.eq(false);
+      expect(entries.find((e) => e.name === PRELUDE_A)?.status).to.eq('played');
+      expect(entries.find((e) => e.name === PRELUDE_A)?.fizzles).to.eq(false);
+      // No warning to show for either, and an unknown name is simply silent.
+      expect(preludeFizzleNotice(entries, DD)).to.eq(undefined);
+      expect(preludeFizzleNotice(entries, PRELUDE_A)).to.eq(undefined);
+      expect(preludeFizzleNotice(entries, PRELUDE_B)).to.eq(undefined);
     });
   });
 });

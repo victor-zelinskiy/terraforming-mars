@@ -16,6 +16,8 @@ import {Resource} from '../../../common/Resource';
 import * as actionReason from '../actionReasons';
 import * as actionPreviews from '../actionPreviews';
 
+const ADD_COST = 2;
+
 export class ForcedPrecipitation extends Card implements IActionCard {
   constructor() {
     super({
@@ -59,6 +61,9 @@ export class ForcedPrecipitation extends Card implements IActionCard {
 
   // Branch order MUST match action(): spend-floaters pushed first, add-floater second.
   public actionPreview(player: IPlayer) {
+    // Anything but plain M€ (Helion heat, Luna titanium) turns the 2 M€ into a
+    // payment PROMPT — pre-collect it instead of raising it after the confirm.
+    const pay = actionPreviews.paymentStep(player, ADD_COST, {title: TITLES.payForCardAction(this.name)});
     return actionPreviews.orBranches(this, [
       {
         available: this.resourceCount > 1 && player.canAfford({cost: 0, tr: {venus: 1}}),
@@ -67,10 +72,13 @@ export class ForcedPrecipitation extends Card implements IActionCard {
         unavailableReason: actionReason.ruleReason('Not enough floaters here, or you can\'t afford the Reds tax'),
       },
       {
-        available: player.canAfford(2),
+        available: player.canAfford(ADD_COST),
         title: 'Pay 2 M€ to add 1 floater to this card',
-        effects: [actionPreviews.stockCost(player, Resource.MEGACREDITS, 2), actionPreviews.cardGain(this, 1)],
-        unavailableReason: actionReason.needMoreMC(player, 2),
+        effects: pay !== undefined ?
+          [actionPreviews.cardGain(this, 1)] :
+          [actionPreviews.stockCost(player, Resource.MEGACREDITS, ADD_COST), actionPreviews.cardGain(this, 1)],
+        steps: [pay],
+        unavailableReason: actionReason.needMoreMC(player, ADD_COST),
       },
     ]);
   }
@@ -89,7 +97,7 @@ export class ForcedPrecipitation extends Card implements IActionCard {
       return this.addResource(player);
     }
 
-    if (player.canAfford(2)) {
+    if (player.canAfford(ADD_COST)) {
       opts.push(addResource);
     } else {
       return this.spendResource(player);
@@ -99,7 +107,7 @@ export class ForcedPrecipitation extends Card implements IActionCard {
   }
 
   private addResource(player: IPlayer) {
-    player.game.defer(new SelectPaymentDeferred(player, 2, {title: TITLES.payForCardAction(this.name)}))
+    player.game.defer(new SelectPaymentDeferred(player, ADD_COST, {title: TITLES.payForCardAction(this.name)}))
       .andThen(() => player.addResourceTo(this, {log: true}));
     return undefined;
   }

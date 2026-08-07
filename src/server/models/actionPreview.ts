@@ -15,6 +15,8 @@ import {collectActionBehaviorReasons} from './actionUnavailableReasons';
 import {DecreaseAnyProduction} from '../deferredActions/DecreaseAnyProduction';
 import {RemoveAnyPlants} from '../deferredActions/RemoveAnyPlants';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
+import {TITLES} from '../inputs/titles';
+import {cardSource} from '../inputs/choiceContext';
 import * as actionPreviews from '../cards/actionPreviews';
 
 /**
@@ -50,12 +52,45 @@ export function actionPreview(player: IPlayer, card: ICard & IActionCard): Actio
   const behavior = card.actionBehavior;
   if (behavior !== undefined) {
     const preview: ActionPreview = {...base, kind: 'declarative', branches: deriveDeclarativeBranches(player, card, behavior)};
+    /*
+     * A `spend.megacredits` action is only a FLAT cost when M€ is the only thing
+     * that can pay it. `SelectPaymentDeferred` asks the moment anything else can
+     * — steel/titanium when the card allows them, and heat / Luna titanium for
+     * EVERY such card (Helion, Luna Trade Federation), which is what made this a
+     * whole-class miss rather than a per-card one. Options must match the
+     * Executor's byte for byte (title + `cause`), or the pre-collected response
+     * answers a different prompt than the one that arrives.
+     *
+     * It rides the BRANCH's steps, first — where every hand-written
+     * `actionPreviews.paymentStep` already lives, and where both confirm surfaces
+     * render it. (`preSteps` would be the tidier home — `Executor.execute` defers
+     * the payment and runs the rest of the behavior in its `andThen`, so it truly
+     * is first — but the desktop confirm modal renders ONLY `spendHeat` in that
+     * block, so a payment preStep would show nothing there while still counting
+     * as an uncaptured pre-choice: its confirm button would never enable again.)
+     */
+    const megacredits = behavior.spend?.megacredits;
+    const payStep = typeof megacredits === 'number' && megacredits > 0 ?
+      actionPreviews.paymentStep(player, megacredits, {title: TITLES.payForCardAction(card.name), cause: cardSource(card)}) :
+      undefined;
     // A `spend.heat` action paid via Stormcraft floaters prompts a heat-SOURCE
     // choice BEFORE the effect — pre-collect it as a preStep so the action-confirm
     // modal hosts the heat payment + the effect in one pass (no follow-up).
     const heat = behavior.spend?.heat;
     const heatStep = typeof heat === 'number' && heat > 0 ? actionPreviews.spendHeatStep(player, heat) : undefined;
-    return heatStep !== undefined ? {...preview, preSteps: [heatStep]} : preview;
+    if (payStep === undefined) {
+      return heatStep !== undefined ? {...preview, preSteps: [heatStep]} : preview;
+    }
+    // The payment widget STATES the cost; a flat chip beside it would say the
+    // same number twice (the bespoke `paymentStep` cards drop it for the same
+    // reason). Only the ACTION preview is touched — `effectsForBehavior` is shared
+    // with the card-PLAY preview, where no payment step exists.
+    const branches = preview.branches.map((b) => b.available === false ? b : {
+      ...b,
+      effects: b.effects.filter((e) => !(e.direction === 'cost' && e.icon === Resource.MEGACREDITS && e.amount === megacredits)),
+      steps: [payStep, ...b.steps],
+    });
+    return heatStep !== undefined ? {...preview, branches, preSteps: [heatStep]} : {...preview, branches};
   }
 
   // Bespoke action with no hook yet: a single confirm-only branch. The action's

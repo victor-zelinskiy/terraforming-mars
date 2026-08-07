@@ -599,7 +599,7 @@ import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/star
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {afterPreludes, cardCostForCorp, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
 import {
-  corporationCardNames, PreludeEntry, preludeEntries, recordDrawChoice,
+  corporationCardNames, PreludeEntry, preludeEntries, preludeFizzleNotice, recordDrawChoice,
   startFlowCorpPayPrompt, startFlowCorpPlayPrompt, startFlowCorpSelectPrompt,
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
@@ -1171,6 +1171,12 @@ export default defineComponent({
       case 'candidate':
         return translateText('Select one');
       default: {
+        // A prelude that would FIZZLE names what pressing A actually costs (the
+        // badge is only the marker — the sentence is the rail's job).
+        const notice = preludeFizzleNotice(this.preludeRail, f.name);
+        if (notice !== undefined) {
+          return translateText(notice);
+        }
         const idx = this.queueCards.findIndex((q) => q.name === f.name);
         return idx <= 0 ? translateText('Ready to play') : translateText('Next prelude');
       }
@@ -1247,11 +1253,17 @@ export default defineComponent({
       });
       const preludesLive = startFlowPreludePrompt(this.playerView) !== undefined;
       for (const e of this.preludeRail) {
-        const playable = e.status === 'playable' && !e.blocked && preludesLive;
+        const playable = e.status === 'playable' && preludesLive;
+        // A would-FIZZLE prelude stays fully pressable — the badge warns, it never
+        // withholds. What it costs is the status rail's line (`ceremonyStatusText`);
+        // the badge is the at-a-glance marker that survives losing focus, and it
+        // rides the pickband — OUTSIDE the dimmable card body, so a state badge
+        // never fades with the card it describes.
         out.push({
           name: e.name, kind: 'prelude',
           verb: playable ? 'Play now' : undefined,
-          reason: e.blocked ? 'Play another prelude first' : undefined,
+          badge: playable && e.fizzles ? 'Will fizzle' : undefined,
+          badgeClass: playable && e.fizzles ? 'con-cards__pickband--warn' : undefined,
           dimmed: !playable,
           dealIdx: -1,
         });
@@ -1670,7 +1682,10 @@ export default defineComponent({
       }
       if (startFlowPreludePrompt(this.playerView) !== undefined) {
         for (const e of this.preludeRail) {
-          if (e.status === 'playable' && !e.blocked) {
+          // `fizzles` is deliberately NOT a filter here: the warning must not cost
+          // the player the ability to reach the card at all (focus is also how the
+          // rail explains it, and how X opens the fullscreen face).
+          if (e.status === 'playable') {
             out.push({kind: 'prelude', name: e.name, disabled: false});
           }
         }
