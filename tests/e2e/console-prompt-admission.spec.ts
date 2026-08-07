@@ -1,6 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {bootIntoGame, soloGameConfig} from './consoleStart';
 
 /**
  * Console-native PROMPT ADMISSION · one response, one demand on the player.
@@ -225,11 +226,20 @@ test.describe('console prompt admission · a draw and a placement in ONE respons
 
     // NO preludes — the short corp → buy → start wizard, then the standard
     // Greenery project. Nothing draws, so the placement must come alive at once.
-    await openGame(page, request, [], false);
-
-    await walkWizard(page, []);
-    await page.waitForTimeout(2500);
-    expect(await page.locator('.con-start__frame').count(), 'start wizard never completed').toBe(0);
+    //
+    // The pregame is the shared driver's (`consoleStart.ts`): this test's claim
+    // is the placement coming alive, and the walk above is the OTHER test's
+    // apparatus (it needs its two named preludes played off the rail). The
+    // local walk also decided the wizard was over by COUNTING
+    // `.con-start__frame` nodes — a question the DOM cannot answer, since the
+    // scene stays MOUNTED through its yield (`ConsoleShell.vue:2395`) and its
+    // panes are `v-show` (`ConsoleStartScene.vue:26`).
+    await bootIntoGame(page, request, {
+      config: soloGameConfig({
+        players: [{name: 'AdmissionTester', color: 'red', beginner: false, handicap: 0, first: true}],
+        seed: 0.42,
+      }),
+    });
 
     // LT wheel → Standard Projects → «Озеленение» (2 rows down) → placement.
     await key(page, 'Comma', 1200);

@@ -1,6 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {bootWithCards, openActionFocus, openCardActions, playCardFromHand, soloGameConfig, waitForTurn} from './consoleStart';
 
 /**
  * Console ACTION FLOW · the browse ⇄ ACTION FOCUS recompose.
@@ -24,55 +25,10 @@ import * as path from 'node:path';
 
 const OUT_DIR = path.resolve('screenshots', 'console-action-focus');
 
-function newGameConfig() {
-  return {
-    players: [{name: 'FocusTester', color: 'red', beginner: false, handicap: 0, first: true}],
-    expansions: {
-      corpera: true, promo: false, venus: false, colonies: false,
-      prelude: false, prelude2: false, turmoil: false, community: false,
-      ares: false, moon: false, pathfinders: false, ceo: false,
-      starwars: false, underworld: false, deltaProject: false,
-    },
-    board: 'tharsis',
-    seed: 0.11,
-    randomFirstPlayer: false,
-    clonedGamedId: undefined,
-    undoOption: false,
-    showTimers: false,
-    fastModeOption: false,
-    showOtherPlayersVP: false,
-    testMode: true,
-    aresExtremeVariant: false,
-    politicalAgendasExtension: 'Standard',
-    solarPhaseOption: false,
-    removeNegativeGlobalEventsOption: false,
-    modularMA: false,
-    draftVariant: false,
-    initialDraft: false,
-    preludeDraftVariant: false,
-    ceosDraftVariant: false,
-    startingCorporations: 2,
-    shuffleMapOption: false,
-    randomMA: 'No randomization',
-    includeFanMA: false,
-    soloTR: false,
-    customCorporationsList: [],
-    bannedCards: [],
-    includedCards: [],
-    customColoniesList: [],
-    customPreludes: [],
-    requiresMoonTrackCompletion: false,
-    requiresVenusTrackCompletion: false,
-    moonStandardProjectVariant: false,
-    moonStandardProjectVariant1: false,
-    altVenusBoard: false,
-    escapeVelocity: undefined,
-    twoCorpsVariant: false,
-    customCeos: [],
-    startingCeos: 3,
-    startingPreludes: 4,
-  };
-}
+const GAME_CONFIG = soloGameConfig({
+  players: [{name: 'FocusTester', color: 'red', beginner: false, handicap: 0, first: true}],
+  seed: 0.11,
+});
 
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT_DIR, {recursive: true});
@@ -103,105 +59,25 @@ for (const profile of PROFILES) {
     test('browse thumbnail → A focus recompose → B restore', async ({page, request}) => {
       test.setTimeout(480_000);
 
-      // A deal containing Search For Life (a clean single-variant action).
-      let playerId = '';
-      for (let attempt = 0; attempt < 40 && playerId === ''; attempt++) {
-        const config = {...newGameConfig(), seed: 0.11 + attempt * 0.013};
-        const created = await request.post('/api/creategame', {data: config});
-        expect(created.ok()).toBeTruthy();
-        const {players} = await created.json();
-        const pv = await (await request.get(`/api/player?id=${players[0].id}`)).json();
-        const dealt = (pv.waitingFor?.options ?? [])
-          .flatMap((o: {cards?: Array<{name: string}>}) => (o.cards ?? []).map((c) => c.name));
-        if (dealt.includes('Search For Life')) {
-          playerId = players[0].id;
-        }
-      }
-      expect(playerId, 'a deal containing Search For Life').not.toBe('');
-      await page.goto(`/player?id=${playerId}&console=1${profile.query}`);
-      await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-      await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-      await page.waitForTimeout(3800);
-
-      // ── The start wizard (console-surface-motion drive, verbatim). ──────
-      const startScene = page.locator('.con-start__frame');
-      await page.waitForSelector('.con-start__frame .con-cards__slot', {timeout: 25_000});
-      const corpWithFirstAction = new Set(['Inventrix', 'Tharsis Republic', 'CrediCor', 'United Nations Mars Initiative', 'Helion']);
-      for (let step = 0; step < 12; step++) {
-        const focusedCorp = await page.locator('.con-start__frame .con-cards__slot[class*="--focused"]').first()
-          .getAttribute('data-zoom-slot').catch(() => null);
-        if (focusedCorp !== null && !corpWithFirstAction.has(focusedCorp)) {
-          break;
-        }
-        await key(page, 'ArrowRight', 240);
-      }
-      const searchSlot = page.locator('.con-cards__slot[data-zoom-slot="Search For Life"]');
-      for (let tries = 0; tries < 4; tries++) {
-        await key(page, 'Enter', 1400);
-        const picked = await page.locator('.con-start__frame', {hasText: 'Выбрано 1'}).count() > 0;
-        if (picked || await searchSlot.count() > 0) {
-          break;
-        }
-      }
-      for (let hop = 0; hop < 5 && await searchSlot.count() === 0; hop++) {
-        const onSummary = await page.locator('.con-start__frame', {hasText: 'Сводка'}).count() > 0;
-        await key(page, onSummary ? 'Comma' : 'Period', 1400);
-      }
-      await searchSlot.waitFor({timeout: 8000});
-      for (let step = 0; step < 40; step++) {
-        const focused = await page.locator('.con-cards__slot[data-zoom-slot="Search For Life"][class*="--focused"]').count() > 0;
-        if (focused) {
-          break;
-        }
-        await key(page, 'ArrowRight', 230);
-      }
-      const pickedSearch = page.locator('.con-cards__slot[data-zoom-slot="Search For Life"][class*="--picked"]');
-      for (let tries = 0; tries < 3 && await pickedSearch.count() === 0; tries++) {
-        await key(page, 'Enter', 700);
-      }
-      expect(await pickedSearch.count(), 'Search For Life must be picked').toBeGreaterThan(0);
-      await key(page, 'Period', 1400);
-      for (let i = 0; i < 10 && await startScene.count() > 0; i++) {
-        await key(page, i % 2 === 0 ? 'Enter' : 'Period', 1100);
-      }
-      await page.waitForSelector('.con-start__frame', {state: 'detached', timeout: 30_000});
-      const turnChip = page.locator('.con-status', {hasText: 'ДЕЙСТВИЕ'});
-      for (let i = 0; i < 12 && await turnChip.count() === 0; i++) {
-        if (await page.locator('.con-start').count() > 0) {
-          await key(page, 'Enter', 1300);
-        } else {
-          await page.waitForTimeout(1000);
-        }
-      }
-      await expect(turnChip).toHaveCount(1, {timeout: 20_000});
+      // ── The pregame: the shared start driver puts Search For Life (a clean
+      //    single-variant action) in hand. The walk is SETUP, never the
+      //    subject — this spec's claim is the browse ⇄ focus recompose, so a
+      //    start-flow change is adapted in `consoleStart`, never here.
+      await bootWithCards(page, request, {
+        cards: ['Search For Life'],
+        config: GAME_CONFIG,
+        query: profile.query,
+        step: 0.013, // the deal-search stride this spec's seed line was tuned on
+      });
+      await waitForTurn(page);
       await page.waitForTimeout(4000);
 
       // ── Play Search For Life (RT wheel → center = КАРТЫ). ───────────────
-      await key(page, 'Period', 600);
-      await key(page, 'Enter', 1600);
-      await expect(page.locator('.con-hand [data-zoom-slot="Search For Life"]')).toBeVisible({timeout: 10_000});
-      for (let step = 0; step < 12; step++) {
-        const focusedName = await page.locator('.con-hand .con-hand__slot--selected[data-zoom-slot]').first()
-          .getAttribute('data-zoom-slot').catch(() => null);
-        if (focusedName === 'Search For Life') {
-          break;
-        }
-        await key(page, 'ArrowRight', 260);
-      }
-      await key(page, 'Enter', 900);
-      for (let i = 0; i < 5 && await page.locator('.con-composer--play, .con-play').count() > 0; i++) {
-        await key(page, 'Enter', 900);
-      }
-      await page.waitForTimeout(4200);
+      expect(await playCardFromHand(page, 'Search For Life'),
+        'Search For Life must have been played').toBe(true);
 
       // ── 1. BROWSE: the inspector thumbnail is the physical anchor. ──────
-      // Verified entry (a press on a busy 4K frame is silently dropped —
-      // the same retry discipline as the wizard steps).
-      for (let tries = 0; tries < 4 && await page.locator('.con-cardactions').count() === 0; tries++) {
-        await key(page, 'Period', 700);
-        await key(page, 'ArrowUp', 1200);
-      }
-      await expect(page.locator('.con-cardactions')).toHaveCount(1, {timeout: 10_000});
+      await openCardActions(page);
       const thumb = page.locator('.con-cardactions__detail-cardwrap[data-zoom-slot="Search For Life"]');
       await expect(thumb).toHaveCount(1);
       expect(await page.locator('.con-cardactions__detail-graphic').count(),
@@ -210,8 +86,7 @@ for (const profile of PROFILES) {
       await shoot(page, `${profile.tag}-01-browse-thumbnail`);
 
       // ── 2. A: the SAME frame recomposes into ACTION FOCUS. ──────────────
-      await key(page, 'Enter', 900);
-      await expect(page.locator('.con-cardactions__stagewrap .con-composer--stage')).toHaveCount(1);
+      await openActionFocus(page);
       // No second frame chrome, no private backdrop — the browser's frame IS
       // the stage's chrome (never a web-modal feeling).
       expect(await page.locator('.con-composer__backdrop').count()).toBe(0);
@@ -243,8 +118,7 @@ for (const profile of PROFILES) {
       await shoot(page, `${profile.tag}-03-back-to-browse`);
 
       // ── 4. X in focus: the dossier opens over the PRESERVED stage. ──────
-      await key(page, 'Enter', 900);
-      await expect(page.locator('.con-composer--stage')).toHaveCount(1);
+      await openActionFocus(page);
       await key(page, 'KeyX', 1600);
       await expect(page.locator('dialog.con-zoom[open]')).toHaveCount(1, {timeout: 8000});
       await shoot(page, `${profile.tag}-04-inspect-from-focus`);

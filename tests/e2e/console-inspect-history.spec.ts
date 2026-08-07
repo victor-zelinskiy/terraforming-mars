@@ -1,6 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {bootWithCards, openCardActions, playCardFromHand, soloGameConfig, waitForTurn} from './consoleStart';
 
 /**
  * Console Action Browser · the inspect DOSSIER (ПРАВИЛА / СТАТИСТИКА).
@@ -10,7 +11,8 @@ import * as path from 'node:path';
  * history is non-empty before any activation), opens the Action Browser, and
  * asserts:
  *  1. the browser's right panel no longer renders the per-game usage ledger
- *     (`__detail-usage` gone) — only the calm inspect hint remains;
+ *     (`__detail-usage` gone) and no longer duplicates the inspect verb —
+ *     the ONE «Осмотреть» lives in the command bar;
  *  2. X opens the fullscreen dossier on ПРАВИЛА (the card rules), the big card
  *     stable on the left;
  *  3. RB switches to СТАТИСТИКА — the card-history block (stored floaters) shows,
@@ -21,55 +23,12 @@ import * as path from 'node:path';
 
 const OUT_DIR = path.resolve('screenshots', 'console-inspect-history');
 
-function newGameConfig() {
-  return {
-    players: [{name: 'InspectTester', color: 'red', beginner: false, handicap: 0, first: true}],
-    expansions: {
-      corpera: true, promo: false, venus: true, colonies: false,
-      prelude: false, prelude2: false, turmoil: false, community: false,
-      ares: false, moon: false, pathfinders: false, ceo: false,
-      starwars: false, underworld: false, deltaProject: false,
-    },
-    board: 'tharsis',
-    seed: 0.1,
-    randomFirstPlayer: false,
-    clonedGamedId: undefined,
-    undoOption: false,
-    showTimers: false,
-    fastModeOption: false,
-    showOtherPlayersVP: false,
-    testMode: true,
-    aresExtremeVariant: false,
-    politicalAgendasExtension: 'Standard',
-    solarPhaseOption: false,
-    removeNegativeGlobalEventsOption: false,
-    modularMA: false,
-    draftVariant: false,
-    initialDraft: false,
-    preludeDraftVariant: false,
-    ceosDraftVariant: false,
-    startingCorporations: 2,
-    shuffleMapOption: false,
-    randomMA: 'No randomization',
-    includeFanMA: false,
-    soloTR: false,
-    customCorporationsList: [],
-    bannedCards: [],
-    includedCards: [],
-    customColoniesList: [],
-    customPreludes: [],
-    requiresMoonTrackCompletion: false,
-    requiresVenusTrackCompletion: false,
-    moonStandardProjectVariant: false,
-    moonStandardProjectVariant1: false,
-    altVenusBoard: false,
-    escapeVelocity: undefined,
-    twoCorpsVariant: false,
-    customCeos: [],
-    startingCeos: 3,
-    startingPreludes: 4,
-  };
-}
+/** Venus ON — Extractor Balloons («Газосборники») is a Venus card. */
+const GAME_CONFIG = soloGameConfig({
+  players: [{name: 'InspectTester', color: 'red', beginner: false, handicap: 0, first: true}],
+  expansions: {venus: true},
+  seed: 0.1,
+});
 
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT_DIR, {recursive: true});
@@ -145,103 +104,47 @@ for (const profile of PROFILES) {
     test('the per-game history moves to the X-inspect ПРАВИЛА/СТАТИСТИКА tabs', async ({page, request}) => {
       test.setTimeout(480_000);
 
-      // Find a Venus deal holding Extractor Balloons (Газосборники).
-      let playerId = '';
-      for (let attempt = 0; attempt < 40 && playerId === ''; attempt++) {
-        const config = {...newGameConfig(), seed: 0.1 + attempt * 0.017};
-        const created = await request.post('/api/creategame', {data: config});
-        expect(created.ok()).toBeTruthy();
-        const {players} = await created.json();
-        const pv = await (await request.get(`/api/player?id=${players[0].id}`)).json();
-        const dealt = (pv.waitingFor?.options ?? [])
-          .flatMap((o: {cards?: Array<{name: string}>}) => (o.cards ?? []).map((c) => c.name));
-        if (dealt.includes('Extractor Balloons')) {
-          playerId = players[0].id;
-        }
-      }
-      expect(playerId, 'a Venus deal containing Extractor Balloons').not.toBe('');
-      await page.goto(`/player?id=${playerId}&console=1${profile.query}`);
-      await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-      await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-      await page.waitForTimeout(3800);
-
-      // ── Wizard: pick any corp, buy Extractor Balloons, launch. ──────────
-      const startScene = page.locator('.con-start__frame');
-      await page.waitForSelector('.con-start__frame .con-cards__slot', {timeout: 25_000});
-      // Corp pick with a confirmation retry (4K first frames render long — an
-      // Enter landing before the scene accepts input is silently dropped).
-      const balloonsSlot = page.locator('.con-cards__slot[data-zoom-slot="Extractor Balloons"]');
-      for (let tries = 0; tries < 4; tries++) {
-        await key(page, 'Enter', 1400);
-        const pickedCorp = await page.locator('.con-start__frame', {hasText: 'Выбрано 1'}).count() > 0;
-        if (pickedCorp || await balloonsSlot.count() > 0) {
-          break;
-        }
-      }
-      for (let hop = 0; hop < 5 && await balloonsSlot.count() === 0; hop++) {
-        const onSummary = await page.locator('.con-start__frame', {hasText: 'Сводка'}).count() > 0;
-        await key(page, onSummary ? 'Comma' : 'Period', 1400);
-      }
-      await balloonsSlot.waitFor({timeout: 8000});
-      for (let step = 0; step < 40; step++) {
-        if (await page.locator('.con-cards__slot[data-zoom-slot="Extractor Balloons"][class*="--focused"]').count() > 0) {
-          break;
-        }
-        await key(page, 'ArrowRight', 230);
-      }
-      const picked = page.locator('.con-cards__slot[data-zoom-slot="Extractor Balloons"][class*="--picked"]');
-      for (let tries = 0; tries < 3 && await picked.count() === 0; tries++) {
-        await key(page, 'Enter', 700);
-      }
-      expect(await picked.count(), 'Extractor Balloons bought').toBeGreaterThan(0);
-      await key(page, 'Period', 1400);
-      for (let i = 0; i < 10 && await startScene.count() > 0; i++) {
-        await key(page, i % 2 === 0 ? 'Enter' : 'Period', 1100);
-      }
-      await page.waitForSelector('.con-start__frame', {state: 'detached', timeout: 30_000});
-      const turnChip = page.locator('.con-status', {hasText: 'ДЕЙСТВИЕ'});
-      for (let i = 0; i < 12 && await turnChip.count() === 0; i++) {
-        if (await page.locator('.con-start').count() > 0) {
-          await key(page, 'Enter', 1300);
-        } else {
-          await page.waitForTimeout(1000);
-        }
-      }
-      await expect(turnChip).toHaveCount(1, {timeout: 20_000});
+      // ── The pregame: the shared start driver finds a Venus deal holding
+      //    Extractor Balloons and buys it. SETUP, never the subject — this
+      //    spec's claim is the dossier, so a start-flow change is adapted in
+      //    `consoleStart`, never here.
+      await bootWithCards(page, request, {
+        cards: ['Extractor Balloons'],
+        config: GAME_CONFIG,
+        query: profile.query,
+      });
+      await waitForTurn(page);
       await page.waitForTimeout(3500);
 
-      // Play Extractor Balloons from hand so it has a tableau action + 3 stored
-      // floaters (RT wheel → center = КАРТЫ → focus it → play → confirm).
-      await key(page, 'Period', 600);
-      await key(page, 'Enter', 1600);
-      await expect(page.locator('.con-hand [data-zoom-slot="Extractor Balloons"]')).toBeVisible({timeout: 10_000});
-      for (let step = 0; step < 12; step++) {
-        const f = await page.locator('.con-hand .con-hand__slot--selected[data-zoom-slot]').first().getAttribute('data-zoom-slot').catch(() => null);
-        if (f === 'Extractor Balloons') {
-          break;
-        }
-        await key(page, 'ArrowRight', 260);
-      }
-      await key(page, 'Enter', 900); // open play composer
-      for (let i = 0; i < 5 && await page.locator('.con-composer--play, .con-play').count() > 0; i++) {
-        await key(page, 'Enter', 900);
-      }
-      await page.waitForTimeout(4200); // played-hero settle
+      // Play Extractor Balloons so it has a tableau action + 3 stored floaters
+      // (its on-play adds them, which is what the СТАТИСТИКА tab reads).
+      expect(await playCardFromHand(page, 'Extractor Balloons'),
+        'Extractor Balloons must have been played').toBe(true);
 
       // ── Open the Action Browser (RT wheel → ↑ card actions). ────────────
-      await key(page, 'Period', 600);
-      await key(page, 'ArrowUp', 1000);
-      await expect(page.locator('.con-cardactions')).toHaveCount(1, {timeout: 10_000});
-      // 1. The per-game usage ledger is GONE from the browser; the hint stays.
+      await openCardActions(page);
+      // 1. The browser is a DECISION surface: no per-game usage ledger, and no
+      // in-panel copy of the inspect verb either — `ConsoleCardActions.vue:228`
+      // («a second copy inside the panel was pure duplication») removed the
+      // hint node deliberately, so its ABSENCE is the contract now. The verb
+      // itself is proved where it matters, one beat below: X opens the dossier.
       expect(await page.locator('.con-cardactions__detail-usage').count(), 'usage ledger removed from the browser').toBe(0);
       expect(await page.locator('.con-cardactions__usage-line').count(), 'usage lines removed').toBe(0);
-      await expect(page.locator('.con-cardactions__detail-history-hint')).toHaveCount(1);
+      expect(await page.locator('.con-cardactions__detail-history-hint').count(),
+        'no in-panel inspect hint — the command bar owns that verb').toBe(0);
       await shoot(page, `${profile.tag}-01-browser-clean`);
 
       // ── 2. X inspects the FOCUSED action (Extractor Balloons is the first
       // available one) → the dossier opens on ПРАВИЛА. ────────────────────
-      await key(page, 'KeyX', 1400);
-      await expect(page.locator('.con-inspect-side')).toHaveCount(1, {timeout: 10_000});
+      // (Retry discipline, gated on the dossier's own absence: a press that
+      //  lands while the browser is still settling is consumed by design, and
+      //  a second press on an OPEN dossier would be a different verb — so this
+      //  presses only while there is nothing there.)
+      const dossier = page.locator('.con-inspect-side');
+      for (let tries = 0; tries < 3 && await dossier.count() === 0; tries++) {
+        await key(page, 'KeyX', 1400);
+      }
+      await expect(dossier).toHaveCount(1, {timeout: 10_000});
       // Default tab is ПРАВИЛА (the rules panel embedded).
       const rulesTab = page.locator('.con-inspect-side__tab--active', {hasText: 'ПРАВИЛА'});
       await expect(rulesTab).toHaveCount(1);

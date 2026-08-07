@@ -8,6 +8,9 @@ import {
   hydrateWorkspaceStack,
   popWorkspaceFrame,
   descendWorkspaceFrame,
+  enterWorkspace,
+  goBoardHome,
+  leaveWorkspace,
   probeWorkspacePresence,
   pushWorkspaceFrame,
   reconcileWorkspaceStack,
@@ -258,6 +261,83 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     expect(buildWorkspaceHeader(workspaceStackCrumb()!).segments.map((s) => s.role)).to.deep.eq(['root']);
     setWorkspaceFrameStage('card-actions', 'Setup');
     expect(buildWorkspaceHeader(workspaceStackCrumb()!).segments.map((s) => s.role)).to.deep.eq(['root', 'stage']);
+  });
+
+  // ── the navigation verbs ──────────────────────────────────────────────────
+
+  /*
+   * `section = 'board'` meant three different things, and every reader had to
+   * re-guess which. These are those intents, named — and the difference between
+   * them is exactly the difference between «the decision waits for you» and
+   * «the decision is gone».
+   */
+  it('park KEEPS the decision, go-home THROWS IT AWAY — the lost distinction', () => {
+    openHandPlayingTradingColony();
+    addColonyStep();
+
+    collapseWorkspaceStack();
+    expect(workspaceStackSection()).to.eq('board');
+    expect(workspaceStackDepth(), 'parked: there is something to come back to').to.eq(2);
+    expect(stackServes('colony'), 'and it still serves').to.eq(true);
+
+    restoreWorkspaceStack();
+    goBoardHome();
+    expect(workspaceStackSection()).to.eq('board');
+    expect(workspaceStackDepth(), 'finished: nothing to come back to').to.eq(0);
+    expect(stackServes('colony')).to.eq(false);
+  });
+
+  /*
+   * The truncation is UNCONDITIONAL. The old section watcher did the same thing
+   * by hand and GUARDED it («…unless a colony follow-up is live inside the
+   * hand»), which is precisely how a step came to outlive its host.
+   */
+  it('entering a workspace unwinds whatever stood on top of it — no exceptions', () => {
+    openHandPlayingTradingColony();
+    addColonyStep();
+    enterWorkspace('hand');
+    expect(workspaceStackDepth()).to.eq(1);
+    expect(workspaceFrameIndex('colonies')).to.eq(-1);
+    expect(workspaceStackTop()?.phase, 'and it lands on its browse layer').to.eq('browse');
+  });
+
+  it('entering a DIFFERENT workspace from a parked one un-parks it', () => {
+    enterWorkspace('hand');
+    collapseWorkspaceStack();
+    enterWorkspace('colonies');
+    expect(workspaceStackCollapsed()).to.eq(false);
+    expect(workspaceStackSection()).to.eq('colonies');
+  });
+
+  it('a fresh frame starts from its registered serves', () => {
+    enterWorkspace('colonies');
+    expect(stackServes('colony')).to.eq(true);
+    expect(workspaceStackDepth()).to.eq(1);
+  });
+
+  /*
+   * A LATERAL move is not a descent. Walking from the colonies to the hydro
+   * track does not make the colonies the hydro's host — only a FLOW nests, and
+   * a flow nests with `pushWorkspaceFrame`. Conflating the two is how «go
+   * there» quietly builds a chain nobody meant.
+   */
+  it('a lateral move REPLACES the screen — it never nests under the old one', () => {
+    enterWorkspace('colonies');
+    enterWorkspace('hydro');
+    expect(workspaceStackDepth()).to.eq(1);
+    expect(workspaceStackSection()).to.eq('hydro');
+    expect(stackServes('colony'), 'the colonies are gone, not underneath').to.eq(false);
+  });
+
+  it('leaveWorkspace is one screen back, not a reset', () => {
+    enterWorkspace('hand');
+    pushWorkspaceFrame({
+      kind: 'colonies', subject: '', stage: 'Colonies', phase: 'committed',
+      serves: ['colony'], anchor: ALWAYS,
+    });
+    leaveWorkspace();
+    expect(workspaceStackSection()).to.eq('hand');
+    expect(workspaceStackDepth()).to.eq(1);
   });
 
   // ── the registry, and the two legacy axes it projects onto ────────────────

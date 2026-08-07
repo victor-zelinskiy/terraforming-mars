@@ -1,6 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {bootIntoGame, fillPicks, pickCalmCorporation, soloGameConfig} from './consoleStart';
 
 /**
  * Console score header (.con-score — TR + VP above the resource rows):
@@ -26,57 +27,13 @@ const PRESETS: ReadonlyArray<Preset> = [
   {id: 'compact-720', viewport: {width: 1280, height: 720}, deviceScaleFactor: 1, profileQuery: ''},
 ];
 
-/** Full NewGameConfig — deterministic solo base+corpEra+prelude game. */
-function newGameConfig() {
-  const expansions: Record<string, boolean> = {
-    corpera: true, promo: false, venus: false, colonies: false,
-    prelude: true, prelude2: false, turmoil: false, community: false,
-    ares: false, moon: false, pathfinders: false, ceo: false,
-    starwars: false, underworld: false, deltaProject: false,
-  };
-  return {
-    players: [{name: 'ScoreTester', color: 'red', beginner: false, handicap: 0, first: true}],
-    expansions,
-    board: 'tharsis',
-    seed: 0.42,
-    randomFirstPlayer: false,
-    clonedGamedId: undefined,
-    undoOption: false,
-    showTimers: false,
-    fastModeOption: false,
-    showOtherPlayersVP: false,
-    testMode: true,
-    aresExtremeVariant: false,
-    politicalAgendasExtension: 'Standard',
-    solarPhaseOption: false,
-    removeNegativeGlobalEventsOption: false,
-    modularMA: false,
-    draftVariant: false,
-    initialDraft: false,
-    preludeDraftVariant: false,
-    ceosDraftVariant: false,
-    startingCorporations: 2,
-    shuffleMapOption: false,
-    randomMA: 'No randomization',
-    includeFanMA: false,
-    soloTR: false,
-    customCorporationsList: [],
-    bannedCards: [],
-    includedCards: [],
-    customColoniesList: [],
-    customPreludes: [],
-    requiresMoonTrackCompletion: false,
-    requiresVenusTrackCompletion: false,
-    moonStandardProjectVariant: false,
-    moonStandardProjectVariant1: false,
-    altVenusBoard: false,
-    escapeVelocity: undefined,
-    twoCorpsVariant: false,
-    customCeos: [],
-    startingCeos: 3,
-    startingPreludes: 4,
-  };
-}
+/** Deterministic solo base + corpEra + PRELUDE game (the prelude step is what
+ *  makes this wizard three steps long — see the boot's `onStep`). */
+const GAME_CONFIG = soloGameConfig({
+  players: [{name: 'ScoreTester', color: 'red', beginner: false, handicap: 0, first: true}],
+  expansions: {prelude: true},
+  seed: 0.42,
+});
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await page.keyboard.press(code);
@@ -109,37 +66,6 @@ async function shootRail(page: Page, preset: Preset, name: string): Promise<void
   });
 }
 
-async function bootIntoGame(page: Page, preset: Preset, playerId: string): Promise<void> {
-  await page.goto(`/player?id=${playerId}&console=1${preset.profileQuery}`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  await page.waitForTimeout(3500);
-  // Walk the start wizard COMMAND-BAR-AWARE: A only when the bar offers
-  // «ВЫБРАТЬ» (picking a selected card again would UNpick it — the stall the
-  // blind alternation hit); a selected focus moves instead (left/down to
-  // escape the row-end trap), and RB advances whenever a step is complete.
-  for (let i = 0; i < 40; i++) {
-    if (await page.locator('.con-start__frame').count() === 0) {
-      break;
-    }
-    const bar = await page.locator('.con-cmdbar').innerText().catch(() => '');
-    if (bar.includes('СНЯТЬ ВЫБОР')) {
-      await key(page, i % 2 === 0 ? 'ArrowLeft' : 'ArrowDown', 450);
-    } else {
-      await key(page, 'Enter', 1100);
-    }
-    await key(page, 'KeyE', 800);
-  }
-  await page.waitForTimeout(3000);
-  for (let i = 0; i < 8; i++) {
-    if (await page.locator('.con-start__frame, .con-task-host').count() === 0) {
-      break;
-    }
-    await key(page, 'Enter', 2600);
-  }
-  await page.waitForTimeout(2500);
-}
-
 for (const preset of PRESETS) {
   test.describe(`console score header · ${preset.id}`, () => {
     test.use({
@@ -149,14 +75,31 @@ for (const preset of PRESETS) {
     });
 
     test('captures the TR/VP score cap', async ({page, request}) => {
-      test.setTimeout(preset.viewport.width * preset.deviceScaleFactor >= 3840 ? 420_000 : 240_000);
+      test.setTimeout(preset.viewport.width * preset.deviceScaleFactor >= 3840 ? 480_000 : 300_000);
 
-      const created = await request.post('/api/creategame', {data: newGameConfig()});
-      expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-      const model = await created.json() as {players: Array<{id: string}>};
-      const playerId = model.players[0].id;
-
-      await bootIntoGame(page, preset, playerId);
+      // ── The pregame: the shared start driver (`consoleStart.ts`). The walk
+      //    is SETUP, never the subject — this spec's claim is the TR/VP cap on
+      //    the rail, so a start-flow change is adapted THERE, never here.
+      //
+      //    What used to stand here was a local `bootIntoGame` that read the
+      //    RU command-bar text to decide its next key and then asked whether
+      //    the wizard was over by COUNTING `.con-start__frame` nodes — the
+      //    question the DOM cannot answer, since the scene stays MOUNTED
+      //    through its yield (`ConsoleShell.vue:2395`) and its panes are
+      //    `v-show` (`ConsoleStartScene.vue:26`).
+      const playerId = await bootIntoGame(page, request, {
+        config: GAME_CONFIG,
+        query: preset.profileQuery,
+        onStep: async (p, kind) => {
+          if (kind === 'corporation') {
+            await pickCalmCorporation(p);
+          } else if (kind === 'prelude') {
+            // The prelude step has a MINIMUM of two picks: RT is refused
+            // until they are made, so an unfilled step stalls the whole walk.
+            await fillPicks(p, 2);
+          }
+        },
+      });
 
       // The cap mounted with live numbers.
       const score = page.locator('.con-score');

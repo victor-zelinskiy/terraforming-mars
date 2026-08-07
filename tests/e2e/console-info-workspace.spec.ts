@@ -1,6 +1,7 @@
-import {test, expect, Page, APIRequestContext} from '@playwright/test';
+import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {bootIntoGame, soloGameConfig} from './consoleStart';
 
 /**
  * THE INFORMATION WORKSPACE (Y) — layout / context / dedup probe.
@@ -40,65 +41,14 @@ const PRESETS: ReadonlyArray<Preset> = [
   {id: 'deck-handheld', viewport: {width: 1280, height: 800}, deviceScaleFactor: 1, profileQuery: '&consoleProfile=handheld'},
 ];
 
-/** Full NewGameConfig — deterministic base+corpEra game, human + MarsBot. */
-function newGameConfig() {
-  const expansions: Record<string, boolean> = {
-    corpera: true, promo: false, venus: false, colonies: false,
-    prelude: false, prelude2: false, turmoil: false, community: false,
-    ares: false, moon: false, pathfinders: false, ceo: false,
-    starwars: false, underworld: false, deltaProject: false,
-  };
-  return {
-    players: [{name: 'InfoTester', color: 'red', beginner: false, handicap: 0, first: true}],
-    expansions,
-    board: 'tharsis',
-    seed: 0.42,
-    randomFirstPlayer: false,
-    clonedGamedId: undefined,
-    undoOption: false,
-    showTimers: false,
-    fastModeOption: false,
-    showOtherPlayersVP: false,
-    testMode: true, // 500 of every resource → the own rail reads a distinct value
-    aresExtremeVariant: false,
-    politicalAgendasExtension: 'Standard',
-    solarPhaseOption: false,
-    removeNegativeGlobalEventsOption: false,
-    modularMA: false,
-    draftVariant: false,
-    initialDraft: false,
-    preludeDraftVariant: false,
-    ceosDraftVariant: false,
-    startingCorporations: 2,
-    shuffleMapOption: false,
-    randomMA: 'No randomization',
-    includeFanMA: false,
-    soloTR: false,
-    customCorporationsList: [],
-    bannedCards: [],
-    includedCards: [],
-    customColoniesList: [],
-    customPreludes: [],
-    requiresMoonTrackCompletion: false,
-    requiresVenusTrackCompletion: false,
-    moonStandardProjectVariant: false,
-    moonStandardProjectVariant1: false,
-    altVenusBoard: false,
-    escapeVelocity: undefined,
-    twoCorpsVariant: false,
-    customCeos: [],
-    startingCeos: 3,
-    startingPreludes: 4,
-    automa: {difficulty: 'normal'},
-  };
-}
-
-async function createGame(request: APIRequestContext): Promise<string> {
-  const created = await request.post('/api/creategame', {data: newGameConfig()});
-  expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-  const model = await created.json() as {players: Array<{id: string}>};
-  return model.players[0].id;
-}
+/** Deterministic base+corpEra game, human + MarsBot. `testMode` gives 500 of
+ *  every resource, so the viewer's own rail reads a distinct value from the
+ *  bot's — that difference is what the context-sync assertions key on. */
+const GAME_CONFIG = soloGameConfig({
+  players: [{name: 'InfoTester', color: 'red', beginner: false, handicap: 0, first: true}],
+  seed: 0.42,
+  automa: {difficulty: 'normal'},
+});
 
 async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await page.keyboard.press(code);
@@ -126,30 +76,6 @@ async function closeZoom(page: Page): Promise<void> {
   await expect(plate).toHaveCount(0);
 }
 
-/** Walk the start wizard adaptively until the in-game shell owns the screen. */
-async function enterGame(page: Page, playerId: string, profileQuery: string): Promise<void> {
-  await page.goto(`/player?id=${playerId}&console=1${profileQuery}`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  await page.waitForTimeout(3500); // deal cinematic settles
-  const startScene = page.locator('.con-start__frame');
-  for (let i = 0; i < 16 && await startScene.count() > 0; i++) {
-    await key(page, i % 2 === 0 ? 'Enter' : 'Period', 1100);
-  }
-  await expect(startScene).toHaveCount(0);
-  // The start follow-ups (the research payment is a FALLBACK-scope surface
-  // where Y is owned by the DOM engine) — confirm through them until the
-  // in-game action phase owns the shell.
-  for (let i = 0; i < 12; i++) {
-    const status = (await page.locator('.con-status').textContent().catch(() => '')) ?? '';
-    if (/ДЕЙСТВИЕ/i.test(status)) {
-      break;
-    }
-    await key(page, 'Enter', 1300);
-  }
-  await page.waitForTimeout(2500); // start ceremony / hand intake settles
-}
-
 const railMc = (page: Page) => page.locator('.con-res__row--megacredits .con-res__value');
 
 for (const preset of PRESETS) {
@@ -161,9 +87,20 @@ for (const preset of PRESETS) {
     });
 
     test('workspace layout, rail context sync, dedup', async ({page, request}) => {
-      test.setTimeout(preset.viewport.width >= 3840 ? 420_000 : 240_000);
-      const playerId = await createGame(request);
-      await enterGame(page, playerId, preset.profileQuery);
+      test.setTimeout(preset.viewport.width >= 3840 ? 480_000 : 300_000);
+
+      // ── The pregame: the shared start driver (`consoleStart.ts`). The walk
+      //    is SETUP, never the subject — this spec's claim is the Y workspace,
+      //    so a start-flow change is adapted THERE, never here.
+      //
+      //    The local walk it replaces alternated A / RT blindly and then
+      //    asserted `.con-start__frame` had a COUNT of 0 — a question the DOM
+      //    cannot answer: the scene stays MOUNTED through its yield
+      //    (`ConsoleShell.vue:2395`) and its panes are `v-show`
+      //    (`ConsoleStartScene.vue:26`). `waitForBoardHome` reads what is
+      //    PAINTED, and it lands on the same place the old follow-up loop was
+      //    aiming for — a live, interactive board home.
+      await bootIntoGame(page, request, {config: GAME_CONFIG, query: preset.profileQuery});
 
       // ── 1 · Open the workspace (retry through a lingering cinematic) ─
       const workspace = page.locator('.con-info');

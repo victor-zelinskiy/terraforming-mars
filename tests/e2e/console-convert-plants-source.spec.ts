@@ -1,6 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {bootIntoGame, soloGameConfig} from './consoleStart';
 
 /**
  * CONVERT PLANTS NAMES ITSELF — over the real DOM.
@@ -19,30 +20,11 @@ import * as path from 'node:path';
 
 const OUT = path.resolve('screenshots', 'convert-plants-source');
 
-function newGameConfig() {
-  const expansions: Record<string, boolean> = {
-    corpera: true, promo: false, venus: false, colonies: false,
-    prelude: false, prelude2: false, turmoil: false, community: false,
-    ares: false, moon: false, pathfinders: false, ceo: false,
-    starwars: false, underworld: false, deltaProject: false,
-  };
-  return {
-    players: [{name: 'Gardener', color: 'red', beginner: false, handicap: 0, first: true}],
-    expansions, board: 'tharsis', seed: 0.42, randomFirstPlayer: false,
-    clonedGamedId: undefined, undoOption: false, showTimers: false, fastModeOption: false,
-    showOtherPlayersVP: false, testMode: true, aresExtremeVariant: false,
-    politicalAgendasExtension: 'Standard', solarPhaseOption: false,
-    removeNegativeGlobalEventsOption: false, modularMA: false, draftVariant: false,
-    initialDraft: false, preludeDraftVariant: false, ceosDraftVariant: false,
-    startingCorporations: 2, shuffleMapOption: false, randomMA: 'No randomization',
-    includeFanMA: false, soloTR: false, customCorporationsList: [], bannedCards: [],
-    includedCards: [], customColoniesList: [], customPreludes: [],
-    requiresMoonTrackCompletion: false, requiresVenusTrackCompletion: false,
-    moonStandardProjectVariant: false, moonStandardProjectVariant1: false,
-    altVenusBoard: false, escapeVelocity: undefined, twoCorpsVariant: false,
-    customCeos: [], startingCeos: 3, startingPreludes: 4, automa: undefined,
-  };
-}
+/** testMode grants 500 of every resource, so the 8 plants are already there. */
+const GAME_CONFIG = soloGameConfig({
+  players: [{name: 'Gardener', color: 'red', beginner: false, handicap: 0, first: true}],
+  seed: 0.42,
+});
 
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT, {recursive: true});
@@ -60,40 +42,18 @@ test.describe('console placement panel · convert plants', () => {
     test.setTimeout(300_000);
     page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 
-    // testMode grants 500 of every resource, so the plants are already there.
-    const created = await request.post('/api/creategame', {data: newGameConfig()});
-    expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-    const model = await created.json() as {players: Array<{id: string}>};
-
-    await page.goto(`/player?id=${model.players[0].id}&console=1`);
-    await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-    await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-    await page.waitForTimeout(3500);
-
-    const startScene = page.locator('.con-start__frame');
-    for (let i = 0; i < 24 && await startScene.count() > 0; i++) {
-      const text = await startScene.innerText().catch(() => '');
-      let press: string;
-      if (/Заплатить|Начать|НАЧАТЬ|ОПЛАТИТЬ/.test(text)) {
-        press = 'Enter';
-      } else if (/для покупки/i.test(text)) {
-        press = 'Period';
-      } else {
-        press = i % 2 === 0 ? 'Enter' : 'Period';
-      }
-      await key(page, press, 1400);
-    }
-    await page.waitForTimeout(2500);
-    expect(await startScene.count(), 'start wizard never completed').toBe(0);
-
-    const rootText = () => page.locator('.con-root').innerText().catch(() => '');
-    if (/ПОКУПКА КАРТ/.test(await rootText())) {
-      await key(page, 'Escape', 3200);
-      for (let i = 0; i < 4 && /ПРОПУСТИТЬ/.test(await rootText()); i++) {
-        await key(page, 'Enter', 2600);
-      }
-      await page.waitForTimeout(1500);
-    }
+    // ── The pregame: the shared start driver (`consoleStart.ts`). The walk is
+    //    SETUP, never the subject — this spec's claim is the placement panel's
+    //    SOURCE chip, so a start-flow change is adapted THERE, never here.
+    //
+    //    What used to stand here was a blind A/RT alternation plus a RU-text
+    //    rescue for the leftover buy step, and it decided the wizard was over
+    //    by COUNTING `.con-start__frame` nodes — a question the DOM cannot
+    //    answer: the scene stays MOUNTED through its yield
+    //    (`ConsoleShell.vue:2395`) and its panes are `v-show`
+    //    (`ConsoleStartScene.vue:26`). The driver submits the buy properly, so
+    //    the rescue has nothing left to rescue.
+    await bootIntoGame(page, request, {config: GAME_CONFIG});
 
     // LT wheel → «КОНВЕРТАЦИЯ РАСТЕНИЙ» is the LEFT slot of the basic actions.
     // The wheel is PRESS→RELEASE: the direction ARMS the slot on key-down and

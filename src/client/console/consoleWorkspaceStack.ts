@@ -88,7 +88,14 @@ export type WorkspaceFrameKind =
   /** «ГИДРОСЕТЬ» — the Delta Project track. */
   | 'hydro'
   /** The GAME START WORKSPACE — the whole opening. */
-  | 'start';
+  | 'start'
+  /** «СТАНДАРТНЫЕ ПРОЕКТЫ» — the premium standard-projects screen. */
+  | 'standard-projects'
+  /** «ВЕХИ» / «НАГРАДЫ» — the premium MA screen, one kind each. */
+  | 'milestones'
+  | 'awards'
+  /** The hydro track's card pick — only ever opened from inside 'hydro'. */
+  | 'hydro-pick';
 
 /**
  * THE WORKSPACE REGISTRY — one row per workspace, and the reason this file
@@ -124,16 +131,59 @@ type WorkspaceKindSpec = {
   section?: ConsoleSection,
   /** The legacy `consoleState.sheet` this frame projects onto, if any. */
   sheet?: ConsoleSheetId,
+  /**
+   * What a FRESH frame of this kind is entitled to serve. A DEFAULT, not the
+   * truth: a frame earns and loses prompts at runtime (an action only serves a
+   * card pick once its preview promised cards), so the live list is on the
+   * frame. This is what «enter this workspace» starts from.
+   */
+  serves: ReadonlyArray<TaskKind>,
 };
 
 const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
-  'card-actions': {root: 'Card actions', rootSelector: '.con-cardactions', sheet: 'cardActions'},
-  'hand': {root: 'Cards in hand', rootSelector: '.con-hand', section: 'hand'},
-  'colonies': {root: 'Colonies', rootSelector: '.con-colonies', section: 'colonies'},
-  'hydro': {root: 'Mars Hydronetwork', rootSelector: '.con-hydro', section: 'hydro'},
+  'card-actions': {
+    root: 'Card actions', rootSelector: '.con-cardactions', sheet: 'cardActions',
+    serves: [],
+  },
+  'hand': {
+    root: 'Cards in hand', rootSelector: '.con-hand', section: 'hand',
+    serves: ['projectCard', 'handSelect'],
+  },
+  'colonies': {
+    root: 'Colonies', rootSelector: '.con-colonies', section: 'colonies',
+    serves: ['colony'],
+  },
+  'hydro': {
+    root: 'Mars Hydronetwork', rootSelector: '.con-hydro', section: 'hydro',
+    serves: [],
+  },
   // The start workspace is a full-bleed scene: it owns the screen outright and
   // projects onto neither axis.
-  'start': {root: 'Start of the game', rootSelector: '.con-start'},
+  'start': {
+    root: 'Start of the game', rootSelector: '.con-start',
+    serves: ['startSequence', 'initialDraft', 'corpFirstAction'],
+  },
+  'standard-projects': {
+    root: 'Standard Projects', rootSelector: '.con-stdp', sheet: 'standardProjects',
+    serves: ['projectCard'],
+  },
+  // Milestones and awards are two kinds on one chassis — the same DOM root,
+  // two sheet identities, because they are two different screens to the player.
+  'milestones': {
+    root: 'Milestones', rootSelector: '.con-ma', sheet: 'milestones',
+    serves: [],
+  },
+  'awards': {
+    root: 'Awards', rootSelector: '.con-ma', sheet: 'awards',
+    serves: ['awardFunding'],
+  },
+  // `root` is «the crumb root WHEN this frame is outermost», and this one never
+  // is: the pick only ever opens from inside the hydro track, so the crumb it
+  // appears under is the track's. The sheet draws its own (dynamic) title.
+  'hydro-pick': {
+    root: 'Mars Hydronetwork', rootSelector: '.con-sheet', sheet: 'hydroPick',
+    serves: [],
+  },
 };
 
 /** Every registered workspace, for the guards that must be exhaustive. */
@@ -465,6 +515,66 @@ export function pushWorkspaceFrame(frame: NewWorkspaceFrame): number {
   }
   workspaceStackState.frames.push({...frame, serves: [...frame.serves], slot: ''});
   return workspaceStackState.frames.length - 1;
+}
+
+/**
+ * ── THE NAVIGATION VERBS ────────────────────────────────────────────────────
+ *
+ * `consoleState.section = X` was the console's whole navigation vocabulary, and
+ * it is a LOSSY verb: it cannot tell «park this, I want to read the board» from
+ * «this flow is finished» from «take me to that screen». All three wrote
+ * `'board'`, so every consumer had to re-guess which had happened — and B, the
+ * one button whose entire job is to answer that question, ended up as a
+ * twelve-branch chain that guessed differently from the branch next to it.
+ *
+ * These are those three intents, named. A navigation site now DECLARES what it
+ * meant, and the stack — not the reader — remembers it.
+ */
+
+/**
+ * THE PLAYER GOES TO A SCREEN. The stack becomes exactly `[kind]`.
+ *
+ * A lateral move between top-level screens is NOT a descent — walking from the
+ * colonies to the hydro track does not make the colonies the hydro's host. Only
+ * a FLOW nests, and a flow nests with `pushWorkspaceFrame` (the start workspace
+ * hosting the hand for a prelude, a played card hosting the colony pick).
+ * Keeping the two verbs apart is what stops «go there» from quietly building a
+ * chain nobody meant.
+ *
+ * The unwind is UNCONDITIONAL and atomic, and that is the whole point. The old
+ * section watcher did the same thing by hand and GUARDED it («…unless a colony
+ * follow-up is live inside the hand»), which is exactly how a step came to
+ * outlive the host it was standing in.
+ */
+export function enterWorkspace(
+  kind: WorkspaceFrameKind,
+  opts?: {subject?: string, serves?: ReadonlyArray<TaskKind>, anchor?: FrameAnchor},
+): void {
+  resetWorkspaceStack();
+  pushWorkspaceFrame({
+    kind,
+    subject: opts?.subject ?? '',
+    stage: '',
+    phase: 'browse',
+    serves: opts?.serves ?? WORKSPACE_KINDS[kind].serves,
+    anchor: opts?.anchor ?? {type: 'always'},
+  });
+}
+
+/** Leave the deepest workspace — one screen back towards the board. */
+export function leaveWorkspace(): void {
+  popWorkspaceFrame();
+}
+
+/**
+ * The flow is FINISHED — unwind everything to the board home.
+ *
+ * Distinct from `collapseWorkspaceStack` on purpose: this one throws the frames
+ * away, so there is nothing to come back to and no restore card is offered.
+ * Using it where a park was meant is how a live decision gets silently dropped.
+ */
+export function goBoardHome(): void {
+  resetWorkspaceStack();
 }
 
 /**

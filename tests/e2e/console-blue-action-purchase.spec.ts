@@ -2,6 +2,7 @@ import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {WS_STAGE_BOX, WS_STAGE_HEAD, stageProbe} from './wsStageParity';
+import {bootWithCards, openActionFocus, openCardActions, playCardFromHand, soloGameConfig, waitForTurn} from './consoleStart';
 
 /**
  * Console BLUE ACTION · the COMMIT half — the EMBEDDED PURCHASE stage
@@ -29,55 +30,10 @@ import {WS_STAGE_BOX, WS_STAGE_HEAD, stageProbe} from './wsStageParity';
 
 const OUT_DIR = path.resolve('screenshots', 'console-blue-action-purchase');
 
-function newGameConfig() {
-  return {
-    players: [{name: 'BuyTester', color: 'red', beginner: false, handicap: 0, first: true}],
-    expansions: {
-      corpera: true, promo: false, venus: false, colonies: false,
-      prelude: false, prelude2: false, turmoil: false, community: false,
-      ares: false, moon: false, pathfinders: false, ceo: false,
-      starwars: false, underworld: false, deltaProject: false,
-    },
-    board: 'tharsis',
-    seed: 0.31,
-    randomFirstPlayer: false,
-    clonedGamedId: undefined,
-    undoOption: false,
-    showTimers: false,
-    fastModeOption: false,
-    showOtherPlayersVP: false,
-    testMode: true,
-    aresExtremeVariant: false,
-    politicalAgendasExtension: 'Standard',
-    solarPhaseOption: false,
-    removeNegativeGlobalEventsOption: false,
-    modularMA: false,
-    draftVariant: false,
-    initialDraft: false,
-    preludeDraftVariant: false,
-    ceosDraftVariant: false,
-    startingCorporations: 2,
-    shuffleMapOption: false,
-    randomMA: 'No randomization',
-    includeFanMA: false,
-    soloTR: false,
-    customCorporationsList: [],
-    bannedCards: [],
-    includedCards: [],
-    customColoniesList: [],
-    customPreludes: [],
-    requiresMoonTrackCompletion: false,
-    requiresVenusTrackCompletion: false,
-    moonStandardProjectVariant: false,
-    moonStandardProjectVariant1: false,
-    altVenusBoard: false,
-    escapeVelocity: undefined,
-    twoCorpsVariant: false,
-    customCeos: [],
-    startingCeos: 3,
-    startingPreludes: 4,
-  };
-}
+const GAME_CONFIG = soloGameConfig({
+  players: [{name: 'BuyTester', color: 'red', beginner: false, handicap: 0, first: true}],
+  seed: 0.31,
+});
 
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT_DIR, {recursive: true});
@@ -106,112 +62,30 @@ for (const profile of PROFILES) {
     test('setup → commit → embedded buy stage → L3 source → buy → fold', async ({page, request}) => {
       test.setTimeout(480_000);
 
-      // A deal containing Business Network (the reveal-and-buy archetype).
-      let playerId = '';
-      for (let attempt = 0; attempt < 40 && playerId === ''; attempt++) {
-        const config = {...newGameConfig(), seed: 0.31 + attempt * 0.017};
-        const created = await request.post('/api/creategame', {data: config});
-        expect(created.ok()).toBeTruthy();
-        const {players} = await created.json();
-        const pv = await (await request.get(`/api/player?id=${players[0].id}`)).json();
-        const dealt = (pv.waitingFor?.options ?? [])
-          .flatMap((o: {cards?: Array<{name: string}>}) => (o.cards ?? []).map((c) => c.name));
-        if (dealt.includes('Business Network')) {
-          playerId = players[0].id;
-        }
-      }
-      expect(playerId, 'a deal containing Business Network').not.toBe('');
-      await page.goto(`/player?id=${playerId}&console=1${profile.query}`);
-      // 4K + a full parallel run makes the first paint genuinely slow; this is a
-      // load budget, not a behaviour assertion.
-      await page.waitForSelector('.con-start__frame, .con-root', {timeout: 90_000});
-      await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-      await page.waitForTimeout(3800);
-
-      // ── The start wizard (console-action-focus drive, verbatim). ────────
-      const startScene = page.locator('.con-start__frame');
-      await page.waitForSelector('.con-start__frame .con-cards__slot', {timeout: 25_000});
-      const corpWithFirstAction = new Set(['Inventrix', 'Tharsis Republic', 'CrediCor', 'United Nations Mars Initiative', 'Helion']);
-      for (let step = 0; step < 12; step++) {
-        const focusedCorp = await page.locator('.con-start__frame .con-cards__slot[class*="--focused"]').first()
-          .getAttribute('data-zoom-slot').catch(() => null);
-        if (focusedCorp !== null && !corpWithFirstAction.has(focusedCorp)) {
-          break;
-        }
-        await key(page, 'ArrowRight', 240);
-      }
-      const targetSlot = page.locator('.con-cards__slot[data-zoom-slot="Business Network"]');
-      for (let tries = 0; tries < 4; tries++) {
-        await key(page, 'Enter', 1400);
-        const picked = await page.locator('.con-start__frame', {hasText: 'Выбрано 1'}).count() > 0;
-        if (picked || await targetSlot.count() > 0) {
-          break;
-        }
-      }
-      for (let hop = 0; hop < 5 && await targetSlot.count() === 0; hop++) {
-        const onSummary = await page.locator('.con-start__frame', {hasText: 'Сводка'}).count() > 0;
-        await key(page, onSummary ? 'Comma' : 'Period', 1400);
-      }
-      await targetSlot.waitFor({timeout: 8000});
-      for (let step = 0; step < 40; step++) {
-        const focused = await page.locator('.con-cards__slot[data-zoom-slot="Business Network"][class*="--focused"]').count() > 0;
-        if (focused) {
-          break;
-        }
-        await key(page, 'ArrowRight', 230);
-      }
-      const pickedTarget = page.locator('.con-cards__slot[data-zoom-slot="Business Network"][class*="--picked"]');
-      for (let tries = 0; tries < 3 && await pickedTarget.count() === 0; tries++) {
-        await key(page, 'Enter', 700);
-      }
-      expect(await pickedTarget.count(), 'Business Network must be picked').toBeGreaterThan(0);
-      await key(page, 'Period', 1400);
-      for (let i = 0; i < 10 && await startScene.count() > 0; i++) {
-        await key(page, i % 2 === 0 ? 'Enter' : 'Period', 1100);
-      }
-      await page.waitForSelector('.con-start__frame', {state: 'detached', timeout: 30_000});
-      const turnChip = page.locator('.con-status', {hasText: 'ДЕЙСТВИЕ'});
-      for (let i = 0; i < 12 && await turnChip.count() === 0; i++) {
-        if (await page.locator('.con-start').count() > 0) {
-          await key(page, 'Enter', 1300);
-        } else {
-          await page.waitForTimeout(1000);
-        }
-      }
-      await expect(turnChip).toHaveCount(1, {timeout: 20_000});
+      // ── The pregame: the shared start driver puts Business Network (the
+      //    reveal-and-buy archetype) in hand. The walk is SETUP, never the
+      //    subject — this spec's claim is the embedded purchase stage, so a
+      //    start-flow change is adapted in `consoleStart`, never here.
+      await bootWithCards(page, request, {
+        cards: ['Business Network'],
+        config: GAME_CONFIG,
+        query: profile.query,
+      });
+      await waitForTurn(page);
       await page.waitForTimeout(4000);
 
       // ── Play Business Network from the hand (RT wheel → КАРТЫ). ─────────
-      await key(page, 'Period', 600);
-      await key(page, 'Enter', 1600);
-      await expect(page.locator('.con-hand [data-zoom-slot="Business Network"]')).toBeVisible({timeout: 10_000});
-      for (let step = 0; step < 14; step++) {
-        const focusedName = await page.locator('.con-hand .con-hand__slot--selected[data-zoom-slot]').first()
-          .getAttribute('data-zoom-slot').catch(() => null);
-        if (focusedName === 'Business Network') {
-          break;
-        }
-        await key(page, 'ArrowRight', 260);
-      }
-      await key(page, 'Enter', 900);
-      for (let i = 0; i < 5 && await page.locator('.con-composer--play, .con-play').count() > 0; i++) {
-        await key(page, 'Enter', 900);
-      }
-      await page.waitForTimeout(4200);
+      expect(await playCardFromHand(page, 'Business Network'),
+        'Business Network must have been played').toBe(true);
 
       // ── Into the workspace → ACTION FOCUS. ──────────────────────────────
-      for (let tries = 0; tries < 4 && await page.locator('.con-cardactions').count() === 0; tries++) {
-        await key(page, 'Period', 700);
-        await key(page, 'ArrowUp', 1200);
-      }
-      await expect(page.locator('.con-cardactions')).toHaveCount(1, {timeout: 10_000});
+      await openCardActions(page);
       await page.waitForTimeout(700); // the wheel-handoff enter fully settles
       const emblemInBrowse = await page.locator('.con-wshead__emblem').evaluate((el) => {
         const cs = getComputedStyle(el);
         return {opacity: cs.opacity, visibility: cs.visibility, inline: el.getAttribute('style') ?? ''};
       });
-      await key(page, 'Enter', 1200);
-      await expect(page.locator('.con-cardactions__stagewrap .con-composer--stage')).toHaveCount(1);
+      await openActionFocus(page);
       // The one-word stage marker: «НАСТРОЙКА», never «НАСТРОЙКА ДЕЙСТВИЯ».
       expect((await page.locator('.con-wshead__step').innerText()).trim().toUpperCase()).toBe('НАСТРОЙКА');
       await page.waitForTimeout(600); // the entry FLIP fully settles
@@ -417,7 +291,7 @@ for (const profile of PROFILES) {
       // ── The result leaves for the dock; the workspace folds; no strand. ──
       await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 25_000});
       await expect(page.locator('.con-task-host')).toHaveCount(0);
-      await expect(turnChip).toHaveCount(1, {timeout: 20_000});
+      await waitForTurn(page);
       await page.waitForTimeout(2500);
       await shoot(page, `${profile.tag}-05-after-buy`);
     });

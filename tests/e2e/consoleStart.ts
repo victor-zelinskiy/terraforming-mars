@@ -1,4 +1,4 @@
-import {Page, expect} from '@playwright/test';
+import {APIRequestContext, Locator, Page, expect} from '@playwright/test';
 
 /**
  * THE SHARED CONSOLE START DRIVER — the ONE place e2e specs get a live game
@@ -70,9 +70,33 @@ export async function summaryVisible(page: Page): Promise<boolean> {
   return page.locator('.con-start > .con-start__frame .con-start__summary').isVisible().catch(() => false);
 }
 
-/** The start workspace is gone — the board home owns the screen. */
+/**
+ * The start workspace no longer owns the screen — VISIBILITY, never count.
+ *
+ * MOUNTED != VISIBLE is the app's explicit contract, not an accident:
+ * `ConsoleShell.vue:2395` — «The scene owns the start's lifetime (its hold, its
+ * claims, its release beat), so it stays mounted through a yield and only stops
+ * painting», and `ConsoleStartScene.vue:26` — «ONE PERSISTENT FRAME. Never
+ * keyed, never out-in-swapped», with `v-show` panes throughout.
+ *
+ * So a node count can never answer «is the wizard done». It used to, and that
+ * one line failed 13 e2e tests at once: the game had booted (the snapshots show
+ * a live hand dock and a full board) while the specs read a parked frame as a
+ * running wizard. `console-planet-focus` was fail-by-design — `startSceneVisible`
+ * is `startSceneMounted && !placementActive` (`ConsoleShell.vue:2393`), so during
+ * a board placement the scene is GUARANTEED mounted-and-hidden, which is exactly
+ * when that spec asserted a count of zero.
+ *
+ * `checkVisibility` (not `.isVisible()`) because the scene yields by opacity as
+ * well as by `display` — the same predicate `visibleSurfaces()` uses, so the two
+ * diagnostics can never disagree.
+ */
 export async function startSceneGone(page: Page): Promise<boolean> {
-  return (await page.locator('.con-start').count()) === 0;
+  return page.evaluate(() => {
+    const el = document.querySelector('.con-start');
+    return el === null ||
+      !(el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
+  }).catch(() => false);
 }
 
 /**
@@ -194,6 +218,21 @@ export type WalkOptions = {
 };
 
 /**
+ * The DEPLOYMENT owns the screen: the wizard is behind us and the start is
+ * now playing the cards it dealt. Its own two items ARE the marker — a queue
+ * card (`[data-queue-slot]`) or the purchase block (`.con-start__buy`).
+ *
+ * Needed because the phases SHARE their vocabulary: the deployment's crumb
+ * still reads «Проекты › Покупка», so `stepKind` keeps answering `project`
+ * long after the last step pane is gone. A hook that trusts that word alone
+ * asks an empty screen what it is offering and reports «the deal did not
+ * contain X» about a card the player has already bought.
+ */
+export async function deploymentActive(page: Page): Promise<boolean> {
+  return (await page.locator('.con-start__queue [data-queue-slot], .con-start__buy').count()) > 0;
+}
+
+/**
  * Walk the setup wizard to the SUMMARY. Adaptive: it reads the live step
  * every round instead of replaying a fixed key script, so a new step (or a
  * different step order) changes nothing here.
@@ -211,11 +250,13 @@ export async function walkToSummary(page: Page, opts: WalkOptions = {}): Promise
       return;
     }
     // The wizard is BEHIND us: on a slow profile an advance press can land on
-    // the just-arrived summary and submit it (the same A), and the next thing
-    // on screen is already the deployment — a hosted SelectColony step
-    // (`.con-colonies` inside the start) is one such next thing. Not an
-    // error: bootToBoard's later stages drive the deployment home.
-    if (await page.locator('.con-colonies').count() > 0) {
+    // the just-arrived summary and submit it (the same A) — and `waitPressable`
+    // nudges with that same A while the summary's own arrival cinematic holds
+    // the rail, so this is routine rather than rare. The next thing on screen
+    // is then already the DEPLOYMENT (its queue / purchase block), or a hosted
+    // SelectColony step (`.con-colonies` inside the start). Not an error:
+    // bootToBoard's later stages drive the deployment home.
+    if (await page.locator('.con-colonies').count() > 0 || await deploymentActive(page)) {
       return;
     }
     await waitPressable(page);
@@ -228,8 +269,9 @@ export async function walkToSummary(page: Page, opts: WalkOptions = {}): Promise
       await page.waitForTimeout(250);
     }
   }
-  expect(await summaryVisible(page) || await page.locator('.con-colonies').count() > 0,
-    'the wizard reached its summary').toBeTruthy();
+  expect(await summaryVisible(page) || await page.locator('.con-colonies').count() > 0 ||
+    await deploymentActive(page),
+  `the wizard reached its summary — still showing ${JSON.stringify(await visibleSurfaces(page))}`).toBeTruthy();
 }
 
 /**
@@ -518,19 +560,52 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
       await press(page, 'Enter', 1200);
     } else if (await hand.count() > 0) {
       // INSIDE the start workspace the hand IS the pending start work (a
-      // play-from-hand prelude — Eccentric Sponsor / Ecology Experts): play
-      // the focused playable card through the ordinary flow (pick → the
-      // composer's commit — both are A). B here would fight a task that must
-      // resolve. A STANDALONE hand screen is simply not the home — close it.
-      await press(page, await start.count() > 0 ? 'Enter' : 'Escape', 1400);
+      // play-from-hand prelude — Eccentric Sponsor / Ecology Experts): play a
+      // PLAYABLE card through the ordinary flow (pick → the composer's commit
+      // — both are A). B here would fight a task that must resolve. A
+      // STANDALONE hand screen is simply not the home — close it.
+      //
+      // WALK TO A PLAYABLE CARD FIRST, never press A on whatever the cursor
+      // happens to sit on: the hand shows every card and marks the ones the
+      // rules refuse (`con-hand__slot--unplayable`, with the honest reason
+      // under it — «Нельзя разыграть: Требуется температура −16 °C»), so A on
+      // a blocked card is correctly REFUSED, forever. The driver hammering one
+      // such card is what produced the `[".con-start",".con-hand"]` deadlock
+      // that reads exactly like a stalled start workspace but is nothing of
+      // the sort — the surface underneath was healthy the whole time. The
+      // marker is structural (`ConsoleHandSection.vue:176`), so this follows
+      // the same rule as everything else here: read the signal the UI is
+      // built on, never the copy.
+      if (await start.count() > 0) {
+        const playable = page.locator('.con-hand__slot--selected.con-hand__slot--playable');
+        for (let j = 0; j < 12 && await playable.count() === 0; j++) {
+          await press(page, 'ArrowRight', 260);
+        }
+        await press(page, 'Enter', 1400);
+      } else {
+        await press(page, 'Escape', 1400);
+      }
     } else if (await mandatory.count() > 0) {
       // A held / DEFERRED decision (incl. a minimized start workspace) —
       // A brings it back; leaving it parked keeps the dock non-interactive.
       await press(page, 'Enter', 1200);
-    } else if (await start.count() > 0) {
-      // The start workspace is still up: finish it with the SAME primitives
-      // the boot uses (never a blind Enter — a swallowed press would just
-      // burn the budget and the failure would name the wrong thing).
+    } else if (!await startSceneGone(page)) {
+      // The start workspace is still PAINTED: finish it with the SAME
+      // primitives the boot uses (never a blind Enter — a swallowed press
+      // would just burn the budget and the failure would name the wrong
+      // thing).
+      //
+      // PAINT, not mount — the same distinction `startSceneGone` exists for,
+      // and the branch order makes it load-bearing: a start prelude that
+      // places a tile («Great Aquifer», «Experimental Forest») hands the board
+      // over and the scene YIELDS — `startSceneVisible` is
+      // `startSceneMounted && !placementActive` (`ConsoleShell.vue:2393`), so
+      // `.con-start` is guaranteed mounted-and-hidden for exactly as long as
+      // the placement stands. Keyed on the COUNT this branch won the race
+      // against the placement branch below and drove presses into an invisible
+      // workspace until the budget died — and worse, `playQueueCard`'s blind
+      // Enter sometimes leaked through to the LIVE board and committed the
+      // tile on whatever cell was seeded.
       if (await summaryVisible(page)) {
         await submitSummary(page);
       } else if (await buyFocused(page)) {
@@ -616,4 +691,445 @@ export async function bootToBoard(page: Page, opts: WalkOptions & {first?: strin
   await submitSummary(page);
   await playStartQueue(page, {first: opts.first});
   await waitForBoardHome(page, 70, {keepColony: opts.keepColony});
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// THE PREGAME AS A WHOLE — «put card X in this player's hand, on the board
+// home, and get out of the way».
+//
+// Everything below used to be copy-pasted per spec: a 50-line game config, a
+// seed-retry deal search, a `goto` + first-paint budget, a hand-rolled corp
+// pick and a hand-rolled play-from-hand. Four probes drifted apart that way
+// and then failed TOGETHER on one attribute (`data-zoom-slot` is emitted only
+// on the ACTIVE step pane — `ConsoleStartScene.vue:120`), because each copy
+// walked the wizard with its own predicates instead of the driver's.
+//
+// The rule stays the one at the top of this file: the road to the subject is
+// SETUP and lives HERE; a spec's own file contains only its claim.
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * The solo test-mode game every console probe starts from. `overrides` is a
+ * shallow merge, with `expansions` merged one level deeper — so a Venus probe
+ * says `soloGameConfig({expansions: {venus: true}})` and nothing else.
+ *
+ * `testMode: true` is load-bearing: it is what makes the deal big enough for a
+ * spec to find a specific card (8 corporations / 20 projects) instead of
+ * re-creating games until the RNG is kind.
+ */
+export function soloGameConfig(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const {expansions, players, ...rest} = overrides as {
+    expansions?: Record<string, boolean>,
+    players?: Array<Record<string, unknown>>,
+  };
+  return {
+    players: players ?? [{name: 'ConsoleTester', color: 'red', beginner: false, handicap: 0, first: true}],
+    expansions: {
+      corpera: true, promo: false, venus: false, colonies: false,
+      prelude: false, prelude2: false, turmoil: false, community: false,
+      ares: false, moon: false, pathfinders: false, ceo: false,
+      starwars: false, underworld: false, deltaProject: false,
+      ...(expansions ?? {}),
+    },
+    board: 'tharsis',
+    seed: 0.1,
+    randomFirstPlayer: false,
+    clonedGamedId: undefined,
+    undoOption: false,
+    showTimers: false,
+    fastModeOption: false,
+    showOtherPlayersVP: false,
+    testMode: true,
+    aresExtremeVariant: false,
+    politicalAgendasExtension: 'Standard',
+    solarPhaseOption: false,
+    removeNegativeGlobalEventsOption: false,
+    modularMA: false,
+    draftVariant: false,
+    initialDraft: false,
+    preludeDraftVariant: false,
+    ceosDraftVariant: false,
+    startingCorporations: 2,
+    shuffleMapOption: false,
+    randomMA: 'No randomization',
+    includeFanMA: false,
+    soloTR: false,
+    customCorporationsList: [],
+    bannedCards: [],
+    includedCards: [],
+    customColoniesList: [],
+    customPreludes: [],
+    requiresMoonTrackCompletion: false,
+    requiresVenusTrackCompletion: false,
+    moonStandardProjectVariant: false,
+    moonStandardProjectVariant1: false,
+    altVenusBoard: false,
+    escapeVelocity: undefined,
+    twoCorpsVariant: false,
+    customCeos: [],
+    startingCeos: 3,
+    startingPreludes: 4,
+    ...rest,
+  };
+}
+
+/**
+ * Create games (varying the seed) until the initial deal offers EVERY card in
+ * `cards`, and return that player's id. API-only, so the loop is cheap — far
+ * cheaper than driving a UI that turns out not to hold the subject card.
+ *
+ * The deal is read from the server's own `waitingFor` tree, never from the
+ * screen: at this point there is no screen.
+ */
+export async function createGameWithCards(
+  request: APIRequestContext,
+  cards: ReadonlyArray<string>,
+  opts: {config?: Record<string, unknown>, seed?: number, step?: number, attempts?: number} = {},
+): Promise<string> {
+  const base = opts.config ?? soloGameConfig();
+  const seed = opts.seed ?? Number(base.seed ?? 0.1);
+  const step = opts.step ?? 0.017;
+  // The deal is NOT a pure function of the seed on a live server (the specs
+  // that hand-rolled this loop said so in a comment and then used 40 anyway),
+  // so this is a probability budget: ~20 of ~200 projects per deal means each
+  // attempt is a ~1-in-10 shot, and 40 of them still miss about once in 70
+  // runs — which across a dozen probes is a failure a week. The loop is
+  // API-only, so buying two more nines costs seconds, not minutes.
+  const attempts = opts.attempts ?? 80;
+  let dealt: Array<string> = [];
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const created = await request.post('/api/creategame', {data: {...base, seed: seed + attempt * step}});
+    expect(created.ok(), 'the game server accepted the config').toBeTruthy();
+    const {players} = await created.json();
+    const pv = await (await request.get(`/api/player?id=${players[0].id}`)).json();
+    dealt = (pv.waitingFor?.options ?? [])
+      .flatMap((o: {cards?: Array<{name: string}>}) => (o.cards ?? []).map((c) => c.name));
+    if (cards.every((c) => dealt.includes(c))) {
+      return players[0].id;
+    }
+  }
+  // Report the LAST deal — «not found» is useless, «here is what the server
+  // actually offered» names a renamed card or a missing expansion at once.
+  expect(dealt, `${attempts} deals, none offering ${cards.join(' + ')}`).toEqual(
+    expect.arrayContaining([...cards]));
+  return '';
+}
+
+/**
+ * Open the console-native shell on a player id and wait for its FIRST PAINT.
+ * The budget is a LOAD allowance (a 4K viewport inside a full parallel run
+ * genuinely takes tens of seconds to paint), never a behaviour assertion —
+ * every behavioural wait after this point is structural.
+ */
+export async function openConsole(page: Page, playerId: string, query = ''): Promise<void> {
+  await page.goto(`/player?id=${playerId}&console=1${query}`);
+  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 90_000});
+  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
+}
+
+/**
+ * Corporations a probe whose subject is NOT the corporation must avoid.
+ *
+ * Two different reasons, one effect — something stands between the boot and
+ * the spec's own first press: a MANDATORY first action opens its own composer
+ * and gates the turn behind a confirm; Helion's heat-as-M€ turns even a 1 M€
+ * action into a full payment prompt.
+ */
+export const CORP_WITH_FIRST_ACTION: ReadonlyArray<string> = [
+  'Inventrix', 'Tharsis Republic', 'CrediCor', 'United Nations Mars Initiative', 'Helion'];
+
+/**
+ * Pick a corporation that lets the game start CLEAN (see
+ * `CORP_WITH_FIRST_ACTION`). Falls back to «any corporation» when the deal
+ * offers nothing else — a started game beats a skipped test, and the spec's
+ * own retries absorb the extra prompt.
+ */
+export async function pickCalmCorporation(page: Page): Promise<string> {
+  const offered = await offeredCards(page);
+  const calm = offered.find((c) => !CORP_WITH_FIRST_ACTION.includes(c));
+  if (calm === undefined) {
+    await fillPicks(page, 1);
+    return (await pickedCards(page))[0] ?? '';
+  }
+  await pickCards(page, [calm], ringWalk(offered.length, 1));
+  return calm;
+}
+
+/**
+ * A move budget that WALKS THE WHOLE RING with room to spare.
+ *
+ * `pickCards`' default of 20 is exactly the size of the test-mode projects
+ * deal, and the subject card is as likely to be the LAST slot as the first —
+ * so the default could only reach it if every single press landed. It didn't
+ * (4K, tv profile): «Search For Life must be bought (offered: … Search For
+ * Life)» — the deal HAD it, the walk merely ran out of steps one slot short.
+ * The budget must therefore be the ring size plus the picks plus slack, never
+ * a constant that happens to match one deal size.
+ */
+function ringWalk(offered: number, picks: number): number {
+  return offered + picks + 6;
+}
+
+/**
+ * The `onStep` hook for «a calm corporation, and buy exactly these projects».
+ * The overwhelmingly common shape: the spec's subject is a card it needs IN
+ * HAND, and everything else about the wizard is noise.
+ *
+ * The empty-offer early return is not defensive noise: `kind` comes from the
+ * breadcrumb, and the DEPLOYMENT keeps saying «Проекты» after the last step
+ * pane is gone (see {@link deploymentActive}). Asserting there would blame the
+ * deal for a card the wizard has already bought — the loudest possible lie a
+ * setup helper can tell. The walk's own early return catches this a round
+ * earlier; this closes the frame-sized race between the two checks.
+ */
+export function buyProjects(cards: ReadonlyArray<string>): NonNullable<WalkOptions['onStep']> {
+  return async (page: Page, kind: StepKind) => {
+    if (kind === 'corporation') {
+      await pickCalmCorporation(page);
+    } else if (kind === 'project') {
+      const offered = await offeredCards(page);
+      if (offered.length === 0) {
+        return;
+      }
+      const picked = await pickCards(page, cards, ringWalk(offered.length, cards.length));
+      for (const card of cards) {
+        expect(picked, `${card} must be bought (offered: ${offered.join(', ')})`).toContain(card);
+      }
+    }
+  };
+}
+
+/**
+ * The start workspace has RELEASED the screen: the pregame is over and the
+ * board home owns the input.
+ *
+ * VISIBILITY, never a node count — `startSceneGone` carries the whole argument
+ * (`ConsoleShell.vue:2395`, `ConsoleStartScene.vue:26`): the scene stays
+ * MOUNTED for the rest of the game, so «is the wizard done» has no answer in
+ * the DOM tree, only in what is painted.
+ *
+ * It DRIVES while it waits, with the deployment's own primitives: a start that
+ * is still standing is still owed something (a card, the purchase item, a
+ * reveal), and a blind Enter would be swallowed by the commit guard and burn
+ * the budget describing the wrong screen.
+ */
+export async function waitForStartRelease(page: Page, maxMs = 60_000): Promise<void> {
+  const started = Date.now();
+  while (Date.now() - started < maxMs && !await startSceneGone(page)) {
+    await playStartQueue(page, {plays: 2});
+    await page.waitForTimeout(400);
+  }
+  expect(await startSceneGone(page),
+    `the start workspace never released — still showing ${JSON.stringify(await visibleSurfaces(page))}`)
+    .toBeTruthy();
+}
+
+/** How far the pregame drives before it hands the page over to the spec. */
+export type BootStop =
+  /**
+   * …until the BOARD HOME is live: the hand dock takes presses and nothing is
+   * holding the screen. The default — «just give me a live game».
+   */
+  'boardHome' |
+  /**
+   * …only until the start workspace RELEASES. For a spec whose subject is the
+   * very first thing the game asks — the corporation's mandatory first action.
+   * Driving on to the board home would ANSWER that prompt by design
+   * (`waitForBoardHome` confirms a `--corpfirst` composer to get past it), and
+   * the spec would then hunt for a modal its own setup had already dismissed.
+   */
+  'startRelease';
+
+export type BootOptions = {
+  /** The game to create (`soloGameConfig(...)`); default: the plain solo one. */
+  config?: Record<string, unknown>,
+  /** English `CardName`s the deal must offer AND the wizard must buy. */
+  cards?: ReadonlyArray<string>,
+  /** Extra query on the player URL (`&consoleProfile=tv`, …). */
+  query?: string,
+  /** Deal search: first seed + the step between attempts. */
+  seed?: number,
+  step?: number,
+  /** Override the per-step hook (a prelude game picks its own preludes). */
+  onStep?: WalkOptions['onStep'],
+  /** Deployment: play this card FIRST (the spec owns the scene it fires). */
+  first?: string,
+  /** A solo colony pick must not eat this colony. */
+  keepColony?: string,
+  /** Where the road ends (see {@link BootStop}). */
+  until?: BootStop,
+};
+
+/**
+ * THE PREGAME IN ONE CALL — create the game, open the console on it, walk the
+ * wizard, deploy, and stop where the spec's own story begins.
+ *
+ * This is the "intermediate path" every console probe used to hand-roll: a
+ * `goto` + a first-paint budget, then a key script that alternated A / RT and
+ * decided the wizard was over by COUNTING `.con-start__frame` nodes. That last
+ * predicate is the one the app explicitly invalidated (MOUNTED != VISIBLE —
+ * `ConsoleShell.vue:2395`), and thirteen specs failed together on it while the
+ * game underneath had booted perfectly. There is now ONE road, and the next
+ * start-flow rework is adapted here instead of in thirteen files.
+ *
+ * Returns the player id — a spec that then talks to the API (or writes a
+ * per-participant localStorage pref) needs it.
+ */
+export async function bootIntoGame(
+  page: Page,
+  request: APIRequestContext,
+  opts: BootOptions = {},
+): Promise<string> {
+  const cards = opts.cards ?? [];
+  // No required cards → `every` over an empty list is true, so this creates
+  // exactly one game and returns it. Same road either way.
+  const playerId = await createGameWithCards(request, cards,
+    {config: opts.config, seed: opts.seed, step: opts.step});
+  await openConsole(page, playerId, opts.query ?? '');
+  await walkToSummary(page, {onStep: opts.onStep ?? buyProjects(cards)});
+  await submitSummary(page);
+  await playStartQueue(page, {first: opts.first});
+  if (opts.until === 'startRelease') {
+    await waitForStartRelease(page);
+    return playerId;
+  }
+  await waitForBoardHome(page, 70, {keepColony: opts.keepColony});
+  return playerId;
+}
+
+/**
+ * The «I need these cards in hand» spelling of {@link bootIntoGame} — the
+ * overwhelmingly common case, so it reads as one sentence at the call site.
+ */
+export async function bootWithCards(
+  page: Page,
+  request: APIRequestContext,
+  opts: BootOptions & {cards: ReadonlyArray<string>},
+): Promise<string> {
+  return bootIntoGame(page, request, opts);
+}
+
+/**
+ * The VIEWER's own turn is live and the action menu takes presses.
+ *
+ * STRUCTURAL, never the chip's text: the `1/2` action counter is rendered for
+ * exactly one status label — `turn` (`playerStatusPresenter.ts`: `showCounter`
+ * is true there and nowhere else) — and `--me` / `--active` are the strip's own
+ * modifiers (`ConsoleStatusStrip.vue:333`). The specs used to match the RU word
+ * «ДЕЙСТВИЕ» inside `.con-status`, which is the anti-pattern this file exists
+ * to remove: the label is a translation of the English key `Action`, so a copy
+ * tweak in one locale file silently turns "the game is live" into a timeout.
+ */
+export function turnChip(page: Page): Locator {
+  return page.locator('.con-status__player--me.con-status__player--active .con-status__pstatus-counter');
+}
+
+/** Wait until the viewer's turn is live (see {@link turnChip}). */
+export async function waitForTurn(page: Page, timeout = 20_000): Promise<void> {
+  await expect(turnChip(page)).toHaveCount(1, {timeout});
+}
+
+/**
+ * How many cards the viewer HOLDS — read off the hand DOCK's own total.
+ *
+ * The dock is the one place that answers this on EVERY screen: «once the dock
+ * appears after setup it stays to the END of the game» (`.claude/rules/
+ * console-ui.md` § HAND DOCK presence), so unlike the hand screen it cannot be
+ * absent just because something else is open. Returns -1 when the dock has not
+ * been built yet (pregame).
+ */
+export async function handCount(page: Page): Promise<number> {
+  const text = await page.locator('.con-handdock__num--total').first().innerText().catch(() => '');
+  const n = Number.parseInt(text.trim(), 10);
+  return Number.isNaN(n) ? -1 : n;
+}
+
+/**
+ * Play `card` OUT OF THE HAND through the ordinary console path: RT wheel →
+ * centre slot («КАРТЫ») → focus the card → A opens the play composer → A
+ * confirms.
+ *
+ * Retried AS A WHOLE, because the honest exit condition is «the card left the
+ * hand»: on a heavy frame any single press can be swallowed mid-flight (by
+ * design — the commit guard), and the run then reaches the spec's subject with
+ * the card still in hand and fails somewhere far away from the real cause
+ * («Нет действий карт»). Between attempts it backs out of whatever stayed open
+ * instead of pressing harder.
+ *
+ * ⚠️ THE VERDICT IS NOT `.con-hand [data-zoom-slot=<card>]` IS GONE. That node
+ * is equally absent when the card was played and when the hand SCREEN simply
+ * closed — a swallowed confirm therefore read as a successful play, and the run
+ * walked on to the Action Browser, met «Нет действий карт» and blamed the
+ * workspace for a card still sitting in hand. So: while the hand screen is up,
+ * ask IT (card-exact); otherwise ask the DOCK's total, which is live on every
+ * screen. Both are structural; neither can be true for the wrong reason.
+ */
+export async function playCardFromHand(page: Page, card: string, attempts = 3): Promise<boolean> {
+  const inHand = page.locator(`.con-hand [data-zoom-slot="${card}"]`);
+  const handScreen = page.locator('.con-hand');
+  const held = await handCount(page);
+  const played = async (): Promise<boolean> => await handScreen.count() > 0 ?
+    await inHand.count() === 0 :
+    await handCount(page) < held;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    await press(page, 'Period', 600); // RT → the quick wheel
+    await press(page, 'Enter', 1600); // centre slot → the hand screen
+    await inHand.waitFor({timeout: 12_000}).catch(() => {});
+    for (let step = 0; step < 14 && await focusedCard(page) !== card; step++) {
+      await press(page, 'ArrowRight', 260);
+    }
+    await press(page, 'Enter', 900); // open the play composer
+    for (let i = 0; i < 5 && await page.locator('.con-composer--play, .con-play').count() > 0; i++) {
+      await press(page, 'Enter', 900);
+    }
+    await page.waitForTimeout(4200); // the played-hero scene settles, the card lands
+    if (await played()) {
+      return true;
+    }
+    for (let i = 0; i < 3 && await page.locator('.con-hand, .con-play, .con-composer--play').count() > 0; i++) {
+      await press(page, 'Escape', 700);
+    }
+  }
+  return played();
+}
+
+/**
+ * Open the CARD ACTIONS workspace: RT wheel → ↑ slot. Verified entry with the
+ * same retry discipline as every other press here (a press landing on a busy
+ * 4K frame is deliberately consumed), and it closes a hand/play screen that
+ * swallowed the wheel instead of pressing into it.
+ */
+export async function openCardActions(page: Page, tries = 10): Promise<void> {
+  const workspace = page.locator('.con-cardactions');
+  for (let i = 0; i < tries && await workspace.count() === 0; i++) {
+    if (i > 0 && await page.locator('.con-hand, .con-play').count() > 0) {
+      await press(page, 'Escape', 600);
+    }
+    await press(page, 'Period', 800);
+    await press(page, 'ArrowUp', 1400);
+  }
+  await expect(workspace).toHaveCount(1, {timeout: 10_000});
+}
+
+/**
+ * DESCEND into ACTION FOCUS: A on the focused action row recomposes the
+ * browser's OWN frame into the stage (`.con-cardactions__stagewrap`).
+ *
+ * The retry is gated on the stage's ABSENCE, which is what makes it safe: a
+ * press that lands while the browse layer is still settling is consumed by
+ * design (the same commit guard `openCardActions` answers), while a second
+ * press on an ALREADY OPEN stage would CONFIRM the action — so this presses
+ * only while there is no stage, and never twice on one.
+ *
+ * The assertion stays: «A recomposes into the focus stage» is still proved,
+ * just not «exactly one keystroke does it», which was never the contract and
+ * is exactly the kind of claim a busy 4K frame falsifies at random.
+ */
+export async function openActionFocus(page: Page, tries = 4): Promise<void> {
+  const stage = page.locator('.con-cardactions__stagewrap .con-composer--stage');
+  for (let i = 0; i < tries && await stage.count() === 0; i++) {
+    await press(page, 'Enter', 1200);
+  }
+  await expect(stage, 'A must recompose the browser into the ACTION FOCUS stage')
+    .toHaveCount(1, {timeout: 8000});
 }

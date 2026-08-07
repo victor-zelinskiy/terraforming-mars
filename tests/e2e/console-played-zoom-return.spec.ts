@@ -1,6 +1,7 @@
-import {test, expect, Page, APIRequestContext} from '@playwright/test';
+import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {bootIntoGame, soloGameConfig} from './consoleStart';
 
 /**
  * «РАЗЫГРАНО» → fullscreen → BACK: the table must stay on stage.
@@ -21,57 +22,11 @@ import * as path from 'node:path';
 
 const OUT_ROOT = path.resolve('screenshots', 'played-zoom-return');
 
-function newGameConfig() {
-  const expansions: Record<string, boolean> = {
-    corpera: true, promo: false, venus: false, colonies: false,
-    prelude: false, prelude2: false, turmoil: false, community: false,
-    ares: false, moon: false, pathfinders: false, ceo: false,
-    starwars: false, underworld: false, deltaProject: false,
-  };
-  return {
-    players: [{name: 'ZoomTester', color: 'red', beginner: false, handicap: 0, first: true}],
-    expansions,
-    board: 'tharsis',
-    seed: 0.42,
-    randomFirstPlayer: false,
-    clonedGamedId: undefined,
-    undoOption: false,
-    showTimers: false,
-    fastModeOption: false,
-    showOtherPlayersVP: false,
-    testMode: true,
-    aresExtremeVariant: false,
-    politicalAgendasExtension: 'Standard',
-    solarPhaseOption: false,
-    removeNegativeGlobalEventsOption: false,
-    modularMA: false,
-    draftVariant: false,
-    initialDraft: false,
-    preludeDraftVariant: false,
-    ceosDraftVariant: false,
-    startingCorporations: 2,
-    shuffleMapOption: false,
-    randomMA: 'No randomization',
-    includeFanMA: false,
-    soloTR: false,
-    customCorporationsList: [],
-    bannedCards: [],
-    includedCards: [],
-    customColoniesList: [],
-    customPreludes: [],
-    requiresMoonTrackCompletion: false,
-    requiresVenusTrackCompletion: false,
-    moonStandardProjectVariant: false,
-    moonStandardProjectVariant1: false,
-    altVenusBoard: false,
-    escapeVelocity: undefined,
-    twoCorpsVariant: false,
-    customCeos: [],
-    startingCeos: 3,
-    startingPreludes: 4,
-    automa: {difficulty: 'normal'},
-  };
-}
+const GAME_CONFIG = soloGameConfig({
+  players: [{name: 'ZoomTester', color: 'red', beginner: false, handicap: 0, first: true}],
+  seed: 0.42,
+  automa: {difficulty: 'normal'},
+});
 
 async function key(page: Page, code: string, settleMs = 500): Promise<void> {
   await page.keyboard.press(code);
@@ -83,35 +38,20 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT_ROOT, `${name}.png`)});
 }
 
-async function enterGame(page: Page, request: APIRequestContext): Promise<void> {
-  const created = await request.post('/api/creategame', {data: newGameConfig()});
-  expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-  const model = await created.json() as {players: Array<{id: string}>};
-  await page.goto(`/player?id=${model.players[0].id}&console=1&consoleProfile=auto`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  await page.waitForTimeout(3500);
-  const startScene = page.locator('.con-start__frame');
-  for (let i = 0; i < 16 && await startScene.count() > 0; i++) {
-    await key(page, i % 2 === 0 ? 'Enter' : 'Period', 1100);
-  }
-  await expect(startScene).toHaveCount(0);
-  for (let i = 0; i < 12; i++) {
-    const status = (await page.locator('.con-status').textContent().catch(() => '')) ?? '';
-    if (/ДЕЙСТВИЕ/i.test(status)) {
-      break;
-    }
-    await key(page, 'Enter', 1300);
-  }
-  await page.waitForTimeout(2500);
-}
-
 test.describe('played table ⇄ fullscreen', () => {
   test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1});
 
   test('the table stays on stage while a card is inspected fullscreen', async ({page, request}) => {
-    test.setTimeout(240_000);
-    await enterGame(page, request);
+    test.setTimeout(300_000);
+
+    // ── The pregame: the shared start driver (`consoleStart.ts`). The walk is
+    //    SETUP, never the subject — this spec's claim is the played table
+    //    surviving a fullscreen round trip, so a start-flow change is adapted
+    //    THERE, never here. The local walk it replaces asked whether
+    //    `.con-start__frame` had a COUNT of 0, which the DOM cannot answer:
+    //    the scene stays MOUNTED through its yield (`ConsoleShell.vue:2395`)
+    //    and its panes are `v-show` (`ConsoleStartScene.vue:26`).
+    await bootIntoGame(page, request, {config: GAME_CONFIG, query: '&consoleProfile=auto'});
 
     // Board home → «Разыграно» (X), then A on the corporation zone: it holds
     // exactly one card, so the smart shortcut opens the fullscreen directly.

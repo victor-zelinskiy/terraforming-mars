@@ -1,29 +1,39 @@
 import {test, expect} from '@playwright/test';
 
 /**
- * Smoke test — verifies the app boots and the Vue root mounts the start screen.
+ * Smoke test — the app boots and the Vue root renders the MAIN MENU.
  *
- * This is deliberately shallow: its only job is to prove the E2E harness can
- * reach the running app and that the client bundle renders. Modal / overlay /
- * visual-regression specs build on top of this infrastructure later.
+ * Deliberately shallow: its only job is to prove the E2E harness can reach the
+ * running app and that the client bundle executed. Every other spec builds on
+ * this, so when the suite goes red wholesale, this is the first thing to read —
+ * green here means "the app is fine, the specs are wrong".
+ *
+ * It used to assert `.start-screen` / `.start-screen-title-top` — the FROZEN
+ * desktop entry screen (see docs/DESKTOP_DEPRECATION_AUDIT.md). Console native
+ * is the default shell now and boots `PremiumMainMenu`, so the old selectors
+ * matched nothing and the smoke test reported the whole app as broken while it
+ * was working perfectly. Assert what the product actually renders.
  */
 test.describe('app smoke', () => {
-  test('loads the start screen', async ({page}) => {
+  test('loads the main menu', async ({page}) => {
     await page.goto('/');
 
-    // The Vue app mounts into #app; once it renders, the start screen appears.
-    const startScreen = page.locator('.start-screen');
-    await expect(startScreen).toBeVisible();
+    // SEMANTIC, not structural. A smoke test must survive every re-skin the
+    // console gets, so it asserts the landmarks the menu is REQUIRED to expose
+    // rather than a class name — the previous version died on `.start-screen`
+    // and reported the whole app as broken while it worked.
+    //
+    // The accessible NAME is deliberately not matched: `aria-label` runs through
+    // the i18n directive, so it reads «Главное меню» on this fork. Matching it
+    // would turn a locale change into a mystery failure — the same trap
+    // `consoleStart.ts` documents.
+    await expect(page.getByRole('navigation')).toBeVisible();
+    // The wordmark is split across elements, so the accessible text reads
+    // «TERRAFORMINGMARS…» with no separator — match the stem, not the phrase.
+    await expect(page.getByRole('banner')).toContainText('TERRAFORMING');
 
-    // The headline and the primary "New game" entry point are the canonical
-    // signal that the client bundle executed and rendered, not just an empty
-    // index.html shell. Assert presence/non-emptiness rather than exact text:
-    // the title runs through the i18n directive, so its content depends on the
-    // active locale (e.g. "ПОКОРЕНИЕ" on the ru fork).
-    const title = page.locator('.start-screen-title-top');
-    await expect(title).toBeVisible();
-    await expect(title).not.toBeEmpty();
-    await expect(page.locator('.start-screen-link--new-game')).toBeVisible();
+    // The primary entry point exists and is reachable.
+    await expect(page.getByRole('button').first()).toBeVisible();
 
     // #app must contain rendered DOM (guards against a blank mount / JS error).
     await expect(page.locator('#app')).not.toBeEmpty();

@@ -1,6 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {bootIntoGame, fillPicks, soloGameConfig} from './consoleStart';
 
 /**
  * Quick-wheel rework · press→release lifecycle + the commit/collapse/reveal
@@ -32,59 +33,21 @@ import * as path from 'node:path';
 
 const OUT_DIR = path.resolve('screenshots', 'wheel-rework');
 
-function newGameConfig() {
-  return {
-    players: [{name: 'WheelTester', color: 'red', beginner: false, handicap: 0, first: true}],
-    expansions: {
-      corpera: true, promo: false, venus: false, colonies: true,
-      prelude: false, prelude2: false, turmoil: false, community: false,
-      ares: false, moon: false, pathfinders: false, ceo: false,
-      starwars: false, underworld: false, deltaProject: false,
-    },
-    board: 'tharsis',
-    seed: 0.42,
-    randomFirstPlayer: false,
-    clonedGamedId: undefined,
-    undoOption: false,
-    showTimers: false,
-    fastModeOption: false,
-    showOtherPlayersVP: false,
-    testMode: true, // 500 of everything → conversions are available
-    aresExtremeVariant: false,
-    politicalAgendasExtension: 'Standard',
-    solarPhaseOption: false,
-    removeNegativeGlobalEventsOption: false,
-    modularMA: false,
-    draftVariant: false,
-    initialDraft: false,
-    preludeDraftVariant: false,
-    ceosDraftVariant: false,
-    // UNMI: a corporation WITH a card action (spend 3 M€ → +1 TR, only after
-    // TR was raised this turn) — so the Action Center always shows a real
-    // premium tile: the status rail, the reserved meta strip with its honest
-    // reason, and the reveal cascade have something to prove on.
-    startingCorporations: 1,
-    shuffleMapOption: false,
-    randomMA: 'No randomization',
-    includeFanMA: false,
-    soloTR: false,
-    customCorporationsList: ['United Nations Mars Initiative'],
-    bannedCards: [],
-    includedCards: [],
-    customColoniesList: [],
-    customPreludes: [],
-    requiresMoonTrackCompletion: false,
-    requiresVenusTrackCompletion: false,
-    moonStandardProjectVariant: false,
-    moonStandardProjectVariant1: false,
-    altVenusBoard: false,
-    escapeVelocity: undefined,
-    twoCorpsVariant: false,
-    customCeos: [],
-    startingCeos: 3,
-    startingPreludes: 4,
-  };
-}
+/**
+ * `testMode` gives 500 of everything, so both conversions are available.
+ *
+ * UNMI is forced as the ONLY dealable corporation: it has a card action (spend
+ * 3 M€ → +1 TR, only after TR was raised this turn), so the Action Center
+ * always shows a real premium tile — the status rail, the reserved meta strip
+ * with its honest reason, and the reveal cascade have something to prove on.
+ */
+const GAME_CONFIG = soloGameConfig({
+  players: [{name: 'WheelTester', color: 'red', beginner: false, handicap: 0, first: true}],
+  expansions: {colonies: true},
+  seed: 0.42,
+  startingCorporations: 1,
+  customCorporationsList: ['United Nations Mars Initiative'],
+});
 
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT_DIR, {recursive: true});
@@ -108,51 +71,34 @@ async function openWheel(page: Page, code: 'Comma' | 'Period'): Promise<void> {
   expect(await page.locator('.con-quick').count(), `the ${code} wheel never opened`).toBeGreaterThan(0);
 }
 
-/** Boot a game, walk the start wizard, resolve the colony setup picks. */
+/**
+ * Boot a game and land on the CALM board home: the wizard walked, the solo
+ * Colonies setup picks resolved, the corporation's announced first action
+ * carried out — until that resolves the action menu is honestly narrowed and
+ * the wheel's std/conversion tiles would sit disabled-with-reason.
+ *
+ * All of it is the shared driver's job (`consoleStart.ts` — `waitForBoardHome`
+ * drives the colony pick, the mandatory announce and any tile placement with
+ * the same act→verify→retry discipline). The local walk this replaces decided
+ * the wizard was over by COUNTING `.con-start__frame` nodes — a question the
+ * DOM cannot answer, since the scene stays MOUNTED through its yield
+ * (`ConsoleShell.vue:2395`) and its panes are `v-show`
+ * (`ConsoleStartScene.vue:26`) — and it opened the announce with B, which has
+ * been A since the mandatory prompts were unified (the announce card renders
+ * `GamepadGlyph control="confirm"`, and `ConsoleShell.vue:6235` acknowledges
+ * the beat on `primary`).
+ */
 async function bootToBoard(page: Page, request: APIRequestContext, extraQuery = ''): Promise<void> {
-  const created = await request.post('/api/creategame', {data: newGameConfig()});
-  expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-  const model = await created.json() as {players: Array<{id: string}>};
-  await page.goto(`/player?id=${model.players[0].id}&console=1${extraQuery}`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  await page.waitForTimeout(3500);
-  const startScene = page.locator('.con-start__frame');
-  for (let i = 0; i < 14 && await startScene.count() > 0; i++) {
-    await key(page, i % 2 === 0 ? 'Enter' : 'Period', 1100);
-  }
-  await page.waitForTimeout(5000);
-  expect(await startScene.count(), 'start wizard never completed').toBe(0);
-  // Solo Colonies setup: resolve the mandatory remove-colony picks until the
-  // turn proper starts (the status chip flips to «ДЕЙСТВИЕ»).
-  const statusStrip = page.locator('.con-status__pstatus');
-  for (let i = 0; i < 14; i++) {
-    const status = await statusStrip.first().innerText({timeout: 2500}).catch(() => '');
-    if (/действ/i.test(status)) {
-      break;
-    }
-    await key(page, 'Enter', 1900);
-  }
-  const finalStatus = await statusStrip.first().innerText({timeout: 2500}).catch(() => '');
-  expect(/действ/i.test(finalStatus), `the turn never started (status: ${finalStatus})`).toBeTruthy();
-  await page.waitForTimeout(1500);
-
-  // The corporation's mandatory FIRST ACTION (Tharsis: place a city) is
-  // ANNOUNCED on the board home — B opens it, A confirms, one more A places
-  // the city on the seeded cell. Until it resolves the action menu is
-  // honestly narrowed, so the wheel's std/conversion tiles would stay
-  // disabled-with-reason.
-  const announce = page.locator('.con-mandatory');
-  if (await announce.count() > 0) {
-    await key(page, 'Escape', 1800); // B — open the announced decision
-    const corpModal = page.locator('.con-composer--corpfirst');
-    await corpModal.waitFor({state: 'visible', timeout: 15_000});
-    await key(page, 'Enter', 2500); // «Выполнить первое действие»
-    await page.waitForSelector('.con-board--live', {timeout: 15_000});
-    await key(page, 'Enter', 1500); // place on the seeded available cell
-    await page.waitForTimeout(6500); // placement hero + server commit settle
-    expect(await announce.count(), 'corp first action never resolved').toBe(0);
-  }
+  await bootIntoGame(page, request, {
+    config: GAME_CONFIG,
+    query: extraQuery,
+    // Exactly one dealable corporation (UNMI) — take it and move on.
+    onStep: async (p, kind) => {
+      if (kind === 'corporation') {
+        await fillPicks(p, 1);
+      }
+    },
+  });
 }
 
 test.describe('quick-wheel rework', () => {
@@ -175,17 +121,28 @@ test.describe('quick-wheel rework', () => {
     await expect(page.locator('.con-quick__slot--muted')).toHaveCount(4);
     await shoot(page, '02-rt-armed-right');
 
-    // ── 3 · COMMIT on the up edge → the trading screen, retitled, with
-    //        the wheel's emblem as the flight anchor ────────────────────
+    // ── 3 · COMMIT on the up edge → the COLONY WORKSPACE, with the wheel's
+    //        emblem as the flight anchor ──────────────────────────────────
     await page.keyboard.up('ArrowRight');
     await page.waitForTimeout(260);
     await shoot(page, '03-collapse-reveal');
     await page.waitForSelector('.con-colonies', {timeout: 8_000});
     await page.waitForTimeout(1200);
-    const kicker = page.locator('.con-colonies__kicker');
-    await expect(kicker).toContainText(/торговля/i);
-    await expect(page.locator('.con-colonies [data-wheel-anchor="trading"]')).toHaveCount(1);
-    await expect(page.locator('.con-colonies [data-wheel-anchor="trading"]')).toBeVisible();
+    // The destination's own header, not a per-surface kicker: the colonies
+    // screen became a WORKSPACE and adopted the shared `ConsoleWsHead`
+    // (`ConsoleColoniesSection.vue:29` — `root="Colonies"`, `emblem="colonies"`,
+    // `wheelAnchor="trading"`), so the title is the crumb ROOT «КОЛОНИИ» and
+    // «ТОРГОВЛЯ» is a STAGE the crumb only grows once the player descends into
+    // a colony. The old `.con-colonies__kicker` no longer exists anywhere in
+    // `src/` — one header for the whole family is the point (console-ui.md
+    // § the workspace band).
+    await expect(page.locator('.con-colonies .con-wshead__root')).toContainText(/колонии/i);
+    // What the WHEEL contract still owns: the destination's emblem is the
+    // handoff's landing anchor, and it is really painted (the echo tweens onto
+    // it — a missing/hidden anchor makes the flight land nowhere).
+    const anchor = page.locator('.con-colonies [data-wheel-anchor="trading"]');
+    await expect(anchor).toHaveCount(1);
+    await expect(anchor).toBeVisible();
     await shoot(page, '04-trading-screen');
     await key(page, 'Escape', 1400); // back to the board home
     expect(await page.locator('.con-colonies').count()).toBe(0);
