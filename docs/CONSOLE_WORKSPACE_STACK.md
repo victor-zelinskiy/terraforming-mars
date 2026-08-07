@@ -307,5 +307,28 @@ with paint-aware predicates (`checkVisibility`, `.isVisible()`, `:not([style*="d
 colonies`) — the same chain `.claude/rules/console-ui.md` records as broken on 2026-08-06, and
 the same one whose colony branch produces the soft-lock.
 
-> **C and D must go green as a CONSEQUENCE of this refactor, with no spec edits.** That is the
-> acceptance test for the architecture. Patching those specs would hide the defect.
+> **⚠️ CORRECTION (2026-08-07, after the cluster A/B repair — read this before trusting the
+> paragraph above).** The `[".con-start",".con-hand"]` signature is **at least partly a DRIVER
+> defect, not an app stall**, and the confident framing above was written before that was known.
+>
+> Two of the five bullets have been explained away by fixing the e2e driver alone, with zero
+> `src/` changes:
+> - `console-score-header · compact-720` produced exactly that message, and its screenshot showed
+>   a perfectly HEALTHY embedded hand step (`СТАРТ ПАРТИИ › ЭПАТАЖНЫЙ СПОНСОР › КАРТЫ В РУКЕ`)
+>   whose focused card was legitimately unplayable («Требуется температура −16 °C»). The driver
+>   pressed A on whatever the cursor sat on, so A was correctly refused forever. Teaching it to
+>   walk to a `con-hand__slot--playable` slot first makes it pass.
+> - `waitForBoardHome`'s start branch keyed on `.con-start` **count** — the same MOUNTED != VISIBLE
+>   bug as the original — so during a tile-placing prelude it beat the placement branch and
+>   hammered an invisible workspace.
+> - The `raised pack is not at full size — Expected 1, Received 0.7` reading also did NOT
+>   reproduce once the boot was correct; the hand dock's compact pose is fine.
+>
+> **So: RE-MEASURE cluster C against the repaired driver before treating it as this refactor's
+> acceptance test.** What survives that re-measurement is the real signal; what does not was
+> always a measurement artifact. The soft-lock in symptom 1 is independently reproducible by hand
+> (play `TradingColony`, press B) and does NOT depend on any of this — that one still stands on
+> its own, with the code path traced above.
+>
+> The original intent stays right: do not patch a C/D spec to make it pass. But do not assume the
+> whole cluster is an app defect either — that assumption was made too early here.

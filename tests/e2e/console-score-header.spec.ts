@@ -1,7 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, fillPicks, pickCalmCorporation, soloGameConfig} from './consoleStart';
+import {bootIntoGame, soloGameConfig} from './consoleStart';
 
 /**
  * Console score header (.con-score — TR + VP above the resource rows):
@@ -87,19 +87,7 @@ for (const preset of PRESETS) {
       //    question the DOM cannot answer, since the scene stays MOUNTED
       //    through its yield (`ConsoleShell.vue:2395`) and its panes are
       //    `v-show` (`ConsoleStartScene.vue:26`).
-      const playerId = await bootIntoGame(page, request, {
-        config: GAME_CONFIG,
-        query: preset.profileQuery,
-        onStep: async (p, kind) => {
-          if (kind === 'corporation') {
-            await pickCalmCorporation(p);
-          } else if (kind === 'prelude') {
-            // The prelude step has a MINIMUM of two picks: RT is refused
-            // until they are made, so an unfilled step stalls the whole walk.
-            await fillPicks(p, 2);
-          }
-        },
-      });
+      const playerId = await bootIntoGame(page, request, {config: GAME_CONFIG, query: preset.profileQuery});
 
       // The cap mounted with live numbers.
       const score = page.locator('.con-score');

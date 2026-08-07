@@ -1,7 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootWithCards, openActionFocus, openCardActions, playCardFromHand, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootWithCards, openActionFocus, openCardActions, openQuickWheel, playCardFromHand, soloGameConfig, waitForTurn} from './consoleStart';
 
 /**
  * Console surface-motion system · the Search For Life reveal chain + wheels.
@@ -93,8 +93,9 @@ for (const profile of PROFILES) {
       await page.waitForTimeout(4000); // intake / delivery settle
 
       // ── 1. The RT wheel: open (no private backdrop, shared shade ON). ───
-      await key(page, 'Period', 600);
-      await expect(page.locator('.con-quick')).toHaveCount(1);
+      // Verified entry (the driver retries) — a blind press is consumed on a
+      // busy 4K frame, which is what made this fail on tv4k and pass on fhd.
+      await openQuickWheel(page);
       expect(await page.locator('.con-quick__backdrop').count(), 'the wheel has no private backdrop').toBe(0);
       await expect(page.locator('.con-shade--on')).toHaveCount(1);
       await shoot(page, `${profile.tag}-01-rt-wheel-open`);

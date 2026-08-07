@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, press} from './consoleStart';
+import {bootSeededGame, press} from './consoleStart';
 
 /**
  * COLONY FOCUS STAGE PROBE — the visual + motion evidence for the detail
@@ -84,21 +84,9 @@ async function createGame(request: APIRequestContext): Promise<string> {
   return model.players[0].id;
 }
 
-async function boot(page: Page, playerId: string, keep = 'Luna'): Promise<void> {
-  await page.goto(`/player?id=${playerId}&console=1`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  await page.waitForTimeout(3500);
-  await bootToBoard(page, {
-    keepColony: keep,
-    onStep: async (p, kind) => {
-      if (kind === 'corporation') {
-        await press(p, 'Enter', 600);
-      } else if (kind === 'project') {
-        await fillPicks(p, 2);
-      }
-    },
-  });
+async function boot(page: Page, request: APIRequestContext, playerId: string, keep = 'Luna'): Promise<void> {
+  // A real hand (`buy`): the board home's dock only reads LIVE with cards in it.
+  await bootSeededGame(page, request, playerId, {buy: 2, keepColony: keep});
   await page.waitForTimeout(1500);
 }
 
@@ -178,7 +166,7 @@ test.describe.configure({mode: 'serial'});
 
 test('colony focus: entry choreography + trade resolution', async ({page, request}) => {
   test.setTimeout(420_000);
-  await boot(page, await createGame(request));
+  await boot(page, request, await createGame(request));
   await openColonies(page);
   await focusTile(page, 'Luna');
   await shoot(page, '00-overview');
@@ -299,7 +287,7 @@ test('colony focus: entry choreography + trade resolution', async ({page, reques
 
 test('colony focus: inspect composition + build cube docking', async ({page, request}) => {
   test.setTimeout(420_000);
-  await boot(page, await createGame(request));
+  await boot(page, request, await createGame(request));
   await openColonies(page);
   await focusTile(page, 'Luna');
 
@@ -428,7 +416,7 @@ test('colony focus: inspect composition + build cube docking', async ({page, req
 
 test('colony focus: the stage holds its composition on every display profile', async ({page, request}) => {
   test.setTimeout(420_000);
-  await boot(page, await createGame(request));
+  await boot(page, request, await createGame(request));
   await openColonies(page);
   await focusTile(page, 'Luna');
   await press(page, 'Enter', 2200); // descend (trade intent)

@@ -1,7 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, fillPicks, soloGameConfig} from './consoleStart';
+import {bootIntoGame, soloGameConfig} from './consoleStart';
 
 /**
  * Console-native · the corporation's MANDATORY FIRST ACTION modal.
@@ -65,13 +65,12 @@ test.describe('console corp first-action modal', () => {
     //    (`ConsoleStartScene.vue:26`). The driver reads what is PAINTED.
     await bootIntoGame(page, request, {
       config: GAME_CONFIG,
-      // The corp step offers exactly one card, and it is deliberately a
-      // corporation WITH a first action — the subject, not something to dodge.
-      onStep: async (p, kind) => {
-        if (kind === 'corporation') {
-          await fillPicks(p, 1);
-        }
-      },
+      // NAMED, never left to the seeder's default: `customCorporationsList`
+      // only guarantees the corp is IN the deal, and testMode deals eight — so
+      // the default «pick a CALM corporation» would deliberately step around
+      // the one corp this spec exists to look at, and the modal would simply
+      // never appear.
+      corporation: 'Tharsis Republic',
       until: 'startRelease',
     });
 

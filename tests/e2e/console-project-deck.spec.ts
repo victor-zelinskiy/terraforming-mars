@@ -1,4 +1,5 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect} from '@playwright/test';
+import {bootSeededGame, createGameWithCards} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -69,51 +70,18 @@ function newGameConfig() {
   };
 }
 
-/** Walk the start wizard to the summary and submit it (mirrors
- *  console-start-summary.spec.ts — corporation commits with A, the project
- *  buy continues with RT, the empty buy confirms twice). */
-async function walkIntoGame(page: Page): Promise<void> {
-  await page.waitForSelector('.con-start__frame', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  const summary = page.locator('.con-start__summary');
-  const activeStep = page.locator('.con-start__step--active');
-
-  for (let i = 0; i < 8 && await summary.count() === 0; i++) {
-    // The reworked start scene renders no `.con-cards__verdictbar` (that
-    // chassis belongs to the hand / task host) — the STEP RAIL is the honest
-    // readiness signal here. RT(Period) = «СЛЕД. ШАГ»; A picks the corp.
-    await page.waitForSelector('.con-start__step--active', {timeout: 25_000});
-    await page.waitForTimeout(400);
-    const before = (await activeStep.innerText()).toLowerCase();
-    await key(page, /корпорац|директор/.test(before) ? 'Enter' : 'Period', 1200);
-    for (let w = 0; w < 20 && await summary.count() === 0 &&
-         (await activeStep.innerText()).toLowerCase() === before; w++) {
-      await page.waitForTimeout(250);
-    }
-  }
-  await expect(summary).toHaveCount(1);
-  await key(page, 'Enter', 700); // arms the zero-projects warning
-  await key(page, 'Enter', 2500); // submits — the game shell takes over
-}
-
-async function key(page: Page, code: string, settleMs = 900): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
-}
-
 test.describe('console top HUD · project draw pile', () => {
   test.use({viewport: {width: 1920, height: 1080}});
 
   test('renders the physical stack; count = the server draw-pile size; placed before the generation', async ({page, request}) => {
     test.setTimeout(180_000);
 
-    const created = await request.post('/api/creategame', {data: newGameConfig()});
-    expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-    const model = await created.json() as {players: Array<{id: string}>};
-    const playerId = model.players[0].id;
-
-    await page.goto(`/player?id=${playerId}&console=1`);
-    await walkIntoGame(page);
+    // The pregame is SETUP — the subject is the HUD's draw pile, a board-home
+    // object. The shared driver ANSWERS it over `player/input` and opens the
+    // console on a live board (buying NOTHING, so the deck size is the fresh
+    // one this spec compares against the server's own `deckSize`).
+    const playerId = await createGameWithCards(request, [], {config: newGameConfig()});
+    await bootSeededGame(page, request, playerId);
 
     // The live shell's status strip carries the deck widget.
     const deck = page.locator('.con-status .con-deckstack');

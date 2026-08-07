@@ -2,7 +2,7 @@ import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {WS_STAGE_BOX, WS_STAGE_HEAD, stageProbe} from './wsStageParity';
-import {bootWithCards, openActionFocus, openCardActions, playCardFromHand, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootWithCards, closeZoomViewer, openActionFocus, openCardActions, openZoomViewer, playCardFromHand, soloGameConfig, waitForTurn} from './consoleStart';
 
 /**
  * Console BLUE ACTION · the COMMIT half — the EMBEDDED PURCHASE stage
@@ -105,7 +105,32 @@ for (const profile of PROFILES) {
       expect(emblemProbe.visibility, `emblem: ${emblemStory}`).toBe('visible');
       expect(emblemProbe.w).toBeGreaterThan(4);
       // The SOURCE STABILITY baseline: the hero card wrap's box at setup.
-      const heroAtSetup = await page.locator('.con-composer__actcardwrap').boundingBox();
+      /*
+       * THE BASELINE MUST BE SETTLED, or the contract is measured against noise.
+       *
+       * A single `boundingBox()` here reads the hero WHILE the composer's
+       * entrance is still settling, and the value it catches differs run to run
+       * (838, 809, … observed) while the committed-stage reading is rock steady
+       * (533 every time). So the failures blamed the buy stage for moving a card
+       * that had never finished arriving — the baseline was the unstable half.
+       * Poll until two consecutive frames agree, then that is the anchor.
+       */
+      const settledHeroBox = async () => {
+        const box = page.locator('.con-composer__actcardwrap');
+        let prev = await box.boundingBox();
+        for (let i = 0; i < 40; i++) {
+          await page.waitForTimeout(120);
+          const next = await box.boundingBox();
+          if (prev !== null && next !== null &&
+              Math.abs(next.x - prev.x) <= 1 && Math.abs(next.y - prev.y) <= 1 &&
+              Math.abs(next.width - prev.width) <= 1) {
+            return next;
+          }
+          prev = next;
+        }
+        return prev;
+      };
+      const heroAtSetup = await settledHeroBox();
       expect(heroAtSetup).not.toBeNull();
       await shoot(page, `${profile.tag}-01-setup`);
 
@@ -123,12 +148,42 @@ for (const profile of PROFILES) {
       // THE SOURCE STABILITY CONTRACT (NORTH STAR): the hero card is the same
       // spatial object across the commit — same box to the pixel. Any
       // stage-specific label leaking into its column shows up here.
-      const heroAtBuy = await page.locator('.con-composer__actcardwrap').boundingBox();
-      expect(heroAtBuy).not.toBeNull();
-      expect(Math.abs(heroAtBuy!.x - heroAtSetup!.x)).toBeLessThanOrEqual(1);
-      expect(Math.abs(heroAtBuy!.y - heroAtSetup!.y)).toBeLessThanOrEqual(1);
-      expect(Math.abs(heroAtBuy!.width - heroAtSetup!.width)).toBeLessThanOrEqual(1);
-      expect(Math.abs(heroAtBuy!.height - heroAtSetup!.height)).toBeLessThanOrEqual(1);
+      //
+      // POLLED, because the assertion is about the SETTLED stage. The embedded
+      // host reports `count === 1` the instant it mounts — which is the first
+      // frame of the UNFOLD, while the band is still reflowing around the new
+      // outcome column. Measuring there read a 196px offset and blamed the
+      // product for a transition it is supposed to play. `toPass` keeps the
+      // contract exact (still 1px) and only lets the motion finish; a hero that
+      // genuinely lands somewhere else never satisfies it and still fails.
+      await expect(async () => {
+        const heroAtBuy = await page.locator('.con-composer__actcardwrap').boundingBox();
+        expect(heroAtBuy).not.toBeNull();
+        // DIAGNOSTIC, not decoration: six structural hypotheses for the tv4k
+        // shift were checked against the stylesheet and all six were wrong
+        // (a payment row appearing; the right column pushing a centred row —
+        // guarded at console.less:18925; `--con-ws-left` moving — a static
+        // token; the pregame state; `--stage`'s zoom — a static class;
+        // `--committed` — paint-only). So when this fails it must hand over
+        // the ANCESTOR CHAIN rather than one number, or the next person starts
+        // guessing from zero too.
+        const chain = await page.locator('.con-composer__actcardwrap').evaluate((el) => {
+          const out: Array<string> = [];
+          for (let n: HTMLElement | null = el as HTMLElement; n !== null && out.length < 6; n = n.parentElement) {
+            const r = n.getBoundingClientRect();
+            const cs = getComputedStyle(n);
+            out.push(`${n.className || n.tagName}: x=${Math.round(r.x)} w=${Math.round(r.width)} ` +
+              `just=${cs.justifyContent} align=${cs.alignItems} zoom=${cs.zoom} tf=${cs.transform}`);
+          }
+          return out.join('\n  ');
+        });
+        expect(Math.abs(heroAtBuy!.x - heroAtSetup!.x),
+          `hero moved: setup.x=${Math.round(heroAtSetup!.x)} buy.x=${Math.round(heroAtBuy!.x)}\n  ${chain}`)
+          .toBeLessThanOrEqual(1);
+        expect(Math.abs(heroAtBuy!.y - heroAtSetup!.y)).toBeLessThanOrEqual(1);
+        expect(Math.abs(heroAtBuy!.width - heroAtSetup!.width)).toBeLessThanOrEqual(1);
+        expect(Math.abs(heroAtBuy!.height - heroAtSetup!.height)).toBeLessThanOrEqual(1);
+      }).toPass({timeout: 15_000});
       // THE IDENTITY SYMBOL holds on the COMMITTED stage too (§ NORTH STAR:
       // present through every state, never re-hidden by a stage transition).
       const emblemAtBuy = await page.locator('.con-wshead__emblem').evaluate((el) => {
@@ -234,22 +289,20 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-ws-stage-title')).toContainText('Купить открытую карту?');
       // The FULLSCREEN RETURN did not move the source either (§17): the hero
       // box after the zoom round trip equals the setup box to the pixel.
-      await page.waitForTimeout(400); // the return flight fully settles
-      const heroAfterZoom = await page.locator('.con-composer__actcardwrap').boundingBox();
-      expect(heroAfterZoom).not.toBeNull();
-      expect(Math.abs(heroAfterZoom!.x - heroAtSetup!.x)).toBeLessThanOrEqual(1);
-      expect(Math.abs(heroAfterZoom!.y - heroAtSetup!.y)).toBeLessThanOrEqual(1);
-      expect(Math.abs(heroAfterZoom!.width - heroAtSetup!.width)).toBeLessThanOrEqual(1);
+      // Polled for the same reason as the commit-boundary check above: a fixed
+      // 400 ms is a guess about the return flight, and on a loaded 4K frame it
+      // is the wrong guess. The tolerance stays 1px.
+      await expect(async () => {
+        const heroAfterZoom = await page.locator('.con-composer__actcardwrap').boundingBox();
+        expect(heroAfterZoom).not.toBeNull();
+        expect(Math.abs(heroAfterZoom!.x - heroAtSetup!.x)).toBeLessThanOrEqual(1);
+        expect(Math.abs(heroAfterZoom!.y - heroAtSetup!.y)).toBeLessThanOrEqual(1);
+        expect(Math.abs(heroAfterZoom!.width - heroAtSetup!.width)).toBeLessThanOrEqual(1);
+      }).toPass({timeout: 10_000});
 
       // ── X: fullscreen the RESULT (the X/L3 split). ──────────────────────
-      for (let tries = 0; tries < 3 && await zoom.count() === 0; tries++) {
-        await key(page, 'KeyX', 1600);
-      }
-      await expect(zoom).toHaveCount(1, {timeout: 8000});
-      for (let tries = 0; tries < 3 && await zoom.count() > 0; tries++) {
-        await key(page, 'Escape', 1400);
-      }
-      await expect(zoom).toHaveCount(0);
+      await openZoomViewer(page);
+      await closeZoomViewer(page);
       await expect(embeddedHost).toHaveCount(1);
 
       // ── COLLAPSE (B) → the committed decision survives → reopen. ────────

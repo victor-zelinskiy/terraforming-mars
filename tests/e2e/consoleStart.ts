@@ -1,4 +1,20 @@
 import {APIRequestContext, Locator, Page, expect} from '@playwright/test';
+/**
+ * THE ONLY PROMPT TITLES THIS FILE IS ALLOWED TO MATCH, and the reason they are
+ * safe (every other prompt is identified structurally — see the invariant in
+ * CLAUDE.md: «Never detect a prompt by its title text»).
+ *
+ * These are SHARED CONTRACT CONSTANTS: the server SETS the title from them and
+ * the client DETECTS it from the same module, so the literal lives in exactly
+ * one place. They are plain strings (never a `Message`), so — unlike every
+ * other title — the serialized value is never rewritten in place by i18n, and
+ * matching it is language-independent. `actionMenuTitles.ts` states that
+ * contract in full; `SelectInitialCards.ts` is the same shape.
+ */
+import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
+import {
+  SELECT_CEO_TITLE, SELECT_CORPORATION_TITLE, SELECT_PRELUDE_TITLE, SELECT_PROJECTS_TITLE,
+} from '../../src/common/inputs/SelectInitialCards';
 
 /**
  * THE SHARED CONSOLE START DRIVER — the ONE place e2e specs get a live game
@@ -10,7 +26,24 @@ import {APIRequestContext, Locator, Page, expect} from '@playwright/test';
  * after the wizard moved to RT). The walk is SETUP, never the subject: a
  * spec should fail on ITS OWN claim, not on the road to it.
  *
- * The primitives here are deliberately structural — they read the same
+ * ⭐ THERE ARE TWO ROADS, and the DEFAULT is the API one (`BootVia`):
+ *
+ *   · `via: 'api'` — the pregame is ANSWERED over `player/input`, the same
+ *     endpoint and the same `InputResponse`s the real client posts, and the
+ *     console then opens on an already-playable board. Seconds instead of
+ *     minutes, and none of the walk's load-sensitivity. Everything from
+ *     «THE API PATH» downward.
+ *   · `via: 'ui'` — the wizard is WALKED with the keyboard, by the primitives
+ *     below. The ONLY correct mode when the SUBJECT is the pregame itself —
+ *     the start scene, the deal cinematic, the summary, the deployment queue,
+ *     the delivery beat. If a spec asserts on any of those it belongs here.
+ *
+ * Taking the walk seriously as SETUP eventually means not walking it at all:
+ * simulating a keyboard for minutes to reach a state the server hands out in
+ * one request bought nothing but false failures (the 2026-08-07 repair found
+ * the boot, not the product, behind nearly every one).
+ *
+ * The walk's primitives are deliberately structural — they read the same
  * signals the UI itself is built on, so they survive cosmetic change:
  *
  *   · the live step   → the workspace breadcrumb's SUBJECT (ConsoleWsHead),
@@ -269,8 +302,20 @@ export async function walkToSummary(page: Page, opts: WalkOptions = {}): Promise
       await page.waitForTimeout(250);
     }
   }
+  // The same «the wizard is BEHIND us» escape, one stage further out: on a 4K
+  // viewport under a loaded parallel run the whole start can go by inside the
+  // round budget (every nudge is an A, and A submits the summary AND plays the
+  // deployment queue), leaving the shell on a plain screen — a standalone hand,
+  // say. The start workspace is UNMOUNTED by then, so this is not a stall; the
+  // later stages own it (`waitForBoardHome` closes a standalone hand and drives
+  // whatever else is standing). Failing here would blame the wizard for a game
+  // that has already started. PAINT, never the count — `startSceneGone`.
+  //
+  // Deliberately only in the FINAL verdict, never as a loop early-return: the
+  // scene fades IN, so a mid-transition frame reads as "gone" and would abort
+  // the walk on its very first round.
   expect(await summaryVisible(page) || await page.locator('.con-colonies').count() > 0 ||
-    await deploymentActive(page),
+    await deploymentActive(page) || await startSceneGone(page),
   `the wizard reached its summary — still showing ${JSON.stringify(await visibleSurfaces(page))}`).toBeTruthy();
 }
 
@@ -281,20 +326,48 @@ export async function walkToSummary(page: Page, opts: WalkOptions = {}): Promise
  * press that lands inside the summary's reveal convoy is absorbed by the
  * flow gate BY DESIGN — the double-submit guard).
  */
-export async function submitSummary(page: Page): Promise<void> {
+export async function submitSummary(page: Page, maxMs = 60_000): Promise<void> {
   const warn = page.locator('.con-start__skipwarn');
-  for (let i = 0; i < 6 && await summaryVisible(page) && !await awaitingOthers(page); i++) {
-    await press(page, 'Enter', 900);
-    if (await warn.count() > 0) {
-      await press(page, 'Enter', 1400); // the confirmation press
-    }
-  }
   // ACCEPTED means one of TWO honest outcomes: the deployment took the screen
   // (solo / everyone ready), or the summary STAYS in its waiting state
   // because the table is still confirming — the multiplayer hand-over is
   // simultaneous by design, so «the summary disappeared» is not the contract.
-  await expect.poll(async () => !(await summaryVisible(page)) || await awaitingOthers(page),
-    {timeout: 25_000}).toBeTruthy();
+  //
+  // ⚠️ IT ALSO MEANS «THE DEPLOYMENT ALREADY HAS THE SCREEN». Leaving that out
+  // cost three specs: this loop nudges, and once the wizard had handed over
+  // while the parked summary pane was still reported visible for a beat, every
+  // further Enter LANDED ON THE DEPLOYMENT QUEUE AND PLAYED A PRELUDE. The
+  // symptom was «the OTHER prelude must still be queued — expected Donation,
+  // got Great Aquifer»: a spec blamed for a card the driver played behind it.
+  // The previous version capped itself at 6 presses, which merely BOUNDED that
+  // damage rather than preventing it.
+  const accepted = async (): Promise<boolean> =>
+    !(await summaryVisible(page)) || await awaitingOthers(page) ||
+    await deploymentActive(page) || await startSceneGone(page);
+
+  // KEEP NUDGING WHILE WAITING — but only while the summary is genuinely still
+  // the surface in front of us. A press absorbed by the flow gate leaves
+  // nothing to wait FOR, so a passive wait after a fixed press budget could
+  // only ever time out; that is what failed `console-blue-action-purchase ·
+  // tv4k` inside the BOOT, several screens before its actual subject. Same
+  // «nudge, don't stare» discipline as `waitPressable` — bounded by the state
+  // check above, never by a press count.
+  const started = Date.now();
+  while (Date.now() - started < maxMs) {
+    if (await accepted()) {
+      return;
+    }
+    await press(page, 'Enter', 900);
+    if (await accepted()) {
+      return; // the press landed — never send the confirmation into what follows
+    }
+    if (await warn.count() > 0) {
+      await press(page, 'Enter', 1400); // the zero-buy confirmation press
+    }
+  }
+  expect(await accepted(),
+    `the summary was never accepted — still showing ${JSON.stringify(await visibleSurfaces(page))}`)
+    .toBeTruthy();
 }
 
 /** The setup is SENT and the table is still confirming (the waiting summary). */
@@ -815,6 +888,331 @@ export async function createGameWithCards(
   return '';
 }
 
+// ────────────────────────────────────────────────────────────────────────
+// THE API PATH — ANSWER the pregame instead of ACTING IT OUT
+//
+// The walk above is SETUP, never the subject (this file's opening line), and
+// yet it cost the suite most of its wall clock: 123 tests / ~23 minutes, single
+// files at 6–8 minutes, almost all of it a keyboard simulating a state the
+// server produces in one request. It was also the single biggest source of
+// FALSE failures — nearly every "bug" repaired on 2026-08-07 was the boot
+// breaking under load, not the product.
+//
+// So a spec whose subject is anything AFTER the pregame now gets its game the
+// way the server hands one out: POST `player/input` with the `InputResponse`
+// the live `waitingFor` asks for, repeat until the ACTION MENU stands, THEN
+// open the console on an already-playable board.
+//
+// This is NOT a test-only back door. It is the SAME endpoint the real client
+// posts to (`src/server/routes/PlayerInput.ts`), with the same responses, the
+// same validation and the same rules — nothing here can reach a state a player
+// could not. A DB/state shortcut would silently drift from the rules these
+// specs exist to check; this cannot, by construction.
+//
+// What it deliberately does NOT do: it never touches the pregame's PRESENTATION
+// (the deal cinematic, the summary, the deployment queue, the delivery beat).
+// A spec whose subject IS one of those stays on `via: 'ui'` — see BootOptions.
+// ────────────────────────────────────────────────────────────────────────
+
+/**
+ * The shape of a `waitingFor` node as it arrives over the wire — the subset a
+ * seeder needs. Deliberately structural and loose: this is JSON off an HTTP
+ * response, so a compile-time union would only be a comfortable fiction. Every
+ * field read here is one the server genuinely serializes
+ * (`src/common/models/PlayerInputModel.ts`).
+ */
+type WirePrompt = {
+  type: string,
+  title?: unknown,
+  min?: number,
+  max?: number,
+  maxByDefault?: boolean,
+  amount?: number,
+  count?: number,
+  options?: Array<WirePrompt>,
+  cards?: Array<{name: string}>,
+  spaces?: Array<string>,
+  players?: Array<string>,
+  coloniesModel?: Array<{name: string}>,
+  include?: Array<string>,
+  startGamePrompt?: {kind: string},
+};
+
+type WirePlayerModel = {
+  waitingFor?: WirePrompt,
+  game: {phase: string},
+};
+
+/** A response body for `player/input`, kept loose for the same reason. */
+type WireResponse = Record<string, unknown> & {type: string};
+
+/** The zero payment — every `SpendableResource` at 0 (`Payment.EMPTY`). */
+const NO_PAYMENT: Readonly<Record<string, number>> = {
+  heat: 0, megacredits: 0, steel: 0, titanium: 0, plants: 0, microbes: 0,
+  floaters: 0, lunaArchivesScience: 0, spireScience: 0, seeds: 0,
+  auroraiData: 0, graphene: 0, kuiperAsteroids: 0,
+};
+
+/** A prompt's title as a plain string ('' for a `Message` — see the note above). */
+function promptTitle(prompt: WirePrompt): string {
+  return typeof prompt.title === 'string' ? prompt.title : '';
+}
+
+/** A one-line description of a prompt, for a failure that NAMES what it met. */
+function describePrompt(prompt: WirePrompt | undefined): string {
+  if (prompt === undefined) {
+    return '(nothing)';
+  }
+  const title = typeof prompt.title === 'string' ?
+    prompt.title :
+    String((prompt.title as {message?: string} | undefined)?.message ?? '');
+  const start = prompt.startGamePrompt !== undefined ? ` startGamePrompt=${prompt.startGamePrompt.kind}` : '';
+  return `${prompt.type}${start} «${title}»`;
+}
+
+/** The live player model, straight off the server. */
+export async function fetchPlayerModel(request: APIRequestContext, playerId: string): Promise<WirePlayerModel> {
+  const res = await request.get(`/api/player?id=${playerId}`);
+  expect(res.ok(), `GET api/player failed: ${res.status()}`).toBeTruthy();
+  return res.json();
+}
+
+/**
+ * Answer the live prompt and return the UPDATED model — `player/input` replies
+ * with the same `PlayerViewModel` the client would poll for, so one round trip
+ * is one whole step of the game.
+ */
+export async function sendPlayerInput(
+  request: APIRequestContext,
+  playerId: string,
+  response: WireResponse,
+): Promise<WirePlayerModel> {
+  const res = await request.post(`/player/input?id=${playerId}`, {data: response});
+  expect(res.ok(),
+    `POST player/input rejected ${JSON.stringify(response)}: ${res.status()} ${await res.text()}`)
+    .toBeTruthy();
+  return res.json();
+}
+
+/** What the API seeder should pick when the pregame offers a choice. */
+export type SeedPlan = {
+  /** Projects to BUY out of the initial deal (English `CardName`s). */
+  cards?: ReadonlyArray<string>,
+  /**
+   * Buy this MANY projects in total — the API spelling of the wizard's
+   * `fillPicks(n)`, for a spec that needs «a non-empty hand» and does not care
+   * which cards. `cards` is bought first and counts towards the total.
+   */
+  buy?: number,
+  /**
+   * Take THIS corporation; default: a calm one (see `CORP_WITH_FIRST_ACTION`).
+   *
+   * ⚠️ NAME IT whenever the spec depends on a particular corporation.
+   * `customCorporationsList` does NOT narrow the deal in `testMode` — it only
+   * guarantees the corp is IN it, and testMode deals EIGHT — so a spec whose
+   * config says «the only dealable corp is X» is describing an intention, not
+   * a fact. The default then quietly picks some other calm corporation and the
+   * spec fails much later, on the thing X was there to produce (this cost two
+   * specs at once: the first-action modal that never appeared, and the payment
+   * panel that found no alternative source without Helion).
+   */
+  corporation?: string,
+  /** Take THESE preludes (a prelude game); default: the first two offered. */
+  preludes?: ReadonlyArray<string>,
+  /** Play THIS card first when the pregame offers a choice of preludes. */
+  first?: string,
+  /** A solo colony removal must not eat this colony. */
+  keepColony?: string,
+  /** Where the seeding stops (see {@link BootStop}). */
+  until?: BootStop,
+};
+
+/**
+ * Pick the cards for one `SelectInitialCards` sub-prompt.
+ *
+ * The sub-prompts are discriminated by their SHARED TITLE CONSTANTS, not by
+ * their position: the order is corp → prelude? → CEO? → projects
+ * (`SelectInitialCards.ts`), so an index would silently mean something else the
+ * moment an expansion is toggled — the exact class of bug this driver exists to
+ * end. The client discriminates them the same way.
+ */
+function pickInitialCards(step: WirePrompt, plan: SeedPlan): Array<string> {
+  const offered = (step.cards ?? []).map((c) => c.name);
+  const title = promptTitle(step);
+  const take = (wanted: ReadonlyArray<string>, count: number): Array<string> => {
+    const hit = wanted.filter((c) => offered.includes(c));
+    const rest = offered.filter((c) => !hit.includes(c));
+    return [...hit, ...rest].slice(0, count);
+  };
+  if (title === SELECT_CORPORATION_TITLE) {
+    if (plan.corporation !== undefined) {
+      expect(offered, `the deal must offer the corporation ${plan.corporation}`).toContain(plan.corporation);
+      return [plan.corporation];
+    }
+    // A CALM corporation for the same reason the wizard picks one: a mandatory
+    // first action stands between the boot and the spec's own first press.
+    const calm = offered.find((c) => !CORP_WITH_FIRST_ACTION.includes(c));
+    return [calm ?? offered[0]];
+  }
+  if (title === SELECT_PRELUDE_TITLE) {
+    const wanted = [...(plan.first === undefined ? [] : [plan.first]), ...(plan.preludes ?? [])];
+    return take(wanted, step.min ?? 2);
+  }
+  if (title === SELECT_CEO_TITLE) {
+    return offered.slice(0, step.min ?? 1);
+  }
+  if (title === SELECT_PROJECTS_TITLE) {
+    const wanted = plan.cards ?? [];
+    for (const card of wanted) {
+      expect(offered, `${card} must be in the initial deal (offered: ${offered.join(', ')})`).toContain(card);
+    }
+    return take(wanted, Math.max(plan.buy ?? 0, wanted.length));
+  }
+  // A sub-prompt this driver has not met: satisfy its own minimum and say so
+  // in the failure if that turns out to be wrong.
+  return offered.slice(0, step.min ?? 0);
+}
+
+/**
+ * Build the `InputResponse` for whatever the pregame is asking.
+ *
+ * Recursive, because `or` / `and` nest. Everything it answers is a prompt the
+ * REAL client answers with the same shape — this is a keyboard replaced by a
+ * request, never a rule replaced by a shortcut.
+ */
+function answerPrompt(prompt: WirePrompt, plan: SeedPlan): WireResponse {
+  switch (prompt.type) {
+  case 'initialCards':
+    return {
+      type: 'initialCards',
+      responses: (prompt.options ?? []).map((step) => ({type: 'card', cards: pickInitialCards(step, plan)})),
+    };
+  case 'card': {
+    const offered = (prompt.cards ?? []).map((c) => c.name);
+    // A prelude choice is the one place a spec cares WHICH card the pregame
+    // plays (`first`) — everything else takes the prompt's own minimum.
+    const wanted = plan.first !== undefined && offered.includes(plan.first) ? [plan.first] : [];
+    const rest = offered.filter((c) => !wanted.includes(c));
+    return {type: 'card', cards: [...wanted, ...rest].slice(0, Math.max(prompt.min ?? 1, 0))};
+  }
+  case 'option':
+    return {type: 'option'};
+  case 'or': {
+    // BRANCH 0, ALWAYS — and that is a contract, not a coin toss: the only
+    // `or`s on the road to the action menu are the corporation's first action
+    // (branch 0 = «take it», the PASS is appended LAST — `Player.ts:2126`) and
+    // the odd effect choice a prelude fires. A pass option is never first, so
+    // this can never end the generation behind the spec's back.
+    const branch = (prompt.options ?? [])[0];
+    expect(branch, `an «or» with no options: ${describePrompt(prompt)}`).toBeDefined();
+    return {type: 'or', index: 0, response: answerPrompt(branch, plan)};
+  }
+  case 'and':
+    return {type: 'and', responses: (prompt.options ?? []).map((o) => answerPrompt(o, plan))};
+  case 'space': {
+    const spaces = prompt.spaces ?? [];
+    expect(spaces.length, `a placement with no legal space: ${describePrompt(prompt)}`).toBeGreaterThan(0);
+    return {type: 'space', spaceId: spaces[0]};
+  }
+  case 'projectCard': {
+    // A FORCED play, never a voluntary one — and that distinction is what makes
+    // answering it legitimate rather than «playing a card behind the spec's
+    // back» (the mistake `submitSummary` made earlier today, when a stray press
+    // played a prelude nobody asked for).
+    //
+    // The loop RETURNS at the action menu, so a bare `projectCard` prompt can
+    // only be an effect that DEMANDS a play — a prelude's «play a card from
+    // your hand» (Eccentric Sponsor / Ecology Experts, which is why this fires
+    // exactly on the configs with `prelude: true`). The game does not proceed
+    // until it is answered, so declining is not on offer; the only choice is
+    // WHICH card, and the cheapest keeps the most resources for the spec's own
+    // subject.
+    const affordable = [...(prompt.cards ?? [])]
+      .sort((a, b) => (a.calculatedCost ?? 0) - (b.calculatedCost ?? 0));
+    const card = affordable[0];
+    expect(card, `a forced play with no playable card: ${describePrompt(prompt)}`).toBeDefined();
+    return {
+      type: 'projectCard',
+      card: card.name,
+      payment: {...NO_PAYMENT, megacredits: card.calculatedCost ?? 0},
+    };
+  }
+  case 'payment':
+    return {type: 'payment', payment: {...NO_PAYMENT, megacredits: prompt.amount ?? 0}};
+  case 'amount':
+    return {type: 'amount', amount: (prompt.maxByDefault === true ? prompt.max : prompt.min) ?? 0};
+  case 'colony': {
+    const colonies = (prompt.coloniesModel ?? []).map((c) => c.name);
+    // The solo setup REMOVES a colony — never the one a spec came to look at.
+    const pick = colonies.find((c) => c !== plan.keepColony) ?? colonies[0];
+    expect(pick, `a colony prompt with no colonies: ${describePrompt(prompt)}`).toBeDefined();
+    return {type: 'colony', colonyName: pick};
+  }
+  case 'player':
+    return {type: 'player', player: (prompt.players ?? [])[0]};
+  case 'resource':
+    return {type: 'resource', resource: (prompt.include ?? ['megacredits'])[0]};
+  case 'resources':
+    return {type: 'resources', units: {megacredits: prompt.count ?? 0, steel: 0, titanium: 0, plants: 0, energy: 0, heat: 0}};
+  case 'productionToLose':
+    return {type: 'productionToLose', units: {megacredits: 0, steel: 0, titanium: 0, plants: 0, energy: 0, heat: 0}};
+  default:
+    // NAME what it could not answer. A seeder that silently guesses is worse
+    // than one that stops: the spec would fail somewhere else entirely.
+    expect(false, `the API seeder has no answer for ${describePrompt(prompt)} — ` +
+      'either teach it here or put this spec on {via: \'ui\'}').toBeTruthy();
+    return {type: 'option'};
+  }
+}
+
+/**
+ * Drive the pregame OVER THE API until the player stands on the ACTION MENU.
+ *
+ * One round = one prompt answered = one request. A whole solo pregame is 2–7
+ * of them (corp → [pay] → [preludes + their effects] → [corp first action]),
+ * i.e. under a second — against minutes of keyboard for the same state.
+ *
+ * `until: 'startRelease'` stops one prompt EARLIER, with the corporation's
+ * mandatory first action still live, for a spec whose subject IS that prompt —
+ * the same meaning the stop has on the UI path.
+ */
+export async function seedGameOverApi(
+  request: APIRequestContext,
+  playerId: string,
+  plan: SeedPlan = {},
+  maxRounds = 40,
+): Promise<void> {
+  let model = await fetchPlayerModel(request, playerId);
+  let last: WirePrompt | undefined;
+  for (let round = 0; round < maxRounds; round++) {
+    // NOTHING TO ANSWER is a WAIT, never a round. A solo human answers
+    // synchronously, so an empty `waitingFor` means the table is busy with
+    // someone else — a MarsBot taking its turn, or another seat in a
+    // multiplayer seed. Spending answer-rounds on that would let a slow bot
+    // exhaust the budget and report «stuck» about a game that was merely
+    // thinking; the budget must bound the CONVERSATION, not the machine.
+    for (let waited = 0; model.waitingFor === undefined && waited < 60; waited++) {
+      await new Promise((r) => setTimeout(r, 500));
+      model = await fetchPlayerModel(request, playerId);
+    }
+    const prompt = model.waitingFor;
+    expect(prompt, `the table never came back to this player (phase ${model.game?.phase})`).toBeDefined();
+    if (prompt === undefined) {
+      return;
+    }
+    last = prompt;
+    if (isActionMenuTitle(promptTitle(prompt))) {
+      return;
+    }
+    if (plan.until === 'startRelease' && prompt.startGamePrompt?.kind === 'corporationInitialAction') {
+      return;
+    }
+    model = await sendPlayerInput(request, playerId, answerPrompt(prompt, plan));
+  }
+  expect(false, `the API seed never reached the action menu in ${maxRounds} rounds — ` +
+    `stuck on ${describePrompt(last)} (phase ${model.game?.phase})`).toBeTruthy();
+}
+
 /**
  * Open the console-native shell on a player id and wait for its FIRST PAINT.
  * The budget is a LOAD allowance (a 4K viewport inside a full parallel run
@@ -940,29 +1338,58 @@ export type BootStop =
    */
   'startRelease';
 
+/**
+ * HOW the spec gets its game.
+ *
+ *  · `'api'` (DEFAULT) — the pregame is ANSWERED over `player/input` and the
+ *    console then opens on an already-playable board. Same endpoint, same
+ *    responses and same rules as the real client; seconds instead of minutes,
+ *    and none of the boot's load-sensitivity.
+ *  · `'ui'` — the wizard is WALKED with the keyboard, exactly as before. The
+ *    ONLY correct mode for a spec whose SUBJECT is the pregame itself: the
+ *    start scene, the deal cinematic, the summary, the deployment queue, the
+ *    delivery/arrival beat. If a spec asserts anything about those, it belongs
+ *    here — the API path never produces them, because the game is already
+ *    running before the first paint.
+ */
+export type BootVia = 'api' | 'ui';
+
 export type BootOptions = {
   /** The game to create (`soloGameConfig(...)`); default: the plain solo one. */
   config?: Record<string, unknown>,
-  /** English `CardName`s the deal must offer AND the wizard must buy. */
+  /** English `CardName`s the deal must offer AND the pregame must buy. */
   cards?: ReadonlyArray<string>,
   /** Extra query on the player URL (`&consoleProfile=tv`, …). */
   query?: string,
   /** Deal search: first seed + the step between attempts. */
   seed?: number,
   step?: number,
-  /** Override the per-step hook (a prelude game picks its own preludes). */
+  /**
+   * Override the per-step WIZARD hook (a prelude game picks its own preludes).
+   * A hook is a KEY SCRIPT by definition, so passing one implies `via: 'ui'`
+   * unless the spec says otherwise — the API path expresses the same intent
+   * with `corporation` / `preludes` / `cards`.
+   */
   onStep?: WalkOptions['onStep'],
-  /** Deployment: play this card FIRST (the spec owns the scene it fires). */
+  /** Play this card FIRST (the pregame's prelude choice / deployment queue). */
   first?: string,
   /** A solo colony pick must not eat this colony. */
   keepColony?: string,
   /** Where the road ends (see {@link BootStop}). */
   until?: BootStop,
+  /** How the game is obtained (see {@link BootVia}); default `'api'`. */
+  via?: BootVia,
+  /** API path: take THIS corporation instead of any calm one. */
+  corporation?: string,
+  /** API path: take THESE preludes (a prelude game). */
+  preludes?: ReadonlyArray<string>,
+  /** API path: buy this many projects in total (see {@link SeedPlan.buy}). */
+  buy?: number,
 };
 
 /**
- * THE PREGAME IN ONE CALL — create the game, open the console on it, walk the
- * wizard, deploy, and stop where the spec's own story begins.
+ * THE PREGAME IN ONE CALL — create the game, get it to the point where the
+ * spec's own story begins, and open the console there.
  *
  * This is the "intermediate path" every console probe used to hand-roll: a
  * `goto` + a first-paint budget, then a key script that alternated A / RT and
@@ -971,6 +1398,11 @@ export type BootOptions = {
  * `ConsoleShell.vue:2395`), and thirteen specs failed together on it while the
  * game underneath had booted perfectly. There is now ONE road, and the next
  * start-flow rework is adapted here instead of in thirteen files.
+ *
+ * By DEFAULT that road is the API one (see {@link BootVia}): the walk is SETUP,
+ * never the subject, and simulating a keyboard for minutes to reach a state the
+ * server hands out in one request bought nothing but false failures. A spec
+ * whose subject IS the pregame passes `via: 'ui'` and gets the walk unchanged.
  *
  * Returns the player id — a spec that then talks to the API (or writes a
  * per-participant localStorage pref) needs it.
@@ -985,6 +1417,20 @@ export async function bootIntoGame(
   // exactly one game and returns it. Same road either way.
   const playerId = await createGameWithCards(request, cards,
     {config: opts.config, seed: opts.seed, step: opts.step});
+  const via = opts.via ?? (opts.onStep === undefined ? 'api' : 'ui');
+  if (via === 'api') {
+    await bootSeededGame(page, request, playerId, {
+      cards,
+      buy: opts.buy,
+      corporation: opts.corporation,
+      preludes: opts.preludes,
+      first: opts.first,
+      keepColony: opts.keepColony,
+      until: opts.until,
+      query: opts.query,
+    });
+    return playerId;
+  }
   await openConsole(page, playerId, opts.query ?? '');
   await walkToSummary(page, {onStep: opts.onStep ?? buyProjects(cards)});
   await submitSummary(page);
@@ -995,6 +1441,38 @@ export async function bootIntoGame(
   }
   await waitForBoardHome(page, 70, {keepColony: opts.keepColony});
   return playerId;
+}
+
+/**
+ * THE API SEED FOR A GAME THE SPEC ALREADY CREATED — answer the pregame, open
+ * the console on the running board, and stop where the spec's story begins.
+ *
+ * The half of {@link bootIntoGame} that comes AFTER the game exists, exposed on
+ * its own because a dozen probes create their own game for a reason the driver
+ * cannot express (a custom config, several players, picking the player id by
+ * NAME). They used to follow it with a hand-rolled key script — a rotation of
+ * blind presses guarded by RU screen text — which is the single thing this file
+ * exists to delete. Those three lines are now this one call.
+ */
+export async function bootSeededGame(
+  page: Page,
+  request: APIRequestContext,
+  playerId: string,
+  opts: SeedPlan & {query?: string} = {},
+): Promise<void> {
+  await seedGameOverApi(request, playerId, opts);
+  await openConsole(page, playerId, opts.query ?? '');
+  if (opts.until === 'startRelease') {
+    // The start workspace never mounts on this path (its own prompts are
+    // already answered), so there is no release to wait for — what stands is
+    // the corporation's first action, which is the spec's own subject.
+    return;
+  }
+  // Still the SHARED verdict, never a bare timeout: the board home is «the dock
+  // takes presses and nothing is holding the screen», and a game seeded into
+  // the action phase can still open on something (a deferred prompt, a colony
+  // follow-up). Fewer rounds than the walk because there is no wizard to finish.
+  await waitForBoardHome(page, 25, {keepColony: opts.keepColony});
 }
 
 /**
@@ -1075,8 +1553,22 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3): 
     await press(page, 'Period', 600); // RT → the quick wheel
     await press(page, 'Enter', 1600); // centre slot → the hand screen
     await inHand.waitFor({timeout: 12_000}).catch(() => {});
-    for (let step = 0; step < 14 && await focusedCard(page) !== card; step++) {
-      await press(page, 'ArrowRight', 260);
+    // THE BUDGET IS THE RING, never a constant. A fixed 14 is smaller than the
+    // hand on a wide deal, and the subject is as likely to be the LAST slot as
+    // the first — the `deck` profile failed exactly here («Search For Life must
+    // have been played») while fhd/tv4k passed, because the walk ran out of
+    // steps rather than because anything was wrong. Same lesson `ringWalk`
+    // already carries for `pickCards`.
+    const slots = await page.locator('.con-hand__slot[data-zoom-slot]').count();
+    const landed = await focusCard(page, card, ringWalk(Math.max(slots, 1), 1));
+    if (!landed) {
+      // NEVER press A on the wrong card. Enter here plays whatever the cursor
+      // happens to sit on, which spends the turn on an unrelated card and makes
+      // the spec fail somewhere else entirely, several assertions later.
+      for (let i = 0; i < 3 && await page.locator('.con-hand, .con-play, .con-composer--play').count() > 0; i++) {
+        await press(page, 'Escape', 700);
+      }
+      continue;
     }
     await press(page, 'Enter', 900); // open the play composer
     for (let i = 0; i < 5 && await page.locator('.con-composer--play, .con-play').count() > 0; i++) {
@@ -1099,6 +1591,56 @@ export async function playCardFromHand(page: Page, card: string, attempts = 3): 
  * 4K frame is deliberately consumed), and it closes a hand/play screen that
  * swallowed the wheel instead of pressing into it.
  */
+/**
+ * Open the RT QUICK WHEEL, verified.
+ *
+ * A single blind `Period` is not enough and never was: a press landing on a
+ * busy frame is deliberately consumed, and at 4K that is the common case, not
+ * the rare one — `console-surface-motion · tv4k` failed on exactly this
+ * («locator('.con-quick') … Received: 0») while fhd passed. Same retry
+ * discipline as {@link openCardActions}, including clearing a hand/play screen
+ * that swallowed the press instead of yielding to it.
+ */
+/**
+ * Open / close the FULLSCREEN card viewer with a verified press.
+ *
+ * `KeyX` (inspect) and `Escape` (close) are absorbed on a busy frame exactly
+ * like every other console press, and the specs' local «3 blind tries then wait
+ * 8s passively» could only ever time out once the tries ran out — the passive
+ * half has nothing left to wait for. `console-blue-action-purchase · tv4k`
+ * failed there while fhd and deck passed, which is the machine speaking, not
+ * the product. Nudge while waiting, and give the caller ONE place to fix when
+ * the viewer's entry changes again.
+ */
+export async function openZoomViewer(page: Page, key = 'KeyX', maxMs = 20_000): Promise<void> {
+  const zoom = page.locator('dialog.con-zoom[open]');
+  const started = Date.now();
+  while (Date.now() - started < maxMs && await zoom.count() === 0) {
+    await press(page, key, 1200);
+  }
+  await expect(zoom).toHaveCount(1, {timeout: 8_000});
+}
+
+export async function closeZoomViewer(page: Page, maxMs = 15_000): Promise<void> {
+  const zoom = page.locator('dialog.con-zoom[open]');
+  const started = Date.now();
+  while (Date.now() - started < maxMs && await zoom.count() > 0) {
+    await press(page, 'Escape', 1200);
+  }
+  await expect(zoom).toHaveCount(0, {timeout: 8_000});
+}
+
+export async function openQuickWheel(page: Page, tries = 8): Promise<void> {
+  const wheel = page.locator('.con-quick');
+  for (let i = 0; i < tries && await wheel.count() === 0; i++) {
+    if (i > 0 && await page.locator('.con-hand, .con-play').count() > 0) {
+      await press(page, 'Escape', 600);
+    }
+    await press(page, 'Period', 700);
+  }
+  await expect(wheel).toHaveCount(1, {timeout: 10_000});
+}
+
 export async function openCardActions(page: Page, tries = 10): Promise<void> {
   const workspace = page.locator('.con-cardactions');
   for (let i = 0; i < tries && await workspace.count() === 0; i++) {

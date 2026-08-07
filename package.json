@@ -1,6 +1,6 @@
 {
   "name": "terraforming-mars",
-  "version": "1.2.251",
+  "version": "1.2.252",
   "description": "Terraforming Mars Game",
   "engines": {
     "node": ">=22.22.2 <23"
@@ -84,7 +84,7 @@
     "build:client": "npm run make:cards && cross-env NODE_ENV=production webpack",
     "build:server": "tsc --build src/tsconfig.json && tsc-alias -p src/tsconfig.json",
     "build:test": "tsc --build tests/tsconfig.json",
-    "build:tests": "tsc --build tests/tsconfig.json",
+    "build:tests": "npm run build:test",
     "clean": "rimraf ./build/ ./build-desktop/ ./src/genfiles/",
     "lint": "npm run lint:server && npm run lint:i18n && npm run lint:client",
     "lint:client": "vue-tsc --noEmit -p tsconfig.vue-tsc.json",
@@ -104,6 +104,13 @@
     "test:postgresql": "mocha --import=tsx \"tests/integration/PostgreSQL.spec.ts\"",
     "test:client": "cross-env NODE_ENV=development mochapack --require tests/client/components/setup.ts \"tests/client/**/*.spec.ts\"",
     "test:client:watch": "cross-env NODE_ENV=development mochapack --watch --require tests/client/components/setup.ts \"tests/client/**/*.spec.ts\"",
+    "test:e2e": "playwright test",
+    "test:e2e:all": "npm run build:test && playwright test tests/e2e --workers=1 --reporter=list,html --trace=retain-on-failure",
+    "test:e2e:failed": "playwright test --last-failed --workers=1 --reporter=list,html --trace=retain-on-failure",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report",
     "dev:client": "cross-env NODE_ENV=development webpack --watch",
     "dev:server": "cross-env NODE_ENV=development tsx watch src/server/server.ts",
     "electron:build:main": "tsc -p electron/tsconfig.json",
@@ -118,12 +125,7 @@
     "pack:dir:win": "npm run build:desktop && rimraf ./dist-desktop/ && electron-builder --dir --win --config electron-builder.yml",
     "pack:dir:linux": "npm run build:desktop && rimraf ./dist-desktop/ && electron-builder --dir --linux --config electron-builder.yml",
     "pack:only:win": "rimraf ./dist-desktop/ && electron-builder --dir --win --config electron-builder.yml",
-    "pack:only:linux": "rimraf ./dist-desktop/ && electron-builder --dir --linux --config electron-builder.yml",
-    "test:e2e": "playwright test",
-    "test:e2e:ui": "playwright test --ui",
-    "test:e2e:headed": "playwright test --headed",
-    "test:e2e:debug": "playwright test --debug",
-    "test:e2e:report": "playwright show-report"
+    "pack:only:linux": "rimraf ./dist-desktop/ && electron-builder --dir --linux --config electron-builder.yml"
   },
   "repository": {
     "type": "git",

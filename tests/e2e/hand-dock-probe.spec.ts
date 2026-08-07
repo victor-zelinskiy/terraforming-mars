@@ -1,5 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
-import {bootToBoard, fillPicks, press} from './consoleStart';
+import {bootIntoGame} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -87,27 +87,15 @@ async function handSize(request: any, playerId: string): Promise<number> {
 }
 
 async function bootGame(page: Page, request: any, buyProjects: number, profileQuery = ''): Promise<string> {
-  const created = await request.post('/api/creategame', {data: newGameConfig()});
-  expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-  const model = await created.json() as {players: Array<{id: string}>};
-  const playerId = model.players[0].id;
-  await page.goto(`/player?id=${playerId}&console=1${profileQuery}`);
   // THE SHARED DRIVER, never a hand-rolled key script (the project contract —
-  // consoleStart.ts): the walk is SETUP, and this spec must fail on its own
-  // dock claims, not on the road to them. The previous scripted walk advanced
-  // steps with RB (KeyE) — a verb the 2026-07 wizard polish removed — and its
-  // recovery rotation had no RT at all, so any swallowed press livelocked the
-  // boot on the corporation step.
-  await bootToBoard(page, {
-    onStep: async (p, kind) => {
-      if (kind === 'corporation') {
-        await press(p, 'Enter', 700);
-      } else if (kind === 'prelude') {
-        await fillPicks(p, 2);
-      } else if (kind === 'project' && buyProjects > 0) {
-        await fillPicks(p, buyProjects, 30);
-      }
-    },
+  // consoleStart.ts): the road is SETUP, and this spec must fail on its own
+  // dock claims, not on the way to them. The pregame is ANSWERED over the API
+  // here — the dock this spec measures is a BOARD-HOME object, so how the game
+  // was reached is genuinely nothing to do with the subject.
+  const playerId = await bootIntoGame(page, request, {
+    config: newGameConfig(),
+    buy: buyProjects,
+    query: profileQuery,
   });
   await page.waitForTimeout(1200);
   return playerId;

@@ -1,4 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
+import {bootSeededGame, createGameWithCards} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -112,49 +113,13 @@ test.describe('console placement panel · Ares hazard adjacency', () => {
   test('the panel names the forced production reduction next to a hazard', async ({page, request}) => {
     test.setTimeout(240_000);
 
-    const created = await request.post('/api/creategame', {data: newGameConfig()});
-    expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-    const model = await created.json() as {players: Array<{id: string}>};
-    const playerId = model.players[0].id;
-
-    await page.goto(`/player?id=${playerId}&console=1`);
-    await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-    await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-    await page.waitForTimeout(3500);
-
-    // Walk the start wizard STATE-AWARE (mirrors console-planet-focus.spec):
-    // the projects-buy step always advances with RT («СЛЕД. ШАГ» — an A
-    // there would toggle a card into the cart), a payment/begin screen
-    // confirms with A, anything else alternates A-first. Extra presses are
-    // inert once a step completes.
-    const startScene = page.locator('.con-start__frame');
-    for (let i = 0; i < 24 && await startScene.count() > 0; i++) {
-      const text = await startScene.innerText().catch(() => '');
-      let press: string;
-      if (/Заплатить|Начать|НАЧАТЬ|ОПЛАТИТЬ/.test(text)) {
-        press = 'Enter';
-      } else if (/для покупки/i.test(text)) {
-        press = 'Period';
-      } else {
-        press = i % 2 === 0 ? 'Enter' : 'Period';
-      }
-      await key(page, press, 1400);
-    }
-    await page.waitForTimeout(2500);
+    // The pregame is SETUP — the subject is the placement panel beside a
+    // hazard. The shared driver ANSWERS it over `player/input` and opens the
+    // console on a live board, so nothing here has to guess its way past the
+    // wizard's own follow-ups (the bought-cards payment, the first action).
+    const playerId = await createGameWithCards(request, [], {config: newGameConfig()});
+    await bootSeededGame(page, request, playerId);
     await shoot(page, '01-after-start');
-    expect(await startScene.count(), 'start wizard never completed').toBe(0);
-
-    // The initial buy step can outlive the wizard: either ANNOUNCED (the
-    // amber «ПОКУПКА КАРТ» chip — B opens it) or already served on the
-    // home. Open if needed, let the deal land, then SKIP (we buy nothing).
-    const rootText = () => page.locator('.con-root').innerText().catch(() => '');
-    if (/ПОКУПКА КАРТ/.test(await rootText())) {
-      await key(page, 'Escape', 3200);
-      for (let i = 0; i < 4 && /ПРОПУСТИТЬ/.test(await rootText()); i++) {
-        await key(page, 'Enter', 2600);
-      }
-      await page.waitForTimeout(1500);
-    }
 
     // LT wheel → Standard Projects (the center slot) → the projects sheet.
     await key(page, 'Comma', 1200);

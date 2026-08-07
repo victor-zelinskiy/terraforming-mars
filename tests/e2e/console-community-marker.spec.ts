@@ -1,7 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {focusCard, playStartQueue, press, submitSummary, walkToSummary} from './consoleStart';
+import {bootIntoGame} from './consoleStart';
 
 /**
  * Console-native · ARCADIAN COMMUNITIES, the two halves of one card.
@@ -133,29 +133,15 @@ test.describe('console · Arcadian Communities', () => {
   test('the community cube LANDS, and the action button draws its own graphic', async ({page, request}) => {
     test.setTimeout(240_000);
 
-    const created = await request.post('/api/creategame', {data: newGameConfig()});
-    expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-    const model = await created.json() as {players: Array<{id: string}>};
-    const playerId = model.players[0].id;
-
-    await page.goto(`/player?id=${playerId}&console=1`);
-    await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-    await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-
-    // ── The start wizard (the SHARED driver — the walk is setup, never the
-    //    subject). testMode deals 8 corporations, so the corp step is a walk
-    //    onto ours, not a blind A.
-    await walkToSummary(page, {
-      onStep: async (p, kind) => {
-        if (kind === 'corporation') {
-          expect(await focusCard(p, 'Arcadian Communities'),
-            'the corp step must offer Arcadian Communities').toBeTruthy();
-          await press(p, 'Enter', 800);
-        }
-      },
+    // ── The pregame (the SHARED driver — it is setup, never the subject).
+    //    ANSWERED over the API and stopped at the START RELEASE, so what
+    //    stands when the console opens is exactly this spec's subject: the
+    //    corporation's mandatory first action.
+    const playerId = await bootIntoGame(page, request, {
+      config: newGameConfig(),
+      corporation: 'Arcadian Communities',
+      until: 'startRelease',
     });
-    await submitSummary(page);
-    await playStartQueue(page, {first: 'Arcadian Communities'});
 
     // ── The corporation's MANDATORY first action: place a community. ───────
     const modal = page.locator('.con-composer--corpfirst');

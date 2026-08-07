@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, press} from './consoleStart';
+import {bootSeededGame} from './consoleStart';
 
 /**
  * COLONY-TRADE REWARD PROBE — drives a REAL game (colonies on, Pluto
@@ -101,32 +101,16 @@ async function createGame(request: APIRequestContext, automa: boolean, seed?: nu
 
 /**
  * The whole pregame through the SHARED console-start driver (the ONE way
- * console e2e boots a game — walkToSummary → submit → deployment → board
- * home), steering the setup «remove a colony» pick OFF the probe's trade
- * target so it survives into the action phase.
+ * console e2e boots a game — the pregame is ANSWERED over `player/input`, then
+ * the console opens on the live board), steering the setup «remove a colony»
+ * pick OFF the probe's trade target so it survives into the action phase.
+ *
+ * A REAL hand (`buy`): the board home's dock only goes live with cards in it,
+ * and the probe's action phase should look like a game, not a stub.
  */
-async function walkUntilActionReady(page: Page, keep: string): Promise<void> {
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await bootToBoard(page, {
-    keepColony: keep,
-    // A REAL hand: the board home's dock only goes live with cards in it, and
-    // the probe's action phase should look like a game, not a stub.
-    onStep: async (p, kind) => {
-      if (kind === 'corporation') {
-        await press(p, 'Enter', 600);
-      } else if (kind === 'project') {
-        await fillPicks(p, 2);
-      }
-    },
-  });
+async function bootGame(page: Page, request: APIRequestContext, playerId: string, keep: string): Promise<void> {
+  await bootSeededGame(page, request, playerId, {buy: 2, keepColony: keep});
   await page.waitForTimeout(1500); // entry animations settle
-}
-
-async function bootGame(page: Page, playerId: string): Promise<void> {
-  await page.goto(`/player?id=${playerId}&console=1`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  await page.waitForTimeout(3500); // deal cinematic settles
 }
 
 /** The colony names actually in play (the automa deal is seeded-random). */
@@ -313,8 +297,7 @@ test('solo (gated path): the trade cinematic claims the Pluto reveal', async ({p
   test.setTimeout(300_000);
   const journal = collectJournal(page);
   const game = await createGame(request, false);
-  await bootGame(page, game.playerId);
-  await walkUntilActionReady(page, 'Pluto');
+  await bootGame(page, request, game.playerId, 'Pluto');
   await openColoniesAndFocus(page, 'solo', 'Pluto');
   const obs = await tradeAndObserve(page, 'solo', journal, 60);
 
@@ -338,8 +321,7 @@ test('vs MarsBot (staged bot path): the trade that ENDS the turn still claims', 
   console.log('dealt colonies:', game.colonies.join(', '));
   const target = game.colonies.includes('Pluto') ? 'Pluto' : game.colonies[0];
 
-  await bootGame(page, game.playerId);
-  await walkUntilActionReady(page, target);
+  await bootGame(page, request, game.playerId, target);
   // Burn action 1 so the trade below ENDS the turn → the response carries
   // the bot's turns → the STAGED commit path (the field-report repro).
   await burnActionOnHeatConversion(page);

@@ -87,7 +87,12 @@ for (const preset of PRESETS) {
     });
 
     test('workspace layout, rail context sync, dedup', async ({page, request}) => {
-      test.setTimeout(preset.viewport.width >= 3840 ? 480_000 : 300_000);
+      // ONE budget for every profile. The split (480s at 4K, 300s below) assumed
+      // a smaller viewport means a faster test — but the bulk of the cost is the
+      // PREGAME BOOT, which is identical at every size. On a loaded machine the
+      // 4K run passed inside 480s while standard-1080 blew the 300s it was
+      // rationed, which is the assumption failing, not the product.
+      test.setTimeout(480_000);
 
       // ── The pregame: the shared start driver (`consoleStart.ts`). The walk
       //    is SETUP, never the subject — this spec's claim is the Y workspace,

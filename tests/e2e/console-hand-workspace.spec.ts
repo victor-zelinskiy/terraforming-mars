@@ -1,5 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
-import {bootToBoard, fillPicks, press} from './consoleStart';
+import {bootIntoGame} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -92,20 +92,10 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
  *  plays only the ceremony QUEUE (corp/preludes) and pays the purchase; it
  *  never plays cards out of the hand. */
 async function bootGame(page: Page, request: any, buyProjects: number, profileQuery = ''): Promise<void> {
-  const created = await request.post('/api/creategame', {data: newGameConfig()});
-  expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-  const model = await created.json() as {players: Array<{id: string}>};
-  await page.goto(`/player?id=${model.players[0].id}&console=1${profileQuery}`);
-  await bootToBoard(page, {
-    onStep: async (p, kind) => {
-      if (kind === 'corporation') {
-        await press(p, 'Enter', 700);
-      } else if (kind === 'prelude') {
-        await fillPicks(p, 2);
-      } else if (kind === 'project' && buyProjects > 0) {
-        await fillPicks(p, buyProjects, 30);
-      }
-    },
+  await bootIntoGame(page, request, {
+    config: newGameConfig(),
+    buy: buyProjects,
+    query: profileQuery,
   });
   await page.waitForTimeout(1000);
 }

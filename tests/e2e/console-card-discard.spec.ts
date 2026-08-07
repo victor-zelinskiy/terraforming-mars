@@ -1,4 +1,5 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
+import {bootSeededGame} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -106,28 +107,6 @@ async function key(page: Page, k: string, wait = 600): Promise<void> {
   await page.waitForTimeout(wait);
 }
 
-/** Walk the opening until the action phase is live (a real hand + a real dock). */
-async function walkUntilActionReady(page: Page): Promise<void> {
-  const startBadge = page.getByText('СТАРТОВЫЙ ВЫБОР').first();
-  const basicsChip = page.getByText('БАЗОВЫЕ').first();
-  const advance = ['Enter', 'Enter', 'Period', 'Enter', 'KeyE', 'Period'];
-  for (let i = 0; i < 70; i++) {
-    const ready = await basicsChip.isVisible().catch(() => false) &&
-      !(await startBadge.isVisible().catch(() => false)) &&
-      await page.locator('.con-mandatory').count() === 0;
-    if (ready) {
-      await page.waitForTimeout(1500);
-      return;
-    }
-    if (await page.locator('.con-mandatory').count() > 0) {
-      await key(page, 'Enter', 1100);
-      continue;
-    }
-    await key(page, advance[i % advance.length], 1100);
-  }
-  await shoot(page, 'walk-stuck');
-  expect(false, 'never reached the action phase').toBeTruthy();
-}
 
 /**
  * Inject Mars University's exact prompt shape: an OrOptions with a contextual
@@ -229,12 +208,12 @@ async function runDiscardFlow(
   // Surface a browser-side error as test output — a silent exception in the
   // scene would otherwise look like a timeout.
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-  const playerId = await createGame(request);
-  await page.goto(`/player?id=${playerId}&console=1`);
-  await page.waitForSelector('.con-root, .con-start__frame', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  await page.waitForTimeout(3500);
-  await walkUntilActionReady(page);
+  // The opening is SETUP — the subject is the discard flow, which needs only
+  // «the action phase is live, with a real hand and a real dock». The shared
+  // driver ANSWERS the pregame over `player/input` and opens the console on a
+  // running game; the RU-text-guarded key rotation that used to stand here
+  // could not reach the action phase at all on a loaded machine.
+  await bootSeededGame(page, request, await createGame(request), {buy: 2});
 
   await injectMarsUniversityDiscard(page, count);
   await page.reload();

@@ -1,4 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
+import {bootSeededGame, createGameWithCards} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -171,46 +172,12 @@ for (const profile of PROFILES) {
     test('every decision surface stands right of a LIT player rail', async ({page, request}) => {
       test.setTimeout(480_000);
 
-      const created = await request.post('/api/creategame', {data: cfg()});
-      expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-      const model = await created.json() as {players: Array<{id: string}>};
-      await page.goto(`/player?id=${model.players[0].id}&console=1${profile.query}`);
-      await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-      await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-      await page.waitForTimeout(3500);
-
-      // The start wizard, driven STATE-AWARE (a blind A/RT alternation buys
-      // cards on the project step, and the payment task it spawns then eats
-      // the walk): read the active step each iteration — corp step = pick,
-      // project step = skip, summary = launch, anything else = A.
-      for (let i = 0; i < 22; i++) {
-        const stage = await page.evaluate(() => {
-          const steps = [...document.querySelectorAll('.con-start__step')];
-          const active = steps.findIndex((s) => s.classList.contains('con-start__step--active'));
-          return {
-            start: document.querySelector('.con-start__frame') !== null,
-            host: document.querySelector('.con-task-host') !== null,
-            active,
-            steps: steps.length,
-          };
-        });
-        if (!stage.start && !stage.host) {
-          break;
-        }
-        if (stage.start && stage.steps > 0) {
-          if (stage.active === 0) {
-            await key(page, 'Enter', 1000); // pick the focused corporation
-            await key(page, 'Period', 1000); // → the project step
-          } else if (stage.active === stage.steps - 1) {
-            await key(page, 'Enter', 1300); // summary → launch
-          } else {
-            await key(page, 'Period', 1000); // buy nothing
-          }
-        } else {
-          await key(page, 'Enter', 1100);
-        }
-      }
-      await page.waitForTimeout(1500);
+      // The pregame is SETUP — the subject is where every DECISION surface
+      // stands. The shared driver ANSWERS it over `player/input` and opens the
+      // console on a live board; what stood here was a key script keyed on
+      // `.con-start__step--active`, a selector the wizard moved away from.
+      const playerId = await createGameWithCards(request, [], {config: cfg()});
+      await bootSeededGame(page, request, playerId, {buy: 2, query: profile.query});
       await toBoard(page);
       expect(await page.locator('.con-board').count(), 'never reached the board home').toBeGreaterThan(0);
 

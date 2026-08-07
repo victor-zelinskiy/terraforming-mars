@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, press} from './consoleStart';
+import {bootSeededGame, press} from './consoleStart';
 
 /**
  * PLUTO — THE EMBEDDED FOLLOW-UP GUARD.
@@ -84,21 +84,9 @@ async function createGame(request: APIRequestContext): Promise<string> {
   return model.players[0].id;
 }
 
-async function boot(page: Page, playerId: string): Promise<void> {
-  await page.goto(`/player?id=${playerId}&console=1`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  await page.waitForTimeout(3500);
-  await bootToBoard(page, {
-    keepColony: 'Pluto',
-    onStep: async (p, kind) => {
-      if (kind === 'corporation') {
-        await press(p, 'Enter', 600);
-      } else if (kind === 'project') {
-        await fillPicks(p, 2);
-      }
-    },
-  });
+async function boot(page: Page, request: APIRequestContext, playerId: string): Promise<void> {
+  // A real hand (`buy`): the board home's dock only reads LIVE with cards in it.
+  await bootSeededGame(page, request, playerId, {buy: 2, keepColony: 'Pluto'});
   await page.waitForTimeout(1500);
 }
 
@@ -177,7 +165,7 @@ test.describe.configure({mode: 'serial'});
 
 test('Pluto TRADE: the payout presents inside the colony workspace, never as a band', async ({page, request}) => {
   test.setTimeout(420_000);
-  await boot(page, await createGame(request));
+  await boot(page, request, await createGame(request));
   await openColoniesAndFocus(page, 'Pluto');
   await press(page, 'Enter', 2000); // descend into the focus stage (trade)
   expect(await page.locator('.con-colfocus').count(), 'the focus stage did not open').toBeGreaterThan(0);
@@ -202,7 +190,7 @@ test('Pluto TRADE: the payout presents inside the colony workspace, never as a b
 
 test('Pluto BUILD: the draw presents inside the colony workspace, never as a band', async ({page, request}) => {
   test.setTimeout(420_000);
-  await boot(page, await createGame(request));
+  await boot(page, request, await createGame(request));
 
   // The Build Colony standard project → the colony pick → the focus stage.
   await press(page, 'Comma', 1200);

@@ -1,4 +1,5 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
+import {bootSeededGame} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -96,27 +97,6 @@ async function createGame(request: APIRequestContext): Promise<string> {
   return (model.players.find((p) => p.name === 'Sourcer') ?? model.players[0]).id;
 }
 
-async function walkUntilActionReady(page: Page): Promise<void> {
-  const startBadge = page.getByText('СТАРТОВЫЙ ВЫБОР').first();
-  const basicsChip = page.getByText('БАЗОВЫЕ').first();
-  const advance = ['Enter', 'Enter', 'Period', 'Enter', 'KeyE', 'Period'];
-  for (let i = 0; i < 70; i++) {
-    const ready = await basicsChip.isVisible().catch(() => false) &&
-      !(await startBadge.isVisible().catch(() => false)) &&
-      await page.locator('.con-mandatory').count() === 0;
-    if (ready) {
-      await page.waitForTimeout(1500);
-      return;
-    }
-    if (await page.locator('.con-mandatory').count() > 0) {
-      await key(page, 'Enter', 1100);
-      continue;
-    }
-    await key(page, advance[i % advance.length], 1100);
-  }
-  await shoot(page, 'walk-stuck');
-  expect(false, 'never reached the action phase').toBeTruthy();
-}
 
 /** Serve a fixed prompt on every poll. */
 async function injectPrompt(page: Page, waitingFor: unknown): Promise<void> {
@@ -158,12 +138,10 @@ test('a resource distribution names the card that caused it', async ({page, requ
   test.setTimeout(180_000);
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 
-  const playerId = await createGame(request);
-  await page.goto(`/player?id=${playerId}&console=1`);
-  await page.waitForSelector('.con-root, .con-start__frame', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  await page.waitForTimeout(3500);
-  await walkUntilActionReady(page);
+  // The opening is SETUP — the subject is the injected prompt's source line.
+  // The shared driver ANSWERS the pregame over `player/input` and opens the
+  // console on a live board (a real hand, a real dock).
+  await bootSeededGame(page, request, await createGame(request), {buy: 2});
 
   await injectPhilaresPrompt(page);
   await page.reload();
@@ -240,12 +218,10 @@ test('a forced production loss names what forced it — card and hazard alike', 
   test.setTimeout(240_000);
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
 
-  const playerId = await createGame(request);
-  await page.goto(`/player?id=${playerId}&console=1`);
-  await page.waitForSelector('.con-root, .con-start__frame', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  await page.waitForTimeout(3500);
-  await walkUntilActionReady(page);
+  // The opening is SETUP — the subject is the injected prompt's source line.
+  // The shared driver ANSWERS the pregame over `player/input` and opens the
+  // console on a live board (a real hand, a real dock).
+  await bootSeededGame(page, request, await createGame(request), {buy: 2});
 
   // ── A CARD cause: the real card face, inspectable ────────────────────
   await injectPrompt(page, productionLossPrompt({type: 'card', card: 'Caesar'}));

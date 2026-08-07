@@ -1,4 +1,5 @@
 import {test, expect, APIRequestContext, Page} from '@playwright/test';
+import {bootSeededGame} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -108,36 +109,14 @@ async function driveToPlacement(page: Page, request: APIRequestContext, asCard: 
   await page.route('**/api/player*', relabel);
   await page.route('**/player/input*', relabel);
 
-  await page.goto(`/player?id=${playerId}&console=1`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  await page.waitForTimeout(3500);
-
-  const startScene = page.locator('.con-start__frame');
-  for (let i = 0; i < 24 && await startScene.count() > 0; i++) {
-    const text = await startScene.innerText().catch(() => '');
-    let press: string;
-    if (/Заплатить|Начать|НАЧАТЬ|ОПЛАТИТЬ/.test(text)) {
-      press = 'Enter';
-    } else if (/для покупки/i.test(text)) {
-      press = 'Period';
-    } else {
-      press = i % 2 === 0 ? 'Enter' : 'Period';
-    }
-    await key(page, press, 1400);
-  }
-  await page.waitForTimeout(2500);
-  expect(await startScene.count(), 'start wizard never completed').toBe(0);
+  // The pregame is SETUP — the subject is the placement panel. The shared
+  // driver ANSWERS it over `player/input` and opens the console on a live
+  // board; what stood here was a key rotation steered by RU screen text (the
+  // anti-pattern `consoleStart.ts` exists to delete) that also had to guess
+  // its way out of the bought-cards payment afterwards.
+  await bootSeededGame(page, request, playerId);
 
   const rootText = () => page.locator('.con-root').innerText().catch(() => '');
-  if (/ПОКУПКА КАРТ/.test(await rootText())) {
-    await key(page, 'Escape', 3200);
-    for (let i = 0; i < 4 && /ПРОПУСТИТЬ/.test(await rootText()); i++) {
-      await key(page, 'Enter', 2600);
-    }
-    await page.waitForTimeout(1500);
-  }
-
   // LT wheel → Standard Projects → «Озеленение» → the board opens placing.
   await key(page, 'Comma', 1200);
   await key(page, 'Enter', 1500);

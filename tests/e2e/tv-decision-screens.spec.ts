@@ -1,4 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
+import {bootSeededGame, createGameWithCards} from './consoleStart';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -69,40 +70,12 @@ test.describe('tv-4k decision screens', () => {
   test('captures the decision surfaces', async ({page, request}) => {
     test.setTimeout(600_000);
 
-    const created = await request.post('/api/creategame', {data: cfg()});
-    expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-    const model = await created.json() as {players: Array<{id: string}>};
-    const id = model.players[0].id;
-
-    await page.goto(`/player?id=${id}&console=1`);
-    await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-    await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-    await page.waitForTimeout(3500);
-
-    // The start WIZARD, driven as a fixed choreography (corp → BUY a few
-    // projects → summary → pay → begin) so the viewer reaches the action
-    // turn WITH a hand (an empty hand → no play-card confirm to capture).
-    // A(Enter) = pick/toggle/pay/begin; RT(Period) = «СЛЕД. ШАГ» advances a
-    // wizard step (safe here; only dangerous on the board). ArrowRight walks
-    // the buy grid so several distinct cards get selected.
-    const startUp = async () => await page.locator('.con-start__frame, .con-task-host').count() > 0;
-    if (await startUp()) {
-      await key(page, 'Enter', 1100);            // step 1: pick the focused corp
-      await key(page, 'Period', 1000);             // → step 2 (buy projects)
-      for (let k = 0; k < 5; k++) {              // select ~5 distinct cards
-        await key(page, 'Enter', 650);
-        await key(page, 'ArrowRight', 450);
-      }
-      await key(page, 'Period', 1000);             // → step 3 (summary)
-      await key(page, 'Enter', 1200);            // pay
-    }
-    // Pay for the bought cards («A ОПЛАТИТЬ» on the payment overlay — NOT a
-    // `.con-start__frame`, so an unconditional burst is needed) + begin the
-    // game / first action. toBoard cleans any overlay A opened on the board.
-    for (let i = 0; i < 6; i++) {
-      await key(page, 'Enter', 900);
-    }
-    await page.waitForTimeout(1500);
+    // The pregame is SETUP — this gallery captures the DECISION surfaces of a
+    // live turn. The shared driver ANSWERS it over `player/input` and opens
+    // the console on the board home, with five bought projects so the viewer
+    // arrives WITH a hand (an empty hand → no play-card confirm to capture).
+    const id = await createGameWithCards(request, [], {config: cfg()});
+    await bootSeededGame(page, request, id, {buy: 5});
     await toBoard(page);
 
     const onBoard = await page.locator('.con-board').count() > 0;

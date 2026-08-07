@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, fillPicks, soloGameConfig} from './consoleStart';
+import {bootIntoGame, soloGameConfig} from './consoleStart';
 
 /**
  * Quick-wheel rework · press→release lifecycle + the commit/collapse/reveal
@@ -89,15 +89,13 @@ async function openWheel(page: Page, code: 'Comma' | 'Period'): Promise<void> {
  * the beat on `primary`).
  */
 async function bootToBoard(page: Page, request: APIRequestContext, extraQuery = ''): Promise<void> {
+  // UNMI by NAME: `customCorporationsList` only guarantees it is IN the deal
+  // (testMode deals eight), and UNMI is on the seeder's avoid-list — without
+  // this the wheel would be exercised on some other corporation entirely.
   await bootIntoGame(page, request, {
     config: GAME_CONFIG,
     query: extraQuery,
-    // Exactly one dealable corporation (UNMI) — take it and move on.
-    onStep: async (p, kind) => {
-      if (kind === 'corporation') {
-        await fillPicks(p, 1);
-      }
-    },
+    corporation: 'United Nations Mars Initiative',
   });
 }
 

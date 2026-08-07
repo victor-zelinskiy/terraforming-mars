@@ -2,7 +2,7 @@ import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import {WS_STAGE_BOX, WS_STAGE_HEAD, stageProbe} from './wsStageParity';
-import {bootToBoard, fillPicks, offeredCards, pickCards, press} from './consoleStart';
+import {bootWithCards} from './consoleStart';
 
 /**
  * Console BLUE ACTION · the RECEIVE (plain draw) stage — the twin of the
@@ -103,49 +103,16 @@ for (const profile of PROFILES) {
     test('commit → beat flight → embedded receive (buy voice) → take → fold + dock landing', async ({page, request}) => {
       test.setTimeout(480_000);
 
-      let playerId = '';
-      for (let attempt = 0; attempt < 40 && playerId === ''; attempt++) {
-        const config = {...newGameConfig(), seed: 0.47 + attempt * 0.019};
-        const created = await request.post('/api/creategame', {data: config});
-        expect(created.ok()).toBeTruthy();
-        const {players} = await created.json();
-        const pv = await (await request.get(`/api/player?id=${players[0].id}`)).json();
-        const dealt = (pv.waitingFor?.options ?? [])
-          .flatMap((o: {cards?: Array<{name: string}>}) => (o.cards ?? []).map((c) => c.name));
-        if (dealt.includes('Development Center')) {
-          playerId = players[0].id;
-        }
-      }
-      expect(playerId, 'a deal containing Development Center').not.toBe('');
-      await page.goto(`/player?id=${playerId}&console=1${profile.query}`);
-      // 4K + a full parallel run makes the first paint genuinely slow; this is a
-      // load budget, not a behaviour assertion.
-      await page.waitForSelector('.con-start__frame, .con-root', {timeout: 90_000});
-      await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-      await page.waitForTimeout(3800);
-
-      // ── The pregame: the shared start driver puts Development Center in
-      //    hand. The walk is SETUP — this spec's subject is the blue action,
-      //    so a start-flow change is adapted in `consoleStart`, never here.
-      await bootToBoard(page, {
-        onStep: async (p, kind) => {
-          if (kind === 'corporation') {
-            // Any corporation that does NOT open a first-action composer —
-            // it would sit between the boot and the subject.
-            const corpFirst = ['Inventrix', 'Tharsis Republic', 'CrediCor', 'United Nations Mars Initiative', 'Helion'];
-            const offered = await offeredCards(p);
-            const calm = offered.find((c) => !corpFirst.includes(c));
-            if (calm !== undefined) {
-              await pickCards(p, [calm]);
-            } else {
-              await fillPicks(p, 1);
-            }
-          } else if (kind === 'project') {
-            const picked = await pickCards(p, ['Development Center']);
-            expect(picked, `Development Center must be dealt (offered: ${(await offeredCards(p)).join(', ')})`)
-              .toContain('Development Center');
-          }
-        },
+      // ── The pregame: the shared driver seeds a game with Development Center
+      //    already in hand and opens the console on a live board. The road is
+      //    SETUP — this spec's subject is the blue action, so a start-flow
+      //    change is adapted in `consoleStart`, never here.
+      await bootWithCards(page, request, {
+        cards: ['Development Center'],
+        config: newGameConfig(),
+        seed: 0.47,
+        step: 0.019,
+        query: profile.query,
       });
       await page.waitForTimeout(1500);
 

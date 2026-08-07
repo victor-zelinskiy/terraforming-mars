@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard as driveToBoard, fillPicks, press} from './consoleStart';
+import {bootIntoGame as driveToBoard} from './consoleStart';
 
 /**
  * Console colonies · the premium PlayerCube settlement marker.
@@ -95,20 +95,11 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
  *  used to carry drifted the moment a step's key changed). The driver also
  *  resolves the solo Colonies setup «remove a colony» picks on the way. */
 async function bootToBoard(page: Page, request: APIRequestContext, color: string, profileQuery = ''): Promise<void> {
-  const created = await request.post('/api/creategame', {data: newGameConfig(color)});
-  expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-  const model = await created.json() as {players: Array<{id: string}>};
-  await page.goto(`/player?id=${model.players[0].id}&console=1${profileQuery}`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await driveToBoard(page, {
+  await driveToBoard(page, request, {
+    config: newGameConfig(color),
+    query: profileQuery,
     // A real hand: the board home's dock only reads LIVE with cards in it.
-    onStep: async (p, kind) => {
-      if (kind === 'corporation') {
-        await press(p, 'Enter', 600);
-      } else if (kind === 'project') {
-        await fillPicks(p, 2);
-      }
-    },
+    buy: 2,
   });
   await page.waitForTimeout(1500);
 }

@@ -42,7 +42,10 @@ test.describe('played table ⇄ fullscreen', () => {
   test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1});
 
   test('the table stays on stage while a card is inspected fullscreen', async ({page, request}) => {
-    test.setTimeout(300_000);
+    // The pregame boot dominates this test's wall clock, and 300s left it no
+    // margin: it timed out mid-run on a loaded machine with nothing wrong.
+    // Matches the budget the other boot-heavy console specs settled on.
+    test.setTimeout(480_000);
 
     // ── The pregame: the shared start driver (`consoleStart.ts`). The walk is
     //    SETUP, never the subject — this spec's claim is the played table

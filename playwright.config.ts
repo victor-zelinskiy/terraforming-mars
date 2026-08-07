@@ -33,8 +33,28 @@ export default defineConfig({
   // to be produced. Locally we keep 0 so a flaky run surfaces immediately.
   retries: isCI ? 2 : 0,
 
-  // A single worker on CI keeps the shared game server stable; parallel locally.
-  workers: isCI ? 1 : undefined,
+  /*
+   * A single worker on CI keeps the shared game server stable.
+   *
+   * LOCALLY THE CAP IS 4, AND IT IS NOT A PERFORMANCE TWEAK — it is what keeps
+   * the results honest. Playwright's default is «half the cores», which on a
+   * 20-core box meant ~10 concurrent Chromium instances, several of them
+   * rendering a 3840x2160 console profile. The machine then misses the app's
+   * FIRST PAINT and specs die inside `openConsole`:
+   *
+   *   TimeoutError: page.waitForSelector: Timeout 90000ms exceeded
+   *     - waiting for locator('.con-start__frame, .con-root')
+   *
+   * That failure is indistinguishable from a product bug in the report, and it
+   * cost a full day of chasing symptoms. Proof it is the harness and not the
+   * app: `console-action-focus`, `console-info-workspace`, `console-start-sponsor`,
+   * `console-start-summary` and `console-play-landing-probe` all fail in the
+   * parallel run and all pass on `--workers=1`.
+   *
+   * 4 keeps most of the wall-clock win while leaving each 4K profile enough
+   * GPU/CPU to paint. Raise it only with evidence, not with a bigger machine.
+   */
+  workers: isCI ? 1 : 4,
 
   reporter: [
     ['list'],

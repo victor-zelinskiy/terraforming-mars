@@ -1,7 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, press} from './consoleStart';
+import {bootIntoGame} from './consoleStart';
 
 /**
  * The IN-GAME SYSTEM overlay (`.con-sys--menu`) and the settings console it
@@ -104,21 +104,10 @@ test.describe('the in-game system overlay + its settings console', () => {
 
   test('one chassis: the menu, its exit stage, and the settings it deep-links into', async ({page, request}) => {
     test.setTimeout(240_000);
-    const created = await request.post('/api/creategame', {data: newGameConfig()});
-    expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-    const model = await created.json() as {players: Array<{id: string}>};
-    await page.goto(`/player?id=${model.players[0].id}&console=1`);
-    await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-    await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-    await bootToBoard(page, {
-      onStep: async (p, kind) => {
-        if (kind === 'corporation') {
-          await press(p, 'Enter', 600);
-        } else if (kind === 'project') {
-          await fillPicks(p, 2);
-        }
-      },
-    });
+    // The pregame is SETUP for this spec — the subject is an overlay reached
+    // from the board home — so the shared driver ANSWERS it over the API and
+    // the console opens on a running game (`buy: 2` = a real hand).
+    await bootIntoGame(page, request, {config: newGameConfig(), buy: 2});
 
     // ── The menu itself ──────────────────────────────────────────────
     await openSystemMenu(page);
