@@ -19,6 +19,7 @@ import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {standardProjectVisual} from '@/client/components/overview/standardProjectVisuals';
 import {offTurnReason} from '@/client/console/offTurnReason';
 import {ConsoleMaSource} from '@/client/components/console/consoleMaModel';
+import {UnplayableReason} from '@/common/cards/UnplayableReason';
 
 // ─── Quick selectors (RT = categories, LT = basic actions) ─────────────────
 
@@ -185,8 +186,17 @@ export type StdProjectItem = {
 };
 
 export type StdProjectScreenContext = {
-  /** The server's std-project cards (already availability-filtered by isDisabled). */
-  cards: ReadonlyArray<{name: CardName, calculatedCost?: number, isDisabled?: boolean}>,
+  /**
+   * The server's std-project cards (already availability-filtered by isDisabled).
+   * A disabled one carries `actionReasons` — the server-authoritative blocker
+   * (`server/models/standardProjectReasons.ts`).
+   */
+  cards: ReadonlyArray<{
+    name: CardName,
+    calculatedCost?: number,
+    isDisabled?: boolean,
+    actionReasons?: ReadonlyArray<UnplayableReason>,
+  }>,
   myTurn: boolean,
   /** The server is waiting on the viewer at all (see {@link LtQuickContext}). */
   awaitingInput: boolean,
@@ -210,7 +220,17 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
     let reason = '';
     let reasonParams: ReadonlyArray<string> | undefined;
     if (!available) {
-      if (!ctx.myTurn) {
+      // The SERVER names the blocker, and it is the only side that CAN: a std
+      // project's gate is bespoke (a free tile space, an open colony slot,
+      // corruption, cards in hand) and invisible to the player model. The
+      // client fallbacks below are a guess and can only be right by accident —
+      // they once told a player holding 510 M€ that Build Colony was merely
+      // «сейчас недоступно» while every colony was full.
+      const served = c.actionReasons?.[0];
+      if (served !== undefined) {
+        reason = served.message;
+        reasonParams = served.params;
+      } else if (!ctx.myTurn) {
         reason = offTurnReason(ctx.awaitingInput);
       } else if (cost > ctx.myMegacredits) {
         reason = 'Need ${0} more M€';

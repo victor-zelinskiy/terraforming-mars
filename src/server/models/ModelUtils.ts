@@ -15,6 +15,7 @@ import {isIStandardProjectCard} from '../cards/IStandardProjectCard';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {unplayableReasons as computeUnplayableReasons} from './unplayableReasons';
 import {actionUnavailableReasons as computeActionUnavailableReasons} from './actionUnavailableReasons';
+import {standardProjectUnavailableReasons} from './standardProjectReasons';
 import {Message} from '../../common/logs/Message';
 
 export function cardsToModel(
@@ -95,6 +96,14 @@ export function cardsToModel(
       const reason = options.disabledReasons?.[index];
       if (reason !== undefined) {
         model.disabledReason = reason;
+      }
+      // Standard projects are the ONE family listed while not actable, and their
+      // gate is bespoke (free space, open colony slot, corruption, cards in
+      // hand) — the client cannot derive it, so explain it authoritatively here.
+      // No opt-in flag: `enabled` is only ever false for a std project in this
+      // menu, and the check is cheap (it never re-runs `canAct`).
+      if (isIStandardProjectCard(card)) {
+        model.actionReasons = standardProjectUnavailableReasons(player, card);
       }
     }
     const playCardMetadata = options?.extras?.get(card.name);

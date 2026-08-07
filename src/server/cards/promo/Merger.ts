@@ -46,7 +46,10 @@ export class Merger extends PreludeCard {
       return undefined;
     }
     player.defer(() => {
-      return new SelectCard('Choose corporation card to play', 'Play', dealtCorps, {enabled: enabled})
+      // The greyed-out corps are unaffordable — say so on the card instead of
+      // leaving the client to guess behind a bare «Недоступна» badge.
+      const enabledReasons = enabled.map((ok) => ok ? undefined : 'Not enough M€');
+      return new SelectCard('Choose corporation card to play', 'Play', dealtCorps, {enabled, enabledReasons})
         .markStartGamePrompt({kind: 'corporationSelection'})
         .andThen(([card]) => {
           // Allow merged corps to add resources to themselves.

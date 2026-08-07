@@ -202,6 +202,8 @@
                                 :index="consoleState.colonyIndex"
                                 :tradeable="tradeableColonyNames"
                                 :tradeBlockReason="colonyTradeBlockReason"
+                                :myTurn="myTurn"
+                                :awaitingInput="awaitingInput"
                                 :pick="colonyPick"
                                 :players="playerView.players"
                                 :viewerColor="thisPlayer.color"
@@ -2400,6 +2402,25 @@ export default defineComponent({
       return (this.startSceneServes || this.startSponsorEmbed) &&
         !govScaleFocusState.holding && !this.consoleState.task.deferred;
     },
+    /**
+     * THE SCENE OWNS THE PAD AND THE BAR. Ownership follows the surface the
+     * player SEES — never the lifetime hold, which stays true through the
+     * whole deployment. Three consumers ask this ONE question (the bar's
+     * context, the bar's commands, the input routing), so they can never
+     * drift apart; the hosted steps were already excluded here, and the
+     * YIELD to a board placement is the same rule one case further:
+     *
+     * the yield used to be paint-only (`startSceneVisible` + the scene's
+     * `visibility: hidden`), so a start prelude that owes a tile hid the
+     * workspace while the hidden scene kept the pad — its own press guard
+     * returned, `onNav` walked the invisible queue, and the bar advertised
+     * «A Разыграть · X Осмотреть · B Свернуть» over a live board. The board
+     * is the always-mounted host of that placement; it must get the input.
+     */
+    startSceneOwnsPad(): boolean {
+      return this.startSceneServes && !this.startSponsorEmbed && !this.colonyEmbedActive &&
+        !this.consoleState.task.deferred && !this.placementActive;
+    },
     /** OPTIONAL draft re-pick — the fork shows a calm "waiting for the other
      *  players" banner instead of offering to change the pick (desktop parity). */
     draftWaitActive(): boolean {
@@ -4031,13 +4052,18 @@ export default defineComponent({
       if (v?.takenByOther !== undefined) {
         return v.kind === 'milestone' ? 'Already claimed' : 'Already funded';
       }
-      if (!this.awaitingInput) {
-        return 'Not your turn to take any actions';
+      // The shared turn ladder — «завершите действие» only while the free action
+      // menu is actually withheld. The old tail returned it unconditionally, so
+      // a player whose menu WAS live got told to finish an action they weren't in.
+      if (!this.myTurn) {
+        return offTurnReason(this.awaitingInput);
       }
       if (v !== undefined && !v.free && this.thisPlayer.megacredits < v.cost) {
         return 'Not enough M€';
       }
-      return 'Finish your current action first';
+      return v?.kind === 'milestone' ?
+        'This milestone cannot be claimed right now' :
+        'This award cannot be funded right now';
     },
     sheetRows(): Array<ConsoleSheetRow> {
       switch (this.consoleState.sheet) {
@@ -4098,10 +4124,13 @@ export default defineComponent({
         }
         return 'Cards';
       }
-      if (this.startSceneServes && !this.consoleState.task.deferred) {
+      if (this.startSceneServes && !this.consoleState.task.deferred && !this.placementActive) {
         // The scene's own header already reads «СТАРТ ПАРТИИ» (kicker +
         // title) — repeating it in the bar is noise. The bar carries ONLY
         // the physical commands during the initial setup.
+        // …unless the workspace has YIELDED to a board placement: the scene
+        // paints nothing then, so an empty context would leave the placement
+        // unnamed — it falls through to the placement kicker below.
         return '';
       }
       if (this.govSupportActive && !this.consoleState.task.deferred && this.taskSpacePending === undefined) {
@@ -4320,8 +4349,8 @@ export default defineComponent({
       // deployment's. The scene's own verbs would advertise presses that do
       // nothing on the surface actually in front of the player.
       // Same for the hosted COLONIES step — the colony grid's contract leads.
-      if (this.startSceneServes && !this.startSponsorEmbed && !this.colonyEmbedActive &&
-          !this.consoleState.task.deferred) {
+      // Same for the YIELD to a board placement — the board is the surface.
+      if (this.startSceneOwnsPad) {
         // The scene publishes its live contract (consoleStartUi — wizard step
         // vs. summary vs. ceremony: X inspects, RT continues / begins, etc.);
         // the bar mirrors it verbatim so it can never diverge from the buttons
@@ -6403,8 +6432,10 @@ export default defineComponent({
       // same one they would get outside the start, which is the point.
       // Same for the hosted COLONIES step (a prelude's Build Colony): the
       // colony grid is the surface in front of the player.
-      if (this.startSceneServes && !this.startSponsorEmbed && !this.colonyEmbedActive &&
-          !this.consoleState.task.deferred) {
+      // Same for the YIELD to a board PLACEMENT (a prelude that owes a tile):
+      // the scene is hidden, so routing here would swallow the pad — the
+      // board below is the surface that serves it (`startSceneOwnsPad`).
+      if (this.startSceneOwnsPad) {
         const scene = this.$refs.startScene as InstanceType<typeof ConsoleStartScene> | undefined;
         scene?.handleIntent(intent);
         return true;

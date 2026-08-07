@@ -8,6 +8,8 @@ import {Resource} from '../../../../common/Resource';
 import {Payment} from '../../../../common/inputs/Payment';
 import {BoardFact} from '../../../../common/boards/BoardInformationFacts';
 import * as placementPreviews from '../../placementPreviews';
+import * as actionReason from '../../actionReasons';
+import {UnplayableReason} from '../../../../common/cards/UnplayableReason';
 
 export class CityStandardProject extends StandardProjectCard {
   constructor() {
@@ -41,6 +43,14 @@ export class CityStandardProject extends StandardProjectCard {
       return false;
     }
     return super.canAct(player);
+  }
+
+  // Co-located with canAct so the reason can't drift when the gate changes.
+  public actionUnavailableReason(player: IPlayer): UnplayableReason | undefined {
+    if (player.game.board.getAvailableSpacesForCity(player, this.canPlayOptions(player)).length === 0) {
+      return actionReason.placementReason('No space left for a city tile');
+    }
+    return undefined;
   }
 
   // Legacy committed path (kept for non-pay-on-commit callers / fallbacks).

@@ -306,6 +306,15 @@ export default defineComponent({
     tradeable: {type: Array as PropType<ReadonlyArray<string>>, required: true},
     /** Honest reason when trade is impossible right now ('' when tradeable). */
     tradeBlockReason: {type: String, default: ''},
+    /**
+     * The REAL turn signals feeding `colonyTradeReason`'s last two rungs. They
+     * are props, not constants: pinning them `true` (as this component once did)
+     * makes rung 3 always fire, so an off-turn player with a free fleet and an
+     * empty active colony was told «не хватает ресурсов на оплату» — a blocker
+     * that wasn't there. Rung 4 (the turn) was unreachable.
+     */
+    myTurn: {type: Boolean, default: false},
+    awaitingInput: {type: Boolean, default: false},
     /** Set = SelectColony pick mode (shell submits; this only renders states). */
     pick: {type: Object as PropType<ConsoleColonyPick | undefined>, default: undefined},
     players: {type: Array as PropType<ReadonlyArray<PublicPlayerModel>>, default: () => []},
@@ -722,8 +731,8 @@ export default defineComponent({
         tradeable: this.tradeable,
         viewerColor: this.viewerColor ?? ('' as Color),
         availableFleets: viewer !== undefined ? this.freeFleetsFor(viewer) : 0,
-        myTurn: true,
-        awaitingInput: true,
+        myTurn: this.myTurn,
+        awaitingInput: this.awaitingInput,
         resolveName: (color) => {
           const p = this.players.find((x) => x.color === color);
           return p !== undefined ? participantDisplayName(p) : '';

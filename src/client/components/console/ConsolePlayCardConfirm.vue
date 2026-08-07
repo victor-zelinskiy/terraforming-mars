@@ -1025,6 +1025,11 @@ export default defineComponent({
         branchSelectable,
         paymentReady: this.paymentReady,
         firstUnresolvedStepRowIndex: firstMissing >= 0 ? firstMissing : undefined,
+        // The blocked CTA carries the SERVER's own reason — the same string the
+        // variant row already shows. Without it the biggest control on the
+        // screen was labelled «Сейчас недоступно» while the real explanation
+        // sat two rows above it. (Mirrors ConsoleActionComposer.commitGate.)
+        requirementReason: b !== undefined && !b.available ? this.branchReasonText(b) : undefined,
       });
     },
     // ── result sections (never empty) ───────────────────────────────────
@@ -1177,7 +1182,10 @@ export default defineComponent({
       case 'ready': return 'Ready to play';
       case 'blocked-payment': return 'Not enough resources';
       case 'need-preselect': return 'Choice required';
-      default: return 'Choice required';
+      // A rules-blocked branch offers NO choice — saying «требуется выбор»
+      // sends the player hunting for a control that doesn't exist. Name the
+      // blocker instead (the server's reason, same as the CTA).
+      case 'blocked-requirement': return st.reason;
       }
     },
     statusClass(): string {

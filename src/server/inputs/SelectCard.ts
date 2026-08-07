@@ -16,6 +16,10 @@ export type Options = {
   selectBlueCardAction: boolean,
   /** When provided, then the cards with false in `enabled` are not selectable and grayed out */
   enabled: ReadonlyArray<boolean> | undefined,
+  /** Per-card user-facing reason PARALLEL to `enabled` — why that grayed-out
+   *  candidate can't be picked. Without it the client can only paint a bare
+   *  «Недоступна» badge and guess at the cause. */
+  enabledReasons: ReadonlyArray<string | Message | undefined> | undefined,
   /** Relevant-but-unselectable candidates shown DISABLED with a reason. Kept
    *  separate from `cards` so the server never validates/accepts them; the
    *  premium picker merges them for display behind an availability filter. */
@@ -47,6 +51,7 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
       min: config?.min ?? 1,
       selectBlueCardAction: config?.selectBlueCardAction ?? false,
       enabled: config?.enabled,
+      enabledReasons: config?.enabledReasons,
       disabled: config?.disabled,
       played: config?.played ?? true,
       showOwner: config?.showOwner ?? false,
@@ -67,6 +72,7 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
         showCalculatedCost,
         showResources,
         enabled: this.config.enabled,
+        disabledReasons: this.config.enabledReasons,
       }),
       max: this.config.max,
       min: this.config.min,

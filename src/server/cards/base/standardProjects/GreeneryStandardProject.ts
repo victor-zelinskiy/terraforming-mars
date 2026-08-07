@@ -5,6 +5,8 @@ import {StandardProjectCard} from '../../StandardProjectCard';
 import {PlaceGreeneryTile} from '../../../deferredActions/PlaceGreeneryTile';
 import {StandardProjectPlacement} from '../../../deferredActions/StandardProjectPlacement';
 import {Payment} from '../../../../common/inputs/Payment';
+import * as actionReason from '../../actionReasons';
+import {UnplayableReason} from '../../../../common/cards/UnplayableReason';
 
 export class GreeneryStandardProject extends StandardProjectCard {
   constructor() {
@@ -37,6 +39,14 @@ export class GreeneryStandardProject extends StandardProjectCard {
       return false;
     }
     return super.canAct(player);
+  }
+
+  // Co-located with canAct so the reason can't drift when the gate changes.
+  public actionUnavailableReason(player: IPlayer): UnplayableReason | undefined {
+    if (player.game.board.getAvailableSpacesForGreenery(player, this.canPlayOptions(player)).length === 0) {
+      return actionReason.placementReason('No space left for a greenery tile');
+    }
+    return undefined;
   }
 
   // Legacy committed path.

@@ -7,6 +7,8 @@ import {PlaceMoonMineTile} from '../../moon/PlaceMoonMineTile';
 import {Resource} from '../../../common/Resource';
 import {TileType} from '../../../common/TileType';
 import {AltSecondaryTag} from '../../../common/cards/render/AltSecondaryTag';
+import * as actionReason from '../actionReasons';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 
 export class MoonMineStandardProject extends StandardProjectCard {
   constructor(properties = {
@@ -37,6 +39,17 @@ export class MoonMineStandardProject extends StandardProjectCard {
     }
 
     return super.canAct(player);
+  }
+
+  // Co-located with canAct so the reason can't drift when the gate changes.
+  // A mine needs a MINING space specifically, so it can be blocked while the
+  // habitat/road projects still have land — name that, not "no space".
+  public actionUnavailableReason(player: IPlayer): UnplayableReason | undefined {
+    const moonData = MoonExpansion.moonData(player.game);
+    if (moonData.moon.getAvailableSpacesForMine(player).length === 0) {
+      return actionReason.placementReason('No mining space left on The Moon');
+    }
+    return undefined;
   }
 
   actionEssence(player: IPlayer): void {

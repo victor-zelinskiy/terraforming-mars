@@ -1,6 +1,6 @@
 import {test, expect} from '@playwright/test';
 import {
-  focusCard, pickCards, playQueueCard, playQueueUntil, press, queueCards, submitSummary,
+  pickCards, payStartPurchase, playQueueCard, press, queueCards, submitSummary,
   visibleSurfaces, waitQueueIdle, walkToSummary,
 } from './consoleStart';
 
@@ -66,10 +66,27 @@ test.describe('start deployment · a tile-placing prelude', () => {
     await submitSummary(page);
     await waitQueueIdle(page);
 
-    // The corporation goes first; then THIS prelude is played by us (the
-    // press is verified — the queue absorbs presses while it commits).
-    const reached = await playQueueUntil(page, 'Great Aquifer');
-    expect(reached, `the prelude must reach the queue (queue: ${(await queueCards(page)).join(', ')})`).toBeTruthy();
+    // THE TILE PRELUDE MUST BE PLAYED WITH THE DEPLOYMENT STILL RUNNING —
+    // this is the whole scenario, not a detail. `playQueueUntil` plays the
+    // target LAST, which empties the queue: `deploymentSettled` then fires,
+    // `releaseStartScene()` drops the workspace's lifetime hold, and the
+    // ownership bug this spec exists for cannot happen at all (the spec was
+    // green against a deliberately reverted fix — that is how it was found).
+    // So: play the CORPORATION (the rules gate the preludes behind it), stop
+    // while the OTHER prelude is still queued, and play the tile one there.
+    const PRELUDES = ['Great Aquifer', 'Donation'];
+    for (let i = 0; i < 4; i++) {
+      await waitQueueIdle(page);
+      const ahead = (await queueCards(page)).find((n) => !PRELUDES.includes(n));
+      if (ahead === undefined) {
+        break;
+      }
+      expect(await playQueueCard(page, ahead), `the deployment must play ${ahead}`).toBeTruthy();
+    }
+    await payStartPurchase(page);
+    await waitQueueIdle(page);
+    expect(await queueCards(page), 'the OTHER prelude must still be queued — the hold rides on it')
+      .toContain('Donation');
     expect(await playQueueCard(page, 'Great Aquifer'), 'the prelude must play').toBeTruthy();
     await page.waitForTimeout(2500); // it owes two oceans — the server asks
 
@@ -84,7 +101,33 @@ test.describe('start deployment · a tile-placing prelude', () => {
     const view = await (await request.get(`/api/player?id=${id}`)).json() as {waitingFor?: {type?: string}};
     expect(view.waitingFor?.type, 'the server really is waiting for a space').toBe('space');
 
-    // 2 · Place both oceans (the cursor is seeded on a legal cell).
+    // 2 · THE BAR FOLLOWS THE SURFACE THE PLAYER SEES. The workspace keeps
+    // its LIFETIME HOLD through the whole deployment, so a gate keyed on
+    // «the scene serves» (rather than «the scene owns the pad») kept the
+    // deployment's «A Разыграть · X Осмотреть · B Свернуть» advertised over a
+    // live board. The d-pad glyph (shape `cross`) exists ONLY in the
+    // placement run — a locale-independent signature of the right contract.
+    await expect.poll(() => page.locator('.con-cmdbar__cmd .gp-glyph--cross').count(),
+      {timeout: 10_000, message: 'the bar must carry the PLACEMENT contract, not the deployment\'s'})
+      .toBeGreaterThan(0);
+
+    // 3 · THE PAD REACHES THE BOARD. The yield was paint-only once: the
+    // scene hid but kept the input claim, its own press guard swallowed
+    // every A, and the unguarded `onNav` walked the INVISIBLE queue — the
+    // cursor never moved over the hexes. Assert the movement itself.
+    const cursor = () => page.evaluate(() =>
+      document.querySelector('.con-cell-sel')?.getAttribute('data_space_id') ?? '');
+    const seeded = await cursor();
+    expect(seeded, 'the placement seeds a cursor on a legal cell').not.toBe('');
+    await press(page, 'ArrowRight', 800);
+    await expect.poll(cursor, {timeout: 8_000, message: 'the d-pad must walk the board cells'})
+      .not.toBe(seeded);
+
+    // 4 · Place both oceans — and verify THE SERVER TOOK THEM. The previous
+    // «the workspace is back OR the queue is empty» poll passed vacuously:
+    // the driver plays every other prelude first, so the queue is empty by
+    // construction once this one is played, and a completely dead pad still
+    // read as success. Server truth is the only honest witness.
     for (let ocean = 0; ocean < 2; ocean++) {
       await press(page, 'Enter', 2500);
       if (await page.locator('.con-context__task-kicker').count() > 0) {
@@ -92,8 +135,12 @@ test.describe('start deployment · a tile-placing prelude', () => {
         await press(page, 'Enter', 2500);
       }
     }
+    await expect.poll(async () => {
+      const v = await (await request.get(`/api/player?id=${id}`)).json() as {game: {oceans: number}};
+      return v.game.oceans;
+    }, {timeout: 30_000, message: 'both oceans must actually reach the board'}).toBe(2);
 
-    // 3 · …and the workspace comes BACK on its own (never a dead end).
+    // 5 · …and the workspace comes BACK on its own (never a dead end).
     await expect.poll(async () => (await startUp()) || (await queueCards(page)).length === 0,
       {timeout: 30_000}).toBeTruthy();
     console.log('[after placement]', JSON.stringify(await visibleSurfaces(page)));

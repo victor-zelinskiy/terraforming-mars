@@ -54,7 +54,7 @@ describe('consoleMaModel (P26)', () => {
     expect(consoleMaPressNotice(it)).to.eq('Threshold not reached yet');
   });
 
-  it('milestone ready but not offered: turn → money → mid-action, in that order', () => {
+  it('milestone ready but not offered: turn → money → the honest tail, in that order', () => {
     const ready = milestone({scores: [{color: me, score: 3, claimable: true}]});
     const [turn] = buildConsoleMaItems('milestones', [ready], opts({myTurn: false, awaitingInput: false}));
     expect(turn.blocker).to.eq('Not your turn to take any actions');
@@ -62,9 +62,24 @@ describe('consoleMaModel (P26)', () => {
     expect(busy.blocker).to.eq('Finish your current action first');
     const [money] = buildConsoleMaItems('milestones', [ready], opts({myMegacredits: 5}));
     expect(money.blocker).to.eq('Not enough M€');
-    const [midAction] = buildConsoleMaItems('milestones', [ready], opts());
-    expect(midAction.blocker).to.eq('Finish your current action first');
-    expect(consoleMaFocusContext(midAction)).to.deep.eq({tone: 'blocked', key: 'Finish your current action first'});
+    // The tail runs with the free action menu LIVE, so it must NOT say "finish
+    // your current action" — there is no current action to finish. It names the
+    // subject and claims nothing it hasn't verified.
+    const [tail] = buildConsoleMaItems('milestones', [ready], opts());
+    expect(tail.blocker).to.eq('This milestone cannot be claimed right now');
+    expect(consoleMaFocusContext(tail)).to.deep.eq({tone: 'blocked', key: 'This milestone cannot be claimed right now'});
+    const [award] = buildConsoleMaItems('awards', [milestone({scores: [{color: me, score: 3}]})], opts());
+    expect(award.blocker).to.eq('This award cannot be funded right now');
+  });
+
+  it('milestone readiness is SERVER-authoritative — a met-on-paper threshold cannot override a server "no"', () => {
+    // canClaim === false while score >= threshold (Terraformer's Turmoil
+    // variant). The item must stay "not ready", so the blocker ladder keeps the
+    // honest "threshold" silence instead of blaming money or the turn.
+    const disputed = milestone({scores: [{color: me, score: 5, claimable: false}], threshold: 3});
+    const [it] = buildConsoleMaItems('milestones', [disputed], opts({myMegacredits: 0}));
+    expect(it.myReady).to.eq(false);
+    expect(it.blocker).to.eq('');
   });
 
   it('taken item: owner carried, no cost, owner context, honest press notice', () => {

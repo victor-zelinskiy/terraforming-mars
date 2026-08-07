@@ -1,6 +1,6 @@
 import {ICard} from './ICard';
 import {CardType} from '../../common/cards/CardType';
-import {IPlayer} from '../IPlayer';
+import {CanAffordOptions, IPlayer} from '../IPlayer';
 import {Payment} from '../../common/inputs/Payment';
 import {Units} from '../../common/Units';
 import {StandardProjectCanPayWith} from '../../common/cards/Types';
@@ -16,6 +16,13 @@ export interface IStandardProjectCard extends ICard {
   canPayWith(player: IPlayer): StandardProjectCanPayWith;
   /** Base cost minus any applicable discounts. */
   getAdjustedCost(player: IPlayer): number;
+  /**
+   * The full affordability request `canAct` checks — adjusted cost, TR bump,
+   * reserved units, payable-with flags. Exposed so the read-only explainer
+   * (`src/server/models/standardProjectReasons.ts`) can name the payment gap
+   * from the SAME request the gate uses instead of rebuilding it.
+   */
+  canPlayOptions(player: IPlayer): CanAffordOptions;
   /** Deducts the payment and carries out the standard project's effect. */
   payAndExecute(player: IPlayer, payment: Payment): void;
 }

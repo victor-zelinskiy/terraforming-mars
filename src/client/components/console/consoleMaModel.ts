@@ -95,8 +95,15 @@ export function buildConsoleMaItems(
     const mine = m.scores.find((s) => s.color === opts.myColor);
     const myScore = mine?.score ?? 0;
     const leaderScore = m.scores.reduce((max, s) => Math.max(max, s.score), 0);
+    // SERVER-authoritative (`milestone.canClaim`), with the printed threshold as
+    // a fallback ONLY when the server sent no flag. Re-deriving it client-side
+    // with `||` let a met-on-paper threshold override a server "no" — and the
+    // blocker ladder below then skipped the honest "threshold not reached" and
+    // blamed money or the turn instead. Milestones whose rule isn't
+    // score ≥ threshold (Terraformer's Turmoil variant) are exactly the ones
+    // that disagreed.
     const myReady = itemKind === 'milestone' &&
-      (mine?.claimable === true || (m.threshold !== undefined && myScore >= m.threshold));
+      (mine?.claimable ?? (m.threshold !== undefined && myScore >= m.threshold));
     const myLead = itemKind === 'award' && m.scores.length > 0 && myScore >= leaderScore && myScore > 0;
     const available = !taken && opts.availableNow.has(m.name);
 
@@ -111,7 +118,13 @@ export function buildConsoleMaItems(
       } else if (opts.myMegacredits < opts.nextCost) {
         blocker = 'Not enough M€';
       } else {
-        blocker = 'Finish your current action first';
+        // The action menu IS live, so «сначала завершите текущее действие» — the
+        // old tail here — was flatly false: it sent the player looking for an
+        // action they were not in. We don't know the residual cause, so say only
+        // what is true, and name the subject rather than "unavailable".
+        blocker = itemKind === 'milestone' ?
+          'This milestone cannot be claimed right now' :
+          'This award cannot be funded right now';
       }
     }
 

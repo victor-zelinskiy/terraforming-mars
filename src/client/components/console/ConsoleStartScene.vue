@@ -1216,7 +1216,10 @@ export default defineComponent({
           verb: disabled ? undefined : this.candidateVerb,
           badge: disabled ? 'Unavailable' : undefined,
           badgeClass: disabled ? 'con-cards__pickband--disabled' : undefined,
-          reason: disabled ? undefined : undefined,
+          // The server's own reason (Merger's unaffordable corps say so). This
+          // used to be hardcoded `undefined`, so the template's reason line
+          // never rendered and a dimmed card carried a bare «Недоступна».
+          reason: disabled ? this.disabledCardReason(c) : undefined,
           dimmed: disabled,
           dealIdx: i,
         });
@@ -2619,11 +2622,22 @@ export default defineComponent({
       if (reason !== undefined && reason !== '') {
         return textOf(reason);
       }
-      // Merger's unaffordable corp — the one known disabled case here.
-      return translateText('Not enough M€');
+      // Merger's unaffordable corps now carry the server's own reason (see
+      // Merger.bespokePlay). Guessing "not enough M€" for anything else that
+      // ever lands here would be a lie the moment a second case appears — say
+      // only what is true.
+      return translateText('This card cannot be chosen here');
     },
     /** The shell routes every intent here while the scene is active. */
     handleIntent(intent: GamepadIntent): void {
+      // YIELDED — the board owns the screen (see the `yielded` prop). The
+      // shell stops routing here (`startSceneOwnsPad`), so this is defence:
+      // the guard sits at the ENTRY, not on `onPress` alone, because `onNav`
+      // is an intent too — an unguarded d-pad walked the INVISIBLE queue
+      // while the player was trying to move over the board's hexes.
+      if (this.yielded) {
+        return;
+      }
       // Any input mid-deal SKIPS the cinematic (and is consumed) — the
       // player is never made to wait, and no press can act on cards that
       // aren't interactive yet.
@@ -3462,9 +3476,7 @@ export default defineComponent({
     // wizard-step navigation, B(back) minimize. LB/RB are deliberately UNUSED
     // in the initial setup (they keep their in-game role only outside it).
     onPress(action: ConsoleAction): void {
-      if (this.yielded) {
-        return; // the board owns the screen (see the `yielded` prop)
-      }
+      // (`yielded` is guarded at the intent ENTRY — it covers nav too.)
       if (this.awaitingOthers && action !== 'back' && action !== 'inspect') {
         return; // sent — nothing is asked of this player (see awaitingOthers)
       }

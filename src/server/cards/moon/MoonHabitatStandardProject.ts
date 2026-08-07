@@ -7,6 +7,8 @@ import {PlaceMoonHabitatTile} from '../../moon/PlaceMoonHabitatTile';
 import {Resource} from '../../../common/Resource';
 import {TileType} from '../../../common/TileType';
 import {AltSecondaryTag} from '../../../common/cards/render/AltSecondaryTag';
+import * as actionReason from '../actionReasons';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 
 
 export class MoonHabitatStandardProject extends StandardProjectCard {
@@ -38,6 +40,18 @@ export class MoonHabitatStandardProject extends StandardProjectCard {
     }
 
     return super.canAct(player);
+  }
+
+  // Co-located with canAct so the reason can't drift when the gate changes.
+  // Inherited by both variants — their extra gate is a game OPTION, and
+  // `Game.getStandardProjects` already drops a variant whose option is off, so a
+  // disabled variant is never the option's fault.
+  public actionUnavailableReason(player: IPlayer): UnplayableReason | undefined {
+    const moonData = MoonExpansion.moonData(player.game);
+    if (moonData.moon.getAvailableSpacesOnLand(player).length === 0) {
+      return actionReason.placementReason('No space left on The Moon');
+    }
+    return undefined;
   }
 
   actionEssence(player: IPlayer): void {

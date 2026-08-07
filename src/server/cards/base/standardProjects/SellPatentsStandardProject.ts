@@ -5,6 +5,8 @@ import {CardRenderer} from '../../render/CardRenderer';
 import {StandardProjectCard} from '../../StandardProjectCard';
 import {SelectCard} from '../../../inputs/SelectCard';
 import {IProjectCard} from '../../IProjectCard';
+import * as actionReason from '../../actionReasons';
+import {UnplayableReason} from '../../../../common/cards/UnplayableReason';
 
 export class SellPatentsStandardProject extends StandardProjectCard {
   constructor() {
@@ -24,6 +26,11 @@ export class SellPatentsStandardProject extends StandardProjectCard {
 
   public override canAct(player: IPlayer): boolean {
     return player.cardsInHand.length > 0;
+  }
+
+  // Co-located with canAct so the reason can't drift when the gate changes.
+  public actionUnavailableReason(player: IPlayer): UnplayableReason | undefined {
+    return player.cardsInHand.length === 0 ? actionReason.ruleReason('No cards in hand') : undefined;
   }
 
   actionEssence(): void {

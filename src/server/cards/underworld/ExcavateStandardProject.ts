@@ -5,6 +5,8 @@ import {StandardProjectCard} from '../StandardProjectCard';
 import {StandardProjectCanPayWith} from '../../../common/cards/Types';
 import {ExcavateSpacesDeferred} from '../../underworld/ExcavateSpacesDeferred';
 import {UnderworldExpansion} from '../../underworld/UnderworldExpansion';
+import * as actionReason from '../actionReasons';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 
 export class ExcavateStandardProject extends StandardProjectCard {
   constructor(properties = {
@@ -39,6 +41,14 @@ export class ExcavateStandardProject extends StandardProjectCard {
       return false;
     }
     return super.canAct(player);
+  }
+
+  // Co-located with canAct so the reason can't drift when the gate changes.
+  public actionUnavailableReason(player: IPlayer): UnplayableReason | undefined {
+    if (!UnderworldExpansion.canExcavateN(player, 1)) {
+      return actionReason.placementReason('No space left to excavate');
+    }
+    return undefined;
   }
 
   actionEssence(player: IPlayer): void {

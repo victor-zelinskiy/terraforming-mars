@@ -61,7 +61,10 @@ export abstract class StandardProjectCard extends Card implements IStandardProje
     }
   }
 
-  protected canPlayOptions(player: IPlayer) {
+  // Public because the standard-project explainer (`standardProjectReasons.ts`)
+  // reads the SAME affordability request the gate uses — a reason derived from a
+  // second, hand-built cost/TR/reserve triple would drift from `canAct`.
+  public canPlayOptions(player: IPlayer) {
     const canPayWith = this.canPayWith(player);
     return {
       ...canPayWith,

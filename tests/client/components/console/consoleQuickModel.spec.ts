@@ -167,6 +167,47 @@ describe('consoleQuickModel (P27)', () => {
       expect(items[1].reasonParams).to.deep.eq(['2']);
     });
 
+    it('the SERVER reason wins over the client M€ guess', () => {
+      const items = buildStdProjectItems({
+        cards: [{
+          name: CardName.BUILD_COLONY_STANDARD_PROJECT,
+          calculatedCost: 17,
+          isDisabled: true,
+          // The real blocker: no open colony slot. The client's own guess would
+          // have said "Need 5 more M€" and been wrong.
+          actionReasons: [{type: 'target', message: 'Every colony tile is full', current: 5}],
+        }],
+        myTurn: true,
+        awaitingInput: true,
+        myMegacredits: 12,
+        sellAvailable: false,
+        cardsInHand: 0,
+      });
+      expect(items[1].reason).to.eq('Every colony tile is full');
+      expect(items[1].reasonParams).to.eq(undefined);
+    });
+
+    it('carries the server reason PARAMS through', () => {
+      const items = buildStdProjectItems({
+        cards: [{
+          name: CardName.BUILD_COLONY_STANDARD_PROJECT,
+          calculatedCost: 17,
+          isDisabled: true,
+          actionReasons: [{
+            type: 'target',
+            message: 'No colony has a free slot for you: ${0} full, ${1} already yours',
+            params: ['3', '2'],
+          }],
+        }],
+        myTurn: true,
+        awaitingInput: true,
+        myMegacredits: 500,
+        sellAvailable: false,
+        cardsInHand: 0,
+      });
+      expect(items[1].reasonParams).to.deep.eq(['3', '2']);
+    });
+
     it('patent sale is blocked honestly (opponent turn vs mid-action vs empty hand)', () => {
       const noTurn = buildStdProjectItems({cards: [], myTurn: false, awaitingInput: false, myMegacredits: 0, sellAvailable: false, cardsInHand: 3});
       expect(noTurn[0].reason).to.eq('Not your turn to take any actions');

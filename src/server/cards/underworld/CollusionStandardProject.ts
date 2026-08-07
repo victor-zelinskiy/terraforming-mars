@@ -9,6 +9,7 @@ import {PartyName} from '../../../common/turmoil/PartyName';
 import {SelectAmount} from '../../inputs/SelectAmount';
 import {all} from '../Options';
 import {toName} from '../../../common/utils/utils';
+import {UnplayableReason} from '../../../common/cards/UnplayableReason';
 
 export class CollusionStandardProject extends StandardProjectCard {
   constructor(properties = {
@@ -42,6 +43,22 @@ export class CollusionStandardProject extends StandardProjectCard {
     }
     // return super.canAct(player); // Not necessary this time.
     return true;
+  }
+
+  // Co-located with canAct so the reason can't drift when the gate changes —
+  // same three checks, same order, one named blocker each.
+  public actionUnavailableReason(player: IPlayer): UnplayableReason | undefined {
+    if (player.underworldData.corruption <= 0) {
+      return {type: 'count', message: 'No corruption to spend', current: player.underworldData.corruption};
+    }
+    const turmoil = Turmoil.getTurmoil(player.game);
+    if (!turmoil.hasDelegatesInReserve(player)) {
+      return {type: 'party', message: 'No delegates left in your reserve'};
+    }
+    if (this.getParties(turmoil).length === 0) {
+      return {type: 'party', message: 'No neutral delegates left to convert'};
+    }
+    return undefined;
   }
 
   actionEssence(player: IPlayer): void {

@@ -1949,7 +1949,19 @@ export class Player implements IPlayer {
    * unplayable (see src/server/models/unplayableReasons.ts). Read-only.
    */
   public affordabilityDeficit(card: IProjectCard): number {
-    const options = this.affordOptionsForCard(card);
+    return this.affordabilityDeficitFor(this.affordOptionsForCard(card));
+  }
+
+  /**
+   * The M€-equivalent shortfall for an arbitrary affordability request — the
+   * generalization of {@link affordabilityDeficit}, used by the standard-project
+   * explainer (`src/server/models/standardProjectReasons.ts`), whose cost /
+   * reserve units / TR bump come from the project's own `canPlayOptions` rather
+   * than from a project card. Read-only: `options` is copied before the same
+   * normalisation `canAffordInternal` applies.
+   */
+  public affordabilityDeficitFor(o: CanAffordOptions): number {
+    const options: CanAffordOptions = {...o};
     options.heat = this.canUseHeatAsMegaCredits;
     options.lunaTradeFederationTitanium = this.canUseTitaniumAsMegacredits;
     const reserveUnits = options.reserveUnits ?? Units.EMPTY;

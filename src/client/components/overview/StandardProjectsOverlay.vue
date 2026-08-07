@@ -105,7 +105,7 @@ import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {PROJECT_VISUAL} from '@/client/components/overview/standardProjectVisuals';
 import {SELL_PATENTS_RATE} from '@/client/components/handCards/sellPatentsState';
-import {translateText, translateMessage} from '@/client/directives/i18n';
+import {translateText, translateMessage, translateTextWithParams} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'StandardProjectsOverlay',
@@ -233,6 +233,15 @@ export default defineComponent({
         return 'Action is not available right now';
       }
       if (entry.isDisabled === true) {
+        // The server names the real blocker now (standardProjectReasons.ts).
+        // The old text was an "X or Y" guess the player had to choose between —
+        // and it named money even when money was fine.
+        const served = entry.actionReasons?.[0];
+        if (served !== undefined) {
+          return served.params !== undefined ?
+            translateTextWithParams(served.message, [...served.params]) :
+            served.message;
+        }
         return 'Not enough M€ or no valid placement';
       }
       return 'Use this standard project';
