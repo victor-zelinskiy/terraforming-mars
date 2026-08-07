@@ -87,10 +87,14 @@ export class Colonies {
         }
         howToPayForTrade.options.push(option);
       } else {
-        // Show an unaffordable STANDARD resource as a DISABLED option with a
-        // reason (card-specific traders without a reason just stay hidden).
+        // Show an unusable payment path as a DISABLED option WITH its reason.
+        // The gate is the REASON alone: metadata is a presentation extra (the
+        // resource chip), and requiring it too hid every card trader — the
+        // player owning Titan Floating Launch-Pad simply lost the option with no
+        // word of why. A trader returns `undefined` only when the player does not
+        // own the card at all, which is the one case with nothing to explain.
         const reason = handler.disabledReason?.();
-        if (metadata !== undefined && reason !== undefined) {
+        if (reason !== undefined) {
           disabledPayments.push({title: handler.optionText(), metadata, reason});
         }
       }

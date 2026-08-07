@@ -101,14 +101,23 @@ export class DecreaseAnyProduction extends DeferredAction<boolean> {
     return this.buildSelectPlayer(targets).toModel();
   }
 
-  /** Opponents who are relevant but can't have this production reduced, with a
-   *  user-facing reason (mirrors Player.canHaveProductionReduced). */
+  /**
+   * Players who are relevant but can't have this production reduced, with a
+   * user-facing reason (mirrors Player.canHaveProductionReduced).
+   *
+   * Walks `game.players`, NOT `opponents` — the candidate list at the call site
+   * is `game.players` (self-targeting is legal for several cards), so iterating
+   * opponents made the VIEWER vanish from their own picker with no explanation
+   * whenever their own production sat at the minimum.
+   */
   private blockedTargets(valid: ReadonlyArray<IPlayer>): Array<{player: IPlayer, reason: string | Message}> {
     const result: Array<{player: IPlayer, reason: string | Message}> = [];
-    for (const target of this.player.opponents) {
+    for (const target of this.player.game.players) {
       if (valid.includes(target)) {
         continue;
       }
+      // Same order as canHaveProductionReduced: the minimum first, then the two
+      // protections — and protection from an attacker never applies to yourself.
       const reducable = target.production[this.resource] + (this.resource === Resource.MEGACREDITS ? 5 : 0);
       let reason: string | Message = 'Production is protected';
       if (reducable < this.options.count) {

@@ -63,6 +63,14 @@ export class TradeWithDarksideSmugglersUnion implements IColonyTrader {
     return message('Trade for free (use ${0} action)', (b) => b.cardName(CardName.DARKSIDE_SMUGGLERS_UNION));
   }
 
+  /** Mirrors `canUse`. `undefined` = not owned, so the option stays hidden. */
+  public disabledReason() {
+    if (this.player.tableau.get(CardName.DARKSIDE_SMUGGLERS_UNION) === undefined) {
+      return undefined;
+    }
+    return 'This card\'s action was already used this generation';
+  }
+
   public trade(colony: IColony) {
     this.player.actionsThisGeneration.add(CardName.DARKSIDE_SMUGGLERS_UNION);
     this.player.game.log('${0} used ${1} action to trade with ${2}', (b) => b.player(this.player).cardName(CardName.DARKSIDE_SMUGGLERS_UNION).colony(colony));

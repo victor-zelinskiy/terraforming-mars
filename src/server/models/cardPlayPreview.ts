@@ -197,6 +197,10 @@ function deriveCardPlayBranches(player: IPlayer, card: ICard, behavior: Behavior
         title: sub.title,
         available: a.available,
         unavailableReason: a.reason?.message,
+        // Without the params a templated reason («Need ${0} more M€») reached the
+        // player with a literal, unfilled `${0}`. The action-preview twin has
+        // always sent them; this branch silently dropped them.
+        unavailableReasonParams: a.reason?.params,
         renderKeys: [String(i)],
         effects: effectsForBehavior(player, card, sub),
         steps: a.available ? stepsForBehavior(player, card, sub) : [],

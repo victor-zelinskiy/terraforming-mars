@@ -147,6 +147,10 @@ export abstract class Draft {
 
     let cardsToConsider: Array<IProjectCard>;
     let enabled: Array<boolean> | undefined;
+    // Parallel to `enabled` — the greyed-out card is the one ALREADY chosen, and
+    // saying so is the whole point of showing it. Without this the draft screen
+    // paints a bare «Недоступна» on a card the player picked themselves.
+    let enabledReasons: Array<string | undefined> | undefined;
     if (repick) {
       cardsToConsider = [...player.draftHand, ...player.draftedCards.slice(-cardsToKeep)];
       // Disable the picked card only if we're keeping one card. If we keep more than
@@ -154,6 +158,7 @@ export abstract class Draft {
       // one of the cards we previously picked plus a new card.
       if (cardsToKeep === 1) {
         enabled = cardsToConsider.map((_, idx) => idx < player.draftHand.length);
+        enabledReasons = enabled.map((ok) => ok ? undefined : 'This is your current pick — choose a different card');
       }
     } else {
       cardsToConsider = player.draftHand;
@@ -171,6 +176,7 @@ export abstract class Draft {
       {
         min: cardsToKeep, max: cardsToKeep, played: false,
         enabled: enabled,
+        enabledReasons: enabledReasons,
       });
     selectCard.optional = repick;
     player.setWaitingFor(selectCard

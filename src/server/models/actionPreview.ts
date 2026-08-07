@@ -124,7 +124,13 @@ function deriveDeclarativeBranches(player: IPlayer, card: ICard & IActionCard, b
   // Single-action card → one branch (no branch pick). `canAct` is the
   // authoritative availability gate (handles bespoke `bespokeCanAct` too).
   const available = card.canAct(player);
-  const reason = available ? undefined : subAvailability(player, card, behavior).reason;
+  // `canAct` honours a bespoke `bespokeCanAct`, but `subAvailability` only walks
+  // the declarative behavior — so a card blocked by its BESPOKE gate collected no
+  // reason and shipped a blank branch. Fall back to the co-located hook, exactly
+  // as the bespoke path above does.
+  const reason = available ?
+    undefined :
+    (subAvailability(player, card, behavior).reason ?? card.actionUnavailableReason?.(player));
   return [{
     index: -1,
     title: '',

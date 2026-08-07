@@ -1,0 +1,762 @@
+/*
+ * @console-shared LIVE — console native stands on this file.
+ *
+ * THE WORKSPACE STACK — the ONE model of «how deep am I, and inside what».
+ *
+ * ── WHY A STACK AND NOT FOUR PARALLEL MODELS ────────────────────────────────
+ *
+ * The console already had four answers to that question — `consoleState.section`
+ * / `.sheet`, `workspaceStageState` (the pre-commit descent), `workspaceOutcomeState`
+ * (the post-commit claim) and `workspaceEmbedState` (a whole screen hosted as a
+ * step) — plus a shell-local latch per case. None of them expressed DEPTH, so
+ * every consumer re-derived it from a different subset of the flags, and B was a
+ * twelve-branch chain that had to guess which of them was in charge.
+ *
+ * That is not a style problem. It shipped a soft-lock that cost a turn:
+ *
+ *   Playing «Торговая колония» from the hand, the card's SelectColony follow-up
+ *   teleports the colonies INTO the hand's stage zone. Pressing B closed the
+ *   hand section, but a guard (added so the sponsor chain would not tear down
+ *   mid-prompt) deliberately kept the STAGE claim alive across that section
+ *   change. So the flow OWNED a zone whose host was no longer mounted: the
+ *   colonies rendered nowhere, the "stranded" self-heal could not fire (the
+ *   claim still named a host), and nothing was deferred, so no card offered the
+ *   way back. The prompt was live and unreachable.
+ *
+ * The two truths that disagreed were OWNERSHIP («the flow claims this zone»)
+ * and PRESENCE («the host is on screen»). This module removes the disagreement
+ * by making one derive from the other:
+ *
+ *   ▸ INVARIANT 1 — PRESENCE IS DERIVED FROM THE STACK. A surface mounts
+ *     because a frame of its kind is in the stack, and for no other reason.
+ *     «Own a zone whose host is unmounted» stops being expressible: the frame's
+ *     existence IS what mounts the host, so the zone is always on its way.
+ *     Embed rule 4's «render nowhere» goes back to being genuinely ONE FRAME —
+ *     the gap between a claim and its slot — instead of a terminal state.
+ *
+ *   ▸ INVARIANT 2 — A FRAME LIVES ONLY WHILE ITS ANCHOR HOLDS. Every frame
+ *     carries a serializable, STRUCTURAL proof of its right to exist (never a
+ *     title — see CLAUDE.md § cross-cutting invariant 1). One reconciler
+ *     truncates the stack at the first frame whose anchor no longer checks out
+ *     against server truth. That single rule replaces the per-case stranded
+ *     predicates, the liveness latches and the safety timers — AND it is what
+ *     makes a RELOAD honest: the same walk that heals a dead claim in-session
+ *     is the one that decides how much of a persisted stack may come back.
+ *
+ * Everything else falls out of those two. B is `pop`. «Свернуть» parks the
+ * WHOLE stack rather than closing one surface. The breadcrumb is the stack read
+ * left to right. Nesting is `slot of the frame below me`. «Does anything serve
+ * this prompt?» is `stackServes(kind)`.
+ *
+ * ── PERSISTED vs RUNTIME ────────────────────────────────────────────────────
+ *
+ * A frame is plain data: no DOM node, no closure, no timer. `slot` is the one
+ * exception and is RUNTIME — it names an element that exists only while the
+ * host is mounted, so it is deliberately excluded from `serializeWorkspaceStack`
+ * and comes back empty after a cold restore. Anything a running cinematic owns
+ * (arrival gates, beat flags, expected counts) stays where it already lives; a
+ * restored stack must never wait on a beat that nobody is going to play.
+ *
+ * PURE-ish: one reactive record + pure accessors. No DOM, no Vue components,
+ * no i18n. The surfaces own rendering; this owns the shape of the flow.
+ */
+import {reactive} from 'vue';
+import {
+  WorkspacePhase,
+  WorkspaceBackVerb,
+  acceptsInput,
+  backVerbFor,
+  isCommitted,
+} from '@/client/console/consoleWorkspaceFlow';
+import {TaskKind} from '@/client/console/consoleTaskRouter';
+// TYPE-ONLY on purpose: from stage D the router's `section`/`sheet` are
+// PROJECTIONS of this module, so a value import would close a cycle.
+import type {ConsoleSection, ConsoleSheetId} from '@/client/console/consoleRouter';
+
+/**
+ * The screens that can be a frame. A CLOSED union on purpose: a frame has to
+ * bring a root name, a mount condition and an anchor, so a new one is a
+ * deliberate addition — never a string that silently starts matching.
+ */
+export type WorkspaceFrameKind =
+  /** «ДЕЙСТВИЯ КАРТ» — the action centre (ConsoleCardActions + composer). */
+  | 'card-actions'
+  /** «КАРТЫ В РУКЕ» — the hand carousel and the play-a-card flow. */
+  | 'hand'
+  /** «КОЛОНИИ» — the colony rail, standalone or hosted as a step. */
+  | 'colonies'
+  /** «ГИДРОСЕТЬ» — the Delta Project track. */
+  | 'hydro'
+  /** The GAME START WORKSPACE — the whole opening. */
+  | 'start';
+
+/**
+ * THE WORKSPACE REGISTRY — one row per workspace, and the reason this file
+ * exists as much as the stack itself.
+ *
+ * Everything that used to be re-stated per case now lives here: the crumb root,
+ * the DOM root the leak detector probes for, and which of the shell's two legacy
+ * navigation axes the frame projects onto. ADDING A WORKSPACE IS A ROW — not a
+ * new latch in the shell, not a new arm in `handleSectionBack`, not a new entry
+ * in `KIND_SURFACES`, not a new «is my host still alive» computed.
+ *
+ * The three things deliberately NOT in here, because they are genuinely not
+ * constant per workspace:
+ *  · `serves` — a frame earns the right to serve a prompt at runtime (an action
+ *    only serves a card pick once its preview promised cards), so it lives on
+ *    the FRAME;
+ *  · `slot` — a host can publish DIFFERENT zones for different children (the
+ *    start scene has one zone for a hosted hand and another for hosted
+ *    colonies), so the host publishes it at runtime;
+ *  · the anchor — it depends on what the frame is carrying, not on its kind.
+ */
+type WorkspaceKindSpec = {
+  /** Breadcrumb root. An EXISTING i18n key the host already passes to
+   *  `ConsoleWsHead` (English text IS the key) — nothing new is coined. */
+  root: string,
+  /**
+   * The surface's own DOM root. The leak detector's presence probe, and the
+   * one place it is written down — a workspace that renders somewhere the
+   * detector cannot see is exactly how a stranded prompt goes unnoticed.
+   */
+  rootSelector: string,
+  /** The legacy `consoleState.section` this frame projects onto, if any. */
+  section?: ConsoleSection,
+  /** The legacy `consoleState.sheet` this frame projects onto, if any. */
+  sheet?: ConsoleSheetId,
+};
+
+const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
+  'card-actions': {root: 'Card actions', rootSelector: '.con-cardactions', sheet: 'cardActions'},
+  'hand': {root: 'Cards in hand', rootSelector: '.con-hand', section: 'hand'},
+  'colonies': {root: 'Colonies', rootSelector: '.con-colonies', section: 'colonies'},
+  'hydro': {root: 'Mars Hydronetwork', rootSelector: '.con-hydro', section: 'hydro'},
+  // The start workspace is a full-bleed scene: it owns the screen outright and
+  // projects onto neither axis.
+  'start': {root: 'Start of the game', rootSelector: '.con-start'},
+};
+
+/** Every registered workspace, for the guards that must be exhaustive. */
+export const WORKSPACE_FRAME_KINDS =
+  Object.keys(WORKSPACE_KINDS) as ReadonlyArray<WorkspaceFrameKind>;
+
+/** The DOM root a mounted frame of this kind renders (leak-detector probe). */
+export function workspaceFrameSelector(kind: WorkspaceFrameKind): string {
+  return WORKSPACE_KINDS[kind].rootSelector;
+}
+
+/**
+ * WHY THIS FRAME IS ALLOWED TO EXIST — a structural, serializable proof that
+ * can be re-checked against a fresh `playerView`.
+ *
+ * Deliberately NOT `promptIdentityKey`: that key interpolates the TRANSLATED
+ * title (`turnIntents.ts`), so it changes with the interface language and would
+ * truncate a perfectly live stack the first time somebody switches to English.
+ * Anchors name structure — a prompt TYPE, a card, a phase.
+ */
+export type FrameAnchor =
+  /** A browse layer that is always legitimate while the player has a turn
+   *  (the action menu, the colony rail the player walked into themselves). */
+  | {type: 'always'}
+  /** A play-from-hand stage: the carried card must still be IN HAND. */
+  | {type: 'cardInHand', card: string}
+  /** An activation: the acting card must still be on the table. */
+  | {type: 'actionAvailable', card: string}
+  /** A surface that only exists to answer a prompt of this `waitingFor.type`. */
+  | {type: 'prompt', promptType: string}
+  /** A phase-scoped workspace (the start workspace IS the opening phases). */
+  | {type: 'phase', phase: string};
+
+/**
+ * One place the player can stand.
+ *
+ * Everything except `slot` is STRUCTURAL and survives serialization. `slot` is
+ * RUNTIME — see the file header.
+ */
+export interface WorkspaceFrame {
+  readonly kind: WorkspaceFrameKind;
+  /** The carried object — a CardName / ColonyName. '' on a browse layer. */
+  subject: string;
+  /**
+   * This frame's own step name (an i18n key), published UP by whatever is
+   * rendering inside it. The crumb's TAIL while this frame is on top.
+   */
+  stage: string;
+  /** Where this frame stands relative to its commit — B's verb comes from it. */
+  phase: WorkspacePhase;
+  /** Which server prompt kinds this frame is entitled to serve. */
+  serves: ReadonlyArray<TaskKind>;
+  /** The proof of life re-checked by `reconcileWorkspaceStack`. */
+  anchor: FrameAnchor;
+  /**
+   * RUNTIME. The CSS selector of the zone this frame publishes for the frame
+   * ABOVE it, or '' while that zone is not standing.
+   *
+   * Reactive on purpose and published `flush: 'post'` by the host (embed rule
+   * 4): the host's mount is what makes the target real, and a `querySelector`
+   * inside a consumer's computed would never re-run when the node appears. A
+   * teleport whose target does not exist yet drops its content on the floor.
+   */
+  slot: string;
+}
+
+/** What `pushWorkspaceFrame` is given — `slot` is never an input. */
+export type NewWorkspaceFrame = Omit<WorkspaceFrame, 'slot'>;
+
+export const workspaceStackState = reactive({
+  /** Outermost first. `frames[0]` is the workspace the player entered. */
+  frames: [] as Array<WorkspaceFrame>,
+  /**
+   * PARKED, not torn down. «Свернуть» hides the whole stack so the board can
+   * be read while the decision stays live, at its full depth — which is why it
+   * is a property of the STACK and never of a frame. Restoring re-shows the
+   * same frames: same subject, same picks, no replayed cinematic and no second
+   * trip to the server.
+   */
+  collapsed: false,
+});
+
+// ── reading the stack ───────────────────────────────────────────────────────
+
+export function workspaceStackDepth(): number {
+  return workspaceStackState.frames.length;
+}
+
+/** Is the player inside a workspace at all (parked or not)? */
+export function workspaceStackActive(): boolean {
+  return workspaceStackState.frames.length > 0;
+}
+
+export function workspaceStackCollapsed(): boolean {
+  return workspaceStackState.collapsed;
+}
+
+export function workspaceFrameAt(depth: number): WorkspaceFrame | undefined {
+  return workspaceStackState.frames[depth];
+}
+
+export function workspaceStackTop(): WorkspaceFrame | undefined {
+  return workspaceStackState.frames[workspaceStackState.frames.length - 1];
+}
+
+export function workspaceStackRoot(): WorkspaceFrame | undefined {
+  return workspaceStackState.frames[0];
+}
+
+/** The depth of `kind`'s frame, or -1. Kinds are unique within a stack. */
+export function workspaceFrameIndex(kind: WorkspaceFrameKind): number {
+  return workspaceStackState.frames.findIndex((f) => f.kind === kind);
+}
+
+/**
+ * THE PRESENCE PREDICATE (invariant 1). A hostable surface's `v-if` is this and
+ * nothing else — never `consoleState.section`, never a latch, never a
+ * conjunction of the two.
+ *
+ * A COLLAPSED stack answers false: the surfaces are genuinely gone (that is
+ * what makes the board live and the restore card appear), and the frames are
+ * what brings them back untouched.
+ */
+export function workspaceFrameMounted(kind: WorkspaceFrameKind): boolean {
+  return !workspaceStackState.collapsed && workspaceFrameIndex(kind) !== -1;
+}
+
+/**
+ * The TELEPORT TARGET for `kind` — the zone published by the frame directly
+ * below it. `undefined` at depth 0 (the frame stands in its own band) and
+ * `undefined` while the parent's zone has not mounted yet.
+ *
+ * OWNERSHIP AND READINESS STAY SEPARATE QUESTIONS (embed rule 4): a claimant
+ * that treats «no slot yet» as «not mine» hands the surface to the standalone
+ * band for one frame, which is exactly the modal-on-top-of-modal impression the
+ * embed architecture removes. What invariant 1 buys is that the gap is now
+ * PROVABLY transient — the parent frame exists, so the parent is mounted, so
+ * its zone is coming.
+ */
+export function workspaceFrameTarget(kind: WorkspaceFrameKind): string | undefined {
+  const depth = workspaceFrameIndex(kind);
+  if (depth <= 0 || workspaceStackState.collapsed) {
+    return undefined;
+  }
+  const slot = workspaceStackState.frames[depth - 1].slot;
+  return slot === '' ? undefined : slot;
+}
+
+/**
+ * Does ANY frame serve this prompt kind? The leak detector's question — and a
+ * PARKED stack still answers yes: a decision the player deliberately set aside
+ * is not stranded, its way back is the board-home restore card.
+ */
+export function stackServes(kind: TaskKind): boolean {
+  return workspaceStackState.frames.some((f) => f.serves.includes(kind));
+}
+
+/** Which frame serves `kind`, if any (for routing a prompt to its host). */
+export function frameServing(kind: TaskKind): WorkspaceFrame | undefined {
+  return workspaceStackState.frames.find((f) => f.serves.includes(kind));
+}
+
+// ── the breadcrumb ──────────────────────────────────────────────────────────
+
+/**
+ * The crumb for the WHOLE stack, in the one grammar every workspace uses:
+ * STABLE CONTEXT BEFORE MUTABLE STAGE.
+ *
+ *   root    — the outermost frame: what the player entered. Never changes.
+ *   subject — the DEEPEST carried object. A nested step that carries nothing of
+ *             its own (the colonies answering a played card's effect) keeps
+ *             naming the card that owes it, which is what makes three levels
+ *             read as one flow instead of three screens.
+ *   stage   — the TOP frame's step name. The only segment that animates.
+ *
+ * Feeds `buildWorkspaceHeader` unchanged.
+ */
+export function workspaceStackCrumb(): {
+  root: string,
+  subject?: {text: string, translate?: boolean},
+  stage?: string,
+  committed: boolean,
+} | undefined {
+  const frames = workspaceStackState.frames;
+  const root = frames[0];
+  if (root === undefined) {
+    return undefined;
+  }
+  const top = frames[frames.length - 1];
+  let subject = '';
+  for (const frame of frames) {
+    if (frame.subject !== '') {
+      subject = frame.subject;
+    }
+  }
+  return {
+    root: WORKSPACE_KINDS[root.kind].root,
+    subject: subject === '' ? undefined : {text: subject},
+    stage: top.stage === '' ? undefined : top.stage,
+    committed: isCommitted(top.phase),
+  };
+}
+
+/** The root i18n key for a kind (hosts that draw their own head read this). */
+export function workspaceFrameRoot(kind: WorkspaceFrameKind): string {
+  return WORKSPACE_KINDS[kind].root;
+}
+
+// ── the projections onto the shell's two legacy navigation axes ─────────────
+
+/*
+ * `consoleState.section` and `.sheet` were two of the FIVE parallel answers to
+ * «where am I». From stage D they stop being independent state and become these
+ * two reads, which is what makes «the player drives the surface they SEE» true
+ * by construction instead of by a per-case `…Embedded` flag.
+ *
+ * The DEEPEST projecting frame wins, not the root: standing on colonies hosted
+ * inside a card play, the player IS on the colonies, and every section-keyed
+ * branch in the shell should agree with their eyes.
+ *
+ * A PARKED stack projects to the board home with no sheet — deliberately BOTH,
+ * because a park that left `sheet` set is precisely the documented
+ * «half-collapse» (`workspace-band.md`): the restore card keys off `sheet`
+ * being clear, so input kept routing into an invisible workspace.
+ */
+
+export function workspaceStackSection(): ConsoleSection {
+  if (workspaceStackState.collapsed) {
+    return 'board';
+  }
+  for (let i = workspaceStackState.frames.length - 1; i >= 0; i--) {
+    const section = WORKSPACE_KINDS[workspaceStackState.frames[i].kind].section;
+    if (section !== undefined) {
+      return section;
+    }
+  }
+  return 'board';
+}
+
+export function workspaceStackSheet(): ConsoleSheetId | undefined {
+  if (workspaceStackState.collapsed) {
+    return undefined;
+  }
+  for (let i = workspaceStackState.frames.length - 1; i >= 0; i--) {
+    const sheet = WORKSPACE_KINDS[workspaceStackState.frames[i].kind].sheet;
+    if (sheet !== undefined) {
+      return sheet;
+    }
+  }
+  return undefined;
+}
+
+// ── B, and what it means at this depth ──────────────────────────────────────
+
+/**
+ * WHAT B DOES HERE — derived from the top frame's phase, never hand-rolled at a
+ * call site. `undefined` = the stack has no opinion (no workspace is open), and
+ * the shell's other B branches own the press.
+ */
+export function workspaceStackBackVerb(): WorkspaceBackVerb | undefined {
+  const top = workspaceStackTop();
+  if (top === undefined || workspaceStackState.collapsed) {
+    return undefined;
+  }
+  return backVerbFor(top.phase);
+}
+
+/**
+ * PERFORM B. One function, so the button can never do one thing and say
+ * another: the command bar labels itself from `workspaceStackBackVerb` and this
+ * executes exactly that verb.
+ *
+ * Returns what it did, so the caller knows whether the press was consumed.
+ */
+export function workspaceStackBack(): WorkspaceBackVerb | undefined {
+  const verb = workspaceStackBackVerb();
+  switch (verb) {
+  // The BROWSE layer is the bottom of this screen: there is nothing under us
+  // inside it, so B leaves the frame entirely.
+  case 'close':
+    popWorkspaceFrame();
+    return verb;
+  // ONE reversible level. A descent into an object is a PHASE of its screen,
+  // not a second screen (the hand's browse grid is parked, never unmounted —
+  // which is exactly why its selection, filter and scroll survive the fold),
+  // so folding is a phase change and popping would throw away the workspace
+  // the player is still standing in.
+  case 'back':
+    foldWorkspaceFrame();
+    return verb;
+  case 'collapse':
+    collapseWorkspaceStack();
+    return verb;
+  // 'none' — a beat is in flight: the press is ABSORBED (a double submit is
+  // impossible by construction rather than by a flag somebody remembers to
+  // check), but it is still consumed so it cannot reach the board underneath.
+  case 'none':
+    return verb;
+  default:
+    return undefined;
+  }
+}
+
+/** Is the pad live at the current depth? */
+export function workspaceStackAcceptsInput(): boolean {
+  const top = workspaceStackTop();
+  return top === undefined ? true : acceptsInput(top.phase);
+}
+
+// ── mutating the stack ──────────────────────────────────────────────────────
+
+/**
+ * Enter a frame. Pushing a kind that is already in the stack is a no-op on the
+ * SHAPE — the existing frame is updated in place and the stack is truncated to
+ * it, which is the honest meaning of «go there»: you cannot be inside the same
+ * workspace twice, and re-entering it means leaving whatever you opened on top.
+ */
+export function pushWorkspaceFrame(frame: NewWorkspaceFrame): number {
+  const existing = workspaceFrameIndex(frame.kind);
+  if (existing !== -1) {
+    const live = workspaceStackState.frames[existing];
+    live.subject = frame.subject;
+    live.stage = frame.stage;
+    live.phase = frame.phase;
+    live.serves = [...frame.serves];
+    live.anchor = frame.anchor;
+    truncateWorkspaceStack(existing + 1);
+    return existing;
+  }
+  workspaceStackState.frames.push({...frame, serves: [...frame.serves], slot: ''});
+  return workspaceStackState.frames.length - 1;
+}
+
+/**
+ * DESCEND inside the top frame: the player picked up an object in the screen
+ * they are already standing in (a card in the hand, an action in the centre).
+ *
+ * This is deliberately a PHASE of the same frame rather than a new one. The
+ * browse layer is parked, not unmounted — which is what makes its selection,
+ * filter and scroll survive the descent for free, and it keeps `kind` unique
+ * within the stack so `workspaceFrameMounted` stays a straight answer.
+ */
+export function descendWorkspaceFrame(
+  kind: WorkspaceFrameKind,
+  subject: string,
+  stage: string,
+  anchor?: FrameAnchor,
+): void {
+  const depth = workspaceFrameIndex(kind);
+  if (depth === -1) {
+    return;
+  }
+  const frame = workspaceStackState.frames[depth];
+  frame.subject = subject;
+  frame.stage = stage;
+  frame.phase = 'configure';
+  if (anchor !== undefined) {
+    // The frame's right to exist now depends on the object it picked up: a
+    // card that leaves the hand takes its own configure stage with it.
+    frame.anchor = anchor;
+  }
+}
+
+/** Fold the top frame back to its browse layer (the reversible level of B). */
+export function foldWorkspaceFrame(): void {
+  const frame = workspaceStackTop();
+  if (frame === undefined) {
+    return;
+  }
+  frame.subject = '';
+  frame.stage = '';
+  frame.phase = 'browse';
+}
+
+/** Leave the top frame — one logical level. */
+export function popWorkspaceFrame(): void {
+  workspaceStackState.frames.pop();
+  if (workspaceStackState.frames.length === 0) {
+    workspaceStackState.collapsed = false;
+  }
+}
+
+/**
+ * Keep the first `depth` frames and drop the rest.
+ *
+ * The ONE way the stack ever shrinks from above — used by re-entry into an
+ * existing frame, by the anchor reconciler and by rehydration, so «a flow
+ * degraded» always looks the same to every consumer.
+ */
+export function truncateWorkspaceStack(depth: number): void {
+  const keep = Math.max(0, Math.min(depth, workspaceStackState.frames.length));
+  if (keep === workspaceStackState.frames.length) {
+    return;
+  }
+  workspaceStackState.frames.splice(keep);
+  if (workspaceStackState.frames.length === 0) {
+    workspaceStackState.collapsed = false;
+  }
+}
+
+/** The top frame names the step it is showing (the crumb's tail). */
+export function setWorkspaceFrameStage(kind: WorkspaceFrameKind, stage: string): void {
+  const depth = workspaceFrameIndex(kind);
+  if (depth !== -1) {
+    workspaceStackState.frames[depth].stage = stage;
+  }
+}
+
+/** The carried object changed (a different card picked up in the same frame). */
+export function setWorkspaceFrameSubject(kind: WorkspaceFrameKind, subject: string): void {
+  const depth = workspaceFrameIndex(kind);
+  if (depth !== -1) {
+    workspaceStackState.frames[depth].subject = subject;
+  }
+}
+
+/**
+ * Move a frame across the commit boundary (or back, when the server refuses).
+ *
+ * A rollback is a PEER of the commit, not an afterthought: leaving a refused
+ * move past the boundary strands the player in a state where B does nothing and
+ * the crumb claims a move that was never made.
+ */
+export function setWorkspaceFramePhase(kind: WorkspaceFrameKind, phase: WorkspacePhase): void {
+  const depth = workspaceFrameIndex(kind);
+  if (depth !== -1) {
+    workspaceStackState.frames[depth].phase = phase;
+  }
+}
+
+/** What this frame is entitled to serve changed (a follow-up was promised). */
+export function setWorkspaceFrameServes(kind: WorkspaceFrameKind, serves: ReadonlyArray<TaskKind>): void {
+  const depth = workspaceFrameIndex(kind);
+  if (depth !== -1) {
+    workspaceStackState.frames[depth].serves = [...serves];
+  }
+}
+
+/** The frame's zone mounted (or went away) — publish the target for its child. */
+export function setWorkspaceFrameSlot(kind: WorkspaceFrameKind, selector: string): void {
+  const depth = workspaceFrameIndex(kind);
+  if (depth !== -1) {
+    workspaceStackState.frames[depth].slot = selector;
+  }
+}
+
+/** Park the whole stack (B past the commit boundary — «свернуть»). */
+export function collapseWorkspaceStack(): void {
+  if (workspaceStackState.frames.length > 0) {
+    workspaceStackState.collapsed = true;
+  }
+}
+
+/**
+ * Un-park. The frames were never touched, so the player lands back at the SAME
+ * depth on the SAME decision. Slots are deliberately cleared: the hosts are
+ * about to re-mount and must re-publish, and a stale selector would teleport a
+ * surface into a detached node.
+ */
+export function restoreWorkspaceStack(): void {
+  workspaceStackState.collapsed = false;
+  for (const frame of workspaceStackState.frames) {
+    frame.slot = '';
+  }
+}
+
+/** Full reset (game switch, shell unmount, test cleanup). */
+export function resetWorkspaceStack(): void {
+  workspaceStackState.frames.splice(0);
+  workspaceStackState.collapsed = false;
+}
+
+// ── invariant 2: the anchor reconciler ──────────────────────────────────────
+
+/**
+ * Walk the stack from the ROOT outwards and truncate at the first frame whose
+ * anchor no longer holds. Returns the surviving depth.
+ *
+ * OUTWARDS, not inwards, and truncating rather than filtering: a frame's
+ * meaning depends on its ancestors (the colonies inside a card play are that
+ * card's follow-up), so an inner frame cannot outlive an outer one. Dropping
+ * only the dead frame would leave a step hanging under a parent that no longer
+ * exists — which is the shape of the bug this module was written for.
+ *
+ * The same walk serves three jobs that used to be three mechanisms: healing a
+ * claim whose flow ended, degrading an embedded step to standalone, and
+ * deciding how much of a PERSISTED stack may come back after a reload.
+ */
+export function reconcileWorkspaceStack(isAnchorLive: (anchor: FrameAnchor) => boolean): number {
+  const frames = workspaceStackState.frames;
+  for (let depth = 0; depth < frames.length; depth++) {
+    if (!isAnchorLive(frames[depth].anchor)) {
+      truncateWorkspaceStack(depth);
+      return depth;
+    }
+  }
+  return frames.length;
+}
+
+/**
+ * THE PRESENCE PROBE — the runtime detector for the entire «ownership without
+ * presence» class, and the thing that makes a future regression LOUD.
+ *
+ * Invariant 1 makes the bad state unexpressible *within this module*: a frame
+ * implies its host is mounted. But the DOM is downstream of a render, and a
+ * surface can still fail to appear for reasons the stack cannot see — a `v-if`
+ * inside a scene, a prompt-admission hold, a component that threw. Rather than
+ * trust the invariant, this checks it against the only authority that matters:
+ * what is actually on screen.
+ *
+ * Returns the kinds the stack believes are mounted and the DOM does not show.
+ * A caller MUST debounce (the shell's detector confirms over consecutive passes
+ * — a single frame gap is the legitimate claim-before-slot window of embed rule
+ * 4, not a fault) and then truncate at the shallowest offender, because a frame
+ * whose surface is gone cannot host the ones above it.
+ *
+ * `seen` is injected so this stays pure and unit-testable; the caller passes a
+ * `document.querySelector`-backed predicate.
+ */
+export function probeWorkspacePresence(
+  seen: (selector: string) => boolean,
+): ReadonlyArray<WorkspaceFrameKind> {
+  if (workspaceStackState.collapsed) {
+    // Parked on purpose: nothing is supposed to be on screen.
+    return [];
+  }
+  const missing: Array<WorkspaceFrameKind> = [];
+  for (const frame of workspaceStackState.frames) {
+    if (!seen(WORKSPACE_KINDS[frame.kind].rootSelector)) {
+      missing.push(frame.kind);
+    }
+  }
+  return missing;
+}
+
+/**
+ * The depth that is still genuinely on screen — the shallowest absent frame
+ * bounds it. Feeds the detector's truncation: a prompt may degrade from
+ * embedded to standalone, but it may never strand.
+ */
+export function workspacePresentDepth(seen: (selector: string) => boolean): number {
+  const frames = workspaceStackState.frames;
+  for (let depth = 0; depth < frames.length; depth++) {
+    if (!seen(WORKSPACE_KINDS[frames[depth].kind].rootSelector)) {
+      return depth;
+    }
+  }
+  return frames.length;
+}
+
+// ── persistence ─────────────────────────────────────────────────────────────
+
+/**
+ * Bumped whenever the frame shape changes. A stored stack from an older schema
+ * is DROPPED, never migrated: the cost of being wrong is putting the player
+ * inside a workspace that does not match their game, and a dropped stack simply
+ * means the prompt opens its standalone surface — the pre-stack behaviour.
+ */
+export const WORKSPACE_STACK_SCHEMA = 1;
+
+export type SerializedWorkspaceFrame = Omit<WorkspaceFrame, 'slot'>;
+
+export type SerializedWorkspaceStack = {
+  v: number,
+  frames: ReadonlyArray<SerializedWorkspaceFrame>,
+  collapsed: boolean,
+};
+
+/**
+ * The STRUCTURAL half of the stack, ready for storage.
+ *
+ * Fields are listed explicitly rather than spread, so a new RUNTIME field
+ * cannot silently start being persisted — that is how a restored workspace ends
+ * up waiting on a beat nobody is going to play. The spec fences this.
+ */
+export function serializeWorkspaceStack(): SerializedWorkspaceStack {
+  return {
+    v: WORKSPACE_STACK_SCHEMA,
+    collapsed: workspaceStackState.collapsed,
+    frames: workspaceStackState.frames.map((f) => ({
+      kind: f.kind,
+      subject: f.subject,
+      stage: f.stage,
+      phase: f.phase,
+      serves: [...f.serves],
+      anchor: f.anchor,
+    })),
+  };
+}
+
+/**
+ * Rebuild from storage, keeping only what server truth still justifies.
+ *
+ * COLD by construction: `slot` starts empty and every phase past the commit
+ * boundary is re-seated at `committed` rather than `executing`/`completing`. A
+ * beat and a completion are things that were HAPPENING; after a reload nothing
+ * is in flight, and a frame parked in a transient phase would swallow input
+ * forever (`acceptsInput` is false there) while waiting for a signal whose
+ * sender no longer exists.
+ *
+ * Returns the depth that survived — 0 means nothing came back, which is a
+ * legitimate answer and simply restores the pre-stack behaviour.
+ */
+export function hydrateWorkspaceStack(
+  stored: SerializedWorkspaceStack | undefined,
+  isAnchorLive: (anchor: FrameAnchor) => boolean,
+): number {
+  resetWorkspaceStack();
+  if (stored === undefined || stored.v !== WORKSPACE_STACK_SCHEMA) {
+    return 0;
+  }
+  for (const frame of stored.frames) {
+    workspaceStackState.frames.push({
+      kind: frame.kind,
+      subject: frame.subject,
+      stage: frame.stage,
+      phase: isCommitted(frame.phase) ? 'committed' : frame.phase,
+      serves: [...frame.serves],
+      anchor: frame.anchor,
+      slot: '',
+    });
+  }
+  const depth = reconcileWorkspaceStack(isAnchorLive);
+  workspaceStackState.collapsed = depth > 0 && stored.collapsed;
+  return depth;
+}

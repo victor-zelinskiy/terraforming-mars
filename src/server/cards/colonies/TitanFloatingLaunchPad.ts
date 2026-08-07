@@ -124,6 +124,18 @@ export class TradeWithTitanFloatingLaunchPad implements IColonyTrader {
     return message('Pay 1 floater (use ${0} action)', (b) => b.cardName(CardName.TITAN_FLOATING_LAUNCHPAD));
   }
 
+  /** Mirrors `canUse`, one named blocker each. `undefined` = the player doesn't
+   *  own the card, so the option stays hidden (there is nothing to explain). */
+  public disabledReason() {
+    if (this.titanFloatingLaunchPad === undefined) {
+      return undefined;
+    }
+    if ((this.titanFloatingLaunchPad.resourceCount ?? 0) <= 0) {
+      return 'No floaters on this card';
+    }
+    return 'This card\'s action was already used this generation';
+  }
+
   public trade(colony: IColony) {
     // grr I wish there was a simpler syntax.
     if (this.titanFloatingLaunchPad !== undefined) {

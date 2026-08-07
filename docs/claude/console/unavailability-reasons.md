@@ -67,6 +67,77 @@ Guards: `tests/models/standardProjectReasons.spec.ts` (incl. the explainer → `
 the "SERVER reason wins over the client M€ guess" rows in
 `tests/client/components/console/consoleQuickModel.spec.ts`.
 
+## The server sweep — where a reason could go missing, and why it can't now
+
+An exhaustive audit of every server producer of disabled/unavailable state found the
+gaps below. The fixes are deliberately **structural** (one place, can't be forgotten)
+rather than per-call-site.
+
+### Preview branches — the worst offender (18 sites, one fix)
+`ActionPreviewBranch.available:false` with no `unavailableReason`. This is the reason
+the repeat picker, the action confirm modal and the console composers printed
+«Сейчас недоступно» or nothing: those surfaces deliberately ignore the card-level
+`actionReasons` and show the BRANCH reason only. 18 `singleBranch` callers had a
+co-located `actionUnavailableReason` hook and never threaded it.
+**Fix:** `singleBranch` and `dynamic` (`cards/actionPreviews.ts`) now fall back to
+`card.actionUnavailableReason?.(player)` themselves — the same fallback the bespoke
+path in `models/actionPreview.ts` already made. The declarative single-action branch
+there falls back too (its `subAvailability` scan only walks the behavior, so a card
+blocked by a BESPOKE gate collected nothing).
+**Guard:** `tests/models/actionPreviewReasonCoverage.spec.ts` — behavioural, not a
+source sniff: it previews every in-scope action card in a fixture where most are
+blocked and fails listing any branch with a blank reason. Verified to bite (it
+reports exactly those 16 cards when the fallback is removed) and carries
+anti-vacuous floors on cards-walked and branches-blocked.
+
+### Templated reasons losing their params
+`models/cardPlayPreview.ts` sent `unavailableReason` without `unavailableReasonParams`
+(its action-preview twin always did), so «Need ${0} more M€» reached the player with a
+literal, unfilled `${0}`.
+
+### Type-level guarantees (a silent producer becomes a compile error)
+- `DisabledOptionModel.reason` is **required** (`common/models/PlayerInputModel.ts`).
+  All five producers already complied; the type now keeps it that way.
+- `IColonyTrader.disabledReason` returns `string | Message | undefined`, and
+  `undefined` has ONE documented meaning: the player doesn't own the card, so there is
+  nothing to explain. Every other refusal names its blocker.
+
+### Colony trade fee — four card traders that vanished silently
+`TitanFloatingLaunchPad`, `DarksideSmugglersUnion`, `CollegiumCopernicus`,
+`HecateSpeditions` implemented neither `optionMetadata` nor `disabledReason`, and
+`Colonies.ts` gated the disabled row on **both**, so a player who owned the card
+watched their payment path disappear. Each now mirrors its own `canUse` in order
+(no floaters → already used this generation → …), and the gate is the REASON alone;
+metadata stays a presentation extra. Guard: `tests/cards/colonies/colonyTraderReasons.spec.ts`.
+
+### Draft re-pick
+`Draft.ts` disabled the already-chosen card via `enabled` with no parallel reason, so
+the draft screen greyed a card the player picked themselves and said «Недоступна».
+Now sends `enabledReasons` (the option added for Merger).
+
+### Self vanishing from its own picker
+`DecreaseAnyProduction.blockedTargets` walked `opponents` while the candidate list is
+`game.players` — so the VIEWER disappeared from the target picker, unexplained,
+whenever their own production sat at the minimum.
+
+### Known frontier (NOT fixed — needs a Moon-board reasoner)
+`illegalSpaces` is auto-derived only by `createMarsSelectSpace` (Mars-only). Eight
+`SelectSpace` prompts bypass it, so their dimmed cells carry no reason:
+`BasePlaceMoonTile` + `PlaceSpecialMoonTile` (these two cover ALL moon placements),
+`HostileTakeover` ×2, `LunarMineUrbanization`, `Eris` (community), `DesperateMeasures`
+(ares), `RemoveOceanTile` (turmoil). The moon ones need a moon equivalent of
+`MarsBoard.computeIllegalReasons`; the removal/hazard prompts need a `customReasoner`
+plus new `PlacementIllegalReason` members, because the generic placement vocabulary
+("Already has a tile") is nonsense for a prompt asking what to REMOVE. Moon /
+community / turmoil are outside the premium-subsystem scope
+(`docs/claude/expansion-adaptation-checklist.md`).
+
+Also deliberately left: `Player.getActions()` never calls `setDisabledOptions`, so the
+top-level action menu lists only what IS available. The console derives its own
+reasons for those verbs (`turnIntents` / `consoleQuickModel` / `consoleMaModel`), and
+adding a parallel disabled channel there is a larger change to the load-bearing
+"availability = option PRESENCE" contract — worth doing, but not as a side effect.
+
 ## Related fixes in the same pass (2026-08-07)
 - `ConsoleColoniesSection.reasonFor` pinned `myTurn: true, awaitingInput: true`, making rung 3 of
   `colonyTradeReason` always fire and rung 4 unreachable — off-turn players were told «не хватает

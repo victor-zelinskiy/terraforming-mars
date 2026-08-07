@@ -91,6 +91,18 @@ export class TradeWithCollegiumCopernicus implements IColonyTrader {
     return message('Pay ${0} data (use ${1} action)', (b) => b.number(tradeCost(this.player)).cardName(CardName.COLLEGIUM_COPERNICUS));
   }
 
+  /** Mirrors `canUse`. `undefined` = not owned, so the option stays hidden. */
+  public disabledReason() {
+    if (this.collegiumCopernicus === undefined) {
+      return undefined;
+    }
+    const short = tradeCost(this.player) - (this.collegiumCopernicus.resourceCount ?? 0);
+    if (short > 0) {
+      return message('Need ${0} more data', (b) => b.number(short));
+    }
+    return 'This card\'s action was already used this generation';
+  }
+
   public trade(colony: IColony) {
     this.player.actionsThisGeneration.add(CardName.COLLEGIUM_COPERNICUS);
     if (this.collegiumCopernicus !== undefined) {

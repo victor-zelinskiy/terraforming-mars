@@ -64,6 +64,15 @@ export class TradeWithHectateSpeditions implements IColonyTrader {
     return message('Pay ${0} ${1} resources (use ${2} action)', (b) => b.number(this.tradeCost).string('supply chain').cardName(CardName.HECATE_SPEDITIONS));
   }
 
+  /** Mirrors `canUse`. `undefined` = not owned, so the option stays hidden. */
+  public disabledReason() {
+    if (this.hectateSpeditions === undefined) {
+      return undefined;
+    }
+    return message('Need ${0} more supply chain resources',
+      (b) => b.number(this.tradeCost - (this.hectateSpeditions?.resourceCount ?? 0)));
+  }
+
   private tradeWithColony(card: ICard, player: IPlayer, colony: IColony) {
     card.resourceCount -= this.tradeCost;
     player.game.log('${0} spent ${1} ${2} from ${3} to trade with ${4}',

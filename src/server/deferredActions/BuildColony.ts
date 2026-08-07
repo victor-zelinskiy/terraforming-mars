@@ -79,6 +79,12 @@ export class BuildColony extends DeferredAction<IColony> {
     if (colony.name === ColonyName.VENUS || colony.name === ColonyName.EUROPA || colony.name === ColonyName.LEAVITT) {
       return 'Cannot afford the TR increase to build here';
     }
+    // Unreachable for the rule-driven list (the branches above are exhaustive
+    // over getPlayableColonies' filters, and Venus/Europa/Leavitt are the whole
+    // set of TR-costed colonies). It only fires when the CALLER passed a custom
+    // `colonies` subset, where the exclusion is that card's own rule and this
+    // deferred action genuinely cannot name it — so it states no cause it hasn't
+    // verified rather than guessing one.
     return 'Cannot build on this colony right now';
   }
 }

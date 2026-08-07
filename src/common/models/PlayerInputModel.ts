@@ -272,8 +272,12 @@ export type DisabledOptionModel = {
   // Same rich-render metadata as a real option (player chip + icon), so a
   // disabled target looks like a greyed twin of a selectable one.
   metadata?: OptionMetadata;
-  // User-facing reason it can't be picked (already localized key/template).
-  reason?: string | Message;
+  // User-facing reason it can't be picked (an English i18n key/template).
+  // REQUIRED on purpose: a disabled option with no reason forces the client to
+  // paint a bare «Сейчас недоступно», which is the one thing this model exists
+  // to prevent. Making it non-optional turns every silent producer into a
+  // compile error instead of a runtime blank.
+  reason: string | Message;
 }
 
 export type SelectInitialCardsModel = BaseInputModel & {

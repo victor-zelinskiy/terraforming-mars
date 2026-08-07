@@ -570,12 +570,21 @@ export function singleBranch(
   opts: {reveal?: ActionRevealDescriptor, unavailableReason?: string | Message | UnplayableReason} = {},
 ): ActionPreview {
   const available = card.canAct(player);
+  // A blocked branch ALWAYS names its blocker. `opts.unavailableReason` wins when
+  // the hook wants a branch-specific wording; otherwise fall back to the card's
+  // own co-located `actionUnavailableReason` — the same fallback the `dynamic`
+  // path in `models/actionPreview.ts` already makes. Doing it HERE instead of at
+  // each call site is the point: 18 callers had a hook and simply never threaded
+  // it, so their branch reached the client blank and the repeat picker / confirm
+  // modal (which deliberately ignore the card-level reasons) printed «Сейчас
+  // недоступно» or nothing at all. A future card cannot forget this.
+  const reason = available ? undefined : (opts.unavailableReason ?? card.actionUnavailableReason?.(player));
   const branch: ActionPreviewBranch = {
     index: -1,
     title: '',
     available,
-    unavailableReason: available ? undefined : reasonMessage(opts.unavailableReason),
-    unavailableReasonParams: available ? undefined : reasonParams(opts.unavailableReason),
+    unavailableReason: reasonMessage(reason),
+    unavailableReasonParams: reasonParams(reason),
     renderKeys: [],
     effects,
     steps: available ? steps : [],
@@ -699,7 +708,18 @@ export function firstActionBranch(
  * follow-up routing after submit. Honest — the modal shows no false promise.
  */
 export function dynamic(card: ActionCard, player: IPlayer): ActionPreview {
-  return {...base(card), kind: 'dynamic', branches: [{index: -1, title: '', available: card.canAct(player), renderKeys: [], effects: [], steps: []}]};
+  const available = card.canAct(player);
+  // Even the escape hatch explains a refusal — same co-located hook, same
+  // fallback as `singleBranch` and `models/actionPreview.ts`.
+  const reason = available ? undefined : card.actionUnavailableReason?.(player);
+  return {...base(card), kind: 'dynamic', branches: [{
+    index: -1,
+    title: '',
+    available,
+    unavailableReason: reasonMessage(reason),
+    unavailableReasonParams: reasonParams(reason),
+    renderKeys: [], effects: [], steps: [],
+  }]};
 }
 
 /**

@@ -11,8 +11,13 @@ export interface IColonyTrader {
    *  cost + current→resulting). Standard-resource traders supply it; card
    *  traders may omit it (text fallback). */
   optionMetadata?(): OptionMetadata;
-  /** OPTIONAL reason this payment can't be used right now (shown as a DISABLED
-   *  option). Supplied by standard-resource traders so an unaffordable resource
-   *  is shown greyed instead of vanishing. */
-  disabledReason?(): string | Message;
+  /**
+   * Why this payment path can't be used right now — shown as a DISABLED option
+   * so an unusable path is greyed WITH its reason instead of vanishing.
+   *
+   * Returning `undefined` means "show nothing at all", and there is exactly one
+   * honest use for it: the player does not OWN the card this trader belongs to,
+   * so there is no option to explain. Every other refusal must name its blocker.
+   */
+  disabledReason?(): string | Message | undefined;
 }
