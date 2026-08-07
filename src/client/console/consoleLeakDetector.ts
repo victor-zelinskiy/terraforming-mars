@@ -38,6 +38,7 @@ import {isAnimationHoldActive} from '@/client/components/presentation/animationH
 import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
 import {isMandatoryGateHeld} from '@/client/console/consoleMandatoryGate';
 import {resetForegroundWatchdog, runForegroundWatchdog} from '@/client/console/consoleForegroundWatchdog';
+import {stackServes, workspaceStackCollapsed, workspaceSurfacesFor} from '@/client/console/consoleWorkspaceStack';
 
 /** Any of these rendered = SOME surface is serving the prompt. */
 const SERVING_SURFACES: ReadonlyArray<string> = [
@@ -124,35 +125,24 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
 ];
 
 /**
- * Kind-SPECIFIC serving surfaces (CTS T3/T4): a shell-section task is
- * served by its section — but ONLY for its own kind (a hand section open
- * over an unrelated stranded prompt must not mask the guard panel).
+ * Kind-SPECIFIC serving surfaces that are NOT a workspace.
+ *
+ * Every WORKSPACE that serves a prompt is derived from the registry
+ * (`workspaceSurfacesFor` — a new workspace is a row there and nothing else;
+ * this list is invisible to the compiler and would fail only at runtime, as an
+ * amber guard over a screen that works perfectly). What stays here is exactly
+ * what has no frame of its own:
+ *  · `.con-composer--play` — the play-card pre-select composer, a PHASE of the
+ *    hand's frame rather than a workspace;
+ *  · `.con-sheet` — the generic bottom sheet;
+ *  · `.con-played` — the «Разыграно» overlay hosting a TABLEAU pick for a
+ *    hidden play composer (Robotic Workforce under Eccentric Sponsor);
+ *  · `.con-composer--corpfirst` — the corporation first-action confirm modal;
+ *  · `.con-draftwait` — the optional draft re-pick's calm banner.
  */
-const KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
-  // '.con-composer--play' = the native play-card pre-select composer, which
-  // serves the projectCard prompt on top of the hand while it is open.
-  // '.con-stdp' = the P27 premium Standard-Projects screen (ConsoleStdProjectsScreen),
-  // which serves a standalone standard-project prompt (EstablishedMethods'
-  // "Select your first/second standard project"). It replaced the generic
-  // '.con-sheet' for standard projects, so that class alone no longer matches.
-  // '.con-played' = the «Разыграно» overlay hosting a TABLEAU pick for a hidden
-  // play composer (a mandatory play-from-hand whose pre-select targets a played
-  // card — Robotic Workforce under Eccentric Sponsor): the composer is v-show
-  // hidden for the pick's lifetime, so the pick surface is the serving node.
-  projectCard: ['.con-hand', '.con-sheet', '.con-stdp', '.con-composer--play', '.con-played'],
-  // A MANDATORY hand pick (discard / reveal / place) is served by the hand
-  // section in select mode — the same `.con-hand` root as play-from-hand.
-  handSelect: ['.con-hand'],
-  colony: ['.con-colonies'],
-  // FREE award funding (Vitor) is served by the premium awards MA screen.
-  awardFunding: ['.con-ma'],
-  // The corporation's mandatory FIRST ACTION (the player's first turn) is
-  // served by its dedicated confirm modal (ConsoleCorpFirstActionConfirm).
+const EXTRA_KIND_SURFACES: Partial<Record<string, ReadonlyArray<string>>> = {
+  projectCard: ['.con-sheet', '.con-composer--play', '.con-played'],
   corpFirstAction: ['.con-composer--corpfirst'],
-  // T5: the full-screen start scene serves both opening kinds.
-  initialDraft: ['.con-start'],
-  startSequence: ['.con-start'],
-  // Optional draft re-pick → the calm "waiting for others" banner.
   draftWait: ['.con-draftwait'],
 };
 
@@ -257,7 +247,11 @@ export function setConsoleTaskSpacePlacement(active: boolean): void {
  * able to disagree about the answer).
  */
 function anyServingSurfaceRendered(task: ConsoleTask | undefined): boolean {
-  const selectors = [...SERVING_SURFACES, ...(task !== undefined ? KIND_SURFACES[task.kind] ?? [] : [])];
+  const selectors = task === undefined ? SERVING_SURFACES : [
+    ...SERVING_SURFACES,
+    ...workspaceSurfacesFor(task.kind),
+    ...(EXTRA_KIND_SURFACES[task.kind] ?? []),
+  ];
   return selectors.some((sel) => {
     const el = document.querySelector(sel);
     return el !== null && (el as HTMLElement).getClientRects().length > 0;
@@ -354,6 +348,16 @@ export function runLeakDetection(view: PlayerViewModel | undefined): void {
   // surface and returns on B, but it is deliberately hidden while the player
   // browses off the board home, so there is no serving DOM node to match then.
   if (consoleTaskDeferred) {
+    clearStranded();
+    return;
+  }
+  // A PARKED WORKSPACE STACK is the same fact stated structurally: the frames
+  // that serve this prompt are alive, merely hidden while the player reads the
+  // board, and the board-home card is their door. Plain TS, read straight from
+  // the model — no mirror to keep in sync, no round trip through the shell.
+  // Deliberately only while PARKED: a frame that is supposed to be on screen
+  // and is not is exactly the strand this detector exists to shout about.
+  if (task !== undefined && workspaceStackCollapsed() && stackServes(task.kind)) {
     clearStranded();
     return;
   }

@@ -263,7 +263,7 @@
     </div><!-- /__browse -->
 
     <!-- ── THE EMBEDDED STAGE — the TELEPORT TARGET the shell's ONE
-         ConsolePlayCardConfirm re-homes into (consoleWorkspaceStage). The very
+         ConsolePlayCardConfirm re-homes into (consoleWorkspaceStack). The very
          same instance that used to stand as its own band renders HERE, in
          embedded dress: same captures, same payment, same submit path, same
          command contract, same zoom routing. A nested second instance would
@@ -311,7 +311,7 @@
 import {defineComponent, PropType, markRaw} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
-import {setWorkspaceStageSlot} from '@/client/console/consoleWorkspaceStage';
+import {setWorkspaceFrameSlot} from '@/client/console/consoleWorkspaceStack';
 import {
   handStageEnterHook,
   handStageLeaveHook,
@@ -717,7 +717,7 @@ export default defineComponent({
       // anyone can look for it.
       flush: 'post',
       handler(on: boolean) {
-        setWorkspaceStageSlot(on ? '[data-embed-slot="hand-play"]' : '');
+        setWorkspaceFrameSlot('hand', on ? '[data-embed-slot="hand-play"]' : '');
       },
     },
     index() {
@@ -1013,7 +1013,7 @@ export default defineComponent({
     // Retract the target HERE, never from the flow side: a stale selector
     // teleports the next surface into a detached node, and the unmount watcher
     // does not fire (Vue tears the component down before its watchers run).
-    setWorkspaceStageSlot('');
+    setWorkspaceFrameSlot('hand', '');
     this.ro?.disconnect();
     if (this.rafScroll !== undefined) {
       cancelAnimationFrame(this.rafScroll);

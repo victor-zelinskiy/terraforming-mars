@@ -22,8 +22,16 @@ import {
   setWorkspaceFrameStage,
   stackServes,
   truncateWorkspaceStack,
+  closeWorkspaceRoot,
+  closeWorkspaceSheet,
+  workspaceFrameHasNested,
+  workspaceFrameHost,
   workspaceFrameIndex,
+  workspaceFrameIsOverlay,
   workspaceFrameMounted,
+  workspaceFrameRenders,
+  workspaceHostForStep,
+  workspaceSurfacesFor,
   workspaceFrameRoot,
   workspaceFrameSelector,
   workspaceFrameTarget,
@@ -557,7 +565,7 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     expect(data.frames).to.have.length(2);
     for (const frame of data.frames) {
       expect(Object.keys(frame).sort()).to.deep.eq(
-        ['anchor', 'kind', 'phase', 'serves', 'stage', 'subject']);
+        ['anchor', 'kind', 'overlay', 'phase', 'serves', 'stage', 'subject']);
     }
   });
 
@@ -628,5 +636,188 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     resetWorkspaceStack();
     expect(hydrateWorkspaceStack(data, () => true)).to.eq(0);
     expect(hydrateWorkspaceStack(undefined, () => true)).to.eq(0);
+  });
+  // -- STAGE B: what the shell now leans on ---------------------------------
+
+  /*
+   * THE ONE FORM OF the-chain-is-not-over-yet. The shell carried FIVE
+   * hand-written copies of this question, each spelling out a different subset
+   * of latch + prompt + transaction flags; the soft-lock was one of them
+   * disagreeing with another, and the sixth copy was simply never written.
+   */
+  it('a host knows when something is standing inside it - one predicate, not five', () => {
+    openHandPlayingTradingColony();
+    expect(workspaceFrameHasNested('hand'), 'nothing inside it yet').to.eq(false);
+    addColonyStep();
+    expect(workspaceFrameHasNested('hand')).to.eq(true);
+    expect(workspaceFrameHasNested('colonies'), 'the top frame hosts nothing').to.eq(false);
+    leaveWorkspace();
+    expect(workspaceFrameHasNested('hand'), 'the chain is over now').to.eq(false);
+  });
+
+  /*
+   * INVARIANT 1, as the surfaces actually ask it. A nested frame renders NOWHERE
+   * until its host zone genuinely stands (embed rule 4) - never in its own band
+   * first, which is the modal-then-embed flash the architecture removes.
+   */
+  it('a surface renders only when its host zone is really standing', () => {
+    openHandPlayingTradingColony();
+    expect(workspaceFrameRenders('hand'), 'the root stands in its own band').to.eq(true);
+    addColonyStep();
+    expect(workspaceFrameRenders('colonies'), 'claimed, zone not up: nowhere').to.eq(false);
+    setWorkspaceFrameSlot('hand', '[data-embed-slot="hand-play"]');
+    expect(workspaceFrameRenders('colonies')).to.eq(true);
+    collapseWorkspaceStack();
+    expect(workspaceFrameRenders('hand'), 'a parked stack shows nothing').to.eq(false);
+    expect(workspaceFrameRenders('colonies')).to.eq(false);
+  });
+
+  /*
+   * THE PICK BRIDGE. A composer asks the real hand for a card: the hand takes
+   * the screen and the composer waits UNDERNEATH with its captures intact. It
+   * is still a frame relationship - both projections are exactly what the old
+   * two-axis juggling produced - but there is no zone to wait for, so the
+   * overlay must not be held off screen.
+   */
+  it('an OVERLAY frame stands over its host instead of inside it', () => {
+    pushWorkspaceFrame({
+      kind: 'card-actions', subject: '', stage: '', phase: 'configure',
+      serves: [], anchor: ALWAYS,
+    });
+    pushWorkspaceFrame({
+      kind: 'hand', subject: '', stage: '', phase: 'browse',
+      serves: ['projectCard'], anchor: ALWAYS, overlay: true,
+    });
+    expect(workspaceFrameIsOverlay('hand')).to.eq(true);
+    expect(workspaceFrameTarget('hand'), 'never teleported').to.eq(undefined);
+    expect(workspaceFrameRenders('hand'), 'and never held off screen').to.eq(true);
+    expect(workspaceStackSection(), 'the player sees the hand').to.eq('hand');
+    expect(workspaceStackSheet(), 'the composer is still open under it').to.eq('cardActions');
+    leaveWorkspace();
+    expect(workspaceFrameMounted('card-actions'), 'the origin was never left').to.eq(true);
+  });
+
+  /*
+   * THE CONTINUATION RULE, stated once. Inside the start's play-from-hand
+   * prelude a played card's SelectColony belongs to the CARD-PLAY step, not to
+   * the start - so the colonies land one level deeper in the SAME chain.
+   * Getting this wrong used to overwrite the sponsor claim and show the start
+   * screen with the project effect still unresolved.
+   */
+  it('a follow-up belongs to the NEAREST live step, never the outermost root', () => {
+    expect(workspaceHostForStep(), 'nothing open: it is a screen of its own').to.eq(undefined);
+    pushWorkspaceFrame({
+      kind: 'start', subject: 'Eccentric Sponsor', stage: '', phase: 'browse',
+      serves: ['startSequence'], anchor: {type: 'phase', phase: 'preludes'},
+    });
+    expect(workspaceHostForStep(), 'the start hosts always').to.eq('start');
+    pushWorkspaceFrame({
+      kind: 'hand', subject: '', stage: '', phase: 'browse',
+      serves: ['projectCard'], anchor: ALWAYS,
+    });
+    // …and NOT the start any more: a step teleports into the zone of the frame
+    // IMMEDIATELY below it, so naming a deeper ancestor would hand it a zone it
+    // can never reach — it would render nowhere, forever.
+    expect(workspaceHostForStep(), 'a BROWSE hand hosts nothing, and hides the start').to.eq(undefined);
+    descendWorkspaceFrame('hand', 'Trading Colony', 'Playing');
+    expect(workspaceHostForStep(), 'now the card-play step owns the follow-up').to.eq('hand');
+  });
+
+  /*
+   * A PHASE-anchored root is not part of any flow - it IS the game phase, so a
+   * step inside it can never finish it. Unwinding it on a placement mid
+   * deployment is what would read as "the start screen is gone" with the
+   * deployment still owed.
+   */
+  it('going home unwinds every flow but yields to a phase-anchored root', () => {
+    pushWorkspaceFrame({
+      kind: 'start', subject: '', stage: '', phase: 'browse',
+      serves: ['startSequence'], anchor: {type: 'phase', phase: 'preludes'},
+    });
+    pushWorkspaceFrame({
+      kind: 'hand', subject: '', stage: '', phase: 'browse',
+      serves: ['projectCard'], anchor: ALWAYS,
+    });
+    goBoardHome();
+    expect(workspaceStackDepth(), 'the opening survives its own step').to.eq(1);
+    expect(workspaceFrameIndex('start')).to.eq(0);
+    // ...and a lateral move does not end it either.
+    enterWorkspace('colonies');
+    expect(workspaceFrameIndex('start')).to.eq(0);
+    expect(workspaceFrameHost('colonies')).to.eq('start');
+    resetWorkspaceStack();
+    enterWorkspace('hand');
+    goBoardHome();
+    expect(workspaceStackDepth(), 'an ordinary flow goes all the way home').to.eq(0);
+  });
+
+  /*
+   * …but its OWN lifecycle owner must still be able to end it. Protecting a
+   * phase root from `goBoardHome` AND from the watcher that owns it means the
+   * frame can never be dropped at all — the start scene stays mounted over the
+   * rest of the game, which is a far louder bug than the one being prevented.
+   */
+  it('a phase-anchored root still ends when its OWN anchor dies', () => {
+    pushWorkspaceFrame({
+      kind: 'start', subject: '', stage: '', phase: 'browse',
+      serves: ['startSequence'], anchor: {type: 'phase', phase: 'preludes'},
+    });
+    pushWorkspaceFrame({
+      kind: 'hand', subject: '', stage: '', phase: 'browse',
+      serves: ['projectCard'], anchor: ALWAYS,
+    });
+    closeWorkspaceRoot('start');
+    expect(workspaceStackDepth(), 'it takes its whole chain with it').to.eq(0);
+    // Idempotent: a kind that is not in the stack is simply nothing to close.
+    closeWorkspaceRoot('start');
+    expect(workspaceStackDepth()).to.eq(0);
+  });
+
+  /*
+   * closeConsoleLayers()'s sheet half - registry-driven, which is why the hydro
+   * pick needs no stayInSection special case any more.
+   */
+  it('closing the sheets uncovers the screen beneath them', () => {
+    enterWorkspace('hydro');
+    pushWorkspaceFrame({
+      kind: 'hydro-pick', subject: '', stage: '', phase: 'configure',
+      serves: [], anchor: ALWAYS, overlay: true,
+    });
+    expect(workspaceStackSheet()).to.eq('hydroPick');
+    closeWorkspaceSheet();
+    expect(workspaceStackSheet()).to.eq(undefined);
+    expect(workspaceStackSection(), 'the track it was opened from').to.eq('hydro');
+    closeWorkspaceSheet();
+    expect(workspaceStackSection(), 'a section frame is not a sheet').to.eq('hydro');
+  });
+
+  /*
+   * Un-parking a stack that was never parked must not clear the slots: the
+   * hosts are already mounted and would never re-publish, so a live teleport
+   * would lose its target for good.
+   */
+  it('restore is idempotent - it never clears a live slot', () => {
+    openHandPlayingTradingColony();
+    addColonyStep();
+    setWorkspaceFrameSlot('hand', '[data-embed-slot="hand-play"]');
+    restoreWorkspaceStack();
+    expect(workspaceFrameTarget('colonies')).to.eq('[data-embed-slot="hand-play"]');
+    collapseWorkspaceStack();
+    restoreWorkspaceStack();
+    expect(workspaceFrameTarget('colonies'), 'a real un-park re-asks for the zone').to.eq(undefined);
+  });
+
+  /*
+   * The leak detector per-kind probe comes from the registry: adding a
+   * workspace must not also mean adding a row to a list the compiler cannot
+   * see, which fails only at runtime as an amber guard over a working screen.
+   */
+  it('the detector probes are derived from the registry, not re-listed', () => {
+    expect(workspaceSurfacesFor('colony')).to.deep.eq([workspaceFrameSelector('colonies')]);
+    expect(workspaceSurfacesFor('handSelect')).to.deep.eq([workspaceFrameSelector('hand')]);
+    expect(workspaceSurfacesFor('projectCard')).to.have.members(
+      [workspaceFrameSelector('hand'), workspaceFrameSelector('standard-projects')]);
+    expect(workspaceSurfacesFor('awardFunding')).to.deep.eq([workspaceFrameSelector('awards')]);
+    expect(workspaceSurfacesFor('payment'), 'no workspace claims it').to.deep.eq([]);
   });
 });

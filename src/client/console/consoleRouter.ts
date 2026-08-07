@@ -18,6 +18,9 @@
 import {reactive} from 'vue';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {HandTagFilter} from '@/client/components/console/consoleHandFilter';
+import {
+  closeWorkspaceSheet, workspaceStackSection, workspaceStackSheet,
+} from '@/client/console/consoleWorkspaceStack';
 
 export type ConsoleSection = 'board' | 'hand' | 'colonies' | 'hydro';
 export type ConsoleSheetId = 'milestones' | 'awards' | 'cardActions' | 'standardProjects' | 'hydroPick';
@@ -28,7 +31,30 @@ export type ConsoleQuickId = 'actions' | 'basics';
 export const CONSOLE_SECTIONS: ReadonlyArray<ConsoleSection> = ['board', 'hand'];
 
 export const consoleState = reactive({
-  section: 'board' as ConsoleSection,
+  /**
+   * WHERE THE PLAYER IS — a PROJECTION of the workspace stack, never a field.
+   *
+   * `section` and `sheet` used to be two of the five parallel answers to «where
+   * am I», and `consoleState.section = X` was the console's whole navigation
+   * vocabulary — a LOSSY verb that could not tell «park this, I want to read
+   * the board» from «this flow is finished» from «take me to that screen». All
+   * three wrote `'board'`, so every reader re-guessed, and B — the one button
+   * whose job is to answer exactly that question — guessed differently from the
+   * branch beside it. Navigation now goes through the stack's VERBS
+   * (`enterWorkspace` / `goBoardHome` / `collapseWorkspaceStack` / …) and these
+   * two are read-only reads of the DEEPEST projecting frame, which is what
+   * makes «the player drives the surface they SEE» true by construction rather
+   * than by a per-case `…Embedded` flag.
+   *
+   * Getter-only on purpose: an assignment is a compile error, so a re-introduced
+   * `consoleState.section = 'board'` cannot ship.
+   */
+  get section(): ConsoleSection {
+    return workspaceStackSection();
+  },
+  get sheet(): ConsoleSheetId | undefined {
+    return workspaceStackSheet();
+  },
   /** Hand grid selection position (per-section memory). */
   handIndex: 0,
   /** Hand tag filter (LT/RT cycle, R3 reset). `'all'` = no narrowing. */
@@ -51,7 +77,6 @@ export const consoleState = reactive({
   trackMarker: undefined as string | undefined,
   /** P27: the open quick selector (RT = categories / LT = basic actions). */
   quick: undefined as ConsoleQuickId | undefined,
-  sheet: undefined as ConsoleSheetId | undefined,
   sheetIndex: 0,
   confirm: undefined as ConsoleConfirmKind | undefined,
   /** Sell-patents mode of the hand carousel (A toggles, X confirms). */
@@ -120,7 +145,10 @@ export function clearCardBrowserPicks(): void {
  */
 export function closeConsoleLayers(): void {
   consoleState.quick = undefined;
-  consoleState.sheet = undefined;
+  // The SHEET half is a stack operation now: pop the sheet-shaped frames and
+  // leave whatever full screen stands under them (registry-driven — see
+  // `closeWorkspaceSheet`).
+  closeWorkspaceSheet();
   consoleState.sheetIndex = 0;
   consoleState.confirm = undefined;
   consoleState.sale.active = false;

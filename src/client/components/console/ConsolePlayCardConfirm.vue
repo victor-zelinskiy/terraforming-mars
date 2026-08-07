@@ -470,7 +470,7 @@ import {
   paymentCovers, paymentFromCounts, PaymentLane, paymentLanes, projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
 import {setConsolePlayCardCommands, resetConsolePlayCardUi} from '@/client/console/consolePlayCardUi';
-import {setWorkspaceStageName} from '@/client/console/consoleWorkspaceStage';
+import {setWorkspaceFrameStage} from '@/client/console/consoleWorkspaceStack';
 import {handStageReveal} from '@/client/console/consoleHandStageMotion';
 import {takeHandPlayPreview, storeHandPlayPreview, playPreviewUrl} from '@/client/console/consoleHandPlayPrewarm';
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
@@ -579,7 +579,7 @@ export default defineComponent({
     cardName: {type: String as PropType<CardName>, required: true},
     input: {type: Object as PropType<SelectProjectCardToPlayModel>, required: true},
     /**
-     * RE-HOMED into a workspace's stage zone (`consoleWorkspaceStage`). Mirrors
+     * RE-HOMED into a workspace's own zone (`consoleWorkspaceStack`). Mirrors
      * `ConsoleTaskHost.embedded` / `ConsolePlayedOverlay.embedded`: the band
      * geometry, the plate, the own header and the motion-surface id come off;
      * the logic, the captures, the payment, the command contract and the input
@@ -1392,7 +1392,7 @@ export default defineComponent({
       immediate: true,
       handler(key: string) {
         if (this.embedded) {
-          setWorkspaceStageName(key);
+          setWorkspaceFrameStage('hand', key);
         }
       },
     },

@@ -16,8 +16,6 @@ describe('shellTaskOnSurface — where a shell-section task is answered', () => 
     section: 'board',
     sheet: undefined,
     corpFirstActionOpen: false,
-    handEmbedded: false,
-    coloniesEmbedded: false,
     ...over,
   });
 
@@ -37,12 +35,16 @@ describe('shellTaskOnSurface — where a shell-section task is answered', () => 
   /**
    * «Эпатажный спонсор»: the hand is hosted INSIDE the Game Start Workspace,
    * so being in the start IS being on the hand — one place, not two. Without
-   * this row the player would be told to go to a screen they are standing on.
+   * that the player would be told to go to a screen they are standing on.
+   *
+   * There used to be a `handEmbedded` FLAG for this, because `section` lied
+   * while a screen was hosted as somebody's step. It is a projection of the
+   * workspace stack now (the deepest projecting frame wins), so the hosted
+   * hand simply reports `'hand'` and there is nothing extra to vouch for it.
    */
   it('…and INSIDE the Game Start Workspace that is the same place', () => {
-    expect(shellTaskOnSurface(playFromHand, at({section: 'hand', handEmbedded: true}))).to.eq(true);
-    // Even mid-transition, before the section has settled on 'hand'.
-    expect(shellTaskOnSurface(playFromHand, at({section: 'board', handEmbedded: true}))).to.eq(true);
+    expect(shellTaskOnSurface(playFromHand, at({section: 'hand'}))).to.eq(true);
+    expect(shellTaskOnSurface(playFromHand, at({section: 'board'}))).to.eq(false);
   });
 
   it('a standard project is answered on ITS SHEET, not merely on the board', () => {
@@ -56,9 +58,6 @@ describe('shellTaskOnSurface — where a shell-section task is answered', () => 
   it('a mandatory hand pick is answered on the hand', () => {
     expect(shellTaskOnSurface({kind: 'handSelect'}, at({section: 'hand'}))).to.eq(true);
     expect(shellTaskOnSurface({kind: 'handSelect'}, at({section: 'board'}))).to.eq(false);
-    // …and the sponsor embed does NOT vouch for it: that flag is about the
-    // play-from-hand step only.
-    expect(shellTaskOnSurface({kind: 'handSelect'}, at({section: 'board', handEmbedded: true}))).to.eq(false);
   });
 
   it('a colony pick is answered on the colonies rail', () => {
@@ -67,17 +66,17 @@ describe('shellTaskOnSurface — where a shell-section task is answered', () => 
   });
 
   /**
-   * …and an EMBEDDED colony step is that same place: the section is teleported
+   * …and an EMBEDDED colony step is that same place: the rail is teleported
    * INTO the workspace the player is standing in (a played card's / a
-   * prelude's SelectColony), whatever `section` says. Without this row the
-   * banner painted «ВЫБЕРИТЕ КОЛОНИЮ» straight across the host's breadcrumb
-   * tail — a second title over the very screen the prompt IS.
+   * prelude's SelectColony). Once the section projects the DEEPEST frame that
+   * is simply what it says — the `coloniesEmbedded` flag that used to carry it
+   * is gone with the lie it compensated for. Without it the banner painted
+   * «ВЫБЕРИТЕ КОЛОНИЮ» straight across the host's breadcrumb tail.
    */
   it('an EMBEDDED colony step is the same place — no banner over its host', () => {
-    expect(shellTaskOnSurface({kind: 'colony'}, at({section: 'hand', coloniesEmbedded: true}))).to.eq(true);
-    expect(shellTaskOnSurface({kind: 'colony'}, at({section: 'board', coloniesEmbedded: true}))).to.eq(true);
-    // The flag is the COLONIES' own: it never answers another kind.
-    expect(shellTaskOnSurface({kind: 'handSelect'}, at({section: 'board', coloniesEmbedded: true}))).to.eq(false);
+    expect(shellTaskOnSurface({kind: 'colony'}, at({section: 'colonies'}))).to.eq(true);
+    // …and the colonies never answer for another kind.
+    expect(shellTaskOnSurface({kind: 'handSelect'}, at({section: 'colonies'}))).to.eq(false);
   });
 
   it('free award funding is answered on the awards sheet', () => {

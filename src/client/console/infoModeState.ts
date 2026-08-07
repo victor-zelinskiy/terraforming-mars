@@ -17,7 +17,7 @@
 
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
-import {consoleState, ConsoleSection, ConsoleSheetId} from '@/client/console/consoleRouter';
+import {consoleState} from '@/client/console/consoleRouter';
 
 // 'played' and 'vp' are SHARED details (they survive an LB/RB seat switch —
 // the embedded «Разыграно» table simply re-reads the inspected seat). The
@@ -26,10 +26,16 @@ import {consoleState, ConsoleSection, ConsoleSheetId} from '@/client/console/con
 // human extras/actions/effects don't exist for it.
 export type InfoDetail = 'extras' | 'actions' | 'effects' | 'vp' | 'played' | 'botBoard' | 'botBonus';
 
-/** What LT-open captures and LT-close restores. */
+/**
+ * What LT-open captures and LT-close restores.
+ *
+ * WHERE the player stands is NOT in here any more: `section` / `sheet` are
+ * projections of the workspace stack, and Info Mode renders OVER whatever is
+ * open without touching it — so the screen is still exactly where it was when
+ * the mode closes, and there is nothing to put back. Only the transient
+ * CURSORS (which row, which card, which cell, which sale picks) need saving.
+ */
 export type ConsoleContextSnapshot = {
-  section: ConsoleSection,
-  sheet: ConsoleSheetId | undefined,
   sheetIndex: number,
   handIndex: number,
   boardSpaceId: string | undefined,
@@ -59,8 +65,6 @@ export const infoModeState = reactive({
 /** PURE-ish: capture the current console navigation context. */
 export function captureConsoleSnapshot(cellFocused: boolean): ConsoleContextSnapshot {
   return {
-    section: consoleState.section,
-    sheet: consoleState.sheet,
     sheetIndex: consoleState.sheetIndex,
     handIndex: consoleState.handIndex,
     boardSpaceId: consoleState.boardSpaceId,
@@ -79,8 +83,6 @@ export function captureConsoleSnapshot(cellFocused: boolean): ConsoleContextSnap
  * degrades to the nearest valid selection instead of a broken state.
  */
 export function restoreConsoleSnapshot(snap: ConsoleContextSnapshot): boolean {
-  consoleState.section = snap.section;
-  consoleState.sheet = snap.sheet;
   consoleState.sheetIndex = snap.sheetIndex;
   consoleState.handIndex = snap.handIndex;
   consoleState.boardSpaceId = snap.boardSpaceId;

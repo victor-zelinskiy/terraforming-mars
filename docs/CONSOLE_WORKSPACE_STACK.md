@@ -1,9 +1,10 @@
 # THE CONSOLE WORKSPACE STACK — one model of depth
 
 *(Started 2026-08-07. Module: `src/client/console/consoleWorkspaceStack.ts`, spec
-`tests/client/components/console/consoleWorkspaceStack.spec.ts`. Status: the model is landed
-and tested; the shell has NOT been migrated onto it yet. Read this before touching workspace
-navigation, `consoleState.section`, or any of the `consoleWorkspace*` modules.)*
+`tests/client/components/console/consoleWorkspaceStack.spec.ts` (44 tests). **Status: stages A
+and B are DONE — the shell runs on the stack, `consoleWorkspaceStage.ts` and
+`consoleWorkspaceEmbed.ts` are deleted.** Read this before touching workspace navigation,
+`consoleState.section`, or any of the `consoleWorkspace*` modules.)*
 
 ## Why this exists
 
@@ -332,3 +333,105 @@ the same one whose colony branch produces the soft-lock.
 >
 > The original intent stays right: do not patch a C/D spec to make it pass. But do not assume the
 > whole cluster is an app defect either — that assumption was made too early here.
+
+---
+
+## STAGE B — LANDED (2026-08-07)
+
+The shell no longer has a navigation vocabulary of its own. What actually shipped, against
+the plan above:
+
+### The five parallel models are two
+
+`consoleWorkspaceStage.ts` (213 lines) and `consoleWorkspaceEmbed.ts` (149 lines) are
+**deleted**, not facaded. Their two ideas turned out to be the same idea one level apart and
+both are now properties of a frame:
+
+| was | is |
+|---|---|
+| `workspaceStageState.{host,subject,stage,phase}` | the HAND frame's `subject` / `stage` / `phase` — a descent is a PHASE of a frame, never a second frame |
+| `workspaceStageState.slot` + `workspaceEmbedState.slot` | ONE `frame.slot`: the zone a frame publishes for whatever stands inside it |
+| `workspaceEmbedState.{host,surface}` | `workspaceFrameHost(kind)` — the frame directly below |
+| `workspaceEmbedState.source` | the host frame's `subject` |
+| `workspaceEmbedState.committing` | the host frame's phase past the commit boundary |
+| `colonyEmbedLatch` + `colonyEmbedHostKind` + `colonyOpenedByPrompt` | the colonies FRAME and its `anchor` |
+| `handPickReturn` | the frame UNDER the pick's overlay hand — it was never anywhere else |
+
+`consoleState.section` / `.sheet` are **getter-only projections** of the stack. That is the
+guard the plan wanted from a grep spec (B.3), enforced by the compiler instead: an assignment
+is `TS2540: Cannot assign to 'section' because it is a read-only property`, so the migration
+work-list was *produced by the compiler* rather than by reading 10 000 lines.
+
+### The verbs
+
+All 44 assignments are gone. `section = 'board'` split into `goBoardHome()` (17 sites),
+`leaveWorkspace()`, `collapseWorkspace()` and `enterWorkspace(kind)`; `sheet = X` became
+`openSheet(kind)` / `closeWorkspaceSheet()`; `sheet = undefined` became `leaveWorkspace()`.
+`infoModeState`'s snapshot dropped both fields — Info Mode renders OVER the stack and never
+moved it, so there was never anything to restore.
+
+**`stayInSection` disappeared exactly as predicted** — the hydro pick is a frame pushed on the
+hydro track, so B uncovers the track by construction.
+
+### The five guard copies are one
+
+`workspaceFrameHasNested(kind)` — «is anything standing inside me». `ConsoleShell.vue:3162,
+5326, 5399, 5498, 5616` are gone: `:5399` (the `section` watcher's `closeWorkspaceStage()` arm
+plus its `colonyEmbedLatch && colonyFollowUpLive` guard) was deleted outright, because the
+write it protected no longer happens.
+
+### Two rules that had to be added, and why
+
+1. **`goBoardHome()` keeps a PHASE-anchored root.** A placement mid-deployment, a scale
+   ceremony, a hand-select submit — all of them wrote `section = 'board'`, which never touched
+   the full-bleed start scene. Unwinding it would have read as «the start screen is gone» with
+   the deployment still owed. Same rule makes `enterWorkspace` (a lateral move) stand OVER the
+   opening instead of ending it.
+2. **`overlay: true` frames.** The client pick bridge (a composer asking the real hand for a
+   card) is a frame relationship — both projections come out exactly as the old two-axis
+   juggling produced them — but it has no zone to wait for, so it must not be held off screen
+   by the ownership≠readiness rule.
+
+### The reload, and the one derivation that had to stay
+
+`console-start-sponsor`'s «the step survives a reload» is the contract that forbids a purely
+event-driven stack in stage B: a reload wipes the module-level lifetime hold, so `startFrameLive`
+keeps the old server-truth fallback (`game.phase === PRELUDES` + a live play-from-hand ⇒ the
+start workspace is the host). It is now ONE branch in one computed instead of a term inside a
+40-line claim. Stage D's persistence is what finally removes it.
+
+### Measured
+
+| | before | after |
+|---|---|---|
+| `ConsoleShell.vue` | 9 979 | 9 907 |
+| `consoleWorkspaceStage.ts` + `consoleWorkspaceEmbed.ts` | 362 | **0** |
+| `consoleWorkspaceStack.ts` | 872 | 1 100 |
+| stack spec | 36 tests | 45 tests |
+| `src/` overall | — | **−179 lines** |
+
+The shell's *net* −72 understates the change badly: ~140 lines of what remains are the new
+verb methods and the rationale for each, while what left is latches, mirror watchers, branch
+chains and two whole second copies of a screen's input grammar.
+
+**e2e:** full suite **107 / 123** (baseline 71 / 123). The 36-file must-stay-green list runs
+**51 / 51**. Every remaining red is either a pre-existing one from the baseline or the
+separately-tracked `console-blue-action-purchase · tv4k`; two placement-source specs flake
+under 3–4 workers and pass in isolation.
+
+### Also removed on the way
+
+`shellTaskOnSurface`'s `handEmbedded` / `coloniesEmbedded` flags (`consoleTaskRouter.ts`) —
+they existed only because `section` lied while a screen was hosted; the projection tells the
+truth, so both are gone with their spec rows. The leak detector's `KIND_SURFACES` is now
+derived from the registry (`workspaceSurfacesFor`), so a new workspace can no longer be missed
+by a list the compiler cannot see.
+
+### What stage B deliberately did NOT do
+
+The anchor reconciler (C), persistence (D) and stripping `consoleWorkspaceOutcome` (E) are
+untouched. `consoleState.task.deferred` is still its own field: a parked STACK and a minimized
+PROMPT are genuinely orthogonal (the player can walk into the colonies while a host task waits),
+so merging them would have been the same mistake in the other direction. `collapseWorkspace()`
+sets both atomically, and `mandatoryDeferredActive` now also answers yes for a parked stack —
+which is what makes the reported soft-lock's way back unconditional.

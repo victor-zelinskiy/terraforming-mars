@@ -480,7 +480,7 @@ import {
   resetActionFocusMotion,
 } from '@/client/console/consoleActionFocusMotion';
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
-import {workspaceEmbedActive} from '@/client/console/consoleWorkspaceEmbed';
+import {workspaceFrameHost} from '@/client/console/consoleWorkspaceStack';
 import {backVerbFor, WorkspacePhase, workspacePhaseOf} from '@/client/console/consoleWorkspaceFlow';
 import {
   claimWorkspaceOutcome,
@@ -491,7 +491,8 @@ import {
   workspaceOutcomeAdmits,
   workspaceOutcomeClaimed,
   workspaceOutcomeState,
-  WorkspaceOutcomeKind} from '@/client/console/consoleWorkspaceOutcome';
+  WorkspaceOutcomeKind,
+} from '@/client/console/consoleWorkspaceOutcome';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import ConsoleActionComposer, {ComposerOutcome} from '@/client/components/console/ConsoleActionComposer.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
@@ -748,7 +749,7 @@ export default defineComponent({
       // A SelectColony follow-up HOSTED here: the crumb's tail is the step —
       // «ДЕЙСТВИЯ КАРТ › <карта> › КОЛОНИИ» (the embedded section never
       // titles itself — rule 5).
-      if (workspaceEmbedActive('colonies', 'card-actions')) {
+      if (workspaceFrameHost('colonies') === 'card-actions') {
         return 'Colonies';
       }
       const kind = this.outcomeFlow?.kind;
@@ -770,7 +771,7 @@ export default defineComponent({
     /** A SelectColony follow-up is hosted in the composer's outcome zone —
      *  the crumb goes amber (post-commit) and names the step. */
     colonyStepHosted(): boolean {
-      return workspaceEmbedActive('colonies', 'card-actions');
+      return workspaceFrameHost('colonies') === 'card-actions';
     },
     /** Total variants of the focused card (the header's «Вариант N/M» chip);
      *  1 hides the chip (single-action card / a Viron repeat with no node). */

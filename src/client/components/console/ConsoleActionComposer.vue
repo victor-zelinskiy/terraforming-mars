@@ -638,7 +638,7 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {workspaceEmbedActive, setWorkspaceEmbedSlot} from '@/client/console/consoleWorkspaceEmbed';
+import {setWorkspaceFrameSlot, workspaceFrameHost} from '@/client/console/consoleWorkspaceStack';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {actionCommitState, armActionCommit, commitKindForBranch, commitRewardSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
 import {ActionCommitMotionHandle, COMMIT_HANDOFF_AT_MS, pulseDeckPile, resolveActionCommitAnchors, resolveGainIconOrigins, runActionCommitMotion} from '@/client/console/consoleActionCommitMotion';
@@ -1241,7 +1241,7 @@ export default defineComponent({
     /** A SelectColony this activation raised is HOSTED here — the colonies
      *  section teleports into the outcome column (workspace-embed). */
     colonyStepOn(): boolean {
-      return workspaceEmbedActive('colonies', 'card-actions');
+      return workspaceFrameHost('colonies') === 'card-actions';
     },
     /** Still waiting: the zone is standing but nothing has been re-homed yet. */
     outcomePendingBeat(): boolean {
@@ -1712,7 +1712,7 @@ export default defineComponent({
     colonyStepOn: {
       flush: 'post' as const,
       handler(on: boolean) {
-        setWorkspaceEmbedSlot(on ? '[data-embed-slot="action-colonies"]' : '');
+        setWorkspaceFrameSlot('card-actions', on ? '[data-embed-slot="action-colonies"]' : '');
       },
     },
     /**
@@ -1897,7 +1897,7 @@ export default defineComponent({
     setWorkspaceOutcomeSlot('');
     // Same for the colonies-step zone (embed rule 4, the retract half).
     if (this.colonyStepOn) {
-      setWorkspaceEmbedSlot('');
+      setWorkspaceFrameSlot('card-actions', '');
     }
     resetOutcomeOrigin();
     if (this.revealGainPopTimer !== undefined) {

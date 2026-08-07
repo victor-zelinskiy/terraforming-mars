@@ -160,7 +160,7 @@
            one input path, one set of captures — never a second copy and
            never a picker standing in for the player's real hand. -->
       <Teleport :to="handEmbedTarget ?? 'body'" :disabled="handEmbedTarget === undefined">
-      <ConsoleHandSection v-if="consoleState.section === 'hand' && !handHeldForWorkspace"
+      <ConsoleHandSection v-if="workspaceFrameRenders('hand')"
                           ref="handSection"
                           :embedded="handEmbedTarget !== undefined"
                           :entries="handEntries"
@@ -191,10 +191,10 @@
              trade pick, a blue action's free trade): the very same instance is
              TELEPORTED into that workspace's zone and wears its shell
              (`:embedded`) — one instance, one input path, one set of captures
-             (workspace-embed rules 1-4; `coloniesHeldForWorkspace` covers the
+             (workspace-embed rules 1-4; `workspaceFrameRenders` covers the
              claim-to-slot gap frame). -->
         <Teleport :to="colonyEmbedTarget ?? 'body'" :disabled="colonyEmbedTarget === undefined">
-        <ConsoleColoniesSection v-if="(consoleState.section === 'colonies' && !coloniesHeldForWorkspace) || colonyEmbedActive"
+        <ConsoleColoniesSection v-if="workspaceFrameRenders('colonies')"
                                 ref="coloniesSection"
                                 data-motion-surface="section"
                                 :embedded="colonyEmbedActive"
@@ -226,7 +226,7 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleHydroSection v-if="consoleState.section === 'hydro'"
+        <ConsoleHydroSection v-if="workspaceFrameRenders('hydro')"
                              data-motion-surface="section"
                              ref="hydroSection"
                              :playerView="playerView"
@@ -235,7 +235,7 @@
                              @pick="openHydroPick"
                              @notice="showNotice($event)"
                              @confirm="submitHydroAdvance($event)"
-                             @close="consoleState.section = 'board'" />
+                             @close="leaveWorkspace()" />
       </transition>
 
       <!-- THE ACTION WORKSPACE («Действия карт») — the console-native
@@ -260,7 +260,7 @@
              decision keeps living inside it — same revealed card, same picks,
              no replayed cinematic, no restarted server flow. Destroying it
              here is what would force the flow to be rebuilt on re-open. -->
-        <ConsoleCardActions v-if="consoleState.sheet === 'cardActions'"
+        <ConsoleCardActions v-if="workspaceFrameRenders('card-actions')"
                             v-show="!handPickActive && !repeatPickActive && !workspaceCollapsed"
                             ref="cardActions"
                             :playerView="playerView"
@@ -401,7 +401,7 @@
     <transition :css="false" appear
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleStdProjectsScreen v-if="consoleState.sheet === 'standardProjects'"
+      <ConsoleStdProjectsScreen v-if="workspaceFrameRenders('standard-projects')"
                                 :items="stdProjectItems"
                                 :index="consoleState.sheetIndex"
                                 :myMegacredits="thisPlayer.megacredits"
@@ -585,7 +585,7 @@
                          :waitingOnPlayers="waitingOnPlayers"
                          :task="startTask"
                          @submit="onTaskSubmit"
-                         @defer="consoleState.task.deferred = true" />
+                         @defer="collapseWorkspace()" />
     </transition>
 
     <!-- CTS T6: the reveal overlay (drawn cards ВЗЯТЬ / deck-check result /
@@ -990,7 +990,7 @@
          payment here; the on-play choices arrive as NATIVE follow-up
          tasks after confirm (the legacy-supported sequential contract).
 
-         EMBEDDED HOSTING (consoleWorkspaceStage): when the player entered
+         EMBEDDED HOSTING (consoleWorkspaceStack): when the player entered
          «КАРТЫ В РУКЕ» themselves and pressed A on a card, playing it is the
          NEXT STAGE of that flow, not a new demand — so the SAME instance is
          teleported into the hand workspace's stage zone instead of rising as
@@ -1153,16 +1153,40 @@ import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/conso
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import type {ConsoleHandStage} from '@/client/components/console/ConsoleHandSection.vue';
 import {
-  openWorkspaceStage,
-  closeWorkspaceStage,
-  markWorkspaceStageCommitted,
-  markWorkspaceStageFollowUp,
-  rollbackWorkspaceStageCommit,
-  resetWorkspaceStage,
-  workspaceStageOpen,
-  workspaceStageTarget,
-  workspaceStageState,
-} from '@/client/console/consoleWorkspaceStage';
+  closeWorkspaceRoot,
+  closeWorkspaceSheet,
+  collapseWorkspaceStack,
+  descendWorkspaceFrame,
+  enterWorkspace,
+  foldWorkspaceFrame,
+  goBoardHome,
+  leaveWorkspace,
+  pushWorkspaceFrame,
+  resetWorkspaceStack,
+  restoreWorkspaceStack,
+  setWorkspaceFramePhase,
+  workspaceFrameDescended,
+  workspaceFrameHasNested,
+  workspaceFrameIndex,
+  workspaceFrameMounted,
+  workspaceFramePhase,
+  workspaceFrameRenders,
+  workspaceFrameSlot,
+  workspaceStackActive,
+  workspaceStackBack,
+  workspaceStackBackVerb,
+  workspaceFrameSubject,
+  workspaceFrameStage,
+  workspaceFrameAnchor,
+  workspaceFrameHost,
+  workspaceFrameIsOverlay,
+  workspaceFrameTarget,
+  workspaceHostForStep,
+  workspaceStackCollapsed,
+  workspaceStackState,
+  FrameAnchor,
+  WorkspaceFrameKind,
+} from '@/client/console/consoleWorkspaceStack';
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {resetHandStageMotion, handStageTransitioning, guardHandHeroFlight, heroCommitLift} from '@/client/console/consoleHandStageMotion';
 import {armHandPlayPrewarm, cancelHandPlayPrewarm, resetHandPlayPrewarm} from '@/client/console/consoleHandPlayPrewarm';
@@ -1245,10 +1269,6 @@ import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
 
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
-import {
-  markWorkspaceEmbedCommitting, setWorkspaceEmbed, workspaceEmbedCommitting, workspaceEmbedSlot,
-  workspaceEmbedSource, workspaceEmbedState, WorkspaceEmbedHost,
-} from '@/client/console/consoleWorkspaceEmbed';
 
 /** The kinds served by a DEDICATED composite surface (not by the task host). */
 const NATIVE_COMPOSITE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['venusBonus', 'spendHeat', 'aresGlobal']);
@@ -1299,7 +1319,7 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {GlyphControl, activeGlyphSet} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
-import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleSection, ConsoleSheetId, ConsoleQuickId} from '@/client/console/consoleRouter';
+import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleQuickId} from '@/client/console/consoleRouter';
 import {surfaceShadeOn, setPickSuppressed, beginAwaitingHandoff, clearAwaitingHandoff, isSurfaceAwaitingHandoff, captureSurfaceDeparture, markWheelHandoff, retargetWheelEcho, resetSurfaceMotion, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {WheelArmEvent, WheelInputState, initialWheelInput, reduceWheel} from '@/client/console/quickWheel/wheelArmModel';
 import {wheelControlState} from '@/client/console/quickWheel/wheelControlMode';
@@ -1529,8 +1549,8 @@ export default defineComponent({
       /** The client hand-pick bridge state (composer → hand section). */
       consoleHandPickState,
       consoleRepeatPickState,
-      /** The section to restore when a client hand pick resolves/cancels. */
-      handPickReturn: undefined as ConsoleSection | undefined,
+      /* (`handPickReturn` is gone: the frame UNDER the pick's overlay hand IS
+         the origin, so there is nothing to remember and nothing to restore.) */
       /**
        * The pick surface FROZEN at the moment a discard was answered. The client
        * hand-pick bridge resets itself as it resolves, but the cinematic still
@@ -1551,24 +1571,11 @@ export default defineComponent({
       /** The colony workspace flow (browse ⇄ focus stage) — module reactive,
        *  mirrored here for path watchers (vue-path-watcher rule). */
       colonyFocus: colonyFocusState,
-      /**
-       * THE COLONY EMBED LATCH — which live workspace flow a SelectColony
-       * prompt arrived INSIDE of ('start' prelude / 'hand' play / a
-       * 'card-actions' activation). Set on the prompt's rising edge (the
-       * host is provably alive then), held through the whole follow-up
-       * (prompt → fleet flight → rewards → Pluto reveal), released when the
-       * follow-up genuinely ends or the player minimizes. The latch — not a
-       * re-derivation — is what keeps the section embedded while the
-       * transaction plays past the prompt's own lifetime.
-       */
-      colonyEmbedLatch: undefined as WorkspaceEmbedHost | undefined,
-      /**
-       * The STANDALONE colonies section was opened BY A PROMPT (corp first
-       * action, a stranded-latch heal) — not by the player. When the whole
-       * follow-up ends (`colonyFollowUpLive` falling) such a visit hands the
-       * screen back to the board; a visit the player opened themselves stays.
-       */
-      colonyOpenedByPrompt: false,
+      /* (The COLONY EMBED LATCH and `colonyOpenedByPrompt` are gone: a
+         SelectColony arriving inside a live flow PUSHES a colonies frame onto
+         that flow's stack, and «who brought the player here» is the frame's own
+         anchor. A latch existed only because ownership had to be remembered
+         separately from presence.) */
       /** X on the board home — the «Разыграно» tableau overlay (view-only). */
       playedOpen: false,
       /** A colony name opened READ-ONLY from the journal (X on a colony row). */
@@ -2399,7 +2406,7 @@ export default defineComponent({
       // The EMBEDDED STEP re-establishes the workspace after a reload: the
       // step needs a host, and the lifetime hold that normally keeps the scene
       // mounted is module state that a reload wipes (see startSponsorEmbed).
-      return (this.startSceneServes || this.startSponsorEmbed) &&
+      return workspaceFrameMounted('start') &&
         !govScaleFocusState.holding && !this.consoleState.task.deferred;
     },
     /**
@@ -2579,13 +2586,14 @@ export default defineComponent({
         (this.rawDrawnRevealPending && workspaceClaimsDrawReveal(currentRevealEvent()?.source));
     },
     /**
-     * The workspace is COLLAPSED — hidden for board inspection while its
-     * committed decision stays alive. Rides the existing deferred-prompt flag
-     * (the board home already renders the restore card for it), so there is
-     * one «свернуть» in the console, not two.
+     * The workspace is PARKED — hidden for board inspection while its
+     * committed decision stays alive at full depth. A property of the STACK,
+     * never of one surface: that is what makes «half-collapse» (one axis
+     * cleared, the other still routing input into an invisible workspace)
+     * unexpressible.
      */
     workspaceCollapsed(): boolean {
-      return workspaceOutcomeClaimed() && this.consoleState.task.deferred;
+      return workspaceStackCollapsed();
     },
     /** A claimed batch whose workspace zone is not mounted yet → hold the
      *  reveal rather than let the full-bleed band take it for a frame.
@@ -2666,7 +2674,12 @@ export default defineComponent({
       // back to their own start. It SERVES throughout (the lifetime hold),
       // and that is exactly the right signal here.
       return (this.hostTask !== undefined || this.shellTask !== undefined ||
-        this.startTask !== undefined || this.startSceneServes) &&
+        this.startTask !== undefined || this.startSceneServes ||
+        // A PARKED STACK always offers its way back: its frames are alive and
+        // the board-home card is the only door to them. Keying this off an
+        // ADMITTED task alone is how a live decision became unreachable
+        // whenever the admission gate happened to be holding.
+        workspaceStackCollapsed()) &&
         this.consoleState.task.deferred;
     },
     /**
@@ -2754,8 +2767,6 @@ export default defineComponent({
         section: this.consoleState.section,
         sheet: this.consoleState.sheet,
         corpFirstActionOpen: this.corpFirstActionOpen,
-        handEmbedded: this.startSponsorEmbed,
-        coloniesEmbedded: this.colonyEmbedActive,
       });
     },
     /** The std-projects source: the TOP-LEVEL prompt (EstablishedMethods) or the action menu. */
@@ -2781,7 +2792,7 @@ export default defineComponent({
       // workspace IS the serving surface — `shellTask` is legitimately gated
       // under a live scene there (the start), so the raw prompt + the latch
       // are the truth instead.
-      if (this.shellTask?.kind !== 'colony' && this.colonyEmbedHostKind === undefined) {
+      if (this.shellTask?.kind !== 'colony' && workspaceFrameHost('colonies') === undefined) {
         return undefined;
       }
       const reasons: Record<string, string> = {};
@@ -3100,107 +3111,83 @@ export default defineComponent({
      * THE HAND WORKSPACE'S OPEN DESCENT — what the section needs to know to
      * park its shelf, grow the breadcrumb and render the stage zone.
      *
-     * It reads the live `workspaceStageState`, NOT `pendingPlayCard`, and the
-     * difference matters: the play composer can also be opened WITHOUT a
-     * descent (a `playFromHand` task raised over the board), and in that case
-     * the workspace was never entered, so there is nothing to be inside of and
-     * the composer keeps its own band.
+     * A DESCENT IS A PHASE OF THE HAND'S FRAME, never a second frame: the
+     * browse grid is parked, not unmounted, which is exactly why its selection,
+     * filter and scroll survive the descent for free. It reads that phase, NOT
+     * `pendingPlayCard` — the composer can also be opened WITHOUT a descent (a
+     * `playFromHand` task raised over the board), and then the workspace was
+     * never entered, so there is nothing to be inside of and the composer keeps
+     * its own band.
      */
     handStage(): ConsoleHandStage | undefined {
-      if (!workspaceStageOpen('hand')) {
+      const phase = workspaceFramePhase('hand');
+      if (phase === undefined || phase === 'browse') {
         return undefined;
       }
       return {
-        subject: workspaceStageState.subject,
+        subject: workspaceFrameSubject('hand'),
         // Until the composer publishes its own step, the crumb shows the
         // honest generic — so it never blinks and never renames itself twice.
-        name: workspaceStageState.stage === '' ? 'Playing' : workspaceStageState.stage,
-        committed: isCommitted(workspaceStageState.phase),
+        name: workspaceFrameStage('hand') === '' ? 'Playing' : workspaceFrameStage('hand'),
+        committed: isCommitted(phase),
       };
     },
     /**
-     * «ЭПАТАЖНЫЙ СПОНСОР» — the play-from-hand prompt belongs to the workspace
-     * the player is ALREADY INSIDE.
+     * «ЭПАТАЖНЫЙ СПОНСОР» — the hand stands as a STEP INSIDE another workspace.
      *
-     * Structural, never a card-name or title match: the server's
-     * `SelectProjectCardToPlay` over hand cards (`projectCard/playFromHand` —
-     * raised by the `PlayProjectCard` deferred action, i.e. Eccentric Sponsor
-     * and Ecology Experts) arriving while the Game Start Workspace SERVES can
-     * only be that workspace's own follow-up. It is therefore hosted as a STEP
-     * of it instead of flipping the shell to a second full screen with its own
-     * «КАРТЫ В РУКЕ» crumb root.
-     *
-     * The claim holds across the COMMIT round trip (`startSponsorCommitting`):
-     * `waitingFor` briefly names nothing between the submit and the project's
-     * landing, and letting the claim lapse there would tear the hand out from
-     * under a card that is still flying.
+     * One frame lookup. It used to be forty lines that re-derived the claim
+     * from server truth + a commit latch + a colony latch + a follow-up
+     * predicate on every tick, and each of those terms was a separate way for
+     * the claim to lapse under a card that was still flying. A frame does not
+     * lapse: it is pushed when the step opens and popped when it is over.
      */
     startSponsorEmbed(): boolean {
-      if (this.consoleState.task.deferred) {
-        return false;
-      }
-      // SERVER TRUTH, not the workspace's volatile lifetime hold. The hold is
-      // module state: after a RELOAD it is empty, so `startSceneServes` is
-      // false and the very same prompt used to open the standalone hand — the
-      // player was thrown out of a flow they had not left. The prelude phase
-      // IS the deployment, it survives a reload, and a play-from-hand raised
-      // in it can only be a prelude's effect (`PlayProjectCard`).
-      if (!this.startSceneServes && this.game.phase !== Phase.PRELUDES) {
-        return false;
-      }
-      if (workspaceEmbedCommitting()) {
+      return workspaceFrameHost('hand') === 'start';
+    },
+    /**
+     * THE START WORKSPACE'S FRAME must stand while the opening SERVES it — or
+     * while a step it is HOSTING is still unfinished, because an inner frame
+     * can never outlive its host. The second half is why this is a computed and
+     * not a raw `startSceneServes` watcher: popping the hosted hand makes it
+     * re-evaluate on its own, so nothing has to remember to re-check the root.
+     */
+    startFrameLive(): boolean {
+      if (this.startSceneServes || workspaceFrameHasNested('start')) {
         return true;
       }
-      // THE PLAYED CARD'S OWN CONTINUATION keeps the step alive: a sponsored
-      // project whose effect asks for a colony (Trading Colony …) raises a
-      // SelectColony NEXT — the prompt is no longer play-from-hand, but the
-      // card-play step is UNFINISHED until that effect resolves. The hand
-      // stays hosted (the colonies teleport into ITS stage zone, one level
-      // deeper); dropping the claim here was the «Start Game came back before
-      // the colony was placed» bug. The latch + the live follow-up are the
-      // structural truth of that continuation.
-      if (this.colonyEmbedLatch === 'hand' && workspaceStageOpen('hand') &&
-          this.colonyFollowUpLive) {
-        return true;
+      // SERVER TRUTH, for the one case the module state cannot answer: a
+      // RELOAD wipes the workspace's lifetime hold, so `startSceneServes` is
+      // false and the very same prompt would open a STANDALONE hand — throwing
+      // the player out of a flow they had not left. The PRELUDES phase IS the
+      // deployment, it survives a reload, and a play-from-hand raised in it can
+      // only be a prelude's effect (`PlayProjectCard`).
+      if (this.game.phase !== Phase.PRELUDES) {
+        return false;
       }
       const task = taskFor(this.playerView);
       return task?.kind === 'projectCard' && task.mode === 'playFromHand';
     },
     /**
-     * The workspace slot the HAND is teleported into — the Game Start
-     * Workspace's embed zone while it hosts the play-from-hand step. Same
-     * ownership≠readiness discipline as `playEmbedTarget`: the zone must
-     * actually exist (the scene renders it) before we hand the hand over.
+     * The zone the HAND is teleported into — published by the frame BELOW it
+     * (the start workspace hosting a play-from-hand prelude). `undefined` at
+     * depth 0 (it stands in its own band) and while the host's zone is not up
+     * yet — ownership ≠ readiness, embed rule 4.
      */
     handEmbedTarget(): string | undefined {
-      return this.startSponsorEmbed ? workspaceEmbedSlot() : undefined;
-    },
-    /**
-     * OWNERSHIP ≠ READINESS (embed contract rule 4) — the hand must render
-     * NOWHERE until its host zone genuinely stands.
-     *
-     * ⚠️ This is not cosmetic. A `<Teleport>` whose target is missing AT MOUNT
-     * keeps its content in place, and the later arrival of the target does not
-     * reliably relocate an already-mounted subtree: after a minimize→restore
-     * the workspace re-mounted (zone present) while the hand had already
-     * mounted into `.con-main`, and it STAYED there — its grid trapped under
-     * the workspace plate while its status rail and footer escaped by z. The
-     * player saw «КАРТЫ 10/13» over an empty screen. Holding the mount for the
-     * one frame the slot is late makes the teleport resolve at mount, always.
-     * Same idiom as `playHeldForWorkspace` / `taskHeldForWorkspace`.
-     */
-    handHeldForWorkspace(): boolean {
-      return this.startSponsorEmbed && workspaceEmbedSlot() === undefined;
+      return workspaceFrameTarget('hand');
     },
     /**
      * The workspace slot the PLAY COMPOSER is teleported into (undefined → its
-     * own band). Same shape as `taskEmbedTarget` / `revealEmbedTarget`.
+     * own band). The composer is a PHASE of the hand's frame, so it lands in
+     * that frame's OWN zone — the same selector a nested frame would use, one
+     * level up the same teleport chain.
      */
     playEmbedTarget(): string | undefined {
       if (this.pendingPlayCard === undefined) {
         return undefined;
       }
-      return workspaceStageTarget('hand');
+      const slot = workspaceFrameSlot('hand');
+      return !workspaceFrameDescended('hand') || slot === '' ? undefined : slot;
     },
     /**
      * OWNERSHIP ≠ READINESS. The descent is claimed synchronously on the press,
@@ -3211,7 +3198,7 @@ export default defineComponent({
      * `taskHeldForWorkspace` / `deckDrawHolds()`.
      */
     playHeldForWorkspace(): boolean {
-      return workspaceStageOpen('hand') && workspaceStageState.slot === '';
+      return workspaceFrameDescended('hand') && workspaceFrameSlot('hand') === '';
     },
     /**
      * The card the PLAY PREWARM watches: the browse-hand cursor standing on a
@@ -3379,7 +3366,7 @@ export default defineComponent({
       // L3 = the source — the console-wide inspection grammar (X inspects
       // the current object, L3 the card that produced it). Standalone
       // colonies (the player walked in) have no source and no L3.
-      if (this.colonyEmbedHostKind !== undefined) {
+      if (workspaceFrameHost('colonies') !== undefined) {
         return this.colonyEmbedSourceCard;
       }
       if (this.consoleState.section !== 'hand') {
@@ -3653,8 +3640,7 @@ export default defineComponent({
     /** The colony workspace's FOCUS STAGE is open (browse grid parked) —
      *  standalone section AND embedded step alike. */
     colonyFocusOpen(): boolean {
-      return (this.consoleState.section === 'colonies' || this.colonyEmbedActive) &&
-        this.colonyFocus.open;
+      return workspaceFrameMounted('colonies') && this.colonyFocus.open;
     },
     /** The descended-into colony is live-tradeable (the stage's CTA verbs). */
     colonyFocusTradeable(): boolean {
@@ -3692,7 +3678,7 @@ export default defineComponent({
     /**
      * The colony FOLLOW-UP is still running: the prompt itself, the armed
      * fleet flight, the reward transaction, or the claimed Pluto payout. The
-     * latch lives exactly as long as this does.
+     * colonies FRAME lives exactly as long as this does.
      */
     colonyFollowUpLive(): boolean {
       return this.colonyPromptRaw || this.colonyTradeState.active ||
@@ -3700,37 +3686,14 @@ export default defineComponent({
         workspaceOutcomeState.host === 'colonies';
     },
     /**
-     * Which workspace HOSTS the colonies right now — the latch, gated on the
-     * host being genuinely alive and the task not minimized. Undefined =
-     * the colonies stand alone (their own section), the pre-embed behaviour.
-     */
-    colonyEmbedHostKind(): WorkspaceEmbedHost | undefined {
-      const latch = this.colonyEmbedLatch;
-      if (latch === undefined || this.consoleState.task.deferred) {
-        return undefined;
-      }
-      if (latch === 'start') {
-        return this.startSceneMounted ? 'start' : undefined;
-      }
-      if (latch === 'hand') {
-        return workspaceStageOpen('hand') ? 'hand' : undefined;
-      }
-      return this.consoleState.sheet === 'cardActions' ? 'card-actions' : undefined;
-    },
-    /**
-     * The zone the colonies section is TELEPORTED into (embed rule 4:
-     * ownership ≠ readiness — undefined until the host's zone genuinely
-     * stands). The hand hosts in its own STAGE zone (freed by the composer's
-     * departure); start and card-actions publish through the shared
-     * workspace-embed slot.
+     * The zone the colonies section is TELEPORTED into — published by the
+     * frame BELOW it, whichever workspace that is (the hand's card-play step,
+     * the action centre, the start's prelude). ONE lookup instead of a
+     * per-host switch: the chain does not care who is hosting whom, only that
+     * something is (embed rule 3 — slots compose).
      */
     colonyEmbedTarget(): string | undefined {
-      switch (this.colonyEmbedHostKind) {
-      case 'hand': return workspaceStageTarget('hand');
-      case 'start':
-      case 'card-actions': return workspaceEmbedSlot();
-      default: return undefined;
-      }
+      return workspaceFrameTarget('colonies');
     },
     colonyEmbedActive(): boolean {
       return this.colonyEmbedTarget !== undefined;
@@ -3738,43 +3701,34 @@ export default defineComponent({
     /**
      * The CARD whose effect owes this colony step — the L3 «Источник» target
      * (§ inspection grammar: X = the current object, L3 = what produced it).
-     * Resolution follows the host: the hand stage carries the played card as
-     * its subject; an activation runs under the card-actions outcome claim;
-     * a prelude's step was noted by the start scene. '' → no verb, never a
-     * broken zoom — a standalone entry has no source by definition.
+     * It is the HOST frame's carried object: the hand's card-play step carries
+     * the played card, the start's prelude step carries the prelude. The action
+     * centre is the one host whose card lives in the outcome CLAIM instead (the
+     * composer owns the activation, not the browse frame). '' → no verb, never
+     * a broken zoom — a standalone entry has no source by definition.
      */
     colonyEmbedSourceCard(): CardName | undefined {
-      switch (this.colonyEmbedHostKind) {
-      case 'hand': {
-        const subject = workspaceStageState.subject;
-        return subject === '' ? undefined : subject as CardName;
+      const host = workspaceFrameHost('colonies');
+      if (host === undefined) {
+        return undefined;
       }
-      case 'card-actions': {
-        const claimed = workspaceOutcomeState.sourceCard;
-        return claimed === '' ? undefined : claimed as CardName;
-      }
-      case 'start': {
-        const noted = workspaceEmbedSource();
-        return noted === '' ? undefined : noted;
-      }
-      default: return undefined;
-      }
-    },
-    /** Claimed but the zone is not up yet — render NOWHERE (embed rule 4). */
-    coloniesHeldForWorkspace(): boolean {
-      return this.colonyEmbedHostKind !== undefined && this.colonyEmbedTarget === undefined;
+      const subject = host === 'card-actions' ?
+        workspaceOutcomeState.sourceCard : workspaceFrameSubject(host);
+      return subject === '' ? undefined : subject as CardName;
     },
     /**
-     * A live SelectColony that NOBODY serves: no host claims it (the latch's
-     * host died, or a latch was taken on a flow that folded the same tick)
-     * and the standalone section is not open either. The watcher heals this
-     * by dropping the latch and opening the section — a prompt may degrade
-     * from embedded to standalone, but it may never strand.
+     * A live SelectColony that NO FRAME serves. The watcher heals it by
+     * entering the standalone colonies — a prompt may degrade from embedded to
+     * standalone, but it may never strand.
+     *
+     * The «my host died under me» half of this predicate is GONE: a frame is
+     * only ever removed from the top, so a host cannot vanish out from under
+     * the step it is carrying. That disagreement between ownership and presence
+     * was the soft-lock.
      */
     colonyPromptStranded(): boolean {
       return this.colonyPromptRaw && !this.consoleState.task.deferred &&
-        this.colonyEmbedHostKind === undefined &&
-        this.consoleState.section !== 'colonies';
+        workspaceFrameIndex('colonies') === -1;
     },
     hydroActionAvailable(): boolean {
       return findHydroActionPath(this.playerView.waitingFor) !== undefined;
@@ -4684,7 +4638,7 @@ export default defineComponent({
       }
       // MANDATORY hand SELECT — the pick verbs (no tag filter; the "suitable
       // only" toggle takes LT), submit on A (single) / RT (multi), B minimizes.
-      if (this.handSelectTaskActive && this.consoleState.section === 'hand' && !this.colonyEmbedActive) {
+      if (this.handSelectTaskActive && this.consoleState.section === 'hand') {
         const focusName = this.handEntries[this.consoleState.handIndex]?.card.name;
         const canPick = focusName !== undefined && this.handSelectSelectableNames.includes(focusName);
         const verb = this.handSelectModel?.buttonLabel || 'Select';
@@ -4707,11 +4661,12 @@ export default defineComponent({
         return cmds;
       }
       // The HAND's own browse verbs — but never over an EMBEDDED colony step:
-      // the colonies are teleported INTO the hand's stage zone, so `section`
-      // is still 'hand' while the screen the player is looking at (and the
-      // pad they are driving) is the colony grid. The bar must name what the
-      // buttons DO — «A Разыграть» over a colony pick is a lie.
-      if (this.consoleState.section === 'hand' && !this.colonyEmbedActive) {
+      // the colonies teleported into the hand's zone are DEEPER than it, and
+      // `section` projects the deepest frame — so it already says 'colonies'
+      // and this branch cannot fire over a colony grid. («A Разыграть» over a
+      // colony pick was the lie a hand-written `!colonyEmbedActive` term used
+      // to have to prevent, at every section-keyed branch, one at a time.)
+      if (this.consoleState.section === 'hand') {
         const playable = this.handEntries[this.consoleState.handIndex]?.playable === true;
         const cmds: Array<ConsoleCommand> = [
           {control: 'confirm', label: 'Play now', enabled: playable},
@@ -4728,7 +4683,7 @@ export default defineComponent({
         cmds.push({control: 'back', label: this.shellTaskActive ? 'Minimize' : 'To the board'});
         return cmds;
       }
-      if (this.consoleState.section === 'colonies' || this.colonyEmbedActive) {
+      if (this.consoleState.section === 'colonies') {
         // T4 pick mode: A = the server verb; B = cancel (marker) / minimize.
         // Standalone section AND the embedded step publish the SAME contract
         // (one grid, one grammar — only B's label differs: an embedded step
@@ -5077,11 +5032,7 @@ export default defineComponent({
         claimWorkspaceOutcome('colonies', colonyTradeState.colonyName, ['draw']);
         markWorkspaceOutcomeArrivalDone();
       }
-      // EMBEDDED colonies already stand inside their host — never swap the
-      // section under the hosting workspace (the continuation owns the screen).
-      if (!this.colonyEmbedActive && this.consoleState.section !== 'colonies') {
-        this.consoleState.section = 'colonies';
-      }
+      this.bringColoniesHome();
     },
     /**
      * The same return, for a payout we hold a claim on that the TRADE
@@ -5090,162 +5041,85 @@ export default defineComponent({
      * reveal lands INSIDE the workspace instead of over it.
      */
     colonyPayoutIncoming(incoming: boolean) {
-      if (!incoming || this.colonyEmbedActive) {
-        return;
-      }
-      if (this.consoleState.section !== 'colonies') {
-        this.consoleState.section = 'colonies';
+      if (incoming) {
+        this.bringColoniesHome();
       }
     },
     // The closing track glide measures the traded tile's own track cells —
     // the section must be mounted for the marker to physically step home.
-    // (While EMBEDDED the section already stands inside its host.)
     'colonyTradeState.glideNonce'() {
-      if (this.colonyTradeState.active && !this.colonyEmbedActive &&
-          this.consoleState.section !== 'colonies') {
-        this.consoleState.section = 'colonies';
+      if (this.colonyTradeState.active) {
+        this.bringColoniesHome();
       }
     },
-    // ── THE COLONY EMBED LATCH lifecycle ──────────────────────────────────
-    // Rising edge of a SelectColony prompt: record WHICH live workspace flow
-    // it arrived inside of. The host is provably alive at this instant —
-    // deriving it later (after a section change, after the composer left)
-    // answers a different question.
+    // ── THE COLONIES FRAME's lifecycle ────────────────────────────────────
+    // Rising edge of a SelectColony prompt: PUSH the colonies onto whatever
+    // flow the player is standing in. The frame is the claim — there is no
+    // second place recording «who hosts whom», so it cannot disagree with the
+    // stack, and the host cannot be re-derived later (after the composer left,
+    // after a screen change) into a different answer.
     colonyPromptRaw(on: boolean) {
-      if (!on || this.colonyEmbedLatch !== undefined) {
+      if (!on || workspaceFrameIndex('colonies') !== -1) {
         return;
       }
-      // THE CONTINUATION RULE: the host is the NEAREST live unfinished step,
-      // never the outermost root. DEPTH-FIRST on purpose — inside the start's
-      // play-from-hand prelude (Eccentric Sponsor) a played card's
-      // SelectColony belongs to the CARD-PLAY step (the hand's stage, itself
-      // teleported into the start), so the colonies land one level deeper in
-      // the same teleport chain: start ⊃ hand ⊃ colonies. Latching 'start'
-      // there used to OVERWRITE the sponsor's own embed claim
-      // (host 'start' × surface 'hand' → '…colonies'), which tore the hand
-      // out and showed the Start Game surface while the project's effect was
-      // still unresolved — the exact «returned to Start Game too early» bug.
-      if (workspaceStageOpen('hand')) {
-        this.colonyEmbedLatch = 'hand';
-        // The stage's crumb advances: «… › <карта> › КОЛОНИИ» (the ROOT stays
-        // whoever draws the hand's shell — the hand itself, or the start
-        // hosting it). Post-commit follow-up: input live, B = collapse.
-        markWorkspaceStageFollowUp('Colonies');
-      } else if (this.consoleState.sheet === 'cardActions') {
-        this.colonyEmbedLatch = 'card-actions';
-      } else if (this.startSceneMounted || this.playerView.game.phase === Phase.PRELUDES) {
-        // Embed rule 6 fallback: in PRELUDES a SelectColony with no deeper
-        // live step can only be a prelude's own effect, so the claim survives
-        // a reload (the module-level scene hold is wiped, the game phase is
-        // server truth).
-        this.colonyEmbedLatch = 'start';
-      }
+      this.openColoniesForPrompt();
     },
-    // The follow-up ended (rewards granted, Pluto resolved, track reset) —
-    // the host workspace finishes its own deferred fold and the latch clears.
+    // The follow-up ended (rewards granted, Pluto resolved, track reset) — the
+    // colonies frame is done and pops, uncovering whatever hosted it.
     colonyFollowUpLive(live: boolean, was: boolean) {
       if (live || !was) {
         return;
       }
-      if (this.colonyEmbedLatch === undefined) {
-        // STANDALONE, but the PROMPT brought the player here (a corp
-        // first-action Build Colony after the start dissolved, a stranded
-        // heal): the decision and every visual consequence have settled —
-        // return the screen to the board. The player's own visits
-        // (`colonyOpenedByPrompt` false) stay exactly where they are.
-        if (this.colonyOpenedByPrompt) {
-          this.colonyOpenedByPrompt = false;
-          if (this.consoleState.section === 'colonies') {
-            // THE COMPLETION SETTLE. Closing on the same frame the last
-            // physical change lands means the player never sees what it was:
-            // the cube had only just seated and the guard had only just
-            // latched. The section owns the dwell (and skips it when a
-            // follow-up still owns the screen), then hands the screen
-            // forward through `flow-complete`.
-            const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
-            if (this.colonyFocus.open && section !== undefined) {
-              section.completeFlow();
-            } else {
-              closeColonyFocus();
-              this.consoleState.section = 'board';
-            }
-          }
-        }
+      // A visit the PLAYER made stays exactly where it is; a frame the PROMPT
+      // pushed hands the screen back once its demand is met. That distinction
+      // is the frame's own anchor, not a flag somebody has to clear.
+      if (workspaceFrameAnchor('colonies')?.type !== 'prompt') {
         return;
       }
-      const latch = this.colonyEmbedLatch;
-      this.colonyEmbedLatch = undefined;
-      this.colonyOpenedByPrompt = false;
-      // The focus stage (if the follow-up resolved on it) folds with the
-      // step — the parent continuation gets a clean surface back.
+      const host = workspaceFrameHost('colonies');
+      // THE COMPLETION SETTLE (standalone only). Popping on the same frame the
+      // last physical change lands means the player never sees what it was: the
+      // cube had only just seated. The section owns the dwell, then hands the
+      // screen forward through `flow-complete`.
+      const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+      if (host === undefined && this.colonyFocus.open && section !== undefined) {
+        section.completeFlow();
+        return;
+      }
+      // The focus stage (if the follow-up resolved on it) folds with the step —
+      // the parent continuation gets a clean surface back.
       closeColonyFocus();
-      if (latch === 'hand' && workspaceStageOpen('hand')) {
-        // The play-from-hand workspace held itself open to host the colony
-        // follow-up — its deferred fold runs now (the played hero's 'closing'
-        // teardown was gated on us). CONTINUATION, not a hardcoded root:
-        // closing the STAGE completes the card-play step; what the screen
-        // becomes next belongs to the NEXT unfinished ancestor. Standalone —
-        // the hand section closes to the board. Inside the start's sponsor
-        // step — the section/layers are NOT ours to close: the sponsor claim
-        // (`startSponsorEmbed`) resolves off the server's next prompt, folds
-        // the hand back into the start, and the deployment continues from
-        // exactly where it left off.
-        closeWorkspaceStage();
-        // The DEFERRED half of the sponsor release: the played card had landed
-        // long ago, but its colony was still owed, so `playedHeroState.active`
-        // deliberately skipped the release. Now the chain is genuinely done —
-        // clear the claim, then RE-ASSERT it from truth, so a brand-new
-        // play-from-hand step (a second prelude effect) is not left mirrorless
-        // (the mirror watcher only fires on a CHANGE of the computed).
-        if (workspaceEmbedCommitting() && !playedHeroState.active) {
-          setWorkspaceEmbed('start', undefined);
-          if (this.startSponsorEmbed) {
-            setWorkspaceEmbed('start', 'hand');
-          }
-        }
-        if (!this.startSponsorEmbed) {
+      leaveWorkspace();
+      // WHAT THE UNCOVERED HOST DOES NEXT. Not a latch table: each of these is a
+      // genuinely different completion, and every one of them is now a plain
+      // question about the frame that came back.
+      if (host === 'hand') {
+        // THE CARD-PLAY STEP IS OVER — its only remaining business WAS this
+        // colony. Hosted, it LEAVES and the flow that carried it (the start's
+        // deployment) gets its screen back and continues from exactly where it
+        // stopped; standing alone, there is nothing left to show and it goes
+        // home. The played hero's own falling edge does this when no colony was
+        // involved — same pop, one beat earlier.
+        if (workspaceFrameIndex('hand') > 0) {
+          leaveWorkspace();
+        } else {
           closeConsoleLayers();
-          if (this.consoleState.section === 'hand') {
-            this.consoleState.section = 'board';
-          }
+          goBoardHome();
         }
-        return;
-      }
-      if (latch === 'card-actions' && this.consoleState.sheet === 'cardActions') {
+      } else if (host === 'card-actions') {
         // The activation's follow-up is done — the action workspace folds the
         // way every completed action does.
         this.foldWorkspaceAfterResult();
       }
     },
-    // THE STRANDED-COLONY SELF-HEAL: an embedded plan whose host died (the
-    // start scene dissolved under the latch, the hand stage folded) degrades
-    // to the STANDALONE section — never to a prompt with no surface. The
-    // deferred flush gives a mounting host its tick before the verdict.
+    // THE STRANDED-COLONY SELF-HEAL: a live SelectColony that no frame serves
+    // degrades to the STANDALONE colonies — never to a prompt with no surface.
+    // The deferred flush gives a mounting host its tick before the verdict.
     colonyPromptStranded: {
       flush: 'post',
       handler(stranded: boolean): void {
-        if (!stranded) {
-          return;
-        }
-        this.colonyEmbedLatch = undefined;
-        const task = taskFor(this.playerView);
-        if (task !== undefined && task.kind === 'colony') {
-          this.openShellTaskSurface(task);
-        }
-      },
-    },
-    // Mirror the claim into the embed module (the leak detector, the host
-    // scenes and the zone publishers read it from plain TS — never re-derive
-    // at a call site). The HAND host deliberately stays out of this mirror:
-    // its zone is the stage slot (workspaceStage), not the embed slot.
-    colonyEmbedHostKind: {
-      immediate: true,
-      handler(kind: WorkspaceEmbedHost | undefined, prev: WorkspaceEmbedHost | undefined): void {
-        if (prev !== undefined && prev !== 'hand' && prev !== kind) {
-          setWorkspaceEmbed(prev, undefined);
-        }
-        if (kind !== undefined && kind !== 'hand') {
-          setWorkspaceEmbed(kind, 'colonies');
+        if (stranded) {
+          this.openColoniesForPrompt();
         }
       },
     },
@@ -5313,7 +5187,7 @@ export default defineComponent({
         }
         this.pendingPlayCard = undefined;
         closeConsoleLayers();
-        this.consoleState.section = 'board';
+        goBoardHome();
         return;
       }
       if (phase === 'closing' && playedHeroState.host === 'workspace') {
@@ -5323,17 +5197,16 @@ export default defineComponent({
         // («КАРТЫ В РУКЕ › <карта> › КОЛОНИИ»). The deferred fold runs from
         // the colonyFollowUpLive falling edge, once the whole follow-up
         // (pick → fleet → rewards) has played out inside the workspace.
-        if (this.colonyEmbedLatch === 'hand' && this.colonyPromptRaw) {
+        if (workspaceFrameHasNested('hand')) {
           this.pendingPlayCard = undefined;
           return;
         }
-        // One synchronous turn, one patch: clearing the pending play closes
-        // the stage claim (its own watcher), and the section change takes the
-        // whole workspace down through the section leave — the board is
-        // already committed and current underneath.
+        // One synchronous turn, one patch: clearing the pending play folds the
+        // descent (its own watcher) and the workspace goes home in one leave —
+        // the board is already committed and current underneath.
         this.pendingPlayCard = undefined;
         closeConsoleLayers();
-        this.consoleState.section = 'board';
+        goBoardHome();
         return;
       }
       if (phase === 'failed') {
@@ -5341,7 +5214,9 @@ export default defineComponent({
         composer?.resetSubmitting?.();
         // A refused move never happened: the descent goes back to configurable,
         // or B would stay dead and the crumb would keep claiming a commit.
-        rollbackWorkspaceStageCommit();
+        if (isCommitted(workspaceFramePhase('hand') ?? 'browse')) {
+          setWorkspaceFramePhase('hand', 'configure');
+        }
         return;
       }
       if (phase === 'idle' && this.journalHardBlocked && this.playedOpen) {
@@ -5361,7 +5236,7 @@ export default defineComponent({
     'patentSaleState.phase'(phase: string) {
       if (phase === 'inserting') {
         closeConsoleLayers();
-        this.consoleState.section = 'board';
+        goBoardHome();
       }
     },
     // PRESENTATION FLOW occupancy: while a console mandatory surface (task
@@ -5379,26 +5254,19 @@ export default defineComponent({
         }
       },
     },
-    // Leaving the colonies section ends the workspace flow with it: the focus
-    // stage folds away and the command-bar mirror is cleared so stale hints
-    // can't linger. Reopening the section always lands on the browse surface.
+    // Leaving the colonies ends the workspace flow with it: the focus stage
+    // folds away and the command-bar mirror is cleared so stale hints can't
+    // linger. Reopening always lands on the browse surface.
+    //
+    // ⚠️ This watcher used to close the HAND's descent too, guarded by a
+    // hand-written «unless a colony follow-up is live inside it». Both are gone:
+    // `section` is a PROJECTION now, so leaving the hand IS the frame going
+    // away, and a frame cannot be removed from under the step it is carrying.
+    // That guard-plus-write pair was the soft-lock.
     'consoleState.section'(section: string) {
       if (section !== 'colonies' && this.colonyFocus.open) {
         resetColonyFocus();
         resetConsoleColoniesUi();
-      }
-      // Leaving the hand by ANY route ends the descent with it: the workspace
-      // the player was standing inside of is no longer on screen, so a claim
-      // that outlived it would park a shelf behind nothing and keep the
-      // composer teleporting into a detached zone.
-      // EXCEPT while the played card's own follow-up (a SelectColony) lives
-      // IN the stage's zone: the colonies are teleported into that slot, and
-      // closing the stage here tore the whole nested chain down mid-prompt
-      // (the sponsor flow resumed with the colony unplaced). The finalize
-      // (`colonyFollowUpLive` falling) closes the stage when the chain ends.
-      if (section !== 'hand' &&
-          !(this.colonyEmbedLatch === 'hand' && this.colonyFollowUpLive)) {
-        closeWorkspaceStage();
       }
       // The hand-reveal presentation follows the section on EVERY path, not
       // just the choreographed ones. While an episode runs the director owns
@@ -5462,43 +5330,53 @@ export default defineComponent({
     // later defer (B) reveals the board, not a stale hand / colonies view.
     corpFirstActionOpen(open: boolean): void {
       if (open) {
-        this.consoleState.section = 'board';
+        goBoardHome();
       }
     },
     /**
-     * Mirror the sponsor claim into its module: the leak detector, the start
-     * scene's own parking and the input gate all read it from plain TS, and
-     * they must never each re-derive it (four hand-copied gate expressions had
-     * already drifted once — `consolePromptAdmission` exists because of it).
+     * THE START WORKSPACE'S FRAME. It stands while the opening serves it — or
+     * while a step it is HOSTING is still unfinished, because an inner frame
+     * can never outlive its host. That second half is why the predicate is a
+     * computed and not a raw `startSceneServes` watcher: popping the hosted
+     * hand makes it re-evaluate on its own, so nothing has to remember to
+     * re-check the root afterwards.
      */
-    startSponsorEmbed: {
+    startFrameLive: {
       immediate: true,
-      handler(on: boolean): void {
-        setWorkspaceEmbed('start', on ? 'hand' : undefined);
+      handler(live: boolean): void {
+        if (live) {
+          if (workspaceFrameIndex('start') === -1) {
+            enterWorkspace('start', {anchor: {type: 'phase', phase: 'start'}});
+          }
+        } else {
+          // Its OWN anchor went dead — `closeWorkspaceRoot`, never `goBoardHome`:
+          // that one deliberately protects a phase root from a step inside it,
+          // so using it here would leave the scene mounted for the whole game.
+          closeWorkspaceRoot('start');
+        }
       },
     },
     /**
      * THE SPONSOR STEP IS OVER when the project has physically LANDED — not
      * when the submit returned. The hero transaction is the honest completion
-     * signal (it spans the request, the flight and the docking), so the claim
-     * that held the hand in place through the prompt gap releases exactly
-     * here. Whatever the project's own effects then ask for arrives as a
-     * normal task and is served by the workspace it is already inside.
+     * signal (it spans the request, the flight and the docking), so the frame
+     * that held the hand in place through the prompt gap pops exactly here.
+     * Whatever the project's own effects then ask for arrives as a normal task
+     * and is served by the workspace it is already inside.
+     *
+     * …UNLESS the project that just landed still OWES an effect the step is
+     * HOSTING (a SelectColony living one level deeper in the same teleport
+     * chain). Landing is only HALF the signal; the nested frame's own falling
+     * edge runs the pop instead. ONE form of that guard now, everywhere.
      */
     'playedHeroState.active'(active: boolean): void {
-      if (active || !workspaceEmbedCommitting()) {
+      if (active || workspaceFrameHost('hand') !== 'start' || workspaceFrameHasNested('hand')) {
         return;
       }
-      // …UNLESS the project that just landed still OWES an effect that the
-      // step is hosting: a SelectColony raised by the played card lives in
-      // the hand's own stage zone, INSIDE this claim. Releasing here tore the
-      // whole nested chain down — the start's deployment came back while the
-      // colony was unplaced (the double-nesting bug). The follow-up's falling
-      // edge runs this release instead; landing is only HALF the signal.
-      if (this.colonyEmbedLatch === 'hand' && this.colonyFollowUpLive) {
+      if (!isCommitted(workspaceFramePhase('hand') ?? 'browse')) {
         return;
       }
-      setWorkspaceEmbed('start', undefined);
+      leaveWorkspace();
     },
     // Mirror the live gate-held state into the module so the leak detector (a
     // timer that can't recompute the shell signals) treats a held prompt as
@@ -5608,13 +5486,13 @@ export default defineComponent({
       document.body.classList.toggle('con-play-modal-open', now !== undefined);
       // THE DESCENT ENDS WITH THE COMPOSER, on every path — the B cancel, the
       // successful play (the composer closes under the lifted card), and a
-      // prompt-identity change that moved the flow on. One place, so a claim
+      // prompt-identity change that moved the flow on. One place, so a phase
       // can never outlive its flow and leave the shelf parked behind nothing.
-      // ONE exception: the played card's own COLONY follow-up — the stage
-      // outlives the composer to host the colonies step (the latch owns the
-      // eventual close).
-      if (now === undefined && this.colonyEmbedLatch !== 'hand') {
-        closeWorkspaceStage();
+      // ONE exception, and it is the SAME one as everywhere else: a step is
+      // still standing inside this frame (the played card's colony follow-up),
+      // and a host cannot fold under what it is carrying.
+      if (now === undefined && !workspaceFrameHasNested('hand')) {
+        this.foldHandStage();
       }
     },
     // A successfully played card leaves the hand with the server response —
@@ -5637,7 +5515,7 @@ export default defineComponent({
     // board-target step changes the active section, the frame persists).
     placementActive(now: boolean) {
       if (now) {
-        this.consoleState.section = 'board';
+        goBoardHome();
         closeConsoleLayers();
       }
       // P20: the R3 inspect-all toggle never outlives its placement.
@@ -5731,20 +5609,21 @@ export default defineComponent({
       },
     },
     /**
-     * CLIENT HAND PICK (composer → hand bridge): entering the pick remembers
-     * the current section, opens the hand (with the premium dock→grid reveal
-     * when coming from another section — the Action Center case) and seats the
-     * cursor on the first PICKABLE card; leaving restores the section, so the
-     * hidden composer (v-show) is back exactly where the player left it.
+     * CLIENT HAND PICK (composer → hand bridge): a composer asks the REAL hand
+     * for a card, so the hand stands OVER it as an overlay frame — the composer
+     * keeps its place, its state and its captures underneath. Leaving pops that
+     * one frame, which puts the player back exactly where they were.
+     *
+     * There is no «remembered origin section» any more: the frame under the
+     * overlay IS the origin, and it was never anywhere else.
      */
     handPickActive(now: boolean): void {
       if (now) {
-        this.handPickReturn = this.consoleState.section;
         const selectable = new Set(this.handSelectSelectableNames);
         const idx = this.handEntries.findIndex((e) => selectable.has(e.card.name));
         this.consoleState.handIndex = idx !== -1 ? idx : 0;
-        if (this.consoleState.section !== 'hand') {
-          void this.openHandWithReveal();
+        if (!workspaceFrameMounted('hand')) {
+          void this.openHandWithReveal({overlay: true});
         } else {
           void this.$nextTick(() => {
             (this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined)?.ensureSelectedVisible();
@@ -5752,21 +5631,18 @@ export default defineComponent({
         }
         return;
       }
-      const back = this.handPickReturn;
-      this.handPickReturn = undefined;
       // A DISCARD answer keeps the hand open: its cinematic has to seize the
       // card out of the real grid first and hands the surface off itself
-      // (phase 'leaving'). Restoring the section here would blank the hand a
-      // beat before the card had visibly left it — the exact bug the unified
-      // discard flow exists to remove.
+      // (phase 'leaving'). Popping here would blank the hand a beat before the
+      // card had visibly left it — the exact bug the unified discard flow
+      // exists to remove.
       if (isCardDiscardActive()) {
         return;
       }
-      // The play-composer pick stays in the hand (the composer re-shows over
-      // it); the Action-Center pick returns to its origin section instantly —
-      // the re-shown full-screen center covers the switch.
-      if (back !== undefined && back !== 'hand' && this.consoleState.section === 'hand') {
-        this.consoleState.section = back;
+      // The play-composer pick stays in the hand it descended from (that frame
+      // is not an overlay); only a hand the PICK stood up goes away again.
+      if (workspaceFrameIsOverlay('hand')) {
+        leaveWorkspace();
       }
     },
     /**
@@ -5871,10 +5747,10 @@ export default defineComponent({
               lr !== undefined && lr.action === consoleActionComposerUi.revealClaim) ||
               workspaceClaimsDrawReveal(currentRevealEvent()?.source) ||
               workspaceOutcomeState.sourceCard !== '' ||
-              // A SelectColony follow-up LATCHED to the action workspace: the
-              // composer stays and HOSTS the colonies step — dismissing it
+              // A SelectColony follow-up standing INSIDE the action workspace:
+              // the composer stays and hosts the colonies step — dismissing it
               // here would tear down the very frame the step lands in.
-              this.colonyEmbedLatch === 'card-actions';
+              workspaceFrameHasNested('card-actions');
             if (claimedInFrame) {
               clearAwaitingHandoff();
               // The workspace's own stages carry the outcome from here — the
@@ -5936,7 +5812,7 @@ export default defineComponent({
         // glide (+ top-HUD delta chip) is seen in one focused place. Snap to
         // the board so that feedback is actually visible during the hold.
         if (commitGovScaleFocus()) {
-          this.consoleState.section = 'board';
+          goBoardHome();
           closeConsoleLayers();
         }
         configureBoardInfo({
@@ -6015,13 +5891,13 @@ export default defineComponent({
           // an unrelated window take its place. A claimed prompt is not
           // another surface's — it is the next stage of the action the player
           // just confirmed HERE, so the workspace stays and hosts it.
-          // The COLONY EMBED latch is the same fact for a SelectColony
-          // follow-up: the workspace is about to HOST the colonies step.
-          if (this.consoleState.sheet === 'cardActions' &&
+          // A hosted STEP is the same fact for a SelectColony follow-up: the
+          // workspace is standing around the colonies right now.
+          if (workspaceFrameMounted('card-actions') &&
               taskFor(this.playerView)?.kind !== 'actionMenu' &&
               !workspaceOutcomeClaimed() &&
-              this.colonyEmbedLatch !== 'card-actions') {
-            this.consoleState.sheet = undefined;
+              !workspaceFrameHasNested('card-actions')) {
+            leaveWorkspace();
             this.consoleState.sheetIndex = 0;
           }
           // A shell-section task (T3/T4) auto-opens its serving surface.
@@ -6040,6 +5916,122 @@ export default defineComponent({
      */
     admits(surface: PromptSurface): boolean {
       return isPromptAdmitted(surface, this.admissionSignals);
+    },
+    // ── THE WORKSPACE STACK — the shell's whole navigation vocabulary ──────
+    /** Presence, from the stack. The ONE `v-if` of every hostable screen —
+     *  re-exported here because an Options-API template resolves against the
+     *  instance, not the module scope. */
+    workspaceFrameRenders(kind: WorkspaceFrameKind): boolean {
+      return workspaceFrameRenders(kind);
+    },
+    /** B = one logical level (template door — same reason as above). */
+    leaveWorkspace(): void {
+      leaveWorkspace();
+    },
+    /**
+     * «СВЕРНУТЬ» — ONE verb, and it cannot half-happen.
+     *
+     * The whole stack parks at full depth (both projections go to the board in
+     * the same tick) and the pending decision minimizes with it, so the
+     * board-home card is always the way back. It used to be written out by hand
+     * at six sites as «defer the task, then set the section» — a CONDITIONAL
+     * defer next to an UNCONDITIONAL navigation, which is exactly how a live
+     * colony pick ended up on screen nowhere with no card to return to.
+     */
+    collapseWorkspace(): void {
+      collapseWorkspaceStack();
+      this.consoleState.task.deferred = true;
+      // The composer's command contract is published to a SHARED store and
+      // released in its own `beforeUnmount` — one flush too late, so the bar
+      // would advertise a stage that no longer serves for a frame. Clearing it
+      // here is what makes the collapse atomic.
+      resetConsoleActionComposerUi();
+    },
+    /**
+     * Stand the HAND up: a screen of its own, or a STEP inside whatever flow is
+     * already open (the start's play-from-hand prelude — «Эпатажный спонсор»).
+     * `overlay` is the client PICK BRIDGE: the hand takes the screen while the
+     * asking composer waits underneath with its captures intact.
+     */
+    openHandWorkspace(opts?: {overlay?: boolean}): void {
+      if (workspaceFrameIndex('hand') !== -1) {
+        return;
+      }
+      // Nothing open → a screen of its own. Standing INSIDE a flow that can host
+      // a step → a step of it. Standing inside one that cannot (a colony pick
+      // whose payout owes a Pluto discard) → an OVERLAY: the hand takes the
+      // screen and the flow waits underneath, exactly as the pick bridge does.
+      // Never a lateral `enterWorkspace` there — that would unwind the very
+      // flow that is asking for the card.
+      const host = opts?.overlay === true ? undefined : workspaceHostForStep();
+      if (host === undefined && !workspaceStackActive()) {
+        enterWorkspace('hand');
+        return;
+      }
+      pushWorkspaceFrame({
+        kind: 'hand', subject: '', stage: '', phase: 'browse',
+        serves: ['projectCard', 'handSelect'], anchor: {type: 'always'},
+        overlay: host === undefined,
+      });
+    },
+    /**
+     * A SelectColony arrived — stand the colonies where they BELONG: inside the
+     * nearest live unfinished step, or as a screen of their own. The `prompt`
+     * anchor is what later says «the demand brought the player here, so hand the
+     * screen back when it is met».
+     */
+    openColoniesForPrompt(): void {
+      const host = workspaceHostForStep();
+      const anchor: FrameAnchor = {type: 'prompt', promptType: 'colony'};
+      if (host === undefined) {
+        enterWorkspace('colonies', {anchor});
+      } else {
+        // The host's own beat is OVER — what remains is a decision about its
+        // result. Past the commit boundary its B means «collapse», and its
+        // crumb tail hands over to the step now standing inside it.
+        setWorkspaceFramePhase(host, 'committed');
+        pushWorkspaceFrame({
+          kind: 'colonies', subject: '', stage: 'Colonies', phase: 'committed',
+          serves: ['colony'], anchor,
+        });
+      }
+      // Land on the first PICKABLE tile so A is meaningful immediately.
+      const pick = this.colonyPick;
+      const first = pick !== undefined ?
+        this.coloniesForRail.findIndex((c) => pick.selectable.includes(c.name)) : -1;
+      this.consoleState.colonyIndex = first !== -1 ? first : 0;
+    },
+    /**
+     * PLUTO COMES HOME. A trade/build payout needs its own surface back: the
+     * covers launch from the traded tile and the reveal lands in the section's
+     * zone. Re-entering is a NO-OP while the colonies already stand (embedded
+     * or not), so this can never swap the section under a hosting workspace.
+     */
+    bringColoniesHome(): void {
+      if (workspaceFrameMounted('colonies')) {
+        return;
+      }
+      enterWorkspace('colonies', {anchor: {type: 'prompt', promptType: 'colony'}});
+    },
+    /**
+     * THE HAND'S EXIT once it has answered. An OVERLAY hand pops, uncovering
+     * the flow that asked for the card exactly where it was left; a hand the
+     * player is standing in alone has nothing under it and goes home.
+     */
+    leaveHandAfterAnswer(): void {
+      if (workspaceFrameIsOverlay('hand')) {
+        leaveWorkspace();
+        return;
+      }
+      closeConsoleLayers();
+      goBoardHome();
+    },
+    /** The card-play descent is over — the hand's frame folds back to its
+     *  parked browse grid (selection, filter and scroll intact). */
+    foldHandStage(): void {
+      if (workspaceFrameDescended('hand') && !workspaceFrameHasNested('hand')) {
+        foldWorkspaceFrame();
+      }
     },
     /** Titles of the inner SelectOptions — the server's claimable/fundable set. */
     /**
@@ -6524,52 +6516,23 @@ export default defineComponent({
       }
       // T8: the COLONY FOCUS STAGE owns input while open (the section routes
       // the pad into the stage's own composer rows) — standalone AND embedded.
-      if (this.colonyFocusOpen || (this.colonyEmbedActive && this.colonyFocus.open)) {
+      if (this.colonyFocusOpen) {
         // L3 = the source card, on the stage exactly as on the overview (the
         // viewer opens OVER it — selection and focus survive underneath).
-        if (intent.kind === 'press' && intent.button === 'stickL' && this.colonyEmbedSourceCard !== undefined) {
-          this.inspectColonyEmbedSource();
+        if (intent.kind === 'press' && intent.button === 'stickL' && this.contextualSourceCard !== undefined) {
+          this.inspectContextualSource();
           return true;
         }
         const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
         section?.handleFocusIntent(intent);
         return true;
       }
-      // THE EMBEDDED COLONIES STEP owns the pad while hosted: the same grid
-      // grammar as the standalone section (2D d-pad, A = the server verb /
-      // trade, X = inspect-descend), B = MINIMIZE the hosting workspace (the
-      // embed contract's verb — never a bare section close). The Pluto reveal
-      // NESTED inside the step outranks it (cards must be takeable) — the
-      // reveal branch below owns the pad then.
-      if (this.colonyEmbedActive && this.consoleRevealMode === undefined) {
-        if (intent.kind === 'nav') {
-          const count = this.coloniesForRail.length;
-          const cols = colonyGridCols(colonyGridLayout(count, this.colonyPick !== undefined), count);
-          this.consoleState.colonyIndex = colonyNavStep(intent.dir, this.consoleState.colonyIndex, count, cols);
-          return true;
-        }
-        if (intent.kind === 'press' && intent.button === 'stickL' && this.colonyEmbedSourceCard !== undefined) {
-          this.inspectColonyEmbedSource();
-          return true;
-        }
-        if (action === 'primary') {
-          this.confirmColonySelection();
-          return true;
-        }
-        if (action === 'inspect') {
-          this.enterColonyFocus('inspect');
-          return true;
-        }
-        if (action === 'back') {
-          // Minimize: the prompt defers (the board-home card offers the way
-          // back); the host workspace hides with it. Restoring re-opens the
-          // colonies — standalone if the host has meanwhile finished.
-          this.deferShellTask();
-          this.consoleState.section = 'board';
-          return true;
-        }
-        return true;
-      }
+      /* (The EMBEDDED COLONIES STEP had its own copy of the grid grammar here
+         — nav, A, X, L3, B — because `section` said 'hand' (or 'board') while
+         the player was demonstrably driving a colony grid. It projects the
+         DEEPEST frame now, so the standalone branch below IS the embedded one,
+         and B's verb comes from the frame's own phase. Forty lines of
+         second-copy deleted, including the one that held the soft-lock.) */
       // The premium Milestones/Awards confirm owns input while open (A =
       // confirm, B = cancel — no background command leakage). A vanished
       // model (game switched in-session) drops the pending confirm cleanly.
@@ -6619,7 +6582,7 @@ export default defineComponent({
         // A placement prompt that arrived WHILE Info Mode was open must not
         // be restored away from — the board is the mandatory surface.
         if (this.placementActive) {
-          this.consoleState.section = 'board';
+          goBoardHome();
           this.consoleState.inspecting = false;
         }
         // The rail atomically returned to the viewer's own seat (railPlayer
@@ -6891,7 +6854,7 @@ export default defineComponent({
      * gather instead. Falls back to the plain section switch when the
      * geometry isn't measurable.
      */
-    async openHandWithReveal(opts?: {keepTask?: boolean}): Promise<void> {
+    async openHandWithReveal(opts?: {keepTask?: boolean, overlay?: boolean}): Promise<void> {
       if (isHandRevealEpisodeRunning()) {
         if (handRevealState.phase === 'closing') {
           reverseHandReveal(); // reopen mid-close: same timeline, back to open
@@ -6921,7 +6884,7 @@ export default defineComponent({
       // is precisely where the old flag-reading accent could latch forever.
       const releaseAccent = beginDockIntakeAccent('hand-open');
       try {
-        this.consoleState.section = 'hand';
+        this.openHandWorkspace({overlay: opts?.overlay});
         await this.$nextTick();
         // Two frames: the grid measures itself + ensureSelectedVisible seats
         // the scroll — the targets below are the settled layout.
@@ -6988,12 +6951,11 @@ export default defineComponent({
         return;
       }
       await this.closeHandWithReveal(discarded);
-      // The episode already put the shell on the board; clear what the pick
-      // left behind so the next surface starts from a clean state.
-      closeConsoleLayers();
+      // The episode already sent the cards home; clear what the pick left
+      // behind so the next surface starts from a clean state.
       this.consoleState.select.selected = [];
       this.consoleState.select.suitableOnly = true;
-      this.consoleState.section = 'board';
+      this.leaveHandAfterAnswer();
       this.discardFreeze = undefined;
     },
     /** The hand dock (footer bay) clicked — the mouse/touch entry point to
@@ -7021,19 +6983,21 @@ export default defineComponent({
         void this.openHandWithReveal();
         break;
       case 'cardActions':
-        this.openSheet('cardActions');
+        this.openSheet('card-actions');
         break;
       case 'trading':
         this.deferShellTask();
-        this.consoleState.section = 'colonies';
-        this.colonyOpenedByPrompt = false; // the player's own visit — it stays
+        // The player's OWN visit: the default `always` anchor is what says «this
+        // screen stays when the prompt is answered» (a prompt-pushed frame
+        // carries a `prompt` anchor and hands the screen back instead).
+        enterWorkspace('colonies');
         this.consoleState.colonyIndex = stepIndex(this.consoleState.colonyIndex, 0, this.coloniesForRail.length);
         break;
       case 'hydro':
         this.deferShellTask();
         resetHydroPlan();
         consoleHydroUi.repeatResult = undefined; // a fresh visit plans from scratch
-        this.consoleState.section = 'hydro';
+        enterWorkspace('hydro');
         break;
       default:
         break;
@@ -7053,7 +7017,7 @@ export default defineComponent({
       case 'standardProjects':
         // Opening is inspection-safe; item ACTIVATION is guarded in
         // activateStdItem (mirrors the sheet-row placement guard).
-        this.openSheet('standardProjects');
+        this.openSheet('standard-projects');
         break;
       case 'skipTurn': {
         if (guardPlacement()) {
@@ -7101,7 +7065,7 @@ export default defineComponent({
         }
         this.convertPlantsPending = found;
         closeConsoleLayers();
-        this.consoleState.section = 'board';
+        goBoardHome();
         break;
       }
       default:
@@ -7123,8 +7087,7 @@ export default defineComponent({
             this.activateStdItem(this.stdProjectItems[this.consoleState.sheetIndex]);
           } else if (a === 'back') {
             this.deferShellTask();
-            this.consoleState.sheet = undefined;
-            this.consoleState.section = 'board';
+            leaveWorkspace();
           }
         }
         return;
@@ -7161,8 +7124,7 @@ export default defineComponent({
             // (mandatory → inspect the board, then return); a no-op when the
             // player is merely viewing the M/A dashboard.
             this.deferShellTask();
-            this.consoleState.sheet = undefined;
-            this.consoleState.section = 'board';
+            leaveWorkspace();
             break;
           default:
             break;
@@ -7183,13 +7145,11 @@ export default defineComponent({
         if (a === 'primary') {
           this.activateSheetRow(this.sheetRows[this.consoleState.sheetIndex]);
         } else if (a === 'back') {
-          // B: back to the board. The hydro card pick returns to the HYDRO
-          // screen (its plan is still being composed there), never to the board.
-          const stayInSection = this.consoleState.sheet === 'hydroPick';
-          this.consoleState.sheet = undefined;
-          if (!stayInSection) {
-            this.consoleState.section = 'board';
-          }
+          // B: ONE logical level. The hydro card pick uncovers the HYDRO track
+          // it was opened from (its plan is still being composed there); a sheet
+          // opened from the board home uncovers the board. Same verb, no
+          // per-sheet special case — that is what a stack is for.
+          leaveWorkspace();
         }
       }
     },
@@ -7464,18 +7424,14 @@ export default defineComponent({
       if (this.consoleState.sale.active) {
         this.consoleState.sale.active = false;
         this.consoleState.sale.selected = [];
-        this.consoleState.section = 'board';
+        goBoardHome();
         return;
       }
-      // THE EMBEDDED HAND STEP (workspace-embed): B minimizes the WHOLE
-      // hosting workspace — its standard verb — never a bare section close.
-      // The close path below is race-prone here: `shellTaskActive` can be
-      // momentarily undefined (an admission hold), and closing without the
-      // defer left the workspace standing with an EMPTY step zone, the claim
-      // still held and no card offering the way back — a soft-lock.
-      if (this.startSponsorEmbed) {
-        this.consoleState.task.deferred = true;
-        this.consoleState.section = 'board';
+      // A NESTED STEP (the hand hosted by the start, …): B minimizes the WHOLE
+      // hosting workspace — its standard verb — never a bare close. Closing
+      // just this level would leave the host standing around an empty zone.
+      if (workspaceFrameHost('hand') !== undefined && !workspaceFrameIsOverlay('hand')) {
+        this.collapseWorkspace();
         return;
       }
       // THE COLONY FOCUS STAGE: B folds ONE level back to the browse surface
@@ -7493,8 +7449,7 @@ export default defineComponent({
           this.submit(cancelResponse());
           return;
         }
-        this.deferShellTask();
-        this.consoleState.section = 'board';
+        this.collapseWorkspace();
         return;
       }
       if (this.consoleState.section === 'hand') {
@@ -7503,9 +7458,19 @@ export default defineComponent({
         void this.closeHandWithReveal();
         return;
       }
-      if (this.consoleState.section === 'colonies' || this.consoleState.section === 'hydro') {
-        this.colonyOpenedByPrompt = false;
-        this.consoleState.section = 'board';
+      // Any other open workspace SECTION: the verb comes from the STACK's own
+      // depth model, so B can never do one thing and say another — a committed
+      // step MINIMIZES its whole workspace (the embed contract's verb), a
+      // browse layer closes, a descent folds. «Colonies» and «hydro» need no
+      // branch of their own, and neither will the next screen. (A PARKED stack
+      // projects to the board, so it falls through to the restore branch below,
+      // where it belongs.)
+      if (this.consoleState.section !== 'board') {
+        if (workspaceStackBackVerb() === 'collapse') {
+          this.collapseWorkspace();
+        } else {
+          workspaceStackBack();
+        }
         return;
       }
       if (this.placementActive) {
@@ -7645,7 +7610,7 @@ export default defineComponent({
         return;
       }
       this.consoleState.quick = id;
-      this.consoleState.sheet = undefined;
+      closeWorkspaceSheet();
       if (id === 'actions') {
         // PRE-WARM the Action Center's preview cache the moment the RT wheel
         // opens: by the time the player commits «Действия карт» the per-card
@@ -7654,12 +7619,12 @@ export default defineComponent({
         ensureActionPreviews(this.playerView);
       }
     },
-    openSheet(sheet: ConsoleSheetId): void {
+    openSheet(sheet: WorkspaceFrameKind): void {
       // A sheet switch / (re)open closes a stale full-text reader.
       this.maInspect = undefined;
       // Opening anything that is NOT the task's own surface defers the task;
       // opening the task's OWN surface un-defers it (back on the surface).
-      const isTaskSurface = (sheet === 'standardProjects' &&
+      const isTaskSurface = (sheet === 'standard-projects' &&
         this.shellTask?.kind === 'projectCard' && this.shellTask.mode === 'standardProject') ||
         (sheet === 'awards' && this.shellTask?.kind === 'awardFunding');
       if (!isTaskSurface) {
@@ -7668,13 +7633,13 @@ export default defineComponent({
         this.consoleState.task.deferred = false;
       }
       this.consoleState.quick = undefined;
-      this.consoleState.sheet = sheet;
+      enterWorkspace(sheet);
       void this.$nextTick(() => {
         // P26/P27: the MA + Std-Projects screens focus the first ACTIONABLE
         // card, else the top row.
         const selectables = this.maScreenKind !== undefined ?
           this.maScreenItems.map((it) => ({header: false, available: it.available})) :
-          this.consoleState.sheet === 'standardProjects' ?
+          sheet === 'standard-projects' ?
             this.stdProjectItems.map((it) => ({header: false, available: it.available})) :
             this.sheetRows.map((r) => ({header: r.kind === 'header', available: r.available}));
         const firstAvailable = selectables.findIndex((s) => !s.header && s.available);
@@ -7767,7 +7732,7 @@ export default defineComponent({
       case 'hydroPick':
         // A pure PLAN write (never a submit) — the hydro confirm reads it.
         hydroNetworkState.selectedCard = row.key as CardName;
-        this.consoleState.sheet = undefined;
+        leaveWorkspace(); // the pick is done; the track it opened from stands
         // Smart continuation: the pick was the LAST pending to-do, so the
         // primary flow resumes — the confirmation modal opens with the
         // complete plan (nothing is submitted until its A).
@@ -7797,10 +7762,9 @@ export default defineComponent({
       }
       if (item.key === 'sell-patents') {
         // Patent sale — the hand carousel's SALE mode (A toggles, Y sells).
-        this.consoleState.sheet = undefined;
         this.consoleState.sale.active = true;
         this.consoleState.sale.selected = [];
-        this.consoleState.section = 'hand';
+        enterWorkspace('hand');
         return;
       }
       if (item.cardName !== undefined) {
@@ -7839,39 +7803,13 @@ export default defineComponent({
       closeConsoleLayers();
     },
     /**
-     * B past the COMMIT BOUNDARY — collapse, not back. The workspace hides so
-     * the board can be read; the committed decision keeps living inside it.
-     *
-     * It rides the existing deferred-prompt flag, which already gives the
-     * board home its restore card, so «свернуть» stays ONE concept in the
-     * console. The claim is deliberately untouched: it is what keeps the
-     * prompt routed here, so on restore the player lands straight back on the
-     * live stage — same revealed card, same picks, no replayed cinematic and
-     * no second trip to the server.
+     * B past the COMMIT BOUNDARY — collapse, not back. The workspace parks so
+     * the board can be read; the committed decision keeps living inside it, at
+     * full depth, and comes back untouched (same revealed card, same picks, no
+     * replayed cinematic, no second trip to the server).
      */
     onCardActionsCollapse(): void {
-      // A REAL minimize, identical to every other deferred surface: the sheet
-      // is CLOSED, not hidden. Hiding it (v-show) left `sheet === 'cardActions'`
-      // set, and that one fact is what `mandatoryAnnounceVisible` keys off —
-      // so the «вернуться» card never appeared and input still routed into the
-      // invisible workspace. From the player's side the game was simply locked.
-      //
-      // Leaving the surface destroys the component, which is exactly why the
-      // committed decision model lives in `workspaceOutcomeState` instead: the
-      // claim keeps the prompt routed here and carries what the stage needs to
-      // be rebuilt, so the player can go read their hand, open the wheel, look
-      // at the milestones — and come back to the same decision.
-      this.consoleState.task.deferred = true;
-      this.consoleState.sheet = undefined;
-      this.consoleState.sheetIndex = 0;
-      this.consoleState.section = 'board';
-      // The composer's command contract is published to a SHARED store and
-      // released in its own `beforeUnmount`. That is one flush too late: for
-      // the frame between the sheet closing and the unmount running, the bar
-      // still advertised «НАСТРОЙКА ДЕЙСТВИЯ · БЕРЁМ КАРТЫ ИЗ КОЛОДЫ…» over a
-      // bare board — a surface that no longer exists telling the player what
-      // A does. Clearing it HERE makes the collapse atomic.
-      resetConsoleActionComposerUi();
+      this.collapseWorkspace();
     },
     /** B on the repeat-pick grid → cancel the whole repeat pick (return to the
      *  source composer with the OLD choice kept). */
@@ -7909,8 +7847,13 @@ export default defineComponent({
       // is likewise standing in a hand — the composer must descend into its
       // stage zone, never open its own band on top of the workspace (that band
       // is the «modal arrived» reading the whole step exists to remove).
-      if (this.consoleState.section === 'hand' || this.startSponsorEmbed) {
-        openWorkspaceStage('hand', cardName, 'Playing');
+      // A card picked up INSIDE the hand is a PHASE of the hand's frame, never
+      // a second frame: the browse grid parks (its selection, filter and scroll
+      // survive for free) and the composer teleports into the frame's own zone.
+      // The anchor moves with it — a card that leaves the hand takes its own
+      // configure stage with it.
+      if (workspaceFrameMounted('hand')) {
+        descendWorkspaceFrame('hand', cardName, 'Playing', {type: 'cardInHand', card: cardName});
       }
       this.pendingPlayCard = {cardName, input: {...action.input, cards: [card]}};
     },
@@ -8063,19 +8006,16 @@ export default defineComponent({
       armPlayedHero(pending.cardName, isEvent, {
         manualTableOpen: this.playedOpen,
         rewards: payload.rewards,
-        host: workspaceStageOpen('hand') && !this.playedOpen ? 'workspace' : 'overlay',
+        host: workspaceFrameDescended('hand') && !this.playedOpen ? 'workspace' : 'overlay',
       });
       // The descent crosses its commit boundary HERE: the crumb's stage marker
-      // goes amber (a committed step is a statement, not an invitation) and the
-      // depth model stops offering «back» for a move the server already has.
-      markWorkspaceStageCommitted();
-      // …and, inside the Game Start Workspace, the sponsor step must survive
-      // the round trip: between this submit and the project's landing the
-      // server names no prompt at all, and a claim that lapsed there would
-      // tear the hand out from under a card that is still in the air.
-      if (this.startSponsorEmbed) {
-        markWorkspaceEmbedCommitting();
-      }
+      // goes amber (a committed step is a statement, not an invitation), the
+      // depth model stops offering «back» for a move the server already has —
+      // and the FRAME survives the round trip on the same fact. Between this
+      // submit and the project's landing the server names no prompt at all, and
+      // a claim that lapsed there would tear the hand out from under a card
+      // that is still in the air.
+      setWorkspaceFramePhase('hand', 'executing');
       this.submitBatch(batch);
     },
     /**
@@ -8136,7 +8076,12 @@ export default defineComponent({
         return;
       }
       this.hydroPickCards = cards.map((c) => ({name: c.name, current: c.current}));
-      this.consoleState.sheet = 'hydroPick';
+      // A step INSIDE the hydro track, not a lateral move — which is the whole
+      // reason B on it uncovers the track instead of the board.
+      pushWorkspaceFrame({
+        kind: 'hydro-pick', subject: '', stage: '', phase: 'configure',
+        serves: [], anchor: {type: 'always'}, overlay: true,
+      });
       this.consoleState.sheetIndex = 0;
     },
     useStandardProject(cardName: CardName): void {
@@ -8300,7 +8245,7 @@ export default defineComponent({
       this.submit(colonyResponse(selected.name));
       closeColonyFocus();
       if (!this.colonyEmbedActive) {
-        this.consoleState.section = 'board';
+        goBoardHome();
       }
     },
     /**
@@ -8314,7 +8259,7 @@ export default defineComponent({
         return; // an embedded host / the next effect continues the sequence
       }
       if (this.consoleState.section === 'colonies') {
-        this.consoleState.section = 'board';
+        goBoardHome();
       }
     },
     /** X on a JOURNAL colony row — open the READ-ONLY dossier over the journal. */
@@ -8550,7 +8495,7 @@ export default defineComponent({
      * is what shows while the panel dismisses.
      */
     onGovSupportLeafConfirm(payload: {response: unknown, param: string}): void {
-      this.consoleState.section = 'board';
+      goBoardHome();
       closeConsoleLayers();
       this.consoleState.task.deferred = false;
       beginGovScaleClose(payload.param, () => this.submit(payload.response));
@@ -8584,11 +8529,11 @@ export default defineComponent({
     // ── shell-section tasks (T3 projectCard / T4 colony) ─────────────────
     /** Open (or re-open after un-defer) the section that serves the task. */
     openShellTaskSurface(task: ConsoleTask): void {
-      // A SelectColony HOSTED by a live workspace (the colony embed latch):
-      // the section is teleported INTO that workspace — nothing to open, no
-      // section swap, and the host's own chrome (its sheet, its scene) must
-      // stay standing. Only the cursor lands on the first pickable tile.
-      if (task.kind === 'colony' && this.colonyEmbedHostKind !== undefined) {
+      // Already standing where this is answered — nothing to open, and above
+      // all no lateral move: the colonies teleported into a live flow must not
+      // have their host's chrome swapped out from under them. Only the cursor
+      // lands on the first pickable tile.
+      if (task.kind === 'colony' && workspaceFrameMounted('colonies')) {
         const pick = this.colonyPick;
         const rail = this.coloniesForRail;
         const first = pick !== undefined ? rail.findIndex((c) => pick.selectable.includes(c.name)) : -1;
@@ -8599,28 +8544,21 @@ export default defineComponent({
       if (task.kind === 'awardFunding') {
         // FREE award funding rides the premium awards MA screen (its own
         // v-if renders it); openSheet treats it as the task surface.
-        this.consoleState.section = 'board';
         this.openSheet('awards');
         return;
       }
       if (task.kind === 'colony') {
-        this.consoleState.section = 'colonies';
-        // The PROMPT brought the player here — after the follow-up settles
-        // the section returns to the board on its own (never strands the
-        // player in a workspace they did not open).
-        this.colonyOpenedByPrompt = true;
-        // Land on the first PICKABLE tile so A is meaningful immediately.
-        const pick = this.colonyPick;
-        const rail = this.coloniesForRail;
-        const first = pick !== undefined ? rail.findIndex((c) => pick.selectable.includes(c.name)) : -1;
-        this.consoleState.colonyIndex = first !== -1 ? first : 0;
+        // The PROMPT brought the player here (the `prompt` anchor) — after the
+        // follow-up settles the frame hands the screen back on its own, so the
+        // player is never stranded in a workspace they did not open.
+        this.openColoniesForPrompt();
         return;
       }
       if (task.kind === 'handSelect') {
         // MANDATORY pick from hand (discard / reveal / place): open the hand
         // carousel in select mode + land on the first PICKABLE card so A means
         // something at once. Picks/filter are reset by the prompt-change watcher.
-        this.consoleState.section = 'hand';
+        this.openHandWorkspace();
         const selectable = new Set(this.handSelectSelectableNames);
         const idx = this.handEntries.findIndex((e) => selectable.has(e.card.name));
         this.consoleState.handIndex = idx !== -1 ? idx : 0;
@@ -8630,18 +8568,16 @@ export default defineComponent({
         if (task.mode === 'playFromHand') {
           const firstPlayable = this.handEntries.findIndex((e) => e.playable);
           this.consoleState.handIndex = firstPlayable !== -1 ? firstPlayable : 0;
-          if (this.startSponsorEmbed) {
-            // INSIDE the Game Start Workspace the hand does not "appear": it
-            // OPENS, with the same dock → slot cinematic every other route
-            // gets. The cards are already the player's — they unfold from the
-            // dock they are lying in, they are never re-dealt.
-            void this.openHandWithReveal({keepTask: true});
-            return;
-          }
-          this.consoleState.section = 'hand';
+          // INSIDE a live workspace the hand does not "appear": it OPENS, with
+          // the same dock → slot cinematic every other route gets. The cards
+          // are already the player's — they unfold from the dock they are lying
+          // in, they are never re-dealt. `keepTask`: this prompt is exactly why
+          // we are opening, so deferring it would be the opposite of navigating
+          // away. (`openHandWorkspace` decides screen-vs-step; the reveal is
+          // the same either way.)
+          void this.openHandWithReveal({keepTask: workspaceHostForStep() !== undefined});
         } else {
-          this.consoleState.section = 'board';
-          this.openSheet('standardProjects');
+          this.openSheet('standard-projects');
         }
         return;
       }
@@ -8650,7 +8586,7 @@ export default defineComponent({
         // the dedicated confirm modal serves it. Its presence is DERIVED
         // (corpFirstActionOpen), so there is nothing to open here: only the
         // board must be the section underneath it.
-        this.consoleState.section = 'board';
+        goBoardHome();
       }
     },
     /**
@@ -8827,25 +8763,14 @@ export default defineComponent({
      *  Shared by the prompt card's A and the global B-back. */
     restoreDeferredTask(): void {
       this.consoleState.task.deferred = false;
-      // A prompt still CLAIMED by the action workspace belongs inside it, so
-      // returning means re-opening that workspace — not letting the prompt
-      // rise as a standalone band, which would silently turn the collapse into
-      // "the flow moved somewhere else". The workspace rebuilds its committed
-      // stage from the claim (same card, same variant, no replayed cinematic).
-      if (workspaceOutcomeClaimed()) {
-        this.openSheet('cardActions');
-        return;
-      }
-      // The EMBEDDED HAND STEP returns WITH its workspace: the scene remounts
-      // via its own v-if, but the hand surface must be re-opened explicitly —
-      // the generic guard below skips while the start serves, and an un-defer
-      // that left the section on 'board' stood the workspace up around an
-      // empty step zone.
-      if (this.startSponsorEmbed) {
-        const task = taskFor(this.playerView);
-        if (task !== undefined && task.kind === 'projectCard') {
-          this.openShellTaskSurface(task);
-        }
+      // A PARKED STACK comes back exactly as it was — same depth, same
+      // decision, same picks, no replayed cinematic and no second trip to the
+      // server. That is the entire difference between «свернуть» and
+      // «закрыть», and it is one call instead of a branch per workspace (the
+      // action centre's claim, the hand step inside the start, …), each of
+      // which had to re-derive which surface to re-open.
+      if (workspaceStackCollapsed()) {
+        restoreWorkspaceStack();
         return;
       }
       if (this.hostTask === undefined && !this.startSceneServes && this.shellTask !== undefined) {
@@ -8854,7 +8779,7 @@ export default defineComponent({
     },
     onTaskSpacePick(payload: {index: number, spacePrompt: PlayerInputModel}): void {
       this.taskSpacePending = payload;
-      this.consoleState.section = 'board';
+      goBoardHome();
     },
     /**
      * A nested option whose card candidates are ALL IN HAND (Mars University's
@@ -8952,7 +8877,7 @@ export default defineComponent({
         }
       }
       if (this.placementActive) {
-        this.consoleState.section = 'board';
+        goBoardHome();
         closeConsoleLayers();
       }
     },
@@ -9718,16 +9643,9 @@ export default defineComponent({
       if (name === undefined) {
         return;
       }
-      openConsoleCardZoom([{name}], 0);
-    },
-    /** L3 inside the colony step (overview AND focus stage): the card whose
-     *  effect owes the colony — fullscreen over the stage, which stays
-     *  mounted with its picks and focus intact underneath. */
-    inspectColonyEmbedSource(): void {
-      const name = this.colonyEmbedSourceCard;
-      if (name === undefined) {
-        return;
-      }
+      // The viewer NAMES its role — console-wide inspection grammar: X reads
+      // the current object, L3 reads the source that produced it. One verb for
+      // every host (the colony step used to carry a second copy of this).
       openConsoleCardZoom([{name}], 0, undefined, undefined, {statusLabel: 'Source'});
     },
     /**
@@ -9813,8 +9731,7 @@ export default defineComponent({
       // vanishing and the card silently ceasing to exist. Every other pick
       // closes immediately, exactly as before.
       if (!isCardDiscardActive()) {
-        closeConsoleLayers();
-        this.consoleState.section = 'board';
+        this.leaveHandAfterAnswer();
       }
       this.submit(cardsResponse(cards as ReadonlyArray<CardName>));
     },
@@ -9822,10 +9739,9 @@ export default defineComponent({
      *  cards fly home to the dock) while the condemned ones keep flying on the
      *  app-level stage. Driven by the scene's phase, never by a timer. */
     closeSurfaceForDiscard(): void {
-      closeConsoleLayers();
       this.consoleState.select.selected = [];
       this.consoleState.select.suitableOnly = true;
-      this.consoleState.section = 'board';
+      this.leaveHandAfterAnswer();
     },
     /** LT: flip the "suitable only" filter (candidates-only ↔ the whole hand)
      *  as the SAME physical card transition the tag filter plays (leavers
@@ -9867,17 +9783,21 @@ export default defineComponent({
     // snapshot (the e2e specs dump it on a failure instead of guessing from
     // pixels). Never used by product code.
     (window as unknown as Record<string, unknown>).__conColonyDiag = () => ({
-      latch: this.colonyEmbedLatch ?? null,
-      hostKind: this.colonyEmbedHostKind ?? null,
+      // THE STACK IS THE SNAPSHOT — one ordered list instead of five flags that
+      // had to be read together and could disagree.
+      stack: workspaceStackState.frames.map((f) => ({
+        kind: f.kind, subject: f.subject, stage: f.stage, phase: f.phase,
+        overlay: f.overlay, slot: f.slot, anchor: f.anchor.type,
+      })),
+      collapsed: workspaceStackState.collapsed,
+      hostKind: workspaceFrameHost('colonies') ?? null,
       embedTarget: this.colonyEmbedTarget ?? null,
       promptRaw: this.colonyPromptRaw,
       followUp: this.colonyFollowUpLive,
-      openedByPrompt: this.colonyOpenedByPrompt,
       section: this.consoleState.section,
+      sheet: this.consoleState.sheet ?? null,
       sponsorEmbed: this.startSponsorEmbed,
       taskDeferred: this.consoleState.task.deferred,
-      stage: {...workspaceStageState},
-      embed: {...workspaceEmbedState},
       wfType: this.playerView.waitingFor?.type ?? null,
     });
     // Phase D of the discard cinematic reuses the ORDINARY hand-close episode;
@@ -9897,8 +9817,16 @@ export default defineComponent({
     // The hand-reveal director owns WHEN the section switches during its
     // episodes (and re-seats the grid scroll on a mid-close reopen).
     setHandRevealHooks({
+      // The director owns WHEN the hand appears / goes home during an episode;
+      // it asks in the shell's vocabulary, and the shell answers with the verb.
       setSection: (s) => {
-        this.consoleState.section = s;
+        if (s === 'hand') {
+          this.openHandWorkspace();
+        } else if (workspaceFrameIsOverlay('hand')) {
+          leaveWorkspace();
+        } else {
+          goBoardHome();
+        }
       },
       restoreScroll: (px) => {
         (this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined)?.restoreScroll(px);
@@ -9924,9 +9852,9 @@ export default defineComponent({
     resetHandDelivery(); // never leak a mid-flight delivery / held dock
     resetDockIntakeAccent(); // a leaked lease would disable the compact pose
     resetConsoleHandPick(); // never leak a client pick across games/sessions
-    // A descent can never outlive the shell: an orphaned claim suppresses the
-    // standalone band, so the next play would be presented NOWHERE.
-    resetWorkspaceStage();
+    // The stack can never outlive the shell: an orphaned frame suppresses the
+    // standalone band, so the next prompt would be presented NOWHERE.
+    resetWorkspaceStack();
     resetHandStageMotion();
     resetHandPlayPrewarm(); // pending dwell timers + version-keyed previews
     resetConsoleRepeatPick(); // same for a repeat-action pick + its command store

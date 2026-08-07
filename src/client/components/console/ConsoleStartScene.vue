@@ -620,8 +620,12 @@ import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
 import {captureCards, CapturedFlight, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, convoyBeats, liveFlightProxies, DockFlightSource, parkSurface, unparkSurface, clearSurfaceParking, measureTargets, pressPile} from '@/client/console/startDockMotion';
 import {FACE_DOWN_DEG, FACE_UP_DEG} from '@/client/console/cardFlight/card3dInner';
-import {noteWorkspaceEmbedSource, setWorkspaceEmbedSlot, workspaceEmbedState} from '@/client/console/consoleWorkspaceEmbed';
-import {workspaceStageState} from '@/client/console/consoleWorkspaceStage';
+import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
+import {
+  setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameHost,
+  workspaceFramePhase, workspaceFrameSubject, workspaceStackCrumb,
+  workspaceStackState,
+} from '@/client/console/consoleWorkspaceStack';
 import {
   beginStartTransition, endStartTransition, resetStartTransition, setStartTransitionPhase,
   startTransition, transitionKind,
@@ -779,10 +783,9 @@ export default defineComponent({
       heroState: playedHeroState,
       /** The shared claim state (embed zone presence derives from it). */
       outcome: workspaceOutcomeState,
-      /** The embedded step this workspace hosts («Эпатажный спонсор»). */
-      embed: workspaceEmbedState,
-      /** The live descent of the embedded hand (the composer's crumb tail). */
-      stageState: workspaceStageState,
+      /** The workspace STACK (module reactive — mirrored so template paths
+       *  stay reactive): who is standing inside us, and how deep. */
+      stack: workspaceStackState,
       /** Slots whose card is FLYING BACK from a dock pile (held empty until
        *  its touchdown) — keys are `stepId|name`. */
       returningNames: new Set<string>(),
@@ -949,12 +952,16 @@ export default defineComponent({
         });
       }
       if (this.sponsorStep) {
+        // THE TAIL IS THE DEEPEST STEP'S, not the hosted hand's. The chain can
+        // go one level further (a played card owing a colony:
+        // «СТАРТ ПАРТИИ › <пролог> › КОЛОНИИ»), and a crumb that stopped at the
+        // hand would keep naming a stage the player left two screens ago. The
+        // stack already answers this — the root and subject stay ours.
+        const crumb = workspaceStackCrumb();
         return sponsorCrumb({
           source: this.sponsorSource,
-          stage: this.stageState.host === 'hand' ? this.stageState.stage : '',
-          committed: this.stageState.host === 'hand' &&
-            (this.stageState.phase === 'committed' || this.stageState.phase === 'completing' ||
-             this.stageState.phase === 'executing'),
+          stage: crumb?.stage ?? '',
+          committed: crumb?.committed === true,
         });
       }
       return deploymentCrumb({
@@ -1055,12 +1062,23 @@ export default defineComponent({
      * and its already-played cards, and comes back untouched.
      */
     sponsorStep(): boolean {
-      return this.embed.host === 'start' && this.embed.surface === 'hand';
+      return workspaceFrameHost('hand') === 'start';
     },
     /** A prelude's SelectColony — this workspace hosts the COLONIES step
      *  (same shape as the sponsor's hand step, different surface). */
     colonyStep(): boolean {
-      return this.embed.host === 'start' && this.embed.surface === 'colonies';
+      return workspaceFrameHost('colonies') === 'start';
+    },
+    /**
+     * OUR ZONE for whichever step we are hosting — one selector, published
+     * once. Two mutually exclusive divs, so the frame below never has to know
+     * which of its children it is carrying.
+     */
+    stepSlot(): string {
+      if (this.sponsorStep) {
+        return '.con-start__handstep';
+      }
+      return this.colonyStep ? '.con-start__colonystep' : '';
     },
     /**
      * A play-from-hand effect is still owed — the server is holding its
@@ -1075,12 +1093,15 @@ export default defineComponent({
         const hand = new Set(this.playerView.cardsInHand.map((c) => c.name));
         return wf.cards.length > 0 && wf.cards.every((c) => hand.has(c.name));
       }
-      return this.embed.committing;
+      // …or the hosted step has crossed its own commit boundary: between the
+      // submit and the project's landing the server names no prompt at all.
+      const phase = workspaceFramePhase('hand');
+      return phase !== undefined && isCommitted(phase);
     },
     /** The card whose effect asked for the play — the crumb's subject. */
     sponsorSource(): CardName | undefined {
-      const src = this.embed.source;
-      return src === '' ? undefined : src;
+      const src = workspaceFrameSubject('start');
+      return src === '' ? undefined : src as CardName;
     },
     embedActive(): boolean {
       return this.outcome.host === 'start' && this.outcome.sourceCard !== '';
@@ -1761,19 +1782,11 @@ export default defineComponent({
      * the step ends, so a stale selector can never teleport into a detached
      * node. (Same contract as `setWorkspaceStageSlot` in the hand.)
      */
-    'sponsorStep': {
+    'stepSlot': {
       immediate: true,
       flush: 'post',
-      handler(on: boolean) {
-        this.publishHandStepSlot(on);
-      },
-    },
-    /** The colonies step's zone — same publish/retract discipline. */
-    'colonyStep': {
-      immediate: true,
-      flush: 'post',
-      handler(on: boolean) {
-        setWorkspaceEmbedSlot(on ? '.con-start__colonystep' : '');
+      handler(selector: string) {
+        setWorkspaceFrameSlot('start', selector);
       },
     },
     /** Step position (the panes swap under this): reseed focus, mark the
@@ -2000,14 +2013,11 @@ export default defineComponent({
     },
   },
   mounted() {
-    // Announce the hand step's zone for THIS mount (see publishHandStepSlot):
-    // a restore re-creates the component without `sponsorStep` ever changing,
-    // so the watcher has nothing to fire on.
-    this.publishHandStepSlot(this.sponsorStep);
-    // Same for the colonies step (a restore mid Build-Colony prelude).
-    if (this.colonyStep) {
-      setWorkspaceEmbedSlot('.con-start__colonystep');
-    }
+    // Announce our zone for THIS mount: a minimize→restore re-creates the
+    // component while `stepSlot` never changes value, so the watcher has
+    // nothing to fire on — and the zone would stand unannounced, leaving the
+    // hosted step teleport-less in `.con-main`.
+    setWorkspaceFrameSlot('start', this.stepSlot);
     void this.$nextTick(() => {
       this.fitCardStrip();
       this.syncCeremonyLayout();
@@ -2026,10 +2036,10 @@ export default defineComponent({
     if (this.outcome.host === 'start') {
       releaseWorkspaceOutcome(); // an orphaned claim suppresses presenters
     }
-    // Retract the hand step's zone HERE, never from the flow side: a stale
-    // selector teleports the next surface into a detached node, and the
-    // unmount watcher does not fire (Vue tears watchers down first).
-    setWorkspaceEmbedSlot('');
+    // Retract our zone HERE, never from the flow side: a stale selector
+    // teleports the next surface into a detached node, and the unmount watcher
+    // does not fire (Vue tears watchers down first).
+    setWorkspaceFrameSlot('start', '');
     resetStartDockMotion();
     registerStartDockLayer(undefined);
     this.stopStripObs?.();
@@ -2129,16 +2139,6 @@ export default defineComponent({
     pulseJourney(dir: 1 | -1): void {
       this.railPulseDir = dir;
       this.railPulse++;
-    },
-    /**
-     * Publish (or retract) the hand step's zone selector. Called from the
-     * `flush: 'post'` watcher AND from `mounted()`: a minimize→restore
-     * re-creates this component while `sponsorStep` never changes value, so
-     * the watcher has nothing to fire on — and the zone would stand
-     * unannounced, leaving the hand teleport-less in `.con-main`.
-     */
-    publishHandStepSlot(on: boolean): void {
-      setWorkspaceEmbedSlot(on ? '.con-start__handstep' : '');
     },
     /** Retire a step pane as ONE cached layer (never card by card). */
     parkPane(pos: number, dir: 1 | -1): Promise<void> {
@@ -3974,7 +3974,7 @@ export default defineComponent({
       // played. If its effect turns out to ask for a play-from-hand
       // («Эпатажный спонсор»), this is the source the crumb names — the
       // server's prompt carries no attribution of its own.
-      noteWorkspaceEmbedSource(name);
+      setWorkspaceFrameSubject('start', name);
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
         CSS.escape(name) : name.replace(/"/g, '\\"');
       // HOST 'workspace': the standalone «Разыграно» overlay never opens for

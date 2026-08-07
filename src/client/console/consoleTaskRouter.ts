@@ -118,21 +118,15 @@ export type ShellSurfaceContext = {
   sheet: string | undefined,
   /** The corporation's first-action confirm is up (it has no section). */
   corpFirstActionOpen: boolean,
-  /**
-   * The HAND is currently hosted as an embedded step of a live workspace
-   * (`consoleWorkspaceEmbed` — e.g. the Game Start Workspace's play-from-hand
-   * prelude). There «on the hand» and «inside that workspace» are the same
-   * place, not two surfaces to choose between.
+  /*
+   * (`handEmbedded` / `coloniesEmbedded` are GONE. They existed for exactly one
+   * reason: `section` used to LIE when a screen was hosted as a step of another
+   * flow — the hand teleported into the start still reported `section: 'board'`,
+   * so the central ask banner painted itself across the host's breadcrumb tail.
+   * `section` is a projection of the workspace stack now, and the DEEPEST
+   * projecting frame wins, so «the player is standing where the pick is
+   * answered» is what it already says.)
    */
-  handEmbedded: boolean,
-  /**
-   * The COLONIES are currently hosted as an embedded step of a live workspace
-   * (a played card's / an activation's / a prelude's SelectColony). Exactly
-   * the `handEmbedded` case one surface over: the player IS standing where
-   * the pick is answered, so the central ask banner would be a second title
-   * — and it lands straight across the host's breadcrumb tail.
-   */
-  coloniesEmbedded: boolean,
 };
 
 /**
@@ -156,12 +150,12 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
   switch (task.kind) {
   case 'projectCard':
     return task.mode === 'playFromHand' ?
-      (ctx.section === 'hand' || ctx.handEmbedded) :
+      ctx.section === 'hand' :
       ctx.sheet === 'standardProjects';
   case 'handSelect':
     return ctx.section === 'hand';
   case 'colony':
-    return ctx.section === 'colonies' || ctx.coloniesEmbedded;
+    return ctx.section === 'colonies';
   case 'awardFunding':
     return ctx.sheet === 'awards';
   case 'corpFirstAction':

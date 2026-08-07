@@ -33,7 +33,6 @@ import * as titles from '@/common/inputs/SelectInitialCards';
 import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overview/playerLabels';
 import {presentPlayerStatus, StatusPresentation} from '@/client/components/overview/playerStatusPresenter';
 import {resetStartTransition, startTransitionActive} from '@/client/console/startStageDirector';
-import {resetWorkspaceEmbed} from '@/client/console/consoleWorkspaceEmbed';
 
 export type StartWizardStepId = 'corp' | 'prelude' | 'ceo' | 'projects';
 
@@ -136,7 +135,6 @@ export function ensureStartWizard(ownerId: string, signature: string): void {
   consoleStartState.hold = false;
   consoleStartState.deploymentBegun = false;
   resetStartTransition();
-  resetWorkspaceEmbed();
 }
 
 /** Shift one pile's physical drift (see dockDrift). */
