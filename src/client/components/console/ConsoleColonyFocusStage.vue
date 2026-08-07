@@ -50,6 +50,7 @@
        :class="['con-colfocus--' + presentMode, {
          'con-colfocus--resolving': resolving,
          'con-colfocus--gliding': trackGliding,
+         'con-colfocus--handing': outcomeZone,
        }]"
        :data-colony-intent="intent">
     <div class="con-colfocus__surface" data-unfold-surface>
@@ -97,37 +98,26 @@
         </div>
       </section>
 
-      <!-- ═══ MAIN — the game object: track › return base › berths › setup ═══ -->
-      <div class="con-colfocus__main">
+      <!-- ═══ MAIN — the game object: track › guard rail › berths › setup ═══ -->
+      <div class="con-colfocus__main" ref="mainEl">
         <!-- ── THE EXPANDED TRADE TRACK. One big cell per position with its
              reward; the MARKER RAIL underneath carries a real seat per cell —
              the seat is the glide anchor, so the flying marker is exactly the
              size of the resting one and lands on it, not beside it. ── -->
-        <section class="con-colfocus__trackzone">
+        <section class="con-colfocus__trackzone"
+                 :style="{'--stop-col': resetPosition, '--ghost-col': resetPositionAfterBuild}">
           <header class="con-colfocus__zonehead" data-unfold-late>
             <span class="con-colfocus__sec-title">{{ $t('Trade track') }}</span>
             <span v-if="offsetSteps > 0" class="con-colfocus__tracknote-adv">
               {{ $t('Your trade advances the track first') }} <b>+{{ offsetSteps }}</b>
             </span>
-            <!-- THE RULE IN WORDS, on the line that names the object it
-                 governs — the rail below draws the same sentence. -->
-            <span class="con-colfocus__resetnote">
-              <span class="con-colfocus__resetnote-built">
-                <span class="con-colfocus__rn-label">{{ $t('Built here') }}</span>
-                <span v-if="builtCount > 0" class="con-colfocus__rn-cubes">
-                  <PlayerCube v-for="(c, i) in colony.colonies" :key="'b' + i" :color="c" :size="11" />
-                </span>
-                <b>{{ builtCount }}</b>
-              </span>
-              <span class="con-colfocus__rn-arrow" aria-hidden="true">→</span>
-              <span class="con-colfocus__resetnote-target">
-                <span class="con-colfocus__rn-label">{{ $t('Track returns to') }}</span>
-                <b class="con-colfocus__rn-pos">{{ resetPosition + 1 }}</b>
-                <em v-if="buildPreview">→ <b>{{ resetPositionAfterBuild + 1 }}</b></em>
-              </span>
-            </span>
           </header>
 
+          <!-- THE TRACK AND THE BERTHS SHARE ONE 7-COLUMN GRID. Berth `i` sits
+               under track cell `i` because that is literally the rule: an
+               occupied berth PROTECTS that position — the marker can never
+               return past it. The reset number is therefore never written
+               anywhere; it is where the guard rail stops. -->
           <div class="con-colfocus__xtrack" data-colony-focus-track>
             <div v-for="cell in trackCells" :key="cell.index"
                  class="con-colfocus__xcell"
@@ -135,7 +125,9 @@
                    'con-colfocus__xcell--marker': cell.marker,
                    'con-colfocus__xcell--effective': cell.effective,
                    'con-colfocus__xcell--passed': cell.passed,
-                   'con-colfocus__xcell--reset': cell.reset,
+                   'con-colfocus__xcell--protected': cell.index < resetPosition,
+                   'con-colfocus__xcell--latching': cell.index === latchCell,
+                   'con-colfocus__xcell--willprotect': buildPreview && cell.index === resetPosition,
                    'con-colfocus__xcell--settled': cell.index === settledCell,
                  }">
               <span class="con-colfocus__xcell-num">{{ cell.index + 1 }}</span>
@@ -150,40 +142,27 @@
               <span class="con-colfocus__xcell-rail" aria-hidden="true">
                 <span class="con-colfocus__xcell-seat"
                       :data-colony-track-cell="colony.name + '#' + cell.index"></span>
+                <!-- The GUARD: this position is held by a colony below. -->
+                <span class="con-colfocus__xcell-guard"></span>
               </span>
             </div>
-          </div>
 
-          <!-- ── THE RETURN BASE — the colony-count rule, drawn. The bracket
-               runs from position 1 to the built-colony count and plants the
-               ⟲ anchor under the EXACT cell the marker falls back to; a build
-               preview extends a ghost one cell further. ── -->
-          <div class="con-colfocus__resetrail" data-unfold-item aria-hidden="true">
-            <span v-for="cell in trackCells" :key="'r' + cell.index"
-                  class="con-colfocus__rrcell"
-                  :class="{
-                    'con-colfocus__rrcell--base': cell.index <= resetPosition,
-                    'con-colfocus__rrcell--anchor': cell.index === resetPosition,
-                    'con-colfocus__rrcell--ghost': buildPreview && cell.index === resetPositionAfterBuild,
-                    'con-colfocus__rrcell--span': trackWillReset && cell.index > resetPosition && cell.index <= markerPosition,
-                  }">
-              <span class="con-colfocus__rr-line"></span>
-              <span v-if="cell.index === resetPosition" class="con-colfocus__rr-anchor">⟲</span>
-              <span v-else-if="buildPreview && cell.index === resetPositionAfterBuild" class="con-colfocus__rr-ghost">+1</span>
+            <!-- THE STOP — the mechanical end of the return travel. It rides
+                 `--stop-col`, so building a colony SLIDES it one cell right
+                 (transform only) instead of re-rendering a new marker. -->
+            <span class="con-colfocus__stop" aria-hidden="true">
+              <span class="con-colfocus__stop-label">{{ $t('Return point') }}</span>
             </span>
+            <span v-if="buildPreview && resetPositionAfterBuild !== resetPosition"
+                  class="con-colfocus__stop con-colfocus__stop--ghost" aria-hidden="true"></span>
+            <!-- The berth row's ONE word — in the mechanism lane, right-aligned,
+                 over nothing. It names the row; the rule is drawn, not told. -->
+            <span class="con-colfocus__berthscaption" data-unfold-late>{{ $t('Colony berths') }}</span>
           </div>
 
-        </section>
-
-        <!-- ── THE COLONY BERTHS — three real places. Each carries the RETURN
-             STEP it would buy, which is what makes «build raises my trade
-             floor» readable instead of deducible. The cube SEAT is both the
-             build-cube landing anchor and the owner-bonus launch cell. ── -->
-        <section class="con-colfocus__berthzone">
-          <header class="con-colfocus__zonehead" data-unfold-late>
-            <span class="con-colfocus__sec-title">{{ $t('Colony berths') }}</span>
-            <span class="con-colfocus__zonehead-note">{{ $t('Each colony raises the return by one') }}</span>
-          </header>
+          <!-- THE BERTHS — the physical foundation of the first three
+               positions. There is deliberately nothing under cells 4…7: no
+               colony can ever protect them, and the empty span says so. -->
           <div class="con-colfocus__berths" data-colony-focus-slots data-unfold-item>
             <div v-for="idx in [0, 1, 2]" :key="idx"
                  class="con-colfocus__berth"
@@ -191,7 +170,11 @@
                    'con-colfocus__berth--taken': colony.colonies[idx] !== undefined,
                    'con-colfocus__berth--mine': colony.colonies[idx] === viewerColor,
                    'con-colfocus__berth--dest': buildPreview && idx === nextBuildSlot,
+                   'con-colfocus__berth--latching': idx === latchCell,
                  }">
+              <!-- The LATCH: an occupied berth is physically bolted to the
+                   track cell above it. -->
+              <span class="con-colfocus__berth-latch" aria-hidden="true"></span>
               <span class="con-colfocus__berth-seat"
                     :data-colony-build-slot="colony.name + '#' + idx"
                     data-colony-build-seat
@@ -199,14 +182,18 @@
                 <PlayerCube v-if="colony.colonies[idx] !== undefined" :color="colony.colonies[idx]" :size="44" />
                 <BenefitGlyph v-else :benefit="buildBenefit" :idx="idx" :cardResource="metadata.cardResource" />
               </span>
-              <span class="con-colfocus__berth-name" data-unfold-late>
-                {{ colony.colonies[idx] !== undefined ? ownerNameAt(idx) : $t('Open berth') }}
+              <!-- Only an OCCUPIED berth has something to say: an empty seat
+                   already reads as empty, and «Свободное место» in a
+                   one-column box could only ever be clipped. -->
+              <span v-if="colony.colonies[idx] !== undefined" class="con-colfocus__berth-name" data-unfold-late>
+                {{ ownerNameAt(idx) }}
               </span>
-              <span class="con-colfocus__berth-step" data-unfold-late>⟲ {{ Math.min(idx + 1, trackMax) + 1 }}</span>
             </div>
-            <!-- The OWNER BONUS belongs to this zone: it is what the berths
-                 pay out, so it stands beside them and not in a far column. -->
-            <div class="con-colfocus__ownerbonus"
+            <!-- The OWNER BONUS stands on the ownership row — but only where
+                 it is a DECISION input (build) or the subject itself
+                 (inspect). In trade the RESULT states the real transfer to
+                 named owners, and repeating the rate here was duplication. -->
+            <div v-if="presentMode !== 'trade'" class="con-colfocus__ownerbonus"
                  :data-colony-bonus-source="owners.length === 0 ? colony.name : undefined">
               <span class="con-colfocus__ob-label" data-unfold-late>{{ $t('Owner bonus') }}</span>
               <span class="con-colfocus__ob-value">
@@ -359,7 +346,6 @@
                   <BenefitGlyph :benefit="buildBenefit" :idx="nextBuildSlot" :cardResource="metadata.cardResource" />
                 </span>
               </div>
-              <div class="con-colfocus__brief-note">{{ $t('When building') }} · {{ $t('Future owner bonus') }} {{ $t('Each trade here').toLowerCase() }}</div>
             </div>
           </template>
 
@@ -370,50 +356,35 @@
             </div>
           </template>
 
-          <!-- INSPECT / UNAVAILABLE: the colony's OWN RULES take the room —
-               no empty payment skeleton, no fake controls, and never a blank
-               half-screen: this is a dossier, so it reads like one. -->
-          <template v-else>
-            <ConsoleScrollArea class="con-colfocus__configscroll con-colfocus__rules">
-              <div class="con-colfocus__sec-title" data-unfold-late>{{ $t('How it works') }}</div>
-              <div class="con-colfocus__rule">
-                <span class="con-colfocus__rglyph">
-                  <BenefitGlyph :benefit="tradeBenefitAt(effectivePosition)" :idx="effectivePosition" :cardResource="metadata.cardResource" />
-                </span>
-                <span class="con-colfocus__rule-body" data-unfold-late>
-                  <b>{{ $t('Trade') }}</b>
-                  <span v-i18n>{{ metadata.trade.description }}</span>
-                </span>
-              </div>
-              <div class="con-colfocus__rule">
-                <span class="con-colfocus__rglyph">
-                  <BenefitGlyph :benefit="buildBenefit" :idx="nextBuildSlot" :cardResource="metadata.cardResource" />
-                </span>
-                <span class="con-colfocus__rule-body" data-unfold-late>
-                  <b>{{ $t('Build a colony') }}</b>
-                  <span v-i18n>{{ metadata.build.description }}</span>
-                </span>
-              </div>
-              <div class="con-colfocus__rule">
-                <span class="con-colfocus__rglyph">
-                  <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
-                </span>
-                <span class="con-colfocus__rule-body" data-unfold-late>
-                  <b>{{ $t('Colony bonus (each trade)') }}</b>
-                  <span v-i18n>{{ metadata.colony.description }}</span>
-                </span>
-              </div>
-            </ConsoleScrollArea>
-          </template>
+          <!-- INSPECT / UNAVAILABLE: NOTHING. The dossier is the physical
+               scene above — the track states every reward, the guard rail and
+               the berths state the return rule, the result column states the
+               colony's rate. A «how it works» panel here was a manual bolted
+               onto a game surface: it appeared exactly when the player could
+               NOT act, which made the screen change genre at the worst moment.
+               The stage is simply SHORTER in this mode (see `--colfocus-h`). -->
+          <template v-else />
         </section>
       </div>
 
-      <!-- ═══ RESULT — the outcome, ONE CARD PER SOURCE ═══
-           Each group states WHERE its value comes from, so «what the trade
-           pays me» / «what the owners take» / «what building grants» / «what
-           changes for the future» are never one undifferentiated list. The
-           trade income's tight VALUE carries `data-colony-trade-source`: the
-           reward chips and card covers leave that exact number. -->
+      <!-- ═══ RESULT — «WHAT HAPPENS IF I CONFIRM NOW?», nothing else ═══
+           ONE card per SOURCE of value, and ONLY sources this action moves:
+           the trade income / the owners' cut / the payment — or the build
+           grant / the new colony. Rules, the return point and the colony's
+           standing rate are NOT restated here: the track and the guard rail
+           above already carry them physically. The income's tight VALUE
+           carries `data-colony-trade-source` — the reward chips and card
+           covers leave that exact number. -->
+      <!-- THE FOLLOW-UP'S OWN ZONE. It stands INSIDE the stage's frame, so a
+           Pluto payout is not «cards flying over the old screen»: the
+           configuration RELEASES in place, the zone UNFOLDS from the rect the
+           configuration occupied, and the reveal's content surfaces from
+           inside it (`consoleActionOutcomeMotion` — the same phrase the blue
+           action flow speaks). The destination therefore exists, measured and
+           on screen, before a single card moves. -->
+      <section v-if="outcomeZone" class="con-colfocus__outcome"
+               data-outcome-zone data-embed-slot="colonies-focus-reveal"></section>
+
       <section class="con-colfocus__result" data-unfold-item>
         <div class="con-colfocus__sec-title" data-unfold-late>{{ $t(resultTitle) }}</div>
 
@@ -504,24 +475,6 @@
               <span>{{ $t('Slot') }} {{ nextBuildSlot + 1 }}</span>
             </div>
           </div>
-          <div class="con-colfocus__rsec" data-unfold-late>
-            <div class="con-colfocus__rsec-label">{{ $t('Future owner bonus') }}</div>
-            <div class="con-colfocus__rrow con-colfocus__rrow--gain">
-              <b v-if="focusedBonusQty > 0">+{{ focusedBonusQty }}</b>
-              <span class="con-colfocus__rglyph">
-                <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
-              </span>
-              <em>{{ $t('Each trade here') }}</em>
-            </div>
-          </div>
-          <div class="con-colfocus__rsec con-colfocus__rsec--rule" data-unfold-late>
-            <div class="con-colfocus__rsec-label">{{ $t('Track returns to') }}</div>
-            <div class="con-colfocus__rrow">
-              <b class="con-colfocus__rn-pos">{{ resetPosition + 1 }}</b>
-              <span aria-hidden="true">→</span>
-              <b class="con-colfocus__rn-pos con-colfocus__rn-pos--next">{{ resetPositionAfterBuild + 1 }}</b>
-            </div>
-          </div>
         </template>
       </section>
     </div>
@@ -593,6 +546,10 @@ import {
 import {presentedColonyModel, colonyTradeState} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {colonyBuildState} from '@/client/console/colonyBuild/consoleColonyBuild';
+import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {
+  armOutcomeOriginFrom, playConfigRelease, playOutcomePhase, playOutcomeContent,
+} from '@/client/console/consoleActionOutcomeMotion';
 import BenefitGlyph from '@/client/components/colonies/BenefitGlyph.vue';
 import ColonyFleetIcon from '@/client/components/colonies/ColonyFleetIcon.vue';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -640,6 +597,13 @@ export default defineComponent({
     blockReason: {type: String, default: ''},
     /** The pick's server verb ('Build' / 'Remove colony' …, pick intent). */
     pickLabel: {type: String, default: ''},
+    /**
+     * The workspace holds an OUTCOME CLAIM and this stage is its host: the
+     * stage gives the follow-up its own zone and steps back. The SECTION owns
+     * the publication of the slot selector (one writer), so this prop is the
+     * only thing the stage needs to know.
+     */
+    outcomeZone: {type: Boolean, default: false},
     /** The inner "Pay trade fee" OrOptions options (server-affordable). */
     options: {type: Array as PropType<ReadonlyArray<SelectOptionModel>>, default: () => []},
     disabledOptions: {type: Array as PropType<NonNullable<OrOptionsModel['disabledOptions']>>, default: () => []},
@@ -662,6 +626,7 @@ export default defineComponent({
       tradeFleetState,
       colonyTradeState,
       colonyBuildState,
+      workspaceOutcomeState,
       /**
        * The COMMIT-BOUNDARY freeze: at the confirm the stage pins WHAT it was
        * showing ({mode, available}), because the server's answer flips the
@@ -767,15 +732,28 @@ export default defineComponent({
     buildPreview(): boolean {
       return this.intent === 'build' && this.presentAvailable && this.builtCount < 3;
     },
-    /** A trade from here would visibly pull the marker back. */
-    trackWillReset(): boolean {
-      return this.markerPosition > this.resetPosition;
+    /**
+     * The cell/berth pair currently being LATCHED by a landing build — the
+     * one-shot beat that makes «I just protected this position» a physical
+     * event rather than a number that silently changed. Driven by the build
+     * transaction's own phase, never a timer.
+     */
+    latchCell(): number {
+      const b = this.colonyBuildState;
+      if (!b.active || b.colonyName !== this.colony.name) {
+        return -1;
+      }
+      return b.phase === 'landed' || b.phase === 'done' ? b.slotIndex : -1;
     },
     /** This colony's marker is mid-glide — the resting marker yields to the
      *  flying proxy (the overview tile's `--marker-gliding` contract, now
      *  honoured on the stage the trade actually resolves on). */
     trackGliding(): boolean {
       return this.colonyTradeState.phase === 'glide' && this.colonyTradeState.colonyName === this.colony.name;
+    },
+    /** The teleported follow-up has actually landed in our zone. */
+    outcomeContentIn(): boolean {
+      return this.outcomeZone && this.workspaceOutcomeState.stage === 'presenting';
     },
     /** One-shot: the cell the reset marker just landed on (the settle glow). */
     settledCell(): number {
@@ -1197,6 +1175,16 @@ export default defineComponent({
     // The transaction's OWN falling edge releases the commit freeze — the
     // stage re-derives its presentation in one step (fresh verdict, fresh
     // crumb tail), never mid-flight. No timer anywhere.
+    outcomeZone(on: boolean) {
+      if (on) {
+        this.playOutcomeHandoff();
+      }
+    },
+    outcomeContentIn(landed: boolean) {
+      if (landed) {
+        void this.$nextTick(() => playOutcomeContent(this.$el as HTMLElement));
+      }
+    },
     resolving(now: boolean, was: boolean) {
       if (!now && was && this.heldView !== undefined) {
         this.heldView = undefined;
@@ -1485,6 +1473,20 @@ export default defineComponent({
       });
       this.$emit('confirm', {paymentIndex: this.payIdx, steps: this.steps, captures: capturesByIndex});
     },
+    /**
+     * The follow-up's stage handoff, in the shared grammar: the configuration
+     * lets go ON THE SPOT, the outcome zone opens FROM ITS RECT, and the
+     * teleported content surfaces from inside once it actually lands. The
+     * origin is armed at the commit, while the configuration still stands.
+     */
+    playOutcomeHandoff(): void {
+      const root = this.$el as HTMLElement | undefined;
+      if (root === undefined || root === null) {
+        return;
+      }
+      playConfigRelease(root);
+      void this.$nextTick(() => playOutcomePhase(root, () => undefined));
+    },
     /** THE COMMIT BOUNDARY: pin what the stage shows before the props flip
      *  (the answer removes the pick / spends the trade while the resolution
      *  still plays HERE). Called by the SHELL only after ITS guards accepted
@@ -1492,6 +1494,13 @@ export default defineComponent({
      *  — the transaction that releases it would never start). Released by
      *  the transaction's falling edge. */
     holdPresentation(): void {
+      // Arm the outcome origin while the configuration surface still stands —
+      // its rect is what the follow-up's zone will unfold from.
+      // The WORKING AREA is what hands over — the identity column stays, so
+      // the follow-up opens from the track/config box, not from the whole
+      // panel (an origin larger than the zone clips to nothing and the unfold
+      // silently degrades into a fade).
+      armOutcomeOriginFrom(this.$refs.mainEl as HTMLElement | undefined);
       this.heldView = {
         mode: this.presentMode,
         available: this.presentAvailable,

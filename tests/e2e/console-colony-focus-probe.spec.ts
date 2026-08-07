@@ -392,6 +392,38 @@ test('colony focus: inspect composition + build cube docking', async ({page, req
     return el === null ? null : Math.round(el.getBoundingClientRect().width);
   });
   console.log('── seated cube on the overview tile after the build:', seatedAfter);
+
+  // ── THE PROTECTION, after the fact: re-enter the colony we just built on
+  //    and read the guard rail. This is the physical statement the iteration
+  //    is judged on — position 1 is HELD and the stop has moved to 2. ──
+  await openColonies(page);
+  await focusTile(page, 'Luna');
+  await press(page, 'KeyX', 2400);
+  await shoot(page, '09-protected');
+  const guard = await page.evaluate(() => {
+    const cells = Array.from(document.querySelectorAll('.con-colfocus__xcell'));
+    const stop = document.querySelector('.con-colfocus__stop') as HTMLElement | null;
+    const track = document.querySelector('.con-colfocus__xtrack') as HTMLElement | null;
+    const berths = Array.from(document.querySelectorAll('.con-colfocus__berth'));
+    const left = (el: Element) => Math.round(el.getBoundingClientRect().left);
+    return {
+      protectedCells: cells.filter((c) => c.classList.contains('con-colfocus__xcell--protected')).length,
+      takenBerths: berths.filter((b) => b.classList.contains('con-colfocus__berth--taken')).length,
+      // The stop must stand on the first UNPROTECTED column, i.e. exactly on
+      // cell[protectedCount]'s left edge.
+      stopLeft: stop === null ? -1 : Math.round(stop.getBoundingClientRect().left),
+      cellLefts: cells.map(left),
+      // Berth i must be column-aligned with cell i.
+      aligned: berths.every((b, i) => Math.abs(left(b) - left(cells[i])) <= 1),
+      stopCol: track === null ? '' : getComputedStyle(track).getPropertyValue('--stop-col').trim(),
+    };
+  });
+  console.log('── the guard rail after one build ──', JSON.stringify(guard));
+  expect(guard.takenBerths, 'the built berth is occupied').toBe(1);
+  expect(guard.protectedCells, 'one colony holds exactly one position').toBe(1);
+  expect(guard.aligned, 'every berth is column-aligned with its track cell').toBeTruthy();
+  expect(Math.abs(guard.stopLeft - guard.cellLefts[1]), 'the stop stands on the first unprotected cell')
+    .toBeLessThanOrEqual(2);
 });
 
 test('colony focus: the stage holds its composition on every display profile', async ({page, request}) => {
@@ -434,6 +466,17 @@ test('colony focus: the stage holds its composition on every display profile', a
         markerSeatW: box('.con-colfocus__xcell-seat'),
         headClipped: Array.from(document.querySelectorAll('.con-colfocus__zonehead'))
           .filter((el) => el.scrollWidth > el.clientWidth + 1).length,
+        // A SCROLLBAR OVER THREE PAYMENT OPTIONS IS A BUDGET BUG, not a
+        // scrolling need: the panel height must hold the rows at this
+        // profile's hit-target size.
+        payScroll: (() => {
+          const el = document.querySelector('.con-colfocus__configscroll');
+          if (el === null) {
+            return -1;
+          }
+          const inner = el.querySelector('*') ?? el;
+          return Math.max(0, Math.round((inner.scrollHeight ?? 0) - el.clientHeight));
+        })(),
         past: sr === undefined ? -1 : Array.from(document.querySelectorAll('.con-colfocus__payrow, .con-colfocus__berth, .con-colfocus__rsec'))
           .filter((el) => el.getBoundingClientRect().bottom > sr.bottom + 1).length,
       };
@@ -443,6 +486,8 @@ test('colony focus: the stage holds its composition on every display profile', a
     expect(shape.berthRows, `${p.name}: the berths must stay ONE row`).toBe(1);
     expect(shape.headClipped, `${p.name}: a zone head clipped its rule chips`).toBe(0);
     expect(shape.past, `${p.name}: content painted past the surface`).toBe(0);
+    expect(shape.payScroll, `${p.name}: the payment list overflows its budget by ${shape.payScroll}px`)
+      .toBeLessThanOrEqual(0);
   }
 
   // ── B folds back: the browse grid must return, nothing stranded. ────────

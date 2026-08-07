@@ -99,28 +99,17 @@
               </span>
             </template>
 
-            <!-- ── TRADE consequence: → income · owners' bonus · warning. ── -->
+            <!-- ── TRADE: the rail says ONLY what the tile cannot. The reward
+                 and the owner bonus are printed on the tile in the very same
+                 glyphs — restating them here made the rail an encyclopaedia
+                 line that every colony repeated. What IS rail-only: a
+                 standing offset (the tile shows the level, not why it moved)
+                 and the one honest warning. ── -->
             <template v-else-if="railMode === 'trade'">
-              <span class="con-colonies__rail-arrow" aria-hidden="true">→</span>
-              <span class="con-colonies__rail-cell con-colonies__rail-cell--get">
-                <b v-if="focusedReward.quantity > 1">{{ focusedReward.quantity }}</b>
-                <BenefitGlyph :benefit="focusedTradeBenefit" :idx="focusedPosition" :cardResource="focusedMeta.cardResource" />
-                <span v-if="focusedOffset > 0" class="con-colonies__rail-offset">+{{ focusedOffset }}</span>
+              <span v-if="focusedOffset > 0" class="con-colonies__rail-cell con-colonies__rail-cell--get">
+                <span class="con-colonies__rail-label">{{ $t('Your trade advances the track first') }}</span>
+                <b>+{{ focusedOffset }}</b>
               </span>
-              <template v-if="focusedOwners.length > 0">
-                <span class="con-colonies__rail-sep" aria-hidden="true">·</span>
-                <span class="con-colonies__rail-cell">
-                  <span class="con-colonies__rail-label">{{ $t('Owner bonus') }}</span>
-                  <b v-if="focusedBonusQty > 1">{{ focusedBonusQty }}</b>
-                  <BenefitGlyph :benefit="focusedColonyBenefit" :idx="0" :cardResource="focusedMeta.cardResource" />
-                  <span class="con-colonies__rail-owners">
-                    <span v-for="c in focusedOwners" :key="c"
-                          class="con-colonies__rail-owner" :class="{'con-colonies__rail-owner--me': c === viewerColor}">
-                      <PlayerCube :color="c" :size="14" />
-                    </span>
-                  </span>
-                </span>
-              </template>
               <span v-if="focusedTradeLost" class="con-colonies__rail-warn">⚠ {{ $t('Resource will be lost — no card') }}</span>
             </template>
 
@@ -166,7 +155,7 @@
              grid beneath. The covers then fly from the traded tile into the
              reveal's own slots (the deck-draw targeting is document-wide), so
              «взлёт карт с колонии» IS the opening of this deeper scene. -->
-        <div v-if="revealEmbedActive" class="con-colonies__embed" data-embed-slot="colonies-reveal"></div>
+        <div v-if="revealEmbedActive && !focusState.open" class="con-colonies__embed" data-embed-slot="colonies-reveal"></div>
 
         <!-- ── THE COLONY FOCUS STAGE — the same frame, one level deeper.
              The descend hooks unfold it from the pressed tile's rect; the
@@ -188,6 +177,7 @@
                                    :thisPlayer="thisPlayer"
                                    :viewerColor="viewerColor"
                                    :tradeOffset="tradeOffset"
+                                   :outcomeZone="focusOutcomeZone"
                                    @confirm="onFocusConfirm"
                                    @build-confirm="$emit('build-confirm')"
                                    @pick-confirm="$emit('pick-confirm')"
@@ -228,7 +218,8 @@ import {
   colonyGridLayout, colonyGridCols, ColonyGridLayout, ColonyFocusIntent,
   colonyFocusState, openColonyFocus, closeColonyFocus,
 } from '@/client/console/consoleColoniesModel';
-import {workspaceOutcomeState, setWorkspaceOutcomeSlot} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
+import {motionMs} from '@/client/components/motion/motionTokens';
 import {freeTradeFleets, effectiveTradePosition, rewardAtPosition, TradeRewardAt, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
@@ -296,6 +287,15 @@ const GRID_PAD_Y = 26; // 10 top + 16 bottom
  *  same defense as cardSelectionFit.FIT_ROW_SLACK / handGrid.ROW_SLACK. */
 const FIT_SLACK = 12;
 
+/**
+ * THE COMPLETION SETTLE. After the last physical change (the cube seated, the
+ * guard latched, the marker landed) the scene holds for one short beat before
+ * the screen moves on — long enough to read «yes, THAT is what changed»,
+ * short enough that it never feels like waiting. A dwell, not a gate: nothing
+ * is being waited FOR, so there is no completion signal to ride.
+ */
+const COMPLETION_SETTLE_MS = 300;
+
 export default defineComponent({
   name: 'ConsoleColoniesSection',
   components: {ConsoleWsHead, ConsoleColonyFleetBar, ConsoleColonyTile, ConsoleColonyFocusStage, ColonyFleetIcon, BenefitGlyph, PlayerCube},
@@ -327,7 +327,7 @@ export default defineComponent({
      */
     embedded: {type: Boolean, default: false},
   },
-  emits: ['trade-confirm', 'build-confirm', 'pick-confirm'],
+  emits: ['trade-confirm', 'build-confirm', 'pick-confirm', 'flow-complete'],
   data() {
     return {
       /** The trade-launch controller — drives the launching-ship hide. */
@@ -350,6 +350,8 @@ export default defineComponent({
       /** VueUse stop-handles (auto-managed listeners; no raw addEventListener). */
       stopResize: undefined as (() => void) | undefined,
       stopResizeObs: undefined as (() => void) | undefined,
+      /** The completion dwell (a breathing beat, never a gate). */
+      completeTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -417,6 +419,25 @@ export default defineComponent({
     /** The reveal is genuinely ON SCREEN inside the zone — the grid yields. */
     revealEmbedPresenting(): boolean {
       return this.revealEmbedActive && this.outcomeState.stage === 'presenting';
+    },
+    /** The FOCUS STAGE hosts the follow-up while it stands. */
+    focusOutcomeZone(): boolean {
+      return this.revealEmbedActive && this.focusState.open;
+    },
+    /**
+     * THE ONE SLOT SELECTOR. Two elements can host the follow-up — the focus
+     * stage's own zone (while the player is inside a colony) and the
+     * section's zone (after the stage folded, e.g. a payout that returns from
+     * a hand discard). Exactly ONE writer decides which, so the two can never
+     * both claim the teleport and drop its content.
+     */
+    outcomeSlotSelector(): string {
+      if (!this.revealEmbedActive) {
+        return '';
+      }
+      return this.focusState.open ?
+        '[data-embed-slot="colonies-focus-reveal"]' :
+        '[data-embed-slot="colonies-reveal"]';
     },
     // ── The focus stage's inputs ───────────────────────────────────────────
     focusColonyModel(): ColonyModel | undefined {
@@ -572,10 +593,10 @@ export default defineComponent({
     // OWNERSHIP ≠ READINESS (embed rule 4): publish the zone's selector only
     // once the element genuinely stands (`flush: 'post'`), retract before it
     // unmounts. The teleport's target must exist before Vue resolves it.
-    revealEmbedActive: {
+    outcomeSlotSelector: {
       flush: 'post',
-      handler(active: boolean): void {
-        setWorkspaceOutcomeSlot(active ? '[data-embed-slot="colonies-reveal"]' : '');
+      handler(selector: string): void {
+        setWorkspaceOutcomeSlot(selector);
       },
     },
     // THE RESOLUTION'S FALLING EDGE auto-folds the focus stage back to the
@@ -586,12 +607,22 @@ export default defineComponent({
     // fold reveals. Embedded flows fold through their own latch finalize.
     'tradeState.active'(active: boolean, was: boolean): void {
       if (!active && was && this.focusState.open && !this.tradeFleetState.active) {
-        closeColonyFocus();
+        this.completeFlow();
       }
     },
     'buildState.active'(active: boolean, was: boolean): void {
       if (!active && was && this.focusState.open) {
-        closeColonyFocus();
+        this.completeFlow();
+      }
+    },
+    /** A claimed FOLLOW-UP owned the screen; it has now released. THAT is the
+     *  moment the whole action is over, so the completion runs here instead
+     *  of at the transaction's edge (which fired while the payout was still
+     *  standing). */
+    'outcomeState.sourceCard'(now: string, was: string): void {
+      if (now === '' && was !== '' && this.focusState.open &&
+          !this.tradeState.active && !this.buildState.active) {
+        this.completeFlow();
       }
     },
   },
@@ -714,8 +745,10 @@ export default defineComponent({
         return {kind: 'ok', text: beat};
       }
       if (this.pick !== undefined) {
+        // A pickable colony is the NORMAL case in a pick — the focus ring and
+        // the command bar already say so. Only a refusal earns a line.
         if (this.isPickable(colony.name)) {
-          return {kind: 'ok', text: translateText('Can select')};
+          return {kind: 'none', text: ''};
         }
         return {kind: 'blocked', text: this.pickReasonFor(colony.name)};
       }
@@ -741,7 +774,9 @@ export default defineComponent({
         },
       });
       if (reason === undefined) {
-        return {kind: 'ok', text: translateText('Trade available')};
+        // NORMAL. Five tiles each announcing «Доступна торговля» is five times
+        // the same non-information; the exception is what the eye needs.
+        return {kind: 'none', text: ''};
       }
       if (reason.intrinsic) {
         // The tile keeps the COMPACT «Not active yet»; the fuller reason.key
@@ -793,9 +828,33 @@ export default defineComponent({
       armColonyFocusOrigin(rectOf(tile), rectOf(planet), rectOf(track), rectOf(slots));
       openColonyFocus(colony.name as ColonyName, intent);
     },
-    /** Fold back to the browse surface (B / cancel). */
+    /** Fold back to the browse surface (B / cancel) — PRE-commit only. */
     closeFocus(): void {
       closeColonyFocus();
+    },
+    /**
+     * THE ACTION IS OVER. Give the scene a short breathing beat — the token
+     * has just docked, the guard has just latched, the marker has just landed,
+     * and folding on the same frame means the player never sees what changed —
+     * then hand the screen FORWARD. Never back through the configuration
+     * surface: a committed action does not travel backwards (the shell picks
+     * the destination — the next unresolved effect, or the field).
+     *
+     * A live outcome CLAIM means a follow-up owns the screen; the completion
+     * then belongs to the claim's own falling edge, not to this one.
+     */
+    completeFlow(): void {
+      if (this.completeTimer !== undefined || workspaceOutcomeClaimed()) {
+        return;
+      }
+      this.completeTimer = window.setTimeout(() => {
+        this.completeTimer = undefined;
+        if (workspaceOutcomeClaimed() || !this.focusState.open) {
+          return;
+        }
+        closeColonyFocus();
+        this.$emit('flow-complete');
+      }, motionMs(COMPLETION_SETTLE_MS));
     },
     /** The stage confirmed the trade — hand the payload UP. The stage STAYS:
      *  the fleet, the reward waves, the Pluto reveal and the track glide all
@@ -854,7 +913,7 @@ export default defineComponent({
     if (this.revealEmbedActive) {
       void this.$nextTick(() => {
         if (this.revealEmbedActive) {
-          setWorkspaceOutcomeSlot('[data-embed-slot="colonies-reveal"]');
+          setWorkspaceOutcomeSlot(this.outcomeSlotSelector);
         }
       });
     }
@@ -862,6 +921,10 @@ export default defineComponent({
   beforeUnmount() {
     this.stopResizeObs?.();
     this.stopResize?.();
+    if (this.completeTimer !== undefined) {
+      window.clearTimeout(this.completeTimer);
+      this.completeTimer = undefined;
+    }
     if (this.fitRaf !== undefined && typeof window !== 'undefined') {
       window.cancelAnimationFrame(this.fitRaf);
     }

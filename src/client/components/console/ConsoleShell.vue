@@ -213,7 +213,8 @@
                                 :playerId="playerView.id"
                                 @trade-confirm="onColonyTradeComposerConfirm($event)"
                                 @build-confirm="onColonyBuildConfirm()"
-                                @pick-confirm="onColonyPickConfirm()" />
+                                @flow-complete="onColonyFlowComplete"
+                             @pick-confirm="onColonyPickConfirm()" />
         </Teleport>
       </transition>
       <!-- The console-NATIVE Hydronetwork screen (the full rework — the
@@ -1221,7 +1222,8 @@ import {startAwaitingOthers, startDeferredSummary, startSceneHeld} from '@/clien
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
-import {buildTradeBatch, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {buildTradeBatch, colonyBuildDrawsCards, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
@@ -2565,10 +2567,18 @@ export default defineComponent({
       return workspaceOutcomeClaimed() && this.consoleState.task.deferred;
     },
     /** A claimed batch whose workspace zone is not mounted yet → hold the
-     *  reveal rather than let the full-bleed band take it for a frame. */
+     *  reveal rather than let the full-bleed band take it for a frame.
+     *
+     *  ⚠️ BOTH claim shapes, always. This guard knew only the CARD claim, so
+     *  a claimed COLONY payout whose zone was one tick late (the section
+     *  re-mounts and publishes its slot a `$nextTick` after the response)
+     *  mounted full-bleed over the colony workspace — indistinguishable from
+     *  a legacy modal, and the reason «Плутон открывает модалку» was reported
+     *  against a flow that had no legacy component in it at all. */
     revealHeldForWorkspace(): boolean {
+      const source = currentRevealEvent()?.source;
       return this.rawDrawnRevealPending &&
-        workspaceClaimsDrawReveal(currentRevealEvent()?.source) &&
+        (workspaceClaimsDrawReveal(source) || workspaceClaimsColonyReveal(source)) &&
         (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
     },
     consoleRevealMode(): ConsoleRevealMode | undefined {
@@ -3640,6 +3650,17 @@ export default defineComponent({
     tradePayoutIncoming(): boolean {
       return this.colonyTradeState.active &&
         colonyTradeClaimsReveal(currentRevealEvent()?.source);
+    },
+    /**
+     * A COLONY payout of ANY origin is arriving for a claim we hold. The
+     * trade-only predicate above cannot see a BUILD's draw: the server
+     * deliberately leaves `benefit === 'build'` un-tagged (`Colony.tradeRevealTag`),
+     * so `source.trade` is undefined and no trade transaction is armed. Keyed
+     * on the CLAIM instead — the one fact that says «this flow is still ours».
+     */
+    colonyPayoutIncoming(): boolean {
+      return this.rawDrawnRevealPending &&
+        workspaceClaimsColonyReveal(currentRevealEvent()?.source);
     },
     // ── THE COLONY EMBED — SelectColony inside a live workspace flow ──────
     /** A SelectColony prompt stands, structurally (no admission gating — the
@@ -5033,6 +5054,20 @@ export default defineComponent({
         this.consoleState.section = 'colonies';
       }
     },
+    /**
+     * The same return, for a payout we hold a claim on that the TRADE
+     * transaction cannot explain (a build's draw, a second colony bonus after
+     * a hand discard). The claim is the truth; the section comes back so the
+     * reveal lands INSIDE the workspace instead of over it.
+     */
+    colonyPayoutIncoming(incoming: boolean) {
+      if (!incoming || this.colonyEmbedActive) {
+        return;
+      }
+      if (this.consoleState.section !== 'colonies') {
+        this.consoleState.section = 'colonies';
+      }
+    },
     // The closing track glide measures the traded tile's own track cells —
     // the section must be mounted for the marker to physically step home.
     // (While EMBEDDED the section already stands inside its host.)
@@ -5092,8 +5127,19 @@ export default defineComponent({
         if (this.colonyOpenedByPrompt) {
           this.colonyOpenedByPrompt = false;
           if (this.consoleState.section === 'colonies') {
-            closeColonyFocus();
-            this.consoleState.section = 'board';
+            // THE COMPLETION SETTLE. Closing on the same frame the last
+            // physical change lands means the player never sees what it was:
+            // the cube had only just seated and the guard had only just
+            // latched. The section owns the dwell (and skips it when a
+            // follow-up still owns the screen), then hands the screen
+            // forward through `flow-complete`.
+            const section = this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined;
+            if (this.colonyFocus.open && section !== undefined) {
+              section.completeFlow();
+            } else {
+              closeColonyFocus();
+              this.consoleState.section = 'board';
+            }
           }
         }
         return;
@@ -8174,6 +8220,18 @@ export default defineComponent({
       (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
       const slotIndex = Math.min(2, selected.colonies.length);
       armColonyBuild(selected.name, slotIndex, this.thisPlayer.color);
+      // EMBEDDED OUTCOME — the same two lines the trade paths already have.
+      // WITHOUT them a build whose placement bonus DRAWS (Pluto: «возьмите 2
+      // карты») had no claim, so `workspaceClaimsColonyReveal` was false, the
+      // section never published its embed zone and the reveal teleported to
+      // `body` as a full-bleed band over the colony workspace. `kinds` is
+      // STRUCTURAL — derived from the colony's own build benefit, so a colony
+      // that grants no cards claims nothing and `reconcileWorkspaceOutcome`
+      // has nothing to drop.
+      if (colonyBuildDrawsCards(getColony(selected.name as ColonyName), slotIndex)) {
+        claimWorkspaceOutcome('colonies', selected.name, ['draw']);
+        markWorkspaceOutcomeArrivalDone();
+      }
       this.submit(colonyResponse(selected.name));
     },
     /**
@@ -8211,6 +8269,20 @@ export default defineComponent({
       this.submit(colonyResponse(selected.name));
       closeColonyFocus();
       if (!this.colonyEmbedActive) {
+        this.consoleState.section = 'board';
+      }
+    },
+    /**
+     * THE COLONY FLOW IS OVER (the stage settled and folded itself). A
+     * committed action only moves FORWARD: never back onto the overview the
+     * player configured from. Whatever is still unresolved owns the screen —
+     * a live task surface already took it — and otherwise the field does.
+     */
+    onColonyFlowComplete(): void {
+      if (this.colonyEmbedActive || this.shellTaskActive) {
+        return; // an embedded host / the next effect continues the sequence
+      }
+      if (this.consoleState.section === 'colonies') {
         this.consoleState.section = 'board';
       }
     },

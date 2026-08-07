@@ -706,15 +706,20 @@ html.con-profile-tv {
         &__planet { width: 12rem; height: 12rem; }
         &__desc { font-size: var(--con-t-caption); -webkit-line-clamp: 5; }
         &__sec-title { font-size: var(--con-t-floor); }
-        &__zonehead-note { font-size: var(--con-t-floor); }
         &__xcell-num { font-size: var(--con-t-floor); }
         /* NOT bigger than the base: the strip's fit is a RATIO (seven cells
            in the host's width), and every part already scales with
            `--con-ui-scale`. Growing the number here re-broke the embedded
            step at 4K, where the zone is proportionally just as narrow. */
         &__xcell-qty { font-size: 1rem; }
-        &__resetnote { font-size: var(--con-t-caption); }
-        &__rn-label { font-size: var(--con-t-floor); }
+        /* THE PANEL BUDGET. The payment rows are `--con-hit-min` tall here,
+           so the configuration needs ~4.5rem more room than on the base
+           profile — sizing the panel for the base row height is exactly what
+           drew a scrollbar over three options. */
+        --colfocus-h: 32.5rem;
+        &--inspect { --colfocus-h: 21rem; }
+        &--handing { --colfocus-h: 32.5rem; }
+        &__stop-label { font-size: var(--con-t-floor); }
         &__fleetline { font-size: var(--con-t-caption); }
         &__verdict { font-size: var(--con-t-secondary); }
         &__result { flex-basis: 17rem; }
@@ -722,13 +727,9 @@ html.con-profile-tv {
         &__rrow { font-size: var(--con-t-secondary); }
         &__rowners { font-size: var(--con-t-caption); }
         &__notice { font-size: var(--con-t-floor); }
-        &__berth { min-height: 5.8rem; }
         &__berth-name { font-size: var(--con-t-floor); }
-        &__berth-step { font-size: var(--con-t-floor); }
-        &__ownerbonus { width: 9.5rem; }
         &__ob-label { font-size: var(--con-t-floor); }
         &__ob-note { font-size: var(--con-t-floor); }
-        &__rule-body span { font-size: var(--con-t-caption); }
         &__payrow { min-height: var(--con-hit-min); }
         &__payrow-title { font-size: var(--con-t-secondary); }
         &__payrow-delta { font-size: var(--con-t-caption); }

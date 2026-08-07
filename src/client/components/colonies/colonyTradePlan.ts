@@ -250,6 +250,36 @@ export function trackResetAfterBuild(colony: Pick<ColonyModel, 'colonies'>, meta
   return Math.min(colony.colonies.length + 1, metadata.trade.quantity.length - 1);
 }
 
+/**
+ * Colony benefits that put CARDS on the table — i.e. the ones whose payout
+ * arrives as a `CardDrawReveal` batch and therefore needs a workspace claim
+ * so the reveal presents INSIDE the colony workspace instead of as a
+ * full-bleed band over it.
+ */
+const CARD_BENEFITS: ReadonlySet<ColonyBenefit> = new Set([
+  ColonyBenefit.DRAW_CARDS,
+  ColonyBenefit.DRAW_CARDS_AND_BUY_ONE,
+  ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE,
+  ColonyBenefit.DRAW_CARDS_AND_KEEP_ONE,
+  ColonyBenefit.DRAW_EARTH_CARD,
+]);
+
+/** TRUE when BUILDING here deals cards (Pluto's «возьмите 2 карты»). The
+ *  claim is derived from this, never from the colony's name. */
+export function colonyBuildDrawsCards(metadata: ColonyMetadata, slotIndex: number): boolean {
+  return CARD_BENEFITS.has(metadata.build.type) && (metadata.build.quantity[slotIndex] ?? 0) > 0;
+}
+
+/** TRUE when a TRADE here deals cards at `position`. */
+export function colonyTradeDrawsCards(metadata: ColonyMetadata, position: number): boolean {
+  return CARD_BENEFITS.has(metadata.trade.type) && rewardAtPosition(metadata, position).quantity > 0;
+}
+
+/** TRUE when the colony's OWNER bonus deals cards (Pluto: draw 1, discard 1). */
+export function colonyOwnerBonusDrawsCards(metadata: ColonyMetadata): boolean {
+  return CARD_BENEFITS.has(metadata.colony.type);
+}
+
 /** Free trade fleets = the player's fleet size minus the fleets already out. */
 export function freeTradeFleets(player: {fleetSize: number, tradesThisGeneration: number}): number {
   return Math.max(0, player.fleetSize - player.tradesThisGeneration);

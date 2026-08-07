@@ -64,7 +64,16 @@ function now(): number {
  */
 export function armOutcomeOrigin(root: HTMLElement | undefined): void {
   const surface = root?.querySelector<HTMLElement>(CONFIG_SURFACE);
-  originRect = descendRectOf(surface);
+  armOutcomeOriginFrom(surface);
+}
+
+/**
+ * The same arm for a host whose configuration surface is not the whole panel
+ * (the colony focus stage keeps its identity column standing and hands only
+ * its WORKING area to the outcome). Pass the element the zone will open from.
+ */
+export function armOutcomeOriginFrom(el: HTMLElement | null | undefined): void {
+  originRect = descendRectOf(el ?? undefined);
   armedAt = now();
 }
 
