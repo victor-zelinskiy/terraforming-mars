@@ -1,16 +1,24 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, APIRequestContext, Page} from '@playwright/test';
+import {
+  createGameWithCards,
+  openConsole,
+  pickCards,
+  playQueueCard,
+  press,
+  submitSummary,
+  walkToSummary,
+} from './consoleStart';
 
-// Reproduction for the EstablishedMethods console std-project stranding bug.
-// EstablishedMethods (prelude) makes the player play TWO standard projects in a
-// row via SelectStandardProjectToPlay ('Select your first/second standard
-// project'). In console mode the dedicated `.con-stdp` screen must serve BOTH
-// prompts — never the stranded guard (`.con-stranded`).
+// Regression: Established Methods makes the player perform TWO standard
+// projects in sequence. Both top-level projectCard prompts must be served by
+// the console-native Standard Projects workspace, never the stranded guard.
 
 const EM = 'Established Methods';
+const PRELUDES = [EM, 'Donation'];
 
 function newGameConfig() {
   const expansions: Record<string, boolean> = {
-    corpera: true, promo: false, venus: false, colonies: false,
+    corpera: true, promo: true, venus: false, colonies: false,
     prelude: true, prelude2: false, turmoil: false, community: false,
     ares: false, moon: false, pathfinders: false, ceo: false,
     starwars: false, underworld: false, deltaProject: false,
@@ -23,10 +31,11 @@ function newGameConfig() {
     aresExtremeVariant: false, politicalAgendasExtension: 'Standard',
     solarPhaseOption: false, removeNegativeGlobalEventsOption: false,
     modularMA: false, draftVariant: false, initialDraft: false,
-    preludeDraftVariant: false, ceosDraftVariant: false, startingCorporations: 2,
+    preludeDraftVariant: false, ceosDraftVariant: false, startingCorporations: 1,
     shuffleMapOption: false, randomMA: 'No randomization', includeFanMA: false,
-    soloTR: false, customCorporationsList: [], bannedCards: [], includedCards: [],
-    customColoniesList: [], customPreludes: [EM],
+    soloTR: false, customCorporationsList: ['Ecoline'], bannedCards: [], includedCards: [],
+    customColoniesList: [],
+    customPreludes: [EM, 'Donation', 'Loan', 'Martian Industries'],
     requiresMoonTrackCompletion: false, requiresVenusTrackCompletion: false,
     moonStandardProjectVariant: false, moonStandardProjectVariant1: false,
     altVenusBoard: false, escapeVelocity: undefined, twoCorpsVariant: false,
@@ -34,175 +43,93 @@ function newGameConfig() {
   };
 }
 
-async function key(page: Page, code: string, settleMs = 600): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
+async function prepareEstablishedMethods(page: Page, request: APIRequestContext): Promise<string> {
+  const playerId = await createGameWithCards(request, [], {config: newGameConfig()});
+  await openConsole(page, playerId);
+  await walkToSummary(page, {
+    onStep: async (stepPage, kind) => {
+      if (kind === 'corporation') {
+        const picked = await pickCards(stepPage, ['Ecoline']);
+        expect(picked, 'the controlled corporation must be offered').toContain('Ecoline');
+      } else if (kind === 'prelude') {
+        const picked = await pickCards(stepPage, PRELUDES);
+        expect(picked, 'the start deal must offer both controlled preludes')
+          .toEqual(expect.arrayContaining(PRELUDES));
+      }
+    },
+  });
+  await submitSummary(page);
+
+  // Resolve the known corporation first, then press precisely Established
+  // Methods. Its first projectCard prompt is the next server demand; no blind
+  // Enter can consume that demand accidentally. Drive these identities
+  // directly: during a queue reflow cards briefly leave the DOM, so the generic
+  // "play everything until target" helper can mistake that seam for absence.
+  const queued = (name: string) => page.locator(`.con-start__queue [data-queue-slot="${name}"]`);
+  await expect(queued('Ecoline'), 'Ecoline arrived in the deployment queue')
+    .toBeVisible({timeout: 30_000});
+  expect(await playQueueCard(page, 'Ecoline'),
+    'Ecoline never left the deployment queue').toBeTruthy();
+  await expect(queued(EM),
+    'Established Methods arrived in the deployment queue').toBeVisible({timeout: 30_000});
+  expect(await playQueueCard(page, EM),
+    'Established Methods never left the deployment queue').toBeTruthy();
+  return playerId;
 }
 
-async function slots(page: Page): Promise<Array<string>> {
-  return page.$$eval('.con-cards__slot', (els) => els.map((e) => e.getAttribute('data-zoom-slot') ?? ''));
-}
-async function focusIdx(page: Page): Promise<number> {
-  return page.$$eval('.con-cards__slot', (els) => els.findIndex((e) => e.classList.contains('con-cards__slot--focused')));
-}
-async function isPicked(page: Page, name: string): Promise<boolean> {
-  return page.evaluate((n) => {
-    const el = document.querySelector(`[data-zoom-slot="${n}"]`);
-    return el?.classList.contains('con-cards__slot--picked') ?? false;
-  }, name);
-}
-async function pickCard(page: Page, name: string): Promise<void> {
-  const list = await slots(page);
-  const target = list.indexOf(name);
-  if (target === -1) {
-    return;
-  }
-  for (let g = 0; g < 12; g++) {
-    const f = await focusIdx(page);
-    if (f === target) {
-      break;
+async function openStandardProjectPrompt(page: Page, ordinal: string): Promise<void> {
+  const standardProjects = page.locator('.con-stdp');
+  const mandatory = page.locator('.con-mandatory');
+  const stranded = page.locator('.con-stranded');
+  const started = Date.now();
+
+  // A new interruptive prompt may first be announced. Only acknowledge that
+  // structural surface; never press through an animation or a start-queue card.
+  while (Date.now() - started < 30_000 && !(await standardProjects.isVisible().catch(() => false))) {
+    await expect(stranded, `${ordinal} prompt was declared stranded before opening`).toHaveCount(0);
+    if (await mandatory.isVisible().catch(() => false)) {
+      await press(page, 'Enter', 700);
+    } else {
+      await page.waitForTimeout(250);
     }
-    await key(page, f < target ? 'ArrowRight' : 'ArrowLeft', 260);
   }
-  if (!(await isPicked(page, name))) {
-    await key(page, 'Enter', 500);
-  }
-}
 
-type Snap = {start: boolean, stdp: boolean, stranded: boolean, activeStep: number, steps: number,
-  hasCount: boolean, ready: boolean, title: string, hasEM: boolean};
-async function snap(page: Page): Promise<Snap> {
-  return page.evaluate((em) => {
-    const steps = [...document.querySelectorAll('.con-start__step')];
-    const activeStep = steps.findIndex((s) => s.classList.contains('con-start__step--active'));
-    const count = document.querySelector('.con-start__count');
-    const stdpTitle = document.querySelector('.con-stdp__title')?.textContent?.trim() ?? '';
-    const strandedTitle = document.querySelector('.con-stranded__title')?.textContent?.trim() ?? '';
-    const hasEM = document.querySelector(`.con-cards__slot[data-zoom-slot="${em}"]`) !== null;
-    return {
-      start: document.querySelector('.con-start__frame') !== null,
-      stdp: document.querySelector('.con-stdp') !== null,
-      stranded: document.querySelector('.con-stranded') !== null,
-      activeStep, steps: steps.length,
-      hasCount: count !== null,
-      ready: count?.classList.contains('con-start__count--ready') ?? false,
-      title: stdpTitle || strandedTitle, hasEM,
-    };
-  }, EM);
+  await expect(standardProjects, `${ordinal} prompt opened the Standard Projects workspace`)
+    .toBeVisible({timeout: 5_000});
+  await expect(page.locator('.con-stdp__card--focused.con-stdp__card--go'),
+    `${ordinal} prompt focused an available standard project`).toHaveCount(1);
+
+  // The leak detector confirms a stranded prompt after two one-second ticks.
+  // Keep the real workspace standing beyond that boundary and prove the guard
+  // never competes with it.
+  await page.waitForTimeout(2_750);
+  await expect(standardProjects).toBeVisible();
+  await expect(stranded, `${ordinal} prompt showed the stranded guard`).toHaveCount(0);
 }
 
 test('EstablishedMethods: both std-project prompts served by .con-stdp, never stranded', async ({page, request}) => {
-  test.setTimeout(600_000);
-  const created = await request.post('/api/creategame', {data: newGameConfig()});
-  expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-  const model = await created.json() as {players: Array<{id: string}>};
-  const pid = model.players[0].id;
-  const serverTitle = async (): Promise<string> => {
-    try {
-      const r = await request.get(`/api/player?id=${pid}`);
-      const v = await r.json() as {waitingFor?: {title?: string | {message?: string}}};
-      const t = v.waitingFor?.title;
-      return (typeof t === 'string' ? t : t?.message) ?? '(none)';
-    } catch {
-      return '(err)';
-    }
-  };
-  await page.goto(`/player?id=${pid}&console=1`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  await page.waitForTimeout(3500);
+  test.setTimeout(300_000);
+  const playerId = await prepareEstablishedMethods(page, request);
 
-  const trace: Array<string> = [];
-  const stranded: Array<string> = [];
-  // Per server-prompt outcome: was the std sheet shown, was the guard shown.
-  const promptOutcomes = new Map<string, {stdp: boolean, stranded: boolean}>();
-  let picks = 0;
+  await openStandardProjectPrompt(page, 'first');
 
-  for (let i = 0; i < 55; i++) {
-    const s = await snap(page);
-    const st = await serverTitle();
-    trace.push(`#${i} srv="${st}" start=${s.start} step=${s.activeStep}/${s.steps} count=${s.hasCount}/${s.ready} EM=${s.hasEM} stdp=${s.stdp} stranded=${s.stranded}`);
+  // The first server-authorized row is Power Plant (the energy icon). Test mode
+  // supplies ample M€, so A submits it directly. The workspace intentionally
+  // stays mounted and accepts the second prompt in place; prove the boundary
+  // from authoritative game state, not from a transient DOM unmount.
+  await expect(page.locator('.con-stdp__card--focused .std-icon--energy')).toHaveCount(1);
+  const before = await (await request.get(`/api/player?id=${playerId}`)).json() as
+    {thisPlayer: {energyProduction: number}};
+  await press(page, 'Enter', 900);
+  await expect.poll(async () => {
+    const view = await (await request.get(`/api/player?id=${playerId}`)).json() as
+      {thisPlayer: {energyProduction: number}, waitingFor?: {type?: string}};
+    return {
+      energyProduction: view.thisPlayer.energyProduction,
+      promptType: view.waitingFor?.type,
+    };
+  }, {timeout: 20_000, message: 'the first project resolved and the second projectCard prompt became current'})
+    .toEqual({energyProduction: before.thisPlayer.energyProduction + 1, promptType: 'projectCard'});
 
-    // When the server is on a std-project prompt, record what the console shows.
-    const isStdPrompt = /standard project/i.test(st);
-    if (isStdPrompt) {
-      const prev = promptOutcomes.get(st) ?? {stdp: false, stranded: false};
-      // DWELL: the leak detector needs STRANDED_CONFIRM_TICKS (2) × 1s of the
-      // prompt being unserved before it shows the guard. Give it >2s on the
-      // open sheet — without the .con-stdp fix the guard appears here.
-      for (let d = 0; d < 4; d++) {
-        const ds = await snap(page);
-        prev.stdp = prev.stdp || ds.stdp;
-        prev.stranded = prev.stranded || ds.stranded;
-        if (ds.stranded) {
-          await page.screenshot({path: `test-results/em-stranded-${i}-${d}.png`});
-        }
-        await page.waitForTimeout(750);
-      }
-      promptOutcomes.set(st, prev);
-      if (prev.stdp) {
-        await page.screenshot({path: `test-results/em-stdp-${i}.png`});
-      }
-      // Pick the focused (first available) standard project → pick + pay.
-      await key(page, 'Enter', 1500);
-      continue;
-    }
-    if (s.stranded) {
-      stranded.push(`#${i} srv="${st}"`);
-      await page.screenshot({path: `test-results/em-stranded-${i}.png`});
-    }
-
-    if (s.start) {
-      if (s.hasCount && !s.ready) {
-        if (s.hasEM && !(await isPicked(page, EM))) {
-          await pickCard(page, EM); // guarantee Established Methods is chosen
-        } else {
-          // pick the leftmost unpicked card to satisfy the count
-          const list = await slots(page);
-          const other = list.find((n) => n !== EM) ?? list[0];
-          await pickCard(page, other);
-        }
-      } else if (s.steps === 0) {
-        // The play-your-corporation / play-preludes SEQUENCE (no step rail).
-        // Deliberate, slow presses: focus the leftmost (corp / next prelude),
-        // then A to play. Animations (deal / hero) must settle between presses.
-        await page.waitForTimeout(1000);
-        await key(page, 'ArrowLeft', 400);
-        await key(page, 'Enter', 2000);
-      } else if (s.activeStep >= 0 && s.activeStep === s.steps - 1) {
-        await key(page, 'Enter', 1600); // summary → launch
-      } else {
-        // Advance the wizard step (RT = «СЛЕД. ШАГ» — the step rail's own
-        // verb; RB cycles nothing here since the start-scene rework).
-        await key(page, 'Period', 700);
-      }
-      continue;
-    }
-
-    // Post-sequence, not on a std prompt: both projects done → stop once the
-    // server has left the std-project prompts (guard against an infinite tail).
-    if (!s.start && promptOutcomes.size >= 2) {
-      break;
-    }
-    await key(page, 'Enter', 800);
-    picks++;
-    if (picks > 40) {
-      break;
-    }
-  }
-
-  console.log('TRACE:\n' + trace.join('\n'));
-  console.log('PROMPT OUTCOMES: ' + [...promptOutcomes.entries()].map(([k, v]) => `"${k}" stdp=${v.stdp} stranded=${v.stranded}`).join(' || '));
-
-  const first = [...promptOutcomes.entries()].find(([k]) => /first standard project/i.test(k));
-  const second = [...promptOutcomes.entries()].find(([k]) => /second standard project/i.test(k));
-  expect(first, `never reached the FIRST std-project prompt; seen=[${[...promptOutcomes.keys()].join('|')}]`).toBeTruthy();
-  expect(second, `never reached the SECOND std-project prompt; seen=[${[...promptOutcomes.keys()].join('|')}]`).toBeTruthy();
-  // The fix: BOTH prompts must be served by the .con-stdp screen, never the
-  // stranded guard.
-  expect(first?.[1].stranded, 'FIRST std-project prompt showed the stranded guard').toBeFalsy();
-  expect(second?.[1].stranded, 'SECOND std-project prompt showed the stranded guard').toBeFalsy();
-  expect(first?.[1].stdp, 'FIRST std-project prompt never opened .con-stdp').toBeTruthy();
-  expect(second?.[1].stdp, 'SECOND std-project prompt never opened .con-stdp').toBeTruthy();
-  expect(stranded, `stranded guard appeared outside std prompts: ${stranded.join(', ')}`).toEqual([]);
+  await openStandardProjectPrompt(page, 'second');
 });

@@ -16847,12 +16847,18 @@ html.console-mode {
    it as the UI lagging behind them, and worse, as an offer that is still live
    somewhere it is not. Entering keeps its fade (arriving is information);
    leaving is a fact, and facts do not need easing.
+   The plate also owns its one-shot entrance animation. Vue includes that
+   animation when deciding how long to retain a leaving node, and its filled
+   final keyframe keeps opacity at 1. Cancel it and hide on the synchronous
+   leave-active class — leave-to is not applied until a later frame.
    Same reasoning applies to any other place-bound plate. */
 .con-plate-enter-active {
     transition: opacity calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 }
 .con-plate-leave-active {
     transition: none;
+    animation: none;
+    opacity: 0;
 }
 .con-plate-enter-from,
 .con-plate-leave-to {

@@ -22,7 +22,7 @@
 import {test, expect, Page} from '@playwright/test';
 import {
   soloGameConfig, walkToSummary, submitSummary, press, fillPicks,
-  queueCards, waitQueueIdle, playQueueCard, startSceneGone, StepKind,
+  playStartQueue, StepKind,
 } from './consoleStart';
 
 type Sample = {
@@ -36,6 +36,8 @@ type Sample = {
   glint: {transform: string, backgroundSize: string, inset: string} | undefined,
   /** Played-pile paint order verdict while both slots exist. */
   pileTopWins: boolean | undefined,
+  /** What the shelf looked like this frame — the diagnosis when no verdict. */
+  pileState: string,
 };
 
 /**
@@ -89,16 +91,31 @@ async function sample(page: Page): Promise<Sample> {
     // THE PILE: while the previous top still stands open, is the LANDED card
     // painted above it? Probe the overlap — a point inside the top slot that
     // the prev card's overflowing face also covers.
+    //
+    // Scoped PER FAMILY: the shelf holds several stacks, and an unscoped pair
+    // of queries happily reads the prelude family's `--prev` against the
+    // corporation family's top slot, which is not a stack at all.
     let pileTopWins: boolean | undefined;
-    const prev = document.querySelector('.con-splayed__strip--prev');
-    const top = document.querySelector('.con-splayed__top[data-played-key]');
-    if (prev !== null && top !== null && !top.classList.contains('con-splayed__top--armed')) {
+    let pileState = '';
+    for (const fam of Array.from(document.querySelectorAll('[data-splayed-fam]'))) {
+      const prev = fam.querySelector('.con-splayed__strip--prev');
+      const top = fam.querySelector('.con-splayed__top');
+      if (prev === null || top === null) {
+        continue;
+      }
+      const landed = top.getAttribute('data-played-key');
+      pileState = `${fam.getAttribute('data-splayed-fam')}:prev=${prev.getAttribute('data-played-key')}` +
+        `,top=${landed ?? '-'},armed=${top.classList.contains('con-splayed__top--armed')}`;
+      if (landed === null || top.classList.contains('con-splayed__top--armed')) {
+        continue;
+      }
       const tr = top.getBoundingClientRect();
       if (tr.width > 4 && tr.height > 4) {
         const hit = document.elementFromPoint(
           Math.round(tr.x + tr.width / 2), Math.round(tr.y + Math.min(12, tr.height / 4)));
         pileTopWins = hit !== null && top.contains(hit);
       }
+      break;
     }
 
     return {
@@ -108,6 +125,7 @@ async function sample(page: Page): Promise<Sample> {
       dockChipText: dockChipNodes.map((n) => (n.textContent ?? '').trim()).join(' '),
       glint,
       pileTopWins,
+      pileState,
     } as Sample;
   });
 }
@@ -156,17 +174,14 @@ test('the start flow lands its cards, keeps its light on the card, coalesces its
   await page.waitForTimeout(7000);
   const afterMaterialization = samples.length;
 
-  // ── the deployment: play the queue so cards land on the РАЗЫГРАНО shelf. ──
-  for (let i = 0; i < 8 && !(await startSceneGone(page)); i++) {
-    await waitQueueIdle(page);
-    const queue = await queueCards(page);
-    if (queue.length === 0) {
-      break;
-    }
-    await playQueueCard(page, queue[0]);
-    await page.waitForTimeout(600);
-  }
-  await page.waitForTimeout(1200);
+  // ── the deployment: play the queue so cards land on the РАЗЫГРАНО shelf.
+  //    THE DRIVER, never a hand-rolled loop: the purchase block is a queue
+  //    ITEM but not a card, so a loop that stops at «no cards left» pays for
+  //    nothing and never reaches the SECOND prelude — the only play that lands
+  //    on a non-empty family, i.e. the only one this probe's pile claim can be
+  //    made about. ──
+  await playStartQueue(page, {plays: 10});
+  await page.waitForTimeout(1500);
 
   sampling = false;
   await pump;
@@ -213,8 +228,54 @@ test('the start flow lands its cards, keeps its light on the card, coalesces its
     `the hand-dock counter never stacks chips (saw «${offender?.dockChipText}»)`).toBeLessThanOrEqual(1);
 
   // ── 4. THE PLAYED CARD IS THE TOP OF THE PILE ────────────────────────────
+  // THE LADDER, read off the live stylesheet — the deterministic half. The
+  // window where a landed card and a still-open previous top coexist is short
+  // and depends on what the deal contained, so a probe that could only observe
+  // it would be a guard that sometimes guards nothing. These three numbers ARE
+  // the fix, and they are always readable.
+  const ladder = await page.evaluate(() => {
+    const zOf = (selector: string): string | undefined => {
+      let found: string | undefined;
+      for (const sheet of Array.from(document.styleSheets)) {
+        let rules: Array<CSSRule> = [];
+        try {
+          rules = Array.from(sheet.cssRules ?? []);
+        } catch {
+          continue; // a cross-origin sheet — not ours
+        }
+        for (const rule of rules) {
+          const styleRule = rule as CSSStyleRule;
+          if (typeof styleRule.selectorText !== 'string' || styleRule.style?.zIndex === undefined ||
+              styleRule.style.zIndex === '') {
+            continue;
+          }
+          if (styleRule.selectorText.split(',').map((s) => s.trim()).includes(selector)) {
+            found = styleRule.style.zIndex;
+          }
+        }
+      }
+      return found;
+    };
+    return {
+      top: zOf('.con-splayed__top'),
+      prev: zOf('.con-splayed__strip--prev'),
+      armed: zOf('.con-splayed__top--armed'),
+    };
+  });
+  const shown = JSON.stringify(ladder);
+  expect.soft(Number(ladder.top),
+    `the LANDED card outranks the previous top, so it covers it back to a strip ${shown}`)
+    .toBeGreaterThan(Number(ladder.prev));
+  expect.soft(Number(ladder.armed),
+    `an ARMED (still empty) slot waits UNDER the previous top, so its ring never covers the pile ${shown}`)
+    .toBeLessThan(Number(ladder.prev));
+
+  // …and the observational half: whenever the probe DID catch the overlap, the
+  // browser itself must agree. Never asserted to have happened (that is what
+  // the ladder is for) — this one can only ever fail, never flake.
   const verdicts = live.map((s) => s.pileTopWins).filter((v): v is boolean => v !== undefined);
-  expect.soft(verdicts.length, 'the probe caught the pile with a landed card over a previous top').toBeGreaterThan(0);
+  const pileStates = [...new Set(live.map((s) => s.pileState).filter((p) => p !== ''))];
+  console.log(`pile frames with a verdict: ${verdicts.length}; shelf states: ${pileStates.join(' | ') || 'none'}`);
   expect.soft(verdicts.filter((v) => !v).length,
     'the landed card is painted ABOVE the previous top in every frame — it never sinks under its art').toBe(0);
 });

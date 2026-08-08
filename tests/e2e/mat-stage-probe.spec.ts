@@ -1,6 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {walkToSummary, fillPicks, press, StepKind} from './consoleStart';
 
 /**
  * THE STAGED MATERIALIZATION probe — the Summary → deployment scene
@@ -37,18 +38,6 @@ function newGameConfig() {
     escapeVelocity: undefined, twoCorpsVariant: false, customCeos: [], startingCeos: 3, startingPreludes: 4,
     automa: {difficulty: 'normal'},
   };
-}
-
-async function key(page: Page, code: string, settleMs = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
-}
-
-async function activeSubject(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const el = document.querySelector('.con-wshead__layer--deep .con-wshead__subject');
-    return (el?.textContent ?? '').trim().toLowerCase();
-  });
 }
 
 type Sample = {
@@ -106,34 +95,26 @@ test.describe('materialization staging probe', () => {
     await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
     await page.waitForTimeout(3500);
 
-    // Walk: corp (A+RT) → preludes (A,→,A,RT) → projects (A,→,A,→,A,RT) → summary.
-    for (let round = 0; round < 20; round++) {
-      const subject = await activeSubject(page);
-      const summaryUp = await page.locator('.con-start > .con-start__frame .con-start__summary').isVisible().catch(() => false);
-      if (summaryUp) {
-        break;
-      }
-      await page.waitForSelector('.con-start__status-inner:not(.con-start__status-inner--held)', {timeout: 25_000});
-      await page.waitForTimeout(300);
-      if (subject.includes('корпорац')) {
-        await key(page, 'Enter', 600);
-        await key(page, 'Period', 1500);
-      } else if (subject.includes('пролог')) {
-        await key(page, 'Enter', 500);
-        await key(page, 'ArrowRight', 300);
-        await key(page, 'Enter', 500);
-        await key(page, 'Period', 1500);
-      } else if (subject.includes('проект')) {
-        await key(page, 'Enter', 400);
-        await key(page, 'ArrowRight', 250);
-        await key(page, 'Enter', 400);
-        await key(page, 'ArrowRight', 250);
-        await key(page, 'Enter', 400);
-        await key(page, 'Period', 1500);
-      } else {
-        await key(page, 'Enter', 800);
-      }
-    }
+    // THE WALK IS SETUP — the SHARED DRIVER owns it (consoleStart.ts). The
+    // hand-rolled key script this replaces («A, →, A» per step) drifted the
+    // moment the deal put the cursor on the row's last card: `→` does not wrap
+    // there, so the second A DESELECTED the pick instead of adding one and the
+    // preludes step sat at «Выбрано 1 из 2» forever, refusing RT. The probe
+    // then failed on its setup, three screens before its actual subject.
+    // `fillPicks` reads the picked set after every press, so it cannot drift.
+    await walkToSummary(page, {
+      onStep: async (p: Page, kind: StepKind) => {
+        if (kind === 'corporation') {
+          await press(p, 'Enter', 600);
+        } else if (kind === 'prelude') {
+          await fillPicks(p, 2);
+        } else if (kind === 'project') {
+          // Bought projects are load-bearing here: the «КУПЛЕНО» chrome
+          // assertion below is about a box that frames LANDED cards.
+          await fillPicks(p, 3);
+        }
+      },
+    });
     await expect(page.locator('.con-start > .con-start__frame .con-start__summary')).toBeVisible();
     await page.waitForTimeout(600);
 
