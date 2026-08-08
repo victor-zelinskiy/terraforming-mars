@@ -211,6 +211,54 @@ export type DiscardPromptMeta = {
 }
 
 /**
+ * EXPLICIT, translation-proof marker that a `SelectCard`'s candidates are a
+ * TEMPORARY REVEAL — cards that were just turned over off the deck (or the
+ * discard pile) FOR this decision, and that do not belong to anyone yet.
+ *
+ * WHY THE CLIENT CANNOT DERIVE IT. On the wire "look at the top 7 cards of the
+ * deck and take 2" is byte-identical to "pick a card in someone's tableau": a
+ * `SelectCard` with N candidates, a min and a max. The console's only
+ * discriminators were `buyMode`, `discardPrompt`, `buttonLabel === 'Keep'` and
+ * "are all candidates already in my hand?" — so a keep-some landed in the
+ * generic card-target browser, with no deck to come out of, no source card
+ * named, and nothing to say the unpicked cards are about to be discarded.
+ *
+ * NEVER detected from the title or the button label: `Message.message` is
+ * rewritten in place by i18n, so an English-text match stops matching after the
+ * first render (cross-cutting invariant 1).
+ *
+ * Set by `ChooseCards` — the ONE deferred action that builds this prompt for
+ * every producer in the game (behavior `drawCard: {count, keep|pay}`, the
+ * bespoke `drawCardKeepSome` calls, the Leavitt colony, the Delta science
+ * stage, the discard-pile diggers) — and serialized on `SelectCard.toModel`
+ * rather than centrally, so it survives nesting exactly like `discardPrompt`.
+ */
+export type DeckPickPromptMeta = {
+  /** How many cards were turned over for this decision (the candidate count,
+   *  mirrored so the flow can phrase «2 из 7» before it has laid the row out). */
+  revealed: number;
+  /** Prompt bounds, mirrored so the flow can phrase «ровно 2» vs «до 2». */
+  min: number;
+  max: number;
+  /** WHERE the cards physically came from — the flight's real origin, and the
+   *  only thing that decides whether they fly off the deck stack or the
+   *  discard pile. `discard` = a pile-digging effect (Junk Ventures, Return to
+   *  Abandoned Technology). */
+  origin: 'deck' | 'discard';
+  /**
+   * 'keep' — the picks are free and the rest is discarded (the look-at-N
+   * family); 'buy' — each pick costs `player.cardCost` and a payment prompt
+   * follows. `buyMode` already says the same thing for the client's cost UI;
+   * this repeats it so a consumer of THIS marker never has to read two fields
+   * to know which grammar it is in.
+   */
+  mode: 'keep' | 'buy';
+  /** Who turned the cards over — drives the source-card anchor + the crumb.
+   *  Absent when the engine itself dealt them (the research phase). */
+  source?: ChoiceContextSource;
+}
+
+/**
  * EXPLICIT marker for the FINAL GREENERY prompt — the endgame beat where a
  * player turns leftover plants into greeneries, one at a time, until they stop.
  *
@@ -244,6 +292,7 @@ export type BaseInputModel = {
   venusBonusPrompt?: VenusBonusPromptMeta;
   spendHeatPrompt?: SpendHeatPromptMeta;
   discardPrompt?: DiscardPromptMeta;
+  deckPickPrompt?: DeckPickPromptMeta;
   finalGreeneryPrompt?: FinalGreeneryPromptMeta;
 }
 

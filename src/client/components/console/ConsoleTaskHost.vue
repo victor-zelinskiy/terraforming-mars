@@ -108,7 +108,7 @@
                recognisable but never the subject, and L3 opens it. A `choice`
                keeps the full dock and its X — there the card IS what is being
                decided about. -->
-          <console-source-dock v-if="sourceView !== undefined" :view="sourceView"
+          <console-source-dock v-if="dockedSource !== undefined" :view="dockedSource"
                                :compact="sourceCompact" ref="sourceCard" />
 
           <div class="con-task__body con-info__scroll" ref="body">
@@ -760,6 +760,19 @@ export default defineComponent({
      *  prompt, so it stays visible through a nested wizard step. */
     sourceView(): PromptSourceView | undefined {
       return promptSourceView(this.parentWf);
+    },
+    /**
+     * WHAT THE DOCK RENDERS — never anything while EMBEDDED.
+     *
+     * Inside a workspace the source is already on stage: the composer's hero
+     * column holds that very card for the whole flow, and `L3 Источник` LIFTS
+     * THAT ONE (`workspaceSourceZoomOrigin`). Drawing a second copy beside the
+     * result is the console's own «two of the same card» violation, and it
+     * costs the stage the width and height the result needs — the buy stage's
+     * card halved the day the server started attributing draw picks.
+     */
+    dockedSource(): PromptSourceView | undefined {
+      return this.embedded ? undefined : this.sourceView;
     },
     /** The docked source CARD, when the source is one — what X / L3 opens. */
     sourceCardName(): CardName | undefined {

@@ -3,6 +3,7 @@ import {Size} from '../../../common/cards/render/Size';
 import {CorporationCard} from '../corporation/CorporationCard';
 import {CardRenderer} from '../render/CardRenderer';
 import {ChooseCards} from '../../deferredActions/ChooseCards';
+import {cardSource} from '../../inputs/choiceContext';
 import {IPlayer} from '../../IPlayer';
 import {ICorporationCard} from '../corporation/ICorporationCard';
 
@@ -52,7 +53,13 @@ export class JunkVentures extends CorporationCard implements ICorporationCard {
       cards.push(card);
     }
 
-    player.game.defer(new ChooseCards(player, cards, {keepMax: 1}));
+    // The cards come off the DISCARD PILE, not the deck — the console flies
+    // them off the right stack rather than claiming the deck lost cards.
+    player.game.defer(new ChooseCards(player, cards, {
+      keepMax: 1,
+      origin: 'discard',
+      promptSource: cardSource(this),
+    }));
     return undefined;
   }
 }

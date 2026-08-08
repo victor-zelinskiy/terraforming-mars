@@ -612,7 +612,7 @@ import {
 import ConsoleStartPlayedDock from '@/client/components/console/ConsoleStartPlayedDock.vue';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 import {
-  claimWorkspaceOutcome, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome,
+  claimWorkspaceOutcome, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome,
   setWorkspaceOutcomeSlot, workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
@@ -984,14 +984,20 @@ export default defineComponent({
     shellBounded(): boolean {
       return this.mode === 'ceremony' && this.shellUp;
     },
-    /** The embed's source GROUP (its card's manifest type) — keeps the crumb's
-     *  subject honest while the reveal owns the stage tail. */
+    /**
+     * The embed's subject — THE SOURCE CARD ITSELF.
+     *
+     * Stable context BEFORE the mutable stage, exactly as `sponsorCrumb`
+     * already does for a play-from-hand effect: «СТАРТ ПАРТИИ › КОРПОРАТИВНЫЕ
+     * АРХИВЫ › ВЫБОР». The crumb used to name the card's GROUP instead
+     * («ПРОЛОГИ»), which is a true sentence about the wrong thing — the player
+     * is inside ONE card's effect, and the whole reason that effect renders in
+     * this workspace rather than in a modal is that it never stopped being that
+     * card's. Card names are i18n keys, so this needs no `subjectRaw`.
+     */
     embedSubject(): string | undefined {
       const source = this.outcome.sourceCard;
-      if (source === '') {
-        return undefined;
-      }
-      return getCard(source as CardName)?.type === CardType.CORPORATION ? 'Corporation' : 'Preludes';
+      return source === '' ? undefined : source;
     },
     /** The Journey Rail items: reversible TABS through the preparation,
      *  a linear PROGRESS readout through the deployment. */
@@ -2022,6 +2028,13 @@ export default defineComponent({
         // same flush — release the hold, remember the card is physical.
         this.embedSourceArriving = false;
         this.embedSourceLanded = true;
+        // …AND THIS IS THE EXECUTION BEAT, played out. The card has physically
+        // left the queue, travelled and settled into the source seat — which
+        // is exactly what the claim's beat gate is waiting to be told. Nobody
+        // was telling it for a start-hosted outcome, so every draw and every
+        // pick here sat out the full 2.6 s BEAT_SAFETY before its surface was
+        // allowed to mount: a real beat followed by an arbitrary wait.
+        markWorkspaceOutcomeBeatDone();
       }
       if (now === 'failed') {
         void this.abortStartEffectFlow();

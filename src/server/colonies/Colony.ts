@@ -392,7 +392,11 @@ export abstract class Colony implements IColony {
       break;
 
     case ColonyBenefit.DRAW_CARDS_AND_BUY_ONE:
-      action = DrawCards.keepSome(player, 1, {paying: true, logDrawnCard: true});
+      // The pick names the COLONY that paid it out — the console anchors the
+      // whole draw-and-choose flow on that source (Leavitt's colony bonus).
+      action = DrawCards.keepSome(player, 1, {
+        paying: true, logDrawnCard: true, promptSource: colonySource(this.name),
+      });
       break;
 
     case ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE: {
@@ -418,7 +422,9 @@ export abstract class Colony implements IColony {
     }
 
     case ColonyBenefit.DRAW_CARDS_AND_KEEP_ONE:
-      action = DrawCards.keepSome(player, quantity, {keepMax: 1});
+      action = DrawCards.keepSome(player, quantity, {
+        keepMax: 1, promptSource: colonySource(this.name),
+      });
       break;
 
     case ColonyBenefit.GAIN_CARD_DISCOUNT:

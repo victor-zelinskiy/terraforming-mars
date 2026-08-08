@@ -46,6 +46,8 @@ const ROWS: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<strin
   {row: 'research buy', wf: {type: 'card', title: 'Select cards to buy', buttonLabel: 'Buy', buyMode: true, cards: [{name: 'Birds'}]}, kicker: 'Purchase'},
   {row: 'hand select', wf: {type: 'card', title: 'Select a card to discard', buttonLabel: 'Discard', cards: [{name: 'Birds'}]}, hand: ['Birds'], kicker: 'Cards in hand'},
   {row: 'card target', wf: {type: 'card', title: 'Select card to add microbe', buttonLabel: 'Add', cards: [{name: 'Tardigrades'}]}, kicker: 'Card target'},
+  {row: 'deck keep-some', wf: {type: 'card', title: 'Select 2 card(s) to keep', buttonLabel: 'Select', cards: [{name: 'Birds'}, {name: 'Tardigrades'}], deckPickPrompt: {revealed: 2, min: 2, max: 2, origin: 'deck', mode: 'keep'}}, kicker: 'Card draw'},
+  {row: 'discard-pile keep-some', wf: {type: 'card', title: 'Select 1 card(s) to keep', buttonLabel: 'Select', cards: [{name: 'Birds'}], deckPickPrompt: {revealed: 1, min: 1, max: 1, origin: 'discard', mode: 'keep'}}, kicker: 'From the discard pile'},
   {row: 'play from hand', wf: {type: 'projectCard', title: 'Play a card from hand', cards: [{name: 'Birds'}]}, hand: ['Birds'], kicker: 'Play project card'},
   {row: 'std project', wf: {type: 'projectCard', title: 'Play a standard project', cards: [{name: 'Power Plant:SP'}]}, kicker: 'Standard project'},
   {row: 'colony', wf: {type: 'colony', title: 'Select colony', coloniesModel: []}, kicker: 'Colony'},
@@ -206,7 +208,7 @@ describe('consoleTaskSummary (no prompt is ever a bare «awaiting decision»)', 
   it('EVERY TaskKind is covered by the fixture table (completeness anchor)', () => {
     const ALL: ReadonlyArray<TaskKind> = [
       'actionMenu', 'space', 'choice', 'awardFunding', 'player', 'amount', 'resource',
-      'distribute', 'payment', 'draftWait', 'cardSelect', 'handSelect', 'projectCard',
+      'distribute', 'payment', 'draftWait', 'cardSelect', 'deckSelect', 'handSelect', 'projectCard',
       'colony', 'composite', 'initialDraft', 'startSequence', 'corpFirstAction',
       'aresGlobal', 'unknown',
     ];

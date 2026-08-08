@@ -463,6 +463,13 @@ export class Executor implements BehaviorExecutor {
             cardType: drawCard.type,
             keepMax: drawCard.keep,
             paying: drawCard.pay,
+            // The look-at-N pick is a CONTINUATION of playing this card, so it
+            // must name it: the console anchors the whole draw-and-select flow
+            // on the source card (it stays on screen through the reveal and
+            // finishes its own play afterwards). The keepAll branch above has
+            // carried `revealSource` for the reveal modal all along; this
+            // branch simply stopped attributing anything.
+            promptSource: cardSource(card),
           });
         }
       }

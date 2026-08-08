@@ -18,7 +18,9 @@ import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 type PanelOwner = 'taskHost' | 'govSupport' | 'productionLoss' | 'infoMode' | 'cardActions' | 'actionComposer' | 'effectDecision' | 'finalGreenery' |
   // The three dedicated COMPOSITE surfaces (Venus track bonus, Stormcraft's
   // spend-heat, the planetary-event thresholds).
-  'spendHeat' | 'venusBonus' | 'aresGlobals';
+  'spendHeat' | 'venusBonus' | 'aresGlobals' |
+  // «Посмотри N карт колоды, оставь K» — the draw & select surface.
+  'deckPick';
 
 export const consolePanelUi = reactive({
   owner: undefined as PanelOwner | undefined,

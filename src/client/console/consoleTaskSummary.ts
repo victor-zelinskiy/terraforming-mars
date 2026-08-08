@@ -263,6 +263,19 @@ export function consoleTaskSummary(
       return {kickerKey: 'Card target', ask: ask(wf, 'Choose a card'), sourceCard: source, returnKey: 'Return to selection'};
     }
 
+  case 'deckSelect': {
+    // NAMES THE ACT, not the widget: the player is looking at cards the deck
+    // just turned over. The server title («Оставьте себе 2 карт(ы)») is the
+    // precise ask and wins, as it does everywhere else.
+    const deck = wf?.deckPickPrompt;
+    return {
+      kickerKey: deck?.origin === 'discard' ? 'From the discard pile' : 'Card draw',
+      ask: ask(wf, 'Choose the cards to keep'),
+      sourceCard: source,
+      returnKey: 'Return to selection',
+    };
+  }
+
   case 'handSelect':
     // A DISCARD names itself. The server marks every "throw cards away" prompt
     // structurally, so the chip reads «Сброс карты» instead of the neutral

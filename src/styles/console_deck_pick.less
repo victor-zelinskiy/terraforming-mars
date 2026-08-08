@@ -1,0 +1,141 @@
+/* ═══════════════════════════════════════════════════════════════════
+   CONSOLE DRAW & SELECT — «посмотри N карт колоды, оставь K»
+   (ConsoleDeckPick.vue / consoleDeckPick.ts).
+
+   The surface deliberately owns almost NO card styling of its own: the row,
+   the slots, the focus ring, the pick band and the status rail are the shared
+   `.con-cards` chassis every other card stage in a workspace wears, and the
+   geometry is the shared `consoleWsStageLayout` engine. What lives here is
+   only what is genuinely this flow's:
+
+     · the band + frame it stands in when nobody hosts it;
+     · the stripped shape it takes when a workspace DOES host it;
+     · the flight layer its deck proxies live on;
+     · the two committed poses (sending / clearing), which are calm on
+       purpose — the eye belongs on the cards that are leaving, not on the
+       frame they are leaving from.
+
+   Authored in rem (the console logical space). Functional state rides
+   box-shadow / colour, never `filter`, so con-perf-lite cannot take a
+   navigation cue away.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.con-deckpick {
+    /* THE WORKSPACE BAND is the frame box only (fixed, between the top HUD
+       strip and the command bar, right of the always-visible player rail).
+       It centres nothing — the frame below does that. Paired with the `con-ws`
+       marker class in the template: mixin without marker leaves the rail under
+       the shade, marker without mixin puts the rail over a full-width panel. */
+    .con-ws-band();
+    display: flex;
+    /* STRETCH, never centre. The frame must have a DEFINITE height: the row's
+       fit engine solves the card size against the room the stage really has,
+       and a shrink-wrapped frame would hand it a budget derived from its own
+       content — the classic fit oscillation. The row centres its cards inside
+       that box, so a single-card batch still reads centred. */
+    align-items: stretch;
+    justify-content: center;
+    padding: .3rem 0;
+    box-sizing: border-box;
+    z-index: 11480;
+    contain: layout style;
+}
+
+.con-deckpick__frame {
+    position: relative;
+    height: 100%;
+    /* A flex item's default `min-height: auto` lets content push the box past
+       its container — which is exactly what fed the fit a budget twice the
+       size of the zone and laid seven cards out for a band that did not
+       exist. `overflow: hidden` is the backstop: the focus ring and the pick
+       band live inside the row's own padding, so nothing readable is at the
+       edge, and a native scrollbar is never an option here. */
+    min-height: 0;
+    overflow: hidden;
+    /* `min(rem, 100%)` — never a `vw` cap, which overruns the narrowed band
+       when the surface stands inside a workspace on the Deck profile. */
+    width: min(78rem, 100%);
+    max-width: 100%;
+    max-height: 100%;
+    border-radius: .8rem;
+    background: linear-gradient(180deg, rgba(16, 26, 38, 0.96), rgba(10, 16, 25, 0.97));
+    box-shadow:
+        inset 0 0 0 .05rem rgba(120, 160, 200, 0.22),
+        0 1.4rem 3.2rem rgba(0, 0, 0, 0.62);
+}
+
+.con-deckpick__cards {
+    /* The strict flex column the fit MEASURES: the row is the only flexing
+       part, so `row.clientHeight` is honestly the height the cards may have. */
+    flex: 1;
+    min-height: 0;
+}
+
+/* ── EMBEDDED (a workspace hosts this step) ──────────────────────────────
+   `embedded` strips exactly three things — the `con-ws` rail marker, the
+   ConsoleWsHead, and the band geometry. Everything else is untouched: the
+   host's zone becomes the room, and the stage stops being a panel of its own
+   because the workspace frame is already drawn around it. A plate here would
+   read as a modal that arrived inside somebody else's screen. */
+.con-deckpick--embedded {
+    position: static;
+    inset: auto;
+    width: 100%;
+    max-width: none;
+    height: 100%;
+    /* See the frame above: as a flex ITEM of the host's zone this box would
+       otherwise keep its `min-height: auto` and grow with its content, and the
+       `height: 100%` beside it would lose to that. */
+    min-height: 0;
+    max-height: 100%;
+    align-self: stretch;
+    padding: 0;
+    z-index: auto;
+
+    .con-deckpick__frame {
+        width: 100%;
+        max-width: none;
+        height: 100%;
+        border-radius: 0;
+        background: none;
+        box-shadow: none;
+    }
+}
+
+/* ── THE COMMITTED POSES ─────────────────────────────────────────────────
+   Past the confirm the surface stops being an invitation. It does NOT move,
+   fade out or fold: the cards are still standing in it and two of them are
+   about to fly out, so the frame has to hold perfectly still while its
+   contents leave. All that changes is the reading weight. */
+.con-deckpick--sending .con-deckpick__frame,
+.con-deckpick--clearing .con-deckpick__frame {
+    box-shadow:
+        inset 0 0 0 .05rem rgba(120, 160, 200, 0.14),
+        0 1.4rem 3.2rem rgba(0, 0, 0, 0.62);
+}
+
+/* ── THE VEIL (the Delta science stage) ──────────────────────────────────
+   Another director is fanning these very cards out of the hydro track cell.
+   The surface must be MEASURABLE for that flight to aim at, so it is made
+   transparent rather than hidden — layout kept, rects real — and it
+   materializes around the landed cards when that scene hands over. */
+.con-deckpick--veiled {
+    opacity: 0;
+    pointer-events: none;
+}
+.con-deckpick .con-deckpick__frame {
+    transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
+}
+
+/* ── THE FLIGHT LAYER ────────────────────────────────────────────────────
+   The deck proxies are fixed to the viewport (the director writes absolute
+   screen coordinates) and must never be clipped by the frame they land in.
+   Below the command bar (11700) and the hand dock (11703+) on purpose: a card
+   arriving at the dock dives BEHIND the tray plate, exactly as every other
+   intake in the console does. */
+.con-deckpick__fly {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 11630;
+}

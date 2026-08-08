@@ -9,6 +9,7 @@ import {DrawCards} from '../../deferredActions/DrawCards';
 import {IProjectCard} from '../IProjectCard';
 import {LogType, keep} from '../../deferredActions/ChooseCards';
 import {ChooseCards} from '../../deferredActions/ChooseCards';
+import {cardSource} from '../../inputs/choiceContext';
 import {Size} from '../../../common/cards/render/Size';
 import {oneWayDifference} from '../../../common/utils/utils';
 
@@ -54,6 +55,7 @@ export class VenusOrbitalSurvey extends Card implements IActionCard {
         player.game.defer(new ChooseCards(player, rest, {
           paying: true,
           logBoughtCards: true,
+          promptSource: cardSource(this),
         }));
       }
     }));

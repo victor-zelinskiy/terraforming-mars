@@ -559,5 +559,16 @@
     "Track returns to": "Трек вернётся на",
     "Colony berths": "Места колоний",
     "Each colony raises the return by one": "Каждая колония поднимает точку возврата на 1",
-    "Return point": "Возврат"
+    "Return point": "Возврат",
+
+    "Selection complete": "Выбор завершён",
+    "From the discard pile": "Из сброса",
+    "Choose the cards to keep": "Выберите карты, которые оставите",
+    "The rest is discarded": "Остальные уходят в сброс",
+    "Taken into hand: ${0}": "В руку взято: ${0}",
+    "Cards from the deck: ${0}": "Карт из колоды: ${0}",
+    "Choose ${0} more": "Выберите ещё ${0}",
+    "You may take ${0} more": "Можно взять ещё ${0}",
+    "Keep ${0} of the drawn cards": "Оставьте ${0} из открытых карт",
+    "Keep up to ${0} of the drawn cards": "Оставьте до ${0} из открытых карт"
 }

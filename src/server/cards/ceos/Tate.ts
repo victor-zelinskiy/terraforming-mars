@@ -7,6 +7,7 @@ import {CeoCard} from './CeoCard';
 import {Tag} from '../../../common/cards/Tag';
 import {SelectOption} from '../../inputs/SelectOption';
 import {OrOptions} from '../../inputs/OrOptions';
+import {cardSource} from '../../inputs/choiceContext';
 import {Size} from '../../../common/cards/render/Size';
 import {inplaceRemove} from '../../../common/utils/utils';
 import {message} from '../../logs/MessageBuilder';
@@ -37,7 +38,10 @@ export class Tate extends CeoCard {
     const options = tags.map((tag) => {
       return new SelectOption(message('Search for ${0} tags', (b) => b.string(tag)), 'Search').andThen(() => {
         game.log('${0} searched for ${1} tags', (b) => b.player(player).string(tag));
-        player.drawCardKeepSome(5, {keepMax: 2, tag: tag, paying: true, logDrawnCard: true});
+        player.drawCardKeepSome(5, {
+          keepMax: 2, tag: tag, paying: true, logDrawnCard: true,
+          promptSource: cardSource(this),
+        });
         return undefined;
       });
     });

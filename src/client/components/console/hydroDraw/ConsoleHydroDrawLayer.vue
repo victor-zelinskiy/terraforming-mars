@@ -104,7 +104,13 @@ function cssEscape(value: string): string {
 
 /** The select modal's card slots (the flight targets — the card element inside). */
 function taskHostSlots(): Array<HTMLElement> {
-  return Array.from(document.querySelectorAll<HTMLElement>('.con-task-host [data-zoom-slot]'));
+  // BOTH pick surfaces. The Delta science stage's prompt now routes to the
+  // DRAW & SELECT surface (`.con-deckpick`) rather than the generic task host,
+  // and this scene delivers the cards into whichever one is standing — the fan
+  // comes out of the TRACK CELL the marker just landed on, which is a truer
+  // origin here than the deck, so it keeps the delivery.
+  return Array.from(document.querySelectorAll<HTMLElement>(
+    '.con-deckpick [data-zoom-slot], .con-task-host [data-zoom-slot]'));
 }
 
 /* Non-reactive scene context (module scope — GSAP handles must never be Vue-
@@ -185,7 +191,7 @@ export default defineComponent({
             }
             // The advance resolved into a prompt that is NOT the card pick:
             // there is nothing for these cards to land in.
-            if (document.querySelector('.con-task-host') !== null && ++foreignHost >= FOREIGN_HOST_POLLS) {
+            if (document.querySelector('.con-deckpick, .con-task-host') !== null && ++foreignHost >= FOREIGN_HOST_POLLS) {
               done(false);
               return;
             }

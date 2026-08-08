@@ -399,7 +399,7 @@ body.con-zoom-open .con-journal {
    still compound against every host's base class — adding a stage (the
    workspace's PREPARED beat stage is the third) is one token, not a third
    copy of the chassis. */
-:is(.con-task, .con-reveal__card, .con-composer__beatstage).con-ws-stage-frame {
+:is(.con-task, .con-reveal__card, .con-composer__beatstage, .con-deckpick__frame).con-ws-stage-frame {
     /* Every rem here is height the CARDS do not get: the fit subtracts this
        chrome from the band and hands the remainder to the row. The stage wears
        no plate of its own (the workspace frame is already around it), so the
@@ -416,7 +416,7 @@ body.con-zoom-open .con-journal {
    two short strings were costing the result stage a whole band of height that
    the cards then paid for in size. Height is RESERVED (the fit subtracts it),
    so going from one card to several never moves the row underneath. */
-:is(.con-task__head, .con-reveal__head, .con-composer__beathead).con-ws-stage-head {
+:is(.con-task__head, .con-reveal__head, .con-composer__beathead, .con-deckpick__head).con-ws-stage-head {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -530,7 +530,8 @@ body.con-zoom-open .con-journal {
 }
 .con-cards__verdictbar.con-ws-stage-status,
 .con-reveal__namebar.con-ws-stage-status,
-.con-composer__beatstatus.con-ws-stage-status {
+.con-composer__beatstatus.con-ws-stage-status,
+.con-deckpick__status.con-ws-stage-status {
     /* A FIXED height, not a min: the status line is the last chrome the fit
        subtracts, so a content-driven one (the buy's price chip runs 3px
        taller than the draw's name chip at 4K) hands the two stages different

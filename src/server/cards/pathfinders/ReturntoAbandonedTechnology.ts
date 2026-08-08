@@ -2,6 +2,7 @@ import {IProjectCard} from '../IProjectCard';
 import {IPlayer} from '../../IPlayer';
 import {Card} from '../Card';
 import {ChooseCards} from '../../deferredActions/ChooseCards';
+import {cardSource} from '../../inputs/choiceContext';
 import {CardType} from '../../../common/cards/CardType';
 import {CardName} from '../../../common/cards/CardName';
 import {CardRenderer} from '../render/CardRenderer';
@@ -40,7 +41,12 @@ export class ReturntoAbandonedTechnology extends Card implements IProjectCard {
     }
 
     const cardsToKeep = Math.min(2, cards.length);
-    player.game.defer(new ChooseCards(player, cards, {keepMax: cardsToKeep}));
+    // From the DISCARD PILE — see JunkVentures for the same note.
+    player.game.defer(new ChooseCards(player, cards, {
+      keepMax: cardsToKeep,
+      origin: 'discard',
+      promptSource: cardSource(this),
+    }));
 
     return undefined;
   }

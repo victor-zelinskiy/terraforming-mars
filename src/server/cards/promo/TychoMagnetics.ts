@@ -54,6 +54,6 @@ export class TychoMagnetics extends CorporationCard implements ICorporationCard 
   }
 
   public action(player: IPlayer) {
-    return spendEnergyForCards(player);
+    return spendEnergyForCards(player, this);
   }
 }

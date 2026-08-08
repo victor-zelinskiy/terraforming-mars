@@ -49,6 +49,6 @@ export class HiTechLab extends Card implements IProjectCard {
   }
 
   public action(player: IPlayer) {
-    return spendEnergyForCards(player);
+    return spendEnergyForCards(player, this);
   }
 }

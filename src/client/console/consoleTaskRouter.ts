@@ -43,6 +43,22 @@ export type ConsoleTask =
   | {kind: 'draftWait'}
   | {kind: 'cardSelect', mode: CardSelectMode}
   /**
+   * LOOK AT N CARDS OFF THE DECK AND KEEP K — «Корпоративные архивы» (7→2),
+   * «Деловые контакты» (4→2), «Конкурс изобретений» (3→1), the Leavitt colony,
+   * the Delta science stage, the discard-pile diggers.
+   *
+   * A family of its own, not a `cardSelect` flavour, because it is a different
+   * OBJECT: these cards belong to nobody. They came out of the deck a moment
+   * ago for this one decision, the picks go to the hand and the rest is
+   * discarded — so the surface owes the player a deck to come out of, a source
+   * card that explains why, and a physical journey into the dock. The generic
+   * card browser can honour none of that, and `mode: 'target'` (its `else`
+   * branch) said the opposite of the truth: nothing is being targeted.
+   *
+   * Routed off the SERVER's `deckPickPrompt` marker — never off the title.
+   */
+  | {kind: 'deckSelect'}
+  /**
    * MANDATORY "pick from your OWN hand" (discard / reveal / keep / copy /
    * place onto Self-Replicating Robots): every candidate is already in the
    * player's hand, so it is served by the HAND SECTION in select mode — the
@@ -88,7 +104,7 @@ export type TaskKind = ConsoleTask['kind'];
 export const NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'actionMenu', 'space',
   'choice', 'player', 'amount', 'resource', 'distribute',
-  'cardSelect', 'handSelect', 'payment', 'draftWait',
+  'cardSelect', 'deckSelect', 'handSelect', 'payment', 'draftWait',
   'projectCard', 'colony', 'awardFunding',
   'initialDraft', 'startSequence', 'corpFirstAction',
   // The three that used to fall through to the DESKTOP modal inside the
@@ -295,6 +311,19 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     }
     if (buttonLabel === 'Keep') {
       return {kind: 'cardSelect', mode: 'draft'};
+    }
+    // THE DECK REVEAL — the server's own structural marker, checked before the
+    // `buyMode` split and before the generic fallthrough.
+    //
+    // Scoped to the KEEP grammar on purpose. A PAYING reveal (Inventors' Guild,
+    // the research buy, Tate) is already a first-class flow — the card-actions
+    // workspace's embedded «ПОКУПКА» stage and the research rise — with cost
+    // badges, an affordability check and a payment prompt behind it. Those are
+    // not missing anything, so they keep their home; the marker rides along on
+    // them anyway (it describes what the cards ARE), which is what will let a
+    // later iteration unify the two without another server change.
+    if (wf.deckPickPrompt?.mode === 'keep') {
+      return {kind: 'deckSelect'};
     }
     // Structural buy marker (ChooseCards) — NOT a `title.includes('buy')` sniff,
     // which broke once i18n rewrote the translatable title in place.

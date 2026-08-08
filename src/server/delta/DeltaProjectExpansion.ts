@@ -12,6 +12,7 @@ import {SelectCard} from '../inputs/SelectCard';
 import {OrOptions} from '../inputs/OrOptions';
 import {VictoryPointsBreakdownBuilder} from '../game/VictoryPointsBreakdownBuilder';
 import {DrawCards} from '../deferredActions/DrawCards';
+import {namedCardSource} from '../inputs/choiceContext';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {CardResource} from '../../common/CardResource';
 import {IActionCard, ICard, isIActionCard, isIHasCheckLoops} from '../cards/ICard';
@@ -357,7 +358,9 @@ export class DeltaProjectExpansion {
       break;
 
     case Tag.SCIENCE: // Look at top 4 cards, take 2, discard rest
-      player.game.defer(DrawCards.keepSome(player, 4, {keepMax: 2}));
+      player.game.defer(DrawCards.keepSome(player, 4, {
+        keepMax: 2, promptSource: namedCardSource(CardName.DELTA_PROJECT),
+      }));
       break;
 
     case Tag.PLANT: { // Gain 1 plant per plant tag

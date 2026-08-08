@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext, DiscardPromptMeta, FinalGreeneryPromptMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext, DeckPickPromptMeta, DiscardPromptMeta, FinalGreeneryPromptMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
 
 export interface PlayerInput {
     type: PlayerInputType;
@@ -33,6 +33,11 @@ export interface PlayerInput {
     // DiscardPromptMeta) — the ONE signal the console's unified discard flow
     // keys off, whoever demands the discard. Serialized in getWaitingFor.
     discardPrompt?: DiscardPromptMeta;
+    // Explicit "these candidates were just turned over off the deck FOR this
+    // decision" marker (see DeckPickPromptMeta) — what tells the console the
+    // cards are a temporary reveal rather than anybody's property. Serialized
+    // on SelectCard.toModel (nesting-safe), not centrally.
+    deckPickPrompt?: DeckPickPromptMeta;
     // Explicit "this is the FINAL GREENERY beat" marker (see
     // FinalGreeneryPromptMeta) — one branch places, the other ENDS the game.
     finalGreeneryPrompt?: FinalGreeneryPromptMeta;
@@ -89,6 +94,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public venusBonusPrompt: VenusBonusPromptMeta | undefined;
   public spendHeatPrompt: SpendHeatPromptMeta | undefined;
   public discardPrompt: DiscardPromptMeta | undefined;
+  public deckPickPrompt: DeckPickPromptMeta | undefined;
   public finalGreeneryPrompt: FinalGreeneryPromptMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
@@ -179,6 +185,17 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  See {@link DiscardPromptMeta} and `inputs/discardPrompt.ts` for factories. */
   public markDiscardPrompt(meta: DiscardPromptMeta): this {
     this.discardPrompt = meta;
+    return this;
+  }
+
+  /** Mark this `SelectCard`'s candidates as a TEMPORARY REVEAL off the deck (or
+   *  the discard pile) — cards turned over FOR this decision that belong to
+   *  nobody yet, and of which the unpicked ones are about to be discarded.
+   *  Attached by `ChooseCards`, the one deferred action every producer of this
+   *  prompt goes through. See {@link DeckPickPromptMeta} and
+   *  `inputs/deckPickPrompt.ts` for the factories. */
+  public markDeckPickPrompt(meta: DeckPickPromptMeta): this {
+    this.deckPickPrompt = meta;
     return this;
   }
 

@@ -42,6 +42,11 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '12 hand select (discard) → hand section, not the card browser', wf: {type: 'card', title: 'Select a card to discard', buttonLabel: 'Discard', cards: [{name: 'Birds'}]}, hand: ['Birds', 'Zeppelins'], expect: {kind: 'handSelect'}},
   {row: '12b hand select incl. a Self-Replicating Robots host', wf: {type: 'card', title: 'Select a card to place', buttonLabel: 'Select', cards: [{name: 'Birds'}]}, hand: ['Zeppelins'], srr: ['Birds'], expect: {kind: 'handSelect'}},
   {row: '13 nested target pick', wf: {type: 'card', title: 'Select card to add microbe', buttonLabel: 'Add', cards: [{name: 'Tardigrades'}]}, expect: {kind: 'cardSelect', mode: 'target'}},
+  // «Посмотри N карт колоды, оставь K» — routed off the SERVER's own marker.
+  // Byte-identical to row 13 on the wire apart from `deckPickPrompt`, which is
+  // exactly why the marker had to exist.
+  {row: '13a deck keep-some', wf: {type: 'card', title: 'Select 2 card(s) to keep', buttonLabel: 'Select', cards: [{name: 'Birds'}, {name: 'Tardigrades'}], deckPickPrompt: {revealed: 2, min: 2, max: 2, origin: 'deck', mode: 'keep'}}, expect: {kind: 'deckSelect'}},
+  {row: '13b discard-pile keep-some', wf: {type: 'card', title: 'Select 1 card(s) to keep', buttonLabel: 'Select', cards: [{name: 'Birds'}], deckPickPrompt: {revealed: 1, min: 1, max: 1, origin: 'discard', mode: 'keep'}}, expect: {kind: 'deckSelect'}},
   {row: '16 play-from-hand prompt', wf: {type: 'projectCard', title: 'Play a card from hand', cards: [{name: 'Birds'}]}, hand: ['Birds'], expect: {kind: 'projectCard', mode: 'playFromHand'}},
   {row: '17 std-project prompt', wf: {type: 'projectCard', title: 'Play a standard project', cards: [{name: 'Power Plant:SP'}]}, expect: {kind: 'projectCard', mode: 'standardProject'}},
   {row: '18 colony build/select', wf: {type: 'colony', title: 'Select colony', coloniesModel: []}, expect: {kind: 'colony'}},

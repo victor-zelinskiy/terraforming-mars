@@ -63,7 +63,7 @@ function cardKindKey(kind: ChoiceContextSource['kind']): string {
 }
 
 /** `ChoiceContextSource` — the shape `choiceContext` / `placementContext` /
- *  `discardPrompt` all share. */
+ *  `discardPrompt` / `deckPickPrompt` all share. */
 export function choiceSourceView(source: ChoiceContextSource | undefined): PromptSourceView | undefined {
   if (source === undefined) {
     return undefined;
@@ -125,7 +125,8 @@ export function promptSourceView(wf: PlayerInputModel | undefined): PromptSource
     }
   }
   return choiceSourceView(
-    wf.choiceContext?.source ?? wf.placementContext?.source ?? wf.discardPrompt?.source);
+    wf.choiceContext?.source ?? wf.placementContext?.source ??
+    wf.discardPrompt?.source ?? wf.deckPickPrompt?.source);
 }
 
 /** The source CARD of a prompt, when there is one — the narrow read most

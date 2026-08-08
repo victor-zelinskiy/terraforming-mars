@@ -539,6 +539,27 @@
                                 @gov-confirm="onGovSupportLeafConfirm" />
     </transition>
 
+    <!-- DRAW & SELECT — «посмотри N карт колоды, оставь K» (Корпоративные
+         архивы, Деловые контакты, Конкурс изобретений, Leavitt, the Delta
+         science stage). Its own surface, not the generic card browser: these
+         cards belong to nobody yet, so the flow owes a deck they come out of
+         and a physical journey into the hand dock.
+         EMBEDDED when the player's own workspace produced the draw — the SAME
+         instance teleported into that workspace's outcome zone, so a prelude's
+         effect deepens the start workspace instead of replacing it. -->
+    <Teleport :to="deckPickEmbedTarget ?? 'body'" :disabled="deckPickEmbedTarget === undefined">
+      <transition :css="false" appear
+                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                  @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+        <ConsoleDeckPick v-if="deckPickActive && !deckPickHeldForWorkspace"
+                         ref="deckPick"
+                         :playerView="playerView"
+                         :embedded="deckPickEmbedTarget !== undefined"
+                         @submit="onTaskSubmit"
+                         @defer="onTaskDefer" />
+      </transition>
+    </Teleport>
+
     <!-- Production loss (Ares hazard-adjacency penalty) — the dedicated
          premium "reduce your production" surface (replaces the generic host
          distribute lanes for this ONE case). Same submit / defer contract. -->
@@ -1157,6 +1178,8 @@ import {resetDecisionFocus} from '@/client/console/effectDecision/effectDecision
 import ConsoleFinalGreenery from '@/client/components/console/ConsoleFinalGreenery.vue';
 import {buildFinalGreenery, EYEBROW as FINAL_GREENERY_EYEBROW, FinalGreeneryViewModel} from '@/client/console/finalGreenery/finalGreeneryModel';
 import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
+import ConsoleDeckPick from '@/client/components/console/deckPick/ConsoleDeckPick.vue';
+import {deckPickHolding, resetDeckPick} from '@/client/console/deckPick/consoleDeckPick';
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
@@ -1283,7 +1306,11 @@ import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.v
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 
 /** The kinds served by a DEDICATED composite surface (not by the task host). */
-const NATIVE_COMPOSITE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['venusBonus', 'spendHeat', 'aresGlobal']);
+// The prompt families served by a DEDICATED console surface rather than by
+// the generic task host. Membership means two things and only two: the
+// desktop fallback modal stays suppressed for them, and the shell counts
+// them as a busy screen (footer under-scene, hand dock compact).
+const NATIVE_COMPOSITE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['venusBonus', 'spendHeat', 'aresGlobal', 'deckSelect']);
 import {ConsoleTaskSummary, consoleTaskSummary, placementKicker} from '@/client/console/consoleTaskSummary';
 import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
@@ -1452,6 +1479,7 @@ export default defineComponent({
     ConsoleEffectDecision,
     ConsoleFinalGreenery,
     ConsoleProductionLoss,
+    ConsoleDeckPick,
     ConsoleSpendHeat,
     ConsoleVenusBonus,
     ConsoleAresGlobals,
@@ -2290,6 +2318,47 @@ export default defineComponent({
       const task = taskFor(this.playerView);
       return task !== undefined && NATIVE_COMPOSITE_KINDS.has(task.kind) ? task : undefined;
     },
+    /**
+     * «Посмотри N карт колоды, оставь K» — the DRAW & SELECT surface.
+     *
+     * `deckPickHolding()` is what keeps it up PAST its own prompt: the answer
+     * ends `waitingFor` the moment it reaches the server, and both of the
+     * flow's closing beats (the picks flying into the dock, the rest tumbling
+     * away) live entirely after that. Without it the surface would be deleted
+     * out from under the very animation it exists for.
+     */
+    deckPickActive(): boolean {
+      if (this.consoleState.task.deferred || this.taskSpacePending !== undefined) {
+        return false;
+      }
+      if (deckPickHolding()) {
+        return true;
+      }
+      return this.nativeCompositeTask?.kind === 'deckSelect';
+    },
+    /** The prompt BELONGS to an open workspace (ownership), whether or not its
+     *  zone is ready yet — the same split `taskBelongsToWorkspace` makes. */
+    deckPickBelongsToWorkspace(): boolean {
+      return workspaceClaimsPick() && this.deckPickActive;
+    },
+    /** Claimed but not ready → render NOWHERE for the gap frame, never in a
+     *  band of our own for one frame and then somewhere else. */
+    deckPickHeldForWorkspace(): boolean {
+      return this.deckPickBelongsToWorkspace &&
+        (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
+    },
+    deckPickEmbedTarget(): string | undefined {
+      if (!this.deckPickBelongsToWorkspace || this.deckPickHeldForWorkspace) {
+        return undefined;
+      }
+      const slot = workspaceOutcomeState.embedSlot;
+      return slot === '' ? undefined : slot;
+    },
+    /** ON STAGE and owning its screen — the ONE predicate the pad routing, the
+     *  command bar and the start scene's own ownership all read. */
+    deckPickServing(): boolean {
+      return this.deckPickActive && !this.deckPickHeldForWorkspace;
+    },
     venusBonusActive(): boolean {
       return this.nativeCompositeTask?.kind === 'venusBonus' && !this.consoleState.task.deferred;
     },
@@ -2449,8 +2518,12 @@ export default defineComponent({
       // routing still handed every intent to `$refs.startScene` and returned
       // «handled», so the pad went dead with a live command bar over it and
       // only a reload got out. Ownership follows presence, always.
+      // …and never over a STEP it is hosting. A prelude that turns the deck
+      // over («Корпоративные архивы») puts a real decision inside the scene's
+      // own zone; leaving the pad with the scene there is what made the seven
+      // cards unpickable while the bar still advertised «A РАЗЫГРАТЬ».
       return this.startSceneVisible && this.startSceneServes &&
-        !this.startSponsorEmbed && !this.colonyEmbedActive;
+        !this.startSponsorEmbed && !this.colonyEmbedActive && !this.deckPickServing;
     },
     /** OPTIONAL draft re-pick — the fork shows a calm "waiting for the other
      *  players" banner instead of offering to change the pick (desktop parity). */
@@ -2546,6 +2619,13 @@ export default defineComponent({
      * rather than letting it mount in the wrong place for a frame.
      */
     taskBelongsToWorkspace(): boolean {
+      if (this.deckPickBelongsToWorkspace) {
+        // The DRAW & SELECT surface serves it, not the host — but the claim's
+        // ownership questions (has the answer arrived? may the standalone
+        // presenters fire?) are about the PROMPT, not about which component
+        // draws it, so they must answer the same either way.
+        return true;
+      }
       return workspaceClaimsPick() &&
         (this.hostTask?.kind === 'cardSelect' || this.hostTask?.kind === 'payment');
     },
@@ -2594,7 +2674,14 @@ export default defineComponent({
     },
     /** Something is (or is about to be) re-homed into the workspace's zone. */
     workspaceOutcomeEmbedded(): boolean {
-      return this.revealEmbedTarget !== undefined || this.taskEmbedTarget !== undefined;
+      return this.revealEmbedTarget !== undefined ||
+        this.taskEmbedTarget !== undefined ||
+        // The DRAW & SELECT surface is re-homed by the same claim; leaving it
+        // out would arm both failure modes at once — the 20 s backstop would
+        // still be live under a decision the player is reading, and the claim
+        // would never be released when the flow ends, so the hosting workspace
+        // would never come back around its source card.
+        this.deckPickEmbedTarget !== undefined;
     },
     /**
      * THE ANSWER EXISTS — deliberately independent of whether it may be SHOWN
@@ -4355,6 +4442,13 @@ export default defineComponent({
       // nothing on the surface actually in front of the player.
       // Same for the hosted COLONIES step — the colony grid's contract leads.
       // Same for the YIELD to a board placement — the board is the surface.
+      // DRAW & SELECT publishes its own contract, and publishes an EMPTY one
+      // through its outgoing beats on purpose: the bar must not advertise a
+      // verb the surface is swallowing while the cards fly to the dock. Ahead
+      // of the start scene for the same reason the pad routing is.
+      if (this.deckPickServing) {
+        return [...(panelCommands('deckPick') ?? [])];
+      }
       if (this.startSceneOwnsPad) {
         // The scene publishes its live contract (consoleStartUi — wizard step
         // vs. summary vs. ceremony: X inspects, RT continues / begins, etc.);
@@ -6512,6 +6606,15 @@ export default defineComponent({
       // Same for the YIELD to a board PLACEMENT (a prelude that owes a tile):
       // the scene is hidden, so routing here would swallow the pad — the
       // board below is the surface that serves it (`startSceneOwnsPad`).
+      // DRAW & SELECT owns the pad while it serves — BEFORE the start scene,
+      // because the commonest host for it IS the start scene (a prelude that
+      // looks at the top of the deck). Through its own outgoing beats it
+      // deliberately swallows everything, so a committed move can never be
+      // re-submitted by a stray press.
+      if (this.deckPickServing) {
+        (this.$refs.deckPick as InstanceType<typeof ConsoleDeckPick> | undefined)?.handleIntent(intent);
+        return true;
+      }
       if (this.startSceneOwnsPad) {
         const scene = this.$refs.startScene as InstanceType<typeof ConsoleStartScene> | undefined;
         scene?.handleIntent(intent);
@@ -10007,6 +10110,7 @@ export default defineComponent({
     // orphaned one is worse than a leak: a drawn batch in the next game would
     // be routed to a workspace that no longer exists and never be shown.
     resetWorkspaceOutcome();
+    resetDeckPick(); // never carry a live draw-and-select commit across games
     resetNotifHold(); // never leak a hold timer across games/sessions
     resetSurfaceMotion(); // never leak a held handoff / shade owner across sessions
     resetActionPreviews(); // per-game preview cache dies with the shell

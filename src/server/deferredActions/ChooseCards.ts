@@ -10,6 +10,8 @@ import {message} from '../logs/MessageBuilder';
 import {Message} from '../../common/logs/Message';
 import {Aerotech} from '../cards/community/Aerotech';
 import {CardName} from '../../common/cards/CardName';
+import {ChoiceContextSource} from '../../common/models/PlayerInputModel';
+import {deckPickPrompt} from '../inputs/deckPickPrompt';
 
 export const LogType = {
   DREW: 'drew',
@@ -25,6 +27,22 @@ export type ChooseOptions = {
   paying?: boolean,
   /** When true (and paying), log the bought cards publicly by name instead of just the count. */
   logBoughtCards?: boolean,
+  /**
+   * WHO turned these cards over — the console's source anchor and breadcrumb
+   * subject for the pick. Co-located with the rule that builds the draw (the
+   * behavior executor passes the card being played; a colony passes itself), so
+   * an upstream change to that rule carries the attribution in the same diff.
+   * Absent → the pick is presented without a source, which is honest for the
+   * research phase and for an engine-level deal.
+   */
+  promptSource?: ChoiceContextSource,
+  /**
+   * WHERE the cards physically came from. Defaults to the project deck; the
+   * pile-digging effects (Junk Ventures, Return to Abandoned Technology) say
+   * `'discard'` so the console flies them off the right stack instead of
+   * claiming the deck produced cards it never lost.
+   */
+  origin?: 'deck' | 'discard',
 }
 
 export class ChooseCards extends DeferredAction {
@@ -67,6 +85,25 @@ export class ChooseCards extends DeferredAction {
     // any cards", no buy UI).
     const buyMode = options.paying === true && max > 0;
     return new SelectCard(msg, button, cards, {max, min, played: !options.paying, buyMode})
+      // THE STRUCTURAL "these are a temporary reveal" SIGNAL. Attached here and
+      // nowhere else: every producer of this prompt in the game — the behavior
+      // DSL's `drawCard: {count, keep|pay}`, the bespoke `drawCardKeepSome`
+      // callers, the Leavitt colony, the Delta science stage, the discard-pile
+      // diggers and the research buy — funnels through this one `execute()`, so
+      // a card that starts drawing tomorrow is covered without touching it.
+      // Bounds are copied off the config above (the paying branch narrows `max`
+      // by affordability) so the marker can never disagree with its own input.
+      .markDeckPickPrompt(deckPickPrompt({
+        revealed: cards.length,
+        // `?? 1` mirrors `SelectCard`'s own default for an omitted `min` — the
+        // marker states what the input will actually enforce, not what was
+        // passed to it.
+        min: min ?? 1,
+        max,
+        origin: options.origin,
+        mode: options.paying === true ? 'buy' : 'keep',
+        source: options.promptSource,
+      }))
       .andThen((selected) => {
         if (selected.length > max) {
           throw new Error('Selected too many cards');

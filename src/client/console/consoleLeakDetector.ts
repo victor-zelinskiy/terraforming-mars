@@ -67,6 +67,10 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // a repeat pick (source composer v-show-hidden underneath) is never stranded.
   '.con-cardactions',
   '.con-prodloss', // the dedicated production-loss surface (Ares hazard penalty)
+  // The DRAW & SELECT surface («посмотри N карт колоды, оставь K»). It also
+  // outlives its own prompt on purpose — the picks are still flying into the
+  // hand dock — so it is a serving surface for that window too.
+  '.con-deckpick',
   // The three that used to fall through to the DESKTOP modal: Stormcraft's
   // spend-heat and the Venus alt-track bonus share the `.con-lanes` chassis;
   // the planetary-event thresholds have their own root.

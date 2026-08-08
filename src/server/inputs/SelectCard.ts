@@ -95,6 +95,14 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
     if (this.discardPrompt !== undefined) {
       model.discardPrompt = this.discardPrompt;
     }
+    // Same reasoning for the DECK-PICK marker: a keep-some / buy-some prompt is
+    // routinely nested (Venus Orbital Survey offers the free Venus cards and the
+    // paid rest as two branches of one decision), and stripped of the marker the
+    // console falls back to the generic card-target browser — no deck to come
+    // out of, no source card, no discard beat for the cards left behind.
+    if (this.deckPickPrompt !== undefined) {
+      model.deckPickPrompt = this.deckPickPrompt;
+    }
     const disabled = this.config.disabled;
     if (disabled !== undefined && disabled.length > 0) {
       model.disabledCards = cardsToModel(player, disabled.map((d) => d.card), {
