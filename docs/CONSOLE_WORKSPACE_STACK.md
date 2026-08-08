@@ -435,3 +435,61 @@ PROMPT are genuinely orthogonal (the player can walk into the colonies while a h
 so merging them would have been the same mistake in the other direction. `collapseWorkspace()`
 sets both atomically, and `mandatoryDeferredActive` now also answers yes for a parked stack —
 which is what makes the reported soft-lock's way back unconditional.
+
+---
+
+## POST-B FIELD REPORT (2026-08-08) — three bugs, one root and one old one
+
+Played by hand: «Эпатажный спонсор» → the play-from-hand step → B (свернуть) →
+board → colonies → back → A.
+
+### 1. A detour destroyed the parked flow — «свернуть» had become «закрыть»
+
+A rendered the START WORKSPACE's deployment (with a bogus «ожидаем других
+игроков») instead of the player's own unfinished card play.
+
+Root: the park was a FLAG on the live stack, so `enterWorkspace('colonies')` →
+`goBoardHome()` wiped the parked frames on the way past. But **parking is what
+the player does IN ORDER to go somewhere else** — the one thing the flag could
+not survive was its own purpose.
+
+Fixed by making the park a **separate stack** (`workspaceStackState.parked`):
+`collapseWorkspaceStack` MOVES the frames aside, the live stack is then free for
+wherever the player goes, and only `restoreWorkspaceStack` (they came back) or
+`discardWorkspacePark` (the server moved to a different prompt) empties it.
+`goBoardHome` / `enterWorkspace` / `popWorkspaceFrame` never touch it, and
+`stackServes` / `frameServing` consult it, so a set-aside decision is still
+never stranded. `workspaceFrameKnown` is what stops the start workspace being
+stood up a second time beside its own parked copy.
+
+Fenced by `tests/e2e/console-start-sponsor.spec.ts` («a detour destroyed the
+parked step») and two module specs.
+
+### 2. «Карты в руке» opened empty while parked
+
+Same root: the parked chain still occupied the stack, so the hand had nowhere to
+stand. It falls out of the fix — the live stack is empty while parked, so the
+hand opens as an ordinary screen with the player's real cards. Pressing A on one
+now names the reason instead of starting a second action (below).
+
+### 3. Every «почему нельзя» was individually true and collectively a lie
+
+The LT wheel read «Сейчас недоступно» · «Недостаточно растений» · «Недостаточно
+тепла» · «Доступно после первого действия в этом ходу» while the only real
+answer was «сначала завершите текущее действие».
+
+Not a stack bug — an OLDER one the stack merely made reachable. Two causes:
+`myTurn` is `hasTurn(view)`, and a top-level `SelectProjectCardToPlay` makes
+`findPlayProjectCardAction` match, so `myTurn` was TRUE and the shared
+`offTurnReason` never got a chance to speak; and each surface then fell through
+to its own arithmetic.
+
+Fixed with ONE shell source — `actionBlockedReason` ('' = a new action may be
+started, else the honest key) — threaded into the pure models as
+`blockedReason`, where it OUTRANKS every per-item reason. Audited and applied
+across every board-home surface: LT wheel · Standard-Projects rows (patent sale
+included) · Milestones/Awards items · the action centre's activations · the
+hand's play press · the colony trade · the MA / sheet / std-project row
+activations. Already correct and left alone: the colonies' trade reason and the
+hydro screen's `turnState` (both key on the viewer's own pending input); the
+journal, which is a VIEW and is deliberately blocked only by a live placement.

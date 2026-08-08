@@ -90,6 +90,41 @@ describe('consoleQuickModel (P27)', () => {
       expect(bySlot.get('right')?.id).to.eq('convertHeat');
     });
 
+    /*
+     * A MINIMIZED DECISION OUTRANKS EVERY PER-VERB REASON.
+     *
+     * Shipped bug: with the sponsor's play-from-hand set aside, this wheel read
+     * «Сейчас недоступно» on Standard Projects and Pass, «Недостаточно
+     * растений», «Недостаточно тепла», «Доступно после первого действия в этом
+     * ходу». Each line was individually true and together they were a lie about
+     * why the game would not move — the player was told five wrong things
+     * instead of the one right one. Worse, `myTurn` was TRUE (the parked
+     * prompt is itself a play-card offer), so the shared off-turn reason never
+     * got a chance to speak.
+     */
+    it('a set-aside decision is the ONLY reason any basic action gives', () => {
+      const entries = buildLtQuickEntries(ctx({
+        blockedReason: 'Finish your current action first',
+        // …including the ones the server genuinely still offers.
+        stdAvailable: true,
+        passAvailable: true,
+        convertHeatAvailable: true,
+      }));
+      for (const e of entries) {
+        expect(e.available, `'${e.id}' must not be startable`).to.eq(false);
+        expect(e.reason, `'${e.id}' must name the real blocker`)
+          .to.eq('Finish your current action first');
+      }
+    });
+
+    it('…and says nothing extra once there is nothing set aside', () => {
+      const entries = buildLtQuickEntries(ctx({blockedReason: ''}));
+      const std = entries.find((e) => e.id === 'standardProjects');
+      expect(std?.available, 'the server offers it, so it is offered').to.eq(true);
+      const plants = entries.find((e) => e.id === 'convertPlants');
+      expect(plants?.reason, 'and a real arithmetic blocker still speaks').to.eq('Not enough plants');
+    });
+
     it('every basic action carries a VISUAL (barIcon | iconClass | glyph) — no blank slot', () => {
       // Skip / Pass had none — blank squares in the wheel (visible on a TV).
       for (const e of buildLtQuickEntries(ctx())) {
@@ -130,6 +165,26 @@ describe('consoleQuickModel (P27)', () => {
   });
 
   describe('Standard-Projects screen rows', () => {
+    /* Same rule one surface over: the screen may be OPENED and read while a
+     * decision is set aside, but no row on it may be started, and every row
+     * says the same true thing instead of its own price arithmetic. */
+    it('a set-aside decision blocks every row, patent sale included', () => {
+      const items = buildStdProjectItems({
+        cards: [{name: CardName.POWER_PLANT_STANDARD_PROJECT, calculatedCost: 11}],
+        blockedReason: 'Finish your current action first',
+        myTurn: true,
+        awaitingInput: true,
+        myMegacredits: 500,
+        sellAvailable: true,
+        cardsInHand: 4,
+      });
+      for (const item of items) {
+        expect(item.available, `'${item.key}' must not be startable`).to.eq(false);
+        expect(item.reason, `'${item.key}' must name the real blocker`)
+          .to.eq('Finish your current action first');
+      }
+    });
+
     it('leads with Patent sale, then the server cards (canonical order)', () => {
       const items = buildStdProjectItems({
         cards: [

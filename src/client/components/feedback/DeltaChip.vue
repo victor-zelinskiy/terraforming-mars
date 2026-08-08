@@ -1,8 +1,17 @@
 <template>
+  <!--
+    The VALUE is keyed on the magnitude. A coalesced change keeps this
+    whole chip mounted (AnimatedMetricValue holds the chip key steady)
+    and only re-keys the number, which replaces that one span and so
+    replays its `delta-chip-accumulate` tick from zero — the accumulator
+    is SEEN counting up rather than silently swapping digits. The sign is
+    deliberately not keyed: coalescing never crosses polarity, so it
+    cannot change under a mounted chip.
+  -->
   <span class="delta-chip"
         :class="chipClasses"
         aria-hidden="true">
-    <span class="delta-chip__sign">{{ sign }}</span><span class="delta-chip__value">{{ magnitude }}</span>
+    <span class="delta-chip__sign">{{ sign }}</span><span class="delta-chip__value" :key="magnitude">{{ magnitude }}</span>
   </span>
 </template>
 

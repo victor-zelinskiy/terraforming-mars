@@ -265,6 +265,7 @@
                             ref="cardActions"
                             :playerView="playerView"
                             :collapsed="workspaceCollapsed"
+                            :blockedReason="actionBlockedReason"
                             @blocked="showNotice"
                             @submit-batch="onCardActionsSubmitBatch"
                             @reveal-ack="onCardActionsRevealAck"
@@ -1155,6 +1156,7 @@ import type {ConsoleHandStage} from '@/client/components/console/ConsoleHandSect
 import {
   closeWorkspaceRoot,
   closeWorkspaceSheet,
+  discardWorkspacePark,
   collapseWorkspaceStack,
   descendWorkspaceFrame,
   enterWorkspace,
@@ -1180,6 +1182,7 @@ import {
   workspaceFrameAnchor,
   workspaceFrameHost,
   workspaceFrameIsOverlay,
+  workspaceFrameKnown,
   workspaceFrameTarget,
   workspaceHostForStep,
   workspaceStackCollapsed,
@@ -2713,6 +2716,11 @@ export default defineComponent({
       // A) and a DEFERRED one (returns with A). Board-home + idle either way.
       return (this.mandatoryGateHeld || this.mandatoryDeferredActive) &&
         this.boardHomeIdle &&
+        // A reveal is the foreground even though the persistent start workspace
+        // still occupies the board-home frame underneath it. Cover the pending
+        // handoff too, so the announcement cannot flash between draw and mount.
+        this.consoleRevealMode === undefined &&
+        !this.rawDrawnRevealPending &&
         // …and nothing is still PLAYING: the beat stays held until the player
         // has "finished the animations", they just see their chip status.
         !isAnimationHoldActive() &&
@@ -2743,6 +2751,24 @@ export default defineComponent({
         sourceCard: this.deferSourceCard,
         openLabel: this.mandatoryGateHeld ? 'Open' : this.deferReturnLabel,
       };
+    },
+    /**
+     * WHY A NEW ACTION CANNOT BE STARTED RIGHT NOW — '' when it can.
+     *
+     * ONE answer for every «почему нельзя» on the board home, because there is
+     * only ever one real reason to be there: a decision is already owed. It
+     * covers both shapes — a live board PLACEMENT, and a mandatory prompt the
+     * player MINIMIZED to go and look around.
+     *
+     * It has to OUTRANK each surface's own arithmetic. With the sponsor's
+     * play-from-hand minimized, the basic-actions wheel read «недостаточно
+     * растений» / «сейчас недоступно» / «доступно после первого действия»: every
+     * line individually true, and together a lie about why the game will not
+     * move. The player was told five wrong things instead of the one right one.
+     */
+    actionBlockedReason(): string {
+      return this.placementActive || this.mandatoryDeferredActive ?
+        'Finish your current action first' : '';
     },
     shellTaskActive(): boolean {
       return this.shellTask !== undefined && !this.consoleState.task.deferred;
@@ -3495,7 +3521,8 @@ export default defineComponent({
       // pending decision (a mandatory corp/forced prompt, a placement, a mid-sub
       // action) — «Сначала завершите текущее действие», NOT «Сейчас не ваш ход»
       // (which is only true when it is genuinely an opponent's turn).
-      return this.placementActive || this.awaitingInput ? 'Finish your current action first' : 'Not your turn to take any actions';
+      return this.actionBlockedReason !== '' || this.awaitingInput ?
+        'Finish your current action first' : 'Not your turn to take any actions';
     },
     /** True when the hand grid is the surface the right stick should scroll —
      *  in the hand section with nothing layered on top (a play-confirm / task /
@@ -3845,6 +3872,7 @@ export default defineComponent({
       if (this.consoleState.quick === 'basics') {
         const wf = this.playerView.waitingFor;
         return buildLtQuickEntries({
+          blockedReason: this.actionBlockedReason,
           myTurn: this.myTurn,
           awaitingInput: this.awaitingInput,
           stdAvailable: this.standardProjectsAction !== undefined,
@@ -3868,6 +3896,7 @@ export default defineComponent({
     stdProjectItems(): Array<StdProjectItem> {
       return buildStdProjectItems({
         cards: this.standardProjectsAction?.input.cards ?? [],
+        blockedReason: this.actionBlockedReason,
         myTurn: this.myTurn,
         awaitingInput: this.awaitingInput,
         myMegacredits: this.thisPlayer.megacredits,
@@ -3920,6 +3949,7 @@ export default defineComponent({
       };
       return buildConsoleMaItems(kind, kind === 'milestones' ? this.game.milestones : this.game.awards, {
         myColor: this.thisPlayer.color,
+        blockedReason: this.awardFundingActive ? '' : this.actionBlockedReason,
         myTurn: this.myTurn,
         awaitingInput: this.awaitingInput,
         myMegacredits: this.thisPlayer.megacredits,
@@ -5345,7 +5375,10 @@ export default defineComponent({
       immediate: true,
       handler(live: boolean): void {
         if (live) {
-          if (workspaceFrameIndex('start') === -1) {
+          // `Known`, not `Index`: while the opening is PARKED its frame is set
+          // aside, not gone — standing a second one up beside it would mount the
+          // scene over the board the player parked it to look at.
+          if (!workspaceFrameKnown('start')) {
             enterWorkspace('start', {anchor: {type: 'phase', phase: 'start'}});
           }
         } else {
@@ -5853,6 +5886,10 @@ export default defineComponent({
         if (key !== this.lastTaskKey) {
           this.lastTaskKey = key;
           this.consoleState.task.deferred = false;
+          // …and a flow the player set aside is STALE the moment the server
+          // asks for something else: restoring it would put them back inside a
+          // decision that no longer exists.
+          discardWorkspacePark();
           this.taskSpacePending = undefined;
           this.finalGreeneryPickPending = false;
           // A client payment built for a prompt that moved on is stale.
@@ -7006,9 +7043,9 @@ export default defineComponent({
     /** LT — basic actions (turn-ending SUBMITS are guarded during placement). */
     executeLtEntry(id: string): void {
       const wf = this.playerView.waitingFor;
-      const guardPlacement = (): boolean => {
-        if (this.placementActive) {
-          this.showNotice('Finish your current action first');
+      const guardBusy = (): boolean => {
+        if (this.actionBlockedReason !== '') {
+          this.showNotice(this.actionBlockedReason);
           return true;
         }
         return false;
@@ -7020,7 +7057,7 @@ export default defineComponent({
         this.openSheet('standard-projects');
         break;
       case 'skipTurn': {
-        if (guardPlacement()) {
+        if (guardBusy()) {
           return;
         }
         const path = findEndTurnPath(wf);
@@ -7031,14 +7068,14 @@ export default defineComponent({
         break;
       }
       case 'pass':
-        if (guardPlacement()) {
+        if (guardBusy()) {
           return;
         }
         // Pass ALWAYS confirms (warnings carried over from the desktop).
         this.consoleState.confirm = 'pass';
         break;
       case 'convertHeat': {
-        if (guardPlacement()) {
+        if (guardBusy()) {
           return;
         }
         const found = findConvertHeatOption(wf);
@@ -7056,7 +7093,7 @@ export default defineComponent({
         break;
       }
       case 'convertPlants': {
-        if (guardPlacement()) {
+        if (guardBusy()) {
           return;
         }
         const found = findConvertPlantsOption(wf, this.thisPlayer.canConvertPlants === true);
@@ -7387,9 +7424,10 @@ export default defineComponent({
         this.showNotice(this.handBlockedNotice(entry));
         return;
       }
-      // P20: inspection is free; STARTING a play mid-placement is not.
-      if (this.placementActive) {
-        this.showNotice('Finish your current action first');
+      // Inspection is free; STARTING a play while something is already owed is
+      // not — the cards are shown, the reason is named, nothing is hidden.
+      if (this.actionBlockedReason !== '') {
+        this.showNotice(this.actionBlockedReason);
         return;
       }
       this.openPlayCardFromHand(entry.card.name);
@@ -7655,8 +7693,8 @@ export default defineComponent({
       if (item === undefined || this.maScreenKind === undefined) {
         return;
       }
-      if (this.placementActive) {
-        this.showNotice('Finish your current action first');
+      if (this.actionBlockedReason !== '') {
+        this.showNotice(this.actionBlockedReason);
         return;
       }
       if (!item.available) {
@@ -7718,10 +7756,10 @@ export default defineComponent({
       if (row === undefined || row.kind === 'header') {
         return;
       }
-      // P20: the overlays stay OPEN for inspection during a placement, but
-      // STARTING another action would desync the pending SelectSpace.
-      if (this.placementActive) {
-        this.showNotice('Finish your current action first');
+      // The overlays stay OPEN for inspection while something is owed, but
+      // STARTING another action would desync the prompt the server is holding.
+      if (this.actionBlockedReason !== '') {
+        this.showNotice(this.actionBlockedReason);
         return;
       }
       if (!row.available) {
@@ -7748,8 +7786,8 @@ export default defineComponent({
       if (item === undefined) {
         return;
       }
-      if (this.placementActive) {
-        this.showNotice('Finish your current action first');
+      if (this.actionBlockedReason !== '') {
+        this.showNotice(this.actionBlockedReason);
         return;
       }
       if (!item.available) {
@@ -8165,8 +8203,8 @@ export default defineComponent({
         this.enterColonyFocus(pick.buttonLabel === 'Build' ? 'build' : 'pick');
         return;
       }
-      if (this.placementActive) {
-        this.showNotice('Finish your current action first');
+      if (this.actionBlockedReason !== '') {
+        this.showNotice(this.actionBlockedReason);
         return;
       }
       this.enterColonyFocus('trade');
@@ -9789,7 +9827,7 @@ export default defineComponent({
         kind: f.kind, subject: f.subject, stage: f.stage, phase: f.phase,
         overlay: f.overlay, slot: f.slot, anchor: f.anchor.type,
       })),
-      collapsed: workspaceStackState.collapsed,
+      parked: workspaceStackState.parked.map((f) => f.kind),
       hostKind: workspaceFrameHost('colonies') ?? null,
       embedTarget: this.colonyEmbedTarget ?? null,
       promptRaw: this.colonyPromptRaw,

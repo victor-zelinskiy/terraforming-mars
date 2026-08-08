@@ -78,6 +78,9 @@ describe('ConsoleStartPlayedDock (the compact «РАЗЫГРАНО · owner» de
     expect(top.attributes('data-start-front')).to.be.undefined;
     expect(top.attributes('data-played-key')).to.eq(CardName.THARSIS_REPUBLIC);
     expect(top.find('.con-splayed__face').exists()).to.be.true;
+    // Occupied slots are never `--armed` — see the stacking note on the
+    // prelude case below (that class is what parks the slot behind the pile).
+    expect(top.classes()).to.not.contain('con-splayed__top--armed');
     expect(fam.find('.con-splayed__cap-count').text()).to.eq('1');
     wrapper.unmount();
   });
@@ -101,6 +104,16 @@ describe('ConsoleStartPlayedDock (the compact «РАЗЫГРАНО · owner» de
     expect(prev.findComponent({name: 'ConsolePlayedCardLite'}).props('peek')).to.be.true;
     expect(fam.find('.con-splayed__top').attributes('data-played-key')).to.eq(CardName.BIOLAB);
     expect(fam.find('.con-splayed__cap-count').text()).to.eq('2');
+    /*
+     * …and the landed card is now the TOP OF THE PILE. `--armed` is the only
+     * state that puts the slot BEHIND the previous top (it is the empty
+     * prepared place then); dropping it at the reveal is what raises the
+     * landed card over that card's still-open, still-overflowing face.
+     * Keep this in step with console.less (`__top` z5 vs `__strip--prev` z4)
+     * — inverted, the card visibly lands on top and then sinks under the
+     * older card's art.
+     */
+    expect(fam.find('.con-splayed__top').classes()).to.not.contain('con-splayed__top--armed');
     wrapper.unmount();
   });
 

@@ -34,6 +34,33 @@ describe('consoleMaModel (P26)', () => {
     ...over,
   });
 
+  /*
+   * A MINIMIZED DECISION OUTRANKS EVERY PER-ITEM BLOCKER. The dashboard may be
+   * opened and read while a prompt is set aside — but «не хватает M€» /
+   * «все слоты заняты» describe a claim the player cannot attempt at all, and
+   * one of them was shown instead of the only true answer.
+   */
+  it('a set-aside decision is the only blocker any item names', () => {
+    const items = buildConsoleMaItems('milestones', [
+      {name: 'Terraformer', playerName: undefined, scores: [], threshold: 35},
+    ] as never, {
+      myColor: 'red',
+      blockedReason: 'Finish your current action first',
+      myTurn: true,
+      awaitingInput: true,
+      myMegacredits: 0,
+      availableNow: new Set<string>(),
+      describe: () => '',
+      maxSlots: 3,
+      nextCost: 8,
+      resolveName: (c: string) => c,
+    } as never);
+    for (const item of items) {
+      expect(item.available).to.eq(false);
+      expect(item.blocker).to.eq('Finish your current action first');
+    }
+  });
+
   it('milestone: available now → CTA on, no blocker, ready context', () => {
     const [it] = buildConsoleMaItems('milestones', [milestone({
       scores: [{color: me, score: 3, claimable: true}, {color: rival, score: 1, claimable: false}],

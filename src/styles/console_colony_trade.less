@@ -34,22 +34,10 @@
     filter: drop-shadow(0 .5rem 1.1rem rgba(0, 0, 0, 0.5));
 }
 
-/* The one-shot glint as the face turns into view (shared keyframes with the
-   deck-draw scene — one language). */
+/* The one-shot glint as the face turns into view — THE shared primitive
+   (`.con-card-reveal-glint()`, console_card_deal.less), one language. */
 .con-coltrade-proxy--revealing .con-deal-proxy__face::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: .5rem;
-    pointer-events: none;
-    z-index: 2;
-    background: linear-gradient(115deg,
-        transparent 30%,
-        rgba(255, 255, 255, 0.44) 47%,
-        rgba(190, 230, 255, 0.3) 54%,
-        transparent 70%);
-    mix-blend-mode: screen;
-    animation: con-deckdraw-reveal-glint calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.25, 0, 0.35, 1) 1 both;
+    .con-card-reveal-glint();
 }
 
 /* The white track marker's glide proxy — the colony marker itself, airborne:

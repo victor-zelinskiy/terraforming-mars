@@ -1214,7 +1214,7 @@ export async function seedGameOverApi(
 }
 
 /**
- * Open the console-native shell on a player id and wait for its FIRST PAINT.
+ * Open the console-native shell on a player id and wait for its FIRST USABLE PAINT.
  * The budget is a LOAD allowance (a 4K viewport inside a full parallel run
  * genuinely takes tens of seconds to paint), never a behaviour assertion —
  * every behavioural wait after this point is structural.
@@ -1223,6 +1223,11 @@ export async function openConsole(page: Page, playerId: string, query = ''): Pro
   await page.goto(`/player?id=${playerId}&console=1${query}`);
   await page.waitForSelector('.con-start__frame, .con-root', {timeout: 90_000});
   await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
+  // The session-wide GPU warm-up paints the real console underneath its veil,
+  // so `.con-root` (and even the live hand dock) can exist while the first key
+  // still races the warm-up's top-layer surface. The veil's unmount is the
+  // structural boundary between "painted" and "ready for the spec to drive".
+  await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 150_000});
 }
 
 /**

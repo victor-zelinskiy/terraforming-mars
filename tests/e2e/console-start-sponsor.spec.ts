@@ -287,6 +287,26 @@ test.describe('console start — «Эпатажный спонсор» as a work
       `cards vanished on restore (diag ${JSON.stringify(back.diag)})`).toBeGreaterThan(0);
     expect(back.toolbarShown, 'the browse toolbar came back too').toBeTruthy();
 
+    // ── PARK, GO SOMEWHERE ELSE, COME BACK. The reported bug: parking is what
+    //    the player does IN ORDER to go and look at something, so a parked flow
+    //    that a lateral move destroys makes «свернуть» mean «закрыть». Here the
+    //    player minimizes, opens the colonies from the RT wheel, closes them,
+    //    and A must land back on their own unfinished card play — never on the
+    //    deployment behind it. ──
+    await press(page, 'Escape', 1600);
+    await press(page, 'Period', 900); // RT — the action categories
+    await press(page, 'ArrowRight', 700); // «Торговля»
+    await press(page, 'Enter', 1600);
+    await press(page, 'Escape', 1400); // …and back out of the colonies
+    await press(page, 'Enter', 2600); // A on the board-home restore card
+    await page.waitForTimeout(1800);
+    const afterDetour = await surfaces(page);
+    await page.screenshot({path: 'screenshots/sponsor-4b-after-detour.png'});
+    expect(afterDetour.handEmbedded,
+      `a detour destroyed the parked step — diag=${JSON.stringify(afterDetour.diag)}`).toBeTruthy();
+    expect(afterDetour.paintedCards,
+      'the cards came back with it').toBeGreaterThan(0);
+
     // ── a RELOAD mid-step: the same step, still inside the workspace. ──
     await page.reload();
     await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});

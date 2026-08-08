@@ -1,6 +1,7 @@
 import {test, expect, APIRequestContext, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {bootIntoGame, openQuickWheel} from './consoleStart';
 
 /**
  * CONSOLE PAYMENT — the compact summary and the expanded editor are ONE block.
@@ -70,14 +71,6 @@ async function key(page: Page, code: string, settle = 500): Promise<void> {
   await page.keyboard.press(code);
   await page.waitForTimeout(settle);
 }
-async function toBoard(page: Page): Promise<void> {
-  for (let i = 0; i < 6; i++) {
-    if (await page.locator('.con-quick, .con-stdp, .con-cardactions, .con-composer, .con-hand, .con-played, .con-journal').count() === 0) {
-      return;
-    }
-    await key(page, 'Escape', 400);
-  }
-}
 /** The CTA's viewport box — the thing that must never move. */
 async function ctaBox(page: Page) {
   const box = await page.locator('.con-composer__cta').first().boundingBox();
@@ -91,57 +84,19 @@ async function ctaBox(page: Page) {
  * the contract test and the display-profile capture below.
  */
 async function reachConfigurablePayment(page: Page, request: APIRequestContext): Promise<void> {
-  const created = await request.post('/api/creategame', {data: cfg()});
-  expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-  const model = await created.json() as {players: Array<{id: string}>};
+  // Pregame is SETUP, not this spec's subject. Use the shared API-backed road
+  // and name Helion explicitly: testMode guarantees it is offered but does not
+  // narrow the eight-card corporation deal to it.
+  await bootIntoGame(page, request, {config: cfg(), corporation: 'Helion', buy: 5});
 
-  await page.goto(`/player?id=${model.players[0].id}&console=1`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  await page.waitForTimeout(3500);
-  await page.waitForSelector('.con-start__frame', {timeout: 45_000});
-  await page.waitForTimeout(1200);
-
-  // The wizard, walked off its OWN bottom bar — a fixed key choreography drifts
-  // the moment a step's focus or settle time differs (and the projects step
-  // advances on RT, not RB).
-  const barText = async () => await page.evaluate(() =>
-    (document.querySelector('.con-cmdbar') as HTMLElement | null)?.innerText?.split(String.fromCharCode(10)).join(' | ') ?? '');
-  const stepText = async () => await page.evaluate(() =>
-    (document.querySelector('.con-start__step--active, .con-start__tab--active') as HTMLElement | null)?.innerText ?? '');
-  let bought = 0;
-  for (let i = 0; i < 60 && await page.locator('.con-start__frame').count() > 0; i++) {
-    const bar = await barText();
-    const step = await stepText();
-    if (bar.includes('НАЧАТЬ ПАРТИЮ') || bar.includes('ОПЛАТИТЬ') || bar.includes('ПРОПУСТИТЬ')) {
-      await key(page, 'Enter', 1400);
-    } else if (step.includes('02')) {
-      if (bought < 5) {
-        await key(page, 'Enter', 550);
-        await key(page, 'ArrowRight', 400);
-        bought++;
-      } else {
-        await key(page, 'Period', 1400);
-      }
-    } else {
-      await key(page, 'Enter', 1300);
-    }
-  }
-  // The wizard hands off to its own prompts (the bought-cards payment, then the
-  // first action). Drive off the bar until the BOARD HOME bar appears — an
-  // Escape burst here would minimize those prompts instead of answering them.
-  for (let i = 0; i < 30 && !(await barText()).includes('ЖУРНАЛ'); i++) {
-    await key(page, 'Enter', 1200);
-  }
-  await page.waitForTimeout(1500);
-  await toBoard(page);
-  expect((await barText()).includes('ЖУРНАЛ'), 'never reached the board home').toBeTruthy();
-
-  await key(page, 'Period', 1000);
-  if (await page.locator('.con-quick').count() > 0) {
+  await openQuickWheel(page);
+  const hand = page.locator('.con-hand');
+  for (let i = 0; i < 4 && await hand.count() === 0; i++) {
     await key(page, 'Enter', 1400);
   }
-  expect(await page.locator('.con-hand').count(), 'never reached the hand').toBeGreaterThan(0);
+  expect(await hand.count(), 'never reached the hand').toBeGreaterThan(0);
+  await page.locator('.con-hand:not(.con-hand--transit)')
+    .waitFor({state: 'visible', timeout: 15_000});
 
   // The hand orders PLAYABLE cards first, and Helion gives every card a heat
   // lane — so the focused card is always both playable and configurable. No

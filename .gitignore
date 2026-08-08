@@ -29,6 +29,7 @@ assets/card-art/review/
 
 # Playwright (E2E) artifacts
 /test-results/
+/test-results-codex-*/
 /playwright-report/
 /blob-report/
 /playwright/.cache/

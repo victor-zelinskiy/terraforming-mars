@@ -6,11 +6,18 @@
     correctly). When no delta is active the component renders an
     empty <span> placeholder — zero layout footprint.
 
-    The chip is keyed on `chipNonce` so successive deltas REPLACE
-    the chip (Vue tears down + remounts the inner DOM), which
-    cleanly restarts the CSS animation. Merging keeps the same key
-    but updates `displayedDelta` — chip stays mounted, value
-    transitions in place.
+    The chip is keyed on `chipNonce`, and that key is bumped ONLY for
+    a genuinely new event (nothing on screen, or the polarity flipped):
+    Vue tears down + remounts the inner DOM, restarting the CSS
+    animation. A COALESCED change keeps the same key and only updates
+    `displayedDelta` — the chip stays mounted and counts up in place.
+
+    That distinction is load-bearing, not a nicety. Bumping on every
+    change made each update spawn a chip while the previous one was
+    still running its 540ms leave — and leaving chips are siblings in
+    this inline-block host, so they laid themselves out in a ROW. Seven
+    cards landing in the hand dock printed «+3 +4 +5 +6» across the
+    screen instead of one chip reaching +7.
   -->
   <span class="metric-feedback-host"
         :class="hostClasses"
@@ -189,9 +196,11 @@ export default defineComponent({
      * switches via recordScopeObservation) is preserved for that mode only.
      */
     const sameScope = changeFeedbackManager.recordScopeObservation(this.fullScopeKey, this.metricKey);
-    const event = changeFeedbackManager.report(this.fullScopeKey, this.metricKey, this.value);
+    const event = changeFeedbackManager.report(
+      this.fullScopeKey, this.metricKey, this.value, CHIP_VISIBLE_MS[this.variant]);
     if (legacyRemountEnabled() && event !== null && sameScope) {
-      this.applyEvent(event.netDelta);
+      // A fresh mount has no chip to continue, so this always opens a new one.
+      this.applyEvent(event.netDelta, false);
     }
   },
   beforeUnmount() {
@@ -234,7 +243,10 @@ export default defineComponent({
         return;
       }
       const sameScope = changeFeedbackManager.recordScopeObservation(freshScope, this.metricKey);
-      const event = changeFeedbackManager.report(freshScope, this.metricKey, this.value);
+      // The merge window IS this chip's own visible lifetime — while the player
+      // can still see the number, the next change belongs to it.
+      const event = changeFeedbackManager.report(
+        freshScope, this.metricKey, this.value, CHIP_VISIBLE_MS[this.variant]);
       if (event === null) {
         return;
       }
@@ -245,7 +257,7 @@ export default defineComponent({
         // already baselined by `report()` above.
         return;
       }
-      this.applyEvent(event.netDelta);
+      this.applyEvent(event.netDelta, event.merged);
     },
     handleScopeRefresh(): void {
       // Tear down any visible chip — it represented the previous
@@ -261,18 +273,27 @@ export default defineComponent({
       changeFeedbackManager.recordScopeObservation(this.fullScopeKey, this.metricKey);
       changeFeedbackManager.report(this.fullScopeKey, this.metricKey, this.value);
     },
-    applyEvent(netDelta: number): void {
+    applyEvent(netDelta: number, merged: boolean): void {
+      const polarity = netDelta > 0 ? 'positive' : (netDelta < 0 ? 'negative' : 'neutral');
+      /*
+       * CONTINUE the chip on screen, or start a new one — the whole
+       * anti-spam rule in one expression.
+       *
+       * A continuation needs all three: the manager coalesced this change
+       * into the running total, a chip is actually still mounted, and the
+       * polarity is unchanged. Anything else (nothing on screen, a gain
+       * after a loss) is a genuinely new event and gets its OWN chip — a
+       * gain and a loss are never one number, so the nonce bump is what
+       * puts two chips on screen instead of silently netting them out.
+       */
+      const continues = merged && this.displayedDelta !== 0 && polarity === this.polarity;
+
       this.clearTimers();
       this.displayedDelta = netDelta;
-      this.polarity = netDelta > 0 ? 'positive' : (netDelta < 0 ? 'negative' : 'neutral');
-      // Bump the chip key so the v-if transition restarts CSS
-      // animations cleanly. We bump only when polarity SWITCHES
-      // or when the chip was previously hidden — sustained
-      // same-polarity merges should look like a continuous
-      // accumulator updating in place, not a re-mount flash.
-      // Always bumping keeps things simpler and visually consistent
-      // for the v1; revisit if "merging continuity" matters more.
-      this.chipNonce++;
+      this.polarity = polarity;
+      if (!continues) {
+        this.chipNonce++;
+      }
 
       const lifetime = motionMs(CHIP_VISIBLE_MS[this.variant]);
       this.hideTimerId = (window.setTimeout(() => {
@@ -283,11 +304,12 @@ export default defineComponent({
       // Clear the manager's active-delta window slightly after the
       // chip starts fading. Any further change will then start a
       // fresh chip with the raw delta rather than merging into the
-      // already-faded chip.
+      // already-faded chip. The tail scales with the preset too — a raw
+      // constant would outlive the chip at the `swift` setting.
       this.clearActiveTimerId = (window.setTimeout(() => {
         changeFeedbackManager.clearActive(this.fullScopeKey, this.metricKey);
         this.clearActiveTimerId = 0;
-      }, lifetime + 150) as unknown as number);
+      }, lifetime + motionMs(150)) as unknown as number);
     },
     clearTimers(): void {
       if (this.hideTimerId !== 0) {

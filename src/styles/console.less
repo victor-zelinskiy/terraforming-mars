@@ -15833,7 +15833,11 @@ body.con-start-barshold .con-status {
         /* The PREVIOUS TOP while receiving: it sits in its FUTURE strip slot
            and OVERFLOWS it downward with the same open face until the
            arriving card is revealed (the geometric Top Card Handoff) —
-           nothing ever moves, the new card simply covers it back to a strip. */
+           nothing ever moves, the new card simply covers it back to a strip.
+
+           z4 is the PRE-LANDING half of that sentence: it paints over the
+           PREPARED PLACE (which is armed, empty and therefore behind it).
+           The post-landing half is `__top`'s z5 — see there. */
         &--prev {
             overflow: visible;
             z-index: 4;
@@ -15848,7 +15852,12 @@ body.con-start-barshold .con-status {
        construction (the slot IS a card box at the dock zoom). */
     &__top {
         position: relative;
-        z-index: 1;
+        /* THE LANDED CARD IS THE TOP OF THE PILE — it paints over the previous
+           top (z4), which is exactly how that card "covers it back to a strip".
+           Below z4 the pile inverts: the older card's open face keeps
+           overflowing DOWN over the card just laid on it, and the player sees
+           the new card land on top and then sink under the old one's art. */
+        z-index: 5;
         border-radius: .4rem;
         transition: box-shadow calc(220ms * var(--motion-scale, 1)) ease;
 
@@ -15859,8 +15868,12 @@ body.con-start-barshold .con-status {
             box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.2);
         }
         /* ARMED — the destination is prepared and waiting for its card: a
-           quiet cyan readiness, never a blink (state, not decoration). */
+           quiet cyan readiness, never a blink (state, not decoration).
+           It is also the ONE state where the slot goes back under the previous
+           top (z4): the place is still empty, so its ring must not paint over
+           the card that is physically still lying on the pile. */
         &--armed {
+            z-index: 1;
             box-shadow:
                 inset 0 0 0 .06rem fade(@con-cyan, 55%),
                 0 0 1rem fade(@con-cyan, 14%);

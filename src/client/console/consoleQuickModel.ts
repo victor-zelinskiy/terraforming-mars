@@ -98,6 +98,16 @@ export function buildRtQuickEntries(ctx: RtQuickContext): Array<QuickEntry> {
 }
 
 export type LtQuickContext = {
+  /**
+   * A decision the player MINIMIZED is still owed ('' = nothing owed).
+   *
+   * It OUTRANKS every per-verb reason, and that is the point: while a mandatory
+   * prompt is set aside, «недостаточно растений» / «сейчас недоступно» /
+   * «доступно после первого действия» are all arithmetic about a turn the
+   * player cannot take yet. Each was individually true and collectively a lie —
+   * the one honest answer is «сначала завершите текущее действие».
+   */
+  blockedReason?: string,
   /** The free ACTION MENU is live (a top-level verb is offered right now). */
   myTurn: boolean,
   /** The server is waiting on the viewer at all (their turn — action menu OR a
@@ -119,6 +129,11 @@ export type LtQuickContext = {
 /** LT — the basic-actions selector: standard projects / turn control / conversions. */
 export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
   const turnGate = (available: boolean, reason: string): {available: boolean, reason: string} => {
+    // A set-aside decision blocks EVERY basic action, whatever its own
+    // arithmetic says — and it blocks even the ones the server still offers.
+    if (ctx.blockedReason !== undefined && ctx.blockedReason !== '') {
+      return {available: false, reason: ctx.blockedReason};
+    }
     if (available) {
       return {available: true, reason: ''};
     }
@@ -200,6 +215,9 @@ export type StdProjectScreenContext = {
   myTurn: boolean,
   /** The server is waiting on the viewer at all (see {@link LtQuickContext}). */
   awaitingInput: boolean,
+  /** A MINIMIZED decision is still owed — outranks every per-row reason
+   *  (see {@link LtQuickContext.blockedReason}). */
+  blockedReason?: string,
   myMegacredits: number,
   /** Patent sale is offered right now (the server's Sell patents SelectCard). */
   sellAvailable: boolean,
@@ -219,6 +237,15 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
     const available = c.isDisabled !== true;
     let reason = '';
     let reasonParams: ReadonlyArray<string> | undefined;
+    if (ctx.blockedReason !== undefined && ctx.blockedReason !== '') {
+      // A MINIMIZED decision outranks the server's own per-card reason: none of
+      // these rows can be started until the player finishes what they set aside.
+      return {
+        key: c.name, cardName: c.name, title: c.name,
+        iconClass: visual.iconClass, description: visual.description, cost,
+        available: false, reason: ctx.blockedReason,
+      };
+    }
     if (!available) {
       // The SERVER names the blocker, and it is the only side that CAN: a std
       // project's gate is bespoke (a free tile space, an open colony slot,
@@ -254,7 +281,8 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
   // Patent sale leads the list (part of the basic-actions family, like the
   // Steam version — the free "sell patents" action always comes first).
   const sellVisual = standardProjectVisual(CardName.SELL_PATENTS_STANDARD_PROJECT);
-  const sellAvailable = ctx.sellAvailable && ctx.cardsInHand > 0;
+  const blocked = ctx.blockedReason !== undefined && ctx.blockedReason !== '';
+  const sellAvailable = !blocked && ctx.sellAvailable && ctx.cardsInHand > 0;
   const sellRow: StdProjectItem = {
     key: 'sell-patents',
     cardName: CardName.SELL_PATENTS_STANDARD_PROJECT,
@@ -264,7 +292,8 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
     gain: '+1',
     available: sellAvailable,
     reason: sellAvailable ? '' :
-      (!ctx.sellAvailable ? offTurnReason(ctx.awaitingInput) : 'No cards in hand'),
+      blocked ? (ctx.blockedReason as string) :
+        (!ctx.sellAvailable ? offTurnReason(ctx.awaitingInput) : 'No cards in hand'),
   };
   return [sellRow, ...projectRows];
 }

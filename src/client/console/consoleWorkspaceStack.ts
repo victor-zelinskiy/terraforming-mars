@@ -302,13 +302,19 @@ export const workspaceStackState = reactive({
   /** Outermost first. `frames[0]` is the workspace the player entered. */
   frames: [] as Array<WorkspaceFrame>,
   /**
-   * PARKED, not torn down. «Свернуть» hides the whole stack so the board can
-   * be read while the decision stays live, at its full depth — which is why it
-   * is a property of the STACK and never of a frame. Restoring re-shows the
-   * same frames: same subject, same picks, no replayed cinematic and no second
-   * trip to the server.
+   * THE PARKED STACK — «свернуть» sets the whole flow ASIDE at full depth.
+   *
+   * A SEPARATE stack, not a flag on the live one, and that is the whole point:
+   * the player parks precisely so they can go and open other screens. While it
+   * was a flag, the first lateral move (`enterWorkspace` → `goBoardHome`) wiped
+   * the parked frames, so «свернуть» silently became «закрыть» — the sponsor's
+   * card-play step was lost by walking to the colonies and back, and A returned
+   * the player to the deployment instead of their own unfinished play.
+   *
+   * Restoring re-shows exactly these frames: same subject, same picks, no
+   * replayed cinematic and no second trip to the server.
    */
-  collapsed: false,
+  parked: [] as Array<WorkspaceFrame>,
 });
 
 // ── reading the stack ───────────────────────────────────────────────────────
@@ -323,7 +329,14 @@ export function workspaceStackActive(): boolean {
 }
 
 export function workspaceStackCollapsed(): boolean {
-  return workspaceStackState.collapsed;
+  return workspaceStackState.parked.length > 0;
+}
+
+/** Is a frame of this kind anywhere — live OR parked? (A parked chain still
+ *  owns its workspace; standing a SECOND one up beside it is a duplicate.) */
+export function workspaceFrameKnown(kind: WorkspaceFrameKind): boolean {
+  return workspaceFrameIndex(kind) !== -1 ||
+    workspaceStackState.parked.some((f) => f.kind === kind);
 }
 
 export function workspaceFrameAt(depth: number): WorkspaceFrame | undefined {
@@ -353,7 +366,7 @@ export function workspaceFrameIndex(kind: WorkspaceFrameKind): number {
  * what brings them back untouched.
  */
 export function workspaceFrameMounted(kind: WorkspaceFrameKind): boolean {
-  return !workspaceStackState.collapsed && workspaceFrameIndex(kind) !== -1;
+  return workspaceFrameIndex(kind) !== -1;
 }
 
 /**
@@ -370,7 +383,7 @@ export function workspaceFrameMounted(kind: WorkspaceFrameKind): boolean {
  */
 export function workspaceFrameTarget(kind: WorkspaceFrameKind): string | undefined {
   const depth = workspaceFrameIndex(kind);
-  if (depth <= 0 || workspaceStackState.collapsed || workspaceStackState.frames[depth].overlay) {
+  if (depth <= 0 || workspaceStackState.frames[depth].overlay) {
     return undefined;
   }
   const slot = workspaceStackState.frames[depth - 1].slot;
@@ -398,7 +411,7 @@ export function workspaceFrameIsOverlay(kind: WorkspaceFrameKind): boolean {
  */
 export function workspaceFrameRenders(kind: WorkspaceFrameKind): boolean {
   const depth = workspaceFrameIndex(kind);
-  if (depth === -1 || workspaceStackState.collapsed) {
+  if (depth === -1) {
     return false;
   }
   return depth === 0 || workspaceStackState.frames[depth].overlay ||
@@ -476,12 +489,17 @@ export function workspaceFrameDescended(kind: WorkspaceFrameKind): boolean {
  * is not stranded, its way back is the board-home restore card.
  */
 export function stackServes(kind: TaskKind): boolean {
-  return workspaceStackState.frames.some((f) => f.serves.includes(kind));
+  return workspaceStackState.frames.some((f) => f.serves.includes(kind)) ||
+    // A PARKED chain still serves: a decision the player deliberately set aside
+    // is not stranded — its way back is the board-home restore card.
+    workspaceStackState.parked.some((f) => f.serves.includes(kind));
 }
 
-/** Which frame serves `kind`, if any (for routing a prompt to its host). */
+/** Which frame serves `kind`, if any (for routing a prompt to its host) —
+ *  including a PARKED one, which is still that prompt's home. */
 export function frameServing(kind: TaskKind): WorkspaceFrame | undefined {
-  return workspaceStackState.frames.find((f) => f.serves.includes(kind));
+  return workspaceStackState.frames.find((f) => f.serves.includes(kind)) ??
+    workspaceStackState.parked.find((f) => f.serves.includes(kind));
 }
 
 /**
@@ -574,9 +592,6 @@ export function workspaceFrameRoot(kind: WorkspaceFrameKind): string {
  */
 
 export function workspaceStackSection(): ConsoleSection {
-  if (workspaceStackState.collapsed) {
-    return 'board';
-  }
   for (let i = workspaceStackState.frames.length - 1; i >= 0; i--) {
     const section = WORKSPACE_KINDS[workspaceStackState.frames[i].kind].section;
     if (section !== undefined) {
@@ -587,9 +602,6 @@ export function workspaceStackSection(): ConsoleSection {
 }
 
 export function workspaceStackSheet(): ConsoleSheetId | undefined {
-  if (workspaceStackState.collapsed) {
-    return undefined;
-  }
   for (let i = workspaceStackState.frames.length - 1; i >= 0; i--) {
     const sheet = WORKSPACE_KINDS[workspaceStackState.frames[i].kind].sheet;
     if (sheet !== undefined) {
@@ -608,7 +620,7 @@ export function workspaceStackSheet(): ConsoleSheetId | undefined {
  */
 export function workspaceStackBackVerb(): WorkspaceBackVerb | undefined {
   const top = workspaceStackTop();
-  if (top === undefined || workspaceStackState.collapsed) {
+  if (top === undefined) {
     return undefined;
   }
   return backVerbFor(top.phase);
@@ -758,8 +770,9 @@ export function leaveWorkspace(): void {
 export function goBoardHome(): void {
   const root = workspaceStackState.frames[0];
   truncateWorkspaceStack(root !== undefined && root.anchor.type === 'phase' ? 1 : 0);
-  // Finishing a flow un-parks: whatever was set aside is over.
-  workspaceStackState.collapsed = false;
+  // The PARK is deliberately untouched: it is a different flow, set aside on
+  // purpose, and finishing the one the player is looking at says nothing about
+  // it. (Wiping it here is the same bug as wiping it on a lateral move.)
 }
 
 /**
@@ -824,9 +837,6 @@ export function closeWorkspaceSheet(): void {
 /** Leave the top frame — one logical level. */
 export function popWorkspaceFrame(): void {
   workspaceStackState.frames.pop();
-  if (workspaceStackState.frames.length === 0) {
-    workspaceStackState.collapsed = false;
-  }
 }
 
 /**
@@ -859,9 +869,6 @@ export function truncateWorkspaceStack(depth: number): void {
     return;
   }
   workspaceStackState.frames.splice(keep);
-  if (workspaceStackState.frames.length === 0) {
-    workspaceStackState.collapsed = false;
-  }
 }
 
 /** The top frame names the step it is showing (the crumb's tail). */
@@ -912,9 +919,13 @@ export function setWorkspaceFrameSlot(kind: WorkspaceFrameKind, selector: string
 
 /** Park the whole stack (B past the commit boundary — «свернуть»). */
 export function collapseWorkspaceStack(): void {
-  if (workspaceStackState.frames.length > 0) {
-    workspaceStackState.collapsed = true;
+  if (workspaceStackState.frames.length === 0) {
+    return;
   }
+  // MOVED, not flagged — the live stack is now free for wherever the player
+  // wants to go, and the parked one cannot be destroyed by going there.
+  workspaceStackState.parked.splice(0, workspaceStackState.parked.length,
+    ...workspaceStackState.frames.splice(0));
 }
 
 /**
@@ -924,22 +935,30 @@ export function collapseWorkspaceStack(): void {
  * surface into a detached node.
  */
 export function restoreWorkspaceStack(): void {
-  // IDEMPOTENT: un-parking a stack that was never parked must not clear the
-  // slots — the hosts are already mounted and would never re-publish, so a
-  // live teleport would lose its target for good.
-  if (!workspaceStackState.collapsed) {
+  if (workspaceStackState.parked.length === 0) {
     return;
   }
-  workspaceStackState.collapsed = false;
-  for (const frame of workspaceStackState.frames) {
+  // Whatever the player was browsing gives way — coming back to a set-aside
+  // decision means leaving the screen they went to look at.
+  const frames = workspaceStackState.parked.splice(0);
+  for (const frame of frames) {
+    // The hosts are about to re-mount and must re-publish; a stale selector
+    // would teleport a surface into a detached node.
     frame.slot = '';
   }
+  workspaceStackState.frames.splice(0, workspaceStackState.frames.length, ...frames);
+}
+
+/** The parked flow is STALE (the server moved on to a different prompt) — drop
+ *  it, or a restore would put the player back inside a decision that is gone. */
+export function discardWorkspacePark(): void {
+  workspaceStackState.parked.splice(0);
 }
 
 /** Full reset (game switch, shell unmount, test cleanup). */
 export function resetWorkspaceStack(): void {
   workspaceStackState.frames.splice(0);
-  workspaceStackState.collapsed = false;
+  workspaceStackState.parked.splice(0);
 }
 
 // ── invariant 2: the anchor reconciler ──────────────────────────────────────
@@ -992,10 +1011,6 @@ export function reconcileWorkspaceStack(isAnchorLive: (anchor: FrameAnchor) => b
 export function probeWorkspacePresence(
   seen: (selector: string) => boolean,
 ): ReadonlyArray<WorkspaceFrameKind> {
-  if (workspaceStackState.collapsed) {
-    // Parked on purpose: nothing is supposed to be on screen.
-    return [];
-  }
   const missing: Array<WorkspaceFrameKind> = [];
   for (const frame of workspaceStackState.frames) {
     if (!seen(WORKSPACE_KINDS[frame.kind].rootSelector)) {
@@ -1035,7 +1050,7 @@ export type SerializedWorkspaceFrame = Omit<WorkspaceFrame, 'slot'>;
 export type SerializedWorkspaceStack = {
   v: number,
   frames: ReadonlyArray<SerializedWorkspaceFrame>,
-  collapsed: boolean,
+  parked: ReadonlyArray<SerializedWorkspaceFrame>,
 };
 
 /**
@@ -1045,19 +1060,23 @@ export type SerializedWorkspaceStack = {
  * cannot silently start being persisted — that is how a restored workspace ends
  * up waiting on a beat nobody is going to play. The spec fences this.
  */
+function serializeFrame(f: WorkspaceFrame): SerializedWorkspaceFrame {
+  return {
+    kind: f.kind,
+    subject: f.subject,
+    stage: f.stage,
+    phase: f.phase,
+    serves: [...f.serves],
+    anchor: f.anchor,
+    overlay: f.overlay,
+  };
+}
+
 export function serializeWorkspaceStack(): SerializedWorkspaceStack {
   return {
     v: WORKSPACE_STACK_SCHEMA,
-    collapsed: workspaceStackState.collapsed,
-    frames: workspaceStackState.frames.map((f) => ({
-      kind: f.kind,
-      subject: f.subject,
-      stage: f.stage,
-      phase: f.phase,
-      serves: [...f.serves],
-      anchor: f.anchor,
-      overlay: f.overlay,
-    })),
+    frames: workspaceStackState.frames.map(serializeFrame),
+    parked: workspaceStackState.parked.map(serializeFrame),
   };
 }
 
@@ -1082,7 +1101,10 @@ export function hydrateWorkspaceStack(
   if (stored === undefined || stored.v !== WORKSPACE_STACK_SCHEMA) {
     return 0;
   }
-  for (const frame of stored.frames) {
+  // A stack that was PARKED comes back parked: it was set aside on purpose, and
+  // a reload is not the player changing their mind about that.
+  const cold = stored.parked.length > 0 ? stored.parked : stored.frames;
+  for (const frame of cold) {
     workspaceStackState.frames.push({
       kind: frame.kind,
       subject: frame.subject,
@@ -1095,6 +1117,8 @@ export function hydrateWorkspaceStack(
     });
   }
   const depth = reconcileWorkspaceStack(isAnchorLive);
-  workspaceStackState.collapsed = depth > 0 && stored.collapsed;
+  if (depth > 0 && stored.parked.length > 0) {
+    collapseWorkspaceStack();
+  }
   return depth;
 }

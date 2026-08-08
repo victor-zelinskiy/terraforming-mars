@@ -22,13 +22,29 @@
  * reports return a FeedbackEvent IF and ONLY IF the new value differs
  * from the previously reported value.
  *
- * Rapid-fire merging: if a second change arrives while a previous
+ * Rapid-fire COALESCING: if a second change arrives while a previous
  * delta is still "active" (haven't been cleared via clearActive()),
- * the returned event's `delta` is the *running net* delta from the
- * first change up to this one. Example: stock 61 → 63 → 66 within
- * the chip lifetime produces deltas {+2}, then {+5} (NOT {+3}). The
- * AnimatedMetricValue uses this to update an existing chip in place
- * rather than stacking chips.
+ * the returned event's `netDelta` is the *running net* delta from the
+ * first change up to this one and `merged` is true. Example: stock
+ * 61 → 63 → 66 within the chip lifetime produces {+2}, then {+5} (NOT
+ * {+3}). AnimatedMetricValue uses `merged` to update the EXISTING chip
+ * in place — one accumulator counting up — instead of remounting a
+ * chip per change and stacking a row of numbers on screen.
+ *
+ * TWO RULES make that honest:
+ *
+ *   1. A SIGN IS NEVER COALESCED AWAY. A gain and a loss are two
+ *      different events and always get two separate chips: a −1
+ *      arriving on top of an active +3 does NOT become +2 (which
+ *      would report a change that never happened and could even net
+ *      to a chip-less 0). It starts a fresh −1 accumulation, and the
+ *      +3 chip lives out its own life beside it.
+ *   2. THE WINDOW MEASURES THE GAP BETWEEN CHANGES, not the age of
+ *      the burst. Seven cards landing one by one over three seconds
+ *      is ONE arrival, so `activeStartedAt` slides forward on every
+ *      merge; the accumulation ends when the changes stop, which is
+ *      exactly when the chip fades. Callers that know their own chip
+ *      lifetime pass it as `mergeWindowMs` so the two agree exactly.
  *
  * Scope switching safety: each scope has its own entry table, so
  * switching the displayed player (color → color) is treated as a
@@ -67,12 +83,20 @@ class ChangeFeedbackManager {
   private readonly entries = new Map<string, Entry>();
 
   /*
-   * The activeDelta window — how long after a delta is observed we
-   * consider a follow-up change a "merge" rather than a fresh
-   * change. Matches the chip's visible+fadeout window so that the
-   * merge behaviour stays in sync with what the player sees — and is
-   * therefore scaled by the motion speed preset at compare time
-   * (motionMs), like the chip lifetimes themselves.
+   * Default activeDelta window — how long after a delta is observed we
+   * consider a follow-up change a continuation of the same one rather
+   * than a fresh change. It is the GAP allowance between two changes,
+   * not the lifetime of the whole burst (see rule 2 in the header).
+   *
+   * Only a fallback: a caller that owns a visible chip passes its own
+   * lifetime as `mergeWindowMs`, because the honest window IS "while
+   * the chip is still on screen". With this constant alone the two
+   * disagreed for real variants (resource-stock lives 2240ms), so a
+   * change landing in the gap started a SECOND chip beside a chip that
+   * was still fully visible.
+   *
+   * Scaled by the motion speed preset at compare time (motionMs), like
+   * the chip lifetimes themselves.
    */
   private static readonly MERGE_WINDOW_MS = 2000;
 
@@ -126,8 +150,11 @@ class ChangeFeedbackManager {
    * was detected relative to the previous observation, or null if
    * this is the first observation for the key (baseline) or the
    * value matched the previous observation.
+   *
+   * `mergeWindowMs` is the caller's own chip lifetime (base ms, scaled
+   * here by the motion preset). Omit it and the module default applies.
    */
-  report(scopeKey: string, metricKey: string, newValue: number): FeedbackEvent | null {
+  report(scopeKey: string, metricKey: string, newValue: number, mergeWindowMs?: number): FeedbackEvent | null {
     const key = this.key(scopeKey, metricKey);
     const existing = this.entries.get(key);
     const now = currentTimestamp();
@@ -144,21 +171,25 @@ class ChangeFeedbackManager {
     const previousValue = existing.lastValue;
     const delta = newValue - previousValue;
 
-    const stillActive = existing.activeDelta !== 0 &&
-      (now - existing.activeStartedAt) <= motionMs(ChangeFeedbackManager.MERGE_WINDOW_MS);
+    const windowMs = motionMs(mergeWindowMs ?? ChangeFeedbackManager.MERGE_WINDOW_MS);
+    const withinWindow = existing.activeDelta !== 0 && (now - existing.activeStartedAt) <= windowMs;
+    // A gain and a loss are two events, never one — see rule 1 in the header.
+    const merged = withinWindow && (delta > 0) === (existing.activeDelta > 0);
 
-    const netDelta = stillActive ? existing.activeDelta + delta : delta;
+    const netDelta = merged ? existing.activeDelta + delta : delta;
 
     existing.lastValue = newValue;
     existing.activeDelta = netDelta;
-    existing.activeStartedAt = stillActive ? existing.activeStartedAt : now;
+    // Sliding window: the allowance is the gap to the NEXT change, so a steady
+    // stream (cards landing one by one) stays one accumulation.
+    existing.activeStartedAt = now;
 
     return {
       delta,
       netDelta,
       previousValue,
       newValue,
-      merged: stillActive,
+      merged,
     };
   }
 

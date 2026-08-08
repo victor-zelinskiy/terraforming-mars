@@ -39,6 +39,7 @@ import {
   workspaceStackAcceptsInput,
   workspaceStackBack,
   workspaceStackBackVerb,
+  discardWorkspacePark,
   workspaceStackCollapsed,
   workspaceStackCrumb,
   workspaceStackDepth,
@@ -205,7 +206,8 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     expect(workspaceStackBack()).to.eq('collapse');
 
     expect(workspaceStackCollapsed()).to.eq(true);
-    expect(workspaceStackDepth(), 'the frames are parked, not torn down').to.eq(2);
+    expect(workspaceStackState.parked, 'the frames are set aside, not torn down').to.have.length(2);
+    expect(workspaceStackDepth(), 'and the LIVE stack is free to go anywhere').to.eq(0);
     expect(workspaceFrameMounted('hand'), 'nothing renders while parked').to.eq(false);
     expect(workspaceFrameMounted('colonies')).to.eq(false);
     expect(workspaceStackBackVerb(), 'a parked stack has no B of its own').to.eq(undefined);
@@ -218,6 +220,44 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     expect(workspaceStackState.frames[0].slot, 'hosts re-publish on re-mount').to.eq('');
   });
 
+  /*
+   * THE PARK IS A SEPARATE STACK, and this is the whole reason why: the player
+   * parks precisely so they can go and open other screens. While it was a FLAG
+   * on the live stack, the first lateral move wiped the parked frames — walking
+   * from the minimized sponsor step to the colonies and back left A returning
+   * the player to the deployment instead of their own unfinished card play, and
+   * «свернуть» had silently become «закрыть».
+   */
+  it('a parked flow survives everything the player does while it waits', () => {
+    openHandPlayingTradingColony();
+    collapseWorkspaceStack();
+
+    enterWorkspace('colonies');
+    expect(workspaceStackCollapsed(), 'still parked while browsing').to.eq(true);
+    expect(workspaceFrameMounted('colonies'), 'and the browse screen is live').to.eq(true);
+    leaveWorkspace();
+    goBoardHome();
+    expect(workspaceStackCollapsed(), 'going home ends THAT flow, not the parked one').to.eq(true);
+
+    restoreWorkspaceStack();
+    expect(workspaceStackTop()?.subject, 'the same card, still being played').to.eq('Trading Colony');
+    expect(workspaceStackCollapsed()).to.eq(false);
+  });
+
+  /*
+   * …and it is dropped exactly once: when the SERVER moves on. Restoring a flow
+   * whose prompt no longer exists would put the player inside a decision that
+   * is gone.
+   */
+  it('a parked flow is discarded when the prompt it belongs to is over', () => {
+    openHandPlayingTradingColony();
+    collapseWorkspaceStack();
+    discardWorkspacePark();
+    expect(workspaceStackCollapsed()).to.eq(false);
+    restoreWorkspaceStack();
+    expect(workspaceStackDepth(), 'nothing came back — there was nothing to').to.eq(0);
+  });
+
   it('a collapsed stack still SERVES — a deferred decision is never stranded', () => {
     pushWorkspaceFrame({
       kind: 'colonies', subject: '', stage: 'Colonies', phase: 'committed',
@@ -225,19 +265,16 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     });
     expect(stackServes('colony')).to.eq(true);
     collapseWorkspaceStack();
-    expect(stackServes('colony'), 'set aside ≠ stranded').to.eq(true);
-    expect(frameServing('colony')?.kind).to.eq('colonies');
+    expect(stackServes('colony'), 'set aside \u2260 stranded').to.eq(true);
+    expect(frameServing('colony')?.kind, 'and the parked frame is still its host').to.eq('colonies');
     expect(stackServes('payment')).to.eq(false);
   });
 
-  it('emptying the stack clears the collapsed flag with it', () => {
-    pushWorkspaceFrame({
-      kind: 'hand', subject: '', stage: '', phase: 'committed',
-      serves: [], anchor: ALWAYS,
-    });
+  it('parking an empty stack is nothing, and restoring nothing is nothing', () => {
     collapseWorkspaceStack();
-    popWorkspaceFrame();
-    expect(workspaceStackCollapsed(), 'nothing left to restore').to.eq(false);
+    expect(workspaceStackCollapsed(), 'there was nothing to set aside').to.eq(false);
+    restoreWorkspaceStack();
+    expect(workspaceStackDepth()).to.eq(0);
   });
 
   // ── the crumb ─────────────────────────────────────────────────────────────
@@ -285,7 +322,7 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
 
     collapseWorkspaceStack();
     expect(workspaceStackSection()).to.eq('board');
-    expect(workspaceStackDepth(), 'parked: there is something to come back to').to.eq(2);
+    expect(workspaceStackCollapsed(), 'parked: there is something to come back to').to.eq(true);
     expect(stackServes('colony'), 'and it still serves').to.eq(true);
 
     restoreWorkspaceStack();
@@ -309,12 +346,16 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     expect(workspaceStackTop()?.phase, 'and it lands on its browse layer').to.eq('browse');
   });
 
-  it('entering a DIFFERENT workspace from a parked one un-parks it', () => {
+  /*
+   * …and it does NOT touch a parked one. Walking somewhere else is the whole
+   * point of parking; un-parking here is what turned «свернуть» into «закрыть».
+   */
+  it('entering a DIFFERENT workspace leaves a parked one exactly where it is', () => {
     enterWorkspace('hand');
     collapseWorkspaceStack();
     enterWorkspace('colonies');
-    expect(workspaceStackCollapsed()).to.eq(false);
-    expect(workspaceStackSection()).to.eq('colonies');
+    expect(workspaceStackCollapsed(), 'still waiting for the player').to.eq(true);
+    expect(workspaceStackSection(), 'and the new screen is what they see').to.eq('colonies');
   });
 
   it('a fresh frame starts from its registered serves', () => {
@@ -624,7 +665,7 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     openHandPlayingTradingColony();
     collapseWorkspaceStack();
     const data = serializeWorkspaceStack();
-    expect(data.collapsed).to.eq(true);
+    expect(data.parked, 'a parked flow is what gets stored').to.have.length(1);
     resetWorkspaceStack();
     expect(hydrateWorkspaceStack(data, () => false)).to.eq(0);
     expect(workspaceStackCollapsed(), 'nothing to restore ⇒ no restore card').to.eq(false);

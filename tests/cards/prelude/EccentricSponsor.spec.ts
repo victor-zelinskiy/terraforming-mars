@@ -4,6 +4,7 @@ import {EccentricSponsor} from '../../../src/server/cards/prelude/EccentricSpons
 import {TestPlayer} from '../../TestPlayer';
 import {runAllActions} from '../../TestingUtils';
 import {NitrogenRichAsteroid} from '../../../src/server/cards/base/NitrogenRichAsteroid';
+import {Farming} from '../../../src/server/cards/base/Farming';
 import {testGame} from '../../TestGame';
 import {cast} from '../../../src/common/utils/utils';
 import {PreludesExpansion} from '../../../src/server/preludes/PreludesExpansion';
@@ -47,6 +48,39 @@ describe('EccentricSponsor', () => {
     it('is false with an empty hand', () => {
       player.cardsInHand = [];
       expect(eccentricSponsor.canPlay(player)).is.false;
+    });
+
+    // The discount only ever answers the COST half of playability. A card whose
+    // REQUIREMENTS are unmet is unplayable at any price, so a rich player with
+    // nothing but such cards still fizzles — and must be told so.
+    it('is false when the hand is affordable but its requirements are unmet', () => {
+      const farming = new Farming(); // cost 16, requires +4° C; the game starts at -30
+      player.cardsInHand = [farming];
+      player.megaCredits = 100;
+
+      expect(player.canAfford(farming.cost)).is.true;
+      expect(eccentricSponsor.canPlay(player)).is.false;
+
+      // …and the warning does not lie: playing it really does settle for 15 M€.
+      player.playCard(eccentricSponsor);
+      runAllActions(player.game);
+      cast(player.popWaitingFor(), undefined);
+      expect(player.megaCredits).eq(115);
+    });
+
+    // NO FALSE POSITIVE: the probe runs the REAL affordability rules, so every
+    // payment resource counts. A naive "M€ >= cost - 25" would have declared this
+    // a fizzle and burned a perfectly live prelude.
+    it('is true when a NON-M€ resource closes the gap (titanium on a space card)', () => {
+      const nitrogenRichAsteroid = new NitrogenRichAsteroid(); // 31, space tag
+      player.cardsInHand = [nitrogenRichAsteroid];
+      player.megaCredits = 0;
+      player.titanium = 2; // 2 × 3 = 6 = 31 - 25
+
+      expect(eccentricSponsor.canPlay(player)).is.true;
+
+      PreludesExpansion.selectPreludeToPlay(player, [eccentricSponsor]);
+      expect(eccentricSponsor.warnings.has('preludeFizzle')).is.false;
     });
 
     it('agrees with what playing it actually finds (no false negative)', () => {

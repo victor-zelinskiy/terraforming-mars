@@ -571,6 +571,9 @@ export default defineComponent({
      * (the fork's rule: blocked is stated, not concealed).
      */
     collapsed: {type: Boolean, default: false},
+    /** WHY a new activation cannot be started ('' = it can) — the shell's one
+     *  answer, so this surface never invents a second one. */
+    blockedReason: {type: String, default: ''},
   },
   emits: ['close', 'submit-batch', 'reveal-ack', 'collapse', 'blocked'],
   data() {
@@ -1306,14 +1309,15 @@ export default defineComponent({
       // mid-move and must finish it first. Stated, never silent: the same
       // shake + reason an unavailable action already gets (the fork's rule is
       // that a blocked control explains itself rather than disappearing).
-      if (this.collapsed && workspaceOutcomeClaimed()) {
+      if (this.blockedReason !== '' || (this.collapsed && workspaceOutcomeClaimed())) {
         this.shakeKey = tile.key;
         window.setTimeout(() => {
           if (this.shakeKey === tile.key) {
             this.shakeKey = '';
           }
         }, 420);
-        this.$emit('blocked', 'Finish your current action first');
+        this.$emit('blocked', this.blockedReason !== '' ?
+          this.blockedReason : 'Finish your current action first');
         return;
       }
       if (tile.status !== 'available') {

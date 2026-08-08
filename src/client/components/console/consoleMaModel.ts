@@ -62,6 +62,10 @@ export type ConsoleMaItem = {
 export type ConsoleMaBuildOptions = {
   myColor: Color,
   myTurn: boolean,
+  /** A decision the player MINIMIZED is still owed ('' = nothing owed). It
+   *  outranks every per-item blocker: none of these can be started until the
+   *  set-aside prompt is finished, whatever the money / threshold say. */
+  blockedReason?: string,
   /** The server is waiting on the viewer at all — their turn even when the free
    *  action menu is withheld by a mandatory sub-decision. Splits «завершите
    *  действие» from «не ваш ход». */
@@ -109,7 +113,9 @@ export function buildConsoleMaItems(
 
     let blocker = '';
     if (!taken && !available) {
-      if (slotsExhausted) {
+      if (opts.blockedReason !== undefined && opts.blockedReason !== '') {
+        blocker = opts.blockedReason;
+      } else if (slotsExhausted) {
         blocker = 'All slots are taken';
       } else if (itemKind === 'milestone' && !myReady) {
         blocker = ''; // the progress metric / gap context explains it

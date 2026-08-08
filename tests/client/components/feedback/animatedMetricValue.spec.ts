@@ -77,6 +77,41 @@ describe('AnimatedMetricValue (reactive transitions)', () => {
     wrapper.unmount();
   });
 
+  /*
+   * THE CHIP KEY IS THE ANTI-SPAM RULE. Bumping it on every change spawned a
+   * chip per change while the previous one was still running its leave, and
+   * leaving chips lay out beside the arriving one — «+3 +4 +5 +6» in a row.
+   * A coalesced change must therefore keep the SAME chip and only raise its
+   * number; a polarity flip must do the opposite and open a second chip,
+   * because a gain and a loss are never one number.
+   */
+  it('a coalesced burst keeps ONE chip and counts it up in place', async () => {
+    const wrapper = mountHost(0);
+    const nonce = (wrapper.vm as any).chipNonce;
+    for (let value = 1; value <= 7; value++) {
+      await wrapper.setProps({value});
+    }
+    expect((wrapper.vm as any).displayedDelta).to.eq(7);
+    // One chip opened, none replaced: exactly one bump across the whole burst.
+    expect((wrapper.vm as any).chipNonce).to.eq(nonce + 1);
+    expect(wrapper.findAll('.delta-chip')).to.have.lengthOf(1);
+    wrapper.unmount();
+  });
+
+  it('a polarity flip opens a SECOND chip instead of netting the two out', async () => {
+    const wrapper = mountHost(0);
+    await wrapper.setProps({value: 3});
+    const afterGain = (wrapper.vm as any).chipNonce;
+    expect((wrapper.vm as any).displayedDelta).to.eq(3);
+
+    await wrapper.setProps({value: 2});
+    // NOT +2: the loss is its own event with its own chip.
+    expect((wrapper.vm as any).displayedDelta).to.eq(-1);
+    expect((wrapper.vm as any).polarity).to.eq('negative');
+    expect((wrapper.vm as any).chipNonce).to.eq(afterGain + 1);
+    wrapper.unmount();
+  });
+
   it('the legacy tm_remount flag restores the mount-diff behavior', () => {
     localStorage.setItem('tm_remount', '1');
     __resetLegacyRemountForTesting();

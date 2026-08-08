@@ -171,8 +171,21 @@
     margin-right: 1px;
 }
 
+/*
+ * The value re-keys on every change (DeltaChip.vue), so a COALESCED
+ * update replaces this one span and replays the tick below while the
+ * chip itself stays mounted: the accumulator is felt counting up
+ * (+3 → +4 → …) instead of the digits silently swapping.
+ */
 .delta-chip__value {
     font-variant-numeric: tabular-nums;
+    display: inline-block;
+    animation: delta-chip-accumulate calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1) 1 both;
+}
+
+@keyframes delta-chip-accumulate {
+    0% { transform: translateY(-0.16em) scale(1.16); }
+    100% { transform: translateY(0) scale(1); }
 }
 
 /* ---- polarity tones ----------------------------------------- */
@@ -285,8 +298,18 @@
  * Unmount: chip fades up + out. Smoother easeInQuart curve so the
  * disappear isn't an abrupt cut — paired with the longer duration
  * the chip "drifts away" rather than vanishing.
+ *
+ * ⚠️ A LEAVING CHIP IS OUT OF FLOW. The host is an inline-block, so a
+ * departing chip that still takes part in layout sits BESIDE the one
+ * arriving — that is literally how «+3 +4 +5 +6» printed itself in a
+ * row across the hand dock. Anchored to the host's right edge because
+ * every variant pins its host by `right`, so the two stay registered
+ * on the one spot the player is already looking at.
  */
 .delta-chip-fade-leave-active {
+    position: absolute;
+    top: 0;
+    right: 0;
     transition:
         opacity calc(540ms * var(--motion-scale, 1)) cubic-bezier(0.5, 0, 0.75, 0.2),
         transform calc(540ms * var(--motion-scale, 1)) cubic-bezier(0.5, 0, 0.75, 0.2);
@@ -297,9 +320,14 @@
     transform: translateY(0) scale(1);
 }
 
+/*
+ * The travel is what separates a POLARITY FLIP into two readable chips:
+ * a gain and a loss are never summed, so they briefly share this anchor
+ * and the outgoing one has to visibly clear it.
+ */
 .delta-chip-fade-leave-to {
     opacity: 0;
-    transform: translateY(-6px) scale(0.9);
+    transform: translateY(-13px) scale(0.9);
 }
 
 /*
@@ -309,6 +337,14 @@
 .delta-chip-fade-reduced-enter-active,
 .delta-chip-fade-reduced-leave-active {
     transition: opacity calc(340ms * var(--motion-scale, 1)) linear;
+}
+
+/* Same out-of-flow rule as the full-motion leave — the row-of-numbers
+   defect is a LAYOUT one and does not care about the motion setting. */
+.delta-chip-fade-reduced-leave-active {
+    position: absolute;
+    top: 0;
+    right: 0;
 }
 
 .delta-chip-fade-reduced-enter-from,
@@ -615,5 +651,10 @@
 
     .delta-chip {
         transition: opacity calc(340ms * var(--motion-scale, 1)) linear;
+    }
+
+    /* The coalesce tick is pure transform — the new number is signal enough. */
+    .delta-chip__value {
+        animation: none;
     }
 }

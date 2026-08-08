@@ -1,4 +1,13 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, APIRequestContext, Page} from '@playwright/test';
+import {
+  createGameWithCards,
+  openConsole,
+  pickCards,
+  playQueueCard,
+  playQueueUntil,
+  submitSummary,
+  walkToSummary,
+} from './consoleStart';
 
 /**
  * Regression: a reveal overlay is a TOP-PRIORITY modal — it cannot be
@@ -72,37 +81,29 @@ async function key(page: Page, code: string, settleMs = 900): Promise<void> {
   await page.waitForTimeout(settleMs);
 }
 
-async function walkWizard(page: Page): Promise<void> {
-  await page.waitForSelector('.con-start__frame', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-  const summary = page.locator('.con-start__summary');
-  const activeStep = page.locator('.con-start__step--active');
-
-  for (let i = 0; i < 10 && await summary.count() === 0; i++) {
-    await page.waitForSelector('.con-cards__verdictbar', {timeout: 25_000});
-    await page.waitForTimeout(400);
-    const step = (await activeStep.innerText()).toLowerCase();
-    if (/пролог/.test(step)) {
-      // Pick Acquired Space Agency + one more.
-      for (let n = 0; n < 6; n++) {
-        const f = page.locator('.con-cards__slot--focused');
-        if (/агенств/i.test(await f.innerText())) {
-          break;
-        }
-        await key(page, 'ArrowRight', 400);
+async function prepareDrawingPrelude(page: Page, request: APIRequestContext): Promise<string> {
+  const corporation = 'Tharsis Republic';
+  const preludes = ['Acquired Space Agency', 'Donation'];
+  const playerId = await createGameWithCards(request, [], {config: newGameConfig()});
+  await openConsole(page, playerId);
+  await walkToSummary(page, {
+    onStep: async (stepPage, kind) => {
+      const wanted = kind === 'corporation' ? [corporation] : kind === 'prelude' ? preludes : [];
+      if (wanted.length === 0) {
+        return;
       }
-      await key(page, 'Enter', 500);
-      await key(page, 'ArrowRight', 400);
-      await key(page, 'Enter', 500);
-      await key(page, 'KeyE', 1200);
-      continue;
-    }
-    await key(page, /корпорац|директор/.test(step) ? 'Enter' : 'KeyE', 1200);
-  }
-  await expect(summary).toHaveCount(1);
-  await page.waitForTimeout(500);
-  await key(page, 'Enter', 700); // arms the zero-projects warning
-  await key(page, 'Enter', 1800); // submits → prelude phase
+      const picked = await pickCards(stepPage, wanted);
+      expect(picked, `the start deal must offer ${wanted.join(' + ')}`)
+        .toEqual(expect.arrayContaining(wanted));
+    },
+  });
+  await submitSummary(page);
+
+  // Resolve the corporation and harmless prelude, but leave the drawing
+  // prelude standing: its reveal/mandatory-action collision is the subject.
+  expect(await playQueueUntil(page, 'Acquired Space Agency'),
+    'Acquired Space Agency must remain queued for the priority assertion').toBeTruthy();
+  return playerId;
 }
 
 test.describe('console · reveal is a top-priority modal', () => {
@@ -111,23 +112,11 @@ test.describe('console · reveal is a top-priority modal', () => {
   test('a drawing prelude keeps focus on its reveal; the corp first action stays suppressed under it', async ({page, request}) => {
     test.setTimeout(240_000);
 
-    const created = await request.post('/api/creategame', {data: newGameConfig()});
-    expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-    const model = await created.json() as {players: Array<{id: string}>};
-    await page.goto(`/player?id=${model.players[0].id}&console=1`);
-    await walkWizard(page);
+    const playerId = await prepareDrawingPrelude(page, request);
 
-    // Prelude phase: play the drawing prelude — it opens the reveal.
-    await page.waitForSelector('.con-start__frame', {timeout: 30_000});
-    const focused = page.locator('.con-start__prelude--focused');
-    await expect(focused).toHaveCount(1, {timeout: 20_000});
-    for (let n = 0; n < 6; n++) {
-      if (/агенств/i.test(await focused.innerText())) {
-        break;
-      }
-      await key(page, 'ArrowRight', 450);
-    }
-    await page.keyboard.press('Enter');
+    // Prelude phase: play precisely the drawing prelude — it opens the reveal.
+    expect(await playQueueCard(page, 'Acquired Space Agency'),
+      'Acquired Space Agency never left the deployment queue').toBeTruthy();
 
     // The reveal assembles (the deck-draw scene hands off to it). Wait for it
     // to be FULLY open — not the veiled/held staging frame the deck-draw scene
@@ -138,27 +127,41 @@ test.describe('console · reveal is a top-priority modal', () => {
     await page.waitForSelector('.con-reveal:not(.con-reveal--bonus-veiled):not(.con-reveal--bonus-held) .con-reveal__card', {timeout: 20_000});
     await page.waitForTimeout(600); // let the handoff + any start-scene leave settle
 
-    // THE ASSERTION: while the reveal is up, the start scene is NOT mounted
-    // under it — nothing steals the focus. The reveal's own card carries the
-    // selection frame; the start frame is gone.
-    await expect(page.locator('.con-start__frame')).toHaveCount(0);
-    await expect(page.locator('.con-start__prelude--focused')).toHaveCount(0);
-    // The reveal owns the pad: its focused card shows «A ВЗЯТЬ».
-    await expect(page.locator('.con-reveal__strip .con-cards__slot--focused')).toHaveCount(1);
+    // THE ASSERTION: the start workspace deliberately remains mounted for the
+    // whole deployment, but it must not become a competing foreground. Neither
+    // the mandatory announcement nor its corporation modal may paint over the
+    // reveal, whose card cursor owns the pad.
+    const mandatory = page.locator('.con-mandatory');
+    const corpFirst = page.locator('.con-composer--corpfirst');
+    const revealFocus = page.locator('.con-reveal__strip .con-cards__slot--focused');
+    await expect(mandatory).toHaveCount(0);
+    await expect(corpFirst).toHaveCount(0);
+    await expect(revealFocus).toHaveCount(1);
 
     // Navigating (d-pad) walks the RECEIVED cards, never a surface beneath.
-    const view = await (await request.get(`/api/player?id=${model.players[0].id}`)).json() as
+    const view = await (await request.get(`/api/player?id=${playerId}`)).json() as
       {cardDrawReveals: Array<{cards: Array<{name: string}>}>};
     if ((view.cardDrawReveals[0]?.cards.length ?? 0) > 1) {
+      const revealFocusBefore = await revealFocus.getAttribute('data-zoom-slot');
+      const startFocus = page.locator('.con-start__qcard--focused').first();
+      const startFocusBefore = await startFocus.count() > 0 ?
+        await startFocus.getAttribute('data-queue-slot') : undefined;
       await key(page, 'ArrowRight', 500);
-      await expect(page.locator('.con-reveal__strip .con-cards__slot--focused')).toHaveCount(1);
-      // Still no start scene under it after moving focus.
-      await expect(page.locator('.con-start__frame')).toHaveCount(0);
+      await expect(revealFocus).toHaveCount(1);
+      expect(await revealFocus.getAttribute('data-zoom-slot'),
+        'd-pad must move the reveal cursor').not.toBe(revealFocusBefore);
+      if (startFocusBefore !== undefined && startFocusBefore !== null) {
+        await expect(startFocus).toHaveAttribute('data-queue-slot', startFocusBefore);
+      }
+      await expect(mandatory).toHaveCount(0);
+      await expect(corpFirst).toHaveCount(0);
     }
 
     // Finish the reveal (take all) — NOW the start scene / next task comes
     // back to life (the corp first action or the next prelude).
     await key(page, 'Escape', 2500); // B = take all cards
     await expect(reveal).toHaveCount(0, {timeout: 20_000});
+    await expect(page.locator('.con-mandatory, .con-composer--corpfirst'))
+      .toHaveCount(1, {timeout: 30_000});
   });
 });

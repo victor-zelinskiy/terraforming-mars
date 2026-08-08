@@ -78,7 +78,7 @@
             <!-- PARTICIPANT READINESS (preparation only — in the deployment
                  the real top strip is back and owns this). Compact by design:
                  seat dot · name · status. Never the whole game HUD. -->
-            <div v-if="mode === 'wizard' || state.flow === 'materializing'" class="con-start__crewline" aria-live="polite">
+            <div v-if="prepSurfaceLive" class="con-start__crewline" aria-live="polite">
               <span v-for="p in participants" :key="p.color"
                     class="con-start__crewchip"
                     :class="{'con-start__crewchip--self': p.self, 'con-start__crewchip--ready': p.status.category !== 'active'}">
@@ -451,7 +451,7 @@
              physically collected on RT and returned on LT (startDockMotion).
              Not the Hand Dock, not the Played Tableau — everything here is
              still reversible until the summary commit. -->
-        <ConsoleStartSelectionDock v-if="mode === 'wizard' || state.flow === 'materializing'" :piles="dockPileView" />
+        <ConsoleStartSelectionDock v-if="prepSurfaceLive" :piles="dockPileView" />
 
         <!-- ── PINNED STATUS RAIL ───────────────────────────────────────
              The focused card's LOCAL state ONLY (name + picked / limit /
@@ -1363,6 +1363,28 @@ export default defineComponent({
         // SENT, WAITING FOR THE TABLE: the summary is still the player's
         // screen — their picks, their numbers, nothing asked of them.
         this.awaitingOthers;
+    },
+    /**
+     * THE PREPARATION SURFACE IS STILL THE LIVE ONE — the same boundary
+     * `summaryShown` uses. The deployment is assembled UNDER the freeze
+     * snapshot in one cut (`matSwap`), so everything that BELONGS to the
+     * preparation has to retire in that cut, not when the episode ends.
+     *
+     * Load-bearing for THE LANDING, not just for tidiness. The convoy
+     * measures its destinations right after the swap. A preparation element
+     * still in flow at that moment is measured into the destination and then
+     * removed: the selection shelf takes real HEIGHT off the deployment row,
+     * the crew strip real WIDTH off the header. Retiring them at `flow →
+     * 'deploying'` (i.e. after the cards were already down) is exactly what
+     * made the whole composition jump the instant the player chips vanished —
+     * the cards had landed on geometry that then stopped existing.
+     *
+     * The player sees none of the retirement: it happens under the opaque
+     * snapshot, and the 640ms cross-dissolve IS the chips dissolving while
+     * the deployment's own progress rail surfaces in its final place.
+     */
+    prepSurfaceLive(): boolean {
+      return this.mode === 'wizard' || (this.state.flow === 'materializing' && !this.matSwap);
     },
     /**
      * The summary is the setup's WAITING ROOM as much as it is a review: the

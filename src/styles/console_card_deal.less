@@ -105,27 +105,60 @@
     pointer-events: none;
 }
 
-/* Shared PLAIN reveal glint — a single light sweep racing across the FACE the
-   moment it turns into view, for ANY deal-proxy reveal that toggles the
-   generic `--revealing` modifier (the action deck-check reveal — Search For
-   Life / Asteroid Deflection — and future ones). Same keyframe + recipe as the
-   deck-draw / colony-trade reveals, so every card reveal speaks one premium
-   language. Rides the face surface (not the proxy) so it moves WITH the card in
-   3D and is hidden by backface while the card is still back-first. */
-.con-deal-proxy--revealing .con-deal-proxy__face::after {
+/* ── THE CARD REVEAL GLINT — ONE primitive, every reveal ──────────────────
+   A single light sweep across the FACE the moment it turns into view. Used by
+   every proxy reveal that toggles a `--revealing` modifier: the generic
+   deal proxy (start-summary flights, batch arrivals, the action deck-check —
+   Search For Life / Asteroid Deflection), the deck-draw cinematic and the
+   colony-trade reveal. It used to be three byte-identical copies; it is one
+   mixin now, so the language cannot drift apart again.
+
+   Rides the face surface (not the proxy) so it moves WITH the card in 3D and
+   is hidden by backface while the card is still back-first.
+
+   ⚠️ THE SWEEP IS A BACKGROUND THAT GLIDES INSIDE A FIXED BOX — never a
+   translated band. Nothing clips a flight proxy (`.con-startdock-layer` and
+   `.con-card3d-outer` have no overflow by design — the card's own drop shadow
+   must escape), so the previous `transform: translateX(-58% → 62%)` carried a
+   bright wedge ~60% of a card width OUT of the silhouette and painted it onto
+   the room behind the card. A `background-position` glide physically cannot
+   leave its own box, so the light stays ON the card at every frame.
+
+   Intensity is deliberately close to `.con-played-hero__sweep` (the accepted
+   premium reference): a screen-blended core at ~0.16 effective alpha. It is a
+   sheen on printed stock, not a lens flare. */
+.con-card-reveal-glint() {
     content: '';
     position: absolute;
     inset: 0;
     border-radius: .5rem;
     pointer-events: none;
     z-index: 2;
-    background: linear-gradient(115deg,
-        transparent 30%,
-        rgba(255, 255, 255, 0.44) 47%,
-        rgba(190, 230, 255, 0.3) 54%,
-        transparent 70%);
+    background-image: linear-gradient(112deg,
+        transparent 41%,
+        rgba(255, 255, 255, 0.26) 49.5%,
+        rgba(198, 232, 255, 0.15) 55%,
+        transparent 62%);
+    background-size: 250% 100%;
+    background-repeat: no-repeat;
     mix-blend-mode: screen;
-    animation: con-deckdraw-reveal-glint calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.25, 0, 0.35, 1) 1 both;
+    opacity: 0;
+    animation: con-card-reveal-glint calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.25, 0, 0.35, 1) 1 both;
+}
+
+/* Left → right. With a background wider than its box, 100% parks the image's
+   right edge at the box's right edge and 0% its left edge at the left one, so
+   the bright core travels leftward through the box as the value falls — the
+   padded 112% → −12% guarantees it fully enters and fully leaves. */
+@keyframes con-card-reveal-glint {
+    0% { opacity: 0; background-position: 112% 50%; }
+    26% { opacity: .62; }
+    74% { opacity: .5; }
+    100% { opacity: 0; background-position: -12% 50%; }
+}
+
+.con-deal-proxy--revealing .con-deal-proxy__face::after {
+    .con-card-reveal-glint();
 }
 @media (prefers-reduced-motion: reduce) {
     .con-deal-proxy--revealing .con-deal-proxy__face::after { animation: none; opacity: 0; }

@@ -1,7 +1,18 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, APIRequestContext, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootIntoGame, soloGameConfig} from './consoleStart';
+import {
+  bootIntoGame,
+  createGameWithCards,
+  openConsole,
+  pickCalmCorporation,
+  pickCards,
+  playQueueCard,
+  playQueueUntil,
+  soloGameConfig,
+  submitSummary,
+  walkToSummary,
+} from './consoleStart';
 
 /**
  * Console-native PROMPT ADMISSION · one response, one demand on the player.
@@ -86,85 +97,31 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await page.waitForTimeout(settleMs);
 }
 
-/**
- * Move the wizard's card cursor onto a NAMED card and pick it. The grid is
- * pad-driven (no click handler), so this walks the focus — `data-zoom-slot`
- * carries the English CardName, `--focused` / `--picked` carry the state.
- */
-async function pickCard(page: Page, cardName: string): Promise<boolean> {
-  const slot = page.locator(`[data-zoom-slot="${cardName}"]`).first();
-  for (let i = 0; i < 34; i++) {
-    if (await slot.count() === 0) {
-      return false;
-    }
-    const cls = await slot.getAttribute('class') ?? '';
-    if (cls.includes('con-cards__slot--picked')) {
-      return true;
-    }
-    if (cls.includes('con-cards__slot--focused')) {
-      await key(page, 'Enter', 700);
-      continue;
-    }
-    await key(page, i % 6 === 5 ? 'ArrowDown' : 'ArrowRight', 220);
-  }
-  return false;
-}
-
-/**
- * Walk the start wizard, picking the NAMED preludes whenever their step is up.
- * Everything else alternates A (pick the focused item) / RT («СЛЕД. ШАГ»).
- */
-async function walkWizard(page: Page, preludes: Array<string>): Promise<void> {
-  const frame = page.locator('.con-start__frame');
-  for (let guard = 0; guard < 40 && await frame.count() > 0; guard++) {
-    let picked = false;
-    for (const name of preludes) {
-      const slot = page.locator(`[data-zoom-slot="${name}"]`).first();
-      if (await slot.count() === 0) {
-        continue;
+async function prepareExperimentalForest(
+  page: Page,
+  request: APIRequestContext,
+  preludes: Array<string>,
+): Promise<void> {
+  const playerId = await createGameWithCards(request, [], {config: newGameConfig(preludes)});
+  await openConsole(page, playerId);
+  await walkToSummary(page, {
+    onStep: async (stepPage, kind) => {
+      if (kind === 'corporation') {
+        await pickCalmCorporation(stepPage);
+      } else if (kind === 'prelude') {
+        const picked = await pickCards(stepPage, preludes);
+        expect(picked, `the prelude deal must offer ${preludes.join(' + ')}`)
+          .toEqual(expect.arrayContaining(preludes));
       }
-      const cls = await slot.getAttribute('class') ?? '';
-      // Only the wizard's PICK grid — not the post-pick play rail.
-      if (!cls.includes('con-cards__slot') || cls.includes('con-cards__slot--picked')) {
-        continue;
-      }
-      picked = await pickCard(page, name) || picked;
-    }
-    if (picked) {
-      await key(page, 'Period', 1100); // the named picks are in — next step
-      continue;
-    }
-    // STATE-AWARE advance: a blind A/RT alternation buys projects (spawning a
-    // payment task) and can stall on the summary. Read the active step: the
-    // FIRST step needs a pick (corp), the LAST one launches, the rest skip.
-    const stage = await page.evaluate(() => {
-      const steps = [...document.querySelectorAll('.con-start__step')];
-      return {
-        active: steps.findIndex((s) => s.classList.contains('con-start__step--active')),
-        steps: steps.length,
-      };
-    });
-    if (stage.steps === 0) {
-      await key(page, 'Enter', 1100); // a sequence beat (play corp / prelude)
-    } else if (stage.active === 0) {
-      await key(page, 'Enter', 1000);
-      await key(page, 'Period', 1000);
-    } else if (stage.active === stage.steps - 1) {
-      await key(page, 'Enter', 1400); // summary → launch
-    } else {
-      await key(page, 'Period', 1000);
-    }
-  }
-}
+    },
+  });
+  await submitSummary(page);
 
-async function openGame(page: Page, request: any, preludes: Array<string>, prelude = true): Promise<void> {
-  const created = await request.post('/api/creategame', {data: newGameConfig(preludes, prelude)});
-  expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-  const model = await created.json() as {players: Array<{id: string}>};
-  await page.goto(`/player?id=${model.players[0].id}&console=1`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  await page.waitForTimeout(3500);
+  // Leave the subject card standing. The shared queue driver resolves the
+  // corporation and the harmless second prelude, but Experimental Forest's
+  // own response (draw + placement) remains entirely owned by this spec.
+  expect(await playQueueUntil(page, 'Experimental Forest'),
+    'Experimental Forest must still be queued for the admission assertion').toBeTruthy();
 }
 
 test.describe('console prompt admission · a draw and a placement in ONE response', () => {
@@ -173,30 +130,25 @@ test.describe('console prompt admission · a draw and a placement in ONE respons
   test('the board stays dark while the drawn-cards reveal owns the foreground', async ({page, request}) => {
     test.setTimeout(300_000);
 
-    // Both custom preludes land on the two focused slots the walk picks, so
-    // Experimental Forest is played whichever way `inplaceShuffle` orders the
-    // pair. Metals Company is pure production — it can't raise a prompt.
-    await openGame(page, request, ['Experimental Forest', 'Metals Company']);
+    // Both custom preludes are guaranteed in the deal. The shared walk picks
+    // them by name and leaves Experimental Forest queued for this assertion;
+    // Metals Company is pure production, so resolving it first is harmless.
+    const preludes = ['Experimental Forest', 'Metals Company'];
+    await prepareExperimentalForest(page, request, preludes);
 
     const reveal = page.locator('.con-reveal');
     const boardLive = page.locator('.con-board--live');
 
-    await walkWizard(page, ['Experimental Forest', 'Metals Company']);
-
     // The preludes resolve as the game starts — Experimental Forest's response
-    // carries the reveal AND the greenery SelectSpace together. A (Enter) plays
-    // the focused prelude off the rail.
-    let sawReveal = false;
-    for (let i = 0; i < 40 && !sawReveal; i++) {
-      if (await reveal.count() > 0) {
-        sawReveal = true;
-        break;
-      }
-      await key(page, 'Enter', 900);
-    }
+    // carries the reveal AND the greenery SelectSpace together. The shared
+    // verified press fires precisely that queued card, then the spec waits for
+    // the response surface without accidentally accepting either drawn card.
+    expect(await playQueueCard(page, 'Experimental Forest'),
+      'Experimental Forest never left the deployment queue').toBeTruthy();
+    await expect(reveal, 'the drawn-cards reveal never appeared — was Experimental Forest played?')
+      .toHaveCount(1, {timeout: 30_000});
 
     await shoot(page, '01-reveal-up');
-    expect(sawReveal, 'the drawn-cards reveal never appeared — was Experimental Forest played?').toBeTruthy();
 
     // ── THE ASSERTION ──────────────────────────────────────────────────────
     // The greenery SelectSpace is already pending in the same payload. The board
