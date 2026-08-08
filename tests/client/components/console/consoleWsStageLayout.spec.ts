@@ -119,6 +119,34 @@ describe('wsStageLayout — one geometry for buy and reveal', () => {
     });
   });
 
+  describe('the WRAP CAP — a solved shape must be the shape that renders', () => {
+    it('a multi-row shape publishes the exact planned row width (incl. the padding)', () => {
+      // A TALL band: seven cards wrap to 4+3, and the solved row is far
+      // narrower than the band — which is precisely when `flex-wrap` would
+      // otherwise fit five on the first line and orphan two.
+      const l = wsStageLayout({availW: 1400, availH: 900, ...slot, n: 7, ui: 1, padXPx: 26});
+      expect(l.rows, 'seven cards in a tall band wrap').to.eq(2);
+      expect(l.perRow).to.eq(4);
+      expect(l.rowMaxPx, 'the cap is narrower than the band it must break inside')
+        .to.be.lessThan(1400);
+      const expected = l.perRow * slot.slotW * l.zoom + (l.perRow - 1) * l.gapPx + 26;
+      expect(l.rowMaxPx).to.be.closeTo(expected, 0.01);
+      expect(wsStageLayoutStyle(l)['--con-ws-stage-rowmax']).to.eq(`${expected.toFixed(2)}px`);
+    });
+
+    it('a SINGLE row is never capped — there is nothing to break', () => {
+      const l = wsStageLayout({availW: 1400, availH: 420, ...slot, n: 2, ui: 1, padXPx: 26});
+      expect(l.rows).to.eq(1);
+      expect(wsStageLayoutStyle(l)['--con-ws-stage-rowmax']).to.eq('100%');
+    });
+
+    it('a caller that passes NO padding keeps the historical uncapped row', () => {
+      const l = wsStageLayout({availW: 1400, availH: 900, ...slot, n: 7, ui: 1});
+      expect(l.rowMaxPx).to.eq(undefined);
+      expect(wsStageLayoutStyle(l)['--con-ws-stage-rowmax']).to.eq('100%');
+    });
+  });
+
   describe('the published contract', () => {
     it('is ONE writer — both hosts apply the same custom properties', () => {
       const style = wsStageLayoutStyle(wsStageLayout({...band, ...slot, n: 3}));
@@ -128,6 +156,7 @@ describe('wsStageLayout — one geometry for buy and reveal', () => {
         '--con-ws-stage-gap',
         '--con-ws-stage-per-row',
         '--con-ws-stage-rowgap',
+        '--con-ws-stage-rowmax',
       ]);
     });
 

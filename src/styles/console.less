@@ -489,7 +489,13 @@ body.con-zoom-open .con-journal {
 .con-composer__beatrow.con-ws-stage-row {
     width: 100%;      /* spans the stage column — never shrink-wrapped, or the
                          fit solves against the CARD it is trying to size */
-    max-width: 100%;
+    /* THE WRAP CAP (consoleWsStageLayout): the line breaks where the layout
+       SOLVED it to break. Without it `flex-wrap` breaks on the available width
+       instead, and a height-bound zoom then fits more cards per line than the
+       chosen shape has — seven cards planned as 4+3 wrapped as 6+1. `100%` is
+       the no-cap value, so a single-row shape is untouched. */
+    max-width: var(--con-ws-stage-rowmax, 100%);
+    margin-inline: auto;
     /* THE ROW IS THE ONE PART THAT FLEXES, and `min-height: 0` stops its own
        content from inflating it — so its box is the height the stage actually
        has for cards, and the fit can simply MEASURE it. */
@@ -15484,6 +15490,14 @@ body.con-start-barshold .con-status {
         flex-direction: column;
         align-items: stretch;
         gap: .7rem;
+        /* THE EMBED ZONE'S CONTAINING BLOCK. The zone spans the WHOLE
+           deployment row, not the queue column: an embedded step is the only
+           thing the player is doing, so it gets every pixel the deployment was
+           using — the queue recedes and the played shelf yields (both in the
+           same recede/return phrase). It used to be scoped to `__queuecol`,
+           which left «РАЗЫГРАНО» sitting under the step, taking a third of the
+           height from cards the player is trying to read. */
+        position: relative;
     }
     &__queuecol {
         position: relative;

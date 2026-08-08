@@ -462,7 +462,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
-import {workspaceOutcomeArrivalPending, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsColonyReveal, workspaceClaimsDrawReveal, workspaceOutcomeArrivalPending, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {
   DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, holdRevealForFollowUp, markAllTaken,
@@ -480,7 +480,8 @@ import {
   consoleCardZoom, ConsoleZoomReceive, ConsoleZoomSwap, openConsoleCardZoom, repointConsoleCardZoom, slotZoomOrigin,
 } from '@/client/console/consoleCardZoom';
 import {
-  boardCardBonusState, bonusHoldingSingleZoom, bonusZoomOriginEl, isBoardCardBonusActive, isBonusRevealStaged,
+  boardCardBonusClaimsReveal, boardCardBonusState, bonusHoldingSingleZoom, bonusZoomOriginEl,
+  isBoardCardBonusActive, isBonusRevealStaged,
 } from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {
   deckDrawHoldingSingleZoom, deckDrawState, deckDrawZoomOriginEl, isDeckDrawActive, isDeckDrawStaged,
@@ -740,15 +741,34 @@ export default defineComponent({
       if (this.bonusDiscard !== undefined) {
         return false;
       }
-      // EMBEDDED: never headless. The headless path exists because a lone
-      // received card has no context worth framing — the fullscreen viewer IS
-      // the reveal. Inside a workspace the opposite is true: the card's whole
-      // meaning is that THIS action produced it, and that context is on screen
-      // around it. Throwing the player into a full-bleed viewer would be the
-      // exact "suddenly a different interface" break the embedding removes, so
-      // the card lands in the workspace's own slot and flips there. X still
-      // opens the fullscreen deliberately.
-      if (this.embedded) {
+      // A WORKSPACE OWNS THIS CARD: never headless. The headless path exists
+      // because a lone received card has no context worth framing — the
+      // fullscreen viewer IS the reveal. Inside a workspace the opposite is
+      // true: the card's whole meaning is that THIS action produced it, and
+      // that context is on screen around it. Throwing the player into a
+      // full-bleed viewer would be the exact "suddenly a different interface"
+      // break the embedding removes, so the card lands in the workspace's own
+      // slot and flips there. X still opens the fullscreen deliberately.
+      //
+      // ⚠️ OWNERSHIP, not readiness. `embedded` is derived from the embed SLOT
+      // existing, and the slot is published `flush: 'post'` — so for the frames
+      // between the claim and the host's mount `embedded` is false while the
+      // card is unambiguously the workspace's. `mounted()` fires in exactly
+      // that window, and it opens the viewer `mandatory: true`, which nothing
+      // later retracts: the player was thrown fullscreen out of a workspace
+      // that was still unfolding around them. The CLAIM is the honest answer,
+      // and it is live from submit time.
+      //
+      // The BOARD lift still goes fullscreen, by construction rather than by a
+      // flag: a cover lifted off a cell carries `{type:'tile'}` /
+      // `{type:'globalParameter'}`, which no workspace claim can match — and
+      // the one board source that IS a colony (Pluto's build bonus) is carved
+      // out by asking the bonus scene itself.
+      const src = this.drawnEvent?.source;
+      const ownedByWorkspace =
+        (workspaceClaimsDrawReveal(src) || workspaceClaimsColonyReveal(src)) &&
+        !boardCardBonusClaimsReveal(src);
+      if (this.embedded || ownedByWorkspace) {
         return false;
       }
       return this.mode === 'drawn' && this.drawnEvent !== undefined && this.drawnEvent.cards.length === 1;
@@ -822,6 +842,10 @@ export default defineComponent({
      * then opens off the arrived cover (a physical origin), never over it.
      */
     singleCardNeedsFullscreen(): boolean {
+      // `singleCardMode` already carries the workspace-ownership carve-out, and
+      // it is a computed — so a claim that lands AFTER an open flips this back
+      // to false and the watcher stops re-opening. That is the whole reason the
+      // check lives up there rather than being duplicated here.
       return this.singleCardMode && consoleCardZoom.card === undefined &&
         !bonusHoldingSingleZoom(this.drawnEvent?.id) &&
         !deckDrawHoldingSingleZoom(this.drawnEvent?.id) &&

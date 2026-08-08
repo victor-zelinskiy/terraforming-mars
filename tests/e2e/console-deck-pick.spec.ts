@@ -102,6 +102,21 @@ async function surfaces(page: Page) {
       }),
       /** The deployment's own queue/played chrome — the flow's way back. */
       startQueue: document.querySelectorAll('.con-start__queue').length,
+      /**
+       * «РАЗЫГРАНО» belongs to the DEPLOYMENT, so it yields the stage while a
+       * step stands inside the workspace — receded, never unmounted (its stack
+       * identities and the hero target it registers must survive), and back at
+       * full strength before the source card's continuation flight aims at it.
+       */
+      dockShelf: (() => {
+        const el = document.querySelector('.con-start__played');
+        if (el === null) {
+          return {mounted: false, opacity: 1};
+        }
+        return {mounted: true, opacity: Number(getComputedStyle(el).opacity)};
+      })(),
+      /** How much of the deployment row the step actually got. */
+      stageH: Math.round(document.querySelector('.con-deckpick__frame')?.getBoundingClientRect().height ?? 0),
       played: Array.from(document.querySelectorAll('.con-start__played [data-played-key]'))
         .map((el) => el.getAttribute('data-played-key')),
       handCount: (document.querySelector('.con-handdock')?.textContent ?? '').trim(),
@@ -209,6 +224,13 @@ test.describe('console — «посмотри N карт колоды, оста�
     expect(at.deckPile, 'the deck they came from is on screen').toBeTruthy();
     expect(at.dockMounted, 'the hand dock is never hidden').toBeTruthy();
     expect(at.dockCompact, 'the dock steps back into its compact pose while the pick owns the screen').toBeTruthy();
+    // …and «РАЗЫГРАНО» has YIELDED THE STAGE — kept in the DOM (its stacks and
+    // the hero target it registers must survive), but out of the way, so the
+    // step gets the whole deployment row rather than its top third.
+    expect(at.dockShelf.mounted, 'the played shelf is never unmounted').toBeTruthy();
+    expect(at.dockShelf.opacity, `the played shelf receded — ${JSON.stringify(at.dockShelf)}`)
+      .toBeLessThan(0.05);
+    expect(at.stageH, `the step took the whole row — ${at.stageH}px`).toBeGreaterThan(600);
 
     // ── 4. THE PAD IS THE SURFACE'S — the cards are actually pickable ────
     const dockBefore = at.dockCards;
@@ -239,5 +261,8 @@ test.describe('console — «посмотри N карт колоды, оста�
     expect(back.startUp, 'the start workspace never left').toBeTruthy();
     expect(back.played, `«Корпоративные архивы» finished its ordinary play — ${JSON.stringify(back)}`)
       .toContain('Corporate Archives');
+    // …which it could only do because the shelf came back FIRST: the card's
+    // continuation flight measures a slot inside it.
+    expect(back.dockShelf.opacity, 'the played shelf is back at full strength').toBeGreaterThan(0.9);
   });
 });

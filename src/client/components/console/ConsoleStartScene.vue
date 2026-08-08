@@ -419,30 +419,43 @@
                 </transition-group>
               </div>
 
-              <!-- EMBEDDED FOLLOW-UP: the shared reveal teleports HERE (claim
-                   'start') as an overlay LAYER of the queue column — the same
-                   Header / Status Rail / Footer frame it deepens, never a
-                   modal over the workspace. The zone stands from the claim's
-                   first frame (a teleport needs its target before the search).
-                   THE SOURCE CARD STAYS IN THE STEP: it physically EMERGES
-                   from its dock stack into the left column (its slot keeps
-                   geometry, face away — one visual owner), presides over the
-                   draw, and SETTLES back into the stack on release. -->
-              <div class="con-start__embed" data-embed-slot="start"
-                   :class="{'con-start__embed--live': embedActive || sponsorStep}">
-                <div v-if="embedSourceShown !== undefined" class="con-start__embedsource" ref="embedSourceCol">
-                  <span class="con-start__embedsource-cap">{{ $t('Source') }}</span>
-                  <div class="con-start__embedsource-card"
-                       :class="{'con-deal-hold': embedSourceArriving}"
-                       data-embed-source-slot>
-                    <ConsolePlayedCardLite :name="embedSourceShown" />
-                  </div>
+            </div>
+
+            <!-- ── THE COMPACT PLAYED DESTINATION — «РАЗЫГРАНО · owner» ──
+                 It BELONGS to the deployment, and it YIELDS THE STAGE while a
+                 step is standing inside the workspace: the effect's own screen
+                 gets the whole room, and the shelf breathes back — in full,
+                 measured and settled — before the source card's continuation
+                 flight ever aims at it (`runPlayedDockReturn` is awaited ahead
+                 of the settle). Recede/return, the same phrase the queue uses;
+                 never a hide, never a `v-if`. -->
+            <ConsoleStartPlayedDock ref="playedDockEl" :playerView="playerView" :awayCard="embedSourceShown" />
+
+            <!-- EMBEDDED FOLLOW-UP: the shared reveal / the draw & select
+                 surface teleports HERE (claim 'start') as an overlay LAYER of
+                 the WHOLE deployment row — the same Header / Status Rail /
+                 Footer frame it deepens, never a modal over the workspace. The
+                 zone stands from the claim's first frame (a teleport needs its
+                 target before the search).
+                 IT SPANS THE ROW, not the queue column: the step is the only
+                 thing the player is doing, so it gets every pixel the
+                 deployment was using — the queue has receded and the played
+                 shelf has yielded. Only the SOURCE keeps its seat, because it
+                 is what the whole step is about: the card physically EMERGES
+                 from its dock stack into the left column (its slot keeps
+                 geometry, face away — one visual owner), presides over the
+                 draw, and SETTLES back into the stack on release. -->
+            <div class="con-start__embed" data-embed-slot="start"
+                 :class="{'con-start__embed--live': embedActive || sponsorStep}">
+              <div v-if="embedSourceShown !== undefined" class="con-start__embedsource" ref="embedSourceCol">
+                <span class="con-start__embedsource-cap">{{ $t('Source') }}</span>
+                <div class="con-start__embedsource-card"
+                     :class="{'con-deal-hold': embedSourceArriving}"
+                     data-embed-source-slot>
+                  <ConsolePlayedCardLite :name="embedSourceShown" />
                 </div>
               </div>
             </div>
-
-            <!-- ── THE COMPACT PLAYED DESTINATION — «РАЗЫГРАНО · owner» ── -->
-            <ConsoleStartPlayedDock :playerView="playerView" :awayCard="embedSourceShown" />
           </div>
         </div>
 
@@ -776,6 +789,9 @@ export default defineComponent({
       /** Per pressable card: how many cards its play DRAWS (from the same
        *  preview branch) — the embed claim's `expectedCards`. */
       drawExpected: new Map<CardName, number>(),
+      /** The played shelf has receded for an embedded step (its own half of
+       *  the deployment's release — see `runPlayedDockRelease`). */
+      playedDockReleased: false,
       /** In-flight / done prefetches (never re-request the same card). */
       rewardFetched: new Set<CardName>(),
       /** The played-hero transaction (module reactive — the queue and the
@@ -2021,6 +2037,10 @@ export default defineComponent({
     'startEffectBeat'(now: 'idle' | 'staged' | 'depart' | 'landed' | 'failed', was: string) {
       if (now === 'depart' && was === 'staged') {
         this.runQueueRelease();
+        // ONE release, both layers: the deployment lets go as a whole, so the
+        // step that follows opens into a genuinely empty room rather than into
+        // the top half of one.
+        this.runPlayedDockRelease();
       }
       if (now === 'landed' && !this.embedSourceLanded) {
         // THE ATOMIC HANDOFF at the effect-source seat: the hero flipped
@@ -3891,6 +3911,72 @@ export default defineComponent({
         return tl;
       });
     },
+    /**
+     * THE PLAYED SHELF YIELDS THE STAGE.
+     *
+     * «РАЗЫГРАНО» belongs to the deployment, not to the step standing inside
+     * it — so while that step is up it recedes exactly as the queue does, and
+     * the effect's own screen gets the whole row. It is deliberately NOT a
+     * `v-if`: the shelf keeps its DOM, its counters and its stack identities
+     * (`[data-played-key]`, `[data-start-front]`), so nothing has to be rebuilt
+     * and the hero target it registers is never withdrawn.
+     *
+     * The origin is the shelf's own centre — it is not what the player pressed,
+     * so it must not appear to fly out of the pressed card.
+     */
+    runPlayedDockRelease(): void {
+      if (this.playedDockReleased) {
+        return;
+      }
+      const dock = this.playedDockRoot();
+      if (dock === null) {
+        return;
+      }
+      this.playedDockReleased = true;
+      if (consoleReducedMotionActive()) {
+        gsap.set(dock, {autoAlpha: 0});
+        return;
+      }
+      guardedDescend(dock, 420, () => {}, (finish) => {
+        const tl = gsap.timeline({onComplete: finish});
+        descendRecede(tl, dock, undefined, motionMs(320) / 1000, 0);
+        return tl;
+      });
+    },
+    /**
+     * …AND COMES BACK IN TIME. Awaited BEFORE the source card's continuation
+     * flight, because that flight measures `[data-played-key]` inside this very
+     * shelf: a card aiming at a receded (transformed, transparent) destination
+     * would fly to a place that is not where it lands.
+     */
+    async runPlayedDockReturn(): Promise<void> {
+      if (!this.playedDockReleased) {
+        return;
+      }
+      this.playedDockReleased = false;
+      const dock = this.playedDockRoot();
+      if (dock === null) {
+        return;
+      }
+      await this.$nextTick(); // the shelf's own post-effect state settles first
+      if (consoleReducedMotionActive()) {
+        gsap.set(dock, {clearProps: 'transform,opacity,visibility'});
+        return;
+      }
+      await new Promise<void>((resolve) => {
+        guardedDescend(dock, 460, resolve, (finish) => {
+          const tl = gsap.timeline({onComplete: finish});
+          descendReturn(tl, dock, motionMs(400) / 1000, 0);
+          return tl;
+        });
+      });
+    },
+    /** The shelf's root element (it is a component, so reach through `$el`). */
+    playedDockRoot(): HTMLElement | null {
+      const dock = this.$refs.playedDockEl as {$el?: HTMLElement} | undefined;
+      const el = dock?.$el;
+      return el !== undefined && el !== null && el.isConnected ? el : null;
+    },
     /** THE QUEUE RETURN — the reverse of the same phrase: the (already
      *  reflowed) queue breathes back from the remembered origin, fully ready
      *  before the source card's continuation flight measures anything. */
@@ -3920,7 +4006,11 @@ export default defineComponent({
      *  back FULLY READY (queue standing, dock untouched), and only then the
      *  source card continues its interrupted journey into «Разыграно». */
     async runStartEffectReturn(): Promise<void> {
-      await this.runQueueReturn();
+      // BOTH halves of the deployment come back together, and BOTH are fully
+      // settled before the source card continues — the shelf is this flight's
+      // destination, so a return that raced it would aim the card at a moving
+      // target.
+      await Promise.all([this.runQueueReturn(), this.runPlayedDockReturn()]);
       await this.runEmbedSourceSettle();
     },
     /** The submit died mid-flow: nothing landed anywhere — clear the held
@@ -3932,7 +4022,7 @@ export default defineComponent({
       if (this.outcome.host === 'start') {
         releaseWorkspaceOutcome();
       }
-      await this.runQueueReturn();
+      await Promise.all([this.runQueueReturn(), this.runPlayedDockReturn()]);
     },
     /** THE SOURCE SETTLE — the effect is over: the source card carries on
      *  from its seat into the dock's family slot (the second half of the

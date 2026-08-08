@@ -153,6 +153,99 @@ whose only outcome is an unreachable restore card is how a flow soft-locks.
   dock is now suppressed while embedded: inside a workspace the source is already
   on stage, and `L3 Источник` lifts that very card.
 
+## The deployment YIELDS THE STAGE (2026-08-08, iteration 2)
+
+«РАЗЫГРАНО» belongs to the DEPLOYMENT, not to the step standing inside it. It
+used to sit under the embedded step taking a third of the column's height from
+cards the player was trying to read, because `.con-start__embed` was scoped to
+`.con-start__queuecol`. The zone now spans the whole `.con-start__deploy` row,
+and the shelf recedes in the queue's own phrase (`descendRecede` /
+`descendReturn`, `runPlayedDockRelease` / `runPlayedDockReturn`).
+
+Three properties are load-bearing, and they apply to the reveal exactly as they
+do to the pick — same zone, same beats:
+
+* **Never a `v-if`.** The shelf keeps its DOM, its counters and its stack
+  identities (`[data-played-key]`, `[data-start-front]`), so nothing is rebuilt
+  and the hero target it registers via `providePlayedHeroTarget` is never
+  withdrawn.
+* **It comes back FIRST.** `runStartEffectReturn` awaits BOTH halves
+  (`Promise.all([runQueueReturn, runPlayedDockReturn])`) before the source
+  card's continuation flight, because that flight MEASURES a slot inside the
+  shelf — a card aiming at a receded (transformed, transparent) destination
+  flies to a place that is not where it lands.
+* **Only the SOURCE keeps its seat.** It is what the whole step is about.
+
+Probe: `console-deck-pick.spec.ts` asserts the shelf is mounted-but-receded
+during the pick, that the step's frame really got the row (`> 600 px`), and that
+the shelf is back at full opacity by the time the card reaches it.
+
+## ONE motion language for every deck flight
+
+The batch arrival (`runBatchArrival`) and the deck-draw cinematic
+(`runDeckDrawBeat`) are the same physical event — a card leaving the HUD pile —
+and had drifted into two dialects. Five differences, all corrected in the SHARED
+director, so the deck-pick, the action composer's beat stage and the reveal all
+moved together:
+
+1. **The peel was not centre-anchored.** With `transformOrigin: 'top left'`,
+   growing the card 12 % while nudging only `y` slides its visual centre right
+   AND down — the card crabbed sideways off the pile instead of lifting out of
+   it. That drift IS what read as "the cards appear crookedly". Both axes are
+   re-solved now, via the same `at(cx, cy, scale)` helper the deck-draw beat has
+   always used.
+2. **The birth tilt was 3.2x too loud** (a wider `jitterDeg` spread, then x1.6
+   instead of x0.5). Scattered cards, not a stack being dealt. Same function,
+   same magnitude as the cinematic now.
+3. **No contact shadow.** `.con-deckdraw-proxy` has always flown with a
+   `drop-shadow`; the shared `.con-deal-proxy` had none. WARNING: it goes on the
+   two FACES — a `filter` on the perspective owner creates a containing block
+   that flattens the 3D subtree (the trap `console_card_discard.less` records).
+4. **The turn fought the flight for `scale`.** `addPremiumTurn` defaults to
+   `settleScale: true`, and the travel leg tweens `scale` on the same proxy for
+   the whole flip window: ~240 ms of two tweens writing one property per tick.
+   `openPending`'s late branch already knew this; the primary path did not.
+5. **`rotation` was never re-zeroed at the handoff.** An interrupted flight left
+   a residual tilt that rested, crooked, in a perfectly square slot.
+
+Plus one addition: the pile now **TICKS** as the first card separates
+(`runDeckSettleTick`), so the deck visibly answers instead of standing inert.
+
+### The wrap cap — a solved shape must be the shape that renders
+
+`wsStageLayout` chooses `rows`/`perRow`, but `flex-wrap` breaks on the AVAILABLE
+width — and the zoom is frequently bound by HEIGHT, which leaves the line
+narrower than the room. Seven cards planned as 4+3 wrapped as **6+1**. The
+engine now publishes `--con-ws-stage-rowmax` (the planned row width, padding
+included) and the shared `.con-ws-stage-row` honours it.
+
+WARNING: **a fit must reset its own outputs before measuring** — the cap is a
+`max-width` on the very row whose `clientWidth` the fit reads, so the second
+pass would measure the first pass's choice: narrower room, more rows, a narrower
+cap. All three callers reset `--con-cards-zoom` AND `--con-ws-stage-rowmax`
+before the probe. (This is the third instance of the same class in this flow;
+the other two are in the fit-engine section above.)
+
+## A single card in a workspace never goes fullscreen
+
+The headless path exists because a lone received card has no context worth
+framing — the fullscreen viewer IS the reveal. Inside a workspace the opposite
+is true, and being thrown full-bleed is exactly the break the embedding removes.
+
+`ConsoleRevealOverlay.singleCardMode` used to test the `embedded` PROP, which is
+derived from the embed SLOT existing — and the slot is published `flush:'post'`.
+For the frames between the claim and the host's mount `embedded` is false while
+the card is unambiguously the workspace's, `mounted()` fires in exactly that
+window, and it opens the viewer `mandatory: true`, which nothing later retracts.
+It now asks the CLAIM (`workspaceClaimsDrawReveal` / `workspaceClaimsColonyReveal`),
+which is live from submit time — ownership, not readiness.
+
+**The BOARD lift still goes fullscreen by construction, not by a flag:** a cover
+lifted off a cell carries `{type:'tile'}` / `{type:'globalParameter'}`, which no
+workspace claim can match. The one board source that IS a colony (Pluto's build
+bonus) is carved out by asking the bonus scene itself
+(`boardCardBonusClaimsReveal`).
+
 ## The crumb
 
 `deploymentCrumb`'s embed subject is the **source card itself** now, not its

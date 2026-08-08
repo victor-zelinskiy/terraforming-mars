@@ -640,7 +640,13 @@ export default defineComponent({
       if (row === null || row === undefined || this.entries.length === 0) {
         return;
       }
+      // ⚠️ RESET THE ENGINE'S OWN OUTPUTS BEFORE MEASURING. The wrap cap is a
+      // `max-width` on this very row, so a second fit would measure the width
+      // the FIRST fit chose — narrower room, more rows, a narrower cap, and so
+      // on. Same rule as the zoom reset beside it: an engine never reads its
+      // own output.
       row.style.setProperty('--con-cards-zoom', '1');
+      row.style.setProperty('--con-ws-stage-rowmax', '100%');
       const probe = row.children[0] as HTMLElement | undefined;
       const slotW = probe?.offsetWidth ?? 0;
       const slotH = probe?.offsetHeight ?? 0;
@@ -673,6 +679,9 @@ export default defineComponent({
         availH: Math.max(200 * ui, this.rowBudgetPx() - padY),
         slotW, slotH, n: this.entries.length, ui,
         rowGapPx: parseFloat(cs.rowGap) || undefined,
+        // …and the row's own padding, so the WRAP CAP the engine publishes
+        // measures the same box the browser breaks on.
+        padXPx: padX,
       });
       const style = wsStageLayoutStyle(layout);
       Object.entries(style).forEach(([k, v]) => row.style.setProperty(k, v));

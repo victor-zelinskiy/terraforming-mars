@@ -99,7 +99,7 @@ import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale'
 import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {colonyTradeClaimsReveal, isColonyTradeRevealStaged, isPresentedTradeReveal} from '@/client/console/colonyTrade/consoleColonyTrade';
-import {markWorkspaceOutcomeArrivalDone, workspaceClaimOwnsArrival, workspaceClaimsDrawReveal} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeArrivalDone, workspaceClaimOwnsArrival, workspaceClaimsColonyReveal, workspaceClaimsDrawReveal} from '@/client/console/consoleWorkspaceOutcome';
 import {
   DeckDrawTimings, DrawBeat, RectLike, deckCountAfter, deckDrawTimings, holdScale, holdSlots,
   inspectPoint, inspectScale, planDeckDraw, reducedDeckDrawTimings,
@@ -572,7 +572,7 @@ export default defineComponent({
       // NOT when a workspace claimed the batch: the EMBEDDED reveal renders a
       // real slot even for one card (the card belongs inside the workspace,
       // never in a fullscreen hand-over) — fall through to the slot flight.
-      if (e.cards.length === 1 && !workspaceClaimsDrawReveal(e.source)) {
+      if (e.cards.length === 1 && !workspaceClaimsDrawReveal(e.source) && !workspaceClaimsColonyReveal(e.source)) {
         setDeckDrawPhase('frame');
         markDeckDrawZoomReady();
         // End once the viewer has taken over: the input gate must not stay

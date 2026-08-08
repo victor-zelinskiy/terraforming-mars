@@ -63,6 +63,15 @@
     position: absolute;
     inset: 0;
     backface-visibility: hidden;
+    /* CONTACT WEIGHT — the same shadow the deck-draw proxy has always flown
+       with, which is half of why a card there reads as a physical object
+       leaving a stack and the shared proxy read as a picture sliding about.
+       ⚠️ On the FACES, never on `.con-deal-proxy`: that element owns the
+       `perspective`, and a `filter` there creates a containing block that
+       flattens the whole 3D subtree (the same trap `console_card_discard.less`
+       records). Decorative only — `con-perf-lite` strips it and loses nothing
+       functional. */
+    filter: drop-shadow(0 .5rem 1.1rem rgba(0, 0, 0, 0.5));
 }
 .con-deal-proxy__back {
     transform: rotateY(180deg);

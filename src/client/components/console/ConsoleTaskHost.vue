@@ -2109,7 +2109,13 @@ export default defineComponent({
       // 320×460 face made HEIGHT the binding constraint for the grid buy, so
       // both branches now fit height too (was width-only + a fixed grid zoom
       // tuned for the legacy 300×415 card → the 10-card buy overflowed).
+      // ⚠️ RESET THE ENGINE'S OWN OUTPUTS BEFORE MEASURING. The wrap cap is a
+      // `max-width` on this very row, so a second fit would measure the width
+      // the FIRST fit chose — narrower room, more rows, a narrower cap, and so
+      // on. Same rule as the zoom reset beside it: an engine never reads its
+      // own output.
       strip.style.setProperty(grid ? '--con-cards-grid-zoom' : '--con-cards-zoom', '1');
+      strip.style.setProperty('--con-ws-stage-rowmax', '100%');
       strip.style.removeProperty(grid ? '--con-cards-zoom' : '--con-cards-grid-zoom');
       strip.style.removeProperty('max-width');
       const probe = strip.children[0] as HTMLElement;
@@ -2154,7 +2160,7 @@ export default defineComponent({
           const layout = wsStageLayout({
             availW,
             availH: Math.max(200 * s, strip.clientHeight - padY),
-            slotW, slotH, n, ui: s, rowGapPx: rowGap,
+            slotW, slotH, n, ui: s, rowGapPx: rowGap, padXPx: padX,
           });
           Object.entries(wsStageLayoutStyle(layout))
             .forEach(([k, v]) => strip.style.setProperty(k, v));

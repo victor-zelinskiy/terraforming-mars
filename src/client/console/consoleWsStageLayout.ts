@@ -70,6 +70,12 @@ export type WsStageLayoutInput = {
   ui: number;
   /** Gap between wrapped rows (px); defaults to the column gap. */
   rowGapPx?: number;
+  /**
+   * The row element's own horizontal padding (px). Only used to publish the
+   * WRAP CAP below — pass it and the row breaks where the layout says it
+   * breaks; omit it and the cap is not published (the historical behaviour).
+   */
+  padXPx?: number;
 };
 
 export type WsStageLayout = {
@@ -83,6 +89,18 @@ export type WsStageLayout = {
   rows: number;
   /** Cards per row (the last row may hold fewer). */
   perRow: number;
+  /**
+   * THE WRAP CAP — the row's `max-width`, or `undefined` when the caller did
+   * not pass its padding.
+   *
+   * A solved shape is only real if the row actually breaks where it was solved
+   * to break. `flex-wrap` breaks on the AVAILABLE width, and the zoom is
+   * frequently bound by HEIGHT (two rows have to fit vertically), which leaves
+   * the line narrower than the room — so seven cards planned as 4+3 wrapped as
+   * 6+1, an orphan the engine never chose. Capping the line to exactly the
+   * planned row makes the break an output like everything else.
+   */
+  rowMaxPx?: number;
 };
 
 /** The lateral room ONE focused slot needs beyond its own box, in px. */
@@ -145,7 +163,11 @@ export function wsStageLayout(o: WsStageLayoutInput): WsStageLayout {
     const raw = shapeZoom(o, rows, perRow, rowGapPx);
     const zoom = Math.min(1.9 * o.ui, Math.max(0.42 * o.ui, raw));
     const gapPx = Math.max(MIN_GAP_PX * o.ui, focusHeadroomPx(o.slotW * zoom, o.ui));
-    const candidate: WsStageLayout = {zoom, gapPx, rowGapPx, rows, perRow};
+    const candidate: WsStageLayout = {
+      zoom, gapPx, rowGapPx, rows, perRow,
+      rowMaxPx: o.padXPx === undefined ? undefined :
+        perRow * o.slotW * zoom + Math.max(0, perRow - 1) * gapPx + o.padXPx,
+    };
     if (best === undefined) {
       best = candidate;
       continue;
@@ -180,5 +202,9 @@ export function wsStageLayoutStyle(l: WsStageLayout): Record<string, string> {
     '--con-ws-stage-rowgap': `${l.rowGapPx.toFixed(2)}px`,
     '--con-ws-focus-scale': `${WS_STAGE_FOCUS_SCALE}`,
     '--con-ws-stage-per-row': `${l.perRow}`,
+    // `100%` = "no cap" — a single-row shape needs none, and a caller that
+    // passed no padding gets the historical behaviour unchanged.
+    '--con-ws-stage-rowmax': l.rowMaxPx === undefined || l.rows <= 1 ?
+      '100%' : `${l.rowMaxPx.toFixed(2)}px`,
   };
 }

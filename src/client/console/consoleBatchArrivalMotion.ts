@@ -42,6 +42,7 @@ import {gsap} from 'gsap';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {DEAL_TURN_GLINT, addPremiumTurn} from '@/client/console/cardDeal/premiumTurn';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
+import {runDeckSettleTick} from '@/client/console/deckDraw/deckDrawDirector';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
   CardArrivalMode, CardArrivalPlan, CardArrivalTimings, arrivalSourceFan,
@@ -59,9 +60,16 @@ function s(ms: number): number {
   return motionMs(ms) / 1000;
 }
 
-/** Deterministic per-card tilt, stable across re-runs. */
+/**
+ * Deterministic per-card tilt, stable across re-runs — the SAME function and
+ * the SAME magnitude the deck-draw cinematic uses (`deckDrawDirector`), so a
+ * batch coming off the pile and a single search card coming off the pile are
+ * physically the same object. This used to be a louder copy (a wider spread,
+ * then multiplied by 1.6 instead of 0.5 at birth), and the difference read as
+ * scattered cards rather than a stack being dealt.
+ */
 function jitterDeg(index: number): number {
-  const magnitude = 1.4 + ((index * 137) % 5) * 0.45;
+  const magnitude = 1.5 + ((index * 137) % 5) * 0.6;
   return (index % 2 === 0 ? -1 : 1) * magnitude;
 }
 
@@ -200,14 +208,27 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
     const fromCx = (hasDeck ? deckRect.left + deckRect.width / 2 : slotRect.left + slotRect.width / 2) + fan[i].dx;
     const fromCy = (hasDeck ? deckRect.top + deckRect.height / 2 : -naturalH * 0.1) + fan[i].dy;
 
+    // CENTRE-ANCHORED POSE. The proxy's origin is `top left`, so a pose given
+    // as a centre must be resolved by hand — and it must be resolved AGAIN for
+    // every scale change, which is the whole point of this helper. The peel
+    // used to nudge `y` alone while growing the card 12 %: with a top-left
+    // origin that slides the visual centre right AND down, so the card crabbed
+    // sideways off the pile instead of lifting out of it. That drift is what
+    // read as "the cards appear crookedly".
+    const at = (cx: number, cy: number, scale: number) => ({
+      x: cx - (CARD_NATURAL_W * scale) / 2,
+      y: cy - (naturalH * scale) / 2,
+    });
+    const born = at(fromCx, fromCy, startScale);
+
     gsap.set(proxy, {
       width: CARD_NATURAL_W,
       height: naturalH,
       transformOrigin: 'top left',
-      x: fromCx - (CARD_NATURAL_W * startScale) / 2,
-      y: fromCy - (naturalH * startScale) / 2,
+      x: born.x,
+      y: born.y,
       scale: startScale,
-      rotation: jitterDeg(i) * 1.6,
+      rotation: jitterDeg(i) * 0.5,
       autoAlpha: 0,
       zIndex: 10 + i,
     });
@@ -216,17 +237,25 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
     const tl = gsap.timeline({delay: s(beat.atMs)});
     timelines.push(tl);
 
-    // PEEL — the card frees itself from the pile before it travels.
+    // PEEL — the card frees itself from the pile before it travels. Straight
+    // UP out of the stack (BOTH axes re-solved for the bigger scale), exactly
+    // the deck-draw cinematic's separation, and the pile TICKS as the first
+    // card leaves so the deck visibly answers instead of standing inert.
+    const peel = at(fromCx, fromCy - 10 - 14 * startScale, startScale * 1.14);
     tl.to(proxy, {
       autoAlpha: 1,
-      y: `-=${10 + 12 * startScale}`,
-      scale: startScale * 1.12,
+      x: peel.x,
+      y: peel.y,
+      scale: startScale * 1.14,
       duration: s(beat.peelMs),
       ease: 'power2.out',
     }, 0);
     if (i === 0) {
       tl.call(() => {
         if (!dead) {
+          if (deckEl !== null && !reduced) {
+            runDeckSettleTick(deckEl, reduced);
+          }
           onDeparted?.();
         }
       }, undefined, s(beat.peelMs * 0.55));
@@ -252,6 +281,13 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
         poseScale: restScale,
         push: t.turnPush,
         glintClass: DEAL_TURN_GLINT,
+        // ⚠️ The FLIGHT LEG still owns `scale` for this whole window (it is
+        // tweening `restScale` on the same proxy), so the turn must not add a
+        // second writer: two live tweens on one property fight per tick and the
+        // card visibly jitters mid-air. `openPending`'s early branch already
+        // knew this; the primary path did not, and spent ~240 ms of every
+        // card's flight in that fight.
+        settleScale: false,
         onFaceShown: () => fireFace(i),
       });
     } else if (beat.flipAtMs !== undefined) {
@@ -446,6 +482,11 @@ export function settleBatchProxiesOnto(args: {
         const r = rects[i];
         gsap.to(p.proxy, {
           x: r.left, y: r.top, scale: Math.max(0.05, r.width / CARD_NATURAL_W),
+          // `rotation` too — the deck-draw assemble has always zeroed it here.
+          // The travel leg normally lands it at 0, but an interrupted or
+          // re-timed flight can leave a residual tilt that then survives the
+          // handoff and rests, crooked, in a slot that is perfectly square.
+          rotation: 0,
           duration: s(190), ease: 'power3.inOut', onComplete: one,
         });
       });
