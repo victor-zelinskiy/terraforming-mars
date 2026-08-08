@@ -371,13 +371,15 @@ for (const profile of PROFILES) {
  * corrective pass glides 300ms), so a fixed timeout either starts a
  * "must not move" trip mid-glide or hard-codes the convergence's length.
  */
-    async function waitForFramingRest(page: Page, timeoutMs = 15_000): Promise<void> {
+    async function waitForFramingRest(page: Page, timeoutMs = 45_000): Promise<void> {
       const read = () => page.evaluate(() => {
+        const root = document.querySelector('.con-board');
         const stage = document.querySelector('.con-board__stage');
         const cont = document.querySelector('.con-board__stage > .board-cont');
         const b = cont?.getBoundingClientRect();
         const cs = stage === null ? undefined : getComputedStyle(stage);
         return [
+          root?.getAttribute('data-framing') ?? 'missing',
           getComputedStyle(document.documentElement).getPropertyValue('--board-scale').trim(),
           (cs?.getPropertyValue('--con-board-dx') ?? '').trim(),
           (cs?.getPropertyValue('--con-board-dy') ?? '').trim(),
@@ -393,11 +395,11 @@ for (const profile of PROFILES) {
         if (now !== last) {
           last = now;
           stableSince = Date.now();
-        } else if (Date.now() - stableSince >= 900) {
+        } else if (now.startsWith('settled|') && Date.now() - stableSince >= 900) {
           return;
         }
       }
-      console.log(`  !! board never came to rest within ${timeoutMs}ms (last=${last})`);
+      throw new Error(`board never came to rest within ${timeoutMs}ms (last=${last})`);
     }
 
     /** One board → hand → board trip; returns every LIVE frame of it. */

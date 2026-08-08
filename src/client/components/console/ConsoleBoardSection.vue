@@ -2,7 +2,7 @@
   <!-- P27: the selection spotlight paints ONLY while the board is LIVE
        (inspection mode / placement) — on the calm board home no cell reads
        as focused, so nothing competes with ocean/availability highlights. -->
-  <div class="con-board" :class="boardClasses" ref="root">
+  <div class="con-board" :class="boardClasses" :data-framing="framingState" ref="root">
     <div class="con-board__stage" ref="stage">
       <GameBoardView :game="game" :players="playerView.players" :tileView="tileView" @toggleTileView="cycleTileView" />
     </div>
@@ -40,7 +40,6 @@ import {consoleState} from '@/client/console/consoleRouter';
 import {TileView, nextTileView} from '@/client/components/board/TileView';
 import {
   planetFocusState, displayGlobalParams, PlanetFocusPhase,
-  PLANET_FOCUS_ENTER_MS, PLANET_FOCUS_EXIT_MS,
 } from '@/client/console/planetFocus';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {cssLengthPx} from '@/client/console/cssUnits';
@@ -160,12 +159,13 @@ const BOARD_CONT_H = 600;
  * stage is counted in (disc 451 → usable ~1900px ⇒ ~4.2).
  */
 const PFOCUS_MAX_SCALE = 4.8;
-/** The calm curve every NON-focus scale change rides (mount aside): a
- *  resize, a calibration nudge. Mirrors `--pfocus-ms`'s default in
- *  console.less. */
-const BOARD_TWEEN_MS = 300;
-/** Margin over a board transition before measurements are trusted again. */
-const TWEEN_SETTLE_MS = 60;
+/** Painted transform must match its CSS target on consecutive frames before
+ *  calibration may measure again. A duration timer is not sufficient here:
+ *  under a saturated 4K renderer it can fire before the compositor has
+ *  presented even the first transition frame. */
+const TWEEN_STABLE_FRAMES = 2;
+const TWEEN_SCALE_EPS = 0.001;
+const TWEEN_OFFSET_EPS = 0.5;
 /** Past the arc markers' own glide (≤1280ms) — see `armLateVerify`. */
 const LATE_VERIFY_MS = 1500;
 /** Rungs of the late-verification ladder (1.5s, 3s, 4.5s, 6s from each arm). */
@@ -227,7 +227,8 @@ export default defineComponent({
       /** A board transform is in flight: measurements are meaningless until
        *  it rests (calibration would otherwise chase a moving planet). */
       boardTweening: false,
-      tweenTimer: 0,
+      tweenRaf: 0,
+      tweenStableFrames: 0,
       /** P29: the self-calibrated natural content box (seeded by constants). */
       naturalW: BOARD_NATURAL_W,
       naturalH: BOARD_NATURAL_H,
@@ -255,6 +256,14 @@ export default defineComponent({
     };
   },
   computed: {
+    /** Read-only convergence signal for diagnostics and the framing e2e.
+     *  "Settled" means normal overview framing with no scheduled work left,
+     *  not merely a quiet interval between late-verification rungs. */
+    framingState(): 'busy' | 'settled' {
+      const focusBusy = this.planetFocusState.phase !== 'idle' || this.planetFocusState.arcsReturning;
+      return !this.fitted || this.fitKey === undefined || focusBusy || this.fitRaf !== 0 ||
+        this.boardTweening || this.calibrateRaf !== 0 || this.lateVerifyTimer !== 0 ? 'busy' : 'settled';
+    },
     /**
      * The game the board DISPLAYS. While Planet Focus holds the scene, the
      * four global parameters are served from the frozen snapshot — a commit
@@ -441,21 +450,62 @@ export default defineComponent({
       }
       this.fitted = true;
     },
-    /** Hold measurements off for the length of the CSS transition in play. */
+    /** Hold measurements off until the transform has actually PAINTED at its
+     *  target. Timers describe intended CSS duration, not compositor
+     *  progress; on a busy 4K frame they previously unlocked calibration
+     *  while the old rect was still on screen, so the same offset was folded
+     *  repeatedly (82px -> 160px -> ... -> 4300px). */
     armBoardTween(): void {
-      const phase = this.planetFocusState.phase;
-      const base = phase === 'idle' ? BOARD_TWEEN_MS :
-        (phase === 'entering' ? PLANET_FOCUS_ENTER_MS : PLANET_FOCUS_EXIT_MS);
       this.boardTweening = true;
-      if (this.tweenTimer !== 0) {
-        window.clearTimeout(this.tweenTimer);
+      this.tweenStableFrames = 0;
+      this.scheduleBoardTweenCheck();
+    },
+    scheduleBoardTweenCheck(): void {
+      if (this.tweenRaf !== 0) {
+        return;
       }
-      this.tweenTimer = window.setTimeout(() => {
-        this.tweenTimer = 0;
-        this.boardTweening = false;
-        // The planet is at rest — NOW a calibration pass is meaningful.
-        this.scheduleCalibrate();
-      }, consoleMotionMs(base) + TWEEN_SETTLE_MS);
+      this.tweenRaf = window.requestAnimationFrame(() => {
+        this.tweenRaf = 0;
+        if (!this.boardTweening) {
+          return;
+        }
+        const stage = this.$refs.stage as HTMLElement | undefined;
+        const board = stage?.querySelector<HTMLElement>(':scope > .board-cont');
+        if (stage === undefined || board === null || board === undefined) {
+          return;
+        }
+        const sr = stage.getBoundingClientRect();
+        const br = board.getBoundingClientRect();
+        // A v-show section handoff is not a geometry frame. Pause polling;
+        // scheduleFit resumes it when ResizeObserver sees the stage return.
+        if (sr.width < 40 || sr.height < 40 || br.width < 40 || br.height < 40) {
+          return;
+        }
+        const rawX = stage.style.getPropertyValue('--con-board-dx');
+        const rawY = stage.style.getPropertyValue('--con-board-dy');
+        const targetX = rawX !== '' ? parseFloat(rawX) : 6;
+        const targetY = rawY !== '' ? parseFloat(rawY) : -4;
+        const targetScale = parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue('--board-scale'),
+        ) || this.appliedScale;
+        const paintedScaleX = br.width / BOARD_CONT_W;
+        const paintedScaleY = br.height / BOARD_CONT_H;
+        const paintedX = (br.left + br.width / 2) - (sr.left + sr.width / 2);
+        const paintedY = (br.top + br.height / 2) - (sr.top + sr.height / 2);
+        const atTarget = Math.abs(paintedScaleX - targetScale) <= TWEEN_SCALE_EPS &&
+          Math.abs(paintedScaleY - targetScale) <= TWEEN_SCALE_EPS &&
+          Math.abs(paintedX - targetX) <= TWEEN_OFFSET_EPS &&
+          Math.abs(paintedY - targetY) <= TWEEN_OFFSET_EPS;
+        this.tweenStableFrames = atTarget ? this.tweenStableFrames + 1 : 0;
+        if (this.tweenStableFrames >= TWEEN_STABLE_FRAMES) {
+          this.boardTweening = false;
+          this.tweenStableFrames = 0;
+          // The planet is at rest — NOW a calibration pass is meaningful.
+          this.scheduleCalibrate();
+          return;
+        }
+        this.scheduleBoardTweenCheck();
+      });
     },
     /**
      * The PLANET FOCUS fit — deterministic: the frame is a fixed rectangle
@@ -579,6 +629,9 @@ export default defineComponent({
         // The SAME frame it was already fitted for (a v-show round trip):
         // nothing to re-derive. Re-fitting here is what moved the planet.
         if (key === this.fitKey) {
+          if (this.boardTweening) {
+            this.scheduleBoardTweenCheck();
+          }
           return;
         }
         // A real change (window resize / profile flip): a fresh convergence.
@@ -983,9 +1036,6 @@ export default defineComponent({
     }
   },
   beforeUnmount() {
-    if (this.tweenTimer !== 0) {
-      window.clearTimeout(this.tweenTimer);
-    }
     if (this.lateVerifyTimer !== 0) {
       window.clearTimeout(this.lateVerifyTimer);
     }
@@ -995,6 +1045,9 @@ export default defineComponent({
     }
     if (this.calibrateRaf !== 0) {
       window.cancelAnimationFrame(this.calibrateRaf);
+    }
+    if (this.tweenRaf !== 0) {
+      window.cancelAnimationFrame(this.tweenRaf);
     }
     document.documentElement.style.removeProperty('--board-scale');
   },

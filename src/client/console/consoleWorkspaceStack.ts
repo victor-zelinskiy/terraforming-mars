@@ -335,8 +335,21 @@ export function workspaceStackCollapsed(): boolean {
 /** Is a frame of this kind anywhere — live OR parked? (A parked chain still
  *  owns its workspace; standing a SECOND one up beside it is a duplicate.) */
 export function workspaceFrameKnown(kind: WorkspaceFrameKind): boolean {
-  return workspaceFrameIndex(kind) !== -1 ||
-    workspaceStackState.parked.some((f) => f.kind === kind);
+  return workspaceFrameIndex(kind) !== -1 || workspaceFrameParked(kind);
+}
+
+/**
+ * Is this kind set ASIDE — owned by the park rather than on screen?
+ *
+ * The question every «is my surface gone?» reader actually means, and the one
+ * the global `workspaceStackCollapsed()` cannot answer: that one says «somebody,
+ * somewhere is parked», so a reader asking it about ITSELF acts on a different
+ * player's flow. Hiding a live workspace on it is what put a correct command bar
+ * over a blank screen; skipping a claim release on it is what orphans a claim
+ * whose own host is perfectly alive.
+ */
+export function workspaceFrameParked(kind: WorkspaceFrameKind): boolean {
+  return workspaceStackState.parked.some((f) => f.kind === kind);
 }
 
 export function workspaceFrameAt(depth: number): WorkspaceFrame | undefined {
@@ -949,10 +962,26 @@ export function restoreWorkspaceStack(): void {
   workspaceStackState.frames.splice(0, workspaceStackState.frames.length, ...frames);
 }
 
-/** The parked flow is STALE (the server moved on to a different prompt) — drop
- *  it, or a restore would put the player back inside a decision that is gone. */
+/**
+ * The parked flow is STALE (the server moved on to a different prompt) — drop
+ * it, or a restore would put the player back inside a decision that is gone.
+ *
+ * ⚠️ A PHASE-ANCHORED ROOT SURVIVES, exactly as it does in `goBoardHome`, and
+ * for the same reason: it is not part of anybody's flow, it IS the game phase,
+ * so «the server asked for something else» is never news about it — the new
+ * prompt is usually its own next step. Discarding it left the frame in NEITHER
+ * stack while the scene's lifetime hold still said it serves, and the shell's
+ * `startFrameLive` watcher only re-enters on a rising edge, so nothing ever
+ * stood it back up: park the opening during «ожидаем остальных», let the table
+ * finish, and the deployment arrived to an unmounted scene that still owned the
+ * pad — every press swallowed, recoverable only by reloading.
+ *
+ * Whatever was standing ON it still goes: those frames are a flow, and the flow
+ * is what the server moved on from.
+ */
 export function discardWorkspacePark(): void {
-  workspaceStackState.parked.splice(0);
+  const root = workspaceStackState.parked[0];
+  workspaceStackState.parked.splice(root !== undefined && root.anchor.type === 'phase' ? 1 : 0);
 }
 
 /** Full reset (game switch, shell unmount, test cleanup). */

@@ -29,6 +29,7 @@ import {
   workspaceFrameIndex,
   workspaceFrameIsOverlay,
   workspaceFrameMounted,
+  workspaceFrameParked,
   workspaceFrameRenders,
   workspaceHostForStep,
   workspaceSurfacesFor,
@@ -256,6 +257,52 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     expect(workspaceStackCollapsed()).to.eq(false);
     restoreWorkspaceStack();
     expect(workspaceStackDepth(), 'nothing came back — there was nothing to').to.eq(0);
+  });
+
+  /*
+   * …but a PHASE-ANCHORED ROOT is not a flow the server can move on from — it
+   * IS the phase, and the new prompt is usually its own next step. This is the
+   * same exception `goBoardHome` makes, and its absence here was a hard freeze:
+   * park the opening during «ожидаем остальных», let the table finish, and the
+   * deployment arrived to a frame that was in NEITHER stack. The shell's
+   * `startFrameLive` watcher only re-enters on a rising edge and the lifetime
+   * hold never dropped, so the scene stayed unmounted while still claiming the
+   * pad — every press swallowed until the player reloaded.
+   */
+  it('discarding the park spares a PHASE-anchored root and drops the flow on it', () => {
+    pushWorkspaceFrame({
+      kind: 'start', subject: '', stage: '', phase: 'browse',
+      serves: ['startSequence'], anchor: {type: 'phase', phase: 'start'},
+    });
+    pushWorkspaceFrame({
+      kind: 'hand', subject: 'Flashy Sponsor', stage: 'Playing', phase: 'committed',
+      serves: ['projectCard'], anchor: {type: 'cardInHand', card: 'Flashy Sponsor'},
+    });
+    collapseWorkspaceStack();
+
+    discardWorkspacePark();
+    expect(workspaceStackCollapsed(), 'the opening still has a way back').to.eq(true);
+    expect(workspaceFrameParked('start')).to.eq(true);
+    expect(workspaceFrameParked('hand'), 'the flow ON it is what went stale').to.eq(false);
+
+    restoreWorkspaceStack();
+    expect(workspaceStackDepth()).to.eq(1);
+    expect(workspaceFrameMounted('start')).to.eq(true);
+  });
+
+  /*
+   * «Is MY surface set aside» — the question `workspaceStackCollapsed()` cannot
+   * answer. Reading the global flag about oneself acts on somebody else's flow:
+   * it hid a live workspace behind `display:none` (correct command bar, blank
+   * screen) and skipped an outcome claim's release forever.
+   */
+  it('parked is a question about a KIND, never a global mood', () => {
+    enterWorkspace('hand');
+    collapseWorkspaceStack();
+    enterWorkspace('colonies');
+    expect(workspaceStackCollapsed(), 'globally: something is parked').to.eq(true);
+    expect(workspaceFrameParked('hand'), 'and it is the hand').to.eq(true);
+    expect(workspaceFrameParked('colonies'), 'the colonies are on screen').to.eq(false);
   });
 
   it('a collapsed stack still SERVES — a deferred decision is never stranded', () => {

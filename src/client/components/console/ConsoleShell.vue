@@ -588,7 +588,7 @@
          both desktop start surfaces. B defers to the amber chip. -->
     <transition name="con-layer">
       <ConsoleStartScene v-if="startSceneMounted"
-                         :yielded="placementActive"
+                         :yielded="!startSceneVisible"
                          ref="startScene"
                          :playerView="playerView"
                          :waitingOnPlayers="waitingOnPlayers"
@@ -1191,6 +1191,7 @@ import {
   workspaceFrameHost,
   workspaceFrameIsOverlay,
   workspaceFrameKnown,
+  workspaceFrameParked,
   workspaceFrameTarget,
   workspaceHostForStep,
   workspaceStackCollapsed,
@@ -2408,17 +2409,24 @@ export default defineComponent({
      * so nothing about the deployment is lost).
      */
     startSceneVisible(): boolean {
-      return this.startSceneMounted && !this.placementActive;
+      // Everything that makes the scene STEP ASIDE lives here, never in the
+      // mount: a board placement it cannot host, the WGT scale glide, and a
+      // task the player minimized. All three are «somebody else has the
+      // screen» — a paint question. Unmounting on them retracted the frame's
+      // embed slot too, so a step standing INSIDE the start (the sponsor's
+      // hand) lost its teleport target and fell with it.
+      return this.startSceneMounted && !this.placementActive &&
+        !govScaleFocusState.holding && !this.consoleState.task.deferred;
     },
     /** MOUNTED ≠ VISIBLE. The scene owns the start's lifetime (its hold, its
      *  claims, its release beat), so it stays mounted through a yield and
-     *  only stops painting — see the scene's `yielded` prop. */
+     *  only stops painting — see the scene's `yielded` prop.
+     *
+     *  PRESENCE IS THE STACK AND NOTHING ELSE (invariant 1). Its own minimize
+     *  goes through the park, so the frame answers that by itself; every other
+     *  flag that used to sit here belonged to a DIFFERENT flow. */
     startSceneMounted(): boolean {
-      // The EMBEDDED STEP re-establishes the workspace after a reload: the
-      // step needs a host, and the lifetime hold that normally keeps the scene
-      // mounted is module state that a reload wipes (see startSponsorEmbed).
-      return workspaceFrameMounted('start') &&
-        !govScaleFocusState.holding && !this.consoleState.task.deferred;
+      return workspaceFrameMounted('start');
     },
     /**
      * THE SCENE OWNS THE PAD AND THE BAR. Ownership follows the surface the
@@ -2436,8 +2444,13 @@ export default defineComponent({
      * is the always-mounted host of that placement; it must get the input.
      */
     startSceneOwnsPad(): boolean {
-      return this.startSceneServes && !this.startSponsorEmbed && !this.colonyEmbedActive &&
-        !this.consoleState.task.deferred && !this.placementActive;
+      // …and never a scene that is not THERE. `startSceneServes` is the
+      // lifetime hold, which outlives any single mount: with the frame gone the
+      // routing still handed every intent to `$refs.startScene` and returned
+      // «handled», so the pad went dead with a live command bar over it and
+      // only a reload got out. Ownership follows presence, always.
+      return this.startSceneVisible && this.startSceneServes &&
+        !this.startSponsorEmbed && !this.colonyEmbedActive;
     },
     /** OPTIONAL draft re-pick — the fork shows a calm "waiting for the other
      *  players" banner instead of offering to change the pick (desktop parity). */
@@ -5722,7 +5735,15 @@ export default defineComponent({
         // player is coming back to it. Releasing here would drop the claim,
         // fold the workspace, and hand the prompt back to a standalone band the
         // moment it was restored: the collapse would silently become a close.
-        if (this.workspaceCollapsed) {
+        //
+        // MY host, not «somebody is parked». The claim names its own host, and
+        // the global flag answered for whoever happened to be minimized: a park
+        // belonging to another flow skipped this release forever — and
+        // `markWorkspaceOutcomePresenting` has already disarmed the 20 s
+        // backstop, so the orphaned claim then suppresses the standalone
+        // presenter and the drawn cards show NOWHERE.
+        const host = workspaceOutcomeState.host;
+        if (host !== undefined && workspaceFrameParked(host)) {
           return;
         }
         if (!this.workspaceOutcomeEmbedded && workspaceOutcomeState.stage === 'presenting') {
@@ -5898,6 +5919,16 @@ export default defineComponent({
           // asks for something else: restoring it would put them back inside a
           // decision that no longer exists.
           discardWorkspacePark();
+          // THE INVARIANT: `parked` non-empty ⇒ `deferred`. A phase-anchored
+          // root SURVIVES that discard (the opening is not a flow — it IS the
+          // phase), and `deferred` is the flag every way back is gated on:
+          // `mandatoryDeferredActive` renders the restore card on it, B reads
+          // that same computed, and `restoreWorkspaceStack` has exactly one
+          // caller behind them. Clearing it with frames still parked leaves
+          // them owned by nobody and reachable by nothing.
+          if (workspaceStackCollapsed()) {
+            this.consoleState.task.deferred = true;
+          }
           this.taskSpacePending = undefined;
           this.finalGreeneryPickPending = false;
           // A client payment built for a prompt that moved on is stale.
@@ -5945,9 +5976,15 @@ export default defineComponent({
             leaveWorkspace();
             this.consoleState.sheetIndex = 0;
           }
-          // A shell-section task (T3/T4) auto-opens its serving surface.
+          // A shell-section task (T3/T4) auto-opens its serving surface —
+          // unless something is still SET ASIDE (the invariant above). While a
+          // park is owed, the restore card is the one door: auto-opening here
+          // would stand a screen up beside a parked chain that already owns a
+          // workspace of its own, and the first restore would then splice the
+          // live stack away underneath the player with no close and no fold.
+          // (`consoleForegroundBusy`'s auto-open is gated the same way.)
           const shellTask = this.shellTask;
-          if (shellTask !== undefined) {
+          if (shellTask !== undefined && !this.consoleState.task.deferred) {
             this.openShellTaskSurface(shellTask);
           }
         }
@@ -5999,7 +6036,7 @@ export default defineComponent({
      * asking composer waits underneath with its captures intact.
      */
     openHandWorkspace(opts?: {overlay?: boolean}): void {
-      if (workspaceFrameIndex('hand') !== -1) {
+      if (this.restoreParkedWorkspace('hand') || workspaceFrameIndex('hand') !== -1) {
         return;
       }
       // Nothing open → a screen of its own. Standing INSIDE a flow that can host
@@ -6026,6 +6063,9 @@ export default defineComponent({
      * screen back when it is met».
      */
     openColoniesForPrompt(): void {
+      if (this.restoreParkedWorkspace('colonies')) {
+        return;
+      }
       const host = workspaceHostForStep();
       const anchor: FrameAnchor = {type: 'prompt', promptType: 'colony'};
       if (host === undefined) {
@@ -7537,7 +7577,13 @@ export default defineComponent({
       // back" the moment anything was deferred. The task is reachable exactly
       // where its card is: from the BOARD HOME. Inspection modes stay BELOW it,
       // because "minimize to look at the board" is what deferring is for.
-      if ((this.hostTask !== undefined || this.shellTask !== undefined || this.startTask !== undefined) && this.consoleState.task.deferred) {
+      // …and it is the SAME predicate the card itself renders on. Spelling the
+      // condition out a second time is how it drifted: the card grew two more
+      // arms (`startSceneServes`, a PARKED stack — a minimized flow whose
+      // prompt is the action menu, which is neither a host nor a shell-section
+      // kind) and B never got them, so the announcement stood at the board home
+      // saying «вернуться», A restored it and B did nothing at all.
+      if (this.mandatoryDeferredActive) {
         this.restoreDeferredTask();
         return;
       }
@@ -7666,6 +7712,13 @@ export default defineComponent({
       }
     },
     openSheet(sheet: WorkspaceFrameKind): void {
+      // Asking for a workspace that is PARKED is «вернуться», never «встать
+      // рядом» — the parked chain already owns that kind, and standing a second
+      // one up means the next restore splices the live one away underneath the
+      // player, with no close and no fold.
+      if (this.restoreParkedWorkspace(sheet)) {
+        return;
+      }
       // A sheet switch / (re)open closes a stale full-text reader.
       this.maInspect = undefined;
       // Opening anything that is NOT the task's own surface defers the task;
@@ -8823,6 +8876,27 @@ export default defineComponent({
         this.openShellTaskSurface(this.shellTask);
       }
     },
+    /**
+     * THE PLAYER IS ASKING FOR A WORKSPACE THAT IS SET ASIDE — that request is
+     * «вернуться в него», never «поставить второй такой же рядом».
+     *
+     * Kinds are unique within a stack, but the park is a SECOND stack, so
+     * «live» and «parked» could hold the same kind at once — and the very next
+     * restore splices the live stack away, taking a screen the player was
+     * standing in with no close, no fold and no animation. One helper instead
+     * of the `workspaceFrameIndex` test each entry point had grown its own copy
+     * of (only the start watcher asked `workspaceFrameKnown`, which is why it
+     * was the one that never duplicated).
+     *
+     * Returns true when the park answered and the caller must stop.
+     */
+    restoreParkedWorkspace(kind: WorkspaceFrameKind): boolean {
+      if (workspaceFrameIndex(kind) === -1 && workspaceFrameParked(kind)) {
+        this.restoreDeferredTask();
+        return true;
+      }
+      return false;
+    },
     onTaskSpacePick(payload: {index: number, spacePrompt: PlayerInputModel}): void {
       this.taskSpacePending = payload;
       goBoardHome();
@@ -8916,11 +8990,15 @@ export default defineComponent({
      * snap to the board for a pending placement.
      */
     onNotificationGoToAction(): void {
-      if (this.consoleState.task.deferred) {
-        this.consoleState.task.deferred = false;
-        if (this.hostTask === undefined && !this.startSceneServes && this.shellTask !== undefined) {
-          this.openShellTaskSurface(this.shellTask);
-        }
+      // THROUGH `restoreDeferredTask`, never a copy of its body. This site was
+      // a hand-copied older version of it — un-defer + re-open the shell task —
+      // written before the park existed, so it cleared the flag the park's own
+      // way back is gated on (`mandatoryDeferredActive`) while leaving the
+      // frames parked: a minimized card play answered here lost its picks AND
+      // became unreachable, since `restoreWorkspaceStack` is only ever called
+      // from the restore path this branch was bypassing.
+      if (this.consoleState.task.deferred || workspaceStackCollapsed()) {
+        this.restoreDeferredTask();
       }
       if (this.placementActive) {
         goBoardHome();
