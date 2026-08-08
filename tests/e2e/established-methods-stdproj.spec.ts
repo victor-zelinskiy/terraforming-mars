@@ -60,16 +60,21 @@ async function prepareEstablishedMethods(page: Page, request: APIRequestContext)
   });
   await submitSummary(page);
 
-  // Resolve the known corporation first, then press precisely Established
-  // Methods. Its first projectCard prompt is the next server demand; no blind
-  // Enter can consume that demand accidentally. Drive these identities
-  // directly: during a queue reflow cards briefly leave the DOM, so the generic
-  // "play everything until target" helper can mistake that seam for absence.
+  // Resolve the known corporation and harmless companion Prelude first, then
+  // press precisely Established Methods. Leaving another startup card queued
+  // correctly blocks standard-project activation even though its prompt is
+  // visible. Drive these identities directly: during a queue reflow cards
+  // briefly leave the DOM, so a generic "play until target" helper can mistake
+  // that seam for absence.
   const queued = (name: string) => page.locator(`.con-start__queue [data-queue-slot="${name}"]`);
   await expect(queued('Ecoline'), 'Ecoline arrived in the deployment queue')
     .toBeVisible({timeout: 30_000});
   expect(await playQueueCard(page, 'Ecoline'),
     'Ecoline never left the deployment queue').toBeTruthy();
+  await expect(queued('Donation'), 'Donation arrived after the corporation')
+    .toBeVisible({timeout: 30_000});
+  expect(await playQueueCard(page, 'Donation'),
+    'Donation never left the deployment queue').toBeTruthy();
   await expect(queued(EM),
     'Established Methods arrived in the deployment queue').toBeVisible({timeout: 30_000});
   expect(await playQueueCard(page, EM),
@@ -120,16 +125,27 @@ test('EstablishedMethods: both std-project prompts served by .con-stdp, never st
   await expect(page.locator('.con-stdp__card--focused .std-icon--energy')).toHaveCount(1);
   const before = await (await request.get(`/api/player?id=${playerId}`)).json() as
     {thisPlayer: {energyProduction: number}};
-  await press(page, 'Enter', 900);
-  await expect.poll(async () => {
-    const view = await (await request.get(`/api/player?id=${playerId}`)).json() as
-      {thisPlayer: {energyProduction: number}, waitingFor?: {type?: string}};
-    return {
-      energyProduction: view.thisPlayer.energyProduction,
-      promptType: view.waitingFor?.type,
-    };
-  }, {timeout: 20_000, message: 'the first project resolved and the second projectCard prompt became current'})
-    .toEqual({energyProduction: before.thisPlayer.energyProduction + 1, promptType: 'projectCard'});
+  const target = {energyProduction: before.thisPlayer.energyProduction + 1, promptType: 'projectCard'};
+  let resolved = false;
+  for (let attempt = 0; attempt < 4 && !resolved; attempt++) {
+    await page.keyboard.press('Enter');
+    const deadline = Date.now() + 6_000;
+    while (Date.now() < deadline) {
+      const view = await (await request.get(`/api/player?id=${playerId}`)).json() as
+        {thisPlayer: {energyProduction: number}, waitingFor?: {type?: string}};
+      resolved = view.thisPlayer.energyProduction === target.energyProduction &&
+        view.waitingFor?.type === target.promptType;
+      if (resolved) {
+        break;
+      }
+      await page.waitForTimeout(150);
+    }
+    if (!resolved) {
+      await expect(page.locator('.con-stdp__card--focused .std-icon--energy'),
+        'Power Plant stayed actionable after a guarded press').toHaveCount(1);
+    }
+  }
+  expect(resolved, 'the first project resolved and the second projectCard prompt became current').toBeTruthy();
 
   await openStandardProjectPrompt(page, 'second');
 });
