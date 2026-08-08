@@ -4,12 +4,15 @@ import {testGame} from '../../TestGame';
 import {addCity, runAllActions} from '../../TestingUtils';
 import {OrOptions} from '../../../src/server/inputs/OrOptions';
 import {SelectOption} from '../../../src/server/inputs/SelectOption';
+import {SelectPayment} from '../../../src/server/inputs/SelectPayment';
 import {SelectSpace} from '../../../src/server/inputs/SelectSpace';
 import {Space} from '../../../src/server/boards/Space';
 import {IGame} from '../../../src/server/IGame';
 import {TestPlayer} from '../../TestPlayer';
 import {CardName} from '../../../src/common/cards/CardName';
+import {Payment} from '../../../src/common/inputs/Payment';
 import {cast} from '../../../src/common/utils/utils';
+import {EmptyBoard} from '../../testing/EmptyBoard';
 
 /** Play the action as `builder`, then put the cathedral on `space`. */
 function buildCathedralIn(game: IGame, builder: TestPlayer, space: Space): void {
@@ -137,5 +140,103 @@ describe('StJosephOfCupertinoMission', () => {
 
     expect(player2.popWaitingFor()).is.undefined;
     expect(player2.cardsInHand).has.length(0);
+  });
+});
+
+/**
+ * Rules coverage adopted from upstream 81be2d275f ("Add tests for cards that do not
+ * have tests"). The four upstream tests that drive the CITY OWNER's offer are
+ * deliberately NOT adopted: they cast `orOptions.options[0]` to `SelectPayment`,
+ * while this fork builds that branch as a LEAF `SelectOption` carrying premium
+ * result metadata (see `cathedralCardOffer` — a fixed 2 M€ has nothing to dial, so
+ * it confirms in one press). That surface is covered by the premium tests above.
+ */
+describe('StJosephOfCupertinoMission — rules', () => {
+  let card: StJosephOfCupertinoMission;
+  let player: TestPlayer;
+  let player2: TestPlayer;
+  let game: IGame;
+
+  beforeEach(() => {
+    card = new StJosephOfCupertinoMission();
+    [game, player, player2] = testGame(2);
+    game.board = EmptyBoard.newInstance();
+  });
+
+  for (const run of [
+    {cities: 0, cathedrals: 0, expected: false},
+    {cities: 1, cathedrals: 0, expected: true},
+    {cities: 1, cathedrals: 1, expected: false},
+    {cities: 2, cathedrals: 1, expected: true},
+  ] as const) {
+    it('canAct ' + JSON.stringify(run), () => {
+      player.megaCredits = 5;
+      const spaces = [];
+      for (let i = 0; i < run.cities; i++) {
+        spaces.push(addCity(player));
+      }
+      for (let i = 0; i < run.cathedrals; i++) {
+        game.stJosephCathedrals.push(spaces[i].id);
+      }
+
+      expect(card.canAct(player)).to.eq(run.expected);
+    });
+  }
+
+  for (const run of [
+    {mc: 4, steel: 0, expected: false},
+    {mc: 5, steel: 0, expected: true},
+    {mc: 0, steel: 3, expected: true},
+    {mc: 2, steel: 1, expected: false},
+  ] as const) {
+    it('affording canAct ' + JSON.stringify(run), () => {
+      addCity(player);
+      player.megaCredits = run.mc;
+      player.stock.steel = run.steel;
+      expect(card.canAct(player)).eq(run.expected);
+    });
+  }
+
+  it('action lets the player pay using steel', () => {
+    const citySpace = addCity(player);
+    player.megaCredits = 0;
+    player.stock.steel = 3;
+
+    card.action(player);
+    runAllActions(game);
+
+    const selectPayment = cast(player.popWaitingFor(), SelectPayment);
+    selectPayment.cb(Payment.of({steel: 3}));
+    runAllActions(game);
+
+    const selectSpace = cast(player.popWaitingFor(), SelectSpace);
+    selectSpace.cb(citySpace);
+
+    expect(player.stock.steel).to.eq(0);
+    expect(game.stJosephCathedrals).includes(citySpace.id);
+  });
+
+  it('action offers only cities without an existing cathedral, and records the new one', () => {
+    const eligible = addCity(player);
+    const ineligible = addCity(player2);
+    game.stJosephCathedrals.push(ineligible.id);
+
+    player.megaCredits = 5;
+    card.action(player);
+    runAllActions(game);
+
+    const selectSpace = cast(player.popWaitingFor(), SelectSpace);
+    expect(selectSpace.spaces).deep.eq([eligible]);
+
+    selectSpace.cb(eligible);
+
+    expect(game.stJosephCathedrals).includes(eligible.id);
+    expect(player.megaCredits).to.eq(0);
+  });
+
+  it('getVictoryPoints counts cathedrals placed by any player', () => {
+    game.stJosephCathedrals = ['01', '02', '03'];
+    expect(card.getVictoryPoints(player)).to.eq(3);
+    expect(card.getVictoryPoints(player2)).to.eq(3);
   });
 });
