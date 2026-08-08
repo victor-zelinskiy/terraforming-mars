@@ -42,6 +42,21 @@ describe('premium create — settings persistence', () => {
     expect(createGameState.config.players.map((p) => p.name)).deep.eq(['Alice', 'Bob']);
   });
 
+  it('restores the exact one-human roster when MarsBot occupies the other seat', () => {
+    createGameState.config.players[0].name = 'Admin';
+    createGameState.config.seatMarsBot = true;
+    createGameState.config.players.splice(1);
+
+    saveCreateGameState(storage);
+    resetCreateGameState();
+    expect(createGameState.config.players).to.have.length.greaterThan(1);
+
+    expect(restoreCreateGameState(storage)).is.true;
+    expect(createGameState.config.gameMode).eq('multiplayer');
+    expect(createGameState.config.seatMarsBot).eq(true);
+    expect(createGameState.config.players.map((p) => p.name)).deep.eq(['Admin']);
+  });
+
   it('returns false and leaves the state untouched when nothing is saved', () => {
     const before = JSON.stringify(createGameState.config);
     expect(restoreCreateGameState(storage)).is.false;

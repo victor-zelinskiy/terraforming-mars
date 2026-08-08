@@ -255,13 +255,21 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <!-- COLLAPSE, not close: past the commit boundary B hides this
-             workspace (v-show) so the board can be read, and the committed
-             decision keeps living inside it — same revealed card, same picks,
-             no replayed cinematic, no restarted server flow. Destroying it
-             here is what would force the flow to be rebuilt on re-open. -->
+        <!-- COLLAPSE, not close: past the commit boundary B parks the whole
+             stack, and the committed decision keeps living inside it — same
+             revealed card, same picks, no replayed cinematic, no restarted
+             server flow.
+             ⚠️ The park is a SEPARATE stack, so presence already answers it:
+             a parked frame is not in `frames`, so `workspaceFrameRenders`
+             is false and this unmounts on its own. Hiding on the GLOBAL
+             `workspaceCollapsed` here meant «somebody, somewhere is parked» —
+             so opening ДЕЙСТВИЯ КАРТ by hand while the start selection was
+             minimized rendered a live workspace with `display:none` over it:
+             right command bar, blank screen. Opening the list to LOOK while
+             another flow is parked is a supported intent (`collapsed` below
+             is exactly what keeps it read-only). -->
         <ConsoleCardActions v-if="workspaceFrameRenders('card-actions')"
-                            v-show="!handPickActive && !repeatPickActive && !workspaceCollapsed"
+                            v-show="!handPickActive && !repeatPickActive"
                             ref="cardActions"
                             :playerView="playerView"
                             :collapsed="workspaceCollapsed"

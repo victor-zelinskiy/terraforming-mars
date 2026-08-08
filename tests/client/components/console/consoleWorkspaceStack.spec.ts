@@ -356,6 +356,13 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
     enterWorkspace('colonies');
     expect(workspaceStackCollapsed(), 'still waiting for the player').to.eq(true);
     expect(workspaceStackSection(), 'and the new screen is what they see').to.eq('colonies');
+    // …and «what they see» means SEEN. The park is a separate stack, so
+    // presence alone already hides the parked frames — a surface that ALSO
+    // hid itself on the global «is anything parked» flag rendered live and
+    // invisible: opening ДЕЙСТВИЯ КАРТ with the start selection minimized
+    // gave the right command bar over a blank screen.
+    expect(workspaceFrameRenders('colonies'), 'the new workspace is visible').to.eq(true);
+    expect(workspaceFrameRenders('hand'), 'the parked one is not').to.eq(false);
   });
 
   it('a fresh frame starts from its registered serves', () => {

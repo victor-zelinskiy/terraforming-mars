@@ -109,20 +109,53 @@
     <!--
       The fullscreen card viewer. The console's shared one is mounted by
       ConsoleShell, which does not exist before a game — so this dev tool hosts
-      its own instance of the SAME modal (teleported out of the overlay's
-      stacking context, as every other host does).
+      its own instance of the SAME modal with the SAME console-native chrome
+      (teleported out of the overlay's stacking context, as every other host
+      does). The picker stays mounted underneath, so toggles made here are
+      reflected in the list without losing its cursor or scroll position.
     -->
     <Teleport to="body">
+      <transition name="con-zoom-veil">
+        <div v-if="zoomCard !== undefined" class="con-zoom-veil" aria-hidden="true"></div>
+      </transition>
       <CardZoomModal
         v-if="zoomCard !== undefined"
         ref="zoomModal"
+        class="con-zoom"
         :card="zoomCard"
         :cards="zoomList"
         :index="zoomIndex"
+        :selected="zoomSelected"
         :consoleMotion="true"
+        :lore="true"
         @navigate="onZoomNavigate"
         @close="closeZoom()"
-      />
+      >
+        <template #actions>
+          <div class="con-zoom__context">
+            <span class="con-zoom__context-mark" aria-hidden="true">◈</span>
+            <span>{{ $t('Guaranteed cards') }}</span>
+          </div>
+          <div class="con-zoom__bar">
+            <span v-if="zoomSelected" class="con-zoom__state">✓ {{ $t('Card selected') }}</span>
+            <button type="button" class="con-zoom__btn con-zoom__btn--select" @click="toggleZoomSelection">
+              <GamepadGlyph control="confirm" />
+              <span>{{ $t(zoomSelected ? 'Deselect' : 'Select') }}</span>
+            </button>
+            <span v-if="zoomList !== undefined && zoomList.length > 1" class="con-zoom__cmd con-zoom__cmd--flip">
+              <GamepadGlyph control="bumperL" />
+              <span class="con-zoom__flip-arrow" aria-hidden="true">◀</span>
+              <span>{{ $t('Browse') }}</span>
+              <span class="con-zoom__flip-arrow" aria-hidden="true">▶</span>
+              <GamepadGlyph control="bumperR" />
+            </span>
+            <button type="button" class="con-zoom__btn" @click="requestZoomClose">
+              <GamepadGlyph control="back" />
+              <span>{{ $t('Close') }}</span>
+            </button>
+          </div>
+        </template>
+      </CardZoomModal>
     </Teleport>
   </div>
 </template>
@@ -231,6 +264,9 @@ export default defineComponent({
     currentCardChosen(): boolean {
       return this.currentEntry?.chosen === true;
     },
+    zoomSelected(): boolean {
+      return this.zoomCard !== undefined && this.chosenNames.has(this.zoomCard.name as CardName);
+    },
     crumb(): string {
       if (this.view === 'modules') {
         return $t('Add card');
@@ -285,8 +321,12 @@ export default defineComponent({
         modal?.next();
         return true;
       }
+      if (action === 'primary') {
+        this.toggleZoomSelection();
+        return true;
+      }
       if (action === 'back' || action === 'inspect') {
-        this.closeZoom();
+        this.requestZoomClose();
       }
       return true;
     },
@@ -439,20 +479,48 @@ export default defineComponent({
     // ── Fullscreen inspect ───────────────────────────────────────────────
     openZoom(names: ReadonlyArray<CardName>, at: number): void {
       const list = names.map((name) => ({name} as CardModel));
+      const card = list[at];
+      if (card === undefined) {
+        return;
+      }
       this.zoomList = list;
       this.zoomIndex = at;
-      this.zoomCard = list[at];
+      this.zoomCard = card;
+      document.body.classList.add('con-zoom-open');
       void this.$nextTick(() => {
         (this.$refs.zoomModal as {show?: () => void} | undefined)?.show?.();
       });
     },
-    onZoomNavigate(card: CardModel): void {
+    onZoomNavigate(card: CardModel, index: number): void {
       this.zoomCard = card;
+      this.zoomIndex = index;
+    },
+    toggleZoomSelection(): void {
+      const name = this.zoomCard?.name as CardName | undefined;
+      if (name === undefined) {
+        return;
+      }
+      toggleGuaranteedCard(this.picks, name);
+      if (this.view === 'picked') {
+        this.pickedCursor = Math.min(this.pickedCursor, this.picked.length);
+      }
+    },
+    requestZoomClose(): void {
+      const modal = this.$refs.zoomModal as {close?: () => void} | undefined;
+      if (modal?.close !== undefined) {
+        modal.close();
+      } else {
+        this.closeZoom();
+      }
     },
     closeZoom(): void {
       this.zoomCard = undefined;
       this.zoomList = undefined;
+      document.body.classList.remove('con-zoom-open');
     },
+  },
+  beforeUnmount() {
+    document.body.classList.remove('con-zoom-open');
   },
 });
 </script>

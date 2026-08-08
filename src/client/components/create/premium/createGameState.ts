@@ -562,11 +562,15 @@ function sanitizeSlot(raw: JSONValue | undefined, index: number, fallbackColor: 
   return {slot: index, name, color, trBoost, isCreator: index === 0};
 }
 
-function sanitizePlayers(raw: JSONValue | undefined, gameMode: GameMode): Array<PremiumPlayerSlot> {
+function sanitizePlayers(raw: JSONValue | undefined, botSeated: boolean): Array<PremiumPlayerSlot> {
   const base = defaultPremiumState().players;
-  const min = gameMode === 'marsbot' ? 1 : PLAYER_COUNT_MIN;
+  // A party with MarsBot is valid with one human seat in BOTH representations:
+  // the dedicated `marsbot` mode and the multiplayer `seatMarsBot` flag. The
+  // live roster mutators already use this minimum; restore must use the same
+  // rule or a saved one-human + MarsBot party grows a blank second player.
+  const min = botSeated ? 1 : PLAYER_COUNT_MIN;
   if (!Array.isArray(raw) || raw.length === 0) {
-    return gameMode === 'marsbot' ? base.slice(0, 1) : base;
+    return base.slice(0, min);
   }
   const count = clamp(raw.length, min, PLAYER_COUNT_MAX);
   const players: Array<PremiumPlayerSlot> = [];
@@ -618,7 +622,7 @@ function sanitizePremiumState(saved: JSONObject): PremiumCreateGameState {
   }
 
   const seatMarsBot = gameMode === 'multiplayer' && saved.seatMarsBot === true;
-  const players = sanitizePlayers(saved.players, gameMode);
+  const players = sanitizePlayers(saved.players, gameMode === 'marsbot' || seatMarsBot);
   if (seatMarsBot && players.length > HUMANS_WITH_BOT_MAX) {
     players.splice(HUMANS_WITH_BOT_MAX);
   }
