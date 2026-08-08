@@ -127,10 +127,18 @@
         :index="zoomIndex"
         :selected="zoomSelected"
         :consoleMotion="true"
+        :annotationsSuppressed="zoomRulesCardName !== undefined"
         :lore="true"
         @navigate="onZoomNavigate"
         @close="closeZoom()"
       >
+        <template v-if="zoomRulesCardName !== undefined" #side="side">
+          <ConsoleCardRulesPanel
+            :cardName="zoomRulesCardName"
+            :nonce="side.nonce"
+            :closing="side.closing"
+          />
+        </template>
         <template #actions>
           <div class="con-zoom__context">
             <span class="con-zoom__context-mark" aria-hidden="true">◈</span>
@@ -190,6 +198,7 @@ import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {stepIndex, stepSelectable} from '@/client/console/consoleRouter';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
+import ConsoleCardRulesPanel, {cardHasRules} from '@/client/components/console/ConsoleCardRulesPanel.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import {createGameState} from '@/client/components/create/premium/createGameState';
 import {
@@ -215,7 +224,7 @@ const PAGE_ROWS = 10;
 
 export default defineComponent({
   name: 'ConsoleDevCardPicker',
-  components: {GamepadGlyph, CardZoomModal, ConsoleScrollArea},
+  components: {GamepadGlyph, CardZoomModal, ConsoleCardRulesPanel, ConsoleScrollArea},
   emits: ['close'],
   data() {
     return {
@@ -266,6 +275,10 @@ export default defineComponent({
     },
     zoomSelected(): boolean {
       return this.zoomCard !== undefined && this.chosenNames.has(this.zoomCard.name as CardName);
+    },
+    zoomRulesCardName(): CardName | undefined {
+      const name = this.zoomCard?.name;
+      return name !== undefined && cardHasRules(name) ? name as CardName : undefined;
     },
     crumb(): string {
       if (this.view === 'modules') {

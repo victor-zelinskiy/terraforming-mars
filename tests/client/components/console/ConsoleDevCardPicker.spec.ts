@@ -18,6 +18,7 @@ const CardZoomModalStub = defineComponent({
     index: {type: Number, default: 0},
     selected: {type: Boolean, default: false},
     consoleMotion: {type: Boolean, default: false},
+    annotationsSuppressed: {type: Boolean, default: false},
     lore: {type: Boolean, default: false},
   },
   emits: ['navigate', 'close'],
@@ -29,7 +30,17 @@ const CardZoomModalStub = defineComponent({
       this.$emit('close');
     },
   },
-  template: '<div class="zoom-stub"><slot name="actions" /></div>',
+  template: '<div class="zoom-stub"><slot name="side" :nonce="1" :closing="false" /><slot name="actions" /></div>',
+});
+
+const ConsoleCardRulesPanelStub = defineComponent({
+  name: 'ConsoleCardRulesPanel',
+  props: {
+    cardName: {type: String, required: true},
+    nonce: {type: Number, default: 0},
+    closing: {type: Boolean, default: false},
+  },
+  template: '<aside class="console-rules-stub" />',
 });
 
 const ConsoleScrollAreaStub = defineComponent({
@@ -54,6 +65,7 @@ function mountPicker() {
         teleport: true,
         GamepadGlyph: true,
         CardZoomModal: CardZoomModalStub,
+        ConsoleCardRulesPanel: ConsoleCardRulesPanelStub,
         ConsoleScrollArea: ConsoleScrollAreaStub,
       },
     },
@@ -81,7 +93,9 @@ describe('ConsoleDevCardPicker fullscreen', () => {
     expect(zoom.classes(), 'native viewer class').to.include('con-zoom');
     expect(zoom.props('consoleMotion'), 'native browse motion').to.eq(true);
     expect(zoom.props('lore'), 'native lore flank').to.eq(true);
+    expect(zoom.props('annotationsSuppressed'), 'desktop callouts suppressed').to.eq(true);
     expect(wrapper.find('.con-zoom-veil').exists(), 'native veil').to.eq(true);
+    expect(wrapper.find('.console-rules-stub').exists(), 'console rules panel').to.eq(true);
     expect(wrapper.find('.con-zoom__bar').exists(), 'native command bar').to.eq(true);
     expect(document.body.classList.contains('con-zoom-open'), 'body zoom ownership').to.eq(true);
 
