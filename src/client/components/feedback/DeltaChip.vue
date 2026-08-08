@@ -1,17 +1,25 @@
 <template>
   <!--
-    The VALUE is keyed on the magnitude. A coalesced change keeps this
-    whole chip mounted (AnimatedMetricValue holds the chip key steady)
-    and only re-keys the number, which replaces that one span and so
-    replays its `delta-chip-accumulate` tick from zero — the accumulator
-    is SEEN counting up rather than silently swapping digits. The sign is
-    deliberately not keyed: coalescing never crosses polarity, so it
-    cannot change under a mounted chip.
+    The VALUE is keyed on a COUNTER of in-place changes, not on the number
+    itself. A coalesced change keeps this whole chip mounted
+    (AnimatedMetricValue holds the chip key steady) and re-keys only the
+    number, which replaces that one span and replays its
+    `delta-chip-accumulate` tick from zero — the accumulator is SEEN
+    counting up rather than silently swapping digits.
+
+    The counter starts at 0 and the tick class is withheld there ON
+    PURPOSE: the chip's own enter transition already carries the arrival,
+    and stacking a second scale on top of it would put extra motion on
+    every chip in the game to serve a case that only happens on the
+    SECOND value. The sign is deliberately never keyed — coalescing
+    cannot cross polarity, so it cannot change under a mounted chip.
   -->
   <span class="delta-chip"
         :class="chipClasses"
         aria-hidden="true">
-    <span class="delta-chip__sign">{{ sign }}</span><span class="delta-chip__value" :key="magnitude">{{ magnitude }}</span>
+    <span class="delta-chip__sign">{{ sign }}</span><span class="delta-chip__value"
+          :class="{'delta-chip__value--tick': ticks > 0}"
+          :key="ticks">{{ magnitude }}</span>
   </span>
 </template>
 
@@ -60,6 +68,17 @@ export default defineComponent({
     variant: {
       type: String as PropType<DeltaChipVariant>,
       required: true,
+    },
+  },
+  data() {
+    return {
+      /** In-place value changes since this chip mounted (0 = the arrival). */
+      ticks: 0,
+    };
+  },
+  watch: {
+    amount() {
+      this.ticks++;
     },
   },
   computed: {

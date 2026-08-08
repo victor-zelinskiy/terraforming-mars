@@ -88,13 +88,19 @@ describe('AnimatedMetricValue (reactive transitions)', () => {
   it('a coalesced burst keeps ONE chip and counts it up in place', async () => {
     const wrapper = mountHost(0);
     const nonce = (wrapper.vm as any).chipNonce;
-    for (let value = 1; value <= 7; value++) {
+    await wrapper.setProps({value: 1});
+    // The chip's ARRIVAL owns its own motion — no accumulate tick on it.
+    expect(wrapper.find('.delta-chip__value').classes()).to.not.contain('delta-chip__value--tick');
+    for (let value = 2; value <= 7; value++) {
       await wrapper.setProps({value});
     }
     expect((wrapper.vm as any).displayedDelta).to.eq(7);
     // One chip opened, none replaced: exactly one bump across the whole burst.
     expect((wrapper.vm as any).chipNonce).to.eq(nonce + 1);
     expect(wrapper.findAll('.delta-chip')).to.have.lengthOf(1);
+    // …and the number is visibly counting up rather than swapping silently.
+    expect(wrapper.find('.delta-chip__value').classes()).to.contain('delta-chip__value--tick');
+    expect(wrapper.find('.delta-chip__value').text()).to.eq('7');
     wrapper.unmount();
   });
 

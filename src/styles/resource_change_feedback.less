@@ -172,14 +172,21 @@
 }
 
 /*
- * The value re-keys on every change (DeltaChip.vue), so a COALESCED
- * update replaces this one span and replays the tick below while the
- * chip itself stays mounted: the accumulator is felt counting up
- * (+3 → +4 → …) instead of the digits silently swapping.
+ * The value re-keys on every in-place change (DeltaChip.vue), so a
+ * COALESCED update replaces this one span and replays the tick below
+ * while the chip itself stays mounted: the accumulator is felt counting
+ * up (+3 → +4 → …) instead of the digits silently swapping.
+ *
+ * `--tick` is absent on the chip's FIRST value — the chip's own enter
+ * transition owns the arrival, and a second scale layered on it would
+ * add motion to every chip in the game for the sake of the second value.
  */
 .delta-chip__value {
     font-variant-numeric: tabular-nums;
     display: inline-block;
+}
+
+.delta-chip__value--tick {
     animation: delta-chip-accumulate calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1) 1 both;
 }
 
@@ -654,7 +661,7 @@
     }
 
     /* The coalesce tick is pure transform — the new number is signal enough. */
-    .delta-chip__value {
+    .delta-chip__value--tick {
         animation: none;
     }
 }

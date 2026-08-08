@@ -130,7 +130,7 @@ test('the start flow lands its cards, keeps its light on the card, coalesces its
   const pump = (async () => {
     while (sampling) {
       samples.push(await sample(page).catch(() => undefined as unknown as Sample));
-      await page.waitForTimeout(55);
+      await page.waitForTimeout(40);
     }
   })();
 
@@ -150,7 +150,10 @@ test('the start flow lands its cards, keeps its light on the card, coalesces its
   const atSummary = samples.length;
 
   await submitSummary(page);
-  await page.waitForTimeout(2500); // let the whole materialization play out
+  // Long enough that the settled tail is EVIDENCE, not a rounding error: the
+  // convoy plus its dissolve is ~3 s, and the sampler's cadence collapses while
+  // GSAP owns the main thread, so a short wait leaves a handful of frames.
+  await page.waitForTimeout(7000);
   const afterMaterialization = samples.length;
 
   // ── the deployment: play the queue so cards land on the РАЗЫГРАНО shelf. ──
