@@ -299,12 +299,24 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
       pendingOpen.add(i);
     }
 
-    // SETTLE — one soft touchdown breath (a few px of weight, then rest). No
-    // bounce, no second hop, and never a move to another position afterwards.
+    // SETTLE — the last tenth of the move, and the part that makes the card
+    // TAKE ITS PLACE rather than stop at a coordinate: a few px of weight into
+    // the slot, a whisper of compression against it, and whatever depth/tilt
+    // the turn was still carrying coming to rest WITH the landing rather than
+    // after it. No bounce, no second hop, never a move to another position
+    // afterwards — and all of it inside `settleMs`, so the cascade still reads
+    // as a layout assembling itself card by card.
     if (!reduced) {
       const give = Math.max(3, 5 * restScale);
-      tl.to(proxy, {y: `+=${give}`, duration: s(t.settleMs * 0.42), ease: 'power2.out'}, travelAt + travel);
-      tl.to(proxy, {y: slotRect.top, duration: s(t.settleMs * 0.58), ease: 'power2.inOut'}, travelAt + travel + s(t.settleMs * 0.42));
+      const land = travelAt + travel;
+      tl.to(proxy, {y: `+=${give}`, duration: s(t.settleMs * 0.42), ease: 'power2.out'}, land);
+      tl.to(proxy, {y: slotRect.top, duration: s(t.settleMs * 0.58), ease: 'power2.inOut'}, land + s(t.settleMs * 0.42));
+      // Safe on `scale`: the travel leg's own scale tween has finished by
+      // `land`, so there is exactly ONE writer here — the same reason the
+      // in-flight turn passes `settleScale: false`.
+      tl.to(proxy, {scale: restScale * 1.022, duration: s(t.settleMs * 0.4), ease: 'power2.out'}, land);
+      tl.to(proxy, {scale: restScale, duration: s(t.settleMs * 0.9), ease: 'power2.inOut'}, land + s(t.settleMs * 0.4));
+      tl.to(flip, {rotateX: 0, z: 0, duration: s(t.settleMs), ease: 'power2.out'}, land);
     }
     if (i === n - 1) {
       tl.call(() => {

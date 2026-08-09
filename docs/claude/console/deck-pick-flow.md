@@ -343,6 +343,99 @@ of «here». (The start workspace projects onto neither navigation axis, so
   zone, so it shrink-wrapped to its card; the zone is a block now and the step
   gets `width/height: 100%`.
 
+## Iteration 4 — composition and choreography (2026-08-09)
+
+Four reports about the same screen, and the fix for three of them turned out to
+be one number that was silently zero.
+
+### The source seat's reserve was NEVER applied
+
+It was expressed as a `padding-left` on the SHARED row, carrying a custom
+property — and both halves failed:
+
+* the profile ladders (`html.con-profile-tv .con-cards__strip.con-ws-stage-row`)
+  re-declare the row's `padding` SHORTHAND, which wipes a longhand inset;
+* the property itself was a `calc(...)`, and `getPropertyValue('--x')` returns
+  the token **unresolved** — `parseFloat` gives NaN and the fallback gives 0.
+  (`cssLengthPx` covers plain `rem`/`px`, which is exactly why the trap
+  survives it.)
+
+So the reserve was 0. The source card sat ON TOP of the first revealed card,
+and — because `availW` was ~300 px too generous — the layout engine also kept
+choosing a SINGLE row of seven small cards.
+
+**The reserve is MEASURED off the real seat now** (`sourceReservePx`) and
+subtracted from the row's width on BOTH sides. The group is centred, so its
+margin is then guaranteed to be at least the seat's own width: the two never
+occupy the same space, in any phase, at any focus scale. No z-index is
+involved, and none can be — that is the point.
+
+*Rule: never read a length-valued custom property back out of the cascade. If
+the element exists, measure the element.*
+
+### Multi-row is allowed to win
+
+`WRAP_GAIN` was 1.18 — «wrapping has to EARN the break». Right for a two-card
+result, wrong for a seven-card reveal on a 4K TV: a single line of seven is
+width-bound long before it is height-bound, so the band's height went unused
+and the composition read as a web carousel. **1.03** now: a genuine tie still
+prefers one line, and anything better than a tie takes the height.
+
+⚠️ The WRAP CAP (`--con-ws-stage-rowmax`) is a `max-width` on the row, so it may
+only carry the row's OWN padding. Folding the seat reserve into `padXPx` made
+the cap wider than the shape it caps, and 4 + 3 broke as **5 + 2**.
+
+Row centring needed nothing: `flex-wrap` + `justify-content: center` already
+centres the short last row under the one above it.
+
+### The cascade was a burst
+
+`stepDecay: 0.7` collapsed the stagger — seven cards launched inside 271 ms,
+four of them within 200 ms — so the eye read ONE ejection off the pile.
+**0.86** keeps the tightening (a twelve-card batch still converges) while a
+seven-card draw spreads over ~390 ms, the smallest window in which «several
+separate cards» is legible. `flipAt` 0.28 → 0.32, so the card reads as a back
+travelling off the deck for a beat before it opens: the turn is the event, and
+an event needs a before.
+
+### The arrival is now a landing
+
+The settle was a single vertical breath. It also brings the depth and tilt the
+turn was still carrying to rest WITH the landing (not after it), and adds a
+whisper of compression against the slot — all inside `settleMs`, so the cascade
+still reads as a layout assembling itself card by card. `scale` is safe here
+and only here: the travel leg's own scale tween has ended by touchdown, which
+is the same reason the in-flight turn passes `settleScale: false`.
+
+### Navigation follows the geometry
+
+The last row of a wrapped group is CENTRED, so a column-preserving index
+stepper sends the cursor to a card that is visibly not the one below it. The
+surface navigates by **`nearestInDirection`** (the fork's shared physical
+stepper, already the start wizard's) and keeps the index stepper only as the
+pre-layout fallback.
+
+### On `card3dInner`
+
+Nothing was duplicated and nothing needed to be. The flying body IS the shared
+3D chassis — `.con-deal-proxy` owns the `perspective`, `.con-deal-proxy__flip`
+owns `preserve-3d`, the faces own `backface-visibility` — which is precisely
+the chassis `card3dInner` formalizes (its own doc: *«the faces keep their
+`.con-deal-proxy__face/__back` names, so every shared rule still applies»*).
+The turn is `addPremiumTurn`, the ONE opening motion, layered onto the flight's
+own timeline at `flipAtMs` — mid-travel, never after landing. Rebuilding the
+same DOM through `buildCard3DInner` would replace Vue-owned markup with
+JS-built markup for no behavioural difference.
+
+### The «clipped» cards on the shelf
+
+The thin band under a played card is the DEPTH STRIP — `PLAYED_PEEK_NATURAL`
+(75 px: the card's title plate) clipped by design, `keep-art` on, art intact.
+What was actually wrong is fixed in iteration 3: the family's TOP card was
+being blanked by a stale `awayCard`, so only the strip painted.
+`console-deck-pick.spec.ts` asserts `shelfBlanked === 0` through the whole
+return.
+
 ## The crumb
 
 `deploymentCrumb`'s embed subject is the **source card itself** now, not its

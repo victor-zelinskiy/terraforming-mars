@@ -108,8 +108,17 @@ export function cardArrivalTimings(): CardArrivalTimings {
     peelMs: 130,
     travelMs: 620,
     stepMs: 92,
-    stepDecay: 0.7,
-    flipAt: 0.28,
+    // The gap tightens per card so a big batch does not grow into a queue —
+    // but at 0.7 it collapsed: seven cards launched across 271 ms total, four
+    // of them within 200 ms, and the eye read one BURST off the pile instead
+    // of seven cards being dealt. 0.86 keeps the tightening (a 12-card batch
+    // still converges) while a seven-card draw spreads over ~390 ms, which is
+    // the smallest window in which «several separate cards» is legible.
+    stepDecay: 0.86,
+    // A touch later, so the card reads as a BACK travelling off the deck for a
+    // beat before it opens — the turn is the event, and an event needs a
+    // before.
+    flipAt: 0.32,
     flipSpan: 0.62,
     settleMs: 130,
     holdRevealStepMs: 90,

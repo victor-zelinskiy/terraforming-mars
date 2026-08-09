@@ -126,6 +126,33 @@ async function surfaces(page: Page) {
         .filter((el) => Number(getComputedStyle(el).opacity) < 0.5).length,
       /** The source seat — must be GONE once the card has flown home. */
       sourceSeatUp: document.querySelector('.con-start__embedsource') !== null,
+      /**
+       * THE COMPOSITION. A seven-card reveal must read as a placed GROUP, not
+       * as a strip: distinct row tops, cards big enough to read, and the last
+       * row centred under the one above it.
+       */
+      rows: (() => {
+        const tops = slots.map((el) => Math.round(el.getBoundingClientRect().top / 8));
+        return new Set(tops).size;
+      })(),
+      cardW: Math.round(slots[0]?.getBoundingClientRect().width ?? 0),
+      /**
+       * DOES ANY REVEALED CARD TOUCH THE SOURCE SEAT? It must be impossible —
+       * not «hidden behind a z-index», not «only when unfocused». The seat is
+       * reserved out of the row's width on both sides, so the two never occupy
+       * the same space in any phase.
+       */
+      sourceClash: (() => {
+        const seat = document.querySelector('[data-embed-source-slot]');
+        if (seat === null) {
+          return 0;
+        }
+        const sr = seat.getBoundingClientRect();
+        return slots.filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.left < sr.right && r.right > sr.left && r.top < sr.bottom && r.bottom > sr.top;
+        }).length;
+      })(),
       /** How much of the deployment row the step actually got. */
       stageH: Math.round(document.querySelector('.con-deckpick__frame')?.getBoundingClientRect().height ?? 0),
       played: Array.from(document.querySelectorAll('.con-start__played [data-played-key]'))
@@ -235,6 +262,15 @@ test.describe('console — «посмотри N карт колоды, оста�
     expect(at.deckPile, 'the deck they came from is on screen').toBeTruthy();
     expect(at.dockMounted, 'the hand dock is never hidden').toBeTruthy();
     expect(at.dockCompact, 'the dock steps back into its compact pose while the pick owns the screen').toBeTruthy();
+
+    // ── THE COMPOSITION ─────────────────────────────────────────────────
+    // Seven cards are a GROUP, not a strip: the band's height is used, the
+    // cards are big enough to read at a couch distance, and the source seat
+    // has a safe zone the group can never reach into.
+    expect(at.rows, `seven cards are laid out in more than one row — ${JSON.stringify(at)}`)
+      .toBeGreaterThan(1);
+    expect(at.cardW, `the cards are large — ${at.cardW}px at 1920`).toBeGreaterThan(190);
+    expect(at.sourceClash, 'no revealed card ever overlaps the source seat').toBe(0);
     // …and «РАЗЫГРАНО» has YIELDED THE STAGE — kept in the DOM (its stacks and
     // the hero target it registers must survive), but out of the way, so the
     // step gets the whole deployment row rather than its top third.
@@ -250,6 +286,9 @@ test.describe('console — «посмотри N карт колоды, оста�
     await press(page, 'Enter', 400);
     const chosen = await surfaces(page);
     expect(chosen.picked, `two cards are selected — ${JSON.stringify(chosen)}`).toBe(2);
+    // …and the separation survives the focus emphasis, which is the state the
+    // layout has to reserve room for rather than the one it is measured in.
+    expect(chosen.sourceClash, 'a focused card still never reaches the source seat').toBe(0);
     await page.screenshot({path: 'test-results/deckpick-02-picked.png'});
 
     // ── 5. CONFIRM → the picks reach the DOCK, then the rest clears ──────

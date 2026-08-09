@@ -50,11 +50,20 @@ const MIN_GAP_PX = 10;
 const MAX_ROWS = 3;
 
 /**
- * A second row only wins if it makes the cards THIS much bigger. Wrapping is a
- * real cost (the reading order stops being a line), so it has to buy something
- * the player can see — never a 3 % gain that just rearranges the composition.
+ * A second row only wins if it makes the cards THIS much bigger.
+ *
+ * It started at 1.18 — «wrapping has to EARN the break» — which is right for a
+ * two- or three-card result. It is wrong for a SEVEN-card reveal on a 4K TV: a
+ * single line of seven is width-bound long before it is height-bound, so the
+ * engine kept a strip of small cards across the whole band with half the height
+ * unused, and the composition read as a web carousel rather than a placed
+ * scene. The break is cheap when the row is already the full width of the band
+ * — what it costs (one reading line becomes two) is repaid by every card being
+ * bigger AND by the group becoming a block instead of a stripe.
+ *
+ * Kept above 1 so a genuine tie still prefers the single line.
  */
-const WRAP_GAIN = 1.18;
+const WRAP_GAIN = 1.03;
 
 export type WsStageLayoutInput = {
   /** Content-box width available to the row (padding already subtracted). */

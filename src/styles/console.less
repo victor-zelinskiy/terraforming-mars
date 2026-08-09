@@ -515,11 +515,7 @@ body.con-zoom-open .con-journal {
        growth + the −.2rem lift + the pick band that hangs above it) — the
        layout deliberately does NOT reserve that in the height budget, because
        this is where it lives. Anything more is height stolen from the cards. */
-    /* The left inset is the HOST's (a compact source seat parked at the left
-       of its zone). It rides the PADDING on purpose: the fit engine already
-       subtracts the row's own padding, so the cards step around the seat and
-       the solved card size follows with no extra plumbing. */
-    padding: 1.3rem .8rem .7rem calc(.8rem + var(--con-ws-stage-inset, 0px));
+    padding: 1.3rem .8rem .7rem;
 }
 /* The stage's focus emphasis is DELIBERATELY smaller than the hand/draft
    carousel's: on a stage the neighbours are the same decision, so the focused
@@ -15678,9 +15674,16 @@ body.con-start-barshold .con-status {
     /* The seat's own width plus breathing room, published for the row inset —
        and ONLY while a source is actually shown, so a step without one uses
        the full width exactly as it should. */
-    &__embed--sourced {
-        --con-ws-stage-inset: calc(320px * 0.5 * var(--con-ui-scale, 1) + 1.7rem);
-    }
+    /* THE SOURCE SEAT'S SAFE ZONE is reserved by the STEP's own fit, which
+       MEASURES the seat (`sourceReservePx`) and subtracts it from the card
+       row's width on BOTH sides — the group is centred, so its margin is then
+       guaranteed to be at least the seat's own width and no overlap is
+       expressible in any phase or at any focus scale.
+       It is deliberately NOT a `padding` on the shared row: the profile
+       ladders re-declare that shorthand, so the inset vanished on the TV
+       profile and the source card sat on top of the first revealed card. And
+       it is deliberately not read from a custom property either — a
+       `calc(...)` token comes back from `getPropertyValue` UNRESOLVED. */
     /* THE SOURCE COLUMN — the card that caused the draw, kept in the step
        (it physically emerged from the dock stack and returns there). */
     /* THE SOURCE SEAT — absolutely placed, so it costs the step no width: it
@@ -15712,12 +15715,12 @@ body.con-start-barshold .con-status {
     }
     &__embedsource-card {
         position: relative;
-        width: calc(320px * 0.5 * var(--con-ui-scale, 1));
+        width: calc(320px * 0.42 * var(--con-ui-scale, 1));
         border-radius: .45rem;
         box-shadow: 0 .7rem 1.6rem rgba(0, 0, 0, 0.45), 0 0 0 .06rem fade(@con-cyan, 30%);
         transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
 
-        > * { zoom: calc(0.5 * var(--con-ui-scale, 1)); }
+        > * { zoom: calc(0.42 * var(--con-ui-scale, 1)); }
     }
     /* The reveal's stage instruction inside the step is a SUPPORTING voice,
        never a page title (a second big heading is what read as a modal). */

@@ -63,14 +63,16 @@ describe('consoleCardArrival — the batch plan', () => {
       expect(starts[3]).to.be.lessThan(plan.beats[0].landAtMs * 0.5);
     });
 
-    it('the count is legible inside the first quarter of the scene', () => {
-      // Every card of a typical batch is visibly out of the pile well before a
-      // quarter of the scene has played — the player must never learn HOW MANY
-      // cards are coming only on arrival.
-      for (const n of [2, 3, 4]) {
+    it('the count is legible before the FIRST card even lands', () => {
+      // The player must never learn HOW MANY cards are coming only on arrival.
+      // Stated against the first card's LANDING rather than a fraction of the
+      // scene: that is the moment the answer would otherwise arrive, it holds
+      // for a batch of any size (a seven-card reveal included), and it does not
+      // silently re-tune itself when the travel leg or the cascade is adjusted.
+      for (const n of [2, 3, 4, 7, 12]) {
         const plan = planCardArrival(n, t, 'in-flight-reveal');
         const last = plan.beats[n - 1];
-        expect(last.atMs + t.peelMs * 0.5, `n=${n}`).to.be.lessThan(plan.totalMs * 0.25);
+        expect(last.atMs + t.peelMs, `n=${n}`).to.be.lessThan(plan.beats[0].landAtMs);
       }
     });
 

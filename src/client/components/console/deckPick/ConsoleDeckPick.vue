@@ -149,6 +149,7 @@ import {setPanelCommands, clearPanelCommands} from '@/client/console/consolePane
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import {stepHandGrid} from '@/client/components/console/consoleHandGrid';
+import {nearestInDirection} from '@/client/console/consoleStartNav';
 import {handSelectPicksValid} from '@/client/components/console/consoleHandSelectModel';
 import {runBatchArrival, settleBatchProxiesOnto, BatchArrivalHandle} from '@/client/console/consoleBatchArrivalMotion';
 import {holdDeckDisplay, releaseDeckDisplay} from '@/client/console/consoleDeckDisplay';
@@ -655,8 +656,26 @@ export default defineComponent({
       const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
       const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
       const ui = conUiScale();
+      // THE SOURCE SEAT'S SAFE ZONE. The host parks a compact source card at
+      // the left of its zone, and the card group is CENTRED — so reserving the
+      // seat's width on BOTH sides is what guarantees the margin can never be
+      // smaller than the seat. No z-index, no overlap: the two simply never
+      // occupy the same space, in any phase, at any focus scale.
+      //
+      // Read here rather than expressed as row padding on purpose: the profile
+      // ladders re-declare the row's `padding` shorthand, so an inset that rode
+      // it silently vanished on the TV profile — and the source card then sat
+      // on top of the first revealed card.
+      //
+      // MEASURED off the real seat, never read from the custom property that
+      // declares it: `getPropertyValue('--x')` returns the token UNRESOLVED,
+      // and this one is a `calc(...)` — `parseFloat` gives NaN, the fallback
+      // gives 0, and the reserve silently disappears. (`cssLengthPx` covers
+      // plain `rem`/`px`, which is why the trap survives it.) The seat is on
+      // screen; asking it is both simpler and honest at any profile.
+      const reserve = this.sourceReservePx();
       const layout = wsStageLayout({
-        availW: row.clientWidth - padX,
+        availW: row.clientWidth - padX - reserve * 2,
         // ⚠️ NEVER `row.clientHeight`. The row is `flex: 1` inside a frame that
         // the HOST sizes, so in a host whose zone lets its content grow, the
         // row's height is partly its OWN content — feeding it back in makes the
@@ -672,8 +691,10 @@ export default defineComponent({
         availH: Math.max(200 * ui, this.rowBudgetPx() - padY),
         slotW, slotH, n: this.entries.length, ui,
         rowGapPx: parseFloat(cs.rowGap) || undefined,
-        // …and the row's own padding, so the WRAP CAP the engine publishes
-        // measures the same box the browser breaks on.
+        // The WRAP CAP is a `max-width` on the ROW, so it may only carry the
+        // row's OWN padding. The seat reserve is a virtual margin, not padding:
+        // folding it in here made the cap wider than the shape it caps, and a
+        // seven-card group planned as 4 + 3 broke as 5 + 2.
         padXPx: padX,
       });
       const style = wsStageLayoutStyle(layout);
@@ -681,6 +702,22 @@ export default defineComponent({
       this.rowStyle = style;
     },
 
+    /**
+     * THE SOURCE SEAT'S WIDTH PLUS BREATHING ROOM, or 0 when no seat is shown.
+     *
+     * The host parks a compact source card at the left of its zone; the card
+     * group is centred, so reserving this on BOTH sides is what guarantees the
+     * group's margin can never be narrower than the seat. Spatial separation
+     * by construction — not a z-index, not an overlap the eye forgives.
+     */
+    sourceReservePx(): number {
+      if (typeof document === 'undefined') {
+        return 0;
+      }
+      const seat = document.querySelector<HTMLElement>('[data-embed-source-slot]');
+      const w = seat?.getBoundingClientRect().width ?? 0;
+      return w > 4 ? w + 18 * conUiScale() : 0;
+    },
     /**
      * The height the ROW may actually spend — the frame's inner box minus the
      * chrome that shares the column with it (the stage head, the status line
@@ -743,9 +780,30 @@ export default defineComponent({
         return;
       }
     },
-    /** Physical grid navigation — the SAME stepper the hand uses (no wrap,
-     *  column-preserving vertically), against this stage's own row shape. */
+    /**
+     * PHYSICAL navigation — measured off the real slots, never an index.
+     *
+     * The last row of a wrapped group is CENTRED (4 + 3 puts the three under
+     * the middle of the four), so a column-preserving index stepper sends the
+     * cursor to a card that is visibly not the one below it.
+     * `nearestInDirection` is the fork's shared answer to exactly that
+     * question — the start wizard's own grid already navigates by it.
+     *
+     * The index stepper stays as the fallback for the frames before layout
+     * (and for JSDOM), never as the normal path.
+     */
     move(dir: 'up' | 'down' | 'left' | 'right'): void {
+      const rects = asElements(this.$refs.slots)
+        .map((el) => el.getBoundingClientRect())
+        .filter((r) => r.width > 4)
+        .map((r) => ({left: r.left, top: r.top, width: r.width, height: r.height}));
+      if (rects.length === this.entries.length) {
+        const next = nearestInDirection(rects, this.focusIdx, dir);
+        if (next >= 0) {
+          this.focusIdx = next;
+        }
+        return;
+      }
       const row = this.$refs.row as HTMLElement | null | undefined;
       const perRow = Math.max(1, parseInt(
         row?.style.getPropertyValue('--con-ws-stage-per-row') || String(this.entries.length), 10) ||
