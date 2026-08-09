@@ -626,6 +626,38 @@ measurable, so the flight has real slot rects to aim at — and materializes
 around the landed cards. `ConsoleHydroDrawLayer` looks for
 `.con-deckpick [data-zoom-slot]` as well as the task host's.
 
+### The source card TELEPORTED home when its category was empty
+
+Reported on the reveal producer («Биолаборатория» → «Получены карты»), but the
+cause is shared by every one of them, and it is a one-word difference:
+`runEmbedSourceSettle` measured the shelf's PAINTED FACE
+(`[data-played-key] .con-splayed__face`) instead of the shelf's SLOT
+(`.con-splayed__top`).
+
+`.con-splayed__top` is the shelf's *prepared card place* — card-shaped by
+construction (`height: cardH`, the stack's `width: slotW`, both the face's own
+box) and already the anchor the OUTBOUND hero flight lands on
+(`data-start-front`). The face inside it exists only when there is something to
+paint, and while the source card is out on loan its family may have nothing
+else: `topFace` is `undefined` exactly when the away card was the only card of
+its category — the ordinary case for the first prelude a player plays.
+
+So `querySelector` returned null, the whole flight branch was skipped, and the
+card went from the source seat to «РАЗЫГРАНО» in ONE FRAME. Half a play
+animated and half of it teleported, decided by which element happened to be
+painted. **A landing is measured against the place, never against what is
+currently drawn in it.**
+
+⚠️ The probe that was supposed to cover this asserted the card was ON the shelf
+— which stayed true for the whole bug, because the landing slot carries the away
+card's identity (`topKey`) the entire time it is on loan. The end state of a
+teleport and of a flight are identical; only the MIDDLE differs. It now watches
+for `.con-start__embedsource--departing`, which the settle sets on entry and
+clears at touchdown: on the broken path the settle fell through and cleared
+everything in the same synchronous block, so Vue never rendered that class at
+all. (`.con-startdock-proxy` alone is NOT a discriminator — every other start
+flight spawns those too, and a first attempt using it passed over the bug.)
+
 ### Probing this flow: two things that are STATE, never a duration
 
 Both bit the 4K parameterisation, and both are general to console e2e.

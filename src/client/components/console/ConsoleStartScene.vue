@@ -4093,10 +4093,28 @@ export default defineComponent({
       const q = root !== undefined && typeof root.querySelector === 'function' ? root : undefined;
       const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(source) : source;
       const colSlot = q?.querySelector<HTMLElement>('[data-embed-source-slot]') ?? null;
-      const dockFace = q?.querySelector<HTMLElement>(`.con-start__played [data-played-key="${esc}"] .con-splayed__face`) ?? null;
-      if (colSlot !== null && dockFace !== null) {
+      // ⚠️ AIM AT THE SLOT, NEVER AT THE FACE INSIDE IT.
+      //
+      // `.con-splayed__top` is the shelf's PREPARED CARD PLACE — card-shaped by
+      // construction (`height: cardH`, the stack's `width: slotW`, both the
+      // painted face's own box) and already the anchor the OUTBOUND hero flight
+      // lands on (`data-start-front`). The FACE only exists when there is
+      // something to paint there, and while this card is out on loan its family
+      // may have nothing else: `topFace` is `undefined` whenever the away card
+      // was the only one of its category — which is the ordinary case for the
+      // first prelude a player plays.
+      //
+      // The face query then returned null, the whole `if` was skipped, and the
+      // card went from the source seat to «РАЗЫГРАНО» in ONE FRAME. Half of a
+      // play animated and half of it teleported, for a reason that was purely
+      // about which element happened to be painted.
+      const dockSlot =
+        q?.querySelector<HTMLElement>(`.con-start__played .con-splayed__top[data-played-key="${esc}"]`) ??
+        q?.querySelector<HTMLElement>(`.con-start__played [data-played-key="${esc}"]`) ??
+        null;
+      if (colSlot !== null && dockSlot !== null) {
         this.embedSourceArriving = true; // the column empties under the proxy
-        await reseatCards([{name: source, fromEl: colSlot, toEl: dockFace}],
+        await reseatCards([{name: source, fromEl: colSlot, toEl: dockSlot}],
           () => {
             // Touchdown: release the away-state — the shelf face reappears
             // under the settling proxy in the same frame.

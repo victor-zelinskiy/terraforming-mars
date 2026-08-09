@@ -127,6 +127,29 @@ async function surfaces(page: Page) {
       /** The source seat — must be GONE once the card has flown home. */
       sourceSeatUp: document.querySelector('.con-start__embedsource') !== null,
       /**
+       * A start-dock card is IN THE AIR. The seat may only empty by FLIGHT —
+       * the return is the second half of the play the player already watched
+       * begin, so a seat that simply blanks while the shelf simply fills is a
+       * teleport, and it reads as one. (It shipped: the return measured the
+       * PAINTED FACE inside the shelf's landing slot, and a family whose only
+       * card is the one out on loan paints nothing — so the flight was silently
+       * skipped for the first prelude of every category.)
+       */
+      reseating: document.querySelectorAll('.con-startdock-proxy').length,
+      /**
+       * …and THE SEAT IS VISIBLY LETTING GO. This is the discriminator, because
+       * `.con-startdock-proxy` alone is not one — every other start flight
+       * spawns those too, so a probe that only asks «was any card ever in the
+       * air» passes over the bug it was written for.
+       *
+       * `--departing` is set at the top of the settle and only cleared at
+       * TOUCHDOWN, so in a healthy return it is on screen for the whole flight.
+       * On the broken path the settle found no landing element, fell through
+       * and cleared everything in the SAME synchronous block — Vue never got a
+       * frame to render this class at all. Present ⇒ the card flew.
+       */
+      sourceSeatDeparting: document.querySelector('.con-start__embedsource--departing') !== null,
+      /**
        * A family on the shelf that holds cards but paints NO open top face.
        * The top card being out on loan to the source seat used to blank the
        * slot, leaving the 31 px depth strip as the only thing rendered — which
@@ -467,8 +490,10 @@ for (const profile of PROFILES) {
       // …and the card FLIES BACK to its seat. Until it has, the viewer still
       // owns input on purpose, so the probe waits for the app to say so rather
       // than for a number.
-      const viewerGone = await waitUntil(page, (s) => !s.zoomOwning && !s.zoomOpen, 8000);
-      expect(viewerGone, 'the source card returned to its seat and gave input back').toBeTruthy();
+      const viewerGone = await waitUntil(page, (s) => !s.zoomOwning && !s.zoomOpen, 15_000);
+      expect(viewerGone,
+        `the source card returned to its seat and gave input back — ${JSON.stringify(await surfaces(page))}`)
+        .toBeTruthy();
       await page.waitForTimeout(300);
 
       // ── 5. CONFIRM → the picks reach the DOCK, then the rest clears ──────
@@ -490,12 +515,23 @@ for (const profile of PROFILES) {
         .toBeTruthy();
 
       // ── 6. …and the workspace comes back around its source card ─────────
-      const returned = await waitUntil(page,
-        (s) => !s.pickUp && s.played.includes('Corporate Archives'), 12_000);
+      // ⚠️ THE SEAT MAY ONLY EMPTY BY FLIGHT. Sampled densely rather than
+      // asserted at the end, because the end state of a teleport and of a
+      // flight are identical — «the card is on the shelf» was the old
+      // assertion, and it stayed true throughout the bug (the shelf's landing
+      // slot carries the away card's identity the whole time it is on loan).
+      let sawSourceFlight = false;
+      const returned = await waitUntil(page, (s) => {
+        sawSourceFlight = sawSourceFlight || s.sourceSeatDeparting;
+        return !s.pickUp && !s.sourceSeatUp && s.played.includes('Corporate Archives');
+      }, 12_000);
       await page.waitForTimeout(800); // let the shelf's own settle finish
       await page.screenshot({path: `test-results/deckpick-${profile.tag}-04-returned.png`});
       const back = await surfaces(page);
       expect(returned, `the flow came back around its source card — ${JSON.stringify(back)}`)
+        .toBeTruthy();
+      expect(sawSourceFlight,
+        'the source card FLEW home — the seat never simply blanked into the shelf')
         .toBeTruthy();
       expect(back.pickUp, 'the draw & select step is gone').toBeFalsy();
       expect(back.startUp, 'the start workspace never left').toBeTruthy();
@@ -547,8 +583,10 @@ test.describe('console — «посмотри N карт колоды, оста�
     // released proves nothing — the shelf has gone with it.)
     let sawHomeInWorkspace = false;
     let sawBlanked = false;
+    let sawSourceFlight = false;
     const watch = async () => {
       const s = await surfaces(page);
+      sawSourceFlight = sawSourceFlight || s.sourceSeatDeparting;
       if (s.startUp && s.dockShelf.mounted) {
         if (s.played.includes('Corporate Archives') && s.shelfBlanked === 0 && !s.pickUp) {
           sawHomeInWorkspace = true;
@@ -589,6 +627,9 @@ test.describe('console — «посмотри N карт колоды, оста�
       '«Корпоративные архивы» visibly reached «РАЗЫГРАНО» while the workspace still stood')
       .toBeTruthy();
     expect(sawBlanked, 'the shelf never held a blanked slot with nothing out on loan').toBeFalsy();
+    expect(sawSourceFlight,
+      'the source card FLEW home — the seat never simply blanked into the shelf')
+      .toBeTruthy();
     expect((await surfaces(page)).sourceSeatUp, 'no orphaned source seat survives').toBeFalsy();
   });
 });
