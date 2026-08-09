@@ -12,6 +12,7 @@ import {TileType} from '../../common/TileType';
 import {Countable, CountableUnits} from './Countable';
 import {PlacementType} from '../boards/PlacementType';
 import {AdjacencyBonus} from '../ares/AdjacencyBonus';
+import {Message} from '../../common/logs/Message';
 import {Units} from '../../common/Units';
 import {NoAttributes} from './NoAttributes';
 
@@ -238,4 +239,5 @@ export interface TitledBehavior extends Behavior {
 export interface OrBehavior {
   behaviors: Array<TitledBehavior>;
   autoSelect?: boolean;
+  title?: string | Message;
 }
