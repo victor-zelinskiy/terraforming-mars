@@ -105,11 +105,38 @@ describe('wsStageLayout — one geometry for buy and reveal', () => {
   });
 
   describe('profile scaling', () => {
-    it('cap and floor ride the TV rem factor', () => {
+    it('the CAP rides the TV rem factor', () => {
       const tv = wsStageLayout({availW: 8000, availH: 8000, ...slot, n: 1, ui: 2});
       expect(tv.zoom).to.eq(3.8); // 1.9 × ui
-      const starved = wsStageLayout({availW: 120, availH: 80, ...slot, n: 6, ui: 2});
-      expect(starved.zoom).to.eq(0.84); // 0.42 × ui
+    });
+
+    it('THE SOLVED SHAPE ALWAYS FITS — a card is never clipped, at any size', () => {
+      // There is deliberately no floor. A floor is a readability courtesy, and
+      // `shapeZoom` already returns the largest zoom that FITS — so raising a
+      // result to one is by definition asking for a card that does not. That
+      // shipped: a seven-card reveal at 4K solved three rows whose raw zoom was
+      // under the old floor, got clamped UP to it, out-scored the feasible
+      // two-row shape, and rendered cut off at the top AND bottom with nothing
+      // to scroll to. Small honest cards beat cropped ones every time.
+      //
+      // Swept rather than sampled: this is the guarantee the whole engine
+      // exists to make, and it has to hold for a starved Steam Deck band and a
+      // 4K one alike.
+      for (const ui of [1, 2]) {
+        for (const availW of [120, 640, 1200, 1650, 2400, 3200]) {
+          for (const availH of [80, 300, 560, 700, 1100, 1500]) {
+            for (const n of [1, 2, 3, 5, 7, 9, 12]) {
+              const l = wsStageLayout({availW, availH, ...slot, n, ui});
+              const where = `ui=${ui} ${availW}x${availH} n=${n}`;
+              const usedH = l.rows * slot.slotH * l.zoom + (l.rows - 1) * l.rowGapPx;
+              const usedW = l.perRow * slot.slotW * l.zoom + (l.perRow - 1) * l.gapPx;
+              expect(usedH, `height ${where}`).to.be.lessThanOrEqual(availH + 0.5);
+              expect(usedW, `width ${where}`).to.be.lessThanOrEqual(availW + 0.5);
+              expect(l.rows * l.perRow, `capacity ${where}`).to.be.greaterThanOrEqual(n);
+            }
+          }
+        }
+      }
     });
 
     it('a 4K band yields a bigger card than a 1080p one for the same batch', () => {

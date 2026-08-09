@@ -475,8 +475,17 @@ export function workspaceSourceZoomOrigin(name: string): ZoomOrigin {
       }
       const key = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ?
         CSS.escape(name) : name.replace(/"/g, '\\"');
+      // EVERY host that offers `L3 Источник`, in the order the card can be
+      // standing in one of them. The card-actions composer holds it in its
+      // hero column; the START workspace holds it in the step's source seat —
+      // and that second one was missing, so a draw hosted by the start scene
+      // degraded to the TEXTUAL entrance: the viewer rose out of nowhere while
+      // the seat kept its card, and the player saw two of the same card. The
+      // whole point of a physical origin is that there is only ever one.
       return document.querySelector<HTMLElement>(
-        `[data-motion-surface="action-composer"] [data-zoom-slot="${key}"]`);
+        `[data-motion-surface="action-composer"] [data-zoom-slot="${key}"]`) ??
+        document.querySelector<HTMLElement>(
+          '[data-embed-source-slot] :is(.card-container, .pcard)');
     },
   };
 }

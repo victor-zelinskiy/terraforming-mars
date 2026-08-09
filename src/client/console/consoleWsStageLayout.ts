@@ -46,6 +46,21 @@ const FOCUS_GLOW_PX = 9;
 /** The gap never collapses below this, however tight the band (Steam Deck). */
 const MIN_GAP_PX = 10;
 
+/**
+ * The largest a card may ever be drawn, in slot widths. A CEILING is safe —
+ * it can only make a shape fit better.
+ *
+ * There is deliberately NO floor any more. A floor is a readability courtesy;
+ * `shapeZoom` already returns the LARGEST zoom that fits, so raising a result
+ * to a floor is by definition asking for a card that does not fit — and that
+ * is precisely what shipped: a seven-card reveal on a 4K profile solved three
+ * rows whose raw zoom was under the floor, got clamped UP to it, then beat the
+ * feasible two-row shape in the comparison and rendered clipped top AND bottom
+ * with no way to scroll to what was cut off. Small honest cards beat cropped
+ * ones every time.
+ */
+const MAX_ZOOM = 1.9;
+
 /** Rows are considered up to here; beyond it the batch is not a stage case. */
 const MAX_ROWS = 3;
 
@@ -169,9 +184,23 @@ export function wsStageLayout(o: WsStageLayoutInput): WsStageLayout {
     if (Math.ceil(n / perRow) !== rows) {
       continue;
     }
-    const raw = shapeZoom(o, rows, perRow, rowGapPx);
-    const zoom = Math.min(1.9 * o.ui, Math.max(0.42 * o.ui, raw));
-    const gapPx = Math.max(MIN_GAP_PX * o.ui, focusHeadroomPx(o.slotW * zoom, o.ui));
+    // The CEILING only (see MAX_ZOOM): `shapeZoom` already returns the largest
+    // zoom this shape can afford, so anything above it overflows by
+    // construction — and shapes are compared on this same value, so an
+    // infeasible one can never out-score a feasible one.
+    const raw = Math.min(MAX_ZOOM * o.ui, shapeZoom(o, rows, perRow, rowGapPx));
+    const gapPx = Math.max(MIN_GAP_PX * o.ui, focusHeadroomPx(o.slotW * raw, o.ui));
+    // BACK-SOLVE against the gap we are actually going to use. `shapeZoom`
+    // solves the gap as a function of the zoom (focus headroom), but the gap
+    // ALSO has a floor — and on a starved band that floor is the larger of the
+    // two, so the row ended up wider than the budget the zoom was solved for.
+    // One pass is exact: shrinking the zoom can only shrink the headroom, at
+    // which point the floor dominates and the gap stops moving.
+    const gaps = Math.max(0, perRow - 1);
+    const fitW = perRow * o.slotW > 0 ?
+      (0.98 * o.availW - gaps * gapPx) / (perRow * o.slotW) :
+      raw;
+    const zoom = Math.max(0, Math.min(raw, fitW));
     const candidate: WsStageLayout = {
       zoom, gapPx, rowGapPx, rows, perRow,
       rowMaxPx: o.padXPx === undefined ? undefined :
@@ -188,10 +217,10 @@ export function wsStageLayout(o: WsStageLayoutInput): WsStageLayout {
     }
   }
   return best ?? {
-    zoom: fitRowZoom({
+    zoom: Math.min(MAX_ZOOM * o.ui, fitRowZoom({
       availW: o.availW, availH: o.availH, slotW: o.slotW, slotH: o.slotH,
       n, colGap: MIN_GAP_PX * o.ui, ui: o.ui,
-    }),
+    })),
     gapPx: MIN_GAP_PX * o.ui,
     rowGapPx,
     rows: 1,

@@ -127,6 +127,41 @@ async function surfaces(page: Page) {
       /** The source seat — must be GONE once the card has flown home. */
       sourceSeatUp: document.querySelector('.con-start__embedsource') !== null,
       /**
+       * A family on the shelf that holds cards but paints NO open top face.
+       * The top card being out on loan to the source seat used to blank the
+       * slot, leaving the 31 px depth strip as the only thing rendered — which
+       * reads, correctly, as a clipped card, because the only thing painted WAS
+       * a crop. The card underneath is promoted while its neighbour is away.
+       */
+      shelfStripOnly: Array.from(document.querySelectorAll('.con-splayed__fam'))
+        .filter((fam) => {
+          const count = Number((fam.querySelector('.con-splayed__cap-count')?.textContent ?? '0').trim());
+          if (count <= 0) {
+            return false;
+          }
+          // A family whose ONLY card is the one out on loan legitimately shows
+          // its prepared place — there is nothing on the pile right now. The
+          // defect is a family that paints depth STRIPS and no open face: the
+          // only thing rendered is then a 31 px crop.
+          if (fam.querySelectorAll('.con-splayed__strip').length === 0) {
+            return false;
+          }
+          const face = fam.querySelector('.con-splayed__top .con-splayed__face');
+          return face === null || Number(getComputedStyle(face).opacity) < 0.5;
+        }).length,
+      /** The source card's slot is HELD while its fullscreen is open — one
+       *  visual owner, never two copies of the same card on screen. */
+      zoomOpen: document.querySelector('dialog.con-zoom[open]') !== null,
+      seatHeld: (() => {
+        const seat = document.querySelector('[data-embed-source-slot]');
+        if (seat === null) {
+          return false;
+        }
+        const lifted = seat.querySelector('.con-zoom-hold') !== null ||
+          seat.classList.contains('con-zoom-hold');
+        return lifted || Number(getComputedStyle(seat).opacity) < 0.5;
+      })(),
+      /**
        * THE COMPOSITION. A seven-card reveal must read as a placed GROUP, not
        * as a strip: distinct row tops, cards big enough to read, and the last
        * row centred under the one above it.
@@ -271,6 +306,9 @@ test.describe('console — «посмотри N карт колоды, оста�
       .toBeGreaterThan(1);
     expect(at.cardW, `the cards are large — ${at.cardW}px at 1920`).toBeGreaterThan(190);
     expect(at.sourceClash, 'no revealed card ever overlaps the source seat').toBe(0);
+    // The shelf yields the stage, but what it still paints must be honest: a
+    // family that holds cards shows an open top face, never a lone crop.
+    expect(at.shelfStripOnly, `no shelf family is reduced to a crop — ${JSON.stringify(at)}`).toBe(0);
     // …and «РАЗЫГРАНО» has YIELDED THE STAGE — kept in the DOM (its stacks and
     // the hero target it registers must survive), but out of the way, so the
     // step gets the whole deployment row rather than its top third.
@@ -290,6 +328,16 @@ test.describe('console — «посмотри N карт колоды, оста�
     // layout has to reserve room for rather than the one it is measured in.
     expect(chosen.sourceClash, 'a focused card still never reaches the source seat').toBe(0);
     await page.screenshot({path: 'test-results/deckpick-02-picked.png'});
+
+    // ── 4b. L3 INSPECTS THE SOURCE — by LIFTING it, never by copying it ──
+    // The viewer used to rise out of nowhere (a TEXTUAL entrance) because the
+    // shared origin resolver only knew the card-actions composer's hero column,
+    // so the seat kept its card and the player saw two of the same card at once.
+    await press(page, 'KeyC', 1400);
+    const zoomed = await surfaces(page);
+    expect(zoomed.zoomOpen, `L3 opens the source fullscreen — ${JSON.stringify(zoomed)}`).toBeTruthy();
+    expect(zoomed.seatHeld, 'the seat is empty while its card is in the viewer').toBeTruthy();
+    await press(page, 'Escape', 900);
 
     // ── 5. CONFIRM → the picks reach the DOCK, then the rest clears ──────
     await press(page, 'Period', 1200); // RT = «Подтвердить»

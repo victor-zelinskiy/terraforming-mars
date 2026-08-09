@@ -436,6 +436,66 @@ being blanked by a stale `awayCard`, so only the strip painted.
 `console-deck-pick.spec.ts` asserts `shelfBlanked === 0` through the whole
 return.
 
+## Iteration 5 — the layout could solve a shape that does not fit (2026-08-09)
+
+### A floor made an infeasible shape win
+
+`wsStageLayout` clamped every candidate with `max(0.42 * ui, raw)` and then
+compared the CLAMPED values. `shapeZoom` already returns the largest zoom a
+shape can afford — so raising a result to a floor is, by definition, asking for
+a card that does not fit. On a 4K profile a seven-card reveal solved three rows
+whose raw zoom was under the floor, got clamped UP to it, out-scored the
+feasible two-row shape, and rendered **cut off at the top AND bottom** with
+nothing to scroll to.
+
+The floor is gone. Only the CEILING remains (a ceiling can only make a shape fit
+better), shapes are compared on the value they will actually render at, and a
+starved band now yields small honest cards instead of cropped ones.
+
+⚠️ One more overflow hid behind it: the gap is solved as a function of the zoom
+(focus headroom) but ALSO has a floor (`MIN_GAP_PX * ui`), and on a tight band
+that floor is the larger of the two — so the row came out wider than the budget
+its zoom was solved against. The zoom is **back-solved** against the gap that
+will actually be used; one pass is exact, because shrinking the zoom can only
+shrink the headroom, at which point the floor dominates and the gap stops
+moving.
+
+Both are fenced by a SWEEP — every `ui` × band × count combination must satisfy
+`usedH <= availH` and `usedW <= availW`. It is the guarantee the whole engine
+exists to make, so it is stated once and checked exhaustively rather than
+sampled.
+
+### The shelf reduced a family to a crop
+
+While an embedded step runs, the card that opened it physically leaves the
+shelf for the step's source seat. If that card happened to be the TOP of its
+family, the top slot rendered with `con-deal-hold` (opacity 0) and the family
+painted nothing but the 31 px depth strip underneath — which reads, correctly,
+as a clipped card, because the only thing rendered WAS a crop.
+
+The pile now shows what is actually on top of it: the card underneath, promoted
+out of the strips at full size. The away card keeps the slot's IDENTITY
+(`topKey`, separate from `topFace` for the first time) so the flight bringing it
+home still has a destination, and the promoted face gives way to it on
+touchdown — the same prev-top handoff the receiving state already performs. A
+family whose ONLY card is the one on loan legitimately shows its prepared place.
+
+### L3 on the source opened a SECOND copy of it
+
+`workspaceSourceZoomOrigin` — the ONE resolver every host is supposed to share —
+only knew the card-actions composer's hero column. In the start workspace it
+resolved to nothing, so the viewer degraded to its TEXTUAL entrance: it rose out
+of nowhere while the seat kept its card, and the player saw two of the same card
+at once. It now falls back to the start host's `[data-embed-source-slot]`, so
+the card LIFTS out of whichever seat is holding it and that slot is held empty
+for the trip. Fenced: `zoomOpen && seatHeld` while the viewer is up.
+
+### Timing
+
+`travelMs` 620 → 700 and `settleMs` 130 → 150. With the cascade from iteration 4
+the last of seven cards leaves at ~390 ms and the batch settles around 1.4 s:
+brisk for two cards, unhurried for seven, and the same numbers for both.
+
 ## The crumb
 
 `deploymentCrumb`'s embed subject is the **source card itself** now, not its

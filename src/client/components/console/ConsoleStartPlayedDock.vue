@@ -82,11 +82,12 @@
           <div class="con-splayed__top"
                :class="{'con-splayed__top--empty': fam.topFace === undefined, 'con-splayed__top--armed': fam.receiving && !revealed}"
                :data-start-front="fam.receiving && !revealed ? '' : undefined"
-               :data-played-key="fam.topFace"
-               :data-zoom-slot="fam.topFace"
+               :data-played-key="fam.topKey"
+               :data-zoom-slot="fam.topKey"
                :style="{height: plan.cardH + 'px'}">
             <div v-if="fam.topFace !== undefined" class="con-splayed__face"
                  :class="{'con-deal-hold': awayCard === fam.topFace}"
+                 data-splayed-topface
                  :key="fam.topFace" :style="{zoom: String(plan.zoom)}">
               <ConsolePlayedCardLite :name="fam.topFace" keep-art />
             </div>
@@ -132,6 +133,14 @@ type StartPlayedFamily = {
   prevTop: CardName | undefined,
   /** The face lying OPEN in the top slot (undefined = the prepared place). */
   topFace: CardName | undefined,
+  /**
+   * The slot's IDENTITY, which is not always the face it is showing: while the
+   * top card is out on loan to an embedded step's source seat, the card
+   * UNDERNEATH is promoted into the slot and the away card keeps the key — so
+   * the flight bringing it home still has a destination, and the promoted face
+   * gives way to it on touchdown.
+   */
+  topKey: CardName | undefined,
   receiving: boolean,
 };
 
@@ -214,10 +223,32 @@ export default defineComponent({
           .filter((n) => n !== incoming);
         const receiving = receivingKey === key;
         const top = lying.length > 0 ? lying[lying.length - 1] : undefined;
-        const rest = lying.slice(0, Math.max(0, lying.length - 1));
+        let rest = lying.slice(0, Math.max(0, lying.length - 1));
+        /*
+         * THE TOP IS OUT ON LOAN. While an embedded step runs, the card that
+         * opened it physically leaves this shelf for the step's source seat —
+         * and if it happened to be the top of its family, the top slot was
+         * rendered with `con-deal-hold` (opacity 0) and the family showed
+         * nothing but the 31 px depth strip beneath it. That reads, correctly,
+         * as a clipped card: the only thing painted WAS a crop.
+         *
+         * The pile shows what is actually on top of it — the card underneath,
+         * at full size, promoted out of the strips. The away card keeps the
+         * slot's IDENTITY (`topKey`) so its return flight still lands exactly
+         * where it left, and the promoted face gives way to it on touchdown:
+         * the same prev-top handoff the receiving state already performs.
+         */
+        const topAway = top !== undefined && top === this.awayCard && !receiving;
+        const promoted = topAway ?
+          (rest.length > 0 ? rest[rest.length - 1] : undefined) :
+          undefined;
+        if (topAway) {
+          rest = rest.slice(0, Math.max(0, rest.length - 1));
+        }
         // While receiving, the lying top moves onto its FUTURE strip and the
         // top slot becomes the front anchor (empty until the reveal fills it).
-        const topFace = receiving ? (this.revealed ? incoming : undefined) : top;
+        const topFace = receiving ? (this.revealed ? incoming : undefined) :
+          (topAway ? promoted : top);
         return {
           key,
           label: PLAYED_CATEGORY_LABEL[key],
@@ -225,6 +256,9 @@ export default defineComponent({
           strips: rest.slice(Math.max(0, rest.length - STRIP_CAP)),
           prevTop: top,
           topFace,
+          // The slot's ANCHOR — the away card, so the flight that brings it
+          // home has a destination even while another face occupies the slot.
+          topKey: receiving ? topFace : (topAway ? top : topFace),
           receiving,
         };
       };

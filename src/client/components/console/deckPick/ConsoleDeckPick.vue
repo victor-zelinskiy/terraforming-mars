@@ -159,7 +159,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {cardsResponse} from '@/client/console/taskResponses';
-import {markWorkspaceOutcomeArrivalDone, setWorkspaceOutcomePhase} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeArrivalDone, setWorkspaceOutcomePhase, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {hydroDrawState, isHydroDrawClaimed} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {
   armDeckPickFlight, beginDeckPickChoosing, beginDeckPickClearing, beginDeckPickDeal,
@@ -880,12 +880,10 @@ export default defineComponent({
       openConsoleCardZoom([model as CardModel], 0, undefined, undefined, {
         contextLabel: 'Card draw',
         statusLabel: 'Source',
-        origin: {
-          kind: 'physical',
-          resolve: () => (typeof document === 'undefined' ? null :
-            document.querySelector<HTMLElement>(
-              '[data-embed-source-slot] :is(.card-container, .pcard)')),
-        },
+        // ONE resolver for every host that offers L3 Источник — the same one
+        // the reveal uses, so the card lifts out of whichever seat is holding
+        // it and its slot is held empty for the trip.
+        origin: workspaceSourceZoomOrigin(String(card)),
       });
     },
 

@@ -106,7 +106,11 @@ export type CardArrivalTimings = {
 export function cardArrivalTimings(): CardArrivalTimings {
   return {
     peelMs: 130,
-    travelMs: 620,
+    // Long enough that a SEVEN-card draw reads as seven journeys rather than
+    // one gust: with the cascade above, the last card leaves at ~390 ms and
+    // the batch settles around 1.4 s — brisk for two cards, unhurried for
+    // seven, and the same number for both.
+    travelMs: 700,
     stepMs: 92,
     // The gap tightens per card so a big batch does not grow into a queue —
     // but at 0.7 it collapsed: seven cards launched across 271 ms total, four
@@ -120,7 +124,7 @@ export function cardArrivalTimings(): CardArrivalTimings {
     // before.
     flipAt: 0.32,
     flipSpan: 0.62,
-    settleMs: 130,
+    settleMs: 150,
     holdRevealStepMs: 90,
     turnMs: 460,
     dwellMs: 340,
