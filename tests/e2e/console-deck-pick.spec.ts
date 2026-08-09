@@ -115,6 +115,17 @@ async function surfaces(page: Page) {
         }
         return {mounted: true, opacity: Number(getComputedStyle(el).opacity)};
       })(),
+      /**
+       * A card in «РАЗЫГРАНО» painted at less than full strength. The shelf
+       * blanks a slot behind `awayCard` while its card is out in the step's
+       * source seat — legitimate DURING the step, a bug once the step is over:
+       * a settle that never reached the line clearing `embedSourceShown` left
+       * the family showing nothing but its peek strip.
+       */
+      shelfBlanked: Array.from(document.querySelectorAll('.con-start__played [data-zoom-slot]'))
+        .filter((el) => Number(getComputedStyle(el).opacity) < 0.5).length,
+      /** The source seat — must be GONE once the card has flown home. */
+      sourceSeatUp: document.querySelector('.con-start__embedsource') !== null,
       /** How much of the deployment row the step actually got. */
       stageH: Math.round(document.querySelector('.con-deckpick__frame')?.getBoundingClientRect().height ?? 0),
       played: Array.from(document.querySelectorAll('.con-start__played [data-played-key]'))
@@ -264,5 +275,81 @@ test.describe('console — «посмотри N карт колоды, оста�
     // …which it could only do because the shelf came back FIRST: the card's
     // continuation flight measures a slot inside it.
     expect(back.dockShelf.opacity, 'the played shelf is back at full strength').toBeGreaterThan(0.9);
+    expect(back.shelfBlanked, `no card is left blanked on the shelf — ${JSON.stringify(back)}`).toBe(0);
+    expect(back.sourceSeatUp, 'the source seat is gone once its card flew home').toBeFalsy();
+  });
+
+  /**
+   * THE LAST PRELUDE. `deploymentSettled` used to go true the moment the claim
+   * released — a beat BEFORE the source card leaves its seat for «РАЗЫГРАНО» —
+   * so on the last prelude the scene dissolved straight to the board and the
+   * card's own play animation never ran. The same early release is what left
+   * the shelf holding a blanked slot behind an `awayCard` nobody cleared, so
+   * this one probe covers both reports.
+   */
+  test('the LAST prelude still plays its card home before the scene lets go', async ({page, request}) => {
+    test.setTimeout(300_000);
+    const created = await request.post('/api/creategame', {
+      // Exactly two on offer, so the archives are necessarily one of the two
+      // played — and the run below plays every prelude, ending on the last.
+      data: cfg({preludes: ['Corporate Archives', 'Metals Company']}),
+    });
+    expect(created.ok(), 'game created').toBeTruthy();
+    const game = await created.json();
+
+    await page.setViewportSize({width: 1920, height: 1080});
+    await page.goto(`/player?id=${game.players[0].id}&console=1`);
+    await reachDeployment(page);
+
+    // Play everything the deployment offers, answering the archives' pick when
+    // it comes up — and WATCH the shelf the whole way. The contract is about a
+    // moment, not an end state: the card must be seen ON the shelf, painted,
+    // while the workspace is still standing. (Asserting after the scene has
+    // released proves nothing — the shelf has gone with it.)
+    let sawHomeInWorkspace = false;
+    let sawBlanked = false;
+    const watch = async () => {
+      const s = await surfaces(page);
+      if (s.startUp && s.dockShelf.mounted) {
+        if (s.played.includes('Corporate Archives') && s.shelfBlanked === 0 && !s.pickUp) {
+          sawHomeInWorkspace = true;
+        }
+        if (s.shelfBlanked > 0 && !s.pickUp && !s.sourceSeatUp) {
+          sawBlanked = true; // a blanked slot with nothing out on loan
+        }
+      }
+      return s;
+    };
+
+    for (let round = 0; round < 24; round++) {
+      const at = await watch();
+      if (at.pickUp) {
+        if (await waitPickable(page)) {
+          await press(page, 'Enter', 400);
+          await press(page, 'ArrowRight', 300);
+          await press(page, 'Enter', 400);
+          await press(page, 'Period', 1500); // RT — confirm the keep
+        }
+        // Sample densely through the whole return: this is the window the
+        // scene used to skip straight past.
+        for (let f = 0; f < 30; f++) {
+          await watch();
+          await page.waitForTimeout(250);
+        }
+        continue;
+      }
+      if (!at.startUp) {
+        break; // the scene released — the deployment is over
+      }
+      await press(page, 'Enter', 1400);
+      await watch();
+    }
+    await page.screenshot({path: 'test-results/deckpick-05-last.png'});
+
+    expect(sawHomeInWorkspace,
+      '«Корпоративные архивы» visibly reached «РАЗЫГРАНО» while the workspace still stood')
+      .toBeTruthy();
+    expect(sawBlanked, 'the shelf never held a blanked slot with nothing out on loan').toBeFalsy();
+    expect((await surfaces(page)).sourceSeatUp, 'no orphaned source seat survives').toBeFalsy();
   });
 });

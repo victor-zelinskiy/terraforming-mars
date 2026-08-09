@@ -900,6 +900,11 @@
          (consoleDeckDraw.ts / deckDrawDirector.ts). -->
     <ConsoleDeckDrawLayer :player-view="playerView" />
 
+    <!-- The DRAW & SELECT flight stage. App level for the same reason every
+         other flight stage is: a fixed-position proxy inside a teleported
+         surface resolves against whatever ancestor is animating. -->
+    <ConsoleDeckPickLayer />
+
     <!-- The PATENT-SALE trade-terminal stage — the sold cards flip to their
          backs, sink into the terminal's slit, and the dispensed M€ chip
          arcs onto the resource rail; the commit lands at its touchdown
@@ -1179,6 +1184,7 @@ import ConsoleFinalGreenery from '@/client/components/console/ConsoleFinalGreene
 import {buildFinalGreenery, EYEBROW as FINAL_GREENERY_EYEBROW, FinalGreeneryViewModel} from '@/client/console/finalGreenery/finalGreeneryModel';
 import ConsoleProductionLoss from '@/client/components/console/ConsoleProductionLoss.vue';
 import ConsoleDeckPick from '@/client/components/console/deckPick/ConsoleDeckPick.vue';
+import ConsoleDeckPickLayer from '@/client/components/console/deckPick/ConsoleDeckPickLayer.vue';
 import {deckPickHolding, resetDeckPick} from '@/client/console/deckPick/consoleDeckPick';
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
@@ -1480,6 +1486,7 @@ export default defineComponent({
     ConsoleFinalGreenery,
     ConsoleProductionLoss,
     ConsoleDeckPick,
+    ConsoleDeckPickLayer,
     ConsoleSpendHeat,
     ConsoleVenusBonus,
     ConsoleAresGlobals,
@@ -2847,7 +2854,33 @@ export default defineComponent({
      * never double-signal.
      */
     mandatoryChipAttention(): boolean {
-      return (this.mandatoryGateHeld || this.mandatoryDeferredActive) && !this.mandatoryAnnounceVisible;
+      return (this.mandatoryGateHeld || this.mandatoryDeferredActive) &&
+        !this.mandatoryAnnounceVisible &&
+        !this.promptServedWhereIStand;
+    },
+    /**
+     * IS THE PLAYER STANDING WHERE THE PROMPT IS ANSWERED?
+     *
+     * The attention beacon reads «you owe a decision and it is NOT on the
+     * screen you are looking at». It used to derive that by NEGATING a
+     * rendering condition (`!mandatoryAnnounceVisible`) — and everything in
+     * that condition which is not about location (`!isAnimationHoldActive()`,
+     * `!presentationHeld`, `consoleRevealMode === undefined`, …) therefore
+     * became a reason to raise the alarm. An embedded reveal / draw / pick
+     * inside a workspace lights up every one of them, so the chip flashed
+     * amber while the player was looking straight at the decision.
+     *
+     * Two honest signals, both already maintained:
+     *  · `shellTaskOnSurface` — for the shell-section kinds it covers;
+     *  · a PRESENTING workspace claim — the surface is teleported into the
+     *    workspace the player is standing in, which is the definition of
+     *    «here». (The start workspace projects onto neither navigation axis,
+     *    so `section` cannot answer this and never could.)
+     */
+    promptServedWhereIStand(): boolean {
+      return this.shellTaskOnSurface ||
+        (workspaceOutcomeState.host !== undefined &&
+          workspaceOutcomeState.stage === 'presenting');
     },
     /** The prompt card's copy (one consoleTaskSummary source, so nothing can
      *  diverge). The A-verb relabels by STATE: «Открыть» for a fresh held
@@ -8724,6 +8757,18 @@ export default defineComponent({
       // stage that no longer serves.
       if (this.taskEmbedTarget !== undefined) {
         this.onCardActionsCollapse();
+        return;
+      }
+      // …and so does an embedded DRAW & SELECT: B on a nested step minimizes
+      // the workspace HOSTING it, never the step alone. Which collapse that is
+      // depends on the host — the action centre has its own atomic one; every
+      // other workspace parks its whole stack, exactly as its own B does.
+      if (this.deckPickEmbedTarget !== undefined) {
+        if (workspaceOutcomeState.host === 'card-actions') {
+          this.onCardActionsCollapse();
+        } else {
+          this.collapseWorkspace();
+        }
         return;
       }
       this.consoleState.task.deferred = true;

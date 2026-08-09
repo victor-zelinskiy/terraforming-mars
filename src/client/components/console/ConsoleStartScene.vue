@@ -446,8 +446,12 @@
                  geometry, face away — one visual owner), presides over the
                  draw, and SETTLES back into the stack on release. -->
             <div class="con-start__embed" data-embed-slot="start"
-                 :class="{'con-start__embed--live': embedActive || sponsorStep}">
-              <div v-if="embedSourceShown !== undefined" class="con-start__embedsource" ref="embedSourceCol">
+                 :class="{
+                   'con-start__embed--live': embedActive || sponsorStep,
+                   'con-start__embed--sourced': embedSourceShown !== undefined,
+                 }">
+              <div v-if="embedSourceShown !== undefined" class="con-start__embedsource" ref="embedSourceCol"
+                   :class="{'con-start__embedsource--departing': embedSourceDeparting}">
                 <span class="con-start__embedsource-cap">{{ $t('Source') }}</span>
                 <div class="con-start__embedsource-card"
                      :class="{'con-deal-hold': embedSourceArriving}"
@@ -792,6 +796,9 @@ export default defineComponent({
       /** The played shelf has receded for an embedded step (its own half of
        *  the deployment's release — see `runPlayedDockRelease`). */
       playedDockReleased: false,
+      /** The source card is LEAVING its seat for «РАЗЫГРАНО» — the caption
+       *  dissolves with the departure, never after it. */
+      embedSourceDeparting: false,
       /** In-flight / done prefetches (never re-request the same card). */
       rewardFetched: new Set<CardName>(),
       /** The played-hero transaction (module reactive — the queue and the
@@ -1224,6 +1231,16 @@ export default defineComponent({
       // to throw the player onto a bare board (or, worse, close the last
       // prelude's workspace before its own effect had run).
       return !this.sponsorPending &&
+        // …and neither is a prelude whose effect has resolved but whose CARD is
+        // still on its way home. The claim releases the moment the server stops
+        // asking, which is a beat BEFORE the source card leaves its seat for
+        // «РАЗЫГРАНО» and the two halves of the deployment breathe back. Letting
+        // the scene go there produced two reported bugs at once, and they were
+        // the same bug: on the LAST prelude the card's play animation never ran
+        // (the board simply appeared), and on every prelude the shelf kept a
+        // blanked top slot — `awayCard` still naming a card whose settle never
+        // reached the line that clears it, so only the peek strip painted.
+        !this.effectReturnPending &&
         this.corpPlayPrompt === undefined &&
         this.corpPayCost === undefined &&
         this.candidatePrompt === undefined &&
@@ -1237,6 +1254,20 @@ export default defineComponent({
         this.queueCards.length === 0 &&
         this.payProjects.length === 0 &&
         this.queueArriving.size === 0;
+    },
+    /**
+     * THE EFFECT'S RETURN IS STILL OWED — the source card has not finished its
+     * journey into «РАЗЫГРАНО», or a half of the deployment is still receded.
+     *
+     * A separate question from `embedActive`: that one is about the SERVER
+     * (is the effect still asking?), this one is about the SCREEN (has what
+     * the effect started finished moving?). The scene may only dissolve when
+     * both are answered.
+     */
+    effectReturnPending(): boolean {
+      return this.embedSourceShown !== undefined ||
+        this.queueReleased ||
+        this.playedDockReleased;
     },
     /** The preludes already ON the authoritative tableau. */
     playedPreludes(): ReadonlyArray<CardName> {
@@ -2064,6 +2095,18 @@ export default defineComponent({
      *  unmount): the main scene RETURNS first, then the source card carries
      *  on into «Разыграно» (the second half of its interrupted journey). */
     'embedActive'(now: boolean, was: boolean) {
+      if (now && !was) {
+        // THE RELEASE IS GUARANTEED HERE, not only on the hero's `depart`
+        // beat. Both halves are latch-guarded, so this is a no-op when the
+        // beat already ran — but when it did NOT (a claim that arrives without
+        // a hero flight, a beat that skipped straight past `staged`) nothing
+        // ever receded, and the deployment then had no return to play: the
+        // step simply unmounted and the queue reappeared in a single frame.
+        // A scene that is asked to come back must have gone away first.
+        this.runQueueRelease();
+        this.runPlayedDockRelease();
+        return;
+      }
       if (!now && was) {
         void this.runStartEffectReturn();
       }
@@ -4019,6 +4062,7 @@ export default defineComponent({
       this.embedSourceShown = undefined;
       this.embedSourceArriving = false;
       this.embedSourceLanded = false;
+      this.embedSourceDeparting = false;
       if (this.outcome.host === 'start') {
         releaseWorkspaceOutcome();
       }
@@ -4034,9 +4078,15 @@ export default defineComponent({
       if (source === undefined) {
         return;
       }
+      // The caption goes FIRST and on its own beat: «ИСТОЧНИК» names a card
+      // that is about to leave, and a label outliving its subject is the
+      // loudest kind of leftover state. Set before anything is measured, so
+      // the dissolve overlaps the flight instead of following it.
+      this.embedSourceDeparting = true;
       if (!this.embedSourceLanded) {
         this.embedSourceShown = undefined;
         this.embedSourceArriving = false;
+        this.embedSourceDeparting = false;
         return;
       }
       const root = this.$el as HTMLElement | undefined;
@@ -4056,6 +4106,7 @@ export default defineComponent({
       this.embedSourceShown = undefined;
       this.embedSourceArriving = false;
       this.embedSourceLanded = false;
+      this.embedSourceDeparting = false;
     },
     /**
      * The play's FOLLOW-UP claim: a start card that DRAWS other cards hosts
@@ -4077,6 +4128,7 @@ export default defineComponent({
       this.embedSourceShown = name;
       this.embedSourceArriving = true;
       this.embedSourceLanded = false;
+      this.embedSourceDeparting = false;
     },
     /**
      * The starting-cards DELIVERY (handDeliveryDirector). Fire on the payment

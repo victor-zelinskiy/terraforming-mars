@@ -246,6 +246,103 @@ workspace claim can match. The one board source that IS a colony (Pluto's build
 bonus) is carved out by asking the bonus scene itself
 (`boardCardBonusClaimsReveal`).
 
+## Iteration 3 — the production polish pass (2026-08-09)
+
+Eight reports, and they resolved into five root causes. Recorded because four
+of them are general and will bite the next flow that does this.
+
+### 1. The cards flew in FROM THE RIGHT EDGE, not off the deck
+
+A `position: fixed` proxy resolves against the nearest ancestor that
+establishes a containing block — and the surface is TELEPORTED into a host's
+zone. The start workspace's embed zone runs a 260 ms arrival `animation`, and an
+animating `transform` contains fixed descendants for its whole duration; that is
+exactly the window the deal launches in. Every coordinate therefore carried the
+zone's own offset, so «the deck's position» rendered off the right edge.
+
+**The flight layer is APP LEVEL** (`ConsoleDeckPickLayer`, mounted by the
+shell), like every other flight stage in the console. The surface names the
+faces (`armDeckPickFlight`) and reads the bodies back (`deckPickProxyEls`); it
+never hosts them. *Rule: a flight stage inside a teleported surface is a bug,
+however correct the coordinates are.*
+
+### 2. The step was NARROWED by its own source card
+
+The source seat was a flex SIBLING, so showing it pushed the step right: its
+header and status line started where the source ended, visibly inset against the
+workspace's own status rail directly below them, and the cards lost that width.
+The seat is now **absolutely placed** and only the CARD ROW steps around it,
+through `--con-ws-stage-inset` on the shared row — and because the fit already
+subtracts the row's padding, the solved card size follows for free.
+
+*Rule: context must not shrink the thing it is context for.*
+
+### 3. A committed pose added MATERIAL
+
+`.con-deckpick--sending/--clearing` re-declared `box-shadow` after the
+`--embedded` block, so confirming drew a rectangle around a step that has no
+plate of its own. Scoped to standalone. *Rule: a committed pose may change
+WEIGHT; it may never add material.*
+
+### 4. The deployment let go before the effect's return had played
+
+`deploymentSettled` keyed on `embedActive` — the SERVER question («is the effect
+still asking?») — and went true a beat before the SCREEN question («has what the
+effect started finished moving?»). Two reported bugs, one cause:
+
+* on the LAST prelude the scene dissolved straight to the board and the card's
+  play animation never ran;
+* on every prelude the shelf kept a **blanked** slot: `awayCard` still naming a
+  card whose settle never reached the line that clears it, so the family painted
+  nothing but its peek strip.
+
+`effectReturnPending` (source card still seated, or either half of the
+deployment still receded) is now part of the gate. Fenced by
+`console-deck-pick.spec.ts` § «the LAST prelude still plays its card home».
+
+Two supporting fixes: the RELEASE is now guaranteed on the `embedActive` rising
+edge (it hung off the hero's `depart` beat, and a claim that arrived without one
+left nothing receded — so there was no return to play and the queue reappeared
+in a single frame), and `measureFrontAnchor` refuses to settle on a RECEDED
+shelf (a hidden element is still laid out, so its rect is real, stable, and
+1.5 % wrong — the stability loop could not tell «settled» from «settled in the
+parked pose»).
+
+### 5. The attention beacon fired where the prompt WAS served
+
+`mandatoryChipAttention` derived «you are not where the decision is» by NEGATING
+a rendering condition (`!mandatoryAnnounceVisible`) — so everything in that
+condition which is not about location (`!isAnimationHoldActive()`,
+`!presentationHeld`, `consoleRevealMode === undefined`, …) became a reason to
+raise the alarm. An embedded reveal / draw / pick lights up every one of them,
+so the chip flashed amber while the player looked straight at the decision.
+
+`promptServedWhereIStand` states the positive fact instead: `shellTaskOnSurface`
+for the kinds it covers, plus a PRESENTING workspace claim — the surface is
+teleported into the workspace the player is standing in, which is the definition
+of «here». (The start workspace projects onto neither navigation axis, so
+`section` could never have answered this.)
+
+*Rule: never derive «where the player is» by negating a rendering condition.*
+
+### Also in this pass
+
+* **B «свернуть» and L3 «источник» are offered EMBEDDED.** B minimizes the
+  HOSTING workspace — the documented verb for a nested step, and the same thing
+  the start scene's own B does one level up, so the button never changes meaning
+  as the player descends. L3 lifts the host's real source card (a physical
+  origin), matching what the reveal beside it already offered.
+* **«ИСТОЧНИК» dissolves with the departure**, not after it: the caption is set
+  `--departing` before anything is measured, so the fade overlaps the flight.
+* **The wrap cap.** `wsStageLayout` publishes `--con-ws-stage-rowmax`, because
+  `flex-wrap` breaks on the available width and a height-bound zoom then fits
+  more per line than the chosen shape has (7 planned as 4+3 wrapped as 6+1) —
+  and the fit RESETS that property before measuring, or the second pass reads
+  the first pass's choice.
+* **The embedded reveal fills its zone.** It was `align-self: center` in a flex
+  zone, so it shrink-wrapped to its card; the zone is a block now and the step
+  gets `width/height: 100%`.
+
 ## The crumb
 
 `deploymentCrumb`'s embed subject is the **source card itself** now, not its

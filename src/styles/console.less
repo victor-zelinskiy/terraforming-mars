@@ -515,7 +515,11 @@ body.con-zoom-open .con-journal {
        growth + the −.2rem lift + the pick band that hangs above it) — the
        layout deliberately does NOT reserve that in the height budget, because
        this is where it lives. Anything more is height stolen from the cards. */
-    padding: 1.3rem .8rem .7rem;
+    /* The left inset is the HOST's (a compact source seat parked at the left
+       of its zone). It rides the PADDING on purpose: the fit engine already
+       subtracts the row's own padding, so the cards step around the seat and
+       the solved card size follows with no extra plumbing. */
+    padding: 1.3rem .8rem .7rem calc(.8rem + var(--con-ws-stage-inset, 0px));
 }
 /* The stage's focus emphasis is DELIBERATELY smaller than the hand/draft
    carousel's: on a stage the neighbours are the same decision, so the focused
@@ -15652,35 +15656,54 @@ body.con-start-barshold .con-status {
     /* A STEP, not a modal: the source column left + the received cards right
        share one row; the reveal's chassis is capped to a step-sized room
        (the zone is the room — a full-height fit read as a fullscreen modal). */
+    /* THE STEP GETS THE WHOLE ZONE. The source card used to be a flex
+       SIBLING, so showing it NARROWED the step: its header and its status line
+       started where the source ended, visibly inset against the workspace's own
+       status rail right below them, and the cards lost that width for no reason
+       the player can see. The source is a COMPACT SEAT now — absolutely placed
+       at the left — and only the CARD ROW steps around it, through the shared
+       `--con-ws-stage-inset` (the fit already subtracts the row's padding, so
+       the solved card size follows for free). */
     &__embed {
-        flex-direction: row;
-        align-items: center;
-        /* flex-START: the source column takes its left seat from its very
-           first frame — the reveal's later arrival must never re-center an
-           element the player is already looking at. */
-        justify-content: flex-start;
-        gap: 1.1rem;
+        display: block;
 
-        > .con-reveal {
-            flex: 1;
-            min-width: 0;
+        > :is(.con-reveal, .con-deckpick) {
+            width: 100%;
+            height: 100%;
             /* The zone IS the main scene while the effect runs (the queue has
-               genuinely released) — the reveal gets the whole room. */
+               genuinely released) — the step gets the whole room. */
             max-height: 100%;
-            align-self: center;
         }
+    }
+    /* The seat's own width plus breathing room, published for the row inset —
+       and ONLY while a source is actually shown, so a step without one uses
+       the full width exactly as it should. */
+    &__embed--sourced {
+        --con-ws-stage-inset: calc(320px * 0.5 * var(--con-ui-scale, 1) + 1.7rem);
     }
     /* THE SOURCE COLUMN — the card that caused the draw, kept in the step
        (it physically emerged from the dock stack and returns there). */
+    /* THE SOURCE SEAT — absolutely placed, so it costs the step no width: it
+       is CONTEXT, and context must not shrink the thing it is context for. */
     &__embedsource {
-        flex: 0 0 auto;
+        position: absolute;
+        left: .4rem;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 2;
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: .35rem;
-        padding-left: .4rem;
+    }
+    /* The caption DISSOLVES the moment the card leaves for «РАЗЫГРАНО»: a
+       label for a card that is no longer there is the loudest leftover state
+       there is, and the seat is empty for the whole flight. */
+    &__embedsource--departing &__embedsource-cap {
+        opacity: 0;
     }
     &__embedsource-cap {
+        transition: opacity calc(220ms * var(--motion-scale, 1)) ease;
         font-size: .6rem;
         font-weight: 700;
         letter-spacing: .12em;

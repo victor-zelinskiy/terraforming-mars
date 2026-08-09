@@ -107,11 +107,20 @@
    fade out or fold: the cards are still standing in it and two of them are
    about to fly out, so the frame has to hold perfectly still while its
    contents leave. All that changes is the reading weight. */
-.con-deckpick--sending .con-deckpick__frame,
-.con-deckpick--clearing .con-deckpick__frame {
-    box-shadow:
-        inset 0 0 0 .05rem rgba(120, 160, 200, 0.14),
-        0 1.4rem 3.2rem rgba(0, 0, 0, 0.62);
+/* WARNING: STANDALONE ONLY. This dims the frame's own plate — embedded there
+   IS no plate (the workspace frame is already drawn around the step), and
+   re-declaring `box-shadow` here brought one back the moment the player
+   confirmed: a rectangle appeared around the step out of nowhere, and it was
+   also what made the step's status line read as inset against the workspace's
+   own rail right below it. A committed pose may change WEIGHT; it must never
+   add material. */
+.con-deckpick:not(.con-deckpick--embedded) {
+    &.con-deckpick--sending .con-deckpick__frame,
+    &.con-deckpick--clearing .con-deckpick__frame {
+        box-shadow:
+            inset 0 0 0 .05rem rgba(120, 160, 200, 0.14),
+            0 1.4rem 3.2rem rgba(0, 0, 0, 0.62);
+    }
 }
 
 /* ── THE VEIL (the Delta science stage) ──────────────────────────────────
@@ -133,7 +142,13 @@
    Below the command bar (11700) and the hand dock (11703+) on purpose: a card
    arriving at the dock dives BEHIND the tray plate, exactly as every other
    intake in the console does. */
-.con-deckpick__fly {
+/* WARNING: mounted by the SHELL, never by the surface. A `position: fixed`
+   proxy inside a TELEPORTED surface resolves against whatever ancestor happens
+   to establish a containing block — and the start workspace's embed zone runs
+   a 260 ms arrival `animation`, which is exactly the window the deal launches
+   in. Every coordinate then carried the zone's own offset, and the cards flew
+   in from the RIGHT EDGE of the screen instead of off the deck. */
+.con-deckpick-fly {
     position: fixed;
     inset: 0;
     pointer-events: none;

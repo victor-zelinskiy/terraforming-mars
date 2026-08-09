@@ -82,23 +82,10 @@
       </div>
     </div>
 
-    <!-- THE DEAL. One physical card object per revealed card, born on the deck
-         pile and flying to its own slot — the real cards below stay held
-         (invisible, laid out) until the handoff swaps them in under the
-         proxies. Same chassis and same director as every other batch in the
-         console (`runBatchArrival` + `.con-deal-proxy`). -->
-    <div v-if="flyOn" class="con-deckpick__fly" aria-hidden="true">
-      <div v-for="entry in entries" :key="'p' + entry.name" class="con-deal-proxy" ref="proxies">
-        <div class="con-deal-proxy__flip" ref="flips">
-          <div class="con-deal-proxy__face">
-            <ConsoleCardFaceLite :name="entry.name" />
-          </div>
-          <div class="con-deal-proxy__back">
-            <div class="con-card-back con-card-back--flyer"></div>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- (THE DEAL's bodies live in the APP-LEVEL `ConsoleDeckPickLayer` — a
+         `position: fixed` proxy inside a TELEPORTED surface resolves against
+         whatever ancestor happens to be animating, which is how the cards
+         ended up flying in from the right edge instead of off the deck.) -->
   </div>
 </template>
 
@@ -149,7 +136,6 @@ import {defineComponent, markRaw, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
-import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import {Message} from '@/common/logs/Message';
@@ -175,8 +161,9 @@ import {cardsResponse} from '@/client/console/taskResponses';
 import {markWorkspaceOutcomeArrivalDone, setWorkspaceOutcomePhase} from '@/client/console/consoleWorkspaceOutcome';
 import {hydroDrawState, isHydroDrawClaimed} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {
-  beginDeckPickChoosing, beginDeckPickClearing, beginDeckPickDeal, beginDeckPickSend,
-  deckPickState, endDeckPickCommit, rollbackDeckPickCommit,
+  armDeckPickFlight, beginDeckPickChoosing, beginDeckPickClearing, beginDeckPickDeal,
+  beginDeckPickSend, clearDeckPickFlight, deckPickProxyEls, deckPickState,
+  endDeckPickCommit, rollbackDeckPickCommit,
 } from '@/client/console/deckPick/consoleDeckPick';
 import {motionMs} from '@/client/components/motion/motionTokens';
 
@@ -209,7 +196,7 @@ export default defineComponent({
   // `console-source-dock` is registered GLOBALLY (main.ts) — deliberately not a
   // local import: it renders the real premium card face, and that import chain
   // zeroes this file's mochapack spec.
-  components: {Card, ConsoleWsHead, ConsoleWsStageHead, ConsoleCardFaceLite},
+  components: {Card, ConsoleWsHead, ConsoleWsStageHead},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** Teleported into a host workspace's zone → no shell of its own. */
@@ -220,7 +207,7 @@ export default defineComponent({
     return {
       focusIdx: 0,
       picks: [] as Array<CardName>,
-      /** The deal is on screen — proxies are mounted and flying. */
+      /** The deal is on screen — the app-level layer holds the bodies. */
       flyOn: false,
       /** Names still owned by a proxy (the real slot stays held under it). */
       held: new Set<string>(),
@@ -416,9 +403,12 @@ export default defineComponent({
         {control: 'secondary', label: 'Inspect'},
       ];
       // Console-wide grammar: L3 opens the SOURCE that produced what is on
-      // screen. Only offered standalone — embedded, the host already shows its
-      // source card beside the row and owns that verb.
-      if (!this.embedded && this.sourceView?.inspectable === true) {
+      // screen. Offered EMBEDDED too — the host shows the card, but showing is
+      // not reading: the whole point of the seat is that this draw came from
+      // that card, and the player must be able to open it without leaving.
+      // (It was suppressed here while the reveal beside it offered it, so the
+      // same verb existed on one step of the flow and not the next.)
+      if (this.sourceView?.inspectable === true) {
         cmds.push({control: 'stickL', label: 'Source', priority: 1});
       }
       if (!single) {
@@ -426,14 +416,14 @@ export default defineComponent({
         // droppable standing when the bar has to shed hints for fit.
         cmds.push({control: 'triggerR', label: 'Confirm', enabled: this.ready, priority: 0});
       }
-      // MINIMIZE is only offered where there is something to minimize TO. A
-      // step hosted inside a workspace has no board to go and look at (the
-      // start workspace is full-bleed and its own B is blocked for exactly the
-      // same reason), and advertising a verb whose only outcome is an
-      // unreachable restore card is how a flow soft-locks.
-      if (!this.embedded) {
-        cmds.push({control: 'back', label: 'Minimize'});
-      }
+      // B = MINIMIZE, always. Embedded it minimizes THE HOSTING WORKSPACE —
+      // the documented verb for a nested step, and the very same thing the
+      // start scene's own B does one level up, so the button never changes
+      // meaning as the player descends. (It was withheld here on the theory
+      // that a full-bleed host has nowhere to go; but the host itself offers
+      // «B СВЕРНУТЬ», so all withholding it achieved was a step where B
+      // silently did nothing.)
+      cmds.push({control: 'back', label: 'Minimize'});
       return cmds;
     },
   },
@@ -505,6 +495,7 @@ export default defineComponent({
     }
     this.handle?.kill();
     this.handle = undefined;
+    clearDeckPickFlight();
     releaseDeckDisplay();
     this.ro?.disconnect();
     this.ro = undefined;
@@ -544,6 +535,8 @@ export default defineComponent({
         return;
       }
       this.flyOn = true;
+      // The bodies are the APP-LEVEL layer's; we only name the faces.
+      armDeckPickFlight(names);
       // FREEZE the HUD deck counter at its pre-draw value: the server's answer
       // has already decremented it, so without this the number changes before
       // anything has physically left the pile — the opposite of the causal
@@ -564,12 +557,11 @@ export default defineComponent({
       if (!this.flyOn || this.handle !== undefined) {
         return;
       }
-      const proxies = asElements(this.$refs.proxies);
-      const flips = asElements(this.$refs.flips);
+      const proxies = deckPickProxyEls();
       const slots = asElements(this.$refs.slots);
       const cards = proxies
-        .map((proxy, i) => ({proxy, flip: flips[i]}))
-        .filter((c): c is {proxy: HTMLElement, flip: HTMLElement} => c.flip !== undefined);
+        .map((proxy) => ({proxy, flip: proxy.querySelector<HTMLElement>('.con-deal-proxy__flip')}))
+        .filter((c): c is {proxy: HTMLElement, flip: HTMLElement} => c.flip !== null);
       if (cards.length === 0 || slots.length === 0) {
         this.finishDeal();
         return;
@@ -591,7 +583,7 @@ export default defineComponent({
      *  can only expose what differs) and never hide-then-reveal (a blank frame). */
     handOffDeal(): void {
       const slots = asElements(this.$refs.slots);
-      const proxies = asElements(this.$refs.proxies);
+      const proxies = deckPickProxyEls();
       if (proxies.length === 0) {
         this.finishDeal();
         return;
@@ -609,6 +601,7 @@ export default defineComponent({
     },
     finishDeal(): void {
       this.flyOn = false;
+      clearDeckPickFlight();
       this.held.clear();
       releaseDeckDisplay();
       // The claim's ARRIVAL gate is ours to open: this surface flew the batch,
@@ -743,10 +736,8 @@ export default defineComponent({
       case 'nextTab': // RT — commit the set
         this.confirm();
         return;
-      case 'back': // B — minimize (inspect the board; the decision waits)
-        if (!this.embedded) {
-          this.$emit('defer');
-        }
+      case 'back': // B — minimize (embedded: the HOSTING workspace folds)
+        this.$emit('defer');
         return;
       default:
         return;
@@ -813,8 +804,15 @@ export default defineComponent({
           }),
       });
     },
-    /** L3 = the SOURCE that produced what is on screen — read-only (no select
-     *  bridge, so it can never answer the prompt). */
+    /**
+     * L3 = the SOURCE that produced what is on screen — read-only (no select
+     * bridge, so it can never answer the prompt).
+     *
+     * The card is a REAL object on screen while embedded (the host's source
+     * seat), so the viewer LIFTS THAT ONE rather than opening a second copy
+     * beside it — the console's physicality rule. Standalone there is no seat
+     * and the viewer degrades to its textual entrance by itself.
+     */
     inspectSource(): void {
       const card = this.sourceView?.inspectable === true ? this.sourceView.card : undefined;
       if (card === undefined) {
@@ -824,6 +822,12 @@ export default defineComponent({
       openConsoleCardZoom([model as CardModel], 0, undefined, undefined, {
         contextLabel: 'Card draw',
         statusLabel: 'Source',
+        origin: {
+          kind: 'physical',
+          resolve: () => (typeof document === 'undefined' ? null :
+            document.querySelector<HTMLElement>(
+              '[data-embed-source-slot] :is(.card-container, .pcard)')),
+        },
       });
     },
 

@@ -24,7 +24,8 @@
  * invisible to them (the session-freeze `handDeliveryDirector` documents).
  */
 
-import {reactive} from 'vue';
+import {markRaw, reactive} from 'vue';
+import {CardName} from '@/common/cards/CardName';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 
 /**
@@ -124,9 +125,76 @@ export function rollbackDeckPickCommit(): void {
   deckPickState.phase = 'choosing';
 }
 
+/* ── THE FLIGHT LAYER — APP LEVEL, never inside the surface ───────────────
+ *
+ * The proxies are `position: fixed` and the director writes ABSOLUTE SCREEN
+ * COORDINATES into them. That only holds while no ancestor establishes a
+ * containing block — and a teleported surface has plenty: the start
+ * workspace's embed zone runs a 260 ms `animation` on arrival (an animating
+ * `transform` contains fixed descendants for its whole duration), which is
+ * exactly the window the deal launches in.
+ *
+ * The symptom was unmistakable and completely misleading: the cards flew in
+ * FROM THE RIGHT EDGE of the screen instead of off the deck, because every
+ * coordinate was being resolved against the zone's own origin — the deck's
+ * (x, y) plus the zone's (left, top) lands off-canvas. Not a timing bug, not a
+ * measurement bug: a containing-block bug.
+ *
+ * So the layer lives at APP LEVEL, like every other flight stage in the
+ * console (`ConsoleCardExitLayer`, `ConsoleHandDeliveryLayer`,
+ * `ConsoleDeckDrawLayer`). The surface publishes the faces; the layer owns the
+ * bodies; the surface measures its own slots and hands both to the director.
+ */
+
+export const deckPickFlightState = reactive({
+  /** The faces to fly, in batch order. Empty = the layer renders nothing. */
+  cards: [] as Array<CardName>,
+  /** Bumped per arm — the layer re-creates its bodies on it. */
+  nonce: 0,
+});
+
+/** The proxy ROOTS, by batch index. `markRaw` — these are DOM nodes, never
+ *  reactive data (a proxied element breaks GSAP's property writes). */
+const proxyEls = new Map<number, HTMLElement>();
+
+export function registerDeckPickProxy(index: number, el: HTMLElement | null | undefined): void {
+  if (el === null || el === undefined) {
+    proxyEls.delete(index);
+    return;
+  }
+  proxyEls.set(index, markRaw(el));
+}
+
+/** The layer's bodies in batch order — `[]` until they are all mounted. */
+export function deckPickProxyEls(): Array<HTMLElement> {
+  const out: Array<HTMLElement> = [];
+  for (let i = 0; i < deckPickFlightState.cards.length; i++) {
+    const el = proxyEls.get(i);
+    if (el === undefined || !el.isConnected) {
+      return [];
+    }
+    out.push(el);
+  }
+  return out;
+}
+
+/** The surface names the batch; the layer mounts the bodies. */
+export function armDeckPickFlight(cards: ReadonlyArray<CardName>): void {
+  proxyEls.clear();
+  deckPickFlightState.cards = [...cards];
+  deckPickFlightState.nonce++;
+}
+
+/** The flight is over (settled, handed off, aborted) — the bodies may go. */
+export function clearDeckPickFlight(): void {
+  proxyEls.clear();
+  deckPickFlightState.cards = [];
+}
+
 /** Full reset (unmount / game switch / test cleanup). */
 export function resetDeckPick(): void {
   deckPickState.phase = 'idle';
   deckPickState.committing = false;
   deckPickState.kept = 0;
+  clearDeckPickFlight();
 }

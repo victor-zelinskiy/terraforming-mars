@@ -259,9 +259,29 @@ export default defineComponent({
         return undefined;
       }
       let last: HeroRect | undefined = undefined;
+      // ⚠️ NEVER SETTLE ON A RECEDED SHELF. While a step stands inside the
+      // workspace this dock is parked (`descendRecede` — `scale(.985)` +
+      // `autoAlpha: 0`), and a hidden element is still LAID OUT: the rect is
+      // real, it is perfectly stable, and it is 1.5 % too small and offset by
+      // the recede's own origin. The stability loop was written to wait out an
+      // EXPANSION; on its own it cannot tell «settled» from «settled in the
+      // parked pose», so it would hand the hero a landing that is not where
+      // the card comes to rest.
+      const parked = (): boolean => {
+        const cs = typeof getComputedStyle === 'function' ? getComputedStyle(el) : undefined;
+        // Deliberately the RECEDE's own end state (`autoAlpha: 0`), not a
+        // generous threshold: the shelf has legitimate dim poses, and refusing
+        // to measure in one of those would leave the hero with no target at
+        // all — a worse failure than a slightly-off one.
+        return cs !== undefined && (cs.visibility === 'hidden' || Number(cs.opacity) < 0.05);
+      };
       for (let i = 0; i < 30; i++) {
         await new Promise<void>((r) => (typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => r()) : setTimeout(r, 16)));
         const r = el.getBoundingClientRect();
+        if (parked()) {
+          last = undefined; // wait for the un-recede; never latch a parked box
+          continue;
+        }
         if (r.width > 4 && last !== undefined &&
             Math.abs(r.left - last.x) < 0.5 && Math.abs(r.top - last.y) < 0.5 &&
             Math.abs(r.width - last.w) < 0.5 && Math.abs(r.height - last.h) < 0.5) {
