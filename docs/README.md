@@ -59,3 +59,4 @@ files here are the deeper dives it points at.
 - [AUTOMA_DATA_AUDIT.md](AUTOMA_DATA_AUDIT.md) — Automa data tables audit (§9 = official FAQ card-specific rules + coverage status).
 - [AUTOMA_PROMO_MULTIPLAYER_FRAME.md](AUTOMA_PROMO_MULTIPLAYER_FRAME.md) — binding design frame for MarsBot promo adaptation + future multiplayer-with-bot mode (two modes, no global card patches, positive-production policy, per-card hook rules).
 - [BOT_TURN_REVIEW_CONCEPT.md](BOT_TURN_REVIEW_CONCEPT.md) — bot-turn "review" screen concept.
+- [AUTOMA_CORP_FRAMEWORK_REFERENCE.md](AUTOMA_CORP_FRAMEWORK_REFERENCE.md) — MarsBot corporations: the official corp hook surface + draft priorities (from upstream's types-only framework), mapped onto our architecture. Not implemented yet — read before starting.
