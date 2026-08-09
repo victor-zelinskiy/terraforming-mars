@@ -37,6 +37,7 @@ files here are the deeper dives it points at.
 - [EMBEDDED_SERVER.md](EMBEDDED_SERVER.md) — host-as-server app modes: embedded server in a utility process, LAN discovery/join, future WebRTC public hosting.
 
 ## Cards / expansion adaptation
+- [UPSTREAM_DEFERRED_WORKLIST.md](UPSTREAM_DEFERRED_WORKLIST.md) — upstream work reviewed but NOT taken, with the blockers and the port plan: the action-card → declarative `behavior` conversions, and the global-events DSL cluster. Read before re-auditing either.
 - [ARES_ADAPTATION_AUDIT.md](ARES_ADAPTATION_AUDIT.md) — Ares premium-subsystem adaptation audit.
 - [CHOICE_CONTEXT_AUDIT.md](CHOICE_CONTEXT_AUDIT.md) — contextual-choice modal coverage.
 - [PROMPT_SOURCE_AUDIT.md](PROMPT_SOURCE_AUDIT.md) — "why did this prompt come to me?": which prompts name their source card, and which console surfaces show it.
