@@ -34,7 +34,6 @@ import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
-import {isConsoleHandPickActive} from '@/client/console/consoleHandPick';
 import {
   SurfaceMotionId,
   SurfaceDeparture,
@@ -47,6 +46,7 @@ import {
   takeWheelOrigin,
   takeWheelChosenSlot,
   takeWheelEcho,
+  surfaceMotionState,
 } from '@/client/console/surfaceMotion/surfaceMotionState';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
@@ -77,10 +77,22 @@ function s(ms: number): number {
   return motionMs(ms) / 1000;
 }
 
-/** A press mid-bridge (hand/tableau pick hides the composer via v-show) —
- *  those "transitions" are the bridge's own beat, never ours. */
+/**
+ * A CLIENT PICK BRIDGE is out — the asking surface is hidden via `v-show`, so
+ * the enter/leave pair Vue fires for that flip is the BRIDGE's beat, never a
+ * real entrance or dismissal.
+ *
+ * ⚠ It reads the ONE fact the shell publishes (`pickBridgeActive` →
+ * `setPickSuppressed`, the same computed its `v-show` is bound to) — never a
+ * re-derivation from one bridge's module. It used to name only the HAND pick,
+ * while the shell hid on `!handPickActive && !repeatPickActive`: opening the
+ * Viron REPEAT pick therefore ran a genuine leave (which poses EVERY panel
+ * under the root, the open composer's included) and closing it ran a genuine
+ * enter (which restores only the outermost one). The action centre came back
+ * with its breadcrumb and its command bar — and an empty frame.
+ */
 function isPickBridgeHidden(): boolean {
-  return isConsoleHandPickActive();
+  return surfaceMotionState.pickSuppressed;
 }
 
 /**
@@ -216,6 +228,16 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
   if (panel === undefined) {
     done();
     return;
+  }
+  // THE ENTRANCE MUST HEAL EVERYTHING THE DEPARTURE POSED. The leave moves
+  // EVERY panel under the root as one (`panelsOf` — a departing centre carries
+  // its open composer with it, whose own transition never fires); the entrance
+  // animates only the OUTERMOST one, so a nested panel would keep the leave's
+  // `opacity: 0` for the rest of the surface's life — frame back, content gone.
+  // A leave and an enter must clear the same set, or the pair is not reversible.
+  const nested = panelsOf(el).slice(1);
+  if (nested.length > 0) {
+    gsap.set(nested, {clearProps: 'transform,opacity,visibility'});
   }
   const reduced = consoleReducedMotionActive();
   const departure = takeSurfaceDeparture(id);

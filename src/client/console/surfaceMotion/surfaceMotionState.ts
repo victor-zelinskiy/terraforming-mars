@@ -9,9 +9,11 @@
  *    director's enter/leave hooks; while ≥1 owner (or an awaiting handoff)
  *    is live the shade is ON — so a surface swap never blinks the darkness
  *    (the counter goes 1→1 across a handoff, never through 0 long enough to
- *    fade). `pickSuppressed` mirrors the shell's hand/tableau-pick bridges,
- *    which HIDE the owning composer via v-show (no unmount → no leave hook):
- *    the picked-in section owns the screen, the shade yields.
+ *    fade). `pickSuppressed` mirrors the shell's hand / repeat-action pick
+ *    bridges, which HIDE the owning composer via v-show: the picked-in
+ *    surface owns the screen, the shade yields — and the director reads the
+ *    same flag to know that the enter/leave pair `v-show` fires is the
+ *    bridge's beat rather than a real entrance.
  *  - DEPARTURE captures: measured once, synchronously, while the outgoing
  *    DOM is still alive (the shell's pre-flush watcher / submit path); the
  *    incoming surface's enter consumes them to FLIP shared anchors.
@@ -39,8 +41,16 @@ const now = (): number => (typeof performance !== 'undefined' ? performance.now(
 export const surfaceMotionState = reactive({
   /** Live shade owners (Set semantics — enter adds, leave removes). */
   shadeOwners: [] as Array<SurfaceMotionId>,
-  /** A client hand/tableau pick hides the owning composer via v-show — the
-   *  shade yields to the picked-in section for the bridge's lifetime. */
+  /**
+   * A client pick bridge (hand / repeat-action) hides the owning composer via
+   * v-show — the shade yields to the picked-in surface for its lifetime.
+   *
+   * It is also the DIRECTOR's «that enter/leave was a bridge flip, not a real
+   * entrance» verdict (`isPickBridgeHidden`): `v-show` DOES fire the pair, so
+   * a bridge the director cannot recognise gets posed like a dismissal and
+   * only half-restored. Published by the shell from the SAME computed its
+   * `v-show`s bind to, so the two can never name different bridges.
+   */
   pickSuppressed: false,
   /** A board-bonus / deck-draw / colony-trade scene VEILS the mounted reveal
    *  (its frame is measured but invisible while the cards still fly) — the

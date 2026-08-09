@@ -99,8 +99,9 @@ start-scene, draft-tray, mandatory-announce, played-overlay, stranded/alert
 opacity-transition 170ms on / 210ms+70ms-delay off) под всеми мигрированными
 band-поверхностями (11480+). Владение: enter-хук регистрирует, leave-хук
 снимает (`shadeOwners` set-семантика) — при same-flush handoff счётчик идёт
-1→2→1, дим физически не может мигнуть. `pickSuppressed` (hand/tableau pick
-мост v-show-прячет композер) глушит shade на время моста. Awaiting-hold держит
+1→2→1, дим физически не может мигнуть. `pickSuppressed` (pick-мост — hand /
+repeat-action — v-show-прячет композер) глушит shade на время моста и служит
+ЕДИНСТВЕННЫМ ответом «это был мост, а не уход» (см. ниже). Awaiting-hold держит
 shade даже без DOM-владельца. `--veil` (0.28) — table-beat задрафтованного
 трея (тот же флаг `draftTrayState.tableView`, что и у task-host).
 
@@ -167,6 +168,20 @@ leave-хук вспыхивает выбранный слот, enter следу�
 - v-show pick-мост НЕ анимируется: leave при активном мосте ставит
   `data-motion-pick-hidden`, обратный enter распознаёт re-show и мгновенно
   завершается (возврат центра прикрывает смену секции тем же кадром).
+  ⚠ **`v-show` ВЫЗЫВАЕТ пару enter/leave** (директива `vShow` дёргает
+  `transition.leave/enter`), поэтому «мост ли это» — не косметика, а развилка.
+  Ответ ОДИН: `surfaceMotionState.pickSuppressed`, который шелл публикует из
+  ТОГО ЖЕ computed (`pickBridgeActive`), к которому привязаны все мостовые
+  `v-show`. Пока директор перечислял мосты сам (`isConsoleHandPickActive()`),
+  повтор действия Viron'а туда не попал: открытие пика играло НАСТОЯЩИЙ leave,
+  закрытие — НАСТОЯЩИЙ enter, и «ДЕЙСТВИЯ КАРТ › VIRON › НАСТРОЙКА» возвращались
+  пустой рамкой.
+- **Leave и enter обязаны чистить ОДИН И ТОТ ЖЕ набор.** Leave кладёт позу на
+  ВСЕ `[data-motion-panel]` под корнем (`panelsOf` — уходящий центр уносит
+  открытый композер, чей собственный transition при unmount родителя не
+  сработает), а вход анимирует только ВНЕШНЮЮ панель (`panelOf`). Поэтому enter
+  ЛЕЧИТ вложенные панели (`clearProps`) прежде чем играть вход — иначе пара
+  необратима: рамка вернулась, содержимое осталось на `opacity: 0` навсегда.
 - Каждый хук — эпизод-гард (`WeakMap` живых твинов, kill при повторном входе)
   + safety-таймер: `done()` гарантирован, Vue не застревает.
 - Reduced motion: короткий функциональный fade (≤120ms), без travel/FLIP;

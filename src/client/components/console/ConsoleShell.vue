@@ -269,7 +269,7 @@
              another flow is parked is a supported intent (`collapsed` below
              is exactly what keeps it read-only). -->
         <ConsoleCardActions v-if="workspaceFrameRenders('card-actions')"
-                            v-show="!handPickActive && !repeatPickActive"
+                            v-show="!pickBridgeActive"
                             ref="cardActions"
                             :playerView="playerView"
                             :collapsed="workspaceCollapsed"
@@ -1050,7 +1050,7 @@
              captured choices/payment must survive the hand round-trip (the
              director recognizes the pick bridge and never animates it). -->
         <ConsolePlayCardConfirm v-if="pendingPlayCard !== undefined && !playHeldForWorkspace"
-                                v-show="!handPickActive && !repeatPickActive"
+                                v-show="!pickBridgeActive"
                                 ref="playConfirm"
                                 :playerView="playerView"
                                 :cardName="pendingPlayCard.cardName"
@@ -2095,10 +2095,20 @@ export default defineComponent({
     playedTableVisible(): boolean {
       return this.playedOpen || playedHeroState.tableOpen;
     },
-    /** A client pick bridge (hand / repeat-action) hides the owning composer
-     *  via v-show — the picked-in surface owns the screen, the shade yields.
-     *  (The TABLEAU bridge is gone: a played-card pick is now an EMBEDDED step
-     *  inside the workspace that asked, so nothing is hidden for it.) */
+    /**
+     * A client pick bridge (hand / repeat-action) hides the owning composer
+     * via v-show — the picked-in surface owns the screen, the shade yields.
+     * (The TABLEAU bridge is gone: a played-card pick is now an EMBEDDED step
+     * inside the workspace that asked, so nothing is hidden for it.)
+     *
+     * ⚠ THE ONE EXPRESSION. Every `v-show` that hides for a bridge binds to
+     * THIS, and it is what `setPickSuppressed` publishes to surface-motion —
+     * so the DOM flip and the director's «that leave was a bridge, not a
+     * dismissal» verdict can never disagree. They did once, spelled out
+     * separately: the director named only the hand pick, so the Viron repeat
+     * pick's flip ran a real leave/enter pair and the action centre came back
+     * as an empty frame (`surfaceMotionDirector.isPickBridgeHidden`).
+     */
     pickBridgeActive(): boolean {
       return this.handPickActive || this.repeatPickActive;
     },
