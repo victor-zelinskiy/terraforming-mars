@@ -79,6 +79,9 @@ async function surfaces(page: Page) {
       destRing: document.querySelectorAll('.con-colfocus__berth--dest').length,
       // Parent isolation:
       journeyRails: document.querySelectorAll('.con-start .con-jrail').length,
+      journeyPresentation: document.querySelector('.con-start .con-jrail')?.getAttribute('data-presentation') ?? '',
+      journeyContext: (document.querySelector('.con-jrail__view--compact')?.textContent ?? '')
+        .replace(/\s+/g, ' ').trim().toLowerCase(),
       awaitPanel: document.querySelectorAll('.con-start__await').length,
       headCount: document.querySelectorAll('.con-wshead').length,
       railCount: document.querySelectorAll('.con-colonies__rail').length,
@@ -198,7 +201,9 @@ test.describe('console colonies · double-nested continuation (sponsor → card 
     await shoot(page, '02-embedded-colonies');
     expect(s.tripleNested, 'start ⊃ hand ⊃ colonies (the teleport chain)').toBeTruthy();
     expect(s.queueUp, 'the deployment queue must NOT be back yet').toBeFalsy();
-    expect(s.journeyRails, 'no startup journey markers over the colonies').toBe(0);
+    expect(s.journeyRails, 'one compact parent-flow context over the colonies').toBe(1);
+    expect(s.journeyPresentation, 'the parent flow stays compact three levels deep').toBe('compact');
+    expect(s.journeyContext, 'the local colony crumb does not replace Start · Preludes context').toContain('прологи');
     expect(s.awaitPanel, 'no false «ожидаем других игроков» panel').toBe(0);
     expect(s.banner.includes('ожида'), 'no waiting banner during an active choice').toBeFalsy();
     expect(s.headCount, 'ONE workspace header').toBe(1);

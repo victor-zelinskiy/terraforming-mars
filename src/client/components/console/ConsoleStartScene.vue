@@ -17,8 +17,9 @@
          'con-start--sponsor': sponsorStep,
          'con-start--matcut': matCut,
          'con-start--materializing': state.flow === 'materializing',
+         'con-start--completing': state.flow === 'completing',
          'con-start--releasing': state.flow === 'releasing',
-         'con-start--resolved': state.flow === 'releasing',
+         'con-start--resolved': state.flow === 'completing' || state.flow === 'releasing',
        }"
        role="dialog" :aria-label="$t('Start of the game')">
     <div class="con-start__bg" aria-hidden="true"></div>
@@ -31,10 +32,11 @@
         <!-- ── Header: the ONE system Workspace header (ConsoleWsHead) ──
              The Game Start Workspace speaks the project's header grammar
              from the first second: СТАРТ ПАРТИИ › <ЭТАП> [› <ФАЗА>]. The aux
-             zone hosts the JOURNEY RAIL (the reusable multi-stage primitive:
-             tabs while the preparation is reversible, a linear progress
-             readout once the deployment runs) + the pick counter. The
-             TRAILING zone carries the compact PARTICIPANT strip — the
+             line keeps only local location/action context. The universal
+             FLOW berth on the right hosts one persistent Start Game rail:
+             tabs while the preparation is reversible, linear progress once
+             deployment runs, compact parent context in child workspaces.
+             The TRAILING zone carries the compact PARTICIPANT strip — the
              standard top HUD is hidden through the whole preparation, but
              who is choosing / who is ready stays readable (same status brain
              as the strip, so they can never disagree). -->
@@ -44,36 +46,17 @@
                        :subject="wsSubject"
                        :stage="wsStage"
                        :committed="mode === 'ceremony'">
-          <!-- The aux BROWSE layer only RESERVES the zone's height (the crumb
-               is always deep here: СТАРТ ПАРТИИ › <ГРУППА> › <ЭТАП>); the
-               live journey renders in the deep tail beside the stage. -->
-          <!-- The journey rail names the STARTUP stage. Inside a hosted step
-               (the sponsor's hand, an embedded colonies pick) it would state
-               a stage the player is no longer looking at («ПРОЛОГИ» over a
-               colony grid), so it goes with the rest of the deployment
-               chrome and returns with the parent surface — parent-specific
-               UI never leaks into a child workspace. -->
-          <div v-if="!sponsorStep && !colonyStep" class="con-start__auxrow">
-            <ConsoleJourneyRail :items="journeyItems" :mode="mode === 'wizard' ? 'tabs' : 'progress'"
-                                :pending-index="pendingStageIndex" :pulse-key="railPulse" :pulse-dir="railPulseDir" />
-          </div>
-          <template #deep>
-            <ConsoleJourneyRail v-if="!sponsorStep && !colonyStep"
-                                class="con-start__jtail"
-                                :items="journeyItems"
-                                :mode="mode === 'wizard' ? 'tabs' : 'progress'"
-                                :pending-index="pendingStageIndex"
-                                :pulse-key="railPulse"
-                                :pulse-dir="railPulseDir" />
-          </template>
           <template #trailing>
             <!-- Card-step pick counter (wizard): a plain «Выбрано N из M»;
                  re-keyed on a blocked RB press so the chip replays its
                  one-shot nudge (what still gates the step). -->
             <span v-if="mode === 'wizard' && currentStep !== undefined" :key="'cnt' + counterNudge"
                   class="con-start__count"
+                  :aria-label="`${$t('Selected')} ${picksHere.length} ${ofMaxText}`"
                   :class="{'con-start__count--ready': currentStepComplete, 'con-start__count--nudge': counterNudge > 0}">
-              {{ $t('Selected') }} <b>{{ picksHere.length }}</b> {{ ofMaxText }}
+              <span class="con-start__count-label" aria-hidden="true">{{ $t('Selected') }}</span>
+              <b aria-hidden="true">{{ picksHere.length }}</b>
+              <span aria-hidden="true">{{ ofMaxText }}</span>
             </span>
             <!-- PARTICIPANT READINESS (preparation only — in the deployment
                  the real top strip is back and owns this). Compact by design:
@@ -90,6 +73,20 @@
                 </span>
               </span>
             </div>
+          </template>
+          <template #flow>
+            <!-- ONE INSTANCE through root ↔ deep ↔ terminal. The workspace
+                 stack selects its presentation; nested hand/colonies screens
+                 inherit this parent context without rendering or knowing it. -->
+            <span ref="flowHost" class="con-start__flowhost">
+              <ConsoleJourneyRail :phases="journeyPhases"
+                                  :presentation="flowPresentation"
+                                  :compact-context="flowCompactContext"
+                                  :committing="state.flow === 'completing'"
+                                  :pending-item-id="pendingJourneyItemId"
+                                  :pulse-key="railPulse"
+                                  :pulse-dir="railPulseDir" />
+            </span>
           </template>
         </ConsoleWsHead>
 
@@ -589,7 +586,7 @@
  * never lose them. Sub-actions (payments, placements) arrive as normal
  * prompts → the scene yields to the T1–T4 native tasks and returns.
  */
-import {defineComponent, PropType} from 'vue';
+import {defineComponent, markRaw, PropType} from 'vue';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
@@ -605,7 +602,7 @@ import {consoleActionOf, ConsoleAction, ConsoleActionOverrides} from '@/client/c
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {
-  buildInitialCardsResponse, clearDockDrift, consoleStartState, deploymentCrumb, deploymentJourneyItems,
+  buildInitialCardsResponse, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, deploymentJourneyItems,
   driftDockPile, ensureStartWizard, holdStartScene, initialCardsInputOf, initialCardsSignature,
   markStartDeploymentBegun, startAwaitingOthers, startDeploymentBegun,
   picksForStep, releaseStartScene, StartCrewMate, StartCrumb, StartDockPileModel, startFlowBusy,
@@ -639,7 +636,7 @@ import {captureCards, CapturedFlight, returnFromDock, reseatCards, registerStart
 import {FACE_DOWN_DEG, FACE_UP_DEG} from '@/client/console/cardFlight/card3dInner';
 import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
 import {
-  setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameHost,
+  setWorkspaceFrameSlot, setWorkspaceFrameSubject, workspaceFrameHasNested, workspaceFrameHost,
   workspaceFramePhase, workspaceFrameSubject, workspaceStackCrumb,
   workspaceStackState,
 } from '@/client/console/consoleWorkspaceStack';
@@ -651,7 +648,9 @@ import {gsap} from 'gsap';
 import {CardType} from '@/common/cards/CardType';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
-import ConsoleJourneyRail, {JourneyItem} from '@/client/components/console/foundation/ConsoleJourneyRail.vue';
+import ConsoleJourneyRail, {
+  JourneyCompactContext, JourneyItem, JourneyPhase, JourneyPresentation,
+} from '@/client/components/console/foundation/ConsoleJourneyRail.vue';
 import ConsoleStartSelectionDock from '@/client/components/console/ConsoleStartSelectionDock.vue';
 import {armDeliveryHold, runHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {extractPlayRewards, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
@@ -666,6 +665,7 @@ import {createCardDealSequence} from '@/client/console/cardDeal/cardDealSequence
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {nearestInDirection, rowFitZoom, gridFitPlan} from '@/client/console/consoleStartNav';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {holdForGsapAnimation} from '@/client/components/presentation/animationHold';
 import ConsoleCardDealLayer from '@/client/components/console/cardDeal/ConsoleCardDealLayer.vue';
 
 
@@ -724,6 +724,22 @@ const SEPARATION_BEAT_MS = 55;
  *  and the in-ceremony re-affirm). */
 function deliveryHoldKey(names: ReadonlyArray<CardName>): string {
   return 'ceremony|' + [...names].sort().join(',');
+}
+
+/** A locally-created GSAP timeline settles on completion OR interruption.
+ *  (`Animation.then` intentionally has no interrupt path.) */
+function gsapSettled(animation: gsap.core.Animation): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (!settled) {
+        settled = true;
+        resolve();
+      }
+    };
+    animation.eventCallback('onComplete', finish);
+    animation.eventCallback('onInterrupt', finish);
+  });
 }
 
 export default defineComponent({
@@ -827,6 +843,19 @@ export default defineComponent({
        *  one-shot connector sweep. NEVER a label change (see pulseJourney). */
       railPulse: 0,
       railPulseDir: 0 as 1 | -1 | 0,
+      /** The final all-phase commit has consolidated the persistent rail into
+       *  its terminal presentation. Local choreography state only: the real
+       *  completion predicate remains `deploymentSettled`. */
+      flowTerminal: false,
+      /** Exact cards belonging to the STARTING-CARDS delivery episode. This
+       *  is choreography identity (like `queueArriving`), not a second copy
+       *  of purchase progress: held/inFlight remain the live source of truth.
+       *  The snapshot scopes the Projects stage so a later prelude draw can
+       *  never be mistaken for the initial purchase delivery. */
+      startDeliveryNames: [] as Array<CardName>,
+      /** Killed on teardown so the completion promise settles through GSAP's
+       *  onInterrupt path and can never release a detached start scene. */
+      completionTimeline: undefined as gsap.core.Timeline | undefined,
       /** The summary pane is mounted INVISIBLE at its final box so its tiles
        *  can be laid out and measured before any card leaves (§prewarm). */
       summaryPrewarm: false,
@@ -991,8 +1020,8 @@ export default defineComponent({
         embedActive: this.embedActive,
         embedPhase: this.outcome.phaseKey,
         embedSubject: this.embedSubject,
-        corpPending: this.corpPlayPrompt !== undefined,
-        payPending: this.corpPayCost !== undefined,
+        corpPending: this.deploymentFlowStage === 'corp',
+        payPending: this.deploymentFlowStage === 'pay',
         corpPick: this.corpCandidatePick,
       });
     },
@@ -1022,19 +1051,128 @@ export default defineComponent({
       const source = this.outcome.sourceCard;
       return source === '' ? undefined : source;
     },
+    /** Bought projects remain the active deployment step until their real
+     *  HandDock delivery has landed, not merely until the payment prompt
+     *  disappears. */
+    projectDeliveryPending(): boolean {
+      if (this.corpPayCost !== undefined) {
+        return true;
+      }
+      const live = new Set([...handDeliveryState.held, ...handDeliveryState.inFlight]);
+      return this.startDeliveryNames.some((name) => live.has(name));
+    },
+    /** Parent source wins over the card being played inside its child effect
+     *  (Eccentric Sponsor's project is still part of the PRELUDE step). */
+    flowEffectCard(): CardName | undefined {
+      if (this.sponsorSource !== undefined) {
+        return this.sponsorSource;
+      }
+      if (this.outcome.sourceCard !== '') {
+        return this.outcome.sourceCard as CardName;
+      }
+      return this.heroState.card;
+    },
+    /** The deployment stage stays on its source until every effect/child/card
+     *  motion has returned. This is presentation over existing live signals,
+     *  not a second progress latch. */
+    deploymentFlowStage(): 'corp' | 'pay' | 'preludes' | 'ready' {
+      const effectOpen = this.heroState.active || this.embedActive || this.sponsorPending ||
+        this.effectReturnPending || workspaceFrameHasNested('start') || this.yielded ||
+        currentRevealEvent() !== undefined;
+      const sourceType = this.flowEffectCard === undefined ? undefined : getCard(this.flowEffectCard)?.type;
+      if (this.corpPlayPrompt !== undefined || this.corpCandidatePick ||
+          (effectOpen && sourceType === CardType.CORPORATION)) {
+        return 'corp';
+      }
+      if (this.projectDeliveryPending) {
+        return 'pay';
+      }
+      if (this.preludeRail.length > 0 || startFlowPreludePrompt(this.playerView) !== undefined ||
+          (effectOpen && sourceType === CardType.PRELUDE) ||
+          (effectOpen && sourceType === undefined)) {
+        return 'preludes';
+      }
+      return 'ready';
+    },
     /** The Journey Rail items: reversible TABS through the preparation,
      *  a linear PROGRESS readout through the deployment. */
-    journeyItems(): ReadonlyArray<JourneyItem> {
-      if (this.mode === 'wizard') {
+    selectionJourneyItems(): ReadonlyArray<JourneyItem> {
+      if (!this.state.hold && this.mode === 'wizard' && this.steps.length > 0) {
         return startJourneyItems(this.steps, this.picks, this.railPos);
       }
+      return committedStartJourneyItems(this.state.stepIds);
+    },
+    deploymentJourneyItemsView(): ReadonlyArray<JourneyItem> {
+      if (this.state.flow === 'completing' || this.state.flow === 'releasing') {
+        return deploymentJourneyItems({
+          corpPending: false,
+          payPending: false,
+          boughtCards: this.state.projects.length > 0,
+          preludesLeft: 0,
+          hasPreludes: this.state.preludes.length > 0 || this.playedPreludes.length > 0,
+        }).map((item) => ({...item, state: 'completed' as const}));
+      }
+      const deploymentLive = this.mode === 'ceremony' && this.state.flow !== 'materializing';
+      if (!deploymentLive) {
+        const future: Array<JourneyItem> = [
+          {id: 'corp', label: 'Corporation', state: 'locked'},
+        ];
+        if (this.state.projects.length > 0) {
+          future.push({id: 'pay', label: 'Projects', state: 'locked'});
+        }
+        if (this.state.preludes.length > 0) {
+          future.push({id: 'preludes', label: 'Preludes', state: 'locked'});
+        }
+        future.push({id: 'ready', label: 'Ready', state: 'locked'});
+        return future;
+      }
       return deploymentJourneyItems({
-        corpPending: this.corpPlayPrompt !== undefined,
-        payPending: this.corpPayCost !== undefined,
+        corpPending: this.deploymentFlowStage === 'corp',
+        payPending: this.deploymentFlowStage === 'pay',
         boughtCards: this.ceremonyBoughtNames.length > 0,
-        preludesLeft: this.preludeRail.length,
-        hasPreludes: this.preludeRail.length > 0 || this.playedPreludes.length > 0,
+        preludesLeft: this.deploymentFlowStage === 'preludes' ? Math.max(1, this.preludeRail.length) : 0,
+        hasPreludes: this.state.preludes.length > 0 || this.preludeRail.length > 0 ||
+          this.playedPreludes.length > 0 || this.deploymentFlowStage === 'preludes',
       });
+    },
+    journeyPhases(): ReadonlyArray<JourneyPhase> {
+      const terminal = this.state.flow === 'completing' || this.state.flow === 'releasing';
+      const deploymentLive = this.mode === 'ceremony' && this.state.flow !== 'materializing';
+      const selectionWaiting = !terminal && !deploymentLive &&
+        (this.awaitingOthers || this.state.flow === 'committing' || this.state.flow === 'materializing');
+      return [
+        {
+          id: 'selection', ordinal: '01', label: 'Selection', mode: 'tabs',
+          state: terminal || deploymentLive ? 'completed' : (selectionWaiting ? 'waiting' : 'current'),
+          items: this.selectionJourneyItems,
+        },
+        {
+          id: 'deployment', ordinal: '02', label: 'Playing', mode: 'progress',
+          state: terminal ? 'completed' : (deploymentLive ? 'current' : 'locked'),
+          items: this.deploymentJourneyItemsView,
+        },
+      ];
+    },
+    flowPresentation(): JourneyPresentation {
+      if (this.flowTerminal) {
+        return 'complete';
+      }
+      return workspaceFrameHasNested('start') ? 'compact' : 'expanded';
+    },
+    flowCompactContext(): JourneyCompactContext {
+      const deploymentContext = this.mode === 'ceremony' || this.state.hold;
+      if (!deploymentContext) {
+        const current = this.selectionJourneyItems.find((item) => item.state === 'current');
+        return {
+          ordinal: '01',
+          phaseLabel: 'Selection',
+          itemLabel: this.awaitingOthers ? 'Waiting for other players' : (current?.label ?? 'Summary'),
+        };
+      }
+      const itemLabel = this.deploymentFlowStage === 'corp' ? 'Corporation' :
+        (this.deploymentFlowStage === 'pay' ? 'Projects' :
+          (this.deploymentFlowStage === 'ready' ? 'Ready' : 'Preludes'));
+      return {ordinal: '02', phaseLabel: 'Playing', itemLabel};
     },
     /**
      * THE PENDING STAGE — what the player asked for, while it is still not
@@ -1043,8 +1181,11 @@ export default defineComponent({
      * whole transition, so no chip ever claims a stage whose cards have not
      * arrived yet.
      */
-    pendingStageIndex(): number {
-      return this.mode === 'wizard' && this.transition.kind !== undefined ? this.transition.to : -1;
+    pendingJourneyItemId(): string {
+      if (this.mode !== 'wizard' || this.transition.kind === undefined) {
+        return '';
+      }
+      return this.selectionJourneyItems[this.transition.to]?.id ?? '';
     },
     /** The Selection Dock piles — EVERY step's pile, pre-mounted from the
      *  first frame (a flight can never target an unmounted element). Through
@@ -1222,6 +1363,12 @@ export default defineComponent({
      */
     deploymentSettled(): boolean {
       if (this.mode !== 'ceremony' || !this.state.hold || this.state.flow === 'materializing') {
+        return false;
+      }
+      // A board-owned placement or any nested workspace is still part of the
+      // source card's effect. READY may only begin after that surface has
+      // returned to the Start frame, even when no startSequence prompt remains.
+      if (this.yielded || workspaceFrameHasNested('start')) {
         return false;
       }
       // «ЭПАТАЖНЫЙ СПОНСОР» — a prelude whose effect is «play a card from your
@@ -1846,7 +1993,11 @@ export default defineComponent({
       immediate: true,
       handler(input: SelectInitialCardsModel | undefined) {
         if (input !== undefined) {
-          ensureStartWizard(this.playerView.id, initialCardsSignature(input));
+          ensureStartWizard(
+            this.playerView.id,
+            initialCardsSignature(input),
+            wizardSteps(input).map((step) => step.id),
+          );
         }
       },
     },
@@ -2120,7 +2271,9 @@ export default defineComponent({
       immediate: true,
       handler(key: string) {
         if (key !== '') {
-          armDeliveryHold(key, this.ceremonyBoughtNames);
+          const names = [...this.ceremonyBoughtNames];
+          this.startDeliveryNames = names;
+          armDeliveryHold(key, names);
         }
       },
     },
@@ -2166,6 +2319,8 @@ export default defineComponent({
     if (this.commitSafety !== undefined) {
       window.clearTimeout(this.commitSafety);
     }
+    this.completionTimeline?.kill();
+    this.completionTimeline = undefined;
     // NOTE the lifetime HOLD deliberately survives an unmount (a defer keeps
     // the deployment claim; the release beat is what clears it). A transient
     // motion flow does not: a scene torn down mid-flight must come back
@@ -3335,23 +3490,106 @@ export default defineComponent({
      * the ONLY place the lifetime hold lets go.
      */
     async runSceneRelease(): Promise<void> {
-      if (this.state.flow === 'releasing') {
+      if (this.state.flow === 'completing' || this.state.flow === 'releasing') {
         return;
       }
-      this.state.flow = 'releasing';
+      this.flowTerminal = false;
+      this.state.flow = 'completing';
+      await this.$nextTick();
       const el = this.$el as HTMLElement | undefined;
-      if (!consoleReducedMotionActive() && el !== undefined && el.isConnected) {
+      if (el === undefined || !el.isConnected) {
+        return;
+      }
+      {
         // THE RESOLVED BEAT — a short settled frame (the `--resolved` accent:
         // queue empty, dock stable, tableau standing) BEFORE the dissolve, so
         // the release reads as "the start is complete", never as a cut.
-        await new Promise<void>((r) => window.setTimeout(r, motionMs(380)));
-        await new Promise<void>((resolve) => {
-          const safety = window.setTimeout(resolve, motionMs(360) + 700);
-          gsap.to(el, {autoAlpha: 0, duration: motionMs(320) / 1000, ease: 'power2.in', onComplete: () => {
-            window.clearTimeout(safety);
-            resolve();
-          }});
+        const flowHost = this.$refs.flowHost as HTMLElement | undefined;
+        const rail = flowHost?.querySelector<HTMLElement>('.con-jrail');
+        const items = rail?.querySelectorAll<HTMLElement>('.con-jrail__item') ?? [];
+        const phases = rail?.querySelectorAll<HTMLElement>('.con-jrail__phase') ?? [];
+        const beam = rail?.querySelector<HTMLElement>('.con-jrail__commit-beam');
+        const reduced = consoleReducedMotionActive();
+        const timeline = markRaw(gsap.timeline({paused: true}));
+        this.completionTimeline = timeline;
+
+        if (!reduced) {
+          if (beam !== undefined) {
+            timeline.fromTo(beam,
+              {xPercent: -130, autoAlpha: 0},
+              {
+                xPercent: 430,
+                autoAlpha: 0.9,
+                duration: motionMs(560) / 1000,
+                ease: 'power2.inOut',
+              }, 0.06);
+          }
+          if (items.length > 0) {
+            timeline.to(items, {
+              y: -1,
+              scale: 1.018,
+              duration: motionMs(100) / 1000,
+              stagger: motionMs(32) / 1000,
+              ease: 'power2.out',
+            }, 0);
+            timeline.to(items, {
+              y: 0,
+              scale: 1,
+              duration: motionMs(160) / 1000,
+              stagger: motionMs(24) / 1000,
+              ease: 'power2.out',
+            }, motionMs(105) / 1000);
+          }
+          if (phases.length > 0) {
+            timeline.to(phases, {
+              scaleY: 1.018,
+              duration: motionMs(150) / 1000,
+              stagger: motionMs(70) / 1000,
+              ease: 'power2.out',
+            }, 0.16);
+            timeline.to(phases, {
+              scaleY: 1,
+              duration: motionMs(190) / 1000,
+              stagger: motionMs(55) / 1000,
+              ease: 'power2.out',
+            }, 0.31);
+          }
+        }
+
+        // Commit every named stage, then consolidate this same rail into its
+        // terminal answer. The terminal layer has been mounted from frame one.
+        timeline.call(() => {
+          if (el.isConnected) {
+            this.flowTerminal = true;
+          }
+        }, undefined, reduced ? 0 : motionMs(690) / 1000);
+        timeline.to({}, {duration: motionMs(reduced ? 420 : 720) / 1000});
+        timeline.call(() => {
+          if (el.isConnected) {
+            this.state.flow = 'releasing';
+          }
         });
+        timeline.to(el, {
+          autoAlpha: 0,
+          duration: motionMs(reduced ? 140 : 300) / 1000,
+          ease: 'power2.in',
+        });
+
+        const settled = gsapSettled(timeline);
+        holdForGsapAnimation('start-flow-completion', timeline, {
+          scope: 'notification-only',
+          maxHoldMs: 8_000,
+        });
+        timeline.play(0);
+        await settled;
+        if (this.completionTimeline === timeline) {
+          this.completionTimeline = undefined;
+        }
+        // A teardown kills the timeline. A detached instance cannot release
+        // the lifetime hold; the restored Start workspace owns that outcome.
+        if (!el.isConnected) {
+          return;
+        }
       }
       releaseStartScene();
       this.state.flow = 'idle';
@@ -4161,6 +4399,7 @@ export default defineComponent({
       if (names.length === 0) {
         return;
       }
+      this.startDeliveryNames = names;
       const grid = this.$refs.payGrid as HTMLElement | undefined;
       const rects = new Map<CardName, DOMRect>();
       if (grid !== undefined && grid !== null) {

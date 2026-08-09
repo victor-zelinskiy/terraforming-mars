@@ -87,4 +87,18 @@ describe('ConsoleWsHead — the ONE workspace header', () => {
     const w = head({root: 'Cards in hand', subject: 'Зелёный сектор', subjectRaw: true});
     expect(w.find('.con-wshead__subject').text()).to.eq('Зелёный сектор');
   });
+
+  it('adds the stable right-edge flow berth only for an opted-in workspace', () => {
+    expect(head({root: 'Cards in hand'}).find('.con-wshead__flow').exists()).to.eq(false);
+    const w = mount(ConsoleWsHead as any, {
+      ...globalConfig,
+      props: {root: 'Start of the game'},
+      slots: {
+        default: () => h('span', {class: 'aux-stub'}, 'filters'),
+        flow: () => h('span', {class: 'flow-stub'}, 'flow'),
+      },
+      global: {...globalConfig.global, stubs: {BarButtonIcon: IconStub}},
+    });
+    expect(w.find('.con-wshead__flow .flow-stub').text()).to.eq('flow');
+  });
 });

@@ -1,47 +1,89 @@
 <template>
-  <div class="con-jrail" :class="'con-jrail--' + mode" role="tablist" :aria-label="$t('Stages')">
-    <!--
-      THE WORKSPACE JOURNEY RAIL — the reusable stage line of a long
-      multi-stage workspace process (the Game Start Workspace is its first
-      host). Two modes, one geometry:
+  <!-- ONE LIVE FLOW OBJECT. Expanded, compact and terminal are three
+       superposed presentations inside one fixed-height viewport; changing
+       presentation never replaces the rail root or leaves an empty frame. -->
+  <div class="con-jrail"
+       :class="[
+         'con-jrail--presentation-' + presentation,
+         {'con-jrail--committing': committing},
+       ]"
+       :data-presentation="presentation"
+       role="group"
+       :aria-label="$t('Stages')">
+    <div class="con-jrail__viewport">
+      <div class="con-jrail__view con-jrail__view--expanded"
+           :aria-hidden="presentation === 'expanded' ? undefined : 'true'">
+        <template v-for="(phase, phaseIndex) in phases" :key="phase.id">
+          <span v-if="phaseIndex > 0" class="con-jrail__bridge" aria-hidden="true">
+            <i></i><b>›</b>
+          </span>
+          <section class="con-jrail__phase"
+                   :class="[
+                     'con-jrail__phase--' + phase.state,
+                     {'con-jrail__phase--open': phase.state === 'current' || phase.state === 'waiting'},
+                   ]"
+                   :data-phase="phase.id">
+            <div class="con-jrail__phase-head">
+              <span class="con-jrail__phase-num">{{ phase.ordinal }}</span>
+              <span class="con-jrail__phase-label">{{ $t(phase.label) }}</span>
+              <span class="con-jrail__phase-state" aria-hidden="true">{{ phaseMark(phase) }}</span>
+            </div>
 
-       - `tabs`     (a reversible PREPARATION): completed stages are
-         revisitable, the current one is lit, future ones read available or
-         locked — it answers «where am I and where may I go», while the
-         workspace header answers «what context am I in» and the footer
-         answers «what can I press»;
-       - `progress` (an irreversible DEPLOYMENT): the same chips become a
-         linear progress readout — no tab affordances, arrows join the
-         stages, the current one carries the live accent.
+            <!-- Both the detailed map and its collapsed summary remain
+                 mounted. The phase's flex-basis + opacity morph decides which
+                 one is visible; state never teleports between two trees. -->
+            <div class="con-jrail__phase-body"
+                 :role="phase.mode === 'tabs' ? 'tablist' : 'list'"
+                 :aria-hidden="phase.state === 'current' || phase.state === 'waiting' ? undefined : 'true'">
+              <template v-for="(item, itemIndex) in phase.items" :key="item.id">
+                <span v-if="itemIndex > 0" class="con-jrail__connector" aria-hidden="true"></span>
+                <span class="con-jrail__item"
+                      :class="{
+                        'con-jrail__item--current': item.state === 'current',
+                        'con-jrail__item--done': item.state === 'completed',
+                        'con-jrail__item--locked': item.state === 'locked',
+                        'con-jrail__item--anticipate': anticipated(phase, item),
+                        'con-jrail__item--from-left': anticipated(phase, item) && pulseDir >= 0,
+                        'con-jrail__item--from-right': anticipated(phase, item) && pulseDir < 0,
+                      }"
+                      :role="phase.mode === 'tabs' ? 'tab' : 'listitem'"
+                      :aria-selected="phase.mode === 'tabs' ? (item.state === 'current' ? 'true' : 'false') : undefined"
+                      :aria-disabled="item.state === 'locked' ? 'true' : undefined">
+                  <span class="con-jrail__num">{{ itemMark(item, itemIndex) }}</span>
+                  <span class="con-jrail__label">{{ $t(item.label) }}</span>
+                  <i v-if="anticipated(phase, item)" :key="pulseKey" class="con-jrail__pulse" aria-hidden="true"></i>
+                </span>
+              </template>
+            </div>
 
-      THE DIRECTIONAL PULSE (`pendingIndex` + `pulseKey`): while a stage
-      change is physically running, the rail must NOT move its active marker
-      — the stage has not changed yet, and a chip that lights up before its
-      cards exist tells the same lie an early stage commit does. It shows
-      DIRECTION instead: a short one-shot light sweep across the stage the
-      player asked for, entering from the side the move is coming from. No
-      label anywhere changes for the duration of a transition — a word that
-      lives for 300 ms cannot be read, it can only flicker.
+            <div class="con-jrail__phase-preview" aria-hidden="true">
+              <span v-for="item in phase.items" :key="item.id">{{ $t(item.label) }}</span>
+            </div>
+          </section>
+        </template>
+      </div>
 
-      Pure presentation: the HOST owns navigation (LT/RT) and states.
-    -->
-    <template v-for="(item, i) in items" :key="item.id + (i === pendingIndex ? '#' + pulseKey : '')">
-      <span v-if="i > 0 && mode === 'progress'" class="con-jrail__arrow" aria-hidden="true">→</span>
-      <span class="con-jrail__item"
-            :class="{
-              'con-jrail__item--current': item.state === 'current',
-              'con-jrail__item--done': item.state === 'completed',
-              'con-jrail__item--locked': item.state === 'locked',
-              'con-jrail__item--anticipate': i === pendingIndex,
-              'con-jrail__item--from-left': i === pendingIndex && pulseDir >= 0,
-              'con-jrail__item--from-right': i === pendingIndex && pulseDir < 0,
-            }"
-            role="tab"
-            :aria-selected="item.state === 'current' ? 'true' : 'false'">
-        <span class="con-jrail__num">{{ markOf(item, i) }}</span>
-        <span class="con-jrail__label">{{ $t(item.label) }}</span>
-      </span>
-    </template>
+      <div class="con-jrail__view con-jrail__view--compact"
+           :aria-hidden="presentation === 'compact' ? undefined : 'true'">
+        <span class="con-jrail__compact-num">{{ compactContext.ordinal }}</span>
+        <span class="con-jrail__compact-phase">{{ $t(compactContext.phaseLabel) }}</span>
+        <span class="con-jrail__compact-sep" aria-hidden="true">·</span>
+        <span class="con-jrail__compact-swap">
+          <transition name="con-jrail-context">
+            <span :key="compactContext.itemLabel" class="con-jrail__compact-item">
+              {{ $t(compactContext.itemLabel) }}
+            </span>
+          </transition>
+        </span>
+      </div>
+
+      <div class="con-jrail__view con-jrail__view--terminal"
+           :aria-hidden="presentation === 'complete' ? undefined : 'true'">
+        <span class="con-jrail__terminal-mark" aria-hidden="true">✓</span>
+        <span class="con-jrail__terminal-label">{{ $t(terminalLabel) }}</span>
+      </div>
+    </div>
+    <i class="con-jrail__commit-beam" aria-hidden="true"></i>
   </div>
 </template>
 
@@ -57,26 +99,73 @@ export type JourneyItem = {
   state: JourneyItemState,
 };
 
+export type JourneyPhaseState = 'completed' | 'current' | 'waiting' | 'locked';
+
+export type JourneyPhase = {
+  id: string,
+  /** Stable, already formatted phase ordinal (for example `01`). */
+  ordinal: string,
+  /** i18n key. */
+  label: string,
+  state: JourneyPhaseState,
+  /** Editable navigation and irreversible progress intentionally keep their
+   *  different semantics while sharing one visual language. */
+  mode: 'tabs' | 'progress',
+  items: ReadonlyArray<JourneyItem>,
+};
+
+export type JourneyCompactContext = {
+  ordinal: string,
+  /** i18n keys owned by the host flow. */
+  phaseLabel: string,
+  itemLabel: string,
+};
+
+export type JourneyPresentation = 'expanded' | 'compact' | 'complete';
+
+/**
+ * Pure flow presentation. The host owns business state and supplies two or
+ * more phases plus the compact parent context; the shared WorkspaceHeader
+ * supplies only the right-edge berth. No item is focusable here. A reversible
+ * host may expose navigation through its existing controller contract, while
+ * a progress phase remains an inert readout by construction.
+ */
 export default defineComponent({
   name: 'ConsoleJourneyRail',
   props: {
-    items: {type: Array as PropType<ReadonlyArray<JourneyItem>>, required: true},
-    /** `tabs` — the reversible preparation; `progress` — linear deployment. */
-    mode: {type: String as PropType<'tabs' | 'progress'>, default: 'tabs'},
-    /** The stage the player has ASKED for while its cards are still moving —
-     *  anticipation only, never a state change. `-1` = nothing pending. */
-    pendingIndex: {type: Number, default: -1},
-    /** Bumped per request; re-keys the chip so its one-shot sweep replays. */
+    phases: {type: Array as PropType<ReadonlyArray<JourneyPhase>>, required: true},
+    presentation: {type: String as PropType<JourneyPresentation>, default: 'expanded'},
+    compactContext: {
+      type: Object as PropType<JourneyCompactContext>,
+      default: () => ({ordinal: '', phaseLabel: '', itemLabel: ''}),
+    },
+    terminalLabel: {type: String, default: 'Ready'},
+    /** Final all-phase commit is running (presentation-only accent). */
+    committing: {type: Boolean, default: false},
+    /** The item the player ASKED for while its physical stage transition is
+     *  still running. Its label/state stay unchanged; only a light impulse
+     *  acknowledges direction. */
+    pendingItemId: {type: String, default: ''},
     pulseKey: {type: Number, default: 0},
-    /** Which way the move travels (drives the sweep's entry side). */
     pulseDir: {type: Number, default: 0},
   },
   methods: {
-    markOf(item: JourneyItem, i: number): string {
+    anticipated(phase: JourneyPhase, item: JourneyItem): boolean {
+      return phase.state === 'current' && item.id === this.pendingItemId;
+    },
+    itemMark(item: JourneyItem, index: number): string {
       if (item.state === 'completed') {
         return '✓';
       }
-      return this.mode === 'progress' ? '●' : String(i + 1).padStart(2, '0');
+      return String(index + 1).padStart(2, '0');
+    },
+    phaseMark(phase: JourneyPhase): string {
+      switch (phase.state) {
+      case 'completed': return '✓';
+      case 'current': return '●';
+      case 'waiting': return '…';
+      case 'locked': return '○';
+      }
     },
   },
 });

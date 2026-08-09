@@ -134,6 +134,8 @@ type StartLog = {
   standaloneFrames: number,
   /** The hand dock was visible during the deployment. */
   sawHandDock: boolean,
+  /** The persistent flow consolidated to its terminal READY before release. */
+  sawReady: boolean,
   trace: Array<string>,
 };
 
@@ -144,7 +146,7 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
     sawDockProxy: false, sawHudPreview: false, sawCeremony: false,
     goneFramesDuringDeployment: 0, sawPlayedZone: false, maxPlayedSlots: 0,
     maxQueueCards: 0, stolFrames: 0, centralStageFrames: 0, sawEmbeddedReveal: false,
-    standaloneFrames: 0, sawHandDock: false, trace: [],
+    standaloneFrames: 0, sawHandDock: false, sawReady: false, trace: [],
   };
   const created = await request.post('/api/creategame', {data: newGameConfig(withPreludes)});
   expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
@@ -316,6 +318,7 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
         handDock: document.querySelector('.con-handdock, .con-hand-dock, [data-hand-dock]') !== null,
         mandatory: document.querySelector('.con-mandatory') !== null,
         drawQueued: document.querySelector(`.con-start [data-queue-slot="${drawCard}"]`) !== null,
+        flowReady: document.querySelector('.con-jrail')?.getAttribute('data-presentation') === 'complete',
       };
     }, DRAW_PRELUDE);
     log.trace.push(`d${i} start:${s.start ? 1 : 0} cta:${s.cta ? 1 : 0} q:${s.queueCards} p:${s.playedSlots} emb:${s.embedReveal ? 1 : 0} hd:${s.handDock ? 1 : 0}`);
@@ -342,6 +345,9 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
       }
       if (s.handDock) {
         log.sawHandDock = true;
+      }
+      if (s.flowReady) {
+        log.sawReady = true;
       }
       log.maxPlayedSlots = Math.max(log.maxPlayedSlots, s.playedSlots);
       log.maxQueueCards = Math.max(log.maxQueueCards, s.queueCards);
@@ -394,6 +400,7 @@ function assertStart(log: StartLog, opts: {withPreludes: boolean, strictMotion: 
   expect(log.maxQueueCards, 'the startup queue stood as one persistent row').toBeGreaterThanOrEqual(opts.withPreludes ? 3 : 1);
   expect(log.maxPlayedSlots, 'resolved cards physically reached the played zone piles').toBeGreaterThanOrEqual(opts.withPreludes ? 3 : 1);
   expect(log.standaloneFrames, 'the standalone «Разыграно» overlay never mounts during the start').toBe(0);
+  expect(log.sawReady, 'the flow must show terminal READY before the workspace releases').toBeTruthy();
   if (opts.expectReveal === true) {
     expect(log.sawEmbeddedReveal, 'the draw prelude opened the reveal EMBEDDED inside the workspace').toBeTruthy();
   }

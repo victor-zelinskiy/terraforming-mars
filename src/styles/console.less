@@ -723,6 +723,23 @@ body.con-zoom-open .con-journal {
             pointer-events: none;
         }
     }
+    /* UNIVERSAL FLOW BERTH. Business state and visuals are supplied by the
+       workspace; the header owns only this geometry. It is the final flex
+       item, cannot shrink, and is right-aligned inside its own fixed-height
+       box, so every width morph grows/collapses LEFT while the right edge
+       stays on the header's common inset. Workspaces without a `flow` slot do
+       not render this node and remain byte-for-byte on the old layout path. */
+    &__flow {
+        order: 4;
+        flex: 0 0 auto;
+        min-width: 0;
+        height: 1.8rem;
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        overflow: visible;
+    }
     /* The breadcrumb tail RISES IN READING ORDER as the flow opens: the card
        name first, then the stage, then the trailing chips — the header reads as
        the SAME line unfolding a deeper context, never as a new header arriving.
@@ -738,6 +755,13 @@ body.con-zoom-open .con-journal {
         &__layer { transition: none; }
         &__layer--deep > * { animation: none; }
     }
+}
+/* A deep breadcrumb is an absolute layer, so it contributes no intrinsic
+   flex basis to `aux`. Once a fixed flow berth exists, reserve the short
+   local `subject › stage` sentence explicitly; counters and participant
+   statuses remain the compressible region between it and the right anchor. */
+.con-wshead:has(> .con-wshead__flow) > .con-wshead__aux {
+    min-width: min(15rem, 34vw);
 }
 /* ONE grid cell for both words of a swap: it sizes to the WIDER of them, so
    nothing beside them shifts mid-change. */
@@ -13360,14 +13384,14 @@ body.con-start-ceremony {
         flex-shrink: 0;
         display: inline-flex;
         align-items: center;
-        gap: .4rem;
-        padding: .2rem .8rem;
+        gap: .32rem;
+        padding: .16rem .62rem;
         border-radius: 49.95rem;
         background: rgba(14, 22, 33, 0.7);
         box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%);
-        font-size: .95rem;
+        font-size: .78rem;
         color: @con-text-dim;
-        b { color: @con-amber; font-size: 1.1rem; }
+        b { color: @con-amber; font-size: .94rem; }
 
         &--ready {
             box-shadow: inset 0 0 0 .05rem fade(@con-mint, 65%), 0 0 .7rem fade(@con-mint, 14%);
@@ -13379,6 +13403,10 @@ body.con-start-ceremony {
             animation: con-start-count-nudge calc(420ms * var(--motion-scale, 1)) ease-out;
         }
     }
+    /* The header already names the active category. Keep the live quantity
+       visually compact (`0 из 10`) so participant readiness remains legible;
+       the full `Выбрано 0 из 10` sentence stays on the chip's aria-label. */
+    &__count-label { display: none; }
 
     /* ── Body ──────────────────────────────────────────────────────── *
        FOUNDATION documented exception (CONSOLE_FOUNDATION.md §3.3): the start
@@ -15399,11 +15427,11 @@ body.con-start-barshold .con-status {
 .con-start {
     /* The ONE system workspace header, dressed for the start scene. */
     &__wshead { margin-bottom: .5rem; }
-    &__auxrow {
-        display: flex;
+    &__flowhost {
+        display: inline-flex;
         align-items: center;
-        gap: .9rem;
-        flex-wrap: wrap;
+        justify-content: flex-end;
+        height: 100%;
         min-width: 0;
     }
 
@@ -15431,10 +15459,11 @@ body.con-start-barshold .con-status {
         display: flex;
         align-items: center;
         gap: .5rem;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         justify-content: flex-end;
         min-width: 0;
-        flex-shrink: 0;
+        flex: 0 1 auto;
+        overflow: hidden;
     }
     &__crewchip {
         display: inline-flex;
@@ -15447,6 +15476,8 @@ body.con-start-barshold .con-status {
         font-size: .74rem;
         color: @con-text-dim;
         white-space: nowrap;
+        flex: 0 1 auto;
+        min-width: 0;
 
         &--self {
             box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 55%);
@@ -15464,7 +15495,13 @@ body.con-start-barshold .con-status {
         border-radius: 50%;
         box-shadow: 0 0 .3rem rgba(0, 0, 0, 0.6);
     }
-    &__crewname { font-weight: 700; }
+    &__crewname {
+        min-width: 0;
+        max-width: 9rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        font-weight: 700;
+    }
     &__crewstate {
         display: inline-flex;
         align-items: center;
@@ -15735,27 +15772,6 @@ body.con-start-barshold .con-status {
        never a page title (a second big heading is what read as a modal). */
     &__embed .con-ws-stage-title { font-size: .95rem; letter-spacing: .1em; }
 
-    /* The deep-tail journey (beside the crumb) — one size tighter than the
-       aux rail so the line reads breadcrumb-first, progress-second. */
-    &__jtail .con-jrail__item {
-        padding: .16rem .5rem;
-        font-size: .64rem;
-        gap: .3rem;
-    }
-    &__jtail .con-jrail__num { font-size: .56rem; }
-    &__jtail .con-jrail__arrow { font-size: .62rem; }
-    /* Non-current journey chips collapse to their mark (✓ / № / ●) wherever
-       the header line is tight, so the tail can never crowd the breadcrumb —
-       the current stage always keeps its word. Tight = the BOUNDED band
-       (right of the rail) and any sub-FHD window in the full-bleed prep. */
-    &--ceremony .con-start__jtail .con-jrail__item:not(.con-jrail__item--current) .con-jrail__label {
-        display: none;
-    }
-    @media (max-width: 1600px) {
-        &__jtail .con-jrail__item:not(.con-jrail__item--current) .con-jrail__label {
-            display: none;
-        }
-    }
 }
 @keyframes con-start-embed-in {
     from { opacity: 0; transform: translateY(.45rem) scale(.992); }
@@ -15954,78 +15970,348 @@ body.con-start-barshold .con-status {
     to { transform: translateY(0); }
 }
 
-/* ── THE WORKSPACE JOURNEY RAIL (reusable multi-stage primitive) ── */
+/* ── THE WORKSPACE FLOW RAIL (reusable presentation primitive) ──
+   The right edge belongs to `.con-wshead__flow`; this object changes only its
+   LEFT extent. Expanded / compact / terminal are superposed in one viewport,
+   and the two phase panels remain one pair of nodes while their flex bases
+   exchange. No label is ever replaced by an anonymous dot. */
 .con-jrail {
-    display: flex;
-    align-items: center;
-    gap: .5rem;
-    flex-wrap: wrap;
+    --con-jrail-expanded-w: min(42rem, 56vw);
+    --con-jrail-compact-w: 15.5rem;
+    --con-jrail-terminal-w: 9rem;
+    position: relative;
+    display: inline-grid;
+    width: var(--con-jrail-expanded-w);
+    height: 1.8rem;
+    min-width: 0;
+    flex: 0 0 auto;
+    overflow: hidden;
+    border-radius: .52rem;
+    transform-origin: right center;
+    transition: width calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 
-    &__item {
+    &--presentation-compact { width: var(--con-jrail-compact-w); }
+    &--presentation-complete { width: var(--con-jrail-terminal-w); }
+
+    &__viewport {
+        display: grid;
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+    }
+    &__view {
+        grid-area: 1 / 1;
+        min-width: 0;
+        height: 100%;
+        opacity: 0;
+        pointer-events: none;
+        transform: translateX(.45rem) scaleX(.985);
+        transform-origin: right center;
+        transition:
+            opacity calc(150ms * var(--motion-scale, 1)) ease,
+            transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &--presentation-expanded &__view--expanded,
+    &--presentation-compact &__view--compact,
+    &--presentation-complete &__view--terminal {
+        opacity: 1;
+        transform: translateX(0) scaleX(1);
+    }
+
+    /* ── EXPANDED: two real phases of one scenario. The active phase opens;
+       the completed phase consolidates, and the future phase remains named. */
+    &__view--expanded {
+        display: flex;
+        align-items: stretch;
+        justify-content: flex-end;
+        gap: .35rem;
+    }
+    &__phase {
+        position: relative;
+        min-width: 0;
+        flex: 0 0 13.8rem;
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        padding: .17rem .5rem;
+        border-radius: .48rem;
+        overflow: hidden;
+        color: @con-text-dim;
+        background: rgba(11, 19, 29, 0.74);
+        box-shadow: inset 0 0 0 .05rem rgba(132, 165, 198, 0.17);
+        transition:
+            flex-basis calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
+            box-shadow calc(180ms * var(--motion-scale, 1)) ease,
+            background-color calc(180ms * var(--motion-scale, 1)) ease,
+            color calc(180ms * var(--motion-scale, 1)) ease;
+
+        &--open {
+            flex: 1 1 0;
+            color: @con-text;
+            background: rgba(13, 24, 36, 0.88);
+            box-shadow:
+                inset 0 0 0 .06rem fade(@con-cyan, 46%),
+                inset .16rem 0 0 fade(@con-cyan, 58%),
+                0 0 .75rem fade(@con-cyan, 9%);
+        }
+        &--waiting {
+            box-shadow:
+                inset 0 0 0 .06rem fade(@con-mint, 42%),
+                inset .16rem 0 0 fade(@con-mint, 56%),
+                0 0 .75rem fade(@con-mint, 8%);
+        }
+        &--completed {
+            flex-basis: 8rem;
+            color: fade(@con-mint, 88%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 36%);
+        }
+        &--locked { opacity: .68; }
+    }
+    &__phase-head {
+        position: relative;
+        z-index: 2;
+        flex: 0 0 auto;
         display: inline-flex;
         align-items: center;
-        gap: .4rem;
-        padding: .25rem .7rem;
-        border-radius: 1rem;
-        font-size: .72rem;
-        font-weight: 600;
+        gap: .34rem;
+        white-space: nowrap;
+    }
+    &__phase-num {
+        font-size: .56rem;
+        font-weight: 800;
         letter-spacing: .08em;
+        color: fade(@con-cyan, 78%);
+    }
+    &__phase-label {
+        font-size: .64rem;
+        font-weight: 800;
+        letter-spacing: .09em;
         text-transform: uppercase;
-        color: @con-text-dim;
-        background: rgba(255, 255, 255, 0.04);
-        box-shadow: inset 0 0 0 .05rem rgba(150, 185, 220, 0.16);
-        transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, color calc(160ms * var(--motion-scale, 1)) ease;
+    }
+    &__phase-state {
+        width: .7rem;
+        font-size: .58rem;
+        color: fade(@con-cyan, 82%);
+        text-align: center;
+    }
+    &__phase--completed &__phase-num,
+    &__phase--completed &__phase-state { color: @con-mint; }
+    &__phase--waiting &__phase-num,
+    &__phase--waiting &__phase-state { color: @con-mint; }
 
-        &--current {
-            color: #eaf6ff;
-            box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 75%), 0 0 .8rem fade(@con-cyan, 16%);
-            background: fade(@con-cyan, 7%);
-        }
-        &--done { color: fade(@con-mint, 85%); }
-        &--locked { opacity: .5; }
+    &__phase-body {
+        position: relative;
+        z-index: 2;
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .18rem;
+        max-width: 0;
+        opacity: 0;
+        overflow: hidden;
+        transition:
+            max-width calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
+            opacity calc(150ms * var(--motion-scale, 1)) ease;
+    }
+    &__phase--open &__phase-body {
+        max-width: 32rem;
+        opacity: 1;
+    }
+    &__phase-preview {
+        position: relative;
+        z-index: 1;
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        justify-content: flex-end;
+        gap: .28rem;
+        max-width: 16rem;
+        overflow: hidden;
+        opacity: .7;
+        white-space: nowrap;
+        transition:
+            max-width calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
+            opacity calc(140ms * var(--motion-scale, 1)) ease;
 
-        /* THE DIRECTIONAL PULSE — the rail's ONLY part in a stage change.
-           While the cards are physically moving the active marker stays put
-           (the stage has not changed yet); the REQUESTED stage takes a single
-           short light sweep entering from the side the move comes from, plus
-           a breath of edge. Restrained on purpose: the cards are the subject
-           of the transition, the rail only confirms which way it is going.
-           Never a label change — a word that lives 300 ms only flickers. */
-        &--anticipate {
-            position: relative;
-            overflow: hidden;
-            animation: con-jrail-anticipate calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1) 1 both;
-
-            &::after {
-                content: '';
-                position: absolute;
-                inset: 0;
-                pointer-events: none;
-                border-radius: inherit;
-                background: linear-gradient(90deg,
-                    transparent 0%,
-                    fade(@con-cyan, 34%) 42%,
-                    rgba(226, 244, 255, 0.5) 52%,
-                    fade(@con-cyan, 30%) 62%,
-                    transparent 100%);
-                mix-blend-mode: screen;
-                animation: con-jrail-sweep-fwd calc(380ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0, 0.3, 1) 1 both;
-            }
-        }
-        &--from-right::after {
-            animation-name: con-jrail-sweep-back;
+        span {
+            font-size: .5rem;
+            font-weight: 650;
+            letter-spacing: .045em;
+            text-transform: uppercase;
+            & + span::before { content: '·'; margin-right: .28rem; color: fade(@con-cyan, 44%); }
         }
     }
-    &__num { font-size: .62rem; opacity: .8; }
-    &__arrow { color: @con-text-dim; font-size: .7rem; }
+    &__phase--open &__phase-preview,
+    &__phase--completed &__phase-preview { max-width: 0; opacity: 0; }
 
-    &--progress .con-jrail__item { border-radius: .4rem; }
+    &__item {
+        position: relative;
+        flex: 0 1 auto;
+        min-width: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: .24rem;
+        padding: .14rem .32rem;
+        border-radius: .32rem;
+        overflow: hidden;
+        color: @con-text-dim;
+        background: rgba(255, 255, 255, 0.025);
+        box-shadow: inset 0 0 0 .04rem rgba(150, 185, 220, 0.12);
+        transition:
+            box-shadow calc(160ms * var(--motion-scale, 1)) ease,
+            color calc(160ms * var(--motion-scale, 1)) ease,
+            background-color calc(160ms * var(--motion-scale, 1)) ease,
+            opacity calc(160ms * var(--motion-scale, 1)) ease;
+
+        &--current {
+            color: #eef8ff;
+            background: fade(@con-cyan, 9%);
+            box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 72%), 0 0 .55rem fade(@con-cyan, 13%);
+        }
+        &--done { color: fade(@con-mint, 88%); }
+        &--locked { opacity: .46; }
+        &--anticipate {
+            box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 58%), 0 0 .6rem fade(@con-cyan, 12%);
+        }
+    }
+    &__num {
+        flex: 0 0 auto;
+        font-size: .5rem;
+        font-weight: 800;
+        color: fade(@con-cyan, 72%);
+    }
+    &__item--done &__num { color: @con-mint; }
+    &__label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: .56rem;
+        font-weight: 700;
+        letter-spacing: .045em;
+        text-transform: uppercase;
+    }
+    &__connector {
+        flex: 0 0 .34rem;
+        height: .05rem;
+        border-radius: .05rem;
+        background: fade(@con-cyan, 23%);
+    }
+    &__pulse {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        border-radius: inherit;
+        background: linear-gradient(90deg, transparent, fade(#fff, 45%), fade(@con-cyan, 28%), transparent);
+        mix-blend-mode: screen;
+        animation: con-jrail-sweep-fwd calc(380ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0, 0.3, 1) 1 both;
+    }
+    &__item--from-right &__pulse { animation-name: con-jrail-sweep-back; }
+
+    &__bridge {
+        flex: 0 0 1rem;
+        display: inline-flex;
+        align-items: center;
+        gap: .1rem;
+        color: fade(@con-cyan, 50%);
+        i { flex: 1; height: .05rem; background: fade(@con-cyan, 25%); }
+        b { font-size: .7rem; font-weight: 500; }
+    }
+
+    /* ── COMPACT: parent-flow context inherited by a nested workspace. */
+    &__view--compact,
+    &__view--terminal {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .38rem;
+        padding: .18rem .62rem;
+        border-radius: .48rem;
+        white-space: nowrap;
+        background: rgba(11, 20, 31, 0.9);
+        box-shadow:
+            inset 0 0 0 .06rem fade(@con-cyan, 40%),
+            inset .15rem 0 0 fade(@con-cyan, 52%);
+    }
+    &__compact-num {
+        font-size: .56rem;
+        font-weight: 800;
+        letter-spacing: .08em;
+        color: fade(@con-cyan, 78%);
+    }
+    &__compact-phase,
+    &__compact-item,
+    &__terminal-label {
+        font-size: .64rem;
+        font-weight: 800;
+        letter-spacing: .085em;
+        text-transform: uppercase;
+    }
+    &__compact-phase { color: #e6f4ff; }
+    &__compact-sep { color: fade(@con-cyan, 44%); }
+    &__compact-swap {
+        display: inline-grid;
+        flex: 0 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        color: fade(@con-amber, 94%);
+        > * { grid-area: 1 / 1; }
+    }
+    &__compact-item {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    /* ── TERMINAL: a consolidated answer, never another step. */
+    &__view--terminal {
+        justify-content: center;
+        color: @con-mint;
+        background: linear-gradient(90deg, fade(@con-mint, 8%), fade(@con-mint, 13%));
+        box-shadow:
+            inset 0 0 0 .07rem fade(@con-mint, 62%),
+            inset .16rem 0 0 fade(@con-mint, 72%),
+            0 0 .8rem fade(@con-mint, 12%);
+    }
+    &__terminal-mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1rem;
+        height: 1rem;
+        border-radius: 50%;
+        color: #07130e;
+        background: @con-mint;
+        font-size: .68rem;
+        font-weight: 900;
+        box-shadow: 0 0 .55rem fade(@con-mint, 28%);
+    }
+
+    /* GSAP drives this ONCE after every real deployment effect has settled.
+       It is always mounted, so the completion timeline never waits for or
+       targets a transient node. */
+    &__commit-beam {
+        position: absolute;
+        z-index: 5;
+        inset: 0 auto 0 0;
+        width: 24%;
+        pointer-events: none;
+        opacity: 0;
+        transform: translateX(-130%);
+        background: linear-gradient(90deg, transparent, fade(@con-mint, 30%), fade(#fff, 38%), transparent);
+        mix-blend-mode: screen;
+    }
 }
-@keyframes con-jrail-anticipate {
-    0%   { box-shadow: inset 0 0 0 .05rem rgba(150, 185, 220, 0.16); }
-    38%  { box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 62%), 0 0 .7rem fade(@con-cyan, 14%); }
-    100% { box-shadow: inset 0 0 0 .05rem rgba(150, 185, 220, 0.16); }
+
+.con-jrail-context-enter-active,
+.con-jrail-context-leave-active {
+    transition: opacity calc(140ms * var(--motion-scale, 1)) ease, transform calc(140ms * var(--motion-scale, 1)) ease;
 }
+.con-jrail-context-enter-from { opacity: 0; transform: translateY(.12rem); }
+.con-jrail-context-leave-to { opacity: 0; transform: translateY(-.1rem); }
+
 @keyframes con-jrail-sweep-fwd {
     from { transform: translateX(-110%); opacity: 0; }
     22%  { opacity: 1; }
@@ -16036,13 +16322,28 @@ body.con-start-barshold .con-status {
     22%  { opacity: 1; }
     to   { transform: translateX(-110%); opacity: 0; }
 }
-@media (prefers-reduced-motion: reduce) {
-    /* The direction still reads — the edge simply states it instead of a
-       travelling light (reduced motion removes flourish, not information). */
-    .con-jrail__item--anticipate::after { animation: none; opacity: 0; }
-    .con-jrail__item--anticipate {
-        animation-duration: calc(240ms * var(--motion-scale, 1));
+
+/* A genuinely narrow header chooses the SAME rail's compact layer. It never
+   wraps or creates a second row; desktop/4K keep the expanded map. */
+@media (max-width: 1600px) {
+    .con-wshead__flow .con-jrail--presentation-expanded {
+        width: var(--con-jrail-compact-w);
+
+        .con-jrail__view--expanded { opacity: 0; transform: translateX(.45rem) scaleX(.985); }
+        .con-jrail__view--compact { opacity: 1; transform: translateX(0) scaleX(1); }
     }
+    .con-start__crewline { max-width: 20rem; }
+    .con-start__crewchip:not(.con-start__crewchip--self) .con-start__crewname { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-jrail,
+    .con-jrail__view,
+    .con-jrail__phase,
+    .con-jrail__phase-body,
+    .con-jrail__phase-preview { transition: none; }
+    .con-jrail__pulse { animation: none; opacity: .26; }
+    .con-jrail-context-enter-active,
+    .con-jrail-context-leave-active { transition: none; }
 }
 
 /* ── THE SELECTION DOCK (preparation shelf) + its flight layer ── */
@@ -20005,6 +20306,12 @@ html.con-profile-handheld {
         &__step { font-size: .65rem; letter-spacing: .09rem; }
         &__context { font-size: .75rem; }
         &__emblem { width: 1rem; height: 1rem; }
+        &__flow { height: 1.55rem; }
+    }
+    .con-jrail {
+        height: 1.55rem;
+        &__view--compact,
+        &__view--terminal { padding-top: .1rem; padding-bottom: .1rem; }
     }
     .con-hand {
         &__frame { padding: .5rem .7rem .45rem; gap: .45rem; border-radius: .6rem; }

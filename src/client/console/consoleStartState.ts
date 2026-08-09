@@ -55,16 +55,23 @@ export type StartWizardStep = {
  *                           Top HUD + Player Rail, shell re-bounds);
  *  - 'deploying'          — the irreversible deployment is live (per-press
  *                           busy-ness rides playedHeroState, not this);
+ *  - 'completing'         — every real effect settled; the flow commits its
+ *                           final rail and consolidates to terminal READY;
  *  - 'releasing'          — the workspace's final dissolve back to the board.
  */
 export type StartFlowState =
   | 'idle' | 'docking' | 'returning' | 'revealing-summary' | 'stowing-summary'
-  | 'committing' | 'materializing' | 'deploying' | 'releasing';
+  | 'committing' | 'materializing' | 'deploying' | 'completing' | 'releasing';
 
 /** The player's in-progress wizard picks (survives defer / re-renders). */
 export const consoleStartState = reactive({
   ownerId: '',
   signature: '',
+  /** Presentation structure of the canonical server deal. Kept after the
+   *  `initialCards` prompt disappears so the committed selection phase can
+   *  still name exactly the categories the player actually traversed. This
+   *  stores no availability or completion truth. */
+  stepIds: [] as Array<StartWizardStepId>,
   /** Index into wizardSteps(); === steps.length → the SUMMARY step. */
   stepIdx: 0,
   corp: undefined as CardName | undefined,
@@ -116,12 +123,20 @@ export const consoleStartState = reactive({
 });
 
 /** Reset picks when the prompt identity (player / deal) changes. */
-export function ensureStartWizard(ownerId: string, signature: string): void {
+export function ensureStartWizard(
+  ownerId: string,
+  signature: string,
+  stepIds: ReadonlyArray<StartWizardStepId> = [],
+): void {
   if (consoleStartState.ownerId === ownerId && consoleStartState.signature === signature) {
+    if (stepIds.length > 0) {
+      consoleStartState.stepIds = [...stepIds];
+    }
     return;
   }
   consoleStartState.ownerId = ownerId;
   consoleStartState.signature = signature;
+  consoleStartState.stepIds = [...stepIds];
   consoleStartState.stepIdx = 0;
   consoleStartState.corp = undefined;
   consoleStartState.preludes = [];
@@ -391,6 +406,21 @@ export function startJourneyItems(
     state: railPos >= steps.length ? 'current' : (allDone ? 'available' : 'locked'),
   });
   return items;
+}
+
+/**
+ * The server has accepted the initialCards response, so every category that
+ * belonged to that exact deal is irreversibly complete. `stepIds` is only the
+ * remembered shape of the canonical prompt; the commit itself is still the
+ * real `hold/deploymentBegun` state, never a visual latch.
+ */
+export function committedStartJourneyItems(
+  stepIds: ReadonlyArray<StartWizardStepId>,
+): ReadonlyArray<StartJourneyItem> {
+  return [
+    ...stepIds.map((id) => ({id, label: JOURNEY_LABEL[id], state: 'completed' as const})),
+    {id: 'summary', label: 'Summary', state: 'completed' as const},
+  ];
 }
 
 /**

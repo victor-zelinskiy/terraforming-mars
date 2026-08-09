@@ -88,6 +88,43 @@ async function assertNoScroll(page: Page, label: string): Promise<void> {
   }
 }
 
+/** The flow is one header child, pinned to the same right coordinate on every
+ *  profile. Narrow profiles show its compact layer without changing height. */
+async function assertFlowGeometry(page: Page, preset: Preset): Promise<void> {
+  const flow = await page.evaluate(() => {
+    const head = document.querySelector('.con-start__wshead')?.getBoundingClientRect();
+    const rail = document.querySelector('.con-start__wshead .con-jrail')?.getBoundingClientRect();
+    const opacity = (selector: string) =>
+      Number(getComputedStyle(document.querySelector(selector) as Element).opacity);
+    const breadcrumbFits = Array.from(document.querySelectorAll<HTMLElement>(
+      '.con-start__wshead .con-wshead__subject, .con-start__wshead .con-wshead__step',
+    )).every((el) => el.scrollWidth <= el.clientWidth + 1);
+    const flowLabelsFit = Array.from(document.querySelectorAll<HTMLElement>(
+      '.con-jrail__phase--open .con-jrail__label',
+    )).every((el) => el.scrollWidth <= el.clientWidth + 1);
+    return {
+      count: document.querySelectorAll('.con-start__wshead .con-jrail').length,
+      rightGap: head === undefined || rail === undefined ? -999 : Math.round(head.right - rail.right),
+      inside: head !== undefined && rail !== undefined &&
+        rail.top >= head.top - 1 && rail.bottom <= head.bottom + 1,
+      breadcrumbFits,
+      flowLabelsFit,
+      expandedOpacity: opacity('.con-jrail__view--expanded'),
+      compactOpacity: opacity('.con-jrail__view--compact'),
+    };
+  });
+  expect(flow.count, `${preset.id}: one flow instance`).toBe(1);
+  expect(Math.abs(flow.rightGap), `${preset.id}: stable right anchor`).toBeLessThanOrEqual(2);
+  expect(flow.inside, `${preset.id}: flow never creates a second header row`).toBeTruthy();
+  expect(flow.breadcrumbFits, `${preset.id}: flow never clips the local breadcrumb`).toBeTruthy();
+  if (preset.viewport.width <= 1600) {
+    expect(flow.compactOpacity, `${preset.id}: responsive compact presentation`).toBeGreaterThan(flow.expandedOpacity);
+  } else {
+    expect(flow.expandedOpacity, `${preset.id}: expanded top-level presentation`).toBeGreaterThan(flow.compactOpacity);
+    expect(flow.flowLabelsFit, `${preset.id}: expanded flow keeps every active stage named`).toBeTruthy();
+  }
+}
+
 for (const preset of PRESETS) {
   test.describe(`start-scene · ${preset.id}`, () => {
     test.use({viewport: preset.viewport, deviceScaleFactor: preset.dpr, screen: preset.viewport});
@@ -117,6 +154,7 @@ for (const preset of PRESETS) {
           await page.locator('.con-start > .con-start__frame .con-start__summary').isVisible().catch(() => false);
         if (subject.includes('пролог') && !shotPre) {
           await page.waitForTimeout(1200);
+          await assertFlowGeometry(page, preset);
           await shoot(page, preset, '01-preludes');
           await assertNoScroll(page, preset.id + ' preludes');
           shotPre = true;
@@ -129,6 +167,7 @@ for (const preset of PRESETS) {
         }
         if (subject.includes('проект') && !shotProj) {
           await page.waitForTimeout(1200);
+          await assertFlowGeometry(page, preset);
           await shoot(page, preset, '02-projects');
           await assertNoScroll(page, preset.id + ' projects');
           shotProj = true;
@@ -143,6 +182,7 @@ for (const preset of PRESETS) {
         }
         if (onSummary) {
           await page.waitForTimeout(1200);
+          await assertFlowGeometry(page, preset);
           await shoot(page, preset, '03-summary');
           await assertNoScroll(page, preset.id + ' summary');
           break;

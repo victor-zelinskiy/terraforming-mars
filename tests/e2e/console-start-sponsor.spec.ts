@@ -83,8 +83,17 @@ async function surfaces(page: Page) {
           const r = el.getBoundingClientRect();
           return r.width > 40 && r.height > 60 && r.top < window.innerHeight && r.bottom > 0;
         }).length,
-      /** Deployment chrome that must be GONE while the hand owns the body. */
+      /** The deployment body yields, but its ONE parent-flow context remains
+       *  in the shared header as the same compact rail instance. */
       journeyRail: document.querySelectorAll('.con-start__frame .con-jrail').length,
+      journeyPresentation: document.querySelector('.con-start__frame .con-jrail')?.getAttribute('data-presentation') ?? '',
+      journeyContext: (document.querySelector('.con-jrail__view--compact')?.textContent ?? '')
+        .replace(/\s+/g, ' ').trim().toLowerCase(),
+      flowRightGap: (() => {
+        const head = document.querySelector('.con-start__wshead')?.getBoundingClientRect();
+        const flow = document.querySelector('.con-start__wshead .con-jrail')?.getBoundingClientRect();
+        return head === undefined || flow === undefined ? -1 : Math.round(head.right - flow.right);
+      })(),
       startPlayed: document.querySelectorAll('.con-splayed').length,
       startQueue: document.querySelectorAll('.con-start__queue').length,
       /** The toolbar (counts + tag filters) sits ABOVE the cards, as on the
@@ -239,7 +248,11 @@ test.describe('console start — «Эпатажный спонсор» as a work
     // …and the browse toolbar IS visible while browsing (it only hides for
     // the configure stage).
     expect(s.toolbarShown, 'filters visible on the browse layer').toBeTruthy();
-    expect(s.journeyRail, 'the startup journey rail is gone').toBe(0);
+    expect(s.journeyRail, 'one inherited startup flow remains').toBe(1);
+    expect(s.journeyPresentation, 'the inherited flow is compact').toBe('compact');
+    expect(s.journeyContext, 'compact context keeps deployment · preludes').toContain('розыгрыш');
+    expect(s.journeyContext).toContain('прологи');
+    expect(Math.abs(s.flowRightGap), 'compact flow keeps the header right anchor').toBeLessThanOrEqual(2);
     expect(s.startQueue, 'the deployment queue is gone').toBe(0);
     expect(s.startPlayed, 'the compact played shelf is gone').toBe(0);
     expect(s.playedOverlay, 'the full played overlay must not open').toBeFalsy();

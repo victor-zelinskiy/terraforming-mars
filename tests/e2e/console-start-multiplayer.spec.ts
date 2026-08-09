@@ -54,6 +54,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 async function surface(page: Page): Promise<{
   summary: boolean, awaiting: boolean, deployment: boolean, queue: number,
   dock: boolean, dockLive: boolean, announce: boolean, chip: string,
+  flowPresentation: string, selectionFlow: string, deploymentFlow: string,
 }> {
   return page.evaluate(() => {
     const painted = (sel: string): boolean => {
@@ -70,6 +71,9 @@ async function surface(page: Page): Promise<{
       dockLive: document.querySelectorAll('.con-handdock--live').length > 0,
       announce: painted('.con-mandatory'),
       chip: (document.querySelector('.con-status__players') as HTMLElement | null)?.innerText?.replace(/\s+/g, ' ').slice(0, 80) ?? '',
+      flowPresentation: document.querySelector('.con-jrail')?.getAttribute('data-presentation') ?? '',
+      selectionFlow: document.querySelector('[data-phase="selection"]')?.className ?? '',
+      deploymentFlow: document.querySelector('[data-phase="deployment"]')?.className ?? '',
     };
   });
 }
@@ -113,6 +117,9 @@ test.describe('start · two humans hand over together', () => {
     console.log('[first after submit]', JSON.stringify(waiting));
     expect(waiting.deployment, 'no deployment before everyone is ready').toBeFalsy();
     expect(waiting.summary || waiting.awaiting, 'the summary keeps the player').toBeTruthy();
+    expect(waiting.flowPresentation, 'the same expanded flow remains while waiting').toBe('expanded');
+    expect(waiting.selectionFlow, 'the committed selection shows its waiting bridge').toContain('con-jrail__phase--waiting');
+    expect(waiting.deploymentFlow, 'deployment stays locked before the table is ready').toContain('con-jrail__phase--locked');
 
     // 2 · MINIMIZED, the player can come back: the board announces the start
     //     as the pending mandatory beat.
@@ -140,6 +147,8 @@ test.describe('start · two humans hand over together', () => {
     console.log('[first deployment]', JSON.stringify(live));
     expect(live.queue, 'the deployment really has the start queue').toBeGreaterThan(0);
     expect(live.dock, 'the hand dock exists in the deployment').toBeTruthy();
+    expect(live.selectionFlow, 'selection consolidates once deployment opens').toContain('con-jrail__phase--completed');
+    expect(live.deploymentFlow, 'deployment unfolds in the same flow').toContain('con-jrail__phase--current');
 
     await expect.poll(async () => (await surface(secondPage)).deployment, {timeout: 60_000}).toBeTruthy();
     await shoot(secondPage, '04-second-deployment');

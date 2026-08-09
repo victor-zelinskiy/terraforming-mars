@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {
-  buildInitialCardsResponse, clearDockDrift, consoleStartState, deploymentCrumb, driftDockPile,
+  buildInitialCardsResponse, clearDockDrift, committedStartJourneyItems, consoleStartState, deploymentCrumb, driftDockPile,
   ensureStartWizard, holdStartScene, initialCardsSignature, picksForStep, releaseStartScene,
   startFlowBusy, startLaunchState, startParticipants, startSceneHeld, stepComplete, wizardCrumb,
   wizardSteps, startJourneyItems, deploymentJourneyItems, startDockPiles,
@@ -224,6 +224,12 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       expect(items[3].state).to.eq('locked');
     });
 
+    it('committed selection preserves the exact dealt category map', () => {
+      const items = committedStartJourneyItems(['corp', 'prelude', 'ceo', 'projects']);
+      expect(items.map((item) => item.id)).to.deep.eq(['corp', 'prelude', 'ceo', 'projects', 'summary']);
+      expect(items.every((item) => item.state === 'completed')).to.eq(true);
+    });
+
     it('the SELECTION DOCK pre-mounts EVERY pile; cards lie only in the collected ones', () => {
       const picks = {corp: 'X' as never, preludes: ['A', 'B'] as never, ceo: undefined, projects: ['P'] as never};
       // A pile is a physical flight destination — it must exist from the
@@ -282,7 +288,7 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       expect(startFlowBusy()).to.eq(false);
       consoleStartState.flow = 'deploying';
       expect(startFlowBusy()).to.eq(false);
-      for (const flow of ['docking', 'returning', 'revealing-summary', 'stowing-summary', 'committing', 'materializing', 'releasing'] as const) {
+      for (const flow of ['docking', 'returning', 'revealing-summary', 'stowing-summary', 'committing', 'materializing', 'completing', 'releasing'] as const) {
         consoleStartState.flow = flow;
         expect(startFlowBusy(), flow).to.eq(true);
       }

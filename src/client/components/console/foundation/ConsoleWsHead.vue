@@ -70,6 +70,16 @@
     </div>
 
     <slot name="trailing" />
+
+    <!-- A workspace-owned FLOW presentation. The header owns only its
+         permanent right-edge geometry; the host owns the model, phase and
+         interaction semantics. Keeping this as a dedicated sibling (rather
+         than part of `aux`) means breadcrumb/filter/status changes can only
+         consume space to its LEFT: the flow's right anchor never moves and
+         its own expanded/compact morph cannot change the header height. -->
+    <div v-if="$slots.flow" class="con-wshead__flow">
+      <slot name="flow" />
+    </div>
   </header>
 </template>
 
@@ -102,6 +112,9 @@ import {translateText} from '@/client/directives/i18n';
  *    the default slot. That content is genuinely per-screen and pretending
  *    otherwise would produce a props soup nobody can read;
  *  · the outer element's identity, which arrives as a fall-through class.
+ * A host may additionally publish one presentation-only `flow` slot. The
+ * header gives it a stable right-edge berth, but deliberately knows nothing
+ * about that flow's business state (Start Game is the first consumer).
  *
  * Height is RESERVED by the browse layer, never content-driven: the deep layer
  * is an absolute overlay, so a card name of any length costs zero layout and
