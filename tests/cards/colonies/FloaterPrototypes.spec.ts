@@ -36,14 +36,23 @@ describe('FloaterPrototypes', () => {
     expect(dirigibles.resourceCount).to.eq(0);
   });
 
-  it('Should auto-select with a single eligible card', () => {
+  // Upstream's version of this test asserted an auto-select (no prompt) when only
+  // one card is eligible. This fork removed that shortcut fork-wide: "add to ANY
+  // card" ALWAYS asks WHERE the resource goes, so the player sees the target and
+  // its result before confirming (see the NOTE on AddResource in Behavior.ts and
+  // docs/DELAYED_TARGET_AUDIT.md). The pick is still shown with a single candidate.
+  it('Should still show the pick with a single eligible card (no auto-select)', () => {
     const dirigibles = new Dirigibles();
     player.playedCards.push(dirigibles);
 
     card.play(player);
     runAllActions(game);
 
-    expect(player.popWaitingFor()).is.undefined;
+    const selectCard = cast(player.popWaitingFor(), SelectCard<ICard>);
+    expect(selectCard.cards).has.members([dirigibles]);
+    expect(dirigibles.resourceCount).to.eq(0);
+
+    selectCard.cb([dirigibles]);
     expect(dirigibles.resourceCount).to.eq(2);
   });
 });
