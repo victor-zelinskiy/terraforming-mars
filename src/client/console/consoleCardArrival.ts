@@ -82,6 +82,37 @@ export type CardArrivalTimings = {
    * Same principle as the deck-draw cinematic's discard ramp.
    */
   stepDecay: number;
+  /**
+   * …but the tightening has a FLOOR. Geometric decay is unbounded, so past the
+   * fifth card it produces gaps of 50, 43, 37 ms — two frames — and the pile
+   * stops looking like it is dealing and starts looking like it coughed. The
+   * floor is where «one more card left the deck» is still its own event.
+   */
+  stepMinMs: number;
+  /**
+   * ⚠️ THE LANDING CADENCE — the number this whole family is actually judged on.
+   *
+   * The player watches ARRIVALS: a card dropping into its slot is the event, the
+   * flight is only how it got there. Launch and landing used to share one
+   * schedule (every card flew for the same duration), so the launch decay was
+   * ALSO the landing decay, and a seven-card draw landed its last four cards
+   * 58, 50 and 43 ms apart — below the threshold at which the eye separates
+   * events at all. Seven placements collapsed into one flash, and «слишком
+   * резко» is exactly the right word for it.
+   *
+   * So the landings are scheduled, not inherited: no two cards may land closer
+   * than this, and the card that would have arrived too early simply spends
+   * LONGER IN THE AIR (see `travelStretchMax`). Later cards are aimed at farther
+   * slots anyway, so a longer flight is the physically honest way to buy the
+   * time — and it spreads the batch out along its paths instead of bunching it.
+   */
+  minLandGapMs: number;
+  /**
+   * How far a card's travel may be stretched to keep the cadence, as a multiple
+   * of `travelMs`. Past this a «throw» turns into a «drift», so a very large
+   * batch is allowed to tighten again at the tail rather than float.
+   */
+  travelStretchMax: number;
   /** Where in the travel the turn starts (0..1 of `travelMs`). */
   flipAt: number;
   /** How much of the travel the turn spans (0..1 of `travelMs`). */
@@ -99,16 +130,17 @@ export type CardArrivalTimings = {
 };
 
 /**
- * The base rhythm. A batch of 2–4 is fully delivered in ≈0.95–1.15 s: the
- * cards leave almost together, are visibly several by the first quarter, open
- * while they travel and settle once. Confident, not leisurely.
+ * The base rhythm. A batch of 2–4 is delivered in ≈1.1–1.3 s and a seven-card
+ * draw in ≈1.6 s: the cards leave almost together, are visibly several by the
+ * first quarter, open while they travel, and then arrive ONE BY ONE on a steady
+ * ~96 ms cadence. Confident, not leisurely — and, above all, countable.
  */
 export function cardArrivalTimings(): CardArrivalTimings {
   return {
     peelMs: 130,
     // Long enough that a SEVEN-card draw reads as seven journeys rather than
-    // one gust: with the cascade above, the last card leaves at ~390 ms and
-    // the batch settles around 1.4 s — brisk for two cards, unhurried for
+    // one gust: with the cascade above, the last card leaves at ~440 ms and
+    // the batch settles around 1.6 s — brisk for two cards, unhurried for
     // seven, and the same number for both.
     travelMs: 700,
     stepMs: 92,
@@ -119,12 +151,23 @@ export function cardArrivalTimings(): CardArrivalTimings {
     // still converges) while a seven-card draw spreads over ~390 ms, which is
     // the smallest window in which «several separate cards» is legible.
     stepDecay: 0.86,
+    // BOUNDED ON BOTH SIDES BY A REAL PROPERTY, which is why it is not a taste
+    // number: below ~3 frames the decay collapses into an invisible flutter off
+    // the pile (at 12 cards it reached 13 ms), and above ~60 ms the batch stops
+    // being fully airborne before the first card lands — the legibility
+    // contract «the count is never learned on arrival». 52 sits between them at
+    // every size the game can produce.
+    stepMinMs: 52,
+    // ~6 frames. Below this two landings share a blink and the batch reads as
+    // one arrival; at this the eye counts them without ever waiting for one.
+    minLandGapMs: 96,
+    travelStretchMax: 1.55,
     // A touch later, so the card reads as a BACK travelling off the deck for a
     // beat before it opens — the turn is the event, and an event needs a
     // before.
     flipAt: 0.32,
     flipSpan: 0.62,
-    settleMs: 150,
+    settleMs: 170,
     holdRevealStepMs: 90,
     turnMs: 460,
     dwellMs: 340,
@@ -142,6 +185,9 @@ export function reducedCardArrivalTimings(): CardArrivalTimings {
     travelMs: 150,
     stepMs: 26,
     stepDecay: 0.7,
+    stepMinMs: 10,
+    minLandGapMs: 26,
+    travelStretchMax: 1.3,
     flipAt: 0.3,
     flipSpan: 0.5,
     settleMs: 40,
@@ -198,28 +244,44 @@ export function planCardArrival(
   const n = Math.max(0, Math.floor(count));
   const inFlight = mode === 'in-flight-reveal';
   const beats: Array<CardArrivalBeat> = [];
+  const maxTravelMs = t.travelMs * t.travelStretchMax;
   let atMs = 0;
   let gap = t.stepMs;
+  let prevLandMs = -Infinity;
   for (let index = 0; index < n; index++) {
     if (index > 0) {
       atMs += gap;
-      gap *= t.stepDecay;
+      gap = Math.max(t.stepMinMs, gap * t.stepDecay);
     }
     const travelStart = atMs + t.peelMs;
-    const flipMs = t.travelMs * t.flipSpan;
-    const flipAtMs = travelStart + t.travelMs * t.flipAt;
+    // ⚠️ THE LANDING IS THE EVENT, so the landing is what is scheduled. A card
+    // that would touch down inside its predecessor's cadence stays in the air
+    // longer instead — never launches later, because the quick cascade OFF the
+    // pile is the part that reads as dealing, and never lands early, because
+    // that is the flash this replaces. Later cards are aimed at farther slots
+    // anyway, so the longer flight is also the honest one.
+    const travelMs = prevLandMs === -Infinity ? t.travelMs : Math.min(
+      maxTravelMs,
+      Math.max(t.travelMs, prevLandMs + t.minLandGapMs - travelStart));
+    // Everything the turn is measured against is THIS card's own travel: a
+    // stretched flight that kept the base flip duration would open early and
+    // then coast face-up for a third of its path.
+    const flipMs = travelMs * t.flipSpan;
+    const flipAtMs = travelStart + travelMs * t.flipAt;
+    const landAtMs = travelStart + travelMs;
+    prevLandMs = landAtMs;
     beats.push({
       index,
       atMs,
       peelMs: t.peelMs,
-      travelMs: t.travelMs,
+      travelMs,
       flipAtMs: inFlight ? flipAtMs : undefined,
       flipMs,
-      landAtMs: travelStart + t.travelMs,
+      landAtMs,
       // The turn has to be finished by the time the card is settling, or the
       // "flip" becomes a snap on the slot — which is the very thing the
       // deliberate mode exists to own.
-      flipWindowEndsMs: travelStart + t.travelMs * (1 - t.flipSpan * 0.5),
+      flipWindowEndsMs: travelStart + travelMs * (1 - t.flipSpan * 0.5),
     });
   }
   let totalMs = 0;
@@ -240,7 +302,13 @@ export function arrivalSourceFan(count: number, deckW: number): Array<{dx: numbe
   if (n <= 1) {
     return n === 1 ? [{dx: 0, dy: 0}] : [];
   }
-  const spread = Math.max(3, deckW * 0.42);
+  // The per-card step, with the WHOLE fan bounded. A fixed step is a stack for
+  // three cards and a spread hand for seven: at 0.42 deck-widths apiece, seven
+  // cards were born across two and a half piles, so the batch was already
+  // scattered before anything had moved and the launch could only look like a
+  // burst. Bounding the total keeps the birth pose a STACK at every count —
+  // which is what makes the separation afterwards read as an event.
+  const spread = Math.max(2, Math.min(deckW * 0.42, (deckW * 1.15) / (n - 1)));
   const mid = (n - 1) / 2;
   return Array.from({length: n}, (_, i) => ({
     dx: (i - mid) * spread,

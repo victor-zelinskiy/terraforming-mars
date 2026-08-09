@@ -41,7 +41,10 @@ describe('wsStageLayout — one geometry for buy and reveal', () => {
       // pick band) live. Reserving the emphasis here as well was a double
       // count that quietly cost the hero ~4.5 % of its height.
       const l = wsStageLayout({...band, ...slot, n: 1});
-      expect(slot.slotH * l.zoom).to.be.closeTo(band.availH, 1e-6);
+      // Within the published grid + the sub-pixel guard — the hero spends the
+      // band, it does not merely approach it.
+      expect(slot.slotH * l.zoom).to.be.closeTo(band.availH, 1.5);
+      expect(slot.slotH * l.zoom).to.be.lessThanOrEqual(band.availH);
       // The vertical clearance a focused card actually needs stays small
       // enough for any authored row padding to absorb.
       const grow = slot.slotH * l.zoom * (WS_STAGE_FOCUS_SCALE - 1) / 2;
@@ -107,7 +110,7 @@ describe('wsStageLayout — one geometry for buy and reveal', () => {
   describe('profile scaling', () => {
     it('the CAP rides the TV rem factor', () => {
       const tv = wsStageLayout({availW: 8000, availH: 8000, ...slot, n: 1, ui: 2});
-      expect(tv.zoom).to.eq(3.8); // 1.9 × ui
+      expect(tv.zoom).to.be.closeTo(3.8, 1e-9); // 1.9 × ui
     });
 
     it('THE SOLVED SHAPE ALWAYS FITS — a card is never clipped, at any size', () => {
@@ -154,11 +157,64 @@ describe('wsStageLayout — one geometry for buy and reveal', () => {
       const l = wsStageLayout({availW: 1400, availH: 900, ...slot, n: 7, ui: 1, padXPx: 26});
       expect(l.rows, 'seven cards in a tall band wrap').to.eq(2);
       expect(l.perRow).to.eq(4);
-      expect(l.rowMaxPx, 'the cap is narrower than the band it must break inside')
-        .to.be.lessThan(1400);
-      const expected = l.perRow * slot.slotW * l.zoom + (l.perRow - 1) * l.gapPx + 26;
-      expect(l.rowMaxPx).to.be.closeTo(expected, 0.01);
-      expect(wsStageLayoutStyle(l)['--con-ws-stage-rowmax']).to.eq(`${expected.toFixed(2)}px`);
+      const line = l.perRow * slot.slotW * l.zoom + (l.perRow - 1) * l.gapPx + 26;
+      const next = line + slot.slotW * l.zoom + l.gapPx;
+      // The cap only has to separate "perRow fits" from "perRow + 1 fits", and
+      // those are a whole card apart — so it sits at the MIDPOINT, not on the
+      // line itself. Pinned to the line, the entire tolerance sat on the wrong
+      // side and 0.06 px of rounding broke a card off (see the engine).
+      expect(l.rowMaxPx, 'wide enough for the planned row').to.be.greaterThan(line);
+      expect(l.rowMaxPx, 'never wide enough for one more').to.be.lessThan(next);
+      expect(wsStageLayoutStyle(l)['--con-ws-stage-rowmax'])
+        .to.eq(`${(l.rowMaxPx ?? 0).toFixed(2)}px`);
+    });
+
+    it('THE PUBLISHED STRINGS ARE THE SHAPE — the cascade gets what was solved', () => {
+      // The bug this pins is the whole reason the engine snaps: a layout is
+      // only real once it is a STRING, and `toFixed` ROUNDS UP. The solver used
+      // to check its budgets against 1.136957 / 26.186 while the browser laid
+      // out 1.137 / 26.19 — 0.06 px wider than the cap computed beside them, so
+      // `flex-wrap` broke the fourth card off and the 4+3 the engine chose
+      // rendered as 3+3+1, clipped top and bottom, on every 4K TV.
+      //
+      // So this reads the numbers back the way the browser does — off the
+      // published strings — and re-runs both budgets on them.
+      for (const ui of [1, 2]) {
+        for (const availW of [640, 1200, 1650, 2420, 3200]) {
+          for (const availH of [300, 560, 700, 1074, 1500]) {
+            for (const n of [2, 3, 4, 5, 7, 9]) {
+              const padX = 32 * ui;
+              const l = wsStageLayout({availW, availH, ...slot, n, ui, padXPx: padX});
+              const s = wsStageLayoutStyle(l);
+              const where = `ui=${ui} ${availW}x${availH} n=${n}`;
+              const zoom = parseFloat(s['--con-cards-zoom']);
+              const gap = parseFloat(s['--con-ws-stage-gap']);
+              const rowGap = parseFloat(s['--con-ws-stage-rowgap']);
+              const perRow = parseInt(s['--con-ws-stage-per-row'], 10);
+              // Nothing was lost in serialization — the solver checked these.
+              expect(zoom, `zoom ${where}`).to.eq(l.zoom);
+              expect(gap, `gap ${where}`).to.eq(l.gapPx);
+              expect(rowGap, `rowgap ${where}`).to.eq(l.rowGapPx);
+              expect(perRow, `perRow ${where}`).to.eq(l.perRow);
+              const line = perRow * slot.slotW * zoom + (perRow - 1) * gap;
+              expect(line, `line fits the band ${where}`)
+                .to.be.lessThanOrEqual(availW + 1e-6);
+              expect(l.rows * slot.slotH * zoom + (l.rows - 1) * rowGap,
+                `column fits the band ${where}`).to.be.lessThanOrEqual(availH + 1e-6);
+              // …and the row that renders is the row that was solved: the cap
+              // admits `perRow` cards and can never admit one more.
+              const cap = s['--con-ws-stage-rowmax'];
+              if (cap !== '100%') {
+                const content = parseFloat(cap) - padX;
+                expect(content, `cap holds the shape ${where}`)
+                  .to.be.greaterThan(line);
+                expect(content, `cap refuses one more ${where}`)
+                  .to.be.lessThan(line + slot.slotW * zoom + gap);
+              }
+            }
+          }
+        }
+      }
     });
 
     it('a SINGLE row is never capped — there is nothing to break', () => {

@@ -492,9 +492,110 @@ for the trip. Fenced: `zoomOpen && seatHeld` while the viewer is up.
 
 ### Timing
 
-`travelMs` 620 → 700 and `settleMs` 130 → 150. With the cascade from iteration 4
-the last of seven cards leaves at ~390 ms and the batch settles around 1.4 s:
-brisk for two cards, unhurried for seven, and the same numbers for both.
+`travelMs` 620 → 700 and `settleMs` 130 → 150 (→ 170 in iteration 6). With the
+cascade from iteration 4 the last of seven cards leaves at ~390 ms and the batch
+settles around 1.4 s: brisk for two cards, unhurried for seven, and the same
+numbers for both. Iteration 6 replaced the shared launch/landing schedule with a
+landing CADENCE — see below.
+
+## Iteration 6 — the shape that renders, and the cadence the eye can count (2026-08-09)
+
+Two reports, both about the same seven-card stage: the composition was still
+three clipped rows at 4K, and the draw still read as one flash rather than seven
+cards.
+
+### The solver checked its budgets against numbers the browser never saw
+
+`wsStageLayout` solved a 4 + 3 shape at `zoom = 1.136957`, `gap = 26.186`, and
+published the wrap cap computed from exactly those. But a layout is only real
+once it is a STRING in the cascade, and `wsStageLayoutStyle` serializes with
+`toFixed` — which ROUNDS UP. The browser laid out `1.137` and `26.19`: a line
+1533.93 px wide inside a cap whose content box was 1533.87. `flex-wrap` obeys
+0.06 px, broke the fourth card onto a third row, and the shape the engine chose
+rendered as 3 + 3 + 1, cropped top and bottom, inside a 4K screen with a third
+of its height unused.
+
+Two fixes, both structural rather than a nudge:
+
+* **The solver snaps onto the published grid itself** (`ZOOM_STEP` / `GAP_STEP`),
+  downwards for the zoom (a budget — smaller only fits better) and upwards for
+  the gaps (a CLEARANCE — the focus ring must never lose it), before anything is
+  derived from a value. The width check, the height check and the cap are then
+  all computed on the exact numbers that will be painted, and `toFixed` becomes
+  lossless by construction. Same discipline as «compare on the value that will
+  render», one layer lower.
+* **The cap sits at the MIDPOINT, not on the line.** Its only job is to separate
+  «`perRow` fits» from «`perRow + 1` fits», and those are a WHOLE CARD apart —
+  pinning it to the first spends the entire tolerance on the wrong side. Half a
+  card of slack is invisible (the group is centred inside the cap) and moves the
+  failure ~190 px away from a 0.06 px disagreement. It also stays correct when
+  the cap exceeds the available width: the midpoint is below the next break by
+  construction, so whenever the band is wide enough to be a danger the cap is
+  the one that governs.
+
+Plus the vertical: `shapeZoom` kept 2 % on the width and NOTHING on the height,
+so a height-bound shape solved to fill its band exactly and a browser laying out
+on 1/64 px units clipped a hair off a card that mathematically fits
+(`SUBPIXEL_PX`).
+
+### A wrapping stage row is never a scroll container
+
+`.con-cards__strip` carries `overflow-x: auto` from the single-line carousel it
+shares a class with. On a WRAPPED row that is a feedback loop the fit cannot
+win: content overflows by a hair → a scrollbar appears → `clientWidth` drops by
+its width → the next fit solves a narrower row → it fits → the scrollbar goes.
+`.con-ws-stage-row` now clips.
+
+### The probe only ever ran at 1920
+
+That is why none of this failed a test. A geometry claim asserted at one
+resolution is a claim about one resolution — the 4K row is not the 1080p row
+scaled up (the rem factor doubles, the seat reserve doubles with it, and the
+band's aspect changes which shape wins). `console-deck-pick.spec.ts` is now
+parameterised over `fhd` + `tv4k`, and it asserts the SHAPE (`[4, 3]`), not
+«more than one row» — 3 + 3 + 1 satisfies «more than one row», and 3 + 3 + 1 is
+what shipped. It also asks the ROW whether anything sticks out of it and whether
+it has scrollable overflow at all; every earlier check asked the VIEWPORT, and
+the viewport was never what did the clipping.
+
+The engine's own guarantee is swept, not sampled: the spec reads the numbers
+back off the PUBLISHED STRINGS the way the browser does and re-runs both budgets
+plus the cap's two bounds on them.
+
+### The landings were the events, and they were not scheduled
+
+Launch and landing shared one schedule — every card flew for the same duration —
+so the launch decay was ALSO the landing decay. A seven-card draw landed its
+last four cards 58, 50 and 43 ms apart: below the threshold at which the eye
+separates events at all, which is why seven placements read as one flash.
+
+The plan now schedules **landings**. `minLandGapMs` (96 ms ≈ 6 frames) is a
+floor no two arrivals may cross, and a card that would arrive too early spends
+LONGER IN THE AIR (`travelStretchMax`) rather than launching later — the quick
+cascade off the pile is the part that reads as dealing, and later cards are
+aimed at farther slots anyway, so the longer flight is also the honest one. Seven
+cards now arrive on a steady 96 ms beat over ~1.6 s, and the batch is spread
+along its paths instead of bunched. Everything the turn is measured against is
+that card's own travel, or a stretched flight would open early and coast
+face-up for a third of its path.
+
+Three supporting changes, each fixing something the same report was made of:
+
+* **The launch decay gets a floor** (`stepMinMs`). Geometric decay is unbounded:
+  at twelve cards it reached 13 ms, and the pile stopped looking like it was
+  dealing. The floor is bounded on BOTH sides by a real property — below ~3
+  frames it is an invisible flutter, above ~60 ms the batch stops being fully
+  airborne before the first card lands (the «the count is never learned on
+  arrival» contract).
+* **The birth fan is bounded as a WHOLE.** A fixed per-card step is a stack for
+  three cards and a spread hand for seven: at 0.42 deck-widths apiece, seven
+  cards were born across two and a half piles, so the batch was already
+  scattered before anything moved and the launch could only look like a burst.
+* **The growth tracks the whole approach** (`power1.inOut` on scale). At
+  `power2.out` a card reached ~95 % of its final size in the first half of the
+  travel and then only slid — and a card already at its landed size reads as
+  ALREADY THERE, so the rest of the path felt like slack. Cheap at 700 ms,
+  obvious once the cadence stretches the tail card past 800.
 
 ## The crumb
 
@@ -524,6 +625,21 @@ the deck. While that scene is CLAIMED the surface mounts veiled — invisible bu
 measurable, so the flight has real slot rects to aim at — and materializes
 around the landed cards. `ConsoleHydroDrawLayer` looks for
 `.con-deckpick [data-zoom-slot]` as well as the task host's.
+
+### Probing this flow: two things that are STATE, never a duration
+
+Both bit the 4K parameterisation, and both are general to console e2e.
+
+* **The fullscreen viewer keeps input after the dialog closes.** `open` comes off
+  first and the CLOSE FLIGHT still absorbs every intent (`handleZoomIntent`
+  swallows while `zoomClosing` — the card is mid-air, and browsing a departing
+  card would be the bug). A probe that waits a duration after `Escape` and then
+  presses RT is betting on the dive finishing in time; it lost that bet
+  intermittently, and the lost press read as «RT does not confirm». Wait for
+  `body.con-zoom-open` to clear — the app's own «the viewer owns the screen».
+* **The dock's receiving pose opens when the FLIGHT starts**, and the flight
+  starts when the server answers, so its instant is a property of the machine.
+  Await the transition (which proves more than a sample: that it happened).
 
 ## Specs
 

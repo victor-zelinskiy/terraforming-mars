@@ -47,6 +47,60 @@ const FOCUS_GLOW_PX = 9;
 const MIN_GAP_PX = 10;
 
 /**
+ * THE PUBLISHED GRID — the precision `wsStageLayoutStyle` serializes with.
+ *
+ * A layout is only real once it is a STRING in the cascade, and `toFixed`
+ * ROUNDS: a zoom of 1.136957 renders as `1.137` and a gap of 26.186 renders as
+ * `26.19`. Both are LARGER than the values the shape was solved for, and the
+ * wrap cap was computed from the solved ones — so a seven-card stage on a 4K TV
+ * asked for a line 1533.93 px wide inside a cap whose content box was 1533.87.
+ * `flex-wrap` obeys the 0.06 px, breaks the fourth card off, and the "4 + 3"
+ * the engine chose renders as 3 + 3 + 1, clipped top and bottom.
+ *
+ * So the solver SNAPS onto this grid itself, downwards, before anything is
+ * derived from a number: the zoom that feeds the height check, the gap that
+ * feeds the width check and the cap are then the exact values that will be
+ * painted. Same discipline as «compare on the value that will render», one
+ * layer lower.
+ */
+const ZOOM_STEP = 1e3;  // `toFixed(3)`
+const GAP_STEP = 1e2;   // `toFixed(2)`
+
+/**
+ * Snap DOWN onto the published grid. Down, never nearest: every consumer of
+ * these numbers is a BUDGET check, and a value below the solved one can only
+ * fit better. The epsilon absorbs binary representation (3.8 × 1000 is
+ * 3800.0000000000005 on one side and 1.137 × 1000 is 1136.9999999999998 on the
+ * other), so a value already on the grid costs no step.
+ */
+function snapDown(value: number, scale: number): number {
+  return Math.floor(value * scale + 1e-6) / scale;
+}
+
+/**
+ * Snap UP onto the published grid — the direction a GAP has to round.
+ *
+ * A gap is not a budget, it is a CLEARANCE: it exists so a focused card's
+ * emphasis and ring never reach its neighbour, so rounding it down breaks the
+ * property the whole engine is built to guarantee. Rounding it up is free
+ * because the zoom is back-solved against the gap that is actually published,
+ * a few lines below — the row still fits.
+ */
+function snapUp(value: number, scale: number): number {
+  return Math.ceil(value * scale - 1e-6) / scale;
+}
+
+/**
+ * Sub-pixel headroom kept off the vertical budget, in rem-equivalent px.
+ *
+ * The width already keeps 2 % (see `shapeZoom`); the height kept nothing, so a
+ * height-bound shape solved to fill its band EXACTLY — and a browser laying out
+ * on 1/64 px units then clips a hair off a card that mathematically fits. The
+ * cost is ~0.1 % of a card; the failure it removes is a visibly cropped row.
+ */
+const SUBPIXEL_PX = 0.5;
+
+/**
  * The largest a card may ever be drawn, in slot widths. A CEILING is safe —
  * it can only make a shape fit better.
  *
@@ -155,7 +209,7 @@ function shapeZoom(o: WsStageLayoutInput, rows: number, perRow: number, rowGap: 
   const wBudget = 0.98 * o.availW - gaps * b;
   const wDenom = o.slotW * (perRow + gaps * a);
   const zW = wDenom > 0 ? wBudget / wDenom : 0;
-  const hBudget = o.availH - (rows - 1) * rowGap;
+  const hBudget = o.availH - (rows - 1) * rowGap - SUBPIXEL_PX * o.ui;
   const hDenom = rows * o.slotH;
   const zH = hDenom > 0 ? hBudget / hDenom : 0;
   return Math.min(zW, zH);
@@ -175,7 +229,7 @@ function shapeZoom(o: WsStageLayoutInput, rows: number, perRow: number, rowGap: 
  */
 export function wsStageLayout(o: WsStageLayoutInput): WsStageLayout {
   const n = Math.max(1, Math.floor(o.n));
-  const rowGapPx = o.rowGapPx ?? Math.max(MIN_GAP_PX * o.ui, 12 * o.ui);
+  const rowGapPx = snapUp(o.rowGapPx ?? Math.max(MIN_GAP_PX * o.ui, 12 * o.ui), GAP_STEP);
   let best: WsStageLayout | undefined;
   for (let rows = 1; rows <= Math.min(MAX_ROWS, n); rows++) {
     const perRow = Math.ceil(n / rows);
@@ -189,7 +243,8 @@ export function wsStageLayout(o: WsStageLayoutInput): WsStageLayout {
     // construction — and shapes are compared on this same value, so an
     // infeasible one can never out-score a feasible one.
     const raw = Math.min(MAX_ZOOM * o.ui, shapeZoom(o, rows, perRow, rowGapPx));
-    const gapPx = Math.max(MIN_GAP_PX * o.ui, focusHeadroomPx(o.slotW * raw, o.ui));
+    const gapPx = snapUp(
+      Math.max(MIN_GAP_PX * o.ui, focusHeadroomPx(o.slotW * raw, o.ui)), GAP_STEP);
     // BACK-SOLVE against the gap we are actually going to use. `shapeZoom`
     // solves the gap as a function of the zoom (focus headroom), but the gap
     // ALSO has a floor — and on a starved band that floor is the larger of the
@@ -200,11 +255,20 @@ export function wsStageLayout(o: WsStageLayoutInput): WsStageLayout {
     const fitW = perRow * o.slotW > 0 ?
       (0.98 * o.availW - gaps * gapPx) / (perRow * o.slotW) :
       raw;
-    const zoom = Math.max(0, Math.min(raw, fitW));
+    const zoom = snapDown(Math.max(0, Math.min(raw, fitW)), ZOOM_STEP);
     const candidate: WsStageLayout = {
       zoom, gapPx, rowGapPx, rows, perRow,
+      // THE CAP SITS AT THE MIDPOINT, not on the shape's own width. Its only
+      // job is to be a number that fits `perRow` cards and not `perRow + 1`,
+      // and those two widths are a WHOLE CARD apart — so pinning it to the
+      // first of them spends the entire tolerance on the wrong side and lets
+      // any sub-pixel disagreement (layout units, a `zoom` factor rounded by
+      // the compositor, a profile ladder's fractional padding) break a card
+      // off the line. Half a card of slack is invisible — the group is centred
+      // inside the cap — and puts the failure ~190 px away instead of 0.06.
       rowMaxPx: o.padXPx === undefined ? undefined :
-        perRow * o.slotW * zoom + Math.max(0, perRow - 1) * gapPx + o.padXPx,
+        perRow * o.slotW * zoom + gaps * gapPx + o.padXPx +
+        (o.slotW * zoom + gapPx) / 2,
     };
     if (best === undefined) {
       best = candidate;
@@ -217,11 +281,11 @@ export function wsStageLayout(o: WsStageLayoutInput): WsStageLayout {
     }
   }
   return best ?? {
-    zoom: Math.min(MAX_ZOOM * o.ui, fitRowZoom({
+    zoom: snapDown(Math.min(MAX_ZOOM * o.ui, fitRowZoom({
       availW: o.availW, availH: o.availH, slotW: o.slotW, slotH: o.slotH,
       n, colGap: MIN_GAP_PX * o.ui, ui: o.ui,
-    })),
-    gapPx: MIN_GAP_PX * o.ui,
+    })), ZOOM_STEP),
+    gapPx: snapUp(MIN_GAP_PX * o.ui, GAP_STEP),
     rowGapPx,
     rows: 1,
     perRow: n,
@@ -232,6 +296,11 @@ export function wsStageLayout(o: WsStageLayoutInput): WsStageLayout {
  * The CSS custom properties a host publishes on its row from a layout. ONE
  * writer, so the reveal stage and the buy stage cannot drift in how they apply
  * the same numbers.
+ *
+ * The `toFixed` calls below are LOSSLESS by construction — `wsStageLayout`
+ * snapped every value onto this precision (`ZOOM_STEP` / `GAP_STEP`) before
+ * deriving anything from it — which is the whole point: what the solver
+ * checked its budgets against is exactly what the browser lays out.
  */
 export function wsStageLayoutStyle(l: WsStageLayout): Record<string, string> {
   return {

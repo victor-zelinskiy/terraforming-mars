@@ -80,19 +80,82 @@ describe('consoleCardArrival — the batch plan', () => {
       const starts = planCardArrival(5, t, 'in-flight-reveal').beats.map((b) => b.atMs);
       const gaps = starts.slice(1).map((v, i) => v - starts[i]);
       for (let i = 1; i < gaps.length; i++) {
-        expect(gaps[i]).to.be.lessThan(gaps[i - 1]);
+        expect(gaps[i]).to.be.lessThanOrEqual(gaps[i - 1]);
       }
       // …and five cards cost barely more than two.
       expect(planCardArrival(5, t, 'in-flight-reveal').totalMs)
-        .to.be.lessThan(planCardArrival(2, t, 'in-flight-reveal').totalMs * 1.3);
+        .to.be.lessThan(planCardArrival(2, t, 'in-flight-reveal').totalMs * 1.4);
+    });
+
+    it('…but the tightening has a FLOOR — the pile never coughs', () => {
+      // Geometric decay is unbounded: past the fifth card it produces two-frame
+      // gaps, and «another card left the deck» stops being an event at all.
+      const starts = planCardArrival(12, t, 'in-flight-reveal').beats.map((b) => b.atMs);
+      const gaps = starts.slice(1).map((v, i) => v - starts[i]);
+      expect(Math.min(...gaps)).to.be.greaterThanOrEqual(t.stepMinMs - 1e-9);
+    });
+
+    it('⚠️ THE LANDINGS ARE COUNTABLE — no two cards arrive in one blink', () => {
+      // The defect this pins: launch and landing shared one schedule, so the
+      // launch decay WAS the landing decay and a seven-card draw put its last
+      // four arrivals 58, 50 and 43 ms apart — under the threshold at which the
+      // eye separates events. Seven placements read as one flash («слишком
+      // резко»). The cadence is now a floor the plan owes, at every count.
+      for (const n of [2, 3, 4, 5, 6, 7, 8]) {
+        const lands = planCardArrival(n, t, 'in-flight-reveal').beats.map((b) => b.landAtMs);
+        const gaps = lands.slice(1).map((v, i) => v - lands[i]);
+        expect(Math.min(...gaps, Infinity), `n=${n} — ${JSON.stringify(gaps)}`)
+          .to.be.greaterThanOrEqual(t.minLandGapMs - 1e-6);
+        // …bought by staying in the air, never by launching late: the cascade
+        // off the pile is untouched by the cadence.
+        const starts = planCardArrival(n, t, 'in-flight-reveal').beats.map((b) => b.atMs);
+        const bare = planCardArrival(n, {...t, minLandGapMs: 0}, 'in-flight-reveal')
+          .beats.map((b) => b.atMs);
+        expect(starts, `n=${n} launches unchanged`).to.deep.eq(bare);
+      }
+    });
+
+    it('past the stretch budget the tail TIGHTENS — it never drifts, and never collapses', () => {
+      // The cadence is bought with flight time, and flight time is capped
+      // (`travelStretchMax`) because a throw held too long stops being a throw.
+      // Beyond that budget — only reachable past any count this game produces,
+      // the largest real reveal being seven — the plan is allowed to close the
+      // cadence back up, but never to the flash it replaced.
+      const lands = planCardArrival(16, t, 'in-flight-reveal').beats.map((b) => b.landAtMs);
+      const gaps = lands.slice(1).map((v, i) => v - lands[i]);
+      expect(Math.min(...gaps), JSON.stringify(gaps))
+        .to.be.greaterThan(t.minLandGapMs * 0.5);
+      for (const b of planCardArrival(16, t, 'in-flight-reveal').beats) {
+        expect(b.travelMs).to.be.lessThanOrEqual(t.travelMs * t.travelStretchMax + 1e-6);
+      }
+    });
+
+    it('a stretched flight keeps its turn proportional to its OWN travel', () => {
+      // A card held back to keep the cadence flies longer; a flip duration
+      // inherited from the base travel would open it early and leave it
+      // coasting face-up for the rest of the path.
+      const plan = planCardArrival(7, t, 'in-flight-reveal');
+      const last = plan.beats[6];
+      expect(last.travelMs, 'the tail card is genuinely in the air longer')
+        .to.be.greaterThan(plan.beats[0].travelMs);
+      expect(last.flipMs / last.travelMs).to.be.closeTo(t.flipSpan, 1e-9);
+      expect((last.flipAtMs as number) - last.atMs - last.peelMs)
+        .to.be.closeTo(last.travelMs * t.flipAt, 1e-9);
+      expect(last.travelMs, 'and never drifts').to.be.lessThanOrEqual(t.travelMs * t.travelStretchMax);
     });
 
     it('a batch of 2–4 is delivered in about a second', () => {
       for (const n of [2, 3, 4]) {
         const plan = planCardArrival(n, t, 'in-flight-reveal');
         expect(plan.totalMs).to.be.greaterThan(700);
-        expect(plan.totalMs).to.be.lessThan(1300);
+        // A hair over a second rather than under it: the extra is the landing
+        // cadence, which is what turned three arrivals into three arrivals.
+        expect(plan.totalMs, `n=${n}`).to.be.lessThan(1400);
       }
+    });
+
+    it('seven cards stay a draw, not a ceremony', () => {
+      expect(planCardArrival(7, t, 'in-flight-reveal').totalMs).to.be.lessThan(1900);
     });
 
     it('an empty batch is a legal no-op', () => {
@@ -149,6 +212,22 @@ describe('consoleCardArrival — the batch plan', () => {
 
     it('is deterministic (plans never use Math.random here)', () => {
       expect(arrivalSourceFan(3, 40)).to.deep.eq(arrivalSourceFan(3, 40));
+    });
+
+    it('…and stays a STACK however many cards there are', () => {
+      // A fixed per-card step is a stack for three and a spread hand for seven:
+      // seven cards were born across two and a half piles, so the batch was
+      // already scattered before anything moved and the launch could only read
+      // as a burst. The WHOLE fan is bounded, so the birth pose is a stack at
+      // every count and the separation afterwards is the event.
+      const deckW = 40;
+      for (const n of [2, 3, 4, 7, 12]) {
+        const fan = arrivalSourceFan(n, deckW);
+        const width = Math.max(...fan.map((f) => f.dx)) - Math.min(...fan.map((f) => f.dx));
+        expect(width, `n=${n} — ${width}px over a ${deckW}px pile`)
+          .to.be.lessThanOrEqual(deckW * 1.2);
+        expect(new Set(fan.map((f) => f.dx)).size, `n=${n} distinct`).to.eq(n);
+      }
     });
 
     it('a single card is born on the pile, unfanned', () => {

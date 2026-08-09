@@ -196,8 +196,9 @@ function clearBeat(): void {
  *
  * Armed from the ANSWER, not from the claim, because the surface cannot exist
  * before the answer does — an honest wait on a slow server is not the failure
- * this guards. Generous next to the ~1.2 s batch it covers, and short enough
- * that the failure reads as an abrupt arrival rather than a dead screen.
+ * this guards. Generous next to the batch it covers (~1.1 s for a pair, ~1.6 s
+ * for the seven-card reveal once the landing cadence has spread it), and short
+ * enough that the failure reads as an abrupt arrival rather than a dead screen.
  */
 const ARRIVAL_SAFETY_MS = 5000;
 

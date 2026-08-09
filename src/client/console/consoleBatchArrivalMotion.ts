@@ -268,7 +268,13 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
     const travel = s(beat.travelMs);
     tl.to(proxy, {x: slotRect.left, duration: travel, ease: 'power1.inOut'}, travelAt);
     tl.to(proxy, {y: slotRect.top, duration: travel, ease: 'power3.out'}, travelAt);
-    tl.to(proxy, {scale: restScale, duration: travel, ease: 'power2.out'}, travelAt);
+    // The GROWTH tracks the whole approach (`power1.inOut`), it does not finish
+    // early. At `power2.out` a card reached ~95 % of its final size in the first
+    // half of the travel and then only slid — and a card that is already its
+    // landed size reads as ALREADY THERE, so the rest of the path felt like
+    // slack. That is cheap at 700 ms and obvious once the landing cadence
+    // stretches the tail card's flight past 800.
+    tl.to(proxy, {scale: restScale, duration: travel, ease: 'power1.inOut'}, travelAt);
     tl.to(proxy, {rotation: 0, duration: travel * 0.82, ease: 'power2.out'}, travelAt);
 
     if (beat.flipAtMs !== undefined && !reduced) {

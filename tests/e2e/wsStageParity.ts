@@ -40,10 +40,21 @@ export type StageBox = {
   zoneW: number,
 };
 
+/**
+ * Re-synced 2026-08-09 — ONLY the zoom moved (1.476→1.475, 2.739→2.736,
+ * 0.970→0.968), and identically on all three profiles; every box is unchanged.
+ * That is the deliberate cost of two engine rules that landed together:
+ * `wsStageLayout` now SNAPS onto the grid its own CSS is serialized with (so a
+ * `toFixed` that rounds up can no longer make the rendered row wider than the
+ * budget it was solved for — the 4K seven-card stage broke on 0.06 px of it),
+ * and the vertical budget keeps a sub-pixel guard the way the width already
+ * kept 2 %. A tenth of a percent of card, for a row that can no longer be
+ * clipped by a rounding disagreement.
+ */
 export const WS_STAGE_BOX: Record<string, StageBox> = {
-  fhd: {headH: 36, rowH: 719, rowW: 1065, statusH: 48, zoom: '1.476', hostW: 1113, zoneW: 1113},
-  tv4k: {headH: 94, rowH: 1356, rowW: 2340, statusH: 96, zoom: '2.739', hostW: 2436, zoneW: 2436},
-  deck: {headH: 36, rowH: 482, rowW: 828, statusH: 44, zoom: '0.970', hostW: 864, zoneW: 864},
+  fhd: {headH: 36, rowH: 719, rowW: 1065, statusH: 48, zoom: '1.475', hostW: 1113, zoneW: 1113},
+  tv4k: {headH: 94, rowH: 1356, rowW: 2340, statusH: 96, zoom: '2.736', hostW: 2436, zoneW: 2436},
+  deck: {headH: 36, rowH: 482, rowW: 828, statusH: 44, zoom: '0.968', hostW: 864, zoneW: 864},
 };
 
 /**

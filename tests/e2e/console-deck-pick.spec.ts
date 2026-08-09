@@ -1,5 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
-import {press, stepKind, stepSubject, waitPressable, summaryVisible, fillPicks, pickCards} from './consoleStart';
+import {press, summaryVisible, walkToSummary, fillPicks, pickCards} from './consoleStart';
 
 /**
  * «КОРПОРАТИВНЫЕ АРХИВЫ» — the DRAW & SELECT flow, as a step of the Game Start
@@ -152,6 +152,16 @@ async function surfaces(page: Page) {
       /** The source card's slot is HELD while its fullscreen is open — one
        *  visual owner, never two copies of the same card on screen. */
       zoomOpen: document.querySelector('dialog.con-zoom[open]') !== null,
+      /**
+       * THE VIEWER OWNS THE SCREEN — the app's own marker, and the only honest
+       * «may I press something else yet». The dialog's `open` attribute goes
+       * first and the CLOSE FLIGHT keeps absorbing every intent after it (by
+       * design: the card is mid-air, `handleZoomIntent` swallows while
+       * `zoomClosing`), so a probe that waits a duration and then presses is
+       * betting on the dive finishing in time. It lost that bet intermittently,
+       * and the lost press looked exactly like «RT does not confirm».
+       */
+      zoomOwning: document.body.classList.contains('con-zoom-open'),
       seatHeld: (() => {
         const seat = document.querySelector('[data-embed-source-slot]');
         if (seat === null) {
@@ -163,14 +173,68 @@ async function surfaces(page: Page) {
       })(),
       /**
        * THE COMPOSITION. A seven-card reveal must read as a placed GROUP, not
-       * as a strip: distinct row tops, cards big enough to read, and the last
-       * row centred under the one above it.
+       * as a strip: the shape the layout SOLVED (4 + 3) is the shape on screen,
+       * cards big enough to read, and the last row centred under the one above.
+       *
+       * Clustered by proximity rather than bucketed by a rounded top: the
+       * focused card is lifted and scaled, so it starts ~10 px above its own
+       * row and any fixed bucket splits it into a row of one.
        */
-      rows: (() => {
-        const tops = slots.map((el) => Math.round(el.getBoundingClientRect().top / 8));
-        return new Set(tops).size;
+      rowShape: (() => {
+        const cs = slots
+          .map((el) => {
+            const r = el.getBoundingClientRect();
+            return {c: r.top + r.height / 2, h: r.height};
+          })
+          .sort((a, b) => a.c - b.c);
+        const out: Array<number> = [];
+        let cur = 0;
+        cs.forEach((v, i) => {
+          if (i > 0 && v.c - cs[i - 1].c > v.h * 0.5) {
+            out.push(cur);
+            cur = 0;
+          }
+          cur++;
+        });
+        if (cur > 0) {
+          out.push(cur);
+        }
+        return out;
       })(),
+      /** The FOCUSED slot's width — the biggest thing on the stage. */
       cardW: Math.round(slots[0]?.getBoundingClientRect().width ?? 0),
+      /** The TV rem factor, so every size threshold below can ride it. */
+      ui: parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue('--con-ui-scale')) || 1,
+      /**
+       * ⚠️ THE CHECK THAT WOULD HAVE CAUGHT THE 4K BUG. Everything above asks
+       * the VIEWPORT, and the viewport was never the thing doing the clipping:
+       * the row solved a 4 + 3 shape, `flex-wrap` broke it as 3 + 3 + 1 over a
+       * 0.06 px rounding disagreement, and the extra row was cropped by the
+       * ROW'S OWN box — top and bottom, entirely inside a 4K screen with room
+       * to spare. So ask the row: does anything stick out of it, and does it
+       * have scrollable overflow at all.
+       */
+      clippedByRow: (() => {
+        const row = document.querySelector('.con-deckpick__row');
+        if (row === null) {
+          return 0;
+        }
+        const rr = row.getBoundingClientRect();
+        return slots.filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.top < rr.top - 1 || r.bottom > rr.bottom + 1 ||
+            r.left < rr.left - 1 || r.right > rr.right + 1;
+        }).length;
+      })(),
+      rowScroll: (() => {
+        const row = document.querySelector('.con-deckpick__row');
+        if (row === null) {
+          return 0;
+        }
+        return Math.round(Math.max(
+          row.scrollHeight - row.clientHeight, row.scrollWidth - row.clientWidth));
+      })(),
       /**
        * DOES ANY REVEALED CARD TOUCH THE SOURCE SEAT? It must be impossible —
        * not «hidden behind a z-index», not «only when unfocused». The seat is
@@ -201,32 +265,64 @@ async function surfaces(page: Page) {
   });
 }
 
-/** Walk the setup wizard and commit, landing in the deployment. */
+/**
+ * Walk the setup wizard and commit, landing in the deployment.
+ *
+ * THROUGH THE SHARED DRIVER, never a local copy of it. This spec used to walk
+ * the wizard itself and then assert it had reached the summary — and on a 4K
+ * viewport it hadn't: an advance press lands on the just-arrived summary and
+ * submits it with the same A that nudges past a cinematic, so the next thing on
+ * screen is already the DEPLOYMENT. `walkToSummary` has known that for a long
+ * time and treats it as an ordinary outcome; the copy called it a failure and
+ * aborted a run whose game had started perfectly. The setup is never the
+ * subject — a start-flow change is adapted in `consoleStart.ts`, not here.
+ */
 async function reachDeployment(page: Page): Promise<void> {
-  await page.waitForSelector('.con-start__frame', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  for (let round = 0; round < 8 && !(await summaryVisible(page)); round++) {
-    await waitPressable(page);
-    await page.waitForTimeout(250);
-    const kind = stepKind(await stepSubject(page));
-    if (kind === 'corporation') {
-      await press(page, 'Enter', 600);
-    } else if (kind === 'prelude') {
-      const got = await pickCards(page, ['Corporate Archives']);
-      expect(got, 'the archives were offered and picked').toContain('Corporate Archives');
-      await fillPicks(page, 2);
-    } else if (kind === 'project') {
-      await fillPicks(page, 4, 30);
-    }
-    await press(page, 'Period', 1600);
-    for (let w = 0; w < 20 && !(await summaryVisible(page)) &&
-         stepKind(await stepSubject(page)) === kind; w++) {
-      await page.waitForTimeout(250);
-    }
+  await walkToSummary(page, {
+    onStep: async (p, kind) => {
+      if (kind === 'corporation') {
+        await press(p, 'Enter', 600);
+      } else if (kind === 'prelude') {
+        const got = await pickCards(p, ['Corporate Archives']);
+        expect(got, 'the archives were offered and picked').toContain('Corporate Archives');
+        await fillPicks(p, 2);
+      } else if (kind === 'project') {
+        await fillPicks(p, 4, 30);
+      }
+    },
+  });
+  if (await summaryVisible(page)) {
+    await press(page, 'Enter', 2500); // НАЧАТЬ ПАРТИЮ
   }
-  expect(await summaryVisible(page), 'reached the summary').toBeTruthy();
-  await press(page, 'Enter', 2500); // НАЧАТЬ ПАРТИЮ
   await page.waitForTimeout(4000);
+}
+
+/**
+ * Wait for a STATE, never for a duration.
+ *
+ * A fixed `waitForTimeout` before a read is a claim about how fast the machine
+ * is, and this spec made one: it sampled the dock's receiving pose exactly
+ * 1200 ms after the confirm. That held at 1920 and missed at 3840 — the pose
+ * opens when the FLIGHT starts, and the flight starts when the server answers,
+ * so the instant is a property of the machine and not of the contract. Waiting
+ * for the transition also proves strictly more than the sample did: that it
+ * happened at all, rather than that it happened to be true once.
+ */
+async function waitUntil(
+  page: Page,
+  pred: (s: Awaited<ReturnType<typeof surfaces>>) => boolean,
+  budgetMs = 8000,
+): Promise<boolean> {
+  const until = Date.now() + budgetMs;
+  for (;;) {
+    if (pred(await surfaces(page))) {
+      return true;
+    }
+    if (Date.now() >= until) {
+      return false;
+    }
+    await page.waitForTimeout(150);
+  }
 }
 
 /** Press A on the deployment queue until the draw & select surface stands. */
@@ -257,114 +353,171 @@ async function waitPickable(page: Page, budgetMs = 12_000): Promise<boolean> {
   return (await surfaces(page)).flow === 'choosing';
 }
 
-test.describe('console — «посмотри N карт колоды, оставь K»', () => {
-  test('the draw & select surface stands INSIDE the start workspace and answers the pick', async ({page, request}) => {
-    test.setTimeout(300_000);
-    const created = await request.post('/api/creategame', {
-      data: cfg({preludes: ['Corporate Archives', 'Metals Company', 'Supplier', 'Business Empire']}),
+/**
+ * The composition is PROFILE WORK, so it is probed per profile.
+ *
+ * The 4K row is not the 1080p row scaled up — the rem factor doubles, the seat
+ * reserve doubles with it, and the band's aspect changes what shape wins. The
+ * seven-card stage shipped correct at 1920 and broken at 3840 for exactly that
+ * reason, and this spec only ran at 1920, so nothing failed. A geometry claim
+ * that is only asserted at one resolution is a claim about one resolution.
+ */
+const PROFILES = [
+  {tag: 'fhd', width: 1920, height: 1080, query: ''},
+  {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
+] as const;
+
+for (const profile of PROFILES) {
+  test.describe(`console — «посмотри N карт колоды, оставь K» · ${profile.tag}`, () => {
+    test.use({
+      viewport: {width: profile.width, height: profile.height},
+      deviceScaleFactor: 1,
+      screen: {width: profile.width, height: profile.height},
     });
-    expect(created.ok(), 'game created').toBeTruthy();
-    const game = await created.json();
-    const id = game.players[0].id;
 
-    await page.setViewportSize({width: 1920, height: 1080});
-    await page.goto(`/player?id=${id}&console=1`);
-    await reachDeployment(page);
+    test('the draw & select surface stands INSIDE the start workspace and answers the pick', async ({page, request}) => {
+      test.setTimeout(420_000);
+      const created = await request.post('/api/creategame', {
+        data: cfg({preludes: ['Corporate Archives', 'Metals Company', 'Supplier', 'Business Empire']}),
+      });
+      expect(created.ok(), 'game created').toBeTruthy();
+      const game = await created.json();
+      const id = game.players[0].id;
 
-    const opened = await openDeckPick(page);
-    expect(opened, `the surface opened — ${JSON.stringify(await surfaces(page))}`).toBeTruthy();
-    const dealt = await waitPickable(page);
-    const at = await surfaces(page);
-    expect(dealt, `the deal finished and the pad opened — ${JSON.stringify(at)}`).toBeTruthy();
-    await page.screenshot({path: 'test-results/deckpick-01-dealt.png'});
+      await page.goto(`/player?id=${id}&console=1${profile.query}`);
+      await reachDeployment(page);
 
-    // ── 1. IT IS A STEP OF THE WORKSPACE, not a screen of its own ────────
-    expect(at.startUp, 'the start workspace is still the screen').toBeTruthy();
-    expect(at.pickEmbedded, 'the surface renders inside the start embed zone').toBeTruthy();
-    expect(at.headCount, 'exactly ONE breadcrumb — the host\'s').toBe(1);
-    expect(at.taskHost, 'the generic card browser never serves this prompt').toBe(0);
-    expect(at.legacyModal, 'no desktop fallback modal').toBe(0);
+      const opened = await openDeckPick(page);
+      expect(opened, `the surface opened — ${JSON.stringify(await surfaces(page))}`).toBeTruthy();
+      const dealt = await waitPickable(page);
+      const at = await surfaces(page);
+      expect(dealt, `the deal finished and the pad opened — ${JSON.stringify(at)}`).toBeTruthy();
+      await page.screenshot({path: `test-results/deckpick-${profile.tag}-01-dealt.png`});
 
-    // ── 2. THE CRUMB NAMES THE CARD ─────────────────────────────────────
-    expect(at.crumb, `crumb names the source card — «${at.crumb}»`)
-      .toContain('корпоративные архивы');
-    expect(at.sourceSeat, 'the source card presides over the draw').toBeTruthy();
+      // ── 1. IT IS A STEP OF THE WORKSPACE, not a screen of its own ────────
+      expect(at.startUp, 'the start workspace is still the screen').toBeTruthy();
+      expect(at.pickEmbedded, 'the surface renders inside the start embed zone').toBeTruthy();
+      expect(at.headCount, 'exactly ONE breadcrumb — the host\'s').toBe(1);
+      expect(at.taskHost, 'the generic card browser never serves this prompt').toBe(0);
+      expect(at.legacyModal, 'no desktop fallback modal').toBe(0);
 
-    // ── 3. SEVEN CARDS, ALL READABLE ────────────────────────────────────
-    expect(at.cards, 'all seven revealed cards are on the stage').toBe(7);
-    expect(at.painted, `every card is painted inside the viewport — ${JSON.stringify(at)}`).toBe(7);
-    expect(at.overflowing, 'no card is clipped by the viewport').toBeFalsy();
-    expect(at.deckPile, 'the deck they came from is on screen').toBeTruthy();
-    expect(at.dockMounted, 'the hand dock is never hidden').toBeTruthy();
-    expect(at.dockCompact, 'the dock steps back into its compact pose while the pick owns the screen').toBeTruthy();
+      // ── 2. THE CRUMB NAMES THE CARD ─────────────────────────────────────
+      expect(at.crumb, `crumb names the source card — «${at.crumb}»`)
+        .toContain('корпоративные архивы');
+      expect(at.sourceSeat, 'the source card presides over the draw').toBeTruthy();
 
-    // ── THE COMPOSITION ─────────────────────────────────────────────────
-    // Seven cards are a GROUP, not a strip: the band's height is used, the
-    // cards are big enough to read at a couch distance, and the source seat
-    // has a safe zone the group can never reach into.
-    expect(at.rows, `seven cards are laid out in more than one row — ${JSON.stringify(at)}`)
-      .toBeGreaterThan(1);
-    expect(at.cardW, `the cards are large — ${at.cardW}px at 1920`).toBeGreaterThan(190);
-    expect(at.sourceClash, 'no revealed card ever overlaps the source seat').toBe(0);
-    // The shelf yields the stage, but what it still paints must be honest: a
-    // family that holds cards shows an open top face, never a lone crop.
-    expect(at.shelfStripOnly, `no shelf family is reduced to a crop — ${JSON.stringify(at)}`).toBe(0);
-    // …and «РАЗЫГРАНО» has YIELDED THE STAGE — kept in the DOM (its stacks and
-    // the hero target it registers must survive), but out of the way, so the
-    // step gets the whole deployment row rather than its top third.
-    expect(at.dockShelf.mounted, 'the played shelf is never unmounted').toBeTruthy();
-    expect(at.dockShelf.opacity, `the played shelf receded — ${JSON.stringify(at.dockShelf)}`)
-      .toBeLessThan(0.05);
-    expect(at.stageH, `the step took the whole row — ${at.stageH}px`).toBeGreaterThan(600);
+      // ── 3. SEVEN CARDS, ALL READABLE ────────────────────────────────────
+      expect(at.cards, 'all seven revealed cards are on the stage').toBe(7);
+      expect(at.painted, `every card is painted inside the viewport — ${JSON.stringify(at)}`).toBe(7);
+      expect(at.overflowing, 'no card is clipped by the viewport').toBeFalsy();
+      expect(at.deckPile, 'the deck they came from is on screen').toBeTruthy();
+      expect(at.dockMounted, 'the hand dock is never hidden').toBeTruthy();
+      expect(at.dockCompact, 'the dock steps back into its compact pose while the pick owns the screen').toBeTruthy();
 
-    // ── 4. THE PAD IS THE SURFACE'S — the cards are actually pickable ────
-    const dockBefore = at.dockCards;
-    await press(page, 'Enter', 400); // A on the focused card
-    await press(page, 'ArrowRight', 300);
-    await press(page, 'Enter', 400);
-    const chosen = await surfaces(page);
-    expect(chosen.picked, `two cards are selected — ${JSON.stringify(chosen)}`).toBe(2);
-    // …and the separation survives the focus emphasis, which is the state the
-    // layout has to reserve room for rather than the one it is measured in.
-    expect(chosen.sourceClash, 'a focused card still never reaches the source seat').toBe(0);
-    await page.screenshot({path: 'test-results/deckpick-02-picked.png'});
+      // ── THE COMPOSITION ─────────────────────────────────────────────────
+      // Seven cards are a GROUP, not a strip: the band's height is used, the
+      // cards are big enough to read at a couch distance, and the source seat
+      // has a safe zone the group can never reach into.
+      // ⚠️ THE SOLVED SHAPE IS THE SHAPE ON SCREEN. Not «more than one row» —
+      // 3 + 3 + 1 also satisfies that, and 3 + 3 + 1 is exactly what shipped:
+      // `flex-wrap` broke a 4 + 3 line over 0.06 px of `toFixed` rounding and
+      // the orphaned third row was cropped by the row's own box, inside a 4K
+      // screen with a third of its height unused. The shape is the assertion.
+      expect(at.rowShape, `seven cards are the composition the layout solved — ${JSON.stringify(at)}`)
+        .toEqual([4, 3]);
+      expect(at.clippedByRow,
+        `no card is cut off by the stage row — ${JSON.stringify(at)}`).toBe(0);
+      expect(at.rowScroll,
+        `the stage row has nothing to scroll to — ${at.rowScroll}px`).toBe(0);
+      expect(at.cardW, `the cards are large — ${at.cardW}px at ui ${at.ui}`)
+        .toBeGreaterThan(180 * at.ui);
+      expect(at.sourceClash, 'no revealed card ever overlaps the source seat').toBe(0);
+      // The shelf yields the stage, but what it still paints must be honest: a
+      // family that holds cards shows an open top face, never a lone crop.
+      expect(at.shelfStripOnly, `no shelf family is reduced to a crop — ${JSON.stringify(at)}`).toBe(0);
+      // …and «РАЗЫГРАНО» has YIELDED THE STAGE — kept in the DOM (its stacks and
+      // the hero target it registers must survive), but out of the way, so the
+      // step gets the whole deployment row rather than its top third.
+      expect(at.dockShelf.mounted, 'the played shelf is never unmounted').toBeTruthy();
+      expect(at.dockShelf.opacity, `the played shelf receded — ${JSON.stringify(at.dockShelf)}`)
+        .toBeLessThan(0.05);
+      expect(at.stageH, `the step took the whole row — ${at.stageH}px`).toBeGreaterThan(600);
 
-    // ── 4b. L3 INSPECTS THE SOURCE — by LIFTING it, never by copying it ──
-    // The viewer used to rise out of nowhere (a TEXTUAL entrance) because the
-    // shared origin resolver only knew the card-actions composer's hero column,
-    // so the seat kept its card and the player saw two of the same card at once.
-    await press(page, 'KeyC', 1400);
-    const zoomed = await surfaces(page);
-    expect(zoomed.zoomOpen, `L3 opens the source fullscreen — ${JSON.stringify(zoomed)}`).toBeTruthy();
-    expect(zoomed.seatHeld, 'the seat is empty while its card is in the viewer').toBeTruthy();
-    await press(page, 'Escape', 900);
+      // ── 4. THE PAD IS THE SURFACE'S — the cards are actually pickable ────
+      const dockBefore = at.dockCards;
+      await press(page, 'Enter', 400); // A on the focused card
+      await press(page, 'ArrowRight', 300);
+      await press(page, 'Enter', 400);
+      const chosen = await surfaces(page);
+      expect(chosen.picked, `two cards are selected — ${JSON.stringify(chosen)}`).toBe(2);
+      // …and the separation survives the focus emphasis, which is the state the
+      // layout has to reserve room for rather than the one it is measured in.
+      expect(chosen.sourceClash, 'a focused card still never reaches the source seat').toBe(0);
+      await page.screenshot({path: `test-results/deckpick-${profile.tag}-02-picked.png`});
 
-    // ── 5. CONFIRM → the picks reach the DOCK, then the rest clears ──────
-    await press(page, 'Period', 1200); // RT = «Подтвердить»
-    const sending = await surfaces(page);
-    await page.screenshot({path: 'test-results/deckpick-03-sending.png'});
-    // The dock comes OUT of its compact pose to receive them — the accent of
-    // receiving, and the pose those flights measure their landing rects in.
-    expect(sending.dockCompact, 'the dock opens up to receive the picks').toBeFalsy();
-    await page.waitForTimeout(4500);
-    const after = await surfaces(page);
-    expect(after.dockCards, 'the two kept cards are physically in the dock')
-      .toBeGreaterThanOrEqual(dockBefore + 2);
+      // ── 4b. L3 INSPECTS THE SOURCE — by LIFTING it, never by copying it ──
+      // The viewer used to rise out of nowhere (a TEXTUAL entrance) because the
+      // shared origin resolver only knew the card-actions composer's hero column,
+      // so the seat kept its card and the player saw two of the same card at once.
+      await press(page, 'KeyC', 1400);
+      const zoomed = await surfaces(page);
+      expect(zoomed.zoomOpen, `L3 opens the source fullscreen — ${JSON.stringify(zoomed)}`).toBeTruthy();
+      expect(zoomed.seatHeld, 'the seat is empty while its card is in the viewer').toBeTruthy();
+      await press(page, 'Escape', 400);
+      // …and the card FLIES BACK to its seat. Until it has, the viewer still
+      // owns input on purpose, so the probe waits for the app to say so rather
+      // than for a number.
+      const viewerGone = await waitUntil(page, (s) => !s.zoomOwning && !s.zoomOpen, 8000);
+      expect(viewerGone, 'the source card returned to its seat and gave input back').toBeTruthy();
+      await page.waitForTimeout(300);
 
-    // ── 6. …and the workspace comes back around its source card ─────────
-    await page.waitForTimeout(3000);
-    await page.screenshot({path: 'test-results/deckpick-04-returned.png'});
-    const back = await surfaces(page);
-    expect(back.pickUp, 'the draw & select step is gone').toBeFalsy();
-    expect(back.startUp, 'the start workspace never left').toBeTruthy();
-    expect(back.played, `«Корпоративные архивы» finished its ordinary play — ${JSON.stringify(back)}`)
-      .toContain('Corporate Archives');
-    // …which it could only do because the shelf came back FIRST: the card's
-    // continuation flight measures a slot inside it.
-    expect(back.dockShelf.opacity, 'the played shelf is back at full strength').toBeGreaterThan(0.9);
-    expect(back.shelfBlanked, `no card is left blanked on the shelf — ${JSON.stringify(back)}`).toBe(0);
-    expect(back.sourceSeatUp, 'the source seat is gone once its card flew home').toBeFalsy();
+      // ── 5. CONFIRM → the picks reach the DOCK, then the rest clears ──────
+      await press(page, 'Period', 400); // RT = «Подтвердить»
+      expect(await waitUntil(page, (s) => s.flow !== 'choosing', 5000),
+        `RT committed the pick — ${JSON.stringify(await surfaces(page))}`).toBeTruthy();
+      // The dock comes OUT of its compact pose to receive them — the accent of
+      // receiving, and the pose those flights measure their landing rects in.
+      // Awaited, not sampled: it opens when the FLIGHT starts, and the flight
+      // starts when the server answers.
+      const dockOpened = await waitUntil(page, (s) => !s.dockCompact);
+      await page.screenshot({path: `test-results/deckpick-${profile.tag}-03-sending.png`});
+      expect(dockOpened,
+        `the dock opens up to receive the picks — ${JSON.stringify(await surfaces(page))}`)
+        .toBeTruthy();
+      const landed = await waitUntil(page, (s) => s.dockCards >= dockBefore + 2, 9000);
+      const after = await surfaces(page);
+      expect(landed, `the two kept cards are physically in the dock — ${JSON.stringify(after)}`)
+        .toBeTruthy();
+
+      // ── 6. …and the workspace comes back around its source card ─────────
+      const returned = await waitUntil(page,
+        (s) => !s.pickUp && s.played.includes('Corporate Archives'), 12_000);
+      await page.waitForTimeout(800); // let the shelf's own settle finish
+      await page.screenshot({path: `test-results/deckpick-${profile.tag}-04-returned.png`});
+      const back = await surfaces(page);
+      expect(returned, `the flow came back around its source card — ${JSON.stringify(back)}`)
+        .toBeTruthy();
+      expect(back.pickUp, 'the draw & select step is gone').toBeFalsy();
+      expect(back.startUp, 'the start workspace never left').toBeTruthy();
+      expect(back.played, `«Корпоративные архивы» finished its ordinary play — ${JSON.stringify(back)}`)
+        .toContain('Corporate Archives');
+      // …which it could only do because the shelf came back FIRST: the card's
+      // continuation flight measures a slot inside it.
+      expect(back.dockShelf.opacity, 'the played shelf is back at full strength').toBeGreaterThan(0.9);
+      expect(back.shelfBlanked, `no card is left blanked on the shelf — ${JSON.stringify(back)}`).toBe(0);
+      expect(back.sourceSeatUp, 'the source seat is gone once its card flew home').toBeFalsy();
+    });
   });
+}
+
+/**
+ * The CHOREOGRAPHY probe stays at one resolution on purpose: what it watches is
+ * an ORDER OF EVENTS (the shelf yields, the card flies home, the scene lets go),
+ * and an order does not change with the rem factor — while the run costs a full
+ * deployment played to its last prelude.
+ */
+test.describe('console — «посмотри N карт колоды, оставь K» · the return', () => {
+  test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1});
 
   /**
    * THE LAST PRELUDE. `deploymentSettled` used to go true the moment the claim
@@ -384,7 +537,6 @@ test.describe('console — «посмотри N карт колоды, оста�
     expect(created.ok(), 'game created').toBeTruthy();
     const game = await created.json();
 
-    await page.setViewportSize({width: 1920, height: 1080});
     await page.goto(`/player?id=${game.players[0].id}&console=1`);
     await reachDeployment(page);
 

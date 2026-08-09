@@ -511,6 +511,15 @@ body.con-zoom-open .con-journal {
     column-gap: var(--con-ws-stage-gap, .7rem);
     row-gap: var(--con-ws-stage-rowgap, .7rem);
     flex-wrap: wrap;
+    /* A WRAPPING STAGE ROW IS NEVER A SCROLL CONTAINER. `.con-cards__strip`
+       inherits `overflow-x: auto` from the single-line carousel it shares a
+       class with, and on a wrapped row that is a feedback loop the fit cannot
+       win: content overflows by a hair → a scrollbar appears → `clientWidth`
+       drops by its width → the next fit solves a narrower row → it fits → the
+       scrollbar goes → repeat. The engine guarantees the content fits, so the
+       honest backstop is a clip, and the player never meets a scrollbar the
+       console has banned anyway. */
+    overflow: hidden;
     /* The top padding is the focused card's VERTICAL clearance (its scale
        growth + the −.2rem lift + the pick band that hangs above it) — the
        layout deliberately does NOT reserve that in the height budget, because
