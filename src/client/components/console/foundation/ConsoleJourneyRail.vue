@@ -113,7 +113,6 @@
         <span class="con-jrail__terminal-lead" aria-hidden="true"></span>
         <span class="con-jrail__terminal-mark" aria-hidden="true"><i>✓</i></span>
         <span class="con-jrail__terminal-label">{{ $t(terminalLabel) }}</span>
-        <span class="con-jrail__terminal-cap" aria-hidden="true"></span>
       </div>
     </div>
   </div>

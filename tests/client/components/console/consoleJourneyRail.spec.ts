@@ -59,6 +59,7 @@ describe('ConsoleJourneyRail — one persistent workspace flow object', () => {
     await wrapper.setProps({presentation: 'complete'});
     expect(wrapper.element).to.equal(root);
     expect(wrapper.find('.con-jrail__view--terminal').text()).to.contain('Ready');
+    expect(wrapper.find('.con-jrail__terminal-cap').exists()).to.eq(false);
   });
 
   it('keeps irreversible progress inert and never introduces focus targets', () => {

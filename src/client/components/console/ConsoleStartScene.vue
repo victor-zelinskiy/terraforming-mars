@@ -1099,7 +1099,7 @@ export default defineComponent({
      *  a linear PROGRESS readout through the deployment. */
     selectionJourneyItems(): ReadonlyArray<JourneyItem> {
       if (!this.state.hold && this.mode === 'wizard' && this.steps.length > 0) {
-        return startJourneyItems(this.steps, this.picks, this.railPos);
+        return startJourneyItems(this.steps, this.picks, this.railPos, this.state.visited);
       }
       return committedStartJourneyItems(this.state.stepIds);
     },
@@ -3298,6 +3298,12 @@ export default defineComponent({
       }
       const rect = frame.getBoundingClientRect();
       const clone = frame.cloneNode(true) as HTMLElement;
+      // A snapshot is already the fully settled frame. Inserting its cloned
+      // header into the DOM must NOT replay mount-only breadcrumb / connector /
+      // journey intro animations: those `backwards` delays blanked SUMMARY for
+      // a frame and the rail for almost a second. The host owns the ONE motion
+      // here — the whole frozen header and rail dissolve together.
+      clone.classList.add('con-start__frame--snapshot');
       // The overlay owns the moving cards — hide them INSIDE the snapshot.
       for (const name of moving) {
         const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name;

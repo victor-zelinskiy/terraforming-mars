@@ -16996,13 +16996,6 @@ body.con-start-barshold .con-status {
         i { font-style: normal; transform: rotate(-45deg); }
     }
     &__terminal-label { font-size: .78rem; letter-spacing: .12em; }
-    &__terminal-cap {
-        width: .16rem;
-        height: .72rem;
-        clip-path: polygon(0 0, 100% 18%, 100% 82%, 0 100%, 34% 50%);
-        background: fade(@con-mint, 78%);
-    }
-
     /* GSAP drives this ONCE after every real deployment effect has settled.
        It is always mounted, so the completion timeline never waits for or
        targets a transient node. */
@@ -17210,6 +17203,18 @@ body.con-start-barshold .con-status {
         width: 100%;
         height: 100%;
         margin: 0;
+    }
+
+    /* A DOM snapshot is a settled physical frame, not a second component
+       mount. Suppress every inner intro/crossfade (including pseudo-element
+       glints) so the host's GSAP dissolve is the ONLY animation: breadcrumb,
+       connector and Journey Rail leave as one intact header. */
+    > .con-start__frame--snapshot,
+    > .con-start__frame--snapshot *,
+    > .con-start__frame--snapshot *::before,
+    > .con-start__frame--snapshot *::after {
+        animation: none !important;
+        transition: none !important;
     }
 }
 /* One flying start-flow card. The 3D BODY (perspective owner, both sides,
@@ -19826,6 +19831,93 @@ html.console-mode {
     &__imp-delta { font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; }
 }
 
+/* ═══ THE CARD RESOURCE CHIP (ConsoleCardResourceChip.vue) ═══
+   «How many of this card's own resource are on it», said once and the same way
+   on every surface that asks the player to reason about that number.
+
+   IT IS PART OF THE CARD, NOT AN OVERLAY ON IT. The `--card` variant is
+   authored in PX because every console host draws its card inside a CSS `zoom`
+   context whose factor already folds in `--con-ui-scale` (`.con-composer__actcard`
+   at `0.85·ui`, `.con-ptsel__slot` at the solved candidate zoom). A rem child
+   there would be scaled twice; px puts the chip in the SAME 320×460 space the
+   card face is measured in, so it rides the card's zoom, its focus lift, its
+   scale, a FLIP and the fullscreen inspect by construction — no second
+   animation to keep in sync, and no independent layer to re-position. That is
+   also why it never protrudes past the card BOX: it crosses the card's painted
+   FRAME (a mounting tab on the rim), which is a visual overlap and therefore
+   can never become a container's overflow.
+
+   THE PLATE IS DARK ON PURPOSE. The resource sprite is a full-bleed gold-framed
+   tile (`assets/resources/*.png` — the ornate frame is baked into the art), so a
+   gold plate under it doubles the gold and the chip starts shouting. Dark plate,
+   thin warm rim, the sprite supplies the colour. Neutral warm gold = a standing
+   quantity; EMERALD is reserved for what is about to change (the Result line's
+   `2 → 3`) — a number that is merely true is not an event. */
+.con-cardres {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+}
+.con-cardres__icon {
+    display: block;
+    flex: 0 0 auto;
+    background-size: contain !important;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+.con-cardres__n { font-weight: 800; color: #f0d9a4; }
+/* ZERO is a real, decision-relevant reading («this card takes floaters and has
+   none»), so it is shown and merely quieted — never dropped. A missing chip
+   would read as «this card cannot hold them at all», which is the opposite. */
+.con-cardres--zero .con-cardres__n { color: rgba(214, 190, 148, 0.6); }
+
+/* ── ON A CARD. keep-px: the card's own space (see the block header). ── */
+.con-cardres--card {
+    position: absolute;
+    /* The left rim at mid-height: clear of the cost badge and title plate
+       above, the requirement band below them, and the VP + `△` markers at the
+       foot — the one band that is free on every card shape. */
+    left: 3px; /* keep-px */
+    top: 50%;
+    transform: translateY(-50%);
+    gap: 3px; /* keep-px */
+    height: 32px; /* keep-px */
+    padding: 0 8px 0 4px; /* keep-px */
+    border-radius: 9px; /* keep-px */
+    background: linear-gradient(180deg, rgba(32, 24, 12, 0.95) 0%, rgba(18, 14, 8, 0.95) 100%);
+    box-shadow: inset 0 0 0 1.5px rgba(209, 172, 105, 0.5), 0 2px 7px rgba(0, 0, 0, 0.6);
+    z-index: 2;
+    .con-cardres__icon { width: 24px; height: 24px; } /* keep-px */
+    .con-cardres__n { font-size: 17px; } /* keep-px */
+    /* The one-shot gain beat, when a host owns one. Transform only, so the
+       chip's box — and the card's — never changes. */
+    &.con-cardres--pop { animation: con-cardres-pop calc(620ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.9, 0.3, 1.2) 1; }
+}
+@keyframes con-cardres-pop {
+    0% { transform: translateY(-50%) scale(1); }
+    35% { transform: translateY(-50%) scale(1.22); }
+    100% { transform: translateY(-50%) scale(1); }
+}
+
+/* ── INSIDE THE SELF-TARGET PROXY. Ordinary UI, so rem: the proxy is not a card
+   and sits in no zoom context of its own. ── */
+.con-cardres--proxy {
+    flex: 0 0 auto;
+    gap: .2rem;
+    padding: .1rem .4rem .1rem .25rem;
+    border-radius: 49.95rem;
+    background: rgba(24, 18, 9, 0.85);
+    box-shadow: inset 0 0 0 .05rem rgba(209, 172, 105, 0.45);
+    .con-cardres__icon { width: 1.05rem; height: 1.05rem; }
+    .con-cardres__n { font-size: .82rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-cardres--card.con-cardres--pop { animation: none; }
+}
+
 /* ═══ THE SELF-TARGET CONNECTOR (ConsolePlayedTargetLink.vue) ═══
    The physical wire from the «ИСТОЧНИК · ЭТА КАРТА» proxy in the selector to
    the REAL source card in the workspace's hero column. It replaces an arrow
@@ -19877,26 +19969,26 @@ html.console-mode {
     }
     &--focused&--locked { box-shadow: 0 0 .55rem fade(@con-mint, 38%); }
 }
-/* THE BRACKET ANCHOR — a terminal on the card's right edge, gripping it. Never
-   an arrowhead: a chevron aimed back at the card is exactly the «назад» reading
-   the glyph this replaced already had. */
+/* THE DOCKING PORT — ONE small socket where the wire meets the card, sitting
+   half over its edge so the two read as connected hardware.
+
+   It replaces a vertical tick with two horizontal serifs, which at this size
+   stopped reading as a bracket and started reading as an «=» sign floating
+   beside the frame. A hollow rounded socket says «this plugs in here» with one
+   shape, and — unlike the old three-stroke figure — it stays quiet next to the
+   card's own resource chip. Never an arrowhead: a chevron aimed back at the
+   card is exactly the «назад» reading the glyph this whole connector replaced
+   already had. */
 .con-ptlink__anchor {
     position: absolute;
     left: 0; top: 50%;
-    width: .16rem; height: 1.3rem;
-    border-radius: .08rem;
-    transform: translateY(-50%);
-    background: currentColor;
+    width: .44rem; height: .44rem;
+    border-radius: .15rem;
+    /* Half over the frame: the socket belongs to the seam, not to either side. */
+    transform: translate(-45%, -50%);
+    background: rgba(9, 16, 25, 0.9);
+    box-shadow: inset 0 0 0 .1rem currentColor;
     color: fade(@con-cyan, 52%);
-    &::before, &::after {
-        content: '';
-        position: absolute; right: 0;
-        width: .55rem; height: .16rem;
-        border-radius: .08rem;
-        background: currentColor;
-    }
-    &::before { top: 0; }
-    &::after { bottom: 0; }
 }
 .con-ptlink__wire--focused .con-ptlink__anchor { color: fade(@con-cyan, 96%); }
 .con-ptlink__wire--locked .con-ptlink__anchor { color: fade(@con-mint, 94%); }

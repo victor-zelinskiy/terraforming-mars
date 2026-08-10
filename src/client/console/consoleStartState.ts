@@ -377,14 +377,17 @@ const JOURNEY_LABEL: Record<StartWizardStepId, string> = {
 
 /**
  * The PREPARATION journey (tabs mode): completed steps are revisitable, the
- * next step unlocks only when the current one satisfies its pick contract,
- * and the SUMMARY unlocks when every step does — the rail never promises a
- * stage its prerequisites don't allow.
+ * next step unlocks only when the current one satisfies its pick contract.
+ * The SUMMARY additionally waits until the optional PROJECTS surface has
+ * actually been visited once: choosing zero cards is valid, but the rail must
+ * not visually offer a review screen beside an optional category the player
+ * has not looked at yet.
  */
 export function startJourneyItems(
   steps: ReadonlyArray<StartWizardStep>,
   picks: InitialCardsPicks,
   railPos: number,
+  visitedSteps: ReadonlySet<number>,
 ): ReadonlyArray<StartJourneyItem> {
   const items: Array<StartJourneyItem> = steps.map((s, i) => {
     const complete = stepComplete(s, picks);
@@ -400,10 +403,12 @@ export function startJourneyItems(
     return {id: s.id, label: JOURNEY_LABEL[s.id], state};
   });
   const allDone = steps.every((s) => stepComplete(s, picks));
+  const projectsIndex = steps.findIndex((step) => step.id === 'projects');
+  const projectsSeen = projectsIndex < 0 || visitedSteps.has(projectsIndex);
   items.push({
     id: 'summary',
     label: 'Summary',
-    state: railPos >= steps.length ? 'current' : (allDone ? 'available' : 'locked'),
+    state: railPos >= steps.length ? 'current' : (allDone && projectsSeen ? 'available' : 'locked'),
   });
   return items;
 }

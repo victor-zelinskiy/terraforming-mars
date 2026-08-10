@@ -38,6 +38,14 @@ type Sample = {
   pileTopWins: boolean | undefined,
   /** What the shelf looked like this frame — the diagnosis when no verdict. */
   pileState: string,
+  /** The summary snapshot must leave as ONE settled header. Its cloned
+   *  breadcrumb and rail may not replay their mount intros under the fade. */
+  frozenHeader: {
+    railOpacity: number,
+    crumbOpacity: number,
+    railAnimation: string,
+    crumbAnimation: string,
+  } | undefined,
 };
 
 /**
@@ -118,6 +126,22 @@ async function sample(page: Page): Promise<Sample> {
       break;
     }
 
+    const freeze = document.querySelector<HTMLElement>('.con-start-freeze--live');
+    const frozenRail = freeze?.querySelector<HTMLElement>('.con-jrail');
+    const frozenCrumb = freeze?.querySelector<HTMLElement>(
+      '.con-wshead__layer--deep:not(.con-wshead__layer--out) > .con-wshead__swap');
+    const frozenHeader = frozenRail !== undefined && frozenRail !== null &&
+      frozenCrumb !== undefined && frozenCrumb !== null ? (() => {
+        const railStyle = getComputedStyle(frozenRail);
+        const crumbStyle = getComputedStyle(frozenCrumb);
+        return {
+          railOpacity: Number(railStyle.opacity),
+          crumbOpacity: Number(crumbStyle.opacity),
+          railAnimation: railStyle.animationName,
+          crumbAnimation: crumbStyle.animationName,
+        };
+      })() : undefined;
+
     return {
       proxies: document.querySelectorAll('.con-startdock-proxy, .con-played-hero__proxy').length,
       rects,
@@ -126,6 +150,7 @@ async function sample(page: Page): Promise<Sample> {
       glint,
       pileTopWins,
       pileState,
+      frozenHeader,
     } as Sample;
   });
 }
@@ -204,6 +229,17 @@ test('the start flow lands its cards, keeps its light on the card, coalesces its
   // From the frame the materialization convoy is down to the end of the
   // episode, no queue card / shelf may move.
   const mat = live.slice(atSummary, afterMaterialization);
+  const frozenHeaders = mat
+    .map((s) => s.frozenHeader)
+    .filter((s): s is NonNullable<Sample['frozenHeader']> => s !== undefined);
+  expect.soft(frozenHeaders.length, 'the probe sampled the live summary snapshot').toBeGreaterThan(0);
+  const blinkingHeaders = frozenHeaders.filter((s) =>
+    s.railOpacity < 0.99 || s.crumbOpacity < 0.99 ||
+    s.railAnimation !== 'none' || s.crumbAnimation !== 'none');
+  expect.soft(blinkingHeaders,
+    'the frozen breadcrumb and Journey Rail dissolve together; no cloned mount intro may blank either one')
+    .toEqual([]);
+
   const lastAirborne = mat.map((s) => s.proxies > 0).lastIndexOf(true);
   expect.soft(lastAirborne, 'the materialization convoy was actually airborne').toBeGreaterThan(-1);
   const settled = mat.slice(lastAirborne + 1).filter((s) => Object.keys(s.rects).length > 0);

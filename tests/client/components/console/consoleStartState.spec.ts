@@ -202,15 +202,19 @@ describe('consoleStartState (T5 summary launch readout)', () => {
 
     it('preparation TABS: prerequisites gate the future, the summary unlocks last', () => {
       const none = {corp: undefined, preludes: [], ceo: undefined, projects: []};
-      let items = startJourneyItems(steps, none, 0);
+      let items = startJourneyItems(steps, none, 0, new Set());
       expect(items.map((i) => i.state)).to.deep.eq(['current', 'locked', 'locked', 'locked']);
       const done = {corp: 'X' as never, preludes: ['A', 'B'] as never, ceo: undefined, projects: []};
-      items = startJourneyItems(steps, done, 1);
+      items = startJourneyItems(steps, done, 1, new Set([0, 1]));
       expect(items[0].state).to.eq('completed');
       expect(items[1].state).to.eq('current');
       expect(items[2].state).to.eq('available');
       expect(items[3].id).to.eq('summary');
-      expect(items[3].state).to.eq('available'); // projects min=0 → all complete
+      expect(items[3].state).to.eq('locked'); // zero projects is valid, but its screen is unseen
+
+      items = startJourneyItems(steps, done, 2, new Set([0, 1, 2]));
+      expect(items[2].state).to.eq('current');
+      expect(items[3].state).to.eq('available');
     });
 
     it('deployment PROGRESS: a linear readout, never tabs', () => {

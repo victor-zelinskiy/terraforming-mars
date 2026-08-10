@@ -172,11 +172,21 @@ for (const preset of PRESETS) {
           await key(page, 'Enter', 700);
           await key(page, 'ArrowRight', 400);
           await key(page, 'Enter', 700);
+          await expect(page.locator(
+            '.con-jrail [data-phase="selection"] [data-item="projects"]',
+          ), 'projects unlock after the mandatory picks').toHaveClass(/con-jrail__item--available/);
+          await expect(page.locator(
+            '.con-jrail [data-phase="selection"] [data-item="summary"]',
+          ), 'summary stays locked until Projects has been presented').toHaveClass(/con-jrail__item--locked/);
+          await shoot(page, preset, '01b-preludes-ready');
           await key(page, 'Period', 1600);
           continue;
         }
         if (subject.includes('проект') && !shotProj) {
           await page.waitForTimeout(1200);
+          await expect(page.locator(
+            '.con-jrail [data-phase="selection"] [data-item="summary"]',
+          ), 'opening Projects unlocks the summary destination').toHaveClass(/con-jrail__item--available/);
           await assertFlowGeometry(page, preset);
           await shoot(page, preset, '02-projects');
           await assertNoScroll(page, preset.id + ' projects');
