@@ -17,6 +17,7 @@ import {
   playedTargetQuickImpacts,
   playedTargetShowsOwnerTargetCount,
   playedTargetShowsResource,
+  playedTargetSourceCardName,
   PLAYED_TARGET_RAIL_IMPACT_CAP,
   PLAYED_TARGET_FOCUS_SCALE,
   PlayedTargetCell,
@@ -890,6 +891,40 @@ describe('self-target — one physical object, never two', () => {
     const m = build({candidates: ['Predators'], admin: ['Predators'], sourceCardName: 'Predators'});
     expect(m.contract.targetCount).to.eq(1);
     expect(m.owners[0].candidates[0].relation).to.eq('source-card');
+  });
+
+  /**
+   * THE ONE READ OF «which card raised this prompt», for the hosts that need to
+   * route X away from the proxy and onto the real card. It is a read of the
+   * relation the model already decided — never a second derivation from a card
+   * name, which is what would let the two disagree.
+   */
+  it('names the source card for the hosts, and only when there is one', () => {
+    expect(playedTargetSourceCardName(selfModel().owners)).to.eq('Predators');
+    const external = build({candidates: ['Predators'], admin: ['Predators']});
+    expect(playedTargetSourceCardName(external.owners),
+      'no self-target means no source to redirect to').to.eq('');
+    expect(playedTargetSourceCardName([]), 'and an empty model is not a crash').to.eq('');
+  });
+
+  /**
+   * IT FINDS THE SOURCE IN WHICHEVER GROUP IT SITS.
+   *
+   * The viewer's tableau is sorted LAST (targeting your own card is deliberate,
+   * so it is never the accidental default), which means the self-target is
+   * routinely NOT in `owners[0]` — a lookup that only checked the first group
+   * would fail on exactly the multi-player case it exists for.
+   */
+  it('finds the source card in a later owner group', () => {
+    const m = build({
+      candidates: ['Predators', 'Mars Hydro Turbines'],
+      admin: ['Predators'],
+      victor: ['Mars Hydro Turbines'],
+      sourceCardName: 'Predators',
+    });
+    expect(m.owners.length, 'two groups, viewer last').to.eq(2);
+    expect(m.owners[m.owners.length - 1].self).to.eq(true);
+    expect(playedTargetSourceCardName(m.owners)).to.eq('Predators');
   });
 });
 

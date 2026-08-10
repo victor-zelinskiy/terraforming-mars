@@ -12,7 +12,13 @@
        the card name are handed UP to the workspace breadcrumb
        (`setWorkspaceStageName`). A surface that announces itself inside someone
        else's frame is exactly how a stage starts reading as a modal. -->
-  <div class="con-composer con-composer--play"
+  <!-- ref="rootEl": this template has leading comments, so a DEV build compiles
+       it to a ROOT FRAGMENT and `$el` is a Text node — `$el.querySelector` is
+       then `undefined` and every DOM lookup through it silently resolves
+       nothing. A production build strips the comments and the same code works,
+       which is the worst possible shape for a bug. Anything that needs this
+       component's root element takes the ref. -->
+  <div ref="rootEl" class="con-composer con-composer--play"
        :class="{
          'con-composer--submitting': submitting,
          'con-composer--embed': embedded,
@@ -50,18 +56,28 @@
              NO cascade marker on the card — the occlusion bridge's sweep
              reveals it already standing on the anchor; a fade on top of that
              would be a second, contradictory entrance for the carried object. -->
-        <!-- …and when the embedded step's «Эта карта» HANDLE is under the cursor,
-             THIS is the card it points at. The same two accents the blue-action
-             workspace uses, for the same reason: the handle is a pointer, so the
-             thing it points at has to answer, or the player is asked to trust an
-             arrow into empty space. -->
-        <div class="con-composer__playcard" data-zoom-handoff="play-card" ref="playCard"
+        <!-- …and when the embedded step's «ИСТОЧНИК · ЭТА КАРТА» proxy is under
+             the cursor, THIS is the card it points at. The same accents the
+             blue-action workspace uses, for the same reason: the proxy is a
+             pointer, so the thing it points at has to answer, or the player is
+             asked to trust a line into empty space.
+             `data-ptsel-source` is that contract in one attribute — the
+             connector measures its right edge, and X on the proxy resolves the
+             zoom origin to it so the REAL card is what rises. -->
+        <div class="con-composer__playcard" data-zoom-handoff="play-card" data-ptsel-source ref="playCard"
              :class="{
                'con-composer__playcard--targetfocus': selfTargetFocused,
                'con-composer__playcard--targetlock': selfTargetLocked,
              }">
           <Card v-if="card !== undefined" :card="card" :key="card.name" />
         </div>
+
+        <!-- THE SELF-TARGET CONNECTOR — the wire from the selector's proxy to
+             the hero card above. It lives HERE, on the band, because the band is
+             the only element that contains both ends, and only while there IS a
+             self-target: out of flow, but an always-mounted overlay would still
+             run a ResizeObserver through every band animation of every play. -->
+        <ConsolePlayedTargetLink v-if="selfTargetPresent" />
 
         <!-- `data-unfold-item` marks the WORK-SURFACE GROUPS (summary line,
              result strip, payment, commit rail, …): they materialize with a
@@ -441,7 +457,7 @@ import {cardHasAction, playerActionGroups, ActionGroup} from '@/client/component
 import {stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
 import {cardHasPassiveEffect} from '@/client/components/effects/effectExtraction';
-import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
+import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -474,10 +490,11 @@ import {setWorkspaceFrameStage} from '@/client/console/consoleWorkspaceStack';
 import {handStageReveal} from '@/client/console/consoleHandStageMotion';
 import {takeHandPlayPreview, storeHandPlayPreview, playPreviewUrl} from '@/client/console/consoleHandPlayPrewarm';
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
+import ConsolePlayedTargetLink from '@/client/components/console/played/ConsolePlayedTargetLink.vue';
 import {
   buildPlayedTargetModel, planPlayedTargetLayout, findPlayedTargetFocus, reseatPlayedTargetFocus,
   stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner, playedTargetAt,
-  playedTargetResultOf, playedTargetResultLive, playedTargetQuickImpacts,
+  playedTargetResultOf, playedTargetResultLive, playedTargetQuickImpacts, playedTargetSourceCardName,
   PLAYED_TARGET_SUMMARY_IMPACT_CAP,
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetNavDir, PlayedTargetCell,
   PlayedTargetPreviewSection, PlayedTargetResult, PlayedTargetQuickImpact, PlayedTargetSelection,
@@ -485,6 +502,7 @@ import {
   togglePlayedTargetPick, playedTargetPicksValid, prunePlayedTargetPicks,
 } from '@/client/console/played/consolePlayedTargetModel';
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
+import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
 import {computeCommitGate, commitAllowed, commitAcceptsCursor, CommitGate} from '@/client/console/consoleCommitGate';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {gsap} from 'gsap';
@@ -572,7 +590,7 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedReceivingStage},
+  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -843,12 +861,28 @@ export default defineComponent({
     },
     /** The embedded selector holds the surface right now. */
     /** The embedded step's self-handle is focused — the played card answers. */
+    /**
+     * THE SELF-TARGET LINK, as this host sees it — all three gated on «MY step
+     * is the open one».
+     *
+     * `playedTargetSelfState` is a singleton and carries no owner: a second
+     * composer parked at its own played-target step publishes into the same
+     * fact. Without the gate this host would light its hero, and mount its
+     * connector, for a step standing inside a different workspace.
+     *
+     * `present` additionally keeps the band free of an always-mounted overlay
+     * (and its ResizeObserver) for the overwhelming majority of prompts, which
+     * offer no self-target at all.
+     */
+    selfTargetPresent(): boolean {
+      return this.sub?.kind === 'playedTarget' && playedTargetSelfState.present;
+    },
     selfTargetFocused(): boolean {
       return this.sub?.kind === 'playedTarget' && playedTargetSelfState.focused;
     },
     /** …and stays lit once it is the chosen target. */
     selfTargetLocked(): boolean {
-      return playedTargetSelfState.locked;
+      return this.sub?.kind === 'playedTarget' && playedTargetSelfState.locked;
     },
     playedTargetStepOpen(): boolean {
       return this.sub?.kind === 'playedTarget' && this.playedTargetModel !== undefined;
@@ -1420,7 +1454,7 @@ export default defineComponent({
       // its groups re-materialize — the player retries or cancels from the
       // exact configuration they submitted.
       gsap.set(layers, {clearProps: 'opacity,visibility'});
-      handStageReveal(this.$el as HTMLElement | undefined);
+      handStageReveal(this.$refs.rootEl as HTMLElement | undefined);
     },
   },
   mounted() {
@@ -1429,7 +1463,7 @@ export default defineComponent({
     // nothing to cascade. Without this the controls would simply appear inside
     // an already-open box — the same blink the descent exists to remove.
     if (this.embedded) {
-      void this.$nextTick(() => handStageReveal(this.$el as HTMLElement | undefined));
+      void this.$nextTick(() => handStageReveal(this.$refs.rootEl as HTMLElement | undefined));
     }
   },
   beforeUnmount() {
@@ -1946,7 +1980,7 @@ export default defineComponent({
           openConsoleCardZoom([this.card], 0, undefined, undefined, {
             origin: {
               kind: 'physical',
-              resolve: () => (this.$el as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-composer__playcard') ?? null,
+              resolve: () => (this.$refs.rootEl as HTMLElement | undefined)?.querySelector<HTMLElement>('.con-composer__playcard') ?? null,
             },
           });
         }
@@ -2142,7 +2176,7 @@ export default defineComponent({
       // `playedTargetHeight`. The width comes from the work column (`flex: 1`
       // with a max cap, so it is stretched too); the height comes from the row
       // above it, which is the only box here whose size the cards cannot move.
-      const root = this.$el as HTMLElement | undefined;
+      const root = this.$refs.rootEl as HTMLElement | undefined;
       const zone = root?.querySelector<HTMLElement>('.con-composer__playright');
       if (zone !== null && zone !== undefined) {
         this.playedTargetWidth = zone.clientWidth;
@@ -2619,6 +2653,11 @@ export default defineComponent({
      * group (a `data-zoom-slot` origin, the same contract the hand and the
      * blue-action hero use). The step stays mounted underneath, so closing the
      * viewer returns to the same owner, the same card and the same rail.
+     *
+     * …and for the SELF-TARGET the physical object is the hero card standing to
+     * the left, not the proxy that points at it — see `playedTargetZoomOrigin`.
+     * Scoped to this component's own root, never `document`: a second, hidden
+     * composer would shadow the live step with a zero-rect slot.
      */
     inspectPlayedTarget(): void {
       if (this.sub?.kind !== 'playedTarget') {
@@ -2631,7 +2670,13 @@ export default defineComponent({
       }
       const cards = owners.flatMap((o) => o.candidates.map((c) => c.model));
       const at = Math.max(0, cards.findIndex((c) => c.name === candidate.cardName));
-      openConsoleCardZoom(cards, at, undefined, undefined, {origin: slotZoomOrigin(() => document.querySelector<HTMLElement>('.con-ptsel'), (i) => cards[i]?.name ?? '')});
+      openConsoleCardZoom(cards, at, undefined, undefined, {
+        origin: playedTargetZoomOrigin(
+          // The REF, never `$el` — see the note on the root element.
+          () => this.$refs.rootEl as HTMLElement | undefined,
+          (i) => cards[i]?.name ?? '',
+          playedTargetSourceCardName(owners)),
+      });
     },
     inspectListItem(index: number): void {
       const item = this.listItems[index];
@@ -2714,7 +2759,7 @@ export default defineComponent({
         // component), so it is located by its rendered focus class instead of
         // a template ref — the panel stays purely presentational.
         if (this.payExpanded) {
-          const row = (this.$el as HTMLElement | undefined)?.querySelector('.con-payrow--focused');
+          const row = (this.$refs.rootEl as HTMLElement | undefined)?.querySelector('.con-payrow--focused');
           (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(row);
           return;
         }

@@ -105,22 +105,40 @@
                    :data-owner="owner.id"
                    :data-index="indexOf(owner, cand.cardName)"
                    :data-focused="isFocused(owner.id, cand.cardName) ? '1' : undefined">
-                <!-- THE SELF-TARGET HANDLE. The source card is already standing
+                <!-- THE SELF-TARGET PROXY. The source card is already standing
                      in the workspace's hero slot; drawing it AGAIN at full size
                      would put two copies of one physical object on one screen.
-                     So this candidate is a HANDLE that points at the real card
-                     — a full navigation stop with its own focus, its own A, its
-                     own lock, and a link marker instead of a face. -->
+                     So this candidate is a NAVIGATION PROXY that points at the
+                     real card — a full navigation stop with its own focus, its
+                     own A and its own lock, standing in the SAME horizontal row
+                     as the physical targets beside it.
+                     `data-ptsel-self` is the connector's right-hand anchor (the
+                     wire to the hero card is measured off this box), and it is
+                     deliberately NOT a `data-zoom-slot`: X on this proxy must
+                     lift the REAL card, so the origin resolves to the hero (see
+                     `playedTargetZoomOrigin`). A slot key here is what made the
+                     viewer rise out of the chip while the card it names stayed
+                     lying on the left — two copies again, by another route.
+                     ITS BOX IS FIXED (`--con-ptsel-slot-w`, the same solved
+                     card width every cell gets) and every state marker below is
+                     out of flow, so focus / select / deselect cannot change the
+                     row's shape. That is the whole reflow fix: the width used to
+                     be intrinsic, so the ✓ badge alone pushed the proxy past a
+                     card width and the flex row broke to a second line — the
+                     "horizontal turns vertical when I choose this card" bug. -->
                 <div v-if="cand.relation === 'source-card'"
                      class="con-ptsel__self"
+                     data-ptsel-self
                      :class="{
                        'con-ptsel__self--focused': isFocused(owner.id, cand.cardName),
                        'con-ptsel__self--locked': isChosen(cand.cardName),
-                     }"
-                     :data-zoom-slot="cand.slotKey">
-                  <span class="con-ptsel__self-link" aria-hidden="true">↰</span>
+                     }">
                   <span class="con-ptsel__self-body">
-                    <span class="con-ptsel__self-kicker">{{ $t('This card') }}</span>
+                    <span class="con-ptsel__self-kicker">
+                      <span>{{ $t('Source') }}</span>
+                      <span class="con-ptsel__self-kicker-sep" aria-hidden="true">·</span>
+                      <span>{{ $t('This card') }}</span>
+                    </span>
                     <span class="con-ptsel__self-name">{{ $t(cand.cardName) }}</span>
                   </span>
                   <span v-if="showsResource(cand)" class="con-ptsel__self-res">
@@ -242,12 +260,12 @@ import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateTextWithParams} from '@/client/directives/i18n';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
-import {setPlayedTargetSelfFocus, setPlayedTargetSelfLock, resetPlayedTargetSelf} from '@/client/console/played/consolePlayedTargetSelf';
+import {setPlayedTargetSelfLink, bumpPlayedTargetSelfGeometry, resetPlayedTargetSelf} from '@/client/console/played/consolePlayedTargetSelf';
 import {
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetOwner,
   PlayedTargetCandidate, PlayedTargetSection, PlayedTargetSelection,
   PlayedTargetSizing, PlayedTargetCell, PlayedTargetQuickImpact,
-  PLAYED_TARGET_RAIL_IMPACT_CAP, PLAYED_TARGET_FOCUS_SCALE,
+  PLAYED_TARGET_RAIL_IMPACT_CAP, PLAYED_TARGET_FOCUS_SCALE, PLAYED_TARGET_SELF_MAX_W,
   playedTargetSections, playedTargetShowsCategoryRails, playedTargetAt,
   playedTargetShowsOwnerTargetCount, playedTargetShowsResource,
   playedTargetQuickImpacts, planPlayedTargetSizing,
@@ -347,6 +365,20 @@ export default defineComponent({
     railOverflow(): number {
       return Math.max(0, this.railQuick.length - PLAYED_TARGET_RAIL_IMPACT_CAP);
     },
+    /**
+     * THE SOLVED CELL WIDTH — derived ONCE.
+     *
+     * Two consumers must agree on it exactly or the reflow fix comes undone:
+     * the section's inline SPAN (`cols × this + gaps`, which is where the flex
+     * row wraps) and the proxy's CSS bound (`--con-ptsel-slot-w`). Two hand-
+     * written copies of `SLOT_W_PX * cardZoom` is precisely how a rounding step
+     * added to one of them would let the proxy exceed a card width again — with
+     * the stylesheet guard still green, because it asserts the CSS rather than
+     * the agreement between two derivations.
+     */
+    cardWidthPx(): number {
+      return SLOT_W_PX * this.sizing.cardZoom;
+    },
     /** The measured size, handed to CSS. One writer, so the cards, the gaps and
      *  the badge de-zoom can never disagree about how big a candidate is. */
     sizeVars(): Record<string, string> {
@@ -354,6 +386,18 @@ export default defineComponent({
         '--con-ptsel-zoom': this.sizing.cardZoom.toFixed(3),
         '--con-ptsel-gap': `${this.sizing.gapPx.toFixed(2)}px`,
         '--con-ptsel-focus-scale': String(PLAYED_TARGET_FOCUS_SCALE),
+        // THE SOLVED CELL WIDTH, in the layout's own px. Every cell of the
+        // candidate row is exactly this wide — the section's inline span is
+        // `cols × this + gaps`, so anything that renders WIDER than it wraps the
+        // row. The self-target proxy is the one cell whose content is text, so
+        // it is the one cell that has to be TOLD the number instead of getting
+        // it from a card face. Published here because this is the only place
+        // that knows it: the size is solved, never a CSS constant.
+        '--con-ptsel-slot-w': `${this.cardWidthPx.toFixed(2)}px`,
+        // …and the compact cap the proxy is additionally bounded by. Published
+        // rather than written in the stylesheet, so the ONE place that owns
+        // this layout's numbers still owns this one.
+        '--con-ptsel-self-max': `${(PLAYED_TARGET_SELF_MAX_W * conUiScale()).toFixed(2)}px`,
         // The CAP, not a fixed height: a short step still hugs its cards (the
         // rail sits right under them, exactly as before), and a tall one stops
         // growing and hands the excess to the candidate viewport's scroll.
@@ -373,14 +417,15 @@ export default defineComponent({
     },
     /** The state of the SELF-TARGET link, as one value the watcher can publish
      *  to the composer that owns the real source card. */
-    selfLink(): {focused: boolean, locked: boolean} {
+    selfLink(): {present: boolean, focused: boolean, locked: boolean} {
       const self = this.model.owners
         .flatMap((o) => o.candidates)
         .find((c) => c.relation === 'source-card');
       if (self === undefined) {
-        return {focused: false, locked: false};
+        return {present: false, focused: false, locked: false};
       }
       return {
+        present: true,
         focused: this.focused?.cardName === self.cardName,
         locked: this.isChosen(self.cardName),
       };
@@ -408,9 +453,8 @@ export default defineComponent({
      */
     selfLink: {
       immediate: true,
-      handler(v: {focused: boolean, locked: boolean}) {
-        setPlayedTargetSelfFocus(v.focused);
-        setPlayedTargetSelfLock(v.locked);
+      handler(v: {present: boolean, focused: boolean, locked: boolean}) {
+        setPlayedTargetSelfLink(v);
       },
     },
     activeOwnerId() {
@@ -468,8 +512,19 @@ export default defineComponent({
       this.cellCache = markRaw(out);
       return this.cellCache;
     },
+    /**
+     * The measured boxes expired.
+     *
+     * The self-target CONNECTOR measures real elements across two columns, so
+     * it is invalidated by exactly the same four events as the navigation cells
+     * — a new model, a re-solved size, an owner-tab switch, a resize. Focus and
+     * selection are deliberately not among them: they may not move anything,
+     * and a re-measure per cursor press would be a measurement the layout never
+     * asked for.
+     */
     invalidateGeometry(): void {
       this.cellCache = undefined;
+      bumpPlayedTargetSelfGeometry();
     },
     /**
      * Keep the cursored candidate inside the CANDIDATE VIEWPORT — the step's
@@ -581,7 +636,7 @@ export default defineComponent({
      */
     sectionStyle(section: PlayedTargetSection): Record<string, string> {
       const cols = Math.max(1, Math.ceil(section.candidates.length / Math.max(1, this.sizing.rows)));
-      const cardW = SLOT_W_PX * this.sizing.cardZoom;
+      const cardW = this.cardWidthPx;
       // CEIL plus a pixel of slack: the cards row wraps at exactly this
       // width, so a half-pixel of rounding the other way would push the last
       // card of a span onto a second line — the very stack this span exists

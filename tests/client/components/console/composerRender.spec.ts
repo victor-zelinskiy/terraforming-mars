@@ -351,6 +351,25 @@ describe('ConsoleActionComposer — premium render', () => {
 
     expect(w.find('.con-ptsel__self').exists(), 'the handle is there').to.eq(true);
     expect(w.find('.con-ptsel__slot').exists(), 'and no full-size candidate face').to.eq(false);
+
+    // THE PROXY IS NOT AN ORIGIN. X on it must lift the REAL card standing in
+    // the hero column, so it publishes the connector's anchor and deliberately
+    // no `data-zoom-slot`: a slot key here is what made the fullscreen viewer
+    // rise out of the chip while the card it names stayed on screen beside it.
+    const self = w.find('.con-ptsel__self');
+    expect(self.attributes('data-ptsel-self'), 'the proxy anchors the connector').to.not.eq(undefined);
+    expect(self.attributes('data-zoom-slot'), 'and is never a zoom origin itself').to.eq(undefined);
+
+    // …and the two ends of that link both exist, in the same band.
+    expect(w.find('[data-ptsel-source]').exists(), 'the hero publishes the source anchor').to.eq(true);
+    expect(w.find('[data-ws-band] > .con-ptlink').exists(),
+      'the connector lives on the band — the only element containing both ends').to.eq(true);
+
+    // THE PROXY'S BOX IS SOLVED, NOT INTRINSIC. The stylesheet bounds it with
+    // `--con-ptsel-slot-w`; if the step stops publishing that, the bound
+    // silently falls back to a literal and the selection reflow returns.
+    expect(w.find('.con-ptsel').attributes('style') ?? '',
+      'the solved cell width must reach the CSS bound').to.include('--con-ptsel-slot-w');
     w.unmount();
   });
 

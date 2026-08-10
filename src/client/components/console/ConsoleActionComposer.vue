@@ -36,6 +36,7 @@
              }"
              :data-motion-anchor="'card:' + entry.cardName"
              :data-zoom-slot="entry.cardName"
+             data-ptsel-source
              data-action-focus-card>
           <div class="con-composer__actcard con-composer__actcard--stage">
             <!-- Keyed micro-swap: a Viron repeat handoff re-points the stage to
@@ -66,6 +67,13 @@
              command bar; the hero column's children are identical in every
              phase, which is what makes its geometry stable by construction.) -->
       </div>
+      <!-- THE SELF-TARGET CONNECTOR — the wire from the embedded step's
+           «ИСТОЧНИК · ЭТА КАРТА» proxy to the hero card beside it. It sits on
+           the BAND because that is the only element containing both ends, and
+           only while there IS a self-target: out of flow (so this grid gains no
+           track), but an always-mounted overlay would still run a
+           ResizeObserver through every band animation of every card action. -->
+      <ConsolePlayedTargetLink v-if="selfTargetPresent" />
       <div class="con-composer__actright">
 
       <!-- (No carried action graphic here: the pressed slot's schema stays in
@@ -675,10 +683,11 @@ import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
+import ConsolePlayedTargetLink from '@/client/components/console/played/ConsolePlayedTargetLink.vue';
 import {
   buildPlayedTargetModel, planPlayedTargetLayout, findPlayedTargetFocus, reseatPlayedTargetFocus,
   stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner, playedTargetAt,
-  playedTargetResultOf, playedTargetResultLive, playedTargetQuickImpacts,
+  playedTargetResultOf, playedTargetResultLive, playedTargetQuickImpacts, playedTargetSourceCardName,
   PLAYED_TARGET_SUMMARY_IMPACT_CAP,
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetNavDir, PlayedTargetCell,
   PlayedTargetResult, PlayedTargetQuickImpact, PlayedTargetSelection,
@@ -686,6 +695,7 @@ import {
 } from '@/client/console/played/consolePlayedTargetModel';
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
 import {playedTargetSelfState} from '@/client/console/played/consolePlayedTargetSelf';
+import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {
   computeCommitGate, commitAllowed, commitAcceptsCursor, commitCursorTarget,
@@ -792,7 +802,7 @@ export type ComposerOutcome =
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, GamepadGlyph, ConsolePlayedTargetStep},
+  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1642,12 +1652,24 @@ export default defineComponent({
     },
     /** The «Эта карта» handle holds the cursor — the REAL source card in the
      *  hero slot answers, so the link is visible on the object it names. */
+    /**
+     * THE SELF-TARGET LINK, as this host sees it — all three gated on «MY step
+     * is the open one». `playedTargetSelfState` is a singleton and carries no
+     * owner, so a second composer parked at its own played-target step publishes
+     * into the same fact; without the gate this host would light its hero, and
+     * mount its connector, for a step standing inside a different workspace.
+     * `present` additionally keeps an always-mounted overlay (and its
+     * ResizeObserver) off the band for every prompt with no self-target.
+     */
+    selfTargetPresent(): boolean {
+      return this.sub?.kind === 'playedTarget' && playedTargetSelfState.present;
+    },
     selfTargetFocused(): boolean {
       return this.sub?.kind === 'playedTarget' && playedTargetSelfState.focused;
     },
     /** The source card is the CONFIRMED target. */
     selfTargetLocked(): boolean {
-      return playedTargetSelfState.locked;
+      return this.sub?.kind === 'playedTarget' && playedTargetSelfState.locked;
     },
     /** May A run the commit right now? The ONE execution guard. */
     commitReady(): boolean {
@@ -2853,7 +2875,13 @@ export default defineComponent({
       const cards = owners.flatMap((o) => o.candidates.map((c) => c.model));
       const at = Math.max(0, cards.findIndex((c) => c.name === candidate.cardName));
       openConsoleCardZoom(cards, at, undefined, undefined, {
-        origin: slotZoomOrigin(() => document.querySelector<HTMLElement>('.con-ptsel'), (i) => cards[i]?.name ?? ''),
+        // The SELF-TARGET resolves to the hero card this action is composed on,
+        // never to the proxy that points at it — one card on screen, always.
+        // Scoped to this composer's own root, never `document`.
+        origin: playedTargetZoomOrigin(
+          () => this.$refs.rootEl as HTMLElement | undefined,
+          (i) => cards[i]?.name ?? '',
+          playedTargetSourceCardName(owners)),
       });
     },
     /** The summary of an answered played-target choice (undefined = unanswered

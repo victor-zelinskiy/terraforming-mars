@@ -565,6 +565,20 @@ const MAX_CARD_ZOOM_HANDHELD = 0.6;
  */
 const SOLO_CARD_ZOOM = 1.12;
 const SOLO_CARD_ZOOM_HANDHELD = 0.68;
+/**
+ * The SELF-TARGET PROXY's compact cap, in rem-equivalent px at ui 1.
+ *
+ * The proxy occupies a candidate CELL, so its width is `min(solved cell, this)`
+ * — narrower than a cell never wraps the row, wider is the reflow bug. The cap
+ * exists because a lone self-target solves a cell of `SOLO_CARD_ZOOM × 320`,
+ * and a pill that wide reads as a stretched card rather than a handle.
+ *
+ * It lives HERE, beside the other layout constants, and is published to CSS as
+ * `--con-ptsel-self-max`: a number the stylesheet owned alone would be a bound
+ * the solver has never seen. Mirrored by `playedTargetLayoutContract.spec.ts`.
+ */
+export const PLAYED_TARGET_SELF_MAX_W = 300;
+
 /** Below this a card stops being readable and starts being a swatch. */
 const MIN_CARD_ZOOM = 0.3;
 const MIN_CARD_ZOOM_HANDHELD = 0.24;
@@ -947,6 +961,25 @@ export function findPlayedTargetFocus(
     }
   }
   return undefined;
+}
+
+/**
+ * The card that RAISED the prompt, when it is also one of its own targets —
+ * `''` otherwise.
+ *
+ * Both hosts need it for the same reason (the proxy that stands for it is not
+ * an origin the fullscreen viewer may lift from), and neither may re-derive it
+ * from a card name or a host-local flag: `relation` is what the model already
+ * decided, so this is a read of that decision, not a second one.
+ */
+export function playedTargetSourceCardName(owners: ReadonlyArray<PlayedTargetOwner>): string {
+  for (const owner of owners) {
+    const self = owner.candidates.find((c) => c.relation === 'source-card');
+    if (self !== undefined) {
+      return self.cardName;
+    }
+  }
+  return '';
 }
 
 /** The candidate under a focus, or undefined. */

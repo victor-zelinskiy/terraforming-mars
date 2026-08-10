@@ -16,6 +16,28 @@
  * TV profile scales the logical space, so JS and CSS can never disagree.
  * Returns `fallbackPx` for an empty/unparsable value.
  */
+/**
+ * The element's CUMULATIVE visual scale — the client-px ⇄ local-px ratio.
+ *
+ * `getBoundingClientRect()` is post-`zoom`; `offsetWidth`, and any `left` /
+ * `width` written back onto an absolutely positioned child, are not. The console
+ * stacks at least one CSS `zoom` ladder on every profile (`--con-ui-scale`, plus
+ * a per-composer hero `zoom:`), so anything that measures a rect and then places
+ * something at it MUST divide by this or it lands at the wrong scale — a class
+ * of bug that only shows on one profile.
+ *
+ * Returns 1 for a zero-width / detached element, which is the only honest
+ * neutral: there is nothing to correct against.
+ */
+export function effectiveZoom(el: HTMLElement): number {
+  const layout = el.offsetWidth;
+  if (layout <= 0) {
+    return 1;
+  }
+  const visual = el.getBoundingClientRect().width;
+  return visual > 0 ? visual / layout : 1;
+}
+
 export function cssLengthPx(raw: string, fallbackPx: number): number {
   const v = parseFloat(raw);
   if (!Number.isFinite(v)) {
