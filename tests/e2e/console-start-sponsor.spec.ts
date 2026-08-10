@@ -89,11 +89,14 @@ async function surfaces(page: Page) {
       journeyPresentation: document.querySelector('.con-start__frame .con-jrail')?.getAttribute('data-presentation') ?? '',
       journeyContext: (document.querySelector('.con-jrail__view--compact')?.textContent ?? '')
         .replace(/\s+/g, ' ').trim().toLowerCase(),
-      flowRightGap: (() => {
-        const head = document.querySelector('.con-start__wshead')?.getBoundingClientRect();
+      flowLeftGap: (() => {
+        const tierEl = document.querySelector<HTMLElement>('.con-start__wshead .con-wshead__flow');
+        const tier = tierEl?.getBoundingClientRect();
         const flow = document.querySelector('.con-start__wshead .con-jrail')?.getBoundingClientRect();
-        return head === undefined || flow === undefined ? -1 : Math.round(head.right - flow.right);
+        return tier === undefined || tierEl === null || flow === undefined ? -1 :
+          Math.round(flow.left - tier.left - parseFloat(getComputedStyle(tierEl).paddingLeft));
       })(),
+      flowConnector: document.querySelectorAll('.con-start__wshead .con-wshead__flow-connector').length,
       startPlayed: document.querySelectorAll('.con-splayed').length,
       startQueue: document.querySelectorAll('.con-start__queue').length,
       /** The toolbar (counts + tag filters) sits ABOVE the cards, as on the
@@ -185,8 +188,16 @@ async function reachDeployment(page: Page): Promise<void> {
       await page.waitForTimeout(250);
     }
   }
-  expect(await summaryVisible(page), 'reached the summary').toBeTruthy();
-  await press(page, 'Enter', 2500); // НАЧАТЬ ПАРТИЮ
+  // On a fast machine the last RT can land at the summary's commit boundary
+  // and the solo table may already have materialized deployment before this
+  // probe samples the parked pane. Both are the same successful hand-off; do
+  // not fire an extra A into the live corporation/payment beat.
+  const onSummary = await summaryVisible(page);
+  const deploymentAlready = await page.locator('.con-start--ceremony').isVisible().catch(() => false);
+  expect(onSummary || deploymentAlready, 'reached the summary or its committed deployment').toBeTruthy();
+  if (onSummary) {
+    await press(page, 'Enter', 2500); // НАЧАТЬ ПАРТИЮ
+  }
   await page.waitForTimeout(4000);
 }
 
@@ -252,7 +263,8 @@ test.describe('console start — «Эпатажный спонсор» as a work
     expect(s.journeyPresentation, 'the inherited flow is compact').toBe('compact');
     expect(s.journeyContext, 'compact context keeps deployment · preludes').toContain('розыгрыш');
     expect(s.journeyContext).toContain('прологи');
-    expect(Math.abs(s.flowRightGap), 'compact flow keeps the header right anchor').toBeLessThanOrEqual(2);
+    expect(Math.abs(s.flowLeftGap), 'compact flow keeps the root-side left anchor').toBeLessThanOrEqual(2);
+    expect(s.flowConnector, 'compact flow keeps the root connector').toBe(1);
     expect(s.startQueue, 'the deployment queue is gone').toBe(0);
     expect(s.startPlayed, 'the compact played shelf is gone').toBe(0);
     expect(s.playedOverlay, 'the full played overlay must not open').toBeFalsy();

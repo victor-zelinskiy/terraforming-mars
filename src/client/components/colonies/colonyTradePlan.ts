@@ -275,6 +275,31 @@ export function colonyTradeDrawsCards(metadata: ColonyMetadata, position: number
   return CARD_BENEFITS.has(metadata.trade.type) && rewardAtPosition(metadata, position).quantity > 0;
 }
 
+/**
+ * TRUE when a trade STARTED at `position` can still deal cards — here, or at
+ * any position it could yet advance to.
+ *
+ * The trade's final position is not knowable at submit time (a chosen track
+ * advance, an `ask` colony's auto-advance and a standing offset all move the
+ * marker FORWARD before the reward is read), so the claim asks the only
+ * question with a stable answer: is there a card-dealing position at or past
+ * the one the marker stands on. It can never under-claim — an under-claimed
+ * payout escapes its workspace and lands as a full-bleed band over it — and
+ * an over-claim is now released by the outcome reconcile a tick after the
+ * answer, instead of standing as an empty stage until the 20 s backstop.
+ */
+export function colonyTradeMayDrawCards(metadata: ColonyMetadata, position: number): boolean {
+  if (!CARD_BENEFITS.has(metadata.trade.type)) {
+    return false;
+  }
+  for (let i = Math.max(0, position); i < metadata.trade.quantity.length; i++) {
+    if (rewardAtPosition(metadata, i).quantity > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /** TRUE when the colony's OWNER bonus deals cards (Pluto: draw 1, discard 1). */
 export function colonyOwnerBonusDrawsCards(metadata: ColonyMetadata): boolean {
   return CARD_BENEFITS.has(metadata.colony.type);

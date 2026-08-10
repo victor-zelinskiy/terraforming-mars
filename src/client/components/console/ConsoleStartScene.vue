@@ -33,9 +33,10 @@
              The Game Start Workspace speaks the project's header grammar
              from the first second: СТАРТ ПАРТИИ › <ЭТАП> [› <ФАЗА>]. The aux
              line keeps only local location/action context. The universal
-             FLOW berth on the right hosts one persistent Start Game rail:
-             tabs while the preparation is reversible, linear progress once
-             deployment runs, compact parent context in child workspaces.
+             FLOW tier below hosts one persistent Start Game rail, connected
+             to the root marker: tabs while preparation is reversible, linear
+             progress once deployment runs, compact parent context in child
+             workspaces.
              The TRAILING zone carries the compact PARTICIPANT strip — the
              standard top HUD is hidden through the whole preparation, but
              who is choosing / who is ready stays readable (same status brain
@@ -3563,7 +3564,11 @@ export default defineComponent({
             this.flowTerminal = true;
           }
         }, undefined, reduced ? 0 : motionMs(690) / 1000);
-        timeline.to({}, {duration: motionMs(reduced ? 420 : 720) / 1000});
+        // Give the consolidated READY pose a true couch-readable hold after
+        // its width morph. 1.1 s is still a short terminal beat, but unlike the
+        // old 720 ms reserve it leaves a complete settled frame at 4K before
+        // the workspace begins its release fade. Reduced motion stays brief.
+        timeline.to({}, {duration: motionMs(reduced ? 420 : 1100) / 1000});
         timeline.call(() => {
           if (el.isConnected) {
             this.state.flow = 'releasing';

@@ -91,8 +91,16 @@ async function setUpAndSubmit(page: Page, id: string, buy: number): Promise<void
       }
     },
   });
-  expect(await summaryVisible(page)).toBeTruthy();
-  await submitSummary(page);
+  const onSummary = await summaryVisible(page);
+  const deploymentAlready = (await surface(page)).deployment;
+  // The final RT and solo page polling can straddle the commit hand-off: when
+  // the other player is already ready, this page may paint deployment before
+  // the driver samples the summary. Do not inject a second A into that live
+  // corporation beat; both poses prove this player submitted successfully.
+  expect(onSummary || deploymentAlready).toBeTruthy();
+  if (onSummary) {
+    await submitSummary(page);
+  }
 }
 
 test.describe('start · two humans hand over together', () => {

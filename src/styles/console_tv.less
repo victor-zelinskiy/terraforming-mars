@@ -893,11 +893,11 @@ html.con-profile-tv {
     /* ═══ 18 · START SCENE + REVEAL ═══════════════════════════════ */
     .con-start {
         --con-start-verdict-h: 3rem;
-        /* The frame fills the root's padded bounds on every profile (the
-           workspace plate is the boundary); extra TOP headroom so the
-           selected-card «ВЫБРАНА» band (which overhangs above the card)
-           never clips against the header. */
-        &__frame { padding-top: 2.2rem; }
+        /* Part of the former 2.2rem top reserve now belongs to the flow row
+           INSIDE WorkspaceHeader. 1.4rem + the taller two-tier header lands
+           the card body on essentially the same y as before, while retaining
+           safe headroom for the selected-card band. */
+        &__frame { padding-top: 1.4rem; }
         /* The «A РАЗЫГРАТЬ» affordance pill sits INSIDE a card that is itself
            zoomed (corp/prelude/candidate = BASE·--con-ui-scale) — so its
            rem sizing compounded with the card zoom to a ~50px slab. Cancel

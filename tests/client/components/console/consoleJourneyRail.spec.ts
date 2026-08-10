@@ -69,6 +69,38 @@ describe('ConsoleJourneyRail — one persistent workspace flow object', () => {
     expect(wrapper.findAll('[tabindex]')).to.have.lengthOf(0);
   });
 
+  it('expands only the current chapter while future chapter details stay in the same hidden body', () => {
+    const wrapper = rail();
+    const current = wrapper.find('[data-phase="selection"]');
+    const future = wrapper.find('[data-phase="deployment"]');
+    expect(current.classes()).to.contain('con-jrail__phase--open');
+    expect(current.find('.con-jrail__phase-body').attributes('aria-hidden')).to.eq(undefined);
+    expect(future.classes()).to.not.contain('con-jrail__phase--open');
+    expect(future.find('.con-jrail__phase-body').attributes('aria-hidden')).to.eq('true');
+    expect(future.find('.con-jrail__phase-head').text()).to.contain('02');
+    expect(future.find('.con-jrail__phase-head').text()).to.contain('Playing');
+    expect(wrapper.find('.con-jrail__phase-preview').exists()).to.eq(false);
+  });
+
+  it('exchanges the open chapter without remounting either phase', async () => {
+    const wrapper = rail();
+    const selectionNode = wrapper.find('[data-phase="selection"]').element;
+    const deploymentNode = wrapper.find('[data-phase="deployment"]').element;
+    await wrapper.setProps({
+      phases: [
+        {...selection, state: 'completed'},
+        {...deployment, state: 'current', items: deployment.items.map((item, i) => ({
+          ...item,
+          state: i === 0 ? 'current' : 'locked',
+        }))},
+      ],
+    });
+    expect(wrapper.find('[data-phase="selection"]').element).to.equal(selectionNode);
+    expect(wrapper.find('[data-phase="deployment"]').element).to.equal(deploymentNode);
+    expect(wrapper.find('[data-phase="selection"]').classes()).to.contain('con-jrail__phase--completed');
+    expect(wrapper.find('[data-phase="deployment"]').classes()).to.contain('con-jrail__phase--open');
+  });
+
   it('leaves labels and the active item stable during directional anticipation', () => {
     const wrapper = mount(ConsoleJourneyRail as any, {
       ...globalConfig,

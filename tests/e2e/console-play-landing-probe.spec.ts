@@ -39,6 +39,7 @@ const TILE_EVENT = 'Nuclear Zone';
  * the drawn cards to the hand dock before the deployment may settle. */
 const PRELUDES = ['Allied Bank', 'Loan', 'Dome Farming', 'Biolab'];
 const DRAW_PRELUDE = 'Biolab';
+const SAFE_PRELUDE = 'Allied Bank';
 
 function newGameConfig(withPreludes: boolean) {
   const expansions: Record<string, boolean> = {
@@ -140,7 +141,8 @@ type StartLog = {
 };
 
 /** Create a game and drive the WHOLE Game Start Workspace; returns the log. */
-async function bootGame(page: Page, request: APIRequestContext, withPreludes = false, shotPrefix = 'gsw'): Promise<StartLog> {
+async function bootGame(page: Page, request: APIRequestContext, withPreludes = false,
+  shotPrefix = 'gsw', captureReady = false): Promise<StartLog> {
   const log: StartLog = {
     topHudHidden: false, railHidden: false, sawCrewStrip: false, dockPilesAtStart: 0,
     sawDockProxy: false, sawHudPreview: false, sawCeremony: false,
@@ -253,7 +255,9 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
     }
     if (s.active.includes('ПРОЛОГ')) {
       // BIOLAB (the draw prelude) MUST be in the set — walk to it first,
-      // then top up with whatever stands focused.
+      // then choose Allied Bank explicitly. A random second prelude can own a
+      // board-placement child workspace, which belongs to the dedicated
+      // placement probe rather than this landing / terminal-flow harness.
       if (s.picked.length >= 2) {
         await advance();
       } else if (!s.picked.includes(DRAW_PRELUDE)) {
@@ -263,7 +267,7 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
         } else {
           await step(s.focused);
         }
-      } else if (s.focused !== '' && !s.picked.includes(s.focused)) {
+      } else if (!s.picked.includes(SAFE_PRELUDE) && s.focused === SAFE_PRELUDE) {
         await key(page, 'Enter', 420);
         lastFocused = '';
       } else {
@@ -298,6 +302,7 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
   let shotDeploy = false;
   let shotPlayed = false;
   let shotReveal = false;
+  let shotReady = false;
   let goneStreak = 0;
   for (let i = 0; i < 240; i++) {
     const s = await page.evaluate((drawCard) => {
@@ -348,6 +353,23 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
       }
       if (s.flowReady) {
         log.sawReady = true;
+        if (captureReady && !shotReady) {
+          shotReady = true;
+          // `data-presentation="complete"` flips at the START of the physical
+          // consolidation. Wait for the real computed width, not a guessed
+          // delay, so Calm/Standard/Swift all capture the terminal pose.
+          await page.waitForFunction(() => {
+            const rail = document.querySelector<HTMLElement>('.con-jrail--presentation-complete');
+            if (rail === null) {
+              return false;
+            }
+            const width = parseFloat(getComputedStyle(rail).width);
+            const rootRem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+            return width <= rootRem * 10 + 1;
+          }, undefined, {timeout: 2_000});
+          await page.waitForTimeout(50);
+          await shoot(page, `${shotPrefix}-6-flow-ready`);
+        }
       }
       log.maxPlayedSlots = Math.max(log.maxPlayedSlots, s.playedSlots);
       log.maxQueueCards = Math.max(log.maxQueueCards, s.queueCards);
@@ -594,6 +616,13 @@ function assertScene(log: SceneLog, opts: {isEvent: boolean, minEvents?: number}
 
 test.describe('console Game Start Workspace + play landing', () => {
   test.describe.configure({mode: 'serial'});
+
+  test('4K TV: the root-connected start flow commits to READY before release', async ({page, request}) => {
+    test.setTimeout(600_000);
+    await page.setViewportSize({width: 3840, height: 2160});
+    const startLog = await bootGame(page, request, true, 'gsw-flow-4k', true);
+    assertStart(startLog, {withPreludes: true, strictMotion: true, expectReveal: true});
+  });
 
   test('the FULL start flow (preludes on) + the four hand plays', async ({page, request}) => {
     test.setTimeout(900_000);

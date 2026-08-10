@@ -24,14 +24,14 @@
                    ]"
                    :data-phase="phase.id">
             <div class="con-jrail__phase-head">
+              <span class="con-jrail__phase-state" aria-hidden="true">{{ phaseMark(phase) }}</span>
               <span class="con-jrail__phase-num">{{ phase.ordinal }}</span>
               <span class="con-jrail__phase-label">{{ $t(phase.label) }}</span>
-              <span class="con-jrail__phase-state" aria-hidden="true">{{ phaseMark(phase) }}</span>
             </div>
 
-            <!-- Both the detailed map and its collapsed summary remain
-                 mounted. The phase's flex-basis + opacity morph decides which
-                 one is visible; state never teleports between two trees. -->
+            <!-- Every phase keeps its detailed map mounted. A non-current
+                 phase clips that SAME body and leaves only its named chapter
+                 head; state never teleports between two trees. -->
             <div class="con-jrail__phase-body"
                  :role="phase.mode === 'tabs' ? 'tablist' : 'list'"
                  :aria-hidden="phase.state === 'current' || phase.state === 'waiting' ? undefined : 'true'">
@@ -56,9 +56,6 @@
               </template>
             </div>
 
-            <div class="con-jrail__phase-preview" aria-hidden="true">
-              <span v-for="item in phase.items" :key="item.id">{{ $t(item.label) }}</span>
-            </div>
           </section>
         </template>
       </div>
@@ -126,7 +123,7 @@ export type JourneyPresentation = 'expanded' | 'compact' | 'complete';
 /**
  * Pure flow presentation. The host owns business state and supplies two or
  * more phases plus the compact parent context; the shared WorkspaceHeader
- * supplies only the right-edge berth. No item is focusable here. A reversible
+ * supplies only the stable root-aligned berth. No item is focusable here. A reversible
  * host may expose navigation through its existing controller contract, while
  * a progress phase remains an inert readout by construction.
  */
@@ -162,9 +159,9 @@ export default defineComponent({
     phaseMark(phase: JourneyPhase): string {
       switch (phase.state) {
       case 'completed': return '✓';
-      case 'current': return '●';
+      case 'current': return '';
       case 'waiting': return '…';
-      case 'locked': return '○';
+      case 'locked': return '';
       }
     },
   },

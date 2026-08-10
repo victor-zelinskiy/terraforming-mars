@@ -1289,7 +1289,7 @@ import {startAwaitingOthers, startDeferredSummary, startSceneHeld} from '@/clien
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
-import {buildTradeBatch, colonyBuildDrawsCards, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {buildTradeBatch, colonyBuildDrawsCards, colonyOwnerBonusDrawsCards, colonyTradeMayDrawCards, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
@@ -8378,6 +8378,33 @@ export default defineComponent({
      * arms the descend origin (the pressed tile's rect) and opens the flow;
      * the shell only gates re-entry during a live transaction.
      */
+    /**
+     * DOES TRADING HERE PUT CARDS ON THE TABLE? — the ONE structural question
+     * behind the colonies' embedded-outcome claim, asked of the colony's own
+     * metadata and never of its name.
+     *
+     * Both trade paths used to claim `['draw']` unconditionally while the
+     * build path beside them was already structural. The claim's only visible
+     * consequence is that the workspace stands a follow-up STAGE from submit
+     * time — so every colony that pays in production, plants or heat opened an
+     * empty, dimmed stage over its own focus surface and held it there
+     * (`completeFlow` refuses to fold under a live claim) until the 20 s
+     * claim backstop fired. Луна was the report; every non-card colony had it.
+     */
+    colonyTradeDealsCards(colonyName: string): boolean {
+      const model = this.coloniesForRail.find((c) => c.name === colonyName);
+      if (model === undefined) {
+        return false;
+      }
+      const metadata = getColony(colonyName as ColonyName);
+      const top = metadata.trade.quantity.length - 1;
+      // The OWNER bonus only becomes a reveal for THIS player when this player
+      // owns a settlement here — otherwise its cards are dealt to someone else
+      // and there is nothing for our workspace to present.
+      const ownerDraw = colonyOwnerBonusDrawsCards(metadata) &&
+        this.thisPlayer !== undefined && model.colonies.includes(this.thisPlayer.color);
+      return ownerDraw || colonyTradeMayDrawCards(metadata, Math.min(model.trackPosition, top));
+    },
     enterColonyFocus(intent: ColonyFocusIntent): void {
       if (this.coloniesForRail.length === 0 || this.colonyFocus.open) {
         return;
@@ -8482,8 +8509,12 @@ export default defineComponent({
         (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
         armColonyTrade(selected.name as ColonyName, this.thisPlayer.color, {});
         armTradeFleet(selected.name as ColonyName, this.thisPlayer.color);
-        claimWorkspaceOutcome('colonies', selected.name, ['draw']);
-        markWorkspaceOutcomeArrivalDone();
+        // STRUCTURAL, like the build path beside it: a colony that pays in
+        // production or plants has no follow-up stage to stand.
+        if (this.colonyTradeDealsCards(selected.name)) {
+          claimWorkspaceOutcome('colonies', selected.name, ['draw']);
+          markWorkspaceOutcomeArrivalDone();
+        }
         this.submit(colonyResponse(selected.name));
         return;
       }
@@ -8597,12 +8628,17 @@ export default defineComponent({
       // (nothing may slip to a standalone band for a frame); `sourceCard`
       // carries the COLONY name (the claim key `workspaceClaimsColonyReveal`
       // matches the server's own `{type:'colony', colonyName}` batch source).
-      // A trade with no card payout is released by `reconcileWorkspaceOutcome`
-      // a tick after the answer. The arrival gate is opened up front: the
-      // trade transaction OWNS the pacing (veil + cover flight + input lock),
-      // so the generic batch-arrival gate must not double-hold the pad.
-      claimWorkspaceOutcome('colonies', colonyName, ['draw']);
-      markWorkspaceOutcomeArrivalDone();
+      // The claim is STRUCTURAL (`colonyTradeDealsCards`) — a colony with no
+      // card payout claims nothing, so it stands no follow-up stage; a trade
+      // that could have dealt cards but didn't is released by
+      // `reconcileWorkspaceOutcome` a tick after the answer. The arrival gate
+      // is opened up front: the trade transaction OWNS the pacing (veil +
+      // cover flight + input lock), so the generic batch-arrival gate must
+      // not double-hold the pad.
+      if (this.colonyTradeDealsCards(colonyName)) {
+        claimWorkspaceOutcome('colonies', colonyName, ['draw']);
+        markWorkspaceOutcomeArrivalDone();
+      }
       this.submitBatch(batch);
     },
     // ── hydro advance (mirrors PlayerHome.submitHydroAdvance; the stage-7

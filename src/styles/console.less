@@ -598,12 +598,14 @@ body.con-zoom-open .con-journal {
     pointer-events: none;
 }
 
-/* ═══ THE WORKSPACE HEADER — one line, every workspace ═══
+/* ═══ THE WORKSPACE HEADER — one shared grammar, every workspace ═══
    `ConsoleWsHead.vue` owns the markup; this owns the metrics. It is one BLOCK
    rather than a mixin on purpose: two hosts sharing a mixin still have two
    class trees, and every past divergence in this console's headers (title
    tier, kicker placement, head height, aux wrapping) was a markup divergence
-   that a mixin could not have caught. One block, one component, one line.
+   that a mixin could not have caught. One block, one component. The default
+   remains one line; an opted-in directional flow receives one internal,
+   reserved second tier without changing any other workspace.
 
    THREE TYPOGRAPHIC VOICES, one baseline, zero restyling between stages:
    · ROOT («КАРТЫ В РУКЕ») — the stable frame of reference. Same box, weight and
@@ -723,22 +725,145 @@ body.con-zoom-open .con-journal {
             pointer-events: none;
         }
     }
-    /* UNIVERSAL FLOW BERTH. Business state and visuals are supplied by the
-       workspace; the header owns only this geometry. It is the final flex
-       item, cannot shrink, and is right-aligned inside its own fixed-height
-       box, so every width morph grows/collapses LEFT while the right edge
-       stays on the header's common inset. Workspaces without a `flow` slot do
-       not render this node and remain byte-for-byte on the old layout path. */
-    &__flow {
-        order: 4;
-        flex: 0 0 auto;
-        min-width: 0;
-        height: 1.8rem;
+    /* THE TRAILING ZONE — the header's RESERVED RIGHT EDGE, in every mode.
+       It was `display: contents`, which dissolves the wrapper: its children
+       became direct flex items of `.con-wshead` carrying the implicit
+       `order: 0` and therefore sorted BEFORE `__ident` (order 1) and `__aux`
+       (order 2). The colony fleet dock — a readout whose whole value is
+       spatial memory — rendered to the LEFT of «КОЛОНИИ» standalone, while
+       the same component sat correctly on the right when the section was
+       EMBEDDED (its own toolbar) or when the header ran in flow mode (a real
+       grid cell). One host, one component, three positions.
+       A right-hand readout must not move because the crumb grew a tail, so
+       the zone is a REAL box pinned by `margin-left: auto`: its position is a
+       function of the header's right edge alone, never of the left content's
+       length. */
+    &__trailing {
+        order: 3;
         margin-left: auto;
         display: inline-flex;
         align-items: center;
+        gap: .45rem;
+        flex-shrink: 0;
+        min-width: 0;
+    }
+
+    /* FLOW MODE: breadcrumb + local meta keep the first tier; the directional
+       scenario owns the second. The rail therefore gets the header's full
+       readable width instead of competing with four unrelated groups. The
+       first row's height remains one line and the flow row has a fixed reserve
+       — subject/stage crossfades cannot move either row. */
+    &--flow {
+        --con-wsflow-axis: .52rem;
+        display: grid;
+        grid-template-columns: max-content minmax(8rem, 1fr) minmax(0, max-content);
+        grid-template-rows: minmax(1.45rem, auto) 1.8rem;
+        align-items: center;
+        column-gap: .75rem;
+        row-gap: 0;
+        min-height: 3.25rem;
+    }
+    &--flow &__ident {
+        grid-column: 1;
+        grid-row: 1;
+        width: max-content;
+    }
+    &--flow &__mark {
+        width: 1.05rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+    &--flow &__aux {
+        grid-column: 2;
+        grid-row: 1;
+        width: 100%;
+    }
+    /* The grid gap now owns root › subject spacing. The old negative pull was
+       a one-line flex correction and would glue the two words back together. */
+    &--flow &__layer--deep { left: 0; }
+    &--flow &__trailing {
+        grid-column: 3;
+        grid-row: 1;
+        justify-self: end;
+        /* The grid area already ends at the header's right edge; an auto
+           margin here would fight `justify-self` for the same job. */
+        margin-left: 0;
+        min-width: 0;
+        max-width: min(42rem, 52vw);
+        display: flex;
+        align-items: center;
         justify-content: flex-end;
+        gap: .45rem;
+        overflow: hidden;
+    }
+
+    /* UNIVERSAL FLOW BERTH. The stable anchor is now the ROOT's left axis.
+       The inset is exactly where the telemetry connector hands into the rail;
+       changing rail width therefore grows/collapses only to the RIGHT. */
+    &__flow {
+        grid-column: 1 / -1;
+        grid-row: 2;
+        position: relative;
+        box-sizing: border-box;
+        width: 100%;
+        min-width: 0;
+        height: 1.8rem;
+        padding-left: 1.75rem;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
         overflow: visible;
+    }
+    &__flow-connector {
+        position: absolute;
+        z-index: 0;
+        left: 0;
+        top: 0;
+        width: 1.75rem;
+        height: 100%;
+        pointer-events: none;
+        color: fade(@con-cyan, 42%);
+        transition: color calc(220ms * var(--motion-scale, 1)) ease;
+    }
+    &__flow-stem,
+    &__flow-turn,
+    &__flow-run {
+        position: absolute;
+        display: block;
+        pointer-events: none;
+    }
+    /* Root marker centre → shallow bend → the rail's own centreline. */
+    &__flow-stem {
+        left: var(--con-wsflow-axis);
+        top: -.72rem;
+        width: .055rem;
+        height: 1.08rem;
+        transform-origin: top center;
+        background: currentColor;
+        box-shadow: 0 0 .28rem fade(@con-cyan, 9%);
+        animation: con-wsflow-stem-in calc(150ms * var(--motion-scale, 1)) ease-out backwards;
+    }
+    &__flow-turn {
+        left: var(--con-wsflow-axis);
+        top: .31rem;
+        width: .55rem;
+        height: .58rem;
+        box-sizing: border-box;
+        border-left: .055rem solid currentColor;
+        border-bottom: .055rem solid currentColor;
+        border-bottom-left-radius: .42rem;
+        animation: con-wsflow-turn-in calc(170ms * var(--motion-scale, 1)) ease-out calc(110ms * var(--motion-scale, 1)) backwards;
+    }
+    &__flow-run {
+        left: 1.04rem;
+        top: .86rem;
+        width: .71rem;
+        height: .055rem;
+        transform-origin: left center;
+        background: currentColor;
+        box-shadow: 0 0 .32rem fade(@con-cyan, 10%);
+        animation: con-wsflow-run-in calc(190ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) calc(220ms * var(--motion-scale, 1)) backwards;
     }
     /* The breadcrumb tail RISES IN READING ORDER as the flow opens: the card
        name first, then the stage, then the trailing chips — the header reads as
@@ -756,12 +881,51 @@ body.con-zoom-open .con-journal {
         &__layer--deep > * { animation: none; }
     }
 }
-/* A deep breadcrumb is an absolute layer, so it contributes no intrinsic
-   flex basis to `aux`. Once a fixed flow berth exists, reserve the short
-   local `subject › stage` sentence explicitly; counters and participant
-   statuses remain the compressible region between it and the right anchor. */
-.con-wshead:has(> .con-wshead__flow) > .con-wshead__aux {
-    min-width: min(15rem, 34vw);
+@keyframes con-wsflow-stem-in {
+    from { opacity: 0; transform: scaleY(0); }
+    to { opacity: 1; transform: scaleY(1); }
+}
+@keyframes con-wsflow-turn-in {
+    from { opacity: 0; clip-path: inset(0 100% 0 0); }
+    to { opacity: 1; clip-path: inset(0); }
+}
+@keyframes con-wsflow-run-in {
+    from { opacity: 0; transform: scaleX(0); }
+    to { opacity: 1; transform: scaleX(1); }
+}
+@keyframes con-wsflow-root-in {
+    0% { color: fade(@con-cyan, 58%); text-shadow: none; }
+    45% { color: @con-cyan; text-shadow: 0 0 .55rem fade(@con-cyan, 34%); }
+    100% { color: @con-cyan; text-shadow: none; }
+}
+.con-wshead--flow :is(.con-wshead__mark, .con-wshead__emblem) {
+    animation: con-wsflow-root-in calc(360ms * var(--motion-scale, 1)) ease-out backwards;
+}
+/* Final commit travels root → connector. The rail's already-mounted GSAP beam
+   continues the same sentence; no new element or competing flash appears. */
+.con-wshead--flow:has(.con-jrail--committing) {
+    :is(.con-wshead__mark, .con-wshead__emblem) {
+        color: @con-mint;
+        animation: con-wsflow-root-commit calc(420ms * var(--motion-scale, 1)) ease-out both;
+    }
+    .con-wshead__flow-stem { animation: con-wsflow-line-commit calc(280ms * var(--motion-scale, 1)) ease-out both; }
+    .con-wshead__flow-turn { animation: con-wsflow-line-commit calc(280ms * var(--motion-scale, 1)) ease-out calc(110ms * var(--motion-scale, 1)) both; }
+    .con-wshead__flow-run { animation: con-wsflow-line-commit calc(320ms * var(--motion-scale, 1)) ease-out calc(220ms * var(--motion-scale, 1)) both; }
+}
+/* Keep the completed physical link mint through the readable READY dwell and
+   the releasing fade; it must not snap back to cyan between those beats. */
+.con-wshead--flow:has(.con-jrail--presentation-complete) {
+    :is(.con-wshead__mark, .con-wshead__emblem) { color: @con-mint; }
+    .con-wshead__flow-connector { color: fade(@con-mint, 66%); }
+}
+@keyframes con-wsflow-root-commit {
+    0%, 100% { text-shadow: none; }
+    48% { text-shadow: 0 0 .7rem fade(@con-mint, 42%); }
+}
+@keyframes con-wsflow-line-commit {
+    0% { color: fade(@con-cyan, 42%); filter: brightness(1); }
+    48% { color: @con-mint; filter: brightness(1.5); }
+    100% { color: fade(@con-mint, 64%); filter: brightness(1); }
 }
 /* ONE grid cell for both words of a swap: it sizes to the WIDER of them, so
    nothing beside them shifts mid-change. */
@@ -13236,7 +13400,11 @@ body.con-start-ceremony {
         width: 100%;
         display: flex;
         flex-direction: column;
-        padding: .85rem 1.2rem .8rem;
+        /* The flow-enabled WorkspaceHeader now consumes the upper chrome
+           reserve itself. Reducing only this pre-header inset keeps the card
+           body's top coordinate effectively unchanged while the header gains
+           its internal second tier. */
+        padding: .4rem 1.2rem .8rem;
         min-height: 0;
         border-radius: .7rem;
         /* A shade brighter than the room behind it — the plate must READ as a
@@ -15426,11 +15594,12 @@ body.con-start-barshold .con-status {
 
 .con-start {
     /* The ONE system workspace header, dressed for the start scene. */
-    &__wshead { margin-bottom: .5rem; }
+    &__wshead { margin-bottom: 0; }
     &__flowhost {
-        display: inline-flex;
+        display: flex;
         align-items: center;
-        justify-content: flex-end;
+        justify-content: flex-start;
+        width: 100%;
         height: 100%;
         min-width: 0;
     }
@@ -15971,23 +16140,24 @@ body.con-start-barshold .con-status {
 }
 
 /* ── THE WORKSPACE FLOW RAIL (reusable presentation primitive) ──
-   The right edge belongs to `.con-wshead__flow`; this object changes only its
-   LEFT extent. Expanded / compact / terminal are superposed in one viewport,
-   and the two phase panels remain one pair of nodes while their flex bases
+   The ROOT-side left edge belongs to `.con-wshead__flow`; this object changes
+   only its RIGHT extent. Expanded / compact / terminal are superposed in one
+   viewport, and the phase panels remain the same nodes while their flex bases
    exchange. No label is ever replaced by an anonymous dot. */
 .con-jrail {
-    --con-jrail-expanded-w: min(42rem, 56vw);
-    --con-jrail-compact-w: 15.5rem;
-    --con-jrail-terminal-w: 9rem;
+    --con-jrail-expanded-w: min(56rem, 100%);
+    --con-jrail-compact-w: min(18rem, 100%);
+    --con-jrail-terminal-w: min(10rem, 100%);
     position: relative;
     display: inline-grid;
     width: var(--con-jrail-expanded-w);
     height: 1.8rem;
+    max-width: 100%;
     min-width: 0;
     flex: 0 0 auto;
     overflow: hidden;
     border-radius: .52rem;
-    transform-origin: right center;
+    transform-origin: left center;
     transition: width calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 
     &--presentation-compact { width: var(--con-jrail-compact-w); }
@@ -16005,8 +16175,8 @@ body.con-start-barshold .con-status {
         height: 100%;
         opacity: 0;
         pointer-events: none;
-        transform: translateX(.45rem) scaleX(.985);
-        transform-origin: right center;
+        transform: translateX(-.38rem) scaleX(.985);
+        transform-origin: left center;
         transition:
             opacity calc(150ms * var(--motion-scale, 1)) ease,
             transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
@@ -16023,17 +16193,17 @@ body.con-start-barshold .con-status {
     &__view--expanded {
         display: flex;
         align-items: stretch;
-        justify-content: flex-end;
-        gap: .35rem;
+        justify-content: flex-start;
+        gap: .4rem;
     }
     &__phase {
         position: relative;
         min-width: 0;
-        flex: 0 0 13.8rem;
+        flex: 0 0 9.8rem;
         display: flex;
         align-items: center;
-        gap: .45rem;
-        padding: .17rem .5rem;
+        gap: .48rem;
+        padding: .16rem .58rem;
         border-radius: .48rem;
         overflow: hidden;
         color: @con-text-dim;
@@ -16061,11 +16231,11 @@ body.con-start-barshold .con-status {
                 0 0 .75rem fade(@con-mint, 8%);
         }
         &--completed {
-            flex-basis: 8rem;
+            flex-basis: 8.7rem;
             color: fade(@con-mint, 88%);
             box-shadow: inset 0 0 0 .05rem fade(@con-mint, 36%);
         }
-        &--locked { opacity: .68; }
+        &--locked { opacity: .72; }
     }
     &__phase-head {
         position: relative;
@@ -16076,23 +16246,31 @@ body.con-start-barshold .con-status {
         gap: .34rem;
         white-space: nowrap;
     }
+    &__phase--open &__phase-head::after {
+        content: '·';
+        margin-left: .05rem;
+        color: fade(@con-cyan, 52%);
+        font-size: .78rem;
+        line-height: 1;
+    }
     &__phase-num {
-        font-size: .56rem;
+        font-size: .62rem;
         font-weight: 800;
         letter-spacing: .08em;
         color: fade(@con-cyan, 78%);
     }
     &__phase-label {
-        font-size: .64rem;
+        font-size: .72rem;
         font-weight: 800;
         letter-spacing: .09em;
         text-transform: uppercase;
     }
     &__phase-state {
-        width: .7rem;
-        font-size: .58rem;
+        width: .72rem;
+        font-size: .64rem;
         color: fade(@con-cyan, 82%);
         text-align: center;
+        &:empty { display: none; }
     }
     &__phase--completed &__phase-num,
     &__phase--completed &__phase-state { color: @con-mint; }
@@ -16106,8 +16284,8 @@ body.con-start-barshold .con-status {
         min-width: 0;
         display: flex;
         align-items: center;
-        justify-content: flex-end;
-        gap: .18rem;
+        justify-content: flex-start;
+        gap: .22rem;
         max-width: 0;
         opacity: 0;
         overflow: hidden;
@@ -16116,35 +16294,9 @@ body.con-start-barshold .con-status {
             opacity calc(150ms * var(--motion-scale, 1)) ease;
     }
     &__phase--open &__phase-body {
-        max-width: 32rem;
+        max-width: 45rem;
         opacity: 1;
     }
-    &__phase-preview {
-        position: relative;
-        z-index: 1;
-        flex: 1 1 auto;
-        min-width: 0;
-        display: flex;
-        justify-content: flex-end;
-        gap: .28rem;
-        max-width: 16rem;
-        overflow: hidden;
-        opacity: .7;
-        white-space: nowrap;
-        transition:
-            max-width calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
-            opacity calc(140ms * var(--motion-scale, 1)) ease;
-
-        span {
-            font-size: .5rem;
-            font-weight: 650;
-            letter-spacing: .045em;
-            text-transform: uppercase;
-            & + span::before { content: '·'; margin-right: .28rem; color: fade(@con-cyan, 44%); }
-        }
-    }
-    &__phase--open &__phase-preview,
-    &__phase--completed &__phase-preview { max-width: 0; opacity: 0; }
 
     &__item {
         position: relative;
@@ -16152,13 +16304,13 @@ body.con-start-barshold .con-status {
         min-width: 0;
         display: inline-flex;
         align-items: center;
-        gap: .24rem;
-        padding: .14rem .32rem;
+        gap: .26rem;
+        padding: .13rem .34rem;
         border-radius: .32rem;
         overflow: hidden;
         color: @con-text-dim;
-        background: rgba(255, 255, 255, 0.025);
-        box-shadow: inset 0 0 0 .04rem rgba(150, 185, 220, 0.12);
+        background: transparent;
+        box-shadow: inset 0 0 0 .04rem rgba(150, 185, 220, 0.08);
         transition:
             box-shadow calc(160ms * var(--motion-scale, 1)) ease,
             color calc(160ms * var(--motion-scale, 1)) ease,
@@ -16178,7 +16330,7 @@ body.con-start-barshold .con-status {
     }
     &__num {
         flex: 0 0 auto;
-        font-size: .5rem;
+        font-size: .56rem;
         font-weight: 800;
         color: fade(@con-cyan, 72%);
     }
@@ -16188,16 +16340,28 @@ body.con-start-barshold .con-status {
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-size: .56rem;
+        font-size: .66rem;
         font-weight: 700;
         letter-spacing: .045em;
         text-transform: uppercase;
     }
     &__connector {
-        flex: 0 0 .34rem;
+        position: relative;
+        flex: 0 0 .48rem;
         height: .05rem;
         border-radius: .05rem;
         background: fade(@con-cyan, 23%);
+        &::after {
+            content: '';
+            position: absolute;
+            right: -.01rem;
+            top: 50%;
+            width: .2rem;
+            height: .2rem;
+            border-top: .05rem solid fade(@con-cyan, 38%);
+            border-right: .05rem solid fade(@con-cyan, 38%);
+            transform: translateY(-50%) rotate(45deg);
+        }
     }
     &__pulse {
         position: absolute;
@@ -16225,9 +16389,9 @@ body.con-start-barshold .con-status {
     &__view--terminal {
         display: flex;
         align-items: center;
-        justify-content: flex-end;
-        gap: .38rem;
-        padding: .18rem .62rem;
+        justify-content: flex-start;
+        gap: .42rem;
+        padding: .18rem .72rem;
         border-radius: .48rem;
         white-space: nowrap;
         background: rgba(11, 20, 31, 0.9);
@@ -16236,7 +16400,7 @@ body.con-start-barshold .con-status {
             inset .15rem 0 0 fade(@con-cyan, 52%);
     }
     &__compact-num {
-        font-size: .56rem;
+        font-size: .62rem;
         font-weight: 800;
         letter-spacing: .08em;
         color: fade(@con-cyan, 78%);
@@ -16244,7 +16408,7 @@ body.con-start-barshold .con-status {
     &__compact-phase,
     &__compact-item,
     &__terminal-label {
-        font-size: .64rem;
+        font-size: .72rem;
         font-weight: 800;
         letter-spacing: .085em;
         text-transform: uppercase;
@@ -16305,6 +16469,17 @@ body.con-start-barshold .con-status {
     }
 }
 
+/* One infrastructural reveal on workspace mount: the connector draws first,
+   then this already-standing rail settles from the same LEFT origin. Step
+   changes never replay it. */
+.con-wshead--flow .con-jrail {
+    animation: con-wsflow-rail-in calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) calc(250ms * var(--motion-scale, 1)) backwards;
+}
+@keyframes con-wsflow-rail-in {
+    from { opacity: 0; transform: translateX(-.28rem) scaleX(.985); }
+    to { opacity: 1; transform: translateX(0) scaleX(1); }
+}
+
 .con-jrail-context-enter-active,
 .con-jrail-context-leave-active {
     transition: opacity calc(140ms * var(--motion-scale, 1)) ease, transform calc(140ms * var(--motion-scale, 1)) ease;
@@ -16323,24 +16498,28 @@ body.con-start-barshold .con-status {
     to   { transform: translateX(-110%); opacity: 0; }
 }
 
-/* A genuinely narrow header chooses the SAME rail's compact layer. It never
-   wraps or creates a second row; desktop/4K keep the expanded map. */
+/* Narrow viewports keep the ACTIVE phase expanded. Only secondary chrome
+   tightens; collapsing the whole map would hide the stage the player is
+   currently navigating. The second tier remains exactly one row. */
 @media (max-width: 1600px) {
-    .con-wshead__flow .con-jrail--presentation-expanded {
-        width: var(--con-jrail-compact-w);
-
-        .con-jrail__view--expanded { opacity: 0; transform: translateX(.45rem) scaleX(.985); }
-        .con-jrail__view--compact { opacity: 1; transform: translateX(0) scaleX(1); }
+    .con-jrail {
+        --con-jrail-expanded-w: min(52rem, 100%);
+        &__phase { flex-basis: 8.8rem; padding-left: .48rem; padding-right: .48rem; }
+        &__phase--completed { flex-basis: 8rem; }
+        &__bridge { flex-basis: .8rem; }
     }
     .con-start__crewline { max-width: 20rem; }
     .con-start__crewchip:not(.con-start__crewchip--self) .con-start__crewname { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
+    .con-wshead--flow :is(.con-wshead__mark, .con-wshead__emblem),
+    .con-wshead__flow-stem,
+    .con-wshead__flow-turn,
+    .con-wshead__flow-run,
     .con-jrail,
     .con-jrail__view,
     .con-jrail__phase,
-    .con-jrail__phase-body,
-    .con-jrail__phase-preview { transition: none; }
+    .con-jrail__phase-body { transition: none; animation: none; }
     .con-jrail__pulse { animation: none; opacity: .26; }
     .con-jrail-context-enter-active,
     .con-jrail-context-leave-active { transition: none; }

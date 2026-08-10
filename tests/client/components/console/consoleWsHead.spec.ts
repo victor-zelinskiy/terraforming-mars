@@ -88,8 +88,10 @@ describe('ConsoleWsHead — the ONE workspace header', () => {
     expect(w.find('.con-wshead__subject').text()).to.eq('Зелёный сектор');
   });
 
-  it('adds the stable right-edge flow berth only for an opted-in workspace', () => {
-    expect(head({root: 'Cards in hand'}).find('.con-wshead__flow').exists()).to.eq(false);
+  it('adds the root-connected second flow tier only for an opted-in workspace', () => {
+    const plain = head({root: 'Cards in hand'});
+    expect(plain.find('.con-wshead__flow').exists()).to.eq(false);
+    expect(plain.find('.con-wshead').classes()).to.not.contain('con-wshead--flow');
     const w = mount(ConsoleWsHead as any, {
       ...globalConfig,
       props: {root: 'Start of the game'},
@@ -99,6 +101,9 @@ describe('ConsoleWsHead — the ONE workspace header', () => {
       },
       global: {...globalConfig.global, stubs: {BarButtonIcon: IconStub}},
     });
+    expect(w.find('.con-wshead').classes()).to.contain('con-wshead--flow');
     expect(w.find('.con-wshead__flow .flow-stub').text()).to.eq('flow');
+    expect(w.find('.con-wshead__flow-connector').exists()).to.eq(true);
+    expect(w.findAll('.con-wshead__flow-connector > i')).to.have.lengthOf(3);
   });
 });

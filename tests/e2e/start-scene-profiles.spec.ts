@@ -8,7 +8,7 @@ import * as path from 'node:path';
  * full 2-corp / 4-prelude / 10-project setup) across the 4 target display
  * profiles. Produces screenshots/start-scene/<preset>/ for the Preludes /
  * Projects / Summary review; a Playwright render is a SANITY check (no
- * overflow / scroll / broken layout, rail pinned, cards larger) — the couch
+ * overflow / scroll / broken layout, root-pinned rail, cards larger) — the couch
  * read is still the real TV.
  */
 
@@ -88,12 +88,17 @@ async function assertNoScroll(page: Page, label: string): Promise<void> {
   }
 }
 
-/** The flow is one header child, pinned to the same right coordinate on every
- *  profile. Narrow profiles show its compact layer without changing height. */
+/** The flow is one header child on the fixed second tier. Its LEFT edge is the
+ *  connector hand-off under the root marker on every profile; the active
+ *  chapter remains expanded even when secondary chrome tightens. */
 async function assertFlowGeometry(page: Page, preset: Preset): Promise<void> {
   const flow = await page.evaluate(() => {
     const head = document.querySelector('.con-start__wshead')?.getBoundingClientRect();
+    const flowTierEl = document.querySelector<HTMLElement>('.con-start__wshead .con-wshead__flow');
+    const flowTier = flowTierEl?.getBoundingClientRect();
     const rail = document.querySelector('.con-start__wshead .con-jrail')?.getBoundingClientRect();
+    const mark = document.querySelector('.con-start__wshead .con-wshead__mark')?.getBoundingClientRect();
+    const stem = document.querySelector('.con-start__wshead .con-wshead__flow-stem')?.getBoundingClientRect();
     const opacity = (selector: string) =>
       Number(getComputedStyle(document.querySelector(selector) as Element).opacity);
     const breadcrumbFits = Array.from(document.querySelectorAll<HTMLElement>(
@@ -104,9 +109,15 @@ async function assertFlowGeometry(page: Page, preset: Preset): Promise<void> {
     )).every((el) => el.scrollWidth <= el.clientWidth + 1);
     return {
       count: document.querySelectorAll('.con-start__wshead .con-jrail').length,
-      rightGap: head === undefined || rail === undefined ? -999 : Math.round(head.right - rail.right),
+      connectorCount: document.querySelectorAll('.con-start__wshead .con-wshead__flow-connector').length,
+      leftHandoffGap: flowTier === undefined || flowTierEl === null || rail === undefined ? -999 :
+        Math.round(rail.left - flowTier.left - parseFloat(getComputedStyle(flowTierEl).paddingLeft)),
+      rootAxisGap: mark === undefined || stem === undefined ? -999 :
+        Math.round((mark.left + mark.width / 2) - (stem.left + stem.width / 2)),
       inside: head !== undefined && rail !== undefined &&
         rail.top >= head.top - 1 && rail.bottom <= head.bottom + 1,
+      secondTier: flowTier !== undefined && rail !== undefined && mark !== undefined &&
+        rail.top > mark.top + mark.height / 2 && flowTier.top >= mark.top,
       breadcrumbFits,
       flowLabelsFit,
       expandedOpacity: opacity('.con-jrail__view--expanded'),
@@ -114,15 +125,14 @@ async function assertFlowGeometry(page: Page, preset: Preset): Promise<void> {
     };
   });
   expect(flow.count, `${preset.id}: one flow instance`).toBe(1);
-  expect(Math.abs(flow.rightGap), `${preset.id}: stable right anchor`).toBeLessThanOrEqual(2);
-  expect(flow.inside, `${preset.id}: flow never creates a second header row`).toBeTruthy();
+  expect(flow.connectorCount, `${preset.id}: one root-to-flow connector`).toBe(1);
+  expect(Math.abs(flow.leftHandoffGap), `${preset.id}: stable left rail hand-off`).toBeLessThanOrEqual(2);
+  expect(Math.abs(flow.rootAxisGap), `${preset.id}: connector follows the root diamond axis`).toBeLessThanOrEqual(2);
+  expect(flow.inside, `${preset.id}: flow tier stays inside WorkspaceHeader`).toBeTruthy();
+  expect(flow.secondTier, `${preset.id}: flow is below the breadcrumb row`).toBeTruthy();
   expect(flow.breadcrumbFits, `${preset.id}: flow never clips the local breadcrumb`).toBeTruthy();
-  if (preset.viewport.width <= 1600) {
-    expect(flow.compactOpacity, `${preset.id}: responsive compact presentation`).toBeGreaterThan(flow.expandedOpacity);
-  } else {
-    expect(flow.expandedOpacity, `${preset.id}: expanded top-level presentation`).toBeGreaterThan(flow.compactOpacity);
-    expect(flow.flowLabelsFit, `${preset.id}: expanded flow keeps every active stage named`).toBeTruthy();
-  }
+  expect(flow.expandedOpacity, `${preset.id}: top-level active chapter stays expanded`).toBeGreaterThan(flow.compactOpacity);
+  expect(flow.flowLabelsFit, `${preset.id}: expanded flow keeps every active stage named`).toBeTruthy();
 }
 
 for (const preset of PRESETS) {

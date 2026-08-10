@@ -91,11 +91,20 @@
             <span class="con-colonies__rail-name">{{ $t(colonies[index] !== undefined ? colonies[index].name : '') }}</span>
             <span v-if="railMode === 'trade'" class="con-colonies__rail-track">{{ focusedTrackDisplay }}</span>
 
-            <!-- ── BLOCKED (trade window): the one reason, nothing else. ── -->
-            <template v-if="railMode === 'trade' && focusedStatus.kind !== 'ok'">
+            <!-- ── BLOCKED (trade window): the one reason, nothing else.
+                 The guard states the POSITIVE fact. It used to read
+                 `kind !== 'ok'`, and `'ok'` is only ever produced while a
+                 trade TRANSACTION is narrating its beats — so during ordinary
+                 browsing every focused colony fell into this arm, including
+                 the ones the server is offering, and printed a hardcoded
+                 «Торговля недоступна» over a colony the player was in the act
+                 of choosing. `'none'` means «nothing to report», not «blocked
+                 with no reason given». (Cross-cutting: never derive where the
+                 player is by negating a rendering condition.) ── -->
+            <template v-if="railMode === 'trade' && railBlocked">
               <span class="con-colonies__rail-reason" :class="'con-colonies__rail-reason--' + focusedStatus.kind">
                 <span aria-hidden="true">{{ focusedStatus.kind === 'inactive' ? '○' : '✕' }}</span>
-                <span>{{ focusedStatus.text !== '' ? focusedStatus.text : $t('Trade unavailable') }}</span>
+                <span>{{ focusedStatus.text }}</span>
               </span>
             </template>
 
@@ -546,6 +555,19 @@ export default defineComponent({
     focusedStatus(): ConsoleColonyTileStatus {
       const colony = this.colonies[this.index];
       return colony === undefined ? {kind: 'none', text: ''} : this.tileStatus(colony);
+    },
+    /**
+     * THE ONE POSITIVE FACT the rail's blocked arm stands on: this colony has
+     * a real, named blocker. `tileStatus` produces exactly two such kinds
+     * (`blocked` / `inactive`) and both carry their text by construction —
+     * `none` ("nothing to report") and `ok` (a live transaction beat) are not
+     * blockers and must never route here. Reading it as `kind !== 'ok'`
+     * silently made every ordinary browse frame "blocked", which is how a
+     * colony the server was actively offering announced «Торговля
+     * недоступна» while the player was choosing it.
+     */
+    railBlocked(): boolean {
+      return this.focusedStatus.kind === 'blocked' || this.focusedStatus.kind === 'inactive';
     },
     /** Settlement OWNERS on the focused colony — the recipients of the colony
      *  bonus when anyone trades here (empty ⇒ the bonus goes to no one). */
