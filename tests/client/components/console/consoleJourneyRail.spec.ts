@@ -82,6 +82,24 @@ describe('ConsoleJourneyRail — one persistent workspace flow object', () => {
     expect(wrapper.find('.con-jrail__phase-preview').exists()).to.eq(false);
   });
 
+  it('uses different ordinal grammars for chapters and track nodes', () => {
+    const wrapper = rail();
+    const current = wrapper.find('[data-phase="selection"]');
+    expect(current.find('.con-jrail__phase-num').text()).to.eq('01');
+    expect(current.find('[data-item="prelude"] .con-jrail__num').text()).to.eq('2');
+    expect(current.find('[data-item="prelude"] .con-jrail__num').text()).to.not.eq('02');
+  });
+
+  it('renders real directional tracks and treats only the scenario end as an endpoint', () => {
+    const wrapper = rail();
+    expect(wrapper.find('.con-jrail__bridge').text()).to.eq('');
+    expect(wrapper.findAll('.con-jrail__connector-line')).to.have.lengthOf(6);
+    expect(wrapper.find('[data-phase="selection"] [data-item="summary"]').classes())
+      .to.not.contain('con-jrail__item--endpoint');
+    expect(wrapper.find('[data-phase="deployment"] [data-item="ready"]').classes())
+      .to.contain('con-jrail__item--endpoint');
+  });
+
   it('exchanges the open chapter without remounting either phase', async () => {
     const wrapper = rail();
     const selectionNode = wrapper.find('[data-phase="selection"]').element;

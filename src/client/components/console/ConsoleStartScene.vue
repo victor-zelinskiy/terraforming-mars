@@ -1137,7 +1137,12 @@ export default defineComponent({
       });
     },
     journeyPhases(): ReadonlyArray<JourneyPhase> {
-      const terminal = this.state.flow === 'completing' || this.state.flow === 'releasing';
+      /* Keep the deployment chapter physically open while its final commit
+       * beam confirms the already-settled canonical items. `flowTerminal` then
+       * consolidates this SAME mounted object into READY. Previously the
+       * `completing` flag collapsed the item track one frame before GSAP tried
+       * to acknowledge it, making the premium completion sequence invisible. */
+      const terminal = this.flowTerminal || this.state.flow === 'releasing';
       const deploymentLive = this.mode === 'ceremony' && this.state.flow !== 'materializing';
       const selectionWaiting = !terminal && !deploymentLive &&
         (this.awaitingOthers || this.state.flow === 'committing' || this.state.flow === 'materializing');
@@ -3565,10 +3570,13 @@ export default defineComponent({
           }
         }, undefined, reduced ? 0 : motionMs(690) / 1000);
         // Give the consolidated READY pose a true couch-readable hold after
-        // its width morph. 1.1 s is still a short terminal beat, but unlike the
-        // old 720 ms reserve it leaves a complete settled frame at 4K before
-        // the workspace begins its release fade. Reduced motion stays brief.
-        timeline.to({}, {duration: motionMs(reduced ? 420 : 1100) / 1000});
+        // its width morph. A 4K browser needs close to a second merely to
+        // rasterize this full scene; the old 1.1 s beat was logically observed
+        // but visually skipped straight to the board on that profile. 1.8 s is
+        // still a concise terminal acknowledgement after the whole setup, and
+        // speed presets continue to scale it with the rest of the sequence.
+        // Reduced motion stays brief.
+        timeline.to({}, {duration: motionMs(reduced ? 420 : 1800) / 1000});
         timeline.call(() => {
           if (el.isConnected) {
             this.state.flow = 'releasing';
@@ -3585,8 +3593,20 @@ export default defineComponent({
           scope: 'notification-only',
           maxHoldMs: 8_000,
         });
+        /* A full-frame 4K capture (or a suspended TV compositor) can starve
+         * GSAP's rAF ticker for far longer than the sequence itself. Do not
+         * invent a second completion state: finish this SAME timeline after a
+         * generous ceiling so its callbacks, terminal commit and release all
+         * run in their canonical order. Normal Calm/Standard/Swift timings are
+         * 3.7s or less, so this path is strictly degraded-render recovery. */
+        const releaseSafety = window.setTimeout(() => {
+          if (this.completionTimeline === timeline && el.isConnected) {
+            timeline.progress(1);
+          }
+        }, 6_000);
         timeline.play(0);
         await settled;
+        window.clearTimeout(releaseSafety);
         if (this.completionTimeline === timeline) {
           this.completionTimeline = undefined;
         }

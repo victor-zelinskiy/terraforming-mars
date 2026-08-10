@@ -14,18 +14,29 @@
       <div class="con-jrail__view con-jrail__view--expanded"
            :aria-hidden="presentation === 'expanded' ? undefined : 'true'">
         <template v-for="(phase, phaseIndex) in phases" :key="phase.id">
-          <span v-if="phaseIndex > 0" class="con-jrail__bridge" aria-hidden="true">
-            <i></i><b>›</b>
+          <span v-if="phaseIndex > 0"
+                class="con-jrail__bridge"
+                :class="{'con-jrail__bridge--passed': phase.state !== 'locked'}"
+                aria-hidden="true">
+            <i class="con-jrail__bridge-line"></i>
+            <i class="con-jrail__bridge-tip"></i>
           </span>
           <section class="con-jrail__phase"
                    :class="[
                      'con-jrail__phase--' + phase.state,
+                     'con-jrail__phase--' + phase.mode,
                      {'con-jrail__phase--open': phase.state === 'current' || phase.state === 'waiting'},
                    ]"
-                   :data-phase="phase.id">
+                   :data-phase="phase.id"
+                   :data-mode="phase.mode">
             <div class="con-jrail__phase-head">
-              <span class="con-jrail__phase-state" aria-hidden="true">{{ phaseMark(phase) }}</span>
-              <span class="con-jrail__phase-num">{{ phase.ordinal }}</span>
+              <!-- A chapter plate, deliberately NOT the step-number grammar.
+                   The phase keeps its two-digit campaign ordinal while the
+                   inner track uses single figures inside physical nodes. -->
+              <span class="con-jrail__phase-index">
+                <span class="con-jrail__phase-num">{{ phase.ordinal }}</span>
+                <span class="con-jrail__phase-state" aria-hidden="true">{{ phaseMark(phase) }}</span>
+              </span>
               <span class="con-jrail__phase-label">{{ $t(phase.label) }}</span>
             </div>
 
@@ -35,21 +46,36 @@
             <div class="con-jrail__phase-body"
                  :role="phase.mode === 'tabs' ? 'tablist' : 'list'"
                  :aria-hidden="phase.state === 'current' || phase.state === 'waiting' ? undefined : 'true'">
+              <span class="con-jrail__phase-lead" aria-hidden="true">
+                <i class="con-jrail__phase-lead-line"></i>
+                <i class="con-jrail__phase-lead-tip"></i>
+              </span>
               <template v-for="(item, itemIndex) in phase.items" :key="item.id">
-                <span v-if="itemIndex > 0" class="con-jrail__connector" aria-hidden="true"></span>
+                <span v-if="itemIndex > 0"
+                      class="con-jrail__connector"
+                      :class="'con-jrail__connector--' + connectorState(phase, itemIndex)"
+                      aria-hidden="true">
+                  <i class="con-jrail__connector-line"></i>
+                  <i class="con-jrail__connector-tip"></i>
+                </span>
                 <span class="con-jrail__item"
                       :class="{
                         'con-jrail__item--current': item.state === 'current',
                         'con-jrail__item--done': item.state === 'completed',
+                        'con-jrail__item--available': item.state === 'available',
                         'con-jrail__item--locked': item.state === 'locked',
+                        'con-jrail__item--endpoint': isEndpoint(phaseIndex, phase, itemIndex),
                         'con-jrail__item--anticipate': anticipated(phase, item),
                         'con-jrail__item--from-left': anticipated(phase, item) && pulseDir >= 0,
                         'con-jrail__item--from-right': anticipated(phase, item) && pulseDir < 0,
                       }"
+                      :data-item="item.id"
                       :role="phase.mode === 'tabs' ? 'tab' : 'listitem'"
                       :aria-selected="phase.mode === 'tabs' ? (item.state === 'current' ? 'true' : 'false') : undefined"
                       :aria-disabled="item.state === 'locked' ? 'true' : undefined">
-                  <span class="con-jrail__num">{{ itemMark(item, itemIndex) }}</span>
+                  <span class="con-jrail__item-node" aria-hidden="true">
+                    <span class="con-jrail__num">{{ itemMark(item, itemIndex) }}</span>
+                  </span>
                   <span class="con-jrail__label">{{ $t(item.label) }}</span>
                   <i v-if="anticipated(phase, item)" :key="pulseKey" class="con-jrail__pulse" aria-hidden="true"></i>
                 </span>
@@ -58,13 +84,21 @@
 
           </section>
         </template>
+        <!-- The final light pass is scoped to the actual content-sized view,
+             not to the wider invisible geometry reserve around it. -->
+        <i class="con-jrail__commit-beam" aria-hidden="true"></i>
       </div>
 
       <div class="con-jrail__view con-jrail__view--compact"
            :aria-hidden="presentation === 'compact' ? undefined : 'true'">
-        <span class="con-jrail__compact-num">{{ compactContext.ordinal }}</span>
+        <span class="con-jrail__compact-index">
+          <span class="con-jrail__compact-num">{{ compactContext.ordinal }}</span>
+        </span>
         <span class="con-jrail__compact-phase">{{ $t(compactContext.phaseLabel) }}</span>
-        <span class="con-jrail__compact-sep" aria-hidden="true">·</span>
+        <span class="con-jrail__compact-track" aria-hidden="true">
+          <i class="con-jrail__compact-line"></i>
+          <i class="con-jrail__compact-node"></i>
+        </span>
         <span class="con-jrail__compact-swap">
           <transition name="con-jrail-context">
             <span :key="compactContext.itemLabel" class="con-jrail__compact-item">
@@ -76,11 +110,12 @@
 
       <div class="con-jrail__view con-jrail__view--terminal"
            :aria-hidden="presentation === 'complete' ? undefined : 'true'">
-        <span class="con-jrail__terminal-mark" aria-hidden="true">✓</span>
+        <span class="con-jrail__terminal-lead" aria-hidden="true"></span>
+        <span class="con-jrail__terminal-mark" aria-hidden="true"><i>✓</i></span>
         <span class="con-jrail__terminal-label">{{ $t(terminalLabel) }}</span>
+        <span class="con-jrail__terminal-cap" aria-hidden="true"></span>
       </div>
     </div>
-    <i class="con-jrail__commit-beam" aria-hidden="true"></i>
   </div>
 </template>
 
@@ -152,15 +187,32 @@ export default defineComponent({
     },
     itemMark(item: JourneyItem, index: number): string {
       if (item.state === 'completed') {
-        return '✓';
+        return '\u2713';
       }
-      return String(index + 1).padStart(2, '0');
+      return String(index + 1);
+    },
+    /** The last node of the last chapter is a terminal endpoint, not another
+     *  category. This stays generic: the presentation knows only topology,
+     *  never Start Game item ids or rules. */
+    isEndpoint(phaseIndex: number, phase: JourneyPhase, itemIndex: number): boolean {
+      return phaseIndex === this.phases.length - 1 && itemIndex === phase.items.length - 1;
+    },
+    connectorState(phase: JourneyPhase, itemIndex: number): JourneyItemState {
+      const previous = phase.items[itemIndex - 1];
+      const next = phase.items[itemIndex];
+      if (previous?.state === 'completed' && next?.state === 'completed') {
+        return 'completed';
+      }
+      if (next?.state === 'current') {
+        return 'current';
+      }
+      return next?.state ?? 'locked';
     },
     phaseMark(phase: JourneyPhase): string {
       switch (phase.state) {
-      case 'completed': return '✓';
+      case 'completed': return '\u2713';
       case 'current': return '';
-      case 'waiting': return '…';
+      case 'waiting': return '\u2026';
       case 'locked': return '';
       }
     },

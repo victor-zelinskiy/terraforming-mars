@@ -104,7 +104,9 @@ async function setUpAndSubmit(page: Page, id: string, buy: number): Promise<void
 }
 
 test.describe('start · two humans hand over together', () => {
-  test.use({viewport: {width: 1920, height: 1080}});
+  // The first submitter's waiting/commit pose is a primary couch-distance
+  // acceptance frame for the two-tier Start Game header.
+  test.use({viewport: {width: 3840, height: 2160}});
 
   test('the first submitter WAITS on the summary and the deployment opens functional for both', async ({page, request, browser}) => {
     test.setTimeout(420_000);
@@ -132,6 +134,10 @@ test.describe('start · two humans hand over together', () => {
     // 2 · MINIMIZED, the player can come back: the board announces the start
     //     as the pending mandatory beat.
     await press(page, 'Escape', 1500);
+    // A full 4K frame can take longer than the old fixed post-key delay to
+    // paint the board-side mandatory announcement. Observe the canonical
+    // state with a ceiling instead of sampling a compositor-dependent frame.
+    await expect.poll(async () => (await surface(page)).announce, {timeout: 15_000}).toBeTruthy();
     const minimized = await surface(page);
     console.log('[first minimized]', JSON.stringify(minimized));
     await shoot(page, '02-first-minimized');

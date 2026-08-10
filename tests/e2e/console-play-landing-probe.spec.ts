@@ -360,12 +360,20 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
           // delay, so Calm/Standard/Swift all capture the terminal pose.
           await page.waitForFunction(() => {
             const rail = document.querySelector<HTMLElement>('.con-jrail--presentation-complete');
-            if (rail === null) {
+            const terminal = rail?.querySelector<HTMLElement>('.con-jrail__view--terminal');
+            if (rail === null || terminal === null) {
               return false;
             }
-            const width = parseFloat(getComputedStyle(rail).width);
-            const rootRem = parseFloat(getComputedStyle(document.documentElement).fontSize);
-            return width <= rootRem * 10 + 1;
+            /* Compare rendered boxes, not `rem` against the document root:
+             * TV scale is applied through an ancestor zoom, so computed rem
+             * and the physically painted rail live in different coordinate
+             * spaces. The ratio is scale-invariant and proves both that the
+             * terminal layer is visible and that the 44rem expanded reserve
+             * has actually consolidated around it. */
+            const railWidth = rail.getBoundingClientRect().width;
+            const terminalWidth = terminal.getBoundingClientRect().width;
+            return Number(getComputedStyle(terminal).opacity) > 0.98 &&
+              terminalWidth > 0 && railWidth <= terminalWidth * 6;
           }, undefined, {timeout: 2_000});
           await page.waitForTimeout(50);
           await shoot(page, `${shotPrefix}-6-flow-ready`);

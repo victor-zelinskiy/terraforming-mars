@@ -216,6 +216,7 @@ async function openSponsorHand(page: Page, maxPresses = 12): Promise<boolean> {
 test.describe('console start — «Эпатажный спонсор» as a workspace step', () => {
   test('the hand opens INSIDE the Game Start Workspace, never as a second screen', async ({page, request}) => {
     test.setTimeout(300_000);
+    await page.setViewportSize({width: 3840, height: 2160});
     const created = await request.post('/api/creategame', {
       data: cfg({preludes: ['Eccentric Sponsor', 'Metals Company', 'Supplier', 'Business Empire']}),
     });

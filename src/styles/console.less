@@ -755,13 +755,14 @@ body.con-zoom-open .con-journal {
        — subject/stage crossfades cannot move either row. */
     &--flow {
         --con-wsflow-axis: .52rem;
+        --con-wsflow-rail-axis: .825rem;
         display: grid;
         grid-template-columns: max-content minmax(8rem, 1fr) minmax(0, max-content);
-        grid-template-rows: minmax(1.45rem, auto) 1.8rem;
+        grid-template-rows: minmax(1.45rem, auto) 1.65rem;
         align-items: center;
         column-gap: .75rem;
         row-gap: 0;
-        min-height: 3.25rem;
+        min-height: 3.1rem;
     }
     &--flow &__ident {
         grid-column: 1;
@@ -808,8 +809,8 @@ body.con-zoom-open .con-journal {
         box-sizing: border-box;
         width: 100%;
         min-width: 0;
-        height: 1.8rem;
-        padding-left: 1.75rem;
+        height: 1.65rem;
+        padding-left: 1.62rem;
         display: flex;
         align-items: center;
         justify-content: flex-start;
@@ -820,50 +821,116 @@ body.con-zoom-open .con-journal {
         z-index: 0;
         left: 0;
         top: 0;
-        width: 1.75rem;
+        width: 1.62rem;
         height: 100%;
         pointer-events: none;
-        color: fade(@con-cyan, 42%);
+        color: fade(@con-cyan, 52%);
         transition: color calc(220ms * var(--motion-scale, 1)) ease;
     }
+    &__flow-origin,
     &__flow-stem,
     &__flow-turn,
-    &__flow-run {
+    &__flow-run,
+    &__flow-handoff,
+    &__flow-signal {
         position: absolute;
         display: block;
         pointer-events: none;
     }
-    /* Root marker centre → shallow bend → the rail's own centreline. */
-    &__flow-stem {
+    /* ROOT SOURCE. A restrained diamond core sits inside the persistent root
+       glyph, so the trace reads as emitted by START GAME rather than as a
+       border hung from the second row. */
+    &__flow-origin {
+        z-index: 2;
         left: var(--con-wsflow-axis);
         top: -.72rem;
+        width: .24rem;
+        height: .24rem;
+        box-sizing: border-box;
+        border: .055rem solid currentColor;
+        border-radius: .045rem;
+        background: #08111a;
+        box-shadow:
+            inset 0 0 0 .035rem rgba(220, 242, 255, 0.12),
+            0 0 .32rem fade(@con-cyan, 14%);
+        transform: translate(-50%, -50%) rotate(45deg);
+        animation: con-wsflow-origin-in calc(210ms * var(--motion-scale, 1)) ease-out backwards;
+
+        &::after {
+            content: '';
+            position: absolute;
+            inset: .055rem;
+            border-radius: .02rem;
+            background: currentColor;
+            opacity: .58;
+        }
+    }
+    /* Root marker centre → one clean telemetry curve → the rail centreline.
+       The three pieces overlap optically, so there is no broken CSS bracket. */
+    &__flow-stem {
+        left: calc(var(--con-wsflow-axis) - .0275rem);
+        top: -.58rem;
         width: .055rem;
-        height: 1.08rem;
+        height: .88rem;
         transform-origin: top center;
         background: currentColor;
-        box-shadow: 0 0 .28rem fade(@con-cyan, 9%);
+        box-shadow:
+            .04rem 0 0 rgba(220, 242, 255, 0.035),
+            0 0 .28rem fade(@con-cyan, 8%);
         animation: con-wsflow-stem-in calc(150ms * var(--motion-scale, 1)) ease-out backwards;
     }
     &__flow-turn {
         left: var(--con-wsflow-axis);
-        top: .31rem;
-        width: .55rem;
+        top: .245rem;
+        width: .6rem;
         height: .58rem;
         box-sizing: border-box;
         border-left: .055rem solid currentColor;
         border-bottom: .055rem solid currentColor;
-        border-bottom-left-radius: .42rem;
+        border-bottom-left-radius: .5rem;
+        filter: drop-shadow(0 0 .18rem fade(@con-cyan, 8%));
         animation: con-wsflow-turn-in calc(170ms * var(--motion-scale, 1)) ease-out calc(110ms * var(--motion-scale, 1)) backwards;
     }
     &__flow-run {
-        left: 1.04rem;
-        top: .86rem;
-        width: .71rem;
+        left: 1.075rem;
+        top: calc(var(--con-wsflow-rail-axis) - .0275rem);
+        width: .545rem;
         height: .055rem;
         transform-origin: left center;
         background: currentColor;
-        box-shadow: 0 0 .32rem fade(@con-cyan, 10%);
+        box-shadow:
+            0 -.04rem 0 rgba(220, 242, 255, 0.035),
+            0 0 .32rem fade(@con-cyan, 9%);
         animation: con-wsflow-run-in calc(190ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) calc(220ms * var(--motion-scale, 1)) backwards;
+    }
+    /* A small steel/cyan hand-off node is shared by expanded, compact and
+       terminal presentations. It never moves when the rail changes width. */
+    &__flow-handoff {
+        z-index: 2;
+        left: 1.62rem;
+        top: var(--con-wsflow-rail-axis);
+        width: .23rem;
+        height: .23rem;
+        box-sizing: border-box;
+        border: .05rem solid currentColor;
+        border-radius: .035rem;
+        background: #0b1722;
+        box-shadow: inset 0 0 0 .03rem rgba(225, 244, 255, 0.1);
+        transform: translate(-50%, -50%) rotate(45deg);
+        animation: con-wsflow-handoff-in calc(180ms * var(--motion-scale, 1)) ease-out calc(240ms * var(--motion-scale, 1)) backwards;
+    }
+    /* A keyed stage request briefly sends light into the rail. The physical
+       connector itself stays standing; only this tiny packet travels. */
+    &__flow-signal {
+        z-index: 3;
+        left: 1.02rem;
+        top: calc(var(--con-wsflow-rail-axis) - .07rem);
+        width: .28rem;
+        height: .14rem;
+        border-radius: 50%;
+        opacity: 0;
+        background: radial-gradient(ellipse, rgba(238, 250, 255, 0.9), fade(@con-cyan, 58%) 35%, transparent 72%);
+        transform: translateX(-.16rem);
     }
     /* The breadcrumb tail RISES IN READING ORDER as the flow opens: the card
        name first, then the stage, then the trailing chips — the header reads as
@@ -885,6 +952,10 @@ body.con-zoom-open .con-journal {
     from { opacity: 0; transform: scaleY(0); }
     to { opacity: 1; transform: scaleY(1); }
 }
+@keyframes con-wsflow-origin-in {
+    from { opacity: 0; transform: translate(-50%, -50%) rotate(45deg) scale(.45); }
+    to { opacity: 1; transform: translate(-50%, -50%) rotate(45deg) scale(1); }
+}
 @keyframes con-wsflow-turn-in {
     from { opacity: 0; clip-path: inset(0 100% 0 0); }
     to { opacity: 1; clip-path: inset(0); }
@@ -892,6 +963,15 @@ body.con-zoom-open .con-journal {
 @keyframes con-wsflow-run-in {
     from { opacity: 0; transform: scaleX(0); }
     to { opacity: 1; transform: scaleX(1); }
+}
+@keyframes con-wsflow-handoff-in {
+    from { opacity: 0; transform: translate(-50%, -50%) rotate(45deg) scale(.35); }
+    to { opacity: 1; transform: translate(-50%, -50%) rotate(45deg) scale(1); }
+}
+@keyframes con-wsflow-signal {
+    0% { opacity: 0; transform: translateX(-.16rem) scale(.7); }
+    28% { opacity: .9; }
+    100% { opacity: 0; transform: translateX(.58rem) scale(1); }
 }
 @keyframes con-wsflow-root-in {
     0% { color: fade(@con-cyan, 58%); text-shadow: none; }
@@ -908,9 +988,16 @@ body.con-zoom-open .con-journal {
         color: @con-mint;
         animation: con-wsflow-root-commit calc(420ms * var(--motion-scale, 1)) ease-out both;
     }
+    .con-wshead__flow-origin { animation: con-wsflow-line-commit calc(240ms * var(--motion-scale, 1)) ease-out both; }
     .con-wshead__flow-stem { animation: con-wsflow-line-commit calc(280ms * var(--motion-scale, 1)) ease-out both; }
     .con-wshead__flow-turn { animation: con-wsflow-line-commit calc(280ms * var(--motion-scale, 1)) ease-out calc(110ms * var(--motion-scale, 1)) both; }
     .con-wshead__flow-run { animation: con-wsflow-line-commit calc(320ms * var(--motion-scale, 1)) ease-out calc(220ms * var(--motion-scale, 1)) both; }
+    .con-wshead__flow-handoff { animation: con-wsflow-line-commit calc(260ms * var(--motion-scale, 1)) ease-out calc(260ms * var(--motion-scale, 1)) both; }
+    .con-wshead__flow-signal { animation: con-wsflow-signal calc(360ms * var(--motion-scale, 1)) ease-out calc(170ms * var(--motion-scale, 1)) both; }
+}
+/* Stage requests send only a small packet across the permanent hand-off. */
+.con-wshead--flow:has(.con-jrail__item--anticipate) .con-wshead__flow-signal {
+    animation: con-wsflow-signal calc(320ms * var(--motion-scale, 1)) ease-out both;
 }
 /* Keep the completed physical link mint through the readable READY dwell and
    the releasing fade; it must not snap back to cyan between those beats. */
@@ -923,9 +1010,9 @@ body.con-zoom-open .con-journal {
     48% { text-shadow: 0 0 .7rem fade(@con-mint, 42%); }
 }
 @keyframes con-wsflow-line-commit {
-    0% { color: fade(@con-cyan, 42%); filter: brightness(1); }
-    48% { color: @con-mint; filter: brightness(1.5); }
-    100% { color: fade(@con-mint, 64%); filter: brightness(1); }
+    0% { color: fade(@con-cyan, 52%); }
+    48% { color: @con-mint; }
+    100% { color: fade(@con-mint, 68%); }
 }
 /* ONE grid cell for both words of a swap: it sizes to the WIDER of them, so
    nothing beside them shifts mid-change. */
@@ -16334,18 +16421,21 @@ body.con-start-barshold .con-status {
    viewport, and the phase panels remain the same nodes while their flex bases
    exchange. No label is ever replaced by an anonymous dot. */
 .con-jrail {
-    --con-jrail-expanded-w: min(56rem, 100%);
+    /* The root keeps a generous invisible geometry reserve so phase exchange
+       never moves the header. Every painted child below is content-sized: the
+       reserve is NOT a visible empty field. */
+    --con-jrail-expanded-w: min(44rem, 100%);
     --con-jrail-compact-w: min(18rem, 100%);
-    --con-jrail-terminal-w: min(10rem, 100%);
+    --con-jrail-terminal-w: min(9rem, 100%);
     position: relative;
     display: inline-grid;
     width: var(--con-jrail-expanded-w);
-    height: 1.8rem;
+    height: 1.65rem;
     max-width: 100%;
     min-width: 0;
     flex: 0 0 auto;
     overflow: hidden;
-    border-radius: .52rem;
+    border-radius: .44rem;
     transform-origin: left center;
     transition: width calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 
@@ -16359,9 +16449,15 @@ body.con-start-barshold .con-status {
         min-width: 0;
     }
     &__view {
+        position: relative;
         grid-area: 1 / 1;
+        justify-self: start;
+        align-self: center;
+        width: max-content;
+        max-width: 100%;
         min-width: 0;
         height: 100%;
+        box-sizing: border-box;
         opacity: 0;
         pointer-events: none;
         transform: translateX(-.38rem) scaleX(.985);
@@ -16381,50 +16477,49 @@ body.con-start-barshold .con-status {
        the completed phase consolidates, and the future phase remains named. */
     &__view--expanded {
         display: flex;
-        align-items: stretch;
+        align-items: center;
         justify-content: flex-start;
-        gap: .4rem;
+        gap: 0;
     }
     &__phase {
         position: relative;
-        min-width: 0;
-        flex: 0 0 9.8rem;
+        flex: 0 0 auto;
+        min-width: max-content;
+        height: 1.46rem;
+        box-sizing: border-box;
         display: flex;
         align-items: center;
-        gap: .48rem;
-        padding: .16rem .58rem;
-        border-radius: .48rem;
-        overflow: hidden;
-        color: @con-text-dim;
-        background: rgba(11, 19, 29, 0.74);
-        box-shadow: inset 0 0 0 .05rem rgba(132, 165, 198, 0.17);
+        gap: 0;
+        padding: .08rem .12rem;
+        border-radius: .38rem;
+        color: fade(@con-text-dim, 86%);
+        background: transparent;
+        box-shadow: none;
         transition:
-            flex-basis calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
             box-shadow calc(180ms * var(--motion-scale, 1)) ease,
             background-color calc(180ms * var(--motion-scale, 1)) ease,
             color calc(180ms * var(--motion-scale, 1)) ease;
 
         &--open {
-            flex: 1 1 0;
             color: @con-text;
-            background: rgba(13, 24, 36, 0.88);
+            /* A material bed, not a bounding box: it fades with the actual
+               content and carries only top/bottom highlights. */
+            background: linear-gradient(90deg, rgba(20, 42, 59, 0.7), rgba(12, 24, 36, 0.38) 72%, rgba(12, 24, 36, 0));
             box-shadow:
-                inset 0 0 0 .06rem fade(@con-cyan, 46%),
-                inset .16rem 0 0 fade(@con-cyan, 58%),
-                0 0 .75rem fade(@con-cyan, 9%);
+                inset 0 .045rem 0 rgba(190, 226, 250, 0.09),
+                inset 0 -.045rem 0 fade(@con-cyan, 17%),
+                0 .18rem .45rem rgba(0, 0, 0, 0.16);
         }
         &--waiting {
+            background: linear-gradient(90deg, fade(@con-amber, 8%), rgba(12, 24, 36, 0.36) 72%, transparent);
             box-shadow:
-                inset 0 0 0 .06rem fade(@con-mint, 42%),
-                inset .16rem 0 0 fade(@con-mint, 56%),
-                0 0 .75rem fade(@con-mint, 8%);
+                inset 0 .045rem 0 fade(@con-amber, 16%),
+                inset 0 -.045rem 0 fade(@con-mint, 16%);
         }
         &--completed {
-            flex-basis: 8.7rem;
-            color: fade(@con-mint, 88%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 36%);
+            color: fade(@con-mint, 91%);
         }
-        &--locked { opacity: .72; }
+        &--locked { color: rgba(183, 207, 228, 0.72); }
     }
     &__phase-head {
         position: relative;
@@ -16432,74 +16527,126 @@ body.con-start-barshold .con-status {
         flex: 0 0 auto;
         display: inline-flex;
         align-items: center;
-        gap: .34rem;
+        gap: .32rem;
+        height: 1.26rem;
+        padding-right: .24rem;
         white-space: nowrap;
     }
-    &__phase--open &__phase-head::after {
-        content: '·';
-        margin-left: .05rem;
-        color: fade(@con-cyan, 52%);
-        font-size: .78rem;
-        line-height: 1;
+    /* TOP-LEVEL CHAPTER PLATE. Its large clipped steel tile and two-digit
+       figure cannot be confused with a single-digit circular track node. */
+    &__phase-index {
+        position: relative;
+        flex: 0 0 1.18rem;
+        width: 1.18rem;
+        height: 1.16rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+
+        &::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            clip-path: polygon(0 0, calc(100% - .18rem) 0, 100% .18rem, 100% 100%, .18rem 100%, 0 calc(100% - .18rem));
+            background:
+                linear-gradient(145deg, rgba(131, 183, 222, 0.16), rgba(31, 54, 73, 0.34) 48%, rgba(8, 17, 27, 0.84)),
+                #0b1722;
+            box-shadow:
+                inset 0 0 0 .055rem rgba(131, 177, 213, 0.34),
+                inset .05rem .05rem 0 rgba(225, 244, 255, 0.08);
+        }
+    }
+    &__phase--open &__phase-index::before {
+        background:
+            linear-gradient(145deg, fade(@con-cyan, 23%), rgba(28, 55, 76, 0.45) 48%, rgba(8, 18, 28, 0.9)),
+            #0b1722;
+        box-shadow:
+            inset 0 0 0 .06rem fade(@con-cyan, 52%),
+            inset .055rem .055rem 0 rgba(230, 247, 255, 0.11);
     }
     &__phase-num {
-        font-size: .62rem;
-        font-weight: 800;
-        letter-spacing: .08em;
-        color: fade(@con-cyan, 78%);
+        position: relative;
+        z-index: 1;
+        font-size: .69rem;
+        font-weight: 900;
+        letter-spacing: .055em;
+        color: fade(@con-cyan, 90%);
+        font-variant-numeric: tabular-nums;
     }
     &__phase-label {
-        font-size: .72rem;
+        font-size: .75rem;
         font-weight: 800;
-        letter-spacing: .09em;
+        letter-spacing: .095em;
         text-transform: uppercase;
+        color: rgba(205, 225, 242, 0.84);
     }
     &__phase-state {
-        width: .72rem;
-        font-size: .64rem;
-        color: fade(@con-cyan, 82%);
+        position: absolute;
+        z-index: 3;
+        top: -.08rem;
+        right: -.08rem;
+        width: .44rem;
+        height: .44rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        font-size: .38rem;
+        font-weight: 900;
+        line-height: 1;
+        color: #07130e;
+        background: @con-mint;
+        box-shadow: 0 0 0 .055rem #0a1620, 0 0 .28rem fade(@con-mint, 20%);
         text-align: center;
         &:empty { display: none; }
     }
-    &__phase--completed &__phase-num,
-    &__phase--completed &__phase-state { color: @con-mint; }
-    &__phase--waiting &__phase-num,
-    &__phase--waiting &__phase-state { color: @con-mint; }
+    &__phase--completed &__phase-num { color: @con-mint; }
+    &__phase--completed &__phase-label { color: fade(@con-mint, 86%); }
+    &__phase--completed &__phase-index::before { box-shadow: inset 0 0 0 .055rem fade(@con-mint, 44%); }
+    &__phase--waiting &__phase-state { color: #1a1204; background: @con-amber; }
+    &__phase--waiting &__phase-num { color: fade(@con-amber, 92%); }
+    &__phase--locked &__phase-num { color: rgba(132, 177, 211, 0.72); }
+    &__phase--locked &__phase-index::before { box-shadow: inset 0 0 0 .05rem rgba(126, 165, 197, 0.28); }
 
     &__phase-body {
         position: relative;
         z-index: 2;
-        flex: 1 1 auto;
+        flex: 0 0 auto;
         min-width: 0;
         display: flex;
         align-items: center;
         justify-content: flex-start;
-        gap: .22rem;
+        gap: 0;
         max-width: 0;
         opacity: 0;
         overflow: hidden;
+        transform: scaleX(.985);
+        transform-origin: left center;
         transition:
             max-width calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
-            opacity calc(150ms * var(--motion-scale, 1)) ease;
+            opacity calc(160ms * var(--motion-scale, 1)) ease,
+            transform calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
     }
     &__phase--open &__phase-body {
-        max-width: 45rem;
+        max-width: 36rem;
         opacity: 1;
+        transform: scaleX(1);
     }
 
     &__item {
         position: relative;
-        flex: 0 1 auto;
-        min-width: 0;
+        flex: 0 0 auto;
+        height: 1.22rem;
+        box-sizing: border-box;
         display: inline-flex;
         align-items: center;
-        gap: .26rem;
-        padding: .13rem .34rem;
-        border-radius: .32rem;
+        gap: .28rem;
+        padding: .12rem .3rem .12rem .12rem;
+        border-radius: .36rem;
         overflow: hidden;
-        color: @con-text-dim;
+        color: rgba(196, 216, 236, 0.78);
         background: transparent;
-        box-shadow: inset 0 0 0 .04rem rgba(150, 185, 220, 0.08);
+        box-shadow: none;
         transition:
             box-shadow calc(160ms * var(--motion-scale, 1)) ease,
             color calc(160ms * var(--motion-scale, 1)) ease,
@@ -16508,108 +16655,286 @@ body.con-start-barshold .con-status {
 
         &--current {
             color: #eef8ff;
-            background: fade(@con-cyan, 9%);
-            box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 72%), 0 0 .55rem fade(@con-cyan, 13%);
+            background: linear-gradient(180deg, fade(@con-cyan, 15%), fade(@con-cyan, 7%));
+            box-shadow:
+                inset 0 0 0 .06rem fade(@con-cyan, 64%),
+                inset 0 .05rem 0 rgba(230, 248, 255, 0.12),
+                0 .14rem .35rem rgba(0, 0, 0, 0.22),
+                0 0 .5rem fade(@con-cyan, 10%);
         }
-        &--done { color: fade(@con-mint, 88%); }
-        &--locked { opacity: .46; }
+        &--done {
+            color: fade(@con-mint, 91%);
+            background: linear-gradient(90deg, fade(@con-mint, 6%), transparent 80%);
+        }
+        &--available { color: rgba(207, 226, 242, 0.86); }
+        &--locked { color: rgba(184, 207, 226, 0.7); }
         &--anticipate {
-            box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 58%), 0 0 .6rem fade(@con-cyan, 12%);
+            background: fade(@con-cyan, 7%);
+            box-shadow: inset 0 0 0 .055rem fade(@con-cyan, 48%), 0 0 .5rem fade(@con-cyan, 9%);
         }
+    }
+    &__item-node {
+        position: relative;
+        z-index: 2;
+        flex: 0 0 .76rem;
+        width: .76rem;
+        height: .76rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        box-sizing: border-box;
+        border-radius: 50%;
+        color: fade(@con-cyan, 82%);
+        background: #0a1620;
+        box-shadow:
+            inset 0 0 0 .055rem fade(@con-cyan, 44%),
+            inset .04rem .04rem 0 rgba(225, 244, 255, 0.08);
+        transition:
+            color calc(160ms * var(--motion-scale, 1)) ease,
+            background-color calc(160ms * var(--motion-scale, 1)) ease,
+            box-shadow calc(160ms * var(--motion-scale, 1)) ease,
+            transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__item--current &__item-node {
+        color: #07131c;
+        background: @con-cyan;
+        box-shadow:
+            inset .045rem .045rem 0 rgba(255, 255, 255, 0.28),
+            0 0 0 .055rem fade(@con-cyan, 48%),
+            0 0 .48rem fade(@con-cyan, 27%);
+        animation: con-jrail-node-acquire calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    &__item--done &__item-node {
+        color: #07130e;
+        background: @con-mint;
+        box-shadow:
+            inset .045rem .045rem 0 rgba(255, 255, 255, 0.24),
+            0 0 0 .05rem fade(@con-mint, 34%);
+    }
+    &__item--locked &__item-node {
+        color: rgba(169, 198, 220, 0.76);
+        background: rgba(8, 17, 26, 0.78);
+        border: .05rem dashed rgba(137, 178, 210, 0.46);
+        box-shadow: none;
     }
     &__num {
-        flex: 0 0 auto;
-        font-size: .56rem;
-        font-weight: 800;
-        color: fade(@con-cyan, 72%);
+        position: relative;
+        z-index: 1;
+        font-size: .49rem;
+        font-weight: 900;
+        line-height: 1;
+        color: inherit;
+        font-variant-numeric: tabular-nums;
     }
-    &__item--done &__num { color: @con-mint; }
     &__label {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
         white-space: nowrap;
-        font-size: .66rem;
-        font-weight: 700;
-        letter-spacing: .045em;
+        font-size: .69rem;
+        font-weight: 720;
+        letter-spacing: .055em;
         text-transform: uppercase;
     }
-    &__connector {
-        position: relative;
-        flex: 0 0 .48rem;
-        height: .05rem;
-        border-radius: .05rem;
-        background: fade(@con-cyan, 23%);
+    &__item--current &__label { font-weight: 850; text-shadow: 0 0 .38rem fade(@con-cyan, 12%); }
+    &__item--done &__label { font-weight: 760; }
+
+    /* The last node of the last chapter is the scenario seal. It keeps a
+       readable name, but its diamond node and closing cap cannot be mistaken
+       for another category pill and never suggest clickability. */
+    &__item--endpoint {
+        padding-right: .38rem;
+
         &::after {
             content: '';
-            position: absolute;
-            right: -.01rem;
-            top: 50%;
-            width: .2rem;
-            height: .2rem;
-            border-top: .05rem solid fade(@con-cyan, 38%);
-            border-right: .05rem solid fade(@con-cyan, 38%);
-            transform: translateY(-50%) rotate(45deg);
+            flex: 0 0 .14rem;
+            width: .14rem;
+            height: .64rem;
+            margin-left: .02rem;
+            clip-path: polygon(0 0, 100% 18%, 100% 82%, 0 100%, 34% 50%);
+            background: rgba(126, 168, 201, 0.5);
         }
     }
+    &__item--endpoint &__item-node {
+        flex-basis: .72rem;
+        width: .72rem;
+        height: .72rem;
+        border-radius: .08rem;
+        transform: rotate(45deg);
+    }
+    &__item--endpoint &__num { transform: rotate(-45deg); }
+    &__item--endpoint.con-jrail__item--current &__item-node {
+        transform: rotate(45deg) scale(1.03);
+        animation-name: con-jrail-endpoint-acquire;
+    }
+    &__item--endpoint.con-jrail__item--done::after { background: fade(@con-mint, 82%); }
+    &__item--endpoint.con-jrail__item--done &__item-node {
+        transform: rotate(45deg);
+        box-shadow: 0 0 0 .05rem fade(@con-mint, 36%), 0 0 .44rem fade(@con-mint, 18%);
+    }
+
+    /* ONE DIRECTIONAL TRACK LANGUAGE. Leads, step links and the stronger
+       chapter bridge all use a line plus a controlled CSS tip — never a text
+       arrow whose glyph metrics change with the label. */
+    &__phase-lead,
+    &__connector {
+        position: relative;
+        flex: 0 0 .62rem;
+        width: .62rem;
+        height: 1.22rem;
+    }
+    &__phase-lead { flex-basis: .68rem; width: .68rem; }
+    &__connector-line,
+    &__phase-lead-line {
+        position: absolute;
+        left: .04rem;
+        right: .14rem;
+        top: calc(50% - .0275rem);
+        height: .055rem;
+        border-radius: .05rem;
+        background: rgba(106, 176, 230, 0.3);
+        box-shadow: 0 -.035rem 0 rgba(220, 242, 255, 0.025);
+    }
+    &__connector-tip,
+    &__phase-lead-tip {
+        position: absolute;
+        right: .035rem;
+        top: calc(50% - .115rem);
+        width: 0;
+        height: 0;
+        border-top: .115rem solid transparent;
+        border-bottom: .115rem solid transparent;
+        border-left: .15rem solid rgba(106, 176, 230, 0.44);
+    }
+    &__phase-lead-line { background: fade(@con-cyan, 45%); }
+    &__phase-lead-tip { border-left-color: fade(@con-cyan, 62%); }
+    &__connector--completed &__connector-line { background: fade(@con-mint, 64%); }
+    &__connector--completed &__connector-tip { border-left-color: fade(@con-mint, 76%); }
+    &__connector--current &__connector-line {
+        background: linear-gradient(90deg, fade(@con-mint, 65%), fade(@con-cyan, 72%));
+        animation: con-jrail-track-acquire calc(320ms * var(--motion-scale, 1)) ease-out both;
+    }
+    &__connector--current &__connector-tip { border-left-color: fade(@con-cyan, 86%); }
+    &__connector--available &__connector-line { background: fade(@con-cyan, 38%); }
+    &__connector--available &__connector-tip { border-left-color: fade(@con-cyan, 56%); }
+    &__connector--locked &__connector-line { background: rgba(128, 165, 196, 0.23); }
+    &__connector--locked &__connector-tip { border-left-color: rgba(128, 165, 196, 0.34); }
+
+    &__bridge {
+        position: relative;
+        flex: 0 0 .92rem;
+        width: .92rem;
+        height: 1.46rem;
+    }
+    &__bridge-line {
+        position: absolute;
+        left: .08rem;
+        right: .2rem;
+        top: calc(50% - .0325rem);
+        height: .065rem;
+        border-radius: .05rem;
+        background: rgba(111, 173, 219, 0.34);
+        box-shadow: 0 -.04rem 0 rgba(220, 242, 255, 0.035);
+    }
+    &__bridge-tip {
+        position: absolute;
+        right: .04rem;
+        top: calc(50% - .14rem);
+        width: 0;
+        height: 0;
+        border-top: .14rem solid transparent;
+        border-bottom: .14rem solid transparent;
+        border-left: .2rem solid rgba(111, 173, 219, 0.55);
+    }
+    &__bridge--passed &__bridge-line { background: linear-gradient(90deg, fade(@con-mint, 68%), fade(@con-cyan, 55%)); }
+    &__bridge--passed &__bridge-tip { border-left-color: fade(@con-cyan, 72%); }
+
     &__pulse {
         position: absolute;
+        z-index: 4;
         inset: 0;
         pointer-events: none;
         border-radius: inherit;
-        background: linear-gradient(90deg, transparent, fade(#fff, 45%), fade(@con-cyan, 28%), transparent);
+        background: linear-gradient(90deg, transparent, fade(#fff, 42%), fade(@con-cyan, 26%), transparent);
         mix-blend-mode: screen;
         animation: con-jrail-sweep-fwd calc(380ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0, 0.3, 1) 1 both;
     }
     &__item--from-right &__pulse { animation-name: con-jrail-sweep-back; }
 
-    &__bridge {
-        flex: 0 0 1rem;
-        display: inline-flex;
-        align-items: center;
-        gap: .1rem;
-        color: fade(@con-cyan, 50%);
-        i { flex: 1; height: .05rem; background: fade(@con-cyan, 25%); }
-        b { font-size: .7rem; font-weight: 500; }
-    }
-
     /* ── COMPACT: parent-flow context inherited by a nested workspace. */
     &__view--compact,
     &__view--terminal {
-        display: flex;
+        display: inline-flex;
         align-items: center;
         justify-content: flex-start;
-        gap: .42rem;
-        padding: .18rem .72rem;
-        border-radius: .48rem;
+        gap: .34rem;
+        height: 1.4rem;
+        padding: .1rem .56rem .1rem .12rem;
+        border-radius: .38rem;
         white-space: nowrap;
-        background: rgba(11, 20, 31, 0.9);
+        background: linear-gradient(90deg, rgba(17, 35, 50, 0.88), rgba(10, 21, 32, 0.72) 78%, rgba(10, 21, 32, 0.24));
         box-shadow:
-            inset 0 0 0 .06rem fade(@con-cyan, 40%),
-            inset .15rem 0 0 fade(@con-cyan, 52%);
+            inset 0 .05rem 0 rgba(203, 233, 252, 0.09),
+            inset 0 -.05rem 0 fade(@con-cyan, 20%),
+            0 .16rem .42rem rgba(0, 0, 0, 0.18);
+    }
+    &__compact-index {
+        position: relative;
+        flex: 0 0 1.08rem;
+        width: 1.08rem;
+        height: 1.08rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        clip-path: polygon(0 0, calc(100% - .16rem) 0, 100% .16rem, 100% 100%, .16rem 100%, 0 calc(100% - .16rem));
+        color: fade(@con-cyan, 94%);
+        background: linear-gradient(145deg, fade(@con-cyan, 20%), rgba(10, 23, 34, 0.94));
+        box-shadow: inset 0 0 0 .055rem fade(@con-cyan, 46%);
     }
     &__compact-num {
-        font-size: .62rem;
-        font-weight: 800;
-        letter-spacing: .08em;
-        color: fade(@con-cyan, 78%);
+        font-size: .66rem;
+        font-weight: 900;
+        letter-spacing: .055em;
+        font-variant-numeric: tabular-nums;
     }
     &__compact-phase,
     &__compact-item,
     &__terminal-label {
-        font-size: .72rem;
+        font-size: .74rem;
         font-weight: 800;
-        letter-spacing: .085em;
+        letter-spacing: .09em;
         text-transform: uppercase;
     }
     &__compact-phase { color: #e6f4ff; }
-    &__compact-sep { color: fade(@con-cyan, 44%); }
+    &__compact-track {
+        position: relative;
+        flex: 0 0 .78rem;
+        width: .78rem;
+        height: 1rem;
+    }
+    &__compact-line {
+        position: absolute;
+        left: .02rem;
+        right: .22rem;
+        top: calc(50% - .0275rem);
+        height: .055rem;
+        background: fade(@con-cyan, 48%);
+    }
+    &__compact-node {
+        position: absolute;
+        right: .02rem;
+        top: 50%;
+        width: .25rem;
+        height: .25rem;
+        box-sizing: border-box;
+        border: .05rem solid fade(@con-cyan, 72%);
+        border-radius: 50%;
+        background: #0b1722;
+        transform: translateY(-50%);
+    }
     &__compact-swap {
         display: inline-grid;
         flex: 0 1 auto;
         min-width: 0;
         overflow: hidden;
-        color: fade(@con-amber, 94%);
+        color: fade(@con-amber, 96%);
         > * { grid-area: 1 / 1; }
     }
     &__compact-item {
@@ -16620,26 +16945,62 @@ body.con-start-barshold .con-status {
 
     /* ── TERMINAL: a consolidated answer, never another step. */
     &__view--terminal {
-        justify-content: center;
+        justify-content: flex-start;
+        gap: .38rem;
+        padding-left: .22rem;
         color: @con-mint;
-        background: linear-gradient(90deg, fade(@con-mint, 8%), fade(@con-mint, 13%));
+        background: linear-gradient(90deg, fade(@con-mint, 13%), fade(@con-mint, 7%) 72%, transparent);
         box-shadow:
-            inset 0 0 0 .07rem fade(@con-mint, 62%),
-            inset .16rem 0 0 fade(@con-mint, 72%),
-            0 0 .8rem fade(@con-mint, 12%);
+            inset 0 .05rem 0 fade(@con-mint, 22%),
+            inset 0 -.05rem 0 fade(@con-mint, 28%),
+            0 0 .68rem fade(@con-mint, 9%);
+    }
+    &__terminal-lead {
+        position: relative;
+        flex: 0 0 .48rem;
+        width: .48rem;
+        height: .065rem;
+        border-radius: .05rem;
+        background: fade(@con-mint, 68%);
+
+        &::after {
+            content: '';
+            position: absolute;
+            right: -.03rem;
+            top: 50%;
+            width: .18rem;
+            height: .18rem;
+            border-radius: 50%;
+            background: @con-mint;
+            transform: translateY(-50%);
+            box-shadow: 0 0 .3rem fade(@con-mint, 26%);
+        }
     }
     &__terminal-mark {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 1rem;
-        height: 1rem;
-        border-radius: 50%;
+        width: .88rem;
+        height: .88rem;
+        border-radius: .09rem;
         color: #07130e;
         background: @con-mint;
-        font-size: .68rem;
+        font-size: .62rem;
         font-weight: 900;
-        box-shadow: 0 0 .55rem fade(@con-mint, 28%);
+        box-shadow:
+            inset .05rem .05rem 0 rgba(255, 255, 255, 0.25),
+            0 0 0 .055rem fade(@con-mint, 38%),
+            0 0 .52rem fade(@con-mint, 24%);
+        transform: rotate(45deg);
+
+        i { font-style: normal; transform: rotate(-45deg); }
+    }
+    &__terminal-label { font-size: .78rem; letter-spacing: .12em; }
+    &__terminal-cap {
+        width: .16rem;
+        height: .72rem;
+        clip-path: polygon(0 0, 100% 18%, 100% 82%, 0 100%, 34% 50%);
+        background: fade(@con-mint, 78%);
     }
 
     /* GSAP drives this ONCE after every real deployment effect has settled.
@@ -16648,12 +17009,13 @@ body.con-start-barshold .con-status {
     &__commit-beam {
         position: absolute;
         z-index: 5;
-        inset: 0 auto 0 0;
-        width: 24%;
+        inset: .08rem auto .08rem 0;
+        width: 22%;
         pointer-events: none;
         opacity: 0;
         transform: translateX(-130%);
-        background: linear-gradient(90deg, transparent, fade(@con-mint, 30%), fade(#fff, 38%), transparent);
+        border-radius: 50%;
+        background: linear-gradient(90deg, transparent, fade(@con-mint, 26%), fade(#fff, 36%), transparent);
         mix-blend-mode: screen;
     }
 }
@@ -16686,29 +17048,60 @@ body.con-start-barshold .con-status {
     22%  { opacity: 1; }
     to   { transform: translateX(-110%); opacity: 0; }
 }
+@keyframes con-jrail-node-acquire {
+    from { transform: scale(.82); }
+    62% { transform: scale(1.08); }
+    to { transform: scale(1); }
+}
+@keyframes con-jrail-endpoint-acquire {
+    from { transform: rotate(45deg) scale(.78); }
+    62% { transform: rotate(45deg) scale(1.1); }
+    to { transform: rotate(45deg) scale(1.03); }
+}
+@keyframes con-jrail-track-acquire {
+    from { opacity: .3; transform: scaleX(.35); transform-origin: left center; }
+    to { opacity: 1; transform: scaleX(1); transform-origin: left center; }
+}
+@keyframes con-jrail-terminal-seal {
+    from { opacity: 0; transform: rotate(45deg) scale(.55); }
+    66% { opacity: 1; transform: rotate(45deg) scale(1.08); }
+    to { opacity: 1; transform: rotate(45deg) scale(1); }
+}
+.con-jrail--presentation-complete .con-jrail__terminal-mark {
+    animation: con-jrail-terminal-seal calc(380ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) both;
+}
 
 /* Narrow viewports keep the ACTIVE phase expanded. Only secondary chrome
    tightens; collapsing the whole map would hide the stage the player is
    currently navigating. The second tier remains exactly one row. */
 @media (max-width: 1600px) {
     .con-jrail {
-        --con-jrail-expanded-w: min(52rem, 100%);
-        &__phase { flex-basis: 8.8rem; padding-left: .48rem; padding-right: .48rem; }
-        &__phase--completed { flex-basis: 8rem; }
-        &__bridge { flex-basis: .8rem; }
+        --con-jrail-expanded-w: min(41rem, 100%);
+        &__phase { padding-left: .08rem; padding-right: .08rem; }
+        &__phase-head { gap: .28rem; padding-right: .18rem; }
+        &__bridge { flex-basis: .76rem; width: .76rem; }
+        &__phase-lead,
+        &__connector { flex-basis: .54rem; width: .54rem; }
+        &__item { padding-right: .24rem; }
     }
     .con-start__crewline { max-width: 20rem; }
     .con-start__crewchip:not(.con-start__crewchip--self) .con-start__crewname { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
     .con-wshead--flow :is(.con-wshead__mark, .con-wshead__emblem),
+    .con-wshead__flow-origin,
     .con-wshead__flow-stem,
     .con-wshead__flow-turn,
     .con-wshead__flow-run,
+    .con-wshead__flow-handoff,
+    .con-wshead__flow-signal,
     .con-jrail,
     .con-jrail__view,
     .con-jrail__phase,
-    .con-jrail__phase-body { transition: none; animation: none; }
+    .con-jrail__phase-body,
+    .con-jrail__item-node,
+    .con-jrail__connector-line,
+    .con-jrail__terminal-mark { transition: none; animation: none; }
     .con-jrail__pulse { animation: none; opacity: .26; }
     .con-jrail-context-enter-active,
     .con-jrail-context-leave-active { transition: none; }

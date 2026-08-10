@@ -137,6 +137,8 @@ describe('ConsoleWsHead — the ONE workspace header', () => {
     expect(w.find('.con-wshead').classes()).to.contain('con-wshead--flow');
     expect(w.find('.con-wshead__flow .flow-stub').text()).to.eq('flow');
     expect(w.find('.con-wshead__flow-connector').exists()).to.eq(true);
-    expect(w.findAll('.con-wshead__flow-connector > i')).to.have.lengthOf(3);
+    for (const part of ['origin', 'stem', 'turn', 'run', 'handoff', 'signal']) {
+      expect(w.find(`.con-wshead__flow-${part}`).exists(), `missing connector ${part}`).to.eq(true);
+    }
   });
 });

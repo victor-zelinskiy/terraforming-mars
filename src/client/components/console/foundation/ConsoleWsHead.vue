@@ -84,9 +84,12 @@
          It never follows the mutable subject/stage tail. -->
     <div v-if="$slots.flow" class="con-wshead__flow">
       <span class="con-wshead__flow-connector" aria-hidden="true">
+        <i class="con-wshead__flow-origin"></i>
         <i class="con-wshead__flow-stem"></i>
         <i class="con-wshead__flow-turn"></i>
         <i class="con-wshead__flow-run"></i>
+        <i class="con-wshead__flow-handoff"></i>
+        <i class="con-wshead__flow-signal"></i>
       </span>
       <slot name="flow" />
     </div>
