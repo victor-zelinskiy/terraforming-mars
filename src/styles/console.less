@@ -9857,13 +9857,25 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     --colfocus-h: 27.5rem;
     --colfocus-hero-w: 12rem;
     &--inspect { --colfocus-h: 19.5rem; }
+    /* BUILD and PICK have no configuration to hold either (the destination is
+       drawn on the berth row and the outcome is stated once, in the summary
+       rail) — so they are the same short panel as inspect, not the tall action
+       panel with a hole where a form would be. This is also what lets the
+       stage stand inside a SHORT host: a prelude's Build Colony step gets far
+       less height than the standalone workspace, and the tall token there
+       meant `min(100%, …)` resolved to the host and the content spilled out of
+       the frame's bottom edge. */
+    &--build, &--pick { --colfocus-h: 21.5rem; }
     /* A LIVE FOLLOW-UP KEEPS THE ACTION HEIGHT. Past the commit the server has
        taken the pick away, so the mode re-derives to `inspect` — and the panel
        would shrink by a third UNDER the payout it is presenting, starving the
        reveal's strip and cropping every card. Declared after `--inspect` so it
        wins while both apply; the value is IDENTICAL to the action height, so
-       there is no jump either way. */
-    &--handing { --colfocus-h: 27.5rem; }
+       there is no jump either way.
+       It rides OWNERSHIP (`--claimed`), never readiness: the geometry must be
+       held for the whole gap between the submit and the payout's arrival, or
+       the panel shrinks and grows again around the very beat it is hosting. */
+    &--claimed { --colfocus-h: 27.5rem; }
 
     /* A DENSE PANEL, not a stretched one. The scene is a dossier: it is sized
        by its own composition and centred in the band, so a tall host gives it
@@ -9887,9 +9899,27 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             radial-gradient(ellipse 46% 70% at 10% 24%, rgba(46, 84, 122, 0.26), transparent 72%),
             radial-gradient(ellipse 70% 50% at 78% 96%, rgba(30, 56, 84, 0.20), transparent 70%),
             rgba(10, 17, 26, 0.95);
+        /* NO RING HERE — see `__edge`. A ring on the surface itself is painted
+           from the first frame of the unfold and can only ever arrive as a
+           finished rectangle; it is also uniform, which is precisely what made
+           the focus stage read as another panel dropped into the workspace. */
+        box-shadow: 0 .9rem 2.6rem rgba(0, 0, 0, 0.34);
+    }
+    /* THE EDGE — brought up after the opening, and DIRECTIONAL: a lit seam at
+       the head, a hint down the left, almost nothing at the foot. The scene
+       dissolves into the workspace at its base instead of being bounded by an
+       equally strong rule on all four sides. */
+    &__edge {
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+        pointer-events: none;
+        z-index: 4;
         box-shadow:
-            inset 0 0 0 .05rem fade(@con-cyan, 26%),
-            inset 0 .05rem 0 0 fade(@con-cyan, 12%);
+            inset 0 .06rem 0 0 fade(@con-cyan, 30%),
+            inset .05rem 0 0 0 fade(@con-cyan, 17%),
+            inset -.05rem 0 0 0 fade(@con-cyan, 10%),
+            inset 0 -.05rem 0 0 fade(@con-cyan, 6%);
     }
 
     /* The action is RESOLVING on this stage — chrome inert, anchors live. */
@@ -10043,6 +10073,27 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         min-width: 0;
         min-height: 1.25rem;
     }
+    /* THE STANDING OFFSET — «ваша торговля сначала продвинет трек +1». It had
+       NO rule of its own, so it rendered at the surface's inherited body size:
+       a two-line headline that overflowed the head, pushed «ТОРГОВЫЙ ТРЕК»
+       into an ellipsis and lay across the track it was describing. It is a
+       caption on the zone's title row — smaller than the title it follows,
+       mint because it is a gain, and it yields to the ellipsis before the
+       title does. */
+    &__tracknote-adv {
+        flex: 0 1 auto;
+        min-width: 0;
+        font-size: .62rem;
+        font-weight: 700;
+        letter-spacing: .02rem;
+        line-height: 1.2;
+        color: fade(@con-mint, 80%);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+
+        b { font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; }
+    }
     /* ── THE EXPANDED TRADE TRACK ─────────────────────────────────────────
        One big cell per position: the position number, the reward ICON at
        full sprite weight with its value beneath, and a MARKER RAIL seat at
@@ -10057,7 +10108,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__trackzone {
         --track-gap: .3rem;
         --track-cell: calc((100% - 6 * var(--track-gap)) / 7);
-        flex: 0 0 auto;
+        /* SHRINKABLE, not fixed. The panel height is a design token, but the
+           HOST can be shorter than the token (an embedded step gets whatever
+           room its parent flow has left), and a zone that refuses to give any
+           of it back pushes the scene out through the frame's bottom edge.
+           Both rows already declare their own `min-height`, so the compression
+           has a floor and the track can never collapse into unreadability. */
+        flex: 0 1 auto;
+        min-height: 0;
         min-width: 0;
         display: flex;
         flex-direction: column;
@@ -10073,6 +10131,21 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         min-width: 0;
         height: 6.4rem;
         min-height: 5.4rem;
+
+        /* THE POWER-UP SWEEP — one delicate pass along the rail as the track
+           finishes unfolding, in the direction the track is read. It is the
+           instrument coming online, not a decoration: it runs once, leaves
+           nothing behind, and is transform+opacity only (perf-lite safe). */
+        &--sweep::after {
+            content: '';
+            position: absolute;
+            inset: -.1rem -.2rem;
+            z-index: 3;
+            border-radius: .55rem;
+            pointer-events: none;
+            background: linear-gradient(102deg, transparent 40%, fade(@con-cyan, 14%) 50%, transparent 60%);
+            animation: con-colfocus-track-sweep calc(640ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0, 0.2, 1) 1 both;
+        }
     }
     &__xcell {
         flex: 1 1 0;
@@ -10229,47 +10302,69 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             animation: con-colfocus-latch calc(520ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1) 1 both;
         }
     }
-    /* THE STOP — the mechanical end of the return travel, riding `--stop-col`.
-       Its own width is one cell, so the step is `100% + gap` and building a
-       colony SLIDES it (transform only) instead of re-drawing a new marker. */
+    /* THE RETURN STOP — the mechanical end of the return travel, riding
+       `--stop-col`. Its own width is one cell, so the step is `100% + gap` and
+       building a colony SLIDES it (transform only) instead of re-drawing a new
+       marker.
+
+       IT LIVES IN THE MARKER RAIL, not around a cell. It used to be a
+       full-height post with a foot flange standing beside cell 1, which — next
+       to seven bordered cells — read as a decorative amber BRACKET framing the
+       first one: a frame, when the fact it states is «the groove ends here».
+       Now it is an end-cap ON the groove the marker travels in, at the exact
+       boundary the guard bar stops at, with one soft vertical wash rising into
+       the cells it holds. Same colour, a state accent instead of a border. */
     &__stop {
         position: absolute;
         left: 0;
-        top: .2rem;
-        bottom: .1rem;
+        /* The marker rail's own band: `__xcell`'s bottom padding (.16rem) plus
+           `__xcell-rail`'s height (.95rem). Anchoring here is what makes the
+           stop and the seats one object. */
+        bottom: .16rem;
+        height: .95rem;
         width: var(--track-cell);
         pointer-events: none;
         z-index: 2;
         transform: translateX(calc(var(--stop-col, 0) * (100% + var(--track-gap))));
         transition: transform calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
 
-        /* the rail post */
+        /* THE END-CAP — a short bar across the groove, brightest at the
+           centreline where the rail runs, falling off at both tips so it reads
+           as machined into the rail rather than laid on top of it. */
         &::before {
             content: '';
             position: absolute;
-            left: calc(-1 * var(--track-gap) / 2 - .09rem);
-            top: 0;
-            bottom: .5rem;
-            width: .18rem;
+            left: calc(-1 * var(--track-gap) / 2 - .065rem);
+            top: 50%;
+            width: .13rem;
+            height: .72rem;
+            transform: translateY(-50%);
             border-radius: 49.95rem;
-            background: @con-amber;
-            box-shadow: 0 0 .6rem fade(@con-amber, 40%);
+            background: linear-gradient(180deg, fade(@con-amber, 42%), @con-amber 48%, fade(@con-amber, 42%));
+            box-shadow: 0 0 .5rem fade(@con-amber, 34%);
         }
-        /* the foot flange — reads as a stop, not as a cursor */
+        /* THE HELD SIDE — a calm wash rising from the rail across the cells
+           the stop protects, so the threshold is felt in the track without a
+           second outline anywhere. Zero width at `--stop-col: 0` by
+           construction (nothing is held yet), so it costs nothing then. */
         &::after {
             content: '';
             position: absolute;
-            left: calc(-1 * var(--track-gap) / 2 - .09rem);
-            bottom: .32rem;
-            width: .62rem;
-            height: .18rem;
-            border-radius: 49.95rem;
-            background: @con-amber;
+            right: calc(100% + var(--track-gap) / 2 - .065rem);
+            bottom: 50%;
+            width: calc(var(--stop-col, 0) * (100% + var(--track-gap)));
+            height: 2.4rem;
+            background: linear-gradient(0deg, fade(@con-amber, 15%), transparent 78%);
+            border-radius: .3rem .3rem 0 0;
+            transition: width calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
         }
         &--ghost {
             transform: translateX(calc(var(--ghost-col, 0) * (100% + var(--track-gap))));
-            opacity: .5;
-            &::before, &::after { background: @con-mint; box-shadow: none; }
+            opacity: .55;
+            &::before { background: @con-mint; box-shadow: none; }
+            /* The preview states only WHERE it would stop; painting its held
+               side too would put two washes over the same cells. */
+            &::after { display: none; }
         }
     }
     /* The berth row's only word. It lives in the mechanism lane, right-aligned
@@ -10286,15 +10381,18 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         white-space: nowrap;
         pointer-events: none;
     }
+    /* A LEGEND, not an instruction. The stop's position on the rail is the
+       reading; this only names the mark once, quietly, from the same
+       typographic tier as the berth caption facing it. */
     &__stop-label {
         position: absolute;
-        left: .22rem;
-        bottom: -.74rem;
+        left: calc(-1 * var(--track-gap) / 2 + .1rem);
+        bottom: -.72rem;
         font-size: .5rem;
-        font-weight: 800;
-        letter-spacing: .06rem;
+        font-weight: 700;
+        letter-spacing: .07rem;
         text-transform: uppercase;
-        color: fade(@con-amber, 90%);
+        color: fade(@con-amber, 72%);
         white-space: nowrap;
     }
     /* While the proxy flies, the RESTING marker yields — one physical object
@@ -10312,13 +10410,16 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        berth `i` stands under cell `i`. There is deliberately nothing under
        cells 4…7 — no colony can protect those, and the empty span says it. */
     &__berths {
-        flex: 0 0 auto;
+        flex: 0 1 auto;
         display: grid;
         grid-template-columns: repeat(7, 1fr);
         gap: var(--track-gap);
         align-items: stretch;
         min-width: 0;
         height: 5.6rem;
+        /* The floor the shrink stops at — a seat is 44px of measured landing
+           box for the build cube and may never be compressed under it. */
+        min-height: 4.6rem;
         margin-top: .8rem;
     }
     &__berth {
@@ -10426,24 +10527,34 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
         .con-colfocus__berth--taken & { color: @con-text; }
     }
-    /* THREE COLUMNS of the shared grid — never a hand-tuned width. The old
-       fixed 8rem box could not hold «За каждую торговлю здесь» at TV type
-       sizes, so the label wrapped into the value and the block overflowed. */
+    /* THE OWNERSHIP ROW'S SECOND HALF. It takes the shared grid's remaining
+       columns — everything past the three berths, out to the end of the track
+       — so the bonus is spatially attached to the seats that earn it instead
+       of floating as an unrelated card in the middle of the scene. Never a
+       hand-tuned width: a fixed box could not hold «За каждую торговлю здесь»
+       at TV type sizes and the label wrapped into the value.
+
+       The dress is deliberately QUIETER than a berth: no plate of its own, one
+       hairline on the left where the seats end (the row continues, it does not
+       restart) and a soft mint wash. A second bordered box beside three
+       bordered boxes reads as four unrelated tiles. */
     &__ownerbonus {
-        grid-column: 5 / 8;
+        grid-column: 4 / -1;
         min-width: 0;
         display: flex;
-        flex-direction: column;
+        flex-flow: row wrap;
         align-items: center;
-        justify-content: center;
-        gap: .18rem;
-        padding: .45rem .7rem;
+        justify-content: flex-start;
+        align-content: center;
+        gap: .12rem .5rem;
+        padding: .4rem .7rem .4rem .85rem;
         border-radius: .55rem;
-        background: fade(@con-mint, 7%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 26%);
-        text-align: center;
+        background: linear-gradient(90deg, fade(@con-mint, 9%), fade(@con-mint, 3%) 72%, transparent);
+        box-shadow: inset .07rem 0 0 0 fade(@con-mint, 40%);
+        text-align: left;
     }
     &__ob-label {
+        flex: 0 0 100%;
         font-size: .56rem;
         font-weight: 700;
         letter-spacing: .07rem;
@@ -10457,7 +10568,32 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
         b { font-size: 1.15rem; font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; }
     }
-    &__ob-note { font-size: .56rem; color: @con-text-dim; }
+    /* The operators are PUNCTUATION — they must never out-weigh the numbers
+       they join. */
+    &__ob-op {
+        font-size: .8rem;
+        font-weight: 700;
+        color: fade(@con-mint, 55%);
+        line-height: 1;
+    }
+    /* The multiplier IS the seated tokens, at berth scale, in reading order. */
+    &__ob-tokens {
+        display: inline-flex;
+        align-items: center;
+        gap: .16rem;
+        zoom: var(--con-ui-scale, 1); /* the cubes are px content, like the seats */
+    }
+    &__ob-total {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+
+        b { font-size: 1.3rem; font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; }
+    }
+    /* With the arithmetic drawn, the rate is the FIRST TERM of a sentence, not
+       the headline — the total is. */
+    &__ownerbonus--math &__ob-value b { font-size: .95rem; color: fade(@con-mint, 78%); }
+    &__ob-note { font-size: .56rem; color: @con-text-dim; margin-left: auto; }
 
     /* ── THE ACTION CONFIGURATION — adaptive by mode. ── */
     &__config {
@@ -10562,35 +10698,24 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     &__track-rewardqty { font-size: 14px; font-weight: 800; color: @con-mint; } /* keep-px: inside the zoom */
 
-    /* The BUILD / PICK brief — one calm confirm surface. */
-    &__brief {
-        display: flex;
-        flex-direction: column;
-        gap: .45rem;
-        padding: .7rem .8rem;
-        border-radius: .5rem;
-        background: rgba(9, 15, 23, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.14);
-        align-self: flex-start;
-        min-width: min(24rem, 100%);
-    }
-    &__brief-line {
-        display: flex;
-        align-items: center;
-        gap: .45rem;
-        font-size: .88rem;
-        font-weight: 700;
-
-        b { color: @con-mint; font-weight: 800; }
-    }
-    &__brief-note { font-size: .7rem; font-weight: 500; color: @con-text-dim; }
+    /* (The BUILD / PICK brief is gone — it restated the summary rail verbatim.
+       Its `__brief*` rules went with it; nothing else carried those classes.) */
 
     /* ═══════════════ THE FOLLOW-UP'S ZONE ═══════════════
        The stage hands its WORKING AREA over and keeps its identity column, so
-       the colony never disappears from under its own payout. The zone opens
-       OVER the released configuration (which stays mounted and measurable —
-       unmounting it would kill the release tween mid-phrase) and the teleported
-       reveal renders inside it. */
+       the colony never disappears from under its own payout.
+
+       IT IS NOT A PANEL. It wears no plate and no ring: the workspace frame is
+       already around it (`.con-ws-stage-frame` says so for the surface that
+       renders INSIDE it), and a second bordered rectangle over a first one is
+       exactly what turned this continuation into «a modal opened on top of the
+       colony». What it does own is a controlled INNER VOLUME — a soft light
+       pooled where the content will stand — so the eye reads a deepened part
+       of the same surface, not a new object arriving.
+
+       It exists from CLAIM time (the teleport's target must, or the content is
+       dropped), and it is completely invisible and inert until the content
+       lands: `--claimed` is ownership, `--handing` is readiness. */
     &__outcome {
         position: absolute;
         left: calc(var(--colfocus-hero-w) + .95rem);
@@ -10603,10 +10728,11 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         min-width: 0;
         min-height: 0;
         border-radius: .55rem;
-        background: linear-gradient(180deg, rgba(13, 21, 32, 0.92), rgba(9, 15, 23, 0.88));
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%);
         overflow: hidden;
         padding: .5rem;
+        /* Ownership alone paints nothing and catches nothing. */
+        background: none;
+        pointer-events: none;
         /* The reveal's cards are a workspace COLUMN here, not the full band. */
         --con-reveal-host-scale: 0.8;
 
@@ -10619,29 +10745,68 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             min-height: 0;
         }
     }
-    /* While the follow-up owns the working area the released configuration
-       RECEDES beneath it — still there (the phrase needs something to open
-       out of, and unmounting it would kill the release mid-tween), but calm
-       enough that the payout is unambiguously the subject. */
+    /* CONTENT LANDED: the volume opens. A radial pool, not a frame — it has no
+       edge to read as a border anywhere on its perimeter. */
+    &--handing &__outcome {
+        pointer-events: auto;
+        background:
+            radial-gradient(ellipse 78% 96% at 50% 46%, rgba(24, 42, 64, 0.62), transparent 78%),
+            radial-gradient(ellipse 120% 60% at 50% 100%, rgba(10, 17, 26, 0.72), transparent 82%);
+        animation: con-colfocus-outcome-in calc(300ms * var(--motion-scale, 1)) ease-out both;
+    }
+    /* THE WORKING AREA LETS GO — in layers, and only once the payout is real.
+       It used to sit at `opacity: .16` on OWNERSHIP alone, which produced both
+       reported faults at once: the ghost of a live decision surface legible
+       under its own result (read as a modal), and a fully dimmed stage behind
+       nothing at all when the claim had no payout to present.
+       The order is physical: the MAIN area is where the cards are born, so it
+       yields first and the RESULT rail follows — never one flat DOM block. */
     &--handing &__main,
     &--handing &__result {
         pointer-events: none;
-        opacity: .16;
-        transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
+        opacity: 0;
+        transform: translateY(.28rem);
+        transition:
+            opacity calc(260ms * var(--motion-scale, 1)) ease,
+            transform calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.6, 1);
+    }
+    &--handing &__result { transition-delay: calc(90ms * var(--motion-scale, 1)); }
+    /* The IDENTITY column stays — the colony may never disappear from under
+       its own payout — but it steps back to a supporting voice. */
+    &--handing &__hero {
+        pointer-events: none;
+        opacity: .5;
+        transition: opacity calc(320ms * var(--motion-scale, 1)) ease calc(60ms * var(--motion-scale, 1));
+    }
+    @media (prefers-reduced-motion: reduce) {
+        &--handing &__outcome { animation: none; }
+        &--handing &__main,
+        &--handing &__result,
+        &--handing &__hero { transition: none; }
     }
 
-    /* ═══════════════ RESULT — one card per SOURCE ═══════════════ */
+    /* ═══════════════ RESULT — the right SUMMARY RAIL ═══════════════
+       ONE card per SOURCE of value.
+
+       It is a RAIL, so it is anchored, not floated: its top sits on the same
+       line as the track's, and it owns the full height of the stage beside it.
+       `align-self: center` made it a block of arbitrary height parked at the
+       vertical middle — the space above it (right of the track's own head) was
+       simply unused, and the panel read as having landed there rather than
+       belonging there. The CONTENT still starts at the top and stops where it
+       stops: the height is a stable role, never a stretch to fill. */
     &__result {
         flex: 0 0 13.2rem;
-        align-self: center;
-        max-height: 100%;
+        align-self: stretch;
         min-width: 0;
         display: flex;
         flex-direction: column;
+        justify-content: flex-start;
         gap: .45rem;
         padding: .6rem .7rem;
         border-radius: .55rem;
-        background: linear-gradient(180deg, rgba(13, 21, 32, 0.82), rgba(9, 15, 23, 0.7));
+        background:
+            linear-gradient(180deg, rgba(13, 21, 32, 0.86), rgba(9, 15, 23, 0.62) 62%, rgba(9, 15, 23, 0.5));
         box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.16);
         overflow: hidden;
     }
@@ -10693,15 +10858,21 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--lg { zoom: calc(1.25 * var(--con-ui-scale, 1)); }
     }
     &__rcube { zoom: var(--con-ui-scale, 1); }
-    &__rowners {
-        display: flex;
-        flex-wrap: wrap;
-        gap: .2rem .6rem;
-        font-size: .68rem;
-        color: @con-text;
+    /* The recipient rides the END of its own amount's row, so the eye reads
+       «+4 🌿 → admin» as one statement per player. */
+    &__rowner {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        margin-left: auto;
         min-width: 0;
+        font-size: .7rem;
+        font-weight: 700;
+        overflow: hidden;
+
+        > span:not([class*='con-status__dot']) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        em { font-style: normal; font-size: .62rem; color: @con-text-dim; font-variant-numeric: tabular-nums; }
     }
-    &__rowner { display: inline-flex; align-items: center; gap: .3rem; font-weight: 700; }
     &__muted { font-size: .72rem; font-weight: 600; color: @con-text-dim; }
     &__notice {
         display: flex;
@@ -10741,6 +10912,24 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     0%   { opacity: 0; transform: translateX(-50%) scaleY(0); }
     55%  { opacity: 1; transform: translateX(-50%) scaleY(1.12); }
     100% { opacity: 1; transform: translateX(-50%) scaleY(1); }
+}
+
+/* One pass of light along the trade track as it finishes opening. */
+@keyframes con-colfocus-track-sweep {
+    0%   { transform: translateX(-42%); opacity: 0; }
+    24%  { opacity: 1; }
+    100% { transform: translateX(42%); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-colfocus__xtrack--sweep::after { animation: none; opacity: 0; }
+}
+
+/* THE WORKING AREA DEEPENS. The follow-up's volume pools open from the middle
+   of the space the configuration just released — a light, not a frame, so no
+   edge of it can be read as a second panel's border. */
+@keyframes con-colfocus-outcome-in {
+    from { opacity: 0; transform: scale(0.985); }
+    to   { opacity: 1; transform: scale(1); }
 }
 
 /* The landed marker's settle — the cell the reset glide finished on. */

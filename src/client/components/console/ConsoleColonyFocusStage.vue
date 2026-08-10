@@ -50,14 +50,39 @@
        :class="['con-colfocus--' + presentMode, {
          'con-colfocus--resolving': resolving,
          'con-colfocus--gliding': trackGliding,
-         'con-colfocus--handing': outcomeZone,
+         /* OWNERSHIP — the stage is a follow-up's host, so it holds its
+            geometry (the action height) from submit time. It paints NOTHING:
+            a claim that turns out to have nothing to present must leave no
+            trace, and a zone that dressed itself on ownership alone is what
+            stood as an empty dimmed box over Луна's finished trade. */
+         'con-colfocus--claimed': outcomeZone,
+         /* READINESS — content has genuinely landed in the zone, so the
+            working area is handed over for real. */
+         'con-colfocus--handing': outcomeContentIn,
        }]"
        :data-colony-intent="intent">
     <div class="con-colfocus__surface" data-unfold-surface>
+      <!-- THE EDGE IS NOT THE SUBJECT. The stage's boundary is a separate,
+           inert layer so it can be brought up AFTER the surface has finished
+           opening and the colony's own objects have taken their places —
+           «the frame forms around what unfolded», never «a finished bordered
+           rectangle grew out of a tile». Being its own element is also what
+           lets the light be DIRECTIONAL (lit seam at the head, almost nothing
+           at the foot) instead of one equally loud rule all the way round,
+           which is what read as a panel-inside-a-panel. -->
+      <span class="con-colfocus__edge" data-unfold-edge aria-hidden="true"></span>
       <!-- ═══ HERO — the colony as a physical object ═══ -->
       <section class="con-colfocus__hero">
         <div class="con-colfocus__planetwrap">
-          <div class="con-colfocus__planet" :class="planetClass" data-colony-focus-planet aria-hidden="true">
+          <!-- THE CARD SOURCE. A card payout is BORN AT THE COLONY: physical
+               causality says the cards leave the planet the fleet just traded
+               with, not the number in the summary rail that happens to count
+               them. (Resource rewards still leave their own printed value —
+               those ARE the value moving; a card is a thing the colony hands
+               over.) -->
+          <div class="con-colfocus__planet" :class="planetClass"
+               data-colony-focus-planet
+               :data-colony-card-source="colony.name" aria-hidden="true">
             <span class="con-colfocus__planet-light" aria-hidden="true"></span>
             <span class="con-colfocus__planet-rim" aria-hidden="true"></span>
             <!-- The ORBITAL BERTH — the live landing anchor of the trade
@@ -83,8 +108,15 @@
           </div>
         </div>
         <!-- The honest verdict, under the identity it judges — never a
-             stranded red bar at the bottom of an empty page. -->
-        <div class="con-colfocus__verdict"
+             stranded red bar at the bottom of an empty page.
+             It is a PRE-COMMIT judgement («can I do this?»), so it stops
+             existing at the commit boundary. Past it the server's answer has
+             already changed the world — our own fleet now sits on this colony
+             — and the live re-derivation turned into «✕ Здесь стоит ваш флот»
+             printed in red under the payout that fleet just earned: the
+             screen refusing an action it had already carried out. -->
+        <div v-if="!pastCommit"
+             class="con-colfocus__verdict"
              :class="presentAvailable ? 'con-colfocus__verdict--ok' : 'con-colfocus__verdict--no'"
              data-unfold-late>
           <template v-if="presentAvailable">
@@ -151,7 +183,11 @@
                  `--stop-col`, so building a colony SLIDES it one cell right
                  (transform only) instead of re-rendering a new marker. -->
             <span class="con-colfocus__stop" aria-hidden="true">
-              <span class="con-colfocus__stop-label">{{ $t('Return point') }}</span>
+              <!-- FINE PRINT, like every other word on this stage: the mark's
+                   POSITION is the reading and arrives with the geometry; its
+                   name arrives with the labels. Without this it was the one
+                   legible word on an otherwise wordless opening frame. -->
+              <span class="con-colfocus__stop-label" data-unfold-late>{{ $t('Return point') }}</span>
             </span>
             <span v-if="buildPreview && resetPositionAfterBuild !== resetPosition"
                   class="con-colfocus__stop con-colfocus__stop--ghost" aria-hidden="true"></span>
@@ -189,11 +225,20 @@
                 {{ ownerNameAt(idx) }}
               </span>
             </div>
-            <!-- The OWNER BONUS stands on the ownership row — but only where
-                 it is a DECISION input (build) or the subject itself
-                 (inspect). In trade the RESULT states the real transfer to
-                 named owners, and repeating the rate here was duplication. -->
-            <div v-if="presentMode !== 'trade'" class="con-colfocus__ownerbonus"
+            <!-- THE OWNER BONUS — the CONTINUATION of the ownership row, not a
+                 card parked in the middle of the scene. It takes exactly the
+                 span the berths do not: from past the third berth to the end
+                 of the track, so «who stands here» and «what standing here
+                 pays» are one horizontal statement, read left to right off the
+                 same baseline.
+
+                 It states the MECHANISM, and only the mechanism: the rate, and
+                 — when a holder has more than one seat here — the arithmetic
+                 drawn from the REAL tokens (`rate × the cubes you can see =
+                 total`). WHO receives how much is the summary rail's sentence;
+                 neither panel repeats the other's job. -->
+            <div class="con-colfocus__ownerbonus"
+                 :class="{'con-colfocus__ownerbonus--math': bonusMath !== undefined}"
                  :data-colony-bonus-source="owners.length === 0 ? colony.name : undefined">
               <span class="con-colfocus__ob-label" data-unfold-late>{{ $t('Owner bonus') }}</span>
               <span class="con-colfocus__ob-value">
@@ -202,6 +247,21 @@
                   <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
                 </span>
               </span>
+              <template v-if="bonusMath !== undefined">
+                <span class="con-colfocus__ob-op" aria-hidden="true">×</span>
+                <!-- The multiplier is not a number the player has to trust —
+                     it is the very cubes seated in the berths to the left. -->
+                <span class="con-colfocus__ob-tokens">
+                  <PlayerCube v-for="n in bonusMath.count" :key="n" :color="bonusMath.color" :size="20" />
+                </span>
+                <span class="con-colfocus__ob-op" aria-hidden="true">=</span>
+                <span class="con-colfocus__ob-total">
+                  <b>{{ bonusMath.total }}</b>
+                  <span class="con-colfocus__rglyph con-colfocus__rglyph--lg">
+                    <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
+                  </span>
+                </span>
+              </template>
               <span class="con-colfocus__ob-note" data-unfold-late>{{ $t('Each trade here') }}</span>
             </div>
           </div>
@@ -332,29 +392,15 @@
             </ConsoleScrollArea>
           </template>
 
-          <!-- BUILD BRIEF: destination + grant recap, one calm confirm. -->
-          <template v-else-if="intent === 'build' && presentAvailable">
-            <div class="con-colfocus__brief">
-              <div class="con-colfocus__brief-line">
-                <PlayerCube v-if="viewerColor !== undefined" class="con-colfocus__rcube" :color="viewerColor" :size="18" />
-                <span>{{ $t('Build here') }} — {{ $t('Slot') }} {{ nextBuildSlot + 1 }}</span>
-              </div>
-              <div v-if="buildQty > 0" class="con-colfocus__brief-line con-colfocus__brief-line--gain">
-                <span>{{ $t('Build grant') }}:</span>
-                <b>+{{ buildQty }}</b>
-                <span class="con-colfocus__rglyph">
-                  <BenefitGlyph :benefit="buildBenefit" :idx="nextBuildSlot" :cardResource="metadata.cardResource" />
-                </span>
-              </div>
-            </div>
-          </template>
-
-          <!-- PICK BRIEF (setup remove / add-tile): the verb, plainly. -->
-          <template v-else-if="intent === 'pick' && presentAvailable">
-            <div class="con-colfocus__brief">
-              <div class="con-colfocus__brief-line">{{ $t(pickLabel || 'Select') }}</div>
-            </div>
-          </template>
+          <!-- BUILD / PICK: NOTHING HERE EITHER — there is no configuration to
+               make. The brief that used to stand here restated, word for word,
+               what the summary rail says one column to the right («НАГРАДА ЗА
+               ПОСТРОЙКУ +2», «НОВАЯ КОЛОНИЯ · Слот 1») while the destination
+               berth was already lit on the row above and the verb was already
+               under the planet and on the A chip: the same sentence in four
+               places. It also cost the stage ~7rem of height it does not have
+               inside a shorter host — a prelude's Build Colony step in the
+               start workspace pushed it straight out of the frame. -->
 
           <!-- INSPECT / UNAVAILABLE: NOTHING. The dossier is the physical
                scene above — the track states every reward, the guard rail and
@@ -412,21 +458,25 @@
             </div>
           </div>
 
+          <!-- THE RECIPIENTS — one line per player, each carrying the amount
+               THEY actually receive. It used to print the per-colony rate once
+               and hang «×2» off a name, which left the player multiplying a
+               rate by a count to learn what the move costs them; a summary
+               that has to be worked out is not a summary. -->
           <div class="con-colfocus__rsec" data-unfold-late>
             <div class="con-colfocus__rsec-label">{{ $t('To the owners') }}</div>
-            <div v-if="owners.length > 0" class="con-colfocus__rrow con-colfocus__rrow--gain">
-              <b v-if="focusedBonusQty > 0">+{{ focusedBonusQty }}</b>
+            <div v-for="owner in ownerRewards" :key="owner.color" class="con-colfocus__rrow con-colfocus__rrow--gain">
+              <b>+{{ owner.total }}</b>
               <span class="con-colfocus__rglyph">
                 <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
               </span>
-              <span class="con-colfocus__rowners">
-                <span v-for="owner in owners" :key="owner.color" class="con-colfocus__rowner">
-                  <span :class="'con-status__dot player_bg_color_' + owner.color"></span>
-                  <span>{{ owner.name }}</span><span v-if="owner.count > 1"> ×{{ owner.count }}</span>
-                </span>
+              <span class="con-colfocus__rowner">
+                <span :class="'con-status__dot player_bg_color_' + owner.color"></span>
+                <span>{{ owner.name }}</span>
+                <em v-if="owner.count > 1">×{{ owner.count }}</em>
               </span>
             </div>
-            <div v-else class="con-colfocus__muted">{{ $t('No colonies built here yet') }}</div>
+            <div v-if="ownerRewards.length === 0" class="con-colfocus__muted">{{ $t('No colonies built here yet') }}</div>
           </div>
 
           <div v-if="noticeRows.length > 0" class="con-colfocus__rsec" data-unfold-late>
@@ -755,6 +805,15 @@ export default defineComponent({
     outcomeContentIn(): boolean {
       return this.outcomeZone && this.workspaceOutcomeState.stage === 'presenting';
     },
+    /**
+     * THE COMMIT BOUNDARY, as this stage sees it: the move is being made or
+     * has been made. Everything that answers «can I do this?» — the verdict
+     * chip, the availability dot — belongs strictly BEFORE it; everything
+     * after describes what happened.
+     */
+    pastCommit(): boolean {
+      return this.resolving || this.outcomeZone || this.heldView !== undefined;
+    },
     /** One-shot: the cell the reset marker just landed on (the settle glow). */
     settledCell(): number {
       return this.colonyTradeState.colonyName === this.colony.name ? this.colonyTradeState.settledCell : -1;
@@ -803,6 +862,29 @@ export default defineComponent({
         const player = this.players.find((p) => p.color === owner.color);
         return {...owner, name: player !== undefined ? participantDisplayName(player) : owner.color};
       });
+    },
+    /** What each owner ACTUALLY receives when a trade happens here — the rate
+     *  already multiplied by the seats they hold, so the summary is a result
+     *  and not an exercise. */
+    ownerRewards(): Array<{color: Color, count: number, name: string, total: number}> {
+      return this.owners.map((owner) => ({...owner, total: owner.count * this.focusedBonusQty}));
+    },
+    /**
+     * THE ARITHMETIC WORTH DRAWING. A single seat needs none — the rate IS the
+     * payout, and «1 ×» is noise. It appears only where the number genuinely
+     * differs from the rate, and it belongs to ONE holder: the viewer when
+     * they stand here (it is their bonus), otherwise the largest holder (the
+     * one whose stake the scene has to explain).
+     */
+    bonusMath(): {color: Color, count: number, total: number} | undefined {
+      const mine = this.viewerColor === undefined ?
+        undefined :
+        this.owners.find((o) => o.color === this.viewerColor);
+      const subject = mine ?? [...this.owners].sort((a, b) => b.count - a.count)[0];
+      if (subject === undefined || subject.count < 2 || this.focusedBonusQty <= 0) {
+        return undefined;
+      }
+      return {color: subject.color, count: subject.count, total: subject.count * this.focusedBonusQty};
     },
     visitorLine(): string {
       const visitor = this.colony.visitor;

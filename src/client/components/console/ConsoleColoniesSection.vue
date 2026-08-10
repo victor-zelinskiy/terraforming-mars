@@ -253,6 +253,7 @@ import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {
   armColonyFocusOrigin,
+  playColonyStepEntry,
   colonyFocusEnterHook,
   colonyFocusLeaveHook,
   colonyFocusEnterCancelledHook,
@@ -438,7 +439,14 @@ export default defineComponent({
     revealEmbedPresenting(): boolean {
       return this.revealEmbedActive && this.outcomeState.stage === 'presenting';
     },
-    /** The FOCUS STAGE hosts the follow-up while it stands. */
+    /**
+     * The FOCUS STAGE hosts the follow-up while it stands — this is the
+     * TELEPORT TARGET's existence, and nothing else. It must be true from
+     * SUBMIT time (a teleport whose target does not exist yet drops its
+     * content), which is precisely why it may not also mean «the follow-up is
+     * on screen»: an owned-but-empty zone that paints itself is the empty
+     * dimmed box a colony with no payout used to stand.
+     */
     focusOutcomeZone(): boolean {
       return this.revealEmbedActive && this.focusState.open;
     },
@@ -931,6 +939,14 @@ export default defineComponent({
   mounted() {
     this.scrollSelectedIntoView();
     this.fit();
+    // AN EMBEDDED STEP OWNS ITS OWN ARRIVAL. Standalone, the band-surface
+    // director plays the workspace switch; as a STEP that director passes
+    // through by contract (no `data-motion-surface`), so this speaks the
+    // workspace-descend phrase one level in instead — and it runs AFTER `fit`,
+    // so the grid is already solved and no tile can resize under the opening.
+    if (this.embedded) {
+      playColonyStepEntry(this.$el as HTMLElement);
+    }
     // Foundation: VueUse-managed listeners (no raw add/removeEventListener).
     const scroll = this.$refs.scroll as HTMLElement | undefined;
     if (scroll !== undefined) {

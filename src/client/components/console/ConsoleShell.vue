@@ -194,9 +194,18 @@
              (workspace-embed rules 1-4; `workspaceFrameRenders` covers the
              claim-to-slot gap frame). -->
         <Teleport :to="colonyEmbedTarget ?? 'body'" :disabled="colonyEmbedTarget === undefined">
+        <!-- `data-motion-surface` is part of what the `embedded` prop STRIPS
+             (host-agnostic rule 1). Left on, the band-surface director gave a
+             hosted STEP the standalone workspace-switch entrance — a full
+             surface arrival played inside somebody else's zone, plus a shade
+             owner dimming the board behind a full-bleed start cinematic. That
+             is the «Colonies появляется резко» from inside «Старт партии»: the
+             wrong grammar, not a missing one. Absent, the director's hooks
+             pass straight through and the step's arrival is the workspace
+             entry phrase the section itself speaks. -->
         <ConsoleColoniesSection v-if="workspaceFrameRenders('colonies')"
                                 ref="coloniesSection"
-                                data-motion-surface="section"
+                                :data-motion-surface="colonyEmbedActive ? undefined : 'section'"
                                 :embedded="colonyEmbedActive"
                                 :colonies="coloniesForRail"
                                 :index="consoleState.colonyIndex"
@@ -6006,6 +6015,20 @@ export default defineComponent({
         // this fallback claims the manifest there and kicks the reward waves
         // exactly once after whichever commit carried it (idempotent).
         noticeColonyTradeCommit(newView);
+        // A COLONIES claim has no awaiting handoff to ride — the trade
+        // transaction owns its own pacing (`holdFocusStage`), so it never
+        // arms `surfaceMotionState.awaiting` and the reconcile guarded by it
+        // above is UNREACHABLE from here. Without this a claim that turned
+        // out to have nothing to present (a card colony traded at a
+        // zero-quantity position) would stand as an empty follow-up stage,
+        // pinning `completeFlow`, until the 20 s claim backstop. The
+        // reconcile itself only releases on POSITIVE evidence that the
+        // outcome went elsewhere, so a real payout — whose reveal is already
+        // readable by the `$nextTick` this defers to, or is still held by the
+        // deck-draw scene it explicitly asks about — is never touched.
+        if (workspaceOutcomeState.host === 'colonies') {
+          this.reconcileWorkspaceOutcome();
+        }
         // Government Support scale-focus gate: if the last action was a WGT
         // parameter raise, HOLD the next modal for a beat so the board scale
         // glide (+ top-HUD delta chip) is seen in one focused place. Snap to

@@ -266,13 +266,22 @@ export default defineComponent({
       // resolves on the stage — iteration 2); the overview tile is the
       // fallback for a closed stage.
       const key = cssEscape(name);
+      // THE COLONY HANDS THE CARDS OVER. While the focus stage is up the hero
+      // planet leads both ladders: a card payout is a thing the colony gives,
+      // so it must leave the colony — the summary rail's reward VALUE (the
+      // anchor resource chips rightly use, because there the value itself is
+      // what moves) reads as cards being born out of a number. The berth seat
+      // still leads for the OWNER bonus, which is earned by a settlement the
+      // player can see standing there.
       const incomeRect = await stableRect(() => pickAnchor([
+        `.con-colfocus [data-colony-card-source="${key}"]`,
         `.con-colfocus [data-colony-trade-source="${key}"]`,
         `${tileSel} [data-colony-trade-source]`,
         tileSel,
       ]));
       const bonusRect = await stableRect(() => pickAnchor([
         `.con-colfocus [data-colony-bonus-source="${key}"]`,
+        `.con-colfocus [data-colony-card-source="${key}"]`,
         `${tileSel} [data-colony-bonus-source]`,
         tileSel,
       ]));

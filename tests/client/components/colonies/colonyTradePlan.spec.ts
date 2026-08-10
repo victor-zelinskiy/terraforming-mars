@@ -2,7 +2,9 @@ import {expect} from 'chai';
 import {
   allStepsCaptured,
   buildTradeBatch,
+  colonyOwnerBonusDrawsCards,
   colonyOwnerCounts,
+  colonyTradeMayDrawCards,
   effectiveTradePosition,
   freeTradeFleets,
   rewardAtPosition,
@@ -206,5 +208,58 @@ describe('colonyTradePlan', () => {
     });
     expect(trackResetPosition({colonies: [red, red, red]}, short)).to.eq(1);
     expect(trackResetAfterBuild({colonies: [red, red, red]}, short)).to.eq(1);
+  });
+
+  /**
+   * THE EMBEDDED-OUTCOME CLAIM IS STRUCTURAL. A colony that pays in
+   * production, plants or heat must claim NOTHING: the claim's visible cost is
+   * that the workspace stands a follow-up stage from submit time and refuses
+   * to fold under it, which is exactly the empty dimmed box that stood over
+   * Луна's finished trade until the 20 s claim backstop fired.
+   */
+  describe('colonyTradeMayDrawCards', () => {
+    const cardTrack = colonyMetadata({
+      name: ColonyName.PLUTO,
+      build: {description: '', type: ColonyBenefit.DRAW_CARDS, quantity: [2, 2, 2]},
+      // Position 0 pays nothing; every later position deals cards.
+      trade: {description: '', type: ColonyBenefit.DRAW_CARDS, quantity: [0, 1, 2, 3, 4, 5, 6]},
+      colony: {description: '', type: ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE},
+    });
+    const resourceTrack = colonyMetadata({
+      name: ColonyName.LUNA,
+      build: {description: '', type: ColonyBenefit.GAIN_PRODUCTION, quantity: [2, 2, 2], resource: Resource.MEGACREDITS},
+      trade: {description: '', type: ColonyBenefit.GAIN_RESOURCES, quantity: [1, 2, 4, 7, 10, 13, 17], resource: Resource.MEGACREDITS},
+      colony: {description: '', type: ColonyBenefit.GAIN_PRODUCTION, resource: Resource.MEGACREDITS},
+    });
+
+    it('is FALSE for every position of a colony that never deals cards', () => {
+      for (let i = 0; i <= 6; i++) {
+        expect(colonyTradeMayDrawCards(resourceTrack, i), `position ${i}`).to.eq(false);
+      }
+    });
+
+    it('is TRUE from a card colony\'s zero-quantity start — a track advance is still reachable', () => {
+      // The final position is not knowable at submit time (offset, `ask`
+      // auto-advance and a chosen track step all move the marker forward), so
+      // the question is «is there a card-dealing position at or past here».
+      expect(colonyTradeMayDrawCards(cardTrack, 0)).to.eq(true);
+      expect(colonyTradeMayDrawCards(cardTrack, 6)).to.eq(true);
+    });
+
+    it('stops claiming once no reachable position deals anything', () => {
+      const tailIsEmpty = colonyMetadata({
+        name: ColonyName.PLUTO,
+        build: {description: '', type: ColonyBenefit.DRAW_CARDS, quantity: [1, 1, 1]},
+        trade: {description: '', type: ColonyBenefit.DRAW_CARDS, quantity: [1, 2, 0, 0]},
+        colony: {description: '', type: ColonyBenefit.DRAW_CARDS},
+      });
+      expect(colonyTradeMayDrawCards(tailIsEmpty, 1)).to.eq(true);
+      expect(colonyTradeMayDrawCards(tailIsEmpty, 2)).to.eq(false);
+    });
+
+    it('the OWNER bonus is a separate question from the track', () => {
+      expect(colonyOwnerBonusDrawsCards(cardTrack)).to.eq(true);
+      expect(colonyOwnerBonusDrawsCards(resourceTrack)).to.eq(false);
+    });
   });
 });

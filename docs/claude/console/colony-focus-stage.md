@@ -14,18 +14,18 @@ specific regression from coming back.
 ## 1 · COMPOSITION — three columns, one reading order
 
 ```
-HERO                MAIN — ONE 7-COLUMN GRID                    RESULT
+HERO                MAIN — ONE 7-COLUMN GRID                    SUMMARY RAIL
 ┌────────────┐  ┌───────────────────────────────────────────┐  ┌─────────────┐
-│  planet    │  │ ТОРГОВЫЙ ТРЕК                              │  │ ИТОГ        │
+│  planet    │  │ ТОРГОВЫЙ ТРЕК  ·  +N offset caption        │  │ ИТОГ        │
 │  + orbital │  │ ┌──┬──┬──┬──┬──┬──┬──┐                     │  │ ─ награда   │
 │    berth   │  │ │ 1│ 2│ 3│ 4│ 5│ 6│ 7│  reward per level   │  │ ─ владельцам│
 │  ACTIVE    │  │ │▓▓│ ●│ ⌾│ ⌾│ ⌾│ ⌾│ ⌾│  guard · marker    │  │ ─ оплата    │
-│  what it is│  │ └━━┩▌ └──┴──┴──┴──┴──┘  ▌= the STOP        │  └─────────────┘
-│  fleet line│  │    ╿ ВОЗВРАТ            (mechanism lane)   │
-│  verdict   │  │ ┌──┴─┬────┬────┐                           │
-└────────────┘  │ │cube│    │    │  berths — column-aligned  │
-                │ └────┴────┴────┘                           │
-                │ СПОСОБ ОПЛАТЫ / brief                      │
+│  what it is│  │ └━━┩▌ └──┴──┴──┴──┴──┘  ▌= the STOP        │  │             │
+│  fleet line│  │    ╿ ВОЗВРАТ            (in the RAIL)      │  │  (top-      │
+│  verdict   │  │ ┌──┴─┬────┬────┬──────────────────────┐    │  │   anchored, │
+└────────────┘  │ │cube│    │    │ БОНУС ВЛАДЕЛЬЦА      │    │  │   full      │
+                │ └────┴────┴────┴──────────────────────┘    │  │   height)   │
+                │ СПОСОБ ОПЛАТЫ (trade only)                 │  └─────────────┘
                 └───────────────────────────────────────────┘
 ```
 
@@ -35,17 +35,29 @@ dossier: it is sized by its own composition and centred in the band, so a tall
 host gives it air AROUND it instead of a hole inside it.
 
 **The height is a TOKEN, per MODE, and the TV profile overrides the token.**
-27.5rem for an action, 19.5rem for inspect (no configuration → a shorter panel
-instead of an empty half), 32.5rem / 21rem on TV. A panel that re-measured
-itself every time a sub-editor opened would move the layout under the player's
-thumb — but a panel sized for the BASE row height is exactly what drew a
-scrollbar over three payment options on TV, where every row is
-`--con-hit-min` (3.2rem) tall.
+27.5rem for a TRADE (the only mode with a configuration to hold), 21.5rem for
+build/pick, 19.5rem for inspect, and 27.5rem again while a follow-up is CLAIMED
+(`--claimed`, so the panel cannot shrink around the payout it is hosting).
+A panel that re-measured itself every time a sub-editor opened would move the
+layout under the player's thumb — but a panel sized for the BASE row height is
+exactly what drew a scrollbar over three payment options on TV, where every row
+is `--con-hit-min` (3.2rem) tall.
 
-**The two OBJECT zones never shrink** (`flex: 0 0 auto` on `__trackzone`,
-which now owns both grid rows). The configuration is the shock absorber — it is
-the one zone that legitimately scrolls (`ConsoleScrollArea`), so it takes the
-squeeze. Crushing the berths clipped their labels and the marker rail.
+**The object zones SHRINK, with a floor.** `__trackzone` is `flex: 0 1 auto`
+and both of its rows declare their own `min-height` (the berth floor is the
+44px cube seat — the build hero's measured landing box). A zone that refuses to
+give any height back pushes the scene out through the frame's bottom edge the
+moment the stage stands in a SHORTER HOST than the standalone workspace — which
+is what a prelude's Build Colony step is. The configuration remains the first
+shock absorber and the one zone that legitimately scrolls (`ConsoleScrollArea`).
+
+**The SUMMARY RAIL is anchored, not floated.** `align-self: stretch` — its top
+sits on the same line as the track's and it owns the full height beside it.
+`align-self: center` made it a block of arbitrary height parked at the vertical
+middle, leaving the space right of the track's own head unused and reading as a
+panel that had landed there rather than one that belonged there. The CONTENT
+still starts at the top and stops where it stops: the height is a stable role,
+never a stretch to fill.
 
 ---
 
@@ -58,8 +70,29 @@ exactly one job, and a layer that already states something must not be echoed:
 | --- | --- | --- |
 | TRADE TRACK | every level, its reward, the current position, the protected positions and the return stop | anything about the result |
 | BERTHS | occupancy, owner, and the position each one HOLDS | the reset number, the owner rate |
-| RESULT | «what happens if I confirm NOW» — one card per source of value | rules, the return point, the colony's standing rate |
+| OWNER BONUS (the ownership row's second half) | the MECHANISM — the rate, and the arithmetic drawn from the real seated cubes when a holder has more than one | who receives how much |
+| SUMMARY RAIL | «what happens if I confirm NOW» — one card per source of value, each already AGGREGATED per recipient | rules, the return point, the colony's standing rate, the mechanism |
 | STATUS RAIL (overview) | identity + the EXCEPTION (a blocked reason, a standing offset) | rewards / owner bonuses already printed on the tile |
+
+**Two panels may share a subject only if they answer different questions.** The
+owner bonus is the one case: the bottom zone shows HOW it is computed (rate ×
+the cubes you can see standing in the berths to its left), the summary rail
+shows WHO gets WHAT, already multiplied. The rail printing the per-colony rate
+with a «×2» hung off a name made the player do the arithmetic; a summary that
+has to be worked out is not a summary.
+
+**The BUILD / PICK modes have NO configuration panel.** The brief that used to
+stand there restated the summary rail word for word («НАГРАДА ЗА ПОСТРОЙКУ +2»,
+«НОВАЯ КОЛОНИЯ · Слот 1») while the destination berth was already lit on the
+row above and the verb was already under the planet AND on the A chip: the same
+sentence in four places, costing ~7rem the stage does not have inside a shorter
+host.
+
+**The VERDICT is a PRE-COMMIT judgement and stops existing at the commit
+boundary** (`pastCommit` = resolving ∨ a live claim ∨ the held view). Past it
+the server's answer has already changed the world — our own fleet now sits on
+this colony — and the live re-derivation printed «✕ Здесь стоит ваш флот» in
+red under the payout that fleet had just earned.
 
 On the OVERVIEW the same contract shortens the tile: the status band keeps its
 reserved height (the fixed-grid rule — a reason must never shift the rows above
@@ -97,10 +130,20 @@ Three physical objects say the rest:
 2. **The LATCH** (`__berth-latch`) — a vertical bolt from the occupied berth up
    through the mechanism lane into the guard above it. «This colony holds that
    position» is one continuous object.
-3. **The STOP** (`__stop`) — a post + foot flange standing on the boundary of
+3. **The STOP** (`__stop`) — an end-cap IN THE MARKER RAIL at the boundary of
    the first UNPROTECTED cell, riding `--stop-col` with a transform-only
-   transition. One word, `Return point`, sits under it in the mechanism lane —
-   never over a game cell.
+   transition, plus one calm amber wash rising from the rail across the cells
+   it holds. One word, `Return point`, sits under it in the mechanism lane —
+   never over a game cell, and marked `data-unfold-late` so it arrives with the
+   other labels instead of being the single legible word on an otherwise
+   wordless opening frame.
+
+   ⚠️ It is anchored to the RAIL (`bottom: .16rem; height: .95rem` — the cell's
+   own bottom padding plus `__xcell-rail`'s height), not to the cell box. As a
+   full-height post with a foot flange it stood BESIDE cell 1 and, next to
+   seven bordered cells, read as a decorative amber BRACKET framing the first
+   one — a frame, when the fact it states is «the groove ends here». The colour
+   is a STATE ACCENT; it may never become a border.
 
 Build preview adds a mint ghost stop one cell further right and a
 `--willprotect` ring on the cell about to be taken.
@@ -213,19 +256,58 @@ screen that then vanishes»:
    standing, so the colony never disappears from under its own payout.
    `ConsoleColoniesSection` is the ONE writer of `setWorkspaceOutcomeSlot` and
    points it at the stage's zone while the stage stands, at its own otherwise.
-2. **The shared phrase** — `armOutcomeOriginFrom(mainEl)` at the commit, then
+2. **The zone IS NOT A PANEL.** It wears no plate and no ring — the surface
+   rendering inside it already carries `con-ws-stage-frame`, whose whole
+   contract is «the workspace frame is already around me». A second bordered
+   rectangle over a first one is what turned this continuation into «a modal
+   opened on top of the colony». What the zone owns instead is a controlled
+   inner VOLUME (a radial light pooled where the content stands), so the eye
+   reads a deepened part of the same surface.
+3. **OWNERSHIP ≠ READINESS, and they are two classes.** `--claimed`
+   (`outcomeZone`) holds the geometry from submit time and paints NOTHING;
+   `--handing` (`outcomeContentIn` — content genuinely landed) is what hands
+   the working area over. Keyed on ownership alone, the zone dressed itself
+   the instant a claim existed: every colony that pays in production or plants
+   stood an empty dimmed box over its own finished trade (см. Луна) — and the
+   claim also pinned `completeFlow`, so the stage could not fold under it.
+4. **The working area RELEASES, in layers** — `__main` first (it is where the
+   cards are born), `__result` 90 ms later, the hero column last and only to a
+   supporting 50 %. It used to sit at `opacity: .16`, i.e. a legible ghost of a
+   live decision surface under its own result: the single strongest «this is a
+   modal» cue on the screen. Nothing unmounts (the release tween needs
+   something to open out of, and the anchors stay measurable).
+5. **The shared phrase** — `armOutcomeOriginFrom(mainEl)` at the commit, then
    `playConfigRelease` → `playOutcomePhase` → `playOutcomeContent`
    (`consoleActionOutcomeMotion` — the blue-action flow's own module, extended
-   with a rect-arm rather than forked). The released configuration stays
-   MOUNTED and recedes to 16 % opacity: unmounting it would kill the release
-   mid-tween and leave the zone nothing to open out of.
-3. **The destination exists before anything moves** — the zone is rendered from
+   with a rect-arm rather than forked).
+6. **The destination exists before anything moves** — the zone is rendered from
    claim time, so the cards land in a surface already on screen.
+7. **The cards are BORN AT THE COLONY** — `[data-colony-card-source]` on the
+   hero planet leads `ConsoleColonyTradeLayer`'s anchor ladder while the stage
+   stands. Physical causality: a card payout is a thing the colony hands over,
+   so it must leave the colony; the summary rail's reward VALUE (the right
+   anchor for resource chips, where the value itself is what moves) read as
+   cards being born out of a number. The berth seat still leads for the OWNER
+   bonus — that one is earned by a settlement the player can see standing there.
 
-⚠️ **The panel keeps the ACTION height while handing** (`--handing`). Past the
-commit the server takes the pick away and `presentMode` re-derives to
-`inspect`; without the override the panel shrank by a third UNDER the payout,
-the reveal's strip lost ~150 px and every card was cropped by its slot.
+⚠️ **The panel keeps the ACTION height while a follow-up is CLAIMED**
+(`--claimed`, not `--handing`: the geometry must be held for the whole gap
+between the submit and the payout's arrival). Past the commit the server takes
+the pick away and `presentMode` re-derives to `inspect`; without the override
+the panel shrank by a third UNDER the payout, the reveal's strip lost ~150 px
+and every card was cropped by its slot.
+
+⚠️ **The claim itself is STRUCTURAL on BOTH paths.** `colonyTradeDealsCards`
+(shell) asks the colony's own metadata — `colonyTradeMayDrawCards(metadata,
+position)` for the track, `colonyOwnerBonusDrawsCards` for the bonus, and the
+latter only when the VIEWER holds a seat here (otherwise those cards are dealt
+to someone else and there is nothing for our workspace to present). The trade
+paths used to claim `['draw']` unconditionally while the build path beside them
+was already structural. A trade that COULD have dealt cards but didn't is
+released by `reconcileWorkspaceOutcome`, which the colonies path now reaches on
+its own commit observation: it rides no awaiting handoff (the transaction owns
+its pacing via `holdFocusStage`), so the guarded call in the response watcher
+is unreachable from here and a mis-claim used to cost the full 20 s backstop.
 
 **Three defects made this look like a legacy modal — none of them was legacy:**
 
@@ -245,12 +327,31 @@ does not contain `'card'`, so the legacy stack cannot render it at all.
 
 | beat | at | what |
 | --- | --- | --- |
-| RELEASE | 0 | the pressed tile's own content dissolves in place |
-| RECEDE | 40 | the grid steps back into the press point |
+| **COMMIT RESPONSE** | 0 | the pressed tile lifts ~2 % and its NEIGHBOURS yield to 42 % — a local depth event on the object the player touched |
+| RELEASE | 50 | the pressed tile's own content dissolves in place, ON the lift |
+| RECEDE | 90 | the grid steps back into the press point |
 | UNFOLD | 70 → 430 | the surface's clip opens from the tile's rect |
-| CARRY | 70 / 110 / 150 | planet · track · berths FLIP from their compact twins |
+| CARRY | 70 / 110 / 150 | planet · track · berths FLIP from their compact twins, with DIFFERENT easings — the planet is the heaviest and settles slowest (`power3.inOut` vs `power2.inOut`) |
+| PLANET DEPTH | 70 → 510 | the key light drifts against the body (parallax) and the atmosphere RIM comes up as the size arrives — a sphere approaching, not a circle enlarging |
 | **REVEAL** (`[data-unfold-item]`) | 250 | the structural groups surface from inside |
+| TRACK SWEEP | 250 | one pass of light along the rail, in the direction the track is read |
 | **LATE** (`[data-unfold-late]`) | 410 | labels, numbers, notes, the verdict |
+| **EDGE** | 300 → 600 | the stage's boundary FORMS, last, around content already in place |
+
+**The EDGE is a separate, inert layer** (`__edge`, `[data-unfold-edge]`), and
+that is what stops the Focus Stage reading as another panel dropped into the
+workspace. A ring on the surface itself is painted from the first frame of the
+unfold and can only ever arrive as a finished rectangle; it is also uniform.
+This one is brought up AFTER the opening and is DIRECTIONAL — a lit seam at the
+head, a hint down the left, almost nothing at the foot — so the scene dissolves
+into the workspace at its base instead of being bounded equally on four sides.
+On the way out it goes FIRST: a bordered rectangle shrinking into a tile is the
+same wrong reading, backwards.
+
+⚠️ The commit response writes inline props on elements the RECEDE does not own
+(the layer fades; its children keep what was set on them), so `resetTiles` must
+clear them on every path back — otherwise the grid returns with one tile still
+enlarged and the rest at 42 % for the workspace's whole life.
 
 **The two waves are the whole rework.** The stage published NO `[data-unfold-item]`
 at all before, so the REVEAL beat animated nothing: every word was at full
@@ -267,8 +368,29 @@ runs before the first paint, `:css="false"`), and **restored by both cancelled
 hooks** — a killed timeline never runs its `clearProps`, and an interrupted
 entrance must not cost the player the content.
 
-B reverses the same phrase: fine print lets go first, then the structure, then
-the panel folds back into the tile it opened from.
+B reverses the same phrase: the edge and the fine print let go first, then the
+structure, then the panel folds back into the tile it opened from.
+
+### The EMBEDDED ENTRY (`playColonyStepEntry`)
+
+A hosted step used to be handed the STANDALONE band-surface entrance: the shell
+set `data-motion-surface="section"` unconditionally, so entering the colonies
+from «Старт партии» played a whole workspace switch inside somebody else's zone
+— and registered a shade owner dimming the board behind a full-bleed start
+cinematic. The `embedded` prop STRIPS that attribute (host-agnostic rule 1), the
+director's hooks then pass straight through, and the section speaks the descend
+phrase one level in instead: the ROOM opens by clip (never scaled, so the
+header, the fleet dock and the host's chrome cannot drift) and the colonies
+surface from inside it in reading order. It runs after `fit()`, so the grid is
+already solved and no tile can resize under the opening.
+
+**Still open:** the PARENT's own controlled collapse. `ConsoleStartScene` swaps
+the deployment body and the step zone with sibling `v-if`s in one tick, so the
+parent scene still disappears in a single frame. Fixing it needs the step
+slot's publication (`stepSlot`, `flush: 'post'`) to be gated on the ELEMENT
+existing rather than on the step flag — with a `mode="out-in"` swap the selector
+goes live while the target is still leaving, and a `<Teleport>` whose target is
+missing at mount drops its content and does not reliably relocate later.
 
 ---
 
@@ -300,14 +422,15 @@ One scene, genuinely different priorities:
 * **trade** — payment paths lead the configuration; the result column is the
   trade outcome by source.
 * **build** — the BERTHS come first (`order: -1`), the destination pulses, the
-  non-destination berths dim, the rail shows the `+1` ghost and the result
-  column states the grant, the new colony, the future owner bonus and the
-  return-base move.
+  non-destination berths dim, the rail shows the `+1` ghost and the summary rail
+  states the grant and the new colony. NO configuration block: there is nothing
+  to configure, and the brief that used to stand there was the summary rail
+  again, verbatim.
 * **inspect / unavailable** — NO configuration block and NO manual. The
   physical scene IS the dossier; the panel is simply shorter. A «how it works»
   panel appeared exactly when the player could not act, which made the screen
   change genre at the worst moment.
-* **pick** — the server's verb, plainly.
+* **pick** — the server's verb, plainly, from the hero verdict and the A chip.
 
 ---
 

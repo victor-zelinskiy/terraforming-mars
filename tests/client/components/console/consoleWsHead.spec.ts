@@ -88,6 +88,39 @@ describe('ConsoleWsHead — the ONE workspace header', () => {
     expect(w.find('.con-wshead__subject').text()).to.eq('Зелёный сектор');
   });
 
+  /**
+   * THE RESERVED RIGHT EDGE. The trailing slot must be a real, LAST element —
+   * it used to be a bare `<slot>` under `display: contents`, which dissolved
+   * the wrapper and left its children as direct flex participants at the
+   * implicit `order: 0`, i.e. sorted BEFORE the identity (`order: 1`). The
+   * colony fleet dock therefore rendered to the LEFT of «КОЛОНИИ» standalone
+   * while sitting correctly on the right when the same section was embedded
+   * or the header ran in flow mode. The geometry itself is a stylesheet fact
+   * (guarded in e2e); what this pins is the STRUCTURE the stylesheet needs —
+   * one named box, after the identity and the aux zone.
+   */
+  it('puts the trailing slot in its own box, LAST — the right edge is reserved', () => {
+    const w = mount(ConsoleWsHead as any, {
+      ...globalConfig,
+      props: {root: 'Colonies', emblem: 'colonies'},
+      slots: {
+        default: () => h('span', {class: 'aux-stub'}, 'filters'),
+        trailing: () => h('span', {class: 'fleets-stub'}, 'fleets'),
+      },
+      global: {...globalConfig.global, stubs: {BarButtonIcon: IconStub}},
+    });
+    const trailing = w.find('.con-wshead__trailing');
+    expect(trailing.exists(), 'the trailing slot needs a real box to be positioned').to.eq(true);
+    expect(trailing.find('.fleets-stub').exists()).to.eq(true);
+    const children = Array.from(w.find('.con-wshead').element.children).map((n) => n.className);
+    expect(children.indexOf('con-wshead__trailing')).to.eq(children.length - 1);
+    expect(children.indexOf('con-wshead__trailing')).to.be.greaterThan(children.indexOf('con-wshead__ident'));
+  });
+
+  it('renders no trailing box when the host publishes nothing there', () => {
+    expect(head({root: 'Colonies'}).find('.con-wshead__trailing').exists()).to.eq(false);
+  });
+
   it('adds the root-connected second flow tier only for an opted-in workspace', () => {
     const plain = head({root: 'Cards in hand'});
     expect(plain.find('.con-wshead__flow').exists()).to.eq(false);
