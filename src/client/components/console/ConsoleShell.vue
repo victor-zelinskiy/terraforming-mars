@@ -6308,6 +6308,21 @@ export default defineComponent({
      * colony pick ended up on screen nowhere with no card to return to.
      */
     collapseWorkspace(): void {
+      // THE HAND GOES HOME PHYSICALLY. Collapsing a stack whose visible step
+      // is the OPEN hand plays the standard gather (grid → dock) first — the
+      // bare park v-ifs the grid away and every dock back popped in on one
+      // frame («карты в доке просто появляются одним кадром»). Reduced motion
+      // keeps the instant park (its own honest short form), and a running
+      // episode already owns the moment.
+      if (this.consoleState.section === 'hand' && handRevealState.phase === 'open' &&
+          !isHandRevealEpisodeRunning() && !consoleReducedMotionActive()) {
+        void this.collapseWithHandGather();
+        return;
+      }
+      this.parkWorkspaceStack();
+    },
+    /** The bare park — the collapse's state half, shared by both paths. */
+    parkWorkspaceStack(): void {
       collapseWorkspaceStack();
       this.consoleState.task.deferred = true;
       // The composer's command contract is published to a SHARED store and
@@ -6315,6 +6330,37 @@ export default defineComponent({
       // would advertise a stage that no longer serves for a frame. Clearing it
       // here is what makes the collapse atomic.
       resetConsoleActionComposerUi();
+    },
+    /**
+     * COLLAPSE WITH THE HAND'S GATHER: measure the live grid while it still
+     * stands, start the standard close episode, and only then park — the
+     * proxies fly over the board (the park is this path's `setSection`, one
+     * tick before the episode's own hook fires against an already-empty live
+     * stack, where it is a no-op). The section watcher can't reset the
+     * presentation mid-flight: the episode registers synchronously.
+     */
+    async collapseWithHandGather(): Promise<void> {
+      const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+      const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
+      const t = section?.transitionTargets() ?? {pairs: [], scrollTop: 0};
+      const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
+      const pairs: Array<RevealPair> = [];
+      for (const p of t.pairs) {
+        const source = sources.get(p.name);
+        if (source !== undefined) {
+          pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
+        }
+      }
+      if (pairs.length === 0) {
+        // Nothing measurable — the honest instant park (never a zero-pair
+        // episode, whose empty-input path would pop the hand frame BEFORE
+        // the park and lose the step's depth).
+        this.parkWorkspaceStack();
+        return;
+      }
+      const episode = runHandCloseEpisode(pairs, t.scrollTop);
+      this.parkWorkspaceStack();
+      await holdDockIntakeAccent('hand-close', episode);
     },
     /**
      * Stand the HAND up: a screen of its own, or a STEP inside whatever flow is
@@ -9422,18 +9468,41 @@ export default defineComponent({
     restoreDeferredTask(): void {
       this.consoleState.task.deferred = false;
       // A PARKED STACK comes back exactly as it was — same depth, same
-      // decision, same picks, no replayed cinematic and no second trip to the
-      // server. That is the entire difference between «свернуть» and
-      // «закрыть», and it is one call instead of a branch per workspace (the
-      // action centre's claim, the hand step inside the start, …), each of
-      // which had to re-derive which surface to re-open.
+      // decision, same picks and no second trip to the server. That is the
+      // entire difference between «свернуть» and «закрыть», and it is one
+      // call instead of a branch per workspace (the action centre's claim,
+      // the hand step inside the start, …), each of which had to re-derive
+      // which surface to re-open.
       if (workspaceStackCollapsed()) {
+        // A parked OPEN-HAND step replays the premium dock → grid reveal on
+        // its way back (the physical twin of the collapse's gather). The
+        // phase is seated BEFORE the frames return: the section watcher sees
+        // a director-owned transition instead of an untracked open, which
+        // would paint the finished grid one frame early.
+        const handComesBack = workspaceFrameParked('hand') &&
+          !isHandRevealEpisodeRunning() && !consoleReducedMotionActive();
+        if (handComesBack) {
+          handRevealState.phase = 'opening';
+          handRevealState.holdSlots = true;
+        }
         restoreWorkspaceStack();
+        if (handComesBack) {
+          if (this.consoleState.section === 'hand') {
+            void this.replayHandOpenReveal();
+          } else {
+            // The restored depth doesn't project the hand after all — undo
+            // the seeded hold, or every slot stays invisible forever.
+            resetHandReveal();
+          }
+        }
         // A COLONY RESOLUTION comes back on its focus stage (the section's
         // unmount closed it with the park): the source, the payout zone and
-        // the «СБРОШЕНО» seat live there — never the overview grid.
+        // the «СБРОШЕНО» seat live there — never the overview grid. During
+        // the FULL-STAGE DISCARD the hand owns the room instead: reopening
+        // the focus here painted the whole colony composition OVER the
+        // discard grid (the reported two-screens overlay).
         if (this.colonyResolutionLive && workspaceFrameMounted('colonies') &&
-            !this.colonyFocus.open) {
+            !this.colonyFocus.open && !colonyResolutionUi.discardStage) {
           const name = this.colonyResolutionColonyName;
           if (name !== '') {
             openColonyFocus(name as ColonyName, 'inspect');
@@ -9443,6 +9512,43 @@ export default defineComponent({
       }
       if (this.hostTask === undefined && !this.startSceneServes && this.shellTask !== undefined) {
         this.openShellTaskSurface(this.shellTask);
+      }
+    },
+    /**
+     * Replay the dock → grid reveal for a hand that came back from the PARK
+     * (its frame already stands — `openHandWithReveal` would push a second
+     * one). The measure loop rides the restore's own teleport chain: the
+     * host re-mounts, publishes its zone, the hand teleports in, the grid
+     * solves its fit — a few frames, bounded, with the honest instant-open
+     * degrade when nothing becomes measurable.
+     */
+    async replayHandOpenReveal(): Promise<void> {
+      if (isHandRevealEpisodeRunning()) {
+        return;
+      }
+      const releaseAccent = beginDockIntakeAccent('hand-open');
+      try {
+        await this.$nextTick();
+        let t: ReturnType<InstanceType<typeof ConsoleHandSection>['transitionTargets']> = {pairs: [], scrollTop: 0};
+        for (let i = 0; i < 10 && t.pairs.length === 0; i++) {
+          await new Promise((r) => requestAnimationFrame(() => r(undefined)));
+          const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+          if (section !== undefined) {
+            t = section.transitionTargets();
+          }
+        }
+        const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
+        const sources = dock?.sourceRects(t.pairs.map((p) => p.name)) ?? new Map<string, RevealRect>();
+        const pairs: Array<RevealPair> = [];
+        for (const p of t.pairs) {
+          const source = sources.get(p.name);
+          if (source !== undefined) {
+            pairs.push({name: p.name, source, target: p.rect, visible: p.visible, clip: p.clip, visual: this.revealVisualFor(p.name)});
+          }
+        }
+        await runHandOpenEpisode(pairs);
+      } finally {
+        releaseAccent();
       }
     },
     /**

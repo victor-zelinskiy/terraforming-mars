@@ -921,7 +921,8 @@ export default defineComponent({
         (isDeckDrawActive() &&
           (DECK_DRAW_PRE_FRAME_PHASES.has(deckDrawState.phase) || deckDrawState.phase === 'frame')) ||
         (isColonyTradeActive() && isColonyTradeRevealStaged(this.drawnEvent?.id) &&
-          (colonyTradeState.cardScene === 'fly' || colonyTradeState.cardScene === 'frame')) ||
+          (colonyTradeState.cardScene === 'fly' || colonyTradeState.cardScene === 'ascend' ||
+            colonyTradeState.cardScene === 'frame')) ||
         colonyTradeWillDressReveal(this.drawnEvent?.id, this.drawnEvent?.source);
     },
     /**

@@ -248,6 +248,20 @@
     font-size: .85rem;
     line-height: 1;
 }
+/* A colony-bonus discard leads with the demanding PLANET (the per-colony
+   `<Name>-background` art the tiles use) — the ask plate carries the source
+   itself, replacing the separate chip row the colonies section once drew. */
+.con-hand__discard-planet {
+    flex-shrink: 0;
+    width: 1.15rem;
+    height: 1.15rem;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    box-shadow:
+        inset -.18rem -.2rem .32rem rgba(0, 0, 0, 0.55),
+        0 0 0 .05rem fade(@con-amber, 55%);
+}
 .con-hand__discard-ask {
     font-size: .8rem;
     font-weight: 800;

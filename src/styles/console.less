@@ -9798,55 +9798,15 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         > * { pointer-events: auto; }
         .con-reveal { max-height: 100%; }
     }
-    /* ── THE FULL-STAGE DISCARD — the hand owns the whole central area; the
-       colony survives as the SOURCE CHIP row above it. ── */
+    /* ── THE FULL-STAGE DISCARD — the hand owns the WHOLE central area. The
+       colony context lives inside the hand's own ask plate (its planet mini
+       leads «Сбросьте 1 карту») — the separate source-chip row above the
+       grid said the same thing twice and cost the cards a line (iter. 4). ── */
     &__embed--hand {
         flex-direction: column;
         gap: .4rem;
         pointer-events: auto;
         animation: con-colfocus-outcome-in calc(300ms * var(--motion-scale, 1)) ease-out both;
-    }
-    &__srcchiprow {
-        flex: 0 0 auto;
-        display: flex;
-        align-items: center;
-        justify-content: flex-start;
-        padding: .1rem .2rem 0;
-    }
-    /* The compact source chip — «⏺ ПЛУТОН · БОНУС ВЛАДЕЛЬЦА». The shared
-       element the focus stage later re-expands from: identity (the planet's
-       own art), name, role — never a heavy panel. */
-    &__srcchip {
-        display: inline-flex;
-        align-items: center;
-        gap: .5rem;
-        padding: .28rem .8rem .28rem .35rem;
-        border-radius: 49.95rem;
-        background: rgba(10, 17, 26, 0.92);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 32%);
-    }
-    &__srcchip-planet {
-        width: 1.6rem;
-        height: 1.6rem;
-        border-radius: 50%;
-        background-size: cover;
-        background-position: center;
-        box-shadow: 0 0 .55rem rgba(0, 0, 0, 0.55), inset 0 0 .3rem rgba(0, 0, 0, 0.4);
-    }
-    &__srcchip-name {
-        font-size: .82rem;
-        font-weight: 800;
-        letter-spacing: .08rem;
-        text-transform: uppercase;
-        color: #eaf4ff;
-    }
-    &__srcchip-sep { color: fade(#eaf4ff, 45%); }
-    &__srcchip-role {
-        font-size: .68rem;
-        font-weight: 700;
-        letter-spacing: .12rem;
-        text-transform: uppercase;
-        color: @con-mint;
     }
     &__handhost {
         flex: 1 1 auto;
@@ -10057,7 +10017,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        shorter instead of carrying an empty half. */
     --colfocus-h: 27.5rem;
     --colfocus-hero-w: 12rem;
-    &--inspect { --colfocus-h: 19.5rem; }
+    /* Inspect is the SHORT panel, but it must still seat the full hero column
+       with a validation plate AND two lines of the ability text (iteration 4 —
+       the old 19.5rem starved `__desc` to zero exactly when a verdict stood). */
+    &--inspect { --colfocus-h: 21rem; }
     /* BUILD and PICK have no configuration to hold either (the destination is
        drawn on the berth row and the outcome is stated once, in the summary
        rail) — so they are the same short panel as inspect, not the tall action
@@ -10212,11 +10175,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__idmeta {
         flex: 0 1 auto;
         min-width: 0;
-        min-height: 0;
         display: flex;
         flex-direction: column;
         gap: .4rem;
         text-align: center;
+        /* The last-resort crop lives HERE (never on a sibling): if a host is
+           genuinely too short even for the floors below, the tail of this
+           block trims instead of overlapping the verdict under it. */
+        overflow: hidden;
     }
     &__desc {
         font-size: .74rem;
@@ -10226,8 +10192,15 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         -webkit-box-orient: vertical;
         -webkit-line-clamp: 5;
         overflow: hidden;
+        /* THE ABILITY LINE NEVER VANISHES (iteration 4). This block is the
+           hero column's only shrinkable text, so a validation plate's height
+           used to come out of here first — «Доберите X карт» clipped to
+           NOTHING under «Здесь стоит ваш флот» on the short inspect stage.
+           Two whole lines are the floor; the clamp still trims the tail. */
+        min-height: 2.68em;
     }
     &__fleetline {
+        flex-shrink: 0;
         display: flex;
         align-items: center;
         justify-content: center;
@@ -10568,34 +10541,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             &::after { display: none; }
         }
     }
-    /* The berth row's only word. It lives in the mechanism lane, right-aligned
-       away from the stop, so nothing is written over a track cell or a berth. */
-    &__berthscaption {
-        position: absolute;
-        right: 0;
-        bottom: -.72rem;
-        font-size: .5rem;
-        font-weight: 700;
-        letter-spacing: .07rem;
-        text-transform: uppercase;
-        color: fade(@con-text-dim, 75%);
-        white-space: nowrap;
-        pointer-events: none;
-    }
-    /* A LEGEND, not an instruction. The stop's position on the rail is the
-       reading; this only names the mark once, quietly, from the same
-       typographic tier as the berth caption facing it. */
-    &__stop-label {
-        position: absolute;
-        left: calc(-1 * var(--track-gap) / 2 + .1rem);
-        bottom: -.72rem;
-        font-size: .5rem;
-        font-weight: 700;
-        letter-spacing: .07rem;
-        text-transform: uppercase;
-        color: fade(@con-amber, 72%);
-        white-space: nowrap;
-    }
+    /* (The scale is WORDLESS — iteration 4: the stop bracket and the berth
+       row ARE the reading; the «ВОЗВРАТ» / «МЕСТА КОЛОНИЙ» captions that once
+       sat on the rail restated what the graphic already draws.) */
     /* While the proxy flies, the RESTING marker yields — one physical object
        on screen, never two (the overview tile's contract, now honoured on the
        surface the trade actually resolves on). */

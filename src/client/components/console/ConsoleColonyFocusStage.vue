@@ -110,12 +110,14 @@
         <!-- The honest verdict, under the identity it judges — never a
              stranded red bar at the bottom of an empty page.
              It is a PRE-COMMIT judgement («can I do this?»), so it stops
-             existing at the commit boundary. Past it the server's answer has
-             already changed the world — our own fleet now sits on this colony
-             — and the live re-derivation turned into «✕ Здесь стоит ваш флот»
-             printed in red under the payout that fleet just earned: the
-             screen refusing an action it had already carried out. -->
-        <div v-if="!pastCommit"
+             existing at the commit boundary — and once THIS stage session has
+             crossed it, it never comes back (`commitLatched`): the resolution's
+             final beats drop `pastCommit` one signal at a time (transaction
+             ends → claim releases → workspace closes), and the live
+             re-derivation flashed «✕ Здесь стоит ваш флот» in red for the
+             last second before the close — the screen refusing an action it
+             had already carried out. -->
+        <div v-if="!pastCommit && !commitLatched"
              class="con-colfocus__verdict"
              :class="presentAvailable ? 'con-colfocus__verdict--ok' : 'con-colfocus__verdict--no'"
              data-unfold-late>
@@ -135,20 +137,20 @@
              triggered by ANOTHER player's trade names that player — the whole
              entry story lives in the identity column, never a second panel,
              and the planet itself stays lit (the source must read as active). -->
-        <div v-if="resolutionContext !== undefined" class="con-colfocus__srcctx">
+        <div v-if="presentedContext !== undefined" class="con-colfocus__srcctx">
           <span class="con-colfocus__srcchip">
             <span class="con-colfocus__srcchip-mark" aria-hidden="true">◈</span>
             <span>{{ $t('Source') }}</span>
           </span>
           <span class="con-colfocus__srcctx-role"
-                :class="{'con-colfocus__srcctx-role--bonus': resolutionContext.bonus}">
-            {{ $t(resolutionContext.roleKey) }}
+                :class="{'con-colfocus__srcctx-role--bonus': presentedContext.bonus}">
+            {{ $t(presentedContext.roleKey) }}
           </span>
-          <span v-if="resolutionContext.traderLine !== ''" class="con-colfocus__srcctx-trader">
-            <span v-if="resolutionContext.traderColor !== ''"
-                  :class="'con-status__dot player_bg_color_' + resolutionContext.traderColor"
+          <span v-if="presentedContext.traderLine !== ''" class="con-colfocus__srcctx-trader">
+            <span v-if="presentedContext.traderColor !== ''"
+                  :class="'con-status__dot player_bg_color_' + presentedContext.traderColor"
                   aria-hidden="true"></span>
-            <span>{{ resolutionContext.traderLine }}</span>
+            <span>{{ presentedContext.traderLine }}</span>
           </span>
         </div>
         <!-- (The «СБРОШЕНО» seat lives at SECTION level — one spot that
@@ -216,19 +218,14 @@
 
             <!-- THE STOP — the mechanical end of the return travel. It rides
                  `--stop-col`, so building a colony SLIDES it one cell right
-                 (transform only) instead of re-rendering a new marker. -->
-            <span class="con-colfocus__stop" aria-hidden="true">
-              <!-- FINE PRINT, like every other word on this stage: the mark's
-                   POSITION is the reading and arrives with the geometry; its
-                   name arrives with the labels. Without this it was the one
-                   legible word on an otherwise wordless opening frame. -->
-              <span class="con-colfocus__stop-label" data-unfold-late>{{ $t('Return point') }}</span>
-            </span>
+                 (transform only) instead of re-rendering a new marker.
+                 WORDLESS on purpose (iteration 4): the bracket + the anchor
+                 under a real cell ARE the reading — a «ВОЗВРАТ» caption on
+                 the scale (and a berth-row caption beside it) restated what
+                 the graphic already draws. -->
+            <span class="con-colfocus__stop" aria-hidden="true"></span>
             <span v-if="buildPreview && resetPositionAfterBuild !== resetPosition"
                   class="con-colfocus__stop con-colfocus__stop--ghost" aria-hidden="true"></span>
-            <!-- The berth row's ONE word — in the mechanism lane, right-aligned,
-                 over nothing. It names the row; the rule is drawn, not told. -->
-            <span class="con-colfocus__berthscaption" data-unfold-late>{{ $t('Colony berths') }}</span>
           </div>
 
           <!-- THE BERTHS — the physical foundation of the first three
@@ -725,6 +722,17 @@ export default defineComponent({
        *  the CSS dissolve can never run ahead of the phrase. */
       outcomeHandoffPlayed: false,
       /**
+       * THIS STAGE SESSION HAS CROSSED THE COMMIT. Latched on `pastCommit`'s
+       * rising edge and never dropped (a new colony / a fresh mount resets):
+       * the resolution's final beats release `pastCommit`'s terms one at a
+       * time, and the pre-commit verdict re-deriving in that gap is the red
+       * «Здесь стоит ваш флот» flash over a payout the fleet just earned.
+       */
+      commitLatched: false,
+      /** The last non-empty resolution context — held through the close so
+       *  the hero keeps naming the SOURCE role to the final frame. */
+      heldContext: undefined as {roleKey: string, bonus: boolean, traderColor: string, traderLine: string} | undefined,
+      /**
        * The COMMIT-BOUNDARY freeze: at the confirm the stage pins WHAT it was
        * showing ({mode, available}), because the server's answer flips the
        * props (the pick is gone, the trade is spent) while the resolution is
@@ -773,12 +781,23 @@ export default defineComponent({
       return {roleKey: bonusWave ? 'Owner bonus' : 'Trade reward', bonus: bonusWave, traderColor: '', traderLine: ''};
     },
     /**
+     * What the SOURCE chip actually shows: the live context, or — past the
+     * commit — the LAST one, held to the final frame. The live derivation's
+     * terms (transaction, claim, entry) release one signal at a time at the
+     * resolution's end, and the chip vanishing a second before the workspace
+     * closes read as the screen forgetting whose payout it just presented.
+     */
+    presentedContext(): {roleKey: string, bonus: boolean, traderColor: string, traderLine: string} | undefined {
+      return this.resolutionContext ?? (this.commitLatched ? this.heldContext : undefined);
+    },
+    /**
      * THE HANDOFF CUE — when the configuration may let go. ⚠️ Deliberately NOT
-     * the claim (the submit): releasing there is what produced «интерфейс
-     * исчезает одним кадром → пустая пауза → готовый reveal». The flow's
-     * physical bridge is the CARDS, so the release plays UNDER them:
-     *  · the trade covers took flight over this very stage (`cardScene` moves
-     *    off 'idle' pre-flush, before the veiled reveal's first paint);
+     * the claim (the submit), and — iteration 4 — deliberately NOT the covers'
+     * take-off either: the fan and the departures play OVER the still-standing
+     * scene (the player must read the count and the source), and only the
+     * layer's `ascend` beat — the first cover deep into its travel, almost
+     * grown — starts the dissolve underneath. Releasing at `fly` was
+     * «интерфейс уже исчез в момент отделения карт».
      *  · or — for a flow with no covers of its own (a build's board lift, a
      *    served remote batch, reduced motion, a degrade) — the content
      *    genuinely landing in the zone is the cue.
@@ -789,7 +808,9 @@ export default defineComponent({
       }
       if (this.colonyTradeState.active &&
           this.colonyTradeState.colonyName === this.colony.name &&
-          this.colonyTradeState.cardScene !== 'idle') {
+          (this.colonyTradeState.cardScene === 'ascend' ||
+            this.colonyTradeState.cardScene === 'frame' ||
+            this.colonyTradeState.cardScene === 'handoff')) {
         return true;
       }
       return this.outcomeContentIn;
@@ -1340,9 +1361,32 @@ export default defineComponent({
       this.payIdx = 0;
       this.focusIdx = 0;
       this.heldView = undefined;
+      this.commitLatched = false;
+      this.heldContext = undefined;
       this.seedPaymentDefault();
       this.publishStageName();
       this.syncUiMirror();
+    },
+    // The commit latch: once this stage session crossed the boundary, the
+    // pre-commit verdict never returns (see `commitLatched`). `immediate`:
+    // a stage that MOUNTS mid-resolution (the post-discard restore, a remote
+    // entry) is past the commit from its first frame.
+    pastCommit: {
+      immediate: true,
+      handler(now: boolean) {
+        if (now) {
+          this.commitLatched = true;
+        }
+      },
+    },
+    // Hold the last SOURCE context through the close (see `presentedContext`).
+    resolutionContext: {
+      immediate: true,
+      handler(ctx: {roleKey: string, bonus: boolean, traderColor: string, traderLine: string} | undefined) {
+        if (ctx !== undefined) {
+          this.heldContext = {...ctx};
+        }
+      },
     },
     actionAvailable() {
       this.publishStageName();

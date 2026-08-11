@@ -73,8 +73,15 @@ import {
  */
 export type ColonyTradePhase = 'idle' | 'armed' | 'chips' | 'awaiting' | 'glide' | 'settle';
 
-/** The card-cover scene of a staged trade reveal batch (the layer drives it). */
-export type ColonyTradeCardScene = 'idle' | 'fly' | 'frame' | 'handoff';
+/**
+ * The card-cover scene of a staged trade reveal batch (the layer drives it).
+ * `fly` covers the FAN + the early departures — the colony scene must still
+ * stand under them; `ascend` is the layer's cue that the first cover is deep
+ * into its travel and ALMOST GROWN, which is the moment the stage may start
+ * dissolving underneath (the focus stage's handoff keys on it — releasing at
+ * `fly` was «интерфейс уже исчез в момент отделения карт»).
+ */
+export type ColonyTradeCardScene = 'idle' | 'fly' | 'ascend' | 'frame' | 'handoff';
 
 /** The tile-status caption of the beat currently playing on the traded tile. */
 export type ColonyTradeBeat = '' | 'income' | 'bonus' | 'update';
@@ -187,7 +194,8 @@ export function isColonyTradeInputLocked(): boolean {
   if (colonyTradeState.phase === 'chips' || colonyTradeState.phase === 'glide') {
     return true;
   }
-  return colonyTradeState.cardScene === 'fly' || colonyTradeState.cardScene === 'frame';
+  return colonyTradeState.cardScene === 'fly' || colonyTradeState.cardScene === 'ascend' ||
+    colonyTradeState.cardScene === 'frame';
 }
 
 /** A scene beat is on stage — notifications queue, mandatory surfaces wait.

@@ -135,6 +135,16 @@ export class TradeWithTitanFloatingLaunchPad implements IColonyTrader {
     return message('Pay 1 floater (use ${0} action)', (b) => b.cardName(CardName.TITAN_FLOATING_LAUNCHPAD));
   }
 
+  /** The console's payment picker renders every trade path in ONE grammar —
+   *  icon + `current → resulting` — from this marker (the same shape
+   *  TradeWithEnergy/Titanium/Megacredits attach); without it the floater row
+   *  stood bare beside fully-dressed siblings. */
+  public optionMetadata() {
+    const current = this.titanFloatingLaunchPad?.resourceCount ?? 0;
+    return {kind: 'resourceRemoval' as const, icon: 'floater', amount: 1,
+      resource: {current, resulting: Math.max(0, current - 1)}};
+  }
+
   /** Mirrors `canUse`, one named blocker each. `undefined` = the player doesn't
    *  own the card, so the option stays hidden (there is nothing to explain). */
   public disabledReason() {

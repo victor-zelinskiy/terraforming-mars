@@ -1,12 +1,13 @@
 # THE COLONY RESOLUTION — the Pluto flow's one interaction owner
 
-**Status: SHIPPED (2026-08-11, iteration 2 same day).** Module:
+**Status: SHIPPED (2026-08-11, iterations 2–4 same day).** Module:
 `src/client/console/colonyTrade/colonyResolution.ts` (pure derivations + the
 remote-entry context + `colonyResolutionUi.discardStage`). Spec:
 `tests/client/components/console/colonyResolution.spec.ts`. E2E:
-`tests/e2e/console-colony-pluto-embed.spec.ts` (three tests — trade, build, and
-the full own-colony draw+discard resolution with the root-exclusivity,
-no-blank-stage, no-focus-hand-zone, marker-in-focus and return-leg guards).
+`tests/e2e/console-colony-pluto-embed.spec.ts` (four tests — trade, build, the
+full own-colony draw+discard resolution with the root-exclusivity,
+no-blank-stage, no-focus-hand-zone, marker-in-focus and return-leg guards, and
+the PARKED leg: gather on collapse, plain browse on a visit, clean restore).
 
 ## Iteration 2 — the physically continuous choreography
 
@@ -69,6 +70,69 @@ no-blank-stage, no-focus-hand-zone, marker-in-focus and return-leg guards).
   first POSED cover's rect + its landing slot) — a birth rect the size of
   the planet, or an apex above the slot, names the broken ladder rung in one
   run.
+
+## Iteration 4 — the fan, the late dissolve, and the park as a real place
+
+- **The launch opens with a FAN.** One wave's covers are born STACKED on the
+  printed back (the cell shows one back — that is the truth) and peel into
+  the REAL count side by side: small rise, small growth, face-down,
+  `TRADE_FAN_STAGGER_MS` apart, then a readable hold (`TRADE_FAN_HOLD_MS`)
+  before the first grow-flip-travel departs. The player counts the payout
+  over the still-standing scene; two covers departing from one rect was the
+  reported «наложились одна на другую». The plan carries the fan
+  (`fanDelayMs`/`fanIndex`/`fanCount`); `delayMs` (the departure) already
+  includes `TRADE_FAN_LEAD_MS`, so the budget formula never changed. Scale
+  stays monotonic end-to-end: fan ≤ hover ≤ 92 % of landing.
+- **The stage dissolves LATE, under almost-grown cards.** New scene value
+  `'ascend'` (`ColonyTradeCardScene`): the layer fires it when the first
+  cover is ~45 % into its travel; `outcomeHandoffDue` keys on
+  `ascend|frame|handoff` (never `fly`), and the reveal's whole-modal veil
+  (`bonusVeiled`) drops at the same beat — «Получены карты» materializes
+  under the landing flight. `fly` still input-locks; `ascend` joined it.
+- **«Свернуть» is physical both ways.** `collapseWorkspace` with the OPEN
+  hand as the visible step measures the grid FIRST, starts the standard
+  close episode, then parks — the gather flies over the board (the park IS
+  this path's `setSection`; the episode's own hook then fires against an
+  empty live stack, a no-op). The restore (`restoreDeferredTask`) seeds
+  `phase='opening'`+`holdSlots` BEFORE the frames return and replays the
+  dock→grid reveal (`replayHandOpenReveal` — a bounded RAF loop rides the
+  re-mounting teleport chain). ⚠️ Reduced motion and a zero-pair measure
+  keep the instant park: the episode's empty/reduced path calls its section
+  hook SYNCHRONOUSLY, which would pop the hand frame BEFORE the park and
+  lose the step's depth.
+- **The restore never paints the focus over the discard.** The focus-reopen
+  branch is gated `!colonyResolutionUi.discardStage` — the hand owns the
+  room in that phase (reopening it was the reported two-screen overlay).
+- **A parked resolution is invisible to a browse VISIT.** The wheel's
+  «Колонии» is a lateral `enterWorkspace` (the park is untouched), but the
+  CLAIM lives in module state and survives the park — so the section gates
+  everything claim-derived on `!workspaceFrameParked('colonies')`
+  (`resolutionParked`): `revealEmbedActive`, the discard-stage yield, the
+  crumb, the seat. Without the gate the visit rendered the parked flow's
+  crumb «ПЛУТОН › ДОБОР КАРТ» over a yielded (blank) browse. ⚠️ The unmount
+  slot-clear now checks the RAW claim (`outcomeState.host === 'colonies'`),
+  because a collapse parks the frames BEFORE `beforeUnmount` runs — the
+  gated computed is already false there and the stale selector would
+  survive into a detached node.
+- **The hero column never re-judges past the commit.** `commitLatched` (set
+  on `pastCommit`'s rising edge, `immediate` — a stage mounting
+  mid-resolution is past it from frame one) permanently hides the
+  pre-commit verdict for that stage session, and `presentedContext` holds
+  the LAST source role to the final frame — the resolution's end releases
+  `pastCommit`'s terms one signal at a time, and the gap flashed a red
+  «✕ Здесь стоит ваш флот» over the payout that fleet had just earned.
+  Plus the ability line's floor: `__desc` keeps two lines (`min-height:
+  2.68em`), `__idmeta` crops as the last resort, and the inspect stage got
+  the height those floors need (21rem base / 23.5rem tv).
+- Small fixes shipped with it: the trade-fee picker's floater path now
+  carries `optionMetadata()` on the SERVER
+  (`TradeWithTitanFloatingLaunchPad` — icon + `current → resulting`, the
+  same marker shape as energy/titanium/M€); the track scale is wordless
+  (the «ВОЗВРАТ» / «МЕСТА КОЛОНИЙ» captions restated the drawn rule); the
+  discard's colony context moved INTO the hand's ask plate (planet mini +
+  the colony's name via `DiscardIntent.colonyName`, replacing the section's
+  green chip row), and the bare hand count reads «Всего карт: N» in select
+  mode.
 
 ### The two traps iteration 2 paid for
 - ⚠️ **The hand-reveal director's `setSection` hook spoke `goBoardHome` for

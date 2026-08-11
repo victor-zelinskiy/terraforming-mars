@@ -51,7 +51,7 @@ import {
   setColonyTradeBeat, setColonyTradeCardScene, stageColonyTradeReveal, tradeLog,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 import {
-  TRADE_FRAME_MS, tradeCoverPlan, TradeCoverPlanEntry,
+  TRADE_COVER_FLIGHT_MS, TRADE_COVER_LIFT_MS, TRADE_FRAME_MS, tradeCoverPlan, TradeCoverPlanEntry,
 } from '@/client/console/colonyTrade/colonyTradeModel';
 import {colonyResolutionUi} from '@/client/console/colonyTrade/colonyResolution';
 import {
@@ -358,7 +358,9 @@ export default defineComponent({
           landed++;
           return;
         }
-        pulseAt(p.role, p.delayMs);
+        // The cell answers the FAN (the stack physically peeling off it) —
+        // the departure happens off the fan seat, away from the cell.
+        pulseAt(p.role, p.fanDelayMs);
         const scaleTo = Math.max(0.05, target.width / CARD_NATURAL_W);
         ctx.handles.push(runTradeCoverFlight({
           proxy, flip,
@@ -367,6 +369,9 @@ export default defineComponent({
           toRect: target as RectLike,
           naturalH: target.height / scaleTo,
           delayMs: p.delayMs,
+          fanDelayMs: p.fanDelayMs,
+          fanIndex: p.fanIndex,
+          fanCount: p.fanCount,
           reduced: colonyTradeState.reducedMotion,
           // A colony-bonus card is opened ON THE TABLE by its zone, so its
           // cover must not turn in the air (see runTradeCoverFlight.faceDown).
@@ -379,6 +384,21 @@ export default defineComponent({
           },
         }));
       });
+      // THE DISSOLVE CUE. The stage under the flight releases only when the
+      // first cover is deep into its travel and almost grown («как раз когда
+      // карты уже почти полностью увеличились интерфейс растворяется») —
+      // never at the claim, never at the fan. One-shot, guarded: a fast
+      // scene that already reached 'frame' must not be pulled back.
+      const first = plan[0];
+      if (first !== undefined && !colonyTradeState.reducedMotion) {
+        const ascendAtMs = first.delayMs + TRADE_COVER_LIFT_MS +
+          Math.round((TRADE_COVER_FLIGHT_MS - TRADE_COVER_LIFT_MS) * 0.45);
+        ctx.timers.push(setTimeout(() => {
+          if (colonyTradeState.cardScene === 'fly') {
+            setColonyTradeCardScene('ascend');
+          }
+        }, motionMs(ascendAtMs)));
+      }
       if (plan.length === 0) {
         this.frameAndHandoff();
       }
@@ -401,6 +421,9 @@ export default defineComponent({
         toCentre: pose,
         naturalH: CARD_NATURAL_H,
         delayMs: plan?.delayMs ?? 0,
+        fanDelayMs: plan?.fanDelayMs ?? 0,
+        fanIndex: plan?.fanIndex ?? 0,
+        fanCount: plan?.fanCount ?? 1,
         reduced: colonyTradeState.reducedMotion,
         onLanded: () => {
           if (!colonyTradeState.active || !isColonyTradeRevealStaged(e.id)) {

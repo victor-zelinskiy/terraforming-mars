@@ -66,6 +66,7 @@ describe('discardIntent', () => {
     const intent = deriveDiscardIntent(
       meta({source: {kind: 'colony'}, colonyBonus: {colonyName: ColonyName.PLUTO, index: 2, total: 3}}), 1);
     expect(intent.sequence).deep.eq({index: 2, total: 3});
+    expect(intent.colonyName).eq(ColonyName.PLUTO);
     expect(intent.picked).eq(1);
   });
 

@@ -46,4 +46,17 @@ describe('colony trader disabled reasons', () => {
     card.resourceCount = 1;
     expect(new TradeWithTitanFloatingLaunchPad(player).canUse()).is.true;
   });
+
+  it('dresses its picker row like every standard trader (icon + current → resulting)', () => {
+    const [/* game */, player] = testGame(2, {coloniesExtension: true});
+    const card = new TitanFloatingLaunchPad();
+    player.playedCards.push(card);
+    card.resourceCount = 2;
+    expect(new TradeWithTitanFloatingLaunchPad(player).optionMetadata()).deep.eq({
+      kind: 'resourceRemoval',
+      icon: 'floater',
+      amount: 1,
+      resource: {current: 2, resulting: 1},
+    });
+  });
 });

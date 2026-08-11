@@ -459,11 +459,12 @@ test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the
     .toBeVisible({timeout: 12_000});
   // The crumb still names the workspace root; the seat is standing.
   expect(await page.locator('.con-colonies').count(), 'the colony workspace was unmounted mid-resolution').toBeGreaterThan(0);
-  // THE FULL-STAGE DISCARD: the source chip stands (the colony's compact
-  // context), and the «СБРОШЕННЫЕ» seat belongs to the workspace — asserted
-  // NOW, while the phase is live (both fold with it).
-  expect(await page.locator('.con-colonies .con-colonies__srcchip').count(),
-    'the source chip did not stand during the discard').toBeGreaterThan(0);
+  // THE FULL-STAGE DISCARD: the colony context leads the hand's own ask
+  // plate (the planet mini — iteration 4 replaced the separate chip row),
+  // and the «СБРОШЕННЫЕ» seat belongs to the workspace — asserted NOW,
+  // while the phase is live (both fold with it).
+  expect(await page.locator('.con-colonies .con-hand__discard-planet').count(),
+    'the ask plate did not lead with the colony planet during the discard').toBeGreaterThan(0);
   expect(await page.locator('.con-colonies [data-colony-discard-seat]').count(),
     'the discard seat did not stand inside the workspace').toBeGreaterThan(0);
   await shoot(page, '12-embedded-discard');
@@ -492,4 +493,110 @@ test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the
   expect(seen.focusHandZone, 'the removed focus-stage hand zone (the B-only intermediate) mounted').toBeFalsy();
   expect(seen.emptyStage, 'a BLANK colonies stage appeared mid-flow (the empty pause)').toBeFalsy();
   expect(seen.markerOutsideFocus, 'the track-reset marker flew OUTSIDE the colony focus').toBeFalsy();
+});
+
+/**
+ * «СВЕРНУТЬ» IS A PLACE THE PLAYER CAN GO AND COME BACK FROM — iteration 4.
+ *
+ * Park the resolution AT the mandatory discard, then:
+ *  · the collapse plays the hand's physical GATHER (grid → dock proxies),
+ *    never a one-frame pop of the dock backs;
+ *  · a wheel visit to the colonies shows the PLAIN BROWSE grid — never the
+ *    parked flow's crumb over a yielded (blank) stage;
+ *  · the restore replays the dock → grid reveal and NEVER paints the colony
+ *    focus stage over the discard grid (the reported two-screen overlay);
+ *  · the flow then completes normally (discard → focus restore → close).
+ */
+test('Pluto DISCARD parked: gather on collapse, plain browse on a visit, clean restore', async ({page, request}) => {
+  test.setTimeout(480_000);
+  await boot(page, request, await createGame(request));
+
+  // ── 1 · Reach the embedded discard (the test-3 route, condensed). ────────
+  await press(page, 'Comma', 1200);
+  await press(page, 'Enter', 1400);
+  const focusedName = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
+  const walk = ['ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'];
+  for (let i = 0; i < 18 && !/колони/i.test(await focusedName()); i++) {
+    await press(page, walk[i % walk.length], 300);
+  }
+  await press(page, 'Enter', 1800);
+  await page.waitForSelector('.con-colonies', {timeout: 15_000});
+  await openColoniesAndFocus(page, 'Pluto');
+  await press(page, 'Enter', 2000);
+  await press(page, 'Enter', 2600); // A = build confirm
+  for (let i = 0; i < 4 && await page.locator('.con-reveal').count() > 0; i++) {
+    await press(page, 'Enter', 2400);
+  }
+  await page.waitForTimeout(2500);
+  await openColoniesAndFocus(page, 'Pluto');
+  await press(page, 'Enter', 2000);
+  await page.keyboard.press('KeyX'); // confirm the trade
+  await page.waitForSelector('.con-reveal .con-cards__slot--focused', {timeout: 30_000});
+  const embeddedHand = page.locator('.con-colonies .con-hand.con-hand--embedded');
+  for (let i = 0; i < 14 && await embeddedHand.count() === 0; i++) {
+    await press(page, 'Enter', 2400);
+  }
+  await expect(embeddedHand, 'the mandatory discard did not open embedded').toBeVisible({timeout: 12_000});
+  await page.waitForTimeout(1200); // let the hand-open reveal finish
+
+  // ── 2 · COLLAPSE (B) — the gather must physically play. ─────────────────
+  await page.keyboard.press('Escape');
+  let gatherSeen = false;
+  for (let i = 0; i < 25; i++) {
+    if (await page.locator('.con-handreveal-layer .con-deal-proxy').count() > 0) {
+      gatherSeen = true;
+      break;
+    }
+    await page.waitForTimeout(80);
+  }
+  await shoot(page, '14-collapse-gather');
+  expect(gatherSeen, 'the collapse did not play the hand GATHER (dock backs popped in one frame)').toBeTruthy();
+  await expect(page.locator('.con-colonies'), 'the workspace did not park on collapse').toHaveCount(0, {timeout: 6_000});
+  await expect(page.locator('.con-mandatory'), 'no return card after the park').toHaveCount(1, {timeout: 6_000});
+
+  // ── 3 · A WHEEL VISIT shows the PLAIN browse — never the parked flow. ───
+  await openColoniesAndFocus(page, 'Pluto');
+  await shoot(page, '15-parked-browse-visit');
+  const browse = page.locator('.con-colonies__browse');
+  expect(await browse.count(), 'the browse layer did not mount on the visit').toBeGreaterThan(0);
+  await expect(browse, 'the visit adopted the parked flow (browse yielded → blank stage)')
+    .not.toHaveClass(/con-colonies__browse--yield/);
+  expect(await page.locator('.con-colfocus').count(), 'the parked focus stage leaked into the visit').toBe(0);
+  expect(await page.locator('.con-colonies .con-hand').count(), 'the parked hand step leaked into the visit').toBe(0);
+  expect(await page.locator('.con-reveal').count(), 'the parked reveal leaked into the visit').toBe(0);
+
+  // ── 4 · Leave the visit (B) and RESTORE (B on the board home). ──────────
+  await press(page, 'Escape', 1200);
+  const restoreWatch = page.evaluate(() => {
+    const out = {overlay: false, fanSeen: false};
+    (window as unknown as {__plutoRestore?: typeof out}).__plutoRestore = out;
+    const t0 = performance.now();
+    const tick = () => {
+      if (document.querySelector('.con-colonies__embed--hand') !== null &&
+          document.querySelector('.con-colfocus') !== null) {
+        out.overlay = true; // the reported two-screen overlay
+      }
+      if (document.querySelector('.con-handreveal-layer .con-deal-proxy') !== null) {
+        out.fanSeen = true; // the replayed dock → grid reveal
+      }
+      if (performance.now() - t0 < 5_000) {
+        requestAnimationFrame(tick);
+      }
+    };
+    requestAnimationFrame(tick);
+  });
+  await page.keyboard.press('Escape'); // restore the deferred discard
+  await expect(embeddedHand, 'the discard did not come back on restore').toBeVisible({timeout: 8_000});
+  await page.waitForTimeout(4200);
+  await restoreWatch;
+  const restore = await page.evaluate(() => (window as unknown as {__plutoRestore?: {overlay: boolean, fanSeen: boolean}}).__plutoRestore);
+  await shoot(page, '16-restored-discard');
+  expect(restore?.overlay, 'the colony FOCUS painted OVER the restored discard grid').toBeFalsy();
+  expect(restore?.fanSeen, 'the restore did not replay the dock → grid reveal').toBeTruthy();
+
+  // ── 5 · Finish: discard → focus restore → the ordered close. ────────────
+  await press(page, 'Enter', 3200);
+  await page.waitForTimeout(3200);
+  await expect(page.locator('.con-colonies'), 'the workspace never closed after the resolution')
+    .toHaveCount(0, {timeout: 20_000});
 });

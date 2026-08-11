@@ -7,7 +7,8 @@ import {Resource} from '@/common/Resource';
 import {ColonyTradeManifestModel} from '@/common/models/ColonyTradeManifestModel';
 import {
   benefitCardCount, benefitTransferSpec, colonyTradeHeldSpecs, incomeTransferSpecs,
-  ownBonusTransferSpecs, trackGlidePlan, TRADE_COVER_STAGGER_MS, TRADE_WAVE_GAP_MS,
+  ownBonusTransferSpecs, trackGlidePlan, TRADE_COVER_STAGGER_MS, TRADE_FAN_LEAD_MS,
+  TRADE_FAN_STAGGER_MS, TRADE_WAVE_GAP_MS,
   tradeCoverPlan, tradeCoverPlanBudgetMs, tradeRoleForIndex, viewerBonusCubes,
 } from '@/client/console/colonyTrade/colonyTradeModel';
 
@@ -77,16 +78,34 @@ describe('colonyTradeModel', () => {
     expect(incomeTransferSpecs(manifest())).deep.eq([{channel: 'stock', resource: 'titanium', amount: 3}]);
   });
 
-  it('the cover plan launches income first, then the bonus wave after a readable gap', () => {
+  it('the cover plan fans each wave first, then departs income, then the bonus wave', () => {
     const plan = tradeCoverPlan(4, [{role: 'income', count: 2}, {role: 'bonus', count: 2}]);
     expect(plan.map((p) => p.index)).deep.eq([0, 1, 2, 3]);
     expect(plan.map((p) => p.role)).deep.eq(['income', 'income', 'bonus', 'bonus']);
-    expect(plan[0].delayMs).eq(0);
-    expect(plan[1].delayMs).eq(TRADE_COVER_STAGGER_MS);
-    const bonusStart = TRADE_COVER_STAGGER_MS + TRADE_WAVE_GAP_MS;
-    expect(plan[2].delayMs).eq(bonusStart);
-    expect(plan[3].delayMs).eq(bonusStart + TRADE_COVER_STAGGER_MS);
+    // The FAN leads: the wave's covers peel out one after another…
+    expect(plan[0].fanDelayMs).eq(0);
+    expect(plan[1].fanDelayMs).eq(TRADE_FAN_STAGGER_MS);
+    expect(plan.map((p) => p.fanIndex)).deep.eq([0, 1, 0, 1]);
+    expect(plan.map((p) => p.fanCount)).deep.eq([2, 2, 2, 2]);
+    // …and the departures fire only past the fan lead.
+    expect(plan[0].delayMs).eq(TRADE_FAN_LEAD_MS);
+    expect(plan[1].delayMs).eq(TRADE_FAN_LEAD_MS + TRADE_COVER_STAGGER_MS);
+    const bonusStart = TRADE_FAN_LEAD_MS + TRADE_COVER_STAGGER_MS + TRADE_WAVE_GAP_MS;
+    expect(plan[2].fanDelayMs).eq(bonusStart);
+    expect(plan[2].delayMs).eq(bonusStart + TRADE_FAN_LEAD_MS);
+    expect(plan[3].delayMs).eq(bonusStart + TRADE_FAN_LEAD_MS + TRADE_COVER_STAGGER_MS);
+    // Every departure happens after its own fan settled.
+    for (const p of plan) {
+      expect(p.delayMs).to.be.greaterThan(p.fanDelayMs);
+    }
     expect(tradeCoverPlanBudgetMs(plan)).to.be.greaterThan(plan[3].delayMs);
+  });
+
+  it('a bonus-only batch fans from time zero (the wave gap belongs between waves)', () => {
+    const plan = tradeCoverPlan(1, [{role: 'bonus', count: 1}]);
+    expect(plan[0].fanDelayMs).eq(0);
+    expect(plan[0].delayMs).eq(TRADE_FAN_LEAD_MS);
+    expect(plan[0].fanCount).eq(1);
   });
 
   it('a segment-less batch reads all-income; counts clamp to the real cards', () => {

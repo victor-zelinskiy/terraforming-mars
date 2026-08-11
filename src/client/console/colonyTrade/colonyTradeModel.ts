@@ -125,8 +125,15 @@ export type TradeCoverPlanEntry = {
   /** Index into the batch's `cards` (== the reveal slot `name#index`). */
   index: number;
   role: ColonyTradeRevealRole;
-  /** Flight start delay (ms @ motion scale 1) — waves read separately. */
+  /** DEPARTURE delay (ms @ motion scale 1) — when the grow-flip-travel leg
+   *  starts. Includes the wave's fan lead, so budgets stay one formula. */
   delayMs: number;
+  /** When this cover's FAN leg starts (the stack spreads beside its cell). */
+  fanDelayMs: number;
+  /** This cover's position within its wave's fan (0-based) + the wave size —
+   *  the director spaces the fan from these two numbers alone. */
+  fanIndex: number;
+  fanCount: number;
 };
 
 /** Per-cover stagger within one wave (income / bonus) — «по одной»: each
@@ -134,6 +141,22 @@ export type TradeCoverPlanEntry = {
 export const TRADE_COVER_STAGGER_MS = 170;
 /** The readable pause between the income wave and the bonus wave. */
 export const TRADE_WAVE_GAP_MS = 420;
+/**
+ * THE FAN PRESENTATION — the launch's own first beat. The covers of one wave
+ * are born STACKED on the printed card back (the cell shows ONE back — that
+ * is the physical truth), immediately rise a little, grow a little and spread
+ * into the REAL count side by side, face-down; only after a readable hold
+ * does the first of them start its grow-flip-travel. This is what lets the
+ * player COUNT what they are being paid before anything flies — two covers
+ * departing straight from the same rect read as one card glitching.
+ */
+export const TRADE_FAN_MS = 320;
+/** The covers peel into the fan one after another (a stack unstacking). */
+export const TRADE_FAN_STAGGER_MS = 70;
+/** The readable pause at full fan before the first departure. */
+export const TRADE_FAN_HOLD_MS = 200;
+/** How long a wave's fan owns the stage before its departures begin. */
+export const TRADE_FAN_LEAD_MS = TRADE_FAN_MS + TRADE_FAN_HOLD_MS;
 /**
  * THE SEPARATION LEG — the card lifts OFF its printed cell: rises straight
  * up while growing, the flip beginning WITH the growth (the board-bonus
@@ -151,6 +174,11 @@ export const TRADE_FRAME_MS = 240;
  * the «ТОРГОВАТЬ» cell), then — after a readable wave gap — the bonus covers
  * (from the «БОНУС» cell). Cards match the batch's segments; a batch without
  * segments (a plain colony draw claimed defensively) reads all-income.
+ *
+ * Each wave FANS OUT first (`fanDelayMs` — its covers peel into a side-by-side
+ * spread at the source), and only `TRADE_FAN_LEAD_MS` later does its first
+ * departure fire — so `delayMs` already carries the fan lead and the budget
+ * formula below stays untouched.
  */
 export function tradeCoverPlan(cardCount: number, segments: ReadonlyArray<ColonyTradeRevealSegment> | undefined): Array<TradeCoverPlanEntry> {
   const segs = segments !== undefined && segments.length > 0 ? segments : [{role: 'income' as const, count: cardCount}];
@@ -158,12 +186,20 @@ export function tradeCoverPlan(cardCount: number, segments: ReadonlyArray<Colony
   let index = 0;
   let waveStartMs = 0;
   for (const seg of segs) {
+    const waveCount = Math.min(seg.count, Math.max(0, cardCount - index));
     let flown = 0;
     for (let i = 0; i < seg.count && index < cardCount; i++, index++, flown++) {
-      out.push({index, role: seg.role, delayMs: waveStartMs + i * TRADE_COVER_STAGGER_MS});
+      out.push({
+        index,
+        role: seg.role,
+        delayMs: waveStartMs + TRADE_FAN_LEAD_MS + i * TRADE_COVER_STAGGER_MS,
+        fanDelayMs: waveStartMs + i * TRADE_FAN_STAGGER_MS,
+        fanIndex: i,
+        fanCount: waveCount,
+      });
     }
     if (flown > 0) {
-      waveStartMs += (flown - 1) * TRADE_COVER_STAGGER_MS + TRADE_WAVE_GAP_MS;
+      waveStartMs += TRADE_FAN_LEAD_MS + (flown - 1) * TRADE_COVER_STAGGER_MS + TRADE_WAVE_GAP_MS;
     }
   }
   return out;

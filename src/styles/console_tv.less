@@ -742,9 +742,11 @@ html.con-profile-tv {
            profile — sizing the panel for the base row height is exactly what
            drew a scrollbar over three options. */
         --colfocus-h: 32.5rem;
-        &--inspect { --colfocus-h: 21rem; }
+        /* Inspect seats the whole hero column + a verdict + two lines of the
+           ability text at TV type sizes (iteration 4 — 21rem starved `__desc`
+           to zero under «Здесь стоит ваш флот»). */
+        &--inspect { --colfocus-h: 23.5rem; }
         &--handing { --colfocus-h: 32.5rem; }
-        &__stop-label { font-size: var(--con-t-floor); }
         &__fleetline { font-size: var(--con-t-caption); }
         &__verdict { font-size: var(--con-t-secondary); }
         &__result { flex-basis: 17rem; }

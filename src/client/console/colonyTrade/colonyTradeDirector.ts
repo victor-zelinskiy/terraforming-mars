@@ -23,7 +23,9 @@
 import {gsap} from 'gsap';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {TRADE_COVER_FLIGHT_MS, TRADE_COVER_LIFT_MS} from '@/client/console/colonyTrade/colonyTradeModel';
+import {
+  TRADE_COVER_FLIGHT_MS, TRADE_COVER_LIFT_MS, TRADE_FAN_MS,
+} from '@/client/console/colonyTrade/colonyTradeModel';
 
 /** BASE ms → seconds, through the fork-wide speed preset. */
 const s = (baseMs: number) => motionMs(baseMs) / 1000;
@@ -47,9 +49,10 @@ function jitterDeg(index: number): number {
 
 /**
  * ONE cover's flight: born AT the source area (matching its small rect —
- * a separation from the tile, never an appearance beside it), a launch pop
- * toward the viewer, the two-channel arc to the target, and the tumble-open
- * riding the leg. `onLanded` fires when the cover rests in the slot rect.
+ * a separation from the tile, never an appearance beside it), the wave's FAN
+ * (the stack peels into the real count beside the cell — a lift, a small
+ * growth, no flip yet), a readable hold, then the grow-flip-travel to the
+ * target. `onLanded` fires when the cover rests in the slot rect.
  */
 export function runTradeCoverFlight(args: {
   proxy: HTMLElement,
@@ -61,7 +64,12 @@ export function runTradeCoverFlight(args: {
   /** A centre pose (single-card presentation) when there is no slot. */
   toCentre?: {x: number, y: number, scale: number},
   naturalH: number,
+  /** DEPARTURE time (absolute scene ms — the fan lead is already inside). */
   delayMs: number,
+  /** The FAN leg's start + this cover's slot in its wave's spread. */
+  fanDelayMs: number,
+  fanIndex: number,
+  fanCount: number,
   reduced: boolean,
   /**
    * Deliver the card FACE DOWN — the colony-bonus cover does not turn in the
@@ -117,12 +125,12 @@ export function runTradeCoverFlight(args: {
     return {kill: () => tl.kill()};
   }
 
-  const tl = gsap.timeline({delay: s(args.delayMs), onComplete: args.onLanded});
+  const tl = gsap.timeline({onComplete: args.onLanded});
 
   if (reduced) {
-    tl.to(proxy, {x: landX, y: landY, scale: landScale, rotation: 0, duration: s(140), ease: 'power2.out'}, 0);
+    tl.to(proxy, {x: landX, y: landY, scale: landScale, rotation: 0, duration: s(140), ease: 'power2.out'}, s(args.delayMs));
     if (args.faceDown !== true) {
-      tl.to(flip, {rotateY: 0, duration: s(120), ease: 'power2.out'}, 0);
+      tl.to(flip, {rotateY: 0, duration: s(120), ease: 'power2.out'}, s(args.delayMs));
     }
     return {kill: () => tl.kill()};
   }
@@ -130,13 +138,18 @@ export function runTradeCoverFlight(args: {
   /*
    * THE SEPARATION GRAMMAR (the board-bonus lift, spoken for the colony
    * track). The card is BORN as the exact card back printed on the reward
-   * cell, and the launch is three distinct legs the eye can follow:
+   * cell, and the launch is four distinct legs the eye can follow:
    *
-   *   1 · SEPARATION — it rises STRAIGHT UP off its cell while growing to a
-   *       readable hover size; the FLIP begins the moment the growth does
-   *       (a card that turns as it comes towards you), with a touch of
-   *       forward pitch and depth push. Unhurried on purpose — this leg is
-   *       the whole feel of «карта отделилась от трека».
+   *   0 · THE FAN — the wave's covers are born STACKED on the printed back
+   *       (the cell shows one back — that is the truth), and peel into the
+   *       REAL count side by side: a small rise, a small growth, face-down,
+   *       one after another. The player counts the payout HERE, over the
+   *       still-standing colony scene, before anything flies — two covers
+   *       departing from the same rect was the reported «наложились одна на
+   *       другую».
+   *   1 · SEPARATION — after a readable hold, the card rises off its fan
+   *       seat while growing to the hover size; the FLIP begins the moment
+   *       this growth does (a card that turns as it comes towards you).
    *   2 · TRAVEL — the same object continues to its slot: two-channel arc,
    *       the remaining growth, controlled deceleration, the turn finishing
    *       on the way.
@@ -144,35 +157,53 @@ export function runTradeCoverFlight(args: {
    */
   const liftMs = TRADE_COVER_LIFT_MS;
   const travelMs = TRADE_COVER_FLIGHT_MS - liftMs;
-  const liftAt = 0;
-  const travelAt = s(liftMs);
+  const fanAt = s(args.fanDelayMs);
+  const departAt = s(args.delayMs);
+  const travelAt = departAt + s(liftMs);
   const travel = s(travelMs);
-  // The hover size: well past «a glyph», well short of the landed card — the
-  // separation reads as ITS OWN event before the journey starts. STRICTLY
-  // MONOTONIC: the card only ever grows towards its landing size (capped at
-  // 92 % of it) — the bare ×1.6 arm once inflated a medium-sized source PAST
-  // the slot, and a card that balloons at the apex and then shrinks into its
-  // seat is exactly the «резко и неприятно» read.
-  const hoverScale = startScale < landScale ?
-    Math.max(startScale * 1.02,
-      Math.min(Math.max(startScale * 1.6, startScale + (landScale - startScale) * 0.45), landScale * 0.92)) :
-    startScale * 1.04;
-  const liftPose = centre(fromCx, fromCy - (24 + 42 * hoverScale), hoverScale);
 
-  // ── 1 · SEPARATION ──────────────────────────────────────────────────────
-  tl.to(proxy, {x: liftPose.x, y: liftPose.y, duration: s(liftMs), ease: 'power2.out'}, liftAt);
-  tl.to(proxy, {scale: hoverScale, duration: s(liftMs), ease: 'power2.out'}, liftAt);
-  tl.to(proxy, {rotation: jitterDeg(args.index) * 0.35, duration: s(liftMs), ease: 'sine.out'}, liftAt);
+  // ── 0 · THE FAN — a strictly SMALL step: still clearly «track-size», so
+  // the later growth has the whole journey to happen in (monotonic all the
+  // way — grow-then-shrink is exactly the «резко» read).
+  const fanScale = startScale < landScale ?
+    Math.min(startScale * 1.45, Math.max(startScale * 1.08, landScale * 0.5)) :
+    startScale * 1.06;
+  const fanStep = CARD_NATURAL_W * fanScale * 1.12;
+  const fanCx = fromCx + (args.fanIndex - (args.fanCount - 1) / 2) * fanStep;
+  const fanCy = fromCy - (from.height * 0.72);
+  const fanPose = centre(fanCx, fanCy, fanScale);
+  tl.to(proxy, {
+    x: fanPose.x, y: fanPose.y, scale: fanScale,
+    rotation: jitterDeg(args.index) * 0.5,
+    duration: s(TRADE_FAN_MS), ease: 'power2.out',
+  }, fanAt);
+
+  // The hover size: well past the fan, well short of the landed card — the
+  // separation reads as ITS OWN event before the journey starts. STRICTLY
+  // MONOTONIC: fan ≤ hover ≤ 92 % of the landing size — the bare ×1.6 arm
+  // once inflated a medium-sized source PAST the slot, and a card that
+  // balloons at the apex and then shrinks into its seat is exactly the
+  // «резко и неприятно» read.
+  const hoverScale = startScale < landScale ?
+    Math.max(fanScale * 1.05,
+      Math.min(Math.max(startScale * 1.6, startScale + (landScale - startScale) * 0.45), landScale * 0.92)) :
+    fanScale * 1.03;
+  const liftPose = centre(fanCx, fanCy - (20 + 36 * hoverScale), hoverScale);
+
+  // ── 1 · SEPARATION (from the fan seat) ─────────────────────────────────
+  tl.to(proxy, {x: liftPose.x, y: liftPose.y, duration: s(liftMs), ease: 'power2.out'}, departAt);
+  tl.to(proxy, {scale: hoverScale, duration: s(liftMs), ease: 'power2.out'}, departAt);
+  tl.to(proxy, {rotation: jitterDeg(args.index) * 0.35, duration: s(liftMs), ease: 'sine.out'}, departAt);
   if (args.faceDown !== true) {
     // The turn RIDES the growth: it starts with the lift and completes on the
     // travel's first half — never a flip after a teleport.
     const turnDur = s(liftMs) + travel * 0.5;
-    tl.to(flip, {rotateY: 0, duration: turnDur, ease: 'power2.inOut'}, liftAt);
-    tl.to(flip, {rotateX: -9, duration: s(liftMs), ease: 'sine.out'}, liftAt);
+    tl.to(flip, {rotateY: 0, duration: turnDur, ease: 'power2.inOut'}, departAt);
+    tl.to(flip, {rotateX: -9, duration: s(liftMs), ease: 'sine.out'}, departAt);
     tl.to(flip, {rotateX: 0, duration: travel * 0.6, ease: 'sine.inOut'}, travelAt);
-    tl.to(flip, {z: 46, duration: s(liftMs), ease: 'power2.out'}, liftAt);
+    tl.to(flip, {z: 46, duration: s(liftMs), ease: 'power2.out'}, departAt);
     tl.to(flip, {z: 0, duration: travel, ease: 'power2.inOut'}, travelAt);
-    tl.call(() => proxy.classList.add('con-coltrade-proxy--revealing'), undefined, s(liftMs) + travel * 0.18);
+    tl.call(() => proxy.classList.add('con-coltrade-proxy--revealing'), undefined, departAt + s(liftMs) + travel * 0.18);
   }
 
   // ── 2 · TRAVEL ──────────────────────────────────────────────────────────

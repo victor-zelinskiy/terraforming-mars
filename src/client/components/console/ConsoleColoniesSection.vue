@@ -58,7 +58,7 @@
         <div class="con-colonies__browse"
              :class="{
                'con-colonies__browse--parked': focusState.open,
-               'con-colonies__browse--yield': revealEmbedPresenting || handStepHosted || resolutionUi.discardStage,
+               'con-colonies__browse--yield': revealEmbedPresenting || handStepHosted || (resolutionUi.discardStage && !resolutionParked),
              }">
           <!-- The premium tile grid. The scroller + `margin: auto` wrapper is
                the anti-clip contract: content centres when it fits and scrolls
@@ -168,19 +168,11 @@
 
         <!-- ── THE FULL-STAGE DISCARD (the resolution's mandatory pick). The
              whole central area belongs to the REAL hand — comparing every
-             card is the phase's one job — while the colony survives as the
-             compact SOURCE CHIP the focus stage later re-expands from. One
-             frame, one room, one header: the hand teleports into the inner
-             host; the chip row is the section's own context line. -->
+             card is the phase's one job. The colony context lives INSIDE the
+             hand's own ask plate (the planet mini leads «Сбросьте 1 карту ·
+             Колония») — a separate green chip row above it said the same
+             thing twice and cost the card grid a whole line (iteration 4). -->
         <div v-if="handStepHosted" class="con-colonies__embed con-colonies__embed--hand">
-          <div class="con-colonies__srcchiprow">
-            <span class="con-colonies__srcchip">
-              <span class="con-colonies__srcchip-planet" :class="resolutionPlanetClass" aria-hidden="true"></span>
-              <b class="con-colonies__srcchip-name">{{ $t(resolutionColonyName) }}</b>
-              <span class="con-colonies__srcchip-sep" aria-hidden="true">·</span>
-              <span class="con-colonies__srcchip-role">{{ $t('Owner bonus') }}</span>
-            </span>
-          </div>
           <div class="con-colonies__handhost" data-embed-slot="colonies-hand"></div>
         </div>
 
@@ -261,7 +253,9 @@ import {
   colonyFocusState, openColonyFocus, closeColonyFocus,
 } from '@/client/console/consoleColoniesModel';
 import {workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
-import {setWorkspaceFrameSlot, workspaceFrameHost, workspaceFrameStage} from '@/client/console/consoleWorkspaceStack';
+import {
+  setWorkspaceFrameSlot, workspaceFrameHost, workspaceFrameParked, workspaceFrameStage,
+} from '@/client/console/consoleWorkspaceStack';
 import {colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {cardDiscardState} from '@/client/console/cardDiscard/cardDiscardState';
@@ -479,7 +473,8 @@ export default defineComponent({
     },
     crumbCommitted(): boolean {
       return this.focusState.committing || this.tradeFleetState.active ||
-        this.tradeState.active || this.revealEmbedActive || this.handStepHosted;
+        (this.tradeState.active && !this.resolutionParked) ||
+        this.revealEmbedActive || this.handStepHosted;
     },
     // ── The nested HAND STEP (the resolution's mandatory discard) ──────────
     /** The hand workspace is standing INSIDE us as a step of the resolution. */
@@ -497,18 +492,6 @@ export default defineComponent({
     handSlotSelector(): string {
       return this.handStepHosted ? '[data-embed-slot="colonies-hand"]' : '';
     },
-    /** The chip's planet art — the same per-colony background the tile uses. */
-    resolutionPlanetClass(): string {
-      const name = this.resolutionColonyName;
-      return name === '' ? '' : name.replace(' ', '-') + '-background';
-    },
-    /** The colony the running resolution belongs to (the claim carries it). */
-    resolutionColonyName(): string {
-      if (this.outcomeState.host === 'colonies' && this.outcomeState.sourceCard !== '') {
-        return this.outcomeState.sourceCard;
-      }
-      return cardDiscardColonyBonus()?.colonyName ?? this.tradeState.colonyName;
-    },
     /** The discard cinematic's tray is standing in our seat right now. */
     trayStanding(): boolean {
       return cardDiscardState.trayVisible && cardDiscardColonyBonus() !== undefined;
@@ -516,12 +499,26 @@ export default defineComponent({
     /** The seat stands through the pick, the flight and as the receipt. */
     discardSeatLive(): boolean {
       return this.handStepHosted || cardDiscardColonyBonus() !== undefined ||
-        (this.outcomeState.host === 'colonies' && this.resolutionUi.discarded > 0);
+        (this.revealEmbedActive && this.resolutionUi.discarded > 0);
+    },
+    /**
+     * THE RESOLUTION IS SET ASIDE — its whole chain (colonies ⊃ hand) lives in
+     * the PARK, and THIS mount is a lateral browse visit the player made from
+     * the wheel. The visit must not adopt the parked flow's presentation: the
+     * claim, the discard-stage yield and the resolution crumb all belong to
+     * the parked chain (its way back is the board-home restore card). Without
+     * this gate the visit rendered the parked claim's crumb «ПЛУТОН › ДОБОР
+     * КАРТ» over a yielded (empty) browse — the reported blank screen.
+     */
+    resolutionParked(): boolean {
+      return workspaceFrameParked('colonies');
     },
     // ── The embedded-outcome zone (the Pluto payout reveal) ────────────────
-    /** The claim is ours — the zone must stand (rendered from SUBMIT time). */
+    /** The claim is ours — the zone must stand (rendered from SUBMIT time).
+     *  OURS means the LIVE chain's: a parked resolution keeps its claim, and
+     *  a browse visit beside it must not stand the zone up (see above). */
     revealEmbedActive(): boolean {
-      return this.outcomeState.host === 'colonies';
+      return this.outcomeState.host === 'colonies' && !this.resolutionParked;
     },
     /** The reveal is genuinely ON SCREEN inside the zone — the grid yields. */
     revealEmbedPresenting(): boolean {
@@ -1087,8 +1084,12 @@ export default defineComponent({
       window.cancelAnimationFrame(this.fitRaf);
     }
     // Retract OUR zone before it unmounts (a stale selector teleports the
-    // next batch into a detached node — embed rule 4).
-    if (this.revealEmbedActive) {
+    // next batch into a detached node — embed rule 4). Checked on the RAW
+    // claim, not `revealEmbedActive`: a COLLAPSE parks the frames BEFORE this
+    // unmount runs, so the parked-gated computed is already false here — and
+    // the slot this very mount published would survive as a selector into a
+    // detached node.
+    if (this.outcomeState.host === 'colonies') {
       setWorkspaceOutcomeSlot('');
     }
     // …and the hand step's frame slot, for the same reason.

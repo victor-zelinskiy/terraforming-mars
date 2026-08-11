@@ -59,6 +59,10 @@ export type DiscardIntent = {
   exchange?: DiscardExchange,
   /** Pluto's per-cube position, when the discard closes a colony payout. */
   sequence?: {index: number, total: number},
+  /** The colony demanding it (colony-bonus discards) — the ask plate leads
+   *  with its planet mini, so the source is a PLACE, not just the word
+   *  «Колония». */
+  colonyName?: string,
   /** How many cards are picked right now (0 for a single-press pick). */
   picked: number,
   /** min === max === 1 → A answers in one press (no toggle-then-confirm). */
@@ -124,6 +128,7 @@ export function deriveDiscardIntent(meta: DiscardPromptMeta, picked: number): Di
     sequence: meta.colonyBonus === undefined ?
       undefined :
       {index: meta.colonyBonus.index, total: meta.colonyBonus.total},
+    colonyName: meta.colonyBonus?.colonyName,
     picked,
     single: meta.min === 1 && meta.max === 1,
   };

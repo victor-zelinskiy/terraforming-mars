@@ -92,7 +92,12 @@
            Derived from the server marker in cardDiscard/discardIntent.ts, so
            it cannot drift between cases. -->
       <div v-if="discard !== undefined" class="con-hand__discard" role="status">
-        <span class="con-hand__discard-mark" aria-hidden="true">⌫</span>
+        <!-- A colony-bonus discard leads with the demanding PLANET itself —
+             the source is a place the player can recognize, not just the
+             word «Колония» (the plate replaced the separate source-chip row
+             the colonies section used to draw above the grid). -->
+        <span v-if="discardPlanetClass !== ''" class="con-hand__discard-planet" :class="discardPlanetClass" aria-hidden="true"></span>
+        <span v-else class="con-hand__discard-mark" aria-hidden="true">⌫</span>
         <span class="con-hand__discard-ask">{{ discardAsk }}</span>
         <span class="con-hand__discard-sep" aria-hidden="true">·</span>
         <span class="con-hand__discard-src">{{ discardSource }}</span>
@@ -558,14 +563,26 @@ export default defineComponent({
         translateText(headline.key) :
         translateTextWithParams(headline.key, [String(headline.amount)]);
     },
-    /** WHO demands it: the source card's name when there is one, else the kind
-     *  («Колония» / «Правило игры») — never a bare unexplained ask. */
+    /** WHO demands it: the source card's name when there is one, the COLONY's
+     *  own name for a colony bonus (its planet mini stands beside it), else
+     *  the kind («Правило игры») — never a bare unexplained ask. */
     discardSource(): string {
       const intent = this.discard;
       if (intent === undefined) {
         return '';
       }
-      return intent.card !== undefined ? translateText(intent.card) : translateText(intent.sourceKey);
+      if (intent.card !== undefined) {
+        return translateText(intent.card);
+      }
+      if (intent.colonyName !== undefined) {
+        return translateText(intent.colonyName);
+      }
+      return translateText(intent.sourceKey);
+    },
+    /** The demanding colony's planet art ('' = not a colony discard). */
+    discardPlanetClass(): string {
+      const name = this.discard?.colonyName;
+      return name === undefined || name === '' ? '' : name.replace(' ', '-') + '-background';
     },
     /** «Бонус колонии 2 из 3» — Pluto resolves one cube at a time. A SINGLE
      *  colony shows the plain «Бонус колонии»: «1 из 1» numbers a sequence
@@ -622,9 +639,16 @@ export default defineComponent({
      *  carry it (the "All" chip shows it otherwise). It NEVER shows "Показано X
      *  из Y" — that would widen the header on a filter toggle and wrap the chips
      *  to a second row (the header must stay a stable height); that count lives
-     *  compactly in the bottom info bar instead (`filteredCountText`). */
+     *  compactly in the bottom info bar instead (`filteredCountText`).
+     *  In SELECT mode the number gets its label — a bare «37» beside the ask
+     *  plate read as an unexplained figure. */
     countText(): string {
-      return this.showFilters ? '' : String(this.totalCount);
+      if (this.showFilters) {
+        return '';
+      }
+      return this.selectActive ?
+        translateTextWithParams('Total cards: ${0}', [String(this.totalCount)]) :
+        String(this.totalCount);
     },
     /** "Показано 8 из 33" — shown ONLY when a tag filter is active (never in
      *  sale mode, where the whole hand is shown), in the bottom info bar (never
