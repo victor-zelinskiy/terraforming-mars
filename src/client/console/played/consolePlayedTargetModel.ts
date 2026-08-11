@@ -603,8 +603,31 @@ const CARD_GAP = 11;
 const SECTION_GAP = 18;
 const SECTION_RAIL_H = 20;
 const OWNER_BAR_H = 28;
-/** The cards row's own vertical padding — where the focus lift happens. */
-const ZONE_PAD_Y = 12;
+/** `.con-ptsel__zone` `padding: .2rem .1rem` — top + bottom. */
+const ZONE_PAD_Y = 8;
+/** `.con-ptsel__owner` `padding: .1rem .1rem .35rem` — top + bottom. */
+const OWNER_PAD_Y = 9;
+/** `.con-ptsel__owner` `gap: .4rem` — the owner bar to its sections. */
+const OWNER_GAP = 8;
+/** `.con-ptsel__cards` `padding: .3rem 0` — where the focus lift happens. */
+const CARDS_PAD_Y = 12;
+
+/**
+ * EVERYTHING INSIDE THE CANDIDATE VIEWPORT THAT IS NOT A CARD, in rem-equivalent
+ * px at ui 1 — the sum the cards must be sized around.
+ *
+ * It used to reserve only the owner bar and one padding (40 px) against a real
+ * 65 px of chrome, so the solver believed in 25 px of room that does not exist.
+ * With two candidates and `overflows: false` the viewport still had ~14 px of
+ * travel and drew a scroll rail — a surface reporting «this does not fit» about
+ * a fit it had itself mis-measured.
+ *
+ * Exported so `playedTargetLayoutContract.spec.ts` can pin every term against
+ * the stylesheet: this is the seam where an innocent `padding` edit silently
+ * re-introduces a scrollbar.
+ */
+export const PLAYED_TARGET_VIEWPORT_CHROME_H =
+  OWNER_BAR_H + ZONE_PAD_Y + OWNER_PAD_Y + OWNER_GAP + CARDS_PAD_Y;
 // (A per-category column cap and a descending zoom scan used to live here.
 //  Both belonged to the old «space to categories first» model: the cap bounded
 //  how many independent columns could exist, and the scan searched for a size
@@ -759,7 +782,7 @@ export function planPlayedTargetSizing(o: PlayedTargetSizingInput): PlayedTarget
   }
   const ownerCols = o.mode === 'split' ? Math.max(1, o.owners.length) : 1;
   const ownerW = (o.availW - (ownerCols - 1) * ownerGap) / ownerCols;
-  const ownerH = o.availH - OWNER_BAR_H * o.ui - ZONE_PAD_Y * o.ui;
+  const ownerH = o.availH - PLAYED_TARGET_VIEWPORT_CHROME_H * o.ui;
   const railH = groups.some((secs) => playedTargetShowsCategoryRails(secs)) ? SECTION_RAIL_H * o.ui : 0;
 
   const shapes = solveGrid(groups, ownerW, ownerH, gap, sectionGap, railH);

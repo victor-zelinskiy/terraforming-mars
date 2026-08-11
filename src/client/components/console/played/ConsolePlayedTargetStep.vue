@@ -141,10 +141,10 @@
                     </span>
                     <span class="con-ptsel__self-name">{{ $t(cand.cardName) }}</span>
                   </span>
-                  <span v-if="showsResource(cand)" class="con-ptsel__self-res">
-                    <i v-if="cand.resourceContext?.icon" class="con-ptsel__res-icon" :class="iconClass(cand.resourceContext.icon)" aria-hidden="true"></i>
-                    <b>{{ cand.resourceContext?.count }}</b>
-                  </span>
+                  <ConsoleCardResourceChip v-if="showsResource(cand)"
+                                           variant="proxy"
+                                           :icon="cand.resourceContext?.icon ?? ''"
+                                           :count="cand.resourceContext?.count ?? 0" />
                   <span v-if="isChosen(cand.cardName)" class="con-ptsel__self-check" aria-hidden="true">{{ pickOrdinal(cand.cardName) }}</span>
                 </div>
                 <div v-else
@@ -155,13 +155,18 @@
                      }"
                      :data-zoom-slot="cand.slotKey">
                   <ConsoleCardFaceLite :name="cand.cardName" />
-                  <!-- CONTEXT-DRIVEN only: a resource badge appears when the
-                       resource IS the choice, never because the card has a
-                       counter (that painted a gold «0» on every building). -->
-                  <span v-if="showsResource(cand)" class="con-ptsel__res">
-                    <i v-if="cand.resourceContext?.icon" class="con-ptsel__res-icon" :class="iconClass(cand.resourceContext.icon)" aria-hidden="true"></i>
-                    <b>{{ cand.resourceContext?.count }}</b>
-                  </span>
+                  <!-- CONTEXT-DRIVEN only: the counter appears when the card's
+                       resource is what the step MOVES, never because the card
+                       happens to have one (that painted a gold «0» on every
+                       building). Once it does appear it appears on EVERY
+                       eligible target, zero included — an empty card answering
+                       with no chip at all reads as «this card does not take
+                       them», which is the opposite of true.
+                       It is a child of the zoomed slot, so it is part of the
+                       card: same scale, same focus lift, same flight. -->
+                  <ConsoleCardResourceChip v-if="showsResource(cand)"
+                                           :icon="cand.resourceContext?.icon ?? ''"
+                                           :count="cand.resourceContext?.count ?? 0" />
                   <span v-if="isChosen(cand.cardName)" class="con-ptsel__lock" aria-hidden="true">{{ pickOrdinal(cand.cardName) }}</span>
                 </div>
               </div>
@@ -255,6 +260,7 @@
 import {defineComponent, PropType, markRaw} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import ConsoleCardResourceChip from '@/client/components/console/played/ConsoleCardResourceChip.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -274,13 +280,16 @@ import {
 /** The sizing used until the first measurement lands (one frame, at most). */
 /** The premium face's unzoomed width — the section span is counted in these. */
 const SLOT_W_PX = 320;
+/** `.con-ptsel { gap: .55rem }` at the 20 px rem base — mirrored here so the
+ *  budget subtracts the gaps the column will actually draw. */
+const PTSEL_COLUMN_GAP_PX = 11;
 
 const UNMEASURED: PlayedTargetSizing =
   {cardZoom: 0.58, gapPx: 11, sectionFlow: 'rows', sectionColumns: 1, rows: 1, perRow: 3, overflows: false};
 
 export default defineComponent({
   name: 'ConsolePlayedTargetStep',
-  components: {ConsoleCardFaceLite, GamepadGlyph, ConsoleScrollArea},
+  components: {ConsoleCardFaceLite, ConsoleCardResourceChip, GamepadGlyph, ConsoleScrollArea},
   props: {
     model: {type: Object as PropType<PlayedTargetModel>, required: true},
     layout: {type: Object as PropType<PlayedTargetLayout>, required: true},
@@ -567,25 +576,60 @@ export default defineComponent({
         return;
       }
       /**
-       * THE STEP'S OWN CAP — «the band's bottom, minus where I start».
+       * THE STEP'S OWN CAP — «the bottom of whatever will actually clip me,
+       * minus where I start», and never taller than that box itself.
        *
-       * Acyclic by construction: the band's height is fixed by the layout, and
-       * this step's TOP is fixed by whatever sits above it. Neither is a
-       * function of the step's own content, which is what makes it safe to
-       * feed straight back into the card sizing. (Measuring the scroll
-       * viewport instead does NOT work: one host stretches it, the other
-       * content-sizes it, so the same read means two different things.)
+       * ⚠️ IT USED TO BE THE BAND'S BOTTOM, and the step does not live on the
+       * band. In the action host it sits FOUR boxes deeper, inside the stage
+       * plate's own scroll area, whose viewport ends `.6rem` above the band
+       * (the plate's bottom padding). Sizing against the band therefore
+       * licensed the step to grow PAST its own container: the outer scroller
+       * gained ~12–24 px of travel — a SECOND vertical rail beside this step's
+       * own, with only two target cards on screen — and what it clipped was the
+       * last element of this column: the status rail, i.e. the Result line.
+       *
+       * The clip box is the honest reference precisely because it is the thing
+       * that decides whether anything scrolls. The band stays in the `min` for
+       * the host that stretches its scroller to the band (the play path), where
+       * the two agree anyway.
+       *
+       * ACYCLIC, and the clamp is what makes it so. `root.top` is read while
+       * this step sits INSIDE that scroller, so a scrolled viewport would hand
+       * back a LARGER budget → a taller step → more to scroll → larger still.
+       * Bounding the budget by the clip box's own height breaks that loop by
+       * construction, at every scroll position.
        */
       const band = root.closest<HTMLElement>('[data-ws-band]');
-      const budget = band !== null ?
-        Math.max(160, band.getBoundingClientRect().bottom - root.getBoundingClientRect().top) :
-        this.bandHeight;
+      // EVERY BOTTOM EDGE BETWEEN THIS STEP AND THE BAND. The band's bottom is
+      // the honest floor, but the step does not sit ON it: in the action host
+      // the stage plate wraps it and keeps `.6rem` of padding below, so a step
+      // sized to the band's bottom ends `.6rem` past the box that clips it. The
+      // outer scroller then gained travel — a SECOND rail with two cards on
+      // screen — and cut the last element of this column, the Result line.
+      //
+      // ⚠️ PADDINGS AND BORDERS ONLY, and that is the whole reason this is safe:
+      // they are fixed by the layout, so none of them is a function of the size
+      // this measurement is about to produce. (Reading the scroll VIEWPORT's own
+      // height instead is the tempting version and it is circular — that box is
+      // `flex: 0 1 auto`, i.e. content-sized, so it reports back whatever the
+      // cards last came out as. It collapsed the budget until a two-card row
+      // stacked vertically.)
+      let inset = 0;
+      for (let el = root.parentElement; el !== null && el !== band; el = el.parentElement) {
+        const cs = getComputedStyle(el);
+        inset += (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+      }
+      const budget = Math.max(160, band !== null ?
+        band.getBoundingClientRect().bottom - root.getBoundingClientRect().top - inset :
+        this.bandHeight);
       this.budgetPx = budget;
       const chrome = (this.$refs.contract as HTMLElement | undefined)?.offsetHeight ?? 0;
       const tabs = (this.$refs.tabs as HTMLElement | undefined)?.offsetHeight ?? 0;
       const rail = (this.$refs.rail as HTMLElement | undefined)?.offsetHeight ?? 0;
-      // The column gaps between contract / tabs / viewport / rail.
-      const gaps = 3 * 11 * conUiScale();
+      // The column gaps of `.con-ptsel` — one FEWER than its children, and the
+      // owner-tabs row is conditional. It was hardcoded to 3, which handed back
+      // 11 px of phantom room on every single-owner step (the common case).
+      const gaps = (tabs > 0 ? 3 : 2) * PTSEL_COLUMN_GAP_PX * conUiScale();
       // The RAIL IS RESERVED FIRST. Its height comes out of the budget before a
       // single card is sized — the cards get what is left, never the other way
       // round. That ordering is what stops an oversized candidate from pushing

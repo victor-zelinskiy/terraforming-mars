@@ -4,7 +4,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {ActionEffect, ActionPreviewStep} from '@/common/models/ActionPreviewModel';
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
-import {playedTargetQuickImpacts} from '@/client/console/played/consolePlayedTargetModel';
+import {playedTargetQuickImpacts, playedTargetShowsResource} from '@/client/console/played/consolePlayedTargetModel';
 
 const input = (cards: ReadonlyArray<{name: string, resources?: number}>, amount?: number): SelectCardModel =>
   ({type: 'card', title: 't', buttonLabel: 'b', cards: cards as ReadonlyArray<CardModel>, min: 1, max: 1, amount} as never);
@@ -211,11 +211,29 @@ describe('consolePlayedTargetPreview — what the rail actually says', () => {
      */
     it('appears only for a step that actually moves the card\'s resource', () => {
       const card = {name: 'A', resources: 4} as unknown as CardModel;
-      expect(playedTargetResourceFor(1, 'animals', card)).to.deep.eq({icon: 'animals', count: 4});
+      expect(playedTargetResourceFor(1, 'animals', card)).to.deep.eq({icon: 'animals', count: 4, showZero: true});
       expect(playedTargetResourceFor(-1, 'animals', card), 'a REMOVAL is just as much a reason to show the count')
-        .to.deep.eq({icon: 'animals', count: 4});
+        .to.deep.eq({icon: 'animals', count: 4, showZero: true});
       expect(playedTargetResourceFor(undefined, 'animals', card)).to.eq(undefined);
       expect(playedTargetResourceFor(0, 'animals', card), 'a zero delta moves nothing').to.eq(undefined);
+    });
+
+    /**
+     * ZERO IS A READING, NOT AN ABSENCE.
+     *
+     * Once the step moves this resource, every candidate the SERVER offered can
+     * by construction hold it — so «сколько там сейчас» is part of the decision
+     * on ALL of them. An empty card answering with no chip at all says something
+     * else entirely («this card does not take floaters»), which is the opposite
+     * of true and the one thing the player would act on. `card.resources` is
+     * omitted rather than sent as 0 for an untouched card, so the absent field
+     * IS the zero.
+     */
+    it('shows a ZERO count for an eligible card that holds none yet', () => {
+      const empty = {name: 'B'} as unknown as CardModel;
+      expect(playedTargetResourceFor(2, 'floater', empty)).to.deep.eq({icon: 'floater', count: 0, showZero: true});
+      expect(playedTargetShowsResource(playedTargetResourceFor(2, 'floater', empty)),
+        'and it is actually rendered').to.eq(true);
     });
   });
 });

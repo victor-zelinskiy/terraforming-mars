@@ -87,6 +87,17 @@ type Readout = {
   heldInHero: boolean,
   heroOpacity: string,
   zoomOpen: boolean,
+  /** Every scroll rail the composer is ADVERTISING (one per real overflow). */
+  rails: number,
+  /** How far the step's status line sticks out of the box that clips it. */
+  railClippedBy: number,
+  /** The resource chip text on each candidate cell, in DOM order. */
+  chips: ReadonlyArray<string>,
+  /** …and whether each carries a real sprite rather than a bare number. */
+  chipsHaveSprite: boolean,
+  /** The «ВЫ ПОЛУЧИТЕ» chip's capsule height and its label's line box. */
+  gainChipH: number,
+  gainLabelH: number,
 };
 
 type Box = {left: number, top: number, width: number, height: number};
@@ -120,6 +131,28 @@ async function readout(page: Page): Promise<Readout> {
       heldInHero: hero !== null && hero.querySelector('.con-zoom-hold') !== null,
       heroOpacity: hero === null ? '' : getComputedStyle(hero).opacity,
       zoomOpen: document.querySelector('dialog.con-zoom[open]') !== null,
+      rails: document.querySelectorAll('.con-composer .con-scroll-area__rail').length,
+      railClippedBy: (() => {
+        const line = document.querySelector('.con-ptsel__rail');
+        if (line === null) {
+          return 0;
+        }
+        // The box that would actually cut it: the nearest scroll viewport.
+        const clip = line.closest('.con-scroll-area__viewport');
+        if (clip === null) {
+          return 0;
+        }
+        return Math.max(0, Math.round(
+          line.getBoundingClientRect().bottom - clip.getBoundingClientRect().bottom));
+      })(),
+      chips: Array.from(document.querySelectorAll('[data-ptsel-cell] .con-cardres'))
+        .map((c) => (c as HTMLElement).innerText.trim()),
+      chipsHaveSprite: Array.from(document.querySelectorAll('[data-ptsel-cell] .con-cardres__icon'))
+        .every((i) => /card-resource-\w|resource_icon--\w/.test(i.className)),
+      gainChipH: Math.round(
+        document.querySelector('.con-composer__hero .action-effect-chip')?.getBoundingClientRect().height ?? 0),
+      gainLabelH: Math.round(
+        document.querySelector('.con-composer__hero-label')?.getBoundingClientRect().height ?? 0),
     };
   });
 }

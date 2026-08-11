@@ -75,6 +75,23 @@ html.console-native {
     --con-chip-icon: 1.3rem;
     --con-chip-pad: 0.3rem 0.65rem 0.3rem 0.4rem;
     --con-chip-note: 0.7rem;
+    /* THE COMPACT INLINE VARIANT — «ВЫ ПОЛУЧИТЕ [icon] +1 на карту» and the
+       Result line's `2 → 3`. Both are RESULT METADATA sitting next to a label,
+       not controls, and the hero chip used to be the system chip PLUS a notch —
+       so the loudest capsule on the screen was the one describing a consequence
+       the player had not chosen yet. It out-shouted the action text, the target
+       card and the confirm button, and its icon alone was taller than the whole
+       «ВЫ ПОЛУЧИТЕ» line.
+       ⚠ The resource sprites are FULL-BLEED FRAMED TILES (the ornate gold frame
+       is baked into the 512² art), so the visible symbol is ~60 % of the box:
+       the icon is set slightly LARGER than the digit's cap height, which lands
+       the two at the same optical weight instead of making the icon dominate. */
+    --con-chip-c-fs: 0.82rem;
+    --con-chip-c-icon: 1.05rem;
+    --con-chip-c-pad: 0.14rem 0.42rem 0.14rem 0.26rem;
+    --con-chip-c-note: 0.62rem;
+    --con-chip-c-gap: 0.22rem;
+    --con-chip-c-radius: 0.5rem;
 }
 
 /* ── THE focus mixin — one ring language for every focused/selected state.
@@ -16736,22 +16753,9 @@ body.con-start-barshold .con-status {
     &__item--current &__label { font-weight: 850; text-shadow: 0 0 .38rem fade(@con-cyan, 12%); }
     &__item--done &__label { font-weight: 760; }
 
-    /* The last node of the last chapter is the scenario seal. It keeps a
-       readable name, but its diamond node and closing cap cannot be mistaken
-       for another category pill and never suggest clickability. */
-    &__item--endpoint {
-        padding-right: .38rem;
-
-        &::after {
-            content: '';
-            flex: 0 0 .14rem;
-            width: .14rem;
-            height: .64rem;
-            margin-left: .02rem;
-            clip-path: polygon(0 0, 100% 18%, 100% 82%, 0 100%, 34% 50%);
-            background: rgba(126, 168, 201, 0.5);
-        }
-    }
+    /* The last node of the last chapter is the scenario seal. Its diamond
+       node distinguishes the terminal point without adding a decorative cap
+       that reads as a stray closing bracket beside the label. */
     &__item--endpoint &__item-node {
         flex-basis: .72rem;
         width: .72rem;
@@ -16764,7 +16768,6 @@ body.con-start-barshold .con-status {
         transform: rotate(45deg) scale(1.03);
         animation-name: con-jrail-endpoint-acquire;
     }
-    &__item--endpoint.con-jrail__item--done::after { background: fade(@con-mint, 82%); }
     &__item--endpoint.con-jrail__item--done &__item-node {
         transform: rotate(45deg);
         box-shadow: 0 0 0 .05rem fade(@con-mint, 36%), 0 0 .44rem fade(@con-mint, 18%);
@@ -18686,6 +18689,9 @@ html.console-mode {
         pointer-events: none;
     }
     &__detail-card {
+        /* See `.con-composer__actcard`: positioned host for the card's own
+           resource chip, inside this thumbnail's zoom. */
+        position: relative;
         zoom: calc(0.58 * var(--con-ui-scale, 1));
         > :is(.card-container, .pcard) { margin: 0; }
         /* The SYNC PULSE: crossing the cursor to another card remounts this
@@ -18879,6 +18885,10 @@ html.console-mode {
         position: relative;
     }
     &__actcard {
+        /* POSITIONED so the card's own resource chip can be absolute INSIDE
+           this zoom context — that is what makes the chip part of the card
+           (same scale, same focus lift) instead of a badge floating beside it. */
+        position: relative;
         zoom: calc(0.85 * var(--con-ui-scale, 1));
         pointer-events: none;
         > :is(.card-container, .pcard) { margin: 0; }
@@ -18917,13 +18927,26 @@ html.console-mode {
     &__hero-label { font-size: .6rem; letter-spacing: .07rem; text-transform: uppercase; color: @con-text-dim; }
     &__hero-chips { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
     &__hero-arrow { font-size: 1.3rem; font-weight: 800; color: fade(@con-cyan, 90%); align-self: center; }
-    /* Hero «списано → получите» leads the hierarchy: one notch above the
-       system chip size (tokens; TV raises the tokens themselves). Doubled
-       chip classes — see the chip-system rule at the top of this file. */
-    &__hero .action-effect-chip.action-effect-chip { font-size: ~"calc(var(--con-chip-fs, .85rem) + .1rem)"; }
+    /* Hero «списано → получите» is RESULT METADATA beside its label, so it
+       takes the COMPACT variant — it used to take the system size plus a notch,
+       which made the consequence chip the loudest object on the screen and read
+       as a call to action. The number stays the accent; the icon comes down to
+       the digit's optical weight; the capsule loses ~35 % of its height, and
+       with it the button silhouette (a modest radius, not a full pill).
+       Doubled chip classes — see the chip-system rule at the top of this file. */
+    &__hero .action-effect-chip.action-effect-chip {
+        font-size: var(--con-chip-c-fs, .82rem);
+        padding: var(--con-chip-c-pad, .14rem .42rem .14rem .26rem);
+        gap: var(--con-chip-c-gap, .22rem);
+        border-radius: var(--con-chip-c-radius, .5rem);
+    }
     &__hero .action-effect-chip__icon.action-effect-chip__icon {
-        width: ~"calc(var(--con-chip-icon, 1.3rem) + .2rem)";
-        height: ~"calc(var(--con-chip-icon, 1.3rem) + .2rem)";
+        width: var(--con-chip-c-icon, 1.05rem);
+        height: var(--con-chip-c-icon, 1.05rem);
+    }
+    &__hero .action-effect-chip__note.action-effect-chip__note,
+    &__hero .action-effect-chip__basis.action-effect-chip__basis {
+        font-size: var(--con-chip-c-note, .62rem);
     }
 
     /* Neutral "your choice" chip (a bare amount with no structural hint). */
@@ -19634,22 +19657,10 @@ html.console-mode {
         font-size: .95rem; font-weight: 900;
         zoom: calc(1 / var(--con-ptsel-zoom, .58));
     }
-    /* THE CONTEXT RESOURCE BADGE. Rendered only when the card's resource is
-       what the step moves (`resourceContext`) — never as a generic counter, and
-       never at zero without an explicit reason. It rides the corner opposite
-       the lock so the two can share a card, and de-zooms so it keeps ONE size
-       whatever the planner sized the faces at. */
-    &__res {
-        position: absolute; top: .3rem; left: .3rem;
-        display: inline-flex; align-items: center; gap: .2rem;
-        padding: .1rem .4rem; border-radius: 49.95rem;
-        background: rgba(8, 16, 26, 0.88);
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%);
-        color: @con-text;
-        zoom: calc(1 / var(--con-ptsel-zoom, .58));
-        b { font-size: .9rem; font-weight: 900; font-variant-numeric: tabular-nums; }
-    }
-    &__res-icon { width: .95rem; height: .95rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+    /* (The candidate's own resource badge is `ConsoleCardResourceChip` now. It
+       used to DE-ZOOM itself to keep one rem size whatever the planner sized
+       the faces at — the opposite of what a physical counter wants. Riding the
+       slot's zoom is what makes it part of the card.) */
 
     /* ── THE SELF-TARGET PROXY. The source card is already on screen in the
        workspace's hero slot; this points AT it instead of drawing a second
@@ -19727,14 +19738,6 @@ html.console-mode {
         font-size: 1rem; font-weight: 800; letter-spacing: .02rem; color: @con-text;
         white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
-    &__self-res {
-        flex: 0 0 auto;
-        display: inline-flex; align-items: center; gap: .25rem;
-        padding: .12rem .45rem; border-radius: 49.95rem;
-        background: rgba(8, 16, 26, 0.85);
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%);
-        b { font-size: .9rem; font-weight: 900; font-variant-numeric: tabular-nums; }
-    }
     /* OUT OF FLOW, exactly like `__lock` on a card cell — a state marker may
        never be a term in the width of the thing it marks. */
     &__self-check {
@@ -19797,13 +19800,17 @@ html.console-mode {
     }
     &__railarrow { flex-shrink: 0; color: fade(@con-cyan, 55%); font-size: .9rem; }
     &__railimpacts { display: inline-flex; align-items: center; gap: .35rem; min-width: 0; flex-wrap: nowrap; }
+    /* The `2 → 3` reading. Same COMPACT family as the hero chip: it must sit on
+       ONE line beside the chosen card's name without the resource sprite
+       deciding that line's height. */
     &__imp {
-        display: inline-flex; align-items: center; gap: .25rem;
+        display: inline-flex; align-items: center; gap: var(--con-chip-c-gap, .22rem);
         flex-shrink: 0;
-        padding: .15rem .5rem; border-radius: 49.95rem;
+        padding: var(--con-chip-c-pad, .14rem .42rem .14rem .26rem);
+        border-radius: var(--con-chip-c-radius, .5rem);
         background: rgba(16, 28, 42, 0.7);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
-        font-size: .78rem;
+        font-size: var(--con-chip-c-fs, .82rem);
         white-space: nowrap;
         /* WHAT IT HAPPENS TO is data, not decoration: a change to the SOURCE
            card reads amber so it can never be mistaken for the player's own
@@ -19827,7 +19834,7 @@ html.console-mode {
             .con-ptsel__imp-delta { color: fade(@con-text-dim, 80%); font-weight: 700; }
         }
     }
-    &__imp-icon { width: 1rem; height: 1rem; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
+    &__imp-icon { width: var(--con-chip-c-icon, 1.05rem); height: var(--con-chip-c-icon, 1.05rem); background-size: contain !important; background-repeat: no-repeat; background-position: center; }
     &__imp-delta { font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; }
 }
 
@@ -20354,22 +20361,6 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     }
     .con-composer__scroll { flex: 0 1 auto; }
 
-    .con-composer__cardmeta {
-        display: inline-flex;
-        align-items: center;
-        gap: .35rem;
-        padding: .3rem .8rem;
-        border-radius: 49.95rem;
-        background: rgba(10, 18, 28, 0.72);
-        box-shadow: inset 0 0 0 .05rem rgba(140, 170, 200, 0.26);
-        font-size: .8rem;
-        color: @con-text-dim;
-        b { font-size: 1rem; font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
-    }
-    .con-composer__cardmeta-icon {
-        width: 1.25rem; height: 1.25rem;
-        background-size: contain !important; background-repeat: no-repeat; background-position: center;
-    }
     /* (No `__cardrole` caption: a local L3 label under the hero took part in
        the column's flex layout and shifted the source card between phases —
        the L3 verb lives in the ONE command bar instead. Any future
@@ -20666,18 +20657,10 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         pointer-events: none;
     }
 
-    /* The SOURCE card's resource counter — the same chip language as the
-       played tableau (.con-played__res), scaled a notch for the hero card. */
-    .con-composer__cardres {
-        top: .25rem;
-        right: -.35rem;
-        min-width: 1.5rem;
-        height: 1.5rem;
-        border-radius: .75rem;
-        font-size: .95rem;
-        &--pop { animation: con-res-pop calc(620ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.9, 0.3, 1.2) 1; }
-    }
-    .con-composer__cardmeta--pop { animation: con-res-pop calc(620ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.9, 0.3, 1.2) 1; }
+    /* (The hero's `__cardres` disc and the `__cardmeta` «N на этой карте» plate
+       are both gone — see `.con-cardres`. The disc named no resource; the plate
+       restated the same number a third time in the ONE column whose geometry
+       must never change between phases. The counter now lives on the card.) */
 
     /* The flying reward icon of the gain beat (revealed card → counter). */
     .con-composer__gainfly {
@@ -20696,12 +20679,6 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     }
 }
 
-/* The counter's one-shot gain pop (badge + the «на этой карте» chip). */
-@keyframes con-res-pop {
-    0% { transform: scale(1); filter: brightness(1); }
-    35% { transform: scale(1.4); filter: brightness(1.65); }
-    100% { transform: scale(1); filter: brightness(1); }
-}
 
 /* ── ACTION COMMIT — the universal activation beat's overlay layer
    (consoleActionCommitMotion.ts). Every visual is a FIXED overlay measured
@@ -20864,8 +20841,6 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     .con-actfocus-outcome-enter-active, .con-actfocus-outcome-leave-active { transition: none; }
     .con-composer--stage .con-composer__revealstatus-spin { animation: none; }
     .con-composer--stage .con-composer__revealslot { transition: none; }
-    .con-composer--stage .con-composer__cardres--pop,
-    .con-composer--stage .con-composer__cardmeta--pop { animation: none; }
 }
 
 /* ── Corp FIRST-ACTION confirm — the play composer's MANDATORY sibling
@@ -20968,7 +20943,7 @@ html.con-profile-handheld .con-ptsel {
     &__rail { height: 2rem; padding-top: .35rem; }
     &__railcard { font-size: .85rem; }
     &__railowner { font-size: .68rem; }
-    &__imp { font-size: .66rem; padding: .1rem .4rem; }
+    /* (`__imp` sizes from the compact chip tokens, compacted above.) */
 }
 
 html.con-profile-handheld .con-composer--embed {
@@ -21101,6 +21076,12 @@ html.con-profile-handheld {
     --con-chip-icon: 1.1rem;
     --con-chip-pad: 0.2rem 0.5rem 0.2rem 0.3rem;
     --con-chip-note: 0.65rem;
+    --con-chip-c-fs: 0.72rem;
+    --con-chip-c-icon: 0.92rem;
+    --con-chip-c-pad: 0.1rem 0.34rem 0.1rem 0.2rem;
+    --con-chip-c-note: 0.56rem;
+    --con-chip-c-gap: 0.18rem;
+    --con-chip-c-radius: 0.42rem;
 
     /* ── 1/2 · root chrome + top HUD ─────────────────────────────── */
     /* The seam TOKENS (not bare gap/width) — every workspace surface's left

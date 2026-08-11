@@ -34,6 +34,7 @@
  */
 import {defineComponent, ref, computed, CSSProperties} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
+import {conUiScale} from '@/client/console/consoleLayoutProfile';
 
 /**
  * How much travel makes the rail worth drawing.
@@ -44,7 +45,19 @@ import {useResizeObserver} from '@vueuse/core';
  * (wheel, ensureVisible), it just stops ADVERTISING a journey the player cannot
  * make. It does NOT have to absorb transient motion any more — see `measure`.
  */
-const RAIL_MIN_TRAVEL_PX = 2;
+const RAIL_MIN_TRAVEL_PX = 4;
+
+/**
+ * …and the threshold is in the SAME SCALE SPACE as everything it measures.
+ *
+ * A flat 2 px is half a logical pixel on a 4K TV profile (`--con-ui-scale` ≈ 2),
+ * i.e. below the rounding noise it exists to absorb — so a decoration poking a
+ * few physical pixels past its box, or a sub-pixel column, advertised a journey
+ * of nothing. Scaling it keeps one meaning on every profile.
+ */
+function railMinTravelPx(): number {
+  return RAIL_MIN_TRAVEL_PX * conUiScale();
+}
 
 export default defineComponent({
   name: 'ConsoleScrollArea',
@@ -113,7 +126,7 @@ export default defineComponent({
         const pos = props.axis === 'y' ? vp.scrollTop : vp.scrollLeft;
         const max = Math.max(0, total - size);
         const was = overflowing.value;
-        overflowing.value = max > RAIL_MIN_TRAVEL_PX;
+        overflowing.value = max > railMinTravelPx();
         ratio.value = total > 0 ? Math.max(0.1, Math.min(1, size / total)) : 1;
         progress.value = max > 0 ? Math.min(1, Math.max(0, pos / max)) : 0;
         if (was !== overflowing.value) {

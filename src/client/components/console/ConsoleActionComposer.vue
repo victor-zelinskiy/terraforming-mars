@@ -45,20 +45,19 @@
             <transition name="con-actfocus-card" mode="out-in">
               <ConsoleCardFaceLite :key="entry.cardName" :name="entry.cardName" />
             </transition>
+            <!-- THE STORED-RESOURCE COUNTER, mounted INSIDE the card's own zoom
+                 context: it is part of the card, so it rides the card's scale,
+                 its focus lift and every flight without a second animation.
+                 It replaces BOTH the old readings — a gold disc carrying a bare
+                 number (no icon: the player had to already know what the card
+                 stores) and the full-width «N на этой карте» plate below, which
+                 said the same fact a third time in the one column whose
+                 geometry must never change between phases. -->
+            <ConsoleCardResourceChip v-if="storedResource !== undefined"
+                                     :icon="storedResource.icon"
+                                     :count="displayedStoredCount"
+                                     :pop="revealGainPop" />
           </div>
-          <!-- The stored-resource counter — the SAME chip the played tableau
-               wears (one counter language everywhere). -->
-          <span v-if="storedResource !== undefined"
-                class="con-played__res con-composer__cardres"
-                :class="{'con-composer__cardres--pop': revealGainPop}">{{ displayedStoredCount }}</span>
-        </div>
-        <!-- The live stored resource on the source card (decision-relevant:
-             most spend-branches consume exactly this pool). -->
-        <div v-if="storedResource !== undefined" class="con-composer__cardmeta"
-             :class="{'con-composer__cardmeta--pop': revealGainPop}">
-          <i class="con-composer__cardmeta-icon" :class="iconClass(storedResource.icon)" aria-hidden="true"></i>
-          <b>{{ displayedStoredCount }}</b>
-          <span>{{ $t('on this card') }}</span>
         </div>
         <!-- (No stage-specific caption under the hero — deliberately. A local
              «L3 ИСТОЧНИК» line shipped once and participated in the column's
@@ -684,6 +683,7 @@ import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/
 import {getCard} from '@/client/cards/ClientCardManifest';
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
 import ConsolePlayedTargetLink from '@/client/components/console/played/ConsolePlayedTargetLink.vue';
+import ConsoleCardResourceChip from '@/client/components/console/played/ConsoleCardResourceChip.vue';
 import {
   buildPlayedTargetModel, planPlayedTargetLayout, findPlayedTargetFocus, reseatPlayedTargetFocus,
   stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner, playedTargetAt,
@@ -802,7 +802,7 @@ export type ComposerOutcome =
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink},
+  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleCardResourceChip},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -3203,7 +3203,7 @@ export default defineComponent({
         // The explicit root ref — NEVER $el (a dev-build root comment makes
         // the template a fragment, whose $el is a Comment node).
         const root = this.$refs.rootEl as HTMLElement | undefined;
-        const to = root?.querySelector<HTMLElement>('.con-composer__cardres');
+        const to = root?.querySelector<HTMLElement>('.con-cardres');
         if (el === undefined || from === undefined || to === null || to === undefined) {
           this.applyRevealGain();
           return;

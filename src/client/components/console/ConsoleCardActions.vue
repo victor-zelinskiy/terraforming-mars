@@ -146,9 +146,12 @@
                  link the descend phrase later deepens). -->
             <div class="con-cardactions__detail-card" :key="focusedTile.cardName">
               <ConsoleCardFaceLite :name="focusedTile.cardName" />
+              <!-- The SAME physical counter every action surface wears, inside
+                   the thumbnail's own zoom so it scales with the face. -->
+              <ConsoleCardResourceChip v-if="focusedGroup !== undefined && focusedGroup.cardResource !== undefined"
+                                       :icon="String(focusedGroup.cardResource.type)"
+                                       :count="focusedGroup.cardResource.count" />
             </div>
-            <span v-if="focusedGroup !== undefined && focusedGroup.cardResource !== undefined"
-                  class="con-played__res">{{ focusedGroup.cardResource.count }}</span>
           </div>
 
           <!-- Prominent availability verdict — tied directly under the card
@@ -496,6 +499,7 @@ import {
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import ConsoleActionComposer, {ComposerOutcome} from '@/client/components/console/ConsoleActionComposer.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
+import ConsoleCardResourceChip from '@/client/components/console/played/ConsoleCardResourceChip.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -544,7 +548,7 @@ type ComposerContext = ActionFlowDraft;
 
 export default defineComponent({
   name: 'ConsoleCardActions',
-  components: {ConsoleActionComposer, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleWsHead, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
+  components: {ConsoleActionComposer, ConsoleCardFaceLite, ConsoleCardResourceChip, ConsoleScrollArea, ConsoleWsHead, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},

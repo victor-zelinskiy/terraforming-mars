@@ -191,8 +191,19 @@ export function playedTargetResourceFor(
   cardResource: string | undefined,
   card: CardModel,
 ): PlayedTargetResourceContext | undefined {
-  if (amount === undefined || amount === 0 || card.resources === undefined) {
+  if (amount === undefined || amount === 0) {
     return undefined;
   }
-  return {icon: cardResource ?? 'resource', count: card.resources};
+  /**
+   * ZERO IS A READING, NOT AN ABSENCE — and it is the whole reason `showZero`
+   * exists. Once the step moves this resource, every candidate the SERVER
+   * offered is by construction a card that can hold it, so «сколько там сейчас»
+   * is part of the decision on all of them. An empty card answering with no chip
+   * at all says something else entirely — «this card does not take floaters» —
+   * which is the opposite of true and the one thing the player would act on.
+   *
+   * `card.resources` is omitted rather than sent as 0 for an untouched card, so
+   * the absent field IS the zero.
+   */
+  return {icon: cardResource ?? 'resource', count: card.resources ?? 0, showZero: true};
 }

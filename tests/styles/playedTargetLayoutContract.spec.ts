@@ -132,6 +132,110 @@ describe('played-target layout contract (LESS ⇄ solver)', () => {
   });
 
   /**
+   * THE VIEWPORT CHROME IS THE SAME SUM IN BOTH PLACES.
+   *
+   * The solver sizes the cards into `availH − chrome`, where `chrome` is every
+   * non-card pixel inside the candidate viewport. It reserved the owner bar and
+   * one padding — 40 px against a real 65 — so it believed in 25 px of room
+   * that does not exist, and a two-card step with `overflows: false` still had
+   * travel and drew a scroll rail. A surface reporting «this does not fit»
+   * about a fit it mis-measured is worse than one that simply does not fit.
+   *
+   * Every term is pinned against the rule it mirrors, because this is the seam
+   * where an innocent `padding` edit silently re-introduces a scrollbar.
+   */
+  it('the candidate viewport reserves exactly the chrome the stylesheet draws', () => {
+    const less = fs.readFileSync(LESS, 'utf8');
+    const scope = blockAfter(less, /^\.con-ptsel\s*\{/m);
+    const model = fs.readFileSync(MODEL, 'utf8');
+
+    /** `padding: a b c` / `padding: a b` / `padding: a` → top + bottom, in px. */
+    const padY = (body: string): number => {
+      const m = /(^|[\s;{])padding:\s*([^;]+);/.exec(body);
+      expect(m, 'the block must declare a padding for this to mean anything').to.not.eq(null);
+      const parts = m![2].trim().split(/\s+/).map((v) => parseFloat(v) * 20);
+      return parts.length >= 3 ? parts[0] + parts[2] : parts[0] * 2;
+    };
+    const num = (name: string): number => {
+      const m = new RegExp(`const ${name} = (\\d+)`).exec(model);
+      expect(m, `${name} must exist`).to.not.eq(null);
+      return Number(m![1]);
+    };
+
+    // ⚠️ Anchored to the START of a selector line. A bare `&__owner` also
+    // matches the tail of `&[data-mode='split'] &__owner`, whose one-line body
+    // carries no padding at all — the guard would then pass or fail on a rule
+    // that is not the one it means.
+    const own = (name: string) => blockAfter(scope, new RegExp(String.raw`\n\s*&__${name}\s*\{`));
+    const zone = own('zone');
+    const owner = own('owner');
+    const cards = own('cards');
+    const ownerbar = own('ownerbar');
+
+    expect(padY(zone), 'ZONE_PAD_Y ⇄ .con-ptsel__zone padding').to.eq(num('ZONE_PAD_Y'));
+    expect(padY(owner), 'OWNER_PAD_Y ⇄ .con-ptsel__owner padding').to.eq(num('OWNER_PAD_Y'));
+    expect(padY(cards), 'CARDS_PAD_Y ⇄ .con-ptsel__cards padding').to.eq(num('CARDS_PAD_Y'));
+
+    const ownerGap = /(^|[\s;{])gap:\s*([\d.]+)rem/.exec(owner);
+    expect(ownerGap, '.con-ptsel__owner must declare a gap').to.not.eq(null);
+    expect(Number(ownerGap![2]) * 20, 'OWNER_GAP ⇄ .con-ptsel__owner gap').to.eq(num('OWNER_GAP'));
+
+    const barH = /height:\s*([\d.]+)rem/.exec(ownerbar);
+    expect(barH, '.con-ptsel__ownerbar must declare a fixed height').to.not.eq(null);
+    expect(Number(barH![1]) * 20, 'OWNER_BAR_H ⇄ .con-ptsel__ownerbar height').to.eq(num('OWNER_BAR_H'));
+
+    // …and the exported sum is the sum, so a new term cannot be added to the
+    // constants without reaching the solver.
+    const total = /PLAYED_TARGET_VIEWPORT_CHROME_H =\s*([^;]+);/.exec(model);
+    expect(total, 'the chrome total must be exported for the solver').to.not.eq(null);
+    for (const term of ['OWNER_BAR_H', 'ZONE_PAD_Y', 'OWNER_PAD_Y', 'OWNER_GAP', 'CARDS_PAD_Y']) {
+      expect(total![1], `${term} must be part of the reserved chrome`).to.include(term);
+    }
+  });
+
+  /**
+   * …and the step's own COLUMN gap, which the budget subtracts once per seam.
+   * It was hardcoded to three seams; a single-owner step (the common case) has
+   * two, so the budget carried 11 px of phantom room straight into the fit.
+   */
+  it('the step column gap is the same number in both places', () => {
+    const less = fs.readFileSync(LESS, 'utf8');
+    const scope = blockAfter(less, /^\.con-ptsel\s*\{/m);
+    // The column gap is the FIRST `gap:` in the `.con-ptsel` block itself.
+    const gap = /(^|[\s;{])gap:\s*([\d.]+)rem/.exec(scope);
+    expect(gap, '.con-ptsel must declare its column gap').to.not.eq(null);
+
+    const step = fs.readFileSync(STEP, 'utf8');
+    const js = /const PTSEL_COLUMN_GAP_PX = (\d+)/.exec(step);
+    expect(js, 'PTSEL_COLUMN_GAP_PX must exist').to.not.eq(null);
+    expect(Number(gap![2]) * 20, `CSS gap ${gap![2]}rem vs PTSEL_COLUMN_GAP_PX ${js?.[1]}`)
+      .to.eq(Number(js![1]));
+  });
+
+  /**
+   * THE CAP IS MEASURED AGAINST THE BOX THAT CLIPS, NOT THE BAND.
+   *
+   * The step sits several boxes inside its host's scroll area, whose viewport
+   * ends short of the band by the stage plate's own padding. Sizing against the
+   * band licensed the step to grow past its container: the OUTER scroller then
+   * had travel — a second vertical rail with two cards on screen — and clipped
+   * the last thing in this column, the Result line.
+   */
+  it('the step subtracts the chrome between itself and the band', () => {
+    const step = fs.readFileSync(STEP, 'utf8');
+    expect(step, 'the budget must walk the ancestors up to the band')
+      .to.match(/for \(let el = root\.parentElement; el !== null && el !== band/);
+    expect(step, 'and subtract their bottom padding + border')
+      .to.match(/paddingBottom[\s\S]{0,140}borderBottomWidth/);
+    // …and NEVER a content-sized box. Reading the scroll viewport's own height
+    // is the tempting version and it is CIRCULAR: that box is `flex: 0 1 auto`,
+    // so it reports back whatever the cards last came out as, and the budget
+    // collapsed until a two-card row stacked vertically.
+    expect(step, 'the budget must not be clamped to a content-sized scroller')
+      .to.not.match(/clip\.clientHeight/);
+  });
+
+  /**
    * THE SELF-TARGET PROXY IS A CELL, NOT A CHIP.
    *
    * `.con-ptsel__cards` is a wrapping flex row bounded by the section's SOLVED

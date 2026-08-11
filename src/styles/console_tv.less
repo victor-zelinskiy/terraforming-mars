@@ -82,6 +82,16 @@ html.con-profile-tv {
     --con-chip-icon: 1.6rem;
     --con-chip-pad: 0.35rem 0.8rem 0.35rem 0.5rem;
     --con-chip-note: 0.8rem;
+    /* The compact inline variant at couch distance — raised by the SAME ratio
+       as the system chip, so the hierarchy the standard profile sets is the one
+       the TV shows. (A compact chip left un-raised here would read as a smaller
+       chip on a bigger screen, which is the readability loss, not the fix.) */
+    --con-chip-c-fs: 1rem;
+    --con-chip-c-icon: 1.3rem;
+    --con-chip-c-pad: 0.16rem 0.5rem 0.16rem 0.32rem;
+    --con-chip-c-note: 0.72rem;
+    --con-chip-c-gap: 0.26rem;
+    --con-chip-c-radius: 0.55rem;
 }
 
 /* ═══ 0b · CONTROLLER GLYPHS — the couch floor, EVERYWHERE ══════════
@@ -1018,7 +1028,8 @@ html.con-profile-tv {
         &__rail { height: 2.8rem; }
         &__railcard { font-size: 1.2rem; }
         &__railowner { font-size: var(--con-t-secondary); }
-        &__imp { font-size: var(--con-t-secondary); }
+        /* (`__imp` takes `--con-chip-c-fs` from the compact token set — one
+           number for the whole inline-chip family, raised once above.) */
     }
 
     /* ═══ 18/19 · CARD PLAY WORKSPACE (embedded) ══════════════════
@@ -1209,11 +1220,6 @@ html.con-profile-tv {
         .con-composer__surface { padding: 0.75rem 0.95rem 0.8rem; }
         .con-composer__panel--stage { width: 100%; max-height: none; }
         .con-composer__actmain--stage { max-width: 86rem; column-gap: 2.2rem; }
-        .con-composer__cardmeta {
-            font-size: var(--con-t-secondary);
-            b { font-size: 1.25rem; }
-        }
-        .con-composer__cardmeta-icon { width: 1.5rem; height: 1.5rem; }
         .con-composer__cta-hint { font-size: var(--con-t-secondary); }
         /* The reveal phase reads at couch weight. */
         .con-composer__revealstatus { font-size: var(--con-t-secondary); }

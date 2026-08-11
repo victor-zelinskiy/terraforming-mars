@@ -317,30 +317,13 @@
         box-shadow: 0 .12rem .5rem rgba(0, 0, 0, 0.5), 0 0 .8rem fade(@con-mint, 35%);
     }
 
-    /* The stored-resource chip. The TABLEAU no longer wears it (stored
-       resources are read in «Информация» → «Доп. ресурсы» and on the card's
-       own face in the fullscreen inspector) — the class stays because the
-       action surfaces (ConsoleCardActions thumbnail, the action composer's
-       card) render the SAME chip on the card they act on, where the count is
-       part of the decision. Do NOT delete: it is a shared chassis class. */
-    &__res {
-        position: absolute;
-        top: .18rem;
-        right: -.28rem;
-        min-width: 1.15rem;
-        height: 1.15rem;
-        padding: 0 .25rem;
-        border-radius: .6rem;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: .72rem;
-        font-weight: 800;
-        color: #08131c;
-        background: linear-gradient(180deg, #ffe9a8, #e8b84e);
-        box-shadow: 0 .1rem .35rem rgba(0, 0, 0, 0.55), inset 0 .05rem 0 rgba(255, 255, 255, 0.6);
-        pointer-events: none;
-    }
+    /* (`&__res` — the gold disc carrying a BARE NUMBER — is gone. It named no
+       resource, so the player had to already know what the card stores, and it
+       was one of four dialects saying the same fact. Every action surface now
+       mounts `ConsoleCardResourceChip` INSIDE the card's own zoom context, so
+       the counter is part of the card rather than a badge floating beside it.
+       `ConsolePlayedPile.spec.ts` still asserts the tableau renders no such
+       chip — that stays true by construction.) */
 
     /* ── the face-down EVENTS pile ───────────────────────────────────── */
     &__backstack {
