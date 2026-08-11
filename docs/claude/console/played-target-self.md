@@ -143,6 +143,97 @@ The source card's identity is read once, from the model's own decision, via
 `playedTargetSourceCardName(owners)` — never re-derived from a card name at a
 call site, which is what would let the two disagree.
 
+## 5 · One counter on the card (`ConsoleCardResourceChip.vue`, `.con-cardres`)
+
+«How many of this card's own resource are on it» was told in four incompatible
+dialects at once: a gold disc carrying a BARE NUMBER (no icon — the player had to
+already know what the card stores), a compact icon+number chip inside the proxy,
+a full-width «2 на этой карте» plate under the hero, and the Result line's
+`2 → 3`. Three of those state the same fact.
+
+The division of labour the chip settles:
+
+| surface | says |
+| --- | --- |
+| the chip ON the card | the CURRENT count. Neutral warm gold. |
+| the chip in the PROXY | the self-target option's own count |
+| the Result / Summary | the PROJECTED change (`2 → 3`). Emerald. |
+
+Green belongs to what WILL happen; a standing quantity is not an event, so it
+never wears the gain colour.
+
+**IT IS PART OF THE CARD, NOT AN OVERLAY ON IT.** The `--card` variant is
+authored in **px** because every console host draws its card inside a CSS `zoom`
+context whose factor already folds in `--con-ui-scale` (`.con-composer__actcard`,
+`.con-ptsel__slot`, `.con-cardactions__detail-card`). A rem child there is scaled
+twice; px puts the chip in the same 320×460 space the card face is measured in,
+so it rides the card's zoom, its focus lift, its scale, a FLIP and the fullscreen
+inspect **by construction** — no second animation to keep in sync, and no
+independent layer to re-position. It crosses the card's painted FRAME (a mounting
+tab on the left rim at mid-height, clear of cost, title, tags, the requirement
+band and the VP) but never the card BOX, so it can never become a container's
+overflow. The one variant that is not on a card (`proxy`) is rem-authored,
+because there it is ordinary UI.
+
+The plate is **dark** on purpose: the resource sprites are full-bleed gold-framed
+tiles (the ornate frame is baked into the 512² art), so a gold plate under one
+doubles the gold.
+
+**ZERO IS A READING, NOT AN ABSENCE.** Once a step moves this resource, every
+candidate the server offered can by construction hold it — so the current amount
+is part of the decision on ALL of them, and `playedTargetResourceFor` returns
+`showZero: true`. An empty card answering with no chip says something else
+entirely («this card does not take floaters»), which is the opposite of true and
+the one thing the player would act on. `card.resources` is omitted rather than
+sent as 0, so the absent field IS the zero.
+
+## 6 · The inline chip scale (`--con-chip-c-*`)
+
+The hero's «ВЫ ПОЛУЧИТЕ [icon] +1 на карту» took the system chip size PLUS a
+notch, so the loudest capsule on the screen described a consequence the player
+had not chosen yet — it out-shouted the action text, the target card and the
+confirm button, and its icon alone was taller than the whole label beside it.
+
+`--con-chip-c-fs / -icon / -pad / -note / -gap / -radius` are the COMPACT variant
+of the existing chip tokens, raised once per profile. They serve the hero chip
+and the Result line's `2 → 3`: both are result METADATA sitting next to a label,
+not controls. The capsule loses ~35 % of its height and the pill becomes a modest
+radius, so the button silhouette goes with it.
+
+⚠️ Size the icon against the **visible symbol**, not the CSS box: the sprite's
+gold frame is ~40 % of the art, so the icon box is set slightly LARGER than the
+digit's cap height to land the two at the same optical weight.
+
+## 7 · Overflow ownership (why two rails appeared with two cards)
+
+Two independent arithmetic errors, neither of them about content:
+
+1. **The cap was measured against the BAND.** The step does not sit on the band —
+   in the action host it is four boxes deeper, inside the stage plate's own
+   scroll area, whose viewport ends `.6rem` above the band. Sized to the band the
+   step grew PAST its container: the outer scroller gained travel (a second rail)
+   and clipped the last element of the step's column — the Result line. The
+   budget now subtracts **every bottom padding + border between the step and the
+   band**. Those are fixed by the layout, so the read stays acyclic.
+   ⚠️ Reading the scroll VIEWPORT's own height instead is the tempting version
+   and it is CIRCULAR: that box is `flex: 0 1 auto`, i.e. content-sized, so it
+   reports back whatever the cards last came out as. It collapsed the budget
+   until a two-card row stacked vertically — a fresh bug wearing the fix's face.
+2. **The solver under-reserved the viewport chrome** — 40 px against a real 65
+   (`PLAYED_TARGET_VIEWPORT_CHROME_H`), plus a hardcoded three column gaps where
+   a single-owner step has two. So a two-card step with `overflows: false` still
+   had travel and advertised a journey of nothing.
+
+`ConsoleScrollArea` was never at fault: its rail is `v-if`-gated on real overflow
+and there is no native scrollbar chrome anywhere in console mode. Its epsilon is
+now scale-aware (`4 × conUiScale()`) — a flat 2 px is half a logical pixel at 4K,
+i.e. below the rounding noise it exists to absorb.
+
+The adaptation ladder is unchanged and already correct: `planPlayedTargetSizing`
+enumerates row shapes and takes the biggest readable card, shrinking before it
+ever reports `overflows` — scrolling is what is LEFT when every arrangement lands
+under the readable floor, never a first resort.
+
 ---
 
 ## Guards
@@ -150,6 +241,9 @@ call site, which is what would let the two disagree.
 | what | where |
 | --- | --- |
 | the proxy's width is bounded by the solved cell; the ✓ is out of flow; no profile override | `tests/styles/playedTargetLayoutContract.spec.ts` |
+| the viewport chrome sum, the column gap, and the acyclic budget | `tests/styles/playedTargetLayoutContract.spec.ts` |
+| zero counts render; the chip carries a real sprite | `tests/client/components/console/consolePlayedTargetPreview.spec.ts` |
+| no scroll rail, no clipped Result line, compact gain chip, chips on every target | `tests/e2e/console-self-target.spec.ts` |
 | the proxy is not a zoom slot, publishes the connector anchor, and the hero publishes the source anchor | `tests/client/components/console/composerRender.spec.ts` |
 | the origin redirection, its host scoping and its degradation | `tests/client/components/console/consolePlayedTargetZoom.spec.ts` |
 | `playedTargetSourceCardName` across owner groups | `tests/client/components/console/consolePlayedTargetModel.spec.ts` |

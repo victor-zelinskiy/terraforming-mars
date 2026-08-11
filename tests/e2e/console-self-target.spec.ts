@@ -180,6 +180,16 @@ async function inspectAndRead(page: Page, tries = 3): Promise<Readout> {
     await page.waitForTimeout(1100);
     last = await readout(page);
     if (last.zoomOpen) {
+      // OPEN is not SETTLED. `showModal` fires at the open flight's touchdown,
+      // and at 4K that flight is long enough to read the state between the
+      // dialog appearing and the origin hold being in place. Poll for the hold
+      // rather than assert on a frame that is still mid-choreography — and
+      // return regardless once the budget is spent, so «open but nothing held»
+      // still reaches the assertion as the real failure it would be.
+      for (let w = 0; w < 6 && last.held === 0; w++) {
+        await page.waitForTimeout(500);
+        last = await readout(page);
+      }
       return last;
     }
     // Not up: give whatever is still holding input room to finish, then nudge

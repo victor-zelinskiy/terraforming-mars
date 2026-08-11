@@ -21076,10 +21076,16 @@ html.con-profile-handheld {
     --con-chip-icon: 1.1rem;
     --con-chip-pad: 0.2rem 0.5rem 0.2rem 0.3rem;
     --con-chip-note: 0.65rem;
-    --con-chip-c-fs: 0.72rem;
-    --con-chip-c-icon: 0.92rem;
+    /* THE DECK COMPACTS THE BOX, NOT THE TEXT. Its system chip already sits on
+       the 7-inch legibility floor (`console-action-focus.spec.ts` pins the hero
+       chip above 15 px), so there is nothing left to take out of the type here —
+       a compact variant that shrinks it anyway is not denser, it is unreadable.
+       The icon, the padding and the radius still come down, which is where the
+       CTA silhouette actually lived. */
+    --con-chip-c-fs: 0.78rem;
+    --con-chip-c-icon: 0.95rem;
     --con-chip-c-pad: 0.1rem 0.34rem 0.1rem 0.2rem;
-    --con-chip-c-note: 0.56rem;
+    --con-chip-c-note: 0.58rem;
     --con-chip-c-gap: 0.18rem;
     --con-chip-c-radius: 0.42rem;
 
