@@ -207,6 +207,26 @@ the table. The gate asked the wrong list:
   is still a timing bug — the fence is now in the e2e (`glideOverReveal`, on
   every Pluto payout watch) and in the unit spec («a trade whose income is a
   DRAW never concludes before its cards exist»).
+- **AND THE STAGE MUST BE BACK, not merely the cards gone.** The payout pose
+  `--handing` takes `.con-colfocus__main` to `opacity: 0` — and the TRACK is
+  drawn there. The pose used to ride the CLAIM, which by design outlives the
+  batch (the resolution owns the workspace until the reset commits), so the
+  colony stayed blank for its own closing beat: a white dot crossing an empty
+  panel. Two halves, both needed:
+  · the pose now rides the PAYOUT (`workingAreaYielded` = the handoff played
+    AND a reveal batch is on the table), so the working area comes back the
+    moment the last card is taken;
+  · the conclusion WAITS for it (`setColonyStageYielded` — published by the
+    stage, consulted only by `maybeAdvance`), and the release is dwelled by
+    the pose's own transition (`WORKING_AREA_BACK_MS`), because a marker
+    launched into the fade is the same fault a third of a second shorter.
+  A stage that UNMOUNTS clears the flag (the discard closes the focus
+  mid-flow; the reset then plays on the restored one, or on the overview
+  tile) — the conclusion may never wait on a screen that no longer exists.
+  Fenced end-to-end: Pluto test 1 now takes the card and watches the closing
+  beat (`markerSeen` + `glideOverReveal` + `glideOverBlankStage`), so «the
+  reset ran at all», «never over an open reveal» and «never over a hidden
+  track» are asserted together.
 
 ### The two traps iteration 2 paid for
 - ⚠️ **The hand-reveal director's `setSection` hook spoke `goBoardHome` for

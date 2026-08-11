@@ -113,7 +113,7 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
    * each of the two events first happened.
    */
   const watching = page.evaluate((budget) => {
-    const out = {glideOverReveal: false, markerAtMs: -1, lastTakeAtMs: -1};
+    const out = {glideOverReveal: false, glideOverBlankStage: false, markerAtMs: -1, lastTakeAtMs: -1};
     (window as unknown as {__miranda?: typeof out}).__miranda = out;
     const t0 = performance.now();
     const visible = (el: Element | null) => el !== null && (el as HTMLElement).getClientRects().length > 0;
@@ -130,6 +130,13 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
         }
         if (cardsOnTable > 0) {
           out.glideOverReveal = true;
+        }
+        // …and the track it crosses must be BACK: the payout pose takes the
+        // stage's working area to opacity 0, and a marker launched into that
+        // fade is a white dot over an empty panel.
+        const main = document.querySelector('.con-colfocus__main');
+        if (main !== null && Number(getComputedStyle(main).opacity || '1') < 0.9) {
+          out.glideOverBlankStage = true;
         }
       }
       if (performance.now() - t0 < budget) {
@@ -199,9 +206,10 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
   await shoot(page, '04-closed');
 
   await watching;
-  const order = await page.evaluate(() => (window as unknown as {__miranda?: {glideOverReveal: boolean, markerAtMs: number, lastTakeAtMs: number}}).__miranda);
+  const order = await page.evaluate(() => (window as unknown as {__miranda?: {glideOverReveal: boolean, glideOverBlankStage: boolean, markerAtMs: number, lastTakeAtMs: number}}).__miranda);
   console.log('── glide ordering ──', JSON.stringify(order));
   expect(order?.glideOverReveal, 'the track marker glided while cards were still on the table').toBeFalsy();
+  expect(order?.glideOverBlankStage, 'the track marker glided over a HIDDEN track').toBeFalsy();
   if ((order?.markerAtMs ?? -1) >= 0 && (order?.lastTakeAtMs ?? -1) >= 0) {
     expect(order?.markerAtMs, 'the track reset started before the payout was collected')
       .toBeGreaterThan(order?.lastTakeAtMs ?? 0);

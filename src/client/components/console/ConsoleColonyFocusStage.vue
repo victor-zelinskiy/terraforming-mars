@@ -56,9 +56,11 @@
             trace, and a zone that dressed itself on ownership alone is what
             stood as an empty dimmed box over Луна's finished trade. */
          'con-colfocus--claimed': outcomeZone,
-         /* READINESS — content has genuinely landed in the zone, so the
-            working area is handed over for real. */
-         'con-colfocus--handing': outcomeHandoffPlayed,
+         /* READINESS — a payout is genuinely STANDING in the zone, so the
+            working area is handed over. It comes BACK the moment the payout
+            leaves (see `workingAreaYielded`): the closing beat — the track
+            reset — plays on the track this pose hides. */
+         'con-colfocus--handing': workingAreaYielded,
        }]"
        :data-colony-intent="intent">
     <div class="con-colfocus__surface" data-unfold-surface>
@@ -636,7 +638,8 @@ import {
   trackResetPosition,
   tradeSteps,
 } from '@/client/components/colonies/colonyTradePlan';
-import {presentedColonyModel, colonyTradeState} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {presentedColonyModel, colonyTradeState, setColonyStageYielded} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {motionMs} from '@/client/components/motion/motionTokens';
 import {colonyBonusEntry, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
 import {cardColonyTradeCard, lockedTradePaymentIndex} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
@@ -668,6 +671,14 @@ type StepRow = {
   iconClass: string,
   step?: Extract<TradeStep, {kind: 'cardTarget'}>,
 };
+/**
+ * How long the working area takes to come BACK once the payout leaves — the
+ * `--handing` release transition in `console.less` (260 ms opacity / 320 ms
+ * transform, the result rail 90 ms behind). The closing beat waits it out, so
+ * the marker never launches into a fading track.
+ */
+const WORKING_AREA_BACK_MS = 340;
+
 type Sub = undefined | 'lanes' | 'track' | 'targets';
 type NoticeRow = {tone: 'warn' | 'info', iconClass: string, text: string};
 type Focusable = {zone: 'pay' | 'step', index: number};
@@ -730,6 +741,8 @@ export default defineComponent({
        *  played for the current claim — drives the `--handing` pose too, so
        *  the CSS dissolve can never run ahead of the phrase. */
       outcomeHandoffPlayed: false,
+      /** The «working area is back» dwell (see the `workingAreaYielded` watcher). */
+      stageBackTimer: undefined as number | undefined,
       /**
        * THIS STAGE SESSION HAS CROSSED THE COMMIT. Latched on `pastCommit`'s
        * rising edge and never dropped (a new colony / a fresh mount resets):
@@ -928,6 +941,22 @@ export default defineComponent({
     /** The teleported follow-up has actually landed in our zone. */
     outcomeContentIn(): boolean {
       return this.outcomeZone && this.workspaceOutcomeState.stage === 'presenting';
+    },
+    /**
+     * IS THE PAYOUT STANDING ON OUR WORKING AREA RIGHT NOW?
+     *
+     * The handoff is one-shot (`outcomeHandoffPlayed` — the phrase plays once
+     * per claim), but the POSE is not: `--handing` takes
+     * `.con-colfocus__main` to `opacity: 0`, and the TRACK is drawn there. The
+     * claim outlives the batch by design (the resolution owns the workspace
+     * until the reset commits), so keeping the pose on the claim left the
+     * colony blank for the closing beat — the white marker glided across an
+     * invisible track. The pose therefore rides the payout ITSELF: while a
+     * reveal batch is on the table (or on its way), and not a frame longer.
+     */
+    workingAreaYielded(): boolean {
+      return this.outcomeZone && this.outcomeHandoffPlayed &&
+        currentRevealEvent() !== undefined;
     },
     /**
      * THE COMMIT BOUNDARY, as this stage sees it: the move is being made or
@@ -1442,6 +1471,33 @@ export default defineComponent({
         this.outcomeHandoffPlayed = false;
       }
     },
+    /**
+     * THE CLOSING BEAT WAITS FOR THIS STAGE. The trade's conclusion (the track
+     * reset) may not start while the track is hidden under the payout — and
+     * not on the frame the pose drops either: the working area fades back over
+     * its own transition, and a marker launched into that fade is the same
+     * «белая точка по пустому интерфейсу», just shorter. The RISE is published
+     * at once (nothing may slip in behind it); the FALL is published after the
+     * pose has settled — a dwell, not a gate (the section's own
+     * COMPLETION_SETTLE precedent), scaled by the speed preset.
+     */
+    workingAreaYielded: {
+      immediate: true,
+      handler(yielded: boolean) {
+        if (this.stageBackTimer !== undefined) {
+          window.clearTimeout(this.stageBackTimer);
+          this.stageBackTimer = undefined;
+        }
+        if (yielded) {
+          setColonyStageYielded(true);
+          return;
+        }
+        this.stageBackTimer = window.setTimeout(() => {
+          this.stageBackTimer = undefined;
+          setColonyStageYielded(false);
+        }, motionMs(WORKING_AREA_BACK_MS));
+      },
+    },
     outcomeContentIn(landed: boolean) {
       if (landed) {
         void this.$nextTick(() => playOutcomeContent(this.$el as HTMLElement));
@@ -1798,6 +1854,14 @@ export default defineComponent({
     consoleColoniesUi.composerSub = '';
     consoleColoniesUi.composerReady = false;
     consoleColoniesUi.composerEditable = false;
+    // A stage that is GONE hides nothing: the closing beat must never wait on
+    // a screen that no longer exists (the discard closes this stage mid-flow,
+    // and the reset then plays on the restored one — or on the overview tile).
+    if (this.stageBackTimer !== undefined) {
+      window.clearTimeout(this.stageBackTimer);
+      this.stageBackTimer = undefined;
+    }
+    setColonyStageYielded(false);
   },
 });
 </script>

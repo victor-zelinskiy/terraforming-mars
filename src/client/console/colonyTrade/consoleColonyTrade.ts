@@ -153,6 +153,12 @@ type TradeCtx = {
    * «not yet», not «none coming». Latched, never re-cleared.
    */
   revealSeen: boolean;
+  /**
+   * The colony's own WORKING AREA is handed over to the payout right now (the
+   * focus stage publishes it). The track is drawn there, so the reset may not
+   * play while it holds — see `setColonyStageYielded`.
+   */
+  stageYielded: boolean;
 };
 const ctx: TradeCtx = {
   manifest: undefined,
@@ -164,6 +170,7 @@ const ctx: TradeCtx = {
   committedTrack: undefined,
   glideStarted: false,
   revealSeen: false,
+  stageYielded: false,
 };
 
 /** Trades already presented this session — a poll replay can never re-play one. */
@@ -469,6 +476,7 @@ export function armColonyTrade(colonyName: ColonyName, color: Color, targets?: C
   ctx.committedTrack = undefined;
   ctx.glideStarted = false;
   ctx.revealSeen = false;
+  ctx.stageYielded = false;
   clearRevealWait();
   colonyTradeState.active = true;
   colonyTradeState.phase = 'armed';
@@ -626,6 +634,30 @@ export async function runColonyTradeRewards(): Promise<void> {
   maybeAdvance();
 }
 
+/**
+ * THE CLOSING BEAT NEEDS ITS STAGE BACK — the colony focus stage publishes
+ * whether its WORKING AREA is currently handed over to the payout.
+ *
+ * The track is drawn in that area, and a payout stands ON it (`--handing`
+ * takes `.con-colfocus__main` to `opacity: 0`). Starting the reset there sent
+ * the white marker gliding across an invisible track — «трек уже бежит по
+ * пустому интерфейсу». The reset is the resolution's LAST beat in every
+ * sense: the cards are taken, the colony is back on screen, and only then
+ * does the marker move.
+ *
+ * Falling edge advances the conclusion; nothing else consults this.
+ */
+export function setColonyStageYielded(yielded: boolean): void {
+  if (ctx.stageYielded === yielded) {
+    return;
+  }
+  ctx.stageYielded = yielded;
+  tradeLog('stage yielded', yielded);
+  if (!yielded) {
+    maybeAdvance();
+  }
+}
+
 /** The layer narrates the card waves (income covers → bonus covers). */
 export function setColonyTradeBeat(beat: ColonyTradeBeat): void {
   if (colonyTradeState.active) {
@@ -710,6 +742,12 @@ function maybeAdvance(): void {
     return;
   }
   if (!ctx.chipsDone || tradeCardsOutstanding()) {
+    return;
+  }
+  // The colony's own track is not on screen yet (its working area is still
+  // handed over to the payout, or coming back from it) — see
+  // `setColonyStageYielded`. Its release calls back here.
+  if (ctx.stageYielded) {
     return;
   }
   const moves = colonyTradeState.postTrackPosition < colonyTradeState.preTrackPosition;
@@ -836,6 +874,7 @@ export function abortColonyTrade(): void {
   ctx.committedTrack = undefined;
   ctx.glideStarted = false;
   ctx.revealSeen = false;
+  ctx.stageYielded = false;
 }
 
 /** Test-only full reset (including the session memories). */

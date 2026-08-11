@@ -145,6 +145,16 @@ type Sighting = {
    * over an open reveal is the «сдвиг трека едет вместе с добором» break.
    */
   glideOverReveal: boolean;
+  /**
+   * THE MARKER FLEW OVER A HIDDEN TRACK. The payout pose (`--handing`) takes
+   * the stage's working area — where the track is drawn — to `opacity: 0`, so
+   * a reset started before it faded back is a white dot crossing an empty
+   * panel.
+   */
+  glideOverBlankStage: boolean;
+  /** The reset marker was seen at all — a fence over the two above is only
+   *  worth anything on a watch where the glide really ran. */
+  markerSeen: boolean;
   /** DIAGNOSTIC timeline (logged, not asserted): the colonies section went
    *  absent after it had been seen (ms into the watch), and the mandatory
    *  announcement card appeared (ms) — either mid-resolution is a lifecycle
@@ -162,7 +172,7 @@ async function watchPayout(page: Page, ms: number): Promise<Sighting> {
       seen: false, inStage: false, embedded: false, fullBleed: false,
       legacyModal: false, workspaceSplit: false, standaloneHand: false,
       focusHandZone: false, emptyStage: false, markerOutsideFocus: false,
-      focusSeen: false, glideOverReveal: false,
+      focusSeen: false, glideOverReveal: false, glideOverBlankStage: false, markerSeen: false,
       coloniesGoneAtMs: -1, announceAtMs: -1,
     };
     w.__pluto = seen;
@@ -255,10 +265,18 @@ async function watchPayout(page: Page, ms: number): Promise<Sighting> {
       if (marker !== null && visible(marker) && document.querySelector('.con-colfocus') === null) {
         seen.markerOutsideFocus = true;
       }
-      // …and it is the LAST beat: never while the player still owes a take.
+      // …and it is the LAST beat: never while the player still owes a take…
       if (marker !== null && visible(marker) &&
           document.querySelectorAll('.con-reveal .con-cards__slot:not(.con-cards__slot--taken)').length > 0) {
         seen.glideOverReveal = true;
+      }
+      // …and never over a working area that has not come back yet.
+      if (marker !== null && visible(marker)) {
+        seen.markerSeen = true;
+        const main = document.querySelector('.con-colfocus__main');
+        if (main !== null && Number(getComputedStyle(main).opacity || '1') < 0.9) {
+          seen.glideOverBlankStage = true;
+        }
       }
       if (document.querySelector('.con-colfocus') !== null) {
         seen.focusSeen = true;
@@ -333,10 +351,26 @@ test('Pluto TRADE: the payout presents inside the colony workspace, never as a b
   expect(seen.focusHandZone, 'the removed focus-stage hand zone mounted').toBeFalsy();
   expect(seen.emptyStage, 'a BLANK colonies stage appeared mid-flow (the empty pause)').toBeFalsy();
   expect(seen.markerOutsideFocus, 'the track-reset marker flew OUTSIDE the colony focus').toBeFalsy();
+  expect(seen.glideOverBlankStage, 'the track reset glided over a HIDDEN track (the payout pose was still up)').toBeFalsy();
   // THE LAST BEAT: this trade moves the track (1 → 0, no colonies built), and
-  // the card is deliberately NOT taken in this test — so the marker must not
+  // the card is deliberately NOT taken up to here — so the marker must not
   // have moved at all yet.
   expect(seen.glideOverReveal, 'the track reset glided while the payout was still on the table').toBeFalsy();
+  expect(seen.markerSeen, 'the reset ran before the card was taken').toBeFalsy();
+
+  // ── THE CLOSING BEAT, watched on its own. Taking the card ends the payout:
+  //    the colony's working area comes BACK (the `--handing` pose releases —
+  //    it is where the track is drawn), and only then does the white marker
+  //    step home. A reset started inside that fade is the reported «трек бежит
+  //    по пустому интерфейсу», so both halves are fenced here.
+  const closing = watchPayout(page, 12_000);
+  await press(page, 'Enter', 3200); // A = take the payout card
+  const end = await closing;
+  console.log('── Pluto closing beat ──', JSON.stringify(end));
+  await shoot(page, '04b-track-reset');
+  expect(end.markerSeen, 'the track reset never played after the payout was collected').toBeTruthy();
+  expect(end.glideOverReveal, 'the reset glided while a card was still owed').toBeFalsy();
+  expect(end.glideOverBlankStage, 'the reset glided over a HIDDEN track (the payout pose was still up)').toBeFalsy();
 });
 
 test('Pluto BUILD: the draw presents inside the colony workspace, never as a band', async ({page, request}) => {
@@ -398,6 +432,7 @@ test('Pluto BUILD: the draw presents inside the colony workspace, never as a ban
   expect(seen.workspaceSplit, 'TWO workspace roots were visible at once').toBeFalsy();
   expect(seen.focusHandZone, 'the removed focus-stage hand zone mounted').toBeFalsy();
   expect(seen.markerOutsideFocus, 'the track-reset marker flew OUTSIDE the colony focus').toBeFalsy();
+  expect(seen.glideOverBlankStage, 'the track reset glided over a HIDDEN track (the payout pose was still up)').toBeFalsy();
 
   // ── NO SIZE JUMP WHEN A CARD IS TAKEN. The reveal's own contract says the
   //    card scale is FIXED for the batch — taking one must re-centre the row,
@@ -504,6 +539,9 @@ test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the
   expect(tail.emptyStage, 'a BLANK stage appeared on the return leg').toBeFalsy();
   expect(tail.focusHandZone, 'the focus-stage hand zone mounted on the return leg').toBeFalsy();
   expect(tail.markerOutsideFocus, 'the track marker flew OUTSIDE the focus on the return leg').toBeFalsy();
+  // The RETURN LEG is where the reset finally plays — on a track that is back.
+  expect(tail.glideOverReveal, 'the reset glided while a card was still owed on the return leg').toBeFalsy();
+  expect(tail.glideOverBlankStage, 'the reset glided over a HIDDEN track on the return leg').toBeFalsy();
   expect(tail.focusSeen, 'the colony FOCUS was never restored after the discard').toBeTruthy();
 
   const seen = seenEarly;
@@ -514,6 +552,7 @@ test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the
   expect(seen.focusHandZone, 'the removed focus-stage hand zone (the B-only intermediate) mounted').toBeFalsy();
   expect(seen.emptyStage, 'a BLANK colonies stage appeared mid-flow (the empty pause)').toBeFalsy();
   expect(seen.markerOutsideFocus, 'the track-reset marker flew OUTSIDE the colony focus').toBeFalsy();
+  expect(seen.glideOverBlankStage, 'the track reset glided over a HIDDEN track (the payout pose was still up)').toBeFalsy();
 });
 
 /**
