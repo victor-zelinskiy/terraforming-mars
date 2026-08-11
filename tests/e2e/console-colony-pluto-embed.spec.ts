@@ -121,6 +121,16 @@ type Sighting = {
   fullBleed: boolean;
   /** Any legacy modal-input surface, ever. */
   legacyModal: boolean;
+  /** TWO workspace roots visible at once (`.con-ws` ×2) — the split screen. */
+  workspaceSplit: boolean;
+  /** A STANDALONE hand workspace root during the payout — the flow break. */
+  standaloneHand: boolean;
+  /** DIAGNOSTIC timeline (logged, not asserted): the colonies section went
+   *  absent after it had been seen (ms into the watch), and the mandatory
+   *  announcement card appeared (ms) — either mid-resolution is a lifecycle
+   *  smell worth reading the log for. */
+  coloniesGoneAtMs: number;
+  announceAtMs: number;
 };
 
 /** Watch the whole payout window from inside the page (a poll from the test
@@ -128,10 +138,47 @@ type Sighting = {
 async function watchPayout(page: Page, ms: number): Promise<Sighting> {
   await page.evaluate((budget) => {
     const w = window as unknown as {__pluto?: Sighting};
-    const seen: Sighting = {seen: false, inStage: false, embedded: false, fullBleed: false, legacyModal: false};
+    const seen: Sighting = {
+      seen: false, inStage: false, embedded: false, fullBleed: false,
+      legacyModal: false, workspaceSplit: false, standaloneHand: false,
+      coloniesGoneAtMs: -1, announceAtMs: -1,
+    };
     w.__pluto = seen;
+    let coloniesSeen = false;
+    // A TRANSITION TIMELINE of the resolution's lifecycle bits — one entry per
+    // state change, so a wrong release names its exact moment and order.
+    const timeline: Array<Record<string, unknown>> = [];
+    let lastKey = '';
+    (seen as unknown as Record<string, unknown>).timeline = timeline;
     const t0 = performance.now();
+    const visible = (el: Element) => (el as HTMLElement).getClientRects().length > 0;
     const tick = () => {
+      const colonies = document.querySelector('.con-colonies');
+      const diagFn = (window as unknown as {__conColonyDiag?: () => Record<string, unknown>}).__conColonyDiag;
+      const d = diagFn !== undefined ? diagFn() : {};
+      const brief = {
+        colonies: colonies !== null,
+        stack: (d.stack as Array<{kind: string}> | undefined)?.map((f) => f.kind).join('>') ?? '',
+        host: d.outcomeHost ?? null,
+        stage: d.outcomeStage ?? '',
+        trade: d.tradeActive === true,
+        live: d.resolutionLive === true,
+        reveal: document.querySelector('.con-reveal') !== null,
+        announce: document.querySelector('.con-mandatory') !== null,
+      };
+      const key = JSON.stringify(brief);
+      if (key !== lastKey && timeline.length < 60) {
+        timeline.push({t: Math.round(performance.now() - t0), ...brief});
+        lastKey = key;
+      }
+      if (colonies !== null) {
+        coloniesSeen = true;
+      } else if (coloniesSeen && seen.coloniesGoneAtMs < 0) {
+        seen.coloniesGoneAtMs = Math.round(performance.now() - t0);
+      }
+      if (seen.announceAtMs < 0 && document.querySelector('.con-mandatory') !== null) {
+        seen.announceAtMs = Math.round(performance.now() - t0);
+      }
       const reveal = document.querySelector('.con-reveal');
       if (reveal !== null) {
         seen.seen = true;
@@ -150,6 +197,18 @@ async function watchPayout(page: Page, ms: number): Promise<Sighting> {
       }
       if (document.querySelector('.mandatory-input-modal, .modal-input-root') !== null) {
         seen.legacyModal = true;
+      }
+      // ONE workspace root, ever. Two visible `.con-ws` roots is the reported
+      // hand+colonies split screen; a visible STANDALONE hand root during a
+      // colony payout is the «COLONIES → HAND» flow break (the mandatory
+      // discard must run EMBEDDED inside the colonies).
+      const roots = Array.from(document.querySelectorAll('.con-ws')).filter(visible);
+      if (roots.length > 1) {
+        seen.workspaceSplit = true;
+      }
+      const hand = document.querySelector('.con-hand.con-ws');
+      if (hand !== null && visible(hand)) {
+        seen.standaloneHand = true;
       }
       if (performance.now() - t0 < budget) {
         requestAnimationFrame(tick);
@@ -186,6 +245,7 @@ test('Pluto TRADE: the payout presents inside the colony workspace, never as a b
   expect(seen.fullBleed, 'the payout mounted OUTSIDE a workspace zone (the full-bleed band)').toBeFalsy();
   expect(seen.embedded, 'the payout did not carry the embedded skin').toBeTruthy();
   expect(seen.inStage, 'the payout did not open inside the colony FOCUS STAGE').toBeTruthy();
+  expect(seen.workspaceSplit, 'TWO workspace roots were visible at once').toBeFalsy();
 });
 
 test('Pluto BUILD: the draw presents inside the colony workspace, never as a band', async ({page, request}) => {
@@ -244,6 +304,7 @@ test('Pluto BUILD: the draw presents inside the colony workspace, never as a ban
   expect(seen.fullBleed, 'the draw mounted OUTSIDE a workspace zone (the full-bleed band)').toBeFalsy();
   expect(seen.embedded, 'the draw did not carry the embedded skin').toBeTruthy();
   expect(seen.inStage, 'the draw did not open inside the colony FOCUS STAGE').toBeTruthy();
+  expect(seen.workspaceSplit, 'TWO workspace roots were visible at once').toBeFalsy();
 
   // ── NO SIZE JUMP WHEN A CARD IS TAKEN. The reveal's own contract says the
   //    card scale is FIXED for the batch — taking one must re-centre the row,
@@ -262,4 +323,78 @@ test('Pluto BUILD: the draw presents inside the colony workspace, never as a ban
     expect(Math.abs(after - before), `the card resized when one was taken (${before} → ${after})`)
       .toBeLessThanOrEqual(2);
   }
+});
+
+/**
+ * THE WHOLE RESOLUTION IS ONE WORKSPACE — the definition-of-done guard.
+ *
+ * Build a colony on Pluto, then TRADE with it: the payout now owes the OWNER
+ * BONUS cycle (draw 1 → MANDATORY discard 1). The contract under test:
+ *  · the colony workspace stays mounted from the confirm to the last settle;
+ *  · the mandatory discard runs on the REAL hand EMBEDDED inside it
+ *    (`.con-colonies .con-hand--embedded`), never as a standalone root;
+ *  · no second workspace root is ever visible (the split screen);
+ *  · no board-level «Получены карты» band, no legacy modal.
+ */
+test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the same workspace', async ({page, request}) => {
+  test.setTimeout(480_000);
+  await boot(page, request, await createGame(request));
+
+  // ── 1 · Build the colony (the test-2 route, condensed). ──────────────────
+  await press(page, 'Comma', 1200);
+  await press(page, 'Enter', 1400);
+  expect(await page.locator('.con-stdp').count(), 'standard projects did not open').toBeGreaterThan(0);
+  const focusedName = async () => (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
+  const walk = ['ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'];
+  for (let i = 0; i < 18 && !/колони/i.test(await focusedName()); i++) {
+    await press(page, walk[i % walk.length], 300);
+  }
+  await press(page, 'Enter', 1800);
+  await page.waitForSelector('.con-colonies', {timeout: 15_000});
+  await openColoniesAndFocus(page, 'Pluto');
+  await press(page, 'Enter', 2000);
+  await press(page, 'Enter', 2600); // A = build confirm
+  // Collect the build's two bonus cards (A per focused card).
+  for (let i = 0; i < 4 && await page.locator('.con-reveal').count() > 0; i++) {
+    await press(page, 'Enter', 2400);
+  }
+  await page.waitForTimeout(2500);
+
+  // ── 2 · Trade with Pluto — the full owner-bonus resolution. ─────────────
+  await openColoniesAndFocus(page, 'Pluto');
+  await press(page, 'Enter', 2000); // descend (trade intent)
+  expect(await page.locator('.con-colfocus').count(), 'the trade stage did not open').toBeGreaterThan(0);
+  const watching = watchPayout(page, 60_000);
+  await page.keyboard.press('KeyX'); // confirm the trade
+  // The payout assembles through fleet → chips → covers: wait for the reveal
+  // to become INTERACTIVE (a focused slot) instead of guessing a delay.
+  await page.waitForSelector('.con-reveal .con-cards__slot--focused', {timeout: 30_000});
+  await shoot(page, '10-own-colony-reveal');
+
+  // ── 3 · Work the table with A: take the income card, let the bonus card's
+  //    on-the-table flip play (a press mid-flip is swallowed by design), take
+  //    it, then the SAME press on the closer opens the mandatory discard —
+  //    which must appear EMBEDDED inside this very workspace.
+  const embeddedHand = page.locator('.con-colonies .con-hand.con-hand--embedded');
+  for (let i = 0; i < 14 && await embeddedHand.count() === 0; i++) {
+    await press(page, 'Enter', 2400);
+  }
+  await shoot(page, '11-own-colony-taken');
+  await expect(embeddedHand, 'the mandatory discard did not open EMBEDDED inside the colony workspace')
+    .toBeVisible({timeout: 12_000});
+  // The crumb still names the workspace root; the seat is standing.
+  expect(await page.locator('.con-colonies').count(), 'the colony workspace was unmounted mid-resolution').toBeGreaterThan(0);
+  await shoot(page, '12-embedded-discard');
+
+  // ── 4 · Discard (single-select: A submits the focused card). ────────────
+  await press(page, 'Enter', 3200);
+  await page.waitForTimeout(3200); // the discard flight + settle
+  await shoot(page, '13-after-discard');
+
+  const seen = await watching;
+  console.log('── Pluto own-colony resolution ──', JSON.stringify(seen));
+  expect(seen.legacyModal, 'a LEGACY modal opened during the resolution').toBeFalsy();
+  expect(seen.fullBleed, 'a payout mounted OUTSIDE a workspace zone during the resolution').toBeFalsy();
+  expect(seen.workspaceSplit, 'TWO workspace roots were visible at once').toBeFalsy();
+  expect(seen.standaloneHand, 'the discard opened a STANDALONE hand workspace').toBeFalsy();
 });

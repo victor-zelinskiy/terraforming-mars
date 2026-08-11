@@ -1127,7 +1127,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
-import {DiscardPromptMeta, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
+import {ColonyBonusDiscardMeta, DiscardPromptMeta, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
@@ -1213,6 +1213,8 @@ import {
   resetWorkspaceStack,
   restoreWorkspaceStack,
   setWorkspaceFramePhase,
+  setWorkspaceFrameServes,
+  setWorkspaceFrameStage,
   workspaceFrameDescended,
   workspaceFrameHasNested,
   workspaceFrameIndex,
@@ -1220,7 +1222,7 @@ import {
   workspaceFramePhase,
   workspaceFrameRenders,
   workspaceFrameSlot,
-  workspaceStackActive,
+  workspaceStackTop,
   workspaceStackBack,
   workspaceStackBackVerb,
   workspaceFrameSubject,
@@ -1244,9 +1246,14 @@ import ConsoleCorpFirstActionConfirm from '@/client/components/console/ConsoleCo
 import ConsoleCardExitLayer from '@/client/components/console/cardDeal/ConsoleCardExitLayer.vue';
 import ConsoleCardDiscardLayer from '@/client/components/console/cardDiscard/ConsoleCardDiscardLayer.vue';
 import {
-  armCardDiscard, cardDiscardTransaction, isCardDiscardActive,
+  armCardDiscard, cardDiscardColonyBonus, cardDiscardTransaction, isCardDiscardActive,
   registerDiscardOverlayHandoff, resetCardDiscard,
 } from '@/client/console/cardDiscard/consoleCardDiscard';
+import {
+  ColonyResolutionSignals, armColonyBonusEntry, clearColonyBonusEntry, colonyBonusDiscardOf,
+  colonyBonusEntry, colonyResolutionColony, colonyResolutionLiveFor, noticeColonyResolutionDiscard,
+  remoteColonyBonusPendingFor, resetColonyResolutionUi,
+} from '@/client/console/colonyTrade/colonyResolution';
 import {discardPhaseInOverlay} from '@/client/console/cardDiscard/discardModel';
 import {
   DiscardIntent, deriveDiscardIntent, discardMetaOf,
@@ -1290,7 +1297,7 @@ import {
 import {CardType} from '@/common/cards/CardType';
 import {
   colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi,
-  colonyFocusState, closeColonyFocus, resetColonyFocus, ColonyFocusIntent,
+  colonyFocusState, closeColonyFocus, openColonyFocus, resetColonyFocus, ColonyFocusIntent,
 } from '@/client/console/consoleColoniesModel';
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
@@ -1339,7 +1346,7 @@ import ConsoleHydroDrawLayer from '@/client/components/console/hydroDraw/Console
 import {armHydroDraw, abortHydroDraw, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
-import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {
@@ -1599,6 +1606,9 @@ export default defineComponent({
       tradeFleetState,
       /** The colony trade-REWARD transaction (the Pluto return-home watcher). */
       colonyTradeState,
+      /** The remote colony-bonus ENTRY context (colonyResolution.ts) — in
+       *  data() so the resolution computeds/watchers track it reliably. */
+      bonusEntry: colonyBonusEntry,
       /** The hydronetwork marker-advance controller (the plan-reset watcher). */
       hydroMarkerState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
@@ -2582,6 +2592,14 @@ export default defineComponent({
       // beat, and the deck-draw scene deals the cards out first — the drawn
       // reveal assembles only after those (same holds as the 'drawn' branch).
       if (this.tilePlacementHolds || deckDrawHolds()) {
+        return false;
+      }
+      // A FOREIGN trade's owner-bonus batch is PARKED behind the mandatory
+      // entry (remoteColonyBonusPending): nothing presents, nothing forces the
+      // player off their screen — the announcement is the door, and opening it
+      // arms the entry, which is what releases this hold. Without it the batch
+      // mounted a full-bleed reveal over wherever the player stood.
+      if (this.remoteColonyBonusPending !== undefined) {
         return false;
       }
       return currentRevealEvent() !== undefined;
@@ -3856,6 +3874,45 @@ export default defineComponent({
       return this.rawDrawnRevealPending &&
         workspaceClaimsColonyReveal(currentRevealEvent()?.source);
     },
+    // ── THE COLONY RESOLUTION (colonyResolution.ts) — the Pluto flow's ONE
+    //    lifecycle. Every signal is authoritative: the server's discard marker,
+    //    the reveal batch's own source, the trade transaction that concludes
+    //    only on the committed track reset, the running discard scene. ──────
+    colonyResolutionSignals(): ColonyResolutionSignals {
+      return {
+        discardMeta: colonyBonusDiscardOf(this.playerView.waitingFor),
+        revealSource: currentRevealEvent()?.source,
+        tradeActive: this.colonyTradeState.active,
+        tradeColony: this.colonyTradeState.colonyName,
+        discardFlightMeta: cardDiscardColonyBonus(),
+        entryColony: this.bonusEntry.colonyName,
+        claimedByColonies: workspaceOutcomeState.host === 'colonies',
+      };
+    },
+    /**
+     * THE PLUTO CLOSE GATE: while true, the colony workspace is the flow's one
+     * interaction owner — it may collapse (the decision stays live) but never
+     * unmount, and no reveal / discard of this resolution may open a second
+     * root beside it. An empty reveal between two bonus cycles, a pending
+     * discard whose batch was fully taken, the closing track glide — each
+     * keeps exactly one term true until the next takes over.
+     */
+    colonyResolutionLive(): boolean {
+      return colonyResolutionLiveFor(this.colonyResolutionSignals);
+    },
+    /** The colony this resolution belongs to ('' when nothing is owed). */
+    colonyResolutionColonyName(): string {
+      return colonyResolutionColony(this.colonyResolutionSignals);
+    },
+    /**
+     * A FOREIGN trade's owner bonus is waiting for its ENTRY: the batch/discard
+     * exist, the viewer neither traded nor entered yet. While this holds the
+     * presentation is parked behind the mandatory announcement — the plate
+     * blinks, nothing force-opens, and the announce's press is the one door.
+     */
+    remoteColonyBonusPending(): {colonyName: string} | undefined {
+      return remoteColonyBonusPendingFor(this.colonyResolutionSignals);
+    },
     // ── THE COLONY EMBED — SelectColony inside a live workspace flow ──────
     /** A SelectColony prompt stands, structurally (no admission gating — the
      *  latch must land before any surface routing runs). */
@@ -3864,13 +3921,17 @@ export default defineComponent({
     },
     /**
      * The colony FOLLOW-UP is still running: the prompt itself, the armed
-     * fleet flight, the reward transaction, or the claimed Pluto payout. The
-     * colonies FRAME lives exactly as long as this does.
+     * fleet flight, the reward transaction, the claimed Pluto payout — or ANY
+     * leg of the colony RESOLUTION (a mandatory bonus discard, its physical
+     * flight, an armed remote-bonus entry). The colonies FRAME lives exactly
+     * as long as this does: the reported «COLONIES → MODAL → HAND» break was
+     * this list missing the resolution's middle legs.
      */
     colonyFollowUpLive(): boolean {
       return this.colonyPromptRaw || this.colonyTradeState.active ||
         this.tradeFleetState.active || isColonyBuildActive() ||
-        workspaceOutcomeState.host === 'colonies';
+        workspaceOutcomeState.host === 'colonies' ||
+        this.colonyResolutionLive;
     },
     /**
      * The zone the colonies section is TELEPORTED into — published by the
@@ -5242,6 +5303,42 @@ export default defineComponent({
         this.bringColoniesHome();
       }
     },
+    /**
+     * THE COLONY RESOLUTION'S LIFECYCLE — one watcher, both edges.
+     *
+     * RISING: the workspace crosses the commit boundary for the whole span of
+     * the resolution. The frame's phase goes `committed` (B = «свернуть», the
+     * crumb's accent turns amber, `hosts: 'inFlow'` starts answering — the
+     * hand can now mount INSIDE as a step), and the frame EARNS `handSelect`
+     * so the leak detector knows the mandatory discard is served here.
+     *
+     * FALLING: the resolution is over — no pending input, no flight, the
+     * track reset committed. Only now the claim releases, the serves shrink
+     * back, and the phase returns to the player's own depth. This is the ONE
+     * close gate the task demanded: nothing folds earlier.
+     */
+    colonyResolutionLive(live: boolean, was: boolean): void {
+      if (live && !was) {
+        resetColonyResolutionUi(); // a fresh resolution starts a fresh receipt
+        if (workspaceFrameMounted('colonies')) {
+          setWorkspaceFramePhase('colonies', 'committed');
+          setWorkspaceFrameServes('colonies', ['colony', 'handSelect']);
+        }
+        return;
+      }
+      if (!live && was) {
+        clearColonyBonusEntry();
+        if (workspaceOutcomeState.host === 'colonies') {
+          releaseWorkspaceOutcome();
+        }
+        if (workspaceFrameMounted('colonies')) {
+          setWorkspaceFrameServes('colonies', ['colony']);
+          if (!workspaceFrameHasNested('colonies')) {
+            setWorkspaceFramePhase('colonies', this.colonyFocus.open ? 'configure' : 'browse');
+          }
+        }
+      }
+    },
     // The closing track glide measures the traded tile's own track cells —
     // the section must be mounted for the marker to physically step home.
     'colonyTradeState.glideNonce'() {
@@ -5461,7 +5558,13 @@ export default defineComponent({
     // away, and a frame cannot be removed from under the step it is carrying.
     // That guard-plus-write pair was the soft-lock.
     'consoleState.section'(section: string) {
-      if (section !== 'colonies' && this.colonyFocus.open) {
+      // `section` is a PROJECTION of the deepest frame — a hand step nested
+      // INSIDE the colonies projects 'hand' while the focus stage is still
+      // the standing host of its zone, and a PARKED resolution must come back
+      // at full depth. The stage therefore resets only when the colonies
+      // frame is genuinely GONE (neither live nor parked) — «the section
+      // moved» alone is not «the player left».
+      if (section !== 'colonies' && this.colonyFocus.open && !workspaceFrameKnown('colonies')) {
         resetColonyFocus();
         resetConsoleColoniesUi();
       }
@@ -5774,6 +5877,11 @@ export default defineComponent({
      * exist, which is the whole bug this flow exists to fix.
      */
     'cardDiscardTransaction.phase'(phase: string, was: string | undefined): void {
+      // A COLONY-BONUS discard's physical landing writes the resolution's
+      // receipt: the «СБРОШЕНО» seat keeps the count between cycles.
+      if (phase === 'landing' && cardDiscardColonyBonus() !== undefined) {
+        noticeColonyResolutionDiscard();
+      }
       // The hand-off itself is AWAITED by the sequence (phase D calls
       // `handOffHandForDiscard`), so nothing is closed from here — a watcher
       // firing alongside the orchestrator is exactly how the two used to race.
@@ -5873,6 +5981,13 @@ export default defineComponent({
         return;
       }
       if (!was) {
+        return;
+      }
+      // A COLONY RESOLUTION between two of its legs (the batch was collected,
+      // the mandatory discard / the next bonus cycle / the track reset is still
+      // owed): the claim is the flow's ownership and stays — its release
+      // belongs to the resolution's own falling edge, never to one leg's end.
+      if (workspaceOutcomeState.host === 'colonies' && this.colonyResolutionLive) {
         return;
       }
       void this.$nextTick(() => {
@@ -6200,13 +6315,16 @@ export default defineComponent({
         return;
       }
       // Nothing open → a screen of its own. Standing INSIDE a flow that can host
-      // a step → a step of it. Standing inside one that cannot (a colony pick
-      // whose payout owes a Pluto discard) → an OVERLAY: the hand takes the
-      // screen and the flow waits underneath, exactly as the pick bridge does.
-      // Never a lateral `enterWorkspace` there — that would unwind the very
-      // flow that is asking for the card.
+      // a step → a step of it (the colony resolution's mandatory discard, the
+      // start's play-from-hand prelude — ONE workspace root either way). Only a
+      // frame genuinely MID-FLOW that cannot host earns an OVERLAY (the pick
+      // bridge, whose surface below hides itself); a stack idling at its browse
+      // layer is a lateral move — overlaying it painted TWO live workspaces
+      // side by side (the reported hand + colonies split screen).
       const host = opts?.overlay === true ? undefined : workspaceHostForStep();
-      if (host === undefined && !workspaceStackActive()) {
+      const top = workspaceStackTop();
+      if (host === undefined && opts?.overlay !== true &&
+          (top === undefined || top.phase === 'browse')) {
         enterWorkspace('hand');
         return;
       }
@@ -6257,6 +6375,84 @@ export default defineComponent({
         return;
       }
       enterWorkspace('colonies', {anchor: {type: 'prompt', promptType: 'colony'}});
+      // A workspace re-entered MID-RESOLUTION (a reload, a self-heal) stands
+      // straight at the resolution's own depth: committed, hosting, serving
+      // the mandatory discard — the rising-edge watcher fired long ago.
+      if (this.colonyResolutionLive) {
+        setWorkspaceFramePhase('colonies', 'committed');
+        setWorkspaceFrameServes('colonies', ['colony', 'handSelect']);
+      }
+    },
+    /** Land the cursor on the first pickable card of a hand select. */
+    focusFirstSelectableHandCard(): void {
+      const selectable = new Set(this.handSelectSelectableNames);
+      const idx = this.handEntries.findIndex((e) => selectable.has(e.card.name));
+      this.consoleState.handIndex = idx !== -1 ? idx : 0;
+    },
+    /**
+     * THE OWNER-BONUS ENTRY — the colony workspace opens DIRECTLY on the
+     * colony's focus stage in its bonus context (never the overview: the
+     * player is here to answer one colony's payout). Used by the remote
+     * entry (another player traded) and by a reload straight into the
+     * resolution; the viewer's own trade is already standing here.
+     *
+     * The TRADER is authoritative game state: the trade parked their fleet on
+     * the colony (`visitor`), so the stage can honestly say whose trade
+     * triggered the bonus without a new server field.
+     */
+    enterColonyBonusStage(colonyName: string): void {
+      const colony = this.coloniesForRail.find((c) => c.name === colonyName);
+      const traderColor = colony?.visitor;
+      const trader = traderColor !== undefined ?
+        this.playerView.players.find((p) => p.color === traderColor) : undefined;
+      armColonyBonusEntry(colonyName as ColonyName, trader !== undefined ?
+        {color: trader.color, name: participantDisplayName(trader)} : undefined);
+      if (!workspaceFrameMounted('colonies')) {
+        enterWorkspace('colonies', {anchor: {type: 'prompt', promptType: 'card'}});
+      }
+      setWorkspaceFramePhase('colonies', 'committed');
+      setWorkspaceFrameServes('colonies', ['colony', 'handSelect']);
+      const idx = this.coloniesForRail.findIndex((c) => c.name === colonyName);
+      this.consoleState.colonyIndex = idx !== -1 ? idx : 0;
+      if (!this.colonyFocus.open) {
+        openColonyFocus(colonyName as ColonyName, 'inspect');
+      }
+      // The workspace claims the payout: the reveal presents INSIDE it and the
+      // deck-draw scene SERVES the claim (the cards honestly come off the deck
+      // and fly into the embedded slots — the start-host pattern). No execution
+      // beat exists for an entry, so it is marked done outright.
+      if (workspaceOutcomeState.host !== 'colonies') {
+        claimWorkspaceOutcome('colonies', colonyName, ['draw']);
+        markWorkspaceOutcomeArrivalDone();
+      }
+      markWorkspaceOutcomeBeatDone();
+    },
+    /**
+     * A COLONY-BONUS DISCARD routed to its owner. Two moments reach here:
+     *  · the ENTRY (remote bonus / reload) — the batch is still on the table:
+     *    the workspace + bonus stage open and the reveal runs its course; the
+     *    discard step opens later from the reveal's own closer;
+     *  · the CLOSER (every card taken) — the hand mounts INSIDE the colony
+     *    workspace as a step (`hosts: 'inFlow'`), and the crumb reads
+     *    «КОЛОНИИ › <колония> › СБРОС КАРТЫ». Never a second workspace root.
+     */
+    openColonyBonusDiscard(meta: ColonyBonusDiscardMeta): void {
+      if (!workspaceFrameMounted('colonies')) {
+        this.enterColonyBonusStage(meta.colonyName);
+      } else {
+        setWorkspaceFramePhase('colonies', 'committed');
+        setWorkspaceFrameServes('colonies', ['colony', 'handSelect']);
+      }
+      const ev = currentRevealEvent();
+      const untaken = ev === undefined ? 0 : ev.cards.length - ev.takenIndices.size;
+      if (untaken > 0) {
+        // The bonus card must be COLLECTED first — the reveal owns the screen
+        // and its closer brings the flow back here once everything is taken.
+        return;
+      }
+      this.openHandWorkspace();
+      setWorkspaceFrameStage('hand', 'Discarding a card');
+      this.focusFirstSelectableHandCard();
     },
     /**
      * THE HAND'S EXIT once it has answered. An OVERLAY hand pops, uncovering
@@ -6264,7 +6460,11 @@ export default defineComponent({
      * player is standing in alone has nothing under it and goes home.
      */
     leaveHandAfterAnswer(): void {
-      if (workspaceFrameIsOverlay('hand')) {
+      // A HOSTED hand — an overlay (pick bridge) or an embedded step (the
+      // colony resolution's discard) — pops one level, uncovering the flow
+      // that asked for the card exactly where it was left. Only a hand the
+      // player stood in alone goes home.
+      if (workspaceFrameHost('hand') !== undefined) {
         leaveWorkspace();
         return;
       }
@@ -7694,6 +7894,19 @@ export default defineComponent({
       // so an X-opened dossier during a SelectColony pick closes to the grid
       // instead of deferring the whole prompt.
       if (this.colonyFocusOpen) {
+        // …but PAST THE COMMIT the stage IS the resolution's scene (the payout,
+        // the bonus cycles, the mandatory discard). B there means «свернуть» —
+        // the whole workspace parks and the decision stays live on the board's
+        // return card — never a fold that would tear the reveal out from under
+        // its own flow, and never a way around a mandatory step. The FRAME's
+        // phase is the discriminator (set by the resolution's own lifecycle),
+        // so a casual inspect while someone ELSE's payout is pending still
+        // closes normally.
+        if (this.colonyResolutionLive &&
+            isCommitted(workspaceFramePhase('colonies') ?? 'browse')) {
+          this.collapseWorkspace();
+          return;
+        }
         closeColonyFocus();
         return;
       }
@@ -8557,6 +8770,13 @@ export default defineComponent({
       if (this.colonyEmbedActive || this.shellTaskActive) {
         return; // an embedded host / the next effect continues the sequence
       }
+      // THE RESOLUTION'S LAST NET: whatever local edge fired this completion,
+      // the workspace never goes home while the viewer still owes a Pluto
+      // follow-up (a pending discard, a flight, a parked batch). The gate has
+      // one owner (colonyResolutionLive); this is its enforcement here.
+      if (this.colonyResolutionLive) {
+        return;
+      }
       if (this.consoleState.section === 'colonies') {
         goBoardHome();
       }
@@ -8871,13 +9091,19 @@ export default defineComponent({
         return;
       }
       if (task.kind === 'handSelect') {
+        // A COLONY-BONUS discard (Pluto's «draw 1, discard 1») is a PHASE of
+        // the colony resolution, never a screen of its own — the whole flow
+        // stays inside the ONE colony workspace.
+        const bonus = colonyBonusDiscardOf(this.playerView.waitingFor);
+        if (bonus !== undefined) {
+          this.openColonyBonusDiscard(bonus);
+          return;
+        }
         // MANDATORY pick from hand (discard / reveal / place): open the hand
         // carousel in select mode + land on the first PICKABLE card so A means
         // something at once. Picks/filter are reset by the prompt-change watcher.
         this.openHandWorkspace();
-        const selectable = new Set(this.handSelectSelectableNames);
-        const idx = this.handEntries.findIndex((e) => selectable.has(e.card.name));
-        this.consoleState.handIndex = idx !== -1 ? idx : 0;
+        this.focusFirstSelectableHandCard();
         return;
       }
       if (task.kind === 'projectCard') {
@@ -8942,6 +9168,14 @@ export default defineComponent({
      */
     onEmbeddedDrawnComplete(): void {
       const host = workspaceOutcomeState.host;
+      // A COLONY RESOLUTION outlives any one of its batches: the mandatory
+      // discard, the next colony's cycle and the closing track reset are still
+      // this claim's flow. The claim releases on the RESOLUTION's own falling
+      // edge (the colonyResolutionLive watcher) — releasing per batch is what
+      // used to fold the workspace between the reveal and the discard.
+      if (host === 'colonies' && this.colonyResolutionLive) {
+        return;
+      }
       releaseWorkspaceOutcome();
       // The COLONY host has nothing to fold: the section IS the surface, and
       // the trade transaction (glide → settle) finishes on the browse grid
@@ -9043,6 +9277,10 @@ export default defineComponent({
           this.rawDrawnRevealPending ||
           deckDrawHolds() ||
           consoleActionComposerUi.revealClaim !== '' ||
+          // The COLONY claim spans its whole resolution — the mandatory bonus
+          // discard is a handSelect the workspace itself hosts, never «the
+          // server asked for something else».
+          (workspaceOutcomeState.host === 'colonies' && this.colonyResolutionLive) ||
           // The prompt exists but the gate is still holding it: it may yet be
           // ours once it opens.
           (this.hostServesPrompt && this.hostTask === undefined);
@@ -9087,6 +9325,16 @@ export default defineComponent({
       // which had to re-derive which surface to re-open.
       if (workspaceStackCollapsed()) {
         restoreWorkspaceStack();
+        // A COLONY RESOLUTION comes back on its focus stage (the section's
+        // unmount closed it with the park): the source, the payout zone and
+        // the «СБРОШЕНО» seat live there — never the overview grid.
+        if (this.colonyResolutionLive && workspaceFrameMounted('colonies') &&
+            !this.colonyFocus.open) {
+          const name = this.colonyResolutionColonyName;
+          if (name !== '') {
+            openColonyFocus(name as ColonyName, 'inspect');
+          }
+        }
         return;
       }
       if (this.hostTask === undefined && !this.startSceneServes && this.shellTask !== undefined) {
@@ -10140,6 +10388,12 @@ export default defineComponent({
       sponsorEmbed: this.startSponsorEmbed,
       taskDeferred: this.consoleState.task.deferred,
       wfType: this.playerView.waitingFor?.type ?? null,
+      // The COLONY RESOLUTION's lifecycle, for the e2e timeline probes.
+      outcomeHost: workspaceOutcomeState.host ?? null,
+      outcomeStage: workspaceOutcomeState.stage,
+      tradeActive: colonyTradeState.active,
+      resolutionLive: this.colonyResolutionLive,
+      revealPending: this.rawDrawnRevealPending,
     });
     // Phase D of the discard cinematic reuses the ORDINARY hand-close episode;
     // the transaction awaits this instead of the shell watching a phase.

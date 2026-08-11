@@ -137,6 +137,17 @@
 .con-reveal__strip .con-reveal__bonus-zone > .con-cards__slot--focused {
     transform: translateY(-.4rem) scale(1.1);
 }
+/* EMBEDDED IN A WORKSPACE ZONE: the zone clips at its edge (overflow is the
+   stage's own contract), so the strip must RESERVE the room the bonus frame
+   claims outside its content box (the ::before overhang + the zone's own
+   margin) — measured by the fit as ordinary padding, so the solved card size
+   accounts for it and neither the frame, the focus ring nor the glow can be
+   cut by the stage boundary. */
+.con-reveal--embedded .con-reveal__strip:has(.con-reveal__bonus-zone) {
+    padding-left: 1.7rem;
+    padding-right: 1.7rem;
+    padding-top: 1.7rem; /* the floating zone label sits above the row */
+}
 
 /* ── The colony tile during the transaction ────────────────────────────── */
 

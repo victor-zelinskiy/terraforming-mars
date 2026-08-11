@@ -20,7 +20,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
-import {DiscardPromptMeta} from '@/common/models/PlayerInputModel';
+import {ColonyBonusDiscardMeta, DiscardPromptMeta} from '@/common/models/PlayerInputModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -103,6 +103,16 @@ export function isCardDiscardArmed(): boolean {
 
 export function isCardDiscardActive(): boolean {
   return cardDiscardTransaction.active;
+}
+
+/**
+ * The COLONY-BONUS marker of the discard being disposed of right now, if the
+ * running scene is closing a colony payout (Pluto). The colony RESOLUTION's
+ * lifecycle reads this: the workspace that hosts the flow may not fold while
+ * the chosen card is still physically leaving the hand.
+ */
+export function cardDiscardColonyBonus(): ColonyBonusDiscardMeta | undefined {
+  return cardDiscardTransaction.active ? armed?.meta?.colonyBonus : undefined;
 }
 
 /**

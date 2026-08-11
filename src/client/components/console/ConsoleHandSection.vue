@@ -567,11 +567,16 @@ export default defineComponent({
       }
       return intent.card !== undefined ? translateText(intent.card) : translateText(intent.sourceKey);
     },
-    /** «Бонус колонии 2 из 3» — Pluto resolves one cube at a time. */
+    /** «Бонус колонии 2 из 3» — Pluto resolves one cube at a time. A SINGLE
+     *  colony shows the plain «Бонус колонии»: «1 из 1» numbers a sequence
+     *  that does not exist, and the player reads it as a progress bar. */
     discardSequence(): string {
       const seq = this.discard?.sequence;
       if (seq === undefined) {
         return '';
+      }
+      if (seq.total <= 1) {
+        return translateText('Colony bonus');
       }
       return translateTextWithParams('Colony bonus ${0} of ${1}', [String(seq.index), String(seq.total)]);
     },

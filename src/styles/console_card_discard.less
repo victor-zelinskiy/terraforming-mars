@@ -115,6 +115,16 @@
     pointer-events: none;
     animation: con-discard-trayin calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1) 1 both;
 }
+/* SEATED IN THE COLONY WORKSPACE: a colony-bonus discard lands in the
+   resolution's own «СБРОШЕНО» seat (the tray is teleported into the focus
+   stage's hero column), so the pile is part of the scene that earned the
+   cost — the fixed corner berth stays only as the collapsed-workspace
+   fallback. In-flow: the seat's own layout is the geometry. */
+.con-discard__tray--seated {
+    position: static;
+    left: auto;
+    top: auto;
+}
 @keyframes con-discard-trayin {
     from { opacity: 0; transform: translateY(.7rem) scale(0.93); }
     to { opacity: 1; transform: none; }

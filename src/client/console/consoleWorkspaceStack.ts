@@ -166,7 +166,15 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
   },
   'colonies': {
     root: 'Colonies', rootSelector: '.con-colonies', section: 'colonies',
+    // (`handSelect` is EARNED at runtime, never a default: the shell adds it
+    // to the live frame's `serves` for the span of a colony RESOLUTION —
+    // Pluto's «draw 1, discard 1» — so a colonies screen idling at its browse
+    // layer can never mask an unrelated stranded hand pick.)
     serves: ['colony'],
+    // A colony flow hosts steps of its own resolution (the Pluto discard runs
+    // on the real hand INSIDE this workspace). `inFlow`: at the browse layer
+    // there is no flow for a follow-up to belong to.
+    hosts: 'inFlow',
   },
   'hydro': {
     root: 'Mars Hydronetwork', rootSelector: '.con-hydro', section: 'hydro',

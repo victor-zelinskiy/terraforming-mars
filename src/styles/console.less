@@ -9798,6 +9798,15 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         > * { pointer-events: auto; }
         .con-reveal { max-height: 100%; }
     }
+    /* The HAND STEP's section-level zone (a reload straight into the
+       mandatory discard, focus stage down): the embedded hand takes the
+       stagewrap as its room. */
+    &__embed--hand > .con-hand {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        max-height: 100%;
+    }
 
     /* ── The tile grid. Anti-clip contract: the SCROLLER owns overflow and
        the grid centres via `margin: auto` — content centres when it fits
@@ -10876,11 +10885,119 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     &--handing &__result { transition-delay: calc(90ms * var(--motion-scale, 1)); }
     /* The IDENTITY column stays — the colony may never disappear from under
-       its own payout — but it steps back to a supporting voice. */
+       its own payout. It is the payout's SOURCE, and a source must read as
+       ACTIVE: the old .5 dim made the planet look switched off under the very
+       cards it was handing over (the reported «затемнение убивает Плутон»).
+       It yields by INERTNESS and a whisper of light, never by going dark. */
     &--handing &__hero {
         pointer-events: none;
-        opacity: .5;
+        opacity: .92;
         transition: opacity calc(320ms * var(--motion-scale, 1)) ease calc(60ms * var(--motion-scale, 1));
+    }
+    /* Pre-commit chrome that has no business under a payout: the verdict is
+       gone by construction (pastCommit), the description steps back so the
+       SOURCE chip below is the column's one live voice. */
+    &--handing &__idmeta { opacity: .55; }
+
+    /* ── THE RESOLUTION CONTEXT — the hero column names the role the colony
+       is playing right now. Type on the identity column, never a panel. ── */
+    &__srcctx {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .3rem;
+        margin-top: .35rem;
+    }
+    &__srcchip {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        padding: .16rem .6rem;
+        border-radius: 49.95rem;
+        font-size: .62rem;
+        font-weight: 800;
+        letter-spacing: .14rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 92%);
+        background: fade(@con-cyan, 9%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
+    }
+    &__srcchip-mark { font-size: .7rem; }
+    &__srcctx-role {
+        font-size: .78rem;
+        font-weight: 700;
+        letter-spacing: .05rem;
+        text-transform: uppercase;
+        text-align: center;
+        color: #ffe0ad; /* amber — the past-the-commit voice */
+
+        &--bonus { color: @con-mint; }
+    }
+    &__srcctx-trader {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .72rem;
+        color: #d6e2ef;
+    }
+
+    /* ── «СБРОШЕНО» — the resolution's own discard seat. The shared discard
+       cinematic's tray TELEPORTS into the anchor (the mandatory cost lands
+       inside the scene that earned it); between cycles the calm receipt
+       (label + count) holds the same footprint, so completing a cycle is
+       FIXED on screen, never wiped by the next one starting. ── */
+    &__discardseat {
+        margin-top: auto; /* the hero column's foot */
+        align-self: center;
+        min-height: 6.9rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        gap: .3rem;
+    }
+    &__discardseat-anchor {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    &__discardseat-done {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .2rem .6rem;
+        border-radius: .4rem;
+        font-size: .62rem;
+        font-weight: 800;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: fade(#ffe0ad, 88%);
+        background: rgba(20, 16, 8, 0.5);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 30%);
+    }
+    &__discardseat-count { font-size: .8rem; }
+
+    /* ── THE HAND STEP's zone — the mandatory discard unfolds in the same
+       room the payout occupied, one layer above the (now empty) claim zone,
+       and is a live input surface for its whole life. ── */
+    &__handzone {
+        z-index: 4;
+        pointer-events: auto;
+        background:
+            radial-gradient(ellipse 78% 96% at 50% 46%, rgba(24, 42, 64, 0.62), transparent 78%),
+            radial-gradient(ellipse 120% 60% at 50% 100%, rgba(10, 17, 26, 0.72), transparent 82%);
+        animation: con-colfocus-outcome-in calc(300ms * var(--motion-scale, 1)) ease-out both;
+
+        /* The zone is the room (embedded-stage contract): the hand is the
+           only flexing part, and its grid scrolls INSIDE the given height. */
+        > * {
+            flex: 1 1 auto;
+            min-width: 0;
+            min-height: 0;
+        }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        &__handzone { animation: none; }
     }
     @media (prefers-reduced-motion: reduce) {
         &--handing &__outcome { animation: none; }

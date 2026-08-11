@@ -99,6 +99,7 @@ import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale'
 import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {colonyTradeClaimsReveal, isColonyTradeRevealStaged, isPresentedTradeReveal} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {remoteColonyBonusHold} from '@/client/console/colonyTrade/colonyResolution';
 import {markWorkspaceOutcomeArrivalDone, workspaceClaimOwnsArrival, workspaceClaimsColonyReveal, workspaceClaimsDrawReveal} from '@/client/console/consoleWorkspaceOutcome';
 import {
   DeckDrawTimings, DrawBeat, RectLike, deckCountAfter, deckDrawTimings, holdScale, holdSlots,
@@ -255,6 +256,14 @@ export default defineComponent({
           boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id) ||
           colonyTradeClaimsReveal(e.source) || isColonyTradeRevealStaged(e.id) ||
           isPresentedTradeReveal(e.source)) {
+        return undefined;
+      }
+      // A FOREIGN trade's owner bonus waits for its ENTRY (the mandatory
+      // announcement is the door): the cards must not start peeling off the
+      // deck over whatever screen the player is on. Once the entry is armed
+      // the hold drops and this scene SERVES the colony workspace's claim —
+      // the cards honestly come off the deck, into the embedded slots.
+      if (remoteColonyBonusHold(this.playerView.waitingFor, e.source)) {
         return undefined;
       }
       return e;

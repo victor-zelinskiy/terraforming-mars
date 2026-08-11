@@ -58,7 +58,7 @@
          'con-colfocus--claimed': outcomeZone,
          /* READINESS — content has genuinely landed in the zone, so the
             working area is handed over for real. */
-         'con-colfocus--handing': outcomeContentIn,
+         'con-colfocus--handing': outcomeContentIn || handZone,
        }]"
        :data-colony-intent="intent">
     <div class="con-colfocus__surface" data-unfold-surface>
@@ -127,6 +127,44 @@
             <span aria-hidden="true">✕</span>
             <span>{{ blockReason !== '' ? $t(blockReason) : $t('Trade unavailable') }}</span>
           </template>
+        </div>
+        <!-- ═══ THE RESOLUTION CONTEXT — past the commit the colony IS the
+             SOURCE of what the player is receiving. A calm chip under the
+             planet names the role the hero plays right now («Награда за
+             торговлю» → «Бонус владельца» as the waves advance), and a bonus
+             triggered by ANOTHER player's trade names that player — the whole
+             entry story lives in the identity column, never a second panel,
+             and the planet itself stays lit (the source must read as active). -->
+        <div v-if="resolutionContext !== undefined" class="con-colfocus__srcctx">
+          <span class="con-colfocus__srcchip">
+            <span class="con-colfocus__srcchip-mark" aria-hidden="true">◈</span>
+            <span>{{ $t('Source') }}</span>
+          </span>
+          <span class="con-colfocus__srcctx-role"
+                :class="{'con-colfocus__srcctx-role--bonus': resolutionContext.bonus}">
+            {{ $t(resolutionContext.roleKey) }}
+          </span>
+          <span v-if="resolutionContext.traderLine !== ''" class="con-colfocus__srcctx-trader">
+            <span v-if="resolutionContext.traderColor !== ''"
+                  :class="'con-status__dot player_bg_color_' + resolutionContext.traderColor"
+                  aria-hidden="true"></span>
+            <span>{{ resolutionContext.traderLine }}</span>
+          </span>
+        </div>
+        <!-- ═══ «СБРОШЕНО» — the resolution's own discard record. The seat is
+             the TELEPORT TARGET of the shared discard cinematic's tray: the
+             mandatory cost physically lands INSIDE the scene that earned it,
+             and between cycles the receipt (count) stays — the completed
+             cycle is fixed, never wiped by the next one starting. -->
+        <div v-if="resolutionContext !== undefined && (discardSeatLive || resolutionUi.discarded > 0)"
+             class="con-colfocus__discardseat"
+             :class="{'con-colfocus__discardseat--live': trayStanding}"
+             data-colony-discard-seat>
+          <span class="con-colfocus__discardseat-anchor" data-colony-discard-tray></span>
+          <span v-if="!trayStanding" class="con-colfocus__discardseat-done">
+            <span class="con-colfocus__discardseat-label">{{ $t('DISCARDED') }}</span>
+            <b v-if="resolutionUi.discarded > 0" class="con-colfocus__discardseat-count">{{ resolutionUi.discarded }}</b>
+          </span>
         </div>
       </section>
 
@@ -431,6 +469,15 @@
       <section v-if="outcomeZone" class="con-colfocus__outcome"
                data-outcome-zone data-embed-slot="colonies-focus-reveal"></section>
 
+      <!-- THE HAND STEP'S ZONE — the mandatory discard runs on the REAL hand
+           INSIDE this same frame (the hand workspace teleports here as a
+           step; workspaceFrameTarget('hand') names this selector). Same room
+           as the payout zone — the reveal has just been collected, so the
+           hand unfolds exactly where the cards were: one scene, one frame,
+           one phrase deeper. -->
+      <section v-if="handZone" class="con-colfocus__outcome con-colfocus__handzone"
+               data-hand-zone data-embed-slot="colonies-focus-hand"></section>
+
       <section class="con-colfocus__result" data-unfold-item>
         <div class="con-colfocus__sec-title" data-unfold-late>{{ $t(resultTitle) }}</div>
 
@@ -594,6 +641,10 @@ import {
   tradeSteps,
 } from '@/client/components/colonies/colonyTradePlan';
 import {presentedColonyModel, colonyTradeState} from '@/client/console/colonyTrade/consoleColonyTrade';
+import {colonyBonusEntry, colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
+import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
+import {cardDiscardState} from '@/client/console/cardDiscard/cardDiscardState';
+import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {colonyBuildState} from '@/client/console/colonyBuild/consoleColonyBuild';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
@@ -654,6 +705,12 @@ export default defineComponent({
      * only thing the stage needs to know.
      */
     outcomeZone: {type: Boolean, default: false},
+    /**
+     * The MANDATORY DISCARD runs here: the hand workspace is a nested STEP of
+     * the colonies and teleports into this stage's own hand zone. Published by
+     * the section (one writer), exactly like `outcomeZone`.
+     */
+    handZone: {type: Boolean, default: false},
     /** The inner "Pay trade fee" OrOptions options (server-affordable). */
     options: {type: Array as PropType<ReadonlyArray<SelectOptionModel>>, default: () => []},
     disabledOptions: {type: Array as PropType<NonNullable<OrOptionsModel['disabledOptions']>>, default: () => []},
@@ -677,6 +734,11 @@ export default defineComponent({
       colonyTradeState,
       colonyBuildState,
       workspaceOutcomeState,
+      /** The remote-entry context + the resolution's discard receipt + the
+       *  discard cinematic's stage (module reactives, mirrored for tracking). */
+      bonusEntry: colonyBonusEntry,
+      resolutionUi: colonyResolutionUi,
+      discardStage: cardDiscardState,
       /**
        * The COMMIT-BOUNDARY freeze: at the confirm the stage pins WHAT it was
        * showing ({mode, available}), because the server's answer flips the
@@ -699,6 +761,40 @@ export default defineComponent({
       return (this.tradeFleetState.active && this.tradeFleetState.colonyName === this.colony.name) ||
         (this.colonyTradeState.active && this.colonyTradeState.colonyName === this.colony.name) ||
         (this.colonyBuildState.active && this.colonyBuildState.colonyName === this.colony.name);
+    },
+    /**
+     * THE SOURCE CONTEXT of the running resolution (the hero's chip). The
+     * role advances with the waves — trade income first, then the owner
+     * bonus (the batch's own `role` tag / the discard step both say so) —
+     * and a REMOTE entry (another player's trade) names that player from
+     * the fleet parked on the colony. `undefined` pre-commit: the verdict
+     * owns that space.
+     */
+    resolutionContext(): {roleKey: string, bonus: boolean, traderColor: string, traderLine: string} | undefined {
+      const isEntry = this.bonusEntry.colonyName === this.colony.name;
+      const claimed = this.workspaceOutcomeState.host === 'colonies' &&
+        this.workspaceOutcomeState.sourceCard === this.colony.name;
+      const own = this.colonyTradeState.active && this.colonyTradeState.colonyName === this.colony.name;
+      if (!isEntry && !claimed && !own) {
+        return undefined;
+      }
+      if (isEntry) {
+        const line = this.bonusEntry.traderName !== '' ?
+          translateTextWithParams('${0} traded with this colony', [this.bonusEntry.traderName]) : '';
+        return {roleKey: 'Owner bonus triggered', bonus: true, traderColor: this.bonusEntry.traderColor, traderLine: line};
+      }
+      const bonusWave = revealIsOwnerBonus(currentRevealEvent()?.source) ||
+        this.handZone || cardDiscardColonyBonus() !== undefined;
+      return {roleKey: bonusWave ? 'Owner bonus' : 'Trade reward', bonus: bonusWave, traderColor: '', traderLine: ''};
+    },
+    /** The discard cinematic is standing (its tray teleports into our seat). */
+    trayStanding(): boolean {
+      return this.discardStage.trayVisible && cardDiscardColonyBonus() !== undefined;
+    },
+    /** The seat must be up for the tray from the moment a discard is possible
+     *  (the hand step) through the flight's landing. */
+    discardSeatLive(): boolean {
+      return this.handZone || cardDiscardColonyBonus() !== undefined;
     },
     /** The availability the stage PRESENTS — pinned across the commit
      *  boundary (see `heldView`), live everywhere else. */

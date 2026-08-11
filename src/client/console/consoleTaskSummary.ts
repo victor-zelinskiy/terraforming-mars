@@ -41,6 +41,7 @@
 
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
+import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {PlacementEffect, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
@@ -276,7 +277,21 @@ export function consoleTaskSummary(
     };
   }
 
-  case 'handSelect':
+  case 'handSelect': {
+    // A COLONY BONUS announces ITSELF, not the discard that closes it: the
+    // interruptive announcement / chip must tell the owner WHAT happened
+    // («Сработал бонус колонии: Плутон») — the draw + discard cycle is what
+    // opening it walks them through. The colony name is a data token, so the
+    // sentence survives i18n (never a title match).
+    const colonyBonus = wf?.discardPrompt?.colonyBonus;
+    if (colonyBonus !== undefined) {
+      return {
+        kickerKey: 'Colony bonus',
+        ask: {message: 'Colony bonus triggered: ${0}', data: [{type: LogMessageDataType.STRING, value: colonyBonus.colonyName}]},
+        sourceCard: source,
+        returnKey: 'Return to the discard',
+      };
+    }
     // A DISCARD names itself. The server marks every "throw cards away" prompt
     // structurally, so the chip reads «Сброс карты» instead of the neutral
     // «Карты в руке» — the player is told what they are about to LOSE, not
@@ -284,6 +299,7 @@ export function consoleTaskSummary(
     return wf?.discardPrompt !== undefined ?
       {kickerKey: DISCARD_KICKER, ask: ask(wf, 'Discard 1 card'), sourceCard: source, returnKey: 'Return to the discard'} :
       {kickerKey: 'Cards in hand', ask: ask(wf, 'Choose a card'), sourceCard: source, returnKey: 'Return to selection'};
+  }
 
   case 'projectCard':
     return task.mode === 'standardProject' ?

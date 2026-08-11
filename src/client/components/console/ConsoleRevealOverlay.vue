@@ -1269,7 +1269,13 @@ export default defineComponent({
       // height IS what the stage can spend on cards — no list to keep in sync,
       // and byte-identical to how the buy stage measures its own row.
       const availH = Math.max(200 * ui, strip.clientHeight - padY);
-      const n = Math.max(this.stripEntries.length, 1);
+      // The row's TRUE occupancy: the flat entries PLUS the colony-bonus
+      // zones — each zone stands a card-sized slot of its own (the active
+      // card / a face-down placeholder / the taken socket). Solving for the
+      // flat entries alone handed the fit a row one-two slots narrower than
+      // what actually renders, and the LAST zone clipped on the stage edge
+      // (the reported «бонусная карта обрезается справа»).
+      const n = Math.max(this.stripEntries.length + this.bonusZones.length, 1);
       // THE SHARED STAGE LAYOUT: size, focus-safe gap and row shape solved
       // together (consoleWsStageLayout). The gap is an OUTPUT, not a CSS
       // constant — that is what stops a focused card's ring from growing over
@@ -1733,13 +1739,25 @@ export default defineComponent({
         // The LAST card. A payout that still owes its discard does NOT close:
         // the cards land in the hand, and the modal stays up on its closing
         // step (released + acknowledged when the player presses it).
-        if (this.bonusDiscard !== undefined) {
-          markCardTaken(e.id, entry.index);
-          holdRevealForFollowUp(e.id);
-          return;
-        }
-        closeAndReleaseEvent(this.playerView.id, e.id, () => markCardTaken(e.id, entry.index));
-        this.$emit('drawn-complete');
+        //
+        // ⚠️ HOLD FIRST, DECIDE A TICK LATER. This commit runs at the intake's
+        // own seam, which can land mid view-update — reading the discard
+        // marker on that exact frame once caught it BLINKED-OFF, the batch
+        // closed as if free of obligations, and the whole colony workspace
+        // folded out from under a live mandatory discard (the e2e timeline:
+        // claim → completeFlow → goBoardHome inside 400 ms). The provisional
+        // hold costs one invisible tick when no discard is owed; deciding on
+        // settled state is what makes the close honest.
+        markCardTaken(e.id, entry.index);
+        holdRevealForFollowUp(e.id);
+        void this.$nextTick(() => {
+          if (this.bonusDiscard !== undefined) {
+            return; // the closing step (openDiscardPick) owns the release
+          }
+          releaseRevealFollowUp();
+          closeAndReleaseEvent(this.playerView.id, e.id, () => undefined);
+          this.$emit('drawn-complete');
+        });
       };
       const slot = this.exitSlotFor(`${entry.card.name}#${entry.index}`);
       void runHandIntake([{name: entry.card.name, el: slot ?? undefined}], {
@@ -1922,13 +1940,19 @@ export default defineComponent({
         return;
       }
       const commit = () => {
-        if (this.bonusDiscard !== undefined) {
-          markAllTaken(e.id);
-          holdRevealForFollowUp(e.id);
-          return;
-        }
-        closeAndReleaseEvent(this.playerView.id, e.id, () => markAllTaken(e.id));
-        this.$emit('drawn-complete');
+        // HOLD FIRST, DECIDE A TICK LATER — the same seam-blink defence as the
+        // per-card take above: a discard marker sampled mid view-update once
+        // read as absent and closed a batch that still owed its mandatory step.
+        markAllTaken(e.id);
+        holdRevealForFollowUp(e.id);
+        void this.$nextTick(() => {
+          if (this.bonusDiscard !== undefined) {
+            return; // the closing step (openDiscardPick) owns the release
+          }
+          releaseRevealFollowUp();
+          closeAndReleaseEvent(this.playerView.id, e.id, () => undefined);
+          this.$emit('drawn-complete');
+        });
       };
       const entries = this.drawnUntaken
         .map((entry) => ({name: entry.card.name, el: this.exitSlotFor(`${entry.card.name}#${entry.index}`) ?? undefined}));

@@ -166,6 +166,11 @@
              «взлёт карт с колонии» IS the opening of this deeper scene. -->
         <div v-if="revealEmbedActive && !focusState.open" class="con-colonies__embed" data-embed-slot="colonies-reveal"></div>
 
+        <!-- ── The HAND STEP zone at SECTION level — the fallback host of the
+             mandatory discard when the focus stage is not standing (a reload
+             straight into the discard prompt). One frame, one room. -->
+        <div v-if="handStepHosted && !focusState.open" class="con-colonies__embed con-colonies__embed--hand" data-embed-slot="colonies-hand"></div>
+
         <!-- ── THE COLONY FOCUS STAGE — the same frame, one level deeper.
              The descend hooks unfold it from the pressed tile's rect; the
              planet medallion is the carried subject. -->
@@ -187,6 +192,7 @@
                                    :viewerColor="viewerColor"
                                    :tradeOffset="tradeOffset"
                                    :outcomeZone="focusOutcomeZone"
+                                   :handZone="handStepHosted && focusState.open"
                                    @confirm="onFocusConfirm"
                                    @build-confirm="$emit('build-confirm')"
                                    @pick-confirm="$emit('pick-confirm')"
@@ -228,6 +234,9 @@ import {
   colonyFocusState, openColonyFocus, closeColonyFocus,
 } from '@/client/console/consoleColoniesModel';
 import {workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
+import {setWorkspaceFrameSlot, workspaceFrameHost, workspaceFrameStage} from '@/client/console/consoleWorkspaceStack';
+import {revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
+import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {freeTradeFleets, effectiveTradePosition, rewardAtPosition, TradeRewardAt, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {fetchColonyTradePreview} from '@/client/components/colonies/colonyTradePreviewFetch';
@@ -412,11 +421,22 @@ export default defineComponent({
       return '';
     },
     crumbStage(): string {
+      // THE NESTED HAND STEP is the deepest frame — its stage IS the crumb's
+      // tail: «КОЛОНИИ › ПЛУТОН › СБРОС КАРТЫ». Stable context before the
+      // mutable stage; only this tail advances through the resolution.
+      if (this.handStepHosted) {
+        const stage = workspaceFrameStage('hand');
+        return stage !== '' ? stage : 'Discarding a card';
+      }
       // The PAYOUT REVEAL is the deeper step — while it presents (over the
       // focus stage or over the grid alike) the tail names IT: «… › ПЛУТОН ›
-      // ДОБОР КАРТ». Otherwise the focus stage's own name leads.
+      // ДОБОР КАРТ» for the trade income, «… › БОНУС ВЛАДЕЛЬЦА» for a colony
+      // bonus wave (the batch's own role tag decides — never a title).
       if (this.revealEmbedPresenting) {
-        return this.outcomeState.phaseKey !== '' ? this.outcomeState.phaseKey : 'Card draw';
+        if (this.outcomeState.phaseKey !== '') {
+          return this.outcomeState.phaseKey;
+        }
+        return revealIsOwnerBonus(currentRevealEvent()?.source) ? 'Owner bonus' : 'Card draw';
       }
       if (this.focusState.open) {
         return this.focusState.stage;
@@ -428,7 +448,26 @@ export default defineComponent({
     },
     crumbCommitted(): boolean {
       return this.focusState.committing || this.tradeFleetState.active ||
-        this.tradeState.active || this.revealEmbedActive;
+        this.tradeState.active || this.revealEmbedActive || this.handStepHosted;
+    },
+    // ── The nested HAND STEP (the resolution's mandatory discard) ──────────
+    /** The hand workspace is standing INSIDE us as a step of the resolution. */
+    handStepHosted(): boolean {
+      return workspaceFrameHost('hand') === 'colonies';
+    },
+    /**
+     * THE FRAME SLOT — the teleport target we publish for the hand step
+     * (`workspaceFrameTarget('hand')` reads it). ONE writer, same law as the
+     * outcome slot: the focus stage's zone while the stage stands, the
+     * section's own zone otherwise (a reload straight into the discard).
+     */
+    handSlotSelector(): string {
+      if (!this.handStepHosted) {
+        return '';
+      }
+      return this.focusState.open ?
+        '[data-embed-slot="colonies-focus-hand"]' :
+        '[data-embed-slot="colonies-hand"]';
     },
     // ── The embedded-outcome zone (the Pluto payout reveal) ────────────────
     /** The claim is ours — the zone must stand (rendered from SUBMIT time). */
@@ -636,6 +675,14 @@ export default defineComponent({
       flush: 'post',
       handler(selector: string): void {
         setWorkspaceOutcomeSlot(selector);
+      },
+    },
+    // The HAND STEP's teleport target — same law, the STACK channel: the
+    // frame below publishes the zone the frame above teleports into.
+    handSlotSelector: {
+      flush: 'post',
+      handler(selector: string): void {
+        setWorkspaceFrameSlot('colonies', selector);
       },
     },
     // THE RESOLUTION'S FALLING EDGE auto-folds the focus stage back to the
@@ -964,6 +1011,14 @@ export default defineComponent({
         }
       });
     }
+    // Same for the hand step's frame slot (a restore mid-discard).
+    if (this.handStepHosted) {
+      void this.$nextTick(() => {
+        if (this.handStepHosted) {
+          setWorkspaceFrameSlot('colonies', this.handSlotSelector);
+        }
+      });
+    }
   },
   beforeUnmount() {
     this.stopResizeObs?.();
@@ -980,6 +1035,8 @@ export default defineComponent({
     if (this.revealEmbedActive) {
       setWorkspaceOutcomeSlot('');
     }
+    // …and the hand step's frame slot, for the same reason.
+    setWorkspaceFrameSlot('colonies', '');
     // Leaving the section closes the flow: reopening always lands on browse.
     closeColonyFocus();
     resetColonyFocusMotion();
