@@ -29,7 +29,12 @@
         <span v-else-if="model.contract.selfAllowed && model.contract.opponentsInvolved"
               class="con-ptsel__scope-note">{{ $t('Your own card or another player\'s') }}</span>
       </div>
-      <div class="con-ptsel__contract-ask">{{ model.contract.ask }}</div>
+      <!-- The server's ask, and only when it says something the head above it
+           does not. Empty = boilerplate («добавить ресурс на эту карту» under
+           an action rule that already reads «Добавьте 1 аэростат на любую
+           карту»), and a second instruction that repeats the first is how a
+           screen teaches the player to stop reading it. -->
+      <div v-if="model.contract.ask !== ''" class="con-ptsel__contract-ask">{{ model.contract.ask }}</div>
     </header>
 
     <!-- ── OWNER TABS — only in tabbed mode, and only over owners that HAVE
@@ -76,16 +81,15 @@
                instead (`selfHarm`), so it never fires on a card whose own
                resource IS the cost. -->
           <span v-if="owner.selfHarm" class="con-ptsel__ownerwarn">⚠ {{ $t('Your own cards') }}</span>
-          <!-- «РАЗЫГРАНО 9» — the one thing only this line says: these cards
-               come off a real, larger table. The eligible count joins it ONLY
-               when there are several owners, where it stops being a repeat of
-               the contract's total and starts answering «where are they». -->
-          <span class="con-ptsel__ownercount">
-            <i>{{ $t('Played') }}</i><b>{{ owner.totalPlayed }}</b>
-            <template v-if="showsOwnerTargets">
-              <span class="con-ptsel__ownercount-sep" aria-hidden="true">·</span>
-              <i>{{ $t('Selectable') }}</i><b class="con-ptsel__ownercount-live">{{ owner.candidates.length }}</b>
-            </template>
+          <!-- NO «РАЗЫГРАНО N». It counts the player's WHOLE table, and this
+               surface shows only the ELIGIBLE cards — «разыграно 3» over one
+               visible candidate reads as two cards that failed to render. The
+               only count this step owes is «сколько целей», which the contract
+               line already states once. The eligible-per-owner count survives
+               ONLY with several owners, where it answers «where are they»
+               instead of repeating the contract's total. -->
+          <span v-if="showsOwnerTargets" class="con-ptsel__ownercount">
+            <i>{{ $t('Selectable') }}</i><b class="con-ptsel__ownercount-live">{{ owner.candidates.length }}</b>
           </span>
         </header>
 
@@ -134,11 +138,12 @@
                        'con-ptsel__self--locked': isChosen(cand.cardName),
                      }">
                   <span class="con-ptsel__self-body">
-                    <span class="con-ptsel__self-kicker">
-                      <span>{{ $t('Source') }}</span>
-                      <span class="con-ptsel__self-kicker-sep" aria-hidden="true">·</span>
-                      <span>{{ $t('This card') }}</span>
-                    </span>
+                    <!-- «ЭТА КАРТА», and nothing before it. «ИСТОЧНИК» is the
+                         console's word for the card that PRODUCED what you are
+                         looking at (`L3 Источник`), and this proxy is not that
+                         — it is one of the targets. Two roles under one word on
+                         one screen is how a vocabulary stops meaning anything. -->
+                    <span class="con-ptsel__self-kicker">{{ $t('This card') }}</span>
                     <span class="con-ptsel__self-name">{{ $t(cand.cardName) }}</span>
                   </span>
                   <ConsoleCardResourceChip v-if="showsResource(cand)"
@@ -266,7 +271,7 @@ import {
   PlayedTargetModel, PlayedTargetLayout, PlayedTargetFocus, PlayedTargetOwner,
   PlayedTargetCandidate, PlayedTargetSection, PlayedTargetSelection,
   PlayedTargetSizing, PlayedTargetCell, PlayedTargetQuickImpact,
-  PLAYED_TARGET_RAIL_IMPACT_CAP, PLAYED_TARGET_FOCUS_SCALE, PLAYED_TARGET_SELF_MAX_W,
+  PLAYED_TARGET_RAIL_IMPACT_CAP, PLAYED_TARGET_FOCUS_SCALE, playedTargetSelfBox,
   playedTargetSections, playedTargetShowsCategoryRails, playedTargetAt,
   playedTargetShowsOwnerTargetCount, playedTargetShowsResource,
   playedTargetQuickImpacts, planPlayedTargetSizing,
@@ -383,6 +388,21 @@ export default defineComponent({
     cardWidthPx(): number {
       return SLOT_W_PX * this.sizing.cardZoom;
     },
+    /** Is a PHYSICAL card standing in the row beside the proxy? That, and only
+     *  that, is what makes the solved cell width binding on it: with no card
+     *  there is no shared column and nothing the row could wrap on. */
+    hasCardCandidates(): boolean {
+      return (this.model?.owners ?? []).some((o) =>
+        o.candidates.some((c) => c.relation !== 'source-card'));
+    },
+    /** The proxy's box — one derivation, shared by the tokens and the guards. */
+    selfBox(): {w: number, h: number} {
+      return playedTargetSelfBox({
+        cardWidthPx: this.cardWidthPx,
+        hasCardCandidates: this.hasCardCandidates,
+        ui: conUiScale(),
+      });
+    },
     /** The measured size, handed to CSS. One writer, so the cards, the gaps and
      *  the badge de-zoom can never disagree about how big a candidate is. */
     sizeVars(): Record<string, string> {
@@ -398,10 +418,13 @@ export default defineComponent({
         // it from a card face. Published here because this is the only place
         // that knows it: the size is solved, never a CSS constant.
         '--con-ptsel-slot-w': `${this.cardWidthPx.toFixed(2)}px`,
-        // …and the compact cap the proxy is additionally bounded by. Published
-        // rather than written in the stylesheet, so the ONE place that owns
-        // this layout's numbers still owns this one.
-        '--con-ptsel-self-max': `${(PLAYED_TARGET_SELF_MAX_W * conUiScale()).toFixed(2)}px`,
+        // THE PROXY'S OWN BOX — a slot in the same grid, solved by the one
+        // module that owns this layout's numbers. It is NOT the card fit: that
+        // fit is height-bound, so a lone proxy in a short band inherited a
+        // small card's width and collapsed to a text-sized pill with hundreds
+        // of px free beside it.
+        '--con-ptsel-self-w': `${this.selfBox.w.toFixed(2)}px`,
+        '--con-ptsel-self-h': `${this.selfBox.h.toFixed(2)}px`,
         // The CAP, not a fixed height: a short step still hugs its cards (the
         // rail sits right under them, exactly as before), and a tall one stops
         // growing and hands the excess to the candidate viewport's scroll.

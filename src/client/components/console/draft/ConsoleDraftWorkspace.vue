@@ -34,14 +34,37 @@
                             terminal-label="Ready" />
       </template>
       <template #trailing>
-        <!-- The pass direction, stated quietly: who receives this packet's
-             rest. Part of the header's stable chrome — never re-animated by a
-             stage change (the arrow flips only when the GENERATION does). -->
+        <!-- The chapter's own READOUT — one reserved slot in the header's
+             stable chrome, so neither of the two costs the cards a single
+             pixel of stage height: the SELECTION states where the packet
+             goes; the PURCHASE states what it costs. -->
         <div v-if="passReadout !== undefined" class="con-draftws__pass">
           <span class="con-draftws__pass-label">{{ $t('Passing to') }}</span>
           <span class="con-draftws__pass-dot" :class="'player_bg_color_' + passReadout.color" aria-hidden="true"></span>
           <span class="con-draftws__pass-name">{{ passReadout.name }}</span>
           <span class="con-draftws__pass-arrow" aria-hidden="true">{{ giveSide === 'right' ? '⟶' : '⟵' }}</span>
+        </div>
+        <div v-else-if="zone === 'buy' || zone === 'pay'"
+             class="con-draftws__finstrip" :class="{'con-draftws__finstrip--over': !buyAffordable}">
+          <span class="con-draftws__fin-main">
+            <span class="con-draftws__fin-label">{{ $t('Purchase') }}</span>
+            <span class="con-draftws__fin-total" :key="buyTotal">−{{ buyTotal }}</span>
+            <i class="resource_icon resource_icon--megacredits con-draftws__fin-mc" aria-hidden="true"></i>
+            <span class="con-draftws__fin-detail">{{ picks.length }} × {{ buyCostPerCard }}</span>
+          </span>
+          <span class="con-draftws__fin-wallet">
+            <span class="con-draftws__fin-cell">
+              <span class="con-draftws__fin-caption">{{ $t('You have') }}</span>
+              <span class="con-draftws__fin-num">{{ megacreditsOnHand }}</span>
+              <i class="resource_icon resource_icon--megacredits con-draftws__fin-mc" aria-hidden="true"></i>
+            </span>
+            <span class="con-draftws__fin-sep" aria-hidden="true">→</span>
+            <span class="con-draftws__fin-cell">
+              <span class="con-draftws__fin-caption">{{ $t('After purchase') }}</span>
+              <span class="con-draftws__fin-num" :class="{'con-draftws__fin-num--over': !buyAffordable}">{{ megacreditsAfterPurchase }}</span>
+              <i class="resource_icon resource_icon--megacredits con-draftws__fin-mc" aria-hidden="true"></i>
+            </span>
+          </span>
         </div>
       </template>
     </ConsoleWsHead>
@@ -112,29 +135,8 @@
         <!-- ── BUY / PAY: the purchase chapter ─────────────────────────── -->
         <transition name="con-draftws-stage">
         <div v-show="zone === 'buy' || zone === 'pay'" class="con-draftws__stage con-draftws__stage--buy">
-          <!-- The financial strip: compact, instantly readable, ONE source of
-               the purchase economics (server-identical math: cardCost × picks). -->
-          <div class="con-draftws__finstrip" :class="{'con-draftws__finstrip--over': !buyAffordable}">
-            <span class="con-draftws__fin-main">
-              <span class="con-draftws__fin-label">{{ $t('Purchase') }}</span>
-              <span class="con-draftws__fin-total" :key="buyTotal">−{{ buyTotal }}</span>
-              <i class="resource_icon resource_icon--megacredits con-draftws__fin-mc" aria-hidden="true"></i>
-              <span class="con-draftws__fin-detail">{{ picks.length }} × {{ buyCostPerCard }}</span>
-            </span>
-            <span class="con-draftws__fin-wallet">
-              <span class="con-draftws__fin-cell">
-                <span class="con-draftws__fin-caption">{{ $t('You have') }}</span>
-                <span class="con-draftws__fin-num">{{ megacreditsOnHand }}</span>
-                <i class="resource_icon resource_icon--megacredits con-draftws__fin-mc" aria-hidden="true"></i>
-              </span>
-              <span class="con-draftws__fin-sep" aria-hidden="true">→</span>
-              <span class="con-draftws__fin-cell">
-                <span class="con-draftws__fin-caption">{{ $t('After purchase') }}</span>
-                <span class="con-draftws__fin-num" :class="{'con-draftws__fin-num--over': !buyAffordable}">{{ megacreditsAfterPurchase }}</span>
-                <i class="resource_icon resource_icon--megacredits con-draftws__fin-mc" aria-hidden="true"></i>
-              </span>
-            </span>
-          </div>
+          <!-- (The purchase economics live in the HEADER's readout slot — the
+               cards own the whole stage height.) -->
           <div class="con-draftws__cards">
             <div class="con-draftws__row" :style="buyRowStyle" ref="buyRow">
               <div v-for="(entry, i) in buyEntries" :key="entry.key"
@@ -187,7 +189,7 @@
         <div v-show="zone === 'done'" class="con-draftws__stage con-draftws__stage--done">
           <div class="con-draftws__doneplate">
             <span class="con-draftws__done-mark" aria-hidden="true"><i>✓</i></span>
-            <span class="con-draftws__done-title">{{ $t('Research complete') }}</span>
+            <span class="con-draftws__done-title">{{ $t('Draft complete') }}</span>
             <span class="con-draftws__done-amount">
               <template v-if="completionBought > 0">
                 <span>{{ boughtReadout }}</span>
@@ -204,7 +206,10 @@
       </div>
 
       <!-- ── STATUS RAIL: the focused card's verdict (name + the soft
-           requirements heads-up — amber, never blocking language). ─────── -->
+           requirements heads-up — amber, never blocking language).
+           IN FLOW, directly under the stage and ABOVE the shelf overlay: it
+           explains the card the player is looking at, so it may never be
+           covered by the collection, nor float over the cards. ─────────── -->
       <div class="con-draftws__statusbar" :class="{'con-draftws__statusbar--held': beatActive}">
         <template v-if="statusEntry !== undefined">
           <span class="con-draftws__status-name" :key="statusEntry.name">{{ $t(statusEntry.name) }}</span>
@@ -359,6 +364,9 @@ export default defineComponent({
       shelfReturned: [] as Array<CardName>,
       inspectFlightTimer: undefined as number | undefined,
       cloneLayer: undefined as HTMLElement | undefined,
+      /** The collection has handed its cards to the purchase row (lift-off):
+       *  the shelf dissolves and never returns for the rest of the flow. */
+      shelfRetired: false,
       /** The purchase commit's receipt (the terminal plate's numbers). */
       completionBought: 0,
       completionSpent: 0,
@@ -405,9 +413,17 @@ export default defineComponent({
       case 'idle': return 'wait';
       }
     },
-    /** The shelf presents through the selection chapter AND through the rise
-     *  it is the physical source of; its fade-out is the handoff's close. */
+    /**
+     * The shelf presents through the SELECTION chapter, and through the rise
+     * only until the cards LIFT OFF it — the moment they start growing into
+     * the purchase row it dissolves, and it never comes back for the rest of
+     * the flow (`shelfRetired`). Keeping it up past the lift-off is what put
+     * a stale plate over the arriving cards.
+     */
     shelfVisible(): boolean {
+      if (this.shelfRetired) {
+        return false;
+      }
       return this.zone === 'pick' || this.zone === 'wait' || this.zone === 'inspect' ||
         riseSceneEngaged();
     },
@@ -1067,7 +1083,13 @@ export default defineComponent({
           }
         },
         onSetComplete: riseSetComplete,
-        onLiftOff: riseLiftOff,
+        onLiftOff: () => {
+          // THE HANDOFF: the cards are off the shelf and growing into the
+          // purchase row — the collection dissolves WITH that motion (and
+          // stays gone; a shelf that flickers back reads as a second object).
+          riseLiftOff();
+          this.shelfRetired = true;
+        },
         onFrameReveal: riseFrameReveal,
       };
     },
@@ -1388,6 +1410,10 @@ export default defineComponent({
       to: Map<CardName, DOMRect>,
       hooks: {onLand: (name: CardName) => void, onDone: () => void},
     ): void {
+      // The flight stage is mounted by the BODY, never inside the workspace:
+      // `position: fixed` resolves against ANY ancestor that establishes a
+      // containing block (a transform / an entrance animation / a `zoom`),
+      // and the workspace has all three at various moments.
       const layer = document.createElement('div');
       layer.className = 'con-draftws-flights';
       layer.style.cssText = 'position:fixed;inset:0;z-index:11640;pointer-events:none;overflow:clip;';
@@ -1414,9 +1440,19 @@ export default defineComponent({
         const clone = src.cloneNode(true) as HTMLElement;
         // The source sits under an ancestor `zoom`; the clone reproduces the
         // RENDERED size via its own zoom = rect / natural (iteration-6 trick).
+        //
+        // ⚠️ `zoom` SCALES THE COORDINATE SYSTEM of the element it is on, and
+        // that includes a `position: fixed` element's own left/top. Setting
+        // `left: 0` and then translating by `rect / z` looked right on paper
+        // and shipped the "cards fly in from the top-left" bug: the layer's
+        // own transform/containing block was fine, but any rounding in `z`
+        // multiplied the offset. So the clone is PLACED with left/top IN ITS
+        // OWN ZOOMED SPACE and never translated for placement — the tween
+        // moves it by a DELTA from that seat, which no zoom factor can skew.
         const natural = src.offsetWidth || 1;
-        clone.style.cssText = `position:fixed;left:0;top:0;margin:0;zoom:${(f.width / natural).toFixed(4)};` +
-          'transform-origin:top left;will-change:transform;';
+        const z = f.width / natural;
+        clone.style.cssText = `position:fixed;left:${(f.left / z).toFixed(2)}px;top:${(f.top / z).toFixed(2)}px;` +
+          `margin:0;zoom:${z.toFixed(4)};transform-origin:top left;will-change:transform;`;
         // De-identify: a clone must never be found by slot/zoom resolvers.
         clone.removeAttribute('data-zoom-slot');
         for (const el of Array.from(clone.querySelectorAll('[data-zoom-slot], [data-tray-slot], [data-inspect-slot], [data-hand-dock-card]'))) {
@@ -1426,16 +1462,16 @@ export default defineComponent({
           el.removeAttribute('data-hand-dock-card');
         }
         layer.appendChild(clone);
-        // `zoom` scales coordinates too: positions are expressed IN the
-        // clone's zoomed space.
-        const z = f.width / natural;
+        // Movement is a DELTA in the clone's own zoomed space (see above):
+        // it starts exactly on its source seat, at scale 1, and travels to
+        // the destination's seat — same physical card, one gesture.
         const scale = t.width / f.width;
-        gsap.set(clone, {x: f.left / z, y: f.top / z, scale: 1});
+        gsap.set(clone, {x: 0, y: 0, scale: 1});
         const dur = 0.46;
         const at = i * 0.065;
         const tl = gsap.timeline({delay: at});
-        tl.to(clone, {x: t.left / z, duration: dur, ease: 'power2.inOut'}, 0);
-        tl.to(clone, {y: t.top / z, duration: dur, ease: 'power3.out'}, 0);
+        tl.to(clone, {x: (t.left - f.left) / z, duration: dur, ease: 'power2.inOut'}, 0);
+        tl.to(clone, {y: (t.top - f.top) / z, duration: dur, ease: 'power3.out'}, 0);
         tl.to(clone, {scale, duration: dur, ease: 'power2.inOut'}, 0);
         // Touchdown: the real slot materializes UNDER the clone; the clone
         // leaves on the next frame (never a crossfade of identical twins).

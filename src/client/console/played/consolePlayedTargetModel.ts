@@ -140,10 +140,34 @@ export function playedTargetQuickImpacts(
   const out: Array<PlayedTargetQuickImpact> = [];
   sections.forEach((sec, si) => {
     sec.impacts.forEach((imp, ii) => {
+      if (!playedTargetImpactMoves(imp)) {
+        return;
+      }
       out.push({...imp, key: `${si}:${ii}`, entity: sec.entity});
     });
   });
   return out;
+}
+
+/**
+ * Does this reading actually CHANGE something?
+ *
+ * A `static` impact («эта карта даёт 1 ПО за каждые две фишки, и там сейчас
+ * чётное число») earns its place in the FULL sections, where the player is
+ * comparing candidates and silence would read as «points this never touches».
+ * It earns nothing on the one-line readings: the focus rail summarises the card
+ * under the cursor and the answered summary states a decision already made —
+ * neither is a comparison, and «ПО 0 → 0» beside a real «0 → 1» is a second
+ * chip that says nothing while taking the eye off the one that does.
+ */
+export function playedTargetImpactMoves(imp: PlayedTargetImpact): boolean {
+  if (imp.static === true) {
+    return false;
+  }
+  if (imp.from !== undefined && imp.to !== undefined && imp.from === imp.to) {
+    return (imp.amount ?? 0) !== 0;
+  }
+  return true;
 }
 
 /**
@@ -578,6 +602,41 @@ const SOLO_CARD_ZOOM_HANDHELD = 0.68;
  * the solver has never seen. Mirrored by `playedTargetLayoutContract.spec.ts`.
  */
 export const PLAYED_TARGET_SELF_MAX_W = 300;
+
+/**
+ * THE PROXY'S OWN BOX — a TARGET SLOT, never its content.
+ *
+ * `W` is the layout's standard candidate column (94 % of the 320 px card face,
+ * so it reads as one of the columns without pretending to be a card). `H` is a
+ * fifth of a card: this is a REFERENCE to a card standing two columns away, and
+ * a full-height empty panel would read as a second copy of it.
+ *
+ * ⚠️ The width is deliberately NOT the solved card width. That fit is
+ * HEIGHT-bound — one short proxy in a short band solves a small card — so
+ * binding to it shrank a lone proxy to a text-sized pill while the row had
+ * hundreds of px of free space. It follows the solved cell only when a
+ * PHYSICAL card is beside it and that cell is narrower: there the column IS
+ * the shared grid, and matching it is what keeps the row on one line.
+ */
+export const PLAYED_TARGET_SELF_W = 300;
+export const PLAYED_TARGET_SELF_H = 100;
+/** Compact floor — below this the label, the name and the chip stop fitting. */
+export const PLAYED_TARGET_SELF_H_MIN = 62;
+
+/**
+ * The proxy's box, in the layout's own px. Pure — the ONE derivation both the
+ * stylesheet tokens and the guards read.
+ */
+export function playedTargetSelfBox(
+  o: {cardWidthPx: number, hasCardCandidates: boolean, ui: number},
+): {w: number, h: number} {
+  const standard = PLAYED_TARGET_SELF_W * o.ui;
+  const w = o.hasCardCandidates ? Math.min(o.cardWidthPx, standard) : standard;
+  // The height rides the width so a compact row stays proportionate instead of
+  // keeping a normal-height bar over half-width cards.
+  const h = Math.max(PLAYED_TARGET_SELF_H_MIN * o.ui, PLAYED_TARGET_SELF_H * o.ui * (w / standard));
+  return {w, h};
+}
 
 /** Below this a card stops being readable and starts being a swatch. */
 const MIN_CARD_ZOOM = 0.3;

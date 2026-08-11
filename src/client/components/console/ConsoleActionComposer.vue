@@ -660,6 +660,7 @@ import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacem
 import {TradeColonyContext, findTradeColonyContext} from '@/client/console/turnIntents';
 import {lockedTradePaymentIndex, lockedTradePaymentReason} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
+import {isBoilerplateTitle} from '@/client/console/consoleTaskSummary';
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
@@ -998,7 +999,12 @@ export default defineComponent({
         candidates: model.cards,
         players: this.playerView.players,
         viewerColor: this.thisPlayer.color,
-        ask: textOf(model.title),
+        // ONE selection instruction. The step's own contract line already says
+        // «ВЫБЕРИТЕ РАЗЫГРАННУЮ КАРТУ · Доступных целей: N»; a boilerplate
+        // server title under it just restates the effect the rule and the gain
+        // chip have already stated. A title that names a real CONSTRAINT is not
+        // boilerplate and keeps its line.
+        ask: isBoilerplateTitle(model.title) ? '' : textOf(model.title),
         // The card whose action this is — «Обстрел кометами» adds its asteroid
         // to ANY card, and it is one. That candidate becomes a HANDLE pointing
         // at the hero slot instead of a second full-size copy of the same card.

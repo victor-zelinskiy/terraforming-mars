@@ -2075,9 +2075,10 @@ body.con-zoom-open .con-journal {
        flow): hiding it can't reflow a stage mid-flight, which is what lets
        the research rise measure its sources and fly while the buy row is
        ALREADY at its final geometry. While the selection chapter runs, the
-       stages step off its zone via this inset. */
+       stages step off its zone via this inset — and so does the status rail
+       (in flow BELOW the stage), which the overlay must never cover. */
     &__stagewrap--shelved .con-draftws__stage {
-        bottom: 9.6rem;
+        bottom: 8.9rem;
     }
     /* The BUY chapter stacks its chrome: the financial strip keeps the top,
        the card row centres in everything that remains. */
@@ -2214,17 +2215,18 @@ body.con-zoom-open .con-journal {
     }
 
     /* ── BUY: the financial strip — compact, one line, instantly readable. ── */
+    /* The PURCHASE readout lives in the HEADER's trailing slot (the same
+       reserved place the selection's pass readout uses) — the cards own the
+       whole stage height. Compact by construction: one line, no plate. */
     &__finstrip {
-        flex-shrink: 0;
-        align-self: center;
         display: inline-flex;
         align-items: baseline;
-        gap: 1.6rem;
-        margin-bottom: .9rem;
-        padding: .5rem 1.2rem .55rem;
-        border-radius: .55rem;
-        background: @con-glass-soft;
-        box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.24);
+        gap: 1.1rem;
+        padding: .3rem .8rem .35rem;
+        border-radius: .5rem;
+        background: fade(@con-glass-soft, 70%);
+        box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.2);
+        white-space: nowrap;
 
         &--over {
             box-shadow: inset 0 0 0 .06rem fade(@con-amber, 65%);
@@ -2242,7 +2244,7 @@ body.con-zoom-open .con-journal {
         color: @con-text-dim;
     }
     &__fin-total {
-        font-size: 1.35rem;
+        font-size: 1.1rem;
         font-weight: 800;
         color: @con-amber;
         animation: con-draftws-num calc(220ms * var(--motion-scale, 1)) ease-out;
@@ -2274,7 +2276,7 @@ body.con-zoom-open .con-journal {
         color: @con-text-dim;
     }
     &__fin-num {
-        font-size: 1.05rem;
+        font-size: .95rem;
         font-weight: 700;
         color: @con-text;
 
@@ -2355,6 +2357,10 @@ body.con-zoom-open .con-journal {
        stage above never reflows when the verdict changes). ── */
     &__statusbar {
         flex-shrink: 0;
+        position: relative;
+        /* ABOVE the shelf overlay: the verdict belongs to the card on stage,
+           so nothing the collection draws may sit over it. */
+        z-index: 4;
         height: 2.1rem;
         display: flex;
         align-items: center;
@@ -2405,7 +2411,10 @@ body.con-zoom-open .con-journal {
         position: absolute;
         left: 0;
         right: 0;
-        bottom: 0;
+        /* Sits UNDER the status rail's row (which is in flow at the body's
+           bottom) — the collection never covers the verdict of the card the
+           player is looking at. */
+        bottom: 2.1rem;
         z-index: 3;
         display: flex;
         flex-direction: column;
@@ -17458,6 +17467,14 @@ body.con-start-barshold .con-status {
         font-weight: 900;
         line-height: 1;
         color: inherit;
+        /* `tabular-nums` asks the FONT for equal figures and Prototype has
+           none: a measured «1» is 4.9 px against «4»'s 12.15 px at the same
+           size, so four identical circles carried four differently-weighted
+           numerals and the row read as misaligned. An explicit equal BOX
+           (widest digit ≈ .62em) restores it — every figure is centred in
+           the same width, in every state. */
+        min-width: .62em;
+        text-align: center;
         font-variant-numeric: tabular-nums;
     }
     &__label {
@@ -20433,12 +20450,21 @@ html.console-mode {
         box-sizing: border-box;
         position: relative;
         flex: 0 0 auto;
-        /* Never WIDER than the cell the solver reserved (or the row wraps);
-           never wider than compact (or a lone self-target, which solves the
-           SOLO ceiling, reads as a stretched card). BOTH bounds are published
-           by the step — a constant the stylesheet owned alone would be a bound
-           the solver has never seen. */
-        width: min(var(--con-ptsel-slot-w, 13rem), var(--con-ptsel-self-max, 15rem));
+        /* A TARGET SLOT, not a label. Both numbers are SOLVED and published by
+           the step (`playedTargetSelfBox`) — the stylesheet owns no bound the
+           solver has never seen. The width is the layout's standard candidate
+           column, and it follows the solved cell only when a physical card is
+           beside it and that cell is narrower: there the column is a shared
+           grid and matching it is what keeps the row on one line.
+           ⚠️ NOTHING here may be intrinsic. The width used to be `min(solved
+           cell, 300)`, and the solved cell is HEIGHT-bound — a lone proxy in a
+           short band inherited a small card's width and collapsed to the size
+           of its own text with half the row empty beside it. */
+        width: var(--con-ptsel-self-w, 15rem);
+        /* A REFERENCE to a card two columns away, never a copy of it: a fifth
+           of a card's height. `min-height`, so a two-line name or a longer
+           localisation can grow the box a little instead of clipping. */
+        min-height: var(--con-ptsel-self-h, 5rem);
         display: flex;
         align-items: center;
         gap: .55rem;
@@ -20468,7 +20494,9 @@ html.console-mode {
                         inset .16rem 0 0 0 fade(@con-mint, 100%);
         }
     }
-    &__self-body { display: flex; flex-direction: column; gap: .1rem; min-width: 0; flex: 1; }
+    /* The name column FLEXES; the chip and the ✓ never take from it (the chip
+       is `flex: 0 0 auto` by default, the ✓ is out of flow entirely). */
+    &__self-body { display: flex; flex-direction: column; gap: .15rem; min-width: 0; flex: 1 1 auto; }
     /* «ИСТОЧНИК · ЭТА КАРТА» — the role first, the relation second. It names
        what the row below it IS, which is why the card name can then be the
        plain, brightest voice instead of having to explain itself. */
@@ -20481,12 +20509,20 @@ html.console-mode {
         display: block;
         font-size: .62rem; letter-spacing: .1rem; text-transform: uppercase;
         color: fade(@con-cyan, 88%);
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        white-space: nowrap;
     }
-    &__self-kicker-sep { color: fade(@con-cyan, 45%); margin: 0 .25rem; }
+    /* Up to TWO lines, then ellipsis — a card name is an identity, and
+       «Celes…» beside half a row of free space is the surface refusing to say
+       which card it means. The clamp is the LAST resort (a very long
+       localisation on a compact row), not the normal reading. */
     &__self-name {
         font-size: 1rem; font-weight: 800; letter-spacing: .02rem; color: @con-text;
-        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        line-height: 1.18;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        overflow-wrap: anywhere;
     }
     /* OUT OF FLOW, exactly like `__lock` on a card cell — a state marker may
        never be a term in the width of the thing it marks. */

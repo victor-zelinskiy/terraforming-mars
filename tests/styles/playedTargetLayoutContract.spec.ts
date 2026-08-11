@@ -254,17 +254,22 @@ describe('played-target layout contract (LESS ⇄ solver)', () => {
    * the padding box (a `border-box` proxy with 3.5rem of padding is not
    * bounded by anything).
    */
-  it('the self-target proxy is bounded by the solved cell width', () => {
+  it('the self-target proxy declares a SOLVED width, never an intrinsic one', () => {
     const less = fs.readFileSync(LESS, 'utf8');
     const self = blockAfter(blockAfter(less, /^\.con-ptsel\s*\{/m), /&__self\s*\{/);
     expect(self, 'the `&__self` block must exist').to.not.eq('');
 
     const width = /(^|[\s;{])width:\s*([^;]+);/.exec(self);
     expect(width, 'the proxy must declare a WIDTH — an intrinsic box is a state-dependent box').to.not.eq(null);
-    expect(width![2],
-      'the proxy\'s width must be bounded by the solver\'s own cell width ' +
-      '(`--con-ptsel-slot-w`), or the candidate row wraps and the pair stacks',
-    ).to.include('--con-ptsel-slot-w');
+    // The bound moved INTO the solver (`playedTargetSelfBox`): it is the one
+    // place that knows both the standard column and the solved cell, and it is
+    // the only place that can tell «no card is beside me, so nothing can wrap»
+    // from «a card is, and we share a column». The stylesheet just spends the
+    // number. (It used to read `min(--con-ptsel-slot-w, 300)` right here — and
+    // the solved cell is HEIGHT-bound, which is how a lone proxy in a short
+    // band ended up the width of its own text.)
+    expect(width![2], 'the width must come from the published box token')
+      .to.include('--con-ptsel-self-w');
     expect(self, 'padding outside a border-box would push the proxy past that bound')
       .to.include('box-sizing: border-box');
   });
@@ -290,20 +295,39 @@ describe('played-target layout contract (LESS ⇄ solver)', () => {
    * the CSS fallback is what applies for the one unmeasured frame, so a stale
    * fallback is a real, if brief, wrong width. Same seam as `SECTION_RAIL_H`.
    */
-  it('the proxy\'s compact cap is the same number in both places', () => {
+  it('the proxy\'s box fallbacks are the solver\'s own numbers', () => {
     const less = fs.readFileSync(LESS, 'utf8');
     const self = blockAfter(blockAfter(less, /^\.con-ptsel\s*\{/m), /&__self\s*\{/);
-    const fallback = /--con-ptsel-self-max,\s*([\d.]+)rem/.exec(self);
-    expect(fallback, 'the proxy must bound itself with `--con-ptsel-self-max`').to.not.eq(null);
+
+    const w = /width:\s*var\(--con-ptsel-self-w,\s*([\d.]+)rem\)/.exec(self);
+    expect(w, 'the proxy must take its width from `--con-ptsel-self-w`').to.not.eq(null);
+    const h = /min-height:\s*var\(--con-ptsel-self-h,\s*([\d.]+)rem\)/.exec(self);
+    expect(h, 'the proxy must reserve `--con-ptsel-self-h`').to.not.eq(null);
+    expect(self, 'nothing about the proxy box may be intrinsic')
+      .to.not.match(/(width|min-width):\s*(fit-content|max-content|min-content|auto)/);
 
     const model = fs.readFileSync(MODEL, 'utf8');
-    const js = /const PLAYED_TARGET_SELF_MAX_W = (\d+)/.exec(model);
-    expect(js, 'PLAYED_TARGET_SELF_MAX_W must exist').to.not.eq(null);
+    const jsW = /const PLAYED_TARGET_SELF_W = (\d+)/.exec(model);
+    const jsH = /const PLAYED_TARGET_SELF_H = (\d+)/.exec(model);
+    expect(jsW, 'PLAYED_TARGET_SELF_W must exist').to.not.eq(null);
+    expect(jsH, 'PLAYED_TARGET_SELF_H must exist').to.not.eq(null);
 
-    // 1rem = 20 logical px is the console scale model.
-    const cssPx = Number(fallback![1]) * 20;
-    expect(cssPx, `CSS fallback ${fallback![1]}rem (${cssPx}px) vs PLAYED_TARGET_SELF_MAX_W ${js![1]}`)
-      .to.eq(Number(js![1]));
+    // 1rem = 20 logical px is the console scale model. The fallback is what
+    // applies for the one unmeasured frame, so a stale one is a real (if brief)
+    // wrong box — the same seam as `SECTION_RAIL_H`.
+    expect(Number(w![1]) * 20, 'the width fallback must be the solver\'s number')
+      .to.eq(Number(jsW![1]));
+    expect(Number(h![1]) * 20, 'the height fallback must be the solver\'s number')
+      .to.eq(Number(jsH![1]));
+
+    // …and it stays a REFERENCE to the card beside it, never a second copy: a
+    // full-height empty panel is exactly what this proxy exists instead of.
+    expect(Number(jsH![1]) / 460, 'the proxy must stay well under a card\'s height')
+      .to.be.lessThan(0.3);
+
+    const step = fs.readFileSync(STEP, 'utf8');
+    expect(step, 'the step must publish the box it solved').to.match(/'--con-ptsel-self-w':/);
+    expect(step).to.match(/'--con-ptsel-self-h':/);
   });
 
   /**

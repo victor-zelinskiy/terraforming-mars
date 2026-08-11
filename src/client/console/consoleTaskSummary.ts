@@ -84,7 +84,31 @@ export const GENERIC_KICKER = 'Awaiting decision';
 const GENERIC_TITLES: ReadonlySet<string> = new Set([
   '', 'Select an option', 'Choose an option', 'Select', 'Confirm', 'Select amount',
   'Select player', 'Select resource', 'Select colony', 'Select space',
+  // The «add a resource to a card» family: the title IS the effect, which the
+  // action rule and the gain chip above it have already said.
+  // (`AddResourcesToCard`'s single-candidate titles — the multi-candidate one
+  // is a `Message` and therefore always specific.)
+  'Add resource to this card', 'Add resources to this card',
+  'Select card to add resource', 'Add resource to card',
 ]);
+
+/**
+ * Is this prompt title BOILERPLATE — a sentence that names no constraint the
+ * surface has not already stated?
+ *
+ * Exported because a second surface needs the same verdict: the played-target
+ * step prints the server's ask under its own «ВЫБЕРИТЕ РАЗЫГРАННУЮ КАРТУ», and
+ * for the «add a resource to a card» family that ask is the effect the composer
+ * has already printed twice (the rule, then the gain chip). A title that names
+ * a real selection CONSTRAINT («…с меткой Юпитера») is not in this set and
+ * keeps its line.
+ *
+ * The raw-string comparison is the same one `titleOf` makes and is safe for the
+ * same reason: i18n rewrites `Message.message` in place, never a plain `string`.
+ */
+export function isBoilerplateTitle(title: string | Message | undefined): boolean {
+  return typeof title === 'string' && GENERIC_TITLES.has(title.trim());
+}
 
 function titleOf(wf: PlayerInputModel | undefined): string | Message | undefined {
   const t = wf?.title;
