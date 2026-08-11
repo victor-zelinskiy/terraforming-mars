@@ -107,6 +107,16 @@ async function assertFlowGeometry(page: Page, preset: Preset): Promise<void> {
     const flowLabelsFit = Array.from(document.querySelectorAll<HTMLElement>(
       '.con-jrail__phase--open .con-jrail__label',
     )).every((el) => el.scrollWidth <= el.clientWidth + 1);
+    /* A label span is content-sized, so the check above can only ever be
+       true — what actually cuts a stage off is the rail's own INVISIBLE
+       RESERVE. Both edges are fixed widths with `overflow: hidden` (root
+       --con-jrail-expanded-w, open chapter max-width), so a profile that
+       raises the type ladder has to be measured against them: past either
+       one the last stages vanish silently instead of being named. */
+    const clipRoom = (selector: string) => {
+      const el = document.querySelector<HTMLElement>(selector);
+      return el === null ? -999 : el.clientWidth - el.scrollWidth;
+    };
     return {
       count: document.querySelectorAll('.con-start__wshead .con-jrail').length,
       connectorCount: document.querySelectorAll('.con-start__wshead .con-wshead__flow-connector').length,
@@ -120,6 +130,8 @@ async function assertFlowGeometry(page: Page, preset: Preset): Promise<void> {
         rail.top > mark.top + mark.height / 2 && flowTier.top >= mark.top,
       breadcrumbFits,
       flowLabelsFit,
+      railRoom: clipRoom('.con-jrail__view--expanded'),
+      chapterRoom: clipRoom('.con-jrail__phase--open .con-jrail__phase-body'),
       expandedOpacity: opacity('.con-jrail__view--expanded'),
       compactOpacity: opacity('.con-jrail__view--compact'),
     };
@@ -133,6 +145,11 @@ async function assertFlowGeometry(page: Page, preset: Preset): Promise<void> {
   expect(flow.breadcrumbFits, `${preset.id}: flow never clips the local breadcrumb`).toBeTruthy();
   expect(flow.expandedOpacity, `${preset.id}: top-level active chapter stays expanded`).toBeGreaterThan(flow.compactOpacity);
   expect(flow.flowLabelsFit, `${preset.id}: expanded flow keeps every active stage named`).toBeTruthy();
+  expect(flow.railRoom, `${preset.id}: the journey fits its geometry reserve (px to spare)`).toBeGreaterThanOrEqual(0);
+  expect(flow.chapterRoom, `${preset.id}: the open chapter fits its own cap (px to spare)`).toBeGreaterThanOrEqual(0);
+  // Report the MARGIN, not just the verdict: these two reserves are what a
+  // type-ladder change spends, and a pass with 2px left is worth seeing.
+  console.log(`[ok] ${preset.id} journey: ${flow.railRoom}px reserve / ${flow.chapterRoom}px chapter to spare`);
 }
 
 for (const preset of PRESETS) {

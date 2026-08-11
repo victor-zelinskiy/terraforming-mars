@@ -91,9 +91,9 @@ type Readout = {
   rails: number,
   /** How far the step's status line sticks out of the box that clips it. */
   railClippedBy: number,
-  /** The resource chip text on each candidate cell, in DOM order. */
+  /** The stored-resource reading of each candidate cell, in DOM order. */
   chips: ReadonlyArray<string>,
-  /** …and whether each carries a real sprite rather than a bare number. */
+  /** …and whether each carries a real resource sprite rather than a bare number. */
   chipsHaveSprite: boolean,
   /** The «ВЫ ПОЛУЧИТЕ» chip's capsule height and its label's line box. */
   gainChipH: number,
@@ -145,10 +145,19 @@ async function readout(page: Page): Promise<Readout> {
         return Math.max(0, Math.round(
           line.getBoundingClientRect().bottom - clip.getBoundingClientRect().bottom));
       })(),
-      chips: Array.from(document.querySelectorAll('[data-ptsel-cell] .con-cardres'))
+      // ONE reading per cell, whatever the cell IS. A physical candidate states
+      // its count in the card's own carved capsule (`.pcard__res`, bottom-left
+      // beside the expansion stamp); the «ИСТОЧНИК · ЭТА КАРТА» proxy has no
+      // face to carry one, so it keeps the chip. Both are queried together on
+      // purpose: two hits inside ONE cell is the duplicate counter this step
+      // was reported for, and it fails the count assertion instead of hiding.
+      chips: Array.from(document.querySelectorAll(
+        '[data-ptsel-cell] .pcard__res-count, [data-ptsel-cell] .con-cardres__n'))
         .map((c) => (c as HTMLElement).innerText.trim()),
-      chipsHaveSprite: Array.from(document.querySelectorAll('[data-ptsel-cell] .con-cardres__icon'))
-        .every((i) => /card-resource-\w|resource_icon--\w/.test(i.className)),
+      chipsHaveSprite: Array.from(document.querySelectorAll(
+        '[data-ptsel-cell] .pcard__res-icon, [data-ptsel-cell] .con-cardres__icon'))
+        .every((i) => /card-resource-\w|resource_icon--\w/.test(i.className) ||
+          /url\(/.test((i as HTMLElement).style.backgroundImage)),
       gainChipH: Math.round(
         document.querySelector('.con-composer__hero .action-effect-chip')?.getBoundingClientRect().height ?? 0),
       gainLabelH: Math.round(
@@ -382,6 +391,18 @@ for (const profile of PROFILES) {
         .toBeLessThanOrEqual(neutral.cells[1].width + 1);
       expect(neutral.proxy!.height, 'and stays compact — never a full card')
         .toBeLessThan(neutral.cells[1].height * 0.5);
+
+      // EVERY eligible target states what it currently holds — exactly one
+      // reading each. Zero is the load-bearing case: «этой карте пока нечего
+      // тратить» is a decision, so a cell that shows nothing has hidden it. And
+      // «exactly one» is the other half — the count matching the cell count is
+      // what fails if a second counter is ever drawn on top of a card again.
+      expect(neutral.chips.length, 'one stored-resource reading per candidate, never two')
+        .toBe(neutral.cells.length);
+      expect(neutral.chips.every((t) => /^\d+$/.test(t)),
+        `every candidate names its count, zero included (got ${JSON.stringify(neutral.chips)})`).toBe(true);
+      expect(neutral.chipsHaveSprite, 'and each count carries the real resource sprite, not a bare number')
+        .toBe(true);
 
       // The CONNECTOR is a real, measured link between the two real boxes.
       expect(neutral.wire, 'the connector resolved').not.toBeNull();

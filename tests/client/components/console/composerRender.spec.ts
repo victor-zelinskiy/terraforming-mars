@@ -768,7 +768,7 @@ describe('ConsoleActionComposer — premium render', () => {
       },
     });
     // The hero card wears the SHARED tableau counter chip.
-    expect(w.find('.con-composer__actcard .con-cardres').text()).to.eq('1');
+    expect(w.find('.con-composer__actcard .pcard__res-count').text()).to.eq('1');
 
     // The phase opens; the answer's commit already carries the reward (2) —
     // the visible counters must HOLD the before-value until the beat.
@@ -779,7 +779,7 @@ describe('ConsoleActionComposer — premium render', () => {
       thisPlayer: {...viewBefore.thisPlayer, tableau: [{name: 'Search For Life', resources: 2}]},
     };
     await w.setProps({playerView: viewAfter});
-    expect(w.find('.con-composer__actcard .con-cardres').text()).to.eq('1');
+    expect(w.find('.con-composer__actcard .pcard__res-count').text()).to.eq('1');
 
     await w.setProps({outcome: {kind: 'deck-check', payload: {
       action: 'Search For Life',
@@ -792,9 +792,10 @@ describe('ConsoleActionComposer — premium render', () => {
     // The beat resolves (headless runner: the short no-travel path).
     await new Promise((resolve) => setTimeout(resolve, 260));
     expect((w.vm as any).revealGainApplied).to.eq(true);
-    // ONE counter now — the disc and the plate collapsed into the card's own
-    // chip, so the tick is asserted once, where it happens.
-    expect(w.find('.con-composer__actcard .con-cardres').text()).to.eq('2');
+    // ONE counter now — the disc and the plate collapsed into the CARD'S OWN
+    // capsule (bottom-left, beside the expansion stamp), so the tick is
+    // asserted once, in the one place it happens.
+    expect(w.find('.con-composer__actcard .pcard__res-count').text()).to.eq('2');
     // L3 = the source card fullscreen (the console-wide source verb).
     (w.vm as any).handleIntent({kind: 'press', button: 'stickL'});
     expect(w.emitted('inspect-source')).to.have.length(1);
@@ -933,15 +934,14 @@ describe('ConsoleActionComposer — premium render', () => {
         nodeIndex: 0,
       },
     });
-    // THE ONE counter, mounted on the card itself: a real resource icon plus
-    // the number, in place of the gold disc (which named no resource) and the
-    // «N на этой карте» plate (which said the same thing a third time).
-    const chip = w.find('.con-cardres');
-    expect(chip.exists(), 'the card wears its resource chip').to.eq(true);
-    expect(chip.text()).to.contain('3');
-    // …with the REAL sprite of THAT card's resource, not an abstract disc.
-    expect(chip.find('.con-cardres__icon').classes().join(' '), 'and the icon is a real resource sprite')
-      .to.match(/card-resource-\w/);
+    // THE ONE counter is the PREMIUM FACE'S OWN capsule, carved into the panel
+    // beside the expansion stamp. The console used to hand that face only a
+    // card NAME, so it printed a permanent «0» and the true count had to be
+    // repeated by a gold disc and an «N на этой карте» plate — three readings,
+    // two anchors. Passing the live model is what makes the one anchor true.
+    const chip = w.find('.con-composer__actcard .pcard__res');
+    expect(chip.exists(), 'the card wears its own resource capsule').to.eq(true);
+    expect(chip.find('.pcard__res-count').text()).to.eq('3');
     w.unmount();
   });
 });

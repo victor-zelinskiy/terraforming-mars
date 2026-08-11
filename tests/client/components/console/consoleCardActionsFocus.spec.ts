@@ -73,14 +73,13 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     expect(thumb.exists()).to.eq(true);
     expect(thumb.attributes('data-zoom-slot')).to.eq(CARD);
     expect(thumb.attributes('data-action-flow-thumb')).to.not.eq(undefined);
-    // The stored-resource counter rides the thumbnail in the ONE shared chip
-    // language (`ConsoleCardResourceChip`) — never a new visual pattern. It sits
-    // INSIDE the zoomed card, so it scales and lifts with the face rather than
-    // floating beside it, and it carries the resource's real sprite: the gold
-    // disc it replaced showed a bare number and named nothing.
-    const chip = thumb.find('.con-cardres');
-    expect(chip.text()).to.eq('2');
-    expect(chip.find('.con-cardres__icon').classes().join(' ')).to.match(/card-resource-\w/);
+    // The stored-resource counter is the CARD'S OWN capsule (bottom-left,
+    // beside the expansion stamp) — one anchor the premium language already
+    // reserved, fed by passing the live model down. The gold disc it replaced
+    // floated beside the face and named no resource at all.
+    const chip = thumb.find('.pcard__res');
+    expect(chip.exists(), 'the thumbnail wears the card\'s own capsule').to.eq(true);
+    expect(chip.find('.pcard__res-count').text()).to.eq('2');
     expect(w.find('.con-cardactions__detail-graphic').exists()).to.eq(false);
     // No focus stage yet; the browse layer is live.
     expect(w.find('.con-composer--stage').exists()).to.eq(false);

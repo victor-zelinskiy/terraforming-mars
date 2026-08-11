@@ -143,7 +143,7 @@ The source card's identity is read once, from the model's own decision, via
 `playedTargetSourceCardName(owners)` — never re-derived from a card name at a
 call site, which is what would let the two disagree.
 
-## 5 · One counter on the card (`ConsoleCardResourceChip.vue`, `.con-cardres`)
+## 5 · One counter, and it is the CARD'S OWN (`.pcard__res`)
 
 «How many of this card's own resource are on it» was told in four incompatible
 dialects at once: a gold disc carrying a BARE NUMBER (no icon — the player had to
@@ -151,29 +151,34 @@ already know what the card stores), a compact icon+number chip inside the proxy,
 a full-width «2 на этой карте» plate under the hero, and the Result line's
 `2 → 3`. Three of those state the same fact.
 
-The division of labour the chip settles:
+The division of labour that settles it:
 
 | surface | says |
 | --- | --- |
-| the chip ON the card | the CURRENT count. Neutral warm gold. |
-| the chip in the PROXY | the self-target option's own count |
+| the card's own capsule (`.pcard__res`) | the CURRENT count. Neutral warm gold. |
+| the chip in the PROXY (`.con-cardres`) | the self-target option's own count |
 | the Result / Summary | the PROJECTED change (`2 → 3`). Emerald. |
 
 Green belongs to what WILL happen; a standing quantity is not an event, so it
 never wears the gain colour.
 
-**IT IS PART OF THE CARD, NOT AN OVERLAY ON IT.** The `--card` variant is
-authored in **px** because every console host draws its card inside a CSS `zoom`
-context whose factor already folds in `--con-ui-scale` (`.con-composer__actcard`,
-`.con-ptsel__slot`, `.con-cardactions__detail-card`). A rem child there is scaled
-twice; px puts the chip in the same 320×460 space the card face is measured in,
-so it rides the card's zoom, its focus lift, its scale, a FLIP and the fullscreen
-inspect **by construction** — no second animation to keep in sync, and no
-independent layer to re-position. It crosses the card's painted FRAME (a mounting
-tab on the left rim at mid-height, clear of cost, title, tags, the requirement
-band and the VP) but never the card BOX, so it can never become a container's
-overflow. The one variant that is not on a card (`proxy`) is rem-authored,
-because there it is ordinary UI.
+**THE CARD ALREADY HAD THE ANCHOR — the console just wasn't feeding it.** The
+premium face carves the count into the panel at bottom-left, beside the expansion
+stamp (`.pcard__res`, built by `buildResource`). Every console host was handing
+that face a card NAME and nothing else, so it printed a permanent `0` and the
+true count had to be repeated somewhere else — which is how three dialects were
+born. Passing the live `CardModel` down (`ConsoleCardFaceLite`'s optional `card`
+prop → `PremiumCard`) makes the one anchor true, and the count then rides the
+card's zoom, its focus lift, its scale, a FLIP and the fullscreen inspect **by
+construction**: it is a child of the face, not a layer above it.
+
+An overlay chip drawn on top of the card shipped first and was removed for
+exactly this: it put the reading at a SECOND anchor whose position followed the
+overlay's own layout, so the number sat mid-art on one surface and at the foot on
+another — the reported «компоновка скачет». One place on every card, always.
+`ConsoleCardResourceChip` survives for the one candidate that has no face to
+carry it: the «ИСТОЧНИК · ЭТА КАРТА» proxy is a navigation stop, so its count is
+ordinary rem-authored UI.
 
 The plate is **dark** on purpose: the resource sprites are full-bleed gold-framed
 tiles (the ornate frame is baked into the 512² art), so a gold plate under one
@@ -181,11 +186,17 @@ doubles the gold.
 
 **ZERO IS A READING, NOT AN ABSENCE.** Once a step moves this resource, every
 candidate the server offered can by construction hold it — so the current amount
-is part of the decision on ALL of them, and `playedTargetResourceFor` returns
-`showZero: true`. An empty card answering with no chip says something else
-entirely («this card does not take floaters»), which is the opposite of true and
-the one thing the player would act on. `card.resources` is omitted rather than
-sent as 0, so the absent field IS the zero.
+is part of the decision on ALL of them. The card face gets this free
+(`model?.resources ?? 0`), and the proxy's `playedTargetResourceFor` returns
+`showZero: true` to match. An empty card answering with no counter says something
+else entirely («this card does not take floaters»), which is the opposite of true
+and the one thing the player would act on. `card.resources` is omitted rather
+than sent as 0, so the absent field IS the zero.
+
+A host that FREEZES the count for a beat (the action commit holds it at the
+pre-reveal value until the reward wave lands) passes a spread model with
+`resources` overridden — `heroCardModel` in `ConsoleActionComposer`. The freeze
+belongs to the host's timeline, never to the face.
 
 ## 6 · The inline chip scale (`--con-chip-c-*`)
 

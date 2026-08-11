@@ -335,13 +335,18 @@ html.con-profile-tv {
     }
     /* The journey is secondary to the workspace title, but still a couch-
        readable mechanism. Only the text ladder grows; its fixed-height track
-       and content-sized surfaces keep the card field at the same coordinate. */
+       and content-sized surfaces keep the card field at the same coordinate.
+       SECONDARY IS NOT AN EXEMPTION FROM THE FLOOR: this block first shipped
+       raising the base sizes by a hair (.69→.72 / .75→.78), which is a TV
+       recomposition that still reads as a speck from the couch — the ladder
+       therefore lands on the profile's own floor/caption tokens, never on a
+       hand-picked number just above the base one. */
     .con-jrail {
-        &__phase-label { font-size: .78rem; }
-        &__label { font-size: .72rem; }
+        &__phase-label { font-size: var(--con-t-caption); }
+        &__label { font-size: var(--con-t-floor); }
         &__compact-phase,
-        &__compact-item { font-size: .76rem; }
-        &__terminal-label { font-size: .8rem; }
+        &__compact-item { font-size: var(--con-t-floor); }
+        &__terminal-label { font-size: var(--con-t-caption); }
     }
     .con-hand {
         &__count { font-size: var(--con-t-secondary); }
