@@ -18828,6 +18828,24 @@ html.console-mode {
         &--go { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%); b { color: @con-mint; } }
         &--zero { background: rgba(120, 140, 160, 0.1); box-shadow: inset 0 0 0 .05rem rgba(160, 180, 200, 0.24); b { color: @con-text-dim; } }
     }
+    /* ── THE SHARED DEEP CELL. The variant chip and a hosted colony step's
+       FLEET DOCK are two tenants of one berth at the crumb's tail: the dock
+       has to land where «Колонии» always puts it, and two boxes in two places
+       would tell the player they had arrived somewhere else. Both are absolute
+       inside a cell that reserves the taller of them, so the swap changes what
+       is drawn and never the line's geometry. */
+    &__deepslot {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        min-height: 1.5rem;
+    }
+    &__deepslot > * { position: absolute; right: 0; top: 50%; transform: translateY(-50%); }
+    /* The berth itself is pure structure — the teleported dock brings its own
+       chassis, so this must add no plate, no padding and no box of its own. */
+    &__fleetberth { display: inline-flex; align-items: center; }
+
     /* The PLAYER-CONTEXT chip — rendered ONLY when the workspace is opened
        on behalf of another player (the future Information-Panel entry);
        the current player's own visit carries no chip. */
@@ -21597,9 +21615,9 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
 
 /* Handheld (Steam Deck) — tighter composer chrome. */
 html.con-profile-handheld .con-composer {
-    &:not(.con-composer--embed) .con-composer__panel { width: min(38rem, 100%); }
+    &:not(.con-composer--embed):not(.con-composer--colonystep) .con-composer__panel { width: min(38rem, 100%); }
     .con-composer__panel { padding: .7rem .8rem .5rem; gap: .4rem; }
-    &:not(.con-composer--embed) .con-composer__panel--play { width: min(58rem, 100%); }
+    &:not(.con-composer--embed):not(.con-composer--colonystep) .con-composer__panel--play { width: min(58rem, 100%); }
     .con-composer__playmain { gap: .7rem; }
     .con-composer__playcard { zoom: 0.82; }
     .con-composer__panel--act { width: min(44rem, 100%); }
@@ -21672,7 +21690,7 @@ html.con-profile-handheld .con-composer--embed {
 html.con-profile-large .con-composer {
     /* The standalone dialog's cap — see the note in console_tv.less. An
        EMBEDDED composer takes its host's width. */
-    &:not(.con-composer--embed) .con-composer__panel { width: min(52rem, 100%); }
+    &:not(.con-composer--embed):not(.con-composer--colonystep) .con-composer__panel { width: min(52rem, 100%); }
     .con-composer__name { font-size: 1.65rem; }
     .con-composer__opt-name { font-size: 1.05rem; }
     .con-composer__foot-item { font-size: 1rem; }
@@ -21696,8 +21714,29 @@ html.con-profile-large .con-composer--stage .con-composer__panel--stage { width:
    re-declares BOTH of these on `html.con-profile-handheld .con-composer--stage
    …` — one class more specific than a bare compound — so a rule without it
    loses on every Deck-sized viewport while looking correct in the source. ── */
+/* The swap is a CROSSFADE with a hair of travel — the dock arrives from the
+   same edge it will occupy, the chip leaves toward it. No scale: this cell
+   sits on the header line, and a scaling chip there reads as the line moving. */
+.con-cardactions-swap-enter-active,
+.con-cardactions-swap-leave-active {
+    transition: opacity calc(190ms * var(--motion-scale, 1)) ease,
+                transform calc(190ms * var(--motion-scale, 1)) ease;
+}
+.con-cardactions-swap-enter-from { opacity: 0; transform: translate(.35rem, -50%); }
+.con-cardactions-swap-leave-to { opacity: 0; transform: translate(-.35rem, -50%); }
+@media (prefers-reduced-motion: reduce) {
+    .con-cardactions-swap-enter-active,
+    .con-cardactions-swap-leave-active { transition: none; }
+}
+
 html .con-composer--stage.con-composer--colonystep {
     .con-composer__actside { display: none; }
+    /* THE HOSTED SECTION GETS THE FRAME. The composer's own chrome (the plate
+       padding, the column gap, the setup column's centring) is the SETUP
+       layout's, and the colony fit is HEIGHT-bound: every row of it the
+       composer keeps is a row of colony tiles the player loses. */
+    .con-composer__panel--stage { padding: 0; }
+    .con-composer__actright { gap: 0; justify-content: stretch; }
     .con-composer__actmain--stage {
         max-width: none;
         grid-template-columns: minmax(0, 1fr);

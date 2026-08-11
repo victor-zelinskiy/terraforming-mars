@@ -13,8 +13,10 @@ import {
  *   · the press COMMITS NOTHING — the floater is still on the card and the
  *     server was never asked; that is what makes B a real way back;
  *   · the breadcrumb keeps the origin, and it is the ONLY trace of it;
- *   · the fee is the card's own path, pinned, with every other path dimmed and
- *     out of the cursor ring;
+ *   · the working zone and the fleet dock land exactly where «Колонии» puts
+ *     them — the header is the only thing that differs;
+ *   · the fee is the card's own path, alone: the others are not choices here,
+ *     so they are not shown;
  *   · B walks back one logical level at a time, and the variant survives.
  *
  * The COMMIT itself is guarded server-side (`TitanFloatingLaunchPad.spec` — one
@@ -50,6 +52,11 @@ type Readout = {
   paySummary: ReadonlyArray<{iconW: number, text: string}>,
   /** Any second «источник» card / banner the header is supposed to make unnecessary. */
   sourceExtras: number,
+  fleetsInHeader: boolean,
+  toolbarUp: boolean,
+  variantChipUp: boolean,
+  zoneW: number,
+  frameW: number,
 };
 
 async function readout(page: Page): Promise<Readout> {
@@ -83,6 +90,20 @@ async function readout(page: Page): Promise<Readout> {
       // no duplicate chip naming the card — the crumb is the whole trace.
       sourceExtras: document.querySelectorAll(
         '.con-colonies [data-ptsel-source], .con-colfocus [data-ptsel-source], .con-task__source').length,
+      // The FLEET DOCK berths in the host's header (the same right edge it
+      // occupies when the player walks in through «Колонии»); a dock floating
+      // in the content area is both the wrong place AND a row of grid height.
+      fleetsInHeader: document.querySelector('[data-colony-fleet-berth] .con-colfleet, ' +
+        '[data-colony-fleet-berth] > *') !== null,
+      toolbarUp: document.querySelector('.con-colonies__toolbar') !== null,
+      variantChipUp: document.querySelector('.con-cardactions__stat--variant') !== null,
+      // The working zone — the number that decides «did I arrive at the same
+      // screen». Compared against the frame it stands in, because the frame is
+      // the same one the standalone section fills.
+      zoneW: Math.round((document.querySelector('.con-colonies__scroll') as HTMLElement | null)
+        ?.getBoundingClientRect().width ?? 0),
+      frameW: Math.round((document.querySelector('.con-cardactions__frame') as HTMLElement | null)
+        ?.getBoundingClientRect().width ?? 0),
     };
   });
 }
@@ -190,19 +211,31 @@ for (const profile of PROFILES) {
       expect(picking.sourceExtras, 'the header is the only trace — no second source card').toBe(0);
       expect(await floaters(request, playerId), 'nothing was spent to get here').toBe(before);
 
+      // ②b VISUAL PARITY — the player must read «I am in the colonies, I just
+      //    came from somewhere else». The working zone therefore fills the SAME
+      //    frame it fills through «Колонии» (a composer width cap once took ~28 %
+      //    of it, and the colony fit is height-bound, so the tiles shrank with
+      //    it), and the FLEET DOCK berths on the header's right edge instead of
+      //    floating in the content — where it also stole a row of grid height.
+      expect(picking.zoneW / picking.frameW, 'the colony zone fills the frame, as it does standalone')
+        .toBeGreaterThan(0.94);
+      expect(picking.fleetsInHeader, 'the fleet dock berths in the header').toBe(true);
+      expect(picking.toolbarUp, 'and nothing is left floating in the content').toBe(false);
+      expect(picking.variantChipUp, 'the variant chip yielded the berth to it').toBe(false);
+
       // ③ A → the colony's focus stage, with the fee already decided.
       await press(page, 'Enter', 2600);
       const onColony = await readout(page);
       expect(onColony.focusUp, 'the focus stage opened').toBe(true);
       expect(onColony.crumbStage, 'the colony folds into the tail beside its stage').toContain('·');
-      const selectable = onColony.payRows.filter((r) => r.reason === '');
-      expect(selectable.length, 'every payment path is still SHOWN').toBeGreaterThan(1);
-      const locked = selectable.filter((r) => r.locked);
-      expect(locked, 'exactly one path is pinned').toHaveLength(1);
-      expect(locked[0].chosen, 'and it is the chosen one').toBe(true);
-      expect(selectable.filter((r) => !r.locked).every((r) => r.off),
-        'every other path is dimmed').toBe(true);
-      expect(selectable.some((r) => r.focused), 'and none of them can take the cursor').toBe(false);
+      // The fee is FIXED by the entry, so it is not a list: a card action walked
+      // in through this path and cannot switch. The other paths are not dimmed —
+      // they are GONE, because a menu whose every other item refuses the press
+      // is not information, it is furniture.
+      expect(onColony.payRows, 'exactly one payment path, and it is the card\'s own').toHaveLength(1);
+      expect(onColony.payRows[0].locked).toBe(true);
+      expect(onColony.payRows[0].chosen).toBe(true);
+      expect(onColony.payRows[0].focused, 'a fixed fee is not a cursor stop').toBe(false);
 
       // ④ «ОПЛАТА» speaks the same premium grammar as a resource fee.
       expect(onColony.paySummary.length, 'the fee is summarized').toBeGreaterThan(0);
@@ -210,12 +243,12 @@ for (const profile of PROFILES) {
       expect(fee.iconW, 'the fee row carries a REAL icon, not a 0×0 element').toBeGreaterThan(4);
       expect(fee.text, 'and a before → after, like every other payment').toContain('→');
 
-      // ⑤ Pressing the fee rows changes nothing — the lock is a rule, not a look.
+      // ⑤ Pressing around changes nothing — the lock is a rule, not a look.
       await press(page, 'ArrowDown', 700);
       await press(page, 'Enter', 900);
       const afterPoke = await readout(page);
       expect(afterPoke.payRows.filter((r) => r.chosen).map((r) => r.title),
-        'the pinned fee is still the chosen one').toEqual(locked.map((r) => r.title));
+        'the pinned fee is still the chosen one').toEqual(onColony.payRows.map((r) => r.title));
 
       // ⑥ B from the focus → back to the colony selection.
       await press(page, 'Escape', 2000);
@@ -231,6 +264,9 @@ for (const profile of PROFILES) {
         .toContain('ЛЕТАЮЩАЯ');
       expect(backToCard.cta.toLowerCase(), 'and the trade variant survived the trip')
         .toContain('колони');
+      // …and the berth handed itself back: the fleets left, the variant returned.
+      expect(backToCard.variantChipUp, 'the variant chip is back in the berth').toBe(true);
+      expect(backToCard.fleetsInHeader, 'and the fleet dock left with the step').toBe(false);
       expect(await floaters(request, playerId), 'and the floater was never spent').toBe(before);
     });
   });

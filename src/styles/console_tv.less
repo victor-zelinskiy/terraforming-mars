@@ -1179,9 +1179,15 @@ html.con-profile-tv {
            itself. A rail with empty space beside it is a UI bug, and the cap
            was its cause. An embedded panel has no width of its own: it takes
            the host's. */
-        &:not(.con-composer--embed) .con-composer__panel { width: min(58rem, 90vw); }
-        &--play:not(.con-composer--embed) .con-composer__panel,
-        &:not(.con-composer--embed) .con-composer__panel--play { width: min(66rem, 94vw); }
+        /* ⚠️ `--colonystep` joins `--embed` in the exemption: a composer that
+           HOSTS a full workspace is exactly as much «not a floating panel» as
+           an embedded one. Without it this cap (58rem × the TV scale = 2320px)
+           silently narrowed the hosted colony grid by ~880px against the same
+           screen reached through «Колонии» — the tiles then lost a third of
+           their width, because the fit takes min(scaleW, scaleH). */
+        &:not(.con-composer--embed):not(.con-composer--colonystep) .con-composer__panel { width: min(58rem, 90vw); }
+        &--play:not(.con-composer--embed):not(.con-composer--colonystep) .con-composer__panel,
+        &:not(.con-composer--embed):not(.con-composer--colonystep) .con-composer__panel--play { width: min(66rem, 94vw); }
         /* The action composer/confirm: source card + decision column. */
         &__panel--act { width: min(70rem, 94vw); }
         &__actmain { gap: 1.5rem; }

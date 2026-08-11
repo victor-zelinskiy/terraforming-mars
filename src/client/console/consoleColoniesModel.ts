@@ -162,6 +162,27 @@ export function openColonyFocus(colony: ColonyName, intent: ColonyFocusIntent): 
 }
 
 /** The stage names its own crumb tail (never draws its own header). */
+/**
+ * WHERE THE FLEET DOCK BERTHS when the colony screen is a STEP of another
+ * workspace.
+ *
+ * The dock is ONE component in ONE place — the header's right edge — in every
+ * mode, because that is spatial memory: the player who walked in through
+ * «Колонии» and the player who walked in through a card's action must find
+ * their ships in the same spot. A hosted section has no header of its own
+ * (rule 5), so the HOST publishes a berth in ITS header and the section
+ * teleports the dock there; `''` means «no berth offered» and the section
+ * keeps the dock in its own toolbar, exactly as before.
+ *
+ * A selector rather than a boolean for the same reason `setWorkspaceFrameSlot`
+ * is one: the host owns where, the step owns what.
+ */
+export const colonyFleetBerth = reactive({selector: ''});
+
+export function setColonyFleetBerth(selector: string): void {
+  colonyFleetBerth.selector = selector;
+}
+
 export function setColonyFocusStage(stage: string): void {
   if (colonyFocusState.open) {
     colonyFocusState.stage = stage;

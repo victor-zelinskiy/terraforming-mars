@@ -362,30 +362,28 @@
               <!-- The heading belongs to the ROWS, not to the mode: past the
                    commit the server takes the options away and a bare
                    «СПОСОБ ОПЛАТЫ» over nothing read as a broken panel. -->
-              <div v-if="payEntries.length + disabledEntries.length > 0" class="con-colfocus__sec-title">{{ $t('Payment method') }}</div>
-              <div v-for="(entry, i) in payEntries" :key="'p' + i"
+              <div v-if="visiblePayEntries.length + visibleDisabledEntries.length > 0" class="con-colfocus__sec-title">{{ $t('Payment method') }}</div>
+              <div v-for="entry in visiblePayEntries" :key="'p' + entry.index"
                    class="con-colfocus__payrow"
                    :class="{
-                     'con-colfocus__payrow--focused': isFocused('pay', i),
-                     'con-colfocus__payrow--chosen': payIdx === i,
+                     'con-colfocus__payrow--focused': isFocused('pay', entry.index),
+                     'con-colfocus__payrow--chosen': payIdx === entry.index,
                      // THE FEE IS FIXED by the entry (a card action walked in
-                     // here). The other paths stay RENDERED — the player still
-                     // reads what a trade costs in general — but they are
-                     // dimmed, out of the cursor ring and unpickable. Why is
-                     // NOT restated here: the breadcrumb already says the trade
-                     // came from a card, and that is the whole explanation.
-                     'con-colfocus__payrow--off': lockedPayIdx >= 0 && lockedPayIdx !== i,
-                     'con-colfocus__payrow--locked': lockedPayIdx === i,
+                     // here), and a fixed fee is not a list: the other paths
+                     // are not merely unpickable, they are unreachable, so
+                     // showing them would be a menu that refuses every item.
+                     // They are filtered out entirely — see `visiblePayEntries`.
+                     'con-colfocus__payrow--locked': lockedPayIdx === entry.index,
                    }"
-                   :ref="isFocused('pay', i) ? 'focusedEl' : undefined">
+                   :ref="isFocused('pay', entry.index) ? 'focusedEl' : undefined">
                 <span class="con-colfocus__payrow-pick" aria-hidden="true">
-                  <span v-if="payIdx === i" class="con-colfocus__payrow-dot"></span>
+                  <span v-if="payIdx === entry.index" class="con-colfocus__payrow-dot"></span>
                 </span>
                 <i v-if="entry.iconClass !== ''" class="con-colfocus__payrow-icon" :class="entry.iconClass" aria-hidden="true"></i>
                 <span class="con-colfocus__payrow-title">{{ entry.title }}</span>
                 <span v-if="entry.preview !== ''" class="con-colfocus__payrow-delta">{{ entry.preview }}</span>
               </div>
-              <div v-for="(d, i) in disabledEntries" :key="'d' + i" class="con-colfocus__payrow con-colfocus__payrow--off">
+              <div v-for="(d, i) in visibleDisabledEntries" :key="'d' + i" class="con-colfocus__payrow con-colfocus__payrow--off">
                 <span class="con-colfocus__payrow-pick" aria-hidden="true"></span>
                 <i v-if="d.iconClass !== ''" class="con-colfocus__payrow-icon" :class="d.iconClass" aria-hidden="true"></i>
                 <span class="con-colfocus__payrow-title">{{ d.title }}</span>
@@ -1075,6 +1073,27 @@ export default defineComponent({
           reason: textOf(rec.reason),
         };
       });
+    },
+    /**
+     * THE PATHS THE PLAYER CAN ACTUALLY TAKE.
+     *
+     * With the fee fixed by the entry there is exactly one, and the rest are
+     * not choices at all — a card action walked in through THIS path and
+     * cannot switch. A dimmed list of four would be a menu whose every other
+     * item refuses the press; the header already says where the trade came
+     * from, and that is the whole explanation the player needs.
+     *
+     * The original index rides along: `payIdx`, the focus ring and the submit
+     * all speak the SERVER's option order, and a filtered list must never
+     * renumber it.
+     */
+    visiblePayEntries(): Array<PayEntry & {index: number}> {
+      const rows = this.payEntries.map((entry, index) => ({...entry, index}));
+      return this.lockedPayIdx >= 0 ? rows.filter((r) => r.index === this.lockedPayIdx) : rows;
+    },
+    /** …and a REFUSED path is equally irrelevant once the fee is fixed. */
+    visibleDisabledEntries(): Array<{title: string, iconClass: string, reason: string}> {
+      return this.lockedPayIdx >= 0 ? [] : this.disabledEntries;
     },
     /**
      * THE FEE IS FIXED — this trade was entered from a card's own action, so

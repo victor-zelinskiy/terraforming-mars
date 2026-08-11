@@ -41,10 +41,18 @@
           <ConsoleColonyFleetBar :chips="fleetChips" :launchingColor="launchingFleetColor" />
         </template>
       </ConsoleWsHead>
-      <!-- EMBEDDED: the host draws the crumb (rule 5); this toolbar keeps the
-           screen's OWN game state — the mode chip (held past the descent) and
-           the SAME fleet dock on the SAME right edge. -->
-      <div v-else class="con-colonies__toolbar">
+      <!-- EMBEDDED: the host draws the crumb (rule 5), and the FLEET DOCK goes
+           WHERE IT ALWAYS IS — the header's right edge. When the host offers a
+           berth there the dock TELEPORTS into it (one instance, one owner of
+           the data); otherwise this toolbar keeps it, exactly as before.
+           A dock floating in the content area was the loudest tell that the
+           player had arrived somewhere ELSE: same screen, ships in a different
+           place, and a row of vertical space stolen from the grid — which is
+           what shrank the tiles, because the fit is height-bound. -->
+      <Teleport v-if="embedded && fleetBerth !== ''" :to="fleetBerth">
+        <ConsoleColonyFleetBar :chips="fleetChips" :launchingColor="launchingFleetColor" />
+      </Teleport>
+      <div v-else-if="embedded && (pick !== undefined || fleetBerth === '')" class="con-colonies__toolbar">
         <span v-if="pick !== undefined" class="con-colonies__mode-chip"
               :class="{'con-colonies__mode-chip--held': focusState.open}">{{ $t(pick.buttonLabel) }}</span>
         <ConsoleColonyFleetBar class="con-colonies__toolbar-fleets" :chips="fleetChips" :launchingColor="launchingFleetColor" />
@@ -250,7 +258,7 @@ import {SelectOptionModel, OrOptionsModel} from '@/common/models/PlayerInputMode
 import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
 import {
   colonyGridLayout, colonyGridCols, ColonyGridLayout, ColonyFocusIntent,
-  colonyFocusState, openColonyFocus, closeColonyFocus,
+  colonyFleetBerth, colonyFocusState, openColonyFocus, closeColonyFocus,
 } from '@/client/console/consoleColoniesModel';
 import {workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
 import {
@@ -471,6 +479,10 @@ export default defineComponent({
         return this.outcomeState.phaseKey !== '' ? this.outcomeState.phaseKey : 'Card draw';
       }
       return '';
+    },
+    /** The berth the HOST offers for our fleet dock ('' = keep it locally). */
+    fleetBerth(): string {
+      return colonyFleetBerth.selector;
     },
     /** The pair handed up to a HOSTING workspace's breadcrumb (see the watcher). */
     embeddedCrumb(): {embedded: boolean, subject: string, stage: string} {

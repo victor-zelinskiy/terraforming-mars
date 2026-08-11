@@ -81,8 +81,23 @@
         <!-- The variant chip closes the breadcrumb TAIL (the header's `deep`
              slot) — it belongs to the focused stage, not to the browse layer. -->
         <template #deep>
-          <span v-if="composer !== undefined && focusVariantTotal > 1" class="con-cardactions__stat con-cardactions__stat--variant">
-            <b>{{ composer.nodeIndex + 1 }}/{{ focusVariantTotal }}</b><i>{{ $t('Option') }}</i>
+          <!-- ONE berth, two tenants. The variant chip belongs to the focused
+               stage; a hosted COLONY step brings its own fleet dock, and that
+               dock must land exactly where it sits when the player walks in
+               through «Колонии» — the header's right edge. So they share this
+               cell and CROSSFADE: entering the step, the fleets replace the
+               chip in place; B brings the chip back. Two boxes in two places
+               would say «you are somewhere else», which is the one thing this
+               flow exists to disprove. -->
+          <span class="con-cardactions__deepslot">
+            <transition name="con-cardactions-swap">
+              <span v-if="colonyStepHosted" key="fleets" class="con-cardactions__fleetberth"
+                    data-colony-fleet-berth></span>
+              <span v-else-if="composer !== undefined && focusVariantTotal > 1" key="variant"
+                    class="con-cardactions__stat con-cardactions__stat--variant">
+                <b>{{ composer.nodeIndex + 1 }}/{{ focusVariantTotal }}</b><i>{{ $t('Option') }}</i>
+              </span>
+            </transition>
           </span>
         </template>
 
@@ -485,6 +500,7 @@ import {
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {pushWorkspaceFrame, workspaceFrameHost, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameSubject} from '@/client/console/consoleWorkspaceStack';
 import {beginCardColonyTrade, clearCardColonyTrade, colonyStepCrumbParts} from '@/client/console/colonyTrade/colonyTradeEntry';
+import {setColonyFleetBerth} from '@/client/console/consoleColoniesModel';
 import {backVerbFor, isCommitted, WorkspacePhase, workspacePhaseOf} from '@/client/console/consoleWorkspaceFlow';
 import {
   claimWorkspaceOutcome,
@@ -927,10 +943,17 @@ export default defineComponent({
      * cleared (`workspaceFrameKnown` counts the park): «свернуть» keeps the
      * decision live, and the payment must still be its own on restore.
      */
-    colonyStepHosted(on: boolean) {
-      if (!on && !workspaceFrameKnown('colonies')) {
-        clearCardColonyTrade();
-      }
+    'colonyStepHosted': {
+      immediate: true,
+      handler(on: boolean) {
+        // Offer the header berth while the step stands; retract it the moment
+        // it leaves, so the section falls back to its own toolbar for hosts
+        // that have no header to lend.
+        setColonyFleetBerth(on ? '[data-colony-fleet-berth]' : '');
+        if (!on && !workspaceFrameKnown('colonies')) {
+          clearCardColonyTrade();
+        }
+      },
     },
     'previewFingerprint': {
       immediate: true,
@@ -1121,6 +1144,9 @@ export default defineComponent({
     this.scheduleDetailFit();
   },
   beforeUnmount() {
+    // The berth dies with the header that offers it — a teleport into a
+    // detached node drops its content silently.
+    setColonyFleetBerth('');
     if (!workspaceFrameKnown('colonies')) {
       clearCardColonyTrade();
     }

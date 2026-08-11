@@ -274,6 +274,31 @@ the entry CONTEXT, the header, and what B means before the commit.
   card, no banner, no second chip — and the composer's hero column RECEDES while
   the step stands (`.con-composer--colonystep`), because a full workspace needs
   the whole room.
+- **VISUAL PARITY IS THE POINT** — «я попал туда же, просто из другого места».
+  The working zone must be pixel-for-pixel the screen «Колонии» gives (measured:
+  scroll 3198 vs 3197, grid 3174 vs 3173, tile 1010 vs 1010 at 4K), and three
+  things had to be true for that:
+  1. **The composer's panel width cap does not apply to a HOSTING composer.**
+     `:not(.con-composer--embed)` now also excludes `--colonystep`; without it
+     the TV cap (58rem × the TV scale = 2320 px) took ~880 px off the zone —
+     and because the colony fit is `min(scaleW, scaleH)`, the tiles lost a
+     third of their width to a purely horizontal constraint.
+  2. **The FLEET DOCK berths in the HOST's header** (`colonyFleetBerth` — the
+     host publishes a selector, the section teleports the one instance into
+     it). It shares the crumb-tail cell with the «N/M вариант» chip and they
+     CROSSFADE: entering the step the ships take the berth, B gives it back.
+     A dock floating in the content area was both the wrong place (spatial
+     memory: the ships live on the header's right edge in every entry) and a
+     stolen row of grid height.
+  3. **The composer's own chrome yields** — panel padding and the setup
+     column's gap/centring are the SETUP layout's, and every row of them the
+     host keeps is a row of colony tiles the player loses.
+- **A FIXED FEE IS NOT A LIST.** With the entry locking the path, the other
+  payment rows are not merely unpickable — they are unreachable, so they are
+  filtered out (`visiblePayEntries` / `visibleDisabledEntries`), not dimmed. A
+  menu whose every other item refuses the press is furniture. ⚠️ The filtered
+  rows carry their ORIGINAL index: `payIdx`, the focus ring and the submit all
+  speak the SERVER's option order, and a filtered list must never renumber it.
 - **B is one logical level**: colony focus → colony selection → the card's
   variant, still selected, floater still on the card. Past the trade's commit
   the standard resolution owns B (collapse).
