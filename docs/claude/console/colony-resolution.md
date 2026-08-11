@@ -40,6 +40,36 @@ no-blank-stage, no-focus-hand-zone, marker-in-focus and return-leg guards).
    reports the committed reset — the marker's return is the resolution's
    FINAL commit beat and always plays on the colony's own big track.
 
+## Iteration 3 — the launch reads as SEPARATION FROM THE PRINTED BACK
+
+- The cover ladders lead with the REWARD CELL's own card-back glyph
+  (`[data-colony-card-cell]` on the track cell body) and the owner-bonus
+  zone's printed card (`[data-colony-bonus-cell]` on `__ob-value`); the
+  planet is only the deep fallback. ⚠️ The anchor binds
+  `cell.effective || cell.marker`: post-commit (when the covers actually
+  measure) the EFFECTIVE flag has collapsed with the spent offer, and the
+  frozen MARKER cell (presented pre-reset position) IS the paid cell —
+  binding effective alone silently degraded every launch to the planet.
+- `runTradeCoverFlight` speaks the board-bonus lift grammar: SEPARATION
+  (straight up off the cell, growing, the flip beginning WITH the growth,
+  `TRADE_COVER_LIFT_MS`) → TRAVEL (two-channel arc, remaining growth,
+  deceleration) → SETTLE. The hover size is STRICTLY MONOTONIC (capped at
+  92 % of the landing scale) — the bare ×1.6 arm once inflated a mid-sized
+  source past the slot, and grow-then-shrink is the «резко» read. Stagger
+  170 ms — «по одной» is readable. The source cell answers each departure
+  (`con-colcell--dealt`, transform+box-shadow only).
+- A SINGLE-card batch flies to the CENTRE presentation pose only on the
+  standalone/headless path; an EMBEDDED reveal has a real slot and the
+  multi path lands the cover pixel-perfect on it (the centre detour +
+  slot-release read as a teleport).
+- **Reveal → discard is DIRECT**: `armColonyFocusQuickExit()` makes the next
+  focus LEAVE a short quiet fade — the full fold-to-tile re-materialized the
+  colony composition for a second between the reveal and the hand.
+- Diagnosing a wrong launch: the e2e `watchPayout` records `proxyPose` (the
+  first POSED cover's rect + its landing slot) — a birth rect the size of
+  the planet, or an apex above the slot, names the broken ladder rung in one
+  run.
+
 ### The two traps iteration 2 paid for
 - ⚠️ **The hand-reveal director's `setSection` hook spoke `goBoardHome` for
   every non-overlay hand.** For a hand hosted as an embedded STEP that wiped

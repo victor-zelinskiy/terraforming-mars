@@ -270,29 +270,43 @@ export default defineComponent({
 
       const name = colonyTradeState.colonyName;
       const tileSel = `[data-test="con-colony-${name}"]`;
-      // The FOCUS STAGE's launch cells lead when the stage is up (the trade
-      // resolves on the stage — iteration 2); the overview tile is the
-      // fallback for a closed stage.
       const key = cssEscape(name);
-      // THE COLONY HANDS THE CARDS OVER. While the focus stage is up the hero
-      // planet leads both ladders: a card payout is a thing the colony gives,
-      // so it must leave the colony — the summary rail's reward VALUE (the
-      // anchor resource chips rightly use, because there the value itself is
-      // what moves) reads as cards being born out of a number. The berth seat
-      // still leads for the OWNER bonus, which is earned by a settlement the
-      // player can see standing there.
-      const incomeRect = await stableRect(() => pickAnchor([
+      // THE CARDS SEPARATE FROM THEIR PRINTED BACKS. The income covers lift
+      // off the CARD-BACK GLYPH of the EFFECTIVE reward cell — the exact
+      // number the player just read on the track — and the bonus cover off
+      // the «БОНУС ВЛАДЕЛЬЦА» zone's own printed card. The planet is only
+      // the ladder's deep fallback (a closed stage degrades to the tile):
+      // «карты летят откуда-то из зоны планеты» was the reported wrongness.
+      const incomeLadder = [
+        `.con-colfocus [data-colony-card-cell="${key}"]`,
         `.con-colfocus [data-colony-card-source="${key}"]`,
-        `.con-colfocus [data-colony-trade-source="${key}"]`,
         `${tileSel} [data-colony-trade-source]`,
         tileSel,
-      ]));
-      const bonusRect = await stableRect(() => pickAnchor([
+      ];
+      const bonusLadder = [
+        `.con-colfocus [data-colony-bonus-cell="${key}"]`,
         `.con-colfocus [data-colony-bonus-source="${key}"]`,
-        `.con-colfocus [data-colony-card-source="${key}"]`,
         `${tileSel} [data-colony-bonus-source]`,
         tileSel,
-      ]));
+      ];
+      const incomeRect = await stableRect(() => pickAnchor(incomeLadder));
+      const bonusRect = await stableRect(() => pickAnchor(bonusLadder));
+      // The SOURCE CELL answers each departure: a one-shot press as every
+      // card separates (the deck-tick idiom — direct classList, self-clean).
+      const pulseTargets = {
+        income: pickAnchor(incomeLadder)?.closest<HTMLElement>('.con-colfocus__xcell') ?? null,
+        bonus: pickAnchor(bonusLadder)?.closest<HTMLElement>('.con-colfocus__ownerbonus') ?? null,
+      };
+      const pulseAt = (role: 'income' | 'bonus', delayMs: number) => {
+        const el = pulseTargets[role];
+        if (el === null || colonyTradeState.reducedMotion) {
+          return;
+        }
+        ctx.timers.push(setTimeout(() => {
+          el.classList.add('con-colcell--dealt');
+          ctx.timers.push(setTimeout(() => el.classList.remove('con-colcell--dealt'), motionMs(420)));
+        }, motionMs(delayMs)));
+      };
       if (!colonyTradeState.active) {
         return;
       }
@@ -304,7 +318,16 @@ export default defineComponent({
         return;
       }
 
-      if (e.cards.length === 1) {
+      // A SINGLE-card batch flies to the CENTRE presentation pose ONLY on the
+      // standalone/headless path (the fullscreen viewer lifts it from there).
+      // An EMBEDDED reveal has a real slot for it — the centre detour landed
+      // a huge card mid-screen and then released the real one in the slot,
+      // which read as a teleport; the multi path below measures the one slot
+      // and lands the cover pixel-perfect on it instead.
+      const embeddedHost = typeof document !== 'undefined' &&
+        document.querySelector('.con-reveal--embedded') !== null;
+      if (e.cards.length === 1 && !embeddedHost) {
+        pulseAt(plan[0]?.role ?? 'income', plan[0]?.delayMs ?? 0);
         this.flySingle(e, plan[0], (plan[0]?.role === 'bonus' ? bonusRect : incomeRect) ?? incomeRect ?? bonusRect);
         return;
       }
@@ -335,6 +358,7 @@ export default defineComponent({
           landed++;
           return;
         }
+        pulseAt(p.role, p.delayMs);
         const scaleTo = Math.max(0.05, target.width / CARD_NATURAL_W);
         ctx.handles.push(runTradeCoverFlight({
           proxy, flip,

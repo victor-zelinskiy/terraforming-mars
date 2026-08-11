@@ -189,7 +189,16 @@
                    'con-colfocus__xcell--settled': cell.index === settledCell,
                  }">
               <span class="con-colfocus__xcell-num">{{ cell.index + 1 }}</span>
-              <span class="con-colfocus__xcell-body">
+              <!-- THE CARD LAUNCH CELL: a card payout physically separates
+                   from the CARD BACK printed on the REWARD cell — the exact
+                   glyph whose number the player just read — never from
+                   «somewhere in the planet's area». Post-commit (when the
+                   covers actually measure) the EFFECTIVE flag has already
+                   collapsed with the spent offer, and the frozen MARKER cell
+                   (presentedColonyModel holds the pre-reset position) IS the
+                   cell the reward was paid at — so both flags anchor. -->
+              <span class="con-colfocus__xcell-body"
+                    :data-colony-card-cell="(cell.effective || cell.marker) ? colony.name : undefined">
                 <span class="con-colfocus__xcell-glyph">
                   <BenefitGlyph :benefit="tradeBenefitAt(cell.index)" :idx="cell.index" :cardResource="metadata.cardResource" />
                 </span>
@@ -267,7 +276,10 @@
                  :class="{'con-colfocus__ownerbonus--math': bonusMath !== undefined}"
                  :data-colony-bonus-source="owners.length === 0 ? colony.name : undefined">
               <span class="con-colfocus__ob-label" data-unfold-late>{{ $t('Owner bonus') }}</span>
-              <span class="con-colfocus__ob-value">
+              <!-- The BONUS card's own launch anchor — the bonus cover
+                   separates from THIS zone's printed card, a beat after the
+                   income wave (the two origins stay distinguishable). -->
+              <span class="con-colfocus__ob-value" :data-colony-bonus-cell="colony.name">
                 <b v-if="focusedBonusQty > 0">{{ focusedBonusQty }}</b>
                 <span class="con-colfocus__rglyph con-colfocus__rglyph--lg">
                   <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />

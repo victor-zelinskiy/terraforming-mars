@@ -1300,6 +1300,7 @@ import {
   colonyGridCols, colonyGridLayout, colonyNavStep, consoleColoniesUi, resetConsoleColoniesUi,
   colonyFocusState, closeColonyFocus, openColonyFocus, resetColonyFocus, ColonyFocusIntent,
 } from '@/client/console/consoleColoniesModel';
+import {armColonyFocusQuickExit} from '@/client/console/consoleColonyFocusMotion';
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {startAwaitingOthers, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
@@ -6516,6 +6517,10 @@ export default defineComponent({
       // with its own premium dock→grid reveal — never a ready-made grid.
       setColonyDiscardStage(true);
       if (this.colonyFocus.open) {
+        // A DIRECT transition: the stage exits with the quick quiet fade —
+        // the full fold-to-tile re-materialized the colony composition for a
+        // second between the reveal and the hand.
+        armColonyFocusQuickExit();
         closeColonyFocus();
       }
       void this.openHandWithReveal({keepTask: true});

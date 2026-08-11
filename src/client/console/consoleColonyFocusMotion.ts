@@ -140,9 +140,24 @@ export function armColonyFocusOrigin(
 /** The rect (and roundness) the stage unfolded FROM — kept for the fold. */
 let unfoldedFrom: {rect: {left: number, top: number, width: number, height: number}, radius: number | undefined} | undefined;
 
+/**
+ * ONE-SHOT: the next focus LEAVE is a HAND-OFF to a deeper phase of the SAME
+ * resolution (the full-stage discard) — the stage exits with a short quiet
+ * fade instead of the full fold-to-tile. The fold re-materializes the
+ * overview composition the player is not going to, and playing it between
+ * the reveal and the discard was the reported «интерфейс колоний рендерится
+ * секунду»: the discard's own premium hand-opening is the transition.
+ */
+let quickExitArmed = false;
+
+export function armColonyFocusQuickExit(): void {
+  quickExitArmed = true;
+}
+
 /** Game-switch / unmount boundary. */
 export function resetColonyFocusMotion(): void {
   unfoldedFrom = undefined;
+  quickExitArmed = false;
 }
 
 // ── element resolution ──────────────────────────────────────────────────────
@@ -501,6 +516,8 @@ export function colonyFocusLeaveHook(el: Element, done: () => void): void {
   const tilePlanet = tilePlanetOf(el);
   const home = unfoldedFrom;
   unfoldedFrom = undefined;
+  const quick = quickExitArmed;
+  quickExitArmed = false;
 
   // The tile's content comes back with the layer (it was released, not moved)
   // — restoring it now is invisible: the grid is still receded.
@@ -512,6 +529,24 @@ export function colonyFocusLeaveHook(el: Element, done: () => void): void {
     guardedDescend(el, 140, done, (finish) => {
       restoreBrowse(el);
       return gsap.to(el, {autoAlpha: 0, duration: 0.1, ease: 'power1.in', onComplete: finish});
+    });
+    return;
+  }
+
+  // THE QUICK EXIT — a hand-off inside one resolution: the stage lets go with
+  // a short quiet fade (a touch of recession, no fold, no re-materialized
+  // overview) and the next phase's own opening carries the moment.
+  if (quick) {
+    guardedDescend(el, 260, done, (finish) => {
+      restoreBrowse(el);
+      return gsap.to(el, {
+        autoAlpha: 0,
+        scale: 0.988,
+        transformOrigin: '50% 50%',
+        duration: s(190),
+        ease: 'power2.in',
+        onComplete: finish,
+      });
     });
     return;
   }

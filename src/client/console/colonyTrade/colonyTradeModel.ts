@@ -129,12 +129,20 @@ export type TradeCoverPlanEntry = {
   delayMs: number;
 };
 
-/** Per-cover stagger within one wave (income / bonus). */
-export const TRADE_COVER_STAGGER_MS = 95;
+/** Per-cover stagger within one wave (income / bonus) — «по одной»: each
+ *  card visibly separates from the SAME track cell before the next leaves. */
+export const TRADE_COVER_STAGGER_MS = 170;
 /** The readable pause between the income wave and the bonus wave. */
 export const TRADE_WAVE_GAP_MS = 420;
-/** One cover's flight time (launch → flip → land). */
-export const TRADE_COVER_FLIGHT_MS = 620;
+/**
+ * THE SEPARATION LEG — the card lifts OFF its printed cell: rises straight
+ * up while growing, the flip beginning WITH the growth (the board-bonus
+ * lift grammar). Its own budget line because the whole feel of the launch
+ * is this leg being unhurried.
+ */
+export const TRADE_COVER_LIFT_MS = 400;
+/** One cover's WHOLE flight time (separation → travel → settle). */
+export const TRADE_COVER_FLIGHT_MS = 1040;
 /** The frame beat after the last cover lands (the modal materializes). */
 export const TRADE_FRAME_MS = 240;
 

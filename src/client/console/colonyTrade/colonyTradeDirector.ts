@@ -23,7 +23,7 @@
 import {gsap} from 'gsap';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {TRADE_COVER_FLIGHT_MS} from '@/client/console/colonyTrade/colonyTradeModel';
+import {TRADE_COVER_FLIGHT_MS, TRADE_COVER_LIFT_MS} from '@/client/console/colonyTrade/colonyTradeModel';
 
 /** BASE ms → seconds, through the fork-wide speed preset. */
 const s = (baseMs: number) => motionMs(baseMs) / 1000;
@@ -43,30 +43,6 @@ export type RectLike = {left: number, top: number, width: number, height: number
 function jitterDeg(index: number): number {
   const magnitude = 1.2 + ((index * 137) % 5) * 0.5;
   return (index % 2 === 0 ? -1 : 1) * magnitude;
-}
-
-/**
- * The shared premium 3D turn (the deal/deck-draw language): rotateY 180→0
- * with a forward tumble + depth push; the settle overshoot rides SCALE,
- * never the turn axis (an angular overshoot would flash the mirrored back).
- */
-function addTurn(tl: gsap.core.Timeline, o: {
-  proxy: HTMLElement,
-  flip: HTMLElement,
-  at: number,
-  dur: number,
-  poseScale: number,
-}): void {
-  const {proxy, flip, at, dur, poseScale} = o;
-  const half = dur * 0.5;
-  tl.to(flip, {rotateY: 0, duration: dur, ease: 'power3.out'}, at);
-  tl.to(flip, {rotateX: -11, duration: half, ease: 'sine.inOut'}, at);
-  tl.to(flip, {rotateX: 0, duration: half, ease: 'sine.inOut'}, at + half);
-  tl.to(flip, {z: 64, duration: half, ease: 'power2.out'}, at);
-  tl.to(flip, {z: 0, duration: half, ease: 'power2.inOut'}, at + half);
-  tl.call(() => proxy.classList.add('con-coltrade-proxy--revealing'), undefined, at + dur * 0.46);
-  tl.to(proxy, {scale: poseScale * 1.04, duration: dur * 0.62, ease: 'power2.out'}, at);
-  tl.to(proxy, {scale: poseScale, duration: s(190), ease: 'back.out(1.4)'}, at + dur * 0.62);
 }
 
 /**
@@ -151,30 +127,63 @@ export function runTradeCoverFlight(args: {
     return {kill: () => tl.kill()};
   }
 
-  // ── 1 · The LIFT-OFF pop: the cover separates from its cell ────────────
-  const popMs = 130;
-  const popPose = centre(fromCx, fromCy - 8 - 10 * startScale, startScale * 1.35);
-  tl.to(proxy, {x: popPose.x, y: popPose.y, scale: startScale * 1.35, duration: s(popMs), ease: 'power2.out'}, 0);
-
-  // ── 2 · The two-channel arc to the slot, the tumble riding the leg ─────
-  const travelMs = TRADE_COVER_FLIGHT_MS - popMs;
-  const travelAt = s(popMs);
+  /*
+   * THE SEPARATION GRAMMAR (the board-bonus lift, spoken for the colony
+   * track). The card is BORN as the exact card back printed on the reward
+   * cell, and the launch is three distinct legs the eye can follow:
+   *
+   *   1 · SEPARATION — it rises STRAIGHT UP off its cell while growing to a
+   *       readable hover size; the FLIP begins the moment the growth does
+   *       (a card that turns as it comes towards you), with a touch of
+   *       forward pitch and depth push. Unhurried on purpose — this leg is
+   *       the whole feel of «карта отделилась от трека».
+   *   2 · TRAVEL — the same object continues to its slot: two-channel arc,
+   *       the remaining growth, controlled deceleration, the turn finishing
+   *       on the way.
+   *   3 · SETTLE — a soft contact pulse at the slot's exact size.
+   */
+  const liftMs = TRADE_COVER_LIFT_MS;
+  const travelMs = TRADE_COVER_FLIGHT_MS - liftMs;
+  const liftAt = 0;
+  const travelAt = s(liftMs);
   const travel = s(travelMs);
+  // The hover size: well past «a glyph», well short of the landed card — the
+  // separation reads as ITS OWN event before the journey starts. STRICTLY
+  // MONOTONIC: the card only ever grows towards its landing size (capped at
+  // 92 % of it) — the bare ×1.6 arm once inflated a medium-sized source PAST
+  // the slot, and a card that balloons at the apex and then shrinks into its
+  // seat is exactly the «резко и неприятно» read.
+  const hoverScale = startScale < landScale ?
+    Math.max(startScale * 1.02,
+      Math.min(Math.max(startScale * 1.6, startScale + (landScale - startScale) * 0.45), landScale * 0.92)) :
+    startScale * 1.04;
+  const liftPose = centre(fromCx, fromCy - (24 + 42 * hoverScale), hoverScale);
+
+  // ── 1 · SEPARATION ──────────────────────────────────────────────────────
+  tl.to(proxy, {x: liftPose.x, y: liftPose.y, duration: s(liftMs), ease: 'power2.out'}, liftAt);
+  tl.to(proxy, {scale: hoverScale, duration: s(liftMs), ease: 'power2.out'}, liftAt);
+  tl.to(proxy, {rotation: jitterDeg(args.index) * 0.35, duration: s(liftMs), ease: 'sine.out'}, liftAt);
+  if (args.faceDown !== true) {
+    // The turn RIDES the growth: it starts with the lift and completes on the
+    // travel's first half — never a flip after a teleport.
+    const turnDur = s(liftMs) + travel * 0.5;
+    tl.to(flip, {rotateY: 0, duration: turnDur, ease: 'power2.inOut'}, liftAt);
+    tl.to(flip, {rotateX: -9, duration: s(liftMs), ease: 'sine.out'}, liftAt);
+    tl.to(flip, {rotateX: 0, duration: travel * 0.6, ease: 'sine.inOut'}, travelAt);
+    tl.to(flip, {z: 46, duration: s(liftMs), ease: 'power2.out'}, liftAt);
+    tl.to(flip, {z: 0, duration: travel, ease: 'power2.inOut'}, travelAt);
+    tl.call(() => proxy.classList.add('con-coltrade-proxy--revealing'), undefined, s(liftMs) + travel * 0.18);
+  }
+
+  // ── 2 · TRAVEL ──────────────────────────────────────────────────────────
   tl.to(proxy, {x: landX, duration: travel, ease: 'power1.inOut'}, travelAt);
   tl.to(proxy, {y: landY, duration: travel, ease: 'power3.out'}, travelAt);
-  tl.to(proxy, {rotation: 0, duration: travel * 0.8, ease: 'power2.out'}, travelAt);
-  if (args.faceDown !== true) {
-    addTurn(tl, {
-      proxy, flip,
-      at: travelAt + travel * 0.32,
-      dur: travel * 0.68,
-      poseScale: landScale,
-    });
-  } else {
-    // Face down all the way: only the landing scale is applied, so the cover
-    // settles at the slot's exact size with its back still up.
-    tl.to(proxy, {scale: landScale, duration: travel * 0.68, ease: 'power2.out'}, travelAt + travel * 0.32);
-  }
+  tl.to(proxy, {rotation: 0, duration: travel * 0.7, ease: 'power2.out'}, travelAt);
+  tl.to(proxy, {scale: landScale, duration: travel * 0.78, ease: 'power2.out'}, travelAt);
+
+  // ── 3 · SETTLE — a soft contact at the slot's exact size. ──────────────
+  tl.to(proxy, {scale: landScale * 1.025, duration: s(110), ease: 'power2.out'}, travelAt + travel * 0.78);
+  tl.to(proxy, {scale: landScale, duration: s(150), ease: 'back.out(1.6)'}, travelAt + travel * 0.78 + s(110));
   return {kill: () => tl.kill()};
 }
 

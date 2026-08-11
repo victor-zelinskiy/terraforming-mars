@@ -246,6 +246,25 @@ async function watchPayout(page: Page, ms: number): Promise<Sighting> {
       if (document.querySelector('.con-colfocus') !== null) {
         seen.focusSeen = true;
       }
+      // DIAGNOSTIC: the first visible trade cover's pose + its landing slot —
+      // a mis-measured slot inflates the whole separation choreography.
+      const s0 = seen as unknown as Record<string, unknown>;
+      if (s0.proxyPose === undefined) {
+        const p = document.querySelector('.con-coltrade-proxy');
+        const posed = p !== null && (p as HTMLElement).getBoundingClientRect().width > 40 &&
+          getComputedStyle(p).visibility !== 'hidden';
+        if (p !== null && posed) {
+          const r = p.getBoundingClientRect();
+          const slot = document.querySelector('.con-reveal [data-zoom-slot] :is(.card-container, .pcard)');
+          const sr = slot?.getBoundingClientRect();
+          s0.proxyPose = {
+            t: Math.round(performance.now() - t0),
+            x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height),
+            slotW: sr === undefined ? -1 : Math.round(sr.width),
+            slotH: sr === undefined ? -1 : Math.round(sr.height),
+          };
+        }
+      }
       // ONE workspace root, ever. Two visible `.con-ws` roots is the reported
       // hand+colonies split screen; a visible STANDALONE hand root during a
       // colony payout is the «COLONIES → HAND» flow break (the mandatory
