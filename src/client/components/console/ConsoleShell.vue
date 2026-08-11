@@ -4519,13 +4519,17 @@ export default defineComponent({
         // (same rule as the start scene's ''). The bar carries commands only.
         return '';
       }
-      if (this.consoleState.sheet === 'cardActions' && consoleActionComposerUi.open) {
+      if (this.consoleState.sheet === 'cardActions' && consoleActionComposerUi.open &&
+          workspaceStackTopAxis() !== 'section') {
         // The ACTION FOCUS stage inside the Action Center: the bar names the
         // STAGE by its PHASE (the SAME source as the frame header — the bar
         // and the breadcrumb can never disagree), never the grid underneath.
+        // …unless a SECTION-projecting workspace is standing INSIDE it (a
+        // hosted colony step): the bar belongs to the surface the player is
+        // driving, which is the same rule input routing uses.
         return focusKicker(consoleActionComposerUi.revealClaim !== '' ? 'reveal' : 'setup');
       }
-      if (this.consoleState.sheet !== undefined) {
+      if (this.consoleState.sheet !== undefined && workspaceStackTopAxis() !== 'section') {
         return this.sheetTitle;
       }
       if (this.placementActive) {
@@ -4954,7 +4958,7 @@ export default defineComponent({
           {control: 'back', label: this.stdBackLabel},
         ];
       }
-      if (this.consoleState.sheet === 'cardActions') {
+      if (this.consoleState.sheet === 'cardActions' && workspaceStackTopAxis() !== 'section') {
         // While the COMPOSER (setup / confirmation) is up, its dedicated
         // store is the authority — with an honest Confirm/Cancel fallback,
         // never the grid verbs (the shared-slot fallback once showed
@@ -4983,7 +4987,7 @@ export default defineComponent({
           {control: 'back', label: this.awardFundingActive ? 'Minimize' : 'Close'},
         ];
       }
-      if (this.consoleState.sheet !== undefined) {
+      if (this.consoleState.sheet !== undefined && workspaceStackTopAxis() !== 'section') {
         return [
           {control: 'confirm', label: 'Select'},
           {control: 'back', label: this.consoleState.sheet === 'hydroPick' ? 'Back' : 'To the board'},
@@ -5094,7 +5098,15 @@ export default defineComponent({
           {control: 'secondary', label: 'Inspect'},
           ...(this.colonyEmbedSourceCard !== undefined ?
             [{control: 'stickL' as GlyphControl, label: 'Inspect the source'}] : []),
-          {control: 'back', label: this.colonyEmbedActive ? 'Minimize' : 'To the board'},
+          // B: «свернуть» is right for a step a COMMITTED host owns — the
+          // decision stays live and the player is only going to look at the
+          // board. A card-sourced TRADE is the opposite case: nothing is
+          // committed, the step is one reversible level, and B walks back to
+          // the variant that opened it. Promising «свернуть» there would name
+          // a park that does not happen.
+          {control: 'back',
+            label: cardColonyTradeCard() !== '' ? 'Back' :
+              (this.colonyEmbedActive ? 'Minimize' : 'To the board')},
         ];
       }
       if (this.consoleState.section === 'hydro') {

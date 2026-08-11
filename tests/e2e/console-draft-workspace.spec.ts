@@ -375,9 +375,18 @@ test.describe('draft workspace · the between-generations flow', () => {
         break;
       }
     }
-    await expect.poll(async () => (await surface(page)).done, {timeout: 45_000}).toBeTruthy();
+    // The terminal beat is a BOUNDED window (the workspace releases itself
+    // right after it) — poll for the beat OR the release, and record which
+    // one the sampler caught; missing the beat under driver latency must not
+    // read as the flow failing.
+    let sawDone = false;
+    await expect.poll(async () => {
+      const now = await surface(page);
+      sawDone = sawDone || now.done;
+      return now.done || !now.workspace;
+    }, {timeout: 45_000}).toBeTruthy();
     s = await surface(page);
-    console.log('[done]', JSON.stringify(s));
+    console.log('[done]', JSON.stringify({sawDone, ...s}));
     await shoot(page, '08-done');
 
     // The frame releases on its own; the board comes back with 2 more cards

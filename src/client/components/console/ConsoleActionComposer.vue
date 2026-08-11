@@ -9,7 +9,7 @@
        unit of the AWAITING handoff; the source card is the ANCHOR that FLIPs
        into the reveal result's «Источник» slot on the phase handoff. -->
   <div ref="rootEl" class="con-composer con-composer--stage"
-       :class="{'con-composer--ptsel': playedTargetStepOpen}"
+       :class="{'con-composer--ptsel': playedTargetStepOpen, 'con-composer--colonystep': colonyStepOn}"
        role="region" :aria-label="$t('Action setup')" data-motion-surface="action-composer">
     <div class="con-composer__panel con-composer__panel--act con-composer__panel--stage" data-motion-panel>
       <!-- ── Two columns: the SOURCE CARD (the hero anchor — it physically
@@ -83,7 +83,22 @@
              lands in + the status line below it («Вскрываем карту» → the ✓/✕
              outcome the moment the face is first visible);
            · draw («Добор карт») — the embedded reveal, below. -->
-      <template v-if="outcome !== undefined">
+      <!-- ── THE COLONIES STEP — the colony workspace stands HERE, as a step
+           of this action (`card-actions ⊃ colonies`, one teleported instance).
+           It is the FIRST branch of this fork on purpose: a colony step is not
+           an OUTCOME of a committed action. The trade-for-free branch commits
+           nothing here — it walks the player to the trade the server already
+           offers — so `outcome` is undefined all the way through, and hanging
+           the zone off it meant the section mounted with nowhere to render.
+           The section wears no shell of its own (rule 1); the crumb above
+           carries the whole context — «ДЕЙСТВИЯ КАРТ › <карта> › ГАНИМЕД ·
+           ТОРГОВЛЯ» — which is why nothing below repeats the source. -->
+      <div v-if="colonyStepOn"
+           class="con-composer__revealzone con-composer__colonyzone"
+           data-outcome-zone
+           data-embed-slot="action-colonies"></div>
+
+      <template v-else-if="outcome !== undefined">
 
       <!-- ── DRAW — the action pulled cards off the deck. This zone is the
            TELEPORT TARGET the shell's ONE ConsoleRevealOverlay re-homes into
@@ -143,16 +158,6 @@
           </div>
         </div>
       </div>
-
-      <!-- THE COLONIES STEP — a SelectColony this activation raised (a free
-           trade / a colony pick): the COLONY WORKSPACE is teleported here as
-           an embedded step (workspace-embed host 'card-actions'). The zone
-           owns the whole outcome column; the section wears no shell of its
-           own (rule 1) and the crumb above reads «… › КОЛОНИИ». -->
-      <div v-else-if="colonyStepOn"
-           class="con-composer__revealzone con-composer__colonyzone"
-           data-outcome-zone
-           data-embed-slot="action-colonies"></div>
 
       <div v-else class="con-composer__revealzone" data-outcome-zone>
           <div class="con-composer__revealslot" ref="revealSlot" data-outcome-item
@@ -1419,7 +1424,11 @@ export default defineComponent({
         // advertise a confirm the gate has already refused.
         canConfirm: this.commitReady,
         pickVerb: item?.kind === 'choice' ? this.requirementVerb(item.choice) : undefined,
-        commitLabel: this.commitLabel !== 'Confirm action' ? this.commitLabel : undefined,
+        // ONE verb for the row and the bar. They used to be resolved
+        // separately, so the row could read «Выбрать колонию» while the bar
+        // under it still promised «Подтвердить» — two answers to «what does A
+        // do», on one screen, at the same time.
+        commitLabel: this.commitVerbKey !== 'Confirm action' ? this.commitVerbKey : undefined,
         // LB/RB follow the ACTIVE dial (the same resolution the input uses), and
         // LT is the payment editor's dedicated, focus-independent entry.
         dial: this.activeDialHint,
@@ -1738,14 +1747,21 @@ export default defineComponent({
      * the expanded state always shows the way back into the main flow and the
      * dock never unmounts (which would move the column).
      */
+    /**
+     * WHAT A DOES — the ONE verb, read by the commit row AND the command bar.
+     *
+     * A trade branch does not COMMIT here: the button walks the player to the
+     * colony, and the real confirm is on it. A verb promising «выполнить»
+     * before anything is spent would be the false half of the old flow — the
+     * floater was already gone by the time the colony was asked for, so B had
+     * nothing to undo.
+     */
+    commitVerbKey(): string {
+      return this.tradeEntryCard !== undefined ? 'Choose a colony' : this.commitLabel;
+    },
     ctaDockLabel(): string {
       if (!this.payExpanded) {
-        // A trade branch does not COMMIT here — the button walks the player to
-        // the colony, and the real confirm is on it. A verb that promises
-        // «выполнить» before anything is spent would be the false half of the
-        // old flow: the floater was already gone by the time the colony was
-        // asked for, so B had nothing to undo.
-        return this.tradeEntryCard !== undefined ? 'Choose a colony' : this.commitLabel;
+        return this.commitVerbKey;
       }
       return this.paymentView?.status.ok === true ? 'Done' : 'Not enough resources';
     },

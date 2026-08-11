@@ -238,10 +238,56 @@ player cannot connect to the trade.
 7. Reconnect / reload never replays a presented trade (`armColonyTrade` only
    fires from the live confirm; `seenTradeIds` guards replays in-session; a
    lingering manifest without an arm is ignored).
-8. A bot's / opponent's / Titan-Floating action trade never engages the
-   orchestration (never armed) — the standard commit path plays; the
-   viewer's own bonus batch from a FOREIGN trade stays with the deck-draw
-   scene (those cards honestly come off the deck).
+8. A bot's / opponent's trade never engages the orchestration (never armed) —
+   the standard commit path plays; the viewer's own bonus batch from a FOREIGN
+   trade stays with the deck-draw scene (those cards honestly come off the
+   deck). ⚠️ **A card-sourced trade is NOT in that list any more** — see below.
+
+## THE SECOND DOOR — a trade started from a CARD ACTION (2026-08-11)
+
+«Хочу торговать» (Колонии) and «хочу использовать Летающую платформу»
+(Действия карт) are two entry points into ONE action. After the door they are
+the same flow: one server command, one payment model, one colony workspace, one
+controller contract, one validation, one resolution. Only three things differ —
+the entry CONTEXT, the header, and what B means before the commit.
+
+- **SERVER — one implementation.** `TitanFloatingLaunchPad.action()`'s trade
+  branch no longer spends a floater and calls `colony.trade` itself: it
+  delegates to `TradeWithTitanFloatingLaunchPad`, the very `IColonyTrader` the
+  trade prompt's fee picker offers. The two had already drifted — only the
+  picker opened the colony EVENT SCOPE and carried the `'trade'` button label
+  the orchestration keys on, so a trade taken from the card grouped differently
+  in the journal and played none of the reward cinematic.
+- **The branch DECLARES itself**: `ActionPreviewStep {kind:'colonyTrade', card}`
+  (`actionPreviews.colonyTradeStep`) replaces the prose note. `card` names the
+  payment path, matched against `OptionMetadata.card` — never a label.
+- **CLIENT — the card door SUBMITS NOTHING.** `playActionCard` marks a card
+  action used SYNCHRONOUSLY at the branch pick, so submitting first would spend
+  the floater and the action before the colony was even asked for, and B would
+  have nothing to go back to. So the console does not submit: the CTA becomes
+  «Выбрать колонию», the colony workspace is pushed as a STEP of the
+  card-actions frame (`card-actions ⊃ colonies`, `anchor: always`), the fee is
+  pinned to this card's path, and the trade's own confirm is the single atomic
+  commit — byte-identical to the Колонии entry.
+- **The header is the only trace**: «ДЕЙСТВИЯ КАРТ › ЛЕТАЮЩАЯ ПЛАТФОРМА ›
+  ВЫБОР КОЛОНИИ» → «› ГАНИМЕД · ТОРГОВЛЯ» → «› ПЛУТОН · ДОБОР КАРТ». No source
+  card, no banner, no second chip — and the composer's hero column RECEDES while
+  the step stands (`.con-composer--colonystep`), because a full workspace needs
+  the whole room.
+- **B is one logical level**: colony focus → colony selection → the card's
+  variant, still selected, floater still on the card. Past the trade's commit
+  the standard resolution owns B (collapse).
+- Module: `src/client/console/colonyTrade/colonyTradeEntry.ts` (pure).
+  Guards: `tests/client/components/console/colonyTradeEntry.spec.ts`,
+  `tests/cards/colonies/TitanFloatingLaunchPad.spec.ts`,
+  `tests/e2e/console-card-trade-entry.spec.ts` (fhd + tv4k).
+
+⚠️ **Two axes can be set at once, and DEPTH breaks the tie.** With the colonies
+hosted inside the card-actions sheet, `sheet` is `cardActions` AND `section` is
+`colonies`. Input routing and the command bar asked the sheet first, so both
+went to the composer parked underneath while the player was demonstrably driving
+the colony grid on top of it. `workspaceStackTopAxis()` is the one answer —
+the same rule presence already uses.
 
 ## Guards
 

@@ -54,9 +54,16 @@
 
       <div class="con-draftws__stagewrap" ref="stageWrap">
         <!-- ── PICK: the packet, cards as the hero content ─────────────── -->
+        <!-- Stage layers crossfade in place (absolute twins of one zone) —
+             a v-show cut between stages is a blink, never acceptable. -->
+        <transition name="con-draftws-stage">
         <div v-show="zone === 'pick'" class="con-draftws__stage con-draftws__stage--pick">
-          <div class="con-cards con-draftws__cards">
-            <div class="con-cards__strip con-draftws__row"
+          <div class="con-draftws__cards">
+            <!-- The row is OURS alone (never `.con-cards__strip`): the shared
+                 carousel class arrives with `flex:1`, top alignment, its own
+                 gap and `overflow-x:auto` — a scroll container a wrapping fit
+                 can never win against, declared BELOW this block. -->
+            <div class="con-draftws__row"
                  :class="{'con-draftws__row--passing': passingActive}"
                  :style="packetRowStyle" ref="packetRow">
               <div v-for="(entry, i) in packetEntries" :key="entry.key"
@@ -79,8 +86,10 @@
             </div>
           </div>
         </div>
+        </transition>
 
         <!-- ── WAIT: the pass lane (a calm state, never a spinner) ─────── -->
+        <transition name="con-draftws-stage">
         <div v-show="zone === 'wait'" class="con-draftws__stage con-draftws__stage--wait">
           <div class="con-draftws__await">
             <div class="con-draftws__await-sent">
@@ -98,8 +107,10 @@
             </div>
           </div>
         </div>
+        </transition>
 
         <!-- ── BUY / PAY: the purchase chapter ─────────────────────────── -->
+        <transition name="con-draftws-stage">
         <div v-show="zone === 'buy' || zone === 'pay'" class="con-draftws__stage con-draftws__stage--buy">
           <!-- The financial strip: compact, instantly readable, ONE source of
                the purchase economics (server-identical math: cardCost × picks). -->
@@ -114,16 +125,18 @@
               <span class="con-draftws__fin-cell">
                 <span class="con-draftws__fin-caption">{{ $t('You have') }}</span>
                 <span class="con-draftws__fin-num">{{ megacreditsOnHand }}</span>
+                <i class="resource_icon resource_icon--megacredits con-draftws__fin-mc" aria-hidden="true"></i>
               </span>
               <span class="con-draftws__fin-sep" aria-hidden="true">→</span>
               <span class="con-draftws__fin-cell">
                 <span class="con-draftws__fin-caption">{{ $t('After purchase') }}</span>
                 <span class="con-draftws__fin-num" :class="{'con-draftws__fin-num--over': !buyAffordable}">{{ megacreditsAfterPurchase }}</span>
+                <i class="resource_icon resource_icon--megacredits con-draftws__fin-mc" aria-hidden="true"></i>
               </span>
             </span>
           </div>
-          <div class="con-cards con-draftws__cards">
-            <div class="con-cards__strip con-draftws__row" :style="buyRowStyle" ref="buyRow">
+          <div class="con-draftws__cards">
+            <div class="con-draftws__row" :style="buyRowStyle" ref="buyRow">
               <div v-for="(entry, i) in buyEntries" :key="entry.key"
                    class="con-cards__slot con-draftws__slot"
                    :data-zoom-slot="entry.name"
@@ -144,11 +157,15 @@
                ONE ConsoleTaskHost instance here, `embedded` (no second modal). -->
           <div v-show="zone === 'pay'" class="con-draftws__paystep" data-draft-pay-slot></div>
         </div>
+        </transition>
 
         <!-- ── INSPECT (LT): the drafted cards, spacious and read-only ─── -->
+        <transition name="con-draftws-stage">
         <div v-show="zone === 'inspect'" class="con-draftws__stage con-draftws__stage--inspect">
-          <div class="con-cards con-draftws__cards">
-            <div class="con-cards__strip con-draftws__row" :style="inspectRowStyle" ref="inspectRow">
+          <div class="con-draftws__cards">
+            <!-- Re-keyed per ENTRY: the rise-from-the-shelf stagger must play
+                 on every visit, not once at workspace mount. -->
+            <div class="con-draftws__row" :style="inspectRowStyle" ref="inspectRow" :key="'insp-' + inspectNonce">
               <div v-for="(entry, i) in collectedEntries" :key="entry.name + '#' + i"
                    class="con-cards__slot con-draftws__slot con-draftws__slot--rise"
                    :data-zoom-slot="entry.name"
@@ -159,8 +176,10 @@
             </div>
           </div>
         </div>
+        </transition>
 
         <!-- ── DONE: the terminal beat ─────────────────────────────────── -->
+        <transition name="con-draftws-stage">
         <div v-show="zone === 'done'" class="con-draftws__stage con-draftws__stage--done">
           <div class="con-draftws__doneplate">
             <span class="con-draftws__done-mark" aria-hidden="true"><i>✓</i></span>
@@ -168,6 +187,7 @@
             <span class="con-draftws__done-sub">{{ doneReadout }}</span>
           </div>
         </div>
+        </transition>
       </div>
 
       <!-- ── STATUS RAIL: the focused card's verdict (name + the soft
@@ -191,7 +211,10 @@
       <!-- ── THE SHELF («ОТОБРАНО») — the permanent collection zone. Slots
            carry `data-tray-slot`: the pick heroes land here (the shared
            draft-tray brain) and the research rise lifts off from here. ──── -->
-      <div class="con-draftws__shelf" v-show="zone !== 'done'"
+      <!-- Present through the SELECTION chapter only: past the rise the pile
+           has physically BECOME the purchase row, and an empty shelf under it
+           would just tax the cards' height. -->
+      <div class="con-draftws__shelf" v-show="zone === 'pick' || zone === 'wait' || zone === 'inspect'"
            :class="{
              'con-draftws__shelf--muted': inspecting,
              'con-draftws__shelf--empty': collectedEntries.length === 0,
@@ -266,6 +289,7 @@ import {
   DraftStage, DraftJourneyInput,
 } from '@/client/console/draft/consoleDraftFlow';
 import {draftCommands, setConsoleDraftCommands, resetConsoleDraftUi, DraftCommandState} from '@/client/console/draft/consoleDraftUi';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {Phase} from '@/common/Phase';
 
@@ -307,6 +331,8 @@ export default defineComponent({
       /** A packet arrived WHILE the LT sub-stage owned the screen — its
        *  presentation waits for the return (never torn into the inspect). */
       packetPendingPresent: false,
+      /** Re-keys the inspect row so its rise-from-the-shelf plays per visit. */
+      inspectNonce: 0,
       /** Solved stage layouts (CSS custom-property maps). */
       packetRowStyle: {} as Record<string, string>,
       buyRowStyle: {} as Record<string, string>,
@@ -470,15 +496,22 @@ export default defineComponent({
       if (to === undefined) {
         return undefined;
       }
-      return {name: to.name, color: to.color};
+      // The ONE participant-name resolver — MarsBot reads «Бот», never raw.
+      return {name: displayNameForColor(this.playerView.players, to.color), color: to.color};
     },
     giveReadout(): string {
-      const to = draftNeighbor(this.playerView, draftWorkspaceState.meta?.givingTo);
-      return to === undefined ? '' : translateTextWithParams('The rest of the packet went to ${0}', [to.name]);
+      const to = draftWorkspaceState.meta?.givingTo;
+      if (to === undefined || draftNeighbor(this.playerView, to) === undefined) {
+        return '';
+      }
+      return translateTextWithParams('The rest of the packet went to ${0}', [displayNameForColor(this.playerView.players, to)]);
     },
     takeReadout(): string {
-      const from = draftNeighbor(this.playerView, draftWorkspaceState.meta?.takingFrom);
-      return from === undefined ? '' : translateTextWithParams('Next packet comes from ${0}', [from.name]);
+      const from = draftWorkspaceState.meta?.takingFrom;
+      if (from === undefined || draftNeighbor(this.playerView, from) === undefined) {
+        return '';
+      }
+      return translateTextWithParams('Next packet comes from ${0}', [displayNameForColor(this.playerView.players, from)]);
     },
     doneReadout(): string {
       return translateText('Purchased cards are in your hand');
@@ -610,12 +643,11 @@ export default defineComponent({
       },
     },
   },
-  mounted() {
-    // THE SHELF IS THE TRAY now: every pick-beat / rise flight resolves its
-    // landing slot through this registration (the same brain, a new surface).
-    registerTraySlotResolver((name) => this.resolveShelfSlot(name));
-    // A reload straight into a live draft: the standing packet presents
-    // instantly (no entrance replay); later packets animate normally.
+  created() {
+    // ARM BEFORE THE FIRST RENDER. The workspace mounts WITH its first prompt
+    // (the frame enters on the phase flip), so a `mounted()` arm is one frame
+    // too late — the raw cards flash for that frame before the deal's hold
+    // lands. `deal.prepare` is DOM-free; the launch measures later.
     this.hydratedPacketKey = this.packetKey;
     if (this.packetKey !== '') {
       this.resetPickState();
@@ -625,6 +657,11 @@ export default defineComponent({
       this.buySnapshot = this.buyInput?.cards.map((card, i) => ({name: card.name, key: card.name + '#' + i, card}));
       finishRiseScene();
     }
+  },
+  mounted() {
+    // THE SHELF IS THE TRAY now: every pick-beat / rise flight resolves its
+    // landing slot through this registration (the same brain, a new surface).
+    registerTraySlotResolver((name) => this.resolveShelfSlot(name));
     useResizeObserver(this.$refs.stageWrap as HTMLElement, () => this.fitStage());
     void this.$nextTick(() => this.fitStage());
   },
@@ -823,7 +860,7 @@ export default defineComponent({
       this.passTimer = window.setTimeout(() => {
         this.passingActive = false;
         this.passTimer = undefined;
-      }, consoleMotionMs(760));
+      }, consoleMotionMs(940));
     },
     passingSlotStyle(name: CardName, index: number): Record<string, string> {
       if (!this.passingNames.includes(name)) {
@@ -831,8 +868,9 @@ export default defineComponent({
       }
       const dir = this.giveSide === 'right' ? 1 : -1;
       return {
-        '--con-draftws-pass-x': `${dir * 120 * conUiScale()}px`,
-        'animationDelay': `${index * 55}ms`,
+        '--con-draftws-pass-x': `${dir * 150 * conUiScale()}px`,
+        '--con-draftws-pass-dir': `${dir}`,
+        'animationDelay': `${index * 70}ms`,
       };
     },
     // ── packet arrival (the deal cinematic) ─────────────────────────────
@@ -1013,14 +1051,16 @@ export default defineComponent({
       this.doneTimer = window.setTimeout(() => {
         this.doneTimer = undefined;
         finishDraftCompletion();
-      }, consoleMotionMs(1500));
+      }, consoleMotionMs(2100));
     },
     // ── the LT sub-stage («ОТОБРАННЫЕ › ОСМОТР») ───────────────────────
     enterInspect(): void {
       if (this.collectedEntries.length === 0) {
         return;
       }
+      this.inspectNonce++;
       draftWorkspaceState.inspecting = true;
+      void this.$nextTick(() => this.fitStage());
     },
     leaveInspect(): void {
       // A packet that arrived during the inspect presents NOW: the holds are
@@ -1117,11 +1157,16 @@ export default defineComponent({
         }
         const wrapBox = wrap.getBoundingClientRect();
         const chrome = this.stageChromeHeight();
+        // The row's own vertical padding (focus/lift headroom) is part of the
+        // height budget — MEASURED off the element, never re-stated as a
+        // constant that drifts from the stylesheet.
+        const rowStyle = getComputedStyle(row);
+        const rowPadY = (parseFloat(rowStyle.paddingTop) || 0) + (parseFloat(rowStyle.paddingBottom) || 0);
         const layout = wsStageLayout({
           // The ZONE's width, never the row's own: a shrink-to-fit row
           // reports its content width — the fit engine reading its output.
           availW: wrap.clientWidth,
-          availH: Math.max(120, wrapBox.height - chrome),
+          availH: Math.max(120, wrapBox.height - chrome - rowPadY),
           slotW, slotH,
           n: list.length,
           ui: conUiScale(),

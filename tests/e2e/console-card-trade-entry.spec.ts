@@ -35,8 +35,8 @@ const CFG = soloGameConfig({
 const CORP = 'CrediCor';
 
 const PROFILES = [
-  {tag: 'fhd', query: ''},
-  {tag: 'tv4k', query: '&consoleProfile=tv'},
+  {tag: 'fhd', width: 1920, height: 1080, query: ''},
+  {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
 ] as const;
 
 type Readout = {
@@ -129,22 +129,33 @@ async function playLaunchpad(page: Page): Promise<void> {
  * the right TILE, not by moving inside the composer.
  */
 async function focusTradeVariantTile(page: Page, tries = 14): Promise<void> {
+  // Ask the BROWSE DETAIL column, which names the variant the cursor is on —
+  // the panel the player reads, not a grid class name.
+  const variantNow = (): Promise<string> => page.evaluate(() =>
+    (document.querySelector('.con-cardactions__detail-variant') as HTMLElement | null)
+      ?.innerText.replace(/\s+/g, ' ').trim() ?? '');
   for (let i = 0; i < tries; i++) {
-    // The card NAME is the group's header, not the tile's — the tile carries
-    // only «ВАРИАНТ N». One card is in play, so the variant is unambiguous.
-    const variant = await page.evaluate(() =>
-      (document.querySelector('.con-cardactions__tile--focused .con-cardactions__tile-variant') as HTMLElement | null)
-        ?.innerText.trim() ?? '');
-    if (variant.includes('2')) {
+    if (/2\s*\/\s*2/.test(await variantNow())) {
       return;
     }
-    await press(page, 'ArrowRight', 500);
+    await press(page, i % 2 === 0 ? 'ArrowRight' : 'ArrowDown', 500);
   }
-  throw new Error('the launch-pad\'s trade variant tile was never focused');
+  const tiles = await page.evaluate(() => Array.from(document.querySelectorAll('.con-cardactions__tile'))
+    .map((t) => (t as HTMLElement).className));
+  throw new Error(`the trade variant tile was never focused (detail=«${await variantNow()}» tiles=${JSON.stringify(tiles)})`);
 }
 
 for (const profile of PROFILES) {
   test.describe(`console — the card-action trade door · ${profile.tag}`, () => {
+    // The console is a 1920-logical design on a 4K TV; Playwright's default
+    // 1280×720 resolves to the HANDHELD profile, which is a different
+    // layout contract entirely.
+    test.use({
+      viewport: {width: profile.width, height: profile.height},
+      deviceScaleFactor: 1,
+      screen: {width: profile.width, height: profile.height},
+    });
+
     test('A walks into the colonies committing nothing, the fee is pinned, B walks back out', async ({page, request}) => {
       test.setTimeout(420_000);
       const playerId = await bootWithCards(page, request, {
