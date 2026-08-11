@@ -366,6 +366,14 @@
                    :class="{
                      'con-colfocus__payrow--focused': isFocused('pay', i),
                      'con-colfocus__payrow--chosen': payIdx === i,
+                     // THE FEE IS FIXED by the entry (a card action walked in
+                     // here). The other paths stay RENDERED — the player still
+                     // reads what a trade costs in general — but they are
+                     // dimmed, out of the cursor ring and unpickable. Why is
+                     // NOT restated here: the breadcrumb already says the trade
+                     // came from a card, and that is the whole explanation.
+                     'con-colfocus__payrow--off': lockedPayIdx >= 0 && lockedPayIdx !== i,
+                     'con-colfocus__payrow--locked': lockedPayIdx === i,
                    }"
                    :ref="isFocused('pay', i) ? 'focusedEl' : undefined">
                 <span class="con-colfocus__payrow-pick" aria-hidden="true">
@@ -630,6 +638,7 @@ import {
 } from '@/client/components/colonies/colonyTradePlan';
 import {presentedColonyModel, colonyTradeState} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {colonyBonusEntry, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
+import {cardColonyTradeCard, lockedTradePaymentIndex} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
@@ -1038,6 +1047,16 @@ export default defineComponent({
         };
       });
     },
+    /**
+     * THE FEE IS FIXED — this trade was entered from a card's own action, so
+     * its payment path is the entry, not a decision. `-1` = the ordinary
+     * «Колонии» entry, where every path is the player's to pick.
+     *
+     * Resolved from the option's `metadata.card`, never its label.
+     */
+    lockedPayIdx(): number {
+      return lockedTradePaymentIndex(this.options, cardColonyTradeCard());
+    },
     isMcSelected(): boolean {
       return this.options[this.payIdx]?.metadata?.icon === 'megacredits';
     },
@@ -1081,7 +1100,12 @@ export default defineComponent({
       if (!this.tradeConfigLive) {
         return [];
       }
-      const out: Array<Focusable> = this.payEntries.map((_, i) => ({zone: 'pay' as const, index: i}));
+      // A LOCKED fee is not a choice, so it is not a cursor stop: the entry
+      // came through the card that pays, and «выбрать другой способ» would be
+      // a control that refuses every press. The rows still RENDER (the player
+      // sees the whole structure of the trade) — they just cannot be reached.
+      const out: Array<Focusable> = this.lockedPayIdx >= 0 ?
+        [] : this.payEntries.map((_, i) => ({zone: 'pay' as const, index: i}));
       this.stepRows.forEach((_, i) => out.push({zone: 'step', index: i}));
       return out;
     },
@@ -1211,7 +1235,9 @@ export default defineComponent({
       const player = this.thisPlayer;
       const meta = this.tradeConfigLive ? this.options[this.payIdx]?.metadata : undefined;
       const payment = meta?.icon !== undefined && meta.amount !== undefined ?
-        {icon: meta.icon, amount: meta.amount} :
+        // `resource` rides along: for a CARD-paid fee it is the ONLY source of
+        // the before → after (the viewer's rail has no floaters on it).
+        {icon: meta.icon, amount: meta.amount, resource: meta.resource} :
         undefined;
       return tradeOutcome({
         metadata: this.metadata,
@@ -1347,6 +1373,14 @@ export default defineComponent({
     canConfirm() {
       this.syncUiMirror();
     },
+    // The fee options arrive with the prompt, which can land a frame after the
+    // stage mounts (and re-lands on every response) — re-pin, never re-seed.
+    lockedPayIdx: {
+      immediate: true,
+      handler() {
+        this.syncLockedPayment();
+      },
+    },
     focusedRowEditable() {
       this.syncUiMirror();
     },
@@ -1364,6 +1398,7 @@ export default defineComponent({
       this.commitLatched = false;
       this.heldContext = undefined;
       this.seedPaymentDefault();
+      this.syncLockedPayment();
       this.publishStageName();
       this.syncUiMirror();
     },
@@ -1448,7 +1483,13 @@ export default defineComponent({
       return this.sub === undefined && this.focused?.zone === zone && this.focused.index === index;
     },
     chipIconClass(chip: TradeOutcomeChip): string {
-      return chip.icon !== undefined ? iconClassFor(chip.icon) : '';
+      // `con-task__opt-res` is what SIZES the sprite. A standard-resource class
+      // carries a box of its own and happened to survive without it; a
+      // card-resource class is only a background-image, so the floater's icon
+      // was a 0×0 element — present in the DOM, invisible on screen. Every
+      // other icon on this stage goes through `resourceIconClass`; this was the
+      // one exception, and it is why the fee row lost its icon.
+      return chip.icon !== undefined ? iconClassFor(chip.icon) + ' con-task__opt-res' : '';
     },
     resourceKey(resource: string | undefined): string | undefined {
       return resource?.toString().toLowerCase().replace(/ /g, '-');
@@ -1475,6 +1516,16 @@ export default defineComponent({
       }
       const before = card.resources ?? 0;
       return `${before} → ${before + step.amount}`;
+    },
+    /**
+     * PIN THE FEE to the entry's own path. Called wherever `payIdx` could
+     * otherwise drift (mount, a new colony, a fresh option list): the entry
+     * IS the payment, so the selection is not seeded — it is fixed.
+     */
+    syncLockedPayment(): void {
+      if (this.lockedPayIdx >= 0) {
+        this.payIdx = this.lockedPayIdx;
+      }
     },
     seedPaymentDefault(): void {
       const step = this.paymentStep;
@@ -1640,7 +1691,9 @@ export default defineComponent({
         return;
       }
       if (focused.zone === 'pay') {
-        this.payIdx = focused.index;
+        if (this.lockedPayIdx < 0) {
+          this.payIdx = focused.index;
+        }
         return;
       }
       const row = this.stepRows[focused.index];
@@ -1737,6 +1790,7 @@ export default defineComponent({
   },
   mounted() {
     this.seedPaymentDefault();
+    this.syncLockedPayment();
     this.publishStageName();
     this.syncUiMirror();
   },

@@ -92,6 +92,8 @@ export type WorkspaceFrameKind =
   | 'hydro'
   /** The GAME START WORKSPACE — the whole opening. */
   | 'start'
+  /** «ДРАФТ» — the between-generations draft + research buy, one flow. */
+  | 'draft'
   /** «СТАНДАРТНЫЕ ПРОЕКТЫ» — the premium standard-projects screen. */
   | 'standard-projects'
   /** «ВЕХИ» / «НАГРАДЫ» — the premium MA screen, one kind each. */
@@ -185,6 +187,13 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
   'start': {
     root: 'Start of the game', rootSelector: '.con-start',
     serves: ['startSequence', 'initialDraft', 'corpFirstAction'], hosts: 'always',
+  },
+  // The DRAFT workspace — a PHASE-anchored root like 'start': it IS the
+  // between-generations sequence (picks → waits → research buy → done) and
+  // projects onto neither navigation axis (the board stays its backdrop).
+  'draft': {
+    root: 'Draft', rootSelector: '.con-draftws',
+    serves: ['cardSelect', 'draftWait'],
   },
   'standard-projects': {
     root: 'Standard Projects', rootSelector: '.con-stdp', sheet: 'standardProjects',
@@ -627,6 +636,31 @@ export function workspaceStackSheet(): ConsoleSheetId | undefined {
     const sheet = WORKSPACE_KINDS[workspaceStackState.frames[i].kind].sheet;
     if (sheet !== undefined) {
       return sheet;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * WHICH AXIS THE PLAYER IS ACTUALLY DRIVING — the axis the DEEPEST projecting
+ * frame publishes on.
+ *
+ * `section` and `sheet` each answer «what is open on my axis», and both can be
+ * set at once (`card-actions ⊃ colonies` publishes sheet `cardActions` AND
+ * section `colonies`). Every consumer that has to pick ONE — input routing
+ * above all — needs the tie broken by DEPTH, exactly as presence is: the
+ * surface the player sees on top is the surface their presses belong to.
+ * Hand-ordering the two checks instead is how a hosted colony grid ended up
+ * handing its d-pad to the composer parked underneath it.
+ */
+export function workspaceStackTopAxis(): 'section' | 'sheet' | undefined {
+  for (let i = workspaceStackState.frames.length - 1; i >= 0; i--) {
+    const spec = WORKSPACE_KINDS[workspaceStackState.frames[i].kind];
+    if (spec.section !== undefined) {
+      return 'section';
+    }
+    if (spec.sheet !== undefined) {
+      return 'sheet';
     }
   }
   return undefined;

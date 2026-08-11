@@ -61,6 +61,12 @@ export interface ConsoleTaskSummary {
   sourceCard?: CardName;
   /** The context-aware B verb ("Вернуться к драфту") — an English i18n key. */
   returnKey: string;
+  /**
+   * The A verb on the mandatory ANNOUNCEMENT, when «Открыть» undersells what
+   * the press does (a colony-bonus delivery: «Забрать карту» — the press is
+   * the answer AND the journey). An English i18n key; absent → «Открыть».
+   */
+  openKey?: string;
 }
 
 /** The ONE kicker every discard decision carries, whichever surface hosts it. */
@@ -308,6 +314,21 @@ export function consoleTaskSummary(
 
   case 'colony':
     return {kickerKey: 'Colony', ask: ask(wf, 'Choose a colony'), sourceCard: source, returnKey: 'Return to selection'};
+
+  case 'colonyBonus': {
+    // THE DELIVERY announces the EVENT, never the button: «Сработал бонус
+    // колонии: Миранда» is what happened, and the A-verb says what pressing
+    // it does — go and take the card. The colony rides as a data token, so
+    // the sentence survives i18n (never a title match). Deliberately the same
+    // sentence Pluto's owner bonus announces: one event, one phrase.
+    const bonus = wf?.colonyBonusPrompt;
+    return {
+      kickerKey: 'Colony bonus',
+      ask: {message: 'Colony bonus triggered: ${0}', data: [{type: LogMessageDataType.STRING, value: bonus?.colonyName ?? ''}]},
+      openKey: 'Collect the card',
+      returnKey: 'Return to the bonus',
+    };
+  }
 
   case 'venusBonus':
     // The reward for crossing a bonus step on the Venus track — named as a

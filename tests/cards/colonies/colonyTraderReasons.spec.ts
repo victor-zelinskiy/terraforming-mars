@@ -47,15 +47,19 @@ describe('colony trader disabled reasons', () => {
     expect(new TradeWithTitanFloatingLaunchPad(player).canUse()).is.true;
   });
 
-  it('dresses its picker row like every standard trader (icon + current → resulting)', () => {
+  it('dresses its picker row like every standard trader (icon + current → resulting) and NAMES its card', () => {
     const [/* game */, player] = testGame(2, {coloniesExtension: true});
     const card = new TitanFloatingLaunchPad();
     player.playedCards.push(card);
     card.resourceCount = 2;
+    // `card` is the path's structural IDENTITY, not decoration: the SAME card's
+    // action is a second entry point into this very option, and the console has
+    // to find it to lock the fee — by the marker, never by the translated label.
     expect(new TradeWithTitanFloatingLaunchPad(player).optionMetadata()).deep.eq({
       kind: 'resourceRemoval',
       icon: 'floater',
       amount: 1,
+      card: CardName.TITAN_FLOATING_LAUNCHPAD,
       resource: {current: 2, resulting: 1},
     });
   });

@@ -516,6 +516,7 @@
     "Covered": "Покрыто",
     "Placed": "Размещено",
     "Collect": "Забрать",
+    "Collect the card": "Забрать карту",
     "No changes": "Без изменений",
     "Shifted: ${0}": "Сдвинуто: ${0}",
     "Planetary events": "Планетарные события",
@@ -574,5 +575,16 @@
     "Choose ${0} more": "Выберите ещё ${0}",
     "You may take ${0} more": "Можно взять ещё ${0}",
     "Keep ${0} of the drawn cards": "Оставьте ${0} из открытых карт",
-    "Keep up to ${0} of the drawn cards": "Оставьте до ${0} из открытых карт"
+    "Keep up to ${0} of the drawn cards": "Оставьте до ${0} из открытых карт",
+    "Passing to": "Передаёте",
+    "Pick locked in": "Выбор зафиксирован",
+    "The rest of the packet went to ${0}": "Остаток пакета передан игроку ${0}",
+    "Next packet comes from ${0}": "Следующий пакет — от игрока ${0}",
+    "Cannot be played yet": "Сейчас нельзя разыграть",
+    "Waiting for the other players": "Ждём остальных игроков",
+    "Research complete": "Исследование завершено",
+    "Purchased cards are in your hand": "Купленные карты — в вашей руке",
+    "Take": "Отобрать",
+    "Handover": "Передача",
+    "Selected cards": "Отобранные карты"
 }

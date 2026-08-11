@@ -39,7 +39,12 @@ export interface IColony {
    * `ordinal` = WHICH of this recipient's cubes on this colony is resolving
    * (1-based) out of how many they own. Each cube resolves separately and in
    * full; an interactive bonus uses this only to say which colony is paying.
+   *
+   * `trader` = who made the trade that pays this bonus, when there is one. A
+   * bonus paid to somebody ELSE is DELIVERED (the recipient collects it, and
+   * the cards are drawn on their answer); the trader's own cube resolves
+   * inline. Absent for the self-directed grants (ProductiveOutpost, Yvonne).
    */
-  giveColonyBonus(player: IPlayer, isGiveColonyBonus?: boolean, ordinal?: ColonyBonusOrdinal): undefined | PlayerInput;
+  giveColonyBonus(player: IPlayer, isGiveColonyBonus?: boolean, ordinal?: ColonyBonusOrdinal, trader?: IPlayer): undefined | PlayerInput;
   serialize(): SerializedColony;
 }

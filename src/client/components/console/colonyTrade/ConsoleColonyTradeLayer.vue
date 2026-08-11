@@ -347,6 +347,22 @@ export default defineComponent({
         return;
       }
 
+      /*
+       * DOES THIS CARD OPEN ON THE TABLE OR IN THE AIR? A cover lands FACE
+       * DOWN only where something else will turn it over — the «Бонус
+       * колонии» ZONE, Pluto's per-colony grammar. A bonus card that lands in
+       * the ordinary strip (a colony whose owner bonus is a plain draw —
+       * Miranda) has no zone flip behind it, so a face-down landing would
+       * leave a card back lying in the reveal. Asked of the REAL slot the
+       * cover is flying to, per card: the reveal is already mounted (its rects
+       * were just measured), so the answer is the rendered truth rather than a
+       * second derivation of the server's markers.
+       */
+      const landsInZone = (key: string): boolean => {
+        const slot = document.querySelector(`.con-reveal [data-zoom-slot="${cssEscape(key)}"]`);
+        return slot !== null && slot.closest('.con-reveal__bonus-zone') !== null;
+      };
+
       let landed = 0;
       plan.forEach((p, i) => {
         const proxy = this.proxyRefs[i];
@@ -373,9 +389,10 @@ export default defineComponent({
           fanIndex: p.fanIndex,
           fanCount: p.fanCount,
           reduced: colonyTradeState.reducedMotion,
-          // A colony-bonus card is opened ON THE TABLE by its zone, so its
-          // cover must not turn in the air (see runTradeCoverFlight.faceDown).
-          faceDown: p.role === 'bonus',
+          // A colony-bonus card whose ZONE will turn it over is delivered face
+          // down (see runTradeCoverFlight.faceDown); a bonus card landing in
+          // the ordinary strip turns in the air like every other card.
+          faceDown: landsInZone(keys[p.index]),
           onLanded: () => {
             landed++;
             if (landed >= plan.length) {

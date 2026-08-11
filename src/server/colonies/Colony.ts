@@ -15,6 +15,7 @@ import {PlayerInput} from '../PlayerInput';
 import {Resource} from '../../common/Resource';
 import {ScienceTagCard} from '../cards/community/ScienceTagCard';
 import {SelectColony} from '../inputs/SelectColony';
+import {SelectOption} from '../inputs/SelectOption';
 import {SelectPlayer} from '../inputs/SelectPlayer';
 import {StealResources} from '../deferredActions/StealResources';
 import {Tag} from '../../common/cards/Tag';
@@ -318,8 +319,8 @@ export abstract class Colony implements IColony {
    * — the rules never merge them — so an INTERACTIVE bonus (Pluto's "draw 1,
    * then discard 1") uses it to tell the player which colony is paying out.
    */
-  public giveColonyBonus(player: IPlayer, isGiveColonyBonus: boolean = false, ordinal?: ColonyBonusOrdinal): undefined | PlayerInput {
-    return this.giveBonus(player, this.metadata.colony.type, this.metadata.colony.quantity, this.metadata.colony.resource, isGiveColonyBonus, 'colonyBonus', ordinal);
+  public giveColonyBonus(player: IPlayer, isGiveColonyBonus: boolean = false, ordinal?: ColonyBonusOrdinal, trader?: IPlayer): undefined | PlayerInput {
+    return this.giveBonus(player, this.metadata.colony.type, this.metadata.colony.quantity, this.metadata.colony.resource, isGiveColonyBonus, 'colonyBonus', ordinal, trader);
   }
 
   /**
@@ -334,12 +335,12 @@ export abstract class Colony implements IColony {
    * deferred build bonuses (draw / add-resource) are covered too. A top-level trade
    * is already a `colony` root, so re-sourcing there is a harmless no-op.
    */
-  private giveBonus(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', ordinal?: ColonyBonusOrdinal): undefined | PlayerInput {
+  private giveBonus(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', ordinal?: ColonyBonusOrdinal, trader?: IPlayer): undefined | PlayerInput {
     return player.game.events.withSource({kind: 'colony', name: this.name, benefit}, () =>
-      this.giveBonusImpl(player, bonusType, quantity, resource, isGiveColonyBonus, benefit, ordinal));
+      this.giveBonusImpl(player, bonusType, quantity, resource, isGiveColonyBonus, benefit, ordinal, trader));
   }
 
-  private giveBonusImpl(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', ordinal?: ColonyBonusOrdinal): undefined | PlayerInput {
+  private giveBonusImpl(player: IPlayer, bonusType: ColonyBenefit, quantity: number, resource: Resource | undefined, isGiveColonyBonus: boolean = false, benefit: ColonyBenefitRole = 'colonyBonus', ordinal?: ColonyBonusOrdinal, trader?: IPlayer): undefined | PlayerInput {
     const game = player.game;
 
     let action: undefined | DeferredAction<any> = undefined;
@@ -383,13 +384,63 @@ export abstract class Colony implements IColony {
       );
       break;
 
-    case ColonyBenefit.DRAW_CARDS:
+    case ColonyBenefit.DRAW_CARDS: {
       // Attribute the reveal to THIS colony (Pluto, …) so the "cards received"
       // modal shows a hoverable colony chip as the source — plus the tradeId
       // when the draw is part of a resolving trade, so the client binds it to
       // that trade's transaction (and same-trade batches merge into one).
-      action = DrawCards.keepAll(player, quantity, {source: this.colonyRevealSource(benefit)});
+      const drawSource = this.colonyRevealSource(benefit);
+      /*
+       * A BONUS PAID TO SOMEONE ELSE IS DELIVERED, NOT POSTED. When another
+       * player's trade pays this owner their card, the draw used to happen
+       * silently: the card appeared in a hand nobody had looked at and the
+       * client threw a full-bleed reveal over whatever screen its owner was
+       * on, mid-someone-else's-turn. So the recipient COLLECTS it — the cards
+       * are drawn inside the answer, and the marked prompt is what lets the
+       * console announce the delivery and walk the player to the colony that
+       * paid it (the same door Pluto's discard uses).
+       *
+       * The TRADER's own bonus stays inline: they are already watching the
+       * payout resolve on their own colony stage, and a prompt there would be
+       * a click asking them to confirm what they just did. Same for a bot
+       * (never prompted) and for the self-directed grants
+       * (ProductiveOutpost / Yvonne — no trader, `isGiveColonyBonus` false).
+       */
+      const seat = ordinal ?? {index: 1, total: 1};
+      if (isGiveColonyBonus && trader !== undefined && trader.id !== player.id && !player.isMarsBot) {
+        /*
+         * ⚠️ THE TRADER NEVER WAITS FOR SOMEBODY ELSE'S CLICK. Returning the
+         * prompt from here would hand it straight to `GiveColonyBonus`, which
+         * holds the whole deferred queue until every recipient has answered —
+         * so the trader's OWN trade income (Miranda's animals resolve at
+         * GAIN_RESOURCE_OR_PRODUCTION, i.e. after this) and their track reset
+         * would sit frozen behind an opponent. The two are independent by the
+         * rules, so the delivery is queued at the BACK OF THE LINE for its
+         * OWN recipient: the trade finishes, and the card is waiting to be
+         * collected. (`drawSource` is captured NOW — by the time it is
+         * answered the colony's trade window has closed.)
+         */
+        player.defer(
+          () => new SelectOption(
+            message('Collect ${0} card(s) from ${1}', (b) => b.number(quantity).colony(this)),
+            'Collect')
+            .markColonyBonusPrompt({
+              colonyName: this.name,
+              cards: quantity,
+              index: seat.index,
+              total: seat.total,
+              trader: trader.color,
+            })
+            .andThen(() => {
+              player.drawCard(quantity, {source: drawSource});
+              return undefined;
+            }),
+          Priority.BACK_OF_THE_LINE);
+        return undefined;
+      }
+      action = DrawCards.keepAll(player, quantity, {source: drawSource});
       break;
+    }
 
     case ColonyBenefit.DRAW_CARDS_AND_BUY_ONE:
       // The pick names the COLONY that paid it out — the console anchors the

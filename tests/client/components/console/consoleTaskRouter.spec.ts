@@ -50,6 +50,10 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '16 play-from-hand prompt', wf: {type: 'projectCard', title: 'Play a card from hand', cards: [{name: 'Birds'}]}, hand: ['Birds'], expect: {kind: 'projectCard', mode: 'playFromHand'}},
   {row: '17 std-project prompt', wf: {type: 'projectCard', title: 'Play a standard project', cards: [{name: 'Power Plant:SP'}]}, expect: {kind: 'projectCard', mode: 'standardProject'}},
   {row: '18 colony build/select', wf: {type: 'colony', title: 'Select colony', coloniesModel: []}, expect: {kind: 'colony'}},
+  // The MARKER outranks the type again: on the wire this is the same bare
+  // `option` as row 3, and everything that makes it a colony delivery (which
+  // colony, whose trade, which cube) lives in `colonyBonusPrompt`.
+  {row: '18a colony bonus collect', wf: {type: 'option', title: 'Collect 1 card(s) from Miranda', colonyBonusPrompt: {colonyName: 'Miranda', cards: 1, index: 1, total: 1, trader: 'red'}}, expect: {kind: 'colonyBonus'}},
   {row: '20 free award funding', wf: {type: 'or', title: 'Fund an award', options: [], awardFundingPrompt: {free: true}}, expect: {kind: 'awardFunding'}},
   {row: '21 initial draft', wf: {type: 'initialCards', title: 'Select initial cards'}, expect: {kind: 'initialDraft'}},
   // The corp first action is a FIRST-TURN prompt (the «Разыграно» action
@@ -170,7 +174,7 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
       expect(NATIVE_KINDS.has(kind), `section kind "${kind}" must be native`).to.eq(true);
       // …but never claimed by the task host (the shell owns the surface).
       expect(kind === 'projectCard' || kind === 'handSelect' || kind === 'colony' ||
-        kind === 'awardFunding' || kind === 'corpFirstAction').to.eq(true);
+        kind === 'colonyBonus' || kind === 'awardFunding' || kind === 'corpFirstAction').to.eq(true);
     }
   });
 

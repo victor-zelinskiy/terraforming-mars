@@ -505,7 +505,7 @@ import {
   colonyTradeHoldingSingleZoom, colonyTradeState, colonyTradeWillDressReveal, colonyTradeZoomOriginEl,
   isColonyTradeActive, isColonyTradeRevealStaged,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
-import {tradeRoleForIndex} from '@/client/console/colonyTrade/colonyTradeModel';
+import {revealWaveForIndex} from '@/client/console/colonyTrade/colonyTradeModel';
 import {setRevealVeilSuppressed} from '@/client/console/surfaceMotion/surfaceMotionState';
 
 /** The scene phases during which the reveal frame stays fully veiled. */
@@ -660,11 +660,15 @@ export default defineComponent({
      */
     drawnGrouped(): {income: Array<StripEntry>, bonus: Array<StripEntry>} {
       const segments = this.drawnEvent?.tradeSegments;
+      // The zone renderer below draws the bonus wave ONLY for a per-colony
+      // discard sequence; without it a bonus card is an ordinary card of the
+      // payout and belongs in the strip (see `revealWaveForIndex`).
+      const zoned = this.bonusZones.length > 0;
       const income: Array<StripEntry> = [];
       const bonus: Array<StripEntry> = [];
       this.drawnUntaken.forEach((u, pos) => {
         const entry = {card: u.card, index: u.index, pos};
-        if (segments !== undefined && tradeRoleForIndex(segments, u.index) === 'bonus') {
+        if (revealWaveForIndex(segments, u.index, zoned) === 'bonus') {
           bonus.push(entry);
         } else {
           income.push(entry);

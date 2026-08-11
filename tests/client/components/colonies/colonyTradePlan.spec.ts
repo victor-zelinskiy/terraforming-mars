@@ -9,6 +9,7 @@ import {
   freeTradeFleets,
   rewardAtPosition,
   tradeNotices,
+  tradeOutcome,
   tradeSteps,
   trackChoiceResponse,
   trackResetAfterBuild,
@@ -260,6 +261,58 @@ describe('colonyTradePlan', () => {
     it('the OWNER bonus is a separate question from the track', () => {
       expect(colonyOwnerBonusDrawsCards(cardTrack)).to.eq(true);
       expect(colonyOwnerBonusDrawsCards(resourceTrack)).to.eq(false);
+    });
+  });
+
+  /**
+   * «ОПЛАТА» — one grammar for every fee.
+   *
+   * A rail fee is tracked through the sequence (pay energy, then receive
+   * energy, and the two must read continuously). A CARD fee is not on the rail
+   * at all, so the only honest source of its `before → after` is the server's
+   * own option metadata — without it the row printed a bare «−1» beside fully
+   * dressed resource siblings, on a panel whose whole job is to add up.
+   */
+  describe('the payment row of the outcome', () => {
+    const OUTCOME_ARGS = {
+      metadata: colonyMetadata({
+        name: ColonyName.GANYMEDE,
+        build: {description: '', type: ColonyBenefit.GAIN_RESOURCES, resource: Resource.PLANTS, quantity: [1, 1, 1]},
+        trade: {description: '', type: ColonyBenefit.GAIN_RESOURCES, resource: Resource.PLANTS, quantity: [0, 1, 2, 3, 4, 5, 6]},
+        colony: {description: '', type: ColonyBenefit.GAIN_RESOURCES, resource: Resource.PLANTS, quantity: 1},
+      }),
+      rewardPosition: 2,
+      ownColonyCount: 0,
+      stocks: {megacredits: 650, steel: 0, titanium: 531, plants: 499, energy: 1, heat: 1031},
+      production: {},
+    };
+
+    it('a RAIL fee reads its pair off the viewer\'s own stock, and keeps it in sequence', () => {
+      const out = tradeOutcome({...OUTCOME_ARGS, payment: {icon: 'titanium', amount: 1}});
+      expect(out.cost).to.deep.eq([
+        {direction: 'cost', icon: 'titanium', amount: 1, current: 531, resulting: 530},
+      ]);
+      // …and the gain that follows is read AFTER the fee, on the same running stock.
+      expect(out.gains[0]).to.include({icon: 'plants', current: 499, resulting: 501});
+    });
+
+    it('a CARD fee takes its pair from the SERVER — the rail knows nothing about floaters', () => {
+      const out = tradeOutcome({
+        ...OUTCOME_ARGS,
+        payment: {icon: 'floater', amount: 1, resource: {current: 1, resulting: 0}},
+      });
+      expect(out.cost).to.deep.eq([
+        {direction: 'cost', icon: 'floater', amount: 1, current: 1, resulting: 0},
+      ]);
+      // The card fee must NOT enter the running stock — it is not a rail metric.
+      expect(out.gains[0]).to.include({icon: 'plants', current: 499, resulting: 501});
+    });
+
+    it('a card fee with no server pair still states the amount, never a wrong pair', () => {
+      const out = tradeOutcome({...OUTCOME_ARGS, payment: {icon: 'data', amount: 3}});
+      expect(out.cost).to.deep.eq([
+        {direction: 'cost', icon: 'data', amount: 3, current: undefined, resulting: undefined},
+      ]);
     });
   });
 });

@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {JupiterFloatingStation} from '../../../src/server/cards/colonies/JupiterFloatingStation';
-import {TitanFloatingLaunchPad} from '../../../src/server/cards/colonies/TitanFloatingLaunchPad';
+import {TitanFloatingLaunchPad, TradeWithTitanFloatingLaunchPad} from '../../../src/server/cards/colonies/TitanFloatingLaunchPad';
+import {CardName} from '../../../src/common/cards/CardName';
 import {ICard} from '../../../src/server/cards/ICard';
 import {Luna} from '../../../src/server/colonies/Luna';
 import {Triton} from '../../../src/server/colonies/Triton';
@@ -90,6 +91,47 @@ describe('TitanFloatingLaunchPad', () => {
     selectColony.cb(selectColony.colonies[0]);
     expect(card.resourceCount).to.eq(7);
     expect(player.megaCredits).to.eq(2);
+  });
+
+  /**
+   * ONE IMPLEMENTATION OF THE TRADE. The card's action and the trade prompt's
+   * floater fee are two entry points into the same move, so the action must run
+   * through the SAME `IColonyTrader` — not a second copy of «spend a floater,
+   * call colony.trade». The copy had already drifted: it opened no colony event
+   * scope, so a trade taken from the card grouped differently in the journal,
+   * and it did not mark the card used, so the fee stayed on offer in the
+   * colonies screen after the action was spent.
+   */
+  it('the trade branch runs through the shared trader: one floater, the action marked used, the colony traded', () => {
+    game.colonies = [new Luna(), new Triton()];
+    player.playedCards.push(card);
+    player.addResourceTo(card, 3);
+
+    const orOptions = cast(card.action(player), OrOptions);
+    orOptions.options[0].cb(); // Trade for free
+    const selectColony = cast(game.deferredActions.peek()!.execute(), SelectColony);
+    // The colony picker carries the TRADE button label, which is what the
+    // console's trade orchestration (fleet flight, reward waves) keys on — the
+    // old bespoke picker said 'Select' and every one of those beats was skipped.
+    expect(selectColony.buttonLabel).to.eq('trade');
+    selectColony.cb(selectColony.colonies[0]);
+
+    expect(card.resourceCount).to.eq(2);
+    expect(player.actionsThisGeneration.has(CardName.TITAN_FLOATING_LAUNCHPAD)).is.true;
+    expect(player.megaCredits).to.eq(2);
+    // …and the fee therefore disappears from the trade prompt: one use, both doors.
+    expect(new TradeWithTitanFloatingLaunchPad(player).canUse()).is.false;
+  });
+
+  /** The branch DECLARES that it is the trade's second door — structurally, so
+   *  the console can hand the player over instead of committing the action. */
+  it('the trade branch previews a colonyTrade step naming its own payment path', () => {
+    player.playedCards.push(card);
+    player.addResourceTo(card, 1);
+    const preview = card.actionPreview(player);
+    const steps = preview.branches[0].steps;
+    expect(steps).has.lengthOf(1);
+    expect(steps[0]).deep.eq({kind: 'colonyTrade', card: CardName.TITAN_FLOATING_LAUNCHPAD});
   });
 
   it('Cannot take trade action during embargo #6348', () => {

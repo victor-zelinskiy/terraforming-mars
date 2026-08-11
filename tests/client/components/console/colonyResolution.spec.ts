@@ -30,6 +30,7 @@ import {Color} from '@/common/Color';
 
 const IDLE: ColonyResolutionSignals = {
   discardMeta: undefined,
+  collectMeta: undefined,
   revealSource: undefined,
   tradeActive: false,
   tradeColony: '',
@@ -84,6 +85,22 @@ describe('colonyResolution', () => {
     expect(colonyResolutionPhaseFor(tail)).to.eq('concluding');
     // 6 · the transaction concluded — only now the resolution ends.
     expect(colonyResolutionLiveFor(IDLE)).to.eq(false);
+  });
+
+  it('a COLLECT delivery (Miranda) is a live resolution of its own', () => {
+    // Another player's trade owes the viewer a card. The server has not drawn
+    // it yet — the marker IS the whole state — so «the reveal is empty» must
+    // not read as «nothing is owed», exactly as for the discard half.
+    const collect = {...IDLE, collectMeta: {colonyName: ColonyName.MIRANDA, cards: 1, index: 1, total: 1}};
+    expect(colonyResolutionLiveFor(collect)).to.eq(true);
+    expect(colonyResolutionColony(collect)).to.eq('Miranda');
+    expect(colonyResolutionPhaseFor(collect)).to.eq('owner-bonus');
+    expect(remoteColonyBonusPendingFor(collect)?.colonyName).to.eq('Miranda');
+    // Once the viewer has walked in, the delivery is theirs to finish — the
+    // hold releases and the batch flows into the workspace.
+    const entered = {...collect, entryColony: 'Miranda'};
+    expect(remoteColonyBonusPendingFor(entered)).to.eq(undefined);
+    expect(colonyResolutionLiveFor(entered)).to.eq(true);
   });
 
   it('names its colony from the strongest live signal', () => {

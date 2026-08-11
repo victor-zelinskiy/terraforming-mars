@@ -254,7 +254,8 @@ import {
 } from '@/client/console/consoleColoniesModel';
 import {workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
 import {
-  setWorkspaceFrameSlot, workspaceFrameHost, workspaceFrameParked, workspaceFrameStage,
+  setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject,
+  workspaceFrameHost, workspaceFrameParked, workspaceFrameStage,
 } from '@/client/console/consoleWorkspaceStack';
 import {colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
@@ -470,6 +471,10 @@ export default defineComponent({
         return this.outcomeState.phaseKey !== '' ? this.outcomeState.phaseKey : 'Card draw';
       }
       return '';
+    },
+    /** The pair handed up to a HOSTING workspace's breadcrumb (see the watcher). */
+    embeddedCrumb(): {embedded: boolean, subject: string, stage: string} {
+      return {embedded: this.embedded, subject: this.crumbSubject, stage: this.crumbStage};
     },
     crumbCommitted(): boolean {
       return this.focusState.committing || this.tradeFleetState.active ||
@@ -707,6 +712,24 @@ export default defineComponent({
   watch: {
     index() {
       void this.$nextTick(() => this.scrollSelectedIntoView());
+    },
+    /**
+     * HAND THE CRUMB UP. Embedded, this section draws no header of its own —
+     * the host does, and the host's subject slot is already spent on the card
+     * that opened us. So the colony and its stage travel up as the FRAME's own
+     * subject + stage and the host folds them into one tail («ГАНИМЕД ·
+     * ТОРГОВЛЯ»). Publishing the pair rather than a finished phrase keeps the
+     * grammar in the header, where it belongs, and keeps both parts i18n keys.
+     */
+    embeddedCrumb: {
+      immediate: true,
+      handler(crumb: {embedded: boolean, subject: string, stage: string}) {
+        if (!crumb.embedded) {
+          return;
+        }
+        setWorkspaceFrameSubject('colonies', crumb.subject);
+        setWorkspaceFrameStage('colonies', crumb.stage !== '' ? crumb.stage : 'Colony selection');
+      },
     },
     layout() {
       this.scheduleFit();

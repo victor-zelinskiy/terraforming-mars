@@ -28,6 +28,14 @@ describe('consoleMandatoryGate (the mandatory announcement gate)', () => {
       expect(isInterruptiveMandatoryTask({kind: 'handSelect'}, false)).to.be.true;
     });
 
+    it('a colony-bonus DELIVERY is always interruptive (it is never our own doing)', () => {
+      // It only ever arises from SOMEBODY ELSE's trade — the trader's own cube
+      // resolves inline with no prompt at all — so the announcement is the
+      // door whatever the viewer's status happens to say.
+      expect(isInterruptiveMandatoryTask({kind: 'colonyBonus'}, true)).to.be.true;
+      expect(isInterruptiveMandatoryTask({kind: 'colonyBonus'}, false)).to.be.true;
+    });
+
     it('triggered sub-prompts are gated ONLY off the viewer\'s own turn', () => {
       const player: ConsoleTask = {kind: 'player'};
       expect(isInterruptiveMandatoryTask(player, true)).to.be.true; // forced reaction

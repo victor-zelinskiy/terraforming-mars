@@ -92,6 +92,11 @@ export function isMandatoryGateHeld(): boolean {
  */
 const ALWAYS_INTERRUPTIVE: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'corpFirstAction', 'handSelect',
+  // A COLONY-BONUS DELIVERY only ever arises from SOMEBODY ELSE's trade (the
+  // trader's own cube resolves inline, with no prompt at all), so it is an
+  // interruption by construction — and the whole point of the prompt is that
+  // the card waits until its owner goes and takes it.
+  'colonyBonus',
 ]);
 
 /**

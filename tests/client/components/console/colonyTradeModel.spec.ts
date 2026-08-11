@@ -7,8 +7,8 @@ import {Resource} from '@/common/Resource';
 import {ColonyTradeManifestModel} from '@/common/models/ColonyTradeManifestModel';
 import {
   benefitCardCount, benefitTransferSpec, colonyTradeHeldSpecs, incomeTransferSpecs,
-  ownBonusTransferSpecs, trackGlidePlan, TRADE_COVER_STAGGER_MS, TRADE_FAN_LEAD_MS,
-  TRADE_FAN_STAGGER_MS, TRADE_WAVE_GAP_MS,
+  ownBonusTransferSpecs, revealWaveForIndex, trackGlidePlan, TRADE_COVER_STAGGER_MS,
+  TRADE_FAN_LEAD_MS, TRADE_FAN_STAGGER_MS, TRADE_WAVE_GAP_MS,
   tradeCoverPlan, tradeCoverPlanBudgetMs, tradeRoleForIndex, viewerBonusCubes,
 } from '@/client/console/colonyTrade/colonyTradeModel';
 
@@ -114,6 +114,17 @@ describe('colonyTradeModel', () => {
     // A deck that ran short: segments promise more than the batch holds.
     const short = tradeCoverPlan(1, [{role: 'income', count: 3}]);
     expect(short).has.lengthOf(1);
+  });
+
+  it('a bonus card leaves the strip ONLY when a zone will draw it', () => {
+    const segments = [{role: 'income' as const, count: 1}, {role: 'bonus' as const, count: 1}];
+    // ZONED (Pluto: the per-colony discard sequence renders the zones).
+    expect(revealWaveForIndex(segments, 0, true)).eq('income');
+    expect(revealWaveForIndex(segments, 1, true)).eq('bonus');
+    // UNZONED (Miranda: a plain owner-bonus draw) — the bonus card is an
+    // ordinary card of the payout. Splitting it out with nothing to receive
+    // it is what rendered the card NOWHERE: no slot, no cover target, no take.
+    expect(revealWaveForIndex(segments, 1, false)).eq('income');
   });
 
   it('maps a batch card index to its trade wave (the reveal’s bonus-zone grouping)', () => {

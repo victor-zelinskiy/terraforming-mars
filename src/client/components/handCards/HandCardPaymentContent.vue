@@ -164,7 +164,12 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
                      several) and the magnitude lost, so the player is never
                      surprised by — or left guessing about — a lost effect. -->
                 <SkippedEffectWarning v-if="isSkippedWarning(step)" :step="step" />
-                <div v-else-if="step.kind === 'boardPlacement' || step.kind === 'note'" class="play-confirm__step play-confirm__step--placement">
+                <!-- `colonyTrade` rides here purely to be ELIMINATED from the
+                     union below: it is an ACTION-preview step (a branch that
+                     enters the colony trade) and a card PLAY never produces
+                     one, but the chain narrows structurally, so a kind with no
+                     `input` must be named before the branches that read one. -->
+                <div v-else-if="step.kind === 'boardPlacement' || step.kind === 'note' || step.kind === 'colonyTrade'" class="play-confirm__step play-confirm__step--placement">
                   <span class="play-confirm__step-glyph" aria-hidden="true">◎</span>
                   <!-- Pre-translated in JS (a named tile interpolates its name),
                        so NO `v-i18n` — it would re-translate a Russian string. -->

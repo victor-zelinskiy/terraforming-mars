@@ -34,7 +34,8 @@
                      :context="repeat && repeatRequest !== undefined ? (repeatRequest.source.label ?? repeatRequest.source.card) : ''"
                      :subject="composer !== undefined ? composer.cardName : ''"
                      :stage="composer !== undefined ? focusKickerKey : ''"
-                     :committed="outcomeFlow !== undefined || colonyStepHosted">
+                     :stageRaw="focusKickerRaw"
+                     :committed="outcomeFlow !== undefined || colonyStepCommitted">
         <!-- ── Filters: two labeled groups with their OWN trigger chips
              (the sanctioned exception to the one-bottom-bar rule). They
              live in the header line and yield to the focus stage. ── -->
@@ -387,6 +388,7 @@
                                :publishCommands="!repeat"
                                :repeatPickDisabled="repeat"
                                @confirm="onComposerConfirm"
+                               @colony-trade="onComposerColonyTrade"
                                @cancel="onComposerCancel"
                                @inspect-source="onInspectSource"
                                @commands="onComposerCommands"
@@ -481,8 +483,9 @@ import {
   resetActionFocusMotion,
 } from '@/client/console/consoleActionFocusMotion';
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
-import {workspaceFrameHost} from '@/client/console/consoleWorkspaceStack';
-import {backVerbFor, WorkspacePhase, workspacePhaseOf} from '@/client/console/consoleWorkspaceFlow';
+import {pushWorkspaceFrame, workspaceFrameHost, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameSubject} from '@/client/console/consoleWorkspaceStack';
+import {beginCardColonyTrade, clearCardColonyTrade, colonyStepCrumbParts} from '@/client/console/colonyTrade/colonyTradeEntry';
+import {backVerbFor, isCommitted, WorkspacePhase, workspacePhaseOf} from '@/client/console/consoleWorkspaceFlow';
 import {
   claimWorkspaceOutcome,
   markWorkspaceOutcomePresenting,
@@ -576,7 +579,7 @@ export default defineComponent({
      *  answer, so this surface never invents a second one. */
     blockedReason: {type: String, default: ''},
   },
-  emits: ['close', 'submit-batch', 'reveal-ack', 'collapse', 'blocked'],
+  emits: ['close', 'submit-batch', 'reveal-ack', 'collapse', 'blocked', 'colony-step'],
   data() {
     return {
       consoleCardActionsUi,
@@ -756,11 +759,14 @@ export default defineComponent({
      * command bar reads, so breadcrumb and bar can never disagree.
      */
     focusKickerKey(): string {
-      // A SelectColony follow-up HOSTED here: the crumb's tail is the step —
-      // «ДЕЙСТВИЯ КАРТ › <карта> › КОЛОНИИ» (the embedded section never
-      // titles itself — rule 5).
-      if (workspaceFrameHost('colonies') === 'card-actions') {
-        return 'Colonies';
+      // A colony step HOSTED here: the crumb's tail is the STEP'S OWN, handed
+      // up by the section (the embedded surface never titles itself — rule 5).
+      // The subject slot is already spent on the card, so the colony folds into
+      // the tail: «ДЕЙСТВИЯ КАРТ › ЛЕТАЮЩАЯ ПЛАТФОРМА › ГАНИМЕД · ТОРГОВЛЯ».
+      // The header is the ONLY permanent trace of where the trade came from —
+      // hence no source card, no banner, no second chip anywhere below.
+      if (this.colonyStepHosted) {
+        return this.colonyStepStage;
       }
       const kind = this.outcomeFlow?.kind;
       if (kind === 'deck-check') {
@@ -778,10 +784,35 @@ export default defineComponent({
       const published = workspaceOutcomeState.phaseKey;
       return published !== '' ? published : focusKicker('draw');
     },
-    /** A SelectColony follow-up is hosted in the composer's outcome zone —
-     *  the crumb goes amber (post-commit) and names the step. */
+    /** A colony step is hosted in the composer's outcome zone. */
     colonyStepHosted(): boolean {
       return workspaceFrameHost('colonies') === 'card-actions';
+    },
+    /**
+     * The stage marker goes AMBER only past the commit boundary. A hosted
+     * colony step is reversible until the trade itself is confirmed — B walks
+     * back out of it — so it must read cyan, like every other pre-commit stage.
+     * The frame's own phase is the authority; the presence of the step is not.
+     */
+    colonyStepCommitted(): boolean {
+      return this.colonyStepHosted && isCommitted(workspaceFramePhase('colonies') ?? 'browse');
+    },
+    /** The hosted colony step's tail, already translated and joined — the
+     *  colony name plus its own stage («ГАНИМЕД · ТОРГОВЛЯ»). */
+    colonyStepStage(): string {
+      const parts = colonyStepCrumbParts(
+        workspaceFrameSubject('colonies'), workspaceFrameStage('colonies'));
+      return parts.length === 0 ?
+        translateText('Colonies') : parts.map((p) => translateText(p)).join(' · ');
+    },
+    /**
+     * The crumb tail is a COMPOSED phrase while a colony step stands, and an
+     * i18n key otherwise. Rendering the composed one through `$t` would look up
+     * «ГАНИМЕД · ТОРГОВЛЯ» as a key and (in a stricter audit) flag it as
+     * missing; the raw flag is the same escape hatch `subjectRaw` already is.
+     */
+    focusKickerRaw(): boolean {
+      return this.colonyStepHosted;
     },
     /** Total variants of the focused card (the header's «Вариант N/M» chip);
      *  1 hides the chip (single-action card / a Viron repeat with no node). */
@@ -889,6 +920,18 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * THE ENTRY ENDS WITH THE STEP. B popped the colonies frame, the trade
+     * concluded, or the whole flow went home — either way the card-sourced
+     * lock has no subject any more. A PARKED resolution is deliberately not
+     * cleared (`workspaceFrameKnown` counts the park): «свернуть» keeps the
+     * decision live, and the payment must still be its own on restore.
+     */
+    colonyStepHosted(on: boolean) {
+      if (!on && !workspaceFrameKnown('colonies')) {
+        clearCardColonyTrade();
+      }
+    },
     'previewFingerprint': {
       immediate: true,
       handler() {
@@ -1078,6 +1121,9 @@ export default defineComponent({
     this.scheduleDetailFit();
   },
   beforeUnmount() {
+    if (!workspaceFrameKnown('colonies')) {
+      clearCardColonyTrade();
+    }
     window.removeEventListener('resize', this.onViewportResize);
     if (typeof window.cancelAnimationFrame === 'function') {
       if (this.canvasFitFrame !== undefined) {
@@ -1516,6 +1562,37 @@ export default defineComponent({
       this.outcomeFlow = {kind: 'deck-check'};
       setConsoleActionRevealClaim(chosenCard);
       claimWorkspaceOutcome('card-actions', chosenCard, ['deck-check'], nodeIndex);
+    },
+    /**
+     * «ВЫБРАТЬ КОЛОНИЮ» — the second door into the ONE trade.
+     *
+     * Nothing is submitted: the colony workspace stands INSIDE this one as a
+     * step (`card-actions ⊃ colonies`, the teleport chain the composer already
+     * publishes), the entry context locks the payment path to this card, and
+     * the trade's own confirm is the single atomic commit. So the host frame
+     * stays REVERSIBLE — B pops the step and lands back on this exact variant,
+     * with the floater still on the card and the action still available.
+     *
+     * The anchor is `actionAvailable`: the step's whole right to exist is that
+     * the card's action has not been used. The instant the trade commits, the
+     * server marks it used and the reconciler retires the frame — which is also
+     * why a stale step can never survive a reload.
+     */
+    onComposerColonyTrade(payload: {card: CardName}): void {
+      if (this.composer === undefined || workspaceFrameMounted('colonies')) {
+        return;
+      }
+      beginCardColonyTrade(payload.card);
+      pushWorkspaceFrame({
+        kind: 'colonies', subject: '', stage: 'Colony selection', phase: 'browse',
+        // `always` — a place the player WALKED to, which is exactly what this
+        // is. `actionAvailable` reads better and is wrong: the trade's commit
+        // marks the action used, so the anchor would fail on the very response
+        // that starts the payout and the reconciler would tear the resolution
+        // out of the workspace hosting it.
+        serves: ['colony'], anchor: {type: 'always'},
+      });
+      this.$emit('colony-step');
     },
     /** Assemble + submit the byte-identical batch (revalidated at submit time,
      *  mirroring PlayerHome.submitCardActionBatch's re-walk). */

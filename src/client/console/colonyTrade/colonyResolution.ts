@@ -42,10 +42,11 @@
  */
 
 import {reactive} from 'vue';
+import type {TaskKind} from '@/client/console/consoleTaskRouter';
 import {Color} from '@/common/Color';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
-import {ColonyBonusDiscardMeta, PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {colonyTradeState} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
@@ -123,9 +124,27 @@ export function resetColonyResolutionUi(): void {
   colonyResolutionUi.discardStage = false;
 }
 
+/**
+ * WHAT THE COLONY WORKSPACE SERVES WHILE A RESOLUTION RUNS — one list, four
+ * call sites (the rising edge, the re-entry, the bonus entry, the discard
+ * routing). `handSelect` and `colonyBonus` are EARNED here, never registry
+ * defaults: a colonies screen idling at its browse layer must not mask an
+ * unrelated stranded prompt of either kind.
+ */
+export const COLONY_RESOLUTION_SERVES: ReadonlyArray<TaskKind> = ['colony', 'handSelect', 'colonyBonus'];
+
 /** The structural marker of a pending colony-bonus discard, if any. */
 export function colonyBonusDiscardOf(wf: PlayerInputModel | undefined): ColonyBonusDiscardMeta | undefined {
   return wf?.discardPrompt?.colonyBonus;
+}
+
+/**
+ * The structural marker of a pending colony-bonus COLLECT — the delivery of a
+ * card another player's trade owes the viewer (Miranda). The server draws it
+ * on the answer, so this marker IS the whole «that colony paid you» state.
+ */
+export function colonyBonusCollectOf(wf: PlayerInputModel | undefined): ColonyBonusCollectMeta | undefined {
+  return wf?.colonyBonusPrompt;
 }
 
 /** A COLONY-sourced reveal batch's colony name ('' for anything else). */
@@ -142,6 +161,9 @@ export function revealIsOwnerBonus(source: CardDrawRevealSource | undefined): bo
 export type ColonyResolutionSignals = {
   /** The pending colony-bonus discard marker (server truth). */
   discardMeta: ColonyBonusDiscardMeta | undefined,
+  /** The pending colony-bonus COLLECT marker (server truth) — a delivery the
+   *  viewer owes an answer to before its card is even drawn. */
+  collectMeta: ColonyBonusCollectMeta | undefined,
   /** The current reveal batch's source (drawnCardsState truth). */
   revealSource: CardDrawRevealSource | undefined,
   /** The viewer's OWN trade transaction is running (spans to the track reset). */
@@ -178,6 +200,9 @@ export function colonyResolutionColony(s: ColonyResolutionSignals): string {
   if (s.discardMeta !== undefined) {
     return s.discardMeta.colonyName;
   }
+  if (s.collectMeta !== undefined) {
+    return s.collectMeta.colonyName;
+  }
   if (s.discardFlightMeta !== undefined) {
     return s.discardFlightMeta.colonyName;
   }
@@ -201,6 +226,10 @@ export function colonyResolutionColony(s: ColonyResolutionSignals): string {
 export function colonyResolutionLiveFor(s: ColonyResolutionSignals): boolean {
   return s.tradeActive ||
     s.discardMeta !== undefined ||
+    // A COLLECT still owed: the viewer has walked onto the colony and the
+    // card is drawn on their answer, so the workspace must stand through the
+    // gap where nothing has arrived yet.
+    s.collectMeta !== undefined ||
     s.discardFlightMeta !== undefined ||
     s.entryColony !== '' ||
     revealColonyOf(s.revealSource) !== '';
@@ -217,6 +246,11 @@ export function colonyResolutionPhaseFor(s: ColonyResolutionSignals): ColonyReso
   }
   if (s.discardMeta !== undefined) {
     return 'discard';
+  }
+  if (s.collectMeta !== undefined) {
+    // Answered nothing yet, or answered and the card is on its way: either
+    // way the owner bonus is what the screen is about.
+    return 'owner-bonus';
   }
   if (s.tradeActive) {
     return 'concluding';
@@ -246,15 +280,21 @@ export function remoteColonyBonusPendingFor(s: ColonyResolutionSignals): {colony
   if (s.tradeActive || s.entryColony !== '' || s.claimedByColonies) {
     return undefined;
   }
-  // The DISCARD MARKER is the one proof — deliberately NOT «a bonus batch
-  // arrived». The batch and its discard prompt ride the same server response,
-  // so the marker is present from the same tick; a bonus batch WITHOUT a
-  // marker is the auto-discard edge (the owner's hand was too small for a
-  // choice — the server discarded silently), where no mandatory action
-  // exists, no beat could ever open the door, and a hold would park the
-  // batch forever.
+  // A SERVER MARKER is the one proof — deliberately NOT «a bonus batch
+  // arrived». Both markers ride the same response as whatever they own, so
+  // they are present from the same tick; a bonus batch WITHOUT a marker is
+  // the auto-discard edge (the owner's hand was too small for a choice — the
+  // server discarded silently), where no mandatory action exists, no beat
+  // could ever open the door, and a hold would park the batch forever.
   if (s.discardMeta !== undefined) {
     return {colonyName: s.discardMeta.colonyName};
+  }
+  // The COLLECT delivery (Miranda): the card is not even drawn yet, so there
+  // is normally nothing to hold — but a batch that DID arrive (the previous
+  // cube's card, still on the table) belongs to the same entry, and the
+  // answer to this marker is what opens the door.
+  if (s.collectMeta !== undefined) {
+    return {colonyName: s.collectMeta.colonyName};
   }
   return undefined;
 }
@@ -271,6 +311,7 @@ export function remoteColonyBonusHold(
 ): boolean {
   return remoteColonyBonusPendingFor({
     discardMeta: colonyBonusDiscardOf(wf),
+    collectMeta: colonyBonusCollectOf(wf),
     revealSource: source,
     tradeActive: colonyTradeState.active,
     tradeColony: colonyTradeState.colonyName,

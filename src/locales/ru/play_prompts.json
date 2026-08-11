@@ -195,6 +195,7 @@
     "Select which colony tile track to increase": "Выберите трек тайла колонии для повышения",
     "Select which colony tile track to decrease": "Выберите трек тайла колонии для понижения",
     "Select colony tile to trade with for free": "Выберите тайл колонии для бесплатной торговли",
+    "Collect ${0} card(s) from ${1}": "Заберите ${0} карт(ы) с колонии ${1}",
 
     "Select adjacent player to remove 4 M€ from": "Выберите соседнего игрока, чтобы отнять у него 4 M€",
     "Select player to remove up to 4 M€ from": "Выберите игрока, чтобы отнять у него до 4 M€",

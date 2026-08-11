@@ -71,6 +71,15 @@ export type ConsoleTask =
   | {kind: 'projectCard', mode: 'playFromHand' | 'standardProject'}
   | {kind: 'colony'}
   /**
+   * COLLECT THE COLONY BONUS ANOTHER PLAYER'S TRADE PAID YOU (Miranda's «take
+   * a card»). A one-press delivery, but a real prompt: the server draws the
+   * cards inside the answer, so nothing lands in a hand its owner has not
+   * looked at. Served by the COLONY WORKSPACE — answering takes the player to
+   * the colony that paid, where the payout presents like every other one.
+   * Routed off the server's `colonyBonusPrompt` marker, never the title.
+   */
+  | {kind: 'colonyBonus'}
+  /**
    * The Venus ALT-TRACK bonus. Two server SHAPES for one decision — the base
    * bonus is an `and` of six amounts, the 30 % final bonus is an `or` whose
    * branches decide where the extra WILD resource goes — so the MARKER routes
@@ -105,7 +114,7 @@ export const NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'actionMenu', 'space',
   'choice', 'player', 'amount', 'resource', 'distribute',
   'cardSelect', 'deckSelect', 'handSelect', 'payment', 'draftWait',
-  'projectCard', 'colony', 'awardFunding',
+  'projectCard', 'colony', 'colonyBonus', 'awardFunding',
   'initialDraft', 'startSequence', 'corpFirstAction',
   // The three that used to fall through to the DESKTOP modal inside the
   // console shell — each now has its own console-native surface.
@@ -124,7 +133,7 @@ export const SHELL_NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['act
  * screen in free-sponsorship mode. The shell auto-opens the surface;
  * navigating away DEFERS the task (amber chip).
  */
-export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'awardFunding', 'corpFirstAction']);
+export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'awardFunding', 'corpFirstAction']);
 
 /** Where the player is standing right now, as the surface map sees it. */
 export type ShellSurfaceContext = {
@@ -171,6 +180,7 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
   case 'handSelect':
     return ctx.section === 'hand';
   case 'colony':
+  case 'colonyBonus':
     return ctx.section === 'colonies';
   case 'awardFunding':
     return ctx.sheet === 'awards';
@@ -235,6 +245,13 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
   }
   if (wf.spendHeatPrompt !== undefined) {
     return {kind: 'spendHeat'};
+  }
+  // A colony bonus another player's trade owes the viewer: a bare
+  // `SelectOption` on the wire, and its whole meaning is the MARKER (which
+  // colony pays, whose trade, which cube). Classified by type it would be an
+  // anonymous «Подтвердить» with nowhere to go.
+  if (wf.colonyBonusPrompt !== undefined) {
+    return {kind: 'colonyBonus'};
   }
 
   // Start-of-game markers outrank the raw type (a marked SelectCard is the
@@ -301,6 +318,15 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
     // DraftFlowOverlay.cardInput suppresses the grid on `optional === true`).
     if (wf.optional === true) {
       return {kind: 'draftWait'};
+    }
+    // THE DRAFT PICK — the server's own structural marker (Draft.askPlayerToDraft
+    // attaches it to every variant's pick), checked before the hand-subset
+    // heuristic on purpose: a prelude/CEO draft's candidates can coincide with
+    // dealt cards, and a draft pick is never a hand selection. The old
+    // `buttonLabel === 'Keep'` sniff (a dead branch — the real prompt says
+    // 'Select') is replaced by the marker, so the mode is finally LIVE.
+    if (wf.draftPrompt !== undefined) {
+      return {kind: 'cardSelect', mode: 'draft'};
     }
     const buttonLabel = wf.buttonLabel ?? '';
     // Every candidate already in hand (incl. Self-Replicating Robots hosts) =>

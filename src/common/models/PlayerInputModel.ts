@@ -173,6 +173,31 @@ export type ColonyBonusDiscardMeta = {
 }
 
 /**
+ * Marks the COLLECT prompt of a colony bonus paid to someone who did NOT make
+ * the trade — «другой игрок торговал здесь, заберите свою карту».
+ *
+ * WHY A PROMPT AT ALL. A plain card draw (Miranda's owner bonus) used to land
+ * silently in the recipient's hand while a full-bleed reveal appeared over
+ * whatever screen they were on: a card they never asked for, arriving from
+ * nowhere, over someone else's turn. The bonus is now DELIVERED — the card is
+ * drawn only when its owner answers this prompt, so nothing enters a hand the
+ * player has not looked at, and the answer takes them to the colony that paid.
+ *
+ * Structural and translation-proof (cross-cutting invariant 1). Like the
+ * discard half, EACH cube resolves separately, so `index`/`total` are the
+ * recipient's position in their own sequence on this tile.
+ */
+export type ColonyBonusCollectMeta = {
+  colonyName: ColonyName;
+  /** How many cards the collection draws (Miranda: 1). */
+  cards: number;
+  index: number;
+  total: number;
+  /** Whose trade paid it — the stage names the trigger. */
+  trader?: Color;
+}
+
+/**
  * EXPLICIT, translation-proof marker that a `SelectCard` prompt is a DISCARD
  * FROM HAND — the ONE signal the console's unified discard flow keys off.
  *
@@ -259,6 +284,37 @@ export type DeckPickPromptMeta = {
 }
 
 /**
+ * EXPLICIT, translation-proof marker that a `SelectCard` is a DRAFT PICK —
+ * «keep some of this packet and pass the rest on». Attached in ONE place
+ * (`Draft.askPlayerToDraft`, the funnel every draft variant goes through) and
+ * serialized on `SelectCard.toModel` (nesting-safe, like `deckPickPrompt`).
+ *
+ * The client's draft flow is built ENTIRELY on this marker plus the phase:
+ * routing (a live pick vs the optional re-pick wait rides `optional`),
+ * the pass direction the packet physically leaves toward, WHO the neighbors
+ * are (the server's own participant circle — the client cannot re-derive it:
+ * MarsBot is a seat in the generation draft and excluded from the initial
+ * one), and how many picks this player's draft will total (the flow rail's
+ * substep count — stable across keep-2 rounds and the auto-pushed last card).
+ */
+export type DraftPromptMeta = {
+  /** Which draft this pick belongs to (initial iterations / preludes / CEOs
+   *  ride the same funnel; the between-generation flow keys on 'standard'). */
+  draftType: 'standard' | 'initial' | 'prelude' | 'ceos';
+  /** The rule-derived pass direction: 'after' = the next seat, 'before' = the
+   *  previous one (`Draft.passDirection` — generation parity / iteration). */
+  direction: 'before' | 'after';
+  /** The neighbor the rest of this packet goes TO. */
+  givingTo: Color;
+  /** The neighbor the next packet comes FROM. */
+  takingFrom: Color;
+  /** Cards this player will have drafted when this draft ends — picks so far
+   *  + the packet in front of them (invariant across every round, including
+   *  the final auto-pushed card). The flow rail's substep total. */
+  total: number;
+}
+
+/**
  * EXPLICIT marker for the FINAL GREENERY prompt — the endgame beat where a
  * player turns leftover plants into greeneries, one at a time, until they stop.
  *
@@ -293,7 +349,15 @@ export type BaseInputModel = {
   spendHeatPrompt?: SpendHeatPromptMeta;
   discardPrompt?: DiscardPromptMeta;
   deckPickPrompt?: DeckPickPromptMeta;
+  /** Explicit "this SelectCard is a DRAFT PICK" marker (see DraftPromptMeta) —
+   *  direction, neighbors and pick total for the console draft workspace.
+   *  Serialized on `SelectCard.toModel` (nesting-safe), not centrally. */
+  draftPrompt?: DraftPromptMeta;
   finalGreeneryPrompt?: FinalGreeneryPromptMeta;
+  /** Explicit "collect the colony bonus another player's trade paid you"
+   *  marker (see ColonyBonusCollectMeta). Serialized on `SelectOption.toModel`
+   *  (nesting-safe), not centrally. */
+  colonyBonusPrompt?: ColonyBonusCollectMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {
@@ -362,6 +426,15 @@ export type OptionMetadata = {
   /** SELF-resource spend context (e.g. paying a trade fee) — the viewer's own
    *  stock of `icon` before/after, for a "5 → 2" preview + "available" badge. */
   resource?: {current: number, resulting: number};
+  /**
+   * The CARD this option is powered by — a colony trade fee paid with a card's
+   * own resource / action. It is the option's structural IDENTITY: a card whose
+   * ACTION offers the same move (Titan Floating Launch-Pad's «spend 1 floater
+   * to trade for free») enters this very option, and the console has to find it
+   * without matching the translated label. Absent for every plain-resource
+   * option, where the icon already identifies the path.
+   */
+  card?: CardName;
   /** Premium RESULT/COST chips for this option (icon + amount + optional
    *  current → resulting), reusing the `ActionEffect` shape so the contextual
    *  modal renders them with the same `ActionEffectChip` the action-confirm modal

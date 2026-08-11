@@ -287,6 +287,7 @@
                             @submit-batch="onCardActionsSubmitBatch"
                             @reveal-ack="onCardActionsRevealAck"
                             @collapse="onCardActionsCollapse"
+                            @colony-step="onCardActionsColonyStep"
                             @close="onCardActionsClose" />
       </transition>
 
@@ -475,6 +476,20 @@
          CLIENT-side standard-project payment via promptOverride). The
          desktop modal is SUPPRESSED while it serves; B defers a server
          task (inspect the board) and CANCELS a client payment. -->
+    <!-- THE DRAFT WORKSPACE («ДРАФТ») — the between-generations draft and the
+         research buy as ONE phase-anchored workspace flow (WORKSPACE_KINDS
+         'draft'). Presence follows the stack (invariant 1) and nothing else;
+         the frame's owner is the `draftFrameLive` watcher. -->
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+      <ConsoleDraftWorkspace v-if="draftWorkspaceMounted"
+                             ref="draftWs"
+                             :playerView="playerView"
+                             @submit="onDraftSubmit"
+                             @defer="onDraftDefer" />
+    </transition>
+
     <!-- EMBEDDED HOSTING (consoleWorkspaceOutcome): a card PICK the player's
          own workspace produced (Inventors' Guild / Business Network revealing
          a card to buy; Hi-Tech Lab keeping one of N) is the next stage of
@@ -1127,7 +1142,7 @@ import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
-import {ColonyBonusDiscardMeta, DiscardPromptMeta, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
+import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, DiscardPromptMeta, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
 import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
@@ -1236,6 +1251,7 @@ import {
   workspaceHostForStep,
   workspaceStackCollapsed,
   workspaceStackState,
+  workspaceStackTopAxis,
   FrameAnchor,
   WorkspaceFrameKind,
 } from '@/client/console/consoleWorkspaceStack';
@@ -1250,11 +1266,14 @@ import {
   registerDiscardOverlayHandoff, resetCardDiscard,
 } from '@/client/console/cardDiscard/consoleCardDiscard';
 import {
-  ColonyResolutionSignals, armColonyBonusEntry, clearColonyBonusEntry, colonyBonusDiscardOf,
+  COLONY_RESOLUTION_SERVES,
+  ColonyResolutionSignals, armColonyBonusEntry, clearColonyBonusEntry, colonyBonusCollectOf,
+  colonyBonusDiscardOf,
   colonyBonusEntry, colonyResolutionColony, colonyResolutionLiveFor, colonyResolutionUi,
   noticeColonyResolutionDiscard, remoteColonyBonusPendingFor, resetColonyResolutionUi,
   setColonyDiscardStage,
 } from '@/client/console/colonyTrade/colonyResolution';
+import {cardColonyTradeCard} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {discardPhaseInOverlay} from '@/client/console/cardDiscard/discardModel';
 import {
   DiscardIntent, deriveDiscardIntent, discardMetaOf,
@@ -1276,6 +1295,11 @@ import {runCardTransfer} from '@/client/console/cardDeal/cardExitDirector';
 import {
   draftPickBeatActive, draftTrayState, observeDraftTransition, riseSceneEngaged, skipDraftPickBeat,
 } from '@/client/console/cardDeal/consoleDraftTray';
+import ConsoleDraftWorkspace from '@/client/components/console/draft/ConsoleDraftWorkspace.vue';
+import {
+  betweenGenDraftLive, draftCompletionHolding, observeDraftWorkspace, resetDraftWorkspace,
+} from '@/client/console/draft/consoleDraftFlow';
+import {consoleDraftUi} from '@/client/console/draft/consoleDraftUi';
 import {Phase} from '@/common/Phase';
 import ConsoleTradeFleetLayer from '@/client/components/console/colonyFleet/ConsoleTradeFleetLayer.vue';
 import {armTradeFleet, abortTradeFleet, isTradeFleetActive, tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
@@ -1517,6 +1541,7 @@ export default defineComponent({
     ConsoleHandRevealLayer,
     ConsoleHandDeliveryLayer,
     ConsoleDraftTray,
+    ConsoleDraftWorkspace,
     ConsoleHydroMarkerLayer,
     ConsoleHydroDrawLayer,
     ConsoleBoardCardBonusLayer,
@@ -1620,6 +1645,9 @@ export default defineComponent({
        * never on the overview grid.
        */
       colonyFocusRestorePending: false,
+      /** The colony-bonus cube this workspace already answered by itself (the
+       *  auto-collect's one-shot dedupe — see `colonyBonusAutoCollect`). */
+      colonyBonusCollected: '',
       /** The hydronetwork marker-advance controller (the plan-reset watcher). */
       hydroMarkerState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
@@ -2325,6 +2353,11 @@ export default defineComponent({
       if (!this.admits('host')) {
         return undefined;
       }
+      // The DRAFT WORKSPACE presents its prompts natively (the pick, the
+      // wait, the research buy) — the standalone host must not rise over it.
+      if (this.draftClaimsTask) {
+        return undefined;
+      }
       return taskServedByHost(this.playerView);
     },
     /**
@@ -2579,11 +2612,53 @@ export default defineComponent({
     },
     /** The persistent draft tray lives through the WHOLE draft (picks +
      *  waits) and stays for the research-rise handoff; it renders empty-
-     *  invisible before the first pick and leaves once the draft resolves. */
+     *  invisible before the first pick and leaves once the draft resolves.
+     *
+     *  ONLY the pre-game INITIALDRAFTING flow now: the between-generations
+     *  draft is served by the DRAFT WORKSPACE, whose shelf registers the
+     *  same slot resolver — two surfaces, one tray brain. A parked frame
+     *  counts (its way back is the deferred chip, never a popover). */
     draftTrayMounted(): boolean {
-      const phase = this.playerView.game.phase;
-      return phase === Phase.DRAFTING || phase === Phase.INITIALDRAFTING ||
-        this.draftWaitActive || draftPickBeatActive() || riseSceneEngaged();
+      if (workspaceFrameKnown('draft')) {
+        return false;
+      }
+      // The pre-game flow only. The between-generations beats (pick heroes,
+      // the research rise, the wait) all belong to the WORKSPACE now — the
+      // popover legs they used to justify are exactly what flashed a frozen
+      // pile over the returning board after the workspace released.
+      return this.playerView.game.phase === Phase.INITIALDRAFTING;
+    },
+    /** The between-generations draft flow is ALIVE for this player — the
+     *  frame-lifetime predicate (the completion beats extend it past the
+     *  research answer). */
+    draftFrameLive(): boolean {
+      return betweenGenDraftLive(this.playerView) || draftCompletionHolding();
+    },
+    /** PRESENCE IS THE STACK (invariant 1) — the workspace's ONE v-if. */
+    draftWorkspaceMounted(): boolean {
+      return workspaceFrameRenders('draft');
+    },
+    /** The prompt kinds the draft workspace presents NATIVELY — the standalone
+     *  host must not rise for them while the frame stands. (The embedded
+     *  post-buy PAYMENT deliberately stays host-served — teleported into the
+     *  workspace's pay slot, same instance, same submit path.) */
+    draftClaimsTask(): boolean {
+      if (!workspaceFrameMounted('draft')) {
+        return false;
+      }
+      const task = taskFor(this.playerView);
+      if (task === undefined) {
+        return false;
+      }
+      return task.kind === 'draftWait' ||
+        (task.kind === 'cardSelect' && (task.mode === 'draft' || task.mode === 'buy'));
+    },
+    /** The workspace owns the pad exactly while it is the surface the player
+     *  sees; `hostTask === undefined` yields it to the embedded payment and
+     *  to the Underworld research choice (both host-served). */
+    draftWorkspaceOwnsPad(): boolean {
+      return this.draftWorkspaceMounted && this.hostTask === undefined &&
+        !this.consoleState.task.deferred;
     },
     /** Cards already drafted this round (server-managed; cleared at endRound) —
      *  drawn as the desktop-style stack beside the draftWait banner. */
@@ -2713,6 +2788,14 @@ export default defineComponent({
       // deal played instead. Target-exists ≠ content-embedded.
       if (this.taskHeldForWorkspace) {
         return undefined;
+      }
+      // The DRAFT's post-buy payment (Helion heat / steel — the plain M€ case
+      // auto-resolves server-side): pick-then-pay is ONE decision, so the
+      // second half teleports into the workspace's pay slot instead of rising
+      // as its own band over the flow it belongs to.
+      if (this.hostTask?.kind === 'payment' && workspaceFrameMounted('draft') &&
+          this.playerView.game.phase === Phase.RESEARCH && draftCompletionHolding()) {
+        return '.con-draftws [data-draft-pay-slot]';
       }
       if (!workspaceClaimsPick()) {
         return undefined;
@@ -2938,7 +3021,12 @@ export default defineComponent({
         kicker: this.deferKicker,
         ask: this.deferAsk,
         sourceCard: this.deferSourceCard,
-        openLabel: this.mandatoryGateHeld ? 'Open' : this.deferReturnLabel,
+        // A kind may NAME its own press when «Открыть» undersells it (a colony
+        // bonus delivery: «Забрать карту» — the press answers the prompt AND
+        // takes the player to the colony that paid).
+        openLabel: this.mandatoryGateHeld ?
+          (this.activeTaskSummary?.openKey ?? 'Open') :
+          this.deferReturnLabel,
       };
     },
     /**
@@ -3892,6 +3980,7 @@ export default defineComponent({
     colonyResolutionSignals(): ColonyResolutionSignals {
       return {
         discardMeta: colonyBonusDiscardOf(this.playerView.waitingFor),
+        collectMeta: colonyBonusCollectOf(this.playerView.waitingFor),
         revealSource: currentRevealEvent()?.source,
         tradeActive: this.colonyTradeState.active,
         tradeColony: this.colonyTradeState.colonyName,
@@ -3910,6 +3999,23 @@ export default defineComponent({
      */
     colonyResolutionLive(): boolean {
       return colonyResolutionLiveFor(this.colonyResolutionSignals);
+    },
+    /**
+     * A colony-bonus COLLECT the workspace may answer BY ITSELF — the next
+     * cube of a multi-settlement payout, arriving while the viewer already
+     * stands on that colony's bonus stage with nothing on its table. '' = no
+     * such delivery (it goes through the announcement instead). The value is
+     * the cube's structural key, which is also the one-shot dedupe.
+     */
+    colonyBonusAutoCollect(): string {
+      const collect = colonyBonusCollectOf(this.playerView.waitingFor);
+      if (collect === undefined ||
+          this.bonusEntry.colonyName !== collect.colonyName ||
+          !workspaceFrameMounted('colonies') ||
+          currentRevealEvent() !== undefined) {
+        return '';
+      }
+      return `${collect.colonyName}#${collect.index}/${collect.total}`;
     },
     /** The colony this resolution belongs to ('' when nothing is owed). */
     colonyResolutionColonyName(): string {
@@ -4518,8 +4624,10 @@ export default defineComponent({
       if (draftPickBeatActive() || riseSceneEngaged()) {
         return [{control: 'confirm', label: 'Skip'}];
       }
-      if (this.draftWaitActive) {
-        // Nothing to decide — the board stays inspectable while others pick.
+      if (this.draftWaitActive && this.draftTrayMounted) {
+        // The pre-game POPOVER path only: nothing to decide — the board stays
+        // inspectable while others pick. (The between-generations wait is the
+        // WORKSPACE's own stage; its contract arrives via consoleDraftUi.)
         const cmds: Array<ConsoleCommand> = [];
         if (this.draftedCards.length > 0) {
           cmds.push({control: 'secondary', label: 'Inspect'});
@@ -4572,6 +4680,13 @@ export default defineComponent({
       // of the start scene for the same reason the pad routing is.
       if (this.deckPickServing) {
         return [...(panelCommands('deckPick') ?? [])];
+      }
+      if (this.draftWorkspaceOwnsPad) {
+        // The workspace publishes its live contract (consoleDraftUi); the bar
+        // mirrors it verbatim so it can never diverge from the buttons.
+        return consoleDraftUi.commands.length > 0 ?
+          [...consoleDraftUi.commands] :
+          [{control: 'back', label: 'Minimize'}];
       }
       if (this.startSceneOwnsPad) {
         // The scene publishes its live contract (consoleStartUi — wizard step
@@ -5333,7 +5448,7 @@ export default defineComponent({
         resetColonyResolutionUi(); // a fresh resolution starts a fresh receipt
         if (workspaceFrameMounted('colonies')) {
           setWorkspaceFramePhase('colonies', 'committed');
-          setWorkspaceFrameServes('colonies', ['colony', 'handSelect']);
+          setWorkspaceFrameServes('colonies', COLONY_RESOLUTION_SERVES);
         }
         return;
       }
@@ -5341,6 +5456,7 @@ export default defineComponent({
         clearColonyBonusEntry();
         setColonyDiscardStage(false);
         this.colonyFocusRestorePending = false;
+        this.colonyBonusCollected = ''; // a new payout may repeat a cube key
         if (workspaceOutcomeState.host === 'colonies') {
           releaseWorkspaceOutcome('resolution-end');
         }
@@ -5351,6 +5467,31 @@ export default defineComponent({
           }
         }
       }
+    },
+    /**
+     * THE NEXT CUBE COLLECTS ITSELF. A recipient with several settlements on
+     * one colony is paid one cube at a time (the server resolves each in full
+     * before the next), so the second delivery arrives while the player is
+     * ALREADY standing on that colony's stage. Announcing it again would send
+     * them back to the board to press A on the same colony they are looking
+     * at; instead the workspace answers it the moment its table is clear —
+     * the next card then arrives into the very stage that is already open.
+     *
+     * Gated on an EMPTY table on purpose: submitting while the previous card
+     * is still lying there would draw the next one into a batch the player is
+     * mid-way through taking.
+     */
+    colonyBonusAutoCollect(key: string): void {
+      if (key === '' || key === this.colonyBonusCollected) {
+        return;
+      }
+      this.colonyBonusCollected = key;
+      // The announcement must not fire for a beat we are answering ourselves.
+      const beat = this.mandatoryBeat;
+      if (beat !== undefined) {
+        acknowledgeMandatoryBeat(beat.key);
+      }
+      this.submit({type: 'option'});
     },
     // The closing track glide measures the traded tile's own track cells —
     // the section must be mounted for the marker to physically step home.
@@ -5653,6 +5794,28 @@ export default defineComponent({
      * hand makes it re-evaluate on its own, so nothing has to remember to
      * re-check the root afterwards.
      */
+    /**
+     * THE DRAFT WORKSPACE'S FRAME — the same lifecycle contract as the start:
+     * a PHASE-anchored root stood up by its owner watcher and closed by it
+     * (`closeWorkspaceRoot`, never `goBoardHome` — that one protects a phase
+     * root from steps inside it). `Known`, not `Index`: a PARKED draft is set
+     * aside, not gone — its way back is the deferred chip.
+     */
+    draftFrameLive: {
+      immediate: true,
+      handler(live: boolean): void {
+        if (live) {
+          if (!workspaceFrameKnown('draft')) {
+            enterWorkspace('draft', {anchor: {type: 'phase', phase: 'draft'}});
+          }
+        } else {
+          closeWorkspaceRoot('draft');
+          // The per-generation latches + presentation memory reset with the
+          // flow (the NEXT generation's draft starts clean).
+          resetDraftWorkspace();
+        }
+      },
+    },
     startFrameLive: {
       immediate: true,
       handler(live: boolean): void {
@@ -6136,6 +6299,9 @@ export default defineComponent({
         // state, and ARM the research-rise scene on the draft→buy
         // transition (pre-flush — the buy frame mounts already knowing).
         observeDraftTransition(oldView, newView);
+        // The draft WORKSPACE's own latches (pick total / pass direction /
+        // hydration cue) — beside the tray observer, same pre-flush timing.
+        observeDraftWorkspace(oldView, newView);
         // Colony-trade transaction: observe EVERY commit path. The staged
         // bot pipeline (a trade that ends the turn carries the bot's turns)
         // and a poll after a lost response bypass WaitingFor's gated detect;
@@ -6423,6 +6589,16 @@ export default defineComponent({
       this.consoleState.colonyIndex = first !== -1 ? first : 0;
     },
     /**
+     * A CARD ACTION WALKED INTO THE TRADE. The frame is already pushed (the
+     * card-actions surface owns that — it is its own step), so the shell only
+     * does what it does for every colony arrival: land the cursor where A is
+     * meaningful, i.e. on the first colony this player may actually trade with.
+     */
+    onCardActionsColonyStep(): void {
+      const first = this.coloniesForRail.findIndex((c) => this.tradeableColonyNames.includes(c.name));
+      this.consoleState.colonyIndex = first !== -1 ? first : 0;
+    },
+    /**
      * PLUTO COMES HOME. A trade/build payout needs its own surface back: the
      * covers launch from the traded tile and the reveal lands in the section's
      * zone. Re-entering is a NO-OP while the colonies already stand (embedded
@@ -6438,7 +6614,7 @@ export default defineComponent({
       // the mandatory discard — the rising-edge watcher fired long ago.
       if (this.colonyResolutionLive) {
         setWorkspaceFramePhase('colonies', 'committed');
-        setWorkspaceFrameServes('colonies', ['colony', 'handSelect']);
+        setWorkspaceFrameServes('colonies', COLONY_RESOLUTION_SERVES);
       }
     },
     /** Land the cursor on the first pickable card of a hand select. */
@@ -6505,9 +6681,12 @@ export default defineComponent({
      * the colony (`visitor`), so the stage can honestly say whose trade
      * triggered the bonus without a new server field.
      */
-    enterColonyBonusStage(colonyName: string): void {
+    enterColonyBonusStage(colonyName: string, traderHint?: Color): void {
       const colony = this.coloniesForRail.find((c) => c.name === colonyName);
-      const traderColor = colony?.visitor;
+      // The SERVER names the trader when it knows them (the collect marker);
+      // the colony's parked visitor is the fallback for a discard-marked
+      // entry, which carries no colour of its own.
+      const traderColor = traderHint ?? colony?.visitor;
       const trader = traderColor !== undefined ?
         this.playerView.players.find((p) => p.color === traderColor) : undefined;
       armColonyBonusEntry(colonyName as ColonyName, trader !== undefined ?
@@ -6516,7 +6695,7 @@ export default defineComponent({
         enterWorkspace('colonies', {anchor: {type: 'prompt', promptType: 'card'}});
       }
       setWorkspaceFramePhase('colonies', 'committed');
-      setWorkspaceFrameServes('colonies', ['colony', 'handSelect']);
+      setWorkspaceFrameServes('colonies', COLONY_RESOLUTION_SERVES);
       const idx = this.coloniesForRail.findIndex((c) => c.name === colonyName);
       this.consoleState.colonyIndex = idx !== -1 ? idx : 0;
       if (!this.colonyFocus.open) {
@@ -6533,6 +6712,22 @@ export default defineComponent({
       markWorkspaceOutcomeBeatDone();
     },
     /**
+     * COLLECT the colony bonus ANOTHER player's trade paid the viewer — the
+     * whole flow of Miranda's «возьмите карту», and Pluto's twin minus the
+     * discard.
+     *
+     * The press is the ANSWER and the JOURNEY at once: the workspace opens on
+     * the paying colony (bonus context, the trader named) FIRST — so the claim
+     * exists before anything can arrive — and only then does the collect go to
+     * the server. The card is drawn inside that answer, so it flies from the
+     * deck into the workspace's own zone instead of appearing in a hand
+     * nobody looked at.
+     */
+    openColonyBonusCollect(meta: ColonyBonusCollectMeta): void {
+      this.enterColonyBonusStage(meta.colonyName, meta.trader);
+      this.submit({type: 'option'});
+    },
+    /**
      * A COLONY-BONUS DISCARD routed to its owner. Two moments reach here:
      *  · the ENTRY (remote bonus / reload) — the batch is still on the table:
      *    the workspace + bonus stage open and the reveal runs its course; the
@@ -6546,7 +6741,7 @@ export default defineComponent({
         this.enterColonyBonusStage(meta.colonyName);
       } else {
         setWorkspaceFramePhase('colonies', 'committed');
-        setWorkspaceFrameServes('colonies', ['colony', 'handSelect']);
+        setWorkspaceFrameServes('colonies', COLONY_RESOLUTION_SERVES);
       }
       const ev = currentRevealEvent();
       const untaken = ev === undefined ? 0 : ev.cards.length - ev.takenIndices.size;
@@ -6974,8 +7169,9 @@ export default defineComponent({
       // Draft re-pick WAITING: the pad is otherwise idle (the board stays
       // inspectable, Info Mode is handled above). X opens the read-only
       // drafted-cards viewer; every other button falls through to the board.
-      if (this.draftWaitActive && action === 'inspect' && this.draftedCards.length > 0) {
-        // Opened from the count chip (no card tiles on screen) → TEXTUAL.
+      if (this.draftWaitActive && this.draftTrayMounted && action === 'inspect' && this.draftedCards.length > 0) {
+        // The pre-game POPOVER path only (the workspace's wait offers the LT
+        // sub-stage instead). Opened from the count chip → TEXTUAL.
         openConsoleCardZoom([...this.draftedCards], 0, undefined, undefined, {origin: {kind: 'textual'}});
         return true;
       }
@@ -7005,6 +7201,13 @@ export default defineComponent({
       // re-submitted by a stray press.
       if (this.deckPickServing) {
         (this.$refs.deckPick as InstanceType<typeof ConsoleDeckPick> | undefined)?.handleIntent(intent);
+        return true;
+      }
+      // THE DRAFT WORKSPACE owns the pad while it is the serving surface.
+      // `hostTask === undefined` inside the predicate yields it to the
+      // embedded payment / the Underworld research choice (host-served).
+      if (this.draftWorkspaceOwnsPad) {
+        (this.$refs.draftWs as InstanceType<typeof ConsoleDraftWorkspace> | undefined)?.handleIntent(intent);
         return true;
       }
       if (this.startSceneOwnsPad) {
@@ -7137,13 +7340,18 @@ export default defineComponent({
         this.handleQuickIntent(intent);
         return true;
       }
-      // The console-native card-action center owns the pad while it serves.
-      if (this.consoleState.sheet === 'cardActions') {
+      // The console-native card-action center owns the pad while it serves —
+      // UNLESS a section-projecting workspace stands INSIDE it. Both axes are
+      // set then (sheet `cardActions` + section `colonies`), and asking the
+      // sheet first hands the pad to the parked composer while the player is
+      // demonstrably driving the colony grid on top of it. Depth breaks the
+      // tie, the same rule presence already uses.
+      if (this.consoleState.sheet === 'cardActions' && workspaceStackTopAxis() !== 'section') {
         const panel = this.$refs.cardActions as InstanceType<typeof ConsoleCardActions> | undefined;
         panel?.handleIntent(intent);
         return true;
       }
-      if (this.consoleState.sheet !== undefined) {
+      if (this.consoleState.sheet !== undefined && workspaceStackTopAxis() !== 'section') {
         this.handleSheetIntent(intent);
         return true;
       }
@@ -8908,8 +9116,14 @@ export default defineComponent({
      * a live task surface already took it — and otherwise the field does.
      */
     onColonyFlowComplete(): void {
-      if (this.colonyEmbedActive || this.shellTaskActive) {
-        return; // an embedded host / the next effect continues the sequence
+      // An embedded host normally CONTINUES the sequence (a played card's own
+      // colony pick is one step of playing it) — but a card-sourced TRADE has
+      // no continuation: the card action was never submitted, the trade IS the
+      // whole move. Its host is a browse list of actions, and one of them has
+      // just been used, so returning there would land the player on a screen
+      // that no longer offers what they came from.
+      if ((this.colonyEmbedActive && cardColonyTradeCard() === '') || this.shellTaskActive) {
+        return;
       }
       // THE RESOLUTION'S LAST NET: whatever local edge fired this completion,
       // the workspace never goes home while the viewer still owes a Pluto
@@ -9207,6 +9421,18 @@ export default defineComponent({
       }
       this.consoleState.task.deferred = true;
     },
+    /** The draft workspace's submit — the same funnel, but NO layer closing:
+     *  the workspace IS the layer and deliberately outlives its own prompt
+     *  (the pick beat / purchase flights play past the answer). */
+    onDraftSubmit(response: unknown): void {
+      this.consoleState.task.deferred = false;
+      this.submit(response);
+    },
+    /** B in the draft workspace = MINIMIZE: park the whole stack atomically
+     *  (frames aside + the deferred chip; restore returns the same depth). */
+    onDraftDefer(): void {
+      this.parkWorkspaceStack();
+    },
     // ── shell-section tasks (T3 projectCard / T4 colony) ─────────────────
     /** Open (or re-open after un-defer) the section that serves the task. */
     openShellTaskSurface(task: ConsoleTask): void {
@@ -9233,6 +9459,13 @@ export default defineComponent({
         // follow-up settles the frame hands the screen back on its own, so the
         // player is never stranded in a workspace they did not open.
         this.openColoniesForPrompt();
+        return;
+      }
+      if (task.kind === 'colonyBonus') {
+        const collect = colonyBonusCollectOf(this.playerView.waitingFor);
+        if (collect !== undefined) {
+          this.openColonyBonusCollect(collect);
+        }
         return;
       }
       if (task.kind === 'handSelect') {
@@ -10602,6 +10835,13 @@ export default defineComponent({
       outcomeHost: workspaceOutcomeState.host ?? null,
       outcomeStage: workspaceOutcomeState.stage,
       tradeActive: colonyTradeState.active,
+      // The COVER SCENE's own state: a scene stuck past its last beat holds
+      // the pad (isColonyTradeInputLocked), which reads on screen as «the card
+      // is there and А does nothing» — the one symptom with no other tell.
+      cardScene: colonyTradeState.cardScene,
+      tradePhase: colonyTradeState.phase,
+      inputLocked: isColonyTradeInputLocked(),
+      arrivalPending: workspaceOutcomeBeatPending(),
       resolutionLive: this.colonyResolutionLive,
       revealPending: this.rawDrawnRevealPending,
       lastRelease: lastOutcomeReleaseStack.split('\n').slice(1, 7).join(' | '),

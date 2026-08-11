@@ -177,8 +177,23 @@ export abstract class Draft {
         min: cardsToKeep, max: cardsToKeep, played: false,
         enabled: enabled,
         enabledReasons: enabledReasons,
+        // The player may always take the card; the reasons are a soft heads-up
+        // («requirements not met yet»), filtered by TYPE on the client.
+        showUnplayableReasons: true,
       });
     selectCard.optional = repick;
+    // The structural draft marker — the client's whole draft flow (routing,
+    // pass direction, neighbors, the flow rail's pick total) keys off it.
+    // `total` = picks so far + the packet in front of the player: invariant
+    // across every round (the repick candidates re-include the picks, and the
+    // hand shrank by exactly that many).
+    selectCard.markDraftPrompt({
+      draftType: this.type === 'none' ? 'standard' : this.type,
+      direction: this.passDirection(),
+      givingTo: giveTo.color,
+      takingFrom: this.takingFrom(player).color,
+      total: player.draftedCards.length + player.draftHand.length,
+    });
     player.setWaitingFor(selectCard
       .andThen((selected) => {
         if (repick) {

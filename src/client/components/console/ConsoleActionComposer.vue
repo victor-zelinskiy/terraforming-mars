@@ -652,6 +652,8 @@ import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
 import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf, ConsoleAction} from '@/client/console/composables/consoleActionModel';
 import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
+import {TradeColonyContext, findTradeColonyContext} from '@/client/console/turnIntents';
+import {lockedTradePaymentIndex, lockedTradePaymentReason} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {consoleTranslate} from '@/client/console/consoleTranslate';
 import {tileIconStyle} from '@/client/console/consoleTileIcon';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -845,7 +847,7 @@ export default defineComponent({
      */
     repeatPickDisabled: {type: Boolean, default: false},
   },
-  emits: ['confirm', 'cancel', 'inspect-source', 'reveal-ack', 'commands'],
+  emits: ['confirm', 'colony-trade', 'cancel', 'inspect-source', 'reveal-ack', 'commands'],
   data() {
     return {
       selectedPos: undefined as number | undefined,
@@ -1526,6 +1528,11 @@ export default defineComponent({
           // NAMES the tile (Aquifer Pumping → «разместите тайл океана»), through
           // the same presenter the play composer uses.
           out.push(placementRow(step, consoleTranslate, textOf));
+        } else if (step.kind === 'colonyTrade') {
+          // This branch does not perform a trade — it ENTERS the one trade,
+          // and the fee is charged there. Say so: the whole point of the flow
+          // is that A here costs the player nothing yet.
+          out.push(noteRow(translateText('Payment and confirmation happen on the chosen colony.')));
         } else if (step.kind === 'note' && step.noteKind !== 'warning') {
           out.push(noteRow(step.text !== undefined ? textOf(step.text) : translateText('An additional choice')));
         }
@@ -1645,8 +1652,43 @@ export default defineComponent({
         // An unavailable branch is not a requirement: filling the fields under
         // it would change nothing, so the commit row carries the reason itself.
         unavailable: this.selectedBranch !== undefined && !this.selectedBranch.available ?
-          this.branchReason(this.selectedBranch) : undefined,
+          this.branchReason(this.selectedBranch) : this.tradeEntryBlockedReason,
       });
+    },
+    /**
+     * THIS BRANCH IS A COLONY TRADE — the card name whose payment path it
+     * enters, from the server's own `colonyTrade` step. Structural: a note's
+     * prose could never say WHICH path, and its text is translated in place.
+     */
+    tradeEntryCard(): CardName | undefined {
+      const step = this.selectedBranch?.steps.find((s) => s.kind === 'colonyTrade');
+      return step?.kind === 'colonyTrade' ? step.card : undefined;
+    },
+    /** The live trade prompt this branch would enter (server-authoritative). */
+    tradeEntryContext(): TradeColonyContext | undefined {
+      return this.tradeEntryCard === undefined ?
+        undefined : findTradeColonyContext(this.playerView.waitingFor);
+    },
+    /**
+     * Why the walk cannot start — always the SERVER's own words. The branch may
+     * be available while the payment path itself is refused (the card's action
+     * spent, no floaters left), and the trade prompt states that per option; a
+     * missing prompt entirely means the trade is not on the table at all.
+     */
+    tradeEntryBlockedReason(): string | undefined {
+      const card = this.tradeEntryCard;
+      if (card === undefined) {
+        return undefined;
+      }
+      const ctx = this.tradeEntryContext;
+      if (ctx === undefined) {
+        return translateText('Trading is not available right now');
+      }
+      if (lockedTradePaymentIndex(ctx.paymentOptions, card) >= 0) {
+        return undefined;
+      }
+      const reason = lockedTradePaymentReason(ctx.disabledPayments, card);
+      return reason !== undefined ? textOf(reason) : translateText('Trading is not available right now');
     },
     ctaIndex(): number {
       return this.navItems.length;
@@ -1698,7 +1740,12 @@ export default defineComponent({
      */
     ctaDockLabel(): string {
       if (!this.payExpanded) {
-        return this.commitLabel;
+        // A trade branch does not COMMIT here — the button walks the player to
+        // the colony, and the real confirm is on it. A verb that promises
+        // «выполнить» before anything is spent would be the false half of the
+        // old flow: the floater was already gone by the time the colony was
+        // asked for, so B had nothing to undo.
+        return this.tradeEntryCard !== undefined ? 'Choose a colony' : this.commitLabel;
       }
       return this.paymentView?.status.ok === true ? 'Done' : 'Not enough resources';
     },
@@ -3102,6 +3149,18 @@ export default defineComponent({
         return;
       }
       if (branch === undefined || !this.commitReady || this.submitting || this.preview === undefined) {
+        return;
+      }
+      // ── THE SECOND DOOR. A colony-trade branch commits NOTHING here: no
+      //    floater spent, no card marked used, no action consumed, no request.
+      //    It hands the player to the trade the server is already offering,
+      //    with this card's payment path locked — the one confirm is on the
+      //    colony. That is what makes B a real way back, and what makes the
+      //    two entry points one action instead of two implementations.
+      //    No commit ceremony either: the beat exists to fix the boundary
+      //    «настраивал → активировал», and this press crosses no boundary.
+      if (this.tradeEntryCard !== undefined) {
+        this.$emit('colony-trade', {card: this.tradeEntryCard});
         return;
       }
       this.submitting = true;

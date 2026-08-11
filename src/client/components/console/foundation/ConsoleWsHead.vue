@@ -60,7 +60,7 @@
               <transition name="con-wshead-swap">
                 <span class="con-wshead__step"
                       :class="{'con-wshead__step--committed': committed}"
-                      :key="stageText">{{ $t(stageText) }}</span>
+                      :key="stageText">{{ stageLabel }}</span>
               </transition>
             </span>
           </template>
@@ -157,8 +157,13 @@ export default defineComponent({
     subject: {type: String, default: ''},
     /** `subject` is a proper noun already in the player's language. */
     subjectRaw: {type: Boolean, default: false},
-    /** The current step (i18n key) — the ONLY animating segment. */
+    /** The current step (i18n key unless `stageRaw`) — the ONLY animating segment. */
     stage: {type: String, default: ''},
+    /** `stage` is already in the player's language. The one case is a HOSTED
+     *  step whose tail is composed of two translated parts («ГАНИМЕД ·
+     *  ТОРГОВЛЯ») — a phrase, not a key, and looking it up would only ever
+     *  miss. Mirrors `subjectRaw`. */
+    stageRaw: {type: Boolean, default: false},
     /** Past the commit boundary: the stage marker goes amber (a committed
      *  stage is a statement, not an invitation). */
     committed: {type: Boolean, default: false},
@@ -189,6 +194,9 @@ export default defineComponent({
     },
     stageText(): string {
       return this.model.stageKey;
+    },
+    stageLabel(): string {
+      return this.stageRaw ? this.stageText : translateText(this.stageText);
     },
   },
 });

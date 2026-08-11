@@ -75,7 +75,12 @@ export class GiveColonyBonus extends DeferredAction {
         this.giveColonyBonus(player);
         return;
       }
-      const input = this.colony.giveColonyBonus(player, true, ordinal);
+      // The TRADER rides along: a bonus paid to somebody else is a DELIVERY
+      // the recipient collects themselves (Colony.giveBonusImpl → DRAW_CARDS),
+      // while the trader's own cube resolves inline on the stage they are
+      // already watching. `selfish` (CoordinatedRaid) makes the trader the
+      // recipient of every cube, so it is inline by construction.
+      const input = this.colony.giveColonyBonus(player, true, ordinal, this.player);
       if (input !== undefined) {
         player.setWaitingFor(input, () => this.giveColonyBonus(player));
       } else {

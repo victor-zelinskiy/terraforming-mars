@@ -28,13 +28,21 @@ export class SelectOption extends BasePlayerInput<undefined> {
   }
 
   public override toModel(): SelectOptionModel {
-    return {
+    const model: SelectOptionModel = {
       title: this.title,
       buttonLabel: this.buttonLabel,
       type: 'option',
       warnings: this.warnings,
       metadata: this.metadata,
     };
+    // The COLONY-BONUS COLLECT marker travels HERE, not in
+    // `ServerModel.getWaitingFor`: that decorator only ever touches the
+    // TOP-LEVEL prompt, and this option can be nested (an OrOptions branch),
+    // exactly like the discard / deck-pick markers.
+    if (this.colonyBonusPrompt !== undefined) {
+      model.colonyBonusPrompt = this.colonyBonusPrompt;
+    }
+    return model;
   }
   public process(response: InputResponse): PlayerInput | undefined {
     if (!isSelectOptionResponse(response)) {

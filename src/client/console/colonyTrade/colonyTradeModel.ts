@@ -212,6 +212,29 @@ export function tradeCoverPlanBudgetMs(plan: ReadonlyArray<TradeCoverPlanEntry>)
 }
 
 /**
+ * WHERE A BATCH CARD RENDERS — the wave, but answered against the surface
+ * that will actually draw it.
+ *
+ * ⚠️ A BONUS CARD ONLY LEAVES THE STRIP WHEN SOMETHING ELSE WILL DRAW IT. The
+ * «Бонус колонии» ZONE is Pluto's grammar: a per-colony sequence, one card on
+ * the table at a time, closed by a discard — and it exists only while the
+ * server's discard marker does. Splitting the bonus wave out unconditionally
+ * meant a colony whose owner bonus is a PLAIN draw (Miranda: «возьмите
+ * карту») rendered its card in neither place: out of the strip, no zone to
+ * receive it — no slot, so the covers had no landing target and the take had
+ * nowhere to fly from. Invisible card, dead «Взять».
+ *
+ * `zoned` is that one question, asked by the renderer that knows the answer.
+ */
+export function revealWaveForIndex(
+  segments: ReadonlyArray<ColonyTradeRevealSegment> | undefined,
+  index: number,
+  zoned: boolean,
+): ColonyTradeRevealRole {
+  return zoned ? tradeRoleForIndex(segments, index) : 'income';
+}
+
+/**
  * Which trade wave a batch card at `index` belongs to (the segments are
  * contiguous same-role runs in card order). A batch without segments reads
  * all-income. The reveal modal groups the «Бонус колонии» cards by this.

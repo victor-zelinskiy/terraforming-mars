@@ -134,6 +134,53 @@ the PARKED leg: gather on collapse, plain browse on a visit, clean restore).
   green chip row), and the bare hand count reads «Всего карт: N» in select
   mode.
 
+## Iteration 5 — the OTHER shape of an owner bonus (Miranda)
+
+Pluto's owner bonus is «draw 1, then discard 1»; Miranda's is a plain «возьмите
+карту». Everything the resolution had was built around the first shape, so the
+second fell through both halves of it.
+
+- **A BONUS CARD LEAVES THE STRIP ONLY WHEN SOMETHING WILL DRAW IT.** The
+  reveal split the batch's bonus wave out unconditionally and rendered it in
+  the «Бонус колонии» ZONES — which exist only while the server's *discard*
+  marker does. A bonus card with no zone therefore rendered in NEITHER place:
+  no slot ⇒ the trade covers had no landing target (they degraded), and the
+  take had no origin to fly from (`runHandIntake` needs the slot element), so
+  «Взять» was a dead press over an empty stage. `revealWaveForIndex(segments,
+  i, zoned)` is that one question, asked by the renderer that knows the
+  answer; the cover's `faceDown` is decided per card off the REAL slot it is
+  flying to (`.con-reveal__bonus-zone` ancestor = the zone will turn it over).
+- **A REMOTE bonus is DELIVERED, not posted.** A plain draw paid by somebody
+  else's trade had no prompt at all, so there was nothing for the gate to
+  announce and nothing to hold: the card landed in a hand nobody had looked at
+  and a full-bleed reveal appeared over whatever screen its owner was on, mid
+  another player's turn. The server now asks: `ColonyBenefit.DRAW_CARDS` paid
+  to a NON-trader becomes a `SelectOption` marked `colonyBonusPrompt`
+  (`ColonyBonusCollectMeta` — colony, cards, cube index/total, trader), and
+  **the cards are drawn inside the answer**. The trader's own cube stays
+  inline (they are already watching their own payout), a bot never prompts.
+  ⚠️ It is queued with `player.defer(…, Priority.BACK_OF_THE_LINE)` on the
+  RECIPIENT, never returned to `GiveColonyBonus`: returning it holds the whole
+  deferred queue until every recipient has answered, so the TRADER's own trade
+  income (Miranda's animals resolve at `GAIN_RESOURCE_OR_PRODUCTION`, i.e.
+  after the bonus) and their track reset would freeze behind an opponent's
+  click. The two are independent by the rules — the delivery is the tail.
+- **The console routes it as its own kind**: `colonyBonus` (marker over type —
+  on the wire it is a bare `option`), in `SHELL_SECTION_KINDS` and in the
+  gate's `ALWAYS_INTERRUPTIVE` (it can never be the viewer's own doing). The
+  announcement says WHAT happened («Сработал бонус колонии: Миранда» — the
+  same sentence Pluto's uses) and its A-verb says what the press does
+  (`ConsoleTaskSummary.openKey` = «Забрать карту»). The press is the answer
+  AND the journey: `openColonyBonusCollect` enters the colony's bonus stage
+  FIRST (so the claim exists before anything can arrive) and only then
+  submits — the drawn card then flies from the deck into the workspace's own
+  zone. The NEXT cube of a multi-settlement payout collects ITSELF
+  (`colonyBonusAutoCollect`, gated on an empty table) instead of announcing
+  again at a colony the player is already standing on.
+- The resolution's serve-set is one constant now (`COLONY_RESOLUTION_SERVES` —
+  `colony` + `handSelect` + `colonyBonus`), earned on the rising edge and at
+  every entry, never a registry default.
+
 ### The two traps iteration 2 paid for
 - ⚠️ **The hand-reveal director's `setSection` hook spoke `goBoardHome` for
   every non-overlay hand.** For a hand hosted as an embedded STEP that wiped

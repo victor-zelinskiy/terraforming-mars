@@ -1995,6 +1995,460 @@ body.con-zoom-open .con-journal {
     }
 }
 
+/* ── THE DRAFT WORKSPACE («ДРАФТ») — the between-generations draft +
+   research buy as ONE workspace flow (ConsoleDraftWorkspace).
+   Band-family surface: `.con-ws-band()` + the `con-ws` marker on the root
+   (the rail rises, the HUD stays); the frame is a strict flex column whose
+   STAGE is the only flexing part, so the card fit reads honest budgets. */
+.con-draftws {
+    .con-ws-band();
+    z-index: 11480;
+    display: flex;
+    flex-direction: column;
+    padding: 1.05rem 1.6rem 1.1rem;
+    background: linear-gradient(180deg, rgba(10, 18, 28, 0.97), rgba(7, 12, 20, 0.985));
+    box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.22), 0 1.4rem 3.4rem rgba(0, 0, 0, 0.55);
+    font-family: @con-font;
+    overflow: hidden;
+
+    &__head {
+        flex-shrink: 0;
+    }
+    &__pass {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        font-size: .78rem;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        white-space: nowrap;
+    }
+    &__pass-dot {
+        width: .62rem;
+        height: .62rem;
+        border-radius: 50%;
+        box-shadow: 0 0 .35rem rgba(0, 0, 0, 0.6);
+    }
+    &__pass-name {
+        color: @con-text;
+        font-weight: 700;
+    }
+    &__pass-arrow {
+        color: fade(@con-cyan, 85%);
+        font-size: .95rem;
+    }
+
+    &__body {
+        position: relative;
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    /* Invisible physical origins of a PASSED packet (the neighbor's side). */
+    &__lane {
+        position: absolute;
+        top: 38%;
+        width: .1rem;
+        height: .1rem;
+        pointer-events: none;
+    }
+    &__lane--left { left: -2.2rem; }
+    &__lane--right { right: -2.2rem; }
+
+    &__stagewrap {
+        position: relative;
+        flex: 1 1 auto;
+        min-height: 0;
+        overflow: hidden;
+    }
+    &__stage {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        min-height: 0;
+    }
+    &__cards {
+        display: flex;
+        justify-content: center;
+        min-height: 0;
+    }
+    /* The stage row rides the shared ws-stage grammar: solved zoom + focus-
+       safe gaps as CSS vars, wrap cap, no scroll container.
+       `width: 100%` is load-bearing: a shrink-to-fit flex child reports its
+       own CONTENT width as `clientWidth`, and a fit engine reading that is
+       reading its own output (two cards once solved as a vertical stack). */
+    &__row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        align-content: center;
+        width: 100%;
+        column-gap: var(--con-ws-stage-gap, 1.2rem);
+        row-gap: var(--con-ws-stage-rowgap, 1rem);
+        max-width: var(--con-ws-stage-rowmax, 100%);
+        overflow: visible;
+        margin: 0 auto;
+
+        > .con-cards__slot {
+            zoom: var(--con-cards-zoom, 1);
+            margin: 0;
+        }
+    }
+
+    /* The PASS EXIT: the leftover packet visibly leaves toward the neighbor —
+       lift, tilt into the direction, slide off while the face crossfades to
+       the card back (the packet travels turned over). transform/opacity only. */
+    &__slot {
+        position: relative;
+    }
+    &__slot-back {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        pointer-events: none;
+
+        .con-card-back {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+    }
+    &__slot--passing {
+        animation: con-draftws-pass calc(680ms * var(--motion-scale, 1)) cubic-bezier(0.5, 0, 0.75, 0.4) forwards;
+
+        .con-draftws__slot-back {
+            animation: con-draftws-pass-back calc(680ms * var(--motion-scale, 1)) linear forwards;
+        }
+    }
+
+    /* ── WAIT: the pass lane — calm, physical, never a spinner. ── */
+    &__await {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2rem;
+    }
+    &__await-sent {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .35rem;
+    }
+    &__await-mark {
+        width: 2.6rem;
+        height: 2.6rem;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        font-size: 1.3rem;
+        color: @con-mint;
+        box-shadow: inset 0 0 0 .09rem fade(@con-mint, 55%), 0 0 1.2rem fade(@con-mint, 18%);
+    }
+    &__await-title {
+        font-size: 1.15rem;
+        font-weight: 800;
+        letter-spacing: .14rem;
+        text-transform: uppercase;
+        color: @con-text;
+    }
+    &__await-sub {
+        font-size: .85rem;
+        color: @con-text-dim;
+    }
+    &__await-lane {
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+    }
+    &__await-track {
+        display: inline-flex;
+        gap: .55rem;
+    }
+    &__await-node {
+        width: .5rem;
+        height: .5rem;
+        border-radius: 50%;
+        background: fade(@con-cyan, 30%);
+        animation: con-draftws-signal calc(1600ms * var(--motion-scale, 1)) ease-in-out infinite;
+
+        &:nth-child(2) { animation-delay: calc(200ms * var(--motion-scale, 1)); }
+        &:nth-child(3) { animation-delay: calc(400ms * var(--motion-scale, 1)); }
+    }
+    /* The signal runs FROM the side the next packet comes from. */
+    &__await-lane--right {
+        flex-direction: row-reverse;
+    }
+    &__await-from {
+        font-size: .82rem;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+
+    /* ── BUY: the financial strip — compact, one line, instantly readable. ── */
+    &__finstrip {
+        flex-shrink: 0;
+        align-self: center;
+        display: inline-flex;
+        align-items: baseline;
+        gap: 1.6rem;
+        margin-bottom: .9rem;
+        padding: .5rem 1.2rem .55rem;
+        border-radius: .55rem;
+        background: @con-glass-soft;
+        box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.24);
+
+        &--over {
+            box-shadow: inset 0 0 0 .06rem fade(@con-amber, 65%);
+        }
+    }
+    &__fin-main {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .5rem;
+    }
+    &__fin-label {
+        font-size: .78rem;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__fin-total {
+        font-size: 1.35rem;
+        font-weight: 800;
+        color: @con-amber;
+        animation: con-draftws-num calc(220ms * var(--motion-scale, 1)) ease-out;
+    }
+    &__fin-mc {
+        width: .95rem;
+        height: .95rem;
+        flex-shrink: 0;
+        align-self: center;
+    }
+    &__fin-detail {
+        font-size: .78rem;
+        color: @con-text-dim;
+    }
+    &__fin-wallet {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .8rem;
+    }
+    &__fin-cell {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .45rem;
+    }
+    &__fin-caption {
+        font-size: .72rem;
+        letter-spacing: .09rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__fin-num {
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: @con-text;
+
+        &--over { color: @con-amber; }
+    }
+    &__fin-sep { color: @con-text-dim; }
+
+    &__paystep {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 4;
+    }
+
+    /* ── INSPECT: the drafted cards rise out of the shelf area. ── */
+    &__slot--rise {
+        animation: con-draftws-rise calc(360ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    /* ── DONE: the terminal beat. ── */
+    &__doneplate {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .5rem;
+        animation: con-draftws-rise calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    &__done-mark {
+        width: 3.4rem;
+        height: 3.4rem;
+        display: grid;
+        place-items: center;
+        border-radius: 50%;
+        font-size: 1.7rem;
+        color: @con-mint;
+        box-shadow: inset 0 0 0 .1rem fade(@con-mint, 60%), 0 0 2rem fade(@con-mint, 22%);
+    }
+    &__done-title {
+        font-size: 1.35rem;
+        font-weight: 800;
+        letter-spacing: .16rem;
+        text-transform: uppercase;
+        color: @con-text;
+    }
+    &__done-sub {
+        font-size: .85rem;
+        color: @con-text-dim;
+    }
+
+    /* ── STATUS RAIL: the focused card's verdict line (reserved row — the
+       stage above never reflows when the verdict changes). ── */
+    &__statusbar {
+        flex-shrink: 0;
+        height: 2.1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        font-size: .85rem;
+
+        &--held > * { opacity: 0; }
+        > * { transition: opacity calc(150ms * var(--motion-scale, 1)) ease; }
+    }
+    &__status-name {
+        font-weight: 800;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: @con-text;
+        animation: con-draftws-num calc(180ms * var(--motion-scale, 1)) ease-out;
+    }
+    &__status-ok {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        color: fade(@con-mint, 85%);
+    }
+    /* The requirements HEADS-UP: amber, a warning — never blocking language. */
+    &__status-warn {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        color: @con-amber;
+
+        span:first-child { font-size: .9rem; }
+    }
+    &__status-why {
+        color: fade(@con-amber, 75%);
+        font-size: .8rem;
+    }
+    &__status-idle {
+        color: @con-text-dim;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        font-size: .8rem;
+    }
+
+    /* ── THE SHELF («ОТОБРАНО») — the permanent collection zone. Compact:
+       it never competes with the stage for height. ── */
+    &__shelf {
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .35rem;
+        padding: .55rem .9rem .6rem;
+        border-radius: .6rem;
+        background: rgba(9, 15, 24, 0.66);
+        box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.16);
+        transition: opacity calc(200ms * var(--motion-scale, 1)) ease;
+
+        &--muted { opacity: .4; }
+        &--empty:not(.con-draftws__shelf--pulse) { opacity: .55; }
+        &--pulse .con-draftws__shelf-row {
+            animation: con-tray-pulse calc(260ms * var(--motion-scale, 1)) ease-out;
+        }
+    }
+    &__shelf-head {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+    }
+    &__shelf-label {
+        font-size: .72rem;
+        font-weight: 700;
+        letter-spacing: .14rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__shelf-count {
+        font-size: .8rem;
+        font-weight: 800;
+        color: @con-cyan;
+    }
+    &__shelf-hint {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        font-size: .72rem;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__shelf-row {
+        display: flex;
+        align-items: flex-end;
+        gap: .5rem;
+        min-height: 5.6rem;
+    }
+    &__shelf-slot {
+        position: relative;
+        width: 3.9rem;
+        height: 5.5rem;
+        border-radius: .3rem;
+        transition: opacity calc(160ms * var(--motion-scale, 1)) ease;
+
+        /* The mini card: real premium face, clipped to the seat. */
+        :is(.card-container, .pcard) {
+            zoom: calc(0.245 * var(--con-ui-scale, 1));
+            margin: 0;
+            pointer-events: none;
+        }
+    }
+    &__shelf-seat {
+        width: 3.9rem;
+        height: 5.5rem;
+        border-radius: .3rem;
+        box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.2);
+        background: rgba(12, 20, 30, 0.4);
+    }
+}
+
+@keyframes con-draftws-pass {
+    0% { transform: translateX(0) translateY(0) rotate(0deg); opacity: 1; }
+    22% { transform: translateX(calc(var(--con-draftws-pass-x, 120px) * 0.12)) translateY(-0.5rem) rotate(1.2deg); opacity: 1; }
+    100% { transform: translateX(var(--con-draftws-pass-x, 120px)) translateY(-0.2rem) rotate(2.5deg) scale(0.86); opacity: 0; }
+}
+@keyframes con-draftws-pass-back {
+    0% { opacity: 0; }
+    38% { opacity: 0; }
+    62% { opacity: 1; }
+    100% { opacity: 1; }
+}
+@keyframes con-draftws-signal {
+    0%, 100% { transform: scale(1); background: fade(@con-cyan, 25%); box-shadow: none; }
+    45% { transform: scale(1.25); background: fade(@con-cyan, 85%); box-shadow: 0 0 .6rem fade(@con-cyan, 45%); }
+}
+@keyframes con-draftws-rise {
+    0% { transform: translateY(2.2rem) scale(0.94); opacity: 0; }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+@keyframes con-draftws-num {
+    0% { transform: translateY(-0.25rem); opacity: 0.4; }
+    100% { transform: translateY(0); opacity: 1; }
+}
+
 /* ── Terraforming complete — console CEREMONY (ConsoleTerraformingCeremony) ──
    The single biggest event of the game gets the MA-ceremony-grade
    centre-stage cinematic (it replaced the small top banner): a soft veil,
@@ -10790,8 +11244,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--chosen:not(&--focused) {
             box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%);
         }
-        &--off { opacity: .78; }
-        /* The pinned choice past the commit: chosen, and no longer a control. */
+        /* NOT A CONTROL: either the server refused this path, or the trade was
+           entered through a card whose own fee is fixed. Muted by COLOUR and
+           weight, never by `filter` — performance mode drops filters, and a row
+           that stops reading as unavailable is a row the player tries to press. */
+        &--off {
+            opacity: .78;
+
+            .con-colfocus__payrow-title { color: fade(@con-text-dim, 90%); font-weight: 600; }
+            .con-colfocus__payrow-delta { color: fade(@con-text-dim, 70%); }
+        }
+        /* The pinned choice: past the commit, or fixed by the entry. */
         &--locked {
             background: fade(@con-mint, 9%);
             box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%);

@@ -207,6 +207,23 @@ export function noteStep(noteKind: 'colony' | 'board' | 'generic', text?: string
 }
 
 /**
+ * THIS BRANCH IS THE COLONY TRADE — declared, not described.
+ *
+ * A card whose action reads «spend X here to trade for free» does not perform a
+ * trade of its own: it is the SECOND ENTRY POINT into the one trade the server
+ * already offers, and `card` is the payment path it enters through (its
+ * `IColonyTrader` in `Colonies.tradeWithColony`). Declaring that lets the
+ * console hand the player to the colony workspace instead of committing the
+ * card action — so nothing is spent until the trade itself is confirmed.
+ *
+ * The prose note it replaced said the same thing to a human and nothing at all
+ * to the client, which is why the card action grew a whole parallel trade.
+ */
+export function colonyTradeStep(card: ICard): ActionPreviewStep {
+  return {kind: 'colonyTrade', card: card.name};
+}
+
+/**
  * A `warning` note: an effect that WILL BE SKIPPED for lack of a valid target —
  * e.g. "add 2 microbes to a card" with no microbe-holding card in play. Mirrors
  * the systemic warning the DECLARATIVE preview builder emits, so a BESPOKE

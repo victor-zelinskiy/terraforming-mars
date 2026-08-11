@@ -1,7 +1,9 @@
 import {expect} from 'chai';
 import {Pets} from '../../src/server/cards/base/Pets';
 import {Predators} from '../../src/server/cards/base/Predators';
+import {ColonyName} from '../../src/common/colonies/ColonyName';
 import {Miranda} from '../../src/server/colonies/Miranda';
+import {SelectOption} from '../../src/server/inputs/SelectOption';
 import {AddResourcesToCard} from '../../src/server/deferredActions/AddResourcesToCard';
 import {IGame} from '../../src/server/IGame';
 import {TestPlayer} from '../TestPlayer';
@@ -56,7 +58,15 @@ describe('Miranda', () => {
     expect(pets.resourceCount).to.eq(2);
   });
 
-  it('Should give trade bonus', () => {
+  /*
+   * ⚠️ FORK RULE (the console's colony-bonus DELIVERY). Upstream drops the
+   * owner's bonus card straight into their hand; here a bonus paid by SOMEONE
+   * ELSE's trade is COLLECTED — the owner answers a marked prompt and the card
+   * is drawn inside that answer. Nothing lands in a hand its owner has not
+   * looked at, and the console can announce the delivery and walk them to the
+   * colony that paid. The trader's own cube stays inline (see below).
+   */
+  it('Should give trade bonus — the owner COLLECTS it (the card waits for their answer)', () => {
     const predators = new Predators();
     player.playCard(pets);
     player2.playCard(predators);
@@ -70,6 +80,34 @@ describe('Miranda', () => {
 
     expect(pets.resourceCount).to.eq(2);
     expect(predators.resourceCount).to.eq(1);
+    // The card is NOT in hand yet — the owner has been ASKED for it.
+    expect(player.cardsInHand).has.lengthOf(0);
+    const collect = cast(player.popWaitingFor(), SelectOption);
+    expect(collect.colonyBonusPrompt).to.deep.eq({
+      colonyName: ColonyName.MIRANDA,
+      cards: 1,
+      index: 1,
+      total: 1,
+      trader: player2.color,
+    });
+    // …and the marker travels on the wire (nested-safe, on the option itself).
+    expect(collect.toModel().colonyBonusPrompt?.colonyName).to.eq(ColonyName.MIRANDA);
+
+    collect.cb(undefined);
+    runAllActions(game);
     expect(player.cardsInHand).has.lengthOf(1);
+  });
+
+  it('the TRADER’s own cube stays inline — no prompt for the payout they are watching', () => {
+    player.playCard(pets);
+    runAllActions(game);
+    miranda.addColony(player);
+    runAllActions(game);
+
+    miranda.trade(player); // trading with their OWN colony
+    runAllActions(game);
+
+    expect(player.cardsInHand).has.lengthOf(1);
+    expect(player.popWaitingFor()).is.undefined;
   });
 });

@@ -51,6 +51,9 @@ const ROWS: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<strin
   {row: 'play from hand', wf: {type: 'projectCard', title: 'Play a card from hand', cards: [{name: 'Birds'}]}, hand: ['Birds'], kicker: 'Play project card'},
   {row: 'std project', wf: {type: 'projectCard', title: 'Play a standard project', cards: [{name: 'Power Plant:SP'}]}, kicker: 'Standard project'},
   {row: 'colony', wf: {type: 'colony', title: 'Select colony', coloniesModel: []}, kicker: 'Colony'},
+  // The DELIVERY of a colony bonus another player's trade paid the viewer:
+  // the announcement must name the EVENT, never the button.
+  {row: 'colony bonus collect', wf: {type: 'option', title: 'Collect 1 card(s) from Miranda', colonyBonusPrompt: {colonyName: 'Miranda', cards: 1, index: 1, total: 1}}, kicker: 'Colony bonus'},
   {row: 'award funding', wf: {type: 'or', title: 'Fund an award', options: [], awardFundingPrompt: {free: true}}, kicker: 'Award sponsorship'},
   {row: 'initial draft', wf: {type: 'initialCards', title: 'Select initial cards'}, kicker: 'Start of the game'},
   {row: 'corp first action', wf: {type: 'or', title: 'Take first action of X', options: [], startGamePrompt: {kind: 'corporationInitialAction'}}, kicker: 'First corporation action'},
@@ -209,7 +212,7 @@ describe('consoleTaskSummary (no prompt is ever a bare «awaiting decision»)', 
     const ALL: ReadonlyArray<TaskKind> = [
       'actionMenu', 'space', 'choice', 'awardFunding', 'player', 'amount', 'resource',
       'distribute', 'payment', 'draftWait', 'cardSelect', 'deckSelect', 'handSelect', 'projectCard',
-      'colony', 'composite', 'initialDraft', 'startSequence', 'corpFirstAction',
+      'colony', 'colonyBonus', 'composite', 'initialDraft', 'startSequence', 'corpFirstAction',
       'aresGlobal', 'unknown',
     ];
     const covered = new Set<TaskKind>();

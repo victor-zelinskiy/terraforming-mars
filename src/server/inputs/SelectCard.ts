@@ -35,6 +35,13 @@ export type Options = {
    *  label. A structural flag so the client never has to sniff the (translatable,
    *  render-mutated) prompt title for the word "buy". */
   buyMode: boolean,
+  /** Default is false. When true, each candidate project card carries the
+   *  structured "why can't this be played right now" reasons (the canonical
+   *  `unplayableReasons` engine). Opted into by the DRAFT pick and the research
+   *  BUY — the player may always take the card, but deserves to know its
+   *  requirements aren't met yet. The client filters by reason TYPE (it drops
+   *  the affordability line: money will have changed by the time it matters). */
+  showUnplayableReasons: boolean,
 }
 export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T>> {
   public config: Options;
@@ -57,6 +64,7 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
       showOwner: config?.showOwner ?? false,
       showSelectAll: config?.showSelectAll ?? false,
       buyMode: config?.buyMode ?? false,
+      showUnplayableReasons: config?.showUnplayableReasons ?? false,
     };
     this.buttonLabel = buttonLabel;
   }
@@ -73,6 +81,7 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
         showResources,
         enabled: this.config.enabled,
         disabledReasons: this.config.enabledReasons,
+        unplayableReasons: this.config.showUnplayableReasons,
       }),
       max: this.config.max,
       min: this.config.min,
@@ -102,6 +111,13 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
     // out of, no source card, no discard beat for the cards left behind.
     if (this.deckPickPrompt !== undefined) {
       model.deckPickPrompt = this.deckPickPrompt;
+    }
+    // Same reasoning for the DRAFT marker: serialized on the input's own
+    // toModel so it can never be stripped by nesting, and the client's draft
+    // workspace keys routing, pass direction, neighbors and the flow rail's
+    // substep total off it — never off the translatable title.
+    if (this.draftPrompt !== undefined) {
+      model.draftPrompt = this.draftPrompt;
     }
     const disabled = this.config.disabled;
     if (disabled !== undefined && disabled.length > 0) {

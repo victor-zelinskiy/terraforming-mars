@@ -72,12 +72,14 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
     const canTrade = this.resourceCount > 0 && player.colonies.canTrade();
     return actionPreviews.orBranches(this, [
       {
-        // The colony picker (SelectColony) appears after submit — a context note
-        // tells the player they'll choose which colony to trade with.
+        // NOT a trade of its own — the second entry point into the ONE trade,
+        // paid through this card's own `IColonyTrader` (below). The console
+        // reads this step and hands the player to the colony workspace with
+        // that payment path locked, committing nothing until the trade is.
         available: canTrade,
         title: 'Remove 1 floater on this card to trade for free',
         effects: [actionPreviews.cardCost(this, 1)],
-        steps: [actionPreviews.noteStep('colony', 'After confirming, choose a colony to trade with.')],
+        steps: [actionPreviews.colonyTradeStep(this)],
         unavailableReason: this.resourceCount === 0 ?
           actionReason.ruleReason('No floaters on this card') :
           actionReason.ruleReason('No colony available to trade with'),
@@ -94,12 +96,25 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
   public action(player: IPlayer) {
     const orOptions = new OrOptions(
       new SelectOption('Remove 1 floater on this card to trade for free', 'Remove floater').andThen(() => {
+        // ONE implementation of «spend the floater and trade». This branch used
+        // to decrement `resourceCount` and call `colony.trade` itself, so the
+        // card's own action and the trade prompt's floater payment path were two
+        // codes doing the same thing — and they had already drifted: only the
+        // payment path opened the colony EVENT SCOPE, so a trade taken from the
+        // card grouped differently in the journal, and only it carried the
+        // `'trade'` button label the console's trade orchestration keys on.
+        // The trader IS the implementation; this is one of its two entry points.
+        const trader = new TradeWithTitanFloatingLaunchPad(player);
         player.defer(
-          new SelectColony('Select colony tile to trade with for free', 'Select', ColoniesHandler.tradeableColonies(player.game))
+          new SelectColony('Select colony tile to trade with for free', 'trade', ColoniesHandler.tradeableColonies(player.game))
             .andThen((colony) => {
-              this.resourceCount--;
-              player.game.log('${0} spent 1 floater to trade with ${1}', (b) => b.player(player).colony(colony));
-              colony.trade(player);
+              const events = player.game.events;
+              events?.beginAction(player, {kind: 'colony', name: colony.name}, {category: 'colony'});
+              try {
+                trader.trade(colony);
+              } finally {
+                events?.endScope();
+              }
               return undefined;
             }));
         return undefined;
@@ -138,10 +153,13 @@ export class TradeWithTitanFloatingLaunchPad implements IColonyTrader {
   /** The console's payment picker renders every trade path in ONE grammar —
    *  icon + `current → resulting` — from this marker (the same shape
    *  TradeWithEnergy/Titanium/Megacredits attach); without it the floater row
-   *  stood bare beside fully-dressed siblings. */
+   *  stood bare beside fully-dressed siblings. `card` is this path's structural
+   *  IDENTITY: the card's own action enters this option, and the console must
+   *  find it without matching the translated label. */
   public optionMetadata() {
     const current = this.titanFloatingLaunchPad?.resourceCount ?? 0;
     return {kind: 'resourceRemoval' as const, icon: 'floater', amount: 1,
+      card: CardName.TITAN_FLOATING_LAUNCHPAD,
       resource: {current, resulting: Math.max(0, current - 1)}};
   }
 

@@ -3,7 +3,7 @@ import {Message} from '../common/logs/Message';
 import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
-import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext, DeckPickPromptMeta, DiscardPromptMeta, FinalGreeneryPromptMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
+import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
 
 export interface PlayerInput {
     type: PlayerInputType;
@@ -38,9 +38,17 @@ export interface PlayerInput {
     // cards are a temporary reveal rather than anybody's property. Serialized
     // on SelectCard.toModel (nesting-safe), not centrally.
     deckPickPrompt?: DeckPickPromptMeta;
+    // Explicit "this SelectCard is a DRAFT PICK" marker (see DraftPromptMeta) —
+    // pass direction, neighbors and pick total for the console draft flow.
+    // Serialized on SelectCard.toModel (nesting-safe).
+    draftPrompt?: DraftPromptMeta;
     // Explicit "this is the FINAL GREENERY beat" marker (see
     // FinalGreeneryPromptMeta) — one branch places, the other ENDS the game.
     finalGreeneryPrompt?: FinalGreeneryPromptMeta;
+    // Explicit "collect the colony bonus another player's trade paid you"
+    // marker (see ColonyBonusCollectMeta). Serialized on SelectOption.toModel
+    // (nesting-safe), not centrally.
+    colonyBonusPrompt?: ColonyBonusCollectMeta;
 
     // Contextual annotation identifying this PlayerInput.
     annotation: string | undefined;
@@ -95,7 +103,9 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public spendHeatPrompt: SpendHeatPromptMeta | undefined;
   public discardPrompt: DiscardPromptMeta | undefined;
   public deckPickPrompt: DeckPickPromptMeta | undefined;
+  public draftPrompt: DraftPromptMeta | undefined;
   public finalGreeneryPrompt: FinalGreeneryPromptMeta | undefined;
+  public colonyBonusPrompt: ColonyBonusCollectMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
   public abstract process(response: InputResponse, player: IPlayer): PlayerInput | undefined;
@@ -196,6 +206,25 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  `inputs/deckPickPrompt.ts` for the factories. */
   public markDeckPickPrompt(meta: DeckPickPromptMeta): this {
     this.deckPickPrompt = meta;
+    return this;
+  }
+
+  /** Mark this `SelectOption` as the COLLECT step of a colony bonus paid by
+   *  ANOTHER player's trade (chainable). The card is drawn on the answer, so
+   *  nothing reaches a hand its owner has not looked at, and the console can
+   *  announce the delivery and take the player to the colony that paid it.
+   *  See {@link ColonyBonusCollectMeta}. */
+  public markColonyBonusPrompt(meta: ColonyBonusCollectMeta): this {
+    this.colonyBonusPrompt = meta;
+    return this;
+  }
+
+  /** Mark this `SelectCard` as a DRAFT PICK (chainable). Attached in ONE place —
+   *  `Draft.askPlayerToDraft`, the funnel every draft variant goes through — so
+   *  the client's draft flow keys off structure (direction / neighbors / pick
+   *  total), never off the translatable title. See {@link DraftPromptMeta}. */
+  public markDraftPrompt(meta: DraftPromptMeta): this {
+    this.draftPrompt = meta;
     return this;
   }
 

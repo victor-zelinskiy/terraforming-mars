@@ -321,6 +321,23 @@ export type ActionPreviewStep =
    *  (Stormcraft: stock heat + floaters-as-heat). `input` is the heat-source
    *  AndOptions model (carrying its `spendHeatPrompt` marker). Used as a preStep. */
   | {kind: 'spendHeat', input: PlayerInputModel}
+  /**
+   * THIS BRANCH *IS* A COLONY TRADE — it does not do a trade of its own, it
+   * enters the ONE trade the server already offers, paying with this card.
+   *
+   * It is deliberately NOT a `note`: the console reads this structurally to
+   * turn the branch's commit into a NAVIGATION («Выбрать колонию») straight
+   * into the colony workspace, with `card` naming the payment path to lock to
+   * (matched against `OptionMetadata.card` in the trade prompt's fee picker).
+   * A prose note could only be pattern-matched by its text, which is banned —
+   * and it says nothing about WHICH payment path the branch corresponds to.
+   *
+   * Every card whose action is «trade for free» has a matching `IColonyTrader`
+   * in `Colonies.tradeWithColony` by construction (that is what makes the two
+   * entry points one action), so this step never promises a path that isn't
+   * there.
+   */
+  | {kind: 'colonyTrade', card: CardName}
   | {
     kind: 'boardPlacement',
     placementType: string,
