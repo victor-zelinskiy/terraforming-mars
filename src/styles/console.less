@@ -2071,6 +2071,14 @@ body.con-zoom-open .con-journal {
         justify-content: center;
         min-height: 0;
     }
+    /* The SHELF is an absolute overlay of the body's bottom edge (never in
+       flow): hiding it can't reflow a stage mid-flight, which is what lets
+       the research rise measure its sources and fly while the buy row is
+       ALREADY at its final geometry. While the selection chapter runs, the
+       stages step off its zone via this inset. */
+    &__stagewrap--shelved .con-draftws__stage {
+        bottom: 9.6rem;
+    }
     /* The BUY chapter stacks its chrome: the financial strip keeps the top,
        the card row centres in everything that remains. */
     &__stage--buy {
@@ -2103,9 +2111,10 @@ body.con-zoom-open .con-journal {
         max-width: var(--con-ws-stage-rowmax, 100%);
         overflow: visible;
         margin: 0 auto;
-        /* Headroom for the focus ring / lift / pick band — inside the row's
-           own box, so the stage's overflow:hidden never crops a focused card. */
-        padding: 1rem 0 1.1rem;
+        /* Headroom for the focus ring / lift / pick band on ALL four sides —
+           inside the row's own box (MEASURED by the fit, never re-stated), so
+           the stage's overflow:hidden can never crop a focused card's ring. */
+        padding: 1.8rem 1.5rem 2rem;
 
         > .con-cards__slot {
             zoom: var(--con-cards-zoom, 1);
@@ -2316,6 +2325,31 @@ body.con-zoom-open .con-journal {
         font-size: .85rem;
         color: @con-text-dim;
     }
+    &__done-amount {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .55rem;
+        margin-top: .3rem;
+        padding: .4rem 1.1rem .45rem;
+        border-radius: .55rem;
+        background: @con-glass-soft;
+        box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.24);
+        font-size: .95rem;
+        color: @con-text;
+
+        b {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: @con-mint;
+        }
+    }
+    &__done-spent {
+        display: inline-flex;
+        align-items: center;
+        gap: .3rem;
+        color: @con-amber;
+        font-weight: 700;
+    }
 
     /* ── STATUS RAIL: the focused card's verdict line (reserved row — the
        stage above never reflows when the verdict changes). ── */
@@ -2364,16 +2398,21 @@ body.con-zoom-open .con-journal {
         font-size: .8rem;
     }
 
-    /* ── THE SHELF («ОТОБРАНО») — the permanent collection zone. Compact:
-       it never competes with the stage for height. ── */
+    /* ── THE SHELF («ОТОБРАНО») — the permanent collection zone. Compact,
+       and an ABSOLUTE overlay of the body's bottom edge: leaving never
+       reflows the stage above (the rise flies over a settled layout). ── */
     &__shelf {
-        flex-shrink: 0;
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 3;
         display: flex;
         flex-direction: column;
         gap: .35rem;
         padding: .55rem .9rem .6rem;
         border-radius: .6rem;
-        background: rgba(9, 15, 24, 0.66);
+        background: rgba(9, 15, 24, 0.82);
         box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.16);
         transition: opacity calc(200ms * var(--motion-scale, 1)) ease;
 
@@ -2383,6 +2422,16 @@ body.con-zoom-open .con-journal {
             animation: con-tray-pulse calc(260ms * var(--motion-scale, 1)) ease-out;
         }
     }
+    /* The shelf's own leave: a calm fade, SYNCHRONIZED with the rise handoff
+       (its cards have already physically left for the purchase row). */
+    &__shelf.con-draftws-shelf-leave-active {
+        transition: opacity calc(340ms * var(--motion-scale, 1)) ease;
+    }
+    &__shelf.con-draftws-shelf-leave-to { opacity: 0; }
+    &__shelf.con-draftws-shelf-enter-active {
+        transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
+    }
+    &__shelf.con-draftws-shelf-enter-from { opacity: 0; }
     &__shelf-head {
         display: flex;
         align-items: center;

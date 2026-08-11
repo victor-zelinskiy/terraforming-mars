@@ -181,6 +181,33 @@ second fell through both halves of it.
   `colony` + `handSelect` + `colonyBonus`), earned on the rising edge and at
   every entry, never a registry default.
 
+## Iteration 6 — the reset is the LAST beat, and the gate must prove it
+
+The marker glided across the track WHILE the first card was still flying to
+the table. The gate asked the wrong list:
+
+- `stagedRevealsConfirmed()` walked `colonyTradeState.stagedRevealIds` — what
+  the COVER SCENE has claimed. That list fills a tick or two AFTER the batch
+  lands (the reveal store is reconciled by its own `playerView` watcher), so
+  «nothing staged» read as «every reveal confirmed». For a colony whose trade
+  income IS the draw (Pluto) there are no resource chips to wait for, so the
+  commit walked straight to `awaiting` and the whole conclusion — glide,
+  settle, `finishTrade` — ran inside that gap.
+- The gate is now `tradeCardsOutstanding()`: batches matched **by tradeId**
+  (server truth, present from the moment the response lands), plus «the
+  manifest promises cards the store has not seen yet» (`plannedViewerCards()`
+  from `benefitCardCount` + `viewerBonusCubes`, with a latched `revealSeen` so
+  a taken-and-acked batch — gone from the store — never re-opens the gate).
+  The one case where a promised card never arrives (an exhausted deck yields
+  no batch at all) is a bounded, named degrade net (`REVEAL_WAIT_MS`), not an
+  open wait.
+- ⚠️ It only became VISIBLE in iteration 4: before the late dissolve the
+  colony stage had already faded by the time the marker moved, so the early
+  glide happened off screen. A timing bug that hides behind another animation
+  is still a timing bug — the fence is now in the e2e (`glideOverReveal`, on
+  every Pluto payout watch) and in the unit spec («a trade whose income is a
+  DRAW never concludes before its cards exist»).
+
 ### The two traps iteration 2 paid for
 - ⚠️ **The hand-reveal director's `setSection` hook spoke `goBoardHome` for
   every non-overlay hand.** For a hand hosted as an embedded STEP that wiped

@@ -138,6 +138,13 @@ type Sighting = {
   /** The colony FOCUS stage stood at some point of the watch (the
    *  post-discard restore's proof on the return leg). */
   focusSeen: boolean;
+  /**
+   * THE TRACK RESET RAN WHILE CARDS WERE STILL OWED. The marker's return is
+   * the resolution's LAST beat: it may only start once every card has been
+   * taken and the colony's own stage is back in front of the player. A glide
+   * over an open reveal is the «сдвиг трека едет вместе с добором» break.
+   */
+  glideOverReveal: boolean;
   /** DIAGNOSTIC timeline (logged, not asserted): the colonies section went
    *  absent after it had been seen (ms into the watch), and the mandatory
    *  announcement card appeared (ms) — either mid-resolution is a lifecycle
@@ -155,7 +162,7 @@ async function watchPayout(page: Page, ms: number): Promise<Sighting> {
       seen: false, inStage: false, embedded: false, fullBleed: false,
       legacyModal: false, workspaceSplit: false, standaloneHand: false,
       focusHandZone: false, emptyStage: false, markerOutsideFocus: false,
-      focusSeen: false,
+      focusSeen: false, glideOverReveal: false,
       coloniesGoneAtMs: -1, announceAtMs: -1,
     };
     w.__pluto = seen;
@@ -183,6 +190,11 @@ async function watchPayout(page: Page, ms: number): Promise<Sighting> {
         reveal: document.querySelector('.con-reveal') !== null,
         announce: document.querySelector('.con-mandatory') !== null,
         rel: d.lastRelease ?? '',
+        scene: d.cardScene ?? '',
+        staged: (d.stagedIds as ReadonlyArray<number> | undefined)?.join(',') ?? '',
+        batches: (d.liveReveals as ReadonlyArray<string> | undefined)?.join(',') ?? '',
+        glide: d.glideNonce ?? 0,
+        marker: document.querySelector('.con-coltrade-marker') !== null,
       };
       const key = JSON.stringify(brief);
       if (key !== lastKey && timeline.length < 60) {
@@ -238,10 +250,15 @@ async function watchPayout(page: Page, ms: number): Promise<Sighting> {
           seen.emptyStage = true;
         }
       }
-      // The track-reset glide must play on the colony's OWN focus track.
+      // The track-reset glide must play on the colony's OWN focus track…
       const marker = document.querySelector('.con-coltrade-marker');
       if (marker !== null && visible(marker) && document.querySelector('.con-colfocus') === null) {
         seen.markerOutsideFocus = true;
+      }
+      // …and it is the LAST beat: never while the player still owes a take.
+      if (marker !== null && visible(marker) &&
+          document.querySelectorAll('.con-reveal .con-cards__slot:not(.con-cards__slot--taken)').length > 0) {
+        seen.glideOverReveal = true;
       }
       if (document.querySelector('.con-colfocus') !== null) {
         seen.focusSeen = true;
@@ -316,6 +333,10 @@ test('Pluto TRADE: the payout presents inside the colony workspace, never as a b
   expect(seen.focusHandZone, 'the removed focus-stage hand zone mounted').toBeFalsy();
   expect(seen.emptyStage, 'a BLANK colonies stage appeared mid-flow (the empty pause)').toBeFalsy();
   expect(seen.markerOutsideFocus, 'the track-reset marker flew OUTSIDE the colony focus').toBeFalsy();
+  // THE LAST BEAT: this trade moves the track (1 → 0, no colonies built), and
+  // the card is deliberately NOT taken in this test — so the marker must not
+  // have moved at all yet.
+  expect(seen.glideOverReveal, 'the track reset glided while the payout was still on the table').toBeFalsy();
 });
 
 test('Pluto BUILD: the draw presents inside the colony workspace, never as a band', async ({page, request}) => {

@@ -55,7 +55,8 @@ import {
 import {TRANSFER_RESIDUAL_PAUSE_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
-  ColonyTradeTargets, colonyTradeHeldSpecs, incomeTransferSpecs, ownBonusTransferSpecs,
+  ColonyTradeTargets, benefitCardCount, colonyTradeHeldSpecs, incomeTransferSpecs,
+  ownBonusTransferSpecs, viewerBonusCubes,
   trackGlidePlan, TrackGlidePlan, TRACK_SETTLE_MS,
 } from '@/client/console/colonyTrade/colonyTradeModel';
 
@@ -145,6 +146,13 @@ type TradeCtx = {
   rewardsKicked: boolean;
   committedTrack: number | undefined;
   glideStarted: boolean;
+  /**
+   * A reveal batch of THIS trade has been observed at least once. The draws
+   * ride the trade's own response, but the reveal list is reconciled by its
+   * own watcher — so for a flush or two after the commit «no batch here» means
+   * «not yet», not «none coming». Latched, never re-cleared.
+   */
+  revealSeen: boolean;
 };
 const ctx: TradeCtx = {
   manifest: undefined,
@@ -155,6 +163,7 @@ const ctx: TradeCtx = {
   rewardsKicked: false,
   committedTrack: undefined,
   glideStarted: false,
+  revealSeen: false,
 };
 
 /** Trades already presented this session — a poll replay can never re-play one. */
@@ -163,7 +172,17 @@ const seenTradeIds = new Set<string>();
 let armSafetyId = 0;
 let ceilingId = 0;
 let settleTimerId = 0;
+let revealWaitId = 0;
 let glideResolver: (() => void) | undefined;
+
+/**
+ * How long the conclusion waits for a PROMISED card that never arrived. The
+ * draws ride the trade's own response, so this is only ever the degrade net of
+ * the one case the server itself models: an exhausted deck yields no reveal
+ * batch at all (`ColonyTradeManifest.spec.ts`). Bounded and named, so the
+ * marker never sits frozen on a track whose payout is over.
+ */
+const REVEAL_WAIT_MS = 4_000;
 
 const DEV = typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production';
 
@@ -305,6 +324,7 @@ export function stageColonyTradeReveal(eventId: number): boolean {
   if (!colonyTradeState.active || isColonyTradeRevealStaged(eventId)) {
     return false;
   }
+  ctx.revealSeen = true; // a batch of ours exists, whatever the store says next
   colonyTradeState.stagedRevealIds.push(eventId);
   colonyTradeState.zoomEntryReady = false;
   colonyTradeState.cardScene = 'fly';
@@ -346,23 +366,63 @@ export function colonyTradeZoomOriginEl(): HTMLElement | null {
 }
 
 /**
- * Every batch this transaction staged has been fully confirmed (taken) by the
- * player — the reveal gate of the conclusion.
+ * How many cards this trade is PLANNED to hand the VIEWER — the manifest's own
+ * arithmetic (income only when they are the trader, plus one payout per cube
+ * they own). Known at claim time, before any card has been drawn.
  */
-function stagedRevealsConfirmed(): boolean {
-  return colonyTradeState.stagedRevealIds.every((id) => {
-    const e = drawnCardsState.events.find((ev) => ev.id === id);
-    return e === undefined || e.dismissed;
-  });
+function plannedViewerCards(): number {
+  const m = ctx.manifest;
+  const viewer = colonyTradeState.color;
+  if (m === undefined || viewer === '') {
+    return 0;
+  }
+  const income = m.trader === viewer ? benefitCardCount(m.tradeIncome) : 0;
+  const bonus = m.colonyBonus === undefined ?
+    0 :
+    benefitCardCount(m.colonyBonus) * viewerBonusCubes(m, viewer as Color);
+  return income + bonus;
 }
 
-// The reveal-confirmed watcher: taking the last card of a staged batch is one
-// of the three signals that advance the conclusion (module-level watch — the
-// same idiom presentationFlow uses).
+/**
+ * IS A CARD OF THIS TRADE STILL OWED? The reveal gate of the conclusion — and
+ * the reason the track reset is the resolution's LAST beat.
+ *
+ * ⚠️ IT READS THE BATCHES BY TRADE ID, NEVER THE STAGING LIST. The staging list
+ * is what the COVER SCENE has claimed, and it fills a tick or two after the
+ * batch lands — so «nothing staged» is «not yet», not «nothing owed». Asking
+ * it instead let the whole conclusion run inside that gap: with a colony whose
+ * income IS the draw (Pluto), there are no chips to wait for, so the commit
+ * went straight to `awaiting` → the gate saw an EMPTY list → the marker glided
+ * across the track while the first card was still flying to the table.
+ *
+ * The second term covers the same gap from the other side: while the plan
+ * promises cards and none has arrived yet, the trade is still mid-payout.
+ * `revealSeen` latches on the first batch (and on the honest degrade net), so
+ * a taken-and-acked batch — gone from the store — never re-opens the gate.
+ */
+function tradeCardsOutstanding(): boolean {
+  const tradeId = colonyTradeState.tradeId;
+  if (tradeId === '') {
+    return false;
+  }
+  const mine = drawnCardsState.events.filter((e) =>
+    e.source?.type === 'colony' && e.source.trade?.tradeId === tradeId);
+  if (mine.length > 0) {
+    ctx.revealSeen = true;
+  }
+  if (mine.some((e) => !e.dismissed)) {
+    return true;
+  }
+  return plannedViewerCards() > 0 && !ctx.revealSeen;
+}
+
+// The reveal-confirmed watcher: the last card of this trade leaving the table
+// is one of the three signals that advance the conclusion (module-level watch
+// — the same idiom presentationFlow uses).
 watch(
-  () => colonyTradeState.active && stagedRevealsConfirmed(),
-  (confirmed) => {
-    if (confirmed) {
+  () => colonyTradeState.active && !tradeCardsOutstanding(),
+  (clear) => {
+    if (clear) {
       maybeAdvance();
     }
   },
@@ -384,6 +444,13 @@ function clearCeiling(): void {
   }
 }
 
+function clearRevealWait(): void {
+  if (revealWaitId !== 0) {
+    clearTimeout(revealWaitId);
+    revealWaitId = 0;
+  }
+}
+
 /**
  * ARM (the composer confirm, right next to `armTradeFleet`) — the transaction
  * exists from the player's own press. `targets` carries the composer's
@@ -401,6 +468,8 @@ export function armColonyTrade(colonyName: ColonyName, color: Color, targets?: C
   ctx.rewardsKicked = false;
   ctx.committedTrack = undefined;
   ctx.glideStarted = false;
+  ctx.revealSeen = false;
+  clearRevealWait();
   colonyTradeState.active = true;
   colonyTradeState.phase = 'armed';
   colonyTradeState.cardScene = 'idle';
@@ -455,6 +524,19 @@ function claimManifest(manifest: ColonyTradeManifestModel): void {
   colonyTradeState.preTrackPosition = manifest.preTradeTrackPosition;
   colonyTradeState.postTrackPosition = manifest.postTradeTrackPosition;
   colonyTradeState.trackHold = manifest.postTradeTrackPosition < manifest.preTradeTrackPosition;
+  // A PROMISED card that never arrives (an exhausted deck) must not freeze the
+  // marker on the track: the wait for it is bounded and names itself.
+  clearRevealWait();
+  if (plannedViewerCards() > 0) {
+    revealWaitId = setTimeout(() => {
+      revealWaitId = 0;
+      if (colonyTradeState.active && !ctx.revealSeen) {
+        tradeLog('promised cards never arrived — concluding without them');
+        ctx.revealSeen = true;
+        maybeAdvance();
+      }
+    }, REVEAL_WAIT_MS) as unknown as number;
+  }
   // The whole transaction is bounded: whatever stalls (a lost reveal, a
   // never-arriving reset), the ceiling concludes honestly to committed truth.
   clearCeiling();
@@ -627,7 +709,7 @@ function maybeAdvance(): void {
   if (colonyTradeState.phase !== 'awaiting' || colonyTradeState.cardScene !== 'idle') {
     return;
   }
-  if (!ctx.chipsDone || !stagedRevealsConfirmed()) {
+  if (!ctx.chipsDone || tradeCardsOutstanding()) {
     return;
   }
   const moves = colonyTradeState.postTrackPosition < colonyTradeState.preTrackPosition;
@@ -688,6 +770,7 @@ function finishTrade(): void {
   }
   clearCeiling();
   clearArmSafety();
+  clearRevealWait();
   colonyTradeState.active = false;
   colonyTradeState.phase = 'idle';
   colonyTradeState.cardScene = 'idle';
@@ -716,6 +799,7 @@ function concludeToCommitted(): void {
 export function abortColonyTrade(): void {
   clearArmSafety();
   clearCeiling();
+  clearRevealWait();
   if (settleTimerId !== 0) {
     clearTimeout(settleTimerId);
     settleTimerId = 0;
@@ -751,6 +835,7 @@ export function abortColonyTrade(): void {
   ctx.rewardsKicked = false;
   ctx.committedTrack = undefined;
   ctx.glideStarted = false;
+  ctx.revealSeen = false;
 }
 
 /** Test-only full reset (including the session memories). */

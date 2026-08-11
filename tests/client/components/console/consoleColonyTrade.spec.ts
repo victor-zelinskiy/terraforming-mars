@@ -139,6 +139,46 @@ describe('consoleColonyTrade', () => {
     expect(colonyTradeState.phase).eq('settle');
   });
 
+  /*
+   * ⚠️ THE REGRESSION THIS FENCES. A colony whose trade income IS the draw
+   * (Pluto) has no resource chips, so the commit walks straight to `awaiting`
+   * — and for a flush or two after it the reveal store has not been reconciled
+   * yet. Asking the COVER SCENE's staging list there («nothing staged» → «every
+   * reveal confirmed») ran the whole conclusion inside that gap: the marker
+   * glided across the track while the first card was still flying to the table.
+   * The gate reads the batches by TRADE ID, and waits for a promised card that
+   * has not arrived yet.
+   */
+  it('a trade whose income is a DRAW never concludes before its cards exist', async () => {
+    armColonyTrade(ColonyName.PLUTO, 'red');
+    detectColonyTrade(view(manifest({
+      colonyName: ColonyName.PLUTO,
+      tradeIncome: {benefit: ColonyBenefit.DRAW_CARDS, quantity: 2},
+      colonyBonus: undefined,
+      bonusRecipients: [],
+    })));
+    await runColonyTradeRewards(); // no chips at all — straight to `awaiting`
+    notifyColonyTradeTrackCommitted(ColonyName.PLUTO, 1);
+    await nextTick();
+    // The promised cards have not been reconciled into the store yet.
+    expect(colonyTradeState.phase).eq('awaiting');
+    expect(colonyTradeState.glideNonce).eq(0);
+
+    // …they arrive; still nothing may move while they are on the table.
+    drawnCardsState.events.push({
+      id: 91, cards: [], takenIndices: new Set(), acking: false, dismissed: false,
+      source: {type: 'colony', colonyName: ColonyName.PLUTO, trade: {tradeId: 'Triton:g3:a120', role: 'income'}},
+    });
+    await nextTick();
+    expect(colonyTradeState.phase).eq('awaiting');
+    expect(colonyTradeState.glideNonce).eq(0);
+
+    // The player takes them → the reset is the last beat.
+    drawnCardsState.events[0].dismissed = true;
+    await nextTick();
+    expect(colonyTradeState.phase).eq('glide');
+  });
+
   it('without the committed reset the transaction WAITS (an opponent’s discard still owes it)', async () => {
     armColonyTrade(ColonyName.TRITON, 'red');
     detectColonyTrade(view(manifest()));

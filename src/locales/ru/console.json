@@ -586,5 +586,7 @@
     "Purchased cards are in your hand": "Купленные карты — в вашей руке",
     "Take": "Отобрать",
     "Handover": "Передача",
-    "Selected cards": "Отобранные карты"
+    "Selected cards": "Отобранные карты",
+    "Cards bought: ${0}": "Куплено карт: ${0}",
+    "No cards were bought": "Карты не куплены"
 }

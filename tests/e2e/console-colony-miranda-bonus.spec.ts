@@ -104,6 +104,41 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
   await openColoniesAndFocus(page, 'Miranda');
   await press(page, 'Enter', 2000);
   expect(await page.locator('.con-colfocus').count(), 'the trade stage did not open').toBeGreaterThan(0);
+
+  /*
+   * THE TRACK RESET IS THE RESOLUTION'S LAST BEAT — it may only start once
+   * every card has been taken and the colony's own stage is back in front of
+   * the player. This watch is the fence: it records the marker proxy flying
+   * while cards are still on the table (`glideOverReveal`), and the moment
+   * each of the two events first happened.
+   */
+  const watching = page.evaluate((budget) => {
+    const out = {glideOverReveal: false, markerAtMs: -1, lastTakeAtMs: -1};
+    (window as unknown as {__miranda?: typeof out}).__miranda = out;
+    const t0 = performance.now();
+    const visible = (el: Element | null) => el !== null && (el as HTMLElement).getClientRects().length > 0;
+    const tick = () => {
+      const now = Math.round(performance.now() - t0);
+      const marker = document.querySelector('.con-coltrade-marker');
+      const cardsOnTable = document.querySelectorAll('.con-reveal .con-cards__slot:not(.con-cards__slot--taken)').length;
+      if (cardsOnTable > 0) {
+        out.lastTakeAtMs = now; // the last frame a card was still owed
+      }
+      if (visible(marker)) {
+        if (out.markerAtMs < 0) {
+          out.markerAtMs = now;
+        }
+        if (cardsOnTable > 0) {
+          out.glideOverReveal = true;
+        }
+      }
+      if (performance.now() - t0 < budget) {
+        requestAnimationFrame(tick);
+      }
+    };
+    requestAnimationFrame(tick);
+  }, 30_000);
+
   await page.keyboard.press('KeyX'); // confirm the trade
 
   // THE CARD MUST BE ON THE STAGE. The bug rendered a reveal with a title, a
@@ -162,4 +197,13 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
   await expect(page.locator('.con-colonies'), 'the colony workspace never closed after the payout')
     .toHaveCount(0, {timeout: 25_000});
   await shoot(page, '04-closed');
+
+  await watching;
+  const order = await page.evaluate(() => (window as unknown as {__miranda?: {glideOverReveal: boolean, markerAtMs: number, lastTakeAtMs: number}}).__miranda);
+  console.log('── glide ordering ──', JSON.stringify(order));
+  expect(order?.glideOverReveal, 'the track marker glided while cards were still on the table').toBeFalsy();
+  if ((order?.markerAtMs ?? -1) >= 0 && (order?.lastTakeAtMs ?? -1) >= 0) {
+    expect(order?.markerAtMs, 'the track reset started before the payout was collected')
+      .toBeGreaterThan(order?.lastTakeAtMs ?? 0);
+  }
 });

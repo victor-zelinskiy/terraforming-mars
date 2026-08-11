@@ -1344,7 +1344,7 @@ import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
-import {currentRevealEvent, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
+import {currentRevealEvent, drawnCardsState, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, TaskKind, taskFor, taskServedByHost, shellTaskOnSurface, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
@@ -1928,14 +1928,14 @@ export default defineComponent({
      *  rail. Board home keeps the dock on top as usual. */
     dockBehindWorkspace(): boolean {
       const phase = this.playerView.game.phase;
-      // The DRAFT pick task host lives INSIDE `.con-main` (z1), so `footerUnderScene`
-      // (z11390) can never drop the footer below it — only `behind-workspace` (z0)
-      // beats con-main. Detect the draft by the game PHASE (the pick prompt's
-      // buttonLabel is 'Select', so the task router classifies it as cardSelect
-      // mode 'target', NOT 'draft' — a mode check can't see it). No card flies into
-      // the dock during a pick (the drafted card lands in the separate `draftedCards`
-      // stack), so parking the dock BELOW the host is safe. The research BUY is phase
-      // RESEARCH, so the deck→dock buy flights keep the footer on top (not matched).
+      // The DRAFT WORKSPACE is a card-flow surface: the pick heroes fly, the
+      // purchase flights land in the dock, and the player must see the bar +
+      // the compact dock BRIGHT through the whole flow — never tucked behind
+      // the plate (the tuck below is the legacy in-`.con-main` pick host's,
+      // now the pre-game INITIALDRAFTING path only).
+      if (workspaceFrameKnown('draft')) {
+        return false;
+      }
       if (phase === Phase.DRAFTING || phase === Phase.INITIALDRAFTING) {
         return true;
       }
@@ -2011,6 +2011,10 @@ export default defineComponent({
       }
       return !(
         this.hostTask !== undefined ||
+        // The draft workspace: the dock stays VISIBLE in its compact pose for
+        // the whole flow (the intake accent lease brings it to FULL exactly
+        // while the purchase flights land).
+        this.draftWorkspaceMounted ||
         this.startSceneServes ||
         this.govSupportActive ||
         this.productionLossActive ||
@@ -10852,6 +10856,12 @@ export default defineComponent({
       // is there and А does nothing» — the one symptom with no other tell.
       cardScene: colonyTradeState.cardScene,
       tradePhase: colonyTradeState.phase,
+      // WHICH batches the cover scene claimed vs which are still on the table:
+      // the reset glide's gate is «every staged batch was taken», and the two
+      // lists are the only way to see it disagree with the screen.
+      stagedIds: [...colonyTradeState.stagedRevealIds],
+      liveReveals: drawnCardsState.events.map((e) => `${e.id}:${e.cards.length - e.takenIndices.size}${e.dismissed ? 'D' : ''}`),
+      glideNonce: colonyTradeState.glideNonce,
       inputLocked: isColonyTradeInputLocked(),
       arrivalPending: workspaceOutcomeBeatPending(),
       resolutionLive: this.colonyResolutionLive,

@@ -52,7 +52,7 @@
       <span class="con-draftws__lane con-draftws__lane--left" ref="laneLeft" aria-hidden="true"></span>
       <span class="con-draftws__lane con-draftws__lane--right" ref="laneRight" aria-hidden="true"></span>
 
-      <div class="con-draftws__stagewrap" ref="stageWrap">
+      <div class="con-draftws__stagewrap" :class="{'con-draftws__stagewrap--shelved': stageShelved}" ref="stageWrap">
         <!-- ── PICK: the packet, cards as the hero content ─────────────── -->
         <!-- Stage layers crossfade in place (absolute twins of one zone) —
              a v-show cut between stages is a blink, never acceptable. -->
@@ -163,14 +163,18 @@
         <transition name="con-draftws-stage">
         <div v-show="zone === 'inspect'" class="con-draftws__stage con-draftws__stage--inspect">
           <div class="con-draftws__cards">
-            <!-- Re-keyed per ENTRY: the rise-from-the-shelf stagger must play
-                 on every visit, not once at workspace mount. -->
-            <div class="con-draftws__row" :style="inspectRowStyle" ref="inspectRow" :key="'insp-' + inspectNonce">
+            <!-- The cards arrive PHYSICALLY from the shelf (clone-proxy
+                 flights, `runShelfSpread`); a slot is held empty until its
+                 own card lands on it — one physical set, never two copies. -->
+            <div class="con-draftws__row" :style="inspectRowStyle" ref="inspectRow">
               <div v-for="(entry, i) in collectedEntries" :key="entry.name + '#' + i"
-                   class="con-cards__slot con-draftws__slot con-draftws__slot--rise"
+                   class="con-cards__slot con-draftws__slot"
                    :data-zoom-slot="entry.name"
-                   :style="{animationDelay: (i * 70) + 'ms'}"
-                   :class="{'con-cards__slot--focused': zone === 'inspect' && focusIdx === i}">
+                   :data-inspect-slot="entry.name"
+                   :class="{
+                     'con-cards__slot--focused': zone === 'inspect' && focusIdx === i && !inspectFlightActive,
+                     'con-deal-hold': inspectHeldNames.includes(entry.name),
+                   }">
                 <Card :card="entry.card" :key="entry.name" lightweight />
               </div>
             </div>
@@ -184,7 +188,16 @@
           <div class="con-draftws__doneplate">
             <span class="con-draftws__done-mark" aria-hidden="true"><i>✓</i></span>
             <span class="con-draftws__done-title">{{ $t('Research complete') }}</span>
-            <span class="con-draftws__done-sub">{{ doneReadout }}</span>
+            <span class="con-draftws__done-amount">
+              <template v-if="completionBought > 0">
+                <span>{{ boughtReadout }}</span>
+                <span class="con-draftws__done-spent">−{{ completionSpent }}<i class="resource_icon resource_icon--megacredits con-draftws__fin-mc" aria-hidden="true"></i></span>
+              </template>
+              <template v-else>
+                <span>{{ $t('No cards were bought') }}</span>
+              </template>
+            </span>
+            <span v-if="completionBought > 0" class="con-draftws__done-sub">{{ doneReadout }}</span>
           </div>
         </div>
         </transition>
@@ -211,10 +224,12 @@
       <!-- ── THE SHELF («ОТОБРАНО») — the permanent collection zone. Slots
            carry `data-tray-slot`: the pick heroes land here (the shared
            draft-tray brain) and the research rise lifts off from here. ──── -->
-      <!-- Present through the SELECTION chapter only: past the rise the pile
-           has physically BECOME the purchase row, and an empty shelf under it
-           would just tax the cards' height. -->
-      <div class="con-draftws__shelf" v-show="zone === 'pick' || zone === 'wait' || zone === 'inspect'"
+      <!-- Present through the SELECTION chapter — and through the RISE, whose
+           physical SOURCE it is (its slots are the measured launch rects);
+           its fade-out IS the handoff's closing beat. An absolute overlay:
+           leaving never reflows the stage above. -->
+      <transition name="con-draftws-shelf">
+      <div class="con-draftws__shelf" v-show="shelfVisible"
            :class="{
              'con-draftws__shelf--muted': inspecting,
              'con-draftws__shelf--empty': collectedEntries.length === 0,
@@ -240,6 +255,7 @@
           <span v-for="n in emptySeats" :key="'seat-' + n" class="con-draftws__shelf-seat" aria-hidden="true"></span>
         </div>
       </div>
+      </transition>
     </div>
 
     <!-- The deal cinematic stage (packet arrivals + the research rise). -->
@@ -251,6 +267,7 @@
 <script lang="ts">
 import {defineComponent, PropType} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
+import {gsap} from 'gsap';
 import Card from '@/client/components/card/CardFace.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
@@ -331,8 +348,24 @@ export default defineComponent({
       /** A packet arrived WHILE the LT sub-stage owned the screen — its
        *  presentation waits for the return (never torn into the inspect). */
       packetPendingPresent: false,
-      /** Re-keys the inspect row so its rise-from-the-shelf plays per visit. */
-      inspectNonce: 0,
+      /** The LT sub-stage's PHYSICAL spread/collect (clone-proxy flights):
+       *  row slots held empty until their own card lands; input absorbed. */
+      inspectFlightActive: false,
+      inspectHeldNames: [] as Array<CardName>,
+      /** Cards whose clone has physically LEFT the shelf (held from the exact
+       *  frame the proxy stands over them — never a frame earlier). */
+      shelfDeparted: [] as Array<CardName>,
+      /** Seats already re-filled by the RETURN flight (per-card landings). */
+      shelfReturned: [] as Array<CardName>,
+      inspectFlightTimer: undefined as number | undefined,
+      cloneLayer: undefined as HTMLElement | undefined,
+      /** The purchase commit's receipt (the terminal plate's numbers). */
+      completionBought: 0,
+      completionSpent: 0,
+      /** The unbought cards' exit has visually settled — the terminal plate
+       *  may take the stage while the intake still flies to the dock. */
+      discardsSettled: false,
+      discardTimer: undefined as number | undefined,
       /** Solved stage layouts (CSS custom-property maps). */
       packetRowStyle: {} as Record<string, string>,
       buyRowStyle: {} as Record<string, string>,
@@ -358,12 +391,12 @@ export default defineComponent({
       if (this.paymentPending) {
         return 'pay';
       }
-      if (draftWorkspaceState.completion === 'done') {
-        return 'done';
-      }
-      if (draftWorkspaceState.completion === 'flights') {
-        // The purchase exit beats play over the frozen buy row.
-        return 'buy';
+      if (draftWorkspaceState.completion !== 'none') {
+        // The frozen buy row keeps the stage just long enough for the
+        // unbought cards' exit to read; the terminal plate then takes over
+        // WHILE the bought cards are still flying to the dock (the receipt
+        // is synchronized with the delivery, never after it).
+        return this.discardsSettled ? 'done' : 'buy';
       }
       switch (this.stage) {
       case 'pick': return 'pick';
@@ -371,6 +404,18 @@ export default defineComponent({
       case 'wait':
       case 'idle': return 'wait';
       }
+    },
+    /** The shelf presents through the selection chapter AND through the rise
+     *  it is the physical source of; its fade-out is the handoff's close. */
+    shelfVisible(): boolean {
+      return this.zone === 'pick' || this.zone === 'wait' || this.zone === 'inspect' ||
+        riseSceneEngaged();
+    },
+    /** The stages step off the shelf's zone while it genuinely occupies it
+     *  (the BUY deliberately keeps the full height — during the rise the
+     *  shelf overlays the bottom edge, and the row is already final). */
+    stageShelved(): boolean {
+      return this.zone === 'pick' || this.zone === 'wait' || this.zone === 'inspect';
     },
     /** The post-buy SelectPayment (Helion heat / steel) — embedded, phase-scoped. */
     paymentPending(): boolean {
@@ -515,6 +560,9 @@ export default defineComponent({
     },
     doneReadout(): string {
       return translateText('Purchased cards are in your hand');
+    },
+    boughtReadout(): string {
+      return translateTextWithParams('Cards bought: ${0}', [String(this.completionBought)]);
     },
     setComplete(): boolean {
       return draftTrayState.setComplete;
@@ -680,6 +728,13 @@ export default defineComponent({
     if (this.shelfPulseTimer !== undefined) {
       window.clearTimeout(this.shelfPulseTimer);
     }
+    if (this.inspectFlightTimer !== undefined) {
+      window.clearTimeout(this.inspectFlightTimer);
+    }
+    if (this.discardTimer !== undefined) {
+      window.clearTimeout(this.discardTimer);
+    }
+    this.disposeClones();
     this.deal.dispose();
     // An engaged rise scene can't outlive its frame — hand the shelf off
     // (the watcher may not flush during teardown).
@@ -699,7 +754,7 @@ export default defineComponent({
         this.deal.skip();
         return;
       }
-      if (this.passingActive) {
+      if (this.passingActive || this.inspectFlightActive) {
         return;
       }
       if (intent.kind === 'nav') {
@@ -1025,12 +1080,25 @@ export default defineComponent({
       }
       const bought = [...this.picks];
       const rest = this.buyEntries.filter((e) => !bought.includes(e.name));
+      // The receipt the terminal plate reads («Куплено карт: N · −N M€»).
+      this.completionBought = bought.length;
+      this.completionSpent = bought.length * this.buyCostPerCard;
+      this.discardsSettled = false;
       beginDraftCompletion();
-      // The unbought cards drift out (the discard side), visibly secondary.
+      // The unbought cards drift out (the discard side), visibly secondary;
+      // once their exit has READ, the terminal plate takes the stage — in
+      // parallel with the bought cards' flight to the dock, never after it.
       applyDiscardExit(
         rest.map((e) => this.slotCardEl(e.name)).filter((el): el is HTMLElement => el !== null),
         {delayMs: 160},
       );
+      if (this.discardTimer !== undefined) {
+        window.clearTimeout(this.discardTimer);
+      }
+      this.discardTimer = window.setTimeout(() => {
+        this.discardTimer = undefined;
+        this.discardsSettled = true;
+      }, consoleMotionMs(rest.length > 0 ? 880 : 200));
       if (bought.length === 0) {
         this.submitCards([]);
         window.setTimeout(() => markDraftCompletionFlightsDone(), consoleMotionMs(720));
@@ -1044,25 +1112,109 @@ export default defineComponent({
         commit: () => this.submitCards(bought),
       }).then(() => markDraftCompletionFlightsDone());
     },
+    /**
+     * The terminal beat: a readable window AFTER the delivery — the frame may
+     * release only once the bought cards have actually landed in the dock
+     * (`completion === 'done'`); a beat that ends mid-flight would return the
+     * board under cards still in the air.
+     */
     armDoneBeat(): void {
       if (this.doneTimer !== undefined) {
         window.clearTimeout(this.doneTimer);
       }
-      this.doneTimer = window.setTimeout(() => {
+      const started = Date.now();
+      const tick = () => {
         this.doneTimer = undefined;
-        finishDraftCompletion();
-      }, consoleMotionMs(2100));
+        if (draftWorkspaceState.completion === 'done' || Date.now() - started > 9000) {
+          finishDraftCompletion();
+          return;
+        }
+        this.doneTimer = window.setTimeout(tick, consoleMotionMs(400));
+      };
+      this.doneTimer = window.setTimeout(tick, consoleMotionMs(2100));
     },
     // ── the LT sub-stage («ОТОБРАННЫЕ › ОСМОТР») ───────────────────────
+    /**
+     * ENTER: the collected cards PHYSICALLY spread out of the shelf onto the
+     * big row — clone proxies fly slot→slot (the shelf's seats empty as each
+     * card departs; a row slot materializes only under its own landing).
+     * LEAVE reverses the same gesture, and only after the LAST card has
+     * settled back onto the shelf does the packet stage return (with a
+     * deferred packet's arrival, if one came in during the inspect).
+     */
     enterInspect(): void {
-      if (this.collectedEntries.length === 0) {
+      if (this.collectedEntries.length === 0 || this.inspectFlightActive) {
         return;
       }
-      this.inspectNonce++;
+      const names = this.collectedEntries.map((e) => e.name);
+      const from = this.measureRects(names, (n) => this.shelfCardEl(n));
       draftWorkspaceState.inspecting = true;
-      void this.$nextTick(() => this.fitStage());
+      if (consoleReducedMotionActive() || from === undefined) {
+        this.shelfDeparted = [...names];
+        void this.$nextTick(() => this.fitStage());
+        return;
+      }
+      // The row mounts with EVERY slot held; each card's touchdown releases
+      // its own slot. The SHELF keeps painting its cards until the exact
+      // frame their clones stand over them (`shelfDeparted`, set at spawn).
+      this.inspectHeldNames = [...names];
+      this.beginInspectFlight();
+      void this.$nextTick(() => {
+        this.fitStage();
+        void this.$nextTick(() => requestAnimationFrame(() => {
+          const to = this.measureRects(names, (n) => this.inspectCardEl(n));
+          if (to === undefined) {
+            this.shelfDeparted = [...names];
+            this.finishInspectFlight();
+            return;
+          }
+          this.shelfDeparted = [...names];
+          this.flyClones(names, from, to, {
+            onLand: (name) => {
+              const at = this.inspectHeldNames.indexOf(name);
+              if (at !== -1) {
+                this.inspectHeldNames.splice(at, 1);
+              }
+            },
+            onDone: () => this.finishInspectFlight(),
+          });
+        }));
+      });
     },
     leaveInspect(): void {
+      if (this.inspectFlightActive) {
+        return;
+      }
+      const names = this.collectedEntries.map((e) => e.name);
+      const from = this.measureRects(names, (n) => this.inspectCardEl(n));
+      if (consoleReducedMotionActive() || from === undefined || names.length === 0) {
+        this.settleLeaveInspect();
+        return;
+      }
+      const to = this.measureRects(names, (n) => this.shelfCardEl(n));
+      if (to === undefined) {
+        this.settleLeaveInspect();
+        return;
+      }
+      // The big row empties card by card; the shelf's seats fill back one by
+      // one — the packet returns only AFTER the collection is home.
+      this.inspectHeldNames = [...names];
+      this.shelfReturned = [];
+      this.beginInspectFlight();
+      this.flyClones(names, from, to, {
+        onLand: (name) => {
+          this.shelfReturned = [...this.shelfReturned, name];
+        },
+        onDone: () => {
+          this.finishInspectFlight();
+          this.settleLeaveInspect();
+        },
+      });
+    },
+    settleLeaveInspect(): void {
+      this.inspectHeldNames = [];
+      this.shelfDeparted = [];
+      this.shelfReturned = [];
       // A packet that arrived during the inspect presents NOW: the holds are
       // armed SYNCHRONOUSLY, in the same tick the stage becomes visible — the
       // cards never flash raw before their arrival plays.
@@ -1074,10 +1226,31 @@ export default defineComponent({
       // Focus returns to the stage the player left — the packet (or the wait).
       this.focusIdx = Math.min(this.focusIdx, Math.max(0, this.packetEntries.length - 1));
     },
-    /** While inspecting, the shelf's cards are OUT on the big row: their shelf
-     *  slots hold empty (one physical set, never two copies). */
+    beginInspectFlight(): void {
+      this.inspectFlightActive = true;
+      if (this.inspectFlightTimer !== undefined) {
+        window.clearTimeout(this.inspectFlightTimer);
+      }
+      // Bounded: a stranded flight may absorb input for at most this long.
+      this.inspectFlightTimer = window.setTimeout(() => this.finishInspectFlight(), consoleMotionMs(2600));
+    },
+    finishInspectFlight(): void {
+      if (this.inspectFlightTimer !== undefined) {
+        window.clearTimeout(this.inspectFlightTimer);
+        this.inspectFlightTimer = undefined;
+      }
+      this.inspectFlightActive = false;
+      this.inspectHeldNames = [];
+      this.disposeClones();
+    },
+    /** While its card is OUT on the big row a shelf seat holds empty (one
+     *  physical set, never two copies): held from the frame its clone SPAWNS
+     *  (`shelfDeparted`), revealed by its OWN return landing. */
     shelfHeld(name: CardName): boolean {
-      return this.inspecting || isTraySlotHeld(name);
+      if (this.shelfDeparted.includes(name) && !this.shelfReturned.includes(name)) {
+        return true;
+      }
+      return isTraySlotHeld(name);
     },
     // ── fullscreen inspect (X) ──────────────────────────────────────────
     zoomFocused(): void {
@@ -1155,18 +1328,21 @@ export default defineComponent({
         if (slotW < 10 || slotH < 10) {
           return;
         }
-        const wrapBox = wrap.getBoundingClientRect();
+        // THE STAGE's box, not the wrap's: the shelved zones inset their
+        // stages off the shelf overlay, so the stage box IS the honest room.
+        const stageEl = row.closest<HTMLElement>('.con-draftws__stage') ?? wrap;
         const chrome = this.stageChromeHeight();
-        // The row's own vertical padding (focus/lift headroom) is part of the
-        // height budget — MEASURED off the element, never re-stated as a
-        // constant that drifts from the stylesheet.
+        // The row's own paddings (focus/lift headroom on all four sides) are
+        // part of the budget — MEASURED off the element, never re-stated as
+        // constants that drift from the stylesheet.
         const rowStyle = getComputedStyle(row);
         const rowPadY = (parseFloat(rowStyle.paddingTop) || 0) + (parseFloat(rowStyle.paddingBottom) || 0);
+        const rowPadX = (parseFloat(rowStyle.paddingLeft) || 0) + (parseFloat(rowStyle.paddingRight) || 0);
         const layout = wsStageLayout({
           // The ZONE's width, never the row's own: a shrink-to-fit row
           // reports its content width — the fit engine reading its output.
-          availW: wrap.clientWidth,
-          availH: Math.max(120, wrapBox.height - chrome - rowPadY),
+          availW: Math.max(160, stageEl.clientWidth - rowPadX),
+          availH: Math.max(120, stageEl.clientHeight - chrome - rowPadY),
           slotW, slotH,
           n: list.length,
           ui: conUiScale(),
@@ -1184,6 +1360,112 @@ export default defineComponent({
       }
       const fin = (this.$el as HTMLElement).querySelector<HTMLElement>('.con-draftws__finstrip');
       return fin === null ? 0 : fin.offsetHeight + 12 * conUiScale();
+    },
+    // ── the clone-proxy flights (the LT spread/collect) ─────────────────
+    /** Rects for every name, or undefined when ANY is unmeasurable — a
+     *  half-measured convoy teleports half its cards, so it never flies. */
+    measureRects(names: ReadonlyArray<CardName>, elOf: (n: CardName) => HTMLElement | null): Map<CardName, DOMRect> | undefined {
+      const out = new Map<CardName, DOMRect>();
+      for (const name of names) {
+        const el = elOf(name);
+        const r = el?.getBoundingClientRect();
+        if (r === undefined || r.width < 8 || r.height < 8) {
+          return undefined;
+        }
+        out.set(name, r);
+      }
+      return out;
+    },
+    /**
+     * Fly pixel-true CLONES of the real card nodes rect→rect (the deployment
+     * summary's clone trick: effective zoom = rect / offsetWidth, so the copy
+     * is the same printed face at the same size). Transform-only; every card
+     * lands on its own cadence; the batch owns and disposes ITS proxies.
+     */
+    flyClones(
+      names: ReadonlyArray<CardName>,
+      from: Map<CardName, DOMRect>,
+      to: Map<CardName, DOMRect>,
+      hooks: {onLand: (name: CardName) => void, onDone: () => void},
+    ): void {
+      const layer = document.createElement('div');
+      layer.className = 'con-draftws-flights';
+      layer.style.cssText = 'position:fixed;inset:0;z-index:11640;pointer-events:none;overflow:clip;';
+      document.body.appendChild(layer);
+      this.cloneLayer = layer;
+      let landed = 0;
+      const total = names.length;
+      const finishOne = (name: CardName) => {
+        hooks.onLand(name);
+        landed++;
+        if (landed >= total) {
+          // Handoff: reveal happened per-card; the layer leaves next frame.
+          requestAnimationFrame(() => hooks.onDone());
+        }
+      };
+      names.forEach((name, i) => {
+        const src = this.shelfCardEl(name) ?? this.inspectCardEl(name);
+        const f = from.get(name);
+        const t = to.get(name);
+        if (src === null || f === undefined || t === undefined) {
+          finishOne(name);
+          return;
+        }
+        const clone = src.cloneNode(true) as HTMLElement;
+        // The source sits under an ancestor `zoom`; the clone reproduces the
+        // RENDERED size via its own zoom = rect / natural (iteration-6 trick).
+        const natural = src.offsetWidth || 1;
+        clone.style.cssText = `position:fixed;left:0;top:0;margin:0;zoom:${(f.width / natural).toFixed(4)};` +
+          'transform-origin:top left;will-change:transform;';
+        // De-identify: a clone must never be found by slot/zoom resolvers.
+        clone.removeAttribute('data-zoom-slot');
+        for (const el of Array.from(clone.querySelectorAll('[data-zoom-slot], [data-tray-slot], [data-inspect-slot], [data-hand-dock-card]'))) {
+          el.removeAttribute('data-zoom-slot');
+          el.removeAttribute('data-tray-slot');
+          el.removeAttribute('data-inspect-slot');
+          el.removeAttribute('data-hand-dock-card');
+        }
+        layer.appendChild(clone);
+        // `zoom` scales coordinates too: positions are expressed IN the
+        // clone's zoomed space.
+        const z = f.width / natural;
+        const scale = t.width / f.width;
+        gsap.set(clone, {x: f.left / z, y: f.top / z, scale: 1});
+        const dur = 0.46;
+        const at = i * 0.065;
+        const tl = gsap.timeline({delay: at});
+        tl.to(clone, {x: t.left / z, duration: dur, ease: 'power2.inOut'}, 0);
+        tl.to(clone, {y: t.top / z, duration: dur, ease: 'power3.out'}, 0);
+        tl.to(clone, {scale, duration: dur, ease: 'power2.inOut'}, 0);
+        // Touchdown: the real slot materializes UNDER the clone; the clone
+        // leaves on the next frame (never a crossfade of identical twins).
+        const settle = () => {
+          finishOne(name);
+          requestAnimationFrame(() => clone.remove());
+        };
+        tl.eventCallback('onComplete', settle);
+        tl.eventCallback('onInterrupt', settle);
+      });
+      if (total === 0) {
+        hooks.onDone();
+      }
+    },
+    disposeClones(): void {
+      this.cloneLayer?.remove();
+      this.cloneLayer = undefined;
+    },
+    shelfCardEl(name: CardName): HTMLElement | null {
+      const slot = this.resolveShelfSlot(name);
+      return slot === null ? null : (slot.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? slot);
+    },
+    inspectCardEl(name: CardName): HTMLElement | null {
+      const root = this.$el as HTMLElement | null;
+      if (root === null) {
+        return null;
+      }
+      const esc = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(name) : name.replace(/"/g, '\\"');
+      const slot = root.querySelector<HTMLElement>(`[data-inspect-slot="${esc}"]`);
+      return slot === null ? null : (slot.querySelector<HTMLElement>(':is(.card-container, .pcard)') ?? slot);
     },
     // ── plumbing ────────────────────────────────────────────────────────
     slotCardEl(name: CardName): HTMLElement | null {
