@@ -131,3 +131,16 @@ open the door, and holding it would park the batch forever.
    on the stage edge. The embedded strip also reserves the zone frame's
    overhang as padding (`console_colony_trade.less` `:has` rule), so the ring
    and glow never cut.
+4. **The last take's commit runs at the intake's seam — HOLD FIRST, DECIDE A
+   TICK LATER.** The reveal's take commit once sampled the discard marker on a
+   mid-update frame, read it blinked-off, and closed a batch that still owed
+   its mandatory step (the e2e timeline showed claim → completeFlow →
+   goBoardHome inside 400 ms). Both take paths now `holdRevealForFollowUp`
+   provisionally and decide close-vs-keep on `$nextTick`, on settled state; a
+   trade transaction is likewise NOT a reliable «own flow» proof (a
+   no-track-move trade concludes before the discard), so the own/remote split
+   keys off the workspace's live CLAIM (`claimedByColonies`).
+5. **Debugging a wrong release**: `releaseWorkspaceOutcome(reason)` records
+   its caller tag (`lastOutcomeReleaseStack`, exposed via `__conColonyDiag`),
+   and the Pluto e2e's `watchPayout` keeps a transition timeline — read those
+   before instrumenting anything new.

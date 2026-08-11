@@ -31,17 +31,29 @@ export class Astrodrill extends CorporationCard implements ICorporationCard, IAc
       metadata: {
         cardNumber: 'R21',
         description: 'You start with 35 M€ and 3 asteroid resources.',
-        infoText: [{kind: 'action-short', text: 'An asteroid, any resource, or 3 titanium'}],
+        // EACH PRINTED ROW DESCRIBES ITSELF — see the note on Titan Floating
+        // Launch-pad, which had the identical fold. The first row genuinely
+        // offers two outcomes (add an asteroid OR take a standard resource), so
+        // its own «OR» is honest: it describes ONE printed row. What was wrong
+        // was the second row carrying the whole card's sentence, and a curated
+        // short covering all three branches at once.
+        // …and each row now gets its OWN caption, targeted by `tokens`. With two
+        // groups a caption can no longer land by the `blocks.length === 1`
+        // accident that put a three-branch sentence on one variant.
+        infoText: [
+          {kind: 'action-short', text: 'An asteroid on any card, or a standard resource', tokens: ['wild']},
+          {kind: 'action-short', text: 'Trade an asteroid for 3 titanium', tokens: ['titanium']},
+        ],
         renderData: CardRenderer.builder((b) => {
           b.br;
           b.megacredits(35).nbsp.resource(CardResource.ASTEROID, {amount: 3, digit});
           b.corpBox('action', (ce) => {
             ce.vSpace(Size.LARGE);
-            ce.action(undefined, (eb) => {
+            ce.action('Add an asteroid resource to ANY card OR gain any standard resource.', (eb) => {
               eb.empty().startAction.resource(CardResource.ASTEROID).asterix().slash().wild(1).or();
             });
             ce.vSpace();
-            ce.action('Add an asteroid resource to ANY card OR gain any standard resource, OR remove an asteroid resource from this card to gain 3 titanium.', (eb) => {
+            ce.action('Remove an asteroid resource from this card to gain 3 titanium.', (eb) => {
               eb.resource(CardResource.ASTEROID).startAction.titanium(3, {digit});
             });
           });

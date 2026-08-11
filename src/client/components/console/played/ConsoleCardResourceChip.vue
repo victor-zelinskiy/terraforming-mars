@@ -1,6 +1,6 @@
 <template>
   <span class="con-cardres"
-        :class="['con-cardres--' + variant, {'con-cardres--zero': count === 0, 'con-cardres--pop': pop}]"
+        :class="['con-cardres--' + variant, {'con-cardres--zero': count === 0}]"
         aria-hidden="true">
     <i class="con-cardres__icon" :class="iconClass"></i>
     <b class="con-cardres__n">{{ count }}</b>
@@ -9,30 +9,24 @@
 
 <script lang="ts">
 /**
- * THE CARD RESOURCE CHIP — how many of a card's OWN resource are on it, said
- * once, the same way, everywhere.
+ * THE SELF-TARGET PROXY'S RESOURCE READING.
  *
- * WHAT IT REPLACES. The count was told in four incompatible dialects at once: a
- * gold disc carrying a bare number (no icon at all — the player had to already
- * know the card holds floaters), a compact icon+number chip inside the
- * self-target proxy, a full-width «2 на этой карте» plate under the hero, and
- * the Result line's `2 → 3`. Three of those state the SAME fact.
+ * ⚠️ IT IS NOT FOR CARDS. A card states its own stored count through the
+ * premium face's carved capsule, at bottom-left beside the expansion stamp
+ * (`.pcard__res`) — one anchor, reserved by the premium language long before
+ * this. Hosts feed that capsule by passing the live `CardModel` through
+ * `ConsoleCardFaceLite`; anything drawn ON TOP of a card here would be a second
+ * counter at a second anchor, which is exactly the «the layout jumps» report
+ * that removed the overlay this component used to render.
  *
- * THE DIVISION OF LABOUR the chip settles:
- *   · this chip, ON the card  — the CURRENT count. Neutral dark gold.
- *   · the Result / Summary    — the PROJECTED change (`2 → 3`). Emerald.
- * Green belongs to what WILL happen; a standing quantity is not an event, so it
- * never wears the gain colour.
+ * What is left is the one reading that has no card to sit on: the «ИСТОЧНИК ·
+ * ЭТА КАРТА» proxy is a navigation stop, not a face, and its option's current
+ * amount still belongs beside its name.
  *
- * ⚠️ IT IS AUTHORED IN THE CARD'S OWN PX SPACE, and that is what makes it
- * physical rather than a floating overlay. Every console host draws its card
- * inside a CSS `zoom` context (`.con-composer__actcard`, `.con-ptsel__slot`)
- * whose factor already folds in `--con-ui-scale`; a rem-authored child there
- * would be scaled twice. Px means the chip is measured in the same 320×460
- * space the card face is — so it rides the card's zoom, its focus lift, its
- * scale, a FLIP and the fullscreen inspect BY CONSTRUCTION, with no second
- * animation to keep in sync and no overlay to re-position. The one variant that
- * is NOT on a card (`proxy`) is rem-authored, because there it is ordinary UI.
+ * The division of labour, unchanged:
+ *   · the card's own capsule — the CURRENT count. Neutral warm gold.
+ *   · the Result / Summary   — the PROJECTED change (`2 → 3`). Emerald.
+ * Green belongs to what WILL happen; a standing quantity is not an event.
  *
  * It knows no card and no resource: the icon key and the count arrive from the
  * caller, which already holds the server's `{type, count}`.
@@ -46,13 +40,8 @@ export default defineComponent({
     /** Resource key (`CardResource` value or an `optionIcons` key). */
     icon: {type: String, required: true},
     count: {type: Number, required: true},
-    /**
-     * `card` — mounted on a card face, in that card's px space.
-     * `proxy` — the self-target handle's own compact read, in rem.
-     */
-    variant: {type: String, default: 'card'},
-    /** The one-shot gain beat, when a host owns one. */
-    pop: {type: Boolean, default: false},
+    /** Today only `proxy` — see the header on why nothing rides a card. */
+    variant: {type: String, default: 'proxy'},
   },
   computed: {
     iconClass(): string {

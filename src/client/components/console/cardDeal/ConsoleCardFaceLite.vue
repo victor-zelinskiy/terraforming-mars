@@ -31,7 +31,12 @@
        card uses (name-only static mode, inert by construction), so the flying
        proxy and the real card can never disagree. Out-of-scope types keep the
        legacy lite face below. -->
-  <PremiumCard v-if="premiumFace" :name="name" :inert="true" aria-hidden="true" />
+  <!-- `card` is OPTIONAL and, when a host has the live model, it is what makes
+       the face's own bottom-left resource capsule state the TRUTH instead of a
+       printed 0. Without it every console surface drew a permanent «0» on every
+       resource card and the real count had to be told a second time somewhere
+       else — two counters on one card, in two different places. -->
+  <PremiumCard v-if="premiumFace" :name="name" :card="card" :inert="true" aria-hidden="true" />
 
   <div v-else class="card-container filterDiv con-card-lite" :class="rootClass" :style="artStyle" aria-hidden="true">
     <span class="card-corner card-corner--tl"></span>
@@ -58,6 +63,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
 import {CardType} from '@/common/cards/CardType';
 import {CardMetadata} from '@/common/cards/CardMetadata';
 import {CardRequirementDescriptor} from '@/common/cards/CardRequirementDescriptor';
@@ -82,6 +88,20 @@ export default defineComponent({
     name: {
       type: String as () => CardName,
       required: true,
+    },
+    /**
+     * The LIVE card state, when the host has it.
+     *
+     * Omitted, the face is the pristine printed one — which is what the flight
+     * proxies want. Supplied, the premium renderer fills its own service
+     * anchors (today: the stored-resource capsule beside the expansion stamp)
+     * from real data. It is deliberately not required: «lite» has always meant
+     * «no interactivity, no cost», never «no truth».
+     */
+    card: {
+      type: Object as () => CardModel | undefined,
+      required: false,
+      default: undefined,
     },
   },
   computed: {

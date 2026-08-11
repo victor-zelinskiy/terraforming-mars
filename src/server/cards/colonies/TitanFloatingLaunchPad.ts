@@ -34,12 +34,23 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
 
       metadata: {
         cardNumber: 'C44',
-        infoText: [{kind: 'action-short', text: 'A floater on a jovian card, or trade for free'}],
+        // EACH PRINTED ROW DESCRIBES ITSELF. The first row used to carry NO
+        // description, and a description-less action frame is folded into its
+        // described sibling (`buildCardInformation.extractEffectActionGroups`)
+        // — so ONE information group had to cover BOTH variants, and the card's
+        // curated `action-short` landed on it unambiguously by accident
+        // (`applyActionShorts`, `blocks.length === 1`). The console then showed
+        // «Add 1 floater to ANY JOVIAN CARD **or** spend 1 floater here to trade
+        // for free» on the variant that only trades. A caption that names the
+        // other half of an «или» card is the one thing a per-variant slot may
+        // never say. Two described rows → two groups → one rule each, and the
+        // curated short is no longer needed: each rule already reads as its own
+        // caption, which is exactly when the contract says to omit it.
         renderData: CardRenderer.builder((b) => {
-          b.action(undefined, (eb) => {
+          b.action('Add 1 floater to ANY JOVIAN CARD.', (eb) => {
             eb.empty().startAction.resource(CardResource.FLOATER, {secondaryTag: Tag.JOVIAN}).nbsp.or();
           }).br;
-          b.action('Add 1 floater to ANY JOVIAN CARD or spend 1 floater here to trade for free.', (eb) => {
+          b.action('Spend 1 floater here to trade for free.', (eb) => {
             eb.resource(CardResource.FLOATER).startAction.trade();
           }).br.br;
           b.resource(CardResource.FLOATER, {amount: 2, secondaryTag: Tag.JOVIAN});

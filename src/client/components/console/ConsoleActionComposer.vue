@@ -42,21 +42,14 @@
             <!-- Keyed micro-swap: a Viron repeat handoff re-points the stage to
                  the inner action's card without a remount — the face crossfades
                  while the slot (the FLIP/zoom target) stays stable. -->
+            <!-- THE LIVE MODEL: the face's own capsule (bottom-left, beside
+                 the expansion stamp) carries the stored count. It replaces
+                 three readings that all said the same thing — a gold disc with
+                 a bare number, a full-width «N на этой карте» plate below the
+                 hero, and a printed «0» on the face itself. -->
             <transition name="con-actfocus-card" mode="out-in">
-              <ConsoleCardFaceLite :key="entry.cardName" :name="entry.cardName" />
+              <ConsoleCardFaceLite :key="entry.cardName" :name="entry.cardName" :card="heroCardModel" />
             </transition>
-            <!-- THE STORED-RESOURCE COUNTER, mounted INSIDE the card's own zoom
-                 context: it is part of the card, so it rides the card's scale,
-                 its focus lift and every flight without a second animation.
-                 It replaces BOTH the old readings — a gold disc carrying a bare
-                 number (no icon: the player had to already know what the card
-                 stores) and the full-width «N на этой карте» plate below, which
-                 said the same fact a third time in the one column whose
-                 geometry must never change between phases. -->
-            <ConsoleCardResourceChip v-if="storedResource !== undefined"
-                                     :icon="storedResource.icon"
-                                     :count="displayedStoredCount"
-                                     :pop="revealGainPop" />
           </div>
         </div>
         <!-- (No stage-specific caption under the hero — deliberately. A local
@@ -683,7 +676,6 @@ import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/
 import {getCard} from '@/client/cards/ClientCardManifest';
 import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
 import ConsolePlayedTargetLink from '@/client/components/console/played/ConsolePlayedTargetLink.vue';
-import ConsoleCardResourceChip from '@/client/components/console/played/ConsoleCardResourceChip.vue';
 import {
   buildPlayedTargetModel, planPlayedTargetLayout, findPlayedTargetFocus, reseatPlayedTargetFocus,
   stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner, playedTargetAt,
@@ -802,7 +794,7 @@ export type ComposerOutcome =
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleCardResourceChip},
+  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1197,8 +1189,26 @@ export default defineComponent({
       return branch.steps.every((step, i) =>
         step.kind !== 'input' || step.repeatAction === true || this.captured[i] !== undefined);
     },
-    /** The live stored resource on the SOURCE card (shown under the hero card
-     *  — the pool most spend-branches consume). */
+    /**
+     * The hero card's LIVE model, carrying the count the player should SEE.
+     *
+     * The premium face owns the counter (its carved capsule beside the
+     * expansion stamp); handing it only a NAME made it print a permanent «0»,
+     * which is why the real number used to be told again by a badge and a
+     * plate. Handing it the tableau model straight would lose the gain BEAT:
+     * during a deck-check the count is deliberately frozen at the pre-reveal
+     * value until the reward lands, so the model is passed with
+     * `displayedStoredCount` — the one value that already encodes that pause.
+     */
+    heroCardModel(): CardModel | undefined {
+      const model = this.thisPlayer.tableau.find((c) => c.name === this.entry.cardName);
+      if (model === undefined || this.storedResource === undefined) {
+        return model;
+      }
+      return {...model, resources: this.displayedStoredCount};
+    },
+    /** The live stored resource on the SOURCE card (the pool most spend-branches
+     *  consume) — the gain beat's baseline and the flight's subject. */
     storedResource(): {icon: string, count: number} | undefined {
       const model = this.thisPlayer.tableau.find((c) => c.name === this.entry.cardName);
       const type = getCard(this.entry.cardName)?.resourceType;
@@ -3203,7 +3213,7 @@ export default defineComponent({
         // The explicit root ref — NEVER $el (a dev-build root comment makes
         // the template a fragment, whose $el is a Comment node).
         const root = this.$refs.rootEl as HTMLElement | undefined;
-        const to = root?.querySelector<HTMLElement>('.con-cardres');
+        const to = root?.querySelector<HTMLElement>('.con-composer__actcard .pcard__res');
         if (el === undefined || from === undefined || to === null || to === undefined) {
           this.applyRevealGain();
           return;

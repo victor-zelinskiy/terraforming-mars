@@ -19353,7 +19353,14 @@ html.console-mode {
 
     /* ── The two zones: the anchored CARD and the WORK SURFACE ───────────── */
     .con-composer__playmain {
-        align-items: center;
+        /* STRETCH, not centre: the decision column must be allowed to fill the
+           band. Centring made it content-sized, so `.con-composer__scroll`
+           (`flex: 1; min-height: 0`) had nothing to grow into — the column
+           floated in the middle with unused band above and below, and the
+           moment its content passed that content height a rail appeared for a
+           few pixels of travel. The hero card keeps its own `align-self`, so
+           it is still vertically centred beside the column. */
+        align-items: stretch;
         column-gap: 2.2rem;
         max-width: none;
         width: 100%;
@@ -19396,8 +19403,11 @@ html.console-mode {
         /* Wide by default; the cap only stops a 4K band from stretching the
            payment rows past comfortable reading. */
         max-width: 74rem;
-        align-self: center;
-        max-height: 100%;
+        /* …and the column takes the whole height it is given (see `__playmain`).
+           `max-height: 100%` on a centred, content-sized box is what capped the
+           scroller at the content's own height. */
+        align-self: stretch;
+        min-height: 0;
         display: flex;
         flex-direction: column;
         gap: 0;
@@ -19955,28 +19965,18 @@ html.console-mode {
     &__imp-delta { font-weight: 800; color: @con-mint; font-variant-numeric: tabular-nums; }
 }
 
-/* ═══ THE CARD RESOURCE CHIP (ConsoleCardResourceChip.vue) ═══
-   «How many of this card's own resource are on it», said once and the same way
-   on every surface that asks the player to reason about that number.
+/* ═══ THE SELF-TARGET PROXY'S RESOURCE READING (ConsoleCardResourceChip.vue) ═══
+   The proxy is a navigation stop, not a card, so it cannot carry the premium
+   face's own counter — it gets this compact reading instead.
 
-   IT IS PART OF THE CARD, NOT AN OVERLAY ON IT. The `--card` variant is
-   authored in PX because every console host draws its card inside a CSS `zoom`
-   context whose factor already folds in `--con-ui-scale` (`.con-composer__actcard`
-   at `0.85·ui`, `.con-ptsel__slot` at the solved candidate zoom). A rem child
-   there would be scaled twice; px puts the chip in the SAME 320×460 space the
-   card face is measured in, so it rides the card's zoom, its focus lift, its
-   scale, a FLIP and the fullscreen inspect by construction — no second
-   animation to keep in sync, and no independent layer to re-position. That is
-   also why it never protrudes past the card BOX: it crosses the card's painted
-   FRAME (a mounting tab on the rim), which is a visual overlap and therefore
-   can never become a container's overflow.
-
-   THE PLATE IS DARK ON PURPOSE. The resource sprite is a full-bleed gold-framed
-   tile (`assets/resources/*.png` — the ornate frame is baked into the art), so a
-   gold plate under it doubles the gold and the chip starts shouting. Dark plate,
-   thin warm rim, the sprite supplies the colour. Neutral warm gold = a standing
-   quantity; EMERALD is reserved for what is about to change (the Result line's
-   `2 → 3`) — a number that is merely true is not an event. */
+   ⚠️ ON A CARD there is no chip at all, and that is the fix: the premium face
+   ALREADY owns a stored-resource capsule, carved into the panel at bottom-left
+   beside the expansion stamp (`.pcard__res`). The console was handing that face
+   only a card NAME, so it printed a permanent «0» — and the true count then had
+   to be told a second time by an overlay somewhere else on the same card. Two
+   counters, two anchors, one of them always wrong. Hosts now pass the live
+   `CardModel` through `ConsoleCardFaceLite`, so there is ONE counter, in the
+   place the premium language already reserved for it, on every surface. */
 .con-cardres {
     display: inline-flex;
     align-items: center;
@@ -19994,40 +19994,10 @@ html.console-mode {
 }
 .con-cardres__n { font-weight: 800; color: #f0d9a4; }
 /* ZERO is a real, decision-relevant reading («this card takes floaters and has
-   none»), so it is shown and merely quieted — never dropped. A missing chip
-   would read as «this card cannot hold them at all», which is the opposite. */
+   none»), so it is shown and merely quieted — never dropped. */
 .con-cardres--zero .con-cardres__n { color: rgba(214, 190, 148, 0.6); }
 
-/* ── ON A CARD. keep-px: the card's own space (see the block header). ── */
-.con-cardres--card {
-    position: absolute;
-    /* The left rim at mid-height: clear of the cost badge and title plate
-       above, the requirement band below them, and the VP + `△` markers at the
-       foot — the one band that is free on every card shape. */
-    left: 3px; /* keep-px */
-    top: 50%;
-    transform: translateY(-50%);
-    gap: 3px; /* keep-px */
-    height: 32px; /* keep-px */
-    padding: 0 8px 0 4px; /* keep-px */
-    border-radius: 9px; /* keep-px */
-    background: linear-gradient(180deg, rgba(32, 24, 12, 0.95) 0%, rgba(18, 14, 8, 0.95) 100%);
-    box-shadow: inset 0 0 0 1.5px rgba(209, 172, 105, 0.5), 0 2px 7px rgba(0, 0, 0, 0.6);
-    z-index: 2;
-    .con-cardres__icon { width: 24px; height: 24px; } /* keep-px */
-    .con-cardres__n { font-size: 17px; } /* keep-px */
-    /* The one-shot gain beat, when a host owns one. Transform only, so the
-       chip's box — and the card's — never changes. */
-    &.con-cardres--pop { animation: con-cardres-pop calc(620ms * var(--motion-scale, 1)) cubic-bezier(0.2, 0.9, 0.3, 1.2) 1; }
-}
-@keyframes con-cardres-pop {
-    0% { transform: translateY(-50%) scale(1); }
-    35% { transform: translateY(-50%) scale(1.22); }
-    100% { transform: translateY(-50%) scale(1); }
-}
-
-/* ── INSIDE THE SELF-TARGET PROXY. Ordinary UI, so rem: the proxy is not a card
-   and sits in no zoom context of its own. ── */
+/* Ordinary UI, so rem: the proxy is not a card and sits in no zoom context. */
 .con-cardres--proxy {
     flex: 0 0 auto;
     gap: .2rem;
@@ -20037,9 +20007,6 @@ html.console-mode {
     box-shadow: inset 0 0 0 .05rem rgba(209, 172, 105, 0.45);
     .con-cardres__icon { width: 1.05rem; height: 1.05rem; }
     .con-cardres__n { font-size: .82rem; }
-}
-@media (prefers-reduced-motion: reduce) {
-    .con-cardres--card.con-cardres--pop { animation: none; }
 }
 
 /* ═══ THE SELF-TARGET CONNECTOR (ConsolePlayedTargetLink.vue) ═══
@@ -20225,7 +20192,22 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     &__loading { font-size: .95rem; color: @con-text-dim; padding: .5rem 0; }
 
     &__sub-title--spaced { margin-top: .3rem; }
+    /* The RESULT strip and the branch strips are metadata beside their label,
+       so their chips take the COMPACT family — one decision for the whole
+       inline-chip hierarchy (see `--con-chip-c-*`). */
     &__result-chips { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
+    &__result-chips .action-effect-chip.action-effect-chip,
+    &__variant-chips .action-effect-chip.action-effect-chip {
+        font-size: var(--con-chip-c-fs, .82rem);
+        padding: var(--con-chip-c-pad, .14rem .42rem .14rem .26rem);
+        gap: var(--con-chip-c-gap, .22rem);
+        border-radius: var(--con-chip-c-radius, .5rem);
+    }
+    &__result-chips .action-effect-chip__icon.action-effect-chip__icon,
+    &__variant-chips .action-effect-chip__icon.action-effect-chip__icon {
+        width: var(--con-chip-c-icon, 1.05rem);
+        height: var(--con-chip-c-icon, 1.05rem);
+    }
     /* RESULT HERO — the play-confirm's decision-carrying block. The game data
        (what you get / what changes) is the dominant, glance-readable surface,
        framed and prominent, so the CTA is never the most legible thing on the
@@ -21010,8 +20992,9 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
 
 /* Handheld (Steam Deck) — tighter composer chrome. */
 html.con-profile-handheld .con-composer {
-    .con-composer__panel { width: min(38rem, 100%); padding: .7rem .8rem .5rem; gap: .4rem; }
-    .con-composer__panel--play { width: min(58rem, 100%); }
+    &:not(.con-composer--embed) .con-composer__panel { width: min(38rem, 100%); }
+    .con-composer__panel { padding: .7rem .8rem .5rem; gap: .4rem; }
+    &:not(.con-composer--embed) .con-composer__panel--play { width: min(58rem, 100%); }
     .con-composer__playmain { gap: .7rem; }
     .con-composer__playcard { zoom: 0.82; }
     .con-composer__panel--act { width: min(44rem, 100%); }
@@ -21082,7 +21065,9 @@ html.con-profile-handheld .con-composer--embed {
 
 /* Large / 4K — a gentle readability boost only. */
 html.con-profile-large .con-composer {
-    .con-composer__panel { width: min(52rem, 100%); }
+    /* The standalone dialog's cap — see the note in console_tv.less. An
+       EMBEDDED composer takes its host's width. */
+    &:not(.con-composer--embed) .con-composer__panel { width: min(52rem, 100%); }
     .con-composer__name { font-size: 1.65rem; }
     .con-composer__opt-name { font-size: 1.05rem; }
     .con-composer__foot-item { font-size: 1rem; }

@@ -1,4 +1,6 @@
 import {expect} from 'chai';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as cards from '../../src/genfiles/cards.json';
 import * as ruCards from '../../src/locales/ru/cards.json';
 import * as ruInfo from '../../src/locales/ru/card_info.json';
@@ -116,6 +118,76 @@ describe('action captions (the action browser one-liner)', () => {
       }
     }
     expect(over, 'actions that need a curated caption (author one, or add the card to AWAITING_CAPTION)').to.deep.eq([]);
+  });
+
+  /**
+   * EVERY PRINTED ACTION ROW DESCRIBES ITSELF.
+   *
+   * `b.action(undefined, …)` draws an action frame with NO co-located
+   * description, and the generator FOLDS such a frame into its described
+   * sibling (`buildCardInformation.extractEffectActionGroups`). One information
+   * group then has to cover TWO printed rows — and the console draws those rows
+   * as two separate VARIANTS. So the variant the player selected showed the
+   * other one's rule: «Add 1 floater to ANY JOVIAN CARD **or** spend 1 floater
+   * here to trade for free» on the branch that only trades. The card's curated
+   * caption compounded it — with a single folded block, `applyActionShorts`
+   * attaches it via `blocks.length === 1` and files no ambiguity note, so a
+   * card-level sentence landed in a per-variant slot with the audit clean.
+   *
+   * A per-variant slot may never name the other half of an «или» card. The rule
+   * that makes that impossible is authoring-side and one line long: describe
+   * every row you draw.
+   *
+   * The two survivors are SAFE and stay listed rather than silently skipped:
+   * their modules generate no action information at all (asserted below), so
+   * there is no group to fold into and no caption to leak.
+   */
+  it('every printed action row carries its own description', () => {
+    const SAFE_WITHOUT_INFORMATION: ReadonlyArray<string> = [
+      'community/ProjectWorkshop.ts',
+      'prelude2/VenusOrbitalSurvey.ts',
+    ];
+    const root = path.join(__dirname, '..', '..', 'src', 'server', 'cards');
+    const offenders: Array<string> = [];
+    const walk = (dir: string): void => {
+      for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          walk(full);
+          continue;
+        }
+        if (!entry.name.endsWith('.ts')) {
+          continue;
+        }
+        if (!/\.action\(undefined,/.test(fs.readFileSync(full, 'utf8'))) {
+          continue;
+        }
+        const rel = path.relative(root, full).split(path.sep).join('/');
+        if (!SAFE_WITHOUT_INFORMATION.includes(rel)) {
+          offenders.push(rel);
+        }
+      }
+    };
+    walk(root);
+    expect(offenders,
+      'a description-less action row is folded into its sibling, so ONE information group ' +
+      'covers TWO console variants and the caption names the wrong branch. Give the row its ' +
+      'own description (see TitanFloatingLaunchPad / Astrodrill), or — if the card generates ' +
+      'no action information at all — list it in SAFE_WITHOUT_INFORMATION with that reason.',
+    ).to.deep.eq([]);
+  });
+
+  /** …and the exemptions stay TRUE: the moment such a card starts generating
+   *  action information, its fold becomes the caption bug again. */
+  it('the description-less exemptions still generate no action information', () => {
+    const live: Array<string> = [];
+    for (const name of ['Project Workshop', 'Venus Orbital Survey']) {
+      const card = CARDS.find((c) => c.name === name);
+      if (card !== undefined && actionBlocks(card).length > 0) {
+        live.push(`${name} now has action information — its rows must each be described`);
+      }
+    }
+    expect(live).to.deep.eq([]);
   });
 
   it('the awaiting list only names cards that are genuinely still over budget (it must shrink, never rot)', () => {

@@ -145,12 +145,9 @@
                  visibly answers the cursor on the right (the browse ⇄ detail
                  link the descend phrase later deepens). -->
             <div class="con-cardactions__detail-card" :key="focusedTile.cardName">
-              <ConsoleCardFaceLite :name="focusedTile.cardName" />
-              <!-- The SAME physical counter every action surface wears, inside
-                   the thumbnail's own zoom so it scales with the face. -->
-              <ConsoleCardResourceChip v-if="focusedGroup !== undefined && focusedGroup.cardResource !== undefined"
-                                       :icon="String(focusedGroup.cardResource.type)"
-                                       :count="focusedGroup.cardResource.count" />
+              <!-- The LIVE model, so the face's own capsule states the stored
+                   count instead of a printed 0 (see ConsoleCardFaceLite). -->
+              <ConsoleCardFaceLite :name="focusedTile.cardName" :card="focusedCardModel" />
             </div>
           </div>
 
@@ -439,6 +436,7 @@
 import {defineComponent, PropType} from 'vue';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
 import {CardResource} from '@/common/CardResource';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
 import type {ICardRenderEffect} from '@/common/cards/render/Types';
@@ -499,7 +497,6 @@ import {
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import ConsoleActionComposer, {ComposerOutcome} from '@/client/components/console/ConsoleActionComposer.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
-import ConsoleCardResourceChip from '@/client/components/console/played/ConsoleCardResourceChip.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
@@ -548,7 +545,7 @@ type ComposerContext = ActionFlowDraft;
 
 export default defineComponent({
   name: 'ConsoleCardActions',
-  components: {ConsoleActionComposer, ConsoleCardFaceLite, ConsoleCardResourceChip, ConsoleScrollArea, ConsoleWsHead, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
+  components: {ConsoleActionComposer, ConsoleCardFaceLite, ConsoleScrollArea, ConsoleWsHead, ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, GamepadGlyph},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -646,6 +643,12 @@ export default defineComponent({
       });
     },
     /** Live stored-resource counts by card (instant, from the tableau + manifest). */
+    /** The focused card's LIVE model — what lets the thumbnail's own premium
+     *  capsule state the stored count instead of a printed 0. */
+    focusedCardModel(): CardModel | undefined {
+      const name = this.focusedTile?.cardName;
+      return name === undefined ? undefined : this.thisPlayer.tableau.find((c) => c.name === name);
+    },
     cardResources(): Map<CardName, {type: CardResource, count: number}> {
       const out = new Map<CardName, {type: CardResource, count: number}>();
       for (const c of this.thisPlayer.tableau) {

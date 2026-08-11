@@ -286,7 +286,7 @@ function armSafety(): void {
   }
   safetyTimer = setTimeout(() => {
     safetyTimer = undefined;
-    releaseWorkspaceOutcome();
+    releaseWorkspaceOutcome('claim-safety');
   }, CLAIM_SAFETY_MS);
 }
 
@@ -307,7 +307,7 @@ export function claimWorkspaceOutcome(
   expectedCards = 0,
 ): void {
   if (sourceCard === '' || kinds.length === 0) {
-    releaseWorkspaceOutcome();
+    releaseWorkspaceOutcome('empty-claim');
     return;
   }
   workspaceOutcomeState.host = host;
@@ -354,8 +354,17 @@ export function markWorkspaceOutcomePresenting(): void {
   }
 }
 
+/**
+ * DIAGNOSTIC — WHO performed the LAST release, for the e2e lifecycle probes
+ * (`__conColonyDiag`). A wrong release is a one-frame event that took three
+ * instrumented e2e runs to localize once; a symbolic reason at each call site
+ * names the culprit on the first look (a stack is minified in prod builds).
+ */
+export let lastOutcomeReleaseStack = '';
+
 /** Drop the claim (the stage folded, the outcome was acknowledged, unmount). */
-export function releaseWorkspaceOutcome(): void {
+export function releaseWorkspaceOutcome(reason = 'unspecified'): void {
+  lastOutcomeReleaseStack = `${reason} @${typeof performance !== 'undefined' ? Math.round(performance.now()) : 0}`;
   clearSafety();
   clearBeat();
   clearArrival();

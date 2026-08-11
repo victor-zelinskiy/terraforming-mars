@@ -154,19 +154,14 @@
                        'con-ptsel__slot--locked': isChosen(cand.cardName),
                      }"
                      :data-zoom-slot="cand.slotKey">
-                  <ConsoleCardFaceLite :name="cand.cardName" />
-                  <!-- CONTEXT-DRIVEN only: the counter appears when the card's
-                       resource is what the step MOVES, never because the card
-                       happens to have one (that painted a gold «0» on every
-                       building). Once it does appear it appears on EVERY
-                       eligible target, zero included — an empty card answering
-                       with no chip at all reads as «this card does not take
-                       them», which is the opposite of true.
-                       It is a child of the zoomed slot, so it is part of the
-                       card: same scale, same focus lift, same flight. -->
-                  <ConsoleCardResourceChip v-if="showsResource(cand)"
-                                           :icon="cand.resourceContext?.icon ?? ''"
-                                           :count="cand.resourceContext?.count ?? 0" />
+                  <!-- THE LIVE MODEL, so the card's OWN capsule (bottom-left,
+                       beside the expansion stamp — the premium face's service
+                       anchor) states the real count. It used to receive only a
+                       name, so every candidate printed a permanent «0» there
+                       and the true number had to be repeated by a second chip
+                       somewhere else on the same card. One counter, one place,
+                       on every surface. -->
+                  <ConsoleCardFaceLite :name="cand.cardName" :card="cand.model" />
                   <span v-if="isChosen(cand.cardName)" class="con-ptsel__lock" aria-hidden="true">{{ pickOrdinal(cand.cardName) }}</span>
                 </div>
               </div>

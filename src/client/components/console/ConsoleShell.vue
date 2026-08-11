@@ -1346,7 +1346,7 @@ import ConsoleHydroDrawLayer from '@/client/components/console/hydroDraw/Console
 import {armHydroDraw, abortHydroDraw, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
-import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {
@@ -5329,7 +5329,7 @@ export default defineComponent({
       if (!live && was) {
         clearColonyBonusEntry();
         if (workspaceOutcomeState.host === 'colonies') {
-          releaseWorkspaceOutcome();
+          releaseWorkspaceOutcome('resolution-end');
         }
         if (workspaceFrameMounted('colonies')) {
           setWorkspaceFrameServes('colonies', ['colony']);
@@ -6008,7 +6008,7 @@ export default defineComponent({
           return;
         }
         if (!this.workspaceOutcomeEmbedded && workspaceOutcomeState.stage === 'presenting') {
-          releaseWorkspaceOutcome();
+          releaseWorkspaceOutcome('embed-fell');
         }
       });
     },
@@ -9176,7 +9176,7 @@ export default defineComponent({
       if (host === 'colonies' && this.colonyResolutionLive) {
         return;
       }
-      releaseWorkspaceOutcome();
+      releaseWorkspaceOutcome('drawn-complete');
       // The COLONY host has nothing to fold: the section IS the surface, and
       // the trade transaction (glide → settle) finishes on the browse grid
       // the embed zone just handed back. Folding here would reset the ACTION
@@ -9214,7 +9214,12 @@ export default defineComponent({
      */
     onWorkspaceResultDetached(): void {
       const host = workspaceOutcomeState.host;
-      releaseWorkspaceOutcome();
+      // The colony RESOLUTION's claim spans every batch — same law as the
+      // drawn-complete arm above.
+      if (host === 'colonies' && this.colonyResolutionLive) {
+        return;
+      }
+      releaseWorkspaceOutcome('result-detached');
       if (host !== 'colonies') {
         this.foldWorkspaceAfterResult();
       }
@@ -9290,7 +9295,7 @@ export default defineComponent({
         // A prompt the workspace does not host (a placement, an OrOptions
         // branch, a resource pick) IS the demonstration that this action's
         // outcome lives elsewhere.
-        releaseWorkspaceOutcome();
+        releaseWorkspaceOutcome('reconcile');
       });
     },
     onRevealDiscardPick(): void {
@@ -10394,6 +10399,7 @@ export default defineComponent({
       tradeActive: colonyTradeState.active,
       resolutionLive: this.colonyResolutionLive,
       revealPending: this.rawDrawnRevealPending,
+      lastRelease: lastOutcomeReleaseStack.split('\n').slice(1, 7).join(' | '),
     });
     // Phase D of the discard cinematic reuses the ORDINARY hand-close episode;
     // the transaction awaits this instead of the shell watching a phase.

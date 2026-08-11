@@ -163,8 +163,11 @@ async function watchPayout(page: Page, ms: number): Promise<Sighting> {
         stage: d.outcomeStage ?? '',
         trade: d.tradeActive === true,
         live: d.resolutionLive === true,
+        deferred: d.taskDeferred === true,
+        wf: d.wfType ?? null,
         reveal: document.querySelector('.con-reveal') !== null,
         announce: document.querySelector('.con-mandatory') !== null,
+        rel: d.lastRelease ?? '',
       };
       const key = JSON.stringify(brief);
       if (key !== lastKey && timeline.length < 60) {
@@ -380,6 +383,9 @@ test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the
     await press(page, 'Enter', 2400);
   }
   await shoot(page, '11-own-colony-taken');
+  // The timeline is the diagnosis on a failure — dump it BEFORE asserting.
+  const seenEarly = await watching;
+  console.log('── Pluto own-colony resolution ──', JSON.stringify(seenEarly));
   await expect(embeddedHand, 'the mandatory discard did not open EMBEDDED inside the colony workspace')
     .toBeVisible({timeout: 12_000});
   // The crumb still names the workspace root; the seat is standing.
@@ -391,8 +397,7 @@ test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the
   await page.waitForTimeout(3200); // the discard flight + settle
   await shoot(page, '13-after-discard');
 
-  const seen = await watching;
-  console.log('── Pluto own-colony resolution ──', JSON.stringify(seen));
+  const seen = seenEarly;
   expect(seen.legacyModal, 'a LEGACY modal opened during the resolution').toBeFalsy();
   expect(seen.fullBleed, 'a payout mounted OUTSIDE a workspace zone during the resolution').toBeFalsy();
   expect(seen.workspaceSplit, 'TWO workspace roots were visible at once').toBeFalsy();
