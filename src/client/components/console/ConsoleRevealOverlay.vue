@@ -218,8 +218,11 @@
                   </div>
 
                   <!-- THIS COLONY's own discard — the step that closes THIS
-                       payout, under the card it belongs to. -->
-                  <div v-if="zone.state === 'active' && discardStep !== undefined"
+                       payout. STANDALONE ONLY: inside a workspace the ONE
+                       bottom status bar owns every verb (the same rule as the
+                       take chip), and an in-zone button was exactly what
+                       pushed the zone past the stage's vertical budget. -->
+                  <div v-if="zone.state === 'active' && discardStep !== undefined && !embedded"
                        class="con-reveal__closer"
                        :class="{'con-reveal__closer--ready': discardStepReady}">
                     <span class="con-reveal__closer-cta" :class="{'con-reveal__closer-cta--locked': !discardStepReady}">
@@ -243,12 +246,24 @@
                    row. While the batch is still landing only its CONTENT hides
                    (opacity — never promise a card that has not arrived). -->
               <div v-if="embedded" class="con-reveal__namebar con-ws-stage-status"
-                   :class="{'con-reveal__namebar--held': arrivalPending || drawnUntaken[focusIdx] === undefined}">
+                   :class="{'con-reveal__namebar--held': arrivalPending ||
+                            (drawnUntaken[focusIdx] === undefined && discardStep === undefined)}">
                 <template v-if="drawnUntaken[focusIdx] !== undefined">
                   <span class="con-cards__verdict-name" :key="drawnUntaken[focusIdx].card.name">{{ $t(drawnUntaken[focusIdx].card.name) }}</span>
                   <span class="con-cards__verdict con-cards__verdict--ok">
                     <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
                   </span>
+                </template>
+                <!-- The payout's CLOSING STEP lives in the ONE status bar when
+                     embedded (never an in-zone button): the same row that
+                     named the takeable card now carries the mandatory
+                     «Выбрать карту для сброса» — one place, one voice. -->
+                <template v-else-if="discardStep !== undefined">
+                  <span class="con-cards__verdict"
+                        :class="discardStepReady ? 'con-cards__verdict--ok' : 'con-reveal__closer-cta--locked'">
+                    <GamepadGlyph control="confirm" /><span>{{ $t(discardStep.label) }}</span>
+                  </span>
+                  <span v-if="!discardStepReady" class="con-reveal__closer-lock">{{ $t(discardStep.lockedReason) }}</span>
                 </template>
               </div>
               <div v-if="drawnUntaken.length > 4" class="con-reveal__pager" aria-hidden="true">
@@ -1269,13 +1284,14 @@ export default defineComponent({
       // height IS what the stage can spend on cards — no list to keep in sync,
       // and byte-identical to how the buy stage measures its own row.
       const availH = Math.max(200 * ui, strip.clientHeight - padY);
-      // The row's TRUE occupancy: the flat entries PLUS the colony-bonus
-      // zones — each zone stands a card-sized slot of its own (the active
-      // card / a face-down placeholder / the taken socket). Solving for the
-      // flat entries alone handed the fit a row one-two slots narrower than
-      // what actually renders, and the LAST zone clipped on the stage edge
-      // (the reported «бонусная карта обрезается справа»).
-      const n = Math.max(this.stripEntries.length + this.bonusZones.length, 1);
+      // The row's occupancy is WHAT THE BATCH HOLDS (`stripCount`: the batch's
+      // total cards + the other colonies' zones) — NOT what is left to take.
+      // Two shipped bugs live in this line: solving for the flat entries alone
+      // clipped the LAST zone on the stage edge (the row was 1-2 slots wider
+      // than the budget), and solving for the UNTAKEN remainder re-ran the fit
+      // as cards left, so the survivors — and the lone taken-socket — visibly
+      // GREW mid-batch. The scale is fixed from the batch's first frame.
+      const n = Math.max(this.stripCount, 1);
       // THE SHARED STAGE LAYOUT: size, focus-safe gap and row shape solved
       // together (consoleWsStageLayout). The gap is an OUTPUT, not a CSS
       // constant — that is what stops a focused card's ring from growing over

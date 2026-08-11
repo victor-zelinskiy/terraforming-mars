@@ -112,11 +112,34 @@ async function assertFlowGeometry(page: Page, preset: Preset): Promise<void> {
        RESERVE. Both edges are fixed widths with `overflow: hidden` (root
        --con-jrail-expanded-w, open chapter max-width), so a profile that
        raises the type ladder has to be measured against them: past either
-       one the last stages vanish silently instead of being named. */
-    const clipRoom = (selector: string) => {
-      const el = document.querySelector<HTMLElement>(selector);
-      return el === null ? -999 : el.clientWidth - el.scrollWidth;
-    };
+       one the last stages vanish silently instead of being named.
+       ⚠ NEITHER edge is readable through `scrollWidth` on the element the
+       content lives in: `__view` is `overflow: visible`, so the browser
+       reports scrollWidth === clientWidth however far the chapters spill,
+       and the clip happens one level up on the ROOT. Measured naively this
+       returns a constant 0 on a perfectly fitting rail AND on a butchered
+       one. Compare real edges instead: the rightmost chapter box against
+       the reserve, and the chapter's content against its own cap. */
+    const railRoom = (() => {
+      const root = document.querySelector<HTMLElement>('.con-start__wshead .con-jrail');
+      const view = document.querySelector<HTMLElement>('.con-jrail__view--expanded');
+      if (root === null || view === null) {
+        return -999;
+      }
+      const right = Array.from(view.children).reduce(
+        (max, el) => Math.max(max, el.getBoundingClientRect().right),
+        view.getBoundingClientRect().left);
+      return Math.round(root.getBoundingClientRect().right - right);
+    })();
+    const chapterRoom = (() => {
+      const body = document.querySelector<HTMLElement>('.con-jrail__phase--open .con-jrail__phase-body');
+      if (body === null) {
+        return -999;
+      }
+      // The cap is what it may grow to; scrollWidth is what it wants.
+      const cap = parseFloat(getComputedStyle(body).maxWidth);
+      return Number.isFinite(cap) ? Math.round(cap - body.scrollWidth) : -999;
+    })();
     return {
       count: document.querySelectorAll('.con-start__wshead .con-jrail').length,
       connectorCount: document.querySelectorAll('.con-start__wshead .con-wshead__flow-connector').length,
@@ -130,8 +153,8 @@ async function assertFlowGeometry(page: Page, preset: Preset): Promise<void> {
         rail.top > mark.top + mark.height / 2 && flowTier.top >= mark.top,
       breadcrumbFits,
       flowLabelsFit,
-      railRoom: clipRoom('.con-jrail__view--expanded'),
-      chapterRoom: clipRoom('.con-jrail__phase--open .con-jrail__phase-body'),
+      railRoom,
+      chapterRoom,
       expandedOpacity: opacity('.con-jrail__view--expanded'),
       compactOpacity: opacity('.con-jrail__view--compact'),
     };

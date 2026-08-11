@@ -58,7 +58,7 @@
         <div class="con-colonies__browse"
              :class="{
                'con-colonies__browse--parked': focusState.open,
-               'con-colonies__browse--yield': revealEmbedPresenting,
+               'con-colonies__browse--yield': revealEmbedPresenting || handStepHosted || resolutionUi.discardStage,
              }">
           <!-- The premium tile grid. The scroller + `margin: auto` wrapper is
                the anti-clip contract: content centres when it fits and scrolls
@@ -166,10 +166,38 @@
              «взлёт карт с колонии» IS the opening of this deeper scene. -->
         <div v-if="revealEmbedActive && !focusState.open" class="con-colonies__embed" data-embed-slot="colonies-reveal"></div>
 
-        <!-- ── The HAND STEP zone at SECTION level — the fallback host of the
-             mandatory discard when the focus stage is not standing (a reload
-             straight into the discard prompt). One frame, one room. -->
-        <div v-if="handStepHosted && !focusState.open" class="con-colonies__embed con-colonies__embed--hand" data-embed-slot="colonies-hand"></div>
+        <!-- ── THE FULL-STAGE DISCARD (the resolution's mandatory pick). The
+             whole central area belongs to the REAL hand — comparing every
+             card is the phase's one job — while the colony survives as the
+             compact SOURCE CHIP the focus stage later re-expands from. One
+             frame, one room, one header: the hand teleports into the inner
+             host; the chip row is the section's own context line. -->
+        <div v-if="handStepHosted" class="con-colonies__embed con-colonies__embed--hand">
+          <div class="con-colonies__srcchiprow">
+            <span class="con-colonies__srcchip">
+              <span class="con-colonies__srcchip-planet" :class="resolutionPlanetClass" aria-hidden="true"></span>
+              <b class="con-colonies__srcchip-name">{{ $t(resolutionColonyName) }}</b>
+              <span class="con-colonies__srcchip-sep" aria-hidden="true">·</span>
+              <span class="con-colonies__srcchip-role">{{ $t('Owner bonus') }}</span>
+            </span>
+          </div>
+          <div class="con-colonies__handhost" data-embed-slot="colonies-hand"></div>
+        </div>
+
+        <!-- ── «СБРОШЕННЫЕ» — the resolution's discard seat, at SECTION level
+             so it holds ONE spot through the focus ⇄ discard recompositions.
+             The shared discard cinematic's tray teleports into the anchor;
+             between cycles the receipt (count) stays. -->
+        <div v-if="discardSeatLive"
+             class="con-colonies__discardseat"
+             :class="{'con-colonies__discardseat--live': trayStanding}"
+             data-colony-discard-seat>
+          <span class="con-colonies__discardseat-anchor" data-colony-discard-tray></span>
+          <span v-if="!trayStanding" class="con-colonies__discardseat-done">
+            <span class="con-colonies__discardseat-label">{{ $t('DISCARDED') }}</span>
+            <b v-if="resolutionUi.discarded > 0" class="con-colonies__discardseat-count">{{ resolutionUi.discarded }}</b>
+          </span>
+        </div>
 
         <!-- ── THE COLONY FOCUS STAGE — the same frame, one level deeper.
              The descend hooks unfold it from the pressed tile's rect; the
@@ -192,7 +220,6 @@
                                    :viewerColor="viewerColor"
                                    :tradeOffset="tradeOffset"
                                    :outcomeZone="focusOutcomeZone"
-                                   :handZone="handStepHosted && focusState.open"
                                    @confirm="onFocusConfirm"
                                    @build-confirm="$emit('build-confirm')"
                                    @pick-confirm="$emit('pick-confirm')"
@@ -235,7 +262,9 @@ import {
 } from '@/client/console/consoleColoniesModel';
 import {workspaceOutcomeState, setWorkspaceOutcomeSlot, workspaceOutcomeClaimed} from '@/client/console/consoleWorkspaceOutcome';
 import {setWorkspaceFrameSlot, workspaceFrameHost, workspaceFrameStage} from '@/client/console/consoleWorkspaceStack';
-import {revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
+import {colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
+import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
+import {cardDiscardState} from '@/client/console/cardDiscard/cardDiscardState';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {freeTradeFleets, effectiveTradePosition, rewardAtPosition, TradeRewardAt, TradeStep} from '@/client/components/colonies/colonyTradePlan';
@@ -368,6 +397,8 @@ export default defineComponent({
       focusState: colonyFocusState,
       /** The embedded-outcome claim (the Pluto reveal re-homes into us). */
       outcomeState: workspaceOutcomeState,
+      /** The resolution's presentation state (discard stage flag + receipt). */
+      resolutionUi: colonyResolutionUi,
       /** The focus stage's server preview (fetched per focused colony). */
       focusPreview: undefined as ColonyTradePreviewModel | undefined,
       /** The fit-set zoom on every tile (grows them to fill the space). */
@@ -457,17 +488,35 @@ export default defineComponent({
     },
     /**
      * THE FRAME SLOT — the teleport target we publish for the hand step
-     * (`workspaceFrameTarget('hand')` reads it). ONE writer, same law as the
-     * outcome slot: the focus stage's zone while the stage stands, the
-     * section's own zone otherwise (a reload straight into the discard).
+     * (`workspaceFrameTarget('hand')` reads it). ONE zone, always the
+     * SECTION-level full-stage host: the discard's whole job is comparing
+     * every card, so the hand owns the central area outright — a hand
+     * squeezed beside the hero planet was the reported broken intermediate
+     * state, and that zone no longer exists.
      */
     handSlotSelector(): string {
-      if (!this.handStepHosted) {
-        return '';
+      return this.handStepHosted ? '[data-embed-slot="colonies-hand"]' : '';
+    },
+    /** The chip's planet art — the same per-colony background the tile uses. */
+    resolutionPlanetClass(): string {
+      const name = this.resolutionColonyName;
+      return name === '' ? '' : name.replace(' ', '-') + '-background';
+    },
+    /** The colony the running resolution belongs to (the claim carries it). */
+    resolutionColonyName(): string {
+      if (this.outcomeState.host === 'colonies' && this.outcomeState.sourceCard !== '') {
+        return this.outcomeState.sourceCard;
       }
-      return this.focusState.open ?
-        '[data-embed-slot="colonies-focus-hand"]' :
-        '[data-embed-slot="colonies-hand"]';
+      return cardDiscardColonyBonus()?.colonyName ?? this.tradeState.colonyName;
+    },
+    /** The discard cinematic's tray is standing in our seat right now. */
+    trayStanding(): boolean {
+      return cardDiscardState.trayVisible && cardDiscardColonyBonus() !== undefined;
+    },
+    /** The seat stands through the pick, the flight and as the receipt. */
+    discardSeatLive(): boolean {
+      return this.handStepHosted || cardDiscardColonyBonus() !== undefined ||
+        (this.outcomeState.host === 'colonies' && this.resolutionUi.discarded > 0);
     },
     // ── The embedded-outcome zone (the Pluto payout reveal) ────────────────
     /** The claim is ours — the zone must stand (rendered from SUBMIT time). */
@@ -495,9 +544,16 @@ export default defineComponent({
      * section's zone (after the stage folded, e.g. a payout that returns from
      * a hand discard). Exactly ONE writer decides which, so the two can never
      * both claim the teleport and drop its content.
+     *
+     * DURING THE FULL-STAGE DISCARD the selector is EMPTY on purpose: the
+     * next cycle's batch can ride the very response that answered the
+     * discard, and presenting it while the hand still owns the room would
+     * stack two scenes. An empty slot HOLDS the claimed reveal (render
+     * nowhere — embed rule 4's provably-transient gap); the focus restore
+     * republishes and the batch opens on the big stage.
      */
     outcomeSlotSelector(): string {
-      if (!this.revealEmbedActive) {
+      if (!this.revealEmbedActive || this.resolutionUi.discardStage) {
         return '';
       }
       return this.focusState.open ?

@@ -53,6 +53,7 @@ import {
 import {
   TRADE_FRAME_MS, tradeCoverPlan, TradeCoverPlanEntry,
 } from '@/client/console/colonyTrade/colonyTradeModel';
+import {colonyResolutionUi} from '@/client/console/colonyTrade/colonyResolution';
 import {
   RectLike, runColonyTrackGlide, runTradeCoverFlight, runTradeCoversHandoff, TradeDirectorHandle,
 } from '@/client/console/colonyTrade/colonyTradeDirector';
@@ -162,6 +163,13 @@ export default defineComponent({
      */
     revealToProcess(): DrawnCardEntry | undefined {
       if (!colonyTradeState.active || colonyTradeState.reducedMotion || colonyTradeState.cardScene !== 'idle') {
+        return undefined;
+      }
+      // The FULL-STAGE DISCARD owns the room: a next-cycle batch that rode
+      // the discard's own response WAITS (its reveal slot is held empty) and
+      // launches from the RESTORED focus stage — reactive, so the restore
+      // re-fires this computed and the covers fly then.
+      if (colonyResolutionUi.discardStage) {
         return undefined;
       }
       const e = currentRevealEvent();

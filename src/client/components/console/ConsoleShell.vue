@@ -1251,8 +1251,9 @@ import {
 } from '@/client/console/cardDiscard/consoleCardDiscard';
 import {
   ColonyResolutionSignals, armColonyBonusEntry, clearColonyBonusEntry, colonyBonusDiscardOf,
-  colonyBonusEntry, colonyResolutionColony, colonyResolutionLiveFor, noticeColonyResolutionDiscard,
-  remoteColonyBonusPendingFor, resetColonyResolutionUi,
+  colonyBonusEntry, colonyResolutionColony, colonyResolutionLiveFor, colonyResolutionUi,
+  noticeColonyResolutionDiscard, remoteColonyBonusPendingFor, resetColonyResolutionUi,
+  setColonyDiscardStage,
 } from '@/client/console/colonyTrade/colonyResolution';
 import {discardPhaseInOverlay} from '@/client/console/cardDiscard/discardModel';
 import {
@@ -1609,6 +1610,15 @@ export default defineComponent({
       /** The remote colony-bonus ENTRY context (colonyResolution.ts) — in
        *  data() so the resolution computeds/watchers track it reliably. */
       bonusEntry: colonyBonusEntry,
+      /**
+       * THE POST-DISCARD RESTORE is owed: the hand has answered and is on its
+       * way back to the dock, and the colony focus must re-expand from the
+       * source chip BEFORE the track's committed reset may be reported — the
+       * marker's return is the resolution's FINAL commit beat and it plays on
+       * the big track of the colony's own focus, never over the hand and
+       * never on the overview grid.
+       */
+      colonyFocusRestorePending: false,
       /** The hydronetwork marker-advance controller (the plan-reset watcher). */
       hydroMarkerState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
@@ -5328,6 +5338,8 @@ export default defineComponent({
       }
       if (!live && was) {
         clearColonyBonusEntry();
+        setColonyDiscardStage(false);
+        this.colonyFocusRestorePending = false;
         if (workspaceOutcomeState.host === 'colonies') {
           releaseWorkspaceOutcome('resolution-end');
         }
@@ -5422,11 +5434,10 @@ export default defineComponent({
     // every reward (including interactive colony bonuses that resolve over
     // several responses — Pluto's discards), so the reset can arrive via the
     // gated commit OR a later poll; this one watcher covers both, and the
-    // reset glide runs only once the drop truly committed.
-    armedColonyTradeTrack(value: number | undefined) {
-      if (value !== undefined && colonyTradeState.colonyName !== '') {
-        notifyColonyTradeTrackCommitted(colonyTradeState.colonyName as ColonyName, value);
-      }
+    // reset glide runs only once the drop truly committed — AND only once the
+    // glide's own stage is standing (syncColonyTrackCommit's gate).
+    armedColonyTradeTrack() {
+      this.syncColonyTrackCommit();
     },
     // MARKER ADVANCE lifecycle: the hydro screen STAYS OPEN through the whole
     // glide; when the marker has locked in + the view committed (active →
@@ -6390,6 +6401,53 @@ export default defineComponent({
       this.consoleState.handIndex = idx !== -1 ? idx : 0;
     },
     /**
+     * Report the traded colony's COMMITTED track position — GATED on the
+     * glide's stage. While the full-stage discard owns the room, or the
+     * post-discard focus restore is still owed, the committed reset is held
+     * back: the marker's return is the resolution's FINAL commit beat, played
+     * on the colony's own big track. The restore flushes this.
+     */
+    syncColonyTrackCommit(): void {
+      const value = this.armedColonyTradeTrack;
+      if (value === undefined || colonyTradeState.colonyName === '') {
+        return;
+      }
+      if (colonyResolutionUi.discardStage || this.colonyFocusRestorePending) {
+        return;
+      }
+      notifyColonyTradeTrackCommitted(colonyTradeState.colonyName as ColonyName, value);
+    },
+    /**
+     * THE POST-DISCARD RETURN — the resolution comes back from the hand to
+     * the colony's own focus: the source chip re-expands into the hero stage,
+     * a held next-cycle batch gets its zone republished, and only then the
+     * deferred track commit is reported (the final glide plays on the big
+     * track). Runs after the hand physically gathered into the dock.
+     */
+    async restoreColonyFocusAfterDiscard(): Promise<void> {
+      const name = this.colonyResolutionColonyName;
+      if (this.colonyResolutionLive && workspaceFrameMounted('colonies') &&
+          !this.colonyFocus.open && name !== '') {
+        const idx = this.coloniesForRail.findIndex((c) => c.name === name);
+        this.consoleState.colonyIndex = idx !== -1 ? idx : 0;
+        // FOCUS FIRST, flag second: the browse grid stays yielded (the
+        // discard-stage flag keeps it hidden) until the focus stage is
+        // genuinely standing over it — clearing the flag first uncovered the
+        // overview grid for the one-two frames of the swap, and «не
+        // показывать Overview даже на один кадр» is the contract.
+        openColonyFocus(name as ColonyName, 'inspect');
+        await this.$nextTick();
+        setColonyDiscardStage(false);
+        // Let the stage publish its zones before anything measures against it
+        // (the settle beat of the restore — a held batch opens on it now).
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(() => r(undefined))));
+      } else {
+        setColonyDiscardStage(false);
+      }
+      this.colonyFocusRestorePending = false;
+      this.syncColonyTrackCommit();
+    },
+    /**
      * THE OWNER-BONUS ENTRY — the colony workspace opens DIRECTLY on the
      * colony's focus stage in its bonus context (never the overview: the
      * player is here to answer one colony's payout). Used by the remote
@@ -6450,7 +6508,17 @@ export default defineComponent({
         // and its closer brings the flow back here once everything is taken.
         return;
       }
-      this.openHandWorkspace();
+      // THE FULL-STAGE DISCARD. Comparing every card is this phase's one job,
+      // so the hand owns the whole central area: the focus stage yields (the
+      // colony survives as the section's SOURCE CHIP, the shared element the
+      // restore later re-expands from), the claimed reveal slot goes empty
+      // (a next-cycle batch parks until the restore), and the REAL hand opens
+      // with its own premium dock→grid reveal — never a ready-made grid.
+      setColonyDiscardStage(true);
+      if (this.colonyFocus.open) {
+        closeColonyFocus();
+      }
+      void this.openHandWithReveal({keepTask: true});
       setWorkspaceFrameStage('hand', 'Discarding a card');
       this.focusFirstSelectableHandCard();
     },
@@ -6460,6 +6528,13 @@ export default defineComponent({
      * player is standing in alone has nothing under it and goes home.
      */
     leaveHandAfterAnswer(): void {
+      // The CLOSE EPISODE may already have returned the hand (its director
+      // speaks the same verbs) — acting again on an absent frame would pop
+      // the HOST instead, which is how a finished discard once took the whole
+      // colony resolution down with it.
+      if (workspaceFrameIndex('hand') === -1) {
+        return;
+      }
       // A HOSTED hand — an overlay (pick bridge) or an embedded step (the
       // colony resolution's discard) — pops one level, uncovering the flow
       // that asked for the card exactly where it was left. Only a hand the
@@ -7404,6 +7479,14 @@ export default defineComponent({
       if (this.consoleState.section !== 'hand') {
         return;
       }
+      // A COLONY-BONUS discard returns to the colony's focus — arm the
+      // restore BEFORE the gather, so a track commit landing mid-flight is
+      // already deferred to the restored stage.
+      const colonyReturn = cardDiscardColonyBonus() !== undefined &&
+        workspaceFrameHost('hand') === 'colonies';
+      if (colonyReturn) {
+        this.colonyFocusRestorePending = true;
+      }
       await this.closeHandWithReveal(discarded);
       // The episode already sent the cards home; clear what the pick left
       // behind so the next surface starts from a clean state.
@@ -7411,6 +7494,9 @@ export default defineComponent({
       this.consoleState.select.suitableOnly = true;
       this.leaveHandAfterAnswer();
       this.discardFreeze = undefined;
+      if (colonyReturn) {
+        void this.restoreColonyFocusAfterDiscard();
+      }
     },
     /** The hand dock (footer bay) clicked — the mouse/touch entry point to
      *  the hand. Same path as RT → КАРТЫ; guarded to the calm board home
@@ -8750,6 +8836,10 @@ export default defineComponent({
         if (this.colonyTradeDealsCards(selected.name)) {
           claimWorkspaceOutcome('colonies', selected.name, ['draw']);
           markWorkspaceOutcomeArrivalDone();
+          // The TRADE owns this batch's whole pacing (veil + cover flight):
+          // the generic execution-beat gate must not hold the veiled reveal
+          // off screen while the covers need its slots measured.
+          markWorkspaceOutcomeBeatDone();
         }
         this.submit(colonyResponse(selected.name));
         return;
@@ -8881,6 +8971,10 @@ export default defineComponent({
       if (this.colonyTradeDealsCards(colonyName)) {
         claimWorkspaceOutcome('colonies', colonyName, ['draw']);
         markWorkspaceOutcomeArrivalDone();
+        // Same as the overview-confirm path: the trade transaction owns the
+        // pacing — the veiled reveal must mount promptly so the covers can
+        // measure its landing slots.
+        markWorkspaceOutcomeBeatDone();
       }
       this.submitBatch(batch);
     },
@@ -10423,7 +10517,16 @@ export default defineComponent({
       setSection: (s) => {
         if (s === 'hand') {
           this.openHandWorkspace();
-        } else if (workspaceFrameIsOverlay('hand')) {
+          return;
+        }
+        // A HOSTED hand — an overlay (pick bridge) or an embedded step (the
+        // colony resolution's discard) — pops ONE level: the host keeps the
+        // room and its own flow continues. `goBoardHome` here wiped the whole
+        // stack out from under the colony resolution the instant the gather
+        // finished (the e2e tail: stack empty at t≈0.75s, before the server
+        // even answered) — the home verb belongs only to a hand standing
+        // alone.
+        if (workspaceFrameHost('hand') !== undefined) {
           leaveWorkspace();
         } else {
           goBoardHome();

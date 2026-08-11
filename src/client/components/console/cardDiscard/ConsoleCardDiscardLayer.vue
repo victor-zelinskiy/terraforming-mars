@@ -70,7 +70,6 @@ import {
 } from '@/client/console/cardDiscard/cardDiscardState';
 import {discardPileBacks} from '@/client/console/cardDiscard/discardModel';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
-import {colonyFocusState} from '@/client/console/consoleColoniesModel';
 import {workspaceFrameMounted} from '@/client/console/consoleWorkspaceStack';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 
@@ -80,8 +79,6 @@ export default defineComponent({
   data() {
     return {
       cardDiscardState,
-      /** The focus-stage flow state (mirrors the seat's own render guard). */
-      colonyFocusState,
       /** One-shot pulse of the pile on each physical landing. */
       pulsing: false,
       pulseTimer: undefined as ReturnType<typeof setTimeout> | undefined,
@@ -94,14 +91,15 @@ export default defineComponent({
     },
     /**
      * The COLONY workspace's «СБРОШЕНО» seat, when this discard closes a
-     * colony bonus and the focus stage (which renders the seat) is standing.
-     * The same reactive terms the stage's own `v-if` reads, so the target
-     * exists whenever this resolves — a collapsed workspace falls back to
-     * the stock corner tray.
+     * colony bonus and the colonies section (which renders the seat at its
+     * own level — it survives the focus ⇄ full-stage-discard recompositions)
+     * is standing. The same reactive terms the seat's own `v-if` reads, so
+     * the target exists whenever this resolves — a collapsed workspace falls
+     * back to the stock corner tray.
      */
     workspaceSeat(): string | undefined {
       const seated = cardDiscardColonyBonus() !== undefined &&
-        workspaceFrameMounted('colonies') && this.colonyFocusState.open;
+        workspaceFrameMounted('colonies');
       return seated ? '[data-colony-discard-tray]' : undefined;
     },
   },

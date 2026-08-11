@@ -99,7 +99,7 @@ import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale'
 import {tilePlacementHolding} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {isBoardCardBonusActive, boardCardBonusClaimsReveal, isBonusRevealStaged} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {colonyTradeClaimsReveal, isColonyTradeRevealStaged, isPresentedTradeReveal} from '@/client/console/colonyTrade/consoleColonyTrade';
-import {remoteColonyBonusHold} from '@/client/console/colonyTrade/colonyResolution';
+import {colonyResolutionUi, remoteColonyBonusHold} from '@/client/console/colonyTrade/colonyResolution';
 import {markWorkspaceOutcomeArrivalDone, workspaceClaimOwnsArrival, workspaceClaimsColonyReveal, workspaceClaimsDrawReveal} from '@/client/console/consoleWorkspaceOutcome';
 import {
   DeckDrawTimings, DrawBeat, RectLike, deckCountAfter, deckDrawTimings, holdScale, holdSlots,
@@ -264,6 +264,13 @@ export default defineComponent({
       // the hold drops and this scene SERVES the colony workspace's claim —
       // the cards honestly come off the deck, into the embedded slots.
       if (remoteColonyBonusHold(this.playerView.waitingFor, e.source)) {
+        return undefined;
+      }
+      // …and during the FULL-STAGE DISCARD the next cycle's batch waits for
+      // the focus restore (its reveal slot is held empty; flying into an
+      // unmounted surface would only degrade). Reactive — the restore
+      // re-fires this computed.
+      if (colonyResolutionUi.discardStage && workspaceClaimsColonyReveal(e.source)) {
         return undefined;
       }
       return e;

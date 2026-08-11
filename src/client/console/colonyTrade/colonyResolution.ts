@@ -100,14 +100,27 @@ export function colonyBonusEntryArmed(): boolean {
  */
 export const colonyResolutionUi = reactive({
   discarded: 0,
+  /**
+   * THE FULL-STAGE DISCARD PHASE is up: the hand owns the whole central area
+   * (the colony shrunk to its source chip), the claimed reveal slot is held
+   * empty (a next-cycle batch waits for the focus restore), and the closing
+   * track glide is deferred. Set on the discard's entry, cleared when the
+   * hand hands the room back (or the resolution ends).
+   */
+  discardStage: false,
 });
 
 export function noticeColonyResolutionDiscard(): void {
   colonyResolutionUi.discarded++;
 }
 
+export function setColonyDiscardStage(on: boolean): void {
+  colonyResolutionUi.discardStage = on;
+}
+
 export function resetColonyResolutionUi(): void {
   colonyResolutionUi.discarded = 0;
+  colonyResolutionUi.discardStage = false;
 }
 
 /** The structural marker of a pending colony-bonus discard, if any. */

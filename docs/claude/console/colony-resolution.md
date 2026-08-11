@@ -1,10 +1,59 @@
 # THE COLONY RESOLUTION — the Pluto flow's one interaction owner
 
-**Status: SHIPPED (2026-08-11).** Module: `src/client/console/colonyTrade/colonyResolution.ts`
-(pure derivations + the remote-entry context). Spec:
+**Status: SHIPPED (2026-08-11, iteration 2 same day).** Module:
+`src/client/console/colonyTrade/colonyResolution.ts` (pure derivations + the
+remote-entry context + `colonyResolutionUi.discardStage`). Spec:
 `tests/client/components/console/colonyResolution.spec.ts`. E2E:
 `tests/e2e/console-colony-pluto-embed.spec.ts` (three tests — trade, build, and
-the full own-colony draw+discard resolution with the root-exclusivity guard).
+the full own-colony draw+discard resolution with the root-exclusivity,
+no-blank-stage, no-focus-hand-zone, marker-in-focus and return-leg guards).
+
+## Iteration 2 — the physically continuous choreography
+
+1. **The config releases UNDER the flying cards, never at the claim.** The
+   focus stage's handoff cue is `outcomeHandoffDue` (covers airborne —
+   `colonyTradeState.cardScene` off `'idle'` for this colony — with
+   `outcomeContentIn` as the coverless fallback), one-shot
+   (`outcomeHandoffPlayed`, drives the `--handing` pose too). Releasing at the
+   claim was «интерфейс исчезает одним кадром → пустая пауза → готовый
+   reveal». Both trade-confirm sites also `markWorkspaceOutcomeBeatDone()` —
+   the trade owns its own pacing, and the veiled reveal must mount promptly
+   for the covers to measure its slots.
+2. **The FULL-STAGE discard.** The focus-stage hand zone is GONE (it was the
+   broken B-only intermediate: a hand squeezed beside the hero planet with the
+   stage intercepting input). `openColonyBonusDiscard` sets
+   `colonyResolutionUi.discardStage`, closes the focus, and opens the hand via
+   the PREMIUM dock→grid episode (`openHandWithReveal({keepTask:true})` — the
+   same physical opening every route gets). The section renders the SOURCE
+   CHIP («⏺ ПЛУТОН · БОНУС ВЛАДЕЛЬЦА», the tile's own planet art) and the
+   section-level «СБРОШЕННЫЕ» seat; the browse grid stays yielded through the
+   whole phase (`--yield` includes `discardStage`, which clears only AFTER the
+   focus re-opens — no overview frame, ever).
+3. **The held next cycle.** During `discardStage` the outcome slot selector is
+   EMPTY (the claimed reveal renders nowhere) and BOTH card scenes (trade
+   covers / deck-draw) skip claimed colony batches — a cycle-2 batch that rode
+   the discard's own response parks and opens on the RESTORED focus stage.
+4. **The return leg.** `handOffHandForDiscard` (a colony-bonus discard) arms
+   `colonyFocusRestorePending`, gathers the hand home, then
+   `restoreColonyFocusAfterDiscard`: focus re-opens FIRST, `discardStage`
+   clears second, zones republish, and only then `syncColonyTrackCommit`
+   reports the committed reset — the marker's return is the resolution's
+   FINAL commit beat and always plays on the colony's own big track.
+
+### The two traps iteration 2 paid for
+- ⚠️ **The hand-reveal director's `setSection` hook spoke `goBoardHome` for
+  every non-overlay hand.** For a hand hosted as an embedded STEP that wiped
+  the whole stack the instant the close episode finished (e2e tail: stack
+  empty at t≈0.75s, before the server even answered). The hook now pops ONE
+  level for ANY hosted hand (`workspaceFrameHost('hand') !== undefined`), and
+  `leaveHandAfterAnswer` early-returns when the episode already returned the
+  frame — acting on an absent hand pops the HOST.
+- ⚠️ **The embedded fit must solve for `stripCount`** (the batch total + the
+  other zones), not the untaken remainder: the untaken count re-ran the fit as
+  cards left and the survivors — and the lone taken-socket — visibly GREW
+  mid-batch. The embedded closer also moved into the ONE stage status bar
+  (`con-ws-stage-status`); an in-zone button was what pushed the bonus zone
+  past the stage's vertical budget (the clipped top label / bottom CTA).
 
 ## The invariant
 

@@ -58,7 +58,7 @@
          'con-colfocus--claimed': outcomeZone,
          /* READINESS — content has genuinely landed in the zone, so the
             working area is handed over for real. */
-         'con-colfocus--handing': outcomeContentIn || handZone,
+         'con-colfocus--handing': outcomeHandoffPlayed,
        }]"
        :data-colony-intent="intent">
     <div class="con-colfocus__surface" data-unfold-surface>
@@ -151,21 +151,9 @@
             <span>{{ resolutionContext.traderLine }}</span>
           </span>
         </div>
-        <!-- ═══ «СБРОШЕНО» — the resolution's own discard record. The seat is
-             the TELEPORT TARGET of the shared discard cinematic's tray: the
-             mandatory cost physically lands INSIDE the scene that earned it,
-             and between cycles the receipt (count) stays — the completed
-             cycle is fixed, never wiped by the next one starting. -->
-        <div v-if="resolutionContext !== undefined && (discardSeatLive || resolutionUi.discarded > 0)"
-             class="con-colfocus__discardseat"
-             :class="{'con-colfocus__discardseat--live': trayStanding}"
-             data-colony-discard-seat>
-          <span class="con-colfocus__discardseat-anchor" data-colony-discard-tray></span>
-          <span v-if="!trayStanding" class="con-colfocus__discardseat-done">
-            <span class="con-colfocus__discardseat-label">{{ $t('DISCARDED') }}</span>
-            <b v-if="resolutionUi.discarded > 0" class="con-colfocus__discardseat-count">{{ resolutionUi.discarded }}</b>
-          </span>
-        </div>
+        <!-- (The «СБРОШЕНО» seat lives at SECTION level — one spot that
+             survives the focus ⇄ full-stage-discard recompositions without a
+             jump; see ConsoleColoniesSection.) -->
       </section>
 
       <!-- ═══ MAIN — the game object: track › guard rail › berths › setup ═══ -->
@@ -469,15 +457,6 @@
       <section v-if="outcomeZone" class="con-colfocus__outcome"
                data-outcome-zone data-embed-slot="colonies-focus-reveal"></section>
 
-      <!-- THE HAND STEP'S ZONE — the mandatory discard runs on the REAL hand
-           INSIDE this same frame (the hand workspace teleports here as a
-           step; workspaceFrameTarget('hand') names this selector). Same room
-           as the payout zone — the reveal has just been collected, so the
-           hand unfolds exactly where the cards were: one scene, one frame,
-           one phrase deeper. -->
-      <section v-if="handZone" class="con-colfocus__outcome con-colfocus__handzone"
-               data-hand-zone data-embed-slot="colonies-focus-hand"></section>
-
       <section class="con-colfocus__result" data-unfold-item>
         <div class="con-colfocus__sec-title" data-unfold-late>{{ $t(resultTitle) }}</div>
 
@@ -641,9 +620,8 @@ import {
   tradeSteps,
 } from '@/client/components/colonies/colonyTradePlan';
 import {presentedColonyModel, colonyTradeState} from '@/client/console/colonyTrade/consoleColonyTrade';
-import {colonyBonusEntry, colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
+import {colonyBonusEntry, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
-import {cardDiscardState} from '@/client/console/cardDiscard/cardDiscardState';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {colonyBuildState} from '@/client/console/colonyBuild/consoleColonyBuild';
@@ -705,12 +683,6 @@ export default defineComponent({
      * only thing the stage needs to know.
      */
     outcomeZone: {type: Boolean, default: false},
-    /**
-     * The MANDATORY DISCARD runs here: the hand workspace is a nested STEP of
-     * the colonies and teleports into this stage's own hand zone. Published by
-     * the section (one writer), exactly like `outcomeZone`.
-     */
-    handZone: {type: Boolean, default: false},
     /** The inner "Pay trade fee" OrOptions options (server-affordable). */
     options: {type: Array as PropType<ReadonlyArray<SelectOptionModel>>, default: () => []},
     disabledOptions: {type: Array as PropType<NonNullable<OrOptionsModel['disabledOptions']>>, default: () => []},
@@ -734,11 +706,12 @@ export default defineComponent({
       colonyTradeState,
       colonyBuildState,
       workspaceOutcomeState,
-      /** The remote-entry context + the resolution's discard receipt + the
-       *  discard cinematic's stage (module reactives, mirrored for tracking). */
+      /** The remote-entry context (module reactive, mirrored for tracking). */
       bonusEntry: colonyBonusEntry,
-      resolutionUi: colonyResolutionUi,
-      discardStage: cardDiscardState,
+      /** ONE-SHOT: the outcome handoff (config release + zone unfold) has
+       *  played for the current claim — drives the `--handing` pose too, so
+       *  the CSS dissolve can never run ahead of the phrase. */
+      outcomeHandoffPlayed: false,
       /**
        * The COMMIT-BOUNDARY freeze: at the confirm the stage pins WHAT it was
        * showing ({mode, available}), because the server's answer flips the
@@ -784,17 +757,30 @@ export default defineComponent({
         return {roleKey: 'Owner bonus triggered', bonus: true, traderColor: this.bonusEntry.traderColor, traderLine: line};
       }
       const bonusWave = revealIsOwnerBonus(currentRevealEvent()?.source) ||
-        this.handZone || cardDiscardColonyBonus() !== undefined;
+        cardDiscardColonyBonus() !== undefined;
       return {roleKey: bonusWave ? 'Owner bonus' : 'Trade reward', bonus: bonusWave, traderColor: '', traderLine: ''};
     },
-    /** The discard cinematic is standing (its tray teleports into our seat). */
-    trayStanding(): boolean {
-      return this.discardStage.trayVisible && cardDiscardColonyBonus() !== undefined;
-    },
-    /** The seat must be up for the tray from the moment a discard is possible
-     *  (the hand step) through the flight's landing. */
-    discardSeatLive(): boolean {
-      return this.handZone || cardDiscardColonyBonus() !== undefined;
+    /**
+     * THE HANDOFF CUE — when the configuration may let go. ⚠️ Deliberately NOT
+     * the claim (the submit): releasing there is what produced «интерфейс
+     * исчезает одним кадром → пустая пауза → готовый reveal». The flow's
+     * physical bridge is the CARDS, so the release plays UNDER them:
+     *  · the trade covers took flight over this very stage (`cardScene` moves
+     *    off 'idle' pre-flush, before the veiled reveal's first paint);
+     *  · or — for a flow with no covers of its own (a build's board lift, a
+     *    served remote batch, reduced motion, a degrade) — the content
+     *    genuinely landing in the zone is the cue.
+     */
+    outcomeHandoffDue(): boolean {
+      if (!this.outcomeZone) {
+        return false;
+      }
+      if (this.colonyTradeState.active &&
+          this.colonyTradeState.colonyName === this.colony.name &&
+          this.colonyTradeState.cardScene !== 'idle') {
+        return true;
+      }
+      return this.outcomeContentIn;
     },
     /** The availability the stage PRESENTS — pinned across the commit
      *  boundary (see `heldView`), live everywhere else. */
@@ -1350,12 +1336,19 @@ export default defineComponent({
       this.publishStageName();
       this.syncUiMirror();
     },
-    // The transaction's OWN falling edge releases the commit freeze — the
-    // stage re-derives its presentation in one step (fresh verdict, fresh
-    // crumb tail), never mid-flight. No timer anywhere.
-    outcomeZone(on: boolean) {
-      if (on) {
+    // THE CONFIGURATION LETS GO only when the flow's physical bridge is on
+    // stage (covers airborne / content landing) — never at the bare claim.
+    // One-shot per outcome; re-arms when the zone folds (the next cycle's
+    // batch opens its own phrase).
+    outcomeHandoffDue(due: boolean) {
+      if (due && !this.outcomeHandoffPlayed) {
+        this.outcomeHandoffPlayed = true;
         this.playOutcomeHandoff();
+      }
+    },
+    outcomeZone(on: boolean) {
+      if (!on) {
+        this.outcomeHandoffPlayed = false;
       }
     },
     outcomeContentIn(landed: boolean) {

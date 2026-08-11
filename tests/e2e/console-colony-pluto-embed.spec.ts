@@ -125,6 +125,19 @@ type Sighting = {
   workspaceSplit: boolean;
   /** A STANDALONE hand workspace root during the payout — the flow break. */
   standaloneHand: boolean;
+  /** The REMOVED intermediate: a hand squeezed into the focus stage's zone
+   *  (planet left, cards right, B-only). It must never mount again. */
+  focusHandZone: boolean;
+  /** A BLANK colonies stage mid-flow: the section is up but nothing of the
+   *  flow is — no focus stage, no reveal, no discard stage, no flying
+   *  covers, browse hidden. The reported «пустая пауза». */
+  emptyStage: boolean;
+  /** The track-reset marker proxy flew while the FOCUS stage was down — the
+   *  final commit beat must play on the colony's own big track. */
+  markerOutsideFocus: boolean;
+  /** The colony FOCUS stage stood at some point of the watch (the
+   *  post-discard restore's proof on the return leg). */
+  focusSeen: boolean;
   /** DIAGNOSTIC timeline (logged, not asserted): the colonies section went
    *  absent after it had been seen (ms into the watch), and the mandatory
    *  announcement card appeared (ms) — either mid-resolution is a lifecycle
@@ -141,6 +154,8 @@ async function watchPayout(page: Page, ms: number): Promise<Sighting> {
     const seen: Sighting = {
       seen: false, inStage: false, embedded: false, fullBleed: false,
       legacyModal: false, workspaceSplit: false, standaloneHand: false,
+      focusHandZone: false, emptyStage: false, markerOutsideFocus: false,
+      focusSeen: false,
       coloniesGoneAtMs: -1, announceAtMs: -1,
     };
     w.__pluto = seen;
@@ -201,6 +216,36 @@ async function watchPayout(page: Page, ms: number): Promise<Sighting> {
       if (document.querySelector('.mandatory-input-modal, .modal-input-root') !== null) {
         seen.legacyModal = true;
       }
+      // The REMOVED intermediate state: a hand zone inside the focus stage.
+      if (document.querySelector('.con-colfocus__handzone, .con-colfocus [data-hand-zone]') !== null) {
+        seen.focusHandZone = true;
+      }
+      // A BLANK stage mid-flow — the «empty pause» class of break. The
+      // colonies stand, yet NOTHING of the flow is on them: no focus stage,
+      // no reveal, no full-stage discard, no flying covers, and the browse
+      // grid is deliberately hidden (parked/yielded).
+      if (colonies !== null && visible(colonies)) {
+        const anyContent =
+          document.querySelector('.con-colfocus') !== null ||
+          document.querySelector('.con-reveal') !== null ||
+          document.querySelector('.con-colonies__embed--hand') !== null ||
+          document.querySelector('.con-coltrade-proxy, .con-deal-proxy, .con-discard-proxy') !== null;
+        const browse = document.querySelector('.con-colonies__browse');
+        const browseShowing = browse !== null &&
+          !browse.classList.contains('con-colonies__browse--parked') &&
+          !browse.classList.contains('con-colonies__browse--yield');
+        if (!anyContent && !browseShowing) {
+          seen.emptyStage = true;
+        }
+      }
+      // The track-reset glide must play on the colony's OWN focus track.
+      const marker = document.querySelector('.con-coltrade-marker');
+      if (marker !== null && visible(marker) && document.querySelector('.con-colfocus') === null) {
+        seen.markerOutsideFocus = true;
+      }
+      if (document.querySelector('.con-colfocus') !== null) {
+        seen.focusSeen = true;
+      }
       // ONE workspace root, ever. Two visible `.con-ws` roots is the reported
       // hand+colonies split screen; a visible STANDALONE hand root during a
       // colony payout is the «COLONIES → HAND» flow break (the mandatory
@@ -249,6 +294,9 @@ test('Pluto TRADE: the payout presents inside the colony workspace, never as a b
   expect(seen.embedded, 'the payout did not carry the embedded skin').toBeTruthy();
   expect(seen.inStage, 'the payout did not open inside the colony FOCUS STAGE').toBeTruthy();
   expect(seen.workspaceSplit, 'TWO workspace roots were visible at once').toBeFalsy();
+  expect(seen.focusHandZone, 'the removed focus-stage hand zone mounted').toBeFalsy();
+  expect(seen.emptyStage, 'a BLANK colonies stage appeared mid-flow (the empty pause)').toBeFalsy();
+  expect(seen.markerOutsideFocus, 'the track-reset marker flew OUTSIDE the colony focus').toBeFalsy();
 });
 
 test('Pluto BUILD: the draw presents inside the colony workspace, never as a band', async ({page, request}) => {
@@ -308,6 +356,8 @@ test('Pluto BUILD: the draw presents inside the colony workspace, never as a ban
   expect(seen.embedded, 'the draw did not carry the embedded skin').toBeTruthy();
   expect(seen.inStage, 'the draw did not open inside the colony FOCUS STAGE').toBeTruthy();
   expect(seen.workspaceSplit, 'TWO workspace roots were visible at once').toBeFalsy();
+  expect(seen.focusHandZone, 'the removed focus-stage hand zone mounted').toBeFalsy();
+  expect(seen.markerOutsideFocus, 'the track-reset marker flew OUTSIDE the colony focus').toBeFalsy();
 
   // ── NO SIZE JUMP WHEN A CARD IS TAKEN. The reveal's own contract says the
   //    card scale is FIXED for the batch — taking one must re-centre the row,
@@ -390,16 +440,37 @@ test('Pluto TRADE with an OWN colony: the mandatory discard runs EMBEDDED in the
     .toBeVisible({timeout: 12_000});
   // The crumb still names the workspace root; the seat is standing.
   expect(await page.locator('.con-colonies').count(), 'the colony workspace was unmounted mid-resolution').toBeGreaterThan(0);
+  // THE FULL-STAGE DISCARD: the source chip stands (the colony's compact
+  // context), and the «СБРОШЕННЫЕ» seat belongs to the workspace — asserted
+  // NOW, while the phase is live (both fold with it).
+  expect(await page.locator('.con-colonies .con-colonies__srcchip').count(),
+    'the source chip did not stand during the discard').toBeGreaterThan(0);
+  expect(await page.locator('.con-colonies [data-colony-discard-seat]').count(),
+    'the discard seat did not stand inside the workspace').toBeGreaterThan(0);
   await shoot(page, '12-embedded-discard');
 
-  // ── 4 · Discard (single-select: A submits the focused card). ────────────
+  // ── 4 · Discard (single-select: A submits the focused card) — with the
+  //    RETURN LEG under its own watch: the card flies to «СБРОШЕННЫЕ», the
+  //    survivors gather into the dock, the colony FOCUS re-expands from the
+  //    chip, and only then the workspace closes. No overview frame, no blank
+  //    stage, no marker outside the focus — and the restore must be SEEN.
+  const returnWatch = watchPayout(page, 16_000);
   await press(page, 'Enter', 3200);
   await page.waitForTimeout(3200); // the discard flight + settle
   await shoot(page, '13-after-discard');
+  const tail = await returnWatch;
+  console.log('── return leg ──', JSON.stringify(tail));
+  expect(tail.emptyStage, 'a BLANK stage appeared on the return leg').toBeFalsy();
+  expect(tail.focusHandZone, 'the focus-stage hand zone mounted on the return leg').toBeFalsy();
+  expect(tail.markerOutsideFocus, 'the track marker flew OUTSIDE the focus on the return leg').toBeFalsy();
+  expect(tail.focusSeen, 'the colony FOCUS was never restored after the discard').toBeTruthy();
 
   const seen = seenEarly;
   expect(seen.legacyModal, 'a LEGACY modal opened during the resolution').toBeFalsy();
   expect(seen.fullBleed, 'a payout mounted OUTSIDE a workspace zone during the resolution').toBeFalsy();
   expect(seen.workspaceSplit, 'TWO workspace roots were visible at once').toBeFalsy();
   expect(seen.standaloneHand, 'the discard opened a STANDALONE hand workspace').toBeFalsy();
+  expect(seen.focusHandZone, 'the removed focus-stage hand zone (the B-only intermediate) mounted').toBeFalsy();
+  expect(seen.emptyStage, 'a BLANK colonies stage appeared mid-flow (the empty pause)').toBeFalsy();
+  expect(seen.markerOutsideFocus, 'the track-reset marker flew OUTSIDE the colony focus').toBeFalsy();
 });
