@@ -17314,6 +17314,11 @@ body.con-start-barshold .con-status {
     display: flex;
     align-items: center;
     gap: 1.1rem;
+    /* The frame's LAST child now (the status rail moved above it, so the
+       shelf keeps one seat on every step — the summary included). The
+       hairline separates it from the rail plate; the small gap keeps it from
+       hugging that plate on the steps where the rail is present. */
+    margin-top: .3rem;
     padding: .35rem .3rem;
     border-top: .05rem solid rgba(120, 155, 190, 0.12);
 

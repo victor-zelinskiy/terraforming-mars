@@ -461,21 +461,20 @@
           </div>
         </div>
 
-        <!-- ── THE SELECTION DOCK (preparation shelf) ─────────────────
-             The decisions already made lie here as compact face-down piles,
-             physically collected on RT and returned on LT (startDockMotion).
-             Not the Hand Dock, not the Played Tableau — everything here is
-             still reversible until the summary commit. -->
-        <ConsoleStartSelectionDock v-if="prepSurfaceLive" :piles="dockPileView" />
-
         <!-- ── PINNED STATUS RAIL ───────────────────────────────────────
              The focused card's LOCAL state ONLY (name + picked / limit /
              unaffordable / hint) — NEVER the global «N из M» progress (that
-             is the header counter). Pinned as the frame's last child so it
-             sits directly above the command bar with a STABLE height: the
-             card area (flex:1 body above) fills all the space down to it,
-             and a message swap never shifts the cards. Wizard card step only;
-             hidden while the deal cinematic runs (nothing interactive yet). -->
+             is the header counter). It sits ABOVE the Selection Dock, and the
+             DOCK is the frame's last child — deliberately: the rail exists
+             only while a card step is focused (`currentStep`), so with the
+             rail below it the shelf jumped up by a whole rail height the
+             moment the player stepped onto the SUMMARY. The shelf is the one
+             thing that must not move (it is a flight destination and the
+             player's running tally); a rail that only appears while there is
+             something to say may take that slack instead. Height stays
+             reserved for the whole card step, so a message swap never shifts
+             the cards; hidden while the deal cinematic runs (nothing
+             interactive yet). -->
         <!-- CEREMONY status rail — the same shared workspace status line:
              the focused queue card + its resolution context. Never the full
              startup status, never an effect breakdown. -->
@@ -527,6 +526,16 @@
             </span>
           </div>
         </div>
+
+        <!-- ── THE SELECTION DOCK (preparation shelf) ─────────────────
+             The decisions already made lie here as compact face-down piles,
+             physically collected on RT and returned on LT (startDockMotion).
+             Not the Hand Dock, not the Played Tableau — everything here is
+             still reversible until the summary commit.
+             The frame's LAST child: its seat above the command bar is the
+             same on every step INCLUDING the summary (see the status rail
+             above — that one is the part allowed to come and go). -->
+        <ConsoleStartSelectionDock v-if="prepSurfaceLive" :piles="dockPileView" />
 
         <!-- The command contract lives in the shell's command bar ONLY
              (footHints → setConsoleStartCommands). The old inline footer
