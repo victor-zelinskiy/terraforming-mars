@@ -29,7 +29,13 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
       <!-- Transient feed (normal / important / warning). P16: ONE brain, two
            shells — console mode swaps the PRESENTATION to the console-native
            card (same model/props; it only ever emits dismiss). -->
-      <TransitionGroup name="notification-pop" tag="div" class="notifications-layer__stack">
+      <!-- The leave hooks feed the feed's SETTLED signal (notificationsSettled):
+           a mandatory action's first presentation waits for the LAST card's exit
+           animation too, so a plate can never rise over a card still leaving. -->
+      <TransitionGroup name="notification-pop" tag="div" class="notifications-layer__stack"
+                       @before-leave="onCardLeaveStart"
+                       @after-leave="onCardLeaveEnd"
+                       @leave-cancelled="onCardLeaveEnd">
         <component
           :is="cardComponent"
           v-for="n in transient"
@@ -112,6 +118,8 @@ import {
   pendingSummary,
   drainQueueToJournal,
   promoteFromQueue,
+  noteNotificationLeaveStart,
+  noteNotificationLeaveEnd,
 } from '@/client/components/notifications/notificationState';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {ensureBotPresentationLiveness, openBotTurnReviewByKey} from '@/client/components/marsbot/marsBotPresentation';
@@ -504,6 +512,14 @@ export default defineComponent({
         ackBotTurn(notification.botTurnKey);
       }
       dismiss(id);
+    },
+    // The transient stack's leave hooks — the feed's SETTLED signal counts a
+    // card as "still presenting" through its whole exit animation.
+    onCardLeaveStart(el: Element): void {
+      noteNotificationLeaveStart(el);
+    },
+    onCardLeaveEnd(el: Element): void {
+      noteNotificationLeaveEnd(el);
     },
     onToggle(id: string): void {
       toggleExpanded(id);

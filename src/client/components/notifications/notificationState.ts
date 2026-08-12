@@ -69,6 +69,15 @@ type NotificationStore = {
   lastGeneration: number | undefined;
   /** Colours already announced as passed this generation. */
   passedSeen: Set<string>;
+  /**
+   * Transient cards whose LEAVE animation is still playing. The card leaves
+   * `transient` at dismiss time but its DOM exits over the next few hundred
+   * ms — a consumer that must wait for the feed to FINISH (the mandatory-
+   * action first presentation) waits on this too, so a plate can never rise
+   * over a card that is still animating out. Maintained by the layer's
+   * transition hooks (event-driven, never a timer).
+   */
+  leaving: number;
   settings: NotificationSettings;
 };
 
@@ -84,6 +93,7 @@ export const notificationState = reactive<NotificationStore>({
   seeded: false,
   lastGeneration: undefined,
   passedSeen: new Set<string>(),
+  leaving: 0,
   settings: {
     enabled: true,
     showNormal: true,
@@ -387,8 +397,52 @@ export function setExpanded(id: string, expanded: boolean): void {
 export function clearTransient(): void {
   notificationState.transient = [];
   notificationState.queue = [];
+  notificationState.leaving = 0;
   queueBlockedSince = undefined;
   starvationWarned = false;
+}
+
+// ── The feed's SETTLED signal (the ordinary-notification boundary) ──────────
+
+/**
+ * Elements whose leave START was counted — the end hook decrements only a
+ * counted element, so an unbalanced hook pair (or a reset racing a live leave)
+ * can never drive `leaving` negative or double-count one card.
+ */
+const leaveTracked = new WeakSet<Element>();
+
+/** A transient card's DOM exit began (the layer's @before-leave). */
+export function noteNotificationLeaveStart(el: Element): void {
+  if (!leaveTracked.has(el)) {
+    leaveTracked.add(el);
+    notificationState.leaving++;
+  }
+}
+
+/** …and finished or was cancelled (@after-leave / @leave-cancelled). */
+export function noteNotificationLeaveEnd(el: Element): void {
+  if (leaveTracked.has(el)) {
+    leaveTracked.delete(el);
+    notificationState.leaving = Math.max(0, notificationState.leaving - 1);
+  }
+}
+
+/**
+ * THE ORDINARY-NOTIFICATION FEED IS COMPLETELY FINISHED: nothing on screen,
+ * nothing queued behind a blocker, and no card still animating out. This is
+ * the boundary a pending MANDATORY action's first presentation waits behind
+ * (consoleMandatoryGate's pending → presented transition) — and the ONLY
+ * coupling between the two: notifications never queue behind a pending
+ * mandatory action, and a mandatory action never enters this feed.
+ *
+ * The singleton `turn` card is deliberately NOT part of the answer: it mirrors
+ * `waitingFor` itself, so it stands exactly as long as the pending decision
+ * does — waiting on it would deadlock the presentation forever.
+ */
+export function notificationsSettled(): boolean {
+  return notificationState.transient.length === 0 &&
+    notificationState.queue.length === 0 &&
+    notificationState.leaving === 0;
 }
 
 // ── Presentation-flow wiring (module init) ──────────────────────────────────
@@ -416,4 +470,8 @@ export function resetNotifications(): void {
   notificationState.seeded = false;
   notificationState.lastGeneration = undefined;
   notificationState.passedSeen = new Set<string>();
+  // A layer torn down mid-leave never fires its @after-leave — zero the count
+  // so a NEXT game's settled signal cannot inherit a phantom exit. (A late
+  // hook for an already-reset element is absorbed by the WeakSet pairing.)
+  notificationState.leaving = 0;
 }

@@ -30,6 +30,9 @@ import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {DraftPromptMeta, SelectCardModel} from '@/common/models/PlayerInputModel';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
+// Type-only on purpose: this module stays Vue-free at runtime (the fast
+// server-runner spec), and the gate's reactive store must not be dragged in.
+import type {MandatoryFlowBeat} from '@/client/console/consoleMandatoryGate';
 
 // ── journey types (structural twins of ConsoleJourneyRail's exports — no
 //    .vue import so this module stays pure and server-runner-testable) ──────
@@ -113,6 +116,28 @@ export function betweenGenDraftLive(view: PlayerViewModel): boolean {
   // The research that FOLLOWS the draft — alive until this player's buy is
   // answered (covers the Underworld swap choice standing before the buy).
   return view.game.phase === Phase.RESEARCH && view.thisPlayer.needsToResearch === true;
+}
+
+/**
+ * The draft's PENDING MANDATORY ACTION descriptor (consoleMandatoryGate's flow
+ * beat), or undefined while the flow is not live. The workspace never opens
+ * itself any more — this derivation is its registration, and the gate's
+ * lifecycle does the rest: the announcement waits out the ordinary-notification
+ * feed, the player's A runs `enterWorkspace('draft')`, and the flow going dead
+ * (the buy answered, or a rollback) is the action's invalidation.
+ *
+ * The KEY is the WHOLE flow's semantic identity, `draft:gen<N>` — stable
+ * across every pick round, the wait and the research buy (the generation is
+ * incremented once, before DRAFTING starts), so the flow is announced and
+ * opened exactly ONCE per generation, prompt churn notwithstanding. The
+ * `taskKind` is nominal (the plate's copy reads the LIVE task via
+ * consoleTaskSummary, so pick/wait/buy each name themselves).
+ */
+export function draftMandatoryFlowBeat(view: PlayerViewModel): MandatoryFlowBeat | undefined {
+  if (!betweenGenDraftLive(view)) {
+    return undefined;
+  }
+  return {key: `draft:gen${view.game.generation}`, taskKind: 'cardSelect', flow: 'draft'};
 }
 
 /** The current stage of a LIVE flow (meaningless when it is not live). */

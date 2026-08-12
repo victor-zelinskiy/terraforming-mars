@@ -13,12 +13,40 @@
  * "modal spam" and yanks the player away from whatever they were watching.
  *
  * THE MODEL — a per-DECISION "beat". At any moment there is at most ONE current
- * interruptive mandatory task BEAT. The gate HOLDS that beat closed (its surface
- * is suppressed, only the player's chip status shows) until the player
- * ACKNOWLEDGES it (opens it with B). While held AND the foreground is idle
- * (screens closed, animations done) a premium top ANNOUNCEMENT names the pending
- * decision; B opens it. Beats advance one at a time; no server change is needed
- * (the beats are derived from the client state the server already sends).
+ * mandatory action BEAT, drawn from TWO derivations in a fixed, deterministic
+ * order: an interruptive TASK beat (one server prompt), else the first pending
+ * FLOW beat (a whole workspace flow the player must OPEN — the between-
+ * generations draft). The gate HOLDS the beat closed (its surface is
+ * suppressed, only the player's chip status shows) until the player
+ * ACKNOWLEDGES it (opens it with A). Beats advance one at a time; no server
+ * change is needed (the beats are derived from the client state the server
+ * already sends). Because a beat is DERIVED, registration is idempotent by
+ * construction: equivalent server updates re-derive the same key, a reconnect
+ * re-derives the pending action, and a beat whose source state has moved on
+ * simply stops existing (invalidation without a stale plate).
+ *
+ * A BEAT'S LIFECYCLE (the asymmetric presentation boundary):
+ *   pending  — derived, but its FIRST presentation has not happened yet: the
+ *              shell waits for the ordinary-notification feed to finish
+ *              completely (nothing visible, empty queue, exit animations done)
+ *              before showing the announcement / lighting the chip. Ordinary
+ *              notifications and mandatory actions NEVER share a queue — the
+ *              feed keeps flowing while the beat waits beside it.
+ *   presented— the announcement (board home) or the chip beacon (anywhere
+ *              else) has appeared ONCE (`presentedKey`). From here the rule
+ *              flips: NEW notifications keep presenting over/beside it, but
+ *              can no longer hide the plate, reset it to pending, or replay
+ *              its entrance. The plate hides only for the player's own
+ *              location changes (another screen → the chip carries it).
+ *   acknowledged — the player pressed A: the surface opens (task kinds mount
+ *              their host/section; a FLOW beat runs its open route — the
+ *              draft workspace's enterWorkspace). Exactly once: the press
+ *              flips `mandatoryGateHeld` off synchronously, so a second A
+ *              finds no plate and no branch.
+ *   gone     — the derivation stops returning the key (answered / flow over /
+ *              no longer relevant): `noteMandatoryBeatIdentity` then clears
+ *              both latches, so a LATER beat with the same key (an admin
+ *              rollback replaying the same draft) starts a fresh cycle.
  *
  * ⚠️ A DRAWN-CARDS REVEAL IS NEVER A BEAT. The reveal overlay is the continuous
  * ENDPOINT of a draw CINEMATIC (the deck-draw scene literally *assembles into*
@@ -47,12 +75,36 @@
 import {reactive} from 'vue';
 import {ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
 
+/**
+ * The FLOW-scoped mandatory action kinds — workspace flows the player must
+ * OPEN explicitly (never auto-mounted). Each kind is an open route the shell's
+ * `openMandatoryAnnounce` knows how to run. Today: the between-generations
+ * draft. A new flow = a value here + a derivation the shell feeds into
+ * `MandatoryBeatInput.flows` + an open-route branch.
+ */
+export type MandatoryFlowKind = 'draft';
+
 /** One interruptive mandatory DECISION beat — a stable identity + its task kind. */
 export type MandatoryBeat = {
   /** Stable key for the beat (advances when the pending decision changes). */
   key: string;
   /** The task kind (drives the open path on acknowledge). */
   taskKind: TaskKind;
+  /** Set on a FLOW beat: the open route the acknowledge takes (absent = task). */
+  flow?: MandatoryFlowKind;
+};
+
+/**
+ * A pending FLOW-scoped mandatory action, as derived by its own module (the
+ * draft flow derives its from `betweenGenDraftLive`). The KEY is the whole
+ * flow's stable semantic identity (`draft:gen<N>`) — deliberately NOT a prompt
+ * identity, because one flow spans many prompts (pick rounds → the research
+ * buy) and must be announced/acknowledged ONCE, not once per round.
+ */
+export type MandatoryFlowBeat = {
+  key: string;
+  taskKind: TaskKind;
+  flow: MandatoryFlowKind;
 };
 
 /**
@@ -64,11 +116,21 @@ export type MandatoryBeat = {
 export const mandatoryGateState = reactive({
   acknowledgedKey: '' as string,
   /**
+   * The key of the beat whose FIRST PRESENTATION has happened (the plate rose
+   * on the board home, or the chip beacon lit elsewhere). One string, not a
+   * set: there is at most one current beat, and a SUPERSEDED beat returning
+   * later deserves a fresh presentation cycle anyway (see
+   * noteMandatoryBeatIdentity). This is the asymmetric boundary's latch — the
+   * pre-presentation quiet (wait out the notification feed) applies exactly
+   * while the current beat's key differs from this.
+   */
+  presentedKey: '' as string,
+  /**
    * A live mirror of the shell's `mandatoryGateHeld` computed. The leak detector
    * runs on a 1 s timer and cannot recompute the shell signals (reveal state /
    * forced-reaction / taskFor), so the shell keeps this in sync and the detector
    * reads it to treat a held prompt as legitimately served (the announcement /
-   * chip is its surface — it opens on B). See setMandatoryGateHeld.
+   * chip is its surface — it opens on A). See setMandatoryGateHeld.
    */
   held: false,
 });
@@ -150,16 +212,28 @@ export type MandatoryBeatInput = {
   taskKey: string;
   /** The viewer's status is an off-turn forced reaction (see above). */
   forcedReaction: boolean;
+  /**
+   * Pending FLOW-scoped mandatory actions, in the shell's deterministic order.
+   * At most one is ever CURRENT: a task beat (the server's immediate demand,
+   * which nothing else can proceed past) outranks every flow beat, and among
+   * flows the array order decides. When the current one completes, the next
+   * derives on its own and runs a fresh pending → presented cycle.
+   */
+  flows?: ReadonlyArray<MandatoryFlowBeat>;
 };
 
 /**
- * The CURRENT interruptive mandatory DECISION beat, or undefined. A drawn-cards
- * reveal is deliberately NOT a beat (see the module header) — it flows straight
- * through from its draw cinematic. PURE.
+ * The CURRENT mandatory action beat, or undefined. A drawn-cards reveal is
+ * deliberately NOT a beat (see the module header) — it flows straight through
+ * from its draw cinematic. PURE.
  */
 export function mandatoryBeatFor(input: MandatoryBeatInput): MandatoryBeat | undefined {
   if (isInterruptiveMandatoryTask(input.task, input.forcedReaction) && input.task !== undefined) {
     return {key: 'task:' + input.taskKey, taskKind: input.task.kind};
+  }
+  const flow = input.flows?.[0];
+  if (flow !== undefined) {
+    return {key: flow.key, taskKind: flow.taskKind, flow: flow.flow};
   }
   return undefined;
 }
@@ -172,6 +246,41 @@ export function isMandatoryBeatHeld(beat: MandatoryBeat | undefined): boolean {
 /** Record that the player OPENED (acknowledged) the beat with this key. */
 export function acknowledgeMandatoryBeat(key: string): void {
   mandatoryGateState.acknowledgedKey = key;
+}
+
+/** Has this beat had its FIRST PRESENTATION (plate / chip)? PURE. */
+export function isMandatoryBeatPresented(beat: MandatoryBeat | undefined): boolean {
+  return beat !== undefined && beat.key === mandatoryGateState.presentedKey;
+}
+
+/**
+ * Record the beat's FIRST presentation. Idempotent (a latch): the shell's
+ * readiness watcher fires it once the ordinary-notification feed has fully
+ * finished; equivalent later updates re-derive the same key and change nothing.
+ */
+export function markMandatoryBeatPresented(key: string): void {
+  mandatoryGateState.presentedKey = key;
+}
+
+/**
+ * The current beat IDENTITY changed (a different key, or no beat at all) —
+ * called by the shell's beat-key watcher. Latches referring to a beat that no
+ * longer exists are cleared, so:
+ *  - an ANSWERED / INVALIDATED action leaves nothing stale behind (its plate
+ *    simply unrenders — no empty transition, no ghost acknowledgment);
+ *  - the SAME key arising again later (an admin rollback replaying the same
+ *    generation's draft) is a NEW pending action: announced again, opened
+ *    again — never silently pre-acknowledged into a surface nobody opens.
+ * A key that is still the current one is never touched (the latches are
+ * exactly as durable as the beat they describe).
+ */
+export function noteMandatoryBeatIdentity(currentKey: string | undefined): void {
+  if (mandatoryGateState.acknowledgedKey !== '' && mandatoryGateState.acknowledgedKey !== currentKey) {
+    mandatoryGateState.acknowledgedKey = '';
+  }
+  if (mandatoryGateState.presentedKey !== '' && mandatoryGateState.presentedKey !== currentKey) {
+    mandatoryGateState.presentedKey = '';
+  }
 }
 
 /**
@@ -188,4 +297,5 @@ export function acknowledgeMandatoryBeat(key: string): void {
  */
 export function resetMandatoryGate(): void {
   mandatoryGateState.acknowledgedKey = '';
+  mandatoryGateState.presentedKey = '';
 }

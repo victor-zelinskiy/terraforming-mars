@@ -135,7 +135,8 @@ async function passIntoDrafting(page: Page, request: APIRequestContext, firstId:
   if (!passedOnUi) {
     // The honest fallback: pass P1 over the API and RELOAD the page so it
     // learns about its own consumed prompt (an open client never polls while
-    // it holds a required prompt) — the workspace then mounts on hydration.
+    // it holds a required prompt) — the draft's pending action then derives
+    // on the fresh page (the plate; A opens the workspace).
     console.log('[drive] UI pass did not land — falling back to API pass + reload');
     const m1 = await modelOf(request, firstId);
     if (m1.game.phase === 'action' && m1.waitingFor !== undefined) {
@@ -274,7 +275,22 @@ test.describe('draft workspace · the between-generations flow', () => {
     expect(await startRoot.count(), 'the start workspace released after the deployment').toBe(0);
     await passIntoDrafting(page, request, first.id, second.id);
 
-    // ── 1 · THE FIRST PACKET: the workspace opens over the running game.
+    // ── 1 · THE PENDING ACTION: the workspace does NOT auto-open on the
+    //    phase flip any more. The draft registers a pending MANDATORY action;
+    //    its plate presents only after the ordinary-notification feed has
+    //    fully finished (P2's pass card, the new-generation card — B flushes
+    //    them faster than their TTL), and only the player's A opens the
+    //    workspace.
+    await expect.poll(async () => {
+      const plate = await page.locator('.con-mandatory').count();
+      if (plate === 0) {
+        await press(page, 'Escape', 500); // B: dismiss a presenting toast
+      }
+      return plate;
+    }, {timeout: 90_000}).toBeGreaterThan(0);
+    expect(await page.locator('.con-draftws').count(), 'the workspace never opens uninvited').toBe(0);
+    await shoot(page, '00-draft-announce');
+    await press(page, 'Enter', 900); // A — the one explicit door into the draft
     await page.waitForSelector('.con-draftws', {timeout: 45_000});
     await page.waitForTimeout(4200); // the deal cinematic + entrance settle
     let s = await surface(page);
@@ -300,9 +316,14 @@ test.describe('draft workspace · the between-generations flow', () => {
     await page.waitForTimeout(900);
     await shoot(page, '02-waiting');
 
-    // ── 3 · RELOAD MID-WAIT: the workspace hydrates straight into the same
-    //    state — no entrance replay, the shelf keeps the pick.
+    // ── 3 · RELOAD MID-WAIT: the pending action re-derives (reconnect
+    //    restore), its plate presents on the fresh page (the seed is silent,
+    //    so the feed settles at once), and A re-opens the workspace — which
+    //    hydrates straight into the same state: no entrance replay, the shelf
+    //    keeps the pick.
     await page.reload();
+    await page.waitForSelector('.con-mandatory', {timeout: 45_000});
+    await press(page, 'Enter', 900);
     await page.waitForSelector('.con-draftws', {timeout: 45_000});
     await page.waitForTimeout(1500);
     s = await surface(page);

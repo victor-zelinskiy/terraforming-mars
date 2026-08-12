@@ -34,12 +34,15 @@
       <span class="con-banner__count">+{{ pendingEvents.count }}</span>
     </div>
 
-    <!-- MANDATORY ANNOUNCEMENT (consoleMandatoryGate): an INTERRUPTIVE mandatory
-         DECISION (corp first action / forced hand pick / off-turn reaction) is
-         ANNOUNCED here — not popped open — and the player opens it with B when
-         they're ready. Shown only once the foreground is idle (screens closed,
-         animations done). A drawn-cards reveal is NOT announced — it flows
-         straight through from its draw cinematic (never split from it). -->
+    <!-- MANDATORY ANNOUNCEMENT (consoleMandatoryGate): a mandatory ACTION (corp
+         first action / forced hand pick / off-turn reaction / a must-open
+         workspace flow like the between-generations draft) is ANNOUNCED here —
+         not popped open — and the player opens it with A when they're ready.
+         Its FIRST presentation waits out the whole ordinary-notification feed
+         (queue empty, exit animations done); once presented it is a STANDING
+         state that later notifications may join but never hide or reset. A
+         drawn-cards reveal is NOT announced — it flows straight through from
+         its draw cinematic (never split from it). -->
     <transition name="con-plate">
       <ConsoleMandatoryAnnounce v-if="mandatoryAnnounceVisible"
                                 :kicker="mandatoryAnnounceView.kicker"
@@ -478,8 +481,10 @@
          task (inspect the board) and CANCELS a client payment. -->
     <!-- THE DRAFT WORKSPACE («ДРАФТ») — the between-generations draft and the
          research buy as ONE phase-anchored workspace flow (WORKSPACE_KINDS
-         'draft'). Presence follows the stack (invariant 1) and nothing else;
-         the frame's owner is the `draftFrameLive` watcher. -->
+         'draft'). Presence follows the stack (invariant 1) and nothing else.
+         The frame is STOOD UP only by the player's A on the mandatory
+         announcement (a pending FLOW action — draftMandatoryFlowBeat), and
+         CLOSED by the `draftFrameLive` watcher's falling edge. -->
     <transition :css="false" appear
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
@@ -1165,7 +1170,7 @@ import {openBotTurnReviewByKey, stepBotTurnReview} from '@/client/components/mar
 import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
-import {notificationState, pendingSummary, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
+import {notificationState, notificationsSettled, pendingSummary, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
 import {beginNotifHold, cancelNotifHold, consumeNotifHoldRelease, resetNotifHold} from '@/client/console/consoleNotifHold';
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -1297,7 +1302,7 @@ import {
 } from '@/client/console/cardDeal/consoleDraftTray';
 import ConsoleDraftWorkspace from '@/client/components/console/draft/ConsoleDraftWorkspace.vue';
 import {
-  betweenGenDraftLive, draftCompletionHolding, observeDraftWorkspace, resetDraftWorkspace,
+  betweenGenDraftLive, draftCompletionHolding, draftMandatoryFlowBeat, observeDraftWorkspace, resetDraftWorkspace,
 } from '@/client/console/draft/consoleDraftFlow';
 import {consoleDraftUi} from '@/client/console/draft/consoleDraftUi';
 import {Phase} from '@/common/Phase';
@@ -1457,9 +1462,13 @@ import {actionLabelForPlayer, liveWaitingSignal} from '@/client/components/overv
 import ConsoleMandatoryAnnounce from '@/client/components/console/ConsoleMandatoryAnnounce.vue';
 import {
   MandatoryBeat,
+  MandatoryFlowBeat,
   mandatoryBeatFor,
   isMandatoryBeatHeld,
+  isMandatoryBeatPresented,
   acknowledgeMandatoryBeat,
+  markMandatoryBeatPresented,
+  noteMandatoryBeatIdentity,
   resetMandatoryGate,
   setMandatoryGateHeld,
 } from '@/client/console/consoleMandatoryGate';
@@ -2893,18 +2902,36 @@ export default defineComponent({
     viewerForcedReaction(): boolean {
       return actionLabelForPlayer(this.playerView, this.thisPlayer, liveWaitingSignal(this.waitingOnPlayers)) === 'forcedaction';
     },
-    /** The current interruptive mandatory DECISION beat (never a reveal). */
+    /**
+     * Pending FLOW-scoped mandatory actions, in the ONE deterministic order
+     * (`mandatoryBeatFor` presents the first; a task beat outranks them all).
+     * Today: the between-generations draft. A new must-open workspace flow
+     * contributes its own derivation here — never an auto-`enterWorkspace`.
+     */
+    mandatoryFlowBeats(): ReadonlyArray<MandatoryFlowBeat> {
+      const draft = draftMandatoryFlowBeat(this.playerView);
+      return draft === undefined ? [] : [draft];
+    },
+    /** The current mandatory action beat (never a reveal). */
     mandatoryBeat(): MandatoryBeat | undefined {
       const wf = this.playerView.waitingFor;
       return mandatoryBeatFor({
         task: taskFor(this.playerView),
         taskKey: promptIdentityKey(wf),
         forcedReaction: this.viewerForcedReaction,
+        flows: this.mandatoryFlowBeats,
       });
+    },
+    /** The beat's stable identity, for the latch-invalidation watcher ('' = none). */
+    mandatoryBeatKey(): string {
+      return this.mandatoryBeat?.key ?? '';
     },
     /** The current beat is HELD (announced, not yet OPENED by the player). While
      *  held, its surface is suppressed — only the chip status + the announcement
-     *  show; B opens it. Equivalent to `taskGateHeld` (a beat is always a task). */
+     *  show; A opens it. Equivalent to `taskGateHeld`: a TASK beat holds its own
+     *  prompt closed, and a FLOW beat (the draft) holds the prompts its
+     *  workspace would serve (the pick / buy card browser), so nothing legacy
+     *  can rise while the workspace waits for its explicit open. */
     mandatoryGateHeld(): boolean {
       return isMandatoryBeatHeld(this.mandatoryBeat);
     },
@@ -2912,12 +2939,6 @@ export default defineComponent({
     taskGateHeld(): boolean {
       return this.mandatoryGateHeld;
     },
-    /**
-     * Is the player idle/free enough to SHOW the announcement (and press B to
-     * open)? While an animation / hero / another full surface owns the screen the
-     * beat stays HELD but the announcement waits — the player sees only their
-     * chip status until they've "closed the screen / finished the animations".
-     */
     /** A task the player OPENED then DEFERRED (set aside) — the "return" state
      *  of the unified mandatory prompt (replaces the legacy amber chip). */
     mandatoryDeferredActive(): boolean {
@@ -2961,20 +2982,55 @@ export default defineComponent({
         !this.govScaleFocusState.holding &&
         !this.govScaleFocusState.closing;
     },
+    /**
+     * MAY THE CURRENT BEAT'S FIRST PRESENTATION HAPPEN NOW? The pending →
+     * presented transition of the mandatory-action lifecycle (the watcher
+     * below latches it). It waits for the ordinary-notification feed to
+     * finish COMPLETELY — nothing visible, empty queue, the last card's exit
+     * animation done (`notificationsSettled`) — and for every running
+     * presentation beat (theater / flow-holding card / animation holds /
+     * reveals / heroes). Deliberately NOT gated on the player's location:
+     * the presentation moment is one; WHERE the player stands only decides
+     * the FORM (the plate on the board home, the chip beacon elsewhere).
+     */
+    mandatoryPresentationReady(): boolean {
+      return this.mandatoryGateHeld &&
+        !isMandatoryBeatPresented(this.mandatoryBeat) &&
+        notificationsSettled() &&
+        !this.presentationHeld &&
+        !isAnimationHoldActive() &&
+        this.consoleRevealMode === undefined &&
+        !this.rawDrawnRevealPending &&
+        !this.playedHeroHolds &&
+        !this.tilePlacementHolds;
+    },
+    /**
+     * THE MANDATORY ACTION IS PAST ITS FIRST PRESENTATION — the plate/chip pair
+     * may signal. Two shapes, both "already met the player": a fresh HELD beat
+     * whose presentation has happened (the latch), and a DEFERRED task (the
+     * player opened it themselves — deferral IS a presented state, so it never
+     * re-waits behind the feed).
+     */
+    mandatoryActionPresented(): boolean {
+      return (this.mandatoryGateHeld && isMandatoryBeatPresented(this.mandatoryBeat)) ||
+        this.mandatoryDeferredActive;
+    },
     mandatoryAnnounceVisible(): boolean {
       // ONE premium surface for BOTH states: a fresh HELD decision (opens with
       // A) and a DEFERRED one (returns with A). Board-home + idle either way.
-      return (this.mandatoryGateHeld || this.mandatoryDeferredActive) &&
+      //
+      // ASYMMETRY (load-bearing): the strict quiet — the settled notification
+      // feed, the presentation holds, the animation holds — applies ONLY to
+      // the FIRST presentation (mandatoryPresentationReady). Once presented,
+      // a mandatory action is a STANDING state: a new toast / bot card / board
+      // animation presents beside it and must not blink it away, re-queue it
+      // or replay its entrance. The plate still yields to the player's own
+      // location (boardHomeIdle — the chip carries it elsewhere) and to the
+      // viewer's own full-bleed cinematics (a reveal / hero owns the screen).
+      return this.mandatoryActionPresented &&
         this.boardHomeIdle &&
-        // A reveal is the foreground even though the persistent start workspace
-        // still occupies the board-home frame underneath it. Cover the pending
-        // handoff too, so the announcement cannot flash between draw and mount.
         this.consoleRevealMode === undefined &&
         !this.rawDrawnRevealPending &&
-        // …and nothing is still PLAYING: the beat stays held until the player
-        // has "finished the animations", they just see their chip status.
-        !isAnimationHoldActive() &&
-        !this.presentationHeld &&
         !this.playedHeroHolds &&
         !this.tilePlacementHolds;
     },
@@ -2989,7 +3045,11 @@ export default defineComponent({
      * never double-signal.
      */
     mandatoryChipAttention(): boolean {
-      return (this.mandatoryGateHeld || this.mandatoryDeferredActive) &&
+      // Presented-only, like the plate: while the notification feed is still
+      // playing the pending action stays entirely silent (no plate AND no
+      // beacon) — the first presentation is ONE moment, whichever form the
+      // player's location gives it.
+      return this.mandatoryActionPresented &&
         !this.mandatoryAnnounceVisible &&
         !this.promptServedWhereIStand;
     },
@@ -5815,20 +5875,24 @@ export default defineComponent({
      * re-check the root afterwards.
      */
     /**
-     * THE DRAFT WORKSPACE'S FRAME — the same lifecycle contract as the start:
-     * a PHASE-anchored root stood up by its owner watcher and closed by it
+     * THE DRAFT WORKSPACE'S FRAME — the same lifecycle contract as the start
+     * for its END: a PHASE-anchored root closed by its owner watcher
      * (`closeWorkspaceRoot`, never `goBoardHome` — that one protects a phase
-     * root from steps inside it). `Known`, not `Index`: a PARKED draft is set
-     * aside, not gone — its way back is the deferred chip.
+     * root from steps inside it).
+     *
+     * The RISING edge deliberately opens NOTHING. The live draft flow derives
+     * a pending MANDATORY ACTION instead (mandatoryFlowBeats → the gate): the
+     * announcement waits out the ordinary-notification feed, and only the
+     * player's explicit A (`openMandatoryAnnounce`) stands the frame up. That
+     * is what stops the workspace from yanking the player out of whatever
+     * they were reading the moment the phase flips. The falling edge is also
+     * the pending action's INVALIDATION: a draft that stopped being live
+     * before it was ever opened simply stops deriving — no empty transition.
      */
     draftFrameLive: {
       immediate: true,
       handler(live: boolean): void {
-        if (live) {
-          if (!workspaceFrameKnown('draft')) {
-            enterWorkspace('draft', {anchor: {type: 'phase', phase: 'draft'}});
-          }
-        } else {
+        if (!live) {
           closeWorkspaceRoot('draft');
           // The per-generation latches + presentation memory reset with the
           // flow (the NEXT generation's draft starts clean).
@@ -5878,11 +5942,43 @@ export default defineComponent({
     },
     // Mirror the live gate-held state into the module so the leak detector (a
     // timer that can't recompute the shell signals) treats a held prompt as
-    // legitimately served — the announcement / chip is its surface (B opens it).
+    // legitimately served — the announcement / chip is its surface (A opens it).
     mandatoryGateHeld: {
       immediate: true,
       handler(held: boolean): void {
         setMandatoryGateHeld(held);
+      },
+    },
+    // The beat IDENTITY changed (answered / invalidated / superseded) — retire
+    // the latches that referred to the old one, so a completed action leaves
+    // nothing stale and a NEXT action runs its own pending → presented cycle
+    // (including re-waiting out the notification feed, per the boundary rule).
+    mandatoryBeatKey: {
+      immediate: true,
+      handler(key: string): void {
+        noteMandatoryBeatIdentity(key === '' ? undefined : key);
+        // A NEW beat can be born already-ready (feed settled, nothing playing),
+        // and beat A's latch → ready false → beat B → ready true can all happen
+        // inside one flush — a value-equality watcher then observes true → true
+        // and never fires. Latch here too; same predicate, same latch, so the
+        // two writers cannot disagree.
+        const beat = this.mandatoryBeat;
+        if (beat !== undefined && this.mandatoryPresentationReady) {
+          markMandatoryBeatPresented(beat.key);
+        }
+      },
+    },
+    // The pending → presented transition. A WATCHER, not a computed side
+    // effect: presentation is a one-way latch keyed by the beat, and this is
+    // its single writer. Firing on the rising edge only — once latched, the
+    // readiness predicate goes false by itself (isMandatoryBeatPresented).
+    mandatoryPresentationReady: {
+      immediate: true,
+      handler(ready: boolean): void {
+        const beat = this.mandatoryBeat;
+        if (ready && beat !== undefined) {
+          markMandatoryBeatPresented(beat.key);
+        }
       },
     },
     // Mirror the RAW admission signals into the foreground watchdog: it runs on
@@ -9542,6 +9638,17 @@ export default defineComponent({
         return;
       }
       acknowledgeMandatoryBeat(beat.key);
+      // A FLOW beat runs its own open route — the ONE door into the workspace
+      // (the auto-enter on the phase flip is gone). The acknowledge above has
+      // already dropped `mandatoryGateHeld` synchronously, so a second A finds
+      // no plate and no branch; the frame guard makes even a raced double
+      // press idempotent (one frame, one entrance cinematic, one transition).
+      if (beat.flow === 'draft') {
+        if (!workspaceFrameKnown('draft')) {
+          enterWorkspace('draft', {anchor: {type: 'phase', phase: 'draft'}});
+        }
+        return;
+      }
       const task = taskFor(this.playerView);
       if (task !== undefined && SHELL_SECTION_KINDS.has(task.kind)) {
         this.openShellTaskSurface(task);

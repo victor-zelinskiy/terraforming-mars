@@ -7,7 +7,7 @@ import {
   draftJourneyPhases, draftCrumb, draftCompactContext, draftFlowPresentation,
   requirementHeadsUp, observeDraftWorkspace, draftWorkspaceState, resetDraftWorkspace,
   beginDraftCompletion, markDraftCompletionFlightsDone, finishDraftCompletion,
-  draftCompletionHolding, draftNeighbor,
+  draftCompletionHolding, draftNeighbor, draftMandatoryFlowBeat,
 } from '@/client/console/draft/consoleDraftFlow';
 import {draftCommands} from '@/client/console/draft/consoleDraftUi';
 
@@ -98,6 +98,24 @@ describe('consoleDraftFlow', () => {
     expect(betweenGenDraftLive(view({phase: Phase.RESEARCH, needsToResearch: false}))).is.false;
     expect(betweenGenDraftLive(view({phase: Phase.ACTION}))).is.false;
     expect(betweenGenDraftLive(view({phase: Phase.INITIALDRAFTING, generation: 1}))).is.false;
+  });
+
+  it('the pending mandatory action mirrors the live flow, ONE key per generation', () => {
+    // Registration = derivation: idempotent by construction (same view → same
+    // key), gone the moment the flow stops being live (invalidation), and
+    // restored by any reconnect that re-derives the same live state.
+    const beat = draftMandatoryFlowBeat(view({}));
+    expect(beat).deep.eq({key: 'draft:gen2', taskKind: 'cardSelect', flow: 'draft'});
+    // The key is the WHOLE flow's identity — stable from the pick rounds
+    // through the research buy (the generation does not change between them),
+    // so the flow is announced and opened exactly once.
+    expect(draftMandatoryFlowBeat(view({phase: Phase.RESEARCH, needsToResearch: true}))).deep.eq(beat);
+    // The NEXT generation's draft is a NEW pending action.
+    expect(draftMandatoryFlowBeat(view({generation: 3}))?.key).eq('draft:gen3');
+    // Not live → no pending action (never a stale plate).
+    expect(draftMandatoryFlowBeat(view({phase: Phase.RESEARCH, needsToResearch: false}))).is.undefined;
+    expect(draftMandatoryFlowBeat(view({draftVariant: false}))).is.undefined;
+    expect(draftMandatoryFlowBeat(view({phase: Phase.RESEARCH, generation: 1}))).is.undefined;
   });
 
   it('packet identity folds the card names (rounds reuse one prompt identity)', () => {

@@ -13,6 +13,9 @@ import {
   acknowledgeFlowHoldingCards,
   drainQueueToJournal,
   pendingSummary,
+  notificationsSettled,
+  noteNotificationLeaveStart,
+  noteNotificationLeaveEnd,
 } from '@/client/components/notifications/notificationState';
 import {resetPresentationLeases, acquireForegroundLease} from '@/client/components/presentation/presentationFlow';
 import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
@@ -225,6 +228,54 @@ describe('notificationState (lifecycle)', () => {
       expect(notificationState.turn?.expanded).to.eq(true);
       setTurn(model('turn:action-required', 'action-required'));
       expect(notificationState.turn?.expanded).to.eq(true);
+    });
+  });
+
+  describe('the SETTLED signal (the mandatory-action presentation boundary)', () => {
+    it('settled = nothing visible, nothing queued, no card still leaving', () => {
+      expect(notificationsSettled()).to.eq(true);
+      pushTransient(model('a'));
+      expect(notificationsSettled(), 'a visible card is not settled').to.eq(false);
+      pushTransient(model('b'));
+      dismiss('a');
+      expect(notificationsSettled(), 'a queued card promoted into the slot').to.eq(false);
+      dismiss('b');
+      expect(notificationsSettled(), 'feed empty again').to.eq(true);
+    });
+
+    it('a leave animation keeps the feed unsettled until its own end event', () => {
+      // Identity is all the pairing needs — keep the spec DOM-free so it runs
+      // under the fast server runner too.
+      const el = {} as unknown as Element;
+      noteNotificationLeaveStart(el);
+      expect(notificationsSettled(), 'exit animation still playing').to.eq(false);
+      // The start hook is per-element idempotent (a re-fired hook cannot
+      // double-count one card).
+      noteNotificationLeaveStart(el);
+      expect(notificationState.leaving).to.eq(1);
+      noteNotificationLeaveEnd(el);
+      expect(notificationsSettled()).to.eq(true);
+      // An unmatched end (already counted down / never counted) is absorbed.
+      noteNotificationLeaveEnd(el);
+      expect(notificationState.leaving).to.eq(0);
+    });
+
+    it('the singleton turn card does NOT block settling (it mirrors waitingFor itself)', () => {
+      setTurn(model('turn:action-required', 'action-required'));
+      expect(notificationsSettled(), 'waiting on the turn card would deadlock the presentation').to.eq(true);
+    });
+
+    it('resets zero the leaving count (a torn-down layer never fires after-leave)', () => {
+      const el = {} as unknown as Element;
+      noteNotificationLeaveStart(el);
+      resetNotifications();
+      expect(notificationState.leaving).to.eq(0);
+      // A late end hook for a pre-reset element stays absorbed at zero.
+      noteNotificationLeaveEnd(el);
+      expect(notificationState.leaving).to.eq(0);
+      noteNotificationLeaveStart({} as unknown as Element);
+      clearTransient();
+      expect(notificationState.leaving).to.eq(0);
     });
   });
 
