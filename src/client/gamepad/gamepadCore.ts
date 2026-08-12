@@ -133,7 +133,7 @@ function describeAllPads(): string {
   const seen = pads
     .map((pad, slot) => pad === null ? `#${slot} —` : describePad(pad))
     .join(' | ');
-  return `slots=${pads.length}${usingNativePads() ? ' (NATIVE — Gamepad API is empty)' : ''} [${seen}]`;
+  return `slots=${pads.length}${padsFromNative ? ' (NATIVE — Gamepad API is empty)' : ''} [${seen}]`;
 }
 
 function chromiumPads(): ReadonlyArray<Gamepad | null> {
@@ -148,27 +148,21 @@ function chromiumPads(): ReadonlyArray<Gamepad | null> {
 }
 
 /**
- * Is the native (main-process) source currently standing in? True only where
- * Chromium's own fetcher reports nothing while the kernel has joysticks — the
- * measured Steam Deck case. See nativePadBridge.ts for why the fallback is
- * strict: two sources feeding the loop at once would double every press.
+ * Which source the LAST `navigatorPads()` call answered from. Published as a
+ * flag rather than recomputed, so nothing has to call `getGamepads()` twice per
+ * poll just to ask "which source is this?".
  */
-function usingNativePads(): boolean {
-  for (const pad of chromiumPads()) {
-    if (pad !== null && pad.connected) {
-      return false;
-    }
-  }
-  return nativePads().length > 0;
-}
+let padsFromNative = false;
 
 function navigatorPads(): ReadonlyArray<PollablePad | null> {
   const pads = chromiumPads();
   for (const pad of pads) {
     if (pad !== null && pad.connected) {
+      padsFromNative = false;
       return pads;
     }
   }
+  padsFromNative = nativePads().length > 0;
   return nativePads();
 }
 
@@ -210,10 +204,32 @@ type PadContribution = {index: number, id: string, active: boolean, edge: boolea
 /** Rate limit for the "a non-driving pad is being pressed" diagnostic. */
 const SUPPRESSED_LOG_INTERVAL_MS = 3000;
 let suppressedLoggedAt = 0;
+/** Which source the previous poll frame read, to notice a HANDOVER between them. */
+let sourceWasNative = false;
 
 function pollOnce(now: number): void {
   const pads = navigatorPads();
   const deadzone = gamepadDeadzone();
+
+  // ── SOURCE HANDOVER (matters on a platform whose Gamepad API WORKS) ────────
+  // Chromium hides pads until the first button press (the privacy gate), so a
+  // healthy Linux host — a Steam Machine, say — starts a session on the native
+  // source and switches to Chromium's the instant that first press opens the
+  // gate. Both sources index pads from 0, so without this the baseline stored
+  // for native pad #0 would be diffed against CHROMIUM pad #0: two different
+  // views of the device, with different button counts and possibly different
+  // states, producing a burst of phantom press/release intents — at the worst
+  // possible moment, the very first press of the session. Dropping the
+  // baselines re-seeds them, and the first-sighting rule emits nothing.
+  if (padsFromNative !== sourceWasNative) {
+    sourceWasNative = padsFromNative;
+    prevSnapshots.clear();
+    pollStates.clear();
+    election = initialElectionState();
+    gamepadCoreState.activeIndex = -1;
+    gamepadCoreState.activeId = '';
+    gpLog(`source → ${padsFromNative ? 'NATIVE (Gamepad API empty)' : 'Chromium Gamepad API'} — ${describeAllPads()}`);
+  }
 
   // ── PASS 1: refresh EVERY connected pad, collect its intents, DON'T dispatch.
   // Diffing every pad each frame (not only the driving one) keeps every pad's

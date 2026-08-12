@@ -340,7 +340,14 @@ export function installNativeGamepads(win: BrowserWindow): () => void {
       clearTimeout(rescanTimer);
     }
     watcher?.close();
-    win.webContents.off('dom-ready', onDomReady);
+    // The usual caller is the window's own 'closed' event, and by then the
+    // native window object is GONE — merely READING `win.webContents` throws
+    // "Object has been destroyed" and, unhandled in the main process, that is a
+    // crash dialog on the way out of the game. Its listeners died with it, so
+    // there is nothing to detach in that case.
+    if (!win.isDestroyed()) {
+      win.webContents.off('dom-ready', onDomReady);
+    }
     for (const device of [...devices.values()]) {
       close(device);
     }
