@@ -261,6 +261,46 @@ export class LocalFilesystem implements IDatabase {
     for (const version of saveIds.slice(-rollbackCount)) {
       this.deleteVersion(gameId, version);
     }
+
+    // Dropping the history versions is the WHOLE rollback for the SQL backends,
+    // whose getGame reads `ORDER BY save_id DESC LIMIT 1` and so re-points itself
+    // for free. This one keeps the current state in a file of its own, and THAT
+    // file is what getGame reads — so every reload (undo, admin rollback) would
+    // otherwise come straight back with the state just discarded, and the rollback
+    // would silently do nothing while reporting success.
+    const survivor = saveIds[saveIds.length - rollbackCount - 1];
+    if (survivor !== undefined) {
+      await this.repointCurrentState(gameId, survivor);
+    }
+  }
+
+  /**
+   * Rewrites the current-state file from `saveId`'s history version.
+   *
+   * It rides `pendingWrites` for the reason every save does: the chain is what
+   * keeps writes from interleaving (so the fixed temp names cannot collide), and
+   * reading the source INSIDE it is what guarantees we copy the surviving save
+   * rather than one a queued write is still about to replace. Two things differ
+   * from a save, both because a caller is about to reload the game from this file:
+   * it is AWAITED, and a failure REACHES that caller instead of being logged and
+   * dropped — a rollback that quietly did nothing is the bug this method exists to
+   * fix. The chain itself still absorbs the rejection, since one left on it would
+   * be inherited by every later save and by flushPendingWrites.
+   */
+  private async repointCurrentState(gameId: GameId, saveId: number): Promise<void> {
+    let failure: unknown;
+    this.pendingWrites = this.pendingWrites
+      .then(() => this.writeAtomic(
+        this.filename(gameId),
+        this.filename(gameId, 'tmp'),
+        readFileSync(this.historyFilename(gameId, saveId)).toString()))
+      .catch((err) => {
+        failure = err;
+      });
+    await this.pendingWrites;
+    if (failure !== undefined) {
+      throw new Error(`Could not roll ${gameId} back to save ${saveId}: ${String(failure)}`);
+    }
   }
 
   async deleteGame(gameId: GameId): Promise<void> {

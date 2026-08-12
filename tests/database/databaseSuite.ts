@@ -409,11 +409,19 @@ export function describeDatabaseSuite<T extends ITestDatabase>(dtor: DatabaseTes
       await db.saveGame(game);
 
       expect(await db.getSaveIds(game.id)).has.members([0, 1, 2, 3, 4, 5]);
+      expect((await db.getGame(game.id)).lastSaveId).eq(5);
 
       await db.deleteGameNbrSaves(game.id, 2);
 
       const saveIds = await db.getSaveIds(game.id);
       expect(saveIds).has.members([0, 1, 2, 3]);
+      // Trimming the save ids is only half of a rollback: getGame is what every
+      // reload reads (undo, the admin rollback tool), so it has to come back with
+      // the surviving save and not the discarded one. Asserting the ids alone let
+      // LocalFilesystem — the packaged desktop app's backend, and the only one
+      // holding the current state in a file separate from its history — pass while
+      // rolling nothing back at all.
+      expect((await db.getGame(game.id)).lastSaveId).eq(3);
     });
 
     it('deleteGame', async () => {
