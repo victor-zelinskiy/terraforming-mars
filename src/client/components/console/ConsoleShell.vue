@@ -5085,21 +5085,25 @@ export default defineComponent({
           // The overview SELECTS; the focus stage resolves — A's label says
           // where it goes, never pretends the commit happens here.
           return [
-            {control: 'confirm', label: pick.buttonLabel === 'Build' ? 'To building' : pick.buttonLabel === 'trade' ? 'To trade' : 'Select'},
-            {control: 'secondary', label: 'Inspect'},
+            // ONE VERB ON THE OVERVIEW. A always opens the focused colony's
+            // detail stage — the action itself is performed THERE, with its
+            // availability and its blocked reason on screen — so the label
+            // names the press, not a destination it cannot promise
+            // («К строительству» over a colony that refuses the build read as
+            // a commitment). There is no separate «Осмотреть» either: the
+            // stage the overview opens IS the dossier.
+            {control: 'confirm', label: 'Select'},
             // The pick is OWED BY A CARD → the console-wide source verb.
             ...(this.colonyEmbedSourceCard !== undefined ?
               [{control: 'stickL' as GlyphControl, label: 'Inspect the source'}] : []),
             {control: 'back', label: this.colonyCancellable ? 'Cancel' : 'Minimize'},
           ];
         }
-        const selected = this.game.colonies[this.consoleState.colonyIndex];
-        const tradeable = selected !== undefined && this.tradeableColonyNames.includes(selected.name);
         return [
-          // A always ENTERS the focus stage; the label says what it enters
-          // INTO — the trade configuration, or (blocked) the plain dossier.
-          {control: 'confirm', label: tradeable ? 'To trade' : 'Select'},
-          {control: 'secondary', label: 'Inspect'},
+          // A always ENTERS the focus stage — see the pick branch above: one
+          // verb, one destination, and the stage owns both the action and the
+          // reason it may be impossible.
+          {control: 'confirm', label: 'Select'},
           ...(this.colonyEmbedSourceCard !== undefined ?
             [{control: 'stickL' as GlyphControl, label: 'Inspect the source'}] : []),
           // B: «свернуть» is right for a step a COMMITTED host owns — the
@@ -8085,16 +8089,16 @@ export default defineComponent({
         this.handleSectionConfirm();
         return true;
       case 'inspect':
-        // P13 global rule: X reads the focused object fullscreen — in the
-        // colonies section X = «Осмотреть» DESCENDS into the focused colony's
-        // FOCUS STAGE (the workspace's one detail surface — never a modal);
-        // on the BOARD HOME (the main field context only — never
-        // mid-placement, never inside an inspection mode) X opens the
-        // «Разыграно» tableau.
+        // P13 global rule: X reads the focused object fullscreen; on the BOARD
+        // HOME (the main field context only — never mid-placement, never
+        // inside an inspection mode) X opens the «Разыграно» tableau.
+        //
+        // THE COLONIES OVERVIEW HAS NO X. Both verbs led to the same place —
+        // the focused colony's stage — so «Осмотреть» was a second name for
+        // «Выбрать», and the bar advertised a choice that did not exist. One
+        // press, one destination; the stage is the dossier AND the action.
         if (this.consoleState.section === 'hand') {
           this.zoomHandCard();
-        } else if (this.consoleState.section === 'colonies') {
-          this.enterColonyFocus('inspect');
         } else if (onBoard && !this.placementActive &&
             !this.consoleState.inspecting && !this.consoleState.scaleInspecting) {
           this.openPlayedOverlay();

@@ -477,49 +477,81 @@
       <section class="con-colfocus__result" data-unfold-item>
         <div class="con-colfocus__sec-title" data-unfold-late>{{ $t(resultTitle) }}</div>
 
-        <!-- TRADE / INSPECT / PICK -->
+        <!-- TRADE / INSPECT / PICK — THE REWARD PACKAGE. Three questions in
+             the order a player asks them: what do I END UP with, what is that
+             made of, and what does everyone else get. The middle block is the
+             arithmetic made visible; the last one is deliberately OUTSIDE the
+             total (it used to sit beside it, reading as part of the payout). -->
         <template v-if="intent !== 'build'">
           <div class="con-colfocus__rsec con-colfocus__rsec--lead">
-            <div class="con-colfocus__rsec-label" data-unfold-late>{{ $t(presentAvailable && intent !== 'pick' ? 'Trade reward here' : 'On the current level') }}</div>
-            <div class="con-colfocus__rrow con-colfocus__rrow--gain con-colfocus__rrow--big">
-              <span class="con-colfocus__rvalue" :data-colony-trade-source="colony.name">
-                <b v-if="focusedReward.quantity > 0">+{{ focusedReward.quantity }}</b>
-                <span class="con-colfocus__rglyph con-colfocus__rglyph--lg">
-                  <BenefitGlyph :benefit="tradeBenefitAt(effectivePosition)" :idx="effectivePosition" :cardResource="metadata.cardResource" />
+            <div class="con-colfocus__rsec-label" data-unfold-late>{{ $t(presentAvailable && intent !== 'pick' ? 'Your total' : 'On the current level') }}</div>
+            <div v-for="total in rewardPackage.totals" :key="total.key"
+                 class="con-colfocus__rrow con-colfocus__rrow--gain con-colfocus__rrow--big">
+              <span class="con-colfocus__rvalue">
+                <b>+{{ total.amount }}</b>
+                <span class="con-colfocus__rglyph con-colfocus__rglyph--lg"
+                      :class="{'con-colfocus__rglyph--prod': total.production}">
+                  <i v-if="total.icon !== undefined" :class="rewardIconClass(total.icon)" aria-hidden="true"></i>
+                  <span v-else class="con-colfocus__rlabel">{{ $t(total.label ?? '') }}</span>
                 </span>
               </span>
-              <em v-if="tradeGainDelta !== ''" data-unfold-late>{{ tradeGainDelta }}</em>
+              <!-- The NUMBER when the viewer's stock has one, otherwise WHERE
+                   it goes: «+2 животных» with no destination is an amount the
+                   player cannot place. -->
+              <em v-if="total.current !== undefined" data-unfold-late>{{ total.current }} → {{ total.resulting }}</em>
+              <em v-else-if="total.destinationKey !== undefined" data-unfold-late>{{ $t(total.destinationKey) }}</em>
             </div>
+            <div v-if="rewardPackage.totals.length === 0" class="con-colfocus__muted" data-unfold-late>{{ $t('No reward at this level') }}</div>
             <div v-if="resourceLost" class="con-colfocus__notice con-colfocus__notice--warn" data-unfold-late>
               <span aria-hidden="true">⚠</span>
               <span>{{ $t('Resource will be lost — no card') }}</span>
             </div>
-            <div v-for="line in targetOutcomeLines" :key="line.key" class="con-colfocus__rrow con-colfocus__rrow--target" data-unfold-late>
+          </div>
+
+          <!-- THE COMPOSITION — where each part came from. The track's own
+               value keeps `data-colony-trade-source`: the reward chips and
+               card covers physically leave THAT number. -->
+          <div v-if="rewardPackage.sources.length > 0" class="con-colfocus__rsec" data-unfold-late>
+            <div class="con-colfocus__rsec-label">{{ $t('Reward breakdown') }}</div>
+            <div v-for="row in rewardPackage.sources" :key="row.key" class="con-colfocus__rrow con-colfocus__rrow--part">
+              <span class="con-colfocus__rpart">{{ sourceRowLabel(row) }}</span>
+              <span class="con-colfocus__rvalue"
+                    :data-colony-trade-source="row.kind === 'track' ? colony.name : undefined">
+                <b>+{{ row.amount }}</b>
+                <span class="con-colfocus__rglyph" :class="{'con-colfocus__rglyph--prod': row.production}">
+                  <i v-if="row.icon !== undefined" :class="rewardIconClass(row.icon)" aria-hidden="true"></i>
+                  <span v-else class="con-colfocus__rlabel">{{ $t(row.label ?? '') }}</span>
+                </span>
+              </span>
+            </div>
+            <!-- The chosen host card's own before → after, under the part it
+                 explains (a card resource has no rail number of its own). -->
+            <div v-for="line in targetOutcomeLines" :key="line.key" class="con-colfocus__rrow con-colfocus__rrow--target">
               <i v-if="line.iconClass !== ''" :class="line.iconClass" aria-hidden="true"></i>
               <span class="con-colfocus__rrow-card">{{ $t(line.card) }}</span>
               <em>{{ line.before }} → {{ line.after }}</em>
             </div>
           </div>
 
-          <!-- THE RECIPIENTS — one line per player, each carrying the amount
-               THEY actually receive. It used to print the per-colony rate once
-               and hang «×2» off a name, which left the player multiplying a
-               rate by a count to learn what the move costs them; a summary
-               that has to be worked out is not a summary. -->
+          <!-- THE OTHER OWNERS — what the trade pays everyone else. Their
+               names, their amounts, and nothing of theirs in your total. -->
           <div class="con-colfocus__rsec" data-unfold-late>
-            <div class="con-colfocus__rsec-label">{{ $t('To the owners') }}</div>
-            <div v-for="owner in ownerRewards" :key="owner.color" class="con-colfocus__rrow con-colfocus__rrow--gain">
-              <b>+{{ owner.total }}</b>
-              <span class="con-colfocus__rglyph">
-                <BenefitGlyph :benefit="colonyBenefit" :idx="0" :cardResource="metadata.cardResource" />
-              </span>
+            <div class="con-colfocus__rsec-label">{{ $t('To other players') }}</div>
+            <div v-for="row in otherOwnerRows" :key="row.color" class="con-colfocus__rrow con-colfocus__rrow--gain">
               <span class="con-colfocus__rowner">
-                <span :class="'con-status__dot player_bg_color_' + owner.color"></span>
-                <span>{{ owner.name }}</span>
-                <em v-if="owner.count > 1">×{{ owner.count }}</em>
+                <span :class="'con-status__dot player_bg_color_' + row.color"></span>
+                <span>{{ row.name }}</span>
+                <em v-if="row.count > 1">×{{ row.count }}</em>
+              </span>
+              <span class="con-colfocus__rvalue">
+                <b>+{{ row.amount }}</b>
+                <span class="con-colfocus__rglyph" :class="{'con-colfocus__rglyph--prod': row.production}">
+                  <i v-if="row.icon !== undefined" :class="rewardIconClass(row.icon)" aria-hidden="true"></i>
+                  <span v-else class="con-colfocus__rlabel">{{ $t(row.label ?? '') }}</span>
+                </span>
               </span>
             </div>
-            <div v-if="ownerRewards.length === 0" class="con-colfocus__muted">{{ $t('No colonies built here yet') }}</div>
+            <div v-if="otherOwnerRows.length === 0" class="con-colfocus__muted">{{ $t('No other owners here') }}</div>
           </div>
 
           <div v-if="noticeRows.length > 0" class="con-colfocus__rsec" data-unfold-late>
@@ -625,8 +657,12 @@ import {
   PaymentView,
 } from '@/client/console/paymentPlan';
 import {
+  ColonyRewardPackage,
+  RewardOtherRow,
+  RewardSourceRow,
   TradeStep,
   colonyOwnerCounts,
+  colonyRewardPackage,
   effectiveTradePosition,
   rewardAtPosition,
   tradeNotices,
@@ -985,9 +1021,6 @@ export default defineComponent({
       }
       return cells;
     },
-    focusedReward(): {quantity: number} {
-      return rewardAtPosition(this.metadata, this.effectivePosition);
-    },
     buildBenefit(): {type: ColonyBenefit, quantity: ReadonlyArray<number>, resource?: unknown} {
       const b = this.metadata.build;
       return {type: b.type, quantity: b.quantity, resource: Array.isArray(b.resource) ? b.resource[0] : b.resource};
@@ -1013,12 +1046,6 @@ export default defineComponent({
         const player = this.players.find((p) => p.color === owner.color);
         return {...owner, name: player !== undefined ? participantDisplayName(player) : owner.color};
       });
-    },
-    /** What each owner ACTUALLY receives when a trade happens here — the rate
-     *  already multiplied by the seats they hold, so the summary is a result
-     *  and not an exercise. */
-    ownerRewards(): Array<{color: Color, count: number, name: string, total: number}> {
-      return this.owners.map((owner) => ({...owner, total: owner.count * this.focusedBonusQty}));
     },
     /**
      * THE ARITHMETIC WORTH DRAWING. A single seat needs none — the rate IS the
@@ -1311,10 +1338,25 @@ export default defineComponent({
         } : {},
       });
     },
-    /** The trade income's before→after on the viewer's stock ('' = n/a). */
-    tradeGainDelta(): string {
-      const gain = this.outcome.gains.find((chip) => chip.current !== undefined);
-      return gain !== undefined && gain.current !== undefined ? `${gain.current} → ${gain.resulting}` : '';
+    /**
+     * THE REWARD PACKAGE the summary rail renders — «ВАШ ИТОГ» / «СОСТАВ
+     * НАГРАДЫ» / «ДРУГИМ ИГРОКАМ», all three from the ONE pure derivation
+     * every colony surface shares (`colonyRewardPackage`).
+     */
+    rewardPackage(): ColonyRewardPackage {
+      return colonyRewardPackage({
+        gains: this.outcome.gains,
+        metadata: this.metadata,
+        colony: this.colony,
+        viewer: this.viewerColor,
+      });
+    },
+    /** The other owners' rows with their display names resolved. */
+    otherOwnerRows(): Array<RewardOtherRow & {name: string}> {
+      return this.rewardPackage.others.map((row) => {
+        const player = this.players.find((p) => p.color === row.color);
+        return {...row, name: player !== undefined ? participantDisplayName(player) : row.color};
+      });
     },
     targetOutcomeLines(): Array<{key: string, card: string, amount: number, before: number, after: number, iconClass: string}> {
       const lines: Array<{key: string, card: string, amount: number, before: number, after: number, iconClass: string}> = [];
@@ -1565,6 +1607,26 @@ export default defineComponent({
       // other icon on this stage goes through `resourceIconClass`; this was the
       // one exception, and it is why the fee row lost its icon.
       return chip.icon !== undefined ? iconClassFor(chip.icon) + ' con-task__opt-res' : '';
+    },
+    /** A reward line's sprite — the SAME sizing every icon on this stage gets
+     *  (a bare card-resource class is only a background-image: a 0×0 element
+     *  without `con-task__opt-res`, which is how the fee row lost its icon). */
+    rewardIconClass(icon: string): string {
+      return iconClassFor(icon) + ' con-task__opt-res';
+    },
+    /**
+     * WHO PAYS this part, in words: the colony's own track, the viewer's
+     * settlements (with the multiplier that makes «2 колонии × 1 карта» read
+     * as one line), or a card that pays on every trade.
+     */
+    sourceRowLabel(row: RewardSourceRow): string {
+      if (row.kind === 'card') {
+        return translateText(row.card ?? 'Card effect');
+      }
+      if (row.kind === 'ownColony') {
+        return translateTextWithParams('Your colony ×${0}', [String(row.count)]);
+      }
+      return translateText('Trade track');
     },
     resourceKey(resource: string | undefined): string | undefined {
       return resource?.toString().toLowerCase().replace(/ /g, '-');

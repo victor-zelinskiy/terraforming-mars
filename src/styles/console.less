@@ -11671,6 +11671,35 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--cost b { color: #ffb0a6; }
         &--target { font-size: .72rem; }
         &--big b { font-size: 1.5rem; line-height: 1.1; }
+        /* A COMPOSITION line reads NAME … AMOUNT: the payer on the left, its
+           contribution flush right, so the column of amounts adds up under
+           the total it explains. */
+        &--part {
+            font-size: .74rem;
+            b { font-size: .84rem; color: fade(@con-mint, 92%); }
+        }
+        /* THE TOTAL's own row: the amount leads, the reading (a stock pair or
+           the destination) sits at the far end — one line, two columns. */
+        &--big > em { margin-left: auto; }
+        &--gain > .con-colfocus__rvalue + .con-colfocus__rowner { margin-left: auto; }
+    }
+    /* The payer's name in a composition line. */
+    &__rpart {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: @con-text-dim;
+    }
+    &__rrow--part .con-colfocus__rvalue { margin-left: auto; }
+    /* An iconless benefit (VP / influence / a science tag) still needs a
+       voice — the word IS its glyph. */
+    &__rlabel {
+        font-size: .7rem;
+        font-weight: 700;
+        letter-spacing: .04rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
     }
     &__rrow-card { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     /* The TIGHT launch anchor: the reward chips and the card covers leave
@@ -11682,10 +11711,20 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     &__rglyph {
         display: inline-flex;
+        align-items: center;
         zoom: var(--con-ui-scale, 1);
         .benefit-glyph__num { display: none; }
 
         &--lg { zoom: calc(1.25 * var(--con-ui-scale, 1)); }
+        /* PRODUCTION is a different thing from stock, and the board says so
+           with a frame — the rail borrows the same brown plate rather than
+           printing an identical icon for two different rewards. */
+        &--prod {
+            padding: .1rem .22rem;
+            border-radius: .2rem;
+            background: rgba(190, 120, 70, 0.28);
+            box-shadow: inset 0 0 0 .05rem rgba(255, 190, 140, 0.45);
+        }
     }
     &__rcube { zoom: var(--con-ui-scale, 1); }
     /* The recipient rides the END of its own amount's row, so the eye reads

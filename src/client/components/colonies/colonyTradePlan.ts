@@ -328,7 +328,19 @@ export type TradeOutcomeChip = {
   production?: boolean;
   /** English i18n note under the value ('to a card', 'stolen', …). */
   note?: string;
+  /** WHICH part of the trade paid this chip (the reward package groups by it). */
+  source?: RewardSourceKind;
+  /** The benefit that produced it — the package's grouping + destination key. */
+  benefit?: ColonyBenefit;
+  /** A flat every-trade modifier's card (source `'card'`). */
+  card?: string;
 };
+
+/**
+ * WHO PAID a gain: the colony's TRACK (the trade income), one of the VIEWER's
+ * own settlements here, or a card that pays on every trade (Venus Trade Hub).
+ */
+export type RewardSourceKind = 'track' | 'ownColony' | 'card';
 
 export type TradeOutcomeArgs = {
   metadata: ColonyMetadata;
@@ -384,10 +396,15 @@ export function tradeOutcome(args: TradeOutcomeArgs): {cost: Array<TradeOutcomeC
     }
   }
 
+  // WHO IS PAYING the chips being pushed right now — stamped onto every gain
+  // so the reward package can group «your total» by source without
+  // re-deriving the trade a second time (the two would drift).
+  let source: RewardSourceKind = 'track';
   const pushBenefit = (type: ColonyBenefit, quantity: number, resource: string | undefined, note?: string) => {
     if (quantity <= 0 && type !== ColonyBenefit.GAIN_CARD_DISCOUNT) {
       return;
     }
+    const tag = {source, benefit: type};
     switch (type) {
     case ColonyBenefit.GAIN_RESOURCES: {
       if (resource === undefined) {
@@ -395,7 +412,7 @@ export function tradeOutcome(args: TradeOutcomeArgs): {cost: Array<TradeOutcomeC
       }
       const current = running[resource];
       const resulting = current !== undefined ? current + quantity : undefined;
-      gains.push({direction: 'gain', icon: resource, amount: quantity, current, resulting, note});
+      gains.push({...tag, direction: 'gain', icon: resource, amount: quantity, current, resulting, note});
       if (resulting !== undefined) {
         running[resource] = resulting;
       }
@@ -428,14 +445,14 @@ export function tradeOutcome(args: TradeOutcomeArgs): {cost: Array<TradeOutcomeC
       return;
     }
     case ColonyBenefit.ADD_RESOURCES_TO_CARD:
-      gains.push({direction: 'gain', icon: args.metadata.cardResource?.toString().toLowerCase().replace(/ /g, '-'), amount: quantity, note: note ?? 'to a card'});
+      gains.push({...tag, direction: 'gain', icon: args.metadata.cardResource?.toString().toLowerCase().replace(/ /g, '-'), amount: quantity, note: note ?? 'to a card'});
       return;
     case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD:
-      gains.push({direction: 'gain', label: 'Resources to a Venus card', amount: quantity, note});
+      gains.push({...tag, direction: 'gain', label: 'Resources to a Venus card', amount: quantity, note});
       return;
     case ColonyBenefit.STEAL_RESOURCES:
       if (resource !== undefined) {
-        gains.push({direction: 'gain', icon: resource, amount: quantity, note: 'stolen'});
+        gains.push({...tag, direction: 'gain', icon: resource, amount: quantity, note: 'stolen'});
       }
       return;
     case ColonyBenefit.DRAW_CARDS:
@@ -443,26 +460,26 @@ export function tradeOutcome(args: TradeOutcomeArgs): {cost: Array<TradeOutcomeC
     case ColonyBenefit.DRAW_CARDS_AND_BUY_ONE:
     case ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE:
     case ColonyBenefit.DRAW_EARTH_CARD:
-      gains.push({direction: 'gain', icon: 'cards', amount: quantity, note});
+      gains.push({...tag, direction: 'gain', icon: 'cards', amount: quantity, note});
       return;
     case ColonyBenefit.GAIN_TR:
-      gains.push({direction: 'gain', icon: 'tr', amount: quantity, note});
+      gains.push({...tag, direction: 'gain', icon: 'tr', amount: quantity, note});
       return;
     case ColonyBenefit.INCREASE_VENUS_SCALE:
-      gains.push({direction: 'gain', icon: 'venus', amount: quantity, note});
+      gains.push({...tag, direction: 'gain', icon: 'venus', amount: quantity, note});
       return;
     case ColonyBenefit.GAIN_VP:
-      gains.push({direction: 'gain', label: 'VP', amount: quantity, note});
+      gains.push({...tag, direction: 'gain', label: 'VP', amount: quantity, note});
       return;
     case ColonyBenefit.GAIN_INFLUENCE:
-      gains.push({direction: 'gain', label: 'Influence', amount: Math.max(1, quantity), note});
+      gains.push({...tag, direction: 'gain', label: 'Influence', amount: Math.max(1, quantity), note});
       return;
     case ColonyBenefit.GAIN_CARD_DISCOUNT:
-      gains.push({direction: 'gain', label: 'Card discount this generation', amount: 1, note});
+      gains.push({...tag, direction: 'gain', label: 'Card discount this generation', amount: 1, note});
       return;
     case ColonyBenefit.GAIN_SCIENCE_TAG:
     case ColonyBenefit.GAIN_SCIENCE_TAGS_AND_CLONE_TAG:
-      gains.push({direction: 'gain', label: 'Science tag', amount: type === ColonyBenefit.GAIN_SCIENCE_TAGS_AND_CLONE_TAG ? 2 : 1, note});
+      gains.push({...tag, direction: 'gain', label: 'Science tag', amount: type === ColonyBenefit.GAIN_SCIENCE_TAGS_AND_CLONE_TAG ? 2 : 1, note});
       return;
     default:
       // Board / turmoil follow-ups (ocean, delegates, hazards, WGT) surface
@@ -476,6 +493,7 @@ export function tradeOutcome(args: TradeOutcomeArgs): {cost: Array<TradeOutcomeC
 
   const colonyBonus = args.metadata.colony;
   const bonusResource = Array.isArray(colonyBonus.resource) ? colonyBonus.resource[0] : colonyBonus.resource;
+  source = 'ownColony';
   for (let i = 0; i < args.ownColonyCount; i++) {
     pushBenefit(colonyBonus.type, colonyBonus.quantity ?? 1, typeof bonusResource === 'string' ? bonusResource : undefined, 'colony bonus');
   }
@@ -484,13 +502,242 @@ export function tradeOutcome(args: TradeOutcomeArgs): {cost: Array<TradeOutcomeC
   for (const bonus of args.flatBonuses ?? []) {
     const current = running[bonus.resource];
     const resulting = current !== undefined ? current + bonus.amount : undefined;
-    gains.push({direction: 'gain', icon: bonus.resource, amount: bonus.amount, current, resulting, note: bonus.card});
+    gains.push({
+      direction: 'gain', icon: bonus.resource, amount: bonus.amount, current, resulting,
+      note: bonus.card, source: 'card', benefit: ColonyBenefit.GAIN_RESOURCES, card: bonus.card,
+    });
     if (resulting !== undefined) {
       running[bonus.resource] = resulting;
     }
   }
 
   return {cost, gains};
+}
+
+// ── THE REWARD PACKAGE (the summary rail) ────────────────────────────────────
+
+/**
+ * WHERE A REWARD GOES when there is no number to show. A stock gain answers
+ * «сколько станет» with its own `current → resulting`; everything else has to
+ * SAY where it lands, or the row is an amount with no meaning («+2 животных»
+ * — куда?). English i18n keys; `undefined` = the amount speaks for itself.
+ */
+export function rewardDestinationKey(benefit: ColonyBenefit | undefined): string | undefined {
+  switch (benefit) {
+  case ColonyBenefit.ADD_RESOURCES_TO_CARD:
+    return 'To the chosen card';
+  case ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD:
+    return 'To a Venus card';
+  case ColonyBenefit.DRAW_CARDS:
+  case ColonyBenefit.DRAW_CARDS_AND_KEEP_ONE:
+  case ColonyBenefit.DRAW_CARDS_AND_BUY_ONE:
+  case ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE:
+  case ColonyBenefit.DRAW_EARTH_CARD:
+    return 'To your hand';
+  case ColonyBenefit.STEAL_RESOURCES:
+    return 'Taken from an opponent';
+  default:
+    return undefined;
+  }
+}
+
+/** One line of «ВАШ ИТОГ» — one reward TYPE going to one DESTINATION. */
+export type RewardTotal = {
+  key: string;
+  icon?: string;
+  label?: string;
+  amount: number;
+  production?: boolean;
+  /** Shown when there is no honest `current → resulting` pair. */
+  destinationKey?: string;
+  current?: number;
+  resulting?: number;
+};
+
+/** One line of «СОСТАВ НАГРАДЫ» — what that total is made of. */
+export type RewardSourceRow = {
+  key: string;
+  kind: RewardSourceKind;
+  /** How many of the viewer's settlements pay it (`ownColony` only). */
+  count: number;
+  /** The paying card (`card` only). */
+  card?: string;
+  amount: number;
+  icon?: string;
+  label?: string;
+  production?: boolean;
+};
+
+/** One line of «ДРУГИМ ИГРОКАМ» — never part of the viewer's total. */
+export type RewardOtherRow = {
+  color: Color;
+  /** Their settlements here — the multiplier of the per-cube bonus. */
+  count: number;
+  amount: number;
+  icon?: string;
+  label?: string;
+  production?: boolean;
+};
+
+export type ColonyRewardPackage = {
+  totals: ReadonlyArray<RewardTotal>;
+  sources: ReadonlyArray<RewardSourceRow>;
+  others: ReadonlyArray<RewardOtherRow>;
+};
+
+/** The identity of a reward LINE: same thing, same place → one line. */
+function rewardKey(chip: {icon?: string, label?: string, production?: boolean, benefit?: ColonyBenefit}): string {
+  return [
+    chip.icon ?? chip.label ?? '?',
+    chip.production === true ? 'prod' : 'stock',
+    rewardDestinationKey(chip.benefit) ?? '',
+  ].join('|');
+}
+
+/**
+ * THE REWARD PACKAGE — one trade, read as «что получу Я», «из чего это» and
+ * «что получат остальные».
+ *
+ * Two rules carry it, and both were the report:
+ *  · YOUR total is the trade income PLUS your own settlements' bonuses, summed
+ *    per reward TYPE AND DESTINATION — «+6 тепла» from the track and «+2
+ *    тепла» from your colony are ONE «+8 тепла», while Miranda's «+2
+ *    животных» and «+1 карта» stay two lines because they are two different
+ *    things going to two different places.
+ *  · OTHER owners are a separate section and are NEVER in your total: the rail
+ *    used to print the colony's per-cube rate beside every name, which read as
+ *    part of the payout the player was about to receive.
+ *
+ * `current → resulting` survives the merge honestly: the chips were computed
+ * in sequence, so the first chip's `current` and the last one's `resulting`
+ * bracket the whole line. A line with no numeric stock (cards, card
+ * resources, VP) carries its DESTINATION instead — never a bare amount.
+ */
+export function colonyRewardPackage(args: {
+  gains: ReadonlyArray<TradeOutcomeChip>,
+  metadata: ColonyMetadata,
+  colony: Pick<ColonyModel, 'colonies'>,
+  viewer: Color | undefined,
+}): ColonyRewardPackage {
+  const totals: Array<RewardTotal> = [];
+  const byKey = new Map<string, RewardTotal>();
+  const sources: Array<RewardSourceRow> = [];
+  const sourceByKey = new Map<string, RewardSourceRow>();
+
+  for (const chip of args.gains) {
+    const key = rewardKey(chip);
+    const total = byKey.get(key);
+    if (total === undefined) {
+      const fresh: RewardTotal = {
+        key,
+        icon: chip.icon,
+        label: chip.label,
+        amount: chip.amount,
+        production: chip.production,
+        destinationKey: rewardDestinationKey(chip.benefit),
+        current: chip.current,
+        resulting: chip.resulting,
+      };
+      byKey.set(key, fresh);
+      totals.push(fresh);
+    } else {
+      total.amount += chip.amount;
+      // The sequence already walked the stock — the LAST chip of the line
+      // holds where it ends up.
+      total.resulting = chip.resulting ?? total.resulting;
+    }
+
+    // …and the same merge for the breakdown, but keyed by WHO pays: several
+    // settlements paying the same bonus are ONE row with a multiplier
+    // («Ваша колония ×2»), never two identical lines.
+    const sKey = `${chip.source ?? 'track'}|${chip.card ?? ''}|${key}`;
+    const row = sourceByKey.get(sKey);
+    if (row === undefined) {
+      const fresh: RewardSourceRow = {
+        key: sKey,
+        kind: chip.source ?? 'track',
+        count: 1,
+        card: chip.card,
+        amount: chip.amount,
+        icon: chip.icon,
+        label: chip.label,
+        production: chip.production,
+      };
+      sourceByKey.set(sKey, fresh);
+      sources.push(fresh);
+    } else {
+      row.count += 1;
+      row.amount += chip.amount;
+    }
+  }
+
+  // THE OTHER OWNERS. Their bonus is the colony's own per-cube rate — read
+  // from the metadata, never from the viewer's chips (those never contain it).
+  const bonus = args.metadata.colony;
+  const bonusResource = Array.isArray(bonus.resource) ? bonus.resource[0] : bonus.resource;
+  const per = describeBenefit(bonus.type, bonus.quantity ?? 1, typeof bonusResource === 'string' ? bonusResource : undefined, args.metadata);
+  const others: Array<RewardOtherRow> = [];
+  if (per !== undefined) {
+    for (const owner of colonyOwnerCounts(args.colony)) {
+      if (owner.color === args.viewer) {
+        continue;
+      }
+      others.push({
+        color: owner.color,
+        count: owner.count,
+        amount: per.amount * owner.count,
+        icon: per.icon,
+        label: per.label,
+        production: per.production,
+      });
+    }
+  }
+
+  return {totals, sources, others};
+}
+
+/**
+ * The DISPLAY shape of one benefit at one quantity — icon / label / frame,
+ * with no stock arithmetic. `tradeOutcome` owns the sequenced version for the
+ * viewer's own chips; this is for a reward that is NOT theirs (another
+ * owner's bonus), where a `current → resulting` would be meaningless.
+ */
+export function describeBenefit(
+  type: ColonyBenefit,
+  quantity: number,
+  resource: string | undefined,
+  metadata: ColonyMetadata,
+): {amount: number, icon?: string, label?: string, production?: boolean} | undefined {
+  const amount = Math.max(0, quantity);
+  switch (type) {
+  case ColonyBenefit.GAIN_RESOURCES:
+    return resource === undefined ? undefined : {amount, icon: resource};
+  case ColonyBenefit.GAIN_PRODUCTION:
+    return resource === undefined ? undefined : {amount, icon: resource, production: true};
+  case ColonyBenefit.ADD_RESOURCES_TO_CARD:
+    return {amount, icon: metadata.cardResource?.toString().toLowerCase().replace(/ /g, '-')};
+  case ColonyBenefit.DRAW_CARDS:
+  case ColonyBenefit.DRAW_CARDS_AND_KEEP_ONE:
+  case ColonyBenefit.DRAW_CARDS_AND_BUY_ONE:
+  case ColonyBenefit.DRAW_CARDS_AND_DISCARD_ONE:
+  case ColonyBenefit.DRAW_EARTH_CARD:
+    return {amount, icon: 'cards'};
+  case ColonyBenefit.GAIN_TR:
+    return {amount, icon: 'tr'};
+  case ColonyBenefit.INCREASE_VENUS_SCALE:
+    return {amount, icon: 'venus'};
+  case ColonyBenefit.GAIN_VP:
+    return {amount, label: 'VP'};
+  case ColonyBenefit.GAIN_INFLUENCE:
+    return {amount: Math.max(1, amount), label: 'Influence'};
+  case ColonyBenefit.GAIN_SCIENCE_TAG:
+    return {amount: 1, label: 'Science tag'};
+  case ColonyBenefit.GAIN_SCIENCE_TAGS_AND_CLONE_TAG:
+    return {amount: 2, label: 'Science tag'};
+  default:
+    // A board / turmoil follow-up has no per-owner amount worth printing.
+    return undefined;
+  }
 }
 
 /** Colony owners grouped by colour (×N for multiple colonies). */

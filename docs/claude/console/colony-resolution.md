@@ -228,6 +228,37 @@ the table. The gate asked the wrong list:
   reset ran at all», «never over an open reveal» and «never over a hidden
   track» are asserted together.
 
+## Iteration 7 — the summary rail is a REWARD PACKAGE, the overview has ONE verb
+
+- **Three questions, in the order a player asks them** (`colonyRewardPackage`
+  in `colonyTradePlan.ts` — pure, swept in its spec): «ВАШ ИТОГ» is what the
+  VIEWER ends up with (the track's income + their OWN settlements' bonuses,
+  merged per reward TYPE **and** DESTINATION — Io's 6 + 2 heat is one «+8
+  тепла», Miranda's animals and card stay two lines); «СОСТАВ НАГРАДЫ» is the
+  arithmetic behind it, one row per payer with the multiplier that turns two
+  identical settlements into «Ваша колония ×2»; «ДРУГИМ ИГРОКАМ» is everyone
+  else's, and it is **never** part of the total — the rail used to print the
+  per-cube rate beside every name right under the payout, which read as money
+  the player was about to receive.
+- A total line always carries a READING: `current → resulting` when the
+  viewer's stock has an unambiguous number, otherwise the DESTINATION
+  («На выбранную карту», «В руку»). A bare «+2 животных» is an amount the
+  player cannot place.
+- Mechanism: `tradeOutcome`'s gain chips now carry `source` (`track` /
+  `ownColony` / `card`) + `benefit`, so the package GROUPS the very chips the
+  panel already trusted instead of re-deriving the trade a second time (two
+  derivations of one payout drift — that is the whole reason this is one pure
+  function). `current → resulting` survives the merge because the chips were
+  computed in sequence: the first chip's `current`, the last one's
+  `resulting`. ⚠️ `data-colony-trade-source` moved with the income's value into
+  the breakdown row — it is the chip/cover LAUNCH anchor and must stay on the
+  number they physically leave.
+- **The overview offers ONE press.** «X Осмотреть» is gone (both verbs opened
+  the same stage, so the bar advertised a choice that did not exist) and A is
+  always «Выбрать» — never «К строительству» / «Торговать», a destination the
+  overview cannot promise. The stage is the dossier AND the action, and it is
+  where availability and its blocked reason are stated.
+
 ### The two traps iteration 2 paid for
 - ⚠️ **The hand-reveal director's `setSection` hook spoke `goBoardHome` for
   every non-overlay hand.** For a hand hosted as an embedded STEP that wiped

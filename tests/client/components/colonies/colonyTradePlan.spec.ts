@@ -4,6 +4,7 @@ import {
   buildTradeBatch,
   colonyOwnerBonusDrawsCards,
   colonyOwnerCounts,
+  colonyRewardPackage,
   colonyTradeMayDrawCards,
   effectiveTradePosition,
   freeTradeFleets,
@@ -314,5 +315,102 @@ describe('colonyTradePlan', () => {
         {direction: 'cost', icon: 'data', amount: 3, current: undefined, resulting: undefined},
       ]);
     });
+  });
+});
+
+
+/*
+ * THE REWARD PACKAGE — «ВАШ ИТОГ» / «СОСТАВ НАГРАДЫ» / «ДРУГИМ ИГРОКАМ».
+ *
+ * The two shapes the rail has to get right are Io (one reward TYPE paid by two
+ * sources — one merged total) and Miranda (two DIFFERENT rewards going to two
+ * different places — two lines that must never be added together). The other
+ * owners are the third: a real amount for them, and nothing of it in the
+ * viewer's total.
+ */
+describe('colonyRewardPackage', () => {
+  const IO = colonyMetadata({
+    name: ColonyName.IO,
+    build: {description: '', type: ColonyBenefit.GAIN_RESOURCES, resource: Resource.HEAT, quantity: [2, 2, 2]},
+    trade: {description: '', type: ColonyBenefit.GAIN_RESOURCES, resource: Resource.HEAT, quantity: [2, 3, 4, 6, 7, 8, 9]},
+    colony: {description: '', type: ColonyBenefit.GAIN_RESOURCES, resource: Resource.HEAT, quantity: 2},
+  });
+  const MIRANDA = colonyMetadata({
+    name: ColonyName.MIRANDA,
+    cardResource: CardResource.ANIMAL,
+    build: {description: '', type: ColonyBenefit.ADD_RESOURCES_TO_CARD},
+    trade: {description: '', type: ColonyBenefit.ADD_RESOURCES_TO_CARD, quantity: [0, 1, 1, 2, 2, 3, 3]},
+    colony: {description: '', type: ColonyBenefit.DRAW_CARDS},
+  });
+  const colony = (colonies: Array<Color>) => ({colonies});
+
+  it('Io: the track and YOUR settlement merge into ONE total, with an honest pair', () => {
+    const out = tradeOutcome({
+      metadata: IO, rewardPosition: 3, payment: undefined, ownColonyCount: 1,
+      stocks: {heat: 1001}, production: {},
+    });
+    const pkg = colonyRewardPackage({gains: out.gains, metadata: IO, colony: colony(['red', 'green']), viewer: 'red'});
+
+    // ВАШ ИТОГ — one line: 6 (track) + 2 (your colony) = 8, 1001 → 1009.
+    expect(pkg.totals).has.lengthOf(1);
+    expect(pkg.totals[0]).to.include({icon: 'heat', amount: 8, current: 1001, resulting: 1009});
+    // СОСТАВ НАГРАДЫ — the two payers, named and separate.
+    expect(pkg.sources.map((r) => [r.kind, r.count, r.amount])).to.deep.eq([
+      ['track', 1, 6],
+      ['ownColony', 1, 2],
+    ]);
+    // ДРУГИМ ИГРОКАМ — the opponent's own bonus, never in the total above.
+    expect(pkg.others).to.deep.eq([{color: 'green', count: 1, amount: 2, icon: 'heat', label: undefined, production: undefined}]);
+  });
+
+  it('Miranda: different rewards to different places stay SEPARATE lines', () => {
+    const out = tradeOutcome({
+      metadata: MIRANDA, rewardPosition: 3, payment: undefined, ownColonyCount: 1,
+      stocks: {}, production: {},
+    });
+    const pkg = colonyRewardPackage({gains: out.gains, metadata: MIRANDA, colony: colony(['red', 'green']), viewer: 'red'});
+
+    expect(pkg.totals).has.lengthOf(2);
+    // «+2 животных · На выбранную карту» — no stock pair exists for a card resource.
+    expect(pkg.totals[0]).to.include({icon: 'animal', amount: 2, destinationKey: 'To the chosen card'});
+    expect(pkg.totals[0].current).to.eq(undefined);
+    // «+1 карта · В руку»
+    expect(pkg.totals[1]).to.include({icon: 'cards', amount: 1, destinationKey: 'To your hand'});
+    expect(pkg.sources.map((r) => [r.kind, r.amount])).to.deep.eq([['track', 2], ['ownColony', 1]]);
+    expect(pkg.others).to.deep.eq([{color: 'green', count: 1, amount: 1, icon: 'cards', label: undefined, production: undefined}]);
+  });
+
+  it('several of YOUR OWN settlements aggregate into one «×N» line', () => {
+    const out = tradeOutcome({
+      metadata: MIRANDA, rewardPosition: 1, payment: undefined, ownColonyCount: 2,
+      stocks: {}, production: {},
+    });
+    const pkg = colonyRewardPackage({gains: out.gains, metadata: MIRANDA, colony: colony(['red', 'red']), viewer: 'red'});
+    const own = pkg.sources.find((r) => r.kind === 'ownColony');
+    expect(own).to.include({count: 2, amount: 2}); // 2 colonies × 1 card
+    expect(pkg.totals.find((t) => t.icon === 'cards')).to.include({amount: 2});
+    expect(pkg.others).to.deep.eq([]); // both settlements are the viewer's own
+  });
+
+  it('a card that pays on EVERY trade is its own named part of your total', () => {
+    const out = tradeOutcome({
+      metadata: IO, rewardPosition: 1, payment: undefined, ownColonyCount: 0,
+      stocks: {heat: 10, megacredits: 40}, production: {},
+      flatBonuses: [{card: 'Venus Trade Hub', resource: 'megacredits', amount: 3}],
+    });
+    const pkg = colonyRewardPackage({gains: out.gains, metadata: IO, colony: colony([]), viewer: 'red'});
+    expect(pkg.totals.map((t) => [t.icon, t.amount])).to.deep.eq([['heat', 3], ['megacredits', 3]]);
+    const card = pkg.sources.find((r) => r.kind === 'card');
+    expect(card).to.include({card: 'Venus Trade Hub', amount: 3});
+  });
+
+  it('a colony with no settlements pays nobody else', () => {
+    const out = tradeOutcome({
+      metadata: IO, rewardPosition: 2, payment: undefined, ownColonyCount: 0,
+      stocks: {heat: 5}, production: {},
+    });
+    const pkg = colonyRewardPackage({gains: out.gains, metadata: IO, colony: colony([]), viewer: 'red'});
+    expect(pkg.others).to.deep.eq([]);
+    expect(pkg.totals[0]).to.include({amount: 4, current: 5, resulting: 9});
   });
 });
