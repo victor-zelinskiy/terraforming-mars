@@ -1,6 +1,6 @@
 {
   "name": "terraforming-mars",
-  "version": "1.2.307",
+  "version": "1.2.308",
   "description": "Terraforming Mars Game",
   "engines": {
     "node": ">=22.22.2 <23"
@@ -49,7 +49,7 @@
     "chai-as-promised": "^8.0.2",
     "compression-webpack-plugin": "^12.0.0",
     "css-loader": "^7.1.4",
-    "electron": "43.3.0",
+    "electron": "43.4.0",
     "electron-builder": "^26.15.3",
     "eslint": "^10.8.0",
     "eslint-plugin-vue": "^10.10.0",
