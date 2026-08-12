@@ -11612,6 +11612,20 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     &__steprow-empty { color: @con-text-dim; font-weight: 600; }
     &__steprow-icon { flex-shrink: 0; }
+    /* The answered pick's re-entry hint — shown on the FOCUSED row only (the
+       bar names A's verb; this is the same fact at the row, calm and small). */
+    &__steprow-change {
+        margin-left: auto;
+        flex-shrink: 0;
+        padding: .08rem .4rem;
+        border-radius: .35rem;
+        font-size: .58rem;
+        font-weight: 800;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 88%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 38%);
+    }
     &__opt-check { color: @con-mint; font-weight: 800; }
     &__option--chosen { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%); border-radius: .45rem; }
     &__track-reward {
@@ -11826,6 +11840,140 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &--handing &__hero { transition: none; }
     }
 
+    /* ── THE TARGET STEP — «выбор карты-цели», one REVERSIBLE level deeper.
+       The working area and the summary rail release in place (the same
+       physical language as the payout pose, but SHORT and symmetric: this is
+       a step the player walks into and out of, not a commit); the hero
+       planet stays lit — it is the flow's spatial anchor. ── */
+    &--targeting &__main,
+    &--targeting &__result {
+        pointer-events: none;
+        opacity: 0;
+        transform: translateY(.28rem);
+        transition:
+            opacity calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.32, 0, 0.5, 1),
+            transform calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.6, 1);
+    }
+    &--targeting &__idmeta { opacity: .55; }
+
+    /* THE STEP'S ROOM — the same box the outcome zone owns (the working area
+       right of the hero), one layer above it. NOT a panel: the stage frame is
+       already around it; it owns an inner light pool, never a second ring. */
+    &__targetstage {
+        position: absolute;
+        left: calc(var(--colfocus-hero-w) + .95rem);
+        top: .85rem;
+        right: 1rem;
+        bottom: .85rem;
+        z-index: 5;
+        display: flex;
+        flex-direction: column;
+        gap: .35rem;
+        min-width: 0;
+        min-height: 0;
+        border-radius: .55rem;
+        overflow: hidden;
+        padding: .5rem;
+        pointer-events: auto;
+        background:
+            radial-gradient(ellipse 78% 96% at 50% 46%, rgba(24, 42, 64, 0.62), transparent 78%),
+            radial-gradient(ellipse 120% 60% at 50% 100%, rgba(10, 17, 26, 0.72), transparent 82%);
+
+        /* The ZONE IS THE ROOM: the selector is the only flexing part — its
+           own candidate viewport scrolls inside the height it is given. */
+        > .con-ptsel {
+            flex: 1 1 auto;
+            min-width: 0;
+            min-height: 0;
+        }
+    }
+    /* ── THE PRESENTED TARGETS — the chosen host card(s) standing on stage
+       while the reward physically arrives. The MAIN area yields under them;
+       the SUMMARY RAIL deliberately stays — the chips are BORN from its
+       income value and the player must see the source of the flight. ── */
+    &--carding &__main {
+        pointer-events: none;
+        opacity: 0;
+        transform: translateY(.28rem);
+        transition:
+            opacity calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.32, 0, 0.5, 1),
+            transform calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.6, 1);
+    }
+    /* The scene occupies the MAIN box only (the rail keeps its column):
+       hero-w + gap on the left, result-w + gap + panel padding on the right. */
+    &__cardland {
+        position: absolute;
+        left: calc(var(--colfocus-hero-w) + .95rem);
+        top: .85rem;
+        right: calc(13.2rem + .95rem + 1rem); /* __result basis + gap + pad */
+        bottom: .85rem;
+        z-index: 3;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1.1rem;
+        min-width: 0;
+        min-height: 0;
+        pointer-events: none;
+        opacity: 1;
+        transition: opacity calc(280ms * var(--motion-scale, 1)) ease;
+
+        /* The faces are the premium px design box; the cell's zoom scales it
+           into the rem layout (multiplied by the profile scale by contract).
+           A pair shares the room at a step down; three or more step again. */
+        --con-cardland-zoom: calc(.52 * var(--con-ui-scale, 1));
+        &[data-cardland-count='2'] { --con-cardland-zoom: calc(.44 * var(--con-ui-scale, 1)); }
+        &[data-cardland-count='3'] { --con-cardland-zoom: calc(.36 * var(--con-ui-scale, 1)); }
+    }
+    &__cardland--leaving { opacity: 0; }
+    &__landcell {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .4rem;
+        min-width: 0;
+    }
+    &__landcard {
+        position: relative;
+        zoom: var(--con-cardland-zoom);
+        > :is(.card-container, .pcard) { margin: 0; border-radius: .4rem; }
+    }
+    /* THE CONTACT FLASH — re-keyed per touchdown, one shot over the card's own
+       stored-resource capsule (bottom-left of the premium face). Paint only:
+       the counter itself is the card's `.pcard__res`, fed the landed count. */
+    &__landflash {
+        position: absolute;
+        left: 8px;
+        bottom: 42px;
+        width: 84px;
+        height: 46px;
+        border-radius: 12px;
+        pointer-events: none;
+        animation: con-colfocus-landflash calc(560ms * var(--motion-scale, 1)) ease-out both;
+    }
+    /* The landed card answers the contact — a settle accent, not a jump. */
+    &__landcell--landed &__landcard > :is(.card-container, .pcard) {
+        box-shadow: 0 0 0 .14rem fade(@con-mint, 72%), 0 0 1.2rem fade(@con-mint, 30%);
+        transition: box-shadow calc(260ms * var(--motion-scale, 1)) ease;
+    }
+    &__landmeta {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .78rem;
+        font-weight: 700;
+        color: fade(#dfeaf6, 90%);
+
+        em { font-style: normal; color: @con-mint; font-weight: 800; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+        &--targeting &__main,
+        &--targeting &__result,
+        &--carding &__main { transition: none; }
+        &__landflash { animation: none; }
+        &__cardland { transition: none; }
+    }
+
     /* ═══════════════ RESULT — the right SUMMARY RAIL ═══════════════
        ONE card per SOURCE of value.
 
@@ -12014,6 +12162,16 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 @keyframes con-colfocus-outcome-in {
     from { opacity: 0; transform: scale(0.985); }
     to   { opacity: 1; transform: scale(1); }
+}
+
+/* The reward chip's CONTACT with the presented card's own counter capsule —
+   a short pooled glow that collapses onto the number as it ticks. Re-keyed
+   per touchdown, so a multi-chip payout answers every contact. Paint only
+   (box-shadow + opacity — perf-lite keeps box-shadow by contract). */
+@keyframes con-colfocus-landflash {
+    0%   { opacity: 0; box-shadow: 0 0 0 .1rem fade(@con-mint, 0%), 0 0 0 fade(@con-mint, 0%); }
+    18%  { opacity: 1; box-shadow: 0 0 0 .16rem fade(@con-mint, 85%), 0 0 1.6rem fade(@con-mint, 55%); }
+    100% { opacity: 0; box-shadow: 0 0 0 .05rem fade(@con-mint, 0%), 0 0 .3rem fade(@con-mint, 0%); }
 }
 
 /* The landed marker's settle — the cell the reset glide finished on. */

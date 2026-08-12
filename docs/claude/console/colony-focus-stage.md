@@ -415,6 +415,25 @@ glow on the cell the glide finished on.
 
 ---
 
+## 6b · THE TARGET STEP + THE PRESENTED TARGETS (2026-08-12)
+
+Two overlays share the outcome zone's box (absolute over the working area,
+hero column standing), both documented in `docs/COLONY_TRADE_FLOW.md`
+§ THE CARD-TARGET STEP / § THE PRESENTED TARGETS:
+
+- **`__targetstage`** (`--targeting`, z5, pre-commit, reversible) — the SHARED
+  `ConsolePlayedTargetStep` hosting the trade's card-target pick; enters via
+  `playColonyTargetStepEnter` (release → clip-open → item cascade), leaves via
+  `playColonyTargetStepLeave` into B. The crumb tail advances to «ЦЕЛЬ
+  НАГРАДЫ» (`publishStageName`), the bar speaks the selector's grammar
+  (`composerSub === 'targets'`: A Выбрать · X Осмотреть · B Назад).
+- **`__cardland`** (`--carding`, z3, post-commit) — the chosen host card(s),
+  frozen counters ticking per chip touchdown
+  (`colonyTradeState.cardResLanded` → `presentedTargetModel`), contact flash
+  re-keyed per landing. Dims `__main` ONLY — the summary rail stays lit (the
+  chips launch from its income value). `stageBusy` = payout pose ∨ this scene
+  → the closing glide waits for both through `setColonyStageYielded`.
+
 ## 7 · MODES
 
 One scene, genuinely different priorities:

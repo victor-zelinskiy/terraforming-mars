@@ -225,6 +225,7 @@
                                 :tradeDisabledPayments="tradeColonyContext !== undefined ? tradeColonyContext.disabledPayments : []"
                                 :thisPlayer="thisPlayer"
                                 :playerId="playerView.id"
+                                :viewVersion="`${playerView.game.gameAge}|${playerView.game.undoCount}`"
                                 @trade-confirm="onColonyTradeComposerConfirm($event)"
                                 @build-confirm="onColonyBuildConfirm()"
                                 @flow-complete="onColonyFlowComplete"
@@ -5077,6 +5078,16 @@ export default defineComponent({
             {control: 'back', label: 'Back'},
           ];
         }
+        // The embedded played-card TARGET step (the trade reward's host card):
+        // the shared selector's own grammar — A chooses, X inspects the focused
+        // candidate fullscreen, B returns to the trade with everything intact.
+        if (consoleColoniesUi.composerSub === 'targets') {
+          return [
+            {control: 'confirm', label: 'Select'},
+            {control: 'secondary', label: 'Inspect'},
+            {control: 'back', label: 'Back'},
+          ];
+        }
         const intent = this.colonyFocus.intent;
         if (intent === 'build') {
           return [
@@ -9748,7 +9759,7 @@ export default defineComponent({
      * prompts one at a time (a diverged later step gracefully arrives as a
      * live prompt).
      */
-    onColonyTradeComposerConfirm(payload: {paymentIndex: number, steps: ReadonlyArray<TradeStep>, captures: Readonly<Record<number, unknown>>}): void {
+    onColonyTradeComposerConfirm(payload: {paymentIndex: number, steps: ReadonlyArray<TradeStep>, captures: Readonly<Record<number, unknown>>, targets?: ColonyTradeTargets}): void {
       const colonyName = this.colonyFocus.colonyName;
       const ctx = this.tradeColonyContext;
       // Guard a double-confirm: once the launch is armed the flight (and then
@@ -9765,25 +9776,31 @@ export default defineComponent({
         steps: payload.steps,
         captures: payload.captures,
       });
-      // The stage's pre-collected card-resource DESTINATIONS (Titan /
-      // Enceladus / Miranda picks) ride into the reward transaction so each
-      // chip can fly onto the exact chosen host card.
-      const targets: ColonyTradeTargets = {};
-      const bonusPicks: Array<CardName> = [];
-      payload.steps.forEach((step, i) => {
-        const capture = payload.captures[i];
-        if (step.kind !== 'cardTarget' || capture === undefined) {
-          return;
+      // The stage's card-resource DESTINATIONS — its picked targets AND the
+      // single-candidate AUTO targets the server applies without a prompt
+      // (`colonyTradeCardDestinations`, one read for the flight and the
+      // presented scene alike) — ride into the reward transaction so each
+      // chip can fly onto the exact host card. The fallback derivation covers
+      // an older payload shape (picks only, no autos).
+      const targets: ColonyTradeTargets = payload.targets ?? (() => {
+        const derived: ColonyTradeTargets = {};
+        const bonusPicks: Array<CardName> = [];
+        payload.steps.forEach((step, i) => {
+          const capture = payload.captures[i];
+          if (step.kind !== 'cardTarget' || capture === undefined) {
+            return;
+          }
+          if (step.role === 'tradeReward') {
+            derived.incomeTargetCard = capture as CardName;
+          } else {
+            bonusPicks.push(capture as CardName);
+          }
+        });
+        if (bonusPicks.length > 0) {
+          derived.bonusTargetCards = bonusPicks;
         }
-        if (step.role === 'tradeReward') {
-          targets.incomeTargetCard = capture as CardName;
-        } else {
-          bonusPicks.push(capture as CardName);
-        }
-      });
-      if (bonusPicks.length > 0) {
-        targets.bonusTargetCards = bonusPicks;
-      }
+        return derived;
+      })();
       // PREMIUM LAUNCH — ITERATION 2: the trade RESOLVES ON THE FOCUS STAGE.
       // The stage does NOT fold at the confirm: the fleet lifts off the
       // always-visible fleet dock and docks at the HERO PLANET's orbital

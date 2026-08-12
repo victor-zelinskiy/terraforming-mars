@@ -468,11 +468,16 @@ function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
   }
   // card-resource: the PRE-SELECTED host card when it's on screen — the
   // workspace RECEIVING STAGE's physical anchor (the front card / an emerged
-  // target) first, then the «Разыграно» table — else the additional-resources
-  // satellite cell, else no flight.
+  // target) first, then the COLONY FOCUS STAGE's presented target (a trade
+  // reward's chosen host card, standing in the resolution scene — the chip
+  // aims at the card's own stored-resource capsule, so the touchdown IS the
+  // counter that ticks), then the «Разыграно» table — else the
+  // additional-resources satellite cell, else no flight.
   if (spec.targetCard !== undefined) {
     const esc = escapeName(spec.targetCard);
     const r = measureRect(`.con-recv [data-played-key="${esc}"]`) ??
+      measureRect(`.con-colfocus [data-played-key="${esc}"] .pcard__res`) ??
+      measureRect(`.con-colfocus [data-played-key="${esc}"]`) ??
       measureRect(`.con-start__played [data-played-key="${esc}"]`) ??
       measureRect(`.con-played [data-played-key="${esc}"]`);
     if (r !== undefined) {

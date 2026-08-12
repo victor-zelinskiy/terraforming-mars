@@ -94,10 +94,15 @@
         </header>
 
         <div class="con-ptsel__sections">
-          <div v-for="section in sectionsOf(owner)" :key="section.category" class="con-ptsel__section" :style="sectionStyle(section)">
-            <div v-if="showsRails(owner)" class="con-ptsel__catrail">
-              <span class="con-ptsel__catname">{{ $t(section.label) }}</span>
-              <span class="con-ptsel__catcount">{{ section.candidates.length }}</span>
+          <div v-for="section in sectionsOf(owner)" :key="section.key" class="con-ptsel__section" :style="sectionStyle(section)">
+            <!-- The SELF block draws no rail of its own (the proxy is a handle,
+                 not a card family) — but while the neighbours wear rails it
+                 keeps an EMPTY one, so every cards row starts on one baseline. -->
+            <div v-if="showsRails(owner)" class="con-ptsel__catrail" :class="{'con-ptsel__catrail--blank': section.self}">
+              <template v-if="!section.self">
+                <span class="con-ptsel__catname">{{ $t(section.label) }}</span>
+                <span class="con-ptsel__catcount">{{ section.candidates.length }}</span>
+              </template>
             </div>
             <div class="con-ptsel__cards">
               <!-- The CELL is the measured, never-transformed box: focus lifts

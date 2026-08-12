@@ -52,7 +52,7 @@ import {translateText} from '@/client/directives/i18n';
 import {
   beginPanelRewardHold, releasePanelRewardHold, runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {TRANSFER_RESIDUAL_PAUSE_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {ResourceTransferSpec, TRANSFER_RESIDUAL_PAUSE_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
   ColonyTradeTargets, benefitCardCount, colonyTradeHeldSpecs, incomeTransferSpecs,
@@ -126,6 +126,14 @@ type ColonyTradeState = {
    * deck-draw re-claim its batch (the colony-build lesson).
    */
   stagedRevealIds: Array<number>;
+  /**
+   * CARD-RESOURCE TOUCHDOWNS, per host card — how much of this trade's reward
+   * has PHYSICALLY LANDED on each chosen card (bumped in the chip's own
+   * `onArrive`, the same beat that releases the panel hold). The focus stage's
+   * presented-target scene reads it: the card's frozen counter ticks — and
+   * pops — at the moment of contact, never on the commit. Reset at the arm.
+   */
+  cardResLanded: Record<string, number>;
   /** Single-card staged batch: the fullscreen auto-open is held until ready. */
   zoomEntryReady: boolean;
   reducedMotion: boolean;
@@ -146,9 +154,23 @@ export const colonyTradeState = reactive<ColonyTradeState>({
   glideNonce: 0,
   settledCell: -1,
   stagedRevealIds: [],
+  cardResLanded: {},
   zoomEntryReady: false,
   reducedMotion: false,
 });
+
+/** A card-resource chip touched down on its chosen host card — the one beat
+ *  the presented-target scene keys its counter tick (and pop) on. */
+function noteCardResLanding(spec: ResourceTransferSpec): void {
+  if (spec.channel !== 'card-resource' || spec.targetCard === undefined) {
+    return;
+  }
+  const prior = colonyTradeState.cardResLanded[spec.targetCard] ?? 0;
+  colonyTradeState.cardResLanded = {
+    ...colonyTradeState.cardResLanded,
+    [spec.targetCard]: prior + spec.amount,
+  };
+}
 
 // ── non-reactive transaction context ────────────────────────────────────────
 
@@ -238,16 +260,48 @@ export function isColonyTradeActive(): boolean {
 }
 
 /**
- * The pad is inert while a scene beat physically plays: the chip waves, the
- * card covers (until the reveal becomes interactive at handoff) and the
- * marker glide. DELIBERATELY FREE during `awaiting` (a Pluto discard prompt
- * between two bonus draws needs the pad) and `settle` (pure decoration).
+ * THE TRACK IS STILL MOVING TO THE CELL THIS PAYOUT IS READ AT.
+ *
+ * ONE authoritative fact, and every consumer of «may the payout begin?» obeys
+ * it: the cover scene's wait, the colony stage's dissolve cue, the input lock,
+ * the animation hold. The payout is a CONSEQUENCE of the marker arriving —
+ * the covers, the reveal and the stage's own dissolve starting mid-glide read
+ * as two unrelated things happening at once, and the interface the marker is
+ * gliding across disappears from under it.
+ */
+export function colonyTrackAdvancing(): boolean {
+  return colonyTradeState.active && colonyTradeState.phase === 'advance';
+}
+
+/**
+ * THE PAYOUT HAS NOT BEGUN YET — the cover scene waits on this before a single
+ * card moves, so the cards can never overlap the beats that CAUSE them.
+ *
+ * Three phases count, and `armed` is the one that is easy to miss: a batch is
+ * claimed on a PRE-FLUSH watcher while the reward run starts a tick later, so
+ * a predicate that only knew `advance`/`chips` could sample the phase before
+ * it had been set and let the covers fly straight into the track glide. The
+ * caller bounds its own wait — a transaction that never runs its rewards (a
+ * degraded claim after a lost response) must not strand the batch.
+ */
+export function colonyPayoutPending(): boolean {
+  const p = colonyTradeState.phase;
+  return colonyTradeState.active && (p === 'armed' || p === 'advance' || p === 'chips');
+}
+
+/**
+ * The pad is inert while a scene beat physically plays: the pre-trade track
+ * advance, the chip waves, the card covers (until the reveal becomes
+ * interactive at handoff) and the marker glide. DELIBERATELY FREE during
+ * `awaiting` (a Pluto discard prompt between two bonus draws needs the pad)
+ * and `settle` (pure decoration).
  */
 export function isColonyTradeInputLocked(): boolean {
   if (!colonyTradeState.active) {
     return false;
   }
-  if (colonyTradeState.phase === 'chips' || colonyTradeState.phase === 'glide') {
+  if (colonyTradeState.phase === 'advance' || colonyTradeState.phase === 'chips' ||
+      colonyTradeState.phase === 'glide') {
     return true;
   }
   return colonyTradeState.cardScene === 'fly' || colonyTradeState.cardScene === 'ascend' ||
@@ -260,8 +314,8 @@ function colonyTradeHolding(): boolean {
   if (!colonyTradeState.active) {
     return false;
   }
-  return colonyTradeState.phase === 'chips' || colonyTradeState.phase === 'glide' ||
-    colonyTradeState.cardScene !== 'idle';
+  return colonyTradeState.phase === 'advance' || colonyTradeState.phase === 'chips' ||
+    colonyTradeState.phase === 'glide' || colonyTradeState.cardScene !== 'idle';
 }
 
 registerAnimationHoldSupplier('colony-trade', colonyTradeHolding);
@@ -528,7 +582,9 @@ export function armColonyTrade(
   colonyTradeState.color = color;
   colonyTradeState.tradeId = '';
   colonyTradeState.trackHold = false;
+  colonyTradeState.glideKind = 'reset';
   colonyTradeState.settledCell = -1;
+  colonyTradeState.cardResLanded = {};
   colonyTradeState.zoomEntryReady = false;
   colonyTradeState.reducedMotion = consoleReducedMotionActive();
   tradeLog('armed', colonyName);
@@ -675,13 +731,20 @@ export async function runColonyTradeRewards(): Promise<void> {
   // stage shows one colony, but an unkeyed match would fire for whichever it
   // happens to be showing); a closed stage simply doesn't match and the wave
   // falls back to the overview tile (the Pluto hand-discard detour case).
+  // The touchdown is ONE beat with two consequences: the panel hold releases
+  // (the rail's number ticks) and — for a card-resource reward — the chosen
+  // host card's own frozen counter ticks and pops on the presented scene.
+  const arrive = (spec: ResourceTransferSpec): void => {
+    releasePanelRewardHold(spec);
+    noteCardResLanding(spec);
+  };
   const income = manifest.trader === viewer ? incomeTransferSpecs(manifest, ctx.targets) : [];
   if (income.length > 0) {
     await runResourceTransfers({
       specs: income,
       source: {selectors: [`.con-colfocus [data-colony-trade-source="${sel}"]`, `${tileSel} [data-colony-trade-source]`, tileSel]},
       arrival: 'auto',
-      onArrive: releasePanelRewardHold,
+      onArrive: arrive,
     });
   }
   const bonus = ownBonusTransferSpecs(manifest, viewer, ctx.targets);
@@ -694,7 +757,7 @@ export async function runColonyTradeRewards(): Promise<void> {
       specs: bonus,
       source: {selectors: [`.con-colfocus [data-colony-bonus-source="${sel}"]`, `${tileSel} [data-colony-bonus-source]`, tileSel]},
       arrival: 'auto',
-      onArrive: releasePanelRewardHold,
+      onArrive: arrive,
     });
   }
   ctx.chipsDone = true;
@@ -981,11 +1044,18 @@ export function abortColonyTrade(): void {
   const r = glideResolver;
   glideResolver = undefined;
   r?.();
+  // …and the ADVANCE leg's own gate: an abort mid-advance must free the
+  // payout's await, or `runColonyTradeRewards` would sit on a promise whose
+  // transaction no longer exists.
+  const a = ctx.advanceResolve;
+  ctx.advanceResolve = undefined;
+  a?.();
   colonyTradeState.active = false;
   colonyTradeState.phase = 'idle';
   colonyTradeState.cardScene = 'idle';
   colonyTradeState.beat = '';
   colonyTradeState.trackHold = false;
+  colonyTradeState.glideKind = 'reset';
   colonyTradeState.settledCell = -1;
   colonyTradeState.colonyName = '';
   colonyTradeState.color = '';
@@ -998,6 +1068,8 @@ export function abortColonyTrade(): void {
   ctx.rewardsKicked = false;
   ctx.committedTrack = undefined;
   ctx.glideStarted = false;
+  ctx.advanceFrom = -1;
+  ctx.advancePending = false;
   ctx.revealSeen = false;
   ctx.stageYielded = false;
 }

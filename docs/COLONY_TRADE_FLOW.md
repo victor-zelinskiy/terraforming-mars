@@ -35,6 +35,18 @@ confirmTrade (composer X)
 → finalColonyPulse → unlockInput → done
 ```
 
+**THE PRE-TRADE ADVANCE IS ITS OWN LEG (2026-08-12).** A trade-offset card
+(«Торговая колония») moves the track FORWARD before the reward is read
+(`Colony.trade` → `increaseTrack` → the manifest). The marker used to simply
+appear further along; it now glides RIGHT first — the same physical language
+as the closing reset, one mechanism with two legs
+(`colonyTradeState.glideKind` = `advance` | `reset`, `trackAdvancePlan` /
+`trackGlidePlan`). The origin is the cell the player pressed (captured at
+`armColonyTrade`), the destination is the manifest's `preTradeTrackPosition`
+— so SEVERAL offset cards are one summed move by server truth, never a client
+sum of card behaviours — and the leg is bounded by its own net, so an
+unmeasurable track never holds the payout.
+
 ## Server: the atomic reward manifest
 
 - **`ColonyTradeManifestModel`** (`src/common/models/ColonyTradeManifestModel.ts`) —
@@ -91,6 +103,73 @@ confirmTrade (composer X)
   `data-colony-track-cell`), the «4/7» ConsoleFlipValue and the keyed
   «ТОРГОВАТЬ» morph + settle pulses. The focused summary reads the same
   presented helper.
+
+## THE CARD-TARGET STEP — «куда положить награду» is a LEVEL, not a list (2026-08-12)
+
+A trade whose reward lands on a card (Titan's floaters, Miranda's animals, the
+Venus «any resource» rewards — trade income AND owner-bonus picks alike) asks
+the player to point at a physical card. That decision is the SAME decision the
+blue-action and play composers already own a surface for, so the colony stage
+reuses it instead of a text list in the configuration column:
+
+- **The step is a DEEPER LEVEL of the same flow.** The decision row reads
+  «Цель торговой награды» with the honest `current → resulting`; A descends —
+  the track, the configuration and the summary rail RELEASE in place
+  (`--targeting`, short and symmetric: this is reversible), the crumb's tail
+  advances «…› ТОРГОВЛЯ» → «…› ЦЕЛЬ НАГРАДЫ», and the SHARED
+  `ConsolePlayedTargetStep` unfolds over the working area. The hero planet
+  never moves — it is the flow's spatial anchor. Both doors (Колонии and a
+  card action's trade) host the identical step, because both stand on the one
+  focus stage.
+- **The model is the shared one** (`colonyTradeTargetStep.ts` →
+  `buildColonyTradeTargetModel` → `consolePlayedTargetModel`): the server
+  preview's own candidate list, physical faces, ownership, per-candidate
+  `before → after` and the resource badge with `showZero`. Deliberately NO
+  `sourceCardName`: no card stands on this stage (the hero is the planet), so
+  the «ЭТА КАРТА» proxy never appears here.
+- **Grammar**: d-pad = the measured cells (`stepPlayedTargetFocusAt`), A =
+  choose (capture + return to the review), X = inspect the focused candidate
+  fullscreen, B = one level back — and B after a re-entry through «Изменить
+  выбор» KEEPS the previous pick (closing the step is never losing the
+  choice). The capture feeds the SAME batch slot as before
+  (`{type:'card', cards:[name]}`) — presentation changed, the wire did not.
+- **Invalidation is the preview's.** `ConsoleColoniesSection` re-pulls the
+  focused colony's preview on every game-state version (`gameAge|undoCount`,
+  quiet while a trade is resolving), and a fresh preview PRUNES captures it no
+  longer offers (`pruneStaleCaptures`) — a stale target is never shown as
+  chosen and never submitted; the confirm re-locks until re-picked.
+
+## THE PRESENTED TARGETS — the reward LANDS on the card, visibly
+
+The confirm derives every card-resource DESTINATION once
+(`colonyTradeCardDestinations` — picked targets AND the single-candidate AUTO
+ones the server applies without a prompt, merged per card) and that one list
+feeds BOTH consumers: the transfer flight's `ColonyTradeTargets` and the
+stage's presented scene.
+
+- At `holdPresentation` the stage snapshots the presented targets beside
+  `heldView` and stands them over the MAIN area (`__cardland`, pose
+  `--carding`) — the chosen card(s) are physically on stage from the commit,
+  through the fleet flight, to the landing. The summary rail deliberately
+  STAYS lit: the income value in it is the chips' launch anchor, so the player
+  reads the whole flight «из награды → на карту».
+- The transfer ladder resolves the presented card FIRST for the colony flow:
+  `targetPointFor`'s card-resource rung
+  `.con-colfocus [data-played-key] .pcard__res` aims the chip at the card's
+  own stored-resource capsule — the touchdown IS the counter.
+- **The counter is honest**: the face is fed a snapshotted model frozen at the
+  pre-trade count (`presentedTargetModel`), ticking by exactly what has
+  PHYSICALLY landed — `colonyTradeState.cardResLanded`, bumped in the same
+  `onArrive` that releases the panel hold — with a re-keyed contact flash per
+  touchdown. A multi-chip payout (two bonus cubes onto one card) ticks per
+  contact; the store committing underneath can never tick it early.
+- **The conclusion waits for the scene.** `stageBusy` (the payout pose OR the
+  standing card scene) feeds `setColonyStageYielded`, so the closing track
+  glide never runs under the presented cards; the scene itself releases after
+  a read beat once everything landed (`CARDLAND_READ_MS`), immediately when a
+  card payout takes the area over (Miranda), and by its own bounded net when a
+  promised chip never came. A failed submit clears it with the held view on
+  the transaction's falling edge — no success scene without a success.
 
 ## The STAGED BOT PATH (the field-report root cause — read before touching)
 

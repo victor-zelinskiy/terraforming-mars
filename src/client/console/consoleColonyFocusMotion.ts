@@ -568,6 +568,86 @@ export function playColonyStepEntry(root: HTMLElement): void {
   });
 }
 
+// ── the TARGET STEP (trade reward → «выбор карты-цели», one level deeper) ───
+
+/** The step's room opens over the released working area (clip only — the
+ *  stage frame, the hero planet and the crumb never move). */
+const TARGET_STEP_OPEN_MS = 300;
+const TARGET_STEP_ITEMS_AT_MS = 100;
+const TARGET_STEP_CLOSE_MS = 200;
+
+/**
+ * THE TARGET STEP ARRIVING — the descend phrase one level in: the trade's
+ * working area has already RELEASED in place (`--targeting`, a CSS pose on
+ * the stage root), and the selector's zone UNFOLDS over it by clip while the
+ * candidates surface from inside (`[data-unfold-item]` — the shared step
+ * already marks its owner groups and status rail). Nothing is scaled: the
+ * candidates are physical card faces and a fractional scale re-rasterizes
+ * their text under the fade (the colony-entry lesson).
+ */
+export function playColonyTargetStepEnter(zone: HTMLElement): void {
+  if (typeof window === 'undefined' || hiddenHost(zone)) {
+    return;
+  }
+  if (consoleReducedMotionActive()) {
+    gsap.fromTo(zone, {autoAlpha: 0}, {autoAlpha: 1, duration: 0.1, ease: 'power1.out', clearProps: 'opacity,visibility'});
+    return;
+  }
+  const items = Array.from(zone.querySelectorAll<HTMLElement>('[data-unfold-item]'));
+  if (items.length > 0) {
+    // Hidden in the same task as the mount — the player must never see a
+    // finished selector and then watch a window open around it.
+    gsap.set(items, {autoAlpha: 0});
+  }
+  guardedDescend(zone, TARGET_STEP_ITEMS_AT_MS + 900, () => undefined, () => {
+    const tl = gsap.timeline();
+    tl.fromTo(zone,
+      {
+        autoAlpha: 0.72,
+        clipPath: 'inset(7% 3% 9% 3% round .55rem)',
+        webkitClipPath: 'inset(7% 3% 9% 3% round .55rem)',
+      },
+      {
+        autoAlpha: 1,
+        clipPath: 'inset(0% 0% 0% 0% round .55rem)',
+        webkitClipPath: 'inset(0% 0% 0% 0% round .55rem)',
+        duration: s(TARGET_STEP_OPEN_MS), ease: 'expo.out',
+        clearProps: 'clipPath,webkitClipPath,opacity,visibility',
+      }, 0);
+    if (items.length > 0) {
+      tl.fromTo(items,
+        {autoAlpha: 0, y: descendPx(10)},
+        {
+          autoAlpha: 1, y: 0, duration: s(210), ease: 'power2.out', stagger: 0.03,
+          clearProps: 'transform,opacity,visibility', overwrite: 'auto',
+        }, s(TARGET_STEP_ITEMS_AT_MS));
+    }
+    return tl;
+  });
+}
+
+/**
+ * B — the same phrase back: the step folds INTO the working area it opened
+ * over (short, quiet), and the caller drops the pose only in `done` so the
+ * trade review is standing again before the step's DOM leaves.
+ */
+export function playColonyTargetStepLeave(zone: HTMLElement, done: () => void): void {
+  if (typeof window === 'undefined' || hiddenHost(zone) || consoleReducedMotionActive()) {
+    done();
+    return;
+  }
+  // `finish` must be WIRED into the timeline — guardedDescend's own net is a
+  // fallback (~+450 ms), and riding it alone holds B's fold for half a second.
+  guardedDescend(zone, TARGET_STEP_CLOSE_MS + 260, done, (finish) => {
+    return gsap.timeline({onComplete: finish}).to(zone, {
+      autoAlpha: 0,
+      clipPath: 'inset(6% 3% 8% 3% round .55rem)',
+      webkitClipPath: 'inset(6% 3% 8% 3% round .55rem)',
+      duration: s(TARGET_STEP_CLOSE_MS), ease: 'power2.in',
+    });
+  });
+}
+
 // ── the leave hook (focus → browse: cancel OR the confirm fold) ─────────────
 
 export function colonyFocusLeaveHook(el: Element, done: () => void): void {

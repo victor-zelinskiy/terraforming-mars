@@ -317,6 +317,53 @@ Diagnosis hook: `__conColonyDiag().bonusScene` (the cover-lift's phase ladder �
 an `idle` scene beside a live colony reveal IS the missing-animation
 signature).
 
+## Iteration 9 — the three follow-ups (one-object, one door, the forward step)
+
+1. **THE LIFT-CLASS IS ELEMENT-AGNOSTIC.** `con-bonus-source-lifted` was scoped
+   to `.board-space-bonus--card`, so a colony BUILD slot's `.benefit-glyph__card`
+   (and the Venus 8 % marker) stayed lit under its own rising cover — the card
+   visibly DUPLICATED out of the slot the cube was about to take. The rule is
+   now on the class itself: a cover and its source are one object, whatever
+   that source happens to be drawn as.
+2. **A SECTION-SERVED PROMPT SUPPRESSES THE DESKTOP MODAL.** `colonyBonus` is
+   served by the colony workspace after a mandatory ANNOUNCE, so there is a
+   deliberate window where none of its DOM is mounted. The suppression
+   predicate read only the host/composite classifications, so that window
+   looked unserved and the legacy `MandatoryInputModal` rose into it —
+   «Заберите 1 карту с колонии Миранда» over the board, and answering it THERE
+   bypassed `openColonyBonusCollect`: no entry armed, no claim, so the card
+   flew to a full-bleed reveal instead of into the colony that paid it. The
+   shell now asks `promptServedNatively` (host ∪ composite ∪
+   `SECTION_SERVED_KINDS`), deliberately distinct from `hostServesPrompt`
+   (which the outcome reconciler needs to mean «might the HOST take this»).
+   `projectCard` is out of the set on purpose — its degenerate shape has no
+   console screen, and the legacy modal is its honest fallback.
+3. **THE PRE-TRADE ADVANCE IS A MOVE, NOT A NUMBER THAT CHANGED.** A
+   trade-offset card («Торговая колония») advances the track before the reward
+   is read — the server does it inside the same response, so the marker simply
+   appeared further along. The glide is now TWO LEGS on ONE mechanism
+   (`colonyTradeState.glideKind`): `advance` steps RIGHT from the cell the
+   player pressed (captured at `armColonyTrade`) to the manifest's
+   `preTradeTrackPosition`, then the chips fly; `reset` steps LEFT at the end
+   as before. SEVERAL offset cards are one summed move by construction — the
+   destination is the server's post-advance position, never a client sum of
+   card behaviours — and the leg is bounded by its own net
+   (`TRACK_ADVANCE_SAFETY_MS`), so an unmeasurable track can never hold a
+   payout.
+   ⚠️ **AND THE SEQUENCE IS STRICT: the cause finishes before its consequence
+   starts.** Adding the leg is not enough — every consumer of «may the payout
+   begin?» has to know about it, and three did not: the cover scene waited only
+   on `chips`, the stage's dissolve fired on `outcomeContentIn` (true the moment
+   the batch teleports into the zone — i.e. mid-glide), and the input lock did
+   not cover the new phase. The reveal therefore opened, and the track's own
+   interface evaporated, while the marker was still crossing it. One
+   authoritative fact each: `colonyPayoutPending()` (armed | advance | chips —
+   the covers wait on it) and `colonyTrackAdvancing()` (the stage refuses to
+   dissolve). ⚠️ `armed` is IN the payout predicate deliberately: the batch is
+   claimed on a PRE-FLUSH watcher while the reward run starts a tick later, so
+   a predicate that knew only `advance`/`chips` sampled the phase before it was
+   set and let the covers fly into the glide anyway.
+
 ## The invariant
 
 From the trade confirm to the last owed follow-up, the COLONY WORKSPACE is the

@@ -907,24 +907,95 @@ describe('self-target — one physical object, never two', () => {
     expect(playedTargetSourceCardName([]), 'and an empty model is not a crash').to.eq('');
   });
 
-  /**
-   * IT FINDS THE SOURCE IN WHICHEVER GROUP IT SITS.
-   *
-   * The viewer's tableau is sorted LAST (targeting your own card is deliberate,
-   * so it is never the accidental default), which means the self-target is
-   * routinely NOT in `owners[0]` — a lookup that only checked the first group
-   * would fail on exactly the multi-player case it exists for.
-   */
-  it('finds the source card in a later owner group', () => {
+  /** The lookup walks EVERY group — it may never assume which one holds the
+   *  source (the promotion below makes it first today, but the read is of the
+   *  model's decision, not of a position). */
+  it('finds the source card whichever group it sits in', () => {
     const m = build({
       candidates: ['Predators', 'Mars Hydro Turbines'],
       admin: ['Predators'],
       victor: ['Mars Hydro Turbines'],
       sourceCardName: 'Predators',
     });
-    expect(m.owners.length, 'two groups, viewer last').to.eq(2);
-    expect(m.owners[m.owners.length - 1].self).to.eq(true);
+    expect(m.owners.length).to.eq(2);
     expect(playedTargetSourceCardName(m.owners)).to.eq('Predators');
+  });
+
+  /**
+   * THE PAIR RULE — «ЭТА КАРТА» is FIRST among the targets and spatially
+   * NEAREST the source card standing in the hero column on the left.
+   *
+   * The reported defect: the proxy sorted by its card TYPE, so another target
+   * stood between the source and its own handle and the visual wire read as
+   * pointing across a stranger. Three orderings carry the fix, all in the
+   * model (never a CSS patch):
+   */
+  describe('the source+«ЭТА КАРТА» pair leads', () => {
+    it('pins the self-target FIRST inside its owner, keeping the rest untouched', () => {
+      // The source is an AUTOMATED card, so by category alone it sorted LAST —
+      // behind both ACTIVE targets. Only the proxy moves to the front.
+      const m = build({
+        candidates: ['Mars Hydro Turbines', 'Predators', 'Tectonic Stress Power'],
+        admin: ['Mars Hydro Turbines', 'Predators', 'Tectonic Stress Power'],
+        sourceCardName: 'Tectonic Stress Power',
+      });
+      const names = m.owners[0].candidates.map((c) => c.cardName as string);
+      expect(names[0], 'the handle leads the row').to.eq('Tectonic Stress Power');
+      expect(names.slice(1), 'the OTHER candidates keep today\'s category order')
+        .to.deep.eq(['Mars Hydro Turbines', 'Predators']);
+    });
+
+    it('hoists the proxy into its own LEADING block, ahead of every category', () => {
+      // The source is ACTIVE while a CORPORATION target exists — left inside
+      // its category the proxy would render BEHIND the corporation block.
+      const m = build({
+        candidates: ['Ecoline', 'Predators'],
+        admin: ['Ecoline', 'Predators'],
+        sourceCardName: 'Predators',
+      });
+      const sections = playedTargetSections(m.owners[0]);
+      expect(sections[0].self).to.eq(true);
+      expect(sections[0].key).to.eq('self');
+      expect(sections[0].label, 'a handle is not a card family — no rail text').to.eq('');
+      expect(sections[0].candidates.map((c) => c.cardName)).to.deep.eq(['Predators']);
+      expect(sections.slice(1).map((s) => s.category), 'the real categories keep their order')
+        .to.deep.eq(['corporation']);
+      expect(sections.slice(1).every((s) => s.candidates.every((c) => c.relation === 'external-card')),
+        'and never re-draw the proxy').to.eq(true);
+    });
+
+    /** The hoist adds a block, and the rails' earn rule must not read that as
+     *  «several categories»: a single-family row stays rail-less. */
+    it('the self block never conjures category rails', () => {
+      const one = build({
+        candidates: ['Predators', 'Mars Hydro Turbines'],
+        admin: ['Predators', 'Mars Hydro Turbines'],
+        sourceCardName: 'Predators',
+      });
+      expect(playedTargetShowsCategoryRails(playedTargetSections(one.owners[0]))).to.eq(false);
+      const two = build({
+        candidates: ['Predators', 'Ecoline', 'Tectonic Stress Power'],
+        admin: ['Predators', 'Ecoline', 'Tectonic Stress Power'],
+        sourceCardName: 'Predators',
+      });
+      expect(playedTargetShowsCategoryRails(playedTargetSections(two.owners[0])),
+        'two REAL families still earn their rails').to.eq(true);
+    });
+
+    /** With several owners the pair still wins the front: the group carrying
+     *  the source leads, and ONLY while a self-target exists — the ordinary
+     *  no-self prompt keeps opponents first (the test above this family). */
+    it('promotes the source-carrying group to the front of the owners', () => {
+      const m = build({
+        candidates: ['Predators', 'Mars Hydro Turbines'],
+        admin: ['Predators'],
+        victor: ['Mars Hydro Turbines'],
+        sourceCardName: 'Predators',
+      });
+      expect(m.owners[0].self, 'the viewer leads while their group holds the handle').to.eq(true);
+      expect(m.owners[0].candidates[0].relation).to.eq('source-card');
+      expect(m.owners[1].self).to.eq(false);
+    });
   });
 });
 

@@ -379,6 +379,14 @@ export type BuildPlayedTargetInput = {
  * OPPONENTS FIRST, the viewer last. Targeting your own card is a deliberate
  * act; putting your tableau at the end keeps it from being the accidental
  * default the cursor lands on.
+ *
+ * ⚠️ ONE exception outranks that: a group carrying the SOURCE-CARD candidate
+ * comes FIRST. The source card stands in the hero column on the left, and its
+ * «ЭТА КАРТА» proxy must be the spatially NEAREST target — the two are one
+ * physical pair, and any card standing between them reads as the pair being
+ * broken (the proxy then points across a stranger). The promotion exists only
+ * while a self-target exists, so the ordinary no-self prompt keeps the
+ * opponents-first order untouched.
  */
 export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTargetModel {
   // `selfHarm` is deliberately absent here: it depends on whether an OPPONENT
@@ -428,13 +436,19 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
   }
   const grouped = [...byColor.values()];
   const opponentsInvolved = grouped.some((g) => !g.self);
+  const carriesSource = (g: {candidates: ReadonlyArray<PlayedTargetCandidate>}) =>
+    g.candidates.some((c) => c.relation === 'source-card');
   const owners = grouped
     .map((g) => ({
       ...g,
       candidates: sortByCategory(g.candidates),
       selfHarm: g.self && input.takesFromTarget === true && opponentsInvolved,
     }))
-    .sort((a, b) => Number(a.self) - Number(b.self));
+    .sort((a, b) => {
+      // The source+«ЭТА КАРТА» pair wins the front (see the builder's doc).
+      const pair = Number(carriesSource(b)) - Number(carriesSource(a));
+      return pair !== 0 ? pair : Number(a.self) - Number(b.self);
+    });
   const targetCount = owners.reduce((n, o) => n + o.candidates.length, 0);
   return {
     owners,
@@ -449,14 +463,30 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
 }
 
 function sortByCategory(candidates: ReadonlyArray<PlayedTargetCandidate>): Array<PlayedTargetCandidate> {
-  return [...candidates].sort((a, b) =>
-    PLAYED_TARGET_CATEGORY_ORDER.indexOf(a.category) - PLAYED_TARGET_CATEGORY_ORDER.indexOf(b.category));
+  return [...candidates].sort((a, b) => {
+    // «ЭТА КАРТА» is pinned to the very FRONT of its owner's candidates: the
+    // source card stands in the hero column to the LEFT, so the first cell of
+    // the row is the spatially nearest target — the two must read as one pair,
+    // and a stranger standing between them is the reported bug. The sort is
+    // stable, so the OTHER candidates keep exactly the order they had.
+    const self = Number(b.relation === 'source-card') - Number(a.relation === 'source-card');
+    if (self !== 0) {
+      return self;
+    }
+    return PLAYED_TARGET_CATEGORY_ORDER.indexOf(a.category) - PLAYED_TARGET_CATEGORY_ORDER.indexOf(b.category);
+  });
 }
 
 /** One rendered category block inside an owner group. */
 export type PlayedTargetSection = {
+  /** The render key: the category, or `'self'` for the source-card block. */
+  key: string;
   category: PlayedTargetCategory;
   label: string;
+  /** The leading block that holds ONLY the «ЭТА КАРТА» proxy — it is a
+   *  navigation handle, not a member of a card-type family, so it draws no
+   *  category rail and does not count toward the rails' earn rule. */
+  self?: boolean;
   candidates: ReadonlyArray<PlayedTargetCandidate>;
 };
 
@@ -465,13 +495,24 @@ export type PlayedTargetSection = {
  * NEVER EMITTED. A zero-count rail would spend the surface's scarcest
  * dimension on describing what is not there, which is precisely the full-
  * tableau impression this step must not give.
+ *
+ * THE SOURCE-CARD PROXY IS HOISTED into its own LEADING block. Left inside its
+ * real category it sorted wherever that category fell (an ACTIVE source stood
+ * behind a CORPORATION target), and «first among the targets, nearest the
+ * source» must hold whatever families the other candidates belong to. The
+ * hoist moves ONLY the proxy — every other candidate keeps today's category
+ * order, untouched.
  */
 export function playedTargetSections(owner: PlayedTargetOwner): ReadonlyArray<PlayedTargetSection> {
   const out: Array<PlayedTargetSection> = [];
+  const self = owner.candidates.find((c) => c.relation === 'source-card');
+  if (self !== undefined) {
+    out.push({key: 'self', category: self.category, label: '', self: true, candidates: [self]});
+  }
   for (const category of PLAYED_TARGET_CATEGORY_ORDER) {
-    const candidates = owner.candidates.filter((c) => c.category === category);
+    const candidates = owner.candidates.filter((c) => c.category === category && c.relation !== 'source-card');
     if (candidates.length > 0) {
-      out.push({category, label: playedTargetCategoryLabel(category), candidates});
+      out.push({key: category, category, label: playedTargetCategoryLabel(category), candidates});
     }
   }
   return out;
@@ -481,9 +522,12 @@ export function playedTargetSections(owner: PlayedTargetOwner): ReadonlyArray<Pl
  * Does the category RAIL earn its line? With a single block the label repeats
  * what the contract line above already said and what the cards themselves
  * show — so it is suppressed and the vertical space goes to the cards.
+ *
+ * The self block never counts: it is a handle, not a category, and hoisting it
+ * must not conjure rails over an otherwise single-family row.
  */
 export function playedTargetShowsCategoryRails(sections: ReadonlyArray<PlayedTargetSection>): boolean {
-  return sections.length > 1;
+  return sections.filter((s) => s.self !== true).length > 1;
 }
 
 /**

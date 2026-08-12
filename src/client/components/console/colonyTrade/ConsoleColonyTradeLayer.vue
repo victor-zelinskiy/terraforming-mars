@@ -46,10 +46,10 @@ import {presentationTarget} from '@/client/console/boardCardBonus/boardCardBonus
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {
-  colonyTradeClaimsReveal, colonyTradeGlidePlan, colonyTradeState, finishColonyTrackAdvance,
-  finishColonyTrackReset, isColonyTradeRevealStaged, markColonyTradeZoomReady,
-  registerColonyTradeZoomOrigin, setColonyTradeBeat, setColonyTradeCardScene,
-  stageColonyTradeReveal, tradeLog,
+  colonyPayoutPending, colonyTradeClaimsReveal, colonyTradeGlidePlan, colonyTradeState,
+  finishColonyTrackAdvance, finishColonyTrackReset, isColonyTradeRevealStaged,
+  markColonyTradeZoomReady, registerColonyTradeZoomOrigin, setColonyTradeBeat,
+  setColonyTradeCardScene, stageColonyTradeReveal, tradeLog,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 import {
   TRADE_COVER_FLIGHT_MS, TRADE_COVER_LIFT_MS, TRADE_FRAME_MS, TRADE_LIFTOFF_AT_F,
@@ -229,17 +229,29 @@ export default defineComponent({
       void this.runCoverScene(e);
     },
 
-    /** The chip waves finish first — consequences never overlap their cause. */
-    waitForChips(): Promise<void> {
+    /**
+     * THE CAUSE FINISHES BEFORE ITS CONSEQUENCE STARTS. Two beats precede the
+     * cards, and the covers wait out BOTH:
+     *  · `advance` — the marker is still travelling to the cell this payout is
+     *    read at. Launching covers here (and, with them, the stage's dissolve)
+     *    made the reveal open while the track was still moving — and the track
+     *    the marker was crossing vanished from under it;
+     *  · `chips`   — the resource waves are still leaving the tile.
+     * Bounded by the same net as before: a stalled phase must never strand a
+     * batch on the table.
+     */
+    waitForCause(): Promise<void> {
+      // The phase list lives in the orchestrator (`colonyPayoutPending`) — the
+      // layer asks the question, it does not re-state the ladder.
+      const busy = () => colonyPayoutPending();
       return new Promise((done) => {
-        if (colonyTradeState.phase !== 'chips') {
+        if (!busy()) {
           done();
           return;
         }
         const started = Date.now();
         const poll = () => {
-          if (!colonyTradeState.active || colonyTradeState.phase !== 'chips' ||
-              Date.now() - started > CHIP_WAIT_MAX_MS) {
+          if (!colonyTradeState.active || !busy() || Date.now() - started > CHIP_WAIT_MAX_MS) {
             done();
             return;
           }
@@ -251,7 +263,7 @@ export default defineComponent({
 
     /** The whole cover scene of ONE staged batch (multi or single card). */
     async runCoverScene(e: DrawnCardEntry): Promise<void> {
-      await this.waitForChips();
+      await this.waitForCause();
       if (!colonyTradeState.active || !isColonyTradeRevealStaged(e.id)) {
         return;
       }

@@ -129,6 +129,9 @@ type FlightWatch = {
   earlyDissolve: boolean;
   /** Sampled opacity of the colony working area when the first proxy appeared. */
   stageOpacityAtLaunch: number;
+  /** The SOURCE glyph was still lit while its own cover was rising off it —
+   *  the card visibly duplicating out of the slot (one-object rule). */
+  sourceTwin: boolean;
 };
 
 /**
@@ -141,7 +144,7 @@ async function watchFlight(page: Page, ms: number): Promise<FlightWatch> {
     const seen: FlightWatch = {
       proxySeen: false, proxyMax: 0, coverSeen: false, phases: [],
       doubleImage: false, zoneBackWhileFlying: false, inPlaceFlip: false,
-      earlyDissolve: false, stageOpacityAtLaunch: -1,
+      earlyDissolve: false, stageOpacityAtLaunch: -1, sourceTwin: false,
     };
     w.__buildFlight = seen;
     const t0 = performance.now();
@@ -163,6 +166,14 @@ async function watchFlight(page: Page, ms: number): Promise<FlightWatch> {
       const cover = document.querySelector('.con-bonusfly-cover');
       if (cover !== null && visible(cover)) {
         seen.coverSeen = true;
+        // ONE OBJECT: the icon the cover took over must be dark while it
+        // rises. A lit twin under a rising cover is the card «multiplying»
+        // out of the slot the cube is about to take.
+        const lifted = Array.from(document.querySelectorAll('.con-bonus-source-lifted'))
+          .filter(visible);
+        if (lifted.length > 0) {
+          seen.sourceTwin = true;
+        }
       }
       // Every flight family that can carry these cards — the cover-lift scene
       // (build) and the trade's own covers — so the probe is about «did a
@@ -245,6 +256,8 @@ test('Pluto BUILD: the bonus cards physically leave the slot and fly into the re
   console.log('── Pluto build flight ──', JSON.stringify(seen));
 
   expect(seen.coverSeen, 'the build bonus never separated from its slot glyph').toBeTruthy();
+  expect(seen.sourceTwin,
+    'the source glyph stayed lit under its own rising cover (the card duplicated out of the slot)').toBeFalsy();
   expect(seen.proxySeen, 'no card ever physically flew — the cards just appeared').toBeTruthy();
   expect(seen.proxyMax, 'both bonus cards fly as their own objects').toBeGreaterThanOrEqual(2);
   expect(seen.doubleImage, 'a real card was painted while its cover was still airborne').toBeFalsy();

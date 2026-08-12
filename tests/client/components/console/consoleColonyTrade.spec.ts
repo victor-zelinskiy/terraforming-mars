@@ -9,8 +9,8 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import {heldStock, panelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
-  abortColonyTrade, armColonyTrade, colonyTradeClaimsReveal, colonyTradeHoldingSingleZoom,
-  colonyTradeWillDressReveal,
+  abortColonyTrade, armColonyTrade, colonyPayoutPending, colonyTrackAdvancing,
+  colonyTradeClaimsReveal, colonyTradeHoldingSingleZoom, colonyTradeWillDressReveal,
   colonyTradeState, colonyTradeTileStatusText, detectColonyTrade, finishColonyTrackReset,
   isColonyTradeActive, isColonyTradeInputLocked, isColonyTradeRevealStaged, isPresentedTradeReveal,
   markColonyTradeZoomReady, noticeColonyTradeCommit, notifyColonyTradeTrackCommitted,
@@ -259,6 +259,43 @@ describe('consoleColonyTrade', () => {
     await new Promise((resolve) => setTimeout(resolve, 350)); // waves settle (no anchors under JSDOM)
     expect(colonyTradeState.phase).eq('awaiting');
   });
+  /*
+   * STRICT SEQUENCE: the CAUSE finishes before its CONSEQUENCE starts. The
+   * pre-trade advance moves the marker to the cell the reward is read at, and
+   * nothing of the payout — covers, reveal, the stage's own dissolve — may
+   * begin until it lands. The reported break was the reveal opening (and the
+   * track's own interface evaporating) while the marker was still crossing it.
+   */
+  describe('colonyPayoutPending (nothing starts before the marker lands)', () => {
+    it('holds through armed → advance → chips, and releases at awaiting', () => {
+      armColonyTrade(ColonyName.TRITON, 'red', undefined, 1);
+      // ARMED counts: the batch is claimed on a PRE-FLUSH watcher while the
+      // reward run starts a tick later — a predicate that ignored this phase
+      // sampled it too early and let the covers fly into the glide.
+      expect(colonyPayoutPending()).to.eq(true);
+      expect(colonyTrackAdvancing()).to.eq(false);
+
+      // The claim owes an ADVANCE: the manifest reads the reward 3 cells on.
+      detectColonyTrade(view(manifest({preTradeTrackPosition: 4, postTradeTrackPosition: 1})));
+      colonyTradeState.phase = 'advance';
+      expect(colonyTrackAdvancing()).to.eq(true);
+      expect(colonyPayoutPending()).to.eq(true);
+      expect(isColonyTradeInputLocked(), 'the pad is inert while the marker travels').to.eq(true);
+
+      colonyTradeState.phase = 'chips';
+      expect(colonyTrackAdvancing()).to.eq(false);
+      expect(colonyPayoutPending()).to.eq(true);
+
+      colonyTradeState.phase = 'awaiting';
+      expect(colonyPayoutPending(), 'the payout may begin').to.eq(false);
+    });
+
+    it('answers false when no transaction is running (a foreign / bot trade)', () => {
+      expect(colonyPayoutPending()).to.eq(false);
+      expect(colonyTrackAdvancing()).to.eq(false);
+    });
+  });
+
   /*
    * THE MODAL MUST BE VEILED FROM ITS FIRST RENDER — and un-veiled for good
    * afterwards. The claim rides the layer's pre-flush watcher, which the

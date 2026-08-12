@@ -380,6 +380,10 @@ export default defineComponent({
     thisPlayer: {type: Object as PropType<PublicPlayerModel | undefined>, default: undefined},
     /** The viewer's player id — the focus stage's server preview fetch. */
     playerId: {type: String, default: ''},
+    /** The game-state version (`gameAge|undoCount`) — a moved state re-pulls
+     *  the focused colony's trade preview, so the stage's candidate sets and
+     *  captures are re-judged against CURRENT truth (never a stale pick). */
+    viewVersion: {type: String, default: ''},
     /**
      * A STEP of another workspace (rule 1 — host-agnostic): the shell chrome
      * (frame plate, ConsoleWsHead, `con-ws` marker) comes off; grid, fit,
@@ -753,6 +757,18 @@ export default defineComponent({
     'focusState.colonyName'(name: ColonyName | '') {
       this.focusPreview = undefined;
       if (name !== '') {
+        void this.loadFocusPreview(name);
+      }
+    },
+    // …and follows the GAME STATE: a response that moved the world (an undo,
+    // a mid-turn effect) re-pulls the preview for the SAME colony, so the
+    // stage's candidate lists — and through them every captured pick — are
+    // re-validated against current truth instead of a snapshot. Quiet while
+    // the trade is resolving: the commit-boundary freeze owns that window,
+    // and the transaction's own conclusion folds the stage anyway.
+    viewVersion() {
+      const name = this.focusState.colonyName;
+      if (name !== '' && !colonyTradeState.active) {
         void this.loadFocusPreview(name);
       }
     },
