@@ -282,6 +282,11 @@ const TRACK_CELL_MS_MIN = 95;
 const TRACK_CELL_MS_MAX = 170;
 export const TRACK_SETTLE_MS = 260;
 
+/** The per-cell beat of a glide of `steps` cells (the same rhythm both ways). */
+function glideCellMs(steps: number): number {
+  return Math.max(TRACK_CELL_MS_MIN, Math.min(TRACK_CELL_MS_MAX, Math.round(420 / steps)));
+}
+
 /**
  * The reset glide: pre → post stepping LEFT. `undefined` when the marker
  * doesn't move (post >= pre) — the caller plays the honest confirm pulse
@@ -295,6 +300,30 @@ export function trackGlidePlan(pre: number, post: number): TrackGlidePlan | unde
   for (let p = pre - 1; p >= post; p--) {
     path.push(p);
   }
-  const perCellMs = Math.max(TRACK_CELL_MS_MIN, Math.min(TRACK_CELL_MS_MAX, Math.round(420 / path.length)));
-  return {from: pre, to: post, path, perCellMs, settleMs: TRACK_SETTLE_MS};
+  return {from: pre, to: post, path, perCellMs: glideCellMs(path.length), settleMs: TRACK_SETTLE_MS};
+}
+
+/**
+ * THE ADVANCE glide: the marker steps RIGHT before the trade is read.
+ *
+ * A trade-offset card («Торговая колония») moves the track FORWARD first, and
+ * the reward is then read at the new cell — the server does it in
+ * `Colony.trade` before it builds the manifest, so `to` is
+ * `preTradeTrackPosition` (post-advance, server truth) and SEVERAL such cards
+ * are one summed move by construction, never a client re-derivation.
+ *
+ * It is the same physical language as the reset, in the other direction: the
+ * player watches the position they are about to be paid at being earned. Its
+ * absence was the one silent step of the payout — the marker simply appeared
+ * further along the moment the trade committed.
+ */
+export function trackAdvancePlan(from: number, to: number): TrackGlidePlan | undefined {
+  if (to <= from) {
+    return undefined;
+  }
+  const path: Array<number> = [];
+  for (let p = from + 1; p <= to; p++) {
+    path.push(p);
+  }
+  return {from, to, path, perCellMs: glideCellMs(path.length), settleMs: TRACK_SETTLE_MS};
 }

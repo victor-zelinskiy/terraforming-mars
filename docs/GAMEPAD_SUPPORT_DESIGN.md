@@ -435,7 +435,26 @@ Design:
 - Pad PRESENCE can no longer be a `gamepadconnected` counter — that event never
   fires here. `syncPadPresence()` reconciles both sources and owns the loop.
 
-### 8.2 Mirror suppression
+### 8.2 The layout is DERIVED, never assumed
+
+joydev reports an input's ORDINAL, never its meaning. The first cut hardcoded
+the classic xpad order (A B X Y LB RB Back Start Guide L3 R3) and broke on a
+Razer Wolverine V3, which also declares the digital trigger buttons
+`BTN_TL2`/`BTN_TR2`. Those sit between the bumpers and Back, so every later
+ordinal shifted by two: the triggers drove View/Menu, and the d-pad fell off the
+end of the table. A positional guess of "buttons 11..14 are a d-pad" made it
+worse — on a richer pad those ordinals are the stick clicks.
+
+The order is now derived exactly as `drivers/input/joydev.c` derives it — from
+the device's declared capability bitmaps in `/sys/class/input/<node>/device/
+capabilities/{key,abs}`, with codes from `BTN_JOYSTICK` upward enumerated BEFORE
+the `BTN_MISC` range — and the resulting evdev codes are mapped by MEANING
+(`BTN_SOUTH`→A, `ABS_Z`→LT, `ABS_HAT0X`→d-pad …). Analog and digital forms of
+one control are unioned, unknown codes (paddles, media keys) are ignored, and an
+unreadable device falls back to the xpad order. The derived table is logged in
+full at open, so a misbehaving control can be read straight off the field log.
+
+### 8.3 Mirror suppression
 
 Steam Input publishes one controller TWICE — the device and a virtual twin — so
 a press arrives on two nodes, they land in different poll frames, and the driver

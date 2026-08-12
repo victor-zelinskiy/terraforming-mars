@@ -7,7 +7,7 @@ import {Resource} from '@/common/Resource';
 import {ColonyTradeManifestModel} from '@/common/models/ColonyTradeManifestModel';
 import {
   benefitCardCount, benefitTransferSpec, colonyTradeHeldSpecs, incomeTransferSpecs,
-  ownBonusTransferSpecs, revealWaveForIndex, trackGlidePlan, TRADE_COVER_STAGGER_MS,
+  ownBonusTransferSpecs, revealWaveForIndex, trackAdvancePlan, trackGlidePlan, TRADE_COVER_STAGGER_MS,
   TRADE_FAN_LEAD_MS, TRADE_FAN_STAGGER_MS, TRADE_WAVE_GAP_MS,
   tradeCoverPlan, tradeCoverPlanBudgetMs, tradeRoleForIndex, viewerBonusCubes,
 } from '@/client/console/colonyTrade/colonyTradeModel';
@@ -146,5 +146,22 @@ describe('colonyTradeModel', () => {
     expect(plan.perCellMs).to.be.greaterThan(0);
     expect(trackGlidePlan(2, 2)).eq(undefined);
     expect(trackGlidePlan(1, 2)).eq(undefined);
+  });
+
+  it('the ADVANCE steps RIGHT to the position the reward is read at', () => {
+    // «Торговая колония»: one offset card = one step, before the trade.
+    const one = trackAdvancePlan(1, 2)!;
+    expect(one.path).deep.eq([2]);
+    expect(one.from).eq(1);
+    expect(one.to).eq(2);
+    // SEVERAL offset cards are ONE summed move: the destination is the
+    // server's own post-advance position (the manifest's
+    // `preTradeTrackPosition`), so the client never adds card behaviours up.
+    const many = trackAdvancePlan(1, 4)!;
+    expect(many.path).deep.eq([2, 3, 4]);
+    expect(many.perCellMs).to.be.greaterThan(0);
+    // No advance (no offset card, or a capped track) → no invented motion.
+    expect(trackAdvancePlan(3, 3)).eq(undefined);
+    expect(trackAdvancePlan(3, 2)).eq(undefined);
   });
 });

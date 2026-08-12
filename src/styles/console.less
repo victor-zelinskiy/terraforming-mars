@@ -4735,310 +4735,18 @@ html.con-profile-large .con-hydro {
     .con-hydro__reason { font-size: .9rem; }
 }
 
-/* ── Milestones/Awards premium CONFIRM (ConsoleMaConfirm) ───────────────
-   The strategic sibling of the hydro confirm: the hero 512×512 icon on a
-   pedestal, the mechanic truth (milestone = 5 VP immediately vs award =
-   endgame race), the M€ before → after delta and the slot economics.
-   Nothing is submitted until this modal's own A. */
+/* ── Milestones/Awards ceremony accents — shared by the MA focus stage
+   (.con-mafocus) and the ceremony shells (.con-macere): coronation gold
+   (milestone) / official medal (award). ─────────────────────────────── */
 @con-ma-gold: #ffd87a;
 @con-ma-medal: #d6a6e0;
 
-/* The generic .con-task-host sits at 11480 — UNDER the premium sheets
-   (.con-ma / std-projects at 11500) it was designed to follow. THIS confirm
-   opens ON TOP of the MA dashboard, so it must clear it: above 11500, below
-   the transient notice (11540) / Info Mode (11560). The compound selector
-   (0,2,0) out-ranks the later-declared .con-task-host base (0,1,0). */
-.con-task-host.con-maconfirm {
-    z-index: 11510;
-}
-
-.con-maconfirm {
-    &__frame { width: min(48rem, 100%); }
-    &__frame--milestone {
-        box-shadow: inset 0 0 0 .05rem fade(@con-ma-gold, 45%), 0 1.2rem 4rem rgba(0, 0, 0, 0.65), 0 0 2.2rem fade(@con-ma-gold, 9%);
-        .con-task__kicker { color: fade(@con-ma-gold, 92%); }
-        .con-task__kicker-mark { color: @con-ma-gold; }
-    }
-    &__frame--award {
-        box-shadow: inset 0 0 0 .05rem fade(@con-ma-medal, 42%), 0 1.2rem 4rem rgba(0, 0, 0, 0.65), 0 0 2.2rem fade(@con-ma-medal, 9%);
-        .con-task__kicker { color: fade(@con-ma-medal, 92%); }
-        .con-task__kicker-mark { color: @con-ma-medal; }
-    }
-    &__body { gap: .6rem; }
-    &__main {
-        display: flex;
-        gap: 1.1rem;
-        min-height: 0;
-    }
-    &__side {
-        flex-shrink: 0;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: .5rem;
-        width: 10.6rem;
-    }
-    /* The hero pedestal — same composition language as .con-ma__stage,
-       scaled up for the decision moment (contain: NEVER cropped). */
-    &__stage {
-        position: relative;
-        width: 10rem;
-        height: 10rem;
-        border-radius: .8rem;
-        background:
-            radial-gradient(circle at 50% 58%, fade(@con-cyan, 12%), transparent 66%),
-            rgba(9, 15, 24, 0.6);
-        box-shadow:
-            inset 0 0 0 .05rem rgba(120, 150, 180, 0.22),
-            inset 0 -.7rem 1.3rem rgba(0, 0, 0, 0.4);
-
-        &::after {
-            content: '';
-            position: absolute;
-            left: 18%;
-            right: 18%;
-            bottom: 8%;
-            height: 10%;
-            border-radius: 50%;
-            background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.5), transparent 70%);
-        }
-        .ma-hero { position: absolute; inset: 8%; z-index: 1; }
-    }
-    &__frame--milestone &__stage { background: radial-gradient(circle at 50% 58%, fade(@con-ma-gold, 10%), transparent 66%), rgba(9, 15, 24, 0.6); }
-    &__frame--award &__stage { background: radial-gradient(circle at 50% 58%, fade(@con-ma-medal, 10%), transparent 66%), rgba(9, 15, 24, 0.6); }
-    &__name {
-        font-size: 1rem;
-        font-weight: 800;
-        text-align: center;
-        line-height: 1.25;
-    }
-    &__info {
-        flex: 1;
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-        gap: .5rem;
-    }
-    &__desc { font-size: .85rem; line-height: 1.42; }
-
-    /* Milestone: the progress readout + threshold meter. */
-    &__progress {
-        display: flex;
-        align-items: center;
-        gap: .6rem;
-        flex-wrap: wrap;
-        padding: .45rem .65rem;
-        border-radius: .5rem;
-        background: rgba(14, 22, 33, 0.55);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
-    }
-    &__progress-value { font-size: .85rem; b { font-size: 1.15rem; } }
-    &__progress-req { color: @con-text-dim; font-size: .85rem; }
-    &__meter {
-        flex: 1;
-        min-width: 4.5rem;
-        height: .35rem;
-        border-radius: 49.95rem;
-        background: rgba(120, 150, 180, 0.18);
-        overflow: hidden;
-        i {
-            display: block;
-            height: 100%;
-            border-radius: 49.95rem;
-            background: linear-gradient(90deg, fade(@con-mint, 70%), @con-mint);
-            transition: width calc(300ms * var(--motion-scale, 1)) ease;
-        }
-    }
-    &__progress-note { font-size: .725rem; color: @con-text-dim; }
-    &__progress-note--ok { color: @con-mint; }
-
-    /* Milestone: the immediate-5-VP truth (the headline consequence). */
-    &__vp {
-        display: flex;
-        align-items: center;
-        gap: .6rem;
-        padding: .5rem .65rem;
-        border-radius: .5rem;
-        background: fade(@con-ma-gold, 8%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-ma-gold, 45%);
-    }
-    &__vp-badge {
-        flex-shrink: 0;
-        padding: .25rem .6rem;
-        border-radius: .45rem;
-        background: fade(@con-ma-gold, 16%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-ma-gold, 70%);
-        color: @con-ma-gold;
-        font-size: 1.05rem;
-        font-weight: 800;
-        white-space: nowrap;
-    }
-    &__vp-note { font-size: .775rem; line-height: 1.35; }
-
-    /* Award: the endgame-scoring truth. */
-    &__endgame {
-        display: flex;
-        align-items: flex-start;
-        gap: .5rem;
-        padding: .5rem .65rem;
-        border-radius: .5rem;
-        background: fade(@con-ma-medal, 7%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-ma-medal, 40%);
-        font-size: .775rem;
-        line-height: 1.4;
-        b { color: @con-text; }
-    }
-    &__endgame-mark { flex-shrink: 0; }
-
-    /* Award: the live race panel. */
-    &__race {
-        display: flex;
-        flex-direction: column;
-        gap: .25rem;
-    }
-    &__racer {
-        display: flex;
-        align-items: center;
-        gap: .45rem;
-        padding: .3rem .55rem;
-        border-radius: .45rem;
-        background: rgba(14, 22, 33, 0.5);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
-        font-size: .8rem;
-
-        &--viewer {
-            background: fade(@con-cyan, 9%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 50%);
-            font-weight: 700;
-        }
-        &--leader .con-maconfirm__racer-score { color: @con-ma-gold; }
-    }
-    &__racer-dot {
-        width: .65rem;
-        height: .65rem;
-        border-radius: 50%;
-        flex-shrink: 0;
-        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.45);
-    }
-    &__racer-name {
-        flex: 1;
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-    }
-    &__racer-crown { color: @con-ma-gold; font-size: .65rem; }
-    &__racer-score { font-size: .95rem; font-weight: 800; }
-    &__race-tone {
-        align-self: flex-start;
-        margin-top: .1rem;
-        padding: .15rem .5rem;
-        border-radius: 49.95rem;
-        font-size: .675rem;
-        font-weight: 700;
-        background: rgba(14, 22, 33, 0.55);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.28);
-        color: @con-text-dim;
-
-        &--lead, &--tie {
-            background: fade(@con-mint, 10%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 50%);
-            color: @con-mint;
-        }
-        &--behind {
-            background: fade(@con-amber, 10%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%);
-            color: #ffe3b0;
-        }
-    }
-
-    /* Economy: the M€ before → after (mirrors the hydro spend readout). */
-    &__spend {
-        display: inline-flex;
-        align-items: center;
-        gap: .5rem;
-        align-self: flex-start;
-        padding: .4rem .65rem;
-        border-radius: .5rem;
-        background: rgba(14, 22, 33, 0.55);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
-        font-size: .85rem;
-    }
-    &__spend-num { font-size: 1.05rem; color: #ffd9a0; }
-    &__beforeafter {
-        display: inline-flex;
-        align-items: center;
-        gap: .3rem;
-        color: @con-text-dim;
-        b { color: @con-text; font-size: .9rem; }
-    }
-    &__free {
-        display: flex;
-        align-items: center;
-        gap: .5rem;
-        padding: .45rem .65rem;
-        border-radius: .5rem;
-        background: fade(@con-mint, 8%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%);
-        font-size: .775rem;
-    }
-    &__free-chip {
-        padding: .15rem .5rem;
-        border-radius: 49.95rem;
-        background: fade(@con-mint, 14%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%);
-        color: @con-mint;
-        font-size: .675rem;
-        font-weight: 800;
-        text-transform: uppercase;
-        letter-spacing: .05rem;
-        white-space: nowrap;
-    }
-
-    /* Slot economics: taken X/3 · left after · who took the others. */
-    &__slots {
-        display: flex;
-        align-items: center;
-        gap: .7rem;
-        flex-wrap: wrap;
-        padding: .4rem .65rem;
-        border-radius: .5rem;
-        background: rgba(14, 22, 33, 0.45);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
-        font-size: .75rem;
-        color: @con-text-dim;
-        b { color: @con-text; font-size: .8rem; }
-    }
-    &__slots-owner {
-        display: inline-flex;
-        align-items: center;
-        gap: .3rem;
-        color: @con-text;
-    }
-    &__foot-off { opacity: 0.45; filter: saturate(0.5); }
-}
-
-html.con-profile-handheld .con-maconfirm {
-    &__frame { width: min(39rem, 100%); }
-    &__side { width: 8.2rem; }
-    &__stage { width: 7.8rem; height: 7.8rem; }
-    &__name { font-size: .85rem; }
-    &__desc { font-size: .75rem; }
-    &__vp-badge { font-size: .9rem; }
-    &__vp-note { font-size: .7rem; }
-    &__endgame { font-size: .7rem; }
-    &__racer { font-size: .725rem; padding: .25rem .5rem; }
-    &__racer-score { font-size: .85rem; }
-    &__spend { font-size: .75rem; }
-    &__spend-num { font-size: .9rem; }
-    &__slots { font-size: .675rem; }
-}
 
 /* ── Milestones/Awards READER (ConsoleMaInspect) ───────────────────────
    X → «Осмотреть»: the full-text reader for ONE milestone/award. The
    dashboard cards clamp their rule to fit the no-scroll grid; this premium
    surface shows the WHOLE description on a hero art stage. Read-only (A
-   sponsors/claims when available → the confirm; B/X close). */
+   descends into the item's detail stage; B/X close). */
 .con-mainspect {
     /* THE MODAL BAND: centres between the bars. */
     .con-ws-band();
@@ -7224,8 +6932,10 @@ html.console-mode {
     &__backdrop {
         position: fixed; /* full-viewport dim under the bars */
         inset: 0;
-        /* A quick-glance STRATEGIC panel — the board stays readable. */
-        background: rgba(4, 8, 14, 0.34);
+        /* The workspace visually separates from the planet: the environment
+           survives only as DEPTH (darker toward the panel, a breath lighter
+           at the far edges) — it may hint, it may not compete with content. */
+        background: radial-gradient(120% 115% at 42% 42%, rgba(4, 8, 14, 0.62), rgba(4, 8, 14, 0.46) 70%, rgba(4, 8, 14, 0.38));
     }
     &__panel {
         position: relative;
@@ -7236,52 +6946,25 @@ html.console-mode {
         gap: .7rem;
         padding: .9rem 1.2rem .6rem;
         border-radius: .8rem;
+        /* DENSITY: a decision surface, not a translucent overlay — the board
+           must not read through the rows (the premium material language is
+           depth + edge light, never see-through panels). */
         background:
             linear-gradient(160deg, fade(@con-cyan, 6%), transparent 42%),
-            rgba(12, 19, 29, 0.94);
+            rgba(10, 16, 25, 0.985);
         box-shadow:
             inset 0 0 0 .05rem fade(@con-cyan, 38%),
             inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
-            0 1.1rem 3.5rem rgba(0, 0, 0, 0.55);
+            0 1.1rem 3.5rem rgba(0, 0, 0, 0.6);
         /* Entry moved to the surface-motion director. */
     }
 
-    /* ── identity band ──────────────────────────────────────────── */
-    &__head {
+    /* ── identity band (the shared ConsoleWsHead; the tally rides its
+       trailing zone — parent chrome, stable through every stage) ───── */
+    &__wshead {
         flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        gap: .8rem;
-    }
-    &__emblem {
-        width: 2.6rem;
-        height: 2.6rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: .6rem;
-        background:
-            radial-gradient(circle at 50% 42%, fade(@con-cyan, 16%), transparent 70%),
-            rgba(10, 17, 26, 0.7);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%), 0 0 .9rem fade(@con-cyan, 12%);
-    }
-    &__emblem-icon {
-        width: 1.6rem;
-        height: 1.6rem;
-        color: fade(@con-cyan, 95%);
-        filter: drop-shadow(0 0 .4rem fade(@con-cyan, 40%));
-    }
-    &__title {
-        font-size: 1.35rem;
-        font-weight: 700;
-        letter-spacing: .13rem;
-        text-transform: uppercase;
-        color: fade(@con-cyan, 95%);
-        text-shadow: 0 0 1.1rem fade(@con-cyan, 20%);
-        white-space: nowrap;
     }
     &__tally {
-        margin-left: auto;
         display: flex;
         align-items: center;
         gap: .8rem;
@@ -7413,6 +7096,28 @@ html.console-mode {
         white-space: nowrap;
     }
 
+    /* ── the stage wrap: the BROWSE layer and the FOCUS stage occupy the
+       same region (descending recomposes the frame in place — the browse
+       DOM is only parked, so selection / scroll survive). ─────────── */
+    &__stagewrap {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+    }
+    &__browse {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .7rem;
+
+        /* The VISUAL park is the descend motion's inline state (recede /
+           return own it); the class only guarantees the input truth. */
+        &--parked {
+            pointer-events: none;
+        }
+    }
+
     /* ── the dashboard grid (ConsoleScrollArea host + grid content) ─── */
     &__scroll-host {
         flex: 1;
@@ -7434,7 +7139,9 @@ html.console-mode {
         padding: .55rem .8rem .55rem .9rem;
         border-radius: .7rem;
         overflow: hidden;
-        background: linear-gradient(165deg, rgba(21, 31, 45, 0.78), rgba(13, 20, 30, 0.78));
+        /* Rows carry their own local density — text never mixes with the
+           board behind the panel. */
+        background: linear-gradient(165deg, rgba(21, 31, 45, 0.94), rgba(13, 20, 30, 0.94));
         box-shadow:
             inset 0 0 0 .05rem rgba(126, 156, 188, 0.18),
             inset 0 .05rem 0 rgba(255, 255, 255, 0.04);
@@ -7446,21 +7153,21 @@ html.console-mode {
         &:last-child:nth-child(odd) {
             grid-column: span 2;
         }
-        /* Actionable NOW — a quiet mint lift (the rail + CTA carry it). */
+        /* Actionable NOW — a quiet mint lift (the rail carries it). */
         &--go {
-            background: linear-gradient(165deg, rgba(22, 36, 44, 0.8), rgba(13, 22, 28, 0.8));
+            background: linear-gradient(165deg, rgba(22, 36, 44, 0.95), rgba(13, 22, 28, 0.95));
             box-shadow:
                 inset 0 0 0 .05rem fade(@con-mint, 30%),
                 inset 0 .05rem 0 rgba(255, 255, 255, 0.04);
         }
         &--taken {
-            background: linear-gradient(165deg, rgba(17, 25, 36, 0.82), rgba(11, 16, 24, 0.82));
+            background: linear-gradient(165deg, rgba(17, 25, 36, 0.95), rgba(11, 16, 24, 0.95));
         }
         &--focused {
             box-shadow:
                 inset 0 0 0 .075rem fade(@con-cyan, 85%),
                 0 0 1.1rem fade(@con-cyan, 18%);
-            background: linear-gradient(165deg, rgba(25, 38, 55, 0.86), rgba(15, 24, 36, 0.86));
+            background: linear-gradient(165deg, rgba(25, 38, 55, 0.96), rgba(15, 24, 36, 0.96));
         }
         &--focused&--go {
             box-shadow:
@@ -7692,31 +7399,6 @@ html.console-mode {
             box-shadow: inset 0 0 0 .075rem fade(#ffd87a, 80%), 0 .05rem .25rem rgba(0, 0, 0, 0.4);
         }
     }
-    &__cta {
-        min-height: 2rem;
-        display: flex;
-        align-items: center;
-    }
-    &__btn {
-        display: inline-flex;
-        align-items: center;
-        gap: .45rem;
-        padding: .4rem .8rem;
-        border-radius: .5rem;
-        background: fade(@con-mint, 10%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%);
-        color: #d7ffe9;
-        font-size: .775rem;
-        font-weight: 800;
-        letter-spacing: .03rem;
-        text-transform: uppercase;
-        white-space: nowrap;
-
-        &--focus {
-            background: fade(@con-mint, 17%);
-            box-shadow: inset 0 0 0 .075rem fade(@con-mint, 95%), 0 0 .9rem fade(@con-mint, 25%);
-        }
-    }
     /* ── footer: focused context + honest hints ─────────────────── */
     &__foot {
         flex-shrink: 0;
@@ -7745,27 +7427,529 @@ html.console-mode {
         }
         &--blocked { color: @con-amber; }
     }
-    &__hints {
-        margin-left: auto;
+}
+
+/* ── MA FOCUS STAGE — the detail state of the Milestones/Awards workspace
+   (browse ⇄ detail ⇄ ceremony; consoleMaFocusMotion). The surface unfolds
+   from the pressed card's rect; the hero pedestal is the carried emblem;
+   past the commit the same surface is the ceremony's scene. All state
+   accents are box-shadow (perf-lite keeps them); motion is transform /
+   opacity / clip only. ─────────────────────────────────────────────── */
+.con-mafocus {
+    position: absolute;
+    inset: 0;
+    display: flex;
+
+    &__surface {
+        position: relative;
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        border-radius: .8rem;
+        overflow: hidden;
+        /* One level DEEPER than the panel: denser still, its own key light.
+           The browse grid is parked behind it — nothing may read through. */
+        background:
+            radial-gradient(90% 70% at 18% 12%, fade(@con-cyan, 7%), transparent 60%),
+            linear-gradient(165deg, rgba(16, 25, 38, 0.985), rgba(9, 15, 24, 0.985));
+        box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.55);
+    }
+    /* The BOUNDARY is its own element: the entrance forms it LAST, an abort
+       restores it (never painted before its beat). */
+    &__edge {
+        position: absolute;
+        inset: 0;
+        z-index: 7;
+        border-radius: inherit;
+        pointer-events: none;
+        box-shadow:
+            inset 0 0 0 .075rem fade(@con-cyan, 42%),
+            inset 0 .05rem 0 rgba(255, 255, 255, 0.06);
+    }
+
+    &__grid {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        gap: 1.3rem;
+        padding: 1rem 1.4rem .6rem;
+    }
+
+    /* ── HERO column: the carried emblem + identity ─────────────── */
+    &__side {
+        flex-shrink: 0;
+        width: 15.5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .65rem;
+        min-height: 0;
+    }
+    /* The emblem pedestal — the FLIP twin of `.con-ma__stage` (same recipe,
+       hero size) and the ceremony glide's moving body. z above the ceremony
+       dressing so the halo/ring frame it, never cover it. */
+    &__stage {
+        position: relative;
+        width: 12.2rem;
+        height: 12.2rem;
+        flex-shrink: 0;
+        border-radius: .9rem;
+        z-index: 6;
+        background:
+            radial-gradient(circle at 50% 58%, fade(@con-cyan, 12%), transparent 66%),
+            rgba(9, 15, 24, 0.6);
+        box-shadow:
+            inset 0 0 0 .05rem rgba(120, 150, 180, 0.22),
+            inset 0 -.9rem 1.6rem rgba(0, 0, 0, 0.4);
+
+        &::after {
+            content: '';
+            position: absolute;
+            left: 18%;
+            right: 18%;
+            bottom: 8%;
+            height: 9%;
+            border-radius: 50%;
+            background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0.5), transparent 70%);
+        }
+    }
+    &__hero {
+        position: absolute;
+        inset: 8%;
+    }
+    &__name {
+        font-size: 1.35rem;
+        font-weight: 800;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        line-height: 1.12;
+        text-align: center;
+        text-shadow: 0 0 .9rem fade(@con-cyan, 14%);
+    }
+    &__state {
+        min-height: 1.6rem;
+        display: flex;
+        align-items: center;
+    }
+    &__state-chip {
         display: inline-flex;
         align-items: center;
-        gap: 1.1rem;
-        flex-shrink: 0;
+        gap: .45rem;
+        padding: .25rem .8rem;
+        border-radius: 49.95rem;
+        font-size: .7rem;
+        font-weight: 800;
+        letter-spacing: .04rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+        background: rgba(9, 15, 23, 0.8);
+        box-shadow: inset 0 0 0 .075rem rgba(150, 175, 205, 0.35);
+        color: @con-text-dim;
+
+        &--go {
+            background: fade(@con-mint, 12%);
+            box-shadow: inset 0 0 0 .075rem fade(@con-mint, 70%);
+            color: #d7ffe9;
+        }
+        &--mine {
+            background: fade(@con-mint, 10%);
+            box-shadow: inset 0 0 0 .075rem fade(@con-mint, 55%);
+            color: #bdf3da;
+        }
+        &--taken {
+            color: @con-text;
+            text-transform: none;
+            letter-spacing: 0;
+            font-weight: 700;
+        }
+        &--idle {
+            color: @con-text-dim;
+        }
     }
-    &__hint {
+
+    /* ── MAIN column: rule → mechanic truth → race ──────────────── */
+    &__main {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .7rem;
+        min-height: 0;
+    }
+    &__desc {
+        font-size: .85rem;
+        line-height: 1.4;
+        color: @con-text;
+    }
+    &__block-title {
+        font-size: .6rem;
+        font-weight: 800;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        margin-bottom: .35rem;
+    }
+    &__progress {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+    }
+    &__progress-value {
+        font-size: 1.9rem;
+        font-weight: 800;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+    }
+    &__progress-req {
+        margin-left: .15rem;
+        font-size: 1rem;
+        font-weight: 600;
+        color: @con-text-dim;
+    }
+    &__meter {
+        flex: 1;
+        max-width: 15rem;
+        height: .3rem;
+        border-radius: 49.95rem;
+        background: rgba(255, 255, 255, 0.09);
+        overflow: hidden;
+
+        i {
+            display: block;
+            height: 100%;
+            border-radius: 49.95rem;
+            background: linear-gradient(90deg, fade(@con-mint, 70%), @con-mint);
+            transition: width calc(220ms * var(--motion-scale, 1)) ease;
+        }
+    }
+    &__progress-note {
+        font-size: .7rem;
+        color: @con-text-dim;
+        white-space: nowrap;
+
+        &--ok { color: #bdf3da; }
+    }
+    &__vp {
+        display: inline-flex;
+        align-items: center;
+        gap: .7rem;
+    }
+    &__vp-badge {
+        flex-shrink: 0;
+        padding: .3rem .8rem;
+        border-radius: .5rem;
+        background: fade(@con-ma-gold, 13%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-ma-gold, 65%);
+        color: @con-ma-gold;
+        font-size: .95rem;
+        font-weight: 800;
+        white-space: nowrap;
+    }
+    &__vp-note {
+        font-size: .7rem;
+        color: @con-text-dim;
+    }
+    &__endgame {
+        display: flex;
+        align-items: baseline;
+        gap: .5rem;
+        font-size: .75rem;
+        color: @con-text-dim;
+
+        b { color: @con-text; }
+    }
+    &__endgame-mark { flex-shrink: 0; }
+    &__race {
+        min-height: 0;
+    }
+    &__rows {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+    }
+    &__row {
+        display: grid;
+        grid-template-columns: 1.2rem auto minmax(4rem, 10rem) minmax(0, 1fr) auto auto;
+        align-items: center;
+        gap: .55rem;
+        padding: .3rem .6rem;
+        border-radius: .45rem;
+        background: rgba(9, 15, 23, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(126, 156, 188, 0.14);
+
+        &--viewer {
+            background: rgba(13, 22, 34, 0.85);
+            box-shadow: inset 0 0 0 .075rem fade(@con-cyan, 45%);
+        }
+        &--leader .con-mafocus__row-score { color: #ffe9c4; }
+    }
+    &__row-rank {
+        font-size: .7rem;
+        font-weight: 800;
+        color: @con-text-dim;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+    }
+    &__dot {
+        width: .7rem;
+        height: .7rem;
+        border-radius: 50%;
+        flex-shrink: 0;
+        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5), 0 0 .3rem rgba(0, 0, 0, 0.4);
+    }
+    &__row-name {
+        font-size: .8rem;
+        font-weight: 700;
+        color: @con-text;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__row-bar {
+        height: .25rem;
+        border-radius: 49.95rem;
+        background: rgba(255, 255, 255, 0.07);
+        overflow: hidden;
+
+        i {
+            display: block;
+            height: 100%;
+            border-radius: 49.95rem;
+            background: linear-gradient(90deg, fade(@con-cyan, 55%), fade(@con-cyan, 85%));
+        }
+    }
+    &__row-score {
+        font-size: .95rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+        min-width: 1.6rem;
+    }
+    &__row-vp {
+        font-size: .625rem;
+        font-weight: 800;
+        color: @con-ma-gold;
+        white-space: nowrap;
+    }
+    &__row-ready {
+        font-size: .7rem;
+        font-weight: 800;
+        color: @con-mint;
+    }
+
+    /* ── THE DECISION BAND — one centre of decision ─────────────── */
+    &__decision {
+        flex-shrink: 0;
+        display: flex;
+        align-items: center;
+        gap: 1.3rem;
+        min-height: 3.1rem;
+        padding: .55rem 1.4rem;
+        border-top: .05rem solid fade(@con-cyan, 16%);
+        background: rgba(8, 13, 21, 0.7);
+    }
+    &__spend {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        white-space: nowrap;
+
+        .resource_icon {
+            display: inline-block;
+            width: 1.15rem;
+            height: 1.15rem;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain !important;
+        }
+    }
+    &__spend-label {
+        font-size: .6rem;
+        font-weight: 800;
+        letter-spacing: .09rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    &__spend-num {
+        font-size: 1.05rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: #ffe2ad;
+    }
+    &__beforeafter {
+        font-size: .8rem;
+        color: @con-text-dim;
+
+        b {
+            font-size: 1rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: #d7ffe9;
+        }
+    }
+    &__slots {
+        font-size: .8rem;
+        color: @con-text-dim;
+        white-space: nowrap;
+
+        b { color: @con-text; font-variant-numeric: tabular-nums; }
+    }
+    &__slots-after { margin-left: .3rem; }
+    &__free {
+        padding: .2rem .8rem;
+        border-radius: 49.95rem;
+        background: fade(#7ef0b6, 13%);
+        box-shadow: inset 0 0 0 .075rem fade(#7ef0b6, 62%);
+        color: #d7ffe9;
+        font-size: .675rem;
+        font-weight: 800;
+        letter-spacing: .03rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+    &__free-note {
+        font-size: .7rem;
+        color: @con-text-dim;
+    }
+    /* The status line: ONE reserved slot (committing pulse / inline refusal /
+       concrete blocker) — fixed place, no layout shift when it speaks. */
+    &__status {
+        margin-left: auto;
+        min-height: 1.2rem;
         display: inline-flex;
         align-items: center;
         gap: .4rem;
-        color: @con-text-dim;
         font-size: .8rem;
-        white-space: nowrap;
+        font-weight: 700;
+        color: @con-text-dim;
+        text-align: right;
 
-        /* the A verb dims with the REAL availability of the focused card */
-        &--off {
-            opacity: 0.45;
-            filter: saturate(0.5);
+        &--wait {
+            color: fade(@con-cyan, 92%);
+            animation: con-mafocus-wait calc(900ms * var(--motion-scale, 1)) ease-in-out infinite alternate;
+        }
+        &--blocked { color: @con-amber; }
+    }
+
+    /* ── THE CEREMONY SCENE (post-commit) ───────────────────────── */
+    &__cere {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+    }
+    &__cere-halo {
+        position: absolute;
+        inset: -24%;
+        border-radius: 50%;
+        background: radial-gradient(circle, fade(@con-ma-gold, 24%), transparent 68%);
+    }
+    /* The ceremony SEAT: the ring + halo frame; the emblem GLIDES into the
+       inner SLOT (smaller than the ring — the coronation ring must FRAME the
+       arriving emblem, never disappear under its opaque pedestal). The seat
+       hosts the burst (its box sets the radius). */
+    &__cere-seat {
+        position: relative;
+        width: 14.2rem;
+        height: 14.2rem;
+        margin-top: -4.4rem;
+        flex-shrink: 0;
+    }
+    &__cere-ring {
+        position: absolute;
+        inset: 2%;
+        border-radius: 50%;
+        box-shadow: 0 0 0 .1rem fade(@con-ma-gold, 55%), 0 0 1.7rem fade(@con-ma-gold, 30%);
+    }
+    &__cere-slot {
+        position: absolute;
+        inset: 1.9rem;
+    }
+    &__cere-lines {
+        position: relative;
+        margin-top: .5rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .35rem;
+    }
+    &__cere-kicker {
+        font-size: .9rem;
+        letter-spacing: .3rem;
+        text-transform: uppercase;
+        color: fade(@con-ma-gold, 92%);
+        text-shadow: 0 0 .9rem fade(@con-ma-gold, 45%);
+    }
+    &__cere-name {
+        font-size: 1.9rem;
+        font-weight: 800;
+        line-height: 1.12;
+        text-align: center;
+        max-width: 34rem;
+        text-shadow: 0 .2rem 1.3rem rgba(0, 0, 0, 0.8);
+    }
+    &__cere-vp {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .4rem;
+        margin-top: .15rem;
+        padding: .35rem 1rem;
+        border-radius: .6rem;
+        background: fade(@con-ma-gold, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-ma-gold, 70%), 0 0 1.5rem fade(@con-ma-gold, 25%);
+        color: @con-ma-gold;
+    }
+    &__cere-vp-num { font-size: 1.7rem; font-weight: 800; }
+    &__cere-vp-unit { font-size: .95rem; font-weight: 700; letter-spacing: .1rem; }
+    &__cere-cost {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+        margin-top: .15rem;
+        padding: .3rem .85rem;
+        border-radius: .6rem;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 .05rem fade(@con-ma-medal, 55%);
+        font-size: .9rem;
+        color: @con-text;
+
+        b { font-size: 1.05rem; }
+
+        .resource_icon {
+            display: inline-block;
+            width: 1.1rem;
+            height: 1.1rem;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain !important;
         }
     }
+
+    /* The award seal is medal-toned (coronation gold stays milestone-only). */
+    &--award {
+        .con-mafocus__cere-halo { background: radial-gradient(circle, fade(@con-ma-medal, 22%), transparent 68%); }
+        .con-mafocus__cere-ring { box-shadow: 0 0 0 .1rem fade(@con-ma-medal, 55%), 0 0 1.7rem fade(@con-ma-medal, 28%); }
+        .con-mafocus__cere-kicker { color: fade(@con-ma-medal, 94%); text-shadow: 0 0 .9rem fade(@con-ma-medal, 45%); }
+    }
+}
+
+@keyframes con-mafocus-wait {
+    from { opacity: 0.55; }
+    to { opacity: 1; }
+}
+
+html.con-profile-handheld .con-mafocus {
+    &__side { width: 12rem; }
+    &__stage { width: 9.5rem; height: 9.5rem; }
+    &__name { font-size: 1.1rem; }
+    &__cere-seat { width: 11rem; height: 11rem; }
+    &__cere-slot { inset: 1.5rem; }
+    &__cere-name { font-size: 1.45rem; }
 }
 
 /* -- P27: Standard Projects -- the premium basic-actions screen ---- */
@@ -20481,9 +20665,11 @@ html.console-mode {
         display: flex;
         flex-direction: column;
         align-items: stretch;
-        gap: .45rem;
-        padding: 0 0 .55rem;
-        margin-bottom: .55rem;
+        /* Tight: the label and its cluster are ONE reading, and the hairline
+           below already separates the zone from the payment. */
+        gap: .3rem;
+        padding: 0 0 .45rem;
+        margin-bottom: .4rem;
         border-radius: 0;
         background: none;
         box-shadow: none;
@@ -20494,41 +20680,50 @@ html.console-mode {
        survive the axis change.) */
     .con-composer__sub-title--result { flex: 0 0 auto; padding-bottom: 0; }
 
-    /* LEVEL 2 — an even grid, so the units read as one set: as many columns as
-       the band affords (a wide 4K surface takes three or four), a natural wrap
-       when it does not, and every cell the same height and rhythm. `auto-fit` +
-       `minmax` keeps the count DERIVED from the width — never a fixed column
-       count, and never a per-card layout. */
+    /* LEVEL 2 — an intrinsic CLUSTER, never a grid of equal columns.
+       Each unit is exactly as wide as what it says, they flow left to right on
+       one constant gap, and they wrap when the width runs out. The empty space
+       to the RIGHT of the cluster is the correct outcome, not a hole to fill.
+
+       The previous `auto-fit / minmax(…, 1fr)` grid handed every unit a whole
+       column and gave the tags unit the full row (`grid-column: 1 / -1`), so
+       «Новое действие» — three words — arrived as a panel with a hand of empty
+       space inside it and «Метки: ⚛🟤🌍» spanned the band. Three short facts
+       then read as a settings screen and cost the summary twice the height it
+       had earned. Content-sizing is the whole fix, and it is intrinsic: no
+       measurement, no per-card branch, no column count anywhere. */
     .con-composer__rescats {
-        /* The ONE knob a profile retunes: how narrow a unit may get before the
-           grid drops a column. Never a column COUNT — that is what turns a
-           layout into a per-screen guess. */
-        --con-rescat-min: 15rem;
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(var(--con-rescat-min), 1fr));
-        align-items: stretch;
-        gap: .4rem;
+        display: flex;
+        flex-wrap: wrap;
+        /* Each unit keeps its OWN height: a stretch would inflate the short
+           facts beside a unit that happens to carry a second line, which is the
+           same «big empty panel» in a different disguise. */
+        align-items: flex-start;
+        gap: .35rem .4rem;
     }
     .con-composer__rescat {
-        /* A grid CELL now: it fills its column, so the set has one rhythm
-           instead of pill widths that follow the length of their text. */
+        /* Content-sized (the flex initial `0 1 auto`) and capped, so ONE long
+           unit — a long localization, an event-tags clarification — grows to a
+           readable measure and then wraps INSIDE itself instead of claiming the
+           whole band. The cap is relative, so it holds on every profile. */
+        flex: 0 1 auto;
         width: auto;
-        max-width: 100%;
-        min-height: 2.1rem;
-        gap: .45rem;
-        padding: .3rem .75rem;
-        /* Squared, not a full pill — stretched to a column width, a 49.95rem
-           radius impersonates a button (the couch profile already made this
-           correction; the base was the one still drawing controls). */
-        border-radius: .5rem;
+        max-width: min(30rem, 100%);
+        min-height: 1.85rem;
+        gap: .4rem;
+        padding: .2rem .6rem;
+        /* Squared, not a full pill — a 49.95rem radius impersonates a button. */
+        border-radius: .45rem;
         font-size: .82rem;
-        background: rgba(16, 28, 42, 0.72);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
+        /* And QUIETER than anything interactive on this surface: a payment row,
+           a focus ring and the commit rail all outrank it on purpose. A result
+           is a fact — it reads by its text, not by its frame. */
+        background: rgba(14, 24, 36, 0.5);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.11);
     }
-    /* THE TAGS ARE ONE OBJECT. The icon set is read as a group — split across
-       a wrap it stops being «what this card carries» and becomes two lists —
-       so its unit takes the full row of the grid whatever the column count. */
-    .con-composer__rescat--tags { grid-column: 1 / -1; }
+    /* (The tag icons stay ONE object without help: `__rescat-tags` is an
+       `inline-flex`, i.e. `nowrap` by construction. What it must NOT be is a
+       band of its own — hence no `--tags` rule here any more.) */
     .con-composer__result-chips { gap: .4rem; padding-bottom: 0; }
     /* Branch variants stay full-width rows: they are a CHOICE, not a summary,
        and a choice must not compact into a chip. */
@@ -21328,10 +21523,10 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     &__variant-reason { font-size: .7rem; color: #ffb0a6; }
 
     /* THE SECOND RESULT LEVEL — «what the card is once it is on the table».
-       One container so the units keep ONE rhythm: a plain column in the
-       standalone band, an even grid inside the workspace (see `--embed`). */
+       ONE container, ONE behaviour everywhere: an intrinsic cluster of
+       content-sized facts that wraps. (`--embed` only retunes its metrics.) */
     &__rescats {
-        display: flex; flex-direction: column; gap: .45rem;
+        display: flex; flex-wrap: wrap; align-items: flex-start; gap: .4rem;
     }
     /* Derived result category rows — uniform height, glyph left, content inline.
        A tag row reads "label: [chips]" (NO right-floating icon); a VP row "label: +N". */
@@ -22169,12 +22364,12 @@ html.con-profile-handheld .con-composer--embed {
     .con-composer__playmain { column-gap: 1rem; padding: 0; }
     .con-composer__playcard { zoom: calc(0.72 * var(--con-ui-scale, 1)); }
     .con-composer__playright { max-width: 100%; }
-    /* The second level stays a GRID on the Deck — it just drops to fewer
-       columns. What it must never do is become a column of full-width rows:
-       that is the shape this rework removed. */
-    .con-composer__resulthero { gap: .3rem; padding-bottom: .4rem; margin-bottom: .4rem; }
-    .con-composer__rescats { --con-rescat-min: 11rem; gap: .3rem; }
-    .con-composer__rescat { min-height: 1.75rem; padding: .22rem .55rem; font-size: .68rem; gap: .35rem; }
+    /* The second level stays a content-sized CLUSTER on the Deck — the narrow
+       band simply wraps it sooner. What it must never do is become a column of
+       full-width rows (or of equal columns): that is the shape this removed. */
+    .con-composer__resulthero { gap: .25rem; padding-bottom: .35rem; margin-bottom: .35rem; }
+    .con-composer__rescats { gap: .28rem .3rem; }
+    .con-composer__rescat { min-height: 1.6rem; padding: .18rem .45rem; font-size: .68rem; gap: .35rem; max-width: 100%; }
     .con-composer__rescat-glyph { font-size: .68rem; width: .8rem; }
     .con-composer__rescat-tag { width: 1.05rem; height: 1.05rem; line-height: 1.05rem; }
     .con-composer__cta { margin-top: .45rem; padding: .55rem .8rem; }

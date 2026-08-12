@@ -296,8 +296,12 @@ test.describe('colony workspace entry probe', () => {
     const d = digest(watch);
     console.log('── standalone entry ──', JSON.stringify({...d, dipAfterFullShow: d.dipAfterFullShow ?? null}));
 
-    // The entrance ANIMATES — a bare v-if pop / dead cascade has no ramp.
-    expect(d.rampFrames, 'the standalone entry must visibly compose (tiles ramp in)').toBeGreaterThanOrEqual(3);
+    // The entrance COMPOSES — never a pop. Keyed on the property rather than
+    // on a frame COUNT: the phrase is ~300 ms, so a count threshold is really
+    // an assertion about the sampler's frame rate on the runner.
+    expect(d.firstSample?.slot0, 'the grid is hidden on its first painted frame').toBeLessThan(0.5);
+    expect(d.fullShowAt, 'it takes more than one frame to reach full').toBeGreaterThan(d.firstPresentAt);
+    expect(d.rampFrames, 'the tiles ramp in').toBeGreaterThanOrEqual(2);
     // ONE arrival: the grid never leaves or goes dark once fully shown.
     expect(d.fullShowAt, 'the grid reached its settled state').toBeGreaterThan(-1);
     expect(d.dipAfterFullShow, `the grid dipped out after settling (the replayed-entry blink): ${JSON.stringify(d.dipAfterFullShow)}`).toBeUndefined();
@@ -343,7 +347,9 @@ test.describe('colony workspace entry probe', () => {
     // The room OPENS (the step's clip beat ran) and the tiles ramp in.
     expect(watch.samples.some((x) => x.present && x.clip !== '' && x.clip !== 'none' && !x.clip.startsWith('inset(0')),
       'the step entry opens its room by clip').toBeTruthy();
-    expect(d.rampFrames, 'the embedded entry must visibly compose (tiles ramp in)').toBeGreaterThanOrEqual(3);
+    expect(d.firstSample?.slot0, 'the grid is hidden on its first painted frame').toBeLessThan(0.5);
+    expect(d.fullShowAt, 'it takes more than one frame to reach full').toBeGreaterThan(d.firstPresentAt);
+    expect(d.rampFrames, 'the tiles ramp in').toBeGreaterThanOrEqual(2);
     // ONE arrival — the shipped bug was this exact dip: the played-hero
     // closing beat truncated the prompt frame, the self-heal re-pushed it,
     // and the whole entry replayed ~0.5 s after it had settled.

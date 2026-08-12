@@ -132,45 +132,175 @@ function bit(value: number | undefined): number {
   return value === undefined || value === 0 ? 0 : 1;
 }
 
+// ── DEVICE LAYOUT: DERIVED, NEVER ASSUMED ───────────────────────────────────
+// joydev does not report what an input MEANS, only its ordinal. Hardcoding the
+// classic xpad order (A B X Y LB RB Back Start Guide L3 R3) breaks on any device
+// that declares a different SET of inputs — measured on a Razer Wolverine V3,
+// which also declares the digital trigger buttons BTN_TL2/BTN_TR2. Those sit
+// between the bumpers and Back, so every later button shifts by two: the
+// triggers landed on View/Menu and the d-pad fell off the end of the table
+// entirely. Exactly the reported symptom.
+//
+// So the order is DERIVED the way joydev itself derives it — from the device's
+// declared capability bitmaps, in ascending evdev code order — and the codes are
+// then mapped by MEANING. A device that declares different inputs now gets a
+// different, correct table instead of a silently wrong one.
+
+/** evdev button codes we can place (`linux/input-event-codes.h`). */
+const BTN_MISC = 0x100;
+const BTN_JOYSTICK = 0x120;
+const KEY_MAX = 0x2ff;
+const ABS_CNT = 0x40;
+
+/** evdev button code → W3C standard-mapping index. */
+const BUTTON_ROLE: ReadonlyMap<number, number> = new Map([
+  [0x130, 0], // BTN_SOUTH / BTN_A
+  [0x131, 1], // BTN_EAST / BTN_B
+  [0x133, 2], // BTN_NORTH / BTN_X
+  [0x134, 3], // BTN_WEST / BTN_Y
+  [0x136, 4], // BTN_TL  → LB
+  [0x137, 5], // BTN_TR  → RB
+  [0x138, 6], // BTN_TL2 → LT, digital variant
+  [0x139, 7], // BTN_TR2 → RT, digital variant
+  [0x13a, 8], // BTN_SELECT → View
+  [0x13b, 9], // BTN_START  → Menu
+  [0x13c, 16], // BTN_MODE  → Guide
+  [0x13d, 10], // BTN_THUMBL → L3
+  [0x13e, 11], // BTN_THUMBR → R3
+  [0x220, 12], // BTN_DPAD_UP
+  [0x221, 13], // BTN_DPAD_DOWN
+  [0x222, 14], // BTN_DPAD_LEFT
+  [0x223, 15], // BTN_DPAD_RIGHT
+]);
+
+export type AxisRole = 'lx' | 'ly' | 'rx' | 'ry' | 'lt' | 'rt' | 'hatx' | 'haty';
+
+/** evdev axis code → role. The convention shared by xpad, xone and hid-sony. */
+const AXIS_ROLE: ReadonlyMap<number, AxisRole> = new Map<number, AxisRole>([
+  [0x00, 'lx'], // ABS_X
+  [0x01, 'ly'], // ABS_Y
+  [0x02, 'lt'], // ABS_Z
+  [0x03, 'rx'], // ABS_RX
+  [0x04, 'ry'], // ABS_RY
+  [0x05, 'rt'], // ABS_RZ
+  [0x10, 'hatx'], // ABS_HAT0X
+  [0x11, 'haty'], // ABS_HAT0Y
+]);
+
+/** joydev ordinal → meaning, for one device. */
+export interface PadLayout {
+  buttons: ReadonlyArray<number | undefined>;
+  axes: ReadonlyArray<AxisRole | undefined>;
+}
+
+/** Little-endian 64-bit words of a sysfs capability bitmap (most significant first on disk). */
+export function parseCapabilityBitmap(text: string): bigint[] {
+  const words = text.trim().split(/\s+/).filter((w) => w.length > 0);
+  return words.reverse().map((w) => {
+    try {
+      return BigInt(`0x${w}`);
+    } catch {
+      return 0n;
+    }
+  });
+}
+
+function bitmapHas(words: ReadonlyArray<bigint>, code: number): boolean {
+  const word = words[Math.floor(code / 64)];
+  return word !== undefined && ((word >> BigInt(code % 64)) & 1n) === 1n;
+}
+
 /**
- * Raw joydev state → the W3C "standard" mapping the poll model speaks.
- *
- * The layout is the xpad/X360 one every device here reports (both the Steam
- * virtual pads and the Wolverine's own node): buttons A B X Y LB RB Back Start
- * Guide LS RS, axes LX LY LT RX RY RT DPadX DPadY.
- *
- * The d-pad is read from BOTH conventions — the hat axes 6/7 and, where the
- * driver exposes them instead, buttons 11..14 — because which one a device uses
- * varies by driver version, and a union costs nothing while a wrong guess costs
- * the entire d-pad.
+ * Reproduce joydev's own enumeration: codes from BTN_JOYSTICK upward first, then
+ * BTN_MISC..BTN_JOYSTICK-1 (`drivers/input/joydev.c`). Getting this backwards
+ * would misplace every button on pads that declare both ranges.
  */
-export function toStandardPad(raw: RawPadState): {buttons: number[], axes: number[]} {
-  const b = raw.buttons;
-  const a = raw.axes;
-  const hatX = a[6] ?? 0;
-  const hatY = a[7] ?? 0;
+export function joydevButtonCodes(key: ReadonlyArray<bigint>): number[] {
+  const codes: number[] = [];
+  for (let code = BTN_JOYSTICK; code <= KEY_MAX; code++) {
+    if (bitmapHas(key, code)) {
+      codes.push(code);
+    }
+  }
+  for (let code = BTN_MISC; code < BTN_JOYSTICK; code++) {
+    if (bitmapHas(key, code)) {
+      codes.push(code);
+    }
+  }
+  return codes;
+}
+
+/** joydev maps absolute axes in plain ascending code order. */
+export function joydevAxisCodes(abs: ReadonlyArray<bigint>): number[] {
+  const codes: number[] = [];
+  for (let code = 0; code < ABS_CNT; code++) {
+    if (bitmapHas(abs, code)) {
+      codes.push(code);
+    }
+  }
+  return codes;
+}
+
+export function layoutFromCodes(buttonCodes: ReadonlyArray<number>, axisCodes: ReadonlyArray<number>): PadLayout {
   return {
-    buttons: [
-      bit(b[0]), // 0  A / confirm
-      bit(b[1]), // 1  B / back
-      bit(b[2]), // 2  X
-      bit(b[3]), // 3  Y
-      bit(b[4]), // 4  LB
-      bit(b[5]), // 5  RB
-      trigger(a[2]), // 6  LT (analog)
-      trigger(a[5]), // 7  RT (analog)
-      bit(b[6]), // 8  View / Back
-      bit(b[7]), // 9  Menu / Start
-      bit(b[9]), // 10 L3
-      bit(b[10]), // 11 R3
-      hatY < 0 || bit(b[11]) === 1 ? 1 : 0, // 12 D-pad up
-      hatY > 0 || bit(b[12]) === 1 ? 1 : 0, // 13 D-pad down
-      hatX < 0 || bit(b[13]) === 1 ? 1 : 0, // 14 D-pad left
-      hatX > 0 || bit(b[14]) === 1 ? 1 : 0, // 15 D-pad right
-      bit(b[8]), // 16 Guide
-    ],
-    axes: [stick(a[0]), stick(a[1]), stick(a[3]), stick(a[4])],
+    buttons: buttonCodes.map((code) => BUTTON_ROLE.get(code)),
+    axes: axisCodes.map((code) => AXIS_ROLE.get(code)),
   };
+}
+
+/**
+ * The classic xpad/X360 order, used when the capability bitmaps cannot be read.
+ * Identical to the table this module shipped with, so an unreadable device
+ * behaves exactly as before rather than losing its mapping altogether.
+ */
+export function defaultPadLayout(): PadLayout {
+  return layoutFromCodes(
+    [0x130, 0x131, 0x133, 0x134, 0x136, 0x137, 0x13a, 0x13b, 0x13c, 0x13d, 0x13e],
+    [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x10, 0x11]);
+}
+
+/**
+ * Raw joydev state + the device's derived layout → the W3C standard mapping.
+ *
+ * Analog and digital forms of the same control are UNIONed (a pad may report a
+ * trigger as both ABS_Z and BTN_TL2, and a d-pad as both a hat and buttons), so
+ * whichever the device actually drives, the control responds.
+ */
+export function toStandardPad(raw: RawPadState, layout: PadLayout = defaultPadLayout()): MappedPad {
+  const buttons = new Array<number>(17).fill(0);
+  const axes = [0, 0, 0, 0];
+  const put = (index: number, value: number): void => {
+    buttons[index] = Math.max(buttons[index], value);
+  };
+
+  layout.buttons.forEach((role, ordinal) => {
+    if (role !== undefined) {
+      put(role, bit(raw.buttons[ordinal]));
+    }
+  });
+
+  layout.axes.forEach((role, ordinal) => {
+    const value = raw.axes[ordinal];
+    switch (role) {
+    case 'lx': axes[0] = stick(value); break;
+    case 'ly': axes[1] = stick(value); break;
+    case 'rx': axes[2] = stick(value); break;
+    case 'ry': axes[3] = stick(value); break;
+    case 'lt': put(6, trigger(value)); break;
+    case 'rt': put(7, trigger(value)); break;
+    case 'hatx':
+      put(14, (value ?? 0) < 0 ? 1 : 0);
+      put(15, (value ?? 0) > 0 ? 1 : 0);
+      break;
+    case 'haty':
+      put(12, (value ?? 0) < 0 ? 1 : 0);
+      put(13, (value ?? 0) > 0 ? 1 : 0);
+      break;
+    default: break;
+    }
+  });
+
+  return {buttons, axes};
 }
 
 // ── MIRROR SUPPRESSION ──────────────────────────────────────────────────────
@@ -320,6 +450,36 @@ function pairKey(a: string, b: string): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
+function capabilityBitmap(node: string, kind: 'key' | 'abs'): bigint[] {
+  try {
+    return parseCapabilityBitmap(
+      fs.readFileSync(path.join(SYS_CLASS_INPUT, node, 'device', 'capabilities', kind), 'utf8'));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * The device's own account of what it exposes, turned into joydev ordinals.
+ * Falls back to the classic xpad order if sysfs is unreadable — never to
+ * "no mapping", which would look like a dead controller.
+ */
+function readPadLayout(node: string): {layout: PadLayout, derived: boolean} {
+  const buttonCodes = joydevButtonCodes(capabilityBitmap(node, 'key'));
+  const axisCodes = joydevAxisCodes(capabilityBitmap(node, 'abs'));
+  if (buttonCodes.length === 0) {
+    return {layout: defaultPadLayout(), derived: false};
+  }
+  return {layout: layoutFromCodes(buttonCodes, axisCodes), derived: true};
+}
+
+/** Compact, greppable rendering of a layout — the thing to read in a field log. */
+function describeLayout(layout: PadLayout): string {
+  const buttons = layout.buttons.map((role, i) => `${i}:${role ?? '—'}`).join(' ');
+  const axes = layout.axes.map((role, i) => `${i}:${role ?? '—'}`).join(' ');
+  return `buttons[${buttons}] axes[${axes}]`;
+}
+
 /** One opened joystick node. */
 interface OpenDevice {
   node: string;
@@ -327,6 +487,8 @@ interface OpenDevice {
   id: string;
   /** Steam Input's virtual view — preferred survivor when twins are found. */
   steamVirtual: boolean;
+  /** What each joydev ordinal MEANS on this device (derived, not assumed). */
+  layout: PadLayout;
   stream: fs.ReadStream;
   state: RawPadState;
   /** Bytes of a js_event record split across two reads. */
@@ -375,7 +537,7 @@ export function installNativeGamepads(win: BrowserWindow): () => void {
     }
     dirty = false;
     const live = [...devices.values()];
-    const mapped = new Map(live.map((device) => [device.node, toStandardPad(device.state)]));
+    const mapped = new Map(live.map((device) => [device.node, toStandardPad(device.state, device.layout)]));
 
     // Update every pair's twin verdict from what the devices are doing RIGHT
     // NOW, then drop the redundant views. Both steps are pure; a mistake here
@@ -451,12 +613,16 @@ export function installNativeGamepads(win: BrowserWindow): () => void {
       log(`native: cannot open ${file} — ${String(err)}`);
       return;
     }
+    const {layout, derived} = readPadLayout(node);
     const device: OpenDevice = {
-      node, index, id: deviceName(node), steamVirtual: isSteamVirtual(node), stream,
+      node, index, id: deviceName(node), steamVirtual: isSteamVirtual(node), layout, stream,
       state: {buttons: [], axes: []}, carry: Buffer.alloc(0),
     };
     devices.set(node, device);
     log(`native: reading ${node} "${device.id}"${device.steamVirtual ? ' (Steam Input virtual)' : ''}`);
+    // The mapping is the thing that goes wrong silently, so it is logged in full:
+    // a control that misbehaves can be read straight off this line.
+    log(`native: ${node} layout ${derived ? 'derived' : 'DEFAULT (capabilities unreadable)'} — ${describeLayout(layout)}`);
 
     stream.on('data', (chunk: Buffer | string) => {
       if (typeof chunk === 'string') {

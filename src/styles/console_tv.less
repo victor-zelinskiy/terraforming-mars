@@ -546,12 +546,18 @@ html.con-profile-tv {
         &__stage { width: 9rem; height: 9rem; }
         &__foot-item { font-size: 1.05rem; }
     }
-    .con-maconfirm {
-        &__frame { width: min(54rem, 92vw); }
-        &__name { font-size: 1.3rem; }
-        &__racer-score { font-size: 1.3rem; }
-        /* Floor rule: the crown/status fine print never dips below 16. */
-        &__racer-crown { font-size: var(--con-t-floor); }
+    .con-mafocus {
+        &__name { font-size: 1.6rem; }
+        &__desc { font-size: var(--con-t-secondary); }
+        &__progress-value { font-size: 2.3rem; }
+        &__row-name { font-size: 1rem; }
+        &__row-score { font-size: 1.15rem; }
+        /* Floor rule: the fine print never dips below 16. */
+        &__row-vp { font-size: var(--con-t-floor); }
+        &__state-chip { font-size: var(--con-t-floor); }
+        &__progress-note { font-size: var(--con-t-floor); }
+        &__status { font-size: 1rem; }
+        &__cere-name { font-size: 2.3rem; }
     }
     .con-mainspect {
         &__name { font-size: 1.6rem; }
@@ -1049,11 +1055,19 @@ html.con-profile-tv {
         .con-composer__playmain { column-gap: 2.6rem; }
         .con-composer__sub-title { font-size: var(--con-t-caption); }
         /* The consequence units. They were a 2.6rem tall full pill carrying body
-           text — a row of buttons, not a reading. Compact, and squared enough to
-           stop impersonating a control. The couch min-width is wider because the
-           type is: a unit must still hold its phrase on one line. */
-        .con-composer__rescats { --con-rescat-min: 16rem; }
-        .con-composer__rescat { min-height: 1.9rem; font-size: var(--con-t-secondary); padding: .2rem .6rem; border-radius: .5rem; }
+           text — a row of buttons, not a reading. Compact, squared enough to
+           stop impersonating a control, and CONTENT-SIZED (see the cluster in
+           §18/19 of console.less). The TEXT keeps couch size — density comes
+           out of the padding and the box, never out of legibility. */
+        .con-composer__rescats { gap: .35rem .45rem; }
+        .con-composer__rescat {
+            min-height: 1.75rem;
+            font-size: var(--con-t-secondary);
+            padding: .18rem .65rem;
+            border-radius: .45rem;
+            /* A wider reading measure than 1080p, because the type is wider. */
+            max-width: min(34rem, 100%);
+        }
         .con-composer__rescat-glyph { font-size: .85rem; width: 1rem; }
         .con-composer__rescat-tag { width: 1.25rem; height: 1.25rem; line-height: 1.25rem; }
         /* The commit rail reads from the sofa without becoming the screen's

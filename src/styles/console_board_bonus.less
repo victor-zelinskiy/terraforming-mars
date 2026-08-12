@@ -52,12 +52,21 @@
     filter: drop-shadow(0 .5rem 1.1rem rgba(0, 0, 0, 0.5));
 }
 
-/* ── The lifted board icon (one-object rule) ─────────────────────────
-   The real cell icon hides the same frame the cover appears over it; the
-   `!important` wins over any board hover/animation styles (the same
-   cascade trick as .con-deal-hold). Restored deterministically by the
-   layer on abort / scenes that never cover the cell. */
-.board-space-bonus--card.con-bonus-source-lifted {
+/* ── The lifted SOURCE icon (one-object rule) ─────────────────────────
+   The real icon hides the same frame the cover appears over it; the
+   `!important` wins over any hover/animation styles (the same cascade trick
+   as .con-deal-hold). Restored deterministically by the layer on abort /
+   scenes that never cover the source.
+
+   ⚠️ ELEMENT-AGNOSTIC ON PURPOSE. The class is only ever put on the icons the
+   layer itself resolved, and there are THREE kinds of them: a board cell's
+   `.board-space-bonus--card`, a colony BUILD slot's `.benefit-glyph__card`
+   and the Venus 8 % marker's `.bonus-zone__icon`. Scoping the rule to the
+   board one meant the other two stayed lit under their own rising cover — the
+   card visibly DUPLICATED out of the slot it was leaving (reported for the
+   Pluto build; the Venus scale had the same latent fault). A cover and its
+   source are one object, whatever that source happens to be drawn as. */
+.con-bonus-source-lifted {
     opacity: 0 !important;
     transition: none !important;
 }

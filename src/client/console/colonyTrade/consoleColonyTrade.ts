@@ -57,8 +57,15 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {
   ColonyTradeTargets, benefitCardCount, colonyTradeHeldSpecs, incomeTransferSpecs,
   ownBonusTransferSpecs, viewerBonusCubes,
-  trackGlidePlan, TrackGlidePlan, TRACK_SETTLE_MS,
+  trackAdvancePlan, trackGlidePlan, TrackGlidePlan, TRACK_SETTLE_MS,
 } from '@/client/console/colonyTrade/colonyTradeModel';
+
+/**
+ * The ADVANCE leg's own net: whatever happens to the track's measurability,
+ * the payout must go on. Generous enough for the longest honest glide (a
+ * 6-cell sweep + the settle) and short enough never to read as a stall.
+ */
+const TRACK_ADVANCE_SAFETY_MS = 1800;
 
 /**
  * The transaction's phases:
@@ -72,7 +79,7 @@ import {
  *   settle    — the landed marker's one-shot glow + the «ТОРГОВАТЬ» morph;
  *   (then idle again).
  */
-export type ColonyTradePhase = 'idle' | 'armed' | 'chips' | 'awaiting' | 'glide' | 'settle';
+export type ColonyTradePhase = 'idle' | 'armed' | 'advance' | 'chips' | 'awaiting' | 'glide' | 'settle';
 
 /**
  * The card-cover scene of a staged trade reveal batch (the layer drives it).
@@ -100,6 +107,14 @@ type ColonyTradeState = {
   postTrackPosition: number;
   /** The tile shows `preTrackPosition` for this colony while true. */
   trackHold: boolean;
+  /**
+   * WHICH LEG the current glide nonce means — the layer runs ONE mechanism and
+   * asks this for the plan and for who to report the landing to.
+   *  · `advance` — the pre-trade offset step (a trade-offset card moved the
+   *    track FORWARD before the reward was read);
+   *  · `reset`   — the closing step back to the built-colony count.
+   */
+  glideKind: 'advance' | 'reset';
   /** Bumped when the glide should run — the layer measures + animates. */
   glideNonce: number;
   /** One-shot: the cell the marker just settled on (glow), −1 when none. */
@@ -127,6 +142,7 @@ export const colonyTradeState = reactive<ColonyTradeState>({
   preTrackPosition: 0,
   postTrackPosition: 0,
   trackHold: false,
+  glideKind: 'reset',
   glideNonce: 0,
   settledCell: -1,
   stagedRevealIds: [],
@@ -146,6 +162,17 @@ type TradeCtx = {
   rewardsKicked: boolean;
   committedTrack: number | undefined;
   glideStarted: boolean;
+  /**
+   * THE TRACK POSITION THE PLAYER PRESSED AT — captured at the arm, before the
+   * server's pre-trade advance. `-1` = unknown (a path that armed without it),
+   * where the advance leg is simply skipped: an animation is never invented
+   * from a guessed origin.
+   */
+  advanceFrom: number;
+  /** The advance leg is owed (claimed a manifest that moved the track up). */
+  advancePending: boolean;
+  /** Resolves when the advance leg has landed (the rewards await it). */
+  advanceResolve: (() => void) | undefined;
   /**
    * A reveal batch of THIS trade has been observed at least once. The draws
    * ride the trade's own response, but the reveal list is reconciled by its
@@ -169,6 +196,9 @@ const ctx: TradeCtx = {
   rewardsKicked: false,
   committedTrack: undefined,
   glideStarted: false,
+  advanceFrom: -1,
+  advancePending: false,
+  advanceResolve: undefined,
   revealSeen: false,
   stageYielded: false,
 };
@@ -464,7 +494,16 @@ function clearRevealWait(): void {
  * pre-collected card-resource destinations so the chips can fly onto the
  * exact chosen host cards.
  */
-export function armColonyTrade(colonyName: ColonyName, color: Color, targets?: ColonyTradeTargets): void {
+export function armColonyTrade(
+  colonyName: ColonyName,
+  color: Color,
+  targets?: ColonyTradeTargets,
+  /** The colony's track position AS THE PLAYER PRESSED — the origin of the
+   *  pre-trade advance leg (the server's own `increaseTrack` is what moves it
+   *  from here to the manifest's `preTradeTrackPosition`). Omit and the
+   *  advance is skipped rather than guessed. */
+  trackPosition?: number,
+): void {
   clearArmSafety();
   clearCeiling();
   ctx.manifest = undefined;
@@ -475,6 +514,9 @@ export function armColonyTrade(colonyName: ColonyName, color: Color, targets?: C
   ctx.rewardsKicked = false;
   ctx.committedTrack = undefined;
   ctx.glideStarted = false;
+  ctx.advanceFrom = trackPosition ?? -1;
+  ctx.advancePending = false;
+  ctx.advanceResolve = undefined;
   ctx.revealSeen = false;
   ctx.stageYielded = false;
   clearRevealWait();
@@ -532,6 +574,26 @@ function claimManifest(manifest: ColonyTradeManifestModel): void {
   colonyTradeState.preTrackPosition = manifest.preTradeTrackPosition;
   colonyTradeState.postTrackPosition = manifest.postTradeTrackPosition;
   colonyTradeState.trackHold = manifest.postTradeTrackPosition < manifest.preTradeTrackPosition;
+  /*
+   * THE PRE-TRADE ADVANCE. A trade-offset card («Торговая колония») moved the
+   * track FORWARD before the reward was read — the server did it inside this
+   * very response, so the committed position is already the advanced one and
+   * the marker would simply APPEAR further along. Hold the display at the cell
+   * the player pressed on and owe an advance leg: the same physical glide as
+   * the reset, in the other direction, played BEFORE the income is paid.
+   *
+   * Several offset cards are one summed move by construction — the origin is
+   * the pressed cell and the destination is the server's own post-advance
+   * position, never a client sum of card behaviours.
+   */
+  ctx.advancePending = ctx.advanceFrom >= 0 && manifest.preTradeTrackPosition > ctx.advanceFrom;
+  if (ctx.advancePending) {
+    colonyTradeState.glideKind = 'advance';
+    colonyTradeState.preTrackPosition = ctx.advanceFrom;
+    colonyTradeState.trackHold = true;
+  } else {
+    colonyTradeState.glideKind = 'reset';
+  }
   // A PROMISED card that never arrives (an exhausted deck) must not freeze the
   // marker on the track: the wait for it is bounded and names itself.
   clearRevealWait();
@@ -590,6 +652,15 @@ export async function runColonyTradeRewards(): Promise<void> {
   ctx.rewardsKicked = true;
   const manifest = ctx.manifest;
   const viewer = colonyTradeState.color as Color;
+  // ── THE ADVANCE LEG FIRST. The reward is READ at the advanced cell, so the
+  //    marker gets there before anything is paid: the player watches the
+  //    position they are about to be paid at being earned. Bounded — a track
+  //    that cannot be measured releases the gate honestly (the layer's own
+  //    degrade), and the payout continues either way.
+  await runTrackAdvance();
+  if (!colonyTradeState.active) {
+    return;
+  }
   colonyTradeState.phase = 'chips';
   colonyTradeState.beat = 'income';
   tradeLog('chip waves start');
@@ -769,9 +840,63 @@ function maybeAdvance(): void {
   }
 }
 
-/** The glide plan of the CURRENT transaction (the layer asks). */
+/**
+ * The glide plan of the CURRENT leg (the layer asks, one mechanism for both):
+ * the pre-trade ADVANCE steps right off the pressed cell, the closing RESET
+ * steps left to the built-colony count.
+ */
 export function colonyTradeGlidePlan(): TrackGlidePlan | undefined {
+  if (colonyTradeState.glideKind === 'advance') {
+    return trackAdvancePlan(ctx.advanceFrom, ctx.manifest?.preTradeTrackPosition ?? ctx.advanceFrom);
+  }
   return trackGlidePlan(colonyTradeState.preTrackPosition, colonyTradeState.postTrackPosition);
+}
+
+/**
+ * Run the pre-trade ADVANCE and wait for it to land. Resolves at once when
+ * nothing is owed; bounded by its own net so a track that never becomes
+ * measurable (a folded stage, a reduced-motion run) can never hold the payout
+ * — the leg is a beat, never a gate on the game.
+ */
+function runTrackAdvance(): Promise<void> {
+  if (!ctx.advancePending) {
+    return Promise.resolve();
+  }
+  ctx.advancePending = false;
+  if (colonyTradeState.reducedMotion) {
+    finishColonyTrackAdvance();
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    ctx.advanceResolve = resolve;
+    colonyTradeState.phase = 'advance';
+    colonyTradeState.glideKind = 'advance';
+    colonyTradeState.glideNonce++;
+    tradeLog('track advance', ctx.advanceFrom, '→', ctx.manifest?.preTradeTrackPosition);
+    setTimeout(() => finishColonyTrackAdvance(), motionMs(TRACK_ADVANCE_SAFETY_MS));
+  });
+}
+
+/**
+ * The ADVANCE landed (or its net fired): the display moves to the position the
+ * reward is read at, the leg hands over to the RESET one, and the payout goes
+ * on. Idempotent — the net and the real landing may both arrive.
+ */
+export function finishColonyTrackAdvance(): void {
+  if (colonyTradeState.glideKind !== 'advance') {
+    return;
+  }
+  colonyTradeState.glideKind = 'reset';
+  const manifest = ctx.manifest;
+  if (manifest !== undefined) {
+    colonyTradeState.preTrackPosition = manifest.preTradeTrackPosition;
+    colonyTradeState.trackHold = manifest.postTradeTrackPosition < manifest.preTradeTrackPosition;
+    colonyTradeState.settledCell = manifest.preTradeTrackPosition;
+  }
+  tradeLog('track advance settled at', colonyTradeState.preTrackPosition);
+  const r = ctx.advanceResolve;
+  ctx.advanceResolve = undefined;
+  r?.();
 }
 
 /**

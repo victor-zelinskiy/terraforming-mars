@@ -8,8 +8,13 @@ import {
   TwinState,
   applyJsEvent,
   areTwins,
+  defaultPadLayout,
   initialTwinState,
+  joydevAxisCodes,
+  joydevButtonCodes,
+  layoutFromCodes,
   padsAgree,
+  parseCapabilityBitmap,
   parseJsEvents,
   suppressedMirrors,
   toStandardPad,
@@ -155,15 +160,16 @@ describe('electron/nativeGamepadLinux toStandardPad', () => {
     expect(pad.buttons[15]).to.eq(1, 'right');
   });
 
-  it('also reads a d-pad exposed as buttons (driver-dependent layout)', () => {
-    // Some drivers report the hat as buttons 11..14 instead of axes 6/7; taking
-    // the union of both conventions costs nothing and a wrong guess costs the
-    // entire d-pad.
+  it('does not invent a d-pad out of ordinals the device never declared', () => {
+    // This once guessed that joydev buttons 11..14 were a d-pad. On the classic
+    // xpad layout ordinal 11 does not exist, and on a richer pad it is R3 — so
+    // the guess turned a stick click into "d-pad up". A d-pad reported as
+    // buttons is now handled properly, via the device's declared BTN_DPAD_*
+    // codes (see the derived-layout suite below).
     const state = emptyState();
-    applyJsEvent(state, {type: BUTTON, number: 12, value: 1, init: false}); // down
+    applyJsEvent(state, {type: BUTTON, number: 12, value: 1, init: false});
     const pad = toStandardPad(state);
-    expect(pad.buttons[13]).to.eq(1, 'down');
-    expect(pad.buttons[12]).to.eq(0, 'up');
+    expect(pad.buttons.slice(12, 16)).to.deep.eq([0, 0, 0, 0]);
   });
 
   it('reports a neutral pad as fully released', () => {
@@ -269,5 +275,121 @@ describe('electron/nativeGamepadLinux mirror suppression', () => {
     it('never suppresses a lone device', () => {
       expect(suppressedMirrors([raz], () => true).size).to.eq(0);
     });
+  });
+});
+
+describe('electron/nativeGamepadLinux derived layout', () => {
+  /** Build a sysfs-style capability bitmap (most significant word first). */
+  function bitmap(codes: number[]): string {
+    const words: bigint[] = [];
+    for (const code of codes) {
+      const w = Math.floor(code / 64);
+      while (words.length <= w) {
+        words.push(0n);
+      }
+      words[w] |= 1n << BigInt(code % 64);
+    }
+    return words.map((w) => w.toString(16)).reverse().join(' ');
+  }
+
+  // A plain Xbox 360 pad: analog triggers only, hat axes for the d-pad.
+  const XPAD_KEYS = [0x130, 0x131, 0x133, 0x134, 0x136, 0x137, 0x13a, 0x13b, 0x13c, 0x13d, 0x13e];
+  const XPAD_AXES = [0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x10, 0x11];
+  // The measured Razer Wolverine V3: ALSO declares digital triggers BTN_TL2/TR2
+  // and d-pad buttons — which is exactly what shifted every later ordinal.
+  const WOLVERINE_KEYS = [...XPAD_KEYS, 0x138, 0x139, 0x220, 0x221, 0x222, 0x223].sort((a, b) => a - b);
+
+  it('parses a sysfs bitmap into ascending evdev codes', () => {
+    const codes = joydevButtonCodes(parseCapabilityBitmap(bitmap(XPAD_KEYS)));
+    expect(codes).to.deep.eq(XPAD_KEYS);
+  });
+
+  it('enumerates BTN_JOYSTICK-and-above BEFORE the BTN_MISC range, as joydev does', () => {
+    const codes = joydevButtonCodes(parseCapabilityBitmap(bitmap([0x100, 0x130, 0x131])));
+    expect(codes).to.deep.eq([0x130, 0x131, 0x100]);
+  });
+
+  it('enumerates axes in plain ascending code order', () => {
+    expect(joydevAxisCodes(parseCapabilityBitmap(bitmap(XPAD_AXES)))).to.deep.eq(XPAD_AXES);
+    // Codes at or beyond ABS_CNT (0x40) are not joystick axes and must not shift
+    // the ordinals of the real ones.
+    expect(joydevAxisCodes(parseCapabilityBitmap(bitmap([0x00, 0x40, 0x41])))).to.deep.eq([0x00]);
+  });
+
+  it('derives the classic xpad order identically to the built-in default', () => {
+    const derived = layoutFromCodes(XPAD_KEYS, XPAD_AXES);
+    expect(derived).to.deep.eq(defaultPadLayout());
+  });
+
+  it('places every control correctly on a pad with digital triggers and d-pad buttons', () => {
+    // The regression: with the hardcoded xpad table these ordinals landed two
+    // places early — the triggers drove View/Menu and the d-pad drove nothing.
+    const layout = layoutFromCodes(WOLVERINE_KEYS, XPAD_AXES);
+    const press = (code: number): MappedPad => {
+      const raw: RawPadState = {buttons: [], axes: []};
+      raw.buttons[WOLVERINE_KEYS.indexOf(code)] = 1;
+      return toStandardPad(raw, layout);
+    };
+    expect(press(0x138).buttons[6]).to.eq(1, 'BTN_TL2 → LT');
+    expect(press(0x139).buttons[7]).to.eq(1, 'BTN_TR2 → RT');
+    expect(press(0x13a).buttons[8]).to.eq(1, 'BTN_SELECT → View');
+    expect(press(0x13b).buttons[9]).to.eq(1, 'BTN_START → Menu');
+    expect(press(0x13c).buttons[16]).to.eq(1, 'BTN_MODE → Guide');
+    expect(press(0x13d).buttons[10]).to.eq(1, 'BTN_THUMBL → L3');
+    expect(press(0x13e).buttons[11]).to.eq(1, 'BTN_THUMBR → R3');
+    expect(press(0x220).buttons[12]).to.eq(1, 'BTN_DPAD_UP');
+    expect(press(0x221).buttons[13]).to.eq(1, 'BTN_DPAD_DOWN');
+    expect(press(0x222).buttons[14]).to.eq(1, 'BTN_DPAD_LEFT');
+    expect(press(0x223).buttons[15]).to.eq(1, 'BTN_DPAD_RIGHT');
+    // And pressing View must NOT read as a trigger — the reported symptom.
+    expect(press(0x13a).buttons[6]).to.eq(0);
+    expect(press(0x13a).buttons[7]).to.eq(0);
+  });
+
+  it('unions the analog and digital form of the same trigger', () => {
+    const layout = layoutFromCodes(WOLVERINE_KEYS, XPAD_AXES);
+    const raw: RawPadState = {buttons: [], axes: []};
+    raw.axes[2] = 32767; // ABS_Z fully pulled
+    expect(toStandardPad(raw, layout).buttons[6]).to.eq(1);
+    raw.axes[2] = -32767; // released, but the digital button reports held
+    raw.buttons[WOLVERINE_KEYS.indexOf(0x138)] = 1;
+    expect(toStandardPad(raw, layout).buttons[6]).to.eq(1);
+  });
+
+  it('keeps the right stick on ABS_RX/ABS_RY regardless of trigger axes', () => {
+    const layout = layoutFromCodes(XPAD_KEYS, XPAD_AXES);
+    const raw: RawPadState = {buttons: [], axes: []};
+    raw.axes[3] = 32767;
+    raw.axes[4] = -32767;
+    const pad = toStandardPad(raw, layout);
+    expect(pad.axes[2]).to.eq(1);
+    expect(pad.axes[3]).to.eq(-1);
+  });
+
+  it('maps a pad with NO trigger axes without stealing another axis', () => {
+    // Digital triggers only: ABS_Z/ABS_RZ absent, so the axis ordinals shift.
+    // The old positional table read the right stick and the hat as triggers.
+    const axes = [0x00, 0x01, 0x03, 0x04, 0x10, 0x11];
+    const layout = layoutFromCodes(WOLVERINE_KEYS, axes);
+    const raw: RawPadState = {buttons: [], axes: []};
+    raw.axes[2] = 32767; // ABS_RX — right stick, NOT a trigger
+    raw.axes[5] = 32767; // ABS_HAT0Y — d-pad down, NOT a trigger
+    const pad = toStandardPad(raw, layout);
+    expect(pad.buttons[6]).to.eq(0, 'LT must stay released');
+    expect(pad.buttons[7]).to.eq(0, 'RT must stay released');
+    expect(pad.axes[2]).to.eq(1, 'right stick X');
+    expect(pad.buttons[13]).to.eq(1, 'd-pad down');
+  });
+
+  it('ignores inputs it has no meaning for (extra paddles, media keys)', () => {
+    const layout = layoutFromCodes([0x130, 0x2c0, 0x2c1], XPAD_AXES);
+    expect(layout.buttons).to.deep.eq([0, undefined, undefined]);
+    const raw: RawPadState = {buttons: [0, 1, 1], axes: []};
+    expect(toStandardPad(raw, layout).buttons.every((v, i) => i === 0 ? true : v === 0)).to.eq(true);
+  });
+
+  it('falls back to the xpad order when capabilities are unreadable', () => {
+    expect(joydevButtonCodes(parseCapabilityBitmap(''))).to.deep.eq([]);
+    expect(defaultPadLayout().buttons[0]).to.eq(0);
   });
 });

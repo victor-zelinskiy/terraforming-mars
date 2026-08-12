@@ -46,9 +46,10 @@ import {presentationTarget} from '@/client/console/boardCardBonus/boardCardBonus
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {
-  colonyTradeClaimsReveal, colonyTradeGlidePlan, colonyTradeState, finishColonyTrackReset,
-  isColonyTradeRevealStaged, markColonyTradeZoomReady, registerColonyTradeZoomOrigin,
-  setColonyTradeBeat, setColonyTradeCardScene, stageColonyTradeReveal, tradeLog,
+  colonyTradeClaimsReveal, colonyTradeGlidePlan, colonyTradeState, finishColonyTrackAdvance,
+  finishColonyTrackReset, isColonyTradeRevealStaged, markColonyTradeZoomReady,
+  registerColonyTradeZoomOrigin, setColonyTradeBeat, setColonyTradeCardScene,
+  stageColonyTradeReveal, tradeLog,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 import {
   TRADE_COVER_FLIGHT_MS, TRADE_COVER_LIFT_MS, TRADE_FRAME_MS, TRADE_LIFTOFF_AT_F,
@@ -511,12 +512,17 @@ export default defineComponent({
       clearColonyPayoutLiftOff();
     },
 
-    // ── the white-marker reset glide ─────────────────────────────────────
+    // ── the white-marker glide — ONE mechanism, two legs ─────────────────
+    //    `advance` steps RIGHT before the reward is read (a trade-offset card
+    //    moved the track), `reset` steps LEFT at the end. The layer measures
+    //    and animates; only the finisher differs, and the state names which.
     async runTrackGlide(): Promise<void> {
+      const advancing = colonyTradeState.glideKind === 'advance';
+      const finish = () => advancing ? finishColonyTrackAdvance() : finishColonyTrackReset();
       const plan = colonyTradeGlidePlan();
       const name = colonyTradeState.colonyName;
       if (plan === undefined || name === '') {
-        finishColonyTrackReset();
+        finish();
         return;
       }
       // The FOCUS STAGE's expanded track leads when the stage is up — the
@@ -539,7 +545,7 @@ export default defineComponent({
       if (fromRect === undefined || resolved.length !== plan.path.length) {
         // The colonies screen isn't on stage — release the values honestly.
         tradeLog('track glide skipped — track not measurable');
-        finishColonyTrackReset();
+        finish();
         return;
       }
       this.markerVisible = true;
@@ -547,7 +553,7 @@ export default defineComponent({
       const marker = this.$refs.marker as HTMLElement | undefined;
       if (marker === undefined) {
         this.markerVisible = false;
-        finishColonyTrackReset();
+        finish();
         return;
       }
       const cellEls = plan.path.map((pos) => cellEl(pos));
@@ -568,8 +574,9 @@ export default defineComponent({
         },
         onLanded: () => {
           // Release the frozen readouts UNDER the settled proxy (the real
-          // marker paints on the reset cell), then dissolve the proxy over it.
-          finishColonyTrackReset();
+          // marker paints on the landed cell), then dissolve the proxy over
+          // it. Same handoff for both legs — only the finisher differs.
+          finish();
           gsap.to(marker, {autoAlpha: 0, duration: motionMs(220) / 1000, ease: 'power1.out', onComplete: () => {
             this.markerVisible = false;
           }});

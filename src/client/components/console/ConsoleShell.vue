@@ -364,21 +364,6 @@
          leak detector counts it as the serving surface for the beat. -->
     <ConsolePlayedHeroLayer />
 
-    <!-- Milestones/Awards — the console-native premium CONFIRMATION (an A
-         on an available dashboard item opens this; nothing is submitted
-         until the modal's own A — accidental claim/fund is impossible). -->
-    <transition :css="false" appear
-                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
-                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleMaConfirm v-if="maConfirmView !== undefined"
-                        ref="maConfirm"
-                        :view="maConfirmView"
-                        :available="maConfirmAvailable"
-                        :blockReason="maConfirmBlockReason"
-                        @confirm="submitMaConfirm"
-                        @cancel="pendingMaConfirm = undefined" />
-    </transition>
-
     <!-- Milestones/Awards — the X → «Осмотреть» full-text READER (the premium
          reader for the long descriptions the dashboard cards must clamp). -->
     <transition :css="false" appear
@@ -428,7 +413,18 @@
                                 :index="consoleState.sheetIndex"
                                 :myMegacredits="thisPlayer.megacredits"
                                 :backLabel="stdBackLabel" />
-      <ConsoleMaScreen v-else-if="maScreenKind !== undefined" :kind="maScreenKind" :items="maScreenItems" :index="consoleState.sheetIndex" :myMegacredits="thisPlayer.megacredits" :free="awardFundingActive && maScreenKind === 'awards'" />
+      <ConsoleMaScreen v-else-if="maScreenKind !== undefined"
+                       ref="maScreen"
+                       :kind="maScreenKind"
+                       :items="maScreenItems"
+                       :index="consoleState.sheetIndex"
+                       :myMegacredits="thisPlayer.megacredits"
+                       :free="awardFundingActive && maScreenKind === 'awards'"
+                       :focusView="maFocusView"
+                       :focusInspect="maFocusInspect"
+                       :focusAvailable="maFocusAvailable"
+                       :focusBlockReason="maFocusBlockReason"
+                       @ceremony-done="onMaCeremonyDone" />
       <!-- (The BLUE-CARD ACTION CENTER left this chain — it is the ACTION
            WORKSPACE now, an absolute child of .con-main right of the player
            rail; see the mount next to ConsoleInfoMode.) -->
@@ -1032,7 +1028,7 @@
       <waiting-for v-if="game.phase !== 'end'" ref="waitingFor"
                    :playerView="playerView"
                    :waitingfor="playerView.waitingFor"
-                   :modal-suppressed="hostServesPrompt || tilePlacementHolds || presentationHeld || consoleRevealMode !== undefined || startSceneServes || draftWaitActive || govScaleFocusState.holding || govScaleFocusState.closing || playedHeroHolds"></waiting-for>
+                   :modal-suppressed="promptServedNatively || tilePlacementHolds || presentationHeld || consoleRevealMode !== undefined || startSceneServes || draftWaitActive || govScaleFocusState.holding || govScaleFocusState.closing || playedHeroHolds"></waiting-for>
       <select-space v-if="convertPlantsPrompt !== undefined"
                     :playerView="playerView"
                     :playerinput="convertPlantsPrompt"
@@ -1179,13 +1175,34 @@ import ConsoleHandDock from '@/client/components/console/ConsoleHandDock.vue';
 import {handDockBayRem} from '@/client/console/consoleHandDock';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
-import ConsoleMaConfirm from '@/client/components/console/ConsoleMaConfirm.vue';
 import ConsoleMaInspect from '@/client/components/console/ConsoleMaInspect.vue';
 import ConsoleMaCeremony from '@/client/components/console/ConsoleMaCeremony.vue';
-import {buildConsoleMaItems, ConsoleMaItem, ConsoleMaKind, consoleMaPressNotice, stepGrid} from '@/client/components/console/consoleMaModel';
+import {buildConsoleMaItems, ConsoleMaItem, ConsoleMaKind, stepGrid} from '@/client/components/console/consoleMaModel';
 import {buildMaConfirm, MaConfirmView} from '@/client/components/ma/maConfirmModel';
-import {armMaCeremony} from '@/client/components/ma/maCeremonyState';
-import {MaKind} from '@/client/components/ma/maArt';
+import {buildMaInspect, MaInspectView} from '@/client/components/console/consoleMaInspectModel';
+import {
+  armMaCeremony,
+  claimMaCeremonyEmbed,
+  releaseMaCeremonyEmbed,
+  abandonMaCeremonyEmbed,
+  disarmMaCeremony,
+  maCeremonyState,
+  MaCeremonyEvent,
+} from '@/client/components/ma/maCeremonyState';
+import {
+  maFocusState,
+  openMaFocus,
+  closeMaFocus,
+  setMaFocusError,
+  beginMaFocusCommit,
+  failMaFocusCommit,
+  beginMaFocusCeremony,
+  beginMaFocusClosing,
+  discardMaFocusDraft,
+  resetMaFocus,
+  maFocusAcceptsInput,
+  maFocusCommitOutcome,
+} from '@/client/console/consoleMaFocus';
 import ConsoleQuickSelector from '@/client/components/console/ConsoleQuickSelector.vue';
 import ConsoleStdProjectsScreen from '@/client/components/console/ConsoleStdProjectsScreen.vue';
 import {buildRtQuickEntries, buildLtQuickEntries, buildStdProjectItems, buildHomeMaSummary, HomeMaSummary, QuickEntry, QuickSlot, StdProjectItem} from '@/client/console/consoleQuickModel';
@@ -1355,7 +1372,7 @@ import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, p
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, drawnCardsState, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, TaskKind, taskFor, taskServedByHost, shellTaskOnSurface, SCENE_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskServedByHost, shellTaskOnSurface, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
@@ -1508,6 +1525,11 @@ const CLIENT_PAYMENT_TASK: ConsoleTask = {kind: 'payment'};
  *  (mirrors the DOM engine's SCROLL_STEP_PX so the feel is identical). */
 const CONSOLE_SCROLL_STEP_PX = 24;
 
+/** The MA workspace commit backstop: a submit whose verdict never arrives
+ *  (lost response) restores the reversible detail with an honest reason —
+ *  far above any real round-trip, far below the 35 s hold ceiling. */
+const MA_COMMIT_SAFETY_MS = 15_000;
+
 export default defineComponent({
   name: 'ConsoleShell',
   components: {
@@ -1519,7 +1541,6 @@ export default defineComponent({
     ConsoleHandDock,
     ConsoleSheet,
     ConsoleMaScreen,
-    ConsoleMaConfirm,
     ConsoleMaInspect,
     ConsoleMaCeremony,
     ConsoleQuickSelector,
@@ -1738,8 +1759,8 @@ export default defineComponent({
       pendingCommitDismiss: undefined as (() => void) | undefined,
       /** The console-native card-action center's UI state (filter + confirm-open). */
       consoleCardActionsUi,
-      /** Milestones/Awards premium confirm (nothing submitted until its A). */
-      pendingMaConfirm: undefined as {kind: MaKind, name: string} | undefined,
+      /** The MA workspace commit's safety backstop (a verdict may never hang). */
+      maFocusSafetyTimer: undefined as number | undefined,
       // X → «Осмотреть»: the NAME of the milestone/award shown in the premium
       // full-text reader (the live item is recomputed from maScreenItems).
       maInspect: undefined as string | undefined,
@@ -1925,7 +1946,6 @@ export default defineComponent({
         this.govSupportActive ||
         this.productionLossActive ||
         this.nativeCompositeTask !== undefined ||
-        this.maConfirmView !== undefined ||
         this.maInspectItem !== undefined ||
         this.colonyInspectModel !== undefined ||
         this.consoleState.sheet !== undefined ||
@@ -2069,7 +2089,6 @@ export default defineComponent({
         this.consoleState.confirm !== undefined ||
         this.pendingPlayCard !== undefined ||
         this.colonyFocusOpen ||
-        this.maConfirmView !== undefined ||
         this.maInspectItem !== undefined ||
         this.colonyInspectModel !== undefined ||
         this.corpFirstActionOpen ||
@@ -2442,6 +2461,31 @@ export default defineComponent({
       // must stay suppressed for them exactly as it does for the host (and
       // hold-independently, or it flashes for a beat before they mount).
       return taskServedByHost(this.playerView) !== undefined || this.compositeServesPrompt;
+    },
+    /**
+     * DOES THE CONSOLE SERVE THIS PROMPT AT ALL — the desktop fallback's ONE
+     * question, and deliberately NOT `hostServesPrompt`.
+     *
+     * The two ask different things. `hostServesPrompt` is «might the TASK HOST
+     * take this», which the outcome reconciler needs. This is «is any console
+     * surface responsible for it», which is what decides whether the legacy
+     * `MandatoryInputModal` may rise. A SHELL-SECTION prompt is served by a
+     * SCREEN (the hand, the colony workspace, the awards sheet) — usually
+     * after a mandatory ANNOUNCE, so there is a deliberate window where none
+     * of its DOM is mounted yet, and reading the host classification alone
+     * made that window look like «nobody serves this». The desktop modal rose
+     * into it: the remote colony-bonus collect («Заберите 1 карту с колонии
+     * Миранда») shipped as a legacy dialog over the board, and answering it
+     * there flew the card into a full-bleed reveal instead of taking the
+     * player to the colony that paid it. The set is `SECTION_SERVED_KINDS`
+     * (one place, with the reasoning for the one kind it leaves out).
+     */
+    promptServedNatively(): boolean {
+      if (this.hostServesPrompt) {
+        return true;
+      }
+      const task = taskFor(this.playerView);
+      return task !== undefined && SECTION_SERVED_KINDS.has(task.kind);
     },
     /**
      * The three prompts that used to fall through to the DESKTOP modal inside
@@ -4520,34 +4564,41 @@ export default defineComponent({
       return this.maInspect === undefined ? undefined :
         this.maScreenItems.find((it) => it.name === this.maInspect);
     },
-    /** The premium MA confirm view — REBUILT from the live playerView on
-     *  every commit, so a slot raced away while the modal is open honestly
-     *  re-renders as blocked (never a dead submit). */
-    maConfirmView(): MaConfirmView | undefined {
-      const p = this.pendingMaConfirm;
-      if (p === undefined) {
+    /** The descended MA item (undefined = the detail stage is closed). */
+    maFocusItem(): ConsoleMaItem | undefined {
+      if (!maFocusState.open || this.maScreenKind === undefined) {
         return undefined;
       }
-      const models = p.kind === 'milestone' ? this.game.milestones : this.game.awards;
-      const source = models.find((m) => m.name === p.name);
+      return this.maScreenItems.find((it) => it.name === maFocusState.name);
+    },
+    /** The detail stage's economy/slots view — REBUILT from the live
+     *  playerView on every commit, so a slot raced away while the stage is
+     *  open honestly re-renders as blocked (never a dead submit). */
+    maFocusView(): MaConfirmView | undefined {
+      if (!maFocusState.open) {
+        return undefined;
+      }
+      const kind = maFocusState.kind;
+      const models = kind === 'milestone' ? this.game.milestones : this.game.awards;
+      const source = models.find((m) => m.name === maFocusState.name);
       if (source === undefined) {
         return undefined;
       }
       const describe = (name: string): string => {
         try {
-          return p.kind === 'milestone' ?
+          return kind === 'milestone' ?
             getMilestone(name as MilestoneName).description :
             getAward(name as AwardName).description;
         } catch (err) {
           return '';
         }
       };
-      const free = p.kind === 'award' && this.awardFundingActive;
-      return buildMaConfirm(p.kind, source, models, {
+      const free = kind === 'award' && this.awardFundingActive;
+      return buildMaConfirm(kind, source, models, {
         myColor: this.thisPlayer.color,
         myMegacredits: this.thisPlayer.megacredits,
-        cost: p.kind === 'milestone' ? 8 : (free ? 0 : this.awardCostValue),
-        free, // Vitor's free sponsorship — the premium confirm shows the free chip.
+        cost: kind === 'milestone' ? 8 : (free ? 0 : this.awardCostValue),
+        free, // Vitor's free sponsorship — the stage shows the free chip.
         maxSlots: 3,
         playerName: (c) => {
           const pl = this.playerView.players.find((candidate) => candidate.color === c);
@@ -4556,23 +4607,32 @@ export default defineComponent({
         describe,
       });
     },
-    /** LIVE availability for the open MA confirm (waitingFor = the truth). */
-    maConfirmAvailable(): boolean {
-      const p = this.pendingMaConfirm;
-      if (p === undefined) {
+    /** The detail stage's ranked race/standings (the inspect view-model). */
+    maFocusInspect(): MaInspectView | undefined {
+      const item = this.maFocusItem;
+      if (item === undefined) {
+        return undefined;
+      }
+      // Resolve every participant label through the ONE display-name helper
+      // (a MarsBot reads «Бот» in the standings, never a raw «MarsBot»).
+      return buildMaInspect(item, this.playerView.players.map((p) => ({...p, name: participantDisplayName(p)})));
+    },
+    /** LIVE availability for the open detail stage (waitingFor = the truth). */
+    maFocusAvailable(): boolean {
+      if (!maFocusState.open) {
         return false;
       }
-      const found = p.kind === 'milestone' ?
+      const found = maFocusState.kind === 'milestone' ?
         findMilestoneOptionPath(this.playerView.waitingFor) :
         findAwardOptionPath(this.playerView.waitingFor, this.awardNames);
-      return this.claimableTitles(found?.options).has(p.name);
+      return this.claimableTitles(found?.options).has(maFocusState.name);
     },
-    /** The CONCRETE blocker when the open MA confirm went stale. */
-    maConfirmBlockReason(): string {
-      if (this.maConfirmAvailable) {
+    /** The CONCRETE blocker when the open detail stage cannot act. */
+    maFocusBlockReason(): string {
+      if (this.maFocusAvailable) {
         return '';
       }
-      const v = this.maConfirmView;
+      const v = this.maFocusView;
       if (v?.takenByOther !== undefined) {
         return v.kind === 'milestone' ? 'Already claimed' : 'Already funded';
       }
@@ -4588,6 +4648,10 @@ export default defineComponent({
       return v?.kind === 'milestone' ?
         'This milestone cannot be claimed right now' :
         'This award cannot be funded right now';
+    },
+    /** The ceremony queue head — the commit watcher's reactive mirror. */
+    maCurrentBeat(): MaCeremonyEvent | undefined {
+      return maCeremonyState.current;
     },
     sheetRows(): Array<ConsoleSheetRow> {
       switch (this.consoleState.sheet) {
@@ -4698,8 +4762,8 @@ export default defineComponent({
       if (this.maInspectItem !== undefined) {
         return this.maInspectItem.name.replace(/[0-9]+$/, '');
       }
-      if (this.pendingMaConfirm !== undefined) {
-        return 'Confirmation';
+      if (this.maFocusItem !== undefined) {
+        return this.maFocusItem.name.replace(/[0-9]+$/, '');
       }
       if (this.consoleState.confirm !== undefined) {
         return 'Confirmation';
@@ -5048,12 +5112,6 @@ export default defineComponent({
         cmds.push({control: 'back', label: 'Close'});
         return cmds;
       }
-      if (this.pendingMaConfirm !== undefined) {
-        return [
-          {control: 'confirm', label: this.pendingMaConfirm.kind === 'milestone' ? 'Claim' : 'Fund', enabled: this.maConfirmAvailable},
-          {control: 'back', label: 'Cancel'},
-        ];
-      }
       if (this.consoleState.confirm !== undefined) {
         return [
           {control: 'confirm', label: 'Confirm'},
@@ -5178,12 +5236,27 @@ export default defineComponent({
         ])];
       }
       if (this.maScreenKind !== undefined) {
-        // P26: the hints mirror the REAL state — the verb is enabled only
-        // when the focused item is actionable; bumpers switch the category.
-        const focusedMa = this.maScreenItems[this.consoleState.sheetIndex];
+        // The MA WORKSPACE. Detail stage open: A carries the REAL verb
+        // (enabled only when the live waitingFor offers it — the stage names
+        // the concrete blocker), B is one logical level. During the commit /
+        // ceremony beats input is absorbed — the bar advertises nothing.
+        if (maFocusState.open) {
+          if (!maFocusAcceptsInput()) {
+            return [];
+          }
+          return [
+            {control: 'confirm', label: this.maScreenKind === 'milestones' ? 'Claim' : 'Fund',
+              enabled: this.maFocusAvailable, highlight: this.maFocusAvailable},
+            {control: 'back', label: 'Back'},
+          ];
+        }
+        // The OVERVIEW: A only SELECTS (opens the detail stage) — every item
+        // is selectable, taken/blocked ones included; bumpers switch the
+        // category.
+        const anyMa = this.maScreenItems.length > 0;
         return [
-          {control: 'confirm', label: this.maScreenKind === 'milestones' ? 'Claim' : 'Fund', enabled: focusedMa?.available === true},
-          {control: 'secondary', label: 'Inspect'},
+          {control: 'confirm', label: 'Select', enabled: anyMa},
+          {control: 'secondary', label: 'Inspect', enabled: anyMa},
           {control: this.maScreenKind === 'milestones' ? 'bumperR' : 'bumperL',
             label: this.maScreenKind === 'milestones' ? 'Awards' : 'Milestones'},
           {control: 'back', label: this.awardFundingActive ? 'Minimize' : 'Close'},
@@ -5567,6 +5640,26 @@ export default defineComponent({
     },
   },
   watch: {
+    /** The MA commit's verdict may arrive on either feed — the ceremony
+     *  queue (fed by NotificationLayer's update) or the raw view values.
+     *  Both watchers run the same pure decision; a no-op when not committing. */
+    maCurrentBeat() {
+      this.evaluateMaFocusCommit();
+    },
+    'playerView.game.gameAge'() {
+      this.evaluateMaFocusCommit();
+    },
+    'playerView.game.undoCount'() {
+      this.evaluateMaFocusCommit();
+    },
+    /** The free-award-funding task ended (submitted / expired / new game) —
+     *  a suspended MA detail draft has lost its restore door and must die
+     *  with it (a stale draft re-seating in a LATER game is the trap). */
+    awardFundingActive(next: boolean) {
+      if (!next) {
+        discardMaFocusDraft();
+      }
+    },
     /** The ACTION COMMIT settled — run the dismiss it was holding back. */
     commitHolding(now: boolean, was: boolean) {
       if (was && !now && this.pendingCommitDismiss !== undefined) {
@@ -7382,9 +7475,9 @@ export default defineComponent({
         return true;
       }
       // The premium MA reader (X → «Осмотреть») owns the pad while open: it
-      // sits above the dashboard, so no background command leaks. A sponsors /
-      // claims when the item is available (hands off to the confirm), B or X
-      // close back to the dashboard; the right stick scrolls the long text.
+      // sits above the dashboard, so no background command leaks. A descends
+      // into the item's detail stage (the workspace confirmation context),
+      // B or X close back to the dashboard; the right stick scrolls.
       if (this.maInspectItem !== undefined) {
         if (intent.kind === 'press') {
           if (action === 'back' || action === 'inspect') {
@@ -7634,18 +7727,6 @@ export default defineComponent({
          DEEPEST frame now, so the standalone branch below IS the embedded one,
          and B's verb comes from the frame's own phase. Forty lines of
          second-copy deleted, including the one that held the soft-lock.) */
-      // The premium Milestones/Awards confirm owns input while open (A =
-      // confirm, B = cancel — no background command leakage). A vanished
-      // model (game switched in-session) drops the pending confirm cleanly.
-      if (this.pendingMaConfirm !== undefined) {
-        if (this.maConfirmView === undefined) {
-          this.pendingMaConfirm = undefined;
-        } else {
-          const confirm = this.$refs.maConfirm as InstanceType<typeof ConsoleMaConfirm> | undefined;
-          confirm?.handleIntent(intent);
-          return true;
-        }
-      }
       if (this.consoleState.confirm !== undefined) {
         if (action === 'primary') {
           this.acceptConfirm();
@@ -8216,9 +8297,30 @@ export default defineComponent({
         }
         return;
       }
-      // P26: the milestones/awards premium screen — 2-column GRID nav
-      // (every card focusable), A = claim/fund, LB/RB = category switch.
+      // The milestones/awards WORKSPACE. Overview: 2-column GRID nav (every
+      // card focusable), A = SELECT (descend into the detail stage), LB/RB =
+      // category switch. Detail: A = the real claim/fund commit, B = fold
+      // back to the overview; the commit/ceremony beats absorb everything
+      // (a double submit is impossible by construction).
       if (this.maScreenKind !== undefined) {
+        if (maFocusState.open) {
+          if (!maFocusAcceptsInput()) {
+            return;
+          }
+          if (intent.kind === 'press') {
+            switch (consoleActionOf(intent)) {
+            case 'primary':
+              this.submitMaFocusCommit();
+              break;
+            case 'back':
+              this.foldMaFocus();
+              break;
+            default:
+              break;
+            }
+          }
+          return;
+        }
         if (intent.kind === 'nav') {
           this.consoleState.sheetIndex = stepGrid(
             this.consoleState.sheetIndex, intent.dir, this.maScreenItems.length, 2);
@@ -8227,7 +8329,10 @@ export default defineComponent({
         if (intent.kind === 'press') {
           switch (consoleActionOf(intent)) {
           case 'primary':
-            this.activateMaItem(this.maScreenItems[this.consoleState.sheetIndex]);
+            // A = «Выбрать»: EVERY item descends into its detail stage —
+            // taken/blocked ones included (the stage explains the state).
+            // Nothing is ever submitted from the overview.
+            this.enterMaFocus();
             break;
           case 'inspect':
             // X → «Осмотреть»: open the full-text reader for the focused item.
@@ -8246,7 +8351,11 @@ export default defineComponent({
           case 'back':
             // A pending free-award-funding task DEFERS to the amber chip
             // (mandatory → inspect the board, then return); a no-op when the
-            // player is merely viewing the M/A dashboard.
+            // player is merely viewing the M/A dashboard. A plain close also
+            // drops any suspended detail draft — the visit is over.
+            if (!this.awardFundingActive) {
+              discardMaFocusDraft();
+            }
             this.deferShellTask();
             leaveWorkspace();
             break;
@@ -8795,6 +8904,11 @@ export default defineComponent({
       this.consoleState.quick = undefined;
       enterWorkspace(sheet);
       void this.$nextTick(() => {
+        // A RESTORED MA detail owns the cursor (the task-restore door seated
+        // it on the draft item before this tick) — never re-home it.
+        if (maFocusState.open) {
+          return;
+        }
         // P26/P27: the MA + Std-Projects screens focus the first ACTIONABLE
         // card, else the top row.
         const selectables = this.maScreenKind !== undefined ?
@@ -8807,23 +8921,162 @@ export default defineComponent({
         this.consoleState.sheetIndex = firstAvailable !== -1 ? firstAvailable : Math.max(0, firstSelectable);
       });
     },
-    /** P26: A on the premium MA screen — a non-available press answers with
-     *  the CONCRETE reason (owner / turn / money / slots / threshold), never
-     *  a mute no-op. An AVAILABLE press opens the premium CONFIRMATION —
-     *  claiming/funding is a strategic commitment, never a bare A. */
-    activateMaItem(item: ConsoleMaItem | undefined): void {
-      if (item === undefined || this.maScreenKind === undefined) {
+    /** A = «Выбрать» on the overview — descend into the focused item's
+     *  detail stage. The SCREEN arms the descend origins (the pressed card's
+     *  and its emblem pedestal's rects) synchronously at the press. */
+    enterMaFocus(): void {
+      (this.$refs.maScreen as InstanceType<typeof ConsoleMaScreen> | undefined)?.enterFocus();
+    },
+    /** B on the detail stage (pre-commit) — fold back to the overview; the
+     *  browse layer was only parked, so selection and scroll survive. */
+    foldMaFocus(): void {
+      closeMaFocus();
+    },
+    /**
+     * A on the detail stage — the ONE commit of the MA workspace. Re-resolves
+     * the LIVE option path (the prompt may have moved while the stage was
+     * open) and submits the byte-identical nested OR response. The stage does
+     * NOT close: the flow enters `committing` (input absorbed), the ceremony
+     * is armed as a candidate + the embed claim is set, and the commit
+     * watchers decide the outcome (ceremony / payment step / honest refusal).
+     * A blocked press answers with the CONCRETE inline reason, never a mute
+     * no-op — the stage stays up for reading either way.
+     */
+    submitMaFocusCommit(): void {
+      if (!maFocusState.open || maFocusState.phase !== 'detail') {
+        return;
+      }
+      const item = this.maFocusItem;
+      const view = this.maFocusView;
+      if (item === undefined || view === undefined) {
         return;
       }
       if (this.actionBlockedReason !== '') {
-        this.showNotice(this.actionBlockedReason);
+        setMaFocusError(this.actionBlockedReason);
         return;
       }
-      if (!item.available) {
-        this.showNotice(consoleMaPressNotice(item));
+      if (!this.maFocusAvailable) {
+        setMaFocusError(this.maFocusBlockReason !== '' ? this.maFocusBlockReason : 'Unavailable right now');
         return;
       }
-      this.pendingMaConfirm = {kind: item.kind, name: item.name};
+      const found = item.kind === 'milestone' ?
+        findMilestoneOptionPath(this.playerView.waitingFor) :
+        findAwardOptionPath(this.playerView.waitingFor, this.awardNames);
+      if (found === undefined) {
+        setMaFocusError('Unavailable right now');
+        return;
+      }
+      const options = found.options as ReadonlyArray<{type: string, title: string | Message}>;
+      const innerIdx = options.findIndex((o) => o.type === 'option' && inputTitleText(o.title) === item.name);
+      if (innerIdx === -1) {
+        setMaFocusError('Unavailable right now');
+        return;
+      }
+      beginMaFocusCommit({gameAge: this.game.gameAge, undoCount: this.game.undoCount});
+      claimMaCeremonyEmbed(item.kind, item.name);
+      armMaCeremony({kind: item.kind, name: item.name, cost: view.cost, free: view.free});
+      this.armMaFocusSafety();
+      // Deliberately NOT `submitInnerOption` — that helper closes the console
+      // layers, and the whole point here is that the workspace stays up.
+      this.submit(wrapPath([...found.path, innerIdx], {type: 'option' as const}));
+    },
+    /** The committing beat may never hang: a commit with no verdict restores
+     *  the reversible detail with an honest reason. */
+    armMaFocusSafety(): void {
+      this.clearMaFocusSafety();
+      this.maFocusSafetyTimer = window.setTimeout(() => {
+        this.maFocusSafetyTimer = undefined;
+        if (maFocusState.phase === 'committing') {
+          abandonMaCeremonyEmbed();
+          disarmMaCeremony();
+          failMaFocusCommit('Unavailable right now');
+        }
+      }, MA_COMMIT_SAFETY_MS);
+    },
+    clearMaFocusSafety(): void {
+      if (this.maFocusSafetyTimer !== undefined) {
+        window.clearTimeout(this.maFocusSafetyTimer);
+        this.maFocusSafetyTimer = undefined;
+      }
+    },
+    /**
+     * The commit-outcome watcher body (pure decision: consoleMaFocus).
+     * Runs on every playerView commit AND on every ceremony-queue change —
+     * whichever arrives first (the queue is fed by NotificationLayer's own
+     * update hook, so the two race benignly).
+     */
+    evaluateMaFocusCommit(): void {
+      if (maFocusState.phase !== 'committing') {
+        return;
+      }
+      const committed = maFocusState.committedAt;
+      if (committed === undefined) {
+        return;
+      }
+      const models = maFocusState.kind === 'milestone' ? this.game.milestones : this.game.awards;
+      const model = models.find((m) => m.name === maFocusState.name);
+      const takenColor = model !== undefined && model.playerName !== undefined && model.playerName !== '' ?
+        model.color : undefined;
+      const outcome = maFocusCommitOutcome({
+        committing: true,
+        kind: maFocusState.kind,
+        name: maFocusState.name,
+        beat: this.maCurrentBeat,
+        takenByViewer: takenColor !== undefined && takenColor === this.thisPlayer.color,
+        takenByOther: takenColor !== undefined && takenColor !== this.thisPlayer.color,
+        paymentPromptUp: this.playerView.waitingFor?.type === 'payment',
+        viewAdvanced: this.game.gameAge !== committed.gameAge || this.game.undoCount !== committed.undoCount,
+      });
+      switch (outcome.kind) {
+      case 'wait':
+        return;
+      case 'ceremony':
+        this.clearMaFocusSafety();
+        if (this.maScreenKind === undefined || this.maFocusItem === undefined) {
+          // The stage is gone (external teardown) — consume the claimed beat
+          // deterministically; the board already shows the result.
+          abandonMaCeremonyEmbed();
+          resetMaFocus();
+          return;
+        }
+        beginMaFocusCeremony();
+        return;
+      case 'payment':
+        // Helion / Stormcraft: the claim's own payment step needs the
+        // standard payment surface — the workspace yields (today's exact
+        // behaviour for this fork of the flow); the still-armed ceremony
+        // then plays globally once the payment resolves.
+        this.clearMaFocusSafety();
+        releaseMaCeremonyEmbed();
+        resetMaFocus();
+        leaveWorkspace();
+        return;
+      case 'refused': {
+        this.clearMaFocusSafety();
+        abandonMaCeremonyEmbed();
+        disarmMaCeremony();
+        const reason = outcome.cause === 'raced' ?
+          (maFocusState.kind === 'milestone' ? 'Already claimed' : 'Already funded') :
+          (this.maFocusBlockReason !== '' ? this.maFocusBlockReason : 'Unavailable right now');
+        failMaFocusCommit(reason);
+        return;
+      }
+      default:
+        return;
+      }
+    },
+    /**
+     * The ceremony's OWN completion signal (the stage's timeline settled —
+     * never a parallel timeout): consume the beat, close the workspace. The
+     * screen's unmount hook performs the final state reset.
+     */
+    onMaCeremonyDone(): void {
+      if (maFocusState.phase !== 'ceremony') {
+        return;
+      }
+      beginMaFocusClosing();
+      abandonMaCeremonyEmbed();
+      leaveWorkspace();
     },
     /** X → «Осмотреть»: open the premium full-text reader for a dashboard
      *  item (works for taken / blocked items too — it is read-only). */
@@ -8837,41 +9090,18 @@ export default defineComponent({
     closeMaInspect(): void {
       this.maInspect = undefined;
     },
-    /** A in the reader → sponsor / claim when available: close the reader and
-     *  hand off to the existing premium confirm (never submits directly). */
+    /** A in the reader → close the reader and descend into the item's detail
+     *  stage (never submits directly — the stage is the confirmation). */
     confirmMaInspect(): void {
       const item = this.maInspectItem;
       this.maInspect = undefined;
-      if (item !== undefined && item.available) {
-        this.activateMaItem(item);
-      }
-    },
-    /** The MA confirm's A — re-resolves the LIVE option path (the prompt may
-     *  have moved while the modal was open) and submits the byte-identical
-     *  nested OR response; the ceremony is armed as a CANDIDATE and fires
-     *  only when the fresh view proves the claim/fund resolved. */
-    submitMaConfirm(): void {
-      const pending = this.pendingMaConfirm;
-      const view = this.maConfirmView;
-      this.pendingMaConfirm = undefined;
-      if (pending === undefined) {
+      if (item === undefined || this.maScreenKind === undefined) {
         return;
       }
-      const found = pending.kind === 'milestone' ?
-        findMilestoneOptionPath(this.playerView.waitingFor) :
-        findAwardOptionPath(this.playerView.waitingFor, this.awardNames);
-      if (found === undefined) {
-        this.showNotice('Unavailable right now');
-        return;
-      }
-      const sent = this.submitInnerOption(found, pending.name);
-      if (sent) {
-        armMaCeremony({
-          kind: pending.kind,
-          name: pending.name,
-          cost: view?.cost ?? 0,
-          free: view?.free ?? false,
-        });
+      const idx = this.maScreenItems.findIndex((it) => it.name === item.name);
+      if (idx !== -1) {
+        this.consoleState.sheetIndex = idx;
+        void this.$nextTick(() => this.enterMaFocus());
       }
     },
     activateSheetRow(row: ConsoleSheetRow | undefined): void {
@@ -9432,7 +9662,11 @@ export default defineComponent({
           return;
         }
         (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
-        armColonyTrade(selected.name as ColonyName, this.thisPlayer.color, {});
+        // The PRESSED cell — the origin of the pre-trade advance leg (a
+        // trade-offset card moves the track forward before the reward is
+        // read). Server truth as of the press; the manifest names where it
+        // lands.
+        armColonyTrade(selected.name as ColonyName, this.thisPlayer.color, {}, selected.trackPosition);
         armTradeFleet(selected.name as ColonyName, this.thisPlayer.color);
         // STRUCTURAL, like the build path beside it: a colony that pays in
         // production or plants has no follow-up stage to stand.
@@ -9561,7 +9795,11 @@ export default defineComponent({
       // the overview only when the WHOLE transaction has settled (its
       // `colonyTradeState.active` falling edge). Desktop is unaffected.
       (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
-      armColonyTrade(colonyName, this.thisPlayer.color, targets);
+      // …and the pressed cell, so a trade-offset card's forward step is a
+      // MOVE the player watches instead of a number that changed (see the
+      // overview path above).
+      armColonyTrade(colonyName, this.thisPlayer.color, targets,
+        this.coloniesForRail.find((c) => c.name === colonyName)?.trackPosition);
       armTradeFleet(colonyName, this.thisPlayer.color);
       // EMBEDDED OUTCOMES (north star): the player confirmed the trade INSIDE
       // the colony workspace, so its drawn payout (Pluto's income / colony
@@ -9796,6 +10034,19 @@ export default defineComponent({
         // FREE award funding rides the premium awards MA screen (its own
         // v-if renders it); openSheet treats it as the task surface.
         this.openSheet('awards');
+        // RESUME ≠ FRESH-OPEN: this is the task-restore door, so a suspended
+        // PRE-COMMIT detail re-seats exactly (kind, item, focus) — the stage
+        // mounts already open, no re-entrance cinematic. A wheel open never
+        // reads the draft.
+        const draft = maFocusState.draft;
+        if (draft !== undefined && draft.kind === 'award') {
+          const idx = this.maScreenItems.findIndex((it) => it.name === draft.name);
+          if (idx !== -1) {
+            this.consoleState.sheetIndex = idx;
+            openMaFocus(draft.kind, draft.name);
+          }
+          discardMaFocusDraft();
+        }
         return;
       }
       if (task.kind === 'colony') {

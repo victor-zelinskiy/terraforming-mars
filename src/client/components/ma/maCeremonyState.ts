@@ -83,6 +83,59 @@ export const maCeremonyState: MaCeremonyStateShape = reactive({
 // action") and holds nothing. Releases when the host advances the queue.
 registerAnimationHoldSupplier('ma-ceremony-own', () => maCeremonyState.current?.own === true);
 
+// ── The EMBEDDED presentation claim (the MA workspace's focus stage) ────────
+//
+// When the viewer commits FROM the MA workspace's detail stage, the ceremony
+// plays INSIDE that workspace (the hero emblem already on stage is the beat's
+// entry object) — the global `ConsoleMaCeremony` shell must not also present
+// the same beat (two emblems, two scenes). The claim is set at SUBMIT time and
+// matches exactly one own beat; the claimant presents it and calls
+// `advanceMaCeremony()` when its scene settles. Released on every exit path
+// (completion, refusal, degrade, unmount) — an orphaned claim would silence
+// the beat everywhere, which is worse than a double presentation.
+//
+// Remote beats and non-matching own beats are untouched: the global shell
+// keeps presenting them (the top strip legally plays over the workspace).
+export const maCeremonyEmbed = reactive({
+  claim: undefined as {kind: MaKind, name: string} | undefined,
+});
+
+export function claimMaCeremonyEmbed(kind: MaKind, name: string): void {
+  maCeremonyEmbed.claim = {kind, name};
+}
+
+export function releaseMaCeremonyEmbed(): void {
+  maCeremonyEmbed.claim = undefined;
+}
+
+/**
+ * Release the claim AND consume an already-CURRENT claimed beat. The global
+ * shell's one-shot nonce watch already fired (and skipped) while the claim
+ * stood, so a beat left current after a bare release would never be presented
+ * by anyone — the queue (and the `ma-ceremony-own` hold) would hang until the
+ * watchdog ceiling. One exit helper for every claimant teardown path.
+ */
+export function abandonMaCeremonyEmbed(now: number = Date.now()): void {
+  const claimedCurrent = maCeremonyEventEmbedded(maCeremonyState.current);
+  maCeremonyEmbed.claim = undefined;
+  if (claimedCurrent) {
+    advanceMaCeremony(now);
+  }
+}
+
+/** True when this event is the claimant's own — the global shell skips it. */
+export function maCeremonyEventEmbedded(event: MaCeremonyEvent | undefined): boolean {
+  const claim = maCeremonyEmbed.claim;
+  return claim !== undefined && event !== undefined && event.own &&
+    event.kind === claim.kind && event.name === claim.name;
+}
+
+/** Drop an armed own-submit candidate (a refused commit must not leave the
+ *  exact-cost arm behind to decorate an unrelated later claim). */
+export function disarmMaCeremony(): void {
+  maCeremonyState.pending = undefined;
+}
+
 /** Called at the viewer's own submit — carries the exact cost/free context. */
 export function armMaCeremony(event: {kind: MaKind, name: string, cost: number, free: boolean}, now: number = Date.now()): void {
   maCeremonyState.pending = {kind: event.kind, name: event.name, cost: event.cost, free: event.free, armedAt: now};
@@ -196,4 +249,5 @@ export function resetMaCeremony(): void {
   maCeremonyState.seeded = false;
   maCeremonyState.queue = [];
   maCeremonyState.current = undefined;
+  maCeremonyEmbed.claim = undefined;
 }

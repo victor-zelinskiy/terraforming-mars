@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {taskFor, taskServedByHost, isNativelyHandled, NATIVE_KINDS, SHELL_SECTION_KINDS, ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
+import {taskFor, taskServedByHost, isNativelyHandled, NATIVE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
 /* Synthetic playerViews — only the fields the router reads. */
@@ -176,6 +176,23 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
       expect(kind === 'projectCard' || kind === 'handSelect' || kind === 'colony' ||
         kind === 'colonyBonus' || kind === 'awardFunding' || kind === 'corpFirstAction').to.eq(true);
     }
+  });
+
+  it('SECTION_SERVED_KINDS suppress the DESKTOP fallback modal (and projectCard deliberately does not)', () => {
+    // The window between «announced» and «the screen opened» is a REAL state
+    // for every section kind: nothing of theirs is mounted, and the legacy
+    // MandatoryInputModal must still stay down — answering there bypasses the
+    // console's own door (the Miranda collect flew its card to a full-bleed
+    // reveal instead of into the colony that paid it).
+    for (const kind of SECTION_SERVED_KINDS) {
+      expect(SHELL_SECTION_KINDS.has(kind), `"${kind}" must be a section kind`).to.eq(true);
+    }
+    // …except the one whose degenerate shape has NO console screen, where the
+    // legacy modal is the honest fallback.
+    expect(SECTION_SERVED_KINDS.has('projectCard'),
+      'projectCard keeps the legacy modal for its degenerate shape').to.eq(false);
+    expect(SECTION_SERVED_KINDS.has('colonyBonus'),
+      'a remote colony-bonus collect is served by the colony workspace').to.eq(true);
   });
 
   it('the corp first action is served by the «Разыграно» table, NOT the host', () => {

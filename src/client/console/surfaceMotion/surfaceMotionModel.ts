@@ -46,7 +46,6 @@ export type SurfaceMotionId =
   | 'corp-first'
   | 'confirm'
   | 'trade-composer'
-  | 'ma-confirm'
   | 'colony-inspect'
   | 'ma-inspect'
   | 'effect-decision'

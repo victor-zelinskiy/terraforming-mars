@@ -1,0 +1,94 @@
+# The MILESTONES/AWARDS workspace — one flow, one emblem
+
+**Status: SHIPPED 2026-08-12.** The console «Награды»/«Достижения» screens are
+a full North-Star workspace: `Overview → Hero Detail → Commit → Ceremony
+inside the workspace → Settle → Close`. The old `ConsoleMaConfirm` modal is
+GONE from the console-native flow (the desktop `MaConfirmContent` path is
+untouched); the per-item CTA is gone from the overview.
+
+Guard: `tests/e2e/console-ma-workspace.spec.ts` (the full flow on a real
+human+MarsBot game). Unit: `tests/client/components/console/consoleMaFocus.spec.ts`,
+the embed-claim cases in `tests/client/components/ma/maCeremonyState.spec.ts`.
+
+## The pieces
+
+| Concern | File |
+| --- | --- |
+| Flow state (phases, draft, commit outcome — PURE) | `src/client/console/consoleMaFocus.ts` |
+| Descend/fold + ceremony choreography | `src/client/console/consoleMaFocusMotion.ts` |
+| The detail stage (renderer over 3 view-models) | `ConsoleMaFocusStage.vue` |
+| The screen (browse layer + stage host + `ConsoleWsHead`) | `ConsoleMaScreen.vue` |
+| Input / commands / submit / watchers / restore | `ConsoleShell.vue` (the `maFocus*` family) |
+| The ceremony queue + the EMBED CLAIM | `src/client/components/ma/maCeremonyState.ts` |
+
+## The flow contract
+
+- **Overview**: items are selectable WHOLES — no per-item CTA; the bar reads
+  `A Выбрать · X Осмотреть · LB/RB категория · B Закрыть/Свернуть`. EVERY
+  item is enterable (taken/blocked ones explain themselves on the stage).
+- **Descend** (`enterFocus` on the screen): arms the pressed card's rect (the
+  unfold source) + the emblem pedestal's rect (the FLIP source) and opens
+  `maFocusState`. The browse layer is PARKED (selection/scroll survive); the
+  card's own emblem goes `opacity: 0` the instant the hero carries it — ONE
+  physical object. Crumb: `НАГРАДЫ › <ИМЯ> › СПОНСОРСТВО` (milestones:
+  `ПОЛУЧЕНИЕ`); the stage word goes amber + `ЦЕРЕМОНИЯ` past the commit.
+- **The stage is the confirmation context**: condition, race/standings
+  (`buildMaInspect`), economy + slots (`buildMaConfirm`), ONE decision band,
+  ONE reserved status line (committing pulse / inline refusal / blocker).
+  `A` commits only when the LIVE waitingFor offers the option; a blocked `A`
+  writes the concrete inline reason (never a mute no-op, never a toast).
+- **Commit** (`submitMaFocusCommit`): re-resolves the option path, submits the
+  byte-identical nested OR response, `claimMaCeremonyEmbed` +
+  `armMaCeremony`, phase → `committing` (input absorbed by construction —
+  `maFocusAcceptsInput`). Deliberately NOT `submitInnerOption` (that helper
+  closes the console layers; the workspace must stay up). The stage PINS its
+  view at the commit (`heldView` — the live rebuild would repaint the paid
+  price with the NEXT one and drop the free flag with the consumed task).
+- **The verdict** is a pure decision (`maFocusCommitOutcome`), executed by
+  watchers on the ceremony queue AND on `gameAge`/`undoCount`:
+  `ceremony` (own beat current) · `payment` (Helion/Stormcraft — the claim's
+  own `SelectPayment`: the workspace yields, the still-armed ceremony plays
+  globally after) · `refused` (raced / stale → reversible detail + reason) ·
+  `wait`. A 15 s backstop (`MA_COMMIT_SAFETY_MS`) can never hang the beat.
+- **The ceremony plays ON the stage** (`runMaCeremonyStage`): detail releases
+  in place → the hero GLIDES (same DOM node) into the ceremony seat's inner
+  slot (the ring must FRAME the emblem — the slot is smaller than the ring) →
+  dressing + lines rise → the shared `playCeremonyBurst` fires over the seat →
+  dwell. The `ma-ceremony-own` hold keeps notifications queued as before.
+- **Close** rides the ceremony's OWN completion (`ceremony-done` →
+  `onMaCeremonyDone`): consume the beat (`abandonMaCeremonyEmbed`),
+  `leaveWorkspace()`; the screen's unmount hook does the final reset. Never a
+  parallel timeout.
+
+## The EMBED CLAIM (maCeremonyState)
+
+`claimMaCeremonyEmbed(kind, name)` at submit → the global `ConsoleMaCeremony`
+SKIPS the matching own beat (it would be a second emblem over the stage's).
+The claimant advances the queue when its scene settles. **Every teardown path
+must call `abandonMaCeremonyEmbed()`** — it releases the claim AND consumes an
+already-current claimed beat (the global shell's one-shot nonce watch already
+fired and skipped it; a bare release would strand the queue and pin the
+`ma-ceremony-own` hold until the 35 s ceiling). Remote beats and foreign own
+beats stay global (the top strip legally plays over the workspace).
+
+## RESUME ≠ FRESH-OPEN
+
+A lateral move / defer under a live PRE-COMMIT detail writes the
+suspended-instance DRAFT (`maFocusState.draft`, screen `beforeUnmount`). ONLY
+the task-restore door (`openShellTaskSurface` → `awardFunding`) re-seats it —
+same item, same focus, stage mounts already open (no `appear` on the
+transition = no re-entrance cinematic; `parkMaBrowse` in `mounted()` keeps the
+browse parked). A wheel open never reads the draft; a plain B-close and the
+task's end (`awardFundingActive` falling edge) discard it.
+
+## Known forks and edges
+
+- **True solo**: milestones/awards are DISABLED by the rules
+  (`Game.allAwardsFunded()` → `players.length === 1`), so the commit path is
+  testable only with ≥2 seats (the e2e uses `automa` — human + MarsBot).
+- **Payment fork**: Helion (heat-as-M€) / Stormcraft answer the claim with a
+  real `SelectPayment` — the workspace yields to the standard payment task
+  (today's exact pre-rework behaviour) and the ceremony plays globally. An
+  in-workspace «ОПЛАТА» step is future work.
+- The stage teardown mid-commit degrades gracefully: the claim is abandoned,
+  the beat (when it arrives) plays on the global shell.

@@ -1,5 +1,17 @@
 import {expect} from 'chai';
-import {advanceMaCeremony, armMaCeremony, maCeremonyState, observeMaCeremony, resetMaCeremony} from '@/client/components/ma/maCeremonyState';
+import {
+  advanceMaCeremony,
+  armMaCeremony,
+  claimMaCeremonyEmbed,
+  releaseMaCeremonyEmbed,
+  abandonMaCeremonyEmbed,
+  disarmMaCeremony,
+  maCeremonyEmbed,
+  maCeremonyEventEmbedded,
+  maCeremonyState,
+  observeMaCeremony,
+  resetMaCeremony,
+} from '@/client/components/ma/maCeremonyState';
 import type {Color} from '@/common/Color';
 
 /**
@@ -108,5 +120,57 @@ describe('maCeremonyState', () => {
     armMaCeremony({kind: 'award', name: 'Banker', cost: 0, free: true}, 1000);
     observeMaCeremony(view({awards: [{name: 'Banker', playerName: 'Me', color: me}]}), 1100);
     expect(maCeremonyState.current).to.deep.include({free: true, cost: 0, own: true});
+  });
+
+  // ── The EMBEDDED presentation claim (the MA workspace's focus stage) ──────
+  describe('the embed claim', () => {
+    const ownBeat = () => {
+      seed();
+      armMaCeremony({kind: 'milestone', name: 'Mayor', cost: 8, free: false}, 1000);
+      observeMaCeremony(view({milestones: [{name: 'Mayor', playerName: 'Me', color: me}]}), 1100);
+    };
+
+    it('matches ONLY the claimed own beat — remote and foreign beats stay global', () => {
+      claimMaCeremonyEmbed('milestone', 'Mayor');
+      ownBeat();
+      expect(maCeremonyEventEmbedded(maCeremonyState.current)).to.eq(true);
+      expect(maCeremonyEventEmbedded({...maCeremonyState.current!, own: false})).to.eq(false);
+      expect(maCeremonyEventEmbedded({...maCeremonyState.current!, name: 'Banker'})).to.eq(false);
+      releaseMaCeremonyEmbed();
+      expect(maCeremonyEventEmbedded(maCeremonyState.current)).to.eq(false);
+    });
+
+    it('abandon consumes an already-CURRENT claimed beat (the global shell skipped it)', () => {
+      claimMaCeremonyEmbed('milestone', 'Mayor');
+      ownBeat();
+      abandonMaCeremonyEmbed(1200);
+      expect(maCeremonyEmbed.claim).to.eq(undefined);
+      // The beat is consumed — the queue moved on, the own-hold releases.
+      expect(maCeremonyState.current).to.eq(undefined);
+    });
+
+    it('abandon BEFORE the beat arrived only releases — the global shell then presents it', () => {
+      claimMaCeremonyEmbed('milestone', 'Mayor');
+      seed();
+      abandonMaCeremonyEmbed(1050);
+      expect(maCeremonyEmbed.claim).to.eq(undefined);
+      armMaCeremony({kind: 'milestone', name: 'Mayor', cost: 8, free: false}, 1060);
+      observeMaCeremony(view({milestones: [{name: 'Mayor', playerName: 'Me', color: me}]}), 1100);
+      expect(maCeremonyState.current?.own).to.eq(true);
+      expect(maCeremonyEventEmbedded(maCeremonyState.current)).to.eq(false);
+    });
+
+    it('a refused commit disarms the pending candidate', () => {
+      seed();
+      armMaCeremony({kind: 'award', name: 'Banker', cost: 14, free: false}, 1000);
+      disarmMaCeremony();
+      expect(maCeremonyState.pending).to.eq(undefined);
+    });
+
+    it('the game boundary clears the claim with everything else', () => {
+      claimMaCeremonyEmbed('award', 'Banker');
+      resetMaCeremony();
+      expect(maCeremonyEmbed.claim).to.eq(undefined);
+    });
   });
 });

@@ -103,9 +103,9 @@ function isPickBridgeHidden(): boolean {
  *    fires when its parent unmounts wholesale, so a child ownership would
  *    leak past the parent's teardown; the center's `--behind` recession
  *    carries its extra depth instead;
- *  - the MA screen + the generic bottom sheet keep their own LIGHT dims by
- *    design (0.34 quick-glance / bottom-sheet 0.6 — the board must stay
- *    readable behind them), so the full shade must not stack on top;
+ *  - the MA screen + the generic bottom sheet keep their OWN dims by design
+ *    (the MA workspace's depth-graded backdrop / bottom-sheet 0.6), so the
+ *    full shade must not stack on top;
  *  - Info Mode is a Y-layer that opens OVER arbitrary surfaces (z 11560,
  *    above the shade) and carries its own full dim;
  *  - a SECTION (colonies / hydro) is a workspace, not a modal — no dim.

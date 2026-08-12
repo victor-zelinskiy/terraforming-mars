@@ -68,7 +68,7 @@
 <script lang="ts">
 import {defineComponent} from 'vue';
 import MaHeroArt from '@/client/components/ma/MaHeroArt.vue';
-import {advanceMaCeremony, maCeremonyState, MaCeremonyEvent} from '@/client/components/ma/maCeremonyState';
+import {advanceMaCeremony, maCeremonyState, maCeremonyEventEmbedded, MaCeremonyEvent} from '@/client/components/ma/maCeremonyState';
 import {maDisplayName} from '@/client/components/ma/maArt';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
@@ -128,6 +128,13 @@ export default defineComponent({
     $t,
     showCurrent(): void {
       if (this.event === undefined) {
+        return;
+      }
+      // The MA workspace's focus stage CLAIMED this own beat — the ceremony
+      // plays INSIDE the workspace (the hero emblem already on stage is its
+      // entry object). The claimant advances the queue when its scene
+      // settles; presenting here too would put two emblems on screen.
+      if (maCeremonyEventEmbedded(this.event)) {
         return;
       }
       if (this.hideTimer !== undefined) {

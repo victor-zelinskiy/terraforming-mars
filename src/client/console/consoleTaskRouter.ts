@@ -138,6 +138,27 @@ export const SHELL_NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['act
  */
 export const SHELL_SECTION_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['projectCard', 'handSelect', 'colony', 'colonyBonus', 'awardFunding', 'corpFirstAction']);
 
+/**
+ * …of those, the kinds whose console surface ALWAYS exists — the answer to
+ * «may the DESKTOP fallback modal rise for this prompt?».
+ *
+ * A section prompt has a deliberate window in which none of its DOM is
+ * mounted: it is ANNOUNCED first (`consoleMandatoryGate`) and its screen opens
+ * on the player's press. Judging «is this served?» by what is on screen makes
+ * that window look unserved, and the legacy `MandatoryInputModal` rises into
+ * it — which is how the remote colony-bonus collect («Заберите 1 карту с
+ * колонии Миранда») shipped as a legacy dialog over the board, and answering
+ * it THERE bypassed the console's own door: no entry armed, no claim, so the
+ * card flew to a full-bleed reveal instead of into the colony that paid it.
+ *
+ * `projectCard` is deliberately ABSENT. Its two real shapes (play from hand /
+ * a standard project) suppress the modal through `useModalForCurrentInput`
+ * already; the DEGENERATE third (candidates that are neither) has no console
+ * screen at all, and the legacy modal is its honest fallback — suppressing it
+ * would leave the player with a prompt and nowhere to answer it.
+ */
+export const SECTION_SERVED_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['handSelect', 'colony', 'colonyBonus', 'awardFunding', 'corpFirstAction']);
+
 /** Where the player is standing right now, as the surface map sees it. */
 export type ShellSurfaceContext = {
   /** `consoleState.section`. */
