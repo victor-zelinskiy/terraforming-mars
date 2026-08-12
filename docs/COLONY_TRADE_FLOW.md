@@ -283,13 +283,20 @@ the entry CONTEXT, the header, and what B means before the commit.
      the TV cap (58rem × the TV scale = 2320 px) took ~880 px off the zone —
      and because the colony fit is `min(scaleW, scaleH)`, the tiles lost a
      third of their width to a purely horizontal constraint.
-  2. **The FLEET DOCK berths in the HOST's header** (`colonyFleetBerth` — the
-     host publishes a selector, the section teleports the one instance into
-     it). It shares the crumb-tail cell with the «N/M вариант» chip and they
-     CROSSFADE: entering the step the ships take the berth, B gives it back.
-     A dock floating in the content area was both the wrong place (spatial
-     memory: the ships live on the header's right edge in every entry) and a
-     stolen row of grid height.
+  2. **The FLEET DOCK berths in the HOST header's TRAILING zone**
+     (`colonyFleetBerth` — the host publishes a selector, the section
+     teleports the one instance into it; the berth element lives in
+     `ConsoleWsHead`'s `#trailing` slot, `.con-wshead__trailing`). That zone is
+     the header's RESERVED RIGHT EDGE — the very cell the standalone «Колонии»
+     header renders the dock in — so the ships sit at the same size, the same
+     spacing and the same place for every entry point; the «N/M вариант» chip
+     stays in the crumb-tail cell and simply yields while the step stands.
+     ⚠️ The berth must be a REAL flex cell: it first shipped inside the
+     crumb-tail's absolute shrink-to-fit box, whose width is 0 — the dock's
+     `flex-wrap: wrap` then folded the fleet chips into a VERTICAL stack
+     mid-line, the one visual divergence on the one screen whose whole point
+     is «я попал туда же». A dock floating in the content area is equally
+     wrong (spatial memory, plus a stolen row of grid height).
   3. **The composer's own chrome yields** — panel padding and the setup
      column's gap/centring are the SETUP layout's, and every row of them the
      host keeps is a row of colony tiles the player loses.
@@ -302,6 +309,30 @@ the entry CONTEXT, the header, and what B means before the commit.
 - **B is one logical level**: colony focus → colony selection → the card's
   variant, still selected, floater still on the card. Past the trade's commit
   the standard resolution owns B (collapse).
+- **«СВЕРНУТЬ» mid-resolution suspends the EXACT instance (2026-08-12).** The
+  frames park at full depth (`card-actions ⊃ colonies ⊃ hand`); what the
+  frames cannot carry — the composer's descent — survives as the workspace's
+  DESCENT DRAFT (`consoleCardActionsUi.draft`, module state, written at the
+  descend and cleared only by a genuine fold/close), beside the entry lock
+  (`colonyTradeEntryState`). RESUME has exactly two doors — the board-home
+  restore card (A/B) and the notification CTA, both through
+  `restoreDeferredTask` — and re-seats the whole chain: the mount-time
+  decision is the pure `actionWorkspaceRestorePlan` (host-scoped: a claim is
+  only ever adopted from `host === 'card-actions'` — adopting the colony
+  resolution's claim is how «ДЕЙСТВИЯ КАРТ › ПЛУТОН › ПЛУТОН · СБРОС КАРТЫ»
+  once stood over a browse body), and the composer republishes the colonies
+  step zone from its own `mounted()` (the change-watcher cannot fire for a
+  step that was already hosted before the mount). A chain whose descent
+  cannot be rebuilt (a reload dropped the draft) FOLDS honestly — the
+  mandatory gate re-announces and A rebuilds the plain colonies chain; a
+  mixed surface is the one forbidden outcome.
+- **A wheel-open beside the suspended flow is a FRESH instance.** `openSheet`
+  never restores: «Действия карт» opened by hand while the resolution is
+  parked is an ordinary clean browse (no Pluto crumb, no adopted claim,
+  read-only via `actionBlockedReason` — «Сначала завершите текущее
+  действие»), and closing it leaves the park untouched. The parked chain
+  still `stackServes` the discard, so the leak detector stays quiet and the
+  restore card remains the way back.
 - Module: `src/client/console/colonyTrade/colonyTradeEntry.ts` (pure).
   Guards: `tests/client/components/console/colonyTradeEntry.spec.ts`,
   `tests/cards/colonies/TitanFloatingLaunchPad.spec.ts`,

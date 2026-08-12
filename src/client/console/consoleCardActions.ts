@@ -313,6 +313,17 @@ export function defaultRepeatFilter(): ActionFilterState {
 }
 
 /**
+ * The workspace's DESCENT DRAFT — which action variant the focus stage is
+ * standing on. The composer itself is component state and dies with the
+ * surface, so this is the half of the suspended-instance model that must
+ * OUTLIVE a park («свернуть» unmounts every surface; the frames keep the
+ * navigation, THIS keeps the presentation identity): written at the descent,
+ * cleared on a genuine fold/close, deliberately NOT cleared by an unmount
+ * whose frame is still known (live or parked) — that unmount IS the park.
+ */
+export type ActionWorkspaceDraft = {cardName: CardName, nodeIndex: number};
+
+/**
  * Module-level UI state the SHELL reads for the command bar (mirrors
  * `consoleJournalUi`): the persisted filter (survives close/reopen) + whether
  * the confirm sub-overlay is open (so the bar shows Confirm/Cancel instead of
@@ -321,7 +332,87 @@ export function defaultRepeatFilter(): ActionFilterState {
 export const consoleCardActionsUi = reactive({
   filter: defaultCardActionsFilter() as ActionFilterState,
   confirmOpen: false,
+  /** The suspended-instance presentation record — see ActionWorkspaceDraft. */
+  draft: undefined as ActionWorkspaceDraft | undefined,
 });
+
+// ── THE RESTORE PLAN — what a mounting Action Center re-seats itself as ─────
+
+/** The signals the mounting surface feeds the pure restore decision. */
+export type ActionRestoreInput = {
+  /** A repeat-pick instance never adopts the shared workspace state. */
+  repeat: boolean;
+  /** A park exists SOMEWHERE — this mount is a fresh LOOK the player opened
+   *  by hand, never a resume: the parked chain's way back is the board-home
+   *  restore card, and adopting its state here is the «half-restored» bug. */
+  collapsed: boolean;
+  /** The colonies frame is hosted by this workspace (the trade's second door
+   *  mid-flow — the LIVE stack, so a parked chain never answers true). */
+  hostedColonies: boolean;
+  /** The surviving descent draft, if any. */
+  draft: ActionWorkspaceDraft | undefined;
+  /** The draft's card still has an action entry (server truth at mount). */
+  draftEntryExists: boolean;
+  /** The live outcome claim's host ('' fields when nothing is claimed). */
+  claimHost: string | undefined;
+  claimCard: string;
+  claimNodeIndex: number;
+  claimAdmitsDeckCheck: boolean;
+};
+
+/**
+ * What a mounting Action Center does about state that predates it:
+ *  · `seat-step`    — the second-door chain is coming back: re-seat the
+ *                     composer on the SAME card + variant so the hosted
+ *                     colonies step has its host again;
+ *  · `seat-outcome` — this workspace's own committed outcome was minimized:
+ *                     re-open ON the committed stage (the pre-existing path);
+ *  · `fold-step`    — a colonies step is hosted but its descent cannot be
+ *                     rebuilt (no draft / the card left the entries): fold the
+ *                     whole workspace honestly — the mandatory gate re-announces
+ *                     the pending prompt and A rebuilds the plain chain. A
+ *                     mixed surface (foreign crumb over a browse body) is the
+ *                     one forbidden outcome;
+ *  · `none`         — an ordinary fresh browse.
+ */
+export type ActionRestorePlan =
+  | {kind: 'none'}
+  | {kind: 'seat-step', composer: ActionWorkspaceDraft}
+  | {kind: 'seat-outcome', composer: ActionWorkspaceDraft, outcome: 'deck-check' | 'draw'}
+  | {kind: 'fold-step'};
+
+/**
+ * PURE: the mount-time restore decision. The two seats are mutually exclusive
+ * by construction — a hosted colonies step is pre-commit for THIS workspace
+ * (the trade claims host 'colonies', never 'card-actions'), so the step wins
+ * whenever it stands: the child frame needs its host seated before anything
+ * else matters.
+ *
+ * ⚠️ The claim is only ever adopted from a claim THIS workspace raised
+ * (`claimHost === 'card-actions'`). The old bare «is anything claimed» check
+ * is how a parked Pluto resolution (host 'colonies', sourceCard 'Pluto') got
+ * seated here as composer card «Плутон» — the half-restored screen with one
+ * workspace's breadcrumb over another workspace's body.
+ */
+export function actionWorkspaceRestorePlan(input: ActionRestoreInput): ActionRestorePlan {
+  if (input.repeat || input.collapsed) {
+    return {kind: 'none'};
+  }
+  if (input.hostedColonies) {
+    if (input.draft !== undefined && input.draftEntryExists) {
+      return {kind: 'seat-step', composer: input.draft};
+    }
+    return {kind: 'fold-step'};
+  }
+  if (input.claimHost === 'card-actions' && input.claimCard !== '') {
+    return {
+      kind: 'seat-outcome',
+      composer: {cardName: input.claimCard as CardName, nodeIndex: input.claimNodeIndex},
+      outcome: input.claimAdmitsDeckCheck ? 'deck-check' : 'draw',
+    };
+  }
+  return {kind: 'none'};
+}
 
 // ── filter predicates (BY VARIANT — mirror actionModel's entry-level rules) ──
 

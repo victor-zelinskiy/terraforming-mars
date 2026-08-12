@@ -35,12 +35,15 @@
 
 import {reactive} from 'vue';
 import {
+  ElectionState,
   GamepadIntent,
   GamepadSnapshot,
   PollState,
+  decisiveEdge,
   diffSnapshots,
   electActivePad,
   emptySnapshot,
+  initialElectionState,
   initialPollState,
   pollStatePending,
   readSnapshot,
@@ -81,6 +84,44 @@ let connectedCount = 0;
 const POLL_INTERVAL_MS = 8;
 const prevSnapshots = new Map<number, GamepadSnapshot>();
 const pollStates = new Map<number, PollState>();
+let election: ElectionState = initialElectionState();
+
+/**
+ * FIELD DIAGNOSTICS — deliberately always on, deliberately tiny.
+ *
+ * "The pad works in other games but not here" is unanswerable from a normal
+ * log: the page either never saw the device (a platform/Steam-Input problem,
+ * nothing we can fix in JS) or saw it and dropped its intents (ours). These
+ * lines separate those two worlds on the FIRST report, with no special build
+ * and no `?gpDebug` URL the packaged shell cannot even reach. They fire only on
+ * rare events — connect, disconnect, a change of driver, and a throttled
+ * "someone else is pressing buttons" — so the poll loop stays DOM-free and
+ * allocation-free at rest (perf invariant 8). The Electron main process
+ * forwards `[gamepad]` lines to stdout, where the Steam Deck wrapper's
+ * redirect captures them (electron/consoleExport.ts).
+ */
+function gpLog(message: string): void {
+  try {
+    console.log(`[gamepad] ${message}`);
+  } catch (err) {
+    // A console-less host must never break input.
+  }
+}
+
+/** One pad, described for the log: everything needed to tell devices apart. */
+function describePad(pad: Gamepad): string {
+  return `#${pad.index} "${pad.id}" mapping=${pad.mapping || 'none'} ` +
+    `buttons=${pad.buttons.length} axes=${pad.axes.length}`;
+}
+
+/** The FULL slot table as the page currently sees it (null slots included). */
+function describeAllPads(): string {
+  const pads = navigatorPads();
+  const seen = pads
+    .map((pad, slot) => pad === null ? `#${slot} —` : describePad(pad))
+    .join(' | ');
+  return `slots=${pads.length} [${seen}]`;
+}
 
 function navigatorPads(): ReadonlyArray<Gamepad | null> {
   if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') {
@@ -126,7 +167,11 @@ function stopLoop(): void {
 }
 
 /** One connected pad's contribution to a poll frame. */
-type PadContribution = {index: number, id: string, active: boolean, intents: Array<GamepadIntent>};
+type PadContribution = {index: number, id: string, active: boolean, edge: boolean, intents: Array<GamepadIntent>};
+
+/** Rate limit for the "a non-driving pad is being pressed" diagnostic. */
+const SUPPRESSED_LOG_INTERVAL_MS = 3000;
+let suppressedLoggedAt = 0;
 
 function pollOnce(now: number): void {
   const pads = navigatorPads();
@@ -161,7 +206,7 @@ function pollOnce(now: number): void {
       prevSnapshots.set(pad.index, next);
       pollStates.set(pad.index, initialPollState());
       if (active) {
-        engaged.push({index: pad.index, id: pad.id, active: true, intents: []});
+        engaged.push({index: pad.index, id: pad.id, active: true, edge: false, intents: []});
       }
       continue;
     }
@@ -183,23 +228,40 @@ function pollOnce(now: number): void {
     const {intents, state: nextState} = diffSnapshots(prev, next, state, now, deadzone);
     prevSnapshots.set(pad.index, next);
     pollStates.set(pad.index, nextState);
-    engaged.push({index: pad.index, id: pad.id, active, intents});
+    engaged.push({index: pad.index, id: pad.id, active, edge: decisiveEdge(intents), intents});
   }
 
-  // ── PASS 2: elect exactly ONE driving pad (STICKY), then dispatch ONLY its
-  // intents. This is the anti-double-dispatch rule for multi-pad hosts: Steam
-  // Input on a Steam Machine exposes one physical controller as TWO mirrored
-  // "standard" pads, and dispatching from both doubled every edge (a d-pad tap
-  // skipped two rows; a toggle wheel opened-then-closed). See `electActivePad`.
-  const elected = electActivePad(engaged, gamepadCoreState.activeIndex);
-  const chosen = engaged.find((p) => p.index === elected);
-  if (chosen !== undefined && elected !== gamepadCoreState.activeIndex) {
+  // ── PASS 2: elect exactly ONE driving pad, then dispatch ONLY its intents.
+  // This is the anti-double-dispatch rule for multi-pad hosts: Steam Input on a
+  // Steam Machine exposes one physical controller as TWO mirrored "standard"
+  // pads, and dispatching from both doubled every edge (a d-pad tap skipped two
+  // rows; a toggle wheel opened-then-closed). Incumbency follows who is ACTING,
+  // not who looks busy — a pad resting off-centre must not be able to hold the
+  // wheel against a controller someone is actually pressing. See `electActivePad`.
+  const previous = election.index;
+  election = electActivePad(engaged, election, now);
+  const chosen = engaged.find((p) => p.index === election.index);
+  if (chosen !== undefined && election.index !== previous) {
     gamepadCoreState.activeIndex = chosen.index;
     gamepadCoreState.activeId = chosen.id;
     updateDetectedGlyphSet(chosen.id);
+    gpLog(`driver → #${chosen.index} "${chosen.id}" (was #${previous})`);
   }
   if (chosen === undefined) {
     return;
+  }
+
+  // The smoking gun for "my other controller does nothing": a pad DID act this
+  // frame and is not the one driving. Expected briefly for a Steam Input mirror
+  // of the pad in your hands; sustained, it means real input is being dropped.
+  // (Throttle window checked FIRST — a plain number compare, so the common
+  // "someone is playing normally" frame allocates nothing here.)
+  if (now - suppressedLoggedAt >= SUPPRESSED_LOG_INTERVAL_MS &&
+      engaged.some((p) => p.edge && p.index !== election.index)) {
+    suppressedLoggedAt = now;
+    const who = engaged.filter((p) => p.edge && p.index !== election.index)
+      .map((p) => `#${p.index} "${p.id}"`).join(', ');
+    gpLog(`input from NON-driving pad(s) ${who} — driver is #${election.index} "${gamepadCoreState.activeId}"`);
   }
   // Any activity from the driving pad (re-)enters gamepad mode and re-arms the
   // pointer-exit hysteresis so slow desk drift can't accumulate — this fires
@@ -218,7 +280,11 @@ function pollOnce(now: number): void {
 function onConnected(e: GamepadEvent): void {
   connectedCount++;
   inputModeState.padsConnected = connectedCount;
-  if (gamepadCoreState.activeIndex === -1) {
+  gpLog(`connected ${describePad(e.gamepad)} — pads=${connectedCount} ${describeAllPads()}`);
+  if (election.index === -1) {
+    // No driver yet: this pad takes the wheel, but with edgeAt = 0 ("never
+    // acted") so the first pad someone actually PRESSES can still take over.
+    election = {index: e.gamepad.index, edgeAt: 0};
     gamepadCoreState.activeIndex = e.gamepad.index;
     gamepadCoreState.activeId = e.gamepad.id;
     updateDetectedGlyphSet(e.gamepad.id);
@@ -233,10 +299,12 @@ function onDisconnected(e: GamepadEvent): void {
   inputModeState.padsConnected = connectedCount;
   prevSnapshots.delete(e.gamepad.index);
   pollStates.delete(e.gamepad.index);
-  if (e.gamepad.index === gamepadCoreState.activeIndex) {
+  gpLog(`disconnected ${describePad(e.gamepad)} — pads=${connectedCount}`);
+  if (e.gamepad.index === election.index) {
     // The driving pad went away: drop to pointer mode (graceful — the W3C
     // disconnect story) and let any remaining pad re-elect itself on its
     // next input.
+    election = initialElectionState();
     gamepadCoreState.activeIndex = -1;
     gamepadCoreState.activeId = '';
     exitGamepadMode();
@@ -282,6 +350,7 @@ export function installGamepadCore(): void {
     }
   }
   inputModeState.padsConnected = connectedCount;
+  gpLog(`installed — pads=${connectedCount} ${describeAllPads()}`);
   if (connectedCount > 0) {
     startLoop();
   }
@@ -298,6 +367,9 @@ export function uninstallGamepadCore(): void {
   document.removeEventListener('visibilitychange', onVisibilityChange);
   prevSnapshots.clear();
   pollStates.clear();
+  election = initialElectionState();
+  gamepadCoreState.activeIndex = -1;
+  gamepadCoreState.activeId = '';
   connectedCount = 0;
   inputModeState.padsConnected = 0;
   // Leaving the game screen: drop back to pointer presentation and remove

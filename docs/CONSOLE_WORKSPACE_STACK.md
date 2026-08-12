@@ -493,3 +493,70 @@ hand's play press · the colony trade · the MA / sheet / std-project row
 activations. Already correct and left alone: the colonies' trade reason and the
 hydro screen's `turnState` (both key on the viewer's own pending input); the
 journal, which is a VIEW and is deliberately blocked only by a live placement.
+
+## RESUME ≠ FRESH-OPEN (2026-08-12) — the suspended instance and its two doors
+
+Played by hand: «Действия карт» → «Летающая платформа» → «Выбрать колонию» →
+Плутон → торговля → the mandatory discard → B (свернуть) → A on the prompt
+card. Expected: the exact suspended phase back. Got: the blue-actions BROWSE
+body under the parked flow's breadcrumb — «ДЕЙСТВИЯ КАРТ › ПЛУТОН › ПЛУТОН ·
+СБРОС КАРТЫ» — with everything blocked. One presentation from one workspace,
+one navigation context from another.
+
+### The three roots
+
+1. **The mount-time re-seat adopted a FOREIGN claim.** ConsoleCardActions'
+   `mounted()` keyed its «returning from a collapse» branch on the bare
+   `workspaceOutcomeClaimed()`. During a colony resolution the live claim is
+   the COLONIES' (`host: 'colonies'`, `sourceCard: 'Pluto'` — a colony, not a
+   card), so the composer was seated on `cardName: 'Плутон'`: the crumb read
+   the ghost subject, `composerEntry` was undefined so nothing rendered, and
+   no descend episode ran so the browse grid stayed visible underneath
+   (`--parked` only cuts pointer events; visibility belongs to the episode).
+   Worse, closing that ghost via `closeComposer` released the colonies' claim
+   — a fresh look MUTATED the suspended flow's state.
+2. **The runtime descent did not survive the park.** The composer draft (card
+   + variant) is component state; the park unmounts every surface. The frames
+   kept the navigation (`card-actions ⊃ colonies ⊃ hand`) but nothing could
+   rebuild the presentation, and the colonies step's teleport zone is
+   published by the composer — no composer, no zone, so the whole chain below
+   rendered nowhere while the stack (and the crumb) said otherwise.
+3. **`openSheet` conflated the two intents.** Its first line routed a parked
+   kind into the FULL restore, so the wheel's «посмотреть» and the prompt
+   card's «продолжить» were one code path — and both landed in the broken
+   half-restore.
+
+### The model now
+
+- **A suspended instance = the parked frames (navigation) + a module-level
+  DESCENT DRAFT (presentation) + server truth (authoritative state).**
+  `consoleCardActionsUi.draft {cardName, nodeIndex}` is written at the
+  descend, survives any unmount whose frame is still `workspaceFrameKnown`
+  (that unmount IS the park), and dies on a genuine fold/close. The entry
+  lock (`colonyTradeEntryState`) already lived by the same rule.
+- **The mount-time decision is pure and HOST-SCOPED** —
+  `actionWorkspaceRestorePlan` (consoleCardActions.ts, unit-tested):
+  `seat-step` (hosted colonies + draft + live entry) · `seat-outcome` (ONLY
+  `claimHost === 'card-actions'`) · `fold-step` (hosted step, descent not
+  rebuildable → fold the whole workspace; the mandatory gate re-announces —
+  a mixed surface is the forbidden outcome) · `none`. `collapsed` (a park
+  exists) always answers `none`: a hand-open beside a park adopts NOTHING.
+- **A host must republish its step zone from `mounted()`** when the step was
+  hosted before the host existed — a change-watcher cannot fire true→true
+  (ConsoleActionComposer.mounted → `setWorkspaceFrameSlot('card-actions', …)`).
+- **RESUME has exactly two doors** — the board-home restore card (A and B)
+  and the notification CTA, both `restoreDeferredTask` — plus the
+  PROMPT-routed doors (`restoreParkedWorkspace` inside `openHandWorkspace` /
+  `openColoniesForPrompt`), because a server demand's home is the parked
+  chain. **`openSheet` never restores**: a wheel open is a FRESH instance
+  beside the park — clean browse, `actionBlockedReason` makes it read-only,
+  closing it touches nothing, and it never un-defers while a park is owed
+  (`parked non-empty ⇒ deferred` holds).
+- `closeComposer` releases only a claim whose `host` is this workspace's own.
+
+Fenced by the `actionWorkspaceRestorePlan` matrix in
+`tests/client/components/console/consoleCardActions.spec.ts`. The fleet-dock
+half of the same field report (vertical chips in the hosted entry) is a
+separate root — the berth lived in the crumb-tail's absolute cell instead of
+the header's trailing zone — recorded in `docs/COLONY_TRADE_FLOW.md` § THE
+SECOND DOOR.

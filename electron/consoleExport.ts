@@ -33,6 +33,14 @@ export interface ConsoleEntry {
 const MAX_ENTRIES = 20000;
 
 /**
+ * Renderer console lines starting with this prefix are ALSO echoed to
+ * main-process stdout, so they survive into the packaged/Steam Deck log without
+ * anyone having to trigger an export. Kept to one narrow prefix on purpose:
+ * mirroring the whole console would flood that shared log file.
+ */
+const FORWARDED_PREFIX = '[gamepad]';
+
+/**
  * The rich argument-formatter, as PLAIN JS SOURCE — objects EXPANDED (the whole point of the
  * export). It is a STRING on purpose: it is injected verbatim into the renderer main world (see
  * CONSOLE_CAPTURE), so it must not go through `.toString()` of a TS function — a transpiler
@@ -303,10 +311,19 @@ export function installConsoleCapture(app: App, win: BrowserWindow): ConsoleExpo
   // Dual-signature tolerant fallback capture (modern event object OR legacy positional args).
   win.webContents.on('console-message', (...args: unknown[]) => {
     const first = args[0] as Record<string, unknown> | undefined;
-    if (first !== undefined && typeof first === 'object' && typeof first.message === 'string') {
-      capTo(fallback, normalizeConsoleLevel(first.level), String(first.message), '');
-    } else {
-      capTo(fallback, normalizeConsoleLevel(args[1]), String(args[2] ?? ''), '');
+    const modern = first !== undefined && typeof first === 'object' && typeof first.message === 'string';
+    const level = normalizeConsoleLevel(modern ? first.level : args[1]);
+    const text = modern ? String(first.message) : String(args[2] ?? '');
+    capTo(fallback, level, text, '');
+    // FIELD DIAGNOSTICS: renderer console output is otherwise reachable ONLY
+    // through a manual export — which is exactly what a player reporting "my
+    // controller does nothing" cannot be walked through, since they have no
+    // working input to click the export button with. Echoing this one prefix to
+    // MAIN-process stdout lands it in the Steam Deck wrapper's log file (that
+    // wrapper redirects our stdout there — scripts/steamdeck/install-steamdeck.sh),
+    // so the very next log they send answers whether the page saw the device.
+    if (text.startsWith(FORWARDED_PREFIX)) {
+      console.log(`[renderer] ${text}`);
     }
   });
 

@@ -7,6 +7,8 @@ import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {CardResource} from '@/common/CardResource';
 import {
+  actionWorkspaceRestorePlan,
+  ActionRestoreInput,
   buildConsoleActionsModel,
   branchScopeForNode,
   cycleAvailability,
@@ -414,6 +416,82 @@ describe('consoleCardActions model', () => {
         entries, previews, NO_RESOURCES, {availability: 'all', activation: 'all'}).tiles;
       expect(after.map((t) => t.key)).to.deep.eq(before);
       expect(after.find((t) => t.key === 'Fine#1')?.status).to.eq('rules');
+    });
+  });
+
+  describe('actionWorkspaceRestorePlan (the mount-time re-seat decision)', () => {
+    const DRAFT = {cardName: CardName.TITAN_FLOATING_LAUNCHPAD, nodeIndex: 1};
+    /** A restore mid Pluto discard: the second-door chain is coming back. */
+    const RESTORED_STEP: ActionRestoreInput = {
+      repeat: false,
+      collapsed: false,
+      hostedColonies: true,
+      draft: DRAFT,
+      draftEntryExists: true,
+      // The live claim at that moment is the COLONY RESOLUTION's — a foreign
+      // host whose sourceCard is a colony name, not a card.
+      claimHost: 'colonies',
+      claimCard: 'Pluto',
+      claimNodeIndex: 0,
+      claimAdmitsDeckCheck: false,
+    };
+
+    it('re-seats the hosted colonies step from the surviving draft', () => {
+      expect(actionWorkspaceRestorePlan(RESTORED_STEP)).to.deep.eq(
+        {kind: 'seat-step', composer: DRAFT});
+    });
+
+    it('NEVER adopts a foreign host’s claim as a composer (the half-restored screen)', () => {
+      // No hosted step, no draft — but the parked colony resolution's claim is
+      // still live. The old bare «is anything claimed» check seated a composer
+      // on cardName 'Pluto' here: one workspace's breadcrumb over another's body.
+      expect(actionWorkspaceRestorePlan({
+        ...RESTORED_STEP, hostedColonies: false, draft: undefined, draftEntryExists: false,
+      })).to.deep.eq({kind: 'none'});
+    });
+
+    it('re-opens this workspace’s OWN committed outcome (host-scoped claim)', () => {
+      expect(actionWorkspaceRestorePlan({
+        ...RESTORED_STEP,
+        hostedColonies: false, draft: undefined, draftEntryExists: false,
+        claimHost: 'card-actions', claimCard: 'Inventors\' Guild', claimNodeIndex: 0,
+      })).to.deep.eq({
+        kind: 'seat-outcome',
+        composer: {cardName: 'Inventors\' Guild', nodeIndex: 0},
+        outcome: 'draw',
+      });
+      expect(actionWorkspaceRestorePlan({
+        ...RESTORED_STEP,
+        hostedColonies: false, draft: undefined, draftEntryExists: false,
+        claimHost: 'card-actions', claimCard: 'Search For Life', claimAdmitsDeckCheck: true,
+      })).to.have.property('outcome', 'deck-check');
+    });
+
+    it('a hand-open beside a park is a LOOK, never a resume (`collapsed`)', () => {
+      // The wheel's fresh instance mounts with the flow still set aside: it
+      // must adopt nothing — not the draft, not the claim, not the step.
+      expect(actionWorkspaceRestorePlan({...RESTORED_STEP, collapsed: true}))
+        .to.deep.eq({kind: 'none'});
+      expect(actionWorkspaceRestorePlan({
+        ...RESTORED_STEP,
+        collapsed: true, hostedColonies: false,
+        claimHost: 'card-actions', claimCard: 'Inventors\' Guild',
+      })).to.deep.eq({kind: 'none'});
+    });
+
+    it('a repeat-pick instance adopts nothing', () => {
+      expect(actionWorkspaceRestorePlan({...RESTORED_STEP, repeat: true}))
+        .to.deep.eq({kind: 'none'});
+    });
+
+    it('folds honestly when the hosted step’s descent cannot be rebuilt', () => {
+      // A reload dropped the module draft — a mixed surface is forbidden, so
+      // the whole workspace folds and the mandatory gate re-announces.
+      expect(actionWorkspaceRestorePlan({...RESTORED_STEP, draft: undefined, draftEntryExists: false}))
+        .to.deep.eq({kind: 'fold-step'});
+      // The draft survived but its card left the entries (server truth wins).
+      expect(actionWorkspaceRestorePlan({...RESTORED_STEP, draftEntryExists: false}))
+        .to.deep.eq({kind: 'fold-step'});
     });
   });
 });

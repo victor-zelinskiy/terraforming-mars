@@ -381,6 +381,16 @@ open the door, and holding it would park the batch forever.
   hosting workspace).
 - Restore from the park re-opens the FOCUS STAGE when the resolution is live
   (`restoreDeferredTask`) — the flow comes back on its scene, not the overview.
+- **A SECOND-DOOR resolution restores at full depth** (`card-actions ⊃
+  colonies ⊃ hand`): the Action Center re-seats its composer from the descent
+  draft (`actionWorkspaceRestorePlan` — host-scoped, so this workspace never
+  adopts the resolution's own `host: 'colonies'` claim), the composer
+  republishes the step zone from `mounted()`, and the colonies/hand rebuild
+  through the ordinary teleport chain. A wheel-open of «Действия карт» beside
+  the parked resolution is a FRESH read-only browse (`openSheet` never
+  restores) — the resolution's claim, yield and crumb stay gated behind
+  `resolutionParked`, same as the browse visit to «Колонии». Full contract:
+  `docs/COLONY_TRADE_FLOW.md` § THE SECOND DOOR.
 
 ## Traps this rework paid for (keep them fixed)
 

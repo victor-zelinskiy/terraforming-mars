@@ -8,15 +8,18 @@ import {
   DEFAULT_DEADZONE,
   GamepadIntent,
   GamepadSnapshot,
+  HANDOVER_SILENCE_MS,
   NAV_REPEAT_DELAY_MS,
   NAV_REPEAT_INTERVAL_MS,
   PollState,
   SCROLL_DEADZONE,
   TRIGGER_PRESS_AT,
   TRIGGER_RELEASE_AT,
+  decisiveEdge,
   diffSnapshots,
   electActivePad,
   emptySnapshot,
+  initialElectionState,
   initialPollState,
   pollStatePending,
   readSnapshot,
@@ -311,29 +314,98 @@ describe('gamepadPollModel', () => {
   });
 
   describe('electActivePad (single-driver election)', () => {
+    /** An incumbent that acted `ago` ms before `now`. */
+    const drivenBy = (index: number, ago: number, now: number) => ({index, edgeAt: now - ago});
+
     it('keeps the incumbent while it is still engaged this frame', () => {
       // Two mirrored pads (Steam Input duplicate) both active — the incumbent
       // keeps driving, so the mirror can never also dispatch the same edge.
       const engaged = [{index: 0, active: true}, {index: 1, active: true}];
-      expect(electActivePad(engaged, 0)).to.eq(0);
-      expect(electActivePad(engaged, 1)).to.eq(1);
+      expect(electActivePad(engaged, {index: 0, edgeAt: 1000}, 1000).index).to.eq(0);
+      expect(electActivePad(engaged, {index: 1, edgeAt: 1000}, 1000).index).to.eq(1);
     });
 
     it('elects the first active pad when there is no incumbent (index -1)', () => {
-      expect(electActivePad([{index: 3, active: true}, {index: 5, active: true}], -1)).to.eq(3);
+      const engaged = [{index: 3, active: true}, {index: 5, active: true}];
+      expect(electActivePad(engaged, initialElectionState(), 1000).index).to.eq(3);
     });
 
     it('keeps a releasing incumbent (engaged but not active) so its release dispatches', () => {
-      expect(electActivePad([{index: 2, active: false}], 2)).to.eq(2);
+      expect(electActivePad([{index: 2, active: false}], drivenBy(2, 0, 5000), 5000).index).to.eq(2);
     });
 
     it('takes over with another active pad only once the incumbent is idle/gone', () => {
       // Incumbent 0 not in the frame (fully idle) → the other active pad drives.
-      expect(electActivePad([{index: 1, active: true}], 0)).to.eq(1);
+      expect(electActivePad([{index: 1, active: true}], drivenBy(0, 0, 5000), 5000).index).to.eq(1);
     });
 
     it('holds the incumbent when nothing is engaged this frame', () => {
-      expect(electActivePad([], 0)).to.eq(0);
+      expect(electActivePad([], drivenBy(0, 0, 5000), 5000).index).to.eq(0);
+    });
+
+    it('stamps edgeAt only when the elected pad actually acted', () => {
+      const acted = electActivePad([{index: 0, active: true, edge: true}], drivenBy(0, 900, 5000), 5000);
+      expect(acted.edgeAt).to.eq(5000);
+      // Merely engaged (a release, a drifting stick) must NOT refresh the timer,
+      // otherwise a noisy pad renews its own incumbency forever.
+      const idle = electActivePad([{index: 0, active: true, edge: false}], drivenBy(0, 900, 5000), 5000);
+      expect(idle.edgeAt).to.eq(4100);
+    });
+
+    // ── The docked Steam Deck report: built-in controls keep working, an
+    //    external pad does nothing. A pad that is permanently `engaged` (a stick
+    //    resting off-centre, a non-zero trigger rest value, a mid-flight aim)
+    //    used to hold the wheel forever, because incumbency asked "engaged?"
+    //    rather than "acting?".
+    it('hands over to a pad that ACTS when a permanently-engaged incumbent has not', () => {
+      const noisyIncumbent = {index: 0, active: true, edge: false};
+      const pressedPad = {index: 1, active: true, edge: true};
+      const next = electActivePad([noisyIncumbent, pressedPad], drivenBy(0, 5000, 9000), 9000);
+      expect(next.index).to.eq(1);
+      expect(next.edgeAt).to.eq(9000);
+    });
+
+    it('never lets a mirror steal the wheel mid-press (offset duplicate)', () => {
+      // The mirror reports the SAME press one poll (8ms) after the driver did.
+      // Inside the silence window the incumbent keeps the wheel, so the edge is
+      // dispatched exactly once — the Steam Machine double-input protection.
+      const engaged = [{index: 0, active: true, edge: true}, {index: 1, active: true, edge: false}];
+      const next = electActivePad(engaged, drivenBy(1, 8, 3000), 3000);
+      expect(next.index).to.eq(1);
+    });
+
+    it('requires the incumbent to be decision-silent for the full window', () => {
+      const engaged = [{index: 0, active: true, edge: false}, {index: 1, active: true, edge: true}];
+      const tooSoon = electActivePad(engaged, drivenBy(0, HANDOVER_SILENCE_MS - 1, 9000), 9000);
+      expect(tooSoon.index).to.eq(0);
+      const longEnough = electActivePad(engaged, drivenBy(0, HANDOVER_SILENCE_MS, 9000), 9000);
+      expect(longEnough.index).to.eq(1);
+    });
+
+    it('lets a pad that acts take over from an incumbent that never acted', () => {
+      // A pad elected by `gamepadconnected` alone carries edgeAt = 0; the pad
+      // the player actually presses must win immediately, not 400ms later.
+      const engaged = [{index: 0, active: true, edge: false}, {index: 1, active: true, edge: true}];
+      expect(electActivePad(engaged, {index: 0, edgeAt: 0}, 50).index).to.eq(1);
+    });
+  });
+
+  describe('decisiveEdge', () => {
+    it('counts a deliberate act', () => {
+      expect(decisiveEdge([{kind: 'press', button: 'confirm'}])).to.eq(true);
+      expect(decisiveEdge([{kind: 'nav', dir: 'up', repeat: false}])).to.eq(true);
+      expect(decisiveEdge([{kind: 'aim', dir: 'left'}])).to.eq(true);
+    });
+
+    it('ignores what an UNTOUCHED pad emits forever', () => {
+      // Exactly the signals a resting/drifting pad produces — treating any of
+      // them as "in use" is what locked a second controller out.
+      expect(decisiveEdge([])).to.eq(false);
+      expect(decisiveEdge([{kind: 'scroll', dx: 0.4, dy: 0}])).to.eq(false);
+      expect(decisiveEdge([{kind: 'nav', dir: 'down', repeat: true}])).to.eq(false);
+      expect(decisiveEdge([{kind: 'release', button: 'confirm'}])).to.eq(false);
+      expect(decisiveEdge([{kind: 'navEnd', dir: 'up'}])).to.eq(false);
+      expect(decisiveEdge([{kind: 'aimEnd'}])).to.eq(false);
     });
   });
 });

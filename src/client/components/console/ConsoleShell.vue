@@ -8732,20 +8732,29 @@ export default defineComponent({
       }
     },
     openSheet(sheet: WorkspaceFrameKind): void {
-      // Asking for a workspace that is PARKED is «вернуться», never «встать
-      // рядом» — the parked chain already owns that kind, and standing a second
-      // one up means the next restore splices the live one away underneath the
-      // player, with no close and no fold.
-      if (this.restoreParkedWorkspace(sheet)) {
-        return;
-      }
+      // A HAND-OPEN IS ALWAYS A FRESH INSTANCE. Opening a sheet from the wheel
+      // while a flow is set aside is «посмотреть», never «вернуться»: the
+      // player gets the workspace's ordinary browse layer (read-only while a
+      // decision is owed — `actionBlockedReason` states the one reason), the
+      // parked chain keeps owning its own state, and RESUME keeps exactly two
+      // doors — the board-home restore card (A/B) and the notification CTA,
+      // both through `restoreDeferredTask`. This used to route into a full
+      // restore instead, which stood the parked deep flow back up under a
+      // browse intent — the half-restored «ДЕЙСТВИЯ КАРТ › ПЛУТОН › ПЛУТОН ·
+      // СБРОС КАРТЫ» screen. (`enterWorkspace` is lateral: the park is
+      // untouched, and the next restore simply gives this browse visit way.)
+      const parkOwed = workspaceStackCollapsed();
       // A sheet switch / (re)open closes a stale full-text reader.
       this.maInspect = undefined;
       // Opening anything that is NOT the task's own surface defers the task;
       // opening the task's OWN surface un-defers it (back on the surface).
-      const isTaskSurface = (sheet === 'standard-projects' &&
+      // While a park is owed, NOTHING un-defers here: the parked chain owns
+      // the pending decision, and clearing the flag with frames still parked
+      // leaves them owned by nobody and reachable by nothing (the invariant
+      // `parked non-empty ⇒ deferred`).
+      const isTaskSurface = !parkOwed && ((sheet === 'standard-projects' &&
         this.shellTask?.kind === 'projectCard' && this.shellTask.mode === 'standardProject') ||
-        (sheet === 'awards' && this.shellTask?.kind === 'awardFunding');
+        (sheet === 'awards' && this.shellTask?.kind === 'awardFunding'));
       if (!isTaskSurface) {
         this.deferShellTask();
       } else {
@@ -10119,16 +10128,22 @@ export default defineComponent({
       }
     },
     /**
-     * THE PLAYER IS ASKING FOR A WORKSPACE THAT IS SET ASIDE — that request is
-     * «вернуться в него», never «поставить второй такой же рядом».
+     * A SERVER-ROUTED opening met a workspace that is SET ASIDE — that demand
+     * is «вернуться в него», never «поставить второй такой же рядом»: the
+     * parked chain is the prompt's home (`stackServes` counts the park), so
+     * the door that serves the prompt must restore the exact instance.
+     *
+     * ⚠️ PROMPT-ROUTED DOORS ONLY (openHandWorkspace / openColoniesForPrompt —
+     * openings the SERVER's demand drives). A hand-open from the wheel is the
+     * OPPOSITE intent — «посмотреть, пока решение отложено» — and `openSheet`
+     * therefore never calls this: a fresh browse instance stands beside the
+     * park, read-only, and resume stays with the board-home restore card.
      *
      * Kinds are unique within a stack, but the park is a SECOND stack, so
      * «live» and «parked» could hold the same kind at once — and the very next
      * restore splices the live stack away, taking a screen the player was
-     * standing in with no close, no fold and no animation. One helper instead
-     * of the `workspaceFrameIndex` test each entry point had grown its own copy
-     * of (only the start watcher asked `workspaceFrameKnown`, which is why it
-     * was the one that never duplicated).
+     * standing in with no close, no fold and no animation. For a prompt-routed
+     * door that splice is a duplicate-in-the-making, hence this helper.
      *
      * Returns true when the park answered and the caller must stop.
      */

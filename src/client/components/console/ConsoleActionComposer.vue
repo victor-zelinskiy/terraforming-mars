@@ -1985,6 +1985,16 @@ export default defineComponent({
     // preview, so it changed under the entering animation.)
   },
   mounted() {
+    // A RESTORED stage mounts with the colonies step ALREADY hosted (the
+    // parked second-door chain coming back): `colonyStepOn` was true before
+    // this component existed, so its change-watcher never fires — republish
+    // the zone here, after the first render has stood the element up (the
+    // same post-DOM timing the `flush: 'post'` watcher gives a live change).
+    // Without this the restored colonies frame has no teleport target and the
+    // whole chain below it renders nowhere (embed rule 4's gap, permanent).
+    if (this.colonyStepOn) {
+      setWorkspaceFrameSlot('card-actions', '[data-embed-slot="action-colonies"]');
+    }
   },
   beforeUnmount() {
     this.clearBeatDelay();

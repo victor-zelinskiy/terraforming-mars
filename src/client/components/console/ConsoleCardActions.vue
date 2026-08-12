@@ -79,21 +79,14 @@
             </span>
           </div>
         <!-- The variant chip closes the breadcrumb TAIL (the header's `deep`
-             slot) — it belongs to the focused stage, not to the browse layer. -->
+             slot) — it belongs to the focused stage, not to the browse layer.
+             It yields while a colony step is hosted: the tail then carries the
+             step's own name («ПЛУТОН · ТОРГОВЛЯ») and a variant count beside a
+             foreign stage would misattribute it. -->
         <template #deep>
-          <!-- ONE berth, two tenants. The variant chip belongs to the focused
-               stage; a hosted COLONY step brings its own fleet dock, and that
-               dock must land exactly where it sits when the player walks in
-               through «Колонии» — the header's right edge. So they share this
-               cell and CROSSFADE: entering the step, the fleets replace the
-               chip in place; B brings the chip back. Two boxes in two places
-               would say «you are somewhere else», which is the one thing this
-               flow exists to disprove. -->
           <span class="con-cardactions__deepslot">
             <transition name="con-cardactions-swap">
-              <span v-if="colonyStepHosted" key="fleets" class="con-cardactions__fleetberth"
-                    data-colony-fleet-berth></span>
-              <span v-else-if="composer !== undefined && focusVariantTotal > 1" key="variant"
+              <span v-if="!colonyStepHosted && composer !== undefined && focusVariantTotal > 1" key="variant"
                     class="con-cardactions__stat con-cardactions__stat--variant">
                 <b>{{ composer.nodeIndex + 1 }}/{{ focusVariantTotal }}</b><i>{{ $t('Option') }}</i>
               </span>
@@ -104,12 +97,25 @@
         <!-- The PLAYER-CONTEXT chip — only when the workspace is opened on
              behalf of ANOTHER player (the future Information-Panel entry);
              your own visit needs no name tag. It belongs to the WORKSPACE,
-             not to a stage, so it stays in the flow across both. -->
+             not to a stage, so it stays in the flow across both.
+             THE FLEET BERTH: a hosted COLONY step brings its own fleet dock,
+             and that dock must land exactly where «Колонии» always puts it —
+             the header's RESERVED RIGHT EDGE (`.con-wshead__trailing`, the
+             same cell the standalone colonies header renders it in). It used
+             to share the crumb-tail cell with the variant chip, which is NOT
+             the right edge: the tail follows the crumb text mid-line, and the
+             cell's absolute shrink-to-fit box wrapped the chips into a
+             vertical stack — the one screen where the fleets looked different
+             was the one screen whose whole point is «я попал туда же». -->
         <template #trailing>
           <span v-if="contextPlayer !== undefined" class="con-cardactions__player" :class="'player_bg_color_' + contextPlayer.color">
             <span class="con-cardactions__player-dot" aria-hidden="true"></span>
             <span>{{ contextPlayer.name }}</span>
           </span>
+          <transition name="con-cardactions-swap">
+            <span v-if="colonyStepHosted" key="fleets" class="con-cardactions__fleetberth"
+                  data-colony-fleet-berth></span>
+          </transition>
         </template>
       </ConsoleWsHead>
 
@@ -469,6 +475,7 @@ import {buildActionEntries, ActionEntry, ActionFilterState} from '@/client/compo
 import {ActionStatus} from '@/client/components/actions/actionPlayability';
 import {buildActionInspectHistory} from '@/client/components/actions/actionInspectHistory';
 import {
+  actionWorkspaceRestorePlan,
   buildConsoleActionsModel,
   branchScopeForNode,
   consoleCardActionsUi,
@@ -498,7 +505,7 @@ import {
   resetActionFocusMotion,
 } from '@/client/console/consoleActionFocusMotion';
 import {setConsoleActionRevealClaim, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
-import {pushWorkspaceFrame, workspaceFrameHost, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameSubject} from '@/client/console/consoleWorkspaceStack';
+import {closeWorkspaceRoot, pushWorkspaceFrame, setWorkspaceFrameSubject, workspaceFrameHost, workspaceFrameKnown, workspaceFrameMounted, workspaceFramePhase, workspaceFrameStage, workspaceFrameSubject} from '@/client/console/consoleWorkspaceStack';
 import {beginCardColonyTrade, clearCardColonyTrade, colonyStepCrumbParts} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {setColonyFleetBerth} from '@/client/console/consoleColoniesModel';
 import {backVerbFor, isCommitted, WorkspacePhase, workspacePhaseOf} from '@/client/console/consoleWorkspaceFlow';
@@ -1106,24 +1113,55 @@ export default defineComponent({
     if (!this.repeat) {
       consoleCardActionsUi.confirmOpen = false;
     }
-    // RETURNING FROM A COLLAPSE. A live claim means this workspace was
-    // minimized mid-flow, past the commit boundary — so it re-opens ON the
-    // committed stage, not on the browse grid. The decision model survived in
-    // module state, so nothing is re-derived and nothing is replayed: same
-    // card, same variant, same phase, and the prompt is still routed here.
-    // (`stage === 'presenting'` and `dwellDone` are already true, so the
-    // execution beat is not owed again either.)
-    // …but ONLY on a genuine restore. Opening the list by hand while the
-    // action is still minimized is a different intent: the player wants to
-    // LOOK, not to be dropped back into the decision. Re-seeding there also
-    // produced a broken stage — the prompt is still deferred, so the outcome
-    // zone had nothing to host and the workspace stood empty.
-    if (!this.repeat && !this.collapsed && workspaceOutcomeClaimed() && this.composer === undefined) {
-      this.composer = {
-        cardName: workspaceOutcomeState.sourceCard as CardName,
-        nodeIndex: workspaceOutcomeState.nodeIndex,
-      };
-      this.outcomeFlow = {kind: workspaceOutcomeAdmits('deck-check') ? 'deck-check' : 'draw'};
+    // RETURNING FROM A COLLAPSE — re-seat the workspace's runtime descent from
+    // what genuinely survived the park: the descent DRAFT (module state) for a
+    // hosted colonies step, or THIS workspace's own outcome claim for a
+    // committed stage. The decision matrix is the pure
+    // `actionWorkspaceRestorePlan` (unit-tested), and it is HOST-SCOPED: a
+    // foreign claim (the colony resolution's, host 'colonies', sourceCard
+    // 'Плутон') must never be adopted as a composer here — that is exactly the
+    // shipped half-restored screen (this workspace's browse body under the
+    // parked flow's breadcrumb, «ДЕЙСТВИЯ КАРТ › ПЛУТОН › ПЛУТОН · СБРОС
+    // КАРТЫ»), and closing that ghost composer then released a claim this
+    // workspace never owned.
+    // …and ONLY on a genuine restore (`!collapsed`). Opening the list by hand
+    // while a flow is still minimized is a different intent: the player wants
+    // to LOOK, not to be dropped back into the decision.
+    if (this.composer === undefined) {
+      const draft = consoleCardActionsUi.draft;
+      const plan = actionWorkspaceRestorePlan({
+        repeat: this.repeat,
+        collapsed: this.collapsed,
+        hostedColonies: workspaceFrameHost('colonies') === 'card-actions',
+        draft,
+        draftEntryExists: draft !== undefined && this.entries.some((e) => e.cardName === draft.cardName),
+        claimHost: workspaceOutcomeState.host,
+        claimCard: workspaceOutcomeState.sourceCard,
+        claimNodeIndex: workspaceOutcomeState.nodeIndex,
+        claimAdmitsDeckCheck: workspaceOutcomeAdmits('deck-check'),
+      });
+      if (plan.kind === 'seat-step') {
+        // The second-door chain is coming back mid-step: same card, same
+        // variant — the hosted colonies frame gets its host again, the entry
+        // lock (colonyTradeEntry) is still module state, and the trade's own
+        // confirm remains the single commit. Nothing is re-submitted.
+        this.composer = {cardName: plan.composer.cardName, nodeIndex: plan.composer.nodeIndex};
+      } else if (plan.kind === 'seat-outcome') {
+        // The committed stage re-opens as before: same card, same variant,
+        // same phase; the prompt is still routed here and the execution beat
+        // is not owed again (`stage === 'presenting'` already).
+        this.composer = {cardName: plan.composer.cardName, nodeIndex: plan.composer.nodeIndex};
+        this.outcomeFlow = {kind: plan.outcome};
+      } else if (plan.kind === 'fold-step') {
+        // A colonies step is hosted but its descent cannot be rebuilt (a
+        // reload dropped the draft / the card left the entries). Folding the
+        // WHOLE workspace is the honest degrade: the pending mandatory prompt
+        // re-announces on the board home and A rebuilds the plain colonies
+        // chain — never a mixed surface.
+        closeWorkspaceRoot('card-actions');
+        clearCardColonyTrade();
+        consoleCardActionsUi.draft = undefined;
+      }
     }
     this.scheduleCanvasFit();
     this.scheduleDetailFit();
@@ -1149,6 +1187,13 @@ export default defineComponent({
     setColonyFleetBerth('');
     if (!workspaceFrameKnown('colonies')) {
       clearCardColonyTrade();
+    }
+    // The descent draft belongs to the WORKSPACE INSTANCE, not to this mount:
+    // it survives a park (the frame is still known — live in a restored stack
+    // or parked in the set-aside one) and dies only when the workspace is
+    // genuinely closed. Same lifetime rule as the trade-entry lock above.
+    if (!this.repeat && !workspaceFrameKnown('card-actions')) {
+      consoleCardActionsUi.draft = undefined;
     }
     window.removeEventListener('resize', this.onViewportResize);
     if (typeof window.cancelAnimationFrame === 'function') {
@@ -1423,6 +1468,15 @@ export default defineComponent({
       // derives "are we mid-transition?" from an animation's side effects.
       this.flowState = 'entering';
       this.composer = {cardName: tile.cardName, nodeIndex: tile.nodeIndex};
+      // The DESCENT is recorded where it survives the surface: the module
+      // draft (a park unmounts this component, and the draft is what re-seats
+      // the composer on restore) and the frame's own subject (the stack is the
+      // navigation truth — the instance record, never the header, which stays
+      // a projection of the composer).
+      if (!this.repeat) {
+        consoleCardActionsUi.draft = {cardName: tile.cardName, nodeIndex: tile.nodeIndex};
+        setWorkspaceFrameSubject('card-actions', tile.cardName);
+      }
     },
     /**
      * Re-fit every formula into its fixed canvas, once per paint. The stage
@@ -1480,10 +1534,23 @@ export default defineComponent({
     closeComposer(): void {
       this.composer = undefined;
       this.descendKey = '';
+      // A genuine fold ends the descent: the suspended-instance record goes
+      // with it. (An UNMOUNT deliberately does not come through here — a park
+      // must keep the draft, or the restore has nothing to re-seat.)
+      if (!this.repeat) {
+        consoleCardActionsUi.draft = undefined;
+        setWorkspaceFrameSubject('card-actions', '');
+      }
       if (this.outcomeFlow !== undefined) {
         this.outcomeFlow = undefined;
         resetConsoleActionRevealClaim();
-        releaseWorkspaceOutcome();
+        // Release ONLY a claim this workspace raised. A foreign host's claim
+        // (the colony resolution's) outliving its surface is that flow's own
+        // suspended state — releasing it here silently destroyed the parked
+        // Pluto payout's embed routing.
+        if (workspaceOutcomeState.host === undefined || workspaceOutcomeState.host === 'card-actions') {
+          releaseWorkspaceOutcome('card-actions closeComposer');
+        }
       }
       // Belt-and-braces focus restoration: the browse DOM was only hidden,
       // but re-assert the focused tile's visibility after the return.

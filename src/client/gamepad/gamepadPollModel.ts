@@ -428,32 +428,114 @@ export function diffSnapshots(
   return {intents, state: out};
 }
 
-/** One pad's contribution to a poll frame (index + whether it produced activity). */
-export type PadFrame = {index: number, active: boolean};
+/** One pad's contribution to a poll frame. */
+export type PadFrame = {
+  index: number,
+  active: boolean,
+  /**
+   * Did this pad produce a DECISIVE edge this frame — something a human
+   * deliberately DID (see {@link decisiveEdge})? Drift, hold-repeat and analog
+   * scroll are deliberately NOT decisive: they are exactly what a neglected pad
+   * emits forever while nobody touches it.
+   */
+  edge?: boolean,
+};
+
+/** The election's carry state: who drives, and when they last actually acted. */
+export type ElectionState = {
+  /** Index of the pad driving the UI (-1 = none elected yet). */
+  index: number,
+  /** `now` of the incumbent's last decisive edge (0 = it has never acted). */
+  edgeAt: number,
+};
+
+export function initialElectionState(): ElectionState {
+  return {index: -1, edgeAt: 0};
+}
+
+/**
+ * How long the incumbent must have gone WITHOUT a decisive edge before another
+ * pad's edge may take the wheel. Two constraints pin this value: it must be
+ * far ABOVE the poll period (8ms) so two mirrored views of ONE controller can
+ * never ping-pong mid-press, and far BELOW human "put this pad down, pick that
+ * one up" time so a real controller swap feels instant.
+ */
+export const HANDOVER_SILENCE_MS = 400;
+
+/**
+ * Did this frame's intents contain a DELIBERATE act? Only a fresh press, a
+ * fresh (non-repeat) direction or an aim engage counts.
+ *
+ * What is excluded is the whole point: `scroll` and repeat `nav` are emitted
+ * CONTINUOUSLY by a pad nobody is holding — a stick resting off-centre, a
+ * trigger with a non-zero rest value, a wet/worn sensor. Treating those as
+ * "this pad is in use" is what let an untouched pad hold the wheel forever.
+ */
+export function decisiveEdge(intents: ReadonlyArray<GamepadIntent>): boolean {
+  return intents.some((i) =>
+    i.kind === 'press' || i.kind === 'aim' || (i.kind === 'nav' && !i.repeat));
+}
 
 /**
  * Choose the SINGLE pad that drives the UI this frame.
  *
  * `engaged` lists the pads that are NOT idle this frame (they produced input or
  * are releasing a held control — i.e. exactly the pads the poll loop diffed).
- * The rule is STICKY: while the current `incumbent` is still engaged it keeps
- * driving; only when it is fully idle/gone does the last other ACTIVE pad take
- * over (the "put one controller down, pick another up" story).
  *
  * ── WHY A SINGLE ELECTION IS LOAD-BEARING (the Steam Machine double-input) ──
  * Steam Input frequently exposes ONE physical controller as TWO "standard"
  * gamepads to the page — the raw device AND its virtual remap — both reporting
- * every button press. Without a single sticky election the poll loop dispatched
- * the SAME edge from BOTH mirrors, so one d-pad tap moved the cursor TWO rows
- * and a toggle control (the in-game quick wheel) opened-then-closed on one
- * press (read as "the bumper does nothing"). Electing exactly one driver and
- * dispatching only its intents makes a mirrored duplicate inert. A genuine
- * second controller still works — it takes over the instant the first is idle.
+ * every button press. Without a single election the poll loop dispatched the
+ * SAME edge from BOTH mirrors, so one d-pad tap moved the cursor TWO rows and a
+ * toggle control (the in-game quick wheel) opened-then-closed on one press
+ * (read as "the bumper does nothing"). Electing exactly one driver and
+ * dispatching only its intents makes a mirrored duplicate inert.
+ *
+ * ── WHY THE HANDOVER RULE IS AN EDGE, NOT MERE "ENGAGEMENT" (the Deck bug) ──
+ * Handing over only once the incumbent falls fully idle sounds equivalent, and
+ * is not: `engaged` is true for a pad whose stick merely rests off-centre, whose
+ * trigger reports a non-zero value at rest, or whose aim protocol is mid-flight.
+ * Such a pad is engaged on EVERY frame forever, so the incumbency became
+ * PERMANENT and a genuine second controller could never take the wheel — every
+ * one of its presses was diffed, then dropped undispatched. On a docked Steam
+ * Deck that is precisely the report: the built-in controls keep working and an
+ * external pad does nothing, even though the page sees it.
+ *
+ * So the incumbent holds the wheel while it keeps ACTING, and a challenger that
+ * ACTS takes over once the incumbent has been decision-silent for
+ * {@link HANDOVER_SILENCE_MS}. Mirrors stay inert (a mirror's edge arrives
+ * within a poll or two of the driver's own, far inside the silence window),
+ * while an untouched pad — however noisy — can no longer hold anything.
  */
-export function electActivePad(engaged: ReadonlyArray<PadFrame>, incumbent: number): number {
-  if (engaged.some((p) => p.index === incumbent)) {
-    return incumbent;
+export function electActivePad(
+  engaged: ReadonlyArray<PadFrame>,
+  election: ElectionState,
+  now: number,
+): ElectionState {
+  const incumbent = engaged.find((p) => p.index === election.index);
+
+  // 1. The incumbent ACTED — it keeps the wheel, and its mirror stays inert.
+  if (incumbent?.edge === true) {
+    return {index: election.index, edgeAt: now};
+  }
+
+  // 2. Someone else ACTED while the incumbent has been decision-silent (or has
+  //    never acted / does not exist): the wheel changes hands THIS frame, so
+  //    the press that won the election is also the press that gets dispatched.
+  const challenger = engaged.find((p) => p.edge === true && p.index !== election.index);
+  const silent = election.index === -1 || election.edgeAt === 0 ||
+    now - election.edgeAt >= HANDOVER_SILENCE_MS;
+  if (challenger !== undefined && silent) {
+    return {index: challenger.index, edgeAt: now};
+  }
+
+  // 3. No decisive edge to arbitrate: stay sticky. The incumbent keeps the
+  //    wheel while it is engaged at all (so its RELEASE still dispatches);
+  //    otherwise the last merely-active pad drives, inheriting the silence
+  //    timer — it has not acted, so it must not be able to lock anyone out.
+  if (incumbent !== undefined) {
+    return election;
   }
   const next = engaged.find((p) => p.active);
-  return next !== undefined ? next.index : incumbent;
+  return next !== undefined ? {index: next.index, edgeAt: election.edgeAt} : election;
 }

@@ -1,7 +1,11 @@
-import {test, expect, Page, APIRequestContext} from '@playwright/test';
+import {test, expect, Page} from '@playwright/test';
 import {
-  bootWithCards, focusCard, openCardActions, openActionFocus, press, soloGameConfig,
+  bootWithCards, openCardActions, openActionFocus, press,
 } from './consoleStart';
+import {
+  LAUNCHPAD, TRADE_CORP, PROFILES, cardTradeConfig, floaters, playLaunchpad,
+  focusTradeVariantTile, openColoniesSection, fleetGeometry, expectFleetParity, FleetGeo,
+} from './cardTradeDoor';
 
 /**
  * THE TRADE'S SECOND DOOR — «Летающая платформа» → «Выбрать колонию».
@@ -25,21 +29,9 @@ import {
  * those here would only re-measure somebody else's contract.
  */
 
-const LAUNCHPAD = 'Titan Floating Launch-pad';
-
-/** Put the card on top of the deck and pin a corporation that holds no floaters
- *  and has no Jovian tag — so the action's candidates are the card alone. */
-const CFG = soloGameConfig({
-  expansions: {colonies: true},
-  customProjectCards: [LAUNCHPAD],
-  customCorporationsList: ['CrediCor'],
-});
-const CORP = 'CrediCor';
-
-const PROFILES = [
-  {tag: 'fhd', width: 1920, height: 1080, query: ''},
-  {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
-] as const;
+/** The shared boot recipe (cardTradeDoor.ts) — one door, two specs. */
+const CFG = cardTradeConfig();
+const CORP = TRADE_CORP;
 
 type Readout = {
   crumbSubject: string,
@@ -57,6 +49,9 @@ type Readout = {
   variantChipUp: boolean,
   zoneW: number,
   frameW: number,
+  /** The workspace header's own height — the WsHead contract says a stage
+   *  change may not move it, and the arriving fleet dock is a stage change. */
+  headH: number,
 };
 
 async function readout(page: Page): Promise<Readout> {
@@ -104,66 +99,9 @@ async function readout(page: Page): Promise<Readout> {
         ?.getBoundingClientRect().width ?? 0),
       frameW: Math.round((document.querySelector('.con-cardactions__frame') as HTMLElement | null)
         ?.getBoundingClientRect().width ?? 0),
+      headH: Math.round((head as HTMLElement | null)?.getBoundingClientRect().height ?? 0),
     };
   });
-}
-
-/** The card's stored floaters — the SERVER's number, not the screen's. */
-async function floaters(request: APIRequestContext, playerId: string): Promise<number> {
-  const res = await request.get(`/api/player?id=${playerId}`);
-  const view = await res.json();
-  const card = (view.thisPlayer.tableau ?? []).find((c: {name: string}) => c.name === LAUNCHPAD);
-  return card?.resources ?? -1;
-}
-
-/** RT wheel → the hand, verified and settled. */
-async function openHand(page: Page, tries = 5): Promise<void> {
-  const hand = page.locator('.con-hand');
-  for (let i = 0; i < tries && await hand.count() === 0; i++) {
-    await press(page, 'Period', 800);
-    await press(page, 'Enter', 1600);
-  }
-  await expect(hand, 'the hand screen must open').toHaveCount(1, {timeout: 12_000});
-  await page.locator('.con-hand:not(.con-hand--transit)').waitFor({state: 'visible', timeout: 20_000});
-}
-
-/** Play the launch-pad all the way (it asks where its two floaters go). */
-async function playLaunchpad(page: Page): Promise<void> {
-  await openHand(page);
-  expect(await focusCard(page, LAUNCHPAD, 16), `${LAUNCHPAD} must be reachable in hand`).toBe(true);
-  const composer = page.locator('.con-composer--play');
-  for (let i = 0; i < 8 && await composer.count() === 0; i++) {
-    await press(page, 'Enter', 1400);
-  }
-  await expect(composer).toHaveCount(1, {timeout: 8000});
-  for (let i = 0; i < 8 && await composer.count() > 0; i++) {
-    await press(page, 'Enter', 1500);
-  }
-  await expect(composer, `${LAUNCHPAD} must commit`).toHaveCount(0, {timeout: 25_000});
-  await page.waitForTimeout(2500);
-}
-
-/**
- * Walk the BROWSE grid onto the card's SECOND printed row — «Потратьте 1
- * аэростат, чтобы бесплатно поторговать». Each printed action row is its own
- * tile («Вариант 1» / «Вариант 2»), so the trade branch is reached by choosing
- * the right TILE, not by moving inside the composer.
- */
-async function focusTradeVariantTile(page: Page, tries = 14): Promise<void> {
-  // Ask the BROWSE DETAIL column, which names the variant the cursor is on —
-  // the panel the player reads, not a grid class name.
-  const variantNow = (): Promise<string> => page.evaluate(() =>
-    (document.querySelector('.con-cardactions__detail-variant') as HTMLElement | null)
-      ?.innerText.replace(/\s+/g, ' ').trim() ?? '');
-  for (let i = 0; i < tries; i++) {
-    if (/2\s*\/\s*2/.test(await variantNow())) {
-      return;
-    }
-    await press(page, i % 2 === 0 ? 'ArrowRight' : 'ArrowDown', 500);
-  }
-  const tiles = await page.evaluate(() => Array.from(document.querySelectorAll('.con-cardactions__tile'))
-    .map((t) => (t as HTMLElement).className));
-  throw new Error(`the trade variant tile was never focused (detail=«${await variantNow()}» tiles=${JSON.stringify(tiles)})`);
 }
 
 for (const profile of PROFILES) {
@@ -189,6 +127,13 @@ for (const profile of PROFILES) {
       await playLaunchpad(page);
       const before = await floaters(request, playerId);
       expect(before, 'the card carries the floaters its play put there').toBeGreaterThan(0);
+
+      // ⓪ THE PARITY BASELINE — the fleet dock as «Колонии» renders it: same
+      //    run, same players, same profile, so the later comparison is exact.
+      await openColoniesSection(page);
+      const standaloneFleets: FleetGeo | null = await fleetGeometry(page);
+      expect(standaloneFleets, 'the standalone dock must be measurable').not.toBeNull();
+      await press(page, 'Escape', 1400);
 
       await openCardActions(page);
       await focusTradeVariantTile(page);
@@ -221,7 +166,19 @@ for (const profile of PROFILES) {
         .toBeGreaterThan(0.94);
       expect(picking.fleetsInHeader, 'the fleet dock berths in the header').toBe(true);
       expect(picking.toolbarUp, 'and nothing is left floating in the content').toBe(false);
-      expect(picking.variantChipUp, 'the variant chip yielded the berth to it').toBe(false);
+      expect(picking.variantChipUp, 'the variant chip yielded the tail to the step').toBe(false);
+      // FULL GEOMETRY PARITY with the «Колонии» entry measured above: the same
+      // chips at the same size on ONE horizontal line, hugging the same right
+      // edge — the berth is a real cell of the header's trailing zone, never
+      // the crumb-tail's zero-width absolute box (which stacked the chips
+      // vertically: the one visual divergence on the one screen whose whole
+      // point is «я попал туда же»).
+      expectFleetParity(await fleetGeometry(page), standaloneFleets);
+      // …and the arriving dock may not move the workspace header (the WsHead
+      // height contract: a stage change never re-measures the stage below).
+      expect(Math.abs(picking.headH - setup.headH),
+        `the fleet dock changed the header height (${setup.headH} → ${picking.headH})`)
+        .toBeLessThanOrEqual(2);
 
       // ③ A → the colony's focus stage, with the fee already decided.
       await press(page, 'Enter', 2600);
