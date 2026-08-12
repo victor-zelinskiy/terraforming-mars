@@ -1029,6 +1029,17 @@ queue-колонки (`--live` = мягкий rise; зона стоит с ка�
 (`--resolved`: mint-граница, ~380ms) → dissolve. B в развёртывании УДАЛЁН
 из грамматики — свернуть необратимую церемонию нельзя.
 
+**(2026-08-12) ПЕРВОЕ ДЕЙСТВИЕ КОРПОРАЦИИ — условный последний этап
+workspace'а** (после прологов, до READY): обязательное первое действие
+обслуживает сам workspace (сиденье-источник + брифинг + ОДИН CTA / premium
+turn-wait), standalone-модалка в стартовом flow больше не поднимается, и
+`deploymentSettled` дополнительно ждёт `!firstActionOwed` + `firstAct.stage
+=== 'idle'`. Возврат из размещения теперь держит **completion barrier**
+(`startBoardExcursion.ts`): сцена скрыта, пока ВСЯ причинная цепочка
+размещения (commit-полёт, начисления, bonus-reveal, follow-up промпты) не
+завершится — один возврат, на осевший кадр. Полный контракт:
+`docs/claude/console/start-first-action.md`.
+
 **ONE VISUAL OWNER — закрытые дыры ит.3:** stow сводки прячет source-тайлы
 под прокси тем же кадром (`summaryStowing` → `.con-deal-hold`; release после
 скрытия панели); прежний большой `__played`-блок на `ConsolePlayedPile`,

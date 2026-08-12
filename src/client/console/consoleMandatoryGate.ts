@@ -147,10 +147,15 @@ export function isMandatoryGateHeld(): boolean {
 
 /**
  * Task kinds that are ALWAYS interruptive — announced regardless of whose turn
- * it is. `corpFirstAction` is a start-of-game trigger; `handSelect` is a forced
- * hand pick (a VOLUNTARY hand pick — sell patents, an on-play discard — is
- * client-initiated or pre-collected in the play composer, so it never reaches
- * here as a top-level `handSelect` prompt).
+ * it is. `corpFirstAction` here covers ONLY its MID-GAME shape (a merger chain
+ * acquiring a corp that still owes its opening move — the confirm modal):
+ * inside the START FLOW the shell filters the task out of the beat input
+ * before it reaches this module (`ConsoleShell.mandatoryBeat`), because the
+ * Game Start Workspace's own «ПЕРВОЕ ДЕЙСТВИЕ» stage is the presentation —
+ * exactly like the never-gated `startSequence` prompts. `handSelect` is a
+ * forced hand pick (a VOLUNTARY hand pick — sell patents, an on-play discard —
+ * is client-initiated or pre-collected in the play composer, so it never
+ * reaches here as a top-level `handSelect` prompt).
  */
 const ALWAYS_INTERRUPTIVE: ReadonlySet<TaskKind> = new Set<TaskKind>([
   'corpFirstAction', 'handSelect',

@@ -14,12 +14,20 @@
      - zero interactivity: no click/hover/zoom handlers, no Teleported
        CardZoomModal, no tooltips, pointer-events: none (the flight layers
        are inert by construction);
-     - zero live state: no resource counter, no action-used cube, no
-       disabled/hide preference logic — flight proxies always show the
-       pristine printed face;
+     - no action-used cube, no hide/preference logic;
      - one flat manifest lookup instead of Card.vue's preference-aware
        computed web; render-once, never patched mid-flight (GSAP moves the
        composited layer, the DOM inside stays static).
+
+    ⚠️ LITE IS A COST BUDGET, NEVER A DIFFERENT PICTURE. Whatever the host
+    hands off TO must be what flies: pass `card` when the host has the live
+    model and `lightweight` to match the destination's quality tier. Both were
+    once omitted on the hand-open flight, and each omission changed the card's
+    APPEARANCE, not its cost — no discount chip, no resource capsule (both
+    need the live model), and a `normal`-tier title (engraved gold gradient,
+    wide safe-area, one line) landing on a `thumb`-tier one (solid warm ink,
+    the discount chip's safe-area, two lines). The whole grid flickered at the
+    handoff.
 
     The `.card-container.filterDiv` + `.card-content-wrapper > .card-title`
     structure lights up the SAME sci-fi chassis frame, type-colour band and
@@ -36,7 +44,7 @@
        printed 0. Without it every console surface drew a permanent «0» on every
        resource card and the real count had to be told a second time somewhere
        else — two counters on one card, in two different places. -->
-  <PremiumCard v-if="premiumFace" :name="name" :card="card" :inert="true" aria-hidden="true" />
+  <PremiumCard v-if="premiumFace" :name="name" :card="card" :lightweight="lightweight" :inert="true" aria-hidden="true" />
 
   <div v-else class="card-container filterDiv con-card-lite" :class="rootClass" :style="artStyle" aria-hidden="true">
     <span class="card-corner card-corner--tl"></span>
@@ -102,6 +110,25 @@ export default defineComponent({
       type: Object as () => CardModel | undefined,
       required: false,
       default: undefined,
+    },
+    /**
+     * THE DESTINATION'S QUALITY TIER — set it whenever this face flies to (or
+     * from) a surface that renders `<Card … lightweight>`, which is every
+     * console GRID: the hand shelf, the draft, the deck pick, the start scene,
+     * the reveal strip.
+     *
+     * `PremiumCard` maps it to `pcard--tier-thumb`, and that tier is NOT a
+     * quieter version of the same picture — the title's engraved gold gradient
+     * becomes solid warm ink and the plate drops its textures. Flying the
+     * richer `normal` tier onto a `thumb` grid therefore swaps the card's
+     * typography and colour at the handoff, which is the one thing a physical
+     * transition may never do. A stationary hero (the composer's source card,
+     * the action rail) legitimately stays `normal` — it hands off to nothing.
+     */
+    lightweight: {
+      type: Boolean,
+      required: false,
+      default: false,
     },
   },
   computed: {

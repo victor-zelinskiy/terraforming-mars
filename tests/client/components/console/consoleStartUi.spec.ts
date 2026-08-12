@@ -31,6 +31,7 @@ function state(overrides: Partial<StartSceneCommandState>): StartSceneCommandSta
     payBeat: false,
     ceremonyVerb: 'Play now',
     hasFocusables: true,
+    firstAction: 'off',
     ...overrides,
   };
 }
@@ -131,5 +132,34 @@ describe('consoleStartUi (initial-setup command contract)', () => {
     expect(cmds.map((c) => c.control)).to.deep.eq(['secondary', 'back']);
     expect(labelOf(cmds, 'confirm'), 'A must not claim a press that does nothing').to.be.undefined;
     expect(labelOf(cmds, 'back')).to.eq('Minimize');
+  });
+
+  /**
+   * THE FIRST-ACTION STAGE — the deployment's conditional last stage. The
+   * waiting state must never advertise an active CTA (the action cannot be
+   * performed until the player's turn arrives); READY carries the ONE clear
+   * A verb; the rise / the submit round trip go honestly quiet.
+   */
+  it('the first-action WAIT advertises no A at all — inspect + minimize only', () => {
+    const cmds = startSceneCommands(state({mode: 'ceremony', firstAction: 'waiting'}));
+    expect(cmds.map((c) => c.control)).to.deep.eq(['secondary', 'back']);
+    expect(labelOf(cmds, 'confirm'), 'no active CTA while the action cannot be performed').to.be.undefined;
+  });
+
+  it('the first-action READY carries the one highlighted CTA', () => {
+    const cmds = startSceneCommands(state({mode: 'ceremony', firstAction: 'ready'}));
+    const a = cmds.find((c) => c.control === 'confirm');
+    expect(a?.label).to.eq('Take first action');
+    expect(a?.highlight).to.eq(true);
+    expect(labelOf(cmds, 'back')).to.eq('Minimize');
+  });
+
+  it('the first-action BUSY beat (rise / submit) goes honestly quiet', () => {
+    expect(startSceneCommands(state({mode: 'ceremony', firstAction: 'busy'}))).to.deep.eq([]);
+  });
+
+  it('the first-action stage outranks the generic ceremony verb', () => {
+    const cmds = startSceneCommands(state({mode: 'ceremony', firstAction: 'ready', hasFocusables: false}));
+    expect(labelOf(cmds, 'confirm')).to.eq('Take first action');
   });
 });

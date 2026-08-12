@@ -445,7 +445,7 @@
                  draw, and SETTLES back into the stack on release. -->
             <div class="con-start__embed" data-embed-slot="start"
                  :class="{
-                   'con-start__embed--live': embedActive || sponsorStep,
+                   'con-start__embed--live': embedActive || sponsorStep || firstActionPanelShown,
                    'con-start__embed--sourced': embedSourceShown !== undefined,
                  }">
               <div v-if="embedSourceShown !== undefined" class="con-start__embedsource" ref="embedSourceCol"
@@ -457,6 +457,71 @@
                   <ConsolePlayedCardLite :name="embedSourceShown" />
                 </div>
               </div>
+
+              <!-- ── THE FIRST-ACTION BRIEFING — the stage's own surface ──
+                   It does NOT title itself (the workspace crumb already says
+                   «СТАРТ ПАРТИИ › КОРПОРАЦИЯ › ПЕРВОЕ ДЕЙСТВИЕ»): the printed
+                   ASK leads, the server-computed result chips + honest
+                   follow-up rows support, and the state zone is either the
+                   calm turn-wait or the ONE clear CTA. It stands beside the
+                   seated corporation card and yields the zone to any embedded
+                   follow-up the action opens (the seat stays either way). -->
+              <transition name="con-start-firstact">
+                <div v-if="firstActionPanelShown" class="con-start__firstact"
+                     :class="{
+                       'con-start__firstact--ready': firstActionActionableNow,
+                       'con-start__firstact--busy': firstAct.submitting || firstAct.stage === 'staging',
+                     }">
+                  <div class="con-start__firstact-head">
+                    <span class="con-start__firstact-flag" aria-hidden="true">⚑</span>
+                    <span class="con-start__firstact-kicker">{{ $t('Mandatory') }}</span>
+                  </div>
+                  <div class="con-start__firstact-ask">{{ firstActionAskText }}</div>
+
+                  <div v-if="firstActionEffects.length > 0" class="con-start__firstact-block">
+                    <div class="con-start__firstact-cap">{{ $t('Result') }}</div>
+                    <div class="con-start__firstact-chips">
+                      <ActionEffectChip v-for="(eff, k) in firstActionEffects" :key="k" :effect="eff" />
+                    </div>
+                  </div>
+
+                  <div v-for="(w, i) in firstActionWarnings" :key="'w' + i" class="con-start__firstact-warn">
+                    <span class="con-start__firstact-warn-glyph" aria-hidden="true">⚠</span>
+                    <span class="con-start__firstact-warn-body">
+                      <span v-if="w.title !== ''" class="con-start__firstact-warn-title">{{ w.title }}</span>
+                      <ActionEffectChip v-if="w.effect !== undefined" :effect="w.effect" :skipped="true" />
+                      <span class="con-start__firstact-warn-text">{{ w.reason }}</span>
+                    </span>
+                  </div>
+
+                  <div v-for="(n, i) in firstActionNotes" :key="'n' + i" class="con-start__firstact-next" :aria-label="n.full">
+                    <span v-if="n.tileType !== undefined" class="con-start__firstact-next-tile" :style="tileIconStyle(n.tileType)" aria-hidden="true"></span>
+                    <span v-else class="con-start__firstact-next-glyph" aria-hidden="true">›</span>
+                    <span class="con-start__firstact-next-label">{{ $t('Next') }}</span>
+                    <span class="con-start__firstact-next-text">{{ n.text }}</span>
+                    <span v-if="n.constraint !== ''" class="con-start__firstact-next-tail">{{ n.constraint }}</span>
+                  </div>
+
+                  <!-- The STATE ZONE — one reserved row, so waiting → ready is
+                       a paint change on a standing panel, never a re-layout.
+                       The rise (staging) keeps it QUIET: a wait line under a
+                       card that is still travelling would name a state the
+                       player is not in. -->
+                  <div class="con-start__firstact-state">
+                    <div v-if="firstActionActionableNow" class="con-start__firstact-cta">
+                      <GamepadGlyph control="confirm" class="con-start__firstact-cta-glyph" />
+                      <span class="con-start__firstact-cta-label">{{ $t('Take first action') }}</span>
+                    </div>
+                    <div v-else-if="firstAct.submitting" class="con-start__firstact-wait con-start__firstact-wait--busy">
+                      <span class="con-start__firstact-wait-text">{{ $t('Executing') }}…</span>
+                    </div>
+                    <div v-else-if="firstAct.stage === 'standing'" class="con-start__firstact-wait">
+                      <span class="con-start__firstact-pulse" aria-hidden="true"><i></i><i></i><i></i></span>
+                      <span class="con-start__firstact-wait-text">{{ firstActionWaitLine }}</span>
+                    </div>
+                  </div>
+                </div>
+              </transition>
             </div>
           </div>
         </div>
@@ -623,10 +688,19 @@ import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/star
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {afterPreludes, cardCostForCorp, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
 import {
-  corporationCardNames, PreludeEntry, preludeEntries, preludeFizzleNotice, recordDrawChoice,
-  startFlowCorpPayPrompt, startFlowCorpPlayPrompt, startFlowCorpSelectPrompt,
+  corpActionOptionIndexFor, corporationCardNames, PreludeEntry, preludeEntries, preludeFizzleNotice, recordDrawChoice,
+  startFlowCorpPayPrompt, startFlowCorpPlayPrompt, startFlowCorpPrompt, startFlowCorpSelectPrompt,
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
+import {
+  firstActionActionable, firstActionAsk, firstActionBranch, firstActionDrawExpected,
+  firstActionOwed, firstActionStageCorp, firstActionWaitMate,
+} from '@/client/console/startFirstAction';
+import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
+import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
+import {NextStepRow, noteRow, placementRow} from '@/client/console/consolePlacementNextStep';
+import {consoleTranslate} from '@/client/console/consoleTranslate';
+import {tileIconStyle} from '@/client/console/consoleTileIcon';
 import {
   armPlayedHero, isPlayedHeroActive, playedHeroHolding, playedHeroState,
 } from '@/client/console/played/consolePlayedHero';
@@ -664,7 +738,7 @@ import ConsoleJourneyRail, {
 import ConsoleStartSelectionDock from '@/client/components/console/ConsoleStartSelectionDock.vue';
 import {armDeliveryHold, runHandDelivery} from '@/client/console/handDock/handDeliveryDirector';
 import {extractPlayRewards, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {ActionPreview} from '@/common/models/ActionPreviewModel';
+import {ActionEffect, ActionPreview} from '@/common/models/ActionPreviewModel';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
 import {cardsResponse} from '@/client/console/taskResponses';
@@ -754,7 +828,7 @@ function gsapSettled(animation: gsap.core.Animation): Promise<void> {
 
 export default defineComponent({
   name: 'ConsoleStartScene',
-  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite},
+  components: {Card, GamepadGlyph, ConsoleCardDealLayer, ConsoleWsHead, ConsoleJourneyRail, ConsoleStartSelectionDock, ConsoleStartPlayedDock, ConsolePlayedCardLite, ActionEffectChip},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /** The LIVE `/api/waitingFor` poll (App → shell → here) — see `launch`. */
@@ -907,6 +981,33 @@ export default defineComponent({
       embedSourceLanded: false,
       /** The queue scene has RELEASED (the draw-effect flow owns the room). */
       queueReleased: false,
+      /**
+       * THE FIRST-ACTION STAGE — the deployment's conditional last stage (the
+       * corporation's MANDATORY first action, embedded into the start flow).
+       *  · 'idle'       — no stage (nothing owed, or not its turn in the flow);
+       *  · 'staging'    — the corp card is rising out of «Разыграно» into the
+       *                   source seat; the deployment chrome recedes behind it;
+       *  · 'standing'   — the briefing stands around the seated card: waiting
+       *                   for the player's turn, or actionable (A performs);
+       *  · 'performing' — the option is submitted; the action's own follow-ups
+       *                   (a drawn-prelude pick, a placement, a claimed reveal)
+       *                   run through the EXISTING deployment grammar;
+       *  · 'leaving'    — the chain resolved: the card settles home, the room
+       *                   returns, the stage hands the flow to READY.
+       */
+      firstAct: {
+        stage: 'idle' as 'idle' | 'staging' | 'standing' | 'performing' | 'leaving',
+        /** The corporation currently owning the stage's seat. */
+        corp: undefined as CardName | undefined,
+        /** The submit is on the wire — the one anti-double-press latch. */
+        submitting: false,
+      },
+      /** Fetched first-action previews by corp (`has(name)` = fetch settled) —
+       *  the briefing's result chips / warnings / follow-up notes. */
+      firstActionPreviews: new Map<CardName, ActionPreview | undefined>(),
+      /** The stage has stood at least once this mount — keeps its journey
+       *  chapter visible (completed) after the action resolves. */
+      firstActionSeen: false,
       /** GAME FRAME MATERIALIZATION: the summary layer has been SWAPPED OUT
        *  under the flying cards (the deployment stands in its place). */
       matSwap: false,
@@ -1033,6 +1134,12 @@ export default defineComponent({
         corpPending: this.deploymentFlowStage === 'corp',
         payPending: this.deploymentFlowStage === 'pay',
         corpPick: this.corpCandidatePick,
+        // The first-action tail — while its briefing/wait stands. A follow-up
+        // pick (the drawn preludes) advances the tail through the EXISTING
+        // grammar (candidates → «ПРОЛОГИ › РОЗЫГРЫШ», an embedded reveal →
+        // the claim's own stage name) — the root never restarts.
+        firstAction: this.firstActionPanelShown ||
+          (this.deploymentFlowStage === 'firstAction' && this.candidatePrompt === undefined && !this.embedActive),
       });
     },
     wsSubject(): string {
@@ -1085,7 +1192,15 @@ export default defineComponent({
     /** The deployment stage stays on its source until every effect/child/card
      *  motion has returned. This is presentation over existing live signals,
      *  not a second progress latch. */
-    deploymentFlowStage(): 'corp' | 'pay' | 'preludes' | 'ready' {
+    deploymentFlowStage(): 'corp' | 'pay' | 'preludes' | 'firstAction' | 'ready' {
+      // While the FIRST-ACTION stage is up, everything its action spawns —
+      // the corp-sourced claim, the drawn-prelude pick, the placement yield —
+      // belongs to THAT stage, not back to «Корпорация» / «Прологи» (the
+      // journey must never re-open a completed chapter for a chain the last
+      // stage started).
+      if (this.firstActionStageLive) {
+        return 'firstAction';
+      }
       const effectOpen = this.heroState.active || this.embedActive || this.sponsorPending ||
         this.effectReturnPending || workspaceFrameHasNested('start') || this.yielded ||
         currentRevealEvent() !== undefined;
@@ -1101,6 +1216,11 @@ export default defineComponent({
           (effectOpen && sourceType === CardType.PRELUDE) ||
           (effectOpen && sourceType === undefined)) {
         return 'preludes';
+      }
+      // The cards are through; the mandatory first action is what remains
+      // (its stage is about to rise, or its wait is standing).
+      if (this.firstActionOwedNow) {
+        return 'firstAction';
       }
       return 'ready';
     },
@@ -1120,6 +1240,8 @@ export default defineComponent({
           boughtCards: this.state.projects.length > 0,
           preludesLeft: 0,
           hasPreludes: this.state.preludes.length > 0 || this.playedPreludes.length > 0,
+          hasFirstAction: this.firstActionSeen,
+          firstActionPending: false,
         }).map((item) => ({...item, state: 'completed' as const}));
       }
       const deploymentLive = this.mode === 'ceremony' && this.state.flow !== 'materializing';
@@ -1143,6 +1265,12 @@ export default defineComponent({
         preludesLeft: this.deploymentFlowStage === 'preludes' ? Math.max(1, this.preludeRail.length) : 0,
         hasPreludes: this.state.preludes.length > 0 || this.preludeRail.length > 0 ||
           this.playedPreludes.length > 0 || this.deploymentFlowStage === 'preludes',
+        // The stage EXISTS whenever the corp owes its opening move (visible
+        // as the upcoming chapter from the first frame of the deployment) —
+        // and it STAYS, completed, once the action resolves (`firstActionSeen`
+        // — the rail must not shrink a chapter the player just finished).
+        hasFirstAction: this.firstActionOwedNow || this.firstActionStageLive || this.firstActionSeen,
+        firstActionPending: this.deploymentFlowStage === 'firstAction',
       });
     },
     journeyPhases(): ReadonlyArray<JourneyPhase> {
@@ -1186,7 +1314,8 @@ export default defineComponent({
       }
       const itemLabel = this.deploymentFlowStage === 'corp' ? 'Corporation' :
         (this.deploymentFlowStage === 'pay' ? 'Projects' :
-          (this.deploymentFlowStage === 'ready' ? 'Ready' : 'Preludes'));
+          (this.deploymentFlowStage === 'firstAction' ? 'First action' :
+            (this.deploymentFlowStage === 'ready' ? 'Ready' : 'Preludes')));
       return {ordinal: '02', phaseLabel: 'Playing', itemLabel};
     },
     /**
@@ -1333,6 +1462,12 @@ export default defineComponent({
       if (this.embedActive && this.outcome.sourceCard !== '') {
         return translateText(this.outcome.sourceCard);
       }
+      // The first-action stage (its own briefing beats only — a follow-up
+      // pick names the FOCUSED candidate below, exactly as every pick does):
+      // the seated corporation IS the subject.
+      if (this.firstActionPanelShown && this.firstAct.corp !== undefined) {
+        return translateText(this.firstAct.corp);
+      }
       const f = this.focusedItem;
       if (f === undefined) {
         return '';
@@ -1343,6 +1478,16 @@ export default defineComponent({
     ceremonyStatusText(): string {
       if (this.embedActive) {
         return translateText('Card draw');
+      }
+      // The first-action stage: the rail carries only the short state — the
+      // briefing panel owns the wait line (one text, one place; the rail
+      // repeating it beside the panel read as an echo). A follow-up pick
+      // falls through to the ordinary focused-card grammar.
+      if (this.firstActionPanelShown) {
+        return this.firstActionActionableNow ? translateText('Mandatory first action') : '';
+      }
+      if (this.firstActionStageLive && this.candidatePrompt === undefined) {
+        return '';
       }
       const f = this.focusedItem;
       if (f === undefined) {
@@ -1403,6 +1548,13 @@ export default defineComponent({
         // blanked top slot — `awayCard` still naming a card whose settle never
         // reached the line that clears it, so only the peek strip painted.
         !this.effectReturnPending &&
+        // THE FIRST-ACTION STAGE is the deployment's own conditional last
+        // stage now: the workspace may not settle while the corporation still
+        // OWES its mandatory first action (domain ledger / live prompt), and
+        // not before the stage's own return beat has physically completed
+        // (the corp card settled home, the room breathed back).
+        !this.firstActionOwedNow &&
+        this.firstAct.stage === 'idle' &&
         this.corpPlayPrompt === undefined &&
         this.corpPayCost === undefined &&
         this.candidatePrompt === undefined &&
@@ -1416,6 +1568,143 @@ export default defineComponent({
         this.queueCards.length === 0 &&
         this.payProjects.length === 0 &&
         this.queueArriving.size === 0;
+    },
+    // ── THE FIRST-ACTION STAGE (the deployment's conditional last stage) ──
+    /** The corporation still owes its mandatory first action (see
+     *  startFirstAction.ts — domain ledger / live marked prompt). */
+    firstActionOwedNow(): boolean {
+      return firstActionOwed(this.playerView);
+    },
+    /** The corp the stage seats (the READY one first — Merger resolves them
+     *  one at a time as the server re-raises the prompt). */
+    firstActionCorpNow(): CardName | undefined {
+      return firstActionStageCorp(this.playerView);
+    },
+    /** The player's turn has genuinely arrived — the marked OrOptions is live
+     *  and carries the seated corp's option. */
+    firstActionActionableNow(): boolean {
+      return this.firstAct.stage === 'standing' && !this.firstAct.submitting &&
+        firstActionActionable(this.playerView, this.firstAct.corp);
+    },
+    /** The stage is on screen in ANY of its beats. */
+    firstActionStageLive(): boolean {
+      return this.firstAct.stage !== 'idle';
+    },
+    /** The briefing PANEL renders — never over an embedded follow-up (the
+     *  reveal owns the zone then; the seat stays either way) and never once
+     *  the action is off performing its own presentation. */
+    firstActionPanelShown(): boolean {
+      return (this.firstAct.stage === 'staging' || this.firstAct.stage === 'standing') &&
+        !this.embedActive && this.candidatePrompt === undefined;
+    },
+    /**
+     * ENTRY IS DUE — the deployment's cards are through, nothing is mid-air,
+     * nothing is hosted, and the corporation still owes its opening move.
+     * Pure entry predicate: the watcher acts on its rising edge only.
+     */
+    firstActionEntryDue(): boolean {
+      if (this.firstAct.stage !== 'idle' || this.mode !== 'ceremony' || !this.ceremonyRevealed) {
+        return false;
+      }
+      if (!this.firstActionOwedNow || this.firstActionCorpNow === undefined) {
+        return false;
+      }
+      if (this.yielded || workspaceFrameHasNested('start')) {
+        return false;
+      }
+      if (this.sponsorPending || this.effectReturnPending ||
+          this.corpPlayPrompt !== undefined || this.corpPayCost !== undefined ||
+          this.candidatePrompt !== undefined ||
+          startFlowPreludePrompt(this.playerView) !== undefined ||
+          this.wizardInput !== undefined) {
+        return false;
+      }
+      return !this.heroState.active && !this.embedActive &&
+        currentRevealEvent() === undefined && !isHandDeliveryActive() &&
+        this.queueCards.length === 0 && this.payProjects.length === 0 &&
+        this.queueArriving.size === 0;
+    },
+    /**
+     * The stage's CHAIN IS QUIET — every visual consequence of the action has
+     * returned to this frame: no yield (the placement excursion holds it), no
+     * embedded follow-up, no candidate pick, no hero, no reveal, no intake.
+     * Shared by the leave (below) and the Merger re-stand.
+     */
+    firstActionChainQuiet(): boolean {
+      return !this.yielded && !workspaceFrameHasNested('start') &&
+        !this.embedActive && this.candidatePrompt === undefined &&
+        startFlowPreludePrompt(this.playerView) === undefined &&
+        !this.heroState.active && currentRevealEvent() === undefined &&
+        !isHandDeliveryActive() && this.queueCards.length === 0 &&
+        this.queueArriving.size === 0;
+    },
+    /**
+     * THE STAGE MAY LEAVE — the action resolved (ledger drained, prompt gone)
+     * and its chain is quiet. One release, at the end.
+     */
+    firstActionLeaveDue(): boolean {
+      if (this.firstAct.stage === 'idle' || this.firstAct.stage === 'leaving') {
+        return false;
+      }
+      if (this.firstActionOwedNow) {
+        return false;
+      }
+      return this.firstActionChainQuiet;
+    },
+    /** The seated corp's fetched preview (undefined = fetch pending/failed). */
+    firstActionPreview(): ActionPreview | undefined {
+      const corp = this.firstAct.corp;
+      return corp === undefined ? undefined : this.firstActionPreviews.get(corp);
+    },
+    /** The printed ASK — the live option's buttonLabel (`initialActionText`),
+     *  or the honest generic while the prompt has not arrived yet. */
+    firstActionAskText(): string {
+      const ask = firstActionAsk(this.playerView, this.firstAct.corp);
+      return ask !== undefined ? translateText(ask) : translateText('Take the first action of your corporation');
+    },
+    /** The server-computed result chips of the seated corp's action. */
+    firstActionEffects(): ReadonlyArray<ActionEffect> {
+      return firstActionBranch(this.firstActionPreview)?.effects ?? [];
+    },
+    /** Skipped-effect warnings (the shared derivation — composer parity). */
+    firstActionWarnings(): Array<{title: string, reason: string, effect?: ActionEffect}> {
+      const branch = firstActionBranch(this.firstActionPreview);
+      if (branch === undefined) {
+        return [];
+      }
+      return skippedEffectViews(branch.steps).map((w) => ({
+        title: w.title !== '' ? translateText(w.title) : '',
+        reason: translateText(w.reason),
+        effect: w.effect,
+      }));
+    },
+    /** Honest post-confirm follow-ups («ДАЛЕЕ: разместите тайл города…») —
+     *  the same presenters the play composer uses. */
+    firstActionNotes(): Array<NextStepRow> {
+      const branch = firstActionBranch(this.firstActionPreview);
+      if (branch === undefined) {
+        return [];
+      }
+      const out: Array<NextStepRow> = [];
+      for (const s of branch.steps) {
+        if (s.kind === 'boardPlacement') {
+          out.push(placementRow(s, consoleTranslate, textOf));
+        } else if (s.kind === 'note' && s.noteKind !== 'warning') {
+          out.push(noteRow(s.text !== undefined ? textOf(s.text) : translateText('Choose a target')));
+        } else if (s.kind === 'input') {
+          const t = textOf(s.input.title);
+          out.push(noteRow(t !== '' ? t : translateText('Choose a target')));
+        }
+      }
+      return out;
+    },
+    /** The waiting readout — whose move the stage is calmly waiting out. */
+    firstActionWaitLine(): string {
+      const mate = firstActionWaitMate(this.playerView, this.waitingOnPlayers);
+      if (mate === undefined) {
+        return translateText('The first action unlocks on your turn');
+      }
+      return translateTextWithParams('Waiting for ${0} to finish their move', [participantDisplayName(mate)]);
     },
     /**
      * THE EFFECT'S RETURN IS STILL OWED — the source card has not finished its
@@ -1999,7 +2288,21 @@ export default defineComponent({
         payBeat: this.corpPayCost !== undefined,
         ceremonyVerb: this.candidatePrompt !== undefined ? this.candidateVerb : 'Play now',
         hasFocusables: this.focusables.length > 0,
+        firstAction: this.firstActionBarState,
       });
+    },
+    /** The first-action stage as the command contract sees it (see
+     *  StartSceneCommandState.firstAction). Only the PANEL beats own the bar —
+     *  the action's follow-ups (candidates, an embedded reveal) fall back to
+     *  the queue/claim grammar exactly as every other play. */
+    firstActionBarState(): 'off' | 'waiting' | 'ready' | 'busy' {
+      if (!this.firstActionPanelShown) {
+        return 'off';
+      }
+      if (this.firstAct.stage === 'staging' || this.firstAct.submitting) {
+        return 'busy';
+      }
+      return this.firstActionActionableNow ? 'ready' : 'waiting';
     },
   },
   watch: {
@@ -2013,6 +2316,14 @@ export default defineComponent({
             initialCardsSignature(input),
             wizardSteps(input).map((step) => step.id),
           );
+          // A fresh deal on a still-mounted scene (rematch) — a stale
+          // first-action stage from the previous game must never leak in.
+          if (this.firstAct.stage !== 'idle' || this.firstActionSeen) {
+            this.firstAct.stage = 'idle';
+            this.firstAct.corp = undefined;
+            this.firstAct.submitting = false;
+            this.firstActionSeen = false;
+          }
         }
       },
     },
@@ -2154,7 +2465,11 @@ export default defineComponent({
     'task': {
       immediate: true,
       handler(task: ConsoleTask | undefined) {
-        if (task?.kind === 'startSequence' && !startDeploymentBegun()) {
+        // The corporation's first action is part of the deployment too — a
+        // reload that lands straight on it (the wait / the live prompt) must
+        // open the ceremony bounds, not the preparation.
+        if ((task?.kind === 'startSequence' || task?.kind === 'corpFirstAction') &&
+            !startDeploymentBegun()) {
           markStartDeploymentBegun();
         }
       },
@@ -2257,6 +2572,81 @@ export default defineComponent({
         void this.abortStartEffectFlow();
       }
     },
+    // ── THE FIRST-ACTION STAGE lifecycle ─────────────────────────────────
+    /**
+     * ENTRY — the deployment's cards are through and the corporation still
+     * owes its opening move: the stage rises (the corp card out of
+     * «Разыграно», the chrome receding behind it). Immediate: a reload that
+     * lands mid-first-action (the wait, or the live prompt) restores the
+     * standing stage through the same one path — the emerge simply plays on
+     * the freshly mounted dock, so the restore is physical too, never a
+     * re-run of anything committed.
+     */
+    'firstActionEntryDue': {
+      immediate: true,
+      handler(due: boolean) {
+        if (due) {
+          void this.enterFirstActionStage();
+        }
+      },
+    },
+    /** EXIT — the action's whole causal chain resolved (ledger drained,
+     *  every follow-up answered, every flight home): one leave, at the end. */
+    'firstActionLeaveDue'(due: boolean) {
+      if (due) {
+        void this.runFirstActionLeave();
+      }
+    },
+    /**
+     * A SECOND owed corporation (Merger) — the server re-raised the prompt
+     * after the first action's chain resolved: re-stand the stage (the flow
+     * never left it), and the seat hands over to the next corp.
+     */
+    'firstActionOwedNow'(owed: boolean) {
+      if (owed) {
+        this.restandFirstAction();
+      }
+    },
+    /** …and the same re-stand off the QUIET edge — the second owed action can
+     *  be re-raised while the first one's chain is still flying (a placement
+     *  excursion), so whichever of the two flips LAST does the re-stand. */
+    'firstActionChainQuiet'(quiet: boolean) {
+      if (quiet) {
+        this.restandFirstAction();
+      }
+    },
+    'firstActionCorpNow'(corp: CardName | undefined) {
+      if (corp !== undefined && this.firstAct.stage === 'standing' && this.firstAct.corp !== corp) {
+        void this.swapFirstActionSeat(corp);
+      }
+    },
+    /**
+     * THE ACTION'S FOLLOW-UP PICK ARRIVED (Valley Trust's three preludes):
+     * the room comes back for the candidates — the queue and the shelf
+     * breathe back around the still-seated corporation (it IS the source of
+     * these cards), and the existing candidate flow takes over untouched.
+     */
+    'candidatePrompt'(now: SelectCardModel | undefined, was: SelectCardModel | undefined) {
+      if (now !== undefined && was === undefined && this.firstAct.stage === 'performing') {
+        void Promise.all([this.runQueueReturn(), this.runPlayedDockReturn()]);
+      }
+    },
+    /**
+     * THE SUBMIT ROUND TRIP resolved (any response): release the latch. A
+     * refusal leaves the prompt standing — the stage stays actionable and the
+     * CTA re-arms; success moves the prompt on — the stage goes performing
+     * and the action's own presentation (a claim, a pick, a placement) drives
+     * from here.
+     */
+    'playerView'() {
+      if (this.firstAct.submitting) {
+        this.firstAct.submitting = false;
+        if ((this.firstAct.stage === 'standing' || this.firstAct.stage === 'staging') &&
+            startFlowCorpPrompt(this.playerView) === undefined) {
+          this.firstAct.stage = 'performing';
+        }
+      }
+    },
     /** The claim released (any exit — the take finished, the backstop, the
      *  unmount): the main scene RETURNS first, then the source card carries
      *  on into «Разыграно» (the second half of its interrupted journey). */
@@ -2352,6 +2742,8 @@ export default defineComponent({
     resetConsoleStartUi();
   },
   methods: {
+    /** The «ДАЛЕЕ» row's inline tile pictogram (the same art as the card face). */
+    tileIconStyle,
     /** Shared step/frame settle: reseed focus, mark visited, refit. */
     onFrameSettle(): void {
       this.focusIdx = this.stepInitialFocus();
@@ -3083,6 +3475,18 @@ export default defineComponent({
       const items = this.focusables;
       const item = this.focusedItem;
       if (item === undefined || items.length === 0) {
+        // THE FIRST-ACTION SEAT — the one card on stage: X reads it
+        // fullscreen from its physical seat (the viewer lifts out of the
+        // seat and returns into it — the composer's one-physical-card rule).
+        const seated = this.firstAct.corp;
+        if (this.firstActionStageLive && seated !== undefined) {
+          openConsoleCardZoom([{name: seated} as CardModel], 0, undefined, undefined, {
+            origin: {
+              kind: 'physical',
+              resolve: () => (this.$el as HTMLElement | undefined)?.querySelector<HTMLElement>('[data-embed-source-slot]') ?? null,
+            },
+          });
+        }
         return;
       }
       const action = {
@@ -3905,8 +4309,12 @@ export default defineComponent({
         // state). NEVER while a play is physically in flight or an embedded
         // follow-up is open — a defer unmounts the scene and with it the
         // hero's landing target / the reveal's zone (the stranded-card bug).
+        // The first-action stage adds two beats of its own: the corp's rise
+        // into the seat and the submit round trip — both are one motion the
+        // collapse would tear (the standing WAIT itself minimizes freely).
         if (isPlayedHeroActive() || this.embedActive ||
-            isHandDeliveryActive() || this.queueArriving.size > 0) {
+            isHandDeliveryActive() || this.queueArriving.size > 0 ||
+            this.firstAct.stage === 'staging' || this.firstAct.submitting) {
           return;
         }
         this.$emit('defer');
@@ -3931,6 +4339,13 @@ export default defineComponent({
         // pick stays in the grid with its «Выбрана» band — comparable,
         // deselectable, physically collected only when the step advances.
         this.togglePick();
+        return;
+      }
+      // The FIRST-ACTION stage's one clear CTA — actionable only when the
+      // player's turn has genuinely arrived (never a dead press: the waiting
+      // state offers no A at all, and the submit latch swallows repeats).
+      if (this.firstActionActionableNow) {
+        this.performFirstAction();
         return;
       }
       this.actOnFocused();
@@ -4160,6 +4575,23 @@ export default defineComponent({
           }
         }
       }
+      // THE SEAT HANDS OVER, never doubles. A first-action follow-up pick
+      // whose winner DRAWS cards itself (Valley Trust hands the player a
+      // Biolab) needs the source seat for its own claim — and the seat is
+      // still occupied by the corporation. One physical object per card: the
+      // corp settles home FIRST (its role as the source ends the moment the
+      // action's outcome takes over), the rivals tumble at once (the press's
+      // instant response), and only on the vacated seat does the pick arm its
+      // hero + claim. A non-drawing winner keeps the corp seated — the stage
+      // closes it at READY.
+      if (this.firstActionStageLive && this.embedSourceShown !== undefined &&
+          (this.drawExpected.get(name) ?? 0) > 0) {
+        if (this.firstAct.stage === 'standing' || this.firstAct.stage === 'staging') {
+          this.firstAct.stage = 'performing';
+        }
+        void this.runEmbedSourceSettle().then(() => submit());
+        return;
+      }
       submit();
     },
     /**
@@ -4168,8 +4600,8 @@ export default defineComponent({
      * same pixels into the step's source column, the column card reveals on
      * touchdown. The same take/carry/lay grammar as every start transfer.
      */
-    async runEmbedSourceEmerge(): Promise<void> {
-      const source = this.outcome.sourceCard as CardName;
+    async runEmbedSourceEmerge(explicitSource?: CardName): Promise<void> {
+      const source = explicitSource ?? this.outcome.sourceCard as CardName;
       if (source === '' || this.embedSourceShown !== undefined) {
         return;
       }
@@ -4403,6 +4835,157 @@ export default defineComponent({
       this.embedSourceArriving = false;
       this.embedSourceLanded = false;
       this.embedSourceDeparting = false;
+    },
+    // ── THE FIRST-ACTION STAGE (methods) ─────────────────────────────────
+    /**
+     * ENTER THE STAGE — the physical opening the flow's grammar demands: the
+     * corporation card rises out of its REAL place in «Разыграно» (the same
+     * emerge every embedded step uses — dock face steps away, geometry held,
+     * a proxy carries the live pixels into the source seat), while the
+     * deployment chrome (queue remnants + the played shelf's frame, captions
+     * and unrelated cards) recedes behind it in the descend phrase. The
+     * briefing then materializes around the settled card (CSS enter — the
+     * panel is mounted by `firstActionPanelShown`).
+     */
+    async enterFirstActionStage(): Promise<void> {
+      const corp = this.firstActionCorpNow;
+      if (corp === undefined || this.firstAct.stage !== 'idle') {
+        return;
+      }
+      this.firstAct.stage = 'staging';
+      this.firstAct.corp = corp;
+      this.firstAct.submitting = false;
+      this.firstActionSeen = true;
+      this.fetchFirstActionPreview(corp);
+      // The card leaves FIRST, the shelf lets go BEHIND it (the same order the
+      // effect flow uses: the source is out before the surface retires — the
+      // card must never vanish inside a fading shelf).
+      const emerge = this.runEmbedSourceEmerge(corp);
+      this.runQueueRelease();
+      window.setTimeout(() => {
+        // A beat later, so the card visibly LEAVES the shelf before the shelf
+        // dissolves (reduced motion collapses both to instant sets).
+        if (this.firstAct.stage === 'staging' || this.firstAct.stage === 'standing') {
+          this.runPlayedDockRelease();
+        }
+      }, motionMs(140));
+      await emerge;
+      if (this.firstAct.stage === 'staging') {
+        this.firstAct.stage = 'standing';
+      }
+    },
+    /** The briefing's preview fetch — non-gating (the CTA never waits on it);
+     *  a failed fetch degrades to the ask + the confirm, exactly like the
+     *  ceremony's reward prefetch. */
+    fetchFirstActionPreview(corp: CardName): void {
+      if (this.firstActionPreviews.has(corp) || typeof fetch !== 'function') {
+        return;
+      }
+      this.firstActionPreviews.set(corp, undefined);
+      const url = apiUrl(paths.API_CORP_FIRST_ACTION_PREVIEW) +
+        '?id=' + encodeURIComponent(this.playerView.id) + '&corp=' + encodeURIComponent(corp);
+      fetch(url)
+        .then((r) => (r.ok ? r.json() : undefined))
+        .then((p) => {
+          this.firstActionPreviews.set(corp, p as ActionPreview | undefined);
+        })
+        .catch(() => {
+          // Degraded honestly: the stage still shows the ask + the CTA.
+        });
+    },
+    /**
+     * PERFORM THE FIRST ACTION (A on the standing stage) — submit the seated
+     * corp's option of the marked OrOptions, byte-identical to the legacy
+     * radio submit. A draw-effect action claims its follow-up INTO this
+     * workspace in the same press (the corp is ALREADY physically staged in
+     * the source seat, so the claim's execution beat is done by construction);
+     * everything else (a placement, a prelude pick) arrives as the
+     * deployment's normal follow-up prompts.
+     */
+    performFirstAction(): void {
+      if (!this.firstActionActionableNow) {
+        return;
+      }
+      const corp = this.firstAct.corp;
+      const prompt = startFlowCorpPrompt(this.playerView);
+      const index = corpActionOptionIndexFor(prompt, corp as CardName);
+      if (prompt === undefined || index === -1) {
+        return;
+      }
+      this.firstAct.submitting = true;
+      const expected = firstActionDrawExpected(this.firstActionPreview);
+      if (expected > 0) {
+        setWorkspaceOutcomeSlot('.con-start__embed');
+        claimWorkspaceOutcome('start', corp as CardName, ['draw', 'pick'], 0, expected);
+        // The execution beat is ALREADY played: the source card physically
+        // stands in its seat (the stage's emerge). Without this the claim
+        // sits out the full BEAT_SAFETY before its surface may mount.
+        markWorkspaceOutcomeBeatDone();
+      }
+      this.$emit('submit', {type: 'or', index, response: {type: 'option'}});
+    },
+    /**
+     * LEAVE THE STAGE — the action's whole causal chain has resolved: the
+     * room breathes back and the corporation card physically settles home
+     * into «Разыграно» (the same return + settle phrase every embedded step
+     * ends with) — closing its role as the source, so READY lands on a
+     * complete, settled frame.
+     */
+    async runFirstActionLeave(): Promise<void> {
+      if (this.firstAct.stage === 'idle' || this.firstAct.stage === 'leaving') {
+        return;
+      }
+      this.firstAct.stage = 'leaving';
+      await this.runStartEffectReturn();
+      this.firstAct.stage = 'idle';
+      this.firstAct.corp = undefined;
+      this.firstAct.submitting = false;
+    },
+    /**
+     * MERGER RE-STAND — the server re-raised the first-action prompt after a
+     * previous action's chain resolved (a second corporation owes its move):
+     * the standing stage returns without ever having left, and the seat swap
+     * follows if the pending corp changed.
+     */
+    restandFirstAction(): void {
+      if (this.firstAct.stage !== 'performing' || !this.firstActionOwedNow || !this.firstActionChainQuiet) {
+        return;
+      }
+      this.firstAct.stage = 'standing';
+      this.firstAct.submitting = false;
+      const corp = this.firstActionCorpNow;
+      if (corp !== undefined && this.firstAct.corp !== corp) {
+        void this.swapFirstActionSeat(corp);
+      }
+    },
+    /**
+     * MERGER — a SECOND corporation owes its action after the first resolved:
+     * the seat hands over (the first corp settles home, the next one rises)
+     * through the same two phrases, never a repaint of the seat's face.
+     */
+    async swapFirstActionSeat(next: CardName): Promise<void> {
+      if (this.firstAct.stage !== 'standing' || this.firstAct.corp === next) {
+        return;
+      }
+      this.firstAct.stage = 'staging';
+      this.firstAct.submitting = false;
+      // The settle flies INTO the shelf, so the shelf must be back and
+      // measurable first (the same order runStartEffectReturn keeps); it
+      // recedes again behind the next corp's rise.
+      await this.runPlayedDockReturn();
+      await this.runEmbedSourceSettle();
+      this.firstAct.corp = next;
+      this.fetchFirstActionPreview(next);
+      const emerge = this.runEmbedSourceEmerge(next);
+      window.setTimeout(() => {
+        if (this.firstAct.stage === 'staging' || this.firstAct.stage === 'standing') {
+          this.runPlayedDockRelease();
+        }
+      }, motionMs(140));
+      await emerge;
+      if (this.firstAct.stage === 'staging') {
+        this.firstAct.stage = 'standing';
+      }
     },
     /**
      * The play's FOLLOW-UP claim: a start card that DRAWS other cards hosts

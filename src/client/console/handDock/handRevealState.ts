@@ -29,6 +29,7 @@
 
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
 
 export type HandRevealPhase = 'docked' | 'opening' | 'open' | 'closing';
 
@@ -38,8 +39,16 @@ export type HandRevealPhase = 'docked' | 'opening' | 'open' | 'closing';
  * unplayable ('soft') / select-disabled ('strong') filter, `chip` is the
  * compact blocker label (english i18n key — the layer translates). The
  * face flips into view mid-flight ALREADY in its true state.
+ *
+ * `card` is the LIVE model the landed slot renders from, and it belongs here
+ * for exactly the same reason the dim does: the discount chip, the stored-
+ * resource capsule and the disabled wash are all read off it, and the cost
+ * chip's presence additionally re-insets the title (`--pcard-title-safe-l`),
+ * so a model-less proxy also breaks the name's SIZE and line breaks. Flying
+ * without it made the whole grid change composition at the handoff.
  */
 export type RevealVisual = {
+  card?: CardModel,
   dim?: 'soft' | 'strong',
   chip?: string,
 };

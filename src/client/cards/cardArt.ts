@@ -73,18 +73,30 @@ export function premiumCardArt(name: CardName): PremiumCardArt {
  * Decode a card's art UP FRONT, before a cinematic mounts a premium face for
  * it. A face that mounts on a not-yet-decoded webp paints a BLACK body for a
  * frame or two — very visible on a card that holds still (a discard's turn, a
- * draw's flip). A bare `Image()` warms the browser cache; `premiumCardArt`
- * always resolves (real art, else the shared fallback), so both cases warm.
+ * draw's flip). `premiumCardArt` always resolves (real art, else the shared
+ * fallback), so both cases warm.
  *
- * Cheap and bounded — a handful of small webps per scene — and a no-op under
- * JSDOM/SSR. Every console scene that spawns card proxies should call it at
- * ARM time, which is where the round-trip gives the decode its head start.
+ * ⚠️ FETCHING IS NOT DECODING, and only decoding is what the caller wants.
+ * `img.src = …` guarantees the BYTES arrive; the picture still does not exist
+ * until the browser has rasterized it, and these are ~1536px webps. That gap
+ * is measured in hundreds of ms and is exactly the width of a cinematic: the
+ * hand-open flight showed a shelf of art-less cards on its FIRST run and full
+ * art on every later one, because the first paint was doing the decoding.
+ * `decode()` moves that work ahead of the scene, where there is time for it.
+ *
+ * Fire-and-forget by contract: a warm-up may never gate a cinematic, and a
+ * rejected decode is the `<img>`'s own fallback chain's business
+ * (PremiumCardArt.onError). Bounded and a no-op under JSDOM/SSR. Every console
+ * scene that spawns card proxies should call it at ARM time, which is where
+ * the round-trip pays for the decode.
  */
 export function preloadPremiumCardArt(names: ReadonlyArray<CardName>): void {
   if (typeof Image === 'undefined') {
     return; // JSDOM / SSR — nothing to warm.
   }
   for (const name of names) {
-    new Image().src = premiumCardArt(name).url;
+    const img = new Image();
+    img.src = premiumCardArt(name).url;
+    void img.decode?.().catch(() => undefined);
   }
 }

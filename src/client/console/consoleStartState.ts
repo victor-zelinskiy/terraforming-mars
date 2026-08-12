@@ -212,22 +212,36 @@ export function startDeploymentBegun(): boolean {
  */
 /**
  * The MINIMIZED start workspace's announcement copy — the one surface that
- * legitimately stands with no live prompt (the table is still confirming),
- * so `consoleTaskSummary` (which keys on a TaskKind) has nothing for it. Pure
+ * legitimately stands with no live prompt (the table is still confirming, or
+ * the first-action stage is waiting out another player's move), so
+ * `consoleTaskSummary` (which keys on a TaskKind) has nothing for it. Pure
  * + key-based, exactly like that module: the shell never writes a label.
  */
-export function startDeferredSummary(awaiting: boolean): {kickerKey: string, askKey: string, returnKey: string} {
-  return awaiting ?
-    {
+export type StartDeferredState = 'awaiting-table' | 'awaiting-first-action' | 'in-progress';
+
+export function startDeferredSummary(state: StartDeferredState): {kickerKey: string, askKey: string, returnKey: string} {
+  switch (state) {
+  case 'awaiting-table':
+    return {
       kickerKey: 'Start of the game · waiting',
       askKey: 'Waiting for the rest of the table',
       returnKey: 'Return to the start of the game',
-    } :
-    {
+    };
+  case 'awaiting-first-action':
+    // The deployment is through its cards; the corporation's mandatory first
+    // action is the one thing left, and it unlocks on the player's own turn.
+    return {
+      kickerKey: 'Start of the game · first action',
+      askKey: 'The first corporation action awaits your turn',
+      returnKey: 'Return to the start of the game',
+    };
+  case 'in-progress':
+    return {
       kickerKey: 'Start of the game',
       askKey: 'Continue the start of the game',
       returnKey: 'Return to the start of the game',
     };
+  }
 }
 
 export function startAwaitingOthers(view: PlayerViewModel): boolean {
@@ -431,8 +445,11 @@ export function committedStartJourneyItems(
 /**
  * The DEPLOYMENT journey (progress mode): the irreversible start sequence as
  * a linear readout — corporation → payment (when cards were bought) →
- * preludes → done. States derive from the live ceremony predicates the scene
- * already owns; this is presentation math only.
+ * preludes → first action (when the corporation owes one) → done. Every
+ * middle stage is CONDITIONAL: it exists only when its work exists, so a
+ * corp with no first action never shows an empty stage and an empty buy
+ * never shows a payment. States derive from the live ceremony predicates
+ * the scene already owns; this is presentation math only.
  */
 export function deploymentJourneyItems(signals: {
   corpPending: boolean,
@@ -440,6 +457,12 @@ export function deploymentJourneyItems(signals: {
   boughtCards: boolean,
   preludesLeft: number,
   hasPreludes: boolean,
+  /** The corporation owes a mandatory first action (domain ledger / live
+   *  prompt) OR its stage is still physically on screen. Absent → no stage. */
+  hasFirstAction?: boolean,
+  /** That first action is not resolved yet (waiting for the turn, live,
+   *  or its causal chain still running). */
+  firstActionPending?: boolean,
 }): ReadonlyArray<StartJourneyItem> {
   const items: Array<StartJourneyItem> = [];
   const corpState = signals.corpPending ? 'current' : 'completed';
@@ -451,15 +474,23 @@ export function deploymentJourneyItems(signals: {
       state: signals.corpPending ? 'locked' : (signals.payPending ? 'current' : 'completed'),
     });
   }
+  const beforePreludes = signals.corpPending || signals.payPending;
   if (signals.hasPreludes) {
-    const before = signals.corpPending || signals.payPending;
     items.push({
       id: 'preludes',
       label: 'Preludes',
-      state: before ? 'locked' : (signals.preludesLeft > 0 ? 'current' : 'completed'),
+      state: beforePreludes ? 'locked' : (signals.preludesLeft > 0 ? 'current' : 'completed'),
     });
   }
-  const allDone = !signals.corpPending && !signals.payPending && signals.preludesLeft === 0;
+  const beforeFirstAction = beforePreludes || signals.preludesLeft > 0;
+  if (signals.hasFirstAction === true) {
+    items.push({
+      id: 'firstAction',
+      label: 'First action',
+      state: beforeFirstAction ? 'locked' : (signals.firstActionPending === true ? 'current' : 'completed'),
+    });
+  }
+  const allDone = !beforeFirstAction && signals.firstActionPending !== true;
   items.push({id: 'ready', label: 'Ready', state: allDone ? 'current' : 'locked'});
   return items;
 }
@@ -514,6 +545,8 @@ export function deploymentCrumb(signals: {
   corpPending: boolean,
   payPending: boolean,
   corpPick: boolean,
+  /** The mandatory first-action stage owns the tail (preludes resolved). */
+  firstAction?: boolean,
 }): StartCrumb {
   if (signals.embedActive) {
     return {
@@ -526,6 +559,13 @@ export function deploymentCrumb(signals: {
   }
   if (signals.corpPending || signals.corpPick) {
     return {subject: 'Corporation', stage: 'Playing'};
+  }
+  // THE FIRST-ACTION STAGE — the same grammar one stage further: the subject
+  // returns to the corporation (the card back on stage IS the corp), the
+  // one-word tail names the stage. Never «ПЕРВОЕ ДЕЙСТВИЕ КОРПОРАЦИИ» — the
+  // subject already says whose it is (never echo the subject's noun).
+  if (signals.firstAction === true) {
+    return {subject: 'Corporation', stage: 'First action'};
   }
   return {subject: 'Preludes', stage: 'Playing'};
 }

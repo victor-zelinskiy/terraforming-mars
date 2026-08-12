@@ -1286,6 +1286,7 @@ import {
 import ConsoleHandRevealLayer from '@/client/components/console/ConsoleHandRevealLayer.vue';
 import ConsoleHandDeliveryLayer from '@/client/components/console/ConsoleHandDeliveryLayer.vue';
 import {handRevealState, RevealVisual} from '@/client/console/handDock/handRevealState';
+import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {
   beginDockIntakeAccent, dockIntakeAccentActive, holdDockIntakeAccent, resetDockIntakeAccent,
 } from '@/client/console/handDock/consoleDockAccent';
@@ -1333,6 +1334,9 @@ import {armColonyFocusQuickExit} from '@/client/console/consoleColonyFocusMotion
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
 import {startAwaitingOthers, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
+import {engageStartExcursion, releaseStartExcursion, startExcursionActive, startExcursionQuiet, startExcursionState} from '@/client/console/startBoardExcursion';
+import {firstActionOwed} from '@/client/console/startFirstAction';
+import {isResourceTransferActive} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
@@ -1351,7 +1355,7 @@ import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, p
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, drawnCardsState, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, TaskKind, taskFor, taskServedByHost, shellTaskOnSurface, SCENE_KINDS, SHELL_SECTION_KINDS} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskServedByHost, shellTaskOnSurface, SCENE_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
@@ -1675,6 +1679,10 @@ export default defineComponent({
       /** The card mid-RETURN from a cancelled play composer (its hand slot
        *  stays held until the transfer proxy touches down). */
       returningPlayCard: undefined as CardName | undefined,
+      /** Stale-release token of the start excursion's quiet re-check (the
+       *  release is confirmed one tick + one frame later, so a one-flush
+       *  hand-off between two chain signals can never slip through). */
+      excursionReleaseToken: 0,
       /** The card just PLAYED (success) — its hand slot stays held until the
        *  server response removes it from the hand (never a fake return). */
       departingPlayCard: undefined as CardName | undefined,
@@ -2505,19 +2513,27 @@ export default defineComponent({
       if (task === undefined || !SHELL_SECTION_KINDS.has(task.kind)) {
         return undefined;
       }
-      // The corporation's MANDATORY FIRST ACTION is a STANDALONE start-of-game
-      // confirm modal that hosts NONE of the start-sequence cinematics — the
-      // prelude tile / resource flights, the drawn-cards reveal AND the card
-      // intake that lays the drawn cards into the dock. The guard above already
-      // waits out the reveal / hero / BLOCKING holds, but the intake + card
-      // deal register 'notification-only' holds (they legitimately play OVER
-      // the other shell sections and the action menu, so they must not hold
-      // those), which are invisible to it. Hold the corp confirm until the
-      // WHOLE presentation has settled — otherwise it pops as "modal spam"
-      // over the still-running prelude / intake animations (the exact overlap
-      // the user reported). Safe from a self-deadlock: the confirm animates
-      // nothing of its own, so nothing it hosts keeps the hold alive; the hold
-      // is reactive, so the modal appears the instant the last flight lands.
+      // The corporation's MANDATORY FIRST ACTION belongs to the GAME START
+      // WORKSPACE while the start flow is live (generation 1, zero actions
+      // taken — `corpFirstActionInStartFlow`): the scene's own «ПЕРВОЕ
+      // ДЕЙСТВИЕ» stage serves it seamlessly after the preludes, so the
+      // standalone confirm modal must never rise beside it (two competing
+      // doors into one action). Outside the start flow (a mid-game merger
+      // chain) the modal remains the serving surface.
+      if (task.kind === 'corpFirstAction' && corpFirstActionInStartFlow(this.playerView)) {
+        return undefined;
+      }
+      // The MID-GAME first-action confirm is a STANDALONE modal that hosts
+      // NONE of the running cinematics. The guard above already waits out the
+      // reveal / hero / BLOCKING holds, but the intake + card deal register
+      // 'notification-only' holds (they legitimately play OVER the other
+      // shell sections and the action menu, so they must not hold those),
+      // which are invisible to it. Hold the confirm until the WHOLE
+      // presentation has settled — otherwise it pops as "modal spam" over
+      // still-running intake animations. Safe from a self-deadlock: the
+      // confirm animates nothing of its own, so nothing it hosts keeps the
+      // hold alive; the hold is reactive, so the modal appears the instant
+      // the last flight lands.
       if (task.kind === 'corpFirstAction' && !this.admits('standaloneModal')) {
         return undefined;
       }
@@ -2539,6 +2555,14 @@ export default defineComponent({
       if (task !== undefined && SCENE_KINDS.has(task.kind)) {
         return task;
       }
+      // The corporation's mandatory FIRST ACTION is the start flow's own
+      // final conditional stage: while the start flow is live it is a SCENE
+      // task (the workspace's «ПЕРВОЕ ДЕЙСТВИЕ» stage serves it — the same
+      // seamless grammar as the prelude plays), and it is exactly what lets
+      // a reload mid-first-action restore the workspace instead of a modal.
+      if (task?.kind === 'corpFirstAction' && corpFirstActionInStartFlow(this.playerView)) {
+        return task;
+      }
       // (The old "keep the scene up for the client-staged corp-bonus reveal"
       // fallback is gone: the console retired the staged reveal — the
       // DEFERRED corporationPlay press + the hero landing carry that beat,
@@ -2556,7 +2580,14 @@ export default defineComponent({
      * never raw `startTask`.
      */
     startSceneServes(): boolean {
-      return this.startTask !== undefined || startSceneHeld();
+      // The FIRST-ACTION term covers the stage's WAIT — the corporation still
+      // owes its opening move but the server currently asks nothing (another
+      // player is moving), so there is neither a task nor (after a reload,
+      // which wipes the module hold) a lifetime hold. The workspace is still
+      // the serving surface of that wait: it owns the pad, the defer summary
+      // and the frame exactly as during any other beat of the deployment.
+      return this.startTask !== undefined || startSceneHeld() ||
+        (corpFirstActionInStartFlow(this.playerView) && firstActionOwed(this.playerView));
     },
     /**
      * The workspace is on SCREEN. It SERVES through the whole start (above),
@@ -2572,12 +2603,16 @@ export default defineComponent({
      */
     startSceneVisible(): boolean {
       // Everything that makes the scene STEP ASIDE lives here, never in the
-      // mount: a board placement it cannot host, the WGT scale glide, and a
-      // task the player minimized. All three are «somebody else has the
-      // screen» — a paint question. Unmounting on them retracted the frame's
-      // embed slot too, so a step standing INSIDE the start (the sponsor's
-      // hand) lost its teleport target and fell with it.
+      // mount: a board placement it cannot host, the WHOLE completion chain
+      // of that placement (the excursion latch — commit flight, reward
+      // transfers, the cell's bonus reveal, every follow-up prompt: the
+      // workspace returns exactly ONCE, onto a settled frame), the WGT scale
+      // glide, and a task the player minimized. All are «somebody else has
+      // the screen» — a paint question. Unmounting on them retracted the
+      // frame's embed slot too, so a step standing INSIDE the start (the
+      // sponsor's hand) lost its teleport target and fell with it.
       return this.startSceneMounted && !this.placementActive &&
+        !this.startExcursionHolds &&
         !govScaleFocusState.holding && !this.consoleState.task.deferred;
     },
     /** MOUNTED ≠ VISIBLE. The scene owns the start's lifetime (its hold, its
@@ -2589,6 +2624,39 @@ export default defineComponent({
      *  flag that used to sit here belonged to a DIFFERENT flow. */
     startSceneMounted(): boolean {
       return workspaceFrameMounted('start');
+    },
+    /** The COMPLETION BARRIER's reactive face (startBoardExcursion): the scene
+     *  yielded to a board placement and that placement's causal chain has not
+     *  fully completed yet. */
+    startExcursionHolds(): boolean {
+      return startExcursionState.active;
+    },
+    /** The barrier ENGAGES the moment the serving workspace yields to a board
+     *  placement (the placement is the CAUSE; everything after it is chain). */
+    startExcursionEngage(): boolean {
+      return this.startSceneServes && this.placementActive;
+    },
+    /**
+     * The placement chain is QUIET — every beat of `startExcursionQuiet`'s
+     * contract answered from the same live signals the admission policy
+     * trusts. Deliberately WITHOUT the global animation-hold registry and
+     * WITHOUT the remote-placement scene: the barrier counts only the
+     * viewer's own chain, so another player's cinematic can never wedge it.
+     */
+    startExcursionQuietNow(): boolean {
+      return startExcursionQuiet({
+        placementAsked: this.playerView.waitingFor?.type === 'space' ||
+          this.convertPlantsPending !== undefined || this.taskSpacePending !== undefined,
+        tileHero: this.tilePlacementHolds,
+        transfers: isResourceTransferActive(),
+        boardBonus: isBoardCardBonusActive(),
+        revealBusy: this.consoleRevealMode !== undefined || currentRevealEvent() !== undefined,
+        // Live intake flights only — NEVER `held`: withheld bought cards are
+        // the PAY stage's business (they fly on the pay press, which needs
+        // the scene back), not part of any placement chain.
+        handIntake: isHandDeliveryActive() || this.handDeliveryState.flights.length > 0,
+        followUpKind: taskFor(this.playerView)?.kind,
+      });
     },
     /**
      * THE SCENE OWNS THE PAD AND THE BAR. Ownership follows the surface the
@@ -2915,8 +2983,20 @@ export default defineComponent({
     /** The current mandatory action beat (never a reveal). */
     mandatoryBeat(): MandatoryBeat | undefined {
       const wf = this.playerView.waitingFor;
+      let task = taskFor(this.playerView);
+      // Inside the START FLOW the corporation's first action is the Game
+      // Start Workspace's own stage — a seamless continuation of the
+      // deployment, exactly like the `startSequence` prompts (which are never
+      // gated: their full-screen flow IS the presentation). Announcing it
+      // would put a plate in front of a scene that is already standing on it;
+      // the collapsed workspace's way back is the deferred card, not a beat.
+      // Outside the start flow (the mid-game merger chain) it stays an
+      // interruptive beat and the confirm modal serves it, exactly as before.
+      if (task?.kind === 'corpFirstAction' && corpFirstActionInStartFlow(this.playerView)) {
+        task = undefined;
+      }
       return mandatoryBeatFor({
-        task: taskFor(this.playerView),
+        task,
         taskKey: promptIdentityKey(wf),
         forcedReaction: this.viewerForcedReaction,
         flows: this.mandatoryFlowBeats,
@@ -3522,12 +3602,21 @@ export default defineComponent({
       if (this.startSceneServes || workspaceFrameHasNested('start')) {
         return true;
       }
-      // SERVER TRUTH, for the one case the module state cannot answer: a
-      // RELOAD wipes the workspace's lifetime hold, so `startSceneServes` is
-      // false and the very same prompt would open a STANDALONE hand — throwing
-      // the player out of a flow they had not left. The PRELUDES phase IS the
-      // deployment, it survives a reload, and a play-from-hand raised in it can
-      // only be a prelude's effect (`PlayProjectCard`).
+      // SERVER TRUTH, for the cases the module state cannot answer (a RELOAD
+      // wipes the workspace's lifetime hold, so `startSceneServes` is false):
+      //
+      // 1. The corporation still OWES its mandatory first action and the
+      //    start flow is live — the workspace's own final stage. This is what
+      //    restores the first-action WAIT (the opponent is still moving, so
+      //    there is no prompt at all to re-derive the frame from) and the
+      //    ACTIVE stage alike, without ever falling back to a modal.
+      if (corpFirstActionInStartFlow(this.playerView) && firstActionOwed(this.playerView)) {
+        return true;
+      }
+      // 2. The PRELUDES phase IS the deployment, it survives a reload, and a
+      //    play-from-hand raised in it can only be a prelude's effect
+      //    (`PlayProjectCard`) — the same prompt would otherwise open a
+      //    STANDALONE hand, throwing the player out of a flow they had not left.
       if (this.game.phase !== Phase.PRELUDES) {
         return false;
       }
@@ -5401,7 +5490,15 @@ export default defineComponent({
       if (this.activeTaskSummary !== undefined || !this.startSceneServes) {
         return undefined;
       }
-      return startDeferredSummary(startAwaitingOthers(this.playerView));
+      if (startAwaitingOthers(this.playerView)) {
+        return startDeferredSummary('awaiting-table');
+      }
+      // The deployment's cards are through and the one thing left is the
+      // corporation's first action, waiting for the player's turn — say so.
+      if (firstActionOwed(this.playerView) && this.playerView.waitingFor === undefined) {
+        return startDeferredSummary('awaiting-first-action');
+      }
+      return startDeferredSummary('in-progress');
     },
     /** The deferred chip's CONCRETE ask ("Сбросьте 1 карту") — the whole point. */
     deferAsk(): string {
@@ -6156,6 +6253,32 @@ export default defineComponent({
       if (now === undefined && was !== undefined && !startSceneHeld() &&
           handDeliveryState.held.length > 0 && !isHandDeliveryActive()) {
         resetHandDelivery();
+      }
+    },
+    /**
+     * THE COMPLETION BARRIER of a start-flow board placement (see
+     * startBoardExcursion.ts). ENGAGE is the rising edge of «the serving
+     * workspace yielded to a placement»; the RELEASE is owned by the quiet
+     * watcher below and is confirmed a tick + a frame later, so the one
+     * moment two chain signals hand off (tile settle → reveal claim) can
+     * never read as «the chain is over».
+     */
+    startExcursionEngage(now: boolean): void {
+      if (now) {
+        engageStartExcursion();
+      }
+    },
+    startExcursionQuietNow(now: boolean): void {
+      if (now && startExcursionActive()) {
+        this.scheduleStartExcursionRelease();
+      }
+    },
+    /** The workspace itself let go (the deployment settled / the game moved
+     *  on) — a latch without its scene is meaningless, and it must never
+     *  leak into a rematch. */
+    startSceneServes(now: boolean): void {
+      if (!now && startExcursionActive()) {
+        releaseStartExcursion();
       }
     },
     /**
@@ -7777,6 +7900,13 @@ export default defineComponent({
       if (opts?.keepTask !== true) {
         this.deferShellTask(); // navigation-away (the RT path's contract)
       }
+      // ARM THE ART FIRST — before the section mounts, before the two
+      // measuring frames. Every proxy mounts a premium face, and a face whose
+      // webp is not decoded yet paints a BLACK art window and then fades the
+      // picture in over 240ms; a hand full of those is the «карты без артов»
+      // half of the open's flicker. The mount + measure + lift ahead of the
+      // flight is exactly the head start the decode needs.
+      preloadPremiumCardArt(this.handEntriesAll.map((e) => e.card.name));
       // Phase BEFORE the section flip: the section watcher must see a
       // director-owned transition, not an untracked open (which would lift
       // the dock instantly and skip the choreography).
@@ -9618,10 +9748,15 @@ export default defineComponent({
         return;
       }
       if (task.kind === 'corpFirstAction') {
-        // The corporation's mandatory FIRST ACTION (the player's first turn):
-        // the dedicated confirm modal serves it. Its presence is DERIVED
-        // (corpFirstActionOpen), so there is nothing to open here: only the
-        // board must be the section underneath it.
+        // Inside the START FLOW the Game Start Workspace's own stage serves
+        // this prompt — its frame is already standing (or restoring via the
+        // deferred card); steering the section here would only disturb it.
+        if (corpFirstActionInStartFlow(this.playerView)) {
+          return;
+        }
+        // Mid-game (merger chain): the dedicated confirm modal serves it. Its
+        // presence is DERIVED (corpFirstActionOpen), so there is nothing to
+        // open here: only the board must be the section underneath it.
         goBoardHome();
       }
     },
@@ -9812,6 +9947,31 @@ export default defineComponent({
         const task = taskFor(this.playerView);
         if (task !== undefined && SHELL_SECTION_KINDS.has(task.kind)) {
           this.openShellTaskSurface(task);
+        }
+      });
+    },
+    /**
+     * Confirm the start excursion's release OFF the synchronous flush: the
+     * quiet condition is re-read after a tick + a frame, so a hand-off gap
+     * between two chain signals (the tile transaction finishing in the same
+     * response that stages the bonus reveal) can never release the barrier
+     * mid-chain. Deterministic — a re-check of live state, never a duration.
+     */
+    scheduleStartExcursionRelease(): void {
+      const token = ++this.excursionReleaseToken;
+      void this.$nextTick(() => {
+        const confirm = () => {
+          if (token !== this.excursionReleaseToken) {
+            return; // a newer beat superseded this check
+          }
+          if (startExcursionActive() && this.startExcursionQuietNow) {
+            releaseStartExcursion();
+          }
+        };
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(confirm);
+        } else {
+          confirm(); // server-runner / jsdom — no frame clock to wait on
         }
       });
     },
@@ -10641,6 +10801,12 @@ export default defineComponent({
       apply();
       this.refocusAfterFilter(selectedName);
       const newNames = this.handEntries.map((e) => e.card.name);
+      // The ENTERERS never had a grid slot under the old filter, so their art
+      // has never mounted: warm it before their proxies fan out of the dock,
+      // or they fly a black art window (see openHandWithReveal). Already-warm
+      // URLs are a memory-cache no-op.
+      const seen = new Set(before.pairs.map((p) => p.name));
+      preloadPremiumCardArt(newNames.filter((n) => !seen.has(n)));
       const involved = new Set<string>([...before.pairs.map((p) => p.name), ...newNames]);
       const dockRects = dock.sourceRects([...involved]);
       void runHandFilterEpisode({
@@ -10657,27 +10823,36 @@ export default defineComponent({
       });
     },
     /**
-     * The card's LANDED grid presentation (dim + compact blocker chip),
-     * carried by the reveal/filter proxies so the settled state is readable
-     * DURING the flight and can never pop at the handoff. Mirrors the
-     * section's slot classes exactly: browse → unplayable dim + the
-     * `shortBlockerLabel` chip; select/pick → the strong select-disabled dim
-     * + «Unavailable»; sale shows the whole hand undimmed.
+     * The card's LANDED grid presentation, carried by the reveal/filter
+     * proxies so the settled state is readable DURING the flight and can
+     * never pop at the handoff. Mirrors the section's slot exactly: browse →
+     * unplayable dim + the `shortBlockerLabel` chip; select/pick → the strong
+     * select-disabled dim + «Unavailable»; sale shows the whole hand undimmed.
+     *
+     * The LIVE MODEL rides along UNCONDITIONALLY — it is the biggest half of
+     * «the same card lands». The grid slot renders `<Card :card>`, so without
+     * it the flying face loses the discount chip and the stored-resource
+     * capsule, drops the disabled wash, and — because the cost chip widens the
+     * title's left safe-area — even re-sizes and re-wraps the card's NAME.
+     * That is why this returns a presentation for every card now instead of
+     * `undefined` for «nothing special»: there is no such thing as a card with
+     * nothing to carry.
      */
-    revealVisualFor(name: CardName): RevealVisual | undefined {
+    revealVisualFor(name: CardName): RevealVisual {
+      const entry = this.handEntriesAll.find((e) => e.card.name === name);
+      const card = entry?.card;
       if (this.consoleState.sale.active) {
-        return undefined;
+        return {card};
       }
       if (this.handSelectUiActive) {
         return this.handSelectSelectableNames.includes(name) ?
-          undefined :
-          {dim: 'strong', chip: 'Unavailable'};
+          {card} :
+          {card, dim: 'strong', chip: 'Unavailable'};
       }
-      const entry = this.handEntriesAll.find((e) => e.card.name === name);
       if (entry === undefined || entry.playable) {
-        return undefined;
+        return {card};
       }
-      return {dim: 'soft', chip: shortBlockerLabel(entry.card.unplayableReasons ?? [])};
+      return {card, dim: 'soft', chip: shortBlockerLabel(entry.card.unplayableReasons ?? [])};
     },
     refocusAfterFilter(selectedName: CardName | undefined): void {
       const list = this.handEntries; // recomputed for the new filter
@@ -11038,6 +11213,7 @@ export default defineComponent({
     resetPlanetFocus(); // never carry a held HUD / mid-exit phase across games
     resetHandReveal(); // never leak a mid-episode timeline / held dock
     resetHandDelivery(); // never leak a mid-flight delivery / held dock
+    releaseStartExcursion(); // a leaked barrier would hide the next game's start scene
     resetDockIntakeAccent(); // a leaked lease would disable the compact pose
     resetConsoleHandPick(); // never leak a client pick across games/sessions
     // The stack can never outlive the shell: an orphaned frame suppresses the

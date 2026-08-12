@@ -1318,11 +1318,19 @@ export function buyProjects(cards: ReadonlyArray<string>): NonNullable<WalkOptio
  */
 export async function waitForStartRelease(page: Page, maxMs = 60_000): Promise<void> {
   const started = Date.now();
+  const firstActionStage = page.locator('.con-start__firstact');
   while (Date.now() - started < maxMs && !await startSceneGone(page)) {
+    // The corporation's mandatory FIRST ACTION is the workspace's own final
+    // conditional stage now — a corp that owes one HOLDS the workspace (that
+    // is the point), so the stage STANDING is this stop's arrival, exactly
+    // like the prompt being live is on the API path.
+    if (await firstActionStage.count() > 0) {
+      return;
+    }
     await playStartQueue(page, {plays: 2});
     await page.waitForTimeout(400);
   }
-  expect(await startSceneGone(page),
+  expect(await startSceneGone(page) || await firstActionStage.count() > 0,
     `the start workspace never released — still showing ${JSON.stringify(await visibleSurfaces(page))}`)
     .toBeTruthy();
 }
@@ -1335,11 +1343,13 @@ export type BootStop =
    */
   'boardHome' |
   /**
-   * …only until the start workspace RELEASES. For a spec whose subject is the
-   * very first thing the game asks — the corporation's mandatory first action.
-   * Driving on to the board home would ANSWER that prompt by design
-   * (`waitForBoardHome` confirms a `--corpfirst` composer to get past it), and
-   * the spec would then hunt for a modal its own setup had already dismissed.
+   * …only until the start workspace would RELEASE. For a spec whose subject is
+   * the very first thing the game asks — the corporation's mandatory first
+   * action. A corp that owes one now HOLDS the workspace on its own «ПЕРВОЕ
+   * ДЕЙСТВИЕ» stage (the flow's final conditional stage), so this stop arrives
+   * either at the released scene (no first action) or at that standing stage.
+   * Driving on to the board home would ANSWER the prompt by design, and the
+   * spec would then hunt for a stage its own setup had already resolved.
    */
   'startRelease';
 

@@ -143,19 +143,15 @@ test.describe('console · Arcadian Communities', () => {
       until: 'startRelease',
     });
 
-    // ── The corporation's MANDATORY first action: place a community. ───────
-    const modal = page.locator('.con-composer--corpfirst');
-    const announce = page.locator('.con-mandatory');
-    for (let i = 0; i < 16 && await modal.count() === 0; i++) {
-      if (await announce.count() > 0) {
-        await key(page, 'Enter', 800);
-      } else {
-        await page.waitForTimeout(800);
-      }
-    }
-    await modal.waitFor({state: 'visible', timeout: 60_000});
+    // ── The corporation's MANDATORY first action: place a community. It is
+    //    the Game Start Workspace's own «ПЕРВОЕ ДЕЙСТВИЕ» stage now — the
+    //    seated corp + the briefing + one CTA; no modal, no announce plate.
+    const stage = page.locator('.con-start__firstact');
+    await stage.waitFor({state: 'visible', timeout: 60_000});
+    expect(await page.locator('.con-composer--corpfirst').count(),
+      'the retired standalone modal must not appear in the start flow').toBe(0);
     await page.waitForTimeout(1200);
-    await shoot(page, '01-first-action-modal');
+    await shoot(page, '01-first-action-stage');
     await key(page, 'Enter', 2500);
 
     // The board takes over for the claim (a marker pick — no tile).

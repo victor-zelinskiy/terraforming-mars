@@ -93,9 +93,12 @@ export type ConsoleTask =
   | {kind: 'startSequence', prompt: 'corporationPlay' | 'corporationPay' | 'corporationSelection' | 'preludeSelection'}
   /**
    * The corporation's MANDATORY FIRST ACTION ('Take first action of X') —
-   * it arrives on the player's own FIRST TURN (after the opponent moved),
-   * NOT during the start scene: served by the «Разыграно» overlay in
-   * action mode (A on the corporation card performs the action).
+   * it arrives on the player's own FIRST TURN (after the opponent moved).
+   * Inside the START FLOW (`corpFirstActionInStartFlow`) it is the Game
+   * Start Workspace's own final conditional stage — the scene serves it
+   * seamlessly after the preludes. Outside the start flow (a mid-game
+   * merger chain acquiring a corp with a first action) the dedicated
+   * confirm modal serves it, exactly as before.
    */
   | {kind: 'corpFirstAction'}
   | {kind: 'aresGlobal'}
@@ -200,6 +203,26 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
  * and routes input to it; B defers to the amber chip like every task.
  */
 export const SCENE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['initialDraft', 'startSequence']);
+
+/**
+ * Is a `corpFirstAction` prompt part of the GAME START FLOW — i.e. served by
+ * the Game Start Workspace's own «ПЕРВОЕ ДЕЙСТВИЕ» stage rather than the
+ * standalone confirm modal?
+ *
+ * The honest domain discriminator, not a client latch (it must survive a
+ * reload): GENERATION 1 *is* the start of the game. Deliberately NOT
+ * `actionsTakenThisGame === 0` — this fork counts the deferred corporation
+ * play and every prelude as taken actions (`Player.incrementActionsTaken`
+ * fires inside their own runWhenEmpty), so the counter is already past zero
+ * when the first-action prompt stands. A first-action prompt in a LATER
+ * generation can only be a mid-game acquisition chain (a merger picking up
+ * a corp that still owes its opening move) — that one keeps the dedicated
+ * modal: resurrecting the start workspace mid-game would be a lie about
+ * where the player is.
+ */
+export function corpFirstActionInStartFlow(view: PlayerViewModel): boolean {
+  return view.game.generation === 1;
+}
 
 const WGT_TITLE = 'Select action for World Government Terraforming';
 

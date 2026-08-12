@@ -66,6 +66,17 @@ export type StartSceneCommandState = {
   ceremonyVerb: string,
   /** The ceremony has an actionable focus target. */
   hasFocusables: boolean,
+  /**
+   * The FIRST-ACTION stage (the deployment's conditional last stage):
+   *  · 'off'     — no stage (the queue grammar owns the bar);
+   *  · 'waiting' — standing, but it is not the player's turn yet: NO active
+   *    CTA is advertised (a verb the press cannot honour is a lie) — only
+   *    the inspect and the minimize;
+   *  · 'ready'   — the marked prompt is live: A performs the first action;
+   *  · 'busy'    — the rise / the submit round trip: nothing is pressable,
+   *    the bar goes honestly quiet for the beat.
+   */
+  firstAction: 'off' | 'waiting' | 'ready' | 'busy',
 };
 
 /**
@@ -132,6 +143,20 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
       {control: 'confirm', label: 'Pay'},
       {control: 'back', label: 'Minimize'},
     ];
+  }
+  // THE FIRST-ACTION STAGE. One clear CTA when the turn has genuinely
+  // arrived; the waiting state deliberately advertises NO A at all.
+  if (s.firstAction !== 'off') {
+    if (s.firstAction === 'busy') {
+      return [];
+    }
+    const hints: Array<StartCommand> = [];
+    if (s.firstAction === 'ready') {
+      hints.push({control: 'confirm', label: 'Take first action', highlight: true});
+    }
+    hints.push({control: 'secondary', label: 'Inspect'});
+    hints.push({control: 'back', label: 'Minimize'});
+    return hints;
   }
   return [
     {control: 'confirm', label: s.ceremonyVerb, enabled: s.hasFocusables},

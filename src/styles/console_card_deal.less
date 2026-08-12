@@ -609,6 +609,21 @@ dialog.con-zoom {
     contain: layout style;
 }
 
+/* ⚠️ THE ART IS NOT MOUNTING FOR THE FIRST TIME — DO NOT RE-FADE IT IN.
+   Same rule, same reason as `.con-discard-proxy` (console_card_discard.less):
+   `premium_card.less` starts every `.pcard__art img` at `opacity: 0` and fades
+   it to 1 on the image's own `load`, which is right for a card appearing on
+   screen — and wrong for a proxy standing over the very slot that is about to
+   render the same webp. Left in, EVERY reopened hand spends the first ~250ms
+   of its flight with black art windows and then fades ~40 pictures in at once,
+   which is what the player reads as «карты без артов». The decode is armed
+   ahead of the episode (`preloadPremiumCardArt` in openHandWithReveal /
+   applyHandFilterChange), so the picture is there to be shown outright. */
+.con-handreveal-layer .pcard__art img {
+    opacity: 1;
+    transition: none;
+}
+
 /* ── HAND INTAKE — "cards physically arrive in the player's hand" ─────
    (handDeliveryDirector.ts / ConsoleHandDeliveryLayer.vue). Face→back flip
    proxies depart whatever surface released the cards (the start-ceremony

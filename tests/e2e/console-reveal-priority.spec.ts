@@ -129,13 +129,16 @@ test.describe('console · reveal is a top-priority modal', () => {
 
     // THE ASSERTION: the start workspace deliberately remains mounted for the
     // whole deployment, but it must not become a competing foreground. Neither
-    // the mandatory announcement nor its corporation modal may paint over the
-    // reveal, whose card cursor owns the pad.
+    // the mandatory announcement, nor the retired corporation modal, nor the
+    // workspace's own first-action stage may paint over the reveal, whose
+    // card cursor owns the pad.
     const mandatory = page.locator('.con-mandatory');
     const corpFirst = page.locator('.con-composer--corpfirst');
+    const firstActionStage = page.locator('.con-start__firstact');
     const revealFocus = page.locator('.con-reveal__strip .con-cards__slot--focused');
     await expect(mandatory).toHaveCount(0);
     await expect(corpFirst).toHaveCount(0);
+    await expect(firstActionStage).toHaveCount(0);
     await expect(revealFocus).toHaveCount(1);
 
     // Navigating (d-pad) walks the RECEIVED cards, never a surface beneath.
@@ -155,13 +158,17 @@ test.describe('console · reveal is a top-priority modal', () => {
       }
       await expect(mandatory).toHaveCount(0);
       await expect(corpFirst).toHaveCount(0);
+      await expect(firstActionStage).toHaveCount(0);
     }
 
-    // Finish the reveal (take all) — NOW the start scene / next task comes
-    // back to life (the corp first action or the next prelude).
+    // Finish the reveal (take all) — NOW the start workspace comes back to
+    // life: the next prelude stands in the queue (or, once the preludes are
+    // through, the corp's own first-action stage). Never a modal, never an
+    // announce plate — the workspace itself is the presentation.
     await key(page, 'Escape', 2500); // B = take all cards
     await expect(reveal).toHaveCount(0, {timeout: 20_000});
-    await expect(page.locator('.con-mandatory, .con-composer--corpfirst'))
-      .toHaveCount(1, {timeout: 30_000});
+    await expect(page.locator('.con-start__qcard, .con-start__firstact').first())
+      .toBeVisible({timeout: 30_000});
+    await expect(corpFirst).toHaveCount(0);
   });
 });

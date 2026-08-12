@@ -4,18 +4,22 @@ import * as path from 'node:path';
 import {bootIntoGame, soloGameConfig} from './consoleStart';
 
 /**
- * Console-native · the corporation's MANDATORY FIRST ACTION modal.
+ * Console-native · the corporation's MANDATORY FIRST ACTION — the Game Start
+ * Workspace's own final conditional stage.
  *
  * Drives a real solo game (Tharsis Republic forced via customCorporationsList)
- * through the console start wizard to the player's first turn, where the
- * `corporationInitialAction` prompt must now be served by the DEDICATED
- * confirm modal (ConsoleCorpFirstActionConfirm) — the play composer's
- * mandatory sibling — and NOT by the «Разыграно» table's retired action mode.
+ * to the player's first turn, where the `corporationInitialAction` prompt must
+ * now be served INSIDE the start flow: the workspace's «ПЕРВОЕ ДЕЙСТВИЕ» stage
+ * — the corporation card on its source seat, the briefing beside it, ONE clear
+ * CTA — and NOT by the retired standalone confirm modal, and NOT behind a
+ * mandatory announce plate (the workspace itself is the presentation).
  *
- * Asserts: the mandatory framing (kicker + badge), the printed first-action
- * ask, the honest post-confirm follow-up note, the corporation card on the
- * left, the played table NOT mounted, and that A submits the OrOptions option
- * (the modal yields to the city-placement follow-up).
+ * Asserts: the stage panel (mandatory framing + the printed ask + the honest
+ * placement follow-up note), the seated corporation card, the continuous
+ * breadcrumb, the ABSENCE of the modal/announce, that A submits the option
+ * (the workspace yields to the city placement), and the COMPLETION BARRIER:
+ * the workspace never paints again while the placement's own chain (the
+ * commit flight, the follow-ups) is still running — it returns exactly once.
  */
 
 const OUT_DIR = path.resolve('screenshots', 'console-corp-first-action');
@@ -24,8 +28,8 @@ const OUT_DIR = path.resolve('screenshots', 'console-corp-first-action');
  * A deterministic solo game whose only dealable corp is Tharsis Republic:
  * exactly ONE dealable corporation, so the wizard's corp step is forced to the
  * subject — a corporation whose first action ("Place a city tile") exercises
- * the modal's ask + the placement follow-up note. No preludes, so the wizard
- * stays short (corp → buy → start).
+ * the stage's ask + the placement follow-up + the completion barrier. No
+ * preludes, so the deployment reaches the stage quickly.
  */
 const GAME_CONFIG = soloGameConfig({
   players: [{name: 'FirstActionTester', color: 'red', beginner: false, handicap: 0, first: true}],
@@ -44,95 +48,116 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await page.waitForTimeout(settleMs);
 }
 
-test.describe('console corp first-action modal', () => {
+/** The start workspace is PAINTED (mounted-and-hidden is the yield pose). */
+async function startPainted(page: Page): Promise<boolean> {
+  return page.evaluate(() => {
+    const el = document.querySelector('.con-start');
+    return el !== null &&
+      (el as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
+  }).catch(() => false);
+}
+
+test.describe('console corp first action — the start workspace stage', () => {
   test.use({viewport: {width: 1920, height: 1080}, deviceScaleFactor: 1, screen: {width: 1920, height: 1080}});
 
-  test('the mandatory first action is served by the dedicated modal, not the played table', async ({page, request}) => {
+  test('the mandatory first action is the start flow\'s own stage — no modal, one return from the placement', async ({page, request}) => {
     test.setTimeout(300_000);
 
-    // ── The pregame: the shared start driver (`consoleStart.ts`), stopped at
-    //    the START RELEASE — never driven on to the board home.
-    //
-    //    That distinction is this spec's whole setup: `waitForBoardHome`
-    //    CONFIRMS a `--corpfirst` composer by design (it is one of the things
-    //    standing between the deployment and a live dock), so booting all the
-    //    way home would answer the very prompt this spec exists to look at.
-    //
-    //    What used to stand here was a hand-rolled key script that decided the
-    //    wizard was over by COUNTING `.con-start__frame` nodes — a question the
-    //    DOM cannot answer: the scene stays MOUNTED through its yield
-    //    (`ConsoleShell.vue:2395`) and its panes are `v-show`
-    //    (`ConsoleStartScene.vue:26`). The driver reads what is PAINTED.
+    // ── The pregame, stopped with the corporationInitialAction prompt live
+    //    (the API seed answers everything before it; the console then opens
+    //    straight onto the workspace's standing first-action stage).
     await bootIntoGame(page, request, {
       config: GAME_CONFIG,
       // NAMED, never left to the seeder's default: `customCorporationsList`
       // only guarantees the corp is IN the deal, and testMode deals eight — so
       // the default «pick a CALM corporation» would deliberately step around
-      // the one corp this spec exists to look at, and the modal would simply
-      // never appear.
+      // the one corp this spec exists to look at.
       corporation: 'Tharsis Republic',
       until: 'startRelease',
     });
 
-    // The player's first turn: the corporationInitialAction prompt must mount
-    // the DEDICATED modal (presence is derived — no imperative open). It is an
-    // INTERRUPTIVE mandatory decision (consoleMandatoryGate.ts scopes
-    // corpFirstAction as always-gated), so the shell first shows the
-    // announce card (ConsoleMandatoryAnnounce, `.con-mandatory`) instead of
-    // auto-opening it — A opens it.
-    const modal = page.locator('.con-composer--corpfirst');
-    const announce = page.locator('.con-mandatory');
-    for (let i = 0; i < 10 && await modal.count() === 0; i++) {
-      if (await announce.count() > 0) {
-        await key(page, 'Enter', 800);
-      } else {
-        await page.waitForTimeout(800);
-      }
-    }
-    await modal.waitFor({state: 'visible', timeout: 60_000});
-    await page.waitForTimeout(1500); // entry transition settles
-    await shoot(page, '01-first-action-modal');
+    // ── THE STAGE — the workspace serves the prompt itself, seamlessly.
+    const stage = page.locator('.con-start__firstact');
+    await stage.waitFor({state: 'visible', timeout: 60_000});
+    await page.waitForTimeout(1500); // the rise + panel entrance settle
+    await shoot(page, '01-first-action-stage');
 
-    // The retired serving surface must NOT be mounted.
-    expect(await page.locator('.con-played').count(), 'the played table must not serve the first action anymore').toBe(0);
+    // The RETIRED surfaces must never appear in the start flow: the standalone
+    // confirm modal and the announce plate (the workspace IS the presentation).
+    expect(await page.locator('.con-composer--corpfirst').count(),
+      'the standalone first-action modal must never rise inside the start flow').toBe(0);
+    expect(await page.locator('.con-mandatory').count(),
+      'no announce plate — the stage presents the action itself').toBe(0);
 
-    // Mandatory framing: the kicker + the badge.
-    const kicker = await page.locator('.con-composer__kicker--mandatory').innerText();
-    expect(kicker).toContain('ОБЯЗАТЕЛЬНОЕ ДЕЙСТВИЕ КОРПОРАЦИИ');
-    const badge = (await page.locator('.con-composer__paytag--mandatory').innerText()).toUpperCase();
-    expect(badge).toContain('ОБЯЗАТЕЛЬНО');
+    // The corporation card stands on the SOURCE SEAT (one physical card).
+    expect(await page.locator('.con-start__embedsource [data-embed-source-slot] :is(.card-container, .pcard, [class*="plite"])').count())
+      .toBeGreaterThan(0);
 
-    // The printed first-action ask is shown (Tharsis: place a city tile).
-    const ask = await page.locator('.con-composer__corpfirst-ask').innerText();
+    // Mandatory framing + the printed ask (Tharsis: place a city tile).
+    const kicker = (await stage.locator('.con-start__firstact-kicker').innerText()).toUpperCase();
+    expect(kicker).toContain('ОБЯЗАТЕЛЬНО');
+    const ask = await stage.locator('.con-start__firstact-ask').innerText();
     expect(ask.trim()).not.toBe('');
     expect(ask).toContain('тайл города');
 
-    // The honest post-confirm follow-up note — and it NAMES the tile: Tharsis
-    // Republic's free city is «разместите тайл города», not a mute "pick a spot".
-    const notes = await page.locator('.con-composer--corpfirst .con-composer__next').allInnerTexts();
+    // The honest post-confirm follow-up note NAMES the tile + carries its
+    // pictogram (the shared «ДАЛЕЕ» presenter — composer parity).
+    const notes = await stage.locator('.con-start__firstact-next').allInnerTexts();
     expect(notes.join(' ')).toContain('тайл города');
-    // The row carries the tile pictogram, so the shared «ДАЛЕЕ» presenter really ran.
-    expect(await page.locator('.con-composer--corpfirst .con-composer__next-tile').count()).toBeGreaterThan(0);
+    expect(await stage.locator('.con-start__firstact-next-tile').count()).toBeGreaterThan(0);
 
-    // The corporation card renders as the modal's artifact (premium face).
-    expect(await page.locator('.con-composer--corpfirst .con-composer__playcard :is(.card-container, .pcard)').count()).toBeGreaterThan(0);
+    // The continuous breadcrumb: the stage advanced ONLY the tail.
+    const crumb = (await page.locator('.con-wshead').innerText()).toUpperCase();
+    expect(crumb).toContain('ПЕРВОЕ ДЕЙСТВИЕ');
 
-    // The CTA names the action; A submits the OrOptions option.
-    const cta = await page.locator('.con-composer--corpfirst .con-composer__cta-label').innerText();
-    expect(cta.toUpperCase()).toContain('ВЫПОЛНИТЬ ПЕРВОЕ ДЕЙСТВИЕ');
-    await key(page, 'Enter', 2500);
+    // The ONE clear CTA.
+    const cta = (await stage.locator('.con-start__firstact-cta-label').innerText()).toUpperCase();
+    expect(cta).toContain('ВЫПОЛНИТЬ ПЕРВОЕ ДЕЙСТВИЕ');
 
-    // The modal yields to the action's own follow-up — the city placement.
-    await modal.waitFor({state: 'detached', timeout: 30_000});
-    const panel = page.locator('.con-context');
+    // ── A performs the action: the workspace yields to the city placement.
+    await key(page, 'Enter', 1800);
+    const placement = page.locator('.con-context__task-kicker');
     let placing = false;
     for (let i = 0; i < 20 && !placing; i++) {
-      placing = (await panel.innerText().catch(() => '')).includes('РАЗМЕЩЕНИЕ ТАЙЛА');
+      placing = (await page.locator('.con-context').innerText().catch(() => '')).includes('РАЗМЕЩЕНИЕ ТАЙЛА');
       if (!placing) {
         await page.waitForTimeout(600);
       }
     }
-    await shoot(page, '02-city-placement-follow-up');
+    await shoot(page, '02-city-placement');
     expect(placing, 'the city placement follow-up never opened').toBeTruthy();
+    expect(await startPainted(page), 'the workspace yields to the board placement').toBeFalsy();
+
+    // ── THE COMPLETION BARRIER — pick a legal cell, then SAMPLE the paint:
+    //    the workspace must not reappear while the placement's chain (the
+    //    tile's commit flight, the reward beat, any follow-up) is running —
+    //    it returns exactly once, onto a settled frame.
+    for (let i = 0; i < 24; i++) {
+      await key(page, 'Enter', 500);
+      if ((await page.locator('.con-context').innerText().catch(() => '')).includes('РАЗМЕЩЕНИЕ ТАЙЛА') === false) {
+        break;
+      }
+      await key(page, 'ArrowRight', 260);
+    }
+    let midChainFlash = false;
+    let returned = false;
+    for (let i = 0; i < 80 && !returned; i++) {
+      const painted = await startPainted(page);
+      const chainBusy = await page.evaluate(() =>
+        document.querySelectorAll('.con-tileplace, .con-context__task-kicker').length > 0);
+      if (painted && chainBusy) {
+        midChainFlash = true;
+      }
+      // The workspace has genuinely returned once the chain is quiet — or it
+      // released straight to the board (both are a settled end state).
+      if ((painted && !chainBusy) ||
+          await page.evaluate(() => document.querySelector('.con-start') === null)) {
+        returned = true;
+      }
+      await page.waitForTimeout(250);
+    }
+    await shoot(page, '03-back-after-the-chain');
+    expect(midChainFlash, 'the workspace flashed back MID-CHAIN (the completion barrier failed)').toBeFalsy();
+    expect(returned, 'the workspace never came back after the placement chain').toBeTruthy();
   });
 });

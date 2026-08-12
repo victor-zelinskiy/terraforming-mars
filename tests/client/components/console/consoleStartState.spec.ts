@@ -228,6 +228,44 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       expect(items[3].state).to.eq('locked');
     });
 
+    it('EVERY middle deployment stage is conditional — absent when its work is absent', () => {
+      // No bought projects → no payment stage; no first action → no stage.
+      const bare = deploymentJourneyItems({
+        corpPending: false, payPending: false, boughtCards: false, preludesLeft: 0, hasPreludes: false,
+      });
+      expect(bare.map((i) => i.id)).to.deep.eq(['corp', 'ready']);
+      expect(bare[1].state, 'nothing pending → READY is current').to.eq('current');
+    });
+
+    it('the FIRST ACTION is a conditional stage between the preludes and READY', () => {
+      // Owed + preludes still playing → the stage exists, locked behind them.
+      const during = deploymentJourneyItems({
+        corpPending: false, payPending: false, boughtCards: false, preludesLeft: 2, hasPreludes: true,
+        hasFirstAction: true, firstActionPending: true,
+      });
+      expect(during.map((i) => i.id)).to.deep.eq(['corp', 'preludes', 'firstAction', 'ready']);
+      expect(during[2].state).to.eq('locked');
+      expect(during[3].state).to.eq('locked');
+
+      // Preludes done → the stage is CURRENT (waiting or live), READY locked:
+      // the flow cannot complete around a mandatory action.
+      const standing = deploymentJourneyItems({
+        corpPending: false, payPending: false, boughtCards: false, preludesLeft: 0, hasPreludes: true,
+        hasFirstAction: true, firstActionPending: true,
+      });
+      expect(standing[2].state).to.eq('current');
+      expect(standing[3].state).to.eq('locked');
+
+      // Resolved → completed, READY current — and the chapter STAYS visible.
+      const done = deploymentJourneyItems({
+        corpPending: false, payPending: false, boughtCards: false, preludesLeft: 0, hasPreludes: true,
+        hasFirstAction: true, firstActionPending: false,
+      });
+      expect(done.map((i) => i.id)).to.deep.eq(['corp', 'preludes', 'firstAction', 'ready']);
+      expect(done[2].state).to.eq('completed');
+      expect(done[3].state).to.eq('current');
+    });
+
     it('committed selection preserves the exact dealt category map', () => {
       const items = committedStartJourneyItems(['corp', 'prelude', 'ceo', 'projects']);
       expect(items.map((item) => item.id)).to.deep.eq(['corp', 'prelude', 'ceo', 'projects', 'summary']);
@@ -356,6 +394,15 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       expect(deploymentCrumb(base)).to.deep.eq({subject: 'Preludes', stage: 'Playing'});
     });
 
+    it('the FIRST-ACTION stage: the subject returns to the corporation, one-word tail', () => {
+      const base = {embedActive: false, corpPending: false, payPending: false, corpPick: false};
+      expect(deploymentCrumb({...base, firstAction: true}))
+        .to.deep.eq({subject: 'Corporation', stage: 'First action'});
+      // An embedded follow-up of the action still outranks it (deeper step).
+      expect(deploymentCrumb({...base, firstAction: true, embedActive: true, embedSubject: 'Valley Trust'}))
+        .to.deep.eq({subject: 'Valley Trust', stage: 'Card draw'});
+    });
+
     it('an embedded reveal advances ONLY the tail: the source group keeps the subject', () => {
       const base = {embedActive: true, corpPending: false, payPending: false, corpPick: false};
       // No published phase → the honest generic «ДОБОР КАРТ».
@@ -410,13 +457,18 @@ describe('consoleStartState (T5 summary launch readout)', () => {
     });
 
     it('the minimized start names ITSELF (the shared task summary has no task to describe)', () => {
-      const waiting = startDeferredSummary(true);
-      const live = startDeferredSummary(false);
+      const waiting = startDeferredSummary('awaiting-table');
+      const live = startDeferredSummary('in-progress');
+      const firstAction = startDeferredSummary('awaiting-first-action');
       expect(waiting.kickerKey).to.not.eq(live.kickerKey);
       expect(waiting.askKey).to.eq('Waiting for the rest of the table');
       expect(live.askKey).to.eq('Continue the start of the game');
-      // Both offer the same way back — A returns to the start workspace.
+      // The first-action wait names the ONE thing left honestly.
+      expect(firstAction.kickerKey).to.eq('Start of the game · first action');
+      expect(firstAction.askKey).to.eq('The first corporation action awaits your turn');
+      // All offer the same way back — A returns to the start workspace.
       expect(waiting.returnKey).to.eq(live.returnKey);
+      expect(firstAction.returnKey).to.eq(live.returnKey);
     });
   });
 });

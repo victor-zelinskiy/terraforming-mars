@@ -43,6 +43,13 @@
             <!-- Every phase keeps its detailed map mounted. A non-current
                  phase clips that SAME body and leaves only its named chapter
                  head; state never teleports between two trees. -->
+            <!-- A CONDITIONAL stage can JOIN a flow that is already running
+                 (a merger acquiring a corp that owes its first action adds
+                 «ПЕРВОЕ ДЕЙСТВИЕ» in the middle of the deployment): items
+                 that appear AFTER the initial composition carry `--arrived`
+                 for one entrance beat (see the phases watcher) — the node and
+                 its connector MATERIALIZE instead of popping. The initial
+                 mount stays silent, exactly as before. -->
             <div class="con-jrail__phase-body"
                  :role="phase.mode === 'tabs' ? 'tablist' : 'list'"
                  :aria-hidden="phase.state === 'current' || phase.state === 'waiting' ? undefined : 'true'">
@@ -53,7 +60,10 @@
               <template v-for="(item, itemIndex) in phase.items" :key="item.id">
                 <span v-if="itemIndex > 0"
                       class="con-jrail__connector"
-                      :class="'con-jrail__connector--' + connectorState(phase, itemIndex)"
+                      :class="[
+                        'con-jrail__connector--' + connectorState(phase, itemIndex),
+                        {'con-jrail__connector--arrived': hasArrived(phase, item)},
+                      ]"
                       aria-hidden="true">
                   <i class="con-jrail__connector-line"></i>
                   <i class="con-jrail__connector-tip"></i>
@@ -68,6 +78,7 @@
                         'con-jrail__item--anticipate': anticipated(phase, item),
                         'con-jrail__item--from-left': anticipated(phase, item) && pulseDir >= 0,
                         'con-jrail__item--from-right': anticipated(phase, item) && pulseDir < 0,
+                        'con-jrail__item--arrived': hasArrived(phase, item),
                       }"
                       :data-item="item.id"
                       :role="phase.mode === 'tabs' ? 'tab' : 'listitem'"
@@ -180,7 +191,43 @@ export default defineComponent({
     pulseKey: {type: Number, default: 0},
     pulseDir: {type: Number, default: 0},
   },
+  data() {
+    return {
+      /**
+       * Items that JOINED the rail after its initial composition (a merger
+       * acquiring a corp that owes its first action adds «ПЕРВОЕ ДЕЙСТВИЕ»
+       * mid-deployment). Each key gets one entrance beat (`--arrived`), then
+       * the marker drops — a later re-render must not replay it. Presentation
+       * only: topology stays the host's business.
+       */
+      arrivedKeys: new Set<string>(),
+    };
+  },
+  watch: {
+    phases(now: ReadonlyArray<JourneyPhase>, was: ReadonlyArray<JourneyPhase> | undefined) {
+      if (!Array.isArray(was)) {
+        return; // the initial composition mounts silently
+      }
+      const seen = new Set(was.flatMap((p) => p.items.map((i) => `${p.id}:${i.id}`)));
+      const fresh = now
+        .flatMap((p) => p.items.map((i) => `${p.id}:${i.id}`))
+        .filter((key) => !seen.has(key));
+      if (fresh.length === 0) {
+        return;
+      }
+      fresh.forEach((key) => this.arrivedKeys.add(key));
+      // Cosmetic cleanup only — the keyframe has long finished; dropping the
+      // marker just keeps a much later re-render from replaying it.
+      window.setTimeout(() => {
+        fresh.forEach((key) => this.arrivedKeys.delete(key));
+      }, 900);
+    },
+  },
   methods: {
+    /** This item joined a rail that was already standing (one entrance beat). */
+    hasArrived(phase: JourneyPhase, item: JourneyItem): boolean {
+      return this.arrivedKeys.has(`${phase.id}:${item.id}`);
+    },
     anticipated(phase: JourneyPhase, item: JourneyItem): boolean {
       return phase.state === 'current' && item.id === this.pendingItemId;
     },

@@ -16999,6 +16999,184 @@ body.con-start-barshold .con-status {
        never a page title (a second big heading is what read as a modal). */
     &__embed .con-ws-stage-title { font-size: .95rem; letter-spacing: .1em; }
 
+    /* ── THE FIRST-ACTION BRIEFING — the stage's own surface ──────────────
+       Stands beside the seated corporation card (the source seat reserves the
+       left edge), reads as a calm plate of the SAME workspace — never a modal:
+       no page title (the crumb already names the stage), the printed ASK
+       leads, the state zone keeps one reserved row so waiting → ready is a
+       paint change on a standing panel. Functional state (the ready ring)
+       rides box-shadow — perf-lite keeps it. */
+    &__firstact {
+        position: absolute;
+        left: 9.8rem;                 /* past the source seat + breathing room */
+        right: 1.2rem;
+        top: 50%;
+        transform: translateY(-50%);
+        max-width: 36rem;
+        margin-inline: auto;
+        display: flex;
+        flex-direction: column;
+        gap: .55rem;
+        padding: 1rem 1.25rem 1.05rem;
+        border-radius: .6rem;
+        background: linear-gradient(180deg, rgba(14, 22, 34, 0.94), rgba(10, 16, 25, 0.9));
+        box-shadow:
+            inset 0 0 0 .06rem rgba(96, 176, 232, 0.16),
+            0 .9rem 2.2rem rgba(0, 0, 0, 0.4);
+    }
+    &__firstact--ready {
+        box-shadow:
+            inset 0 0 0 .07rem fade(@con-mint, 42%),
+            0 .9rem 2.2rem rgba(0, 0, 0, 0.4);
+    }
+    &__firstact-head {
+        display: inline-flex;
+        align-items: center;
+        gap: .4rem;
+    }
+    &__firstact-flag { color: #ffb74d; font-size: .8rem; }
+    &__firstact-kicker {
+        font-size: .62rem;
+        font-weight: 800;
+        letter-spacing: .16em;
+        text-transform: uppercase;
+        color: fade(#ffb74d, 88%);
+    }
+    &__firstact-ask {
+        font-size: 1.05rem;
+        font-weight: 700;
+        line-height: 1.35;
+        color: @con-text;
+    }
+    &__firstact-cap {
+        font-size: .6rem;
+        font-weight: 700;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        margin-bottom: .25rem;
+    }
+    &__firstact-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: .35rem;
+    }
+    &__firstact-warn {
+        display: flex;
+        align-items: flex-start;
+        gap: .45rem;
+        font-size: .78rem;
+        color: fade(#ffcf8a, 92%);
+    }
+    &__firstact-warn-glyph { flex: 0 0 auto; }
+    &__firstact-warn-body {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: .3rem .4rem;
+        min-width: 0;
+    }
+    &__firstact-warn-title { font-weight: 700; }
+    &__firstact-warn-text { color: fade(#ffcf8a, 74%); }
+    &__firstact-next {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        font-size: .78rem;
+        color: @con-text-dim;
+        min-width: 0;
+    }
+    &__firstact-next-tile {
+        flex: 0 0 auto;
+        width: 1.15rem;
+        height: 1.15rem;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+    &__firstact-next-glyph { color: fade(@con-cyan, 75%); font-weight: 800; }
+    &__firstact-next-label {
+        font-size: .6rem;
+        font-weight: 800;
+        letter-spacing: .14em;
+        text-transform: uppercase;
+        color: fade(@con-cyan, 80%);
+    }
+    &__firstact-next-text {
+        color: @con-text;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    &__firstact-next-tail { color: @con-text-dim; white-space: nowrap; }
+    /* The STATE ZONE — one reserved row (waiting → ready never re-layouts). */
+    &__firstact-state {
+        min-height: 2.5rem;
+        display: flex;
+        align-items: center;
+        margin-top: .15rem;
+    }
+    &__firstact-cta {
+        display: inline-flex;
+        align-items: center;
+        gap: .55rem;
+        padding: .5rem .95rem;
+        border-radius: .5rem;
+        background: linear-gradient(180deg, fade(@con-mint, 16%), fade(@con-mint, 8%));
+        box-shadow: inset 0 0 0 .07rem fade(@con-mint, 55%);
+        font-size: .92rem;
+        font-weight: 800;
+        color: @con-text;
+    }
+    &__firstact--busy &__firstact-cta { opacity: .55; }
+    &__firstact-wait {
+        display: inline-flex;
+        align-items: center;
+        gap: .55rem;
+        font-size: .85rem;
+        color: @con-text-dim;
+    }
+    &__firstact-wait--busy { color: fade(@con-cyan, 80%); }
+    &__firstact-pulse {
+        display: inline-flex;
+        align-items: center;
+        gap: .22rem;
+
+        i {
+            width: .28rem;
+            height: .28rem;
+            border-radius: 50%;
+            background: fade(@con-cyan, 70%);
+            animation: con-start-firstact-dot calc(1400ms * var(--motion-scale, 1)) ease-in-out infinite;
+
+            &:nth-child(2) { animation-delay: calc(180ms * var(--motion-scale, 1)); }
+            &:nth-child(3) { animation-delay: calc(360ms * var(--motion-scale, 1)); }
+        }
+    }
+}
+/* The briefing SURFACES from inside the workspace (the descend phrase's
+   REVEAL) and lets go in place — never a v-if blink. */
+.con-start-firstact-enter-active {
+    transition:
+        opacity calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
+        transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+}
+.con-start-firstact-leave-active {
+    transition: opacity calc(170ms * var(--motion-scale, 1)) ease;
+}
+.con-start-firstact-enter-from {
+    opacity: 0;
+    transform: translateY(calc(-50% + .5rem)) scale(.994);
+}
+.con-start-firstact-leave-to { opacity: 0; }
+@keyframes con-start-firstact-dot {
+    0%, 100% { opacity: .25; transform: translateY(0); }
+    35% { opacity: 1; transform: translateY(-.08rem); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-start-firstact-enter-active,
+    .con-start-firstact-leave-active { transition: none; }
+    .con-start__firstact-pulse i { animation: none; opacity: .7; }
 }
 @keyframes con-start-embed-in {
     from { opacity: 0; transform: translateY(.45rem) scale(.992); }
@@ -17856,6 +18034,25 @@ body.con-start-barshold .con-status {
     .con-start__crewline { max-width: 20rem; }
     .con-start__crewchip:not(.con-start__crewchip--self) .con-start__crewname { display: none; }
 }
+/* A CONDITIONAL STAGE JOINS A RUNNING FLOW (a merger acquiring a corp that
+   owes its first action adds «ПЕРВОЕ ДЕЙСТВИЕ» mid-deployment): the item
+   that appeared after the rail's initial composition carries `--arrived`
+   for one entrance beat — the node scales in, its connector DRAWS in from
+   the left — so the new chapter materializes instead of popping. The
+   initial mount stays silent (the marker is set only by the phases diff). */
+.con-jrail__item--arrived {
+    animation: con-jrail-node-in calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.con-jrail__connector--arrived {
+    transform-origin: left center;
+    animation: con-jrail-connector-in calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+@keyframes con-jrail-node-in {
+    from { opacity: 0; transform: scale(.82); }
+}
+@keyframes con-jrail-connector-in {
+    from { opacity: 0; transform: scaleX(.25); }
+}
 @media (prefers-reduced-motion: reduce) {
     .con-wshead--flow :is(.con-wshead__mark, .con-wshead__emblem),
     .con-wshead__flow-origin,
@@ -17874,6 +18071,8 @@ body.con-start-barshold .con-status {
     .con-jrail__pulse { animation: none; opacity: .26; }
     .con-jrail-context-enter-active,
     .con-jrail-context-leave-active { transition: none; }
+    .con-jrail__item--arrived,
+    .con-jrail__connector--arrived { animation: none; }
 }
 
 /* ── THE SELECTION DOCK (preparation shelf) + its flight layer ── */
