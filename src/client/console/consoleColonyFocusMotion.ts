@@ -56,6 +56,7 @@ import {
   descendRelease,
   descendCascade,
   descendCascadeOut,
+  descendPx,
   descendRectOf,
   descendRadiusOf,
 } from '@/client/console/surfaceMotion/workspaceDescend';
@@ -428,16 +429,85 @@ export function colonyFocusEnterHook(el: Element, done: () => void): void {
   });
 }
 
+// ── the COLONY ENTRY CASCADE (one phrase, both doors) ───────────────────────
+//
+// The colonies GRID has two doors — the wheel's standalone workspace and a
+// hosted step of another flow (the start's SelectColony, a played card's
+// build) — and both arrivals speak THIS phrase, so the surface reads as the
+// same place wherever the player came from. The colonies are ISLANDS over
+// open space, not dashboard rows, so the entrance is theirs rather than the
+// Standard-Projects cascade: each island SURFACES in reading order (a short
+// rise — the workspace family's no-travel materialize, one level down), and
+// its PLANET arrives into the berth a beat later — the medallion grows in
+// while the island is still forming, a world coming up to meet the player
+// instead of a finished page fading in. The status rail seats LAST (words
+// after objects — the descend grammar's own order). Transform/opacity only
+// (perf-lite safe); the planet beat is SCALE-only, because the tiles live
+// inside a CSS `zoom:` context where translate-px would be rescaled.
+
+/** One island surfacing. */
+const ENTRY_TILE_MS = 240;
+/** The reading-order step between islands… */
+const ENTRY_TILE_STAGGER_S = 0.055;
+/** …capped as a WHOLE: a 12-tile catalog must not take longer than 6 tiles. */
+const ENTRY_SPREAD_S = 0.3;
+/** The planet's own arrival (starts a beat after its island's cue). */
+const ENTRY_PLANET_MS = 340;
+const ENTRY_PLANET_LAG_S = 0.08;
+/** The one-line status rail seats last. */
+const ENTRY_RAIL_MS = 200;
+
+/**
+ * Compose the colonies' content entry onto `tl` starting at `atS` (seconds).
+ * Returns the phrase's total length in seconds (for the caller's guard timer).
+ * `fromTo` immediateRender hides everything at BUILD time — the caller runs in
+ * the same task as the mount, so nothing secondary is painted before its beat.
+ */
+export function colonyEntryCascade(tl: gsap.core.Timeline, root: HTMLElement, atS: number): number {
+  const slots = Array.from(root.querySelectorAll<HTMLElement>('.con-colonies__slot'));
+  const rail = root.querySelector<HTMLElement>('.con-colonies__rail');
+  if (slots.length === 0 && rail === null) {
+    return 0;
+  }
+  const stagger = Math.min(ENTRY_TILE_STAGGER_S, ENTRY_SPREAD_S / Math.max(1, slots.length));
+  const spreadS = stagger * Math.max(0, slots.length - 1);
+  if (slots.length > 0) {
+    tl.fromTo(slots,
+      {autoAlpha: 0, y: descendPx(14), scale: 0.972, transformOrigin: '50% 62%'},
+      {
+        autoAlpha: 1, y: 0, scale: 1, duration: s(ENTRY_TILE_MS), ease: 'expo.out', stagger,
+        clearProps: 'transform,opacity,visibility', overwrite: 'auto',
+      }, atS);
+    const planets = slots
+      .map((slot) => slot.querySelector<HTMLElement>('.con-coltile__planet-berth'))
+      .filter((el): el is HTMLElement => el !== null);
+    if (planets.length > 0) {
+      tl.fromTo(planets,
+        {scale: 0.7, transformOrigin: '50% 50%'},
+        {
+          scale: 1, duration: s(ENTRY_PLANET_MS), ease: 'power3.out', stagger,
+          clearProps: 'transform', overwrite: 'auto',
+        }, atS + ENTRY_PLANET_LAG_S);
+    }
+  }
+  const railAtS = atS + spreadS + s(120);
+  if (rail !== null) {
+    tl.fromTo(rail,
+      {autoAlpha: 0, y: descendPx(8)},
+      {
+        autoAlpha: 1, y: 0, duration: s(ENTRY_RAIL_MS), ease: 'power2.out',
+        clearProps: 'transform,opacity,visibility', overwrite: 'auto',
+      }, railAtS);
+  }
+  const tilesEndS = atS + spreadS + Math.max(s(ENTRY_TILE_MS), ENTRY_PLANET_LAG_S + s(ENTRY_PLANET_MS));
+  return Math.max(tilesEndS, railAtS + s(ENTRY_RAIL_MS)) - atS;
+}
+
 // ── the EMBEDDED ENTRY (the workspace arriving as a STEP of another flow) ───
 
 /** The step's own room opens; nothing is scaled (clip only). */
-const STEP_OPEN_MS = 300;
-/** The colonies surface from inside it, in reading order. */
-const STEP_ITEM_MS = 250;
-const STEP_ITEM_STAGGER_S = 0.042;
-/** The whole tile wave never spreads wider than this, whatever the count. */
-const STEP_SPREAD_S = 0.24;
-const STEP_ITEMS_AT_MS = 120;
+const STEP_OPEN_MS = 320;
+const STEP_ITEMS_AT_MS = 110;
 
 /**
  * COLONIES ARRIVING AS A STEP — «Старт партии › <пролог> › КОЛОНИИ».
@@ -450,9 +520,10 @@ const STEP_ITEMS_AT_MS = 120;
  * The phrase is the workspace descend's, one level in and without a rect to
  * fly from (the player pressed a prompt, not a tile): the ROOM opens by clip
  * — the frame is never scaled, so the header, the fleet dock and the host's
- * own chrome cannot drift — and the colonies then surface from INSIDE it in
- * reading order. Everything is measured and laid out before the first frame:
- * the fit engine has already run, so no tile ever resizes under the entrance.
+ * own chrome cannot drift — and the colonies then surface from INSIDE it with
+ * the shared entry cascade (islands → planets → rail). Everything is measured
+ * and laid out before the first frame: the fit engine has already run, so no
+ * tile ever resizes under the entrance.
  */
 export function playColonyStepEntry(root: HTMLElement): void {
   if (typeof window === 'undefined' || hiddenHost(root)) {
@@ -462,8 +533,7 @@ export function playColonyStepEntry(root: HTMLElement): void {
   const tiles = Array.from(root.querySelectorAll<HTMLElement>('.con-colonies__slot'));
   const rail = root.querySelector<HTMLElement>('.con-colonies__rail');
   const toolbar = root.querySelector<HTMLElement>('.con-colonies__toolbar');
-  const risers = [...tiles, ...(rail === null ? [] : [rail])];
-  if (stage === null && risers.length === 0) {
+  if (stage === null && tiles.length === 0 && rail === null) {
     return;
   }
 
@@ -474,25 +544,26 @@ export function playColonyStepEntry(root: HTMLElement): void {
 
   // Hidden BEFORE the first paint, in the same task as the mount — the player
   // must never see a finished grid and then watch a window open around it.
+  const risers = [...tiles, ...(rail === null ? [] : [rail])];
   if (risers.length > 0) {
     gsap.set(risers, {autoAlpha: 0});
   }
-  const stagger = Math.min(STEP_ITEM_STAGGER_S, STEP_SPREAD_S / Math.max(1, tiles.length));
-  const totalMs = STEP_ITEMS_AT_MS + STEP_ITEM_MS + Math.round(risers.length * stagger * 1000) + 120;
-  guardedDescend(root, totalMs, () => undefined, () => {
+  guardedDescend(root, STEP_ITEMS_AT_MS + 1200, () => undefined, () => {
     const tl = gsap.timeline();
     // The TOOLBAR is the host's spatial anchor for this step (the fleet dock
     // lives there and must not move): it settles in place, it never travels.
     if (toolbar !== null) {
-      tl.fromTo(toolbar, {autoAlpha: 0}, {autoAlpha: 1, duration: s(160), ease: 'power1.out', clearProps: 'opacity,visibility'}, 0);
+      tl.fromTo(toolbar,
+        {autoAlpha: 0, y: descendPx(-6)},
+        {autoAlpha: 1, y: 0, duration: s(160), ease: 'power1.out', clearProps: 'transform,opacity,visibility'}, 0);
     }
     if (stage !== null) {
       tl.fromTo(stage,
-        {clipPath: 'inset(6% 0% 12% 0% round .55rem)', webkitClipPath: 'inset(6% 0% 12% 0% round .55rem)'},
+        {clipPath: 'inset(5% 0% 10% 0% round .55rem)', webkitClipPath: 'inset(5% 0% 10% 0% round .55rem)'},
         {clipPath: 'inset(0% 0% 0% 0% round .55rem)', webkitClipPath: 'inset(0% 0% 0% 0% round .55rem)',
           duration: s(STEP_OPEN_MS), ease: 'expo.out', clearProps: 'clipPath,webkitClipPath'}, 0);
     }
-    descendCascade(tl, risers, s(STEP_ITEM_MS), s(STEP_ITEMS_AT_MS), stagger);
+    colonyEntryCascade(tl, root, s(STEP_ITEMS_AT_MS));
     return tl;
   });
 }

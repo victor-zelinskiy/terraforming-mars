@@ -213,6 +213,18 @@ type PadContribution = {index: number, id: string, active: boolean, edge: boolea
 /** Rate limit for the "a non-driving pad is being pressed" diagnostic. */
 const SUPPRESSED_LOG_INTERVAL_MS = 3000;
 let suppressedLoggedAt = 0;
+/**
+ * Rate limit for driver changes. Where Steam Input mirrors one controller onto
+ * two devices (the measured Steam Deck set-up: a raw pad plus its virtual twin),
+ * the two nodes deliver the same press in different poll frames, so the wheel
+ * legitimately changes hands about once per press. Input stays correct — the
+ * loser's edges are dropped — but logging every one of them would bloat the
+ * shared Steam log over a long session. Collapsed changes are COUNTED, never
+ * silently dropped: a churn that matters still shows up as a number.
+ */
+const DRIVER_LOG_INTERVAL_MS = 5000;
+let driverLoggedAt = Number.NEGATIVE_INFINITY;
+let driverChangesSinceLog = 0;
 /** Which source the previous poll frame read, to notice a HANDOVER between them. */
 let sourceWasNative = false;
 /** Last suppression state sent to main (undefined = nothing sent yet). */
@@ -325,7 +337,14 @@ function pollOnce(now: number): void {
     gamepadCoreState.activeIndex = chosen.index;
     gamepadCoreState.activeId = chosen.id;
     updateDetectedGlyphSet(chosen.id);
-    gpLog(`driver → #${chosen.index} "${chosen.id}" (was #${previous})`);
+    driverChangesSinceLog++;
+    if (now - driverLoggedAt >= DRIVER_LOG_INTERVAL_MS) {
+      const collapsed = driverChangesSinceLog - 1;
+      driverLoggedAt = now;
+      driverChangesSinceLog = 0;
+      gpLog(`driver → #${chosen.index} "${chosen.id}" (was #${previous})` +
+        (collapsed > 0 ? ` — ${collapsed} more change(s) collapsed` : ''));
+    }
   }
   if (chosen === undefined) {
     return;

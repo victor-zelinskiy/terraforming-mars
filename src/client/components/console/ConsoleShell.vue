@@ -5870,7 +5870,25 @@ export default defineComponent({
         // («КАРТЫ В РУКЕ › <карта> › КОЛОНИИ»). The deferred fold runs from
         // the colonyFollowUpLive falling edge, once the whole follow-up
         // (pick → fleet → rewards) has played out inside the workspace.
-        if (workspaceFrameHasNested('hand')) {
+        //
+        // The START is the same workspace scenery (its queue plays arm
+        // `host: 'workspace'` too), and its follow-up stands INSIDE the start
+        // frame (`start ⊃ colonies` — the solo setup pick / Poseidon's build
+        // at deployment). The hand-only guard left that chain unprotected:
+        // the closing beat's `goBoardHome()` truncated the prompt-anchored
+        // colonies frame, the stranded self-heal stood it back up a tick
+        // later, and the section remounted — the reported «колонии мигают»
+        // at game start (the step entry played twice).
+        //
+        // The question is asked of the workspace THE PLAY RAN IN — the hand
+        // when a hand frame is standing (the composer's home, embedded or
+        // not), else the start (a queue play with no hand step). Asking BOTH
+        // is wrong in exactly one shape: the sponsor's ordinary play
+        // (`start ⊃ hand`, no follow-up) — there the thing nested inside the
+        // start IS the play's own hand step, and folding it is this beat's
+        // whole job.
+        const playedIn = workspaceFrameIndex('hand') !== -1 ? 'hand' : 'start';
+        if (workspaceFrameHasNested(playedIn)) {
           this.pendingPlayCard = undefined;
           return;
         }

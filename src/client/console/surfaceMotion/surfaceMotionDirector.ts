@@ -48,6 +48,7 @@ import {
   takeWheelEcho,
   surfaceMotionState,
 } from '@/client/console/surfaceMotion/surfaceMotionState';
+import {colonyEntryCascade} from '@/client/console/consoleColonyFocusMotion';
 
 // ── timings (1080-logical ms; motionMs folds the speed preset) ──────────────
 
@@ -268,7 +269,9 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
   // its FLIP is the whole point) and the command WHEEL, whose cross assembles
   // from its own hub without the frame ever moving.
   if (isWorkspaceSurface(el) && kind !== 'phase' && id !== 'quick') {
-    guarded(el, OPEN_MS + 320, done, (finish) => {
+    // The colonies' content phrase (islands → planets → rail) outlives the
+    // panel materialize — give its guard timer the room.
+    guarded(el, OPEN_MS + (id === 'section' ? 1200 : 320), done, (finish) => {
       const tl = gsap.timeline({onComplete: finish});
       tl.fromTo(panel,
         {autoAlpha: 0, scale: 0.988, transformOrigin: '50% 50%'},
@@ -497,28 +500,28 @@ function contentCascade(id: SurfaceMotionId, el: Element, tl: gsap.core.Timeline
     }
     return;
   }
-  if (id === 'section' && el.querySelector('.con-colonies') !== null) {
-    // The COLONY WORKSPACE: the fleet bar docks from above, the colony
-    // tiles compose in reading order, the compact status rail seats
-    // last — the strategic context assembles, never pops.
+  if (id === 'section') {
+    // The COLONY WORKSPACE speaks its OWN entry phrase, shared verbatim with
+    // its embedded-step door (consoleColonyFocusMotion.colonyEntryCascade):
+    // the fleet dock settles from above, the colony ISLANDS surface in
+    // reading order with their planets arriving a beat later, the compact
+    // status rail seats last. The strategic context assembles, never pops.
+    // ⚠ `el` IS `.con-colonies` here (the section root carries the motion
+    // marker) — the old `el.querySelector('.con-colonies')` guard matched
+    // descendants only, so this whole branch was silently dead and the
+    // workspace arrived as a bare panel fade («колонии просто появляются»).
+    const colonies = el instanceof HTMLElement && el.classList.contains('con-colonies') ?
+      el : el.querySelector<HTMLElement>('.con-colonies');
+    if (colonies === null) {
+      return; // the hydro section — panel materialize only
+    }
     const fleet = el.querySelector<HTMLElement>('.con-colonies__fleetbar');
-    const tiles = [...el.querySelectorAll<HTMLElement>('.con-coltile')].slice(0, 8);
-    const rail = el.querySelector<HTMLElement>('.con-colonies__rail');
     if (fleet !== null) {
       tl.fromTo(fleet,
         {y: -6 * u, opacity: 0},
         {y: 0, opacity: 1, duration: s(150), ease: 'power2.out', clearProps: 'transform,opacity'}, at);
     }
-    if (tiles.length > 0) {
-      tl.fromTo(tiles,
-        {y: 12 * u, opacity: 0},
-        {y: 0, opacity: 1, duration: s(180), ease: 'power2.out', stagger: 0.026, clearProps: 'transform,opacity'}, at + s(40));
-    }
-    if (rail !== null) {
-      tl.fromTo(rail,
-        {y: 8 * u, opacity: 0},
-        {y: 0, opacity: 1, duration: s(160), ease: 'power2.out', clearProps: 'transform,opacity'}, at + s(120));
-    }
+    colonyEntryCascade(tl, colonies, at + s(40));
   }
 }
 
