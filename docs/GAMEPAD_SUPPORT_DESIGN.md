@@ -435,9 +435,29 @@ Design:
 - Pad PRESENCE can no longer be a `gamepadconnected` counter — that event never
   fires here. `syncPadPresence()` reconciles both sources and owns the loop.
 
-Steam Input mirrors one controller into an extra virtual pad, so the same press
-legitimately arrives on two nodes. That is not filtered: the single-driver
-election (§4.1 `electActivePad`) makes the mirror inert.
+### 8.2 Mirror suppression
+
+Steam Input publishes one controller TWICE — the device and a virtual twin — so
+a press arrives on two nodes, they land in different poll frames, and the driver
+changes hands about once per press. Input stays correct (the election drops the
+loser's edges), but the churn is removed at the source.
+
+**Twins are identified by BEHAVIOUR, never by name or vendor id**: two nodes that
+agree on button state and diverge only for the instant an edge needs to reach
+both (`TWIN_DISAGREE_TOLERANCE_MS`). Requirements that keep it safe:
+
+- shared IDLENESS proves nothing — only agreement while something is pressed
+  counts (`TWIN_CONFIRM` times);
+- divergence beyond the tolerance REJECTS the pair permanently, so two real
+  controllers (one held, one at rest) can never be conflated;
+- a device with no twin is never a candidate — which is what protects a mixed
+  set-up, one pad through Steam Input and another with it forced off;
+- of a confirmed pair the Steam Input view survives (it honours the player's
+  configured layout), else the lowest joystick index.
+
+Vendor id `28de:11ff` is used ONLY to pick which twin survives, never to decide
+what a twin is. Every uncertainty resolves toward publishing both pads, i.e.
+toward the un-deduped behaviour, which the election already handles correctly.
 
 ---
 

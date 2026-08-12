@@ -1,10 +1,19 @@
 import {expect} from 'chai';
 import {
   JS_EVENT_SIZE,
+  MappedPad,
   RawPadState,
+  TWIN_CONFIRM,
+  TWIN_DISAGREE_TOLERANCE_MS,
+  TwinState,
   applyJsEvent,
+  areTwins,
+  initialTwinState,
+  padsAgree,
   parseJsEvents,
+  suppressedMirrors,
   toStandardPad,
+  updateTwinState,
 } from '../../electron/nativeGamepadLinux';
 
 /** Build one joydev `struct js_event` record. */
@@ -161,5 +170,104 @@ describe('electron/nativeGamepadLinux toStandardPad', () => {
     const pad = toStandardPad(emptyState());
     expect(pad.buttons.every((v) => v === 0)).to.eq(true);
     expect(pad.axes).to.deep.eq([0, 0, 0, 0]);
+  });
+});
+
+describe('electron/nativeGamepadLinux mirror suppression', () => {
+  const neutral = (): MappedPad => ({buttons: [0, 0, 0, 0], axes: [0, 0, 0, 0]});
+  const pressed = (index: number): MappedPad => {
+    const pad = neutral();
+    pad.buttons[index] = 1;
+    return pad;
+  };
+
+  /** Feed the same observation `times` times, 8 ms apart (one poll period). */
+  function observe(state: TwinState, a: MappedPad, b: MappedPad, times: number, from = 1000): TwinState {
+    let next = state;
+    for (let i = 0; i < times; i++) {
+      next = updateTwinState(next, a, b, from + i * 8);
+    }
+    return next;
+  }
+
+  it('never twins two idle pads — shared idleness proves nothing', () => {
+    const state = observe(initialTwinState(), neutral(), neutral(), 50);
+    expect(areTwins(state)).to.eq(false);
+    expect(state.activeAgreements).to.eq(0);
+  });
+
+  it('twins two nodes that agree while a button is actually held', () => {
+    const state = observe(initialTwinState(), pressed(0), pressed(0), TWIN_CONFIRM);
+    expect(areTwins(state)).to.eq(true);
+  });
+
+  it('tolerates the brief divergence of one edge reaching two nodes', () => {
+    // The mirror lags by a poll or two — it must not break twinhood.
+    let state = observe(initialTwinState(), pressed(0), pressed(0), TWIN_CONFIRM);
+    state = updateTwinState(state, pressed(1), pressed(0), 2000); // mirror lags
+    state = updateTwinState(state, pressed(1), pressed(1), 2008); // caught up
+    expect(areTwins(state)).to.eq(true);
+  });
+
+  it('REJECTS two genuinely different controllers, permanently', () => {
+    // One pad held while the other rests — sustained divergence.
+    let state = observe(initialTwinState(), pressed(0), pressed(0), TWIN_CONFIRM);
+    expect(areTwins(state)).to.eq(true);
+    state = observe(state, pressed(0), neutral(), 20, 3000);
+    expect(state.rejected).to.eq(true);
+    expect(areTwins(state)).to.eq(false);
+    // And it can never be re-twinned by later coincidence.
+    state = observe(state, pressed(2), pressed(2), 50, 9000);
+    expect(areTwins(state)).to.eq(false);
+  });
+
+  it('does not reject on divergence shorter than the tolerance', () => {
+    let state = observe(initialTwinState(), pressed(0), pressed(0), TWIN_CONFIRM);
+    state = updateTwinState(state, pressed(0), neutral(), 5000);
+    state = updateTwinState(state, pressed(0), neutral(), 5000 + TWIN_DISAGREE_TOLERANCE_MS);
+    expect(state.rejected).to.eq(false);
+    expect(areTwins(state)).to.eq(true);
+  });
+
+  it('treats differing pad shapes as different devices', () => {
+    const short: MappedPad = {buttons: [0, 0], axes: [0, 0]};
+    expect(padsAgree(short, neutral())).to.eq(false);
+  });
+
+  describe('suppressedMirrors', () => {
+    const raz = {node: 'js1', index: 1, steamVirtual: false};
+    const steam0 = {node: 'js0', index: 0, steamVirtual: true};
+    const steam2 = {node: 'js2', index: 2, steamVirtual: true};
+
+    it('keeps the Steam Input view and drops the raw twin', () => {
+      // The Steam view honours the player's configured layout, so it survives.
+      const hidden = suppressedMirrors([steam0, raz, steam2], (a, b) =>
+        (a === 'js0' && b === 'js1') || (a === 'js1' && b === 'js0'));
+      expect([...hidden]).to.deep.eq(['js1']);
+    });
+
+    it('hides nothing when no pair is a twin (the mixed set-up)', () => {
+      // One controller through Steam Input, another with it forced off: both
+      // must survive, which is the whole reason twinhood is behavioural.
+      const hidden = suppressedMirrors([steam0, raz, steam2], () => false);
+      expect(hidden.size).to.eq(0);
+    });
+
+    it('keeps exactly one from a mutually-correlated group', () => {
+      const hidden = suppressedMirrors([steam0, raz, steam2], () => true);
+      expect(hidden.size).to.eq(2);
+      expect(hidden.has('js0')).to.eq(false, 'the preferred survivor stays');
+    });
+
+    it('falls back to the lowest index when neither is a Steam view', () => {
+      const a = {node: 'js3', index: 3, steamVirtual: false};
+      const b = {node: 'js1', index: 1, steamVirtual: false};
+      const hidden = suppressedMirrors([a, b], () => true);
+      expect([...hidden]).to.deep.eq(['js3']);
+    });
+
+    it('never suppresses a lone device', () => {
+      expect(suppressedMirrors([raz], () => true).size).to.eq(0);
+    });
   });
 });

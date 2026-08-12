@@ -173,6 +173,117 @@ export function toStandardPad(raw: RawPadState): {buttons: number[], axes: numbe
   };
 }
 
+// ── MIRROR SUPPRESSION ──────────────────────────────────────────────────────
+// Steam Input publishes a controller TWICE: the device itself and a virtual
+// twin. On the measured Deck both are live, so one press arrives on two nodes,
+// the two land in different poll frames, and the renderer's driver changes hands
+// about once per press. Input stays correct (the loser's edges are dropped) but
+// the churn is noise we can remove at the source.
+//
+// Twins are identified by BEHAVIOUR, never by name or vendor id: two nodes that
+// always agree on button state and diverge only for the instant it takes an edge
+// to reach both. Two genuinely different controllers diverge the moment one is
+// held and the other is not — far longer than the tolerance — and are then
+// rejected PERMANENTLY, so a real pad can never be silenced. A pad with no twin
+// is never even a candidate, which is what keeps a mixed set-up safe (one
+// controller through Steam Input, another with it forced off).
+//
+// Every uncertainty resolves toward publishing both — the current behaviour.
+
+/** Divergence longer than this means two genuinely different devices. */
+export const TWIN_DISAGREE_TOLERANCE_MS = 64;
+/** Agreements on a NON-NEUTRAL state needed before twinhood is accepted. */
+export const TWIN_CONFIRM = 3;
+/** Float slack when comparing analog values. */
+const TWIN_EPSILON = 0.02;
+
+/** How one pair of devices has been behaving relative to each other. */
+export interface TwinState {
+  /** Timestamp divergence began (0 = currently agreeing). */
+  disagreeSince: number;
+  /** Times they agreed while something was actually pressed. */
+  activeAgreements: number;
+  /** Diverged for longer than the tolerance — never twins again. */
+  rejected: boolean;
+}
+
+export function initialTwinState(): TwinState {
+  return {disagreeSince: 0, activeAgreements: 0, rejected: false};
+}
+
+export type MappedPad = {buttons: number[], axes: number[]};
+
+/** Is nobody touching this pad? Two idle pads agree trivially and prove nothing. */
+export function isNeutralPad(pad: MappedPad): boolean {
+  return pad.buttons.every((v) => v <= TWIN_EPSILON) && pad.axes.every((v) => Math.abs(v) <= TWIN_EPSILON);
+}
+
+export function padsAgree(a: MappedPad, b: MappedPad): boolean {
+  if (a.buttons.length !== b.buttons.length || a.axes.length !== b.axes.length) {
+    return false;
+  }
+  return a.buttons.every((v, i) => Math.abs(v - b.buttons[i]) <= TWIN_EPSILON) &&
+    a.axes.every((v, i) => Math.abs(v - b.axes[i]) <= TWIN_EPSILON);
+}
+
+/**
+ * Fold one observation into a pair's twin state. Rejection is permanent: the
+ * cost of wrongly keeping two views of one controller is log churn, while the
+ * cost of wrongly dropping a real controller is a player with no input.
+ */
+export function updateTwinState(state: TwinState, a: MappedPad, b: MappedPad, now: number): TwinState {
+  if (state.rejected) {
+    return state;
+  }
+  if (padsAgree(a, b)) {
+    return {
+      disagreeSince: 0,
+      // Only a shared PRESS is evidence; shared idleness is not.
+      activeAgreements: isNeutralPad(a) ? state.activeAgreements : state.activeAgreements + 1,
+      rejected: false,
+    };
+  }
+  // Diverging: tolerated only as long as one edge needs to reach both nodes.
+  const since = state.disagreeSince === 0 ? now : state.disagreeSince;
+  return {
+    disagreeSince: since,
+    activeAgreements: state.activeAgreements,
+    rejected: now - since > TWIN_DISAGREE_TOLERANCE_MS,
+  };
+}
+
+export function areTwins(state: TwinState): boolean {
+  return !state.rejected && state.activeAgreements >= TWIN_CONFIRM;
+}
+
+/** Identity a device is chosen or dropped by (order = who survives a pair). */
+export type TwinCandidate = {node: string, index: number, steamVirtual: boolean};
+
+/**
+ * Given the confirmed twin pairs, decide which nodes NOT to publish: one member
+ * of each group survives — the Steam Input virtual view first (it is the one
+ * honouring the player's Steam layout), otherwise the lowest joystick index.
+ * Groups are transitive, so a device mirrored three ways still yields one pad.
+ */
+export function suppressedMirrors(
+  devices: ReadonlyArray<TwinCandidate>,
+  isTwin: (a: string, b: string) => boolean,
+): Set<string> {
+  const preferred = [...devices].sort((x, y) =>
+    x.steamVirtual !== y.steamVirtual ? (x.steamVirtual ? -1 : 1) : x.index - y.index);
+  const keptFor = new Map<string, string>(); // node → the node that represents it
+  const suppressed = new Set<string>();
+  for (const device of preferred) {
+    const twinOfKept = [...keptFor.keys()].find((kept) => isTwin(kept, device.node));
+    if (twinOfKept === undefined) {
+      keptFor.set(device.node, device.node);
+    } else {
+      suppressed.add(device.node);
+    }
+  }
+  return suppressed;
+}
+
 /** The kernel's human name for a joystick node, e.g. "Microsoft X-Box 360 pad 0". */
 function deviceName(node: string): string {
   try {
@@ -186,11 +297,36 @@ function log(message: string): void {
   console.log(`[gamepad] ${message}`);
 }
 
+/** Steam Input's virtual gamepad — the view that honours the player's layout. */
+const STEAM_VIRTUAL_VENDOR = '28de';
+const STEAM_VIRTUAL_PRODUCT = '11ff';
+
+function sysfsId(node: string, field: 'vendor' | 'product'): string {
+  try {
+    return fs.readFileSync(path.join(SYS_CLASS_INPUT, node, 'device', 'id', field), 'utf8').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+/** Used only to pick WHICH twin survives — never to decide what is a twin. */
+function isSteamVirtual(node: string): boolean {
+  return sysfsId(node, 'vendor') === STEAM_VIRTUAL_VENDOR &&
+    sysfsId(node, 'product') === STEAM_VIRTUAL_PRODUCT;
+}
+
+/** Stable key for an unordered device pair. */
+function pairKey(a: string, b: string): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
 /** One opened joystick node. */
 interface OpenDevice {
   node: string;
   index: number;
   id: string;
+  /** Steam Input's virtual view — preferred survivor when twins are found. */
+  steamVirtual: boolean;
   stream: fs.ReadStream;
   state: RawPadState;
   /** Bytes of a js_event record split across two reads. */
@@ -208,6 +344,8 @@ export function installNativeGamepads(win: BrowserWindow): () => void {
   }
 
   const devices = new Map<string, OpenDevice>();
+  /** Per unordered device pair: are these two views of one controller? */
+  const twins = new Map<string, TwinState>();
   let dirty = false;
   let disposed = false;
   let rescanTimer: NodeJS.Timeout | undefined;
@@ -236,10 +374,38 @@ export function installNativeGamepads(win: BrowserWindow): () => void {
       return;
     }
     dirty = false;
+    const live = [...devices.values()];
+    const mapped = new Map(live.map((device) => [device.node, toStandardPad(device.state)]));
+
+    // Update every pair's twin verdict from what the devices are doing RIGHT
+    // NOW, then drop the redundant views. Both steps are pure; a mistake here
+    // can only cost us the dedupe, never a device (see suppressedMirrors).
+    const at = Date.now();
+    for (let i = 0; i < live.length; i++) {
+      for (let j = i + 1; j < live.length; j++) {
+        const key = pairKey(live[i].node, live[j].node);
+        const before = twins.get(key) ?? initialTwinState();
+        const after = updateTwinState(
+          before,
+          mapped.get(live[i].node) as MappedPad,
+          mapped.get(live[j].node) as MappedPad,
+          at);
+        twins.set(key, after);
+        if (areTwins(after) !== areTwins(before)) {
+          log(`native: ${live[i].node} ("${live[i].id}") and ${live[j].node} ("${live[j].id}") ` +
+            `${areTwins(after) ? 'are the SAME controller — publishing one' : 'are DIFFERENT controllers — publishing both'}`);
+        }
+      }
+    }
+    const hidden = suppressedMirrors(live, (a, b) => areTwins(twins.get(pairKey(a, b)) ?? initialTwinState()));
+
     const pads: NativePadSnapshot[] = [];
-    for (const device of devices.values()) {
-      const mapped = toStandardPad(device.state);
-      pads.push({index: device.index, id: device.id, buttons: mapped.buttons, axes: mapped.axes});
+    for (const device of live) {
+      if (hidden.has(device.node)) {
+        continue;
+      }
+      const state = mapped.get(device.node) as MappedPad;
+      pads.push({index: device.index, id: device.id, buttons: state.buttons, axes: state.axes});
     }
     try {
       win.webContents.send(NATIVE_PADS_CHANNEL, pads);
@@ -253,6 +419,13 @@ export function installNativeGamepads(win: BrowserWindow): () => void {
 
   const close = (device: OpenDevice): void => {
     devices.delete(device.node);
+    // Forget this device's verdicts — a controller re-plugged onto the same node
+    // is a fresh device and must earn (or escape) twinhood on its own behaviour.
+    for (const key of [...twins.keys()]) {
+      if (key.split('|').includes(device.node)) {
+        twins.delete(key);
+      }
+    }
     try {
       device.stream.close();
     } catch {
@@ -279,11 +452,11 @@ export function installNativeGamepads(win: BrowserWindow): () => void {
       return;
     }
     const device: OpenDevice = {
-      node, index, id: deviceName(node), stream,
+      node, index, id: deviceName(node), steamVirtual: isSteamVirtual(node), stream,
       state: {buttons: [], axes: []}, carry: Buffer.alloc(0),
     };
     devices.set(node, device);
-    log(`native: reading ${node} "${device.id}"`);
+    log(`native: reading ${node} "${device.id}"${device.steamVirtual ? ' (Steam Input virtual)' : ''}`);
 
     stream.on('data', (chunk: Buffer | string) => {
       if (typeof chunk === 'string') {
