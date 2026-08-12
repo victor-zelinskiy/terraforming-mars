@@ -393,7 +393,51 @@ window keeps focus → rAF keeps running; a backgrounded window pauses rAF and
 therefore polling — acceptable (input is meaningless unfocused) and the
 `perf.ts` background-throttling switches don't change this for rAF.
 `backgroundThrottling:false` keeps timers alive but we deliberately key the
-loop off rAF + visibility. No main-process changes required; no IPC.
+loop off rAF + visibility.
+
+### 8.1 Native Linux pad source (Steam Deck) — SHIPPED
+
+**On Linux the Chromium Gamepad API cannot be trusted at all, so the main
+process reads the joystick devices itself.** This is the one place the design's
+original "no main-process changes; no IPC" no longer holds.
+
+Field measurement on a docked Steam Deck (external controller on a dock, Steam
+Gaming Mode, native AppImage): the renderer logged `[gamepad] installed —
+pads=0 slots=4` in every session and never one `connected` line, under every
+Steam Input layout tried. A main-process probe taken at the same instant found
+three live devices and read real presses off them:
+
+```
+probe: udev present at /run/udev
+probe: js0 "Microsoft X-Box 360 pad 0"           /devices/virtual/input/input56/js0
+probe: js1 "Razer Wolverine V3 Pro for Xbox 2.4" /devices/virtual/input/input43/js1
+probe: js2 "Microsoft X-Box 360 pad 1"           /devices/virtual/input/input57/js2
+probe: INPUT SEEN on js1 — button 1 = 1
+```
+
+Two Chromium behaviours explain it, both verified in `device/gamepad/`:
+a device is ignored unless udev reports `ID_INPUT_JOYSTICK`, and device
+identity is `syspath` truncated at the first `"input"` — which for every uinput
+device is the same string, `/sys/devices/virtual/`, so Steam Input's virtual
+pads are indistinguishable from each other. Upstream:
+`issues.chromium.org/issues/40745289` ("Virtual gamepads are ignored on Linux").
+
+Design:
+- `electron/nativeGamepadLinux.ts` opens `/dev/input/js*`, decodes joydev
+  `js_event` records, converts the xpad layout to the **W3C standard mapping**,
+  and pushes coalesced snapshots (8 ms) over `desktop:native-pads`. Hotplug via
+  a debounced `fs.watch` on `/dev/input`.
+- `electron/preload.ts` exposes `onNativePads`.
+- `src/client/gamepad/nativePadBridge.ts` turns them into `Gamepad`-shaped
+  objects; `gamepadCore.navigatorPads()` returns them **only while the Gamepad
+  API reports no connected pad**, so a healthy platform (every Windows build)
+  keeps the stock path and no press can ever arrive twice.
+- Pad PRESENCE can no longer be a `gamepadconnected` counter — that event never
+  fires here. `syncPadPresence()` reconciles both sources and owns the loop.
+
+Steam Input mirrors one controller into an extra virtual pad, so the same press
+legitimately arrives on two nodes. That is not filtered: the single-driver
+election (§4.1 `electActivePad`) makes the mirror inert.
 
 ---
 

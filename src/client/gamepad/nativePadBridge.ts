@@ -37,6 +37,8 @@ export type NativePad = GamepadSnapshot & {
 type NativeBridge = {onNativePads?: (cb: (pads: unknown) => void) => void};
 
 let pads: ReadonlyArray<NativePad> = [];
+/** Identity of the current pad SET — `index:id` per pad (see the push handler). */
+let padsKey = '';
 let listener: (() => void) | undefined;
 let installed = false;
 
@@ -97,9 +99,15 @@ export function installNativePadBridge(): void {
   installed = true;
   bridge.onNativePads((raw: unknown) => {
     const next = Array.isArray(raw) ? raw.filter(isNativePadMessage).map(toSnapshot) : [];
-    const countChanged = next.length !== pads.length;
+    // Identity, not length: a device SWAP (one pad out, another in on the same
+    // slot) keeps the count identical while every baseline the core holds now
+    // describes a different physical device — diffing across that gap fires a
+    // burst of phantom edges.
+    const key = next.map((pad) => `${pad.index}:${pad.id}`).join('|');
+    const changed = key !== padsKey;
+    padsKey = key;
     pads = next;
-    if (countChanged) {
+    if (changed) {
       listener?.();
     }
   });
