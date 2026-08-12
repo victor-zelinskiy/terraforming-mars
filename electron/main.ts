@@ -26,6 +26,7 @@ import {applyPerformanceSwitches, logGpuStatus, parseAffinityPref, parseCliEnvOv
 import {execFile} from 'child_process';
 import {installDevtoolsPadCursor} from './devtoolsPadCursor';
 import {installConsoleCapture} from './consoleExport';
+import {probeLinuxInput} from './inputProbe';
 import {addToSteam, isAddedToSteam} from './steamShortcut';
 import {readSteamPersonaName} from './steamPersona';
 import {getSteamPromptDismissed, setSteamPromptDismissed, getAppMode, setAppMode, getLanVisible, setLanVisible, getLanName, setLanName} from './session';
@@ -486,6 +487,12 @@ function createWindow(): void {
     onExport: () => consoleExporter.export(),
     onCopy: () => consoleExporter.copyToClipboard(),
   });
+
+  // Linux field diagnostic: print the KERNEL's view of the input devices next to
+  // the renderer's `[gamepad] installed — pads=N` line. Only the two together can
+  // tell "no device exists" apart from "Chromium cannot see the device that is
+  // right there" — the Gamepad API reports both as zero pads. Read-only, Linux-only.
+  probeLinuxInput();
 
   // Re-echo the settled "[TM perf]" line on every page load — game-boundary
   // reloads clear the DevTools console, and this keeps the tuning state
