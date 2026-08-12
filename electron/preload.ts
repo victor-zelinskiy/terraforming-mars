@@ -46,6 +46,14 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   platform: process.platform,
   getVersion: (): Promise<string> => ipcRenderer.invoke('desktop:getVersion'),
   openExternal: (url: string): Promise<void> => ipcRenderer.invoke('desktop:openExternal', url),
+  // NATIVE GAMEPADS (Linux). Chromium's own gamepad fetcher sees nothing on a
+  // Steam Deck — measured: three live joystick devices, `getGamepads()` empty —
+  // so the main process reads /dev/input/js* and pushes standard-mapping
+  // snapshots here. The renderer uses them ONLY when the Gamepad API is empty
+  // (nativePadBridge.ts), so no platform can ever receive input twice.
+  onNativePads: (cb: (pads: unknown) => void): void => {
+    ipcRenderer.on('desktop:native-pads', (_event, pads) => cb(pads));
+  },
   // Premium updater (Phase 7).
   getUpdateState: (): Promise<unknown> => ipcRenderer.invoke('desktop:getUpdateState'),
   onUpdateState: (cb: (state: unknown) => void): void => {

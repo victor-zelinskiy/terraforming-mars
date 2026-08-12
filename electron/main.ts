@@ -26,7 +26,7 @@ import {applyPerformanceSwitches, logGpuStatus, parseAffinityPref, parseCliEnvOv
 import {execFile} from 'child_process';
 import {installDevtoolsPadCursor} from './devtoolsPadCursor';
 import {installConsoleCapture} from './consoleExport';
-import {probeLinuxInput} from './inputProbe';
+import {installNativeGamepads} from './nativeGamepadLinux';
 import {addToSteam, isAddedToSteam} from './steamShortcut';
 import {readSteamPersonaName} from './steamPersona';
 import {getSteamPromptDismissed, setSteamPromptDismissed, getAppMode, setAppMode, getLanVisible, setLanVisible, getLanName, setLanName} from './session';
@@ -488,11 +488,12 @@ function createWindow(): void {
     onCopy: () => consoleExporter.copyToClipboard(),
   });
 
-  // Linux field diagnostic: print the KERNEL's view of the input devices next to
-  // the renderer's `[gamepad] installed — pads=N` line. Only the two together can
-  // tell "no device exists" apart from "Chromium cannot see the device that is
-  // right there" — the Gamepad API reports both as zero pads. Read-only, Linux-only.
-  probeLinuxInput();
+  // NATIVE GAMEPAD SOURCE (Linux). Chromium's own gamepad fetcher reports zero
+  // pads on a Steam Deck while the kernel has several live joystick devices, so
+  // the main process reads /dev/input/js* and pushes snapshots to the renderer,
+  // which uses them ONLY while the Gamepad API is empty. No-op off Linux.
+  const disposeNativeGamepads = installNativeGamepads(mainWindow);
+  mainWindow.on('closed', disposeNativeGamepads);
 
   // Re-echo the settled "[TM perf]" line on every page load — game-boundary
   // reloads clear the DevTools console, and this keeps the tuning state

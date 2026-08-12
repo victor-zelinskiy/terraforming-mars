@@ -50,6 +50,7 @@ import {
   snapshotActivity,
 } from '@/client/gamepad/gamepadPollModel';
 import {gamepadDeadzone, gamepadEnabled} from '@/client/gamepad/gamepadSettings';
+import {installNativePadBridge, nativePads, onNativePadCountChange} from '@/client/gamepad/nativePadBridge';
 import {updateDetectedGlyphSet} from '@/client/gamepad/glyphSets';
 import {enterGamepadMode, exitGamepadMode, inputModeState, installInputModeWatchers, resetPointerTravel, uninstallInputModeWatchers} from '@/client/gamepad/inputModeState';
 
@@ -71,6 +72,7 @@ export function onGamepadIntent(fn: IntentListener): () => void {
 }
 
 let installed = false;
+let offNativePads: (() => void) | undefined;
 let rafId = 0;
 let pollTimer = 0;
 let connectedCount = 0;
@@ -108,9 +110,20 @@ function gpLog(message: string): void {
   }
 }
 
+/** Everything the poll loop reads off a pad — satisfied by `Gamepad` AND by a
+ *  native pad, so the loop below never learns which source it is driving. */
+type PollablePad = {
+  index: number,
+  id: string,
+  connected: boolean,
+  buttons: ReadonlyArray<{pressed: boolean, value: number}>,
+  axes: ReadonlyArray<number>,
+};
+
 /** One pad, described for the log: everything needed to tell devices apart. */
-function describePad(pad: Gamepad): string {
-  return `#${pad.index} "${pad.id}" mapping=${pad.mapping || 'none'} ` +
+function describePad(pad: PollablePad): string {
+  const mapping = (pad as {mapping?: string}).mapping;
+  return `#${pad.index} "${pad.id}" mapping=${mapping === undefined ? 'native' : mapping || 'none'} ` +
     `buttons=${pad.buttons.length} axes=${pad.axes.length}`;
 }
 
@@ -120,10 +133,10 @@ function describeAllPads(): string {
   const seen = pads
     .map((pad, slot) => pad === null ? `#${slot} —` : describePad(pad))
     .join(' | ');
-  return `slots=${pads.length} [${seen}]`;
+  return `slots=${pads.length}${usingNativePads() ? ' (NATIVE — Gamepad API is empty)' : ''} [${seen}]`;
 }
 
-function navigatorPads(): ReadonlyArray<Gamepad | null> {
+function chromiumPads(): ReadonlyArray<Gamepad | null> {
   if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') {
     return [];
   }
@@ -132,6 +145,31 @@ function navigatorPads(): ReadonlyArray<Gamepad | null> {
   } catch (err) {
     return [];
   }
+}
+
+/**
+ * Is the native (main-process) source currently standing in? True only where
+ * Chromium's own fetcher reports nothing while the kernel has joysticks — the
+ * measured Steam Deck case. See nativePadBridge.ts for why the fallback is
+ * strict: two sources feeding the loop at once would double every press.
+ */
+function usingNativePads(): boolean {
+  for (const pad of chromiumPads()) {
+    if (pad !== null && pad.connected) {
+      return false;
+    }
+  }
+  return nativePads().length > 0;
+}
+
+function navigatorPads(): ReadonlyArray<PollablePad | null> {
+  const pads = chromiumPads();
+  for (const pad of pads) {
+    if (pad !== null && pad.connected) {
+      return pads;
+    }
+  }
+  return nativePads();
 }
 
 function loopRunning(): boolean {
@@ -277,10 +315,50 @@ function pollOnce(now: number): void {
   }
 }
 
+/**
+ * Reconcile pad PRESENCE across both sources and run the loop iff something is
+ * there. Presence cannot be a plain event counter any more: Chromium fires no
+ * `gamepadconnected` for a native pad — and the Steam Deck case is precisely one
+ * where that event never arrives at all, so a counter-driven loop would stay
+ * stopped forever with three working controllers attached.
+ */
+function syncPadPresence(): void {
+  const present = connectedCount > 0 ? connectedCount : nativePads().length;
+  inputModeState.padsConnected = present;
+  if (present === 0) {
+    stopLoop();
+    return;
+  }
+  if (typeof document === 'undefined' || document.visibilityState === 'visible') {
+    startLoop();
+  }
+}
+
+/** The native pad SET changed (a controller arrived or left). */
+function onNativePadsChanged(): void {
+  if (!installed) {
+    return;
+  }
+  // Drop every baseline: indices are reused across device sets, and a snapshot
+  // diffed against another device's state would fire a burst of phantom edges.
+  // Re-seeding costs one poll and emits nothing (the first-sighting rule).
+  prevSnapshots.clear();
+  pollStates.clear();
+  const before = inputModeState.padsConnected;
+  syncPadPresence();
+  gpLog(`native pads changed — pads=${inputModeState.padsConnected} (was ${before}) ${describeAllPads()}`);
+  if (inputModeState.padsConnected === 0) {
+    election = initialElectionState();
+    gamepadCoreState.activeIndex = -1;
+    gamepadCoreState.activeId = '';
+    exitGamepadMode();
+  }
+}
+
 function onConnected(e: GamepadEvent): void {
   connectedCount++;
-  inputModeState.padsConnected = connectedCount;
-  gpLog(`connected ${describePad(e.gamepad)} — pads=${connectedCount} ${describeAllPads()}`);
+  syncPadPresence();
+  gpLog(`connected ${describePad(e.gamepad)} — pads=${inputModeState.padsConnected} ${describeAllPads()}`);
   if (election.index === -1) {
     // No driver yet: this pad takes the wheel, but with edgeAt = 0 ("never
     // acted") so the first pad someone actually PRESSES can still take over.
@@ -289,20 +367,17 @@ function onConnected(e: GamepadEvent): void {
     gamepadCoreState.activeId = e.gamepad.id;
     updateDetectedGlyphSet(e.gamepad.id);
   }
-  if (typeof document === 'undefined' || document.visibilityState === 'visible') {
-    startLoop();
-  }
 }
 
 function onDisconnected(e: GamepadEvent): void {
   connectedCount = Math.max(0, connectedCount - 1);
-  inputModeState.padsConnected = connectedCount;
+  syncPadPresence();
   prevSnapshots.delete(e.gamepad.index);
   pollStates.delete(e.gamepad.index);
   // The slot table on BOTH edges: a Chromium/Steam-Input device swap shows up
   // here as disconnect+connect on the same slot with a DIFFERENT id, which no
   // single-line log would reveal.
-  gpLog(`disconnected ${describePad(e.gamepad)} — pads=${connectedCount} ${describeAllPads()}`);
+  gpLog(`disconnected ${describePad(e.gamepad)} — pads=${inputModeState.padsConnected} ${describeAllPads()}`);
   if (e.gamepad.index === election.index) {
     // The driving pad went away: drop to pointer mode (graceful — the W3C
     // disconnect story) and let any remaining pad re-elect itself on its
@@ -312,9 +387,6 @@ function onDisconnected(e: GamepadEvent): void {
     gamepadCoreState.activeId = '';
     exitGamepadMode();
   }
-  if (connectedCount === 0) {
-    stopLoop();
-  }
 }
 
 function onVisibilityChange(): void {
@@ -322,9 +394,7 @@ function onVisibilityChange(): void {
     return;
   }
   if (document.visibilityState === 'visible') {
-    if (connectedCount > 0) {
-      startLoop();
-    }
+    syncPadPresence();
   } else {
     stopLoop();
   }
@@ -344,19 +414,22 @@ export function installGamepadCore(): void {
   window.addEventListener('gamepadconnected', onConnected);
   window.addEventListener('gamepaddisconnected', onDisconnected);
   document.addEventListener('visibilitychange', onVisibilityChange);
+  // The main-process source (Linux/Electron only). It publishes asynchronously,
+  // so the count below is usually still zero here — `onNativePadsChanged` starts
+  // the loop when the first snapshot lands. Registered under the same
+  // `gamepadEnabled()` gate, so `?gp=0` kills this path too.
+  offNativePads = onNativePadCountChange(onNativePadsChanged);
+  installNativePadBridge();
   // Pads connected BEFORE page load only surface after a button press (the
   // privacy gate), so the connect listener is sufficient — but if the API
   // already reports pads (e.g. after a soft reload), pick them up now.
-  for (const pad of navigatorPads()) {
+  for (const pad of chromiumPads()) {
     if (pad !== null && pad.connected) {
       connectedCount++;
     }
   }
-  inputModeState.padsConnected = connectedCount;
-  gpLog(`installed — pads=${connectedCount} ${describeAllPads()}`);
-  if (connectedCount > 0) {
-    startLoop();
-  }
+  syncPadPresence();
+  gpLog(`installed — pads=${inputModeState.padsConnected} ${describeAllPads()}`);
 }
 
 export function uninstallGamepadCore(): void {
@@ -365,6 +438,8 @@ export function uninstallGamepadCore(): void {
   }
   installed = false;
   stopLoop();
+  offNativePads?.();
+  offNativePads = undefined;
   window.removeEventListener('gamepadconnected', onConnected);
   window.removeEventListener('gamepaddisconnected', onDisconnected);
   document.removeEventListener('visibilitychange', onVisibilityChange);
