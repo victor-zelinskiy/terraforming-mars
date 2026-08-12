@@ -1,8 +1,8 @@
 # Deferred upstream work — reviewed, not taken (with the exact reason and plan)
 
-Two upstream clusters were audited in depth and deliberately **not** taken. They are not
-"behind" — the decision, the blockers and the port plan are recorded here so the next
-attempt starts from the analysis instead of redoing it.
+Upstream work audited in depth and deliberately **not** taken. It is not "behind" — the
+decision, the blockers and the port plan are recorded here so the next attempt starts
+from the analysis instead of redoing it.
 
 Retrieve any commit with `git show <sha>` (remote `upstream`).
 
@@ -148,3 +148,32 @@ Land the ProxyCard adaptation in our Executor **first** (emit `sourceCard` /
 `revealSource` / `cause` / `promptSource` only when the source is a real card, or add a
 `globalEvent` variant to `ChoiceContextSource` + `CardDrawRevealSource`), then port the
 conversion as one squashed change, re-applying the `RENDER_DATA` hoist mechanically.
+
+---
+
+## C. Type-check `tests/client` with vue-tsc (`e4da733898`)
+
+Upstream widened `tsconfig.vue-tsc.json` to `tests/client/**/*.ts` (plus
+`"types": ["node", "mocha", "chai"]`, without which every spec reports
+"Cannot find name 'describe'"). `build:test` already typechecks our specs with plain
+`tsc`, but only **vue-tsc** understands `.vue` SFC types, so this is a genuine gap:
+438 client specs, most of them console-native, currently mount components with no
+SFC-level type checking.
+
+**Measured, not guessed:** turning it on today yields **117 errors across 40 spec
+files** — 28 of those files are shared with upstream, 12 are fork-only.
+
+Upstream cleared its own 28 with a prep chain, of which **we already took three**:
+`a7df9b53e5` (delete the dead `utils/VueUtils.ts`, itself one of the 117),
+`b9d111b305` (stale/incorrect literal values in fixtures — `"m1"` not a `SpaceId`,
+`"megaCredits"` vs `"megacredits"`), `e68df8222d` (typed `findComponent` helper).
+
+**Not taken: `17af7c1fb3`** (`asComplete()` cast helper for partial fixtures). It
+conflicts in `SelectPayment.spec.ts` and `SelectProjectCardToPlay.spec.ts`, both heavily
+reworked by our premium payment work, and its only value is satisfying the check we are
+deferring — so the conflict risk buys nothing today.
+
+**To finish later:** take `17af7c1fb3` (hand-merging the two payment specs), fix the
+remaining fork-only spec files (mostly `console/composerRender.spec.ts` passing raw
+strings where `CardName` is required), then flip the `tsconfig.vue-tsc.json` include and
+the `types` block. Re-measure first — the number moves as specs churn.
