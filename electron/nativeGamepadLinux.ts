@@ -501,8 +501,16 @@ interface OpenDevice {
  * and any failure leaves the stock Chromium path untouched. Returns a disposer.
  */
 export function installNativeGamepads(win: BrowserWindow): () => void {
+  // The channel must answer on EVERY platform, because the preload exposes
+  // `setNativePadsWanted` on every platform and an `invoke` with no registered
+  // handler REJECTS. Returning early before registering it is what put an
+  // unhandled promise rejection in the Windows log on every pad connect.
+  // `removeHandler` first — this app can build its window more than once, and
+  // `handle` throws on a duplicate channel.
+  ipcMain.removeHandler(NATIVE_PADS_WANTED_CHANNEL);
   if (process.platform !== 'linux') {
-    return () => {/* stock path everywhere else */};
+    ipcMain.handle(NATIVE_PADS_WANTED_CHANNEL, () => undefined);
+    return () => ipcMain.removeHandler(NATIVE_PADS_WANTED_CHANNEL);
   }
 
   const devices = new Map<string, OpenDevice>();
@@ -687,9 +695,7 @@ export function installNativeGamepads(win: BrowserWindow): () => void {
     log(`native: hotplug watch unavailable — ${String(err)}`);
   }
 
-  // The renderer's suppression answer. `removeHandler` first because this app
-  // can build its window more than once and `handle` throws on a duplicate
-  // channel — a crash on the second window, from a diagnostic nicety.
+  // The renderer's suppression answer, replacing the placeholder registered above.
   ipcMain.removeHandler(NATIVE_PADS_WANTED_CHANNEL);
   ipcMain.handle(NATIVE_PADS_WANTED_CHANNEL, (_event, value: unknown) => {
     const next = value !== false;

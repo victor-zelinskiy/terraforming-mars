@@ -55,9 +55,15 @@ function nativeBridge(): NativeBridge | undefined {
  */
 export function setNativePadsWanted(wanted: boolean): void {
   try {
-    void nativeBridge()?.setNativePadsWanted?.(wanted);
+    // `.catch` is REQUIRED, not decoration: this resolves to an ipcRenderer
+    // `invoke`, whose failure arrives as a REJECTED PROMISE that a synchronous
+    // try/catch cannot see. Without it, a host with no handler for the channel
+    // logged an unhandled rejection on every pad connect.
+    nativeBridge()?.setNativePadsWanted?.(wanted)?.catch(() => {
+      // Undelivered — main keeps its default of pushing, which is the safe side.
+    });
   } catch (err) {
-    // No bridge / window tearing down — main keeps its default (pushing).
+    // Bridge missing / window tearing down.
   }
 }
 
