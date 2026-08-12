@@ -84,7 +84,7 @@ itself draws takes the seat over via a settle-then-arm handoff in
 `actByName` (one physical card per seat, never a repaint).
 
 **The WAIT** (multiplayer: the opponent moves first) is the same standing
-panel with no CTA: `firstActionWaitMate` (the shared status brain's ACTIVE
+panel with no CTA: `startWaitMate` (the shared status brain's ACTIVE
 player) names whose move it is; the transition to actionable is a paint
 change on a standing panel (the state zone reserves its row). The command bar
 advertises NO A while waiting (`firstAction: 'waiting'` in
@@ -131,6 +131,27 @@ signals can never read as «the chain is over». The latch resets on
 `startSceneVisible` consumes it (`!startExcursionHolds`), so the scene's
 `yielded` prop covers it for free — `deploymentSettled`, the stage's entry
 and leave predicates all already gate on `yielded`.
+
+## Two defects the stage exposed in surfaces around it
+
+**① The journey rail ate its last stage.** `.con-jrail`'s width is BOTH a
+geometry reserve (so a phase exchange never moves the header) AND an
+`overflow: hidden` clip. The reserve was 44rem; the deployment's full house
+(КОРПОРАЦИЯ + ПРОЕКТЫ + ПРОЛОГИ + ПЕРВОЕ ДЕЙСТВИЕ + ГОТОВО) measures
+**44.25rem** at FHD — so the day the conditional stage joined, «ГОТОВО»
+silently fell off the right edge. Reserve raised (50rem / 47rem on the ≤1600px
+tier, where tightened paddings shave ~2rem), but the real guard is the e2e
+assertion that **every rail item is fully inside the rail box** — and the
+first-action spec now runs WITH preludes + a buy, because a no-prelude game
+fits any reserve and would have watched the bug ship.
+
+**② «Ожидаем других игроков» while waiting for nobody.** The ceremony status
+rail printed that string as a blanket fallback for «nothing is focused» — so
+every gap of the deployment (a submit round trip, the beat between two stages,
+the whole first-action stage) told a SOLO player they were waiting for a bot
+that was not moving. A line that names a wait must be able to name WHO:
+`startWaitMate(view, live)` returns the first genuinely ACTIVE opponent, and
+the rail says «Ожидаем ход игрока X» only then — otherwise it stays silent.
 
 ## Guards
 

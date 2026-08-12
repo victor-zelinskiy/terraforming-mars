@@ -694,7 +694,7 @@ import {
 } from '@/client/components/startGameFlow/startGameFlowState';
 import {
   firstActionActionable, firstActionAsk, firstActionBranch, firstActionDrawExpected,
-  firstActionOwed, firstActionStageCorp, firstActionWaitMate,
+  firstActionOwed, firstActionStageCorp, startWaitMate,
 } from '@/client/console/startFirstAction';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
@@ -1491,7 +1491,13 @@ export default defineComponent({
       }
       const f = this.focusedItem;
       if (f === undefined) {
-        return this.heroState.active ? '' : translateText('Waiting for other players');
+        // NOTHING FOCUSED IS NOT «WE ARE WAITING FOR OTHERS». The rail used to
+        // print that as a blanket fallback, so every gap of the deployment (a
+        // submit round trip, the beat between two stages, the whole
+        // first-action stage) told a SOLO player they were waiting for a bot
+        // that was not moving at all. The line may only be said when there is
+        // an actually-active opponent to NAME; otherwise the rail is silent.
+        return this.heroState.active ? '' : this.ceremonyWaitLine;
       }
       switch (f.kind) {
       case 'corp':
@@ -1700,11 +1706,25 @@ export default defineComponent({
     },
     /** The waiting readout — whose move the stage is calmly waiting out. */
     firstActionWaitLine(): string {
-      const mate = firstActionWaitMate(this.playerView, this.waitingOnPlayers);
+      const mate = startWaitMate(this.playerView, this.waitingOnPlayers);
       if (mate === undefined) {
         return translateText('The first action unlocks on your turn');
       }
       return translateTextWithParams('Waiting for ${0} to finish their move', [participantDisplayName(mate)]);
+    },
+    /**
+     * THE HONEST WAIT LINE for the ceremony's status rail — «ожидаем» is a
+     * claim about ANOTHER PLAYER, so it may only be said when there is one to
+     * name. Empty otherwise: the deployment's own gaps (a submit round trip,
+     * the beat between two stages) are not a wait for anybody, and printing
+     * one there told a solo player they were waiting for a bot that was not
+     * even moving.
+     */
+    ceremonyWaitLine(): string {
+      const mate = startWaitMate(this.playerView, this.waitingOnPlayers);
+      return mate === undefined ?
+        '' :
+        translateTextWithParams('Waiting for ${0} to finish their move', [participantDisplayName(mate)]);
     },
     /**
      * THE EFFECT'S RETURN IS STILL OWED — the source card has not finished its

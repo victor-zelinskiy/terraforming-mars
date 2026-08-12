@@ -109,7 +109,7 @@ export function firstActionDrawExpected(preview: ActionPreview | undefined): num
   return expected;
 }
 
-/** One seat of the waiting readout — whose move the stage is waiting out. */
+/** One seat of the waiting readout — whose move we are waiting out. */
 export type FirstActionWaitMate = {
   color: Color,
   /** RAW model name — the view resolves it (participantDisplayName). */
@@ -118,13 +118,20 @@ export type FirstActionWaitMate = {
 };
 
 /**
- * WHOSE TURN the stage is waiting for — the first other player the shared
+ * WHOSE TURN ARE WE ACTUALLY WAITING FOR — the first OTHER player the shared
  * status brain classifies as ACTIVE (the same `actionLabelForPlayer` +
- * `presentPlayerStatus` pair the top strip and the start summary read, so
- * the stage can never disagree with the chip row about who is moving).
- * `undefined` when nobody else is active (the prompt is about to be ours).
+ * `presentPlayerStatus` pair the top strip and the start summary read, so no
+ * surface can disagree with the chip row about who is moving).
+ * `undefined` when nobody else is active — i.e. we are waiting for NOBODY.
+ *
+ * That `undefined` is load-bearing, and it is why this is not a first-action
+ * detail: «ожидаем других игроков» is a CLAIM ABOUT OTHER PLAYERS, and the
+ * deployment's status rail used to print it as a blanket fallback whenever it
+ * had no focused card — in a solo game against MarsBot, mid-transition,
+ * waiting for nobody at all. A line that names a wait must be able to name
+ * WHO, or it must say nothing.
  */
-export function firstActionWaitMate(
+export function startWaitMate(
   view: PlayerViewModel,
   livePlayersWaitingFor?: ReadonlyArray<Color>,
 ): FirstActionWaitMate | undefined {

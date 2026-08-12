@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {
   firstActionActionable, firstActionAsk, firstActionBranch, firstActionDrawExpected,
-  firstActionOwed, firstActionStageCorp, firstActionWaitMate,
+  firstActionOwed, firstActionStageCorp, startWaitMate,
 } from '@/client/console/startFirstAction';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ActionPreview} from '@/common/models/ActionPreviewModel';
@@ -104,11 +104,28 @@ describe('startFirstAction (the first-action stage model)', () => {
         {color: 'green', name: 'Бот', waiting: true, isActive: true, isMarsBot: true},
       ],
     });
-    const mate = firstActionWaitMate(mp);
+    const mate = startWaitMate(mp);
     expect(mate?.name).to.eq('Бот');
     expect(mate?.isMarsBot).to.be.true;
     // Nobody else active (the prompt is about to be ours) → undefined.
     const solo = view({pending: ['Valley Trust'], players: [{color: 'red', name: 'me', waiting: true, isActive: true}]});
-    expect(firstActionWaitMate(solo)).to.eq(undefined);
+    expect(startWaitMate(solo)).to.eq(undefined);
+  });
+
+  /**
+   * «Ожидаем других игроков» is a CLAIM ABOUT OTHER PLAYERS. A solo game
+   * against MarsBot that is NOT mid-bot-turn is waiting for nobody, and the
+   * deployment's status rail printed that line anyway whenever it had no
+   * focused card — the reported «мы его тут точно не ждём».
+   */
+  it('a bot that is NOT taking its turn is not somebody we are waiting for', () => {
+    const idleBot = view({
+      pending: ['Valley Trust'],
+      players: [
+        {color: 'red', name: 'me', waiting: true, isActive: true},
+        {color: 'green', name: 'Бот', waiting: false, isActive: false, isMarsBot: true},
+      ],
+    });
+    expect(startWaitMate(idleBot), 'nobody to name → the surface must stay silent').to.eq(undefined);
   });
 });

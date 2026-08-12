@@ -17383,8 +17383,17 @@ body.con-start-barshold .con-status {
 .con-jrail {
     /* The root keeps a generous invisible geometry reserve so phase exchange
        never moves the header. Every painted child below is content-sized: the
-       reserve is NOT a visible empty field. */
-    --con-jrail-expanded-w: min(44rem, 100%);
+       reserve is NOT a visible empty field.
+       ⚠️ IT IS ALSO A CLIP (`overflow: hidden`), so it must fit the WIDEST
+       composition the flow can reach — a reserve smaller than the content
+       silently eats the LAST stage. Measured at FHD (rem = 20px) on the
+       deployment's full house — КОРПОРАЦИЯ + ПРОЕКТЫ + ПРОЛОГИ + ПЕРВОЕ
+       ДЕЙСТВИЕ + ГОТОВО: 44.25rem, i.e. exactly 0.25rem past the old 44rem
+       reserve, which is how «ГОТОВО» went missing the day the conditional
+       first-action stage joined the rail. The headroom below is for longer
+       labels (and other locales); the guard is the e2e assertion that the
+       last item is fully inside this box, never this number. */
+    --con-jrail-expanded-w: min(50rem, 100%);
     --con-jrail-compact-w: min(18rem, 100%);
     --con-jrail-terminal-w: min(9rem, 100%);
     position: relative;
@@ -18023,7 +18032,9 @@ body.con-start-barshold .con-status {
    currently navigating. The second tier remains exactly one row. */
 @media (max-width: 1600px) {
     .con-jrail {
-        --con-jrail-expanded-w: min(41rem, 100%);
+        /* The same measured need, minus the ~2rem this tier's tightened
+           paddings/connectors shave off it. */
+        --con-jrail-expanded-w: min(47rem, 100%);
         &__phase { padding-left: .08rem; padding-right: .08rem; }
         &__phase-head { gap: .28rem; padding-right: .18rem; }
         &__bridge { flex-basis: .76rem; width: .76rem; }

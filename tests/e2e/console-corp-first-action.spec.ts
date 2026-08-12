@@ -28,14 +28,23 @@ const OUT_DIR = path.resolve('screenshots', 'console-corp-first-action');
  * A deterministic solo game whose only dealable corp is Tharsis Republic:
  * exactly ONE dealable corporation, so the wizard's corp step is forced to the
  * subject — a corporation whose first action ("Place a city tile") exercises
- * the stage's ask + the placement follow-up + the completion barrier. No
- * preludes, so the deployment reaches the stage quickly.
+ * the stage's ask + the placement follow-up + the completion barrier.
+ *
+ * PRELUDES ARE ON, and projects are bought, ON PURPOSE: that is the flow's
+ * WIDEST journey composition (КОРПОРАЦИЯ + ПРОЕКТЫ + ПРОЛОГИ + ПЕРВОЕ
+ * ДЕЙСТВИЕ + ГОТОВО), which is the only shape in which the rail's fixed
+ * geometry reserve can clip its last stage — the reported «ГОТОВО обрезан».
+ * A no-prelude game fits in any reserve and would have watched that bug ship.
+ * It also puts the stage where it belongs in the order: after the preludes.
  */
 const GAME_CONFIG = soloGameConfig({
   players: [{name: 'FirstActionTester', color: 'red', beginner: false, handicap: 0, first: true}],
   seed: 0.42,
   startingCorporations: 1,
   customCorporationsList: ['Tharsis Republic'],
+  expansions: {corpera: true, prelude: true},
+  customPreludes: ['Donation', 'Loan', 'Martian Industries', 'Metals Company'],
+  startingPreludes: 4,
 });
 
 async function shoot(page: Page, name: string): Promise<void> {
@@ -73,6 +82,8 @@ test.describe('console corp first action — the start workspace stage', () => {
       // the default «pick a CALM corporation» would deliberately step around
       // the one corp this spec exists to look at.
       corporation: 'Tharsis Republic',
+      preludes: ['Donation', 'Loan'],
+      buy: 2,
       until: 'startRelease',
     });
 
@@ -109,6 +120,37 @@ test.describe('console corp first action — the start workspace stage', () => {
     // The continuous breadcrumb: the stage advanced ONLY the tail.
     const crumb = (await page.locator('.con-wshead').innerText()).toUpperCase();
     expect(crumb).toContain('ПЕРВОЕ ДЕЙСТВИЕ');
+
+    // ── THE JOURNEY RAIL MUST NOT EAT ITS LAST STAGE. The rail's width is a
+    //    fixed geometry reserve AND an `overflow: hidden` clip, so adding a
+    //    conditional stage to the flow can silently push «ГОТОВО» out of the
+    //    box (it did — the reported «финальный этап обрезан»). Assert the
+    //    INVARIANT, never the reserve's number: every item is fully inside
+    //    the rail, and the terminal one is present.
+    const railFit = await page.evaluate(() => {
+      const root = document.querySelector('.con-jrail');
+      if (root === null) {
+        return {ok: false, reason: 'no rail', overflowing: [] as Array<string>};
+      }
+      const box = root.getBoundingClientRect();
+      const items = Array.from(document.querySelectorAll('.con-jrail__item'));
+      const overflowing = items
+        .filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && (r.right > box.right + 0.5 || r.left < box.left - 0.5);
+        })
+        .map((el) => (el as HTMLElement).innerText.replace(/\s+/g, ' ').trim());
+      return {
+        ok: items.length > 0,
+        reason: '',
+        overflowing,
+        labels: items.map((el) => (el as HTMLElement).innerText.replace(/\s+/g, ' ').trim()),
+      };
+    });
+    expect(railFit.ok, railFit.reason).toBeTruthy();
+    expect(railFit.overflowing, 'a journey stage is clipped out of the rail').toEqual([]);
+    expect((railFit.labels ?? []).join(' ').toUpperCase(),
+      'the terminal stage must be on the rail').toContain('ГОТОВО');
 
     // The ONE clear CTA.
     const cta = (await stage.locator('.con-start__firstact-cta-label').innerText()).toUpperCase();
