@@ -83,11 +83,15 @@ export type PlayResultContext = {
 export function derivePlayResultSections(meta: PlayCardResultMeta, ctx: PlayResultContext): Array<PlayResultSection> {
   const out: Array<PlayResultSection> = [];
 
+  // The wording is DELIBERATELY nominal, not a sentence: the block is already
+  // titled «РЕЗУЛЬТАТ», so «Даёт новое действие» spends its first word
+  // restating that heading. One noun phrase per unit reads as a list of what
+  // the card delivers, which is what this block is.
   if (meta.hasAction) {
-    out.push({kind: 'action', text: 'Grants a new action'});
+    out.push({kind: 'action', text: 'New action'});
   }
   if (meta.hasEffect) {
-    out.push({kind: 'effect', text: 'Adds a permanent effect'});
+    out.push({kind: 'effect', text: 'Permanent effect'});
   }
   const vp = victoryPointSection(meta.victoryPoints);
   if (vp !== undefined) {
@@ -100,7 +104,7 @@ export function derivePlayResultSections(meta: PlayCardResultMeta, ctx: PlayResu
     // time, so the row must read differently (unless Odyssey keeps them).
     const tagsKept = !meta.isEvent || meta.eventTagsCounted === true;
     out.push(tagsKept ?
-      {kind: 'tags', text: 'Adds tags', tags: meta.tags} :
+      {kind: 'tags', text: 'Tags', tags: meta.tags} :
       {kind: 'tags', text: 'Event tags', tags: meta.tags, eventTags: true, note: 'Trigger on-tag effects only — not counted afterward'});
   }
 

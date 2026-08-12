@@ -1,6 +1,7 @@
 import {expect} from 'chai';
 import {
-  autoMegacredits, initialCounts, laneCap, paymentCovers, paymentFromCounts,
+  alternativeContribution, autoMegacredits, dialLaneCount, initialCounts, laneCap,
+  paymentCovers, paymentFromCounts, PaymentLane,
   paymentLanes, paymentOverpay, paymentTotal, PaymentPromptLike, projectCardPaymentOptions,
   projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
@@ -63,8 +64,108 @@ describe('paymentPlan (T3 native payment math)', () => {
   });
 
   it('laneCap: never more of one unit than covers the whole cost', () => {
-    expect(laneCap(7, {unit: 'steel', rate: 2, available: 10, reserved: false})).to.eq(4); // ceil(7/2)
-    expect(laneCap(7, {unit: 'steel', rate: 2, available: 2, reserved: false})).to.eq(2); // ownership caps
+    const steel: PaymentLane = {unit: 'steel', rate: 2, available: 10, reserved: false};
+    expect(laneCap(7, steel, [steel], {})).to.eq(4); // ceil(7/2)
+    const scarce: PaymentLane = {...steel, available: 2};
+    expect(laneCap(7, scarce, [scarce], {})).to.eq(2); // ownership caps
+  });
+
+  /**
+   * THE AGGREGATE ANTI-OVERPAY LIMIT.
+   *
+   * The reported bug: a 12 M€ card with steel ×3 AND titanium ×4 accepted 4
+   * steel (12) AND 3 titanium (12) — 24 paid for a 12 M€ card — because each
+   * lane computed its cap alone (`ceil(cost / rate)`) and could not see what
+   * the other one was already paying. The cap is now measured against
+   * `alternativeContribution` (M€ excluded: it is the auto lane), so «+» dies
+   * on EVERY alternative at once and comes back only when the combination
+   * drops below the price again.
+   */
+  describe('the aggregate anti-overpay limit (12 M€ · steel ×3 · titanium ×4)', () => {
+    const STEEL: PaymentLane = {unit: 'steel', rate: 3, available: 496, reserved: false};
+    const TITANIUM: PaymentLane = {unit: 'titanium', rate: 4, available: 531, reserved: false};
+    const LANES = [STEEL, TITANIUM];
+    const COST = 12;
+
+    it('alternativeContribution sums every alt lane and never counts M€', () => {
+      expect(alternativeContribution(LANES, {steel: 3, titanium: 1})).to.eq(13); // 9 + 4
+      expect(alternativeContribution(LANES, {steel: 3, titanium: 1, megacredits: 7})).to.eq(13);
+      expect(alternativeContribution(LANES, {})).to.eq(0);
+    });
+
+    it('one alternative alone still reaches the whole price (unchanged behaviour)', () => {
+      expect(laneCap(COST, STEEL, LANES, {})).to.eq(4); // ceil(12/3)
+      expect(laneCap(COST, TITANIUM, LANES, {})).to.eq(3); // ceil(12/4)
+    });
+
+    it('a SECOND alternative may only cover what the first leaves unpaid', () => {
+      // 4 steel already pay the whole price → titanium has nothing to buy.
+      expect(laneCap(COST, TITANIUM, LANES, {steel: 4})).to.eq(0);
+      // 3 steel pay 9 → titanium may take the last unit (which crosses to 13).
+      expect(laneCap(COST, TITANIUM, LANES, {steel: 3})).to.eq(1);
+      // …and steel cannot then grow either: 4 + 9 would be a SECOND crossing.
+      expect(laneCap(COST, STEEL, LANES, {steel: 3, titanium: 1})).to.eq(3);
+    });
+
+    it('the last unit MAY cross the price once — a second one may not', () => {
+      // 3 steel + 1 titanium = 13/12: legal, an indivisible rate remainder.
+      expect(paymentOverpay(COST, LANES, {steel: 3, titanium: 1}, 650)).to.eq(1);
+      // Every alternative is capped at what it already spends past the crossing.
+      for (const lane of LANES) {
+        expect(laneCap(COST, lane, LANES, {steel: 3, titanium: 1}))
+          .to.eq({steel: 3, titanium: 1}[lane.unit as 'steel' | 'titanium']);
+      }
+    });
+
+    it('«+» is refused on EVERY alternative the moment the price is met', () => {
+      const at = (counts: Record<string, number>) =>
+        LANES.map((l) => dialLaneCount(COST, l, LANES, counts, 1) > (counts[l.unit] ?? 0));
+      expect(at({})).to.deep.eq([true, true]);
+      expect(at({steel: 3})).to.deep.eq([true, true]); // 9 < 12 — both still open
+      expect(at({steel: 4})).to.deep.eq([false, false]); // 12 — met exactly
+      expect(at({steel: 3, titanium: 1})).to.deep.eq([false, false]); // 13 — crossed
+    });
+
+    it('«−» stays live, and dropping a source re-opens «+» on all of them', () => {
+      const counts = {steel: 3, titanium: 1};
+      expect(dialLaneCount(COST, TITANIUM, LANES, counts, -1)).to.eq(0);
+      const after = {steel: 3, titanium: 0};
+      expect(alternativeContribution(LANES, after)).to.eq(9); // M€ tops the last 3 up
+      expect(autoMegacredits(COST, LANES, after, 650)).to.eq(3);
+      expect(dialLaneCount(COST, STEEL, LANES, after, 1)).to.eq(4);
+      expect(dialLaneCount(COST, TITANIUM, LANES, after, 1)).to.eq(1);
+    });
+
+    it('«−» may always be pressed down to zero, even into a shortfall', () => {
+      const poor = 0; // no M€ to top up with
+      expect(dialLaneCount(COST, STEEL, LANES, {steel: 1}, -1)).to.eq(0);
+      expect(paymentCovers(COST, LANES, {steel: 0}, poor)).to.eq(false); // the CONFIRM blocks, not the button
+    });
+
+    it('MAX takes what the OTHER sources leave — never the whole price alone', () => {
+      expect(dialLaneCount(COST, STEEL, LANES, {}, 'max')).to.eq(4);
+      // 1 titanium already pays 4 → steel maxes at ceil(8/3) = 3, not 4.
+      expect(dialLaneCount(COST, STEEL, LANES, {titanium: 1}, 'max')).to.eq(3);
+      // …and with the price already met, MAX on the other lane is a no-op.
+      expect(dialLaneCount(COST, TITANIUM, LANES, {steel: 4}, 'max')).to.eq(0);
+    });
+
+    it('a repeat that arrives between two renders cannot push a unit through', () => {
+      // The limit lives in the mutation, not only in the row's `canIncrease`
+      // paint: pressing «+» at (or past) the limit returns the SAME count.
+      const met = {steel: 4};
+      expect(dialLaneCount(COST, STEEL, LANES, met, 1)).to.eq(4);
+      expect(dialLaneCount(COST, TITANIUM, LANES, met, 1)).to.eq(0);
+      const crossed = {steel: 3, titanium: 1};
+      expect(dialLaneCount(COST, STEEL, LANES, crossed, 1)).to.eq(3);
+      expect(dialLaneCount(COST, TITANIUM, LANES, crossed, 1)).to.eq(1);
+    });
+
+    it('ownership still caps a lane below the aggregate room', () => {
+      const scarce: PaymentLane = {unit: 'titanium', rate: 4, available: 1, reserved: false};
+      expect(laneCap(COST, scarce, [scarce], {})).to.eq(1); // ceil(12/4) = 3, owns 1
+      expect(dialLaneCount(COST, scarce, [scarce], {titanium: 1}, 'max')).to.eq(1);
+    });
   });
 
   it('auto-M€ is exactly the uncovered remainder, capped by ownership', () => {

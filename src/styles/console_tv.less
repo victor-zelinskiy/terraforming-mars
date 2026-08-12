@@ -1040,26 +1040,28 @@ html.con-profile-tv {
     }
 
     /* ═══ 18/19 · CARD PLAY WORKSPACE (embedded) ══════════════════
-       Couch sizes for the level's own voices. The strip STAYS a strip: at
-       4K there is width to spare, so its units simply read bigger — the one
-       shape it must never take back is a column of full-width rows. */
+       Couch sizes for the level's own voices. The second result level STAYS a
+       grid: at 4K there is width to spare, so it simply takes more columns and
+       reads bigger — the one shape it must never take back is a column of
+       full-width rows. */
     .con-composer--embed {
         .con-composer__playcard { zoom: ~"calc(1.24 * var(--con-ui-scale, 1))"; }
         .con-composer__playmain { column-gap: 2.6rem; }
-        .con-composer__paycost {
-            font-size: var(--con-t-body);
-            b { font-size: 1.6rem; }
-            i { width: 1.4rem; height: 1.4rem; }
-        }
         .con-composer__sub-title { font-size: var(--con-t-caption); }
-        /* The consequence pills. They were a 2.6rem tall full pill carrying body
+        /* The consequence units. They were a 2.6rem tall full pill carrying body
            text — a row of buttons, not a reading. Compact, and squared enough to
-           stop impersonating a control. */
+           stop impersonating a control. The couch min-width is wider because the
+           type is: a unit must still hold its phrase on one line. */
+        .con-composer__rescats { --con-rescat-min: 16rem; }
         .con-composer__rescat { min-height: 1.9rem; font-size: var(--con-t-secondary); padding: .2rem .6rem; border-radius: .5rem; }
         .con-composer__rescat-glyph { font-size: .85rem; width: 1rem; }
         .con-composer__rescat-tag { width: 1.25rem; height: 1.25rem; line-height: 1.25rem; }
-        .con-composer__cta { padding: 1rem 1.3rem; }
-        .con-composer__cta-label { font-size: 1.35rem; }
+        /* The commit rail reads from the sofa without becoming the screen's
+           brightest object (see the base rule): shorter than it was, its mint
+           wash toned down, the focus ring untouched. */
+        .con-composer__cta { padding: .72rem 1.3rem; }
+        .con-composer__cta-label { font-size: 1.25rem; }
+        .con-composer__cta-block { font-size: 1.2rem; width: 1.5rem; }
     }
 
     /* ═══ 19 · ACTION WORKSPACE + COMPOSERS ═══════════════════════ */
@@ -1244,9 +1246,9 @@ html.con-profile-tv {
         &__variant-title { font-size: var(--con-t-body); }
         &--play &__playcard { zoom: calc(0.86 * var(--con-ui-scale, 1)); }
         /* (Payment type sizes live with the shared panel — console_payment.less
-           retunes its own tokens under `html.con-profile-tv`.) */
+           retunes its own tokens under `html.con-profile-tv`. The play
+           composer no longer carries a price line of its own.) */
         &__playhead { font-size: var(--con-t-body); }
-        &__paycost b { font-size: 1.4rem; }
     }
     /* ACTION FOCUS stage (in-frame): the full-frame geometry beats the
        floating-panel width caps above; couch sizes for stage-only chrome. */

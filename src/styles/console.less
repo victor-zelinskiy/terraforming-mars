@@ -20094,23 +20094,27 @@ html.console-mode {
         background: none;
         box-shadow: none;
         border-radius: 0;
+        /* THE WORK SURFACE IS CENTRED IN THE BAND, like the card beside it.
+           The column stretches (it owns the height), but its content block sits
+           on the band's middle line instead of hanging from the ceiling — a
+           short card used to leave the whole lower half of the band empty under
+           the CTA while the hero card was centred, which read as a layout that
+           had lost something. `safe` is the whole trick: the moment the content
+           is taller than the band, centring would push its TOP out of reach, so
+           the keyword falls back to start-alignment and the scroller takes over
+           — no clipped heading, no phantom scroll. Same mechanism (and the same
+           two lines) as the action composer's `__actright`. */
+        justify-content: safe center;
     }
-    .con-composer__scroll { min-height: 0; }
+    /* Content-height by default so the centring has something to centre, and
+       shrinkable so a long card still gets the whole band and scrolls. */
+    .con-composer__scroll { flex: 0 1 auto; min-height: 0; }
     .con-composer__scroll-body { display: flex; flex-direction: column; gap: 0; }
 
-    /* ── SUMMARY LINE — the level's own one-liner: what it costs, whether it
-       can be played. A hairline under it opens the surface; it is not a
-       heading, so it never competes with the breadcrumb above. ─────────── */
-    .con-composer__stagehead {
-        display: flex;
-        align-items: center;
-        gap: .9rem;
-        flex-shrink: 0;
-        padding: 0 .2rem .5rem;
-        margin-bottom: .55rem;
-        border-bottom: .05rem solid rgba(120, 155, 190, 0.2);
-    }
-    .con-composer__paycost { font-size: .95rem; b { font-size: 1.25rem; } i { width: 1.2rem; height: 1.2rem; } }
+    /* (No summary strip above the surface: the price lives in the payment
+       head, «можно разыграть» in an active commit rail. As a fixed first row
+       it also pinned the whole column to the top of the band — the reason the
+       centring above had nothing to do while the line existed.) */
 
     /* ── SECTION LABELS — the surface's zone names. They replace the boxes:
        a label plus a hairline says «new zone» as clearly as a border and costs
@@ -20122,16 +20126,23 @@ html.console-mode {
     }
     .con-composer__sub-title--spaced { margin-top: 0; }
 
-    /* ── 3 · THE RESULT STRIP — impact units on ONE line wherever they fit.
-       Was: a mint-framed box holding four full-width bordered rows, ~40 % of
-       the surface's height for four short facts. Now: a wrap-row of compact
-       units that reads left-to-right and takes the height it actually needs. */
+    /* ── 3 · THE RESULT — TWO LEVELS, not one bag of chips ────────────────
+       The block answers two different questions and used to answer them in one
+       wrap-row, so «−1 производство» and «постоянный эффект» competed for the
+       same line and the set re-flowed differently on every card:
+
+         LEVEL 1 — what changes NOW (the immediate `1 → 0` impact chips, or the
+                   branch variants when the play offers a choice);
+         LEVEL 2 — what the card IS afterwards (a new action, an ongoing
+                   effect, endgame points, the tags it carries).
+
+       So the hero is a COLUMN of the two levels, and level 2 is a grid of its
+       own (below) rather than more chips flowing after level 1. */
     .con-composer__resulthero {
         display: flex;
-        flex-direction: row;
-        flex-wrap: wrap;
+        flex-direction: column;
         align-items: stretch;
-        gap: .4rem;
+        gap: .45rem;
         padding: 0 0 .55rem;
         margin-bottom: .55rem;
         border-radius: 0;
@@ -20139,28 +20150,50 @@ html.console-mode {
         box-shadow: none;
         border-bottom: .05rem solid rgba(120, 155, 190, 0.2);
     }
-    /* The label opens the row and then steps out of the way. */
-    .con-composer__sub-title--result { flex: 0 0 100%; }
+    /* The label opens the block and then steps out of the way. (`flex-basis`
+       in a COLUMN is height — the old `0 0 100%` full-row trick must not
+       survive the axis change.) */
+    .con-composer__sub-title--result { flex: 0 0 auto; padding-bottom: 0; }
+
+    /* LEVEL 2 — an even grid, so the units read as one set: as many columns as
+       the band affords (a wide 4K surface takes three or four), a natural wrap
+       when it does not, and every cell the same height and rhythm. `auto-fit` +
+       `minmax` keeps the count DERIVED from the width — never a fixed column
+       count, and never a per-card layout. */
+    .con-composer__rescats {
+        /* The ONE knob a profile retunes: how narrow a unit may get before the
+           grid drops a column. Never a column COUNT — that is what turns a
+           layout into a per-screen guess. */
+        --con-rescat-min: 15rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(var(--con-rescat-min), 1fr));
+        align-items: stretch;
+        gap: .4rem;
+    }
     .con-composer__rescat {
-        flex: 0 1 auto;
+        /* A grid CELL now: it fills its column, so the set has one rhythm
+           instead of pill widths that follow the length of their text. */
         width: auto;
-        /* `max-width` + the base's own wrap: a unit with a long clarification
-           takes a second LINE INSIDE ITSELF rather than overflowing the strip.
-           Hard `nowrap` here shipped an overflow the first time a long note
-           landed in it. */
         max-width: 100%;
         min-height: 2.1rem;
         gap: .45rem;
         padding: .3rem .75rem;
-        border-radius: 49.95rem;
+        /* Squared, not a full pill — stretched to a column width, a 49.95rem
+           radius impersonates a button (the couch profile already made this
+           correction; the base was the one still drawing controls). */
+        border-radius: .5rem;
         font-size: .82rem;
         background: rgba(16, 28, 42, 0.72);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
     }
-    .con-composer__result-chips { gap: .4rem; padding-bottom: .55rem; }
+    /* THE TAGS ARE ONE OBJECT. The icon set is read as a group — split across
+       a wrap it stops being «what this card carries» and becomes two lists —
+       so its unit takes the full row of the grid whatever the column count. */
+    .con-composer__rescat--tags { grid-column: 1 / -1; }
+    .con-composer__result-chips { gap: .4rem; padding-bottom: 0; }
     /* Branch variants stay full-width rows: they are a CHOICE, not a summary,
        and a choice must not compact into a chip. */
-    .con-composer__variant { flex: 0 0 100%; }
+    .con-composer__variant { flex: 0 0 auto; width: 100%; }
 
     /* ── 5 · PAYMENT — the level's working zone, on the surface itself. ──── */
     .con-pay {
@@ -20196,16 +20229,38 @@ html.console-mode {
        states the player navigates by. */
 
     /* ── 6 · THE COMMIT RAIL — the level's own confirm surface. Full width of
-       the work zone, separated by the same hairline the other zones use, and
-       the loudest thing BELOW the fold rather than a button in a dialog. ─── */
+       the work zone (a comfortable controller focus target), separated by the
+       same hairline the other zones use — but NOT the loudest object on the
+       screen: what the player is deciding is the result and the payment above
+       it, and a wall of green light on the confirm was pulling the eye away
+       from both. Shorter, and its mint wash toned down; the FOCUS ring keeps
+       its full strength (it is navigation, not decoration). ─────────────── */
     .con-composer__cta {
-        margin-top: .6rem;
-        padding: .85rem 1.1rem;
+        margin-top: .55rem;
+        padding: .6rem 1.05rem;
         border-radius: .55rem;
         justify-content: flex-start;
         gap: .75rem;
     }
-    .con-composer__cta-label { font-size: 1.1rem; }
+    /* ⚠ FLAT, never nested as `&--ready&--focused`: inside a DESCENDANT block
+       the second `&` re-inserts the WHOLE parent selector
+       (`… __cta--ready.con-composer--embed …`) and the rule is silently dead. */
+    .con-composer__cta--ready {
+        background: fade(@con-mint, 7%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 38%);
+    }
+    .con-composer__cta--ready.con-composer__cta--focused {
+        background: fade(@con-mint, 12%);
+        box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 .8rem fade(@con-mint, 24%);
+    }
+    /* …and the base's ordering contract restated at THIS weight: a rail that
+       cannot run must never wear the ready plate, whatever the state flags say
+       (the toned-down `--ready` above now outranks the base `--held`). */
+    .con-composer__cta--held {
+        background: rgba(14, 21, 30, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+    }
+    .con-composer__cta-label { font-size: 1.05rem; }
 }
 
 /* ═══ THE EMBEDDED PLAYED-TARGET STEP (ConsolePlayedTargetStep.vue) ═══
@@ -20858,21 +20913,18 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
 .con-composer {
     &__panel--play { width: min(59rem, 100%); }
 
+    /* (The play composer's own price + «можно разыграть» line is gone: the
+       price is stated by the payment head, the positive state by an active
+       commit rail, and the blocking one by the rail's label + `--blocked`
+       mark. `__playhead` / `__paytag` stay — the corp first-action confirm
+       still uses them for its «ОБЯЗАТЕЛЬНО» badge.) */
     &__playhead {
         display: flex; align-items: center; gap: .8rem; flex-wrap: wrap;
-    }
-    &__paycost {
-        display: inline-flex; align-items: center; gap: .18rem;
-        font-size: .85rem; color: @con-text-dim;
-        b { font-size: 1rem; font-weight: 800; color: @con-text; font-variant-numeric: tabular-nums; }
-        i { flex: 0 0 auto; width: 1rem; height: 1rem; display: block; background-size: contain !important; background-repeat: no-repeat; background-position: center; }
     }
     &__paytag {
         margin-left: auto;
         font-size: .7rem; font-weight: 700; letter-spacing: .03rem; text-transform: uppercase;
         padding: .2rem .6rem; border-radius: 49.95rem;
-        &--ready { background: fade(@con-mint, 12%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%); color: @con-mint; }
-        &--wait { background: fade(@con-amber, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-amber, 42%); color: #ffe6b0; }
     }
 
     &__playmain {
@@ -20936,6 +20988,12 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     &__variant-chips { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
     &__variant-reason { font-size: .7rem; color: #ffb0a6; }
 
+    /* THE SECOND RESULT LEVEL — «what the card is once it is on the table».
+       One container so the units keep ONE rhythm: a plain column in the
+       standalone band, an even grid inside the workspace (see `--embed`). */
+    &__rescats {
+        display: flex; flex-direction: column; gap: .45rem;
+    }
     /* Derived result category rows — uniform height, glyph left, content inline.
        A tag row reads "label: [chips]" (NO right-floating icon); a VP row "label: +N". */
     &__rescat {
@@ -21034,10 +21092,31 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
             background: rgba(14, 21, 30, 0.55);
             box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
         }
+        /* BLOCKED — a rule or the resources refuse this play. The rail's LABEL
+           is the reason itself, so this only has to make the refusal legible:
+           the amber edge the rest of the console uses for «нельзя, вот
+           почему», never a red alarm (nothing has gone wrong). Comes after
+           `--held` so a blocked rail is unmistakably blocked. */
+        &--blocked {
+            background: fade(@con-amber, 8%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 42%);
+        }
     }
     /* The label stays legible while held — muted, never ghosted: the player
        must still be able to read what the screen is building toward. */
     &__cta--held &__cta-label { color: rgba(190, 210, 232, 0.62); }
+    /* …and a blocked rail states its reason in that same amber voice. */
+    &__cta--blocked &__cta-label { color: #ffe6b0; }
+    /* The blocker mark stands in the Ⓐ glyph's slot — the rail advertises a
+       press or a reason, never both. */
+    &__cta-block {
+        flex: 0 0 auto;
+        width: 1.2rem;
+        text-align: center;
+        font-size: .95rem;
+        font-weight: 800;
+        color: fade(@con-amber, 92%);
+    }
 
     /* A REFUSED COMMIT's local answer: one short amber wash over the row that
        is holding it. Overlay-only (no layout, no size change), one shot, and
@@ -21748,12 +21827,11 @@ html.con-profile-handheld .con-composer--embed {
     .con-composer__playmain { column-gap: 1rem; padding: 0; }
     .con-composer__playcard { zoom: calc(0.72 * var(--con-ui-scale, 1)); }
     .con-composer__playright { max-width: 100%; }
-    .con-composer__stagehead { gap: .5rem; padding-bottom: .35rem; margin-bottom: .4rem; }
-    .con-composer__paycost { font-size: .8rem; b { font-size: 1rem; } }
-    /* The impact strip stays a STRIP on the Deck — it just wraps to a second
-       line. What it must never do is grow back into a column of full-width
-       rows: that is the shape this rework removed. */
+    /* The second level stays a GRID on the Deck — it just drops to fewer
+       columns. What it must never do is become a column of full-width rows:
+       that is the shape this rework removed. */
     .con-composer__resulthero { gap: .3rem; padding-bottom: .4rem; margin-bottom: .4rem; }
+    .con-composer__rescats { --con-rescat-min: 11rem; gap: .3rem; }
     .con-composer__rescat { min-height: 1.75rem; padding: .22rem .55rem; font-size: .68rem; gap: .35rem; }
     .con-composer__rescat-glyph { font-size: .68rem; width: .8rem; }
     .con-composer__rescat-tag { width: 1.05rem; height: 1.05rem; line-height: 1.05rem; }

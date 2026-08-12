@@ -8,7 +8,11 @@
    densities. So EVERY visual decision below is shared, and only three things
    change with `--compact` / `--expanded`:
 
-     · the micro captions above each number (hidden compact, shown expanded);
+     · how loud the micro captions above each number read (they are ALWAYS
+       there — a bare column of numbers does not say whether 4 is what is
+       spent, what is left or what it is worth, and that question does not
+       depend on which density the player is in. Compact keeps them dim so
+       the rows still read as a summary, not as controls);
      · the cursor / focus ring (expanded only — compact payment is never a
        focus stop, LB/RB and LT reach it without a cursor);
      · which rows wear the LB/RB dial pills.
@@ -19,8 +23,9 @@
 
      1. the M€ row is ALWAYS rendered (buildPaymentView appends it even at 0
         spent) — a lane that appears with the mix was the original bug;
-     2. every row reserves `--con-pay-row-h`, sized for the TALLER (expanded,
-        two-line) cell — so the compact→expanded caption reveal costs 0 px;
+     2. every row reserves `--con-pay-row-h`, sized for the two-line cell —
+        and both densities now DRAW both lines, so the density switch adds
+        nothing to the table at all: only paint, the cursor and the pills;
      3. the numeric columns have FIXED widths, so 9 → 10 → 100 cannot nudge a
         neighbour (tabular-nums alone only fixes digit width, not digit count);
      4. `.con-paystatus` is unconditional and reserves `--con-pay-status-h`,
@@ -234,9 +239,10 @@
         color: fade(@con-amber, 88%);
     }
 
-    /* Every numeric cell is a two-line stack whose caption is revealed by the
-       expanded density — the row reserves BOTH lines in both densities, so
-       switching costs exactly 0 px of height (contract §2). */
+    /* Every numeric cell is a two-line stack: the caption NAMES the number
+       («ИСПОЛЬЗ.» / «ОСТАНЕТСЯ» / «ВКЛАД», «ДОПОЛНЯЕТ» on the M€ lane) in BOTH
+       densities — the row already reserved both lines, so this is the same
+       geometry it always had (contract §2), just no longer half-empty. */
     &__cell {
         display: flex;
         flex-direction: column;
@@ -246,16 +252,19 @@
         min-width: 0;
     }
     &__cap {
-        display: none;
+        display: block;
         font-size: var(--con-pay-cap-fs);
         line-height: 1.15;
         letter-spacing: .04rem;
         text-transform: uppercase;
-        color: rgba(196, 216, 236, 0.55);
+        /* Compact: legible but recessive — it explains the number, it never
+           invites a press. The editor lifts it (below) instead of adding it. */
+        color: rgba(196, 216, 236, 0.36);
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
         max-width: 100%;
+        transition: color calc(160ms * var(--motion-scale, 1)) ease;
     }
 
     &__used {
@@ -348,15 +357,10 @@
     }
 }
 
-/* EXPANDED density: the captions appear IN THE SPACE THE ROW ALREADY
-   RESERVED (`--con-pay-row-h` is sized for the two-line cell in BOTH
-   densities), so revealing them costs exactly 0 px. Nothing else changes. */
-.con-pay--expanded .con-payrow__cap { display: block; }
-/* The caption reveal is the ONLY motion of the LT switch — short, physical,
-   opacity + transform only (never height/width). */
-.con-pay--expanded .con-payrow__cap {
-    animation: con-pay-cap-in calc(180ms * var(--motion-scale, 1)) ease-out 1;
-}
+/* EXPANDED density: the captions are the same elements in the same boxes —
+   the editor only brings them UP, because now they label rows the player is
+   about to edit. A colour change, so the table cannot move (contract §2). */
+.con-pay--expanded .con-payrow__cap { color: rgba(196, 216, 236, 0.62); }
 
 /* ── The verdict — unconditional, reserved height (contract §4) ─────────── */
 .con-paystatus {
@@ -424,10 +428,11 @@
     }
     &__delta { font-size: .85rem; font-variant-numeric: tabular-nums; }
 
-    /* States. Exact/free/auto are CALM — a covered payment must not shout. */
+    /* States. Exact/free are CALM — a covered payment must not shout.
+       (There is no separate «оплачено автоматически» state: only the M€ LANE
+       is automatic, and the row says so itself with its own «АВТО» badge.) */
     &--exact,
-    &--free,
-    &--auto {
+    &--free {
         box-shadow: inset 0 0 0 .05rem fade(@con-mint, 34%);
         .con-paystatus__glyph,
         .con-paystatus__verdict { color: @con-mint; }
@@ -459,17 +464,12 @@
     }
 }
 
-@keyframes con-pay-cap-in {
-    from { opacity: 0; transform: translateY(.18rem); }
-    to { opacity: 1; transform: none; }
-}
-
 @media (prefers-reduced-motion: reduce) {
     .con-pay,
     .con-payrow,
+    .con-payrow__cap,
     .con-paystatus { transition: none; }
-    .con-payrow__flash,
-    .con-pay--expanded .con-payrow__cap { animation: none; }
+    .con-payrow__flash { animation: none; }
 }
 
 /* ── Couch (4K TV): the payment must read from the sofa. Only the TOKENS and

@@ -500,7 +500,7 @@ import {
 import {CardModel} from '@/common/models/CardModel';
 import {SpendableResource} from '@/common/inputs/Spendable';
 import {
-  buildPaymentView, editableRows, initialCounts, laneCap, megacreditsAvailable, paymentCovers,
+  buildPaymentView, editableRows, initialCounts, dialLaneCount, megacreditsAvailable, paymentCovers,
   paymentFromCounts, PaymentLane, paymentLanes, paymentTotal, PaymentView,
 } from '@/client/console/paymentPlan';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
@@ -2395,7 +2395,9 @@ export default defineComponent({
           return;
         }
         const current = this.payCounts[lane.unit] ?? 0;
-        const next = Math.min(laneCap(this.paymentCost, lane), Math.max(0, current + step));
+        // The AGGREGATE anti-overpay limit (dialLaneCount): a second alternative
+        // may only cover what the others leave unpaid.
+        const next = dialLaneCount(this.paymentCost, lane, this.payLanes, this.payCounts, step);
         if (next === current) {
           return;
         }
@@ -2423,7 +2425,9 @@ export default defineComponent({
         if (lane === undefined) {
           return;
         }
-        this.payCounts = {...this.payCounts, [lane.unit]: laneCap(this.paymentCost, lane)};
+        // MAX = as much of THIS source as is still useful once the others are
+        // counted — never «enough to cover the whole price alone».
+        this.payCounts = {...this.payCounts, [lane.unit]: dialLaneCount(this.paymentCost, lane, this.payLanes, this.payCounts, 'max')};
         this.payFlashNonce += 1;
       }
     },

@@ -29,19 +29,20 @@
        role="dialog" :aria-label="titleText"
        :data-motion-surface="embedded ? undefined : 'play-composer'">
     <div class="con-composer__panel con-composer__panel--play" data-motion-panel>
-      <!-- ── Header — standalone only (see the EMBEDDED note above) ─── -->
+      <!-- ── Header — standalone only (see the EMBEDDED note above) ───
+           NO price/verdict line here: the price is stated once, in the head of
+           the payment block that meets it («ОПЛАТА · ЦЕНА 12»), and «можно
+           разыграть» is what an ACTIVE commit rail already says. A badge
+           announcing a green state beside a green button is one restatement;
+           a badge repeating the payment's own arithmetic above it is two. The
+           blocking case keeps its words — the reason IS the commit rail's
+           label (see `ctaLabel` / `ctaBlockedReason`). -->
       <template v-if="!embedded">
         <div class="con-composer__kicker">
           <span class="con-composer__kicker-mark" aria-hidden="true">◈</span>
           <span>{{ $t('Play project card') }}</span>
         </div>
         <div class="con-composer__name">{{ titleText }}</div>
-        <div class="con-composer__playhead">
-          <span class="con-composer__paycost">
-            {{ $t('Cost') }}: <b>{{ cost }}</b> <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
-          </span>
-          <span class="con-composer__paytag" :class="statusClass">{{ $t(statusLabel) }}</span>
-        </div>
       </template>
 
       <!-- ── Two columns: card · composer ──────────────────────────── -->
@@ -84,22 +85,13 @@
              short stagger just behind the bridge's sweep, so the surface
              assembles in reading order instead of arriving in one frame. -->
         <div class="con-composer__playright" ref="playRight">
-          <!-- EMBEDDED: the stage's SUPPORTING line — the economics and the
-               verdict, close above the controls they judge. Never a second
-               page title: the name of this step is already in the one header
-               that has been on screen since the player opened the screen.
-               It belongs to the PLAY level and stays there: the price is
-               already settled, is not what the target choice weighs, and is
-               still on the source card — repeating it one level down (next to
-               a «НУЖЕН ВЫБОР» chip saying what the breadcrumb, the contract
-               line and the screen itself already say) is three restatements
-               of context the player did not ask for. -->
-          <div v-if="embedded && !playedTargetStepOpen" class="con-composer__stagehead" data-unfold-item>
-            <span class="con-composer__paycost">
-              {{ $t('Cost') }}: <b>{{ cost }}</b> <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
-            </span>
-            <span class="con-composer__paytag" :class="statusClass">{{ $t(statusLabel) }}</span>
-          </div>
+          <!-- (No summary line above the work surface. It carried the price and
+               a «МОЖНО РАЗЫГРАТЬ» badge — both already stated by the blocks
+               below it: the payment head owns the price (after discounts), and
+               an active commit rail owns «can be played». Its real cost was
+               structural: a fixed strip at the top of the column pinned the
+               whole scene to the ceiling, so a short card left a well of empty
+               band under the CTA while the hero card sat centred beside it.) -->
           <ConsoleScrollArea class="con-composer__scroll" content-class="con-composer__scroll-body" ref="scroll">
             <div v-if="loading" class="con-composer__loading" data-unfold-item>{{ $t('Loading') }}…</div>
 
@@ -192,25 +184,35 @@
                 <ActionEffectChip v-for="(eff, k) in immediateEffects" :key="k" :effect="eff" />
               </div>
 
-              <!-- ProjectInspection: the result IS repeating a played action. -->
-              <div v-if="repeatChoice !== undefined" class="con-composer__rescat con-composer__rescat--action">
-                <span class="con-composer__rescat-glyph" aria-hidden="true">⟳</span>
-                <span class="con-composer__rescat-text">{{ $t('Repeats a played card action') }}</span>
-              </div>
+              <!-- ── THE SECOND LEVEL — what the card IS once it is on the
+                   table (a new action, an ongoing effect, endgame points, the
+                   tags it carries), under the immediate state change above it.
+                   They share ONE container so they lay out as an even grid
+                   rather than as chips that happened to wrap: same rhythm,
+                   several columns where there is width, a natural wrap where
+                   there is not. Membership is data-driven — no card and no
+                   count is named here. -->
+              <div v-if="repeatChoice !== undefined || resultSections.length > 0" class="con-composer__rescats">
+                <!-- ProjectInspection: the result IS repeating a played action. -->
+                <div v-if="repeatChoice !== undefined" class="con-composer__rescat con-composer__rescat--action">
+                  <span class="con-composer__rescat-glyph" aria-hidden="true">⟳</span>
+                  <span class="con-composer__rescat-text">{{ $t('Repeats a played card action') }}</span>
+                </div>
 
-              <!-- Derived result categories — the block is NEVER empty. A tag
-                   row is "label: [inline chips]"; a VP row is "label: +N". -->
-              <div v-for="(sec, i) in resultSections" :key="'r' + i" class="con-composer__rescat"
-                   :class="[sec.penalty ? 'con-composer__rescat--penalty' : 'con-composer__rescat--' + sec.kind,
-                            {'con-composer__rescat--event-tags': sec.eventTags}]">
-                <span class="con-composer__rescat-glyph" aria-hidden="true">{{ sec.penalty ? '⚠' : rescatGlyph(sec.kind) }}</span>
-                <span class="con-composer__rescat-text"
-                >{{ $t(sec.text) }}<template v-if="sec.kind === 'vp'">: <b>{{ vpDetail(sec) }}</b></template
-                ><template v-else-if="sec.kind === 'tags'">:</template></span>
-                <span v-if="sec.kind === 'tags' && sec.tags !== undefined" class="con-composer__rescat-tags">
-                  <span v-for="(tag, t) in sec.tags" :key="t" class="resource-tag con-composer__rescat-tag" :class="'tag-' + tag" aria-hidden="true"></span>
-                </span>
-                <span v-if="sec.note !== undefined" class="con-composer__rescat-note">{{ $t(sec.note) }}</span>
+                <!-- Derived result categories — the block is NEVER empty. A tag
+                     row is "label: [inline chips]"; a VP row is "label: +N". -->
+                <div v-for="(sec, i) in resultSections" :key="'r' + i" class="con-composer__rescat"
+                     :class="[sec.penalty ? 'con-composer__rescat--penalty' : 'con-composer__rescat--' + sec.kind,
+                              {'con-composer__rescat--event-tags': sec.eventTags}]">
+                  <span class="con-composer__rescat-glyph" aria-hidden="true">{{ sec.penalty ? '⚠' : rescatGlyph(sec.kind) }}</span>
+                  <span class="con-composer__rescat-text"
+                  >{{ $t(sec.text) }}<template v-if="sec.kind === 'vp'">: <b>{{ vpDetail(sec) }}</b></template
+                  ><template v-else-if="sec.kind === 'tags'">:</template></span>
+                  <span v-if="sec.kind === 'tags' && sec.tags !== undefined" class="con-composer__rescat-tags">
+                    <span v-for="(tag, t) in sec.tags" :key="t" class="resource-tag con-composer__rescat-tag" :class="'tag-' + tag" aria-hidden="true"></span>
+                  </span>
+                  <span v-if="sec.note !== undefined" class="con-composer__rescat-note">{{ $t(sec.note) }}</span>
+                </div>
               </div>
               </div><!-- /__resulthero -->
 
@@ -365,9 +367,17 @@
                      'con-composer__cta--ready': ctaDisplayReady,
                      'con-composer__cta--focused': ctaFocused && !payExpanded && ctaPressMeaningful,
                      'con-composer__cta--held': !ctaPressMeaningful && !submitting,
+                     'con-composer__cta--blocked': ctaBlockedReason !== '',
                    }"
                    :ref="ctaFocused && !payExpanded ? 'focusedEl' : undefined">
-                <GamepadGlyph control="confirm" class="con-composer__cta-glyph" />
+                <!-- A REFUSED rail does not advertise Ⓐ. It swaps the glyph for
+                     the amber blocker mark this UI uses everywhere else, and
+                     its LABEL is the reason itself — so the concrete «почему
+                     нельзя» that used to live in the removed header badge is
+                     still on screen, now attached to the control it explains
+                     instead of floating two blocks above it. -->
+                <span v-if="ctaBlockedReason !== ''" class="con-composer__cta-block" aria-hidden="true">⚠</span>
+                <GamepadGlyph v-else control="confirm" class="con-composer__cta-glyph" />
                 <span class="con-composer__cta-label">{{ $t(ctaDisplayLabel) }}</span>
               </div>
             </template>
@@ -482,7 +492,7 @@ import {
 } from '@/client/console/consolePlayCardComposer';
 import {
   buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow,
-  initialCounts, laneCap, megacreditsAvailable,
+  initialCounts, dialLaneCount, megacreditsAvailable,
   paymentCovers, paymentFromCounts, PaymentLane, paymentLanes, projectCardPaymentPrompt,
 } from '@/client/console/paymentPlan';
 import {setConsolePlayCardCommands, resetConsolePlayCardUi} from '@/client/console/consolePlayCardUi';
@@ -1210,20 +1220,29 @@ export default defineComponent({
     ctaDisplayReady(): boolean {
       return this.payExpanded ? this.paymentReady : this.ctaReady;
     },
-    statusLabel(): string {
-      const st = this.primaryActionState;
-      switch (st.kind) {
-      case 'ready': return 'Ready to play';
-      case 'blocked-payment': return 'Not enough resources';
-      case 'need-preselect': return 'Choice required';
-      // A rules-blocked branch offers NO choice — saying «требуется выбор»
-      // sends the player hunting for a control that doesn't exist. Name the
-      // blocker instead (the server's reason, same as the CTA).
-      case 'blocked-requirement': return st.reason;
+    /**
+     * WHY the card cannot be played right now — '' when nothing blocks it.
+     *
+     * This is the surviving half of the removed header badge: the positive
+     * state needs no words (an active commit rail says it), the blocking one
+     * needs the CONCRETE reason, so it is stated where the refusal is felt.
+     * The rail's own label already IS that reason (`ctaLabel`); this computed
+     * decides whether the rail wears the blocker mark instead of the Ⓐ glyph.
+     *
+     * Deliberately NOT «is the CTA disabled»: `need-preselect` is an
+     * INSTRUCTION («выберите вариант») and a submit in flight is a wait —
+     * neither is a blocker, and marking them as one would cry wolf.
+     */
+    ctaBlockedReason(): string {
+      if (this.payExpanded || this.submitting) {
+        return '';
       }
-    },
-    statusClass(): string {
-      return this.ctaReady ? 'con-composer__paytag--ready' : 'con-composer__paytag--wait';
+      const st = this.primaryActionState;
+      // A rules-blocked branch offers NO choice — the server's own reason is
+      // the only honest thing to say (the same string the variant row shows).
+      return st.kind === 'blocked-requirement' ?
+        st.reason :
+        (st.kind === 'blocked-payment' ? 'Not enough resources' : '');
     },
     focusedKind(): PlayFocusKind {
       const row = this.focusedRow;
@@ -1495,7 +1514,10 @@ export default defineComponent({
     tileIconStyle,
     vpDetail(sec: PlayResultSection): string {
       if (sec.variable === true) {
-        return translateText('depends on conditions');
+        // «по условию» — the same fact as «зависит от условий» in a third of
+        // the width, which is what lets the unit sit in a column beside its
+        // siblings instead of stretching the row it lives in.
+        return translateText('by condition');
       }
       // A penalty spells the unit out — "-2 ПО" — so the negative reads clearly.
       if (sec.penalty === true) {
@@ -2692,9 +2714,10 @@ export default defineComponent({
      * Dial ONE payment source — the single mutation both densities go through
      * (the compact quick-adjust below delegates here), so the mix a player
      * builds in the editor and the one the bumpers build on the main screen are
-     * literally the same state. Clamped to `[0, laneCap]` — the anti-overpay cap
-     * up, and freely down into a shortfall (the verdict says so and blocks the
-     * confirm; the button is never silently dead).
+     * literally the same state. The value comes from the pure `dialLaneCount`,
+     * which enforces the AGGREGATE anti-overpay limit here rather than only in
+     * the row's paint — a fast repeat can fire twice between two renders, and
+     * `RT МАКС.` must read what the other sources already pay.
      */
     adjustPayRow(idx: number, step: number, toMax = false): void {
       const row = this.payEditableRows[idx];
@@ -2702,9 +2725,8 @@ export default defineComponent({
       if (lane === undefined) {
         return;
       }
-      const cap = laneCap(this.cost, lane);
       const cur = this.payCount(lane.unit);
-      const next = toMax ? cap : Math.min(cap, Math.max(0, cur + step));
+      const next = dialLaneCount(this.cost, lane, this.payLanes, this.payCounts, toMax ? 'max' : step);
       if (next === cur) {
         return;
       }

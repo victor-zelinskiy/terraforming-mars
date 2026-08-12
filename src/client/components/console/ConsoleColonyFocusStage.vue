@@ -650,7 +650,7 @@ import {
   megacreditsAvailable,
   paymentFromCounts,
   initialCounts,
-  laneCap,
+  dialLaneCount,
   buildPaymentView,
   editableRows,
   PaymentLane,
@@ -1744,9 +1744,10 @@ export default defineComponent({
       if (view === undefined || lane === undefined) {
         return;
       }
-      const cap = laneCap(view.cost, lane);
       const before = this.paymentCounts[lane.unit] ?? 0;
-      const next = toMax ? cap : Math.min(cap, Math.max(0, before + step));
+      // AGGREGATE anti-overpay limit (the pure `dialLaneCount`) — «+» and
+      // «МАКС.» both count what the other alternatives already pay.
+      const next = dialLaneCount(view.cost, lane, this.payLanes, this.paymentCounts, toMax ? 'max' : step);
       if (next === before) {
         return;
       }

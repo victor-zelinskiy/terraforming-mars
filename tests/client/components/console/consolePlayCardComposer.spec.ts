@@ -302,8 +302,10 @@ describe('consolePlayCardComposer.buildPaymentView', () => {
       unit: 'megacredits', auto: true, editable: false,
       used: 11, available: 65, remaining: 54, contribution: 11, rate: 1,
     });
-    // No alternative source exists at all — the price is simply debited.
-    expect(v.status.kind).to.equal('auto');
+    // No alternative source exists — but the verdict vocabulary is the SAME as
+    // everywhere else: the mix meets the price. «Оплачено автоматически» would
+    // judge the whole combination by the one lane that happens to be automatic.
+    expect(v.status).to.deep.include({kind: 'exact', labelKey: 'Exact payment', ok: true, paid: 11, cost: 11});
   });
 
   it('ONE alt lane → quick-adjustable; the alt leads, the auto M€ row is ALWAYS last', () => {
@@ -361,6 +363,31 @@ describe('consolePlayCardComposer.buildPaymentView', () => {
     // Both alt lanes stay hand-editable — that IS the expanded editor.
     expect(editableRows(v).map((r) => r.unit)).to.deep.equal(['steel', 'titanium']);
     expect(quickAdjustRow(v)).to.be.undefined;
+  });
+
+  /**
+   * The AGGREGATE anti-overpay limit, as the ROWS state it: `canIncrease` /
+   * `max` are the visible half of the same rule the mutation enforces, so no
+   * surface can paint a live «+» the dial would refuse (or vice versa).
+   */
+  it('every alternative row refuses «+» as soon as the COMBINATION meets the price', () => {
+    const steel3: PaymentLane = {unit: 'steel', rate: 3, available: 496, reserved: false};
+    const titanium4: PaymentLane = {unit: 'titanium', rate: 4, available: 531, reserved: false};
+    const lanes = [steel3, titanium4];
+    // Neither lane alone covers 12 yet → both may still grow.
+    const open = buildPaymentView({cost: 12, lanes, counts: {steel: 3}, mcAvailable: 650});
+    expect(open.rows.filter((r) => !r.auto).map((r) => r.canIncrease)).to.deep.equal([true, true]);
+    // 4 steel = 12: the price is met, so titanium's cap is 0 — the old per-row
+    // cap let it reach 3 and commit 24 for a 12 M€ card.
+    const met = buildPaymentView({cost: 12, lanes, counts: {steel: 4}, mcAvailable: 650});
+    expect(met.rows.filter((r) => !r.auto).map((r) => r.canIncrease)).to.deep.equal([false, false]);
+    expect(met.rows.find((r) => r.unit === 'titanium')?.max).to.equal(0);
+    // The first crossing is legal and reported as overpay, not as a blocker…
+    const crossed = buildPaymentView({cost: 12, lanes, counts: {steel: 3, titanium: 1}, mcAvailable: 650});
+    expect(crossed.status).to.deep.include({kind: 'overpay', delta: 1, ok: true, paid: 13});
+    expect(crossed.rows.filter((r) => !r.auto).map((r) => r.canIncrease)).to.deep.equal([false, false]);
+    // …and «−» never dies, so the player can always walk back out of it.
+    expect(crossed.rows.filter((r) => !r.auto).map((r) => r.canDecrease)).to.deep.equal([true, true]);
   });
 
   it('overpay: a rate-remainder mix is a WARNING verdict, never a blocker', () => {

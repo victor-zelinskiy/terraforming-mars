@@ -48,6 +48,29 @@ describe('ConsolePaymentPanel — one panel, two densities', () => {
     expect(nums(expanded)).to.deep.equal(nums(compact));
   });
 
+  /**
+   * The micro captions are what turn three numbers into a table — «4» alone
+   * does not say whether it is spent, left or worth. The quick summary needs
+   * that as much as the editor does, so both densities render the SAME
+   * captions (the editor only reads them louder, which is paint).
+   */
+  it('names every number in BOTH densities — the caption set is identical', () => {
+    const v = view({cost: 21, lanes: [STEEL, TITANIUM], counts: {steel: 2, titanium: 1}, mcAvailable: 30});
+    const caps = (w: ReturnType<typeof mountPanel>) => w.findAll('.con-payrow__cap').map((c) => c.text());
+    const compact = caps(mountPanel(v));
+    const expanded = caps(mountPanel(v, {mode: 'expanded', focusUnit: 'steel'}));
+    // 3 rows × 3 numeric cells, every one of them labelled.
+    expect(compact).to.have.length(9);
+    expect(compact.every((t) => t !== '')).to.be.true;
+    expect(compact).to.deep.equal(expanded);
+  });
+
+  it('the M€ lane TOPS UP rather than «uses» — its own caption says so', () => {
+    const w = mountPanel(view({cost: 21, lanes: [STEEL, TITANIUM], counts: {steel: 2, titanium: 1}, mcAvailable: 30}));
+    const usedCap = (i: number) => w.findAll('.con-payrow')[i].find('.con-payrow__cap').text();
+    expect(usedCap(2)).to.not.equal(usedCap(0)); // «дополняет» vs «использ.»
+  });
+
   it('a source row states used, before → after, and its M€ contribution', () => {
     const w = mountPanel(view());
     const steel = w.findAll('.con-payrow')[0];

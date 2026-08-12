@@ -2,10 +2,12 @@
   <!-- ONE payment SOURCE row — the atom shared by the compact summary and the
        expanded editor. Both densities render THIS markup: same icon, same
        name, same `available → remaining`, same «used», same M€ contribution,
-       same order. `mode` only changes how much is spelled out (the micro
-       captions) and whether the row can take the cursor — the geometry is
-       identical in both, which is what makes LT read as "the same block
-       opening up" instead of a jump to another screen. -->
+       same order — INCLUDING the micro captions that name each number, which
+       are what stop a column of bare numbers from being a puzzle in the quick
+       summary. `mode` only changes how loud they read and whether the row can
+       take the cursor — the geometry is identical in both, which is what makes
+       LT read as "the same block opening up" instead of a jump to another
+       screen. -->
   <div class="con-payrow"
        :class="{
          'con-payrow--auto': row.auto,
@@ -96,7 +98,7 @@ export default defineComponent({
   components: {GamepadGlyph},
   props: {
     row: {type: Object as PropType<PaymentSourceRow>, required: true},
-    /** Density — `compact` hides the micro captions, `expanded` spells them out. */
+    /** Density — `compact` mutes the micro captions, `expanded` lifts them. */
     mode: {type: String as PropType<'compact' | 'expanded'>, default: 'compact'},
     /** The expanded editor's cursor is on this row (LB/RB drive it). */
     focused: {type: Boolean, default: false},

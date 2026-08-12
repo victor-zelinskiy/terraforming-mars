@@ -2,10 +2,11 @@
   <!-- THE console-native payment surface — ONE component, TWO densities.
        `compact` is the summary that lives inside a composer next to the CTA;
        `expanded` is the same block opened up by LT for manual editing. Same
-       rows, same order, same icons, same numbers, same verdict, same reserved
-       geometry — the ONLY differences are the micro captions, the cursor and
-       which rows can be dialed. That is what makes LT read as "this block
-       unfolding" rather than a jump into a separate technical form.
+       rows, same order, same icons, same numbers, same captions, same verdict,
+       same reserved geometry — the ONLY differences are how loud the captions
+       read, the cursor and which rows can be dialed. That is what makes LT
+       read as "this block unfolding" rather than a jump into a separate
+       technical form.
 
        Purely presentational: the host owns every input (LB/RB quick-adjust,
        LT/B mode switch, ←→ and RT inside the editor). This component NEVER
@@ -53,8 +54,8 @@
  *
  *   compact  — the summary inside a composer (LB/RB drive the single alt lane,
  *              LT opens the editor);
- *   expanded — the same block with the micro captions spelled out, a cursor,
- *              and every lane dialable by hand.
+ *   expanded — the same block with the micro captions lifted, a cursor, and
+ *              every lane dialable by hand.
  *
  * `titleKey` / `hintMode` let a host relabel the block for its context (a card
  * play vs a blue action vs a standalone prompt) WITHOUT forking the rows, the

@@ -42,11 +42,40 @@ PaymentSourceRow = {
   quickAdjust,                   // owns the bumpers on the COMPACT screen
 }
 PaymentStatus = {kind, cost, paid, delta, labelKey, ok}
-//   kind: free | auto | exact | overpay | short | impossible
+//   kind: free | exact | overpay | short | impossible
 ```
 
 **Row order is fixed**: alt lanes in payment order, then M€ — always last,
 **always rendered, even at 0 spent**. Both densities render the same list.
+
+**There is no «оплачено автоматически» verdict.** Only the M€ LANE is automatic
+(and its own row says so with the «АВТО» badge); the combination it completes
+can hold hand-picked resources, so judging the whole mix by that one lane was
+saying something false about the others. A covered mix reads `exact`
+(«✓ ОПЛАЧЕНО 12 / 12 · ТОЧНАЯ ОПЛАТА») or `overpay` («⚠ ОПЛАЧЕНО 13 / 12 ·
+ПЕРЕПЛАТА +1») in EVERY density and every host — one vocabulary.
+
+### The AGGREGATE anti-overpay limit
+
+`laneCap(cost, lane, lanes, counts)` measures a lane's ceiling against
+`alternativeContribution(lanes, counts)` = `Σ(used × rate)` over the OTHER
+alternative lanes (M€ excluded — it is the auto lane and settles the
+remainder). A per-row `ceil(cost / rate)` let every alternative reach the full
+price independently: a 12 M€ card took 4 steel ×3 **and** 3 titanium ×4 and
+committed 24. The rule now:
+
+- while the combination is below the price, any owned alternative may take one
+  more unit;
+- the last unit may cross the price ONCE (an indivisible rate remainder — 3
+  steel + 1 titanium = 13/12 is legal and reads as `overpay`);
+- from that crossing on, `canIncrease` is false on EVERY alternative at once;
+- `−` is never blocked, and dropping one source re-opens `+` on all of them.
+
+`dialLaneCount(cost, lane, lanes, counts, step | 'max')` is the ONE mutation
+every host's `+` / `−` / `RT МАКС.` goes through, so the limit is enforced in
+the state change and not only in the row's paint — a repeat that fires twice
+between two renders never reaches a render. `'max'` means «as much of THIS
+source as is still useful», never «enough to cover the whole price alone».
 
 ## Hosts
 
@@ -72,8 +101,10 @@ of them are why the code looks the way it does:
 
 1. **The M€ row is always rendered** (`buildPaymentView` appends it at 0 spent).
    A lane that appeared with the mix was the original bug.
-2. **Every row reserves `--con-pay-row-h`**, sized for the TALLER (expanded,
-   two-line) cell — so revealing the micro captions costs 0 px.
+2. **Every row reserves `--con-pay-row-h`**, sized for the two-line cell — and
+   BOTH densities now draw both lines (the caption naming each number is not a
+   detail the quick summary can do without: «4» alone does not say spent, left
+   or worth). Compact keeps them dim, expanded lifts them — paint, 0 px.
 3. **The numeric columns have fixed widths**, each sized for 3 digits AND for
    its expanded caption. `tabular-nums` alone only fixes digit width, not digit
    count — `9 → 10` would still nudge a neighbour.
@@ -82,8 +113,9 @@ of them are why the code looks the way it does:
    locale.
 
 And: **`.con-pay--expanded` may only change PAINT** — background, rim, focus,
-captions. Never a padding, a gap or a height. That is what makes LT a
-zero-pixel transition. The result hero dims (`--muted`) instead of unmounting;
+caption tone. Never a padding, a gap or a height, and (since the captions are
+permanent) never an element either. That is what makes LT a zero-pixel
+transition. The result hero dims (`--muted`) instead of unmounting;
 the CTA relabels («Готов») instead of disappearing.
 
 Guarded by:
@@ -110,8 +142,9 @@ filters and must not remove a navigation or a warning cue.
 ## i18n
 
 Keys live in `src/locales/ru/console.json`: `Used`, `Tops up`, `Contribution`,
-`Exact payment`, `Overpay`, `Not enough`, `Paid automatically`,
-`Back to quick payment`, `of` — plus the pre-existing `Payment`, `Cost`,
+`Exact payment`, `Overpay`, `Not enough`, `Paid automatically` (the M€ ROW's
+aria only — never a verdict), `Back to quick payment`, `of` — plus the
+pre-existing `Payment`, `Cost`,
 `Paid`, `Remaining`, `Free`, `auto`, `Configure payment`,
 `Not enough resources`, `reserved` and the per-unit names.
 `paymentUnitLabel()` is the ONE unit→key table (three copies used to drift).

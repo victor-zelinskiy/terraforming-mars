@@ -635,7 +635,7 @@ import {
   InlineDial,
 } from '@/client/console/consoleActionComposer';
 import {variablePartsForBranch, ConsoleVariableChip} from '@/client/console/consoleCardActions';
-import {paymentLanes, megacreditsAvailable, paymentCovers, paymentFromCounts, initialCounts, laneCap, buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow} from '@/client/console/paymentPlan';
+import {paymentLanes, megacreditsAvailable, paymentCovers, paymentFromCounts, initialCounts, dialLaneCount, buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow} from '@/client/console/paymentPlan';
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
@@ -2452,9 +2452,10 @@ export default defineComponent({
         return;
       }
       const counts = {...(this.payCounts[c.id] ?? {})};
-      const cap = laneCap(model.amount, lane);
       const before = counts[lane.unit] ?? 0;
-      const next = toMax ? cap : Math.min(cap, Math.max(0, before + step));
+      // The AGGREGATE anti-overpay limit lives in the pure `dialLaneCount`, so
+      // «+» and «МАКС.» both read what the OTHER alternatives already pay.
+      const next = dialLaneCount(model.amount, lane, lanes, counts, toMax ? 'max' : step);
       if (next === before) {
         return;
       }

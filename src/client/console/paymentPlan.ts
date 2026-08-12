@@ -158,16 +158,73 @@ export function projectCardPaymentPrompt(
   };
 }
 
-/** Never dial more of one unit than covers the WHOLE cost (anti-overpay cap). */
-export function laneCap(cost: number, lane: PaymentLane): number {
+/**
+ * Everything the ALTERNATIVE (non-M€) sources pay in this mix, in M€ —
+ * `Σ(used × rate)`. This is the ONE quantity the anti-overpay limit is measured
+ * against. M€ is deliberately not part of it: it is the AUTO lane and always
+ * settles exactly the remainder, so it can neither overpay nor take room away
+ * from an alternative.
+ */
+export function alternativeContribution(
+  lanes: ReadonlyArray<PaymentLane>,
+  counts: Partial<Record<SpendableResource, number>>,
+): number {
+  return lanes.reduce((sum, lane) => sum + (counts[lane.unit] ?? 0) * lane.rate, 0);
+}
+
+/**
+ * The anti-overpay CAP of ONE lane — AGGREGATE, never per-row.
+ *
+ * A lane may only cover what the OTHER alternative sources leave unpaid, so the
+ * limit tightens as soon as a second alternative is dialed up. Computing it per
+ * row (`ceil(cost / rate)` on its own) let EVERY alternative reach the full
+ * price independently: a 12 M€ card accepted 4 steel ×3 AND 3 titanium ×4 and
+ * committed 24 for a 12 M€ card, because neither lane could see the other.
+ *
+ * `ceil` is what leaves room for the LAST unit to cross the price for the first
+ * time — an indivisible rate remainder is an unavoidable overpay (3 steel ×3 +
+ * 1 titanium ×4 = 13 / 12). A second unit past that crossing is not, and this
+ * cap is what makes it unreachable: once the aggregate contribution meets or
+ * passes the price, EVERY alternative's cap equals what it already spends.
+ */
+export function laneCap(
+  cost: number,
+  lane: PaymentLane,
+  lanes: ReadonlyArray<PaymentLane>,
+  counts: Partial<Record<SpendableResource, number>>,
+): number {
   if (lane.rate <= 0) {
     return lane.available;
   }
-  return Math.min(lane.available, Math.ceil(cost / lane.rate));
+  const others = alternativeContribution(lanes.filter((l) => l.unit !== lane.unit), counts);
+  return Math.min(lane.available, Math.ceil(Math.max(0, cost - others) / lane.rate));
 }
 
-function nonMcSpend(lanes: ReadonlyArray<PaymentLane>, counts: Partial<Record<SpendableResource, number>>): number {
-  return lanes.reduce((sum, lane) => sum + (counts[lane.unit] ?? 0) * lane.rate, 0);
+/**
+ * The next count of ONE lane after a dial press — THE single place the
+ * aggregate limit is enforced, so `RB`/`+`, the keyboard, a fast repeat and
+ * `RT МАКС.` all obey it by construction rather than by four host copies of the
+ * same clamp. (A row's `canIncrease` paint is the same rule stated visually;
+ * a repeat firing twice between two renders never reaches a render.)
+ *
+ * `max` is «as much of THIS source as is still useful», i.e. the aggregate cap —
+ * never «enough to cover the whole price alone». Down is always free: dialing
+ * into a shortfall is legal, the verdict says so and the CONFIRM is what blocks.
+ */
+export function dialLaneCount(
+  cost: number,
+  lane: PaymentLane,
+  lanes: ReadonlyArray<PaymentLane>,
+  counts: Partial<Record<SpendableResource, number>>,
+  step: number | 'max',
+): number {
+  const cur = counts[lane.unit] ?? 0;
+  const cap = laneCap(cost, lane, lanes, counts);
+  if (step === 'max') {
+    return cap;
+  }
+  // A «+» may never LOWER the count — at (or past) the limit it is a no-op.
+  return step > 0 ? Math.max(cur, Math.min(cap, cur + step)) : Math.max(0, cur + step);
 }
 
 /** The AUTO M€ lane: exactly the uncovered remainder, capped by ownership. */
@@ -177,7 +234,7 @@ export function autoMegacredits(
   counts: Partial<Record<SpendableResource, number>>,
   mcAvailable: number,
 ): number {
-  return Math.min(mcAvailable, Math.max(0, cost - nonMcSpend(lanes, counts)));
+  return Math.min(mcAvailable, Math.max(0, cost - alternativeContribution(lanes, counts)));
 }
 
 /** M€-equivalent of the whole mix (auto M€ included). */
@@ -187,7 +244,7 @@ export function paymentTotal(
   counts: Partial<Record<SpendableResource, number>>,
   mcAvailable: number,
 ): number {
-  return nonMcSpend(lanes, counts) + autoMegacredits(cost, lanes, counts, mcAvailable);
+  return alternativeContribution(lanes, counts) + autoMegacredits(cost, lanes, counts, mcAvailable);
 }
 
 /**
@@ -326,7 +383,7 @@ export type PaymentSourceRow = {
  * The payment VERDICT — one element, one geometry, both densities. `short` and
  * `impossible` block the confirm; `overpay` is a warning, never an error.
  */
-export type PaymentStatusKind = 'free' | 'auto' | 'exact' | 'overpay' | 'short' | 'impossible';
+export type PaymentStatusKind = 'free' | 'exact' | 'overpay' | 'short' | 'impossible';
 
 export type PaymentStatus = {
   kind: PaymentStatusKind;
@@ -368,10 +425,18 @@ export type PaymentView = {
   overpay: number;
 };
 
+/**
+ * ONE verdict vocabulary for every density and every payment context: the mix
+ * either meets the price exactly, wastes an unavoidable remainder, or does not
+ * cover it. Deliberately NOT «оплачено автоматически» when no alternative
+ * exists — only the M€ lane is automatic, while the combination the phrase
+ * would judge can also hold hand-picked resources; the mix is exact or it is
+ * not, and that is the same sentence in the quick summary and in the editor.
+ */
 function statusOf(args: {
-  cost: number, paid: number, valid: boolean, deficit: number, overpay: number, laneCount: number,
+  cost: number, paid: number, valid: boolean, deficit: number, overpay: number,
 }): PaymentStatus {
-  const {cost, paid, valid, deficit, overpay, laneCount} = args;
+  const {cost, paid, valid, deficit, overpay} = args;
   if (!valid) {
     return deficit > 0 ?
       {kind: 'short', cost, paid, delta: deficit, labelKey: 'Not enough', ok: false} :
@@ -383,10 +448,6 @@ function statusOf(args: {
   }
   if (overpay > 0) {
     return {kind: 'overpay', cost, paid, delta: overpay, labelKey: 'Overpay', ok: true};
-  }
-  // No alternative source exists at all — the price is simply debited in M€.
-  if (laneCount === 0) {
-    return {kind: 'auto', cost, paid, delta: 0, labelKey: 'Paid automatically', ok: true};
   }
   return {kind: 'exact', cost, paid, delta: 0, labelKey: 'Exact payment', ok: true};
 }
@@ -407,7 +468,10 @@ export function buildPaymentView(args: {
 
   const rows: Array<PaymentSourceRow> = lanes.map((lane): PaymentSourceRow => {
     const used = counts[lane.unit] ?? 0;
-    const cap = laneCap(cost, lane);
+    // AGGREGATE: this lane's ceiling reads what the OTHER alternatives already
+    // pay, so «+» dies on every alternative at once the moment the combination
+    // meets the price — never once per row.
+    const cap = laneCap(cost, lane, lanes, counts);
     return {
       unit: lane.unit,
       labelKey: paymentUnitLabel(lane.unit),
@@ -421,7 +485,9 @@ export function buildPaymentView(args: {
       reserved: lane.reserved,
       min: 0,
       max: cap,
-      // Up = more alt (less M€), bounded by the anti-overpay cap.
+      // Up = more alt (less M€), bounded by the AGGREGATE anti-overpay cap:
+      // true exactly while `alternativeContribution < cost` (and the units are
+      // owned), so decreasing one source re-opens «+» on all of them.
       canIncrease: used < cap,
       // Down = less alt, all the way to 0: the player may freely dial INTO a
       // shortfall; the verdict says so and blocks the CONFIRM, never the button.
@@ -456,7 +522,7 @@ export function buildPaymentView(args: {
   return {
     cost,
     rows,
-    status: statusOf({cost, paid, valid: paymentValid, deficit, overpay, laneCount: lanes.length}),
+    status: statusOf({cost, paid, valid: paymentValid, deficit, overpay}),
     configurable,
     quickAdjustEligible,
     quickAdjustUnit: quickLane?.unit,

@@ -22,9 +22,9 @@ describe('consolePlayCardResult.derivePlayResultSections', () => {
     expect(isFallbackOnlyResult(sections, noImmediate)).to.be.false;
   });
 
-  it('a NON-event card permanently adds its tags ("Adds tags", no note)', () => {
+  it('a NON-event card permanently adds its tags (the compact "Tags" label, no note)', () => {
     const tags = derivePlayResultSections(meta({tags: [Tag.EARTH]}), noImmediate).find((s) => s.kind === 'tags');
-    expect(tags?.text).to.equal('Adds tags');
+    expect(tags?.text).to.equal('Tags');
     expect(tags?.eventTags).to.not.equal(true);
     expect(tags?.note).to.be.undefined;
   });
@@ -38,9 +38,9 @@ describe('consolePlayCardResult.derivePlayResultSections', () => {
     expect(tags?.tags).to.deep.equal([Tag.EARTH]);
   });
 
-  it('an EVENT card WITH Odyssey keeps its tags (reads "Adds tags")', () => {
+  it('an EVENT card WITH Odyssey keeps its tags (reads "Tags")', () => {
     const tags = derivePlayResultSections(meta({tags: [Tag.EARTH], isEvent: true, eventTagsCounted: true}), noImmediate).find((s) => s.kind === 'tags');
-    expect(tags?.text).to.equal('Adds tags');
+    expect(tags?.text).to.equal('Tags');
     expect(tags?.eventTags).to.not.equal(true);
   });
 
