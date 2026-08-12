@@ -14,6 +14,25 @@ z-index» model — this is a deliberate contract REVERSAL.)*
    (`dockParkedUnderScene` in the v-show; MA sheet, infoPanel, composers,
    confirms…) is GONE. The player learns once: the hand is always at the
    bottom centre.
+
+   ⚠️ **BIRTH IS A PERSONAL FACT, NEVER THE TABLE'S PHASE.** `setupHandPending`'s
+   third clause (`generation === 1 && phase === RESEARCH && waitingFor ===
+   undefined`) reads as «no hand yet» only in a solo game. Generation-1
+   RESEARCH is a TABLE state: `Game.playerIsFinishedWithResearchPhase` holds
+   the phase until the LAST seat has played AND paid, so in multiplayer a
+   player who is done sits in exactly that triple — with a real hand, and with
+   the cards they just paid for physically flying into the dock. The bare
+   triple therefore `display:none`'d the dock at the frame `runHandDelivery`
+   needed it: `stableTargetRect` polled a zero-width rect for its whole ~1.8 s
+   budget and the whole starting hand landed nowhere («карты некуда лететь»).
+   Solo vs MarsBot never showed it — `gotoInitialResearchPhase` pre-seeds the
+   bot into `researchedPlayers`, so the human's own confirm flips the phase in
+   the same response and the window has zero length. The clause now also
+   requires `!startCorporationPlayed(view)` (`consoleStartState.ts`): the
+   viewer's PICKED corporation appearing in their own tableau is the
+   server-authoritative, monotone, reload-proof «my setup is played». It is
+   deliberately not `startDeploymentBegun()` — that latch is re-armed by a
+   live prompt and a reload landing straight in the wait would lose it.
 2. **The dock is one welded unit at the TOP of the section/band ladder.**
    Chassis plate/counter z11705, wings z11703, and now the card PACK z11704 —
    always, in every state. The pack no longer re-layers to z0 under scenes
@@ -76,6 +95,9 @@ compact when the screen is busy, full while receiving.
 
 ## Guards
 
+`tests/client/components/console/consoleStartState.spec.ts` §
+`startCorporationPlayed` (the personal birth fact — picked-but-unplayed vs
+played, and that a foreign tableau never satisfies it),
 `tests/client/components/console/consoleDockAccent.spec.ts` (the lease: nesting,
 out-of-order release, idempotence, release on reject — and **a leaked lease
 expiring on its own ceiling**, which is the guarantee the compact pose rests

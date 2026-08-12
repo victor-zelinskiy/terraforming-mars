@@ -256,6 +256,33 @@ export function startAwaitingOthers(view: PlayerViewModel): boolean {
     view.waitingFor === undefined;
 }
 
+/**
+ * THE VIEWER'S OWN SETUP IS PLAYED — their chosen corporation is on the
+ * table (the deferred `corporationPlay` has been answered).
+ *
+ * The SERVER-AUTHORITATIVE half of the deployment latch, and the one honest
+ * personal reading of generation-1 RESEARCH: that phase is a TABLE state,
+ * never a per-player one. `Game.playerIsFinishedWithResearchPhase` holds it
+ * until the LAST seat has played AND paid, so between one player's own
+ * payment and the table's release they sit in gen-1 RESEARCH with no prompt
+ * at all — while owning a real hand whose bought cards are physically flying
+ * into the dock. Solo vs MarsBot never shows that window: the bot is
+ * pre-seeded into `researchedPlayers`, so the human's own confirm flips the
+ * phase in the same response and the gap has zero length.
+ *
+ * Read via the PICKED corporation ∩ the tableau (both plain model fields —
+ * no card manifest, so this stays testable under the server runner) and it
+ * is monotone: unlike `deploymentBegun` it also survives a reload landing
+ * straight in that wait.
+ */
+export function startCorporationPlayed(view: PlayerViewModel): boolean {
+  if (view.pickedCorporationCard.length === 0) {
+    return false;
+  }
+  const onTable = new Set(view.thisPlayer.tableau.map((c) => c.name));
+  return view.pickedCorporationCard.some((c) => onTable.has(c.name));
+}
+
 function rawTitle(t: string | Message | undefined): string {
   if (t === undefined) {
     return '';

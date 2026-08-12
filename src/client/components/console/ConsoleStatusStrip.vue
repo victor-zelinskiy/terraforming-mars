@@ -18,9 +18,11 @@
           <span v-if="presentation(p).textKey !== ''" class="con-status__pstatus-text">{{ $t(presentation(p).textKey) }}</span>
           <b v-if="presentation(p).showCounter" class="con-status__pstatus-counter">{{ actionCounter(p) }}</b>
         </span>
-        <!-- Attention beacon: a mandatory decision awaits the VIEWER while the
-             CTA card is off-screen (they parked in another section / a sheet /
-             a zoom) — the chip is then the ONE reminder. See `attention`. -->
+        <!-- Attention beacon: a mandatory decision awaits the VIEWER, is
+             ANSWERABLE NOW (the same `active` status this chip's own pill
+             shows — see `viewerAwaited`) and its CTA card is off-screen (they
+             parked in another section / a sheet / a zoom) — the chip is then
+             the ONE reminder. See `attention`. -->
         <transition name="con-beacon">
           <span v-if="attention && p.color === thisPlayerColor"
                 class="con-status__beacon"
@@ -197,6 +199,10 @@ export default defineComponent({
      * home, a section flip-through — never flashes the beacon; release is
      * INSTANT the moment the announce card shows or the decision resolves,
      * so the chip and the CTA card never double-signal.
+     *
+     * The beacon additionally requires the viewer's status to be ACTIONABLE
+     * — see `viewerAwaited`. "Pending" and "answerable NOW" are two different
+     * facts, and only the second one may raise an alarm.
      */
     attentionPending: {type: Boolean, default: false},
     /** Engagement debounce (ms). A prop so specs can shrink it. */
@@ -207,8 +213,8 @@ export default defineComponent({
       /** One-shot "turn passed to YOU" attention burst on the viewer's chip. */
       turnBurst: false,
       burstTimer: undefined as number | undefined,
-      /** Debounced attention state — drives the amber beacon on the viewer's chip. */
-      attention: false,
+      /** Debounced RAW pending state — half of the beacon (see `attention`). */
+      attentionEngaged: false,
       attentionTimer: undefined as number | undefined,
       /** One-shot terraforming-complete pulse on the Temp/O₂/Oceans group. */
       celebrating: false,
@@ -241,6 +247,35 @@ export default defineComponent({
       const me = this.players.find((p) => p.color === this.thisPlayerColor);
       return me !== undefined ? this.presentation(me).category : 'none';
     },
+    /**
+     * IS THE PENDING DECISION ANSWERABLE RIGHT NOW? The server is waiting on
+     * the viewer — the `active` category, which is exactly what this chip's
+     * own pill says («ДЕЙСТВИЕ» / «ФАЗА ПРОЛОГОВ» / …).
+     *
+     * WHY THE BEACON NEEDS IT. «A mandatory action is pending» and «you can
+     * answer it now» are two different facts, and only the second one is an
+     * alarm. A prompt can be owed while the table is still busy elsewhere (the
+     * corporation's first action while another player finishes their preludes;
+     * a minimized start workspace whose «ждём остальных» is honest), and there
+     * the player is legitimately free to walk the interface — pulsing amber at
+     * them demands something they cannot do. Worse, it CONTRADICTS the chip it
+     * sits on: the pill read «ОЖИДАЕТ» while the same chip flashed for
+     * attention. So the beacon is derived from the SAME presentation the pill
+     * renders — that contradiction is now unexpressible — and it lights the
+     * instant the status turns active, with no further debounce (the pending
+     * half has been engaged all along).
+     *
+     * The announcement card is deliberately NOT gated on this: it is a calm
+     * plate on the player's own board home that says where to go, and A must
+     * keep taking them there whenever they choose to look.
+     */
+    viewerAwaited(): boolean {
+      return this.myCategory === 'active';
+    },
+    /** The beacon: a debounced PENDING decision that is answerable NOW. */
+    attention(): boolean {
+      return this.attentionEngaged && this.viewerAwaited;
+    },
     /** The SHARED terraforming-progress math (same helper the desktop
      *  sidebar gauge uses) — Temperature + Oxygen + Oceans ONLY. */
     progress(): TerraformingProgress {
@@ -262,19 +297,19 @@ export default defineComponent({
       immediate: true,
       handler(pending: boolean): void {
         if (pending) {
-          if (this.attention || this.attentionTimer !== undefined) {
+          if (this.attentionEngaged || this.attentionTimer !== undefined) {
             return;
           }
           this.attentionTimer = window.setTimeout(() => {
             this.attentionTimer = undefined;
-            this.attention = true;
+            this.attentionEngaged = true;
           }, this.attentionEngageMs);
         } else {
           if (this.attentionTimer !== undefined) {
             window.clearTimeout(this.attentionTimer);
             this.attentionTimer = undefined;
           }
-          this.attention = false;
+          this.attentionEngaged = false;
         }
       },
     },

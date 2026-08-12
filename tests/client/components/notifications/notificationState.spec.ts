@@ -109,12 +109,28 @@ describe('notificationState (lifecycle)', () => {
       expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['a']);
     });
 
-    it('a mandatory-choice lease queues delivery; dismiss cannot promote while blocked', () => {
+    // THE FEED KEEPS FLOWING WHILE THE PLAYER WORKS. A `mandatory-choice` lease
+    // means a decision surface / workspace is up (the start flow, the draft, a
+    // payment) — not that the screen is telling a story of its own. Silencing
+    // the feed for it piled the game's events up as «СОБЫТИЯ В ОЧЕРЕДИ +N» for
+    // most of a turn; the bot's moves are exactly what a player must keep
+    // hearing while they work.
+    it('a mandatory-choice lease does NOT silence the feed (the player is working, not watching)', () => {
       const release = acquireForegroundLease('mandatory-choice');
       pushTransient(model('a'));
       pushTransient(model('b'));
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['a']);
+      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['b']);
+      release();
+    });
+
+    it('a ceremony BEHIND a mandatory lease still silences it (every raised reason counts)', () => {
+      const release = acquireForegroundLease('mandatory-choice');
+      const ceremony = acquireForegroundLease('ceremony');
+      pushTransient(model('a'));
       expect(notificationState.transient).to.have.length(0);
-      expect(notificationState.queue).to.have.length(2);
+      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['a']);
+      ceremony();
       release();
     });
 
@@ -170,11 +186,13 @@ describe('notificationState (lifecycle)', () => {
       pushMany([model('a'), model('b'), model('c')]);
       expect(pendingSummary()).to.deep.eq({count: 2, critical: false});
       // A blocked flow-holding AI-turn card waits in the queue → critical.
-      const release = acquireForegroundLease('mandatory-choice');
+      // Silenced by a REVEAL (something that owns the screen): a mandatory
+      // lease no longer queues anything, and the card would simply present.
+      revealResultState.active = true;
       pushTransient(model('bot', 'important', {holdsFlow: true}));
       expect(pendingSummary().count).to.eq(3);
       expect(pendingSummary().critical).to.eq(true);
-      release();
+      dismissReveal();
     });
 
     it('drainQueueToJournal drops ordinary cards, KEEPS hostile + flow-holding ones', () => {

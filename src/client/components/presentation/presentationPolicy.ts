@@ -72,38 +72,82 @@ export type PresentationFlags = {
 };
 
 /**
- * The single blocking-foreground resolution — priority order mirrors how the
- * surfaces stack temporally: the motion that is LIVE on screen right now,
- * then the player's own result, then the theater they opened, then a
- * mandatory prompt, then ceremonies.
+ * Every reason currently RAISED, in priority order — the order mirrors how the
+ * surfaces stack temporally: the motion that is LIVE on screen right now, then
+ * the player's own result, then the theater they opened, then a mandatory
+ * prompt, then ceremonies.
+ *
+ * A LIST, not a single winner: the two questions asked below want different
+ * answers out of the same snapshot ("what is the foreground?" takes the top one,
+ * "is the feed silenced?" looks for a silencing one ANYWHERE in it). Collapsing
+ * to the winner first is how a ceremony hidden behind a mandatory lease would
+ * have gone unnoticed by the feed.
  */
-export function foregroundBlockReason(flags: PresentationFlags): PresentationBlockReason | undefined {
+function raisedReasons(flags: PresentationFlags): ReadonlyArray<PresentationBlockReason> {
+  const raised: Array<PresentationBlockReason> = [];
   if (flags.animationHolds > 0) {
-    return 'animation';
+    raised.push('animation');
   }
   if (flags.resultModalOpen) {
-    return 'result-modal';
+    raised.push('result-modal');
   }
   if (flags.theaterOpen) {
-    return 'turn-theater';
+    raised.push('turn-theater');
   }
   if (flags.mandatoryLeases > 0) {
-    return 'mandatory-choice';
+    raised.push('mandatory-choice');
   }
   if (flags.ceremonyLeases > 0) {
-    return 'ceremony';
+    raised.push('ceremony');
   }
-  return undefined;
+  return raised;
+}
+
+/** The single blocking-foreground resolution — the highest-priority raised reason. */
+export function foregroundBlockReason(flags: PresentationFlags): PresentationBlockReason | undefined {
+  return raisedReasons(flags)[0];
 }
 
 /**
- * Is delivering a NEW transient notification allowed right now? Blocked while
- * any blocking foreground item is up (rule: notifications never spam over a
- * result modal / mandatory choice / theater). A visible flow-holding card does
- * NOT block delivery by itself — serialization of the visible slot handles it.
+ * The block reasons that SILENCE the feed — the ones that own the SCREEN.
+ *
+ * A notification is a corner card in the journal's own zone; it never covers a
+ * working surface, its command bar or the player rail. So "is the player busy?"
+ * is the wrong question — the right one is "is the screen currently telling a
+ * story of its own?": a live cinematic, a full-bleed reveal, the turn review,
+ * a ceremony. Those are the four.
+ *
+ * `'mandatory-choice'` is deliberately NOT among them. That lease means the
+ * player is WORKING — a decision surface / a workspace is up (the start flow,
+ * the draft, a payment) — and silencing the feed for it meant the events of the
+ * game piled up as «СОБЫТИЯ В ОЧЕРЕДИ +N» for the entire time a player spent in
+ * a workspace, which is most of a turn. The bot's moves are exactly what the
+ * player must keep hearing while they work; they cost nothing to read and
+ * nothing to dismiss (a toast inside a workspace expires by its own TTL and
+ * never steals that screen's B — see the shell's toast input branch).
+ */
+const SILENCING_REASONS: ReadonlySet<PresentationBlockReason> = new Set<PresentationBlockReason>([
+  'animation', 'result-modal', 'turn-theater', 'ceremony',
+]);
+
+/**
+ * WHY the feed is silenced right now, or undefined when it may flow. Checks
+ * every raised reason, not just the winning one — a ceremony standing behind a
+ * mandatory lease still owns the screen.
+ */
+export function notificationSilencingReason(flags: PresentationFlags): PresentationBlockReason | undefined {
+  return raisedReasons(flags).find((reason) => SILENCING_REASONS.has(reason));
+}
+
+/**
+ * Is delivering a NEW transient notification allowed right now? Blocked only
+ * while something OWNS THE SCREEN (see {@link SILENCING_REASONS}) — never
+ * merely because the player has a decision surface open. A visible flow-holding
+ * card does NOT block delivery by itself either: serialization of the single
+ * visible slot handles it.
  */
 export function notificationDeliveryBlocked(flags: PresentationFlags): boolean {
-  return foregroundBlockReason(flags) !== undefined;
+  return notificationSilencingReason(flags) !== undefined;
 }
 
 /**
@@ -121,7 +165,21 @@ export function notificationDeliveryBlocked(flags: PresentationFlags): boolean {
  * deliberately do not, else they would unmount their own stage).
  */
 export function mandatoryPromptsHeld(flags: PresentationFlags): boolean {
-  return flags.theaterOpen || flags.flowHoldingNotificationVisible || flags.blockingAnimationHolds > 0;
+  if (flags.theaterOpen || flags.blockingAnimationHolds > 0) {
+    return true;
+  }
+  // A flow-holding card asks the NEXT prompt to WAIT; it may never RETRACT a
+  // decision surface the player already has open. That distinction used to be
+  // free: while a mandatory surface stood, its lease silenced the feed, so such
+  // a card could not be delivered in the first place. Now that the feed keeps
+  // flowing inside a workspace (a player must hear the bot's moves while they
+  // work), the guard has to be stated: without it a bot-turn card arriving over
+  // a live payment / composer would unmount it for the card's whole TTL.
+  //
+  // No feedback loop: with a surface up the hold is off and the surface stays
+  // (a fixed point), with none up the hold is on and none mounts (also a fixed
+  // point) — neither state can flip itself.
+  return flags.flowHoldingNotificationVisible && flags.mandatoryLeases === 0;
 }
 
 /**

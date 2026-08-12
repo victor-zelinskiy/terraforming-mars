@@ -94,9 +94,11 @@ describe('consoleForegroundWatchdog', () => {
     });
 
     it('a queued event nobody can deliver counts as waiting, with no prompt at all', () => {
-      // The lease is both the claim AND what blocks delivery, so the backlog
-      // genuinely cannot drain — a queue that CAN drain is not a stall.
-      acquireForegroundLease('mandatory-choice');
+      // The lease is both the claim AND what SILENCES the feed, so the backlog
+      // genuinely cannot drain — a queue that CAN drain is not a stall. It has
+      // to be a silencing kind: a `mandatory-choice` lease means the player is
+      // working in a surface, and the feed keeps flowing right past it.
+      acquireForegroundLease('ceremony');
       noteAdmissionSignals(signals());
       notificationState.queue.push({
         id: 'q1', kind: 'normal', variant: 'event', priority: NOTIFICATION_PRIORITY['normal'],
@@ -208,10 +210,12 @@ describe('consoleForegroundWatchdog', () => {
     });
 
     it('does NOT force a backlog past a modal the player is reading', () => {
-      // A mandatory choice / result modal / theater means a human is looking at
+      // A result modal / theater / ceremony means a human is looking at
       // something and may take minutes — floating toasts over it would break the
-      // serialization the queue exists for.
-      acquireForegroundLease('mandatory-choice');
+      // serialization the queue exists for. (A `mandatory-choice` lease is NOT
+      // in that set: a decision surface is the player WORKING, and the feed is
+      // deliberately delivered right beside it.)
+      acquireForegroundLease('ceremony');
       queueOne('q1');
 
       runForegroundWatchdog({surfaceRendered: true, promptLive: true});

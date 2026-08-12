@@ -9,10 +9,12 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function view(): PlayerViewModel {
+/** `awaited` = the server is waiting on the VIEWER (their chip reads active). */
+function view(opts: {awaited?: boolean} = {}): PlayerViewModel {
+  const awaited = opts.awaited ?? true;
   const players = [
-    {color: 'red', name: 'Вы', actionsTakenThisRound: 0, isActive: true, isWaitingForInput: true},
-    {color: 'green', name: 'Оппонент', actionsTakenThisRound: 0, isActive: false, isWaitingForInput: false},
+    {color: 'red', name: 'Вы', actionsTakenThisRound: 0, isActive: awaited, isWaitingForInput: awaited},
+    {color: 'green', name: 'Оппонент', actionsTakenThisRound: 0, isActive: !awaited, isWaitingForInput: !awaited},
   ];
   return {
     thisPlayer: players[0],
@@ -34,13 +36,13 @@ function view(): PlayerViewModel {
   } as unknown as PlayerViewModel;
 }
 
-function mountStrip(engageMs: number) {
+function mountStrip(engageMs: number, opts: {awaited?: boolean} = {}) {
   return mount(ConsoleStatusStrip, {
     global: {
       ...globalConfig.global,
       stubs: {AnimatedMetricValue: true, ConsoleFlipValue: true, ConsoleProjectDeck: true},
     },
-    props: {playerView: view(), attentionPending: false, attentionEngageMs: engageMs},
+    props: {playerView: view(opts), attentionPending: false, attentionEngageMs: engageMs},
   });
 }
 
@@ -84,6 +86,45 @@ describe('ConsoleStatusStrip attention beacon', () => {
     await sleep(80);
     await w.vm.$nextTick();
     expect(w.find('.con-status__player--attention').exists()).to.be.false;
+    expect(w.find('.con-status__beacon').exists()).to.be.false;
+  });
+
+  // A decision can be OWED while the table is still busy elsewhere (the corp
+  // first action during another player's preludes; a minimized start
+  // workspace). The player is then free to walk the interface, and an alarm
+  // would demand something they cannot do — while the chip's own pill says
+  // «ОЖИДАЕТ», which the flash flatly contradicted.
+  it('stays silent while the viewer\'s status is NOT answerable', async () => {
+    const w = mountStrip(5, {awaited: false});
+    await w.setProps({attentionPending: true});
+    await sleep(25);
+    await w.vm.$nextTick();
+    expect(w.find('.con-status__player--attention').exists()).to.be.false;
+    expect(w.find('.con-status__beacon').exists()).to.be.false;
+  });
+
+  it('lights the INSTANT the status turns answerable (the debounce is spent)', async () => {
+    const w = mountStrip(5, {awaited: false});
+    await w.setProps({attentionPending: true});
+    await sleep(25);
+    await w.vm.$nextTick();
+    expect(w.find('.con-status__beacon').exists()).to.be.false;
+    // The server hands the viewer their turn: no second debounce — the pending
+    // half has been engaged all along.
+    await w.setProps({playerView: view({awaited: true})});
+    await w.vm.$nextTick();
+    expect(w.find('.con-status__player--attention').exists()).to.be.true;
+    expect(w.find('.con-status__beacon').exists()).to.be.true;
+  });
+
+  it('goes quiet again if the status stops being answerable', async () => {
+    const w = mountStrip(5);
+    await w.setProps({attentionPending: true});
+    await sleep(25);
+    await w.vm.$nextTick();
+    expect(w.find('.con-status__beacon').exists()).to.be.true;
+    await w.setProps({playerView: view({awaited: false})});
+    await w.vm.$nextTick();
     expect(w.find('.con-status__beacon').exists()).to.be.false;
   });
 });

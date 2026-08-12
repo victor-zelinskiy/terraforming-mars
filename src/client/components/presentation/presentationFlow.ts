@@ -44,6 +44,7 @@
 import {computed, reactive, watch} from 'vue';
 import {hasVisibleReveal} from '@/client/components/drawnCards/drawnCardsState';
 import {revealResultState} from '@/client/components/actions/revealResultState';
+import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {botTurnReviewState} from '@/client/components/marsbot/botTurnReviewState';
 import {animationHoldCount, blockingAnimationHoldCount} from '@/client/components/presentation/animationHold';
 import {
@@ -112,7 +113,14 @@ export function registerFlowHoldSupplier(fn: () => boolean): void {
 /** The RAW occupancy of the derived signals, before the staleness mask. */
 function rawSignal(signal: StaleForegroundSignal): boolean {
   switch (signal) {
-  case 'result-modal': return hasVisibleReveal() || revealResultState.active;
+  // Every FULL-BLEED reveal shape, so this signal alone can silence the feed:
+  // the drawn-cards batch, the ✓/✗ result, and the read-only revealed-cards
+  // viewer. The viewer used to be carried by the console's `mandatory-choice`
+  // lease alone — which no longer silences anything, so a toast would have
+  // floated over a fullscreen surface the moment the lease stopped speaking
+  // for it. A derived signal is also strictly better here: it is true for
+  // desktop and console alike, and the watchdog can expire it.
+  case 'result-modal': return hasVisibleReveal() || revealResultState.active || revealViewerState.open;
   case 'turn-theater': return botTurnReviewState.open;
   case 'flow-hold': return flowHoldSupplier();
   }
@@ -232,24 +240,32 @@ type Subscriber = () => void;
 const freedSubscribers: Array<Subscriber> = [];
 const blockedSubscribers: Array<Subscriber> = [];
 
-/** Subscribe to "the blocking foreground cleared" (drain the queue). */
+/** Subscribe to "the feed is no longer silenced" (drain the queue). */
 export function onForegroundFreed(cb: Subscriber): void {
   freedSubscribers.push(cb);
 }
 
-/** Subscribe to "a blocking foreground opened" (re-queue visible cards). */
+/** Subscribe to "something that silences the feed opened" (re-queue visible cards). */
 export function onForegroundBlocked(cb: Subscriber): void {
   blockedSubscribers.push(cb);
 }
 
-const blockReasonRef = computed(() => currentBlockReason());
+/**
+ * The broadcast rides the SILENCING predicate, not the raw block reason. Both
+ * subscribers are the notification feed's own bookkeeping (drain / re-queue),
+ * so they must fire on exactly the transitions that silence and un-silence it.
+ * Keyed off `currentBlockReason()` instead, a mandatory lease — a workspace the
+ * player merely opened — would pull the visible card back into the queue and
+ * only release it on leaving, which is the pile-up this split removes.
+ */
+const silencedRef = computed(() => isNotificationDeliveryBlocked());
 
-watch(blockReasonRef, (now, prev) => {
-  if (now === undefined && prev !== undefined) {
+watch(silencedRef, (now, prev) => {
+  if (!now && prev) {
     for (const cb of freedSubscribers) {
       cb();
     }
-  } else if (now !== undefined && prev === undefined) {
+  } else if (now && !prev) {
     for (const cb of blockedSubscribers) {
       cb();
     }

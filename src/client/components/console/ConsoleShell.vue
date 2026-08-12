@@ -1171,7 +1171,7 @@ import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/component
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {notificationState, notificationsSettled, pendingSummary, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
-import {beginNotifHold, cancelNotifHold, consumeNotifHoldRelease, resetNotifHold} from '@/client/console/consoleNotifHold';
+import {beginNotifHold, cancelNotifHold, consumeNotifHoldRelease, resetNotifHold, setNotifBackOwned} from '@/client/console/consoleNotifHold';
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
@@ -1333,7 +1333,7 @@ import {
 import {armColonyFocusQuickExit} from '@/client/console/consoleColonyFocusMotion';
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
-import {startAwaitingOthers, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
+import {startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
 import {engageStartExcursion, releaseStartExcursion, startExcursionActive, startExcursionQuiet, startExcursionState} from '@/client/console/startBoardExcursion';
 import {firstActionOwed} from '@/client/console/startFirstAction';
 import {isResourceTransferActive} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -1969,13 +1969,26 @@ export default defineComponent({
     /**
      * The pre-game INITIAL-SETUP window: the player has NO actual hand yet —
      * the `initialCards` wizard is live (incl. deferred / the submit in
-     * flight), the initial draft is still dealing, or the viewer already
-     * submitted and gen-1 research waits on the other players. The hand
-     * dock's «КАРТЫ 0/0» would be a false readout for a hand that does not
-     * exist, so the footer unmounts the dock AND its bay for the whole
-     * window (see `handDockVisible`). The dock appears the moment the game
-     * actually starts — the start ceremony's card delivery (post-launch) is
-     * the first real hand content and needs the dock as its landing target.
+     * flight), the initial draft is still dealing, or the viewer submitted
+     * their picks and gen-1 research waits on the other players to submit
+     * theirs. The hand dock's «КАРТЫ 0/0» would be a false readout for a
+     * hand that does not exist, so the footer unmounts the dock AND its bay
+     * for the whole window (see `handDockVisible`). The dock appears the
+     * moment the game actually starts — the start ceremony's card delivery
+     * (post-launch) is the first real hand content and needs the dock as its
+     * landing target.
+     *
+     * ⚠️ GEN-1 RESEARCH IS A TABLE STATE, NEVER A PERSONAL ONE. The research
+     * barrier holds that phase until the LAST seat has played and paid, so
+     * `waitingFor === undefined` there means «my setup is in, the table's is
+     * not» — and past the viewer's OWN corporation play that is the
+     * deployment, hand and all. Reading the bare triple as «no hand yet»
+     * hid the dock (`display:none`) at the exact frame the paid cards were
+     * flying into it: `stableTargetRect` polled a zero-width rect for its
+     * whole budget and the delivery landed nowhere. Solo vs MarsBot never
+     * showed it (the bot pre-seeds `researchedPlayers`, so the window has
+     * zero length) — it is a multiplayer-only bug, which is exactly why the
+     * discriminator has to be the personal fact, not the phase.
      */
     setupHandPending(): boolean {
       if (this.playerView.waitingFor?.type === 'initialCards') {
@@ -1986,7 +1999,8 @@ export default defineComponent({
         return true;
       }
       return this.game.generation === 1 && phase === Phase.RESEARCH &&
-        this.playerView.waitingFor === undefined;
+        this.playerView.waitingFor === undefined &&
+        !startCorporationPlayed(this.playerView);
     },
     /** The dock (and the bar's centre bay) exists whenever a REAL hand can —
      *  everything but the endgame and the pre-game initial setup. */
@@ -2111,6 +2125,21 @@ export default defineComponent({
     topNotification(): LiveNotification | undefined {
       const feed = notificationState.transient;
       return feed.length > 0 ? feed[feed.length - 1] : undefined;
+    },
+    /**
+     * MAY A VISIBLE TOAST CLAIM «B»? Only where B is genuinely free — the board
+     * home with nothing of the player's own open.
+     *
+     * The feed now flows inside workspaces too (the game must keep telling the
+     * player what happened while they work), and in there B is the single most
+     * load-bearing verb in the console: one calm step back / minimize. A toast
+     * that eats it would answer «назад» with «closed a card you were reading»,
+     * exactly the kind of stolen verb the toast contract forbids. Inside a
+     * workspace a toast is pure narration: it expires on its own TTL, and the
+     * player's own submit acknowledges it (acknowledgeFlowHoldingCards).
+     */
+    toastOwnsBack(): boolean {
+      return this.boardHomeIdle;
     },
     /** The pending-queue backlog (the banner-band chip). */
     pendingEvents(): PendingQueueSummary {
@@ -3129,6 +3158,12 @@ export default defineComponent({
       // playing the pending action stays entirely silent (no plate AND no
       // beacon) — the first presentation is ONE moment, whichever form the
       // player's location gives it.
+      //
+      // This is the PENDING half only. Whether the decision is ANSWERABLE right
+      // now is the strip's own `viewerAwaited` (the very status its pill
+      // renders), so a chip can never read «ОЖИДАЕТ» and flash for attention in
+      // the same breath. Deliberately not duplicated here: this shell has no
+      // second opinion about the chip's status to offer.
       return this.mandatoryActionPresented &&
         !this.mandatoryAnnounceVisible &&
         !this.promptServedWhereIStand;
@@ -6046,6 +6081,15 @@ export default defineComponent({
         setMandatoryGateHeld(held);
       },
     },
+    // …and whether a visible toast may claim B. The CARD (mounted by the
+    // App-level NotificationLayer) draws its «B Закрыть» hint off this mirror,
+    // so the advertised contract and the input branch can never disagree.
+    toastOwnsBack: {
+      immediate: true,
+      handler(owned: boolean): void {
+        setNotifBackOwned(owned);
+      },
+    },
     // The beat IDENTITY changed (answered / invalidated / superseded) — retire
     // the latches that referred to the old one, so a completed action leaves
     // nothing stale and a NEXT action runs its own pending → presented cycle
@@ -7251,7 +7295,10 @@ export default defineComponent({
       //    (acknowledgeFlowHoldingCards in fetchPlayerInput).
       const topCard = this.topNotification;
       if (topCard !== undefined && this.consoleCardZoom.card === undefined) {
-        if (action === 'back') {
+        // …and B only where B is FREE (see toastOwnsBack): inside a workspace
+        // that verb is the player's way back, and a toast is narration they
+        // never asked for — it must not answer «назад» by closing itself.
+        if (action === 'back' && this.toastOwnsBack) {
           cancelNotifHold();
           dismissNotification(topCard.id);
           return true;
@@ -11242,6 +11289,7 @@ export default defineComponent({
     this.consoleState.shellMounted = false;
     resetMandatoryGate(); // never carry an acknowledgment across games/sessions
     setMandatoryGateHeld(false); // shell gone → clear the held mirror (the watcher won't fire on unmount)
+    setNotifBackOwned(false); // …same for the toast's B claim (no shell, no owner)
     resetPromptAdmission(); // shell gone → the placement can never stay held (desktop reads the mirror too)
     // A workspace outcome claim SUPPRESSES standalone presenters, so an
     // orphaned one is worse than a leak: a drawn batch in the next game would

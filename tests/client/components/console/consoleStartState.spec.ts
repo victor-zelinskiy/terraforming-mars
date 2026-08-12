@@ -4,7 +4,8 @@ import {
   ensureStartWizard, holdStartScene, initialCardsSignature, picksForStep, releaseStartScene,
   startFlowBusy, startLaunchState, startParticipants, startSceneHeld, stepComplete, wizardCrumb,
   wizardSteps, startJourneyItems, deploymentJourneyItems, startDockPiles,
-  startAwaitingOthers, startDeferredSummary, startDeploymentBegun, markStartDeploymentBegun,
+  startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startDeploymentBegun,
+  markStartDeploymentBegun,
 } from '@/client/console/consoleStartState';
 import {SelectInitialCardsModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -469,6 +470,42 @@ describe('consoleStartState (T5 summary launch readout)', () => {
       // All offer the same way back — A returns to the start workspace.
       expect(waiting.returnKey).to.eq(live.returnKey);
       expect(firstAction.returnKey).to.eq(live.returnKey);
+    });
+  });
+
+  /**
+   * THE PERSONAL READING OF GEN-1 RESEARCH. The phase is a TABLE state: the
+   * research barrier holds it until the LAST seat has played and paid, so a
+   * multiplayer player who is done sits in gen-1 RESEARCH with no prompt —
+   * owning a real hand whose paid cards are flying into the dock. The hand
+   * dock's presence gate reads THIS, never the bare phase triple (which hid
+   * the dock mid-delivery and left the flights with no landing rect; solo vs
+   * MarsBot never showed it, the bot pre-seeds the barrier).
+   */
+  describe('startCorporationPlayed (the viewer\'s own setup is on the table)', () => {
+    const view = (picked: ReadonlyArray<CardName>, tableau: ReadonlyArray<CardName>): PlayerViewModel => ({
+      id: 'p1',
+      pickedCorporationCard: picked.map((name) => ({name})),
+      thisPlayer: {color: 'red' as Color, tableau: tableau.map((name) => ({name}))},
+      players: [],
+    } as unknown as PlayerViewModel);
+
+    it('picked but NOT played (the deferred corporationPlay window) → false', () => {
+      expect(startCorporationPlayed(view([CardName.THARSIS_REPUBLIC], []))).to.be.false;
+    });
+
+    it('played → true, and it stays true through the wait for the other seats', () => {
+      expect(startCorporationPlayed(view([CardName.THARSIS_REPUBLIC], [CardName.THARSIS_REPUBLIC]))).to.be.true;
+    });
+
+    it('nothing picked yet (the wizard is still live) → false', () => {
+      expect(startCorporationPlayed(view([], [])), 'no corporation chosen').to.be.false;
+    });
+
+    it('a tableau holding someone ELSE\'s cards but not the picked corp → false', () => {
+      // The tableau is never matched loosely — only the corporation the
+      // viewer actually chose counts as «my setup is played».
+      expect(startCorporationPlayed(view([CardName.THARSIS_REPUBLIC], [CardName.ANTS]))).to.be.false;
     });
   });
 });

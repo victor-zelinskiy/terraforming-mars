@@ -36,13 +36,22 @@ describe('presentationFlow (reactive orchestrator)', () => {
     expect(currentBlockReason()).eq(undefined);
     const release = acquireForegroundLease('mandatory-choice');
     expect(currentBlockReason()).eq('mandatory-choice');
-    expect(isNotificationDeliveryBlocked()).eq(true);
+    // …but a decision surface being up is «the player is WORKING», not «the
+    // screen is busy» — the event feed keeps flowing inside a workspace.
+    expect(isNotificationDeliveryBlocked()).eq(false);
     release();
     release(); // double release must not underflow
     expect(currentBlockReason()).eq(undefined);
     const release2 = acquireForegroundLease('mandatory-choice');
     expect(currentBlockReason()).eq('mandatory-choice');
     release2();
+  });
+
+  it('a CEREMONY lease silences the feed (it owns the screen)', () => {
+    const release = acquireForegroundLease('ceremony');
+    expect(isNotificationDeliveryBlocked()).eq(true);
+    release();
+    expect(isNotificationDeliveryBlocked()).eq(false);
   });
 
   it('derived result-modal occupancy: the reveal-result overlay blocks delivery', () => {
@@ -79,27 +88,35 @@ describe('presentationFlow (reactive orchestrator)', () => {
     expect(isNotificationDeliveryBlocked()).eq(false);
   });
 
+  // The broadcast rides the SILENCING predicate — both subscribers are the
+  // feed's own bookkeeping (re-queue on block, drain on free), so a mandatory
+  // lease (a workspace the player opened) must not fire either of them.
   it('broadcasts freed/blocked transitions to subscribers', async () => {
     let freed = 0;
     let blocked = 0;
     onForegroundFreed(() => freed++);
     onForegroundBlocked(() => blocked++);
 
-    const release = acquireForegroundLease('mandatory-choice');
+    const working = acquireForegroundLease('mandatory-choice');
+    await nextTick();
+    expect(blocked, 'a decision surface never silences the feed').eq(0);
+
+    revealResultState.active = true;
     await nextTick();
     expect(blocked).eq(1);
 
-    // A second lease while already blocked is NOT a new transition.
+    // A second silencing item while already silenced is NOT a new transition.
     const release2 = acquireForegroundLease('ceremony');
     await nextTick();
     expect(blocked).eq(1);
 
-    release();
+    dismissReveal();
     await nextTick();
-    expect(freed).eq(0); // ceremony still holds
+    expect(freed).eq(0); // the ceremony still holds
 
     release2();
     await nextTick();
     expect(freed).eq(1);
+    working();
   });
 });

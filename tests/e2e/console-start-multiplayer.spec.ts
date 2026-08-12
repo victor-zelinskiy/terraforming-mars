@@ -1,7 +1,10 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, APIRequestContext, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {fillPicks, press, submitSummary, summaryVisible, walkToSummary} from './consoleStart';
+import {
+  fetchPlayerModel, fillPicks, openConsole, payStartPurchase, pickCalmCorporation, playQueueCard,
+  press, queueCards, sendPlayerInput, submitSummary, summaryVisible, waitQueueIdle, walkToSummary,
+} from './consoleStart';
 
 /**
  * THE MULTIPLAYER START HANDS OVER TOGETHER.
@@ -75,6 +78,47 @@ async function surface(page: Page): Promise<{
       selectionFlow: document.querySelector('[data-phase="selection"]')?.className ?? '',
       deploymentFlow: document.querySelector('[data-phase="deployment"]')?.className ?? '',
     };
+  });
+}
+
+/**
+ * THE DOCK'S OWN READOUT — painted, its LANDED total («КАРТЫ x/N» excludes
+ * withheld cards by contract), and how many backs are still withheld. The
+ * landing is what the delivery beat is for, so «the element exists» proves
+ * nothing: a held back is `visibility:hidden` and out of the count.
+ */
+async function dockState(page: Page): Promise<{painted: boolean, total: number, held: number}> {
+  return page.evaluate(() => {
+    const dock = document.querySelector('.con-handdock');
+    return {
+      painted: dock !== null &&
+        (dock as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true}),
+      total: Number.parseInt((document.querySelector('.con-handdock__num--total')?.textContent ?? '').trim(), 10) || 0,
+      held: document.querySelectorAll('.con-handdock__card--held, .con-handdock__card--lifted').length,
+    };
+  });
+}
+
+/**
+ * Answer ONE player's setup wizard over the API and stop there — they are
+ * left holding their own `corporationPlay` prompt.
+ *
+ * That is the whole point: `Game.playerIsFinishedWithResearchPhase` releases
+ * the research barrier PER PLAYER, so an unplayed seat pins the TABLE in
+ * gen-1 RESEARCH while the other player walks their entire deployment. Each
+ * sub-prompt takes its own minimum (one corporation, zero projects), the same
+ * shape the real client posts.
+ */
+async function answerWizardOnly(request: APIRequestContext, playerId: string): Promise<void> {
+  const model = await fetchPlayerModel(request, playerId);
+  const prompt = model.waitingFor;
+  expect(prompt?.type, 'the second seat opens on its setup wizard').toBe('initialCards');
+  await sendPlayerInput(request, playerId, {
+    type: 'initialCards',
+    responses: (prompt?.options ?? []).map((step) => ({
+      type: 'card',
+      cards: (step.cards ?? []).map((c) => c.name).slice(0, step.min ?? 0),
+    })),
   });
 }
 
@@ -171,5 +215,74 @@ test.describe('start · two humans hand over together', () => {
     expect(live2.queue, 'the second player gets the same functional deployment').toBeGreaterThan(0);
     expect(live2.dock, '…with its hand dock').toBeTruthy();
     await secondPage.context().close();
+  });
+
+  /**
+   * THE PAYMENT WINDOW — the multiplayer-only frame the dock used to vanish in.
+   *
+   * A player who has played their corporation AND paid for their bought
+   * projects is done, but the TABLE is not: the research barrier holds
+   * `Phase.RESEARCH` until the last seat has done the same. So this player
+   * sits in gen-1 RESEARCH with `waitingFor === undefined` — the exact triple
+   * the dock's birth gate used to read as «no hand yet» — at the precise
+   * moment `runHandDelivery` is flying their paid cards INTO the dock. The
+   * dock went `display:none`, `stableTargetRect` polled a zero-width rect for
+   * its whole budget, and the starting hand landed nowhere.
+   *
+   * Solo vs MarsBot cannot express this: `gotoInitialResearchPhase` pre-seeds
+   * the bot into `researchedPlayers`, so the human's own confirm flips the
+   * phase in the same response and the window has zero length. Hence a second
+   * HUMAN seat, deliberately parked on its unanswered corporation play.
+   */
+  test('the payer WAITS on the table — the dock stays and the paid cards land in it', async ({page, request}) => {
+    test.setTimeout(420_000);
+    const created = await request.post('/api/creategame', {data: newGameConfig()});
+    expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
+    const model = await created.json() as {players: Array<{id: string, name: string}>};
+    const first = model.players.find((p) => p.name === 'First')!;
+    const second = model.players.find((p) => p.name === 'Second')!;
+
+    // SECOND answers only its wizard and then stops — the table's anchor in
+    // RESEARCH for the whole test.
+    await answerWizardOnly(request, second.id);
+
+    // FIRST buys two projects; with both seats picked the deployment opens at
+    // the summary submit.
+    await openConsole(page, first.id);
+    await walkToSummary(page, {
+      onStep: async (p, kind) => {
+        if (kind === 'corporation') {
+          await pickCalmCorporation(p);
+        } else if (kind === 'project') {
+          await fillPicks(p, 2);
+        }
+      },
+    });
+    await submitSummary(page);
+    await expect.poll(async () => (await surface(page)).deployment, {timeout: 90_000}).toBeTruthy();
+
+    // Play the corporation, then press «ОПЛАТИТЬ» — the beat that fires the
+    // starting-cards delivery.
+    await waitQueueIdle(page);
+    const queue = await queueCards(page);
+    expect(queue.length, 'the deployment stands with the corporation to play').toBeGreaterThan(0);
+    expect(await playQueueCard(page, queue[0]), `the corporation ${queue[0]} was played`).toBeTruthy();
+    expect(await payStartPurchase(page), 'the purchase was paid').toBeTruthy();
+    await shoot(page, '05-first-paid-while-table-waits');
+
+    // THE WINDOW IS REAL — pinned on the SERVER, so this can never pass by
+    // racing past the state it is about.
+    const paid = await fetchPlayerModel(request, first.id);
+    expect(paid.game.phase, 'the table is still in gen-1 research (the other seat has not played)').toBe('research');
+    expect(paid.waitingFor, 'and the server asks this player for nothing').toBeUndefined();
+
+    // THE CLAIM: the dock is there, and the two paid cards physically LANDED
+    // in it (the delivery releases each back on its own touchdown, so the
+    // «КАРТЫ» total reaching 2 is the landing, not the server's hand).
+    await expect.poll(async () => (await dockState(page)).total, {timeout: 30_000}).toBe(2);
+    const landed = await dockState(page);
+    console.log('[first paid, table still researching]', JSON.stringify(landed));
+    expect(landed.painted, 'the dock never hides while the table finishes its setup').toBeTruthy();
+    expect(landed.held, 'no back is left withheld — every paid card touched down').toBe(0);
   });
 });

@@ -31,7 +31,30 @@ export const NOTIF_HOLD_MS = 500;
 export const notifHoldState = reactive({
   /** Notification id whose X-hold is currently filling (undefined = idle). */
   noteId: undefined as string | undefined,
+  /**
+   * Does a visible toast currently OWN «B»? Mirrored from the shell
+   * (`toastOwnsBack` — true only on the board home, where B is free).
+   *
+   * The feed flows inside workspaces too, and there B is the player's way back,
+   * so the toast must not claim it. The CARD reads this to decide whether to
+   * advertise «B Закрыть»: a hint for a press that would be swallowed by the
+   * screen beneath is worse than no hint — it teaches the player a verb that
+   * does something else. Module-level because the card is mounted by the
+   * App-level NotificationLayer while the input lives in ConsoleShell (the same
+   * split `noteId` exists for).
+   */
+  backOwned: false,
 });
+
+/** The shell mirrors its live `toastOwnsBack` verdict here. */
+export function setNotifBackOwned(owned: boolean): void {
+  notifHoldState.backOwned = owned;
+}
+
+/** May a visible toast be closed with B right now? */
+export function isNotifBackOwned(): boolean {
+  return notifHoldState.backOwned;
+}
 
 let timer: ReturnType<typeof setTimeout> | undefined;
 /** A completed hold's trailing release edge is consumed exactly once. */
@@ -87,7 +110,14 @@ export function consumeNotifHoldRelease(): boolean {
   return false;
 }
 
-/** Game-switch / shell-unmount boundary — never leak a timer or a stale consume. */
+/**
+ * Game-switch / shell-unmount boundary — never leak a timer or a stale consume.
+ * `backOwned` is deliberately NOT reset here: it is a MIRROR owned by the
+ * shell's watcher (the same lifecycle rule `mandatoryGateState.held` follows —
+ * clearing it from a reset that runs AFTER the immediate watcher would stomp a
+ * live value the unchanged computed can never re-publish). The shell clears it
+ * explicitly on unmount.
+ */
 export function resetNotifHold(): void {
   cancelNotifHold();
   pendingReleaseConsume = false;
