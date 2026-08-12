@@ -34,7 +34,32 @@ export type NativePad = GamepadSnapshot & {
   connected: true,
 };
 
-type NativeBridge = {onNativePads?: (cb: (pads: unknown) => void) => void};
+type NativeBridge = {
+  onNativePads?: (cb: (pads: unknown) => void) => void,
+  setNativePadsWanted?: (wanted: boolean) => Promise<void>,
+};
+
+function nativeBridge(): NativeBridge | undefined {
+  if (typeof window === 'undefined') {
+    return undefined;
+  }
+  return (window as {desktopBridge?: NativeBridge}).desktopBridge;
+}
+
+/**
+ * Tell the main process whether this stream is still being read. Call with
+ * `false` ONLY on positive proof that Chromium's own Gamepad API works (it
+ * reports a connected pad) — never on a mere absence of pads, which is also
+ * what the pre-first-press privacy gate looks like. Fire-and-forget: a failure
+ * to deliver leaves main pushing, which is the safe direction.
+ */
+export function setNativePadsWanted(wanted: boolean): void {
+  try {
+    void nativeBridge()?.setNativePadsWanted?.(wanted);
+  } catch (err) {
+    // No bridge / window tearing down — main keeps its default (pushing).
+  }
+}
 
 let pads: ReadonlyArray<NativePad> = [];
 /** Identity of the current pad SET — `index:id` per pad (see the push handler). */
@@ -92,7 +117,7 @@ export function installNativePadBridge(): void {
   if (installed || typeof window === 'undefined') {
     return;
   }
-  const bridge = (window as {desktopBridge?: NativeBridge}).desktopBridge;
+  const bridge = nativeBridge();
   if (bridge?.onNativePads === undefined) {
     return;
   }

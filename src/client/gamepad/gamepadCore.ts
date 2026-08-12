@@ -50,7 +50,7 @@ import {
   snapshotActivity,
 } from '@/client/gamepad/gamepadPollModel';
 import {gamepadDeadzone, gamepadEnabled} from '@/client/gamepad/gamepadSettings';
-import {installNativePadBridge, nativePads, onNativePadCountChange} from '@/client/gamepad/nativePadBridge';
+import {installNativePadBridge, nativePads, onNativePadCountChange, setNativePadsWanted} from '@/client/gamepad/nativePadBridge';
 import {updateDetectedGlyphSet} from '@/client/gamepad/glyphSets';
 import {enterGamepadMode, exitGamepadMode, inputModeState, installInputModeWatchers, resetPointerTravel, uninstallInputModeWatchers} from '@/client/gamepad/inputModeState';
 
@@ -153,15 +153,24 @@ function chromiumPads(): ReadonlyArray<Gamepad | null> {
  * poll just to ask "which source is this?".
  */
 let padsFromNative = false;
+/**
+ * Has Chromium's own fetcher PROVEN it works, by reporting a connected pad?
+ * Distinct from `!padsFromNative`: before the first button press Chromium hides
+ * pads, so "no Chromium pads" is not evidence of anything. Only the positive
+ * form is safe to act on — see `syncNativePadsWanted`.
+ */
+let chromiumHasPads = false;
 
 function navigatorPads(): ReadonlyArray<PollablePad | null> {
   const pads = chromiumPads();
   for (const pad of pads) {
     if (pad !== null && pad.connected) {
+      chromiumHasPads = true;
       padsFromNative = false;
       return pads;
     }
   }
+  chromiumHasPads = false;
   padsFromNative = nativePads().length > 0;
   return nativePads();
 }
@@ -206,10 +215,27 @@ const SUPPRESSED_LOG_INTERVAL_MS = 3000;
 let suppressedLoggedAt = 0;
 /** Which source the previous poll frame read, to notice a HANDOVER between them. */
 let sourceWasNative = false;
+/** Last suppression state sent to main (undefined = nothing sent yet). */
+let nativePadsWantedSent: boolean | undefined;
+
+/**
+ * Keep the main process's native pad stream switched off while Chromium's own
+ * API is doing the job — on a Steam Machine that is every frame of every game,
+ * and each one would otherwise carry an IPC message straight into the bin.
+ * Sent only on CHANGE, so this costs one boolean compare per poll.
+ */
+function syncNativePadsWanted(): void {
+  const wanted = !chromiumHasPads;
+  if (wanted !== nativePadsWantedSent) {
+    nativePadsWantedSent = wanted;
+    setNativePadsWanted(wanted);
+  }
+}
 
 function pollOnce(now: number): void {
   const pads = navigatorPads();
   const deadzone = gamepadDeadzone();
+  syncNativePadsWanted();
 
   // ── SOURCE HANDOVER (matters on a platform whose Gamepad API WORKS) ────────
   // Chromium hides pads until the first button press (the privacy gate), so a
@@ -456,6 +482,12 @@ export function uninstallGamepadCore(): void {
   stopLoop();
   offNativePads?.();
   offNativePads = undefined;
+  // Forget what we told main, so a reinstall re-asserts it from scratch rather
+  // than assuming a suppression that may no longer match reality.
+  nativePadsWantedSent = undefined;
+  chromiumHasPads = false;
+  padsFromNative = false;
+  sourceWasNative = false;
   window.removeEventListener('gamepadconnected', onConnected);
   window.removeEventListener('gamepaddisconnected', onDisconnected);
   document.removeEventListener('visibilitychange', onVisibilityChange);

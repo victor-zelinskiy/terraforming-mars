@@ -33,6 +33,7 @@
 // this and makes the mirror inert.
 
 import type {BrowserWindow} from 'electron';
+import {ipcMain} from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -56,6 +57,8 @@ const RESCAN_DEBOUNCE_MS = 250;
 
 /** The IPC channel carrying pad snapshots to the renderer. */
 export const NATIVE_PADS_CHANNEL = 'desktop:native-pads';
+/** The renderer's "do I still need these?" answer — see `wanted` below. */
+export const NATIVE_PADS_WANTED_CHANNEL = 'desktop:native-pads-wanted';
 
 /** One decoded joydev event. */
 export interface JsEvent {
@@ -209,8 +212,27 @@ export function installNativeGamepads(win: BrowserWindow): () => void {
   let disposed = false;
   let rescanTimer: NodeJS.Timeout | undefined;
 
+  /**
+   * Does the renderer still need these snapshots?
+   *
+   * On a Linux host whose Gamepad API WORKS (a Steam Machine), the renderer
+   * reads Chromium's pads and discards ours — so pushing them is pure waste
+   * while a stick is moving. It answers here once it has POSITIVE proof the
+   * stock path works, i.e. Chromium actually reports a connected pad.
+   *
+   * Defaulting to TRUE is load-bearing: at startup Chromium hides pads until
+   * the first button press, so "no pads visible" is indistinguishable from
+   * "fetcher is blind". Starting suppressed would mean the Steam Deck — where
+   * that first press can only ever arrive through THIS source — never receives
+   * anything, and nothing would ever flip it back. When in doubt, we push.
+   *
+   * The devices stay open either way: a working Gamepad API can lose its pads
+   * again, and the fallback has to be instant.
+   */
+  let wanted = true;
+
   const push = (): void => {
-    if (!dirty || disposed || win.isDestroyed() || win.webContents.isDestroyed()) {
+    if (!dirty || !wanted || disposed || win.isDestroyed() || win.webContents.isDestroyed()) {
       return;
     }
     dirty = false;
@@ -326,9 +348,28 @@ export function installNativeGamepads(win: BrowserWindow): () => void {
     log(`native: hotplug watch unavailable — ${String(err)}`);
   }
 
+  // The renderer's suppression answer. `removeHandler` first because this app
+  // can build its window more than once and `handle` throws on a duplicate
+  // channel — a crash on the second window, from a diagnostic nicety.
+  ipcMain.removeHandler(NATIVE_PADS_WANTED_CHANNEL);
+  ipcMain.handle(NATIVE_PADS_WANTED_CHANNEL, (_event, value: unknown) => {
+    const next = value !== false;
+    if (next !== wanted) {
+      log(`native: renderer ${next ? 'NEEDS' : 'does not need'} native pads ` +
+        `(Chromium Gamepad API ${next ? 'is empty' : 'is working'})`);
+    }
+    wanted = next;
+    if (next) {
+      dirty = true; // resume with a fresh snapshot, not whatever it last saw
+    }
+  });
+
   // A renderer that (re)loads asks for the current set, since it missed the
-  // pushes that happened while it was navigating.
+  // pushes that happened while it was navigating — and it has not yet had the
+  // chance to tell us whether it needs them, so we resume until it does. (This
+  // app reloads at every game boundary, so a stale suppression would strand it.)
   const onDomReady = (): void => {
+    wanted = true;
     dirty = true;
   };
   win.webContents.on('dom-ready', onDomReady);
@@ -340,6 +381,7 @@ export function installNativeGamepads(win: BrowserWindow): () => void {
       clearTimeout(rescanTimer);
     }
     watcher?.close();
+    ipcMain.removeHandler(NATIVE_PADS_WANTED_CHANNEL);
     // The usual caller is the window's own 'closed' event, and by then the
     // native window object is GONE — merely READING `win.webContents` throws
     // "Object has been destroyed" and, unhandled in the main process, that is a

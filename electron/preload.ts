@@ -54,6 +54,13 @@ contextBridge.exposeInMainWorld('desktopBridge', {
   onNativePads: (cb: (pads: unknown) => void): void => {
     ipcRenderer.on('desktop:native-pads', (_event, pads) => cb(pads));
   },
+  // Suppression: once Chromium's own Gamepad API proves it works (it reports a
+  // connected pad), the renderer ignores the native stream, so main stops
+  // sending it. Never sent as "false" on mere absence of pads — Chromium hides
+  // them until the first press, and on the Deck that press can only arrive
+  // through the native stream.
+  setNativePadsWanted: (wanted: boolean): Promise<void> =>
+    ipcRenderer.invoke('desktop:native-pads-wanted', wanted),
   // Premium updater (Phase 7).
   getUpdateState: (): Promise<unknown> => ipcRenderer.invoke('desktop:getUpdateState'),
   onUpdateState: (cb: (state: unknown) => void): void => {
