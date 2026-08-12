@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {lanDisplayName, lanInstanceName, toLanHostInfo} from '../../src/server/embedded/lanDiscovery';
+import {lanDisplayName, lanInstanceName, orderHostAddresses, toLanHostInfo} from '../../src/server/embedded/lanDiscovery';
 
 // LAN discovery for host-as-server mode (docs/EMBEDDED_SERVER.md §5-6). The socket half runs
 // inside the embedded-server utility process; the pure naming + mapping rules are unit-tested here.
@@ -54,6 +54,56 @@ describe('embedded/lanDiscovery', () => {
     });
     it('keys off the instance name when the host predates the iid field', () => {
       expect(toLanHostInfo(service({}), 'iaaa')?.id).to.eq('svc:admin (Victor)');
+    });
+    it('exposes the addresses best-first, so the guest probes the reachable one', () => {
+      const info = toLanHostInfo({
+        ...service({iid: 'ibbb', addr: '192.168.50.168'}),
+        addresses: ['172.20.48.1', '192.168.50.168'],
+        referer: {address: '192.168.50.168'},
+      }, 'iaaa');
+      expect(info?.addresses[0]).to.eq('192.168.50.168');
+    });
+  });
+
+  // A host advertises an A record for EVERY one of its NICs, so the list happily
+  // contains Hyper-V bridges and VPN tunnels. Ordering is what keeps the guest
+  // from spending its probe budget on addresses that cannot answer.
+  describe('orderHostAddresses', () => {
+    it('puts the packet source first — it is reachable by construction', () => {
+      const ordered = orderHostAddresses({
+        name: 'admin', port: 17325,
+        addresses: ['172.20.48.1', '10.5.0.2'],
+        txt: {addr: '10.236.97.48'},
+        referer: {address: '192.168.50.168'},
+      });
+      expect(ordered[0]).to.eq('192.168.50.168');
+    });
+    it('falls back to the TXT link address when there is no referer', () => {
+      const ordered = orderHostAddresses({
+        name: 'admin', port: 17325,
+        addresses: ['172.20.48.1'],
+        txt: {addr: '192.168.50.168'},
+      });
+      expect(ordered).to.deep.eq(['192.168.50.168', '172.20.48.1']);
+    });
+    it('never repeats an address that appears in several roles', () => {
+      const ordered = orderHostAddresses({
+        name: 'admin', port: 17325,
+        addresses: ['192.168.50.168', '172.20.48.1'],
+        txt: {addr: '192.168.50.168'},
+        referer: {address: '192.168.50.168'},
+      });
+      expect(ordered).to.deep.eq(['192.168.50.168', '172.20.48.1']);
+    });
+    it('orders IPv4 ahead of IPv6 — bracketed fetches are the flakier path', () => {
+      const ordered = orderHostAddresses({
+        name: 'admin', port: 17325,
+        addresses: ['fe80::1', '192.168.50.168'],
+      });
+      expect(ordered).to.deep.eq(['192.168.50.168', 'fe80::1']);
+    });
+    it('survives a service with no addresses at all', () => {
+      expect(orderHostAddresses({name: 'admin', port: 17325})).to.deep.eq([]);
     });
   });
 });

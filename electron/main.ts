@@ -30,7 +30,7 @@ import {installNativeGamepads} from './nativeGamepadLinux';
 import {addToSteam, isAddedToSteam} from './steamShortcut';
 import {readSteamPersonaName} from './steamPersona';
 import {getSteamPromptDismissed, setSteamPromptDismissed, getAppMode, setAppMode, getLanVisible, setLanVisible, getLanName, setLanName} from './session';
-import {startEmbeddedServer, stopEmbeddedServer, embeddedServerStatus, embeddedServerPort, getLanHosts, onLanHostsChanged, setLanName as renameLanAdvertisement} from './embeddedServer';
+import {startEmbeddedServer, stopEmbeddedServer, embeddedServerStatus, embeddedServerPort, getLanHosts, getLanDiagnostics, onLanHostsChanged, setLanName as renameLanAdvertisement} from './embeddedServer';
 import {VelopackApp} from 'velopack';
 
 // Velopack sets VELOPACK_FIRSTRUN when it launches the app for the FIRST time after install.
@@ -653,6 +653,10 @@ ipcMain.handle('desktop:getLanState', () => ({
   active: lanVisibleAtLaunch,
   name: getLanName(),
   hosts: getLanHosts(),
+  // Per-link mDNS health: which interfaces actually carry an advertisement, and
+  // whether anything ever asked us. This is what turns "nobody sees my game"
+  // from a guess into a readable answer.
+  diagnostics: getLanDiagnostics(),
 }));
 // Bind address changes require an embedded-server restart → applies next launch.
 ipcMain.handle('desktop:setLanVisible', (_event: IpcMainInvokeEvent, visible: unknown) => {

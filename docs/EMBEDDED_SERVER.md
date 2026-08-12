@@ -115,6 +115,51 @@ server (not per process) so a second server can never be skipped. Guard:
 Changing visibility takes effect on next launch (v1; live rebind is listed under future work).
 Windows Firewall will prompt once on the first LAN bind — expected.
 
+### 5.1 ONE mDNS RESPONDER PER LINK (`lanInterfaces.ts` + `lanDiscovery.ts`)
+
+⚠️ **`multicast-dns` picks its egress interface with `setMulticastInterface(defaultInterface())`,
+and `defaultInterface()` returns the literal `'0.0.0.0'` on every platform except macOS.** That
+hands the choice to the OS routing table — and for `224.0.0.251` the routing table lies. Measured
+on a Windows dev box: all `224.0.0.0/4` routes had `RouteMetric 256`, so the tie broke on
+interface metric, where a NordLynx tunnel (5) beat the actual Wi-Fi link (30). The entire
+advertisement left through the VPN. Group MEMBERSHIP is joined on every link, so *receiving* kept
+working — which is why the symptom is always the same asymmetric one: **"I can see their games,
+nobody can see mine."** A Steam Machine on wired SteamOS has nothing to choose between and never
+showed it.
+
+The fix is not a better guess. Adapter names cannot identify "the real LAN": a Cisco AnyConnect
+tunnel presents itself as `Ethernet 2`, and Wi-Fi is often the only route to the couch. So
+`listLanInterfaces()` enumerates every plausible link and `LanDiscovery` opens **one `Bonjour` per
+link**, with `{bind: '0.0.0.0', interface: <link address>}` — `bind` and `interface` are DIFFERENT
+options: we bind the wildcard address (Windows only delivers multicast to a wildcard-bound socket)
+while joining the group and sending on exactly one link. Delivery then follows group membership,
+so each responder hears only its own link and answers back out of it. Measured: 6/6 sockets bind
+on `0.0.0.0:5353` with `SO_REUSEADDR`, and each wire packet is delivered to exactly one of them.
+
+Link selection drops only what can never carry a game: loopback/internal, APIPA `169.254/16` (no
+DHCP lease) and zero-MAC pseudo adapters (a WireGuard tunnel has no L2). Tunnels and hypervisor
+switches are RANKED last, never excluded — being wrong in that direction only costs a socket.
+`TM_LAN_INTERFACE` pins the set for diagnosis; a pin that matches nothing is ignored rather than
+obeyed, because a typo must not silently switch LAN play off.
+
+Three more library behaviours this layer compensates for:
+- **The Browser sends its PTR query exactly ONCE** at construction (`browser.js` calls `update()`
+  only from `start()`). A guest that started before the host would depend entirely on catching an
+  announce, and multicast over Wi-Fi is unacknowledged and lossy → we re-query on a ramp.
+- **`registry.announce` decays x3 up to ONE HOUR.** After a few minutes a host is effectively
+  silent, so a guest opening the menu later hears nothing → we re-broadcast the service's own
+  records on a fixed `ANNOUNCE_INTERVAL_MS` beat. This also makes discovery survive a host whose
+  *inbound* multicast is firewalled: it can still announce even if it can never be asked.
+- **`Browser.expire()` is defined but never scheduled**, and the PTR TTL is 8 hours, so a host
+  that dies without a goodbye would sit in the list until restart → own `lastSeen` sweep.
+
+Interfaces are re-enumerated every `INTERFACE_WATCH_MS`; a changed address set rebuilds the
+responders, so a Wi-Fi reconnect or a VPN toggle no longer leaves the host bound to addresses that
+no longer exist. TXT carries `addr` (this link's own address) and the guest additionally prefers
+the mDNS packet's `referer` source address — the only candidate that is reachable *by
+construction* (`bonjour-service` publishes an A record for every NIC, tunnels included).
+Guards: `tests/electron/lanInterfaces.spec.ts`, `tests/electron/lanDiscovery.spec.ts`.
+
 ⚠️ **The mDNS instance name is unique per machine+profile, NOT per process** — `<имя> (<hostname>)`
 is identical for a dev build running beside the packaged one, a second install, or an orphaned
 utility process from the previous run. `bonjour-service` does **not** implement RFC 6762 §9
@@ -142,7 +187,14 @@ handling (server-restart reload prompt) self-heals mid-game sessions.
 
 **Message protocol (utility ↔ main):**
 `ready {port, bind}` · `fatal {error}` · `lan-hosts {hosts[]}` (browse results push) ·
+`lan-diagnostics {diagnostics}` (per-link responder health, heartbeat) ·
 `shutdown` · `lan-rename {name}` (re-advertise under a new player name).
+
+**LAN env contract:** `TM_LAN_VISIBLE` ('0' = browse but do not advertise) ·
+`TM_LAN_NAME` · `TM_LAN_INTERFACE` (pin links, comma-separated addresses/adapter names) ·
+`TM_LAN_LOOPBACK` ('1' = multicast loopback, so a host and a guest on ONE machine can see each
+other; off by default because with a responder per link this process would otherwise hear its own
+probe on the other links and rename itself into oblivion).
 
 ## 6. Client: endpoints, pinning, LAN join
 

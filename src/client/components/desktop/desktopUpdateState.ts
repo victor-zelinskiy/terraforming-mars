@@ -120,7 +120,8 @@ interface DesktopBridge {
   getAppMode?(): Promise<DesktopAppModeInfo | undefined>;
   // Persist 'host' | 'remote' for the NEXT launch.
   setAppMode?(mode: string): Promise<void>;
-  // {visible, name, hosts}: LAN advertise state + current mDNS browse results.
+  // {visible, name, hosts, diagnostics}: LAN advertise state, current mDNS
+  // browse results, and per-link responder health.
   getLanState?(): Promise<DesktopLanState | undefined>;
   setLanVisible?(visible: boolean): Promise<void>;
   // Live mDNS re-publish under the active profile's display name.
@@ -155,6 +156,34 @@ export interface DesktopLanState {
   active?: boolean;
   name: string;
   hosts: DesktopLanHost[];
+  /** Per-link mDNS health; absent until the embedded server's first heartbeat. */
+  diagnostics?: DesktopLanDiagnostics;
+}
+
+/** One network link's mDNS responder (mirrors src/server/embedded/lanDiscovery.ts). */
+export interface DesktopLanLink {
+  name: string;
+  address: string;
+  /** Heuristically a tunnel/hypervisor adapter — shown dimmed, never hidden. */
+  virtual: boolean;
+  published: boolean;
+  queriesIn: number;
+  responsesIn: number;
+  error: string;
+}
+
+export interface DesktopLanDiagnostics {
+  advertising: boolean;
+  serviceName: string;
+  port: number;
+  links: DesktopLanLink[];
+  hosts: number;
+  /**
+   * Whether anything has ever ASKED us. Staying false while responses arrive is
+   * the fingerprint of blocked inbound multicast — on Windows, a network
+   * classified Public or a firewall prompt that was dismissed.
+   */
+  inboundSeen: boolean;
 }
 
 export interface DesktopDisplayInfo {

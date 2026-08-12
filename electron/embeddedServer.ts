@@ -23,6 +23,27 @@ export type LanHost = {
   version: string;
 };
 
+/** Per-link mDNS health (mirrors src/server/embedded/lanDiscovery.ts). */
+export type LanLinkStatus = {
+  name: string;
+  address: string;
+  virtual: boolean;
+  published: boolean;
+  queriesIn: number;
+  responsesIn: number;
+  error: string;
+};
+
+export type LanDiagnostics = {
+  advertising: boolean;
+  serviceName: string;
+  port: number;
+  links: LanLinkStatus[];
+  hosts: number;
+  /** False while responses arrive = we can send but not be asked (firewall). */
+  inboundSeen: boolean;
+};
+
 export type EmbeddedServerStatus = 'stopped' | 'starting' | 'ready' | 'failed';
 
 type StartOptions = {
@@ -42,6 +63,7 @@ let lastOptions: StartOptions | undefined;
 let respawnUsed = false;
 let shuttingDown = false;
 let lanHosts: LanHost[] = [];
+let lanDiagnostics: LanDiagnostics | undefined;
 let lanHostsListener: ((hosts: LanHost[]) => void) | undefined;
 let logStream: fs.WriteStream | undefined;
 
@@ -55,6 +77,15 @@ export function embeddedServerPort(): number | undefined {
 
 export function getLanHosts(): LanHost[] {
   return lanHosts;
+}
+
+/**
+ * Latest per-link mDNS health pushed by the utility process (heartbeat, so it
+ * is at most ~15 s stale). Undefined until the first push — the settings
+ * surface treats that as "not reporting yet", not as a failure.
+ */
+export function getLanDiagnostics(): LanDiagnostics | undefined {
+  return lanDiagnostics;
 }
 
 /** The renderer push hook (set once from main; survives window reloads). */
@@ -101,7 +132,7 @@ function openLog(root: string): fs.WriteStream | undefined {
 
 function wireChild(proc: UtilityProcess, onReady: (port: number) => void, onFatal: (reason: string) => void): void {
   proc.on('message', (message: unknown) => {
-    const m = message as {type?: string, port?: number, hosts?: LanHost[], error?: string};
+    const m = message as {type?: string, port?: number, hosts?: LanHost[], error?: string, diagnostics?: LanDiagnostics};
     if (m.type === 'ready' && typeof m.port === 'number') {
       status = 'ready';
       boundPort = m.port;
@@ -111,6 +142,8 @@ function wireChild(proc: UtilityProcess, onReady: (port: number) => void, onFata
     } else if (m.type === 'lan-hosts' && Array.isArray(m.hosts)) {
       lanHosts = m.hosts;
       lanHostsListener?.(lanHosts);
+    } else if (m.type === 'lan-diagnostics' && m.diagnostics !== undefined) {
+      lanDiagnostics = m.diagnostics;
     }
   });
   proc.stdout?.on('data', (chunk: Buffer) => {
@@ -263,6 +296,8 @@ export function stopEmbeddedServer(): void {
   child = undefined;
   status = 'stopped';
   boundPort = undefined;
+  // Stale link health would otherwise outlive the process that measured it.
+  lanDiagnostics = undefined;
   logStream?.end();
   logStream = undefined;
 }

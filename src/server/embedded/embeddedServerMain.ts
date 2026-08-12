@@ -13,11 +13,19 @@
  *   TM_LAN_VISIBLE    — '0' disables mDNS ADVERTISING (browsing always runs).
  *   TM_LAN_NAME       — friendly host name to advertise (falls back to hostname).
  *   TM_BUILD_VERSION  — app build version for the TXT record / compat warning.
+ *   TM_LAN_INTERFACE  — pin discovery to given addresses/adapter names (comma
+ *                       separated). Diagnostic escape hatch: by default every
+ *                       link gets its own responder, which is what makes the
+ *                       "which interface is the real LAN" question go away.
+ *   TM_LAN_LOOPBACK   — '1' enables multicast loopback so a host and a guest on
+ *                       ONE machine can see each other (dev only; see
+ *                       LanDiscoveryOptions.loopback for why it is off).
  *
  * Parent-port protocol (utility ↔ main):
  *   → {type:'ready', port, bind}      server is listening
  *   → {type:'fatal', error}           unrecoverable startup failure (main falls back to remote)
  *   → {type:'lan-hosts', hosts}       aggregated browse results (LanHostInfo[])
+ *   → {type:'lan-diagnostics', diagnostics}  per-link mDNS health (heartbeat)
  *   ← {type:'shutdown'}               graceful stop, then process.exit(0)
  *   ← {type:'lan-rename', name}       re-advertise under a new friendly name
  *
@@ -27,6 +35,8 @@
 import * as fs from 'fs';
 
 export const DEFAULT_EMBEDDED_PORT = 17325;
+/** Heartbeat for the cached LAN diagnostics snapshot in the main process. */
+const LAN_DIAGNOSTICS_INTERVAL_MS = 15_000;
 
 type ParentMessage = {data?: {type?: string, name?: unknown}};
 type ParentPort = {
@@ -105,7 +115,10 @@ async function main(): Promise<void> {
     }
   }
 
-  const discovery = new LanDiscovery((hosts) => send({type: 'lan-hosts', hosts}));
+  const discovery = new LanDiscovery((hosts) => send({type: 'lan-hosts', hosts}), {
+    pin: (process.env.TM_LAN_INTERFACE ?? '').trim(),
+    loopback: process.env.TM_LAN_LOOPBACK === '1',
+  });
   discovery.browse();
   if (bind !== '127.0.0.1' && process.env.TM_LAN_VISIBLE !== '0') {
     discovery.advertise({
@@ -115,6 +128,16 @@ async function main(): Promise<void> {
     });
   }
 
+  // The settings surface reads a snapshot cached in the main process. A slow
+  // heartbeat keeps it fresh without inventing a request/response round trip
+  // over the utility-process port.
+  const pushDiagnostics = (): void => send({type: 'lan-diagnostics', diagnostics: discovery.diagnostics()});
+  const diagnosticsTimer = setInterval(pushDiagnostics, LAN_DIAGNOSTICS_INTERVAL_MS);
+  diagnosticsTimer.unref?.();
+  pushDiagnostics();
+  const links = discovery.diagnostics().links;
+  console.log(`[embedded] LAN responders on ${links.length} link(s): ${links.map((l) => `${l.address} (${l.name})`).join(', ') || 'none'}`);
+
   parentPort()?.on('message', (message) => {
     const data = message.data;
     if (data === undefined || data === null) {
@@ -122,6 +145,7 @@ async function main(): Promise<void> {
     }
     if (data.type === 'shutdown') {
       console.log('[embedded] shutdown requested');
+      clearInterval(diagnosticsTimer);
       discovery.destroy();
       running.stop()
         .catch((err) => console.error('[embedded] stop failed', err))
@@ -132,6 +156,7 @@ async function main(): Promise<void> {
     }
   });
   process.on('SIGTERM', () => {
+    clearInterval(diagnosticsTimer);
     discovery.destroy();
     void running.stop().then(() => flushDatabase()).finally(() => process.exit(0));
   });
