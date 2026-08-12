@@ -1187,7 +1187,17 @@ html.con-profile-tv {
            silently narrowed the hosted colony grid by ~880px against the same
            screen reached through «Колонии» — the tiles then lost a third of
            their width, because the fit takes min(scaleW, scaleH). */
-        &:not(.con-composer--embed):not(.con-composer--colonystep) .con-composer__panel { width: min(58rem, 90vw); }
+        /* ⚠️ …and `--stage` for the SAME reason, third time: the action focus
+           stage is the in-frame stage of the Action Browser, not a floating
+           dialog — which is why every profile already declares
+           `.con-composer--stage .con-composer__panel--stage { width: 100% }`.
+           That declaration is (0,3,1) and this cap was (0,5,1), so the
+           intended rule never applied: the embedded buy/receive stage was
+           pinned to the same 2320px inside a ~3200px band, leaving ~880px of
+           dead room on its right while the cards solved their fit against the
+           smaller box (`WS_STAGE_BOX` caught it: 2436 → 1558). A dialog cap
+           may only ever describe a dialog. */
+        &:not(.con-composer--embed):not(.con-composer--colonystep):not(.con-composer--stage) .con-composer__panel { width: min(58rem, 90vw); }
         &--play:not(.con-composer--embed):not(.con-composer--colonystep) .con-composer__panel,
         &:not(.con-composer--embed):not(.con-composer--colonystep) .con-composer__panel--play { width: min(66rem, 94vw); }
         /* The action composer/confirm: source card + decision column. */

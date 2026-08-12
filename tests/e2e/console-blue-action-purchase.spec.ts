@@ -113,18 +113,35 @@ for (const profile of PROFILES) {
        * (838, 809, … observed) while the committed-stage reading is rock steady
        * (533 every time). So the failures blamed the buy stage for moving a card
        * that had never finished arriving — the baseline was the unstable half.
-       * Poll until two consecutive frames agree, then that is the anchor.
+       * Poll until the box HOLDS STILL, then that is the anchor.
+       *
+       * ⚠️ TWO agreeing frames are not stillness. An eased entrance has
+       * near-stationary moments — at the top of its arc a 120 ms interval moves
+       * the card under a pixel while it still has 300 px to travel — so the
+       * two-frame form kept returning mid-flight values (838, 809) and the
+       * contract failed against noise on the WIDE profiles, where the entrance
+       * travels furthest. Measured directly at 4K: the wrap reads 533×666 at
+       * +0/+1200/+2500 ms after this returns, and 533×666 again in the committed
+       * stage — the card is genuinely still; only the sampler was not.
+       * Three consecutive agreements (~360 ms) clear the pause and stay well
+       * inside the same budget.
        */
       const settledHeroBox = async () => {
         const box = page.locator('.con-composer__actcardwrap');
         let prev = await box.boundingBox();
+        let stable = 0;
         for (let i = 0; i < 40; i++) {
           await page.waitForTimeout(120);
           const next = await box.boundingBox();
           if (prev !== null && next !== null &&
               Math.abs(next.x - prev.x) <= 1 && Math.abs(next.y - prev.y) <= 1 &&
               Math.abs(next.width - prev.width) <= 1) {
-            return next;
+            stable++;
+            if (stable >= 3) {
+              return next;
+            }
+          } else {
+            stable = 0;
           }
           prev = next;
         }

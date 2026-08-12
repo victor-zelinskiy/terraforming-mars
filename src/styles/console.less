@@ -21769,7 +21769,10 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
 
 /* Handheld (Steam Deck) — tighter composer chrome. */
 html.con-profile-handheld .con-composer {
-    &:not(.con-composer--embed):not(.con-composer--colonystep) .con-composer__panel { width: min(38rem, 100%); }
+    /* The standalone dialog's cap — see the note in console_tv.less, incl. why
+       `--stage` is exempt (its own `width: 100%` is (0,3,1) and loses to this
+       selector, so the in-frame action stage was capped like a dialog). */
+    &:not(.con-composer--embed):not(.con-composer--colonystep):not(.con-composer--stage) .con-composer__panel { width: min(38rem, 100%); }
     .con-composer__panel { padding: .7rem .8rem .5rem; gap: .4rem; }
     &:not(.con-composer--embed):not(.con-composer--colonystep) .con-composer__panel--play { width: min(58rem, 100%); }
     .con-composer__playmain { gap: .7rem; }
@@ -21842,8 +21845,10 @@ html.con-profile-handheld .con-composer--embed {
 /* Large / 4K — a gentle readability boost only. */
 html.con-profile-large .con-composer {
     /* The standalone dialog's cap — see the note in console_tv.less. An
-       EMBEDDED composer takes its host's width. */
-    &:not(.con-composer--embed):not(.con-composer--colonystep) .con-composer__panel { width: min(52rem, 100%); }
+       EMBEDDED composer takes its host's width, and so does the in-frame
+       action STAGE (whose own `width: 100%` below is out-specified by this
+       selector unless it is exempt here). */
+    &:not(.con-composer--embed):not(.con-composer--colonystep):not(.con-composer--stage) .con-composer__panel { width: min(52rem, 100%); }
     .con-composer__name { font-size: 1.65rem; }
     .con-composer__opt-name { font-size: 1.05rem; }
     .con-composer__foot-item { font-size: 1rem; }
