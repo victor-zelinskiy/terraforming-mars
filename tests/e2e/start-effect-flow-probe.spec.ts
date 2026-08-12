@@ -1,6 +1,10 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {
+  openConsole, pickCards, playQueueCard, playQueueUntil, submitSummary,
+  takeRevealCards, walkToSummary,
+} from './consoleStart';
 
 /**
  * THE START EFFECT FLOW probe — a corporation and two preludes whose play
@@ -45,60 +49,11 @@ function newGameConfig() {
   };
 }
 
-async function key(page: Page, code: string, settleMs = 700): Promise<void> {
-  await page.keyboard.press(code);
-  await page.waitForTimeout(settleMs);
-}
-
 async function shoot(page: Page, name: string): Promise<void> {
   fs.mkdirSync(OUT_DIR, {recursive: true});
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
-async function activeSubject(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const el = document.querySelector('.con-wshead__layer--deep .con-wshead__subject');
-    return (el?.textContent ?? '').trim().toLowerCase();
-  });
-}
-
-/** The focused card's name from the pinned status rail (wizard + ceremony). */
-async function focusedName(page: Page): Promise<string> {
-  return page.evaluate(() =>
-    (document.querySelector('.con-start__status-name')?.textContent ?? '').trim());
-}
-
-/**
- * Toggle the picks whose names match `targets` on the current wizard step.
- * The walk is name-driven and wraps around the row (a step deals its cards in
- * server order, so the targets can sit anywhere), and it never presses A on a
- * card it already picked — `seen` keys on the focused name.
- */
-async function pickByName(page: Page, targets: Array<Array<string>>, maxMoves = 18): Promise<number> {
-  const hit = new Set<number>();
-  for (let i = 0; i < maxMoves && hit.size < targets.length; i++) {
-    const name = (await focusedName(page)).toLowerCase();
-    const idx = targets.findIndex((alts) => alts.some((t) => name.includes(t.toLowerCase())));
-    if (idx >= 0 && !hit.has(idx)) {
-      await key(page, 'Enter', 550);
-      hit.add(idx);
-    }
-    if (hit.size < targets.length) {
-      await key(page, 'ArrowRight', 300);
-    }
-  }
-  if (hit.size < targets.length) {
-    console.warn(`[pick] missing ${targets.filter((_t, i) => !hit.has(i)).map((a) => a[0]).join(', ')}`);
-  }
-  return hit.size;
-}
-
-type Frame = {
-  t: number,
-  queuePainted: boolean, queueOp: number,
-  revealUp: boolean, colUp: boolean,
-  dockFaceUp: boolean, embed: boolean,
-};
 
 test.describe('start effect flow · interactive draw is ONE play animation', () => {
   test.use({viewport: {width: 1920, height: 1080}});
@@ -111,39 +66,27 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
     expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
     const model = await created.json() as {players: Array<{id: string}>};
 
-    await page.goto(`/player?id=${model.players[0].id}&console=1`);
-    await page.waitForSelector('.con-start__frame', {timeout: 45_000});
-    await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
-    await page.waitForTimeout(3500);
+    await openConsole(page, model.players[0].id);
 
     // ── The wizard walk: Pharmacy Union + [SF Memorial, Biolab] + 0 projects.
-    for (let round = 0; round < 14; round++) {
-      const summaryUp = await page.locator('.con-start > .con-start__frame .con-start__summary').isVisible().catch(() => false);
-      if (summaryUp) {
-        break;
-      }
-      await page.waitForSelector('.con-start__status-inner:not(.con-start__status-inner--held)', {timeout: 25_000});
-      await page.waitForTimeout(350);
-      const subject = await activeSubject(page);
-      if (subject.includes('корпорац')) {
-        expect(await pickByName(page, [['Pharmacy']]), 'picked Pharmacy Union').toBe(1);
-        await key(page, 'Period', 1500);
-      } else if (subject.includes('пролог')) {
-        expect(await pickByName(page, [['Мемориал', 'SF Memorial'], ['Биолаборатор', 'Biolab']]), 'picked both draw preludes').toBe(2);
-        await key(page, 'Period', 1500);
-      } else if (subject.includes('проект')) {
-        await key(page, 'Period', 1500); // buy nothing
-      } else {
-        await key(page, 'Enter', 800);
-      }
-    }
-    await expect(page.locator('.con-start > .con-start__frame .con-start__summary')).toBeVisible();
-    await page.waitForTimeout(500);
-    // Zero projects: arm the warning, then submit (press-verify-retry).
-    for (let i = 0; i < 5 && (await page.locator('.con-start__skipwarn').count()) === 0; i++) {
-      await key(page, 'Enter', 700);
-    }
-    await key(page, 'Enter', 1200);
+    //    Through the SHARED driver, whose picks key on the ENGLISH CardName the
+    //    slot carries (`data-zoom-slot`). The hand-rolled walk this replaced
+    //    matched the RU LABEL, so it silently picked nothing and failed three
+    //    screens before its own subject — the exact rot `consoleStart.ts` exists
+    //    to prevent («fix it HERE, once»).
+    await walkToSummary(page, {
+      onStep: async (p, kind) => {
+        if (kind === 'corporation') {
+          expect(await pickCards(p, ['Pharmacy Union']), 'the corp deal held Pharmacy Union')
+            .toContain('Pharmacy Union');
+        } else if (kind === 'prelude') {
+          expect((await pickCards(p, ['SF Memorial', 'Biolab'])).sort(), 'both draw preludes')
+            .toEqual(['Biolab', 'SF Memorial']);
+        }
+        // projects: buy nothing.
+      },
+    });
+    await submitSummary(page);
 
     // ── The deployment stands (materialization settles).
     await page.waitForSelector('.con-start__queue [data-queue-slot]', {timeout: 30_000});
@@ -151,8 +94,8 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
 
     // THE PER-FRAME WITNESS for the whole three-effect sequence.
     await page.evaluate(() => {
-      const w = window as unknown as {__flowWatch: {frames: Array<unknown>, ghost: number, early: number, standalone: number}};
-      const state = {frames: [] as Array<unknown>, ghost: 0, early: 0, standalone: 0};
+      const w = window as unknown as {__flowWatch: {frames: Array<unknown>, ghost: number, early: number, standalone: number, zoom: number}};
+      const state = {frames: [] as Array<unknown>, ghost: 0, early: 0, standalone: 0, zoom: 0};
       w.__flowWatch = state;
       const t0 = performance.now();
       const vis = (el: Element | null): boolean =>
@@ -176,13 +119,22 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
         // embed source) — visible DURING the reveal = the premature dock.
         const away = document.querySelector<HTMLElement>('.con-start__played [data-played-key] .con-splayed__face');
         const dockFaceUp = vis(away);
-        state.frames.push({t, queueOp, revealUp, colUp, dockFaceUp, intakeUp,
+        // The FULLSCREEN VIEWER. Nobody presses X in this run, and a card a
+        // workspace owns is never presented headless — so the viewer opening
+        // at all means the reveal fell back to «the fullscreen IS the reveal».
+        // SF Memorial draws exactly ONE card, and its take is the seam that
+        // used to trip it: the claim is released while the batch is still up.
+        const zoomUp = document.querySelector('dialog.con-zoom[open]') !== null;
+        state.frames.push({t, queueOp, revealUp, colUp, dockFaceUp, intakeUp, zoomUp, inEmbed,
           strip: document.querySelectorAll('.con-reveal__strip .con-cards__slot').length});
         if (revealUp && queue !== null && queueOp > 0.1 && vis(queue)) {
           state.ghost++; // the old scene ghosting under the reveal
         }
         if (revealUp && !inEmbed) {
           state.standalone++; // the reveal escaped the workspace zone
+        }
+        if (zoomUp) {
+          state.zoom++;
         }
         if (performance.now() - t0 < 120_000) {
           requestAnimationFrame(tick);
@@ -192,8 +144,8 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
     });
 
     // ── EFFECT 1 · the corporation (Pharmacy Union — reveal 1 science card).
-    await expect.poll(() => focusedName(page), {timeout: 15_000}).toContain('Pharmacy');
-    await key(page, 'Enter', 1000); // РАЗЫГРАТЬ
+    expect(await playQueueUntil(page, 'Pharmacy Union'), 'the corp stands in the queue').toBeTruthy();
+    expect(await playQueueCard(page, 'Pharmacy Union'), 'the corp was played').toBeTruthy();
     await shoot(page, '01-corp-departing');
     // The embedded reveal must present INSIDE the workspace zone.
     await page.waitForSelector('.con-start__embed .con-reveal', {timeout: 30_000});
@@ -201,10 +153,8 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
     await shoot(page, '02-corp-reveal');
     // The source card presides over the effect from its seat.
     await expect(page.locator('[data-embed-source-slot]')).toBeVisible();
-    // Take the revealed card (A on the focused take CTA), wait the intake out.
-    for (let i = 0; i < 8 && (await page.locator('.con-start__embed .con-reveal').isVisible().catch(() => false)); i++) {
-      await key(page, 'Enter', 1700);
-    }
+    // Take the revealed card (A per card; the last one closes the reveal).
+    await takeRevealCards(page);
     // The return: queue back, then the card continues into «РАЗЫГРАНО».
     await expect(page.locator('.con-start__embed .con-reveal')).toBeHidden({timeout: 25_000});
     await expect.poll(() => page.evaluate(() => {
@@ -217,16 +167,15 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
     }), {timeout: 20_000}).toBeTruthy();
     await shoot(page, '03-corp-docked');
 
-    // ── EFFECT 2 + 3 · the preludes (SF Memorial ×1, Biolab ×3), in queue order.
-    for (let n = 0; n < 2; n++) {
-      await page.waitForTimeout(1200);
-      await key(page, 'Enter', 1000); // РАЗЫГРАТЬ the focused prelude
+    // ── EFFECT 2 + 3 · the preludes. SF MEMORIAL DRAWS EXACTLY ONE CARD — the
+    //    single-card case whose take used to hand the departing card to the
+    //    fullscreen viewer; Biolab's three exercise the multi-card strip.
+    for (const prelude of ['SF Memorial', 'Biolab']) {
+      expect(await playQueueCard(page, prelude), `${prelude} was played`).toBeTruthy();
       await page.waitForSelector('.con-start__embed .con-reveal', {timeout: 30_000});
       await page.waitForTimeout(700);
-      await shoot(page, `0${4 + n}-prelude${n + 1}-reveal`);
-      for (let i = 0; i < 10 && (await page.locator('.con-start__embed .con-reveal').isVisible().catch(() => false)); i++) {
-        await key(page, 'Enter', 1700);
-      }
+      await shoot(page, `04-${prelude.replace(/\s+/g, '-').toLowerCase()}-reveal`);
+      await takeRevealCards(page);
       await expect(page.locator('.con-start__embed .con-reveal')).toBeHidden({timeout: 30_000});
       await expect.poll(() => page.evaluate(() => {
         const q = document.querySelector<HTMLElement>('.con-start__queue');
@@ -239,15 +188,26 @@ test.describe('start effect flow · interactive draw is ONE play animation', () 
     // ── THE WITNESS VERDICT.
     const watch = await page.evaluate(() => (window as unknown as {
       __flowWatch: {frames: Array<{t: number, queueOp: number, revealUp: boolean, colUp: boolean,
-        dockFaceUp: boolean, intakeUp: boolean, strip: number}>,
-        ghost: number, standalone: number}}).__flowWatch);
+        dockFaceUp: boolean, intakeUp: boolean, zoomUp: boolean, inEmbed: boolean, strip: number}>,
+        ghost: number, standalone: number, zoom: number}}).__flowWatch);
     const frames = watch.frames;
-    console.log(`[flow-watch] frames=${frames.length} ghost=${watch.ghost} standalone=${watch.standalone}`);
+    console.log(`[flow-watch] frames=${frames.length} ghost=${watch.ghost} standalone=${watch.standalone} zoom=${watch.zoom}`);
+    if (watch.standalone > 0) {
+      console.log(`[flow-watch] standalone at ${frames.filter((f) => f.revealUp && !f.inEmbed).map((f) => f.t).join(', ')} ms`);
+    }
 
     // 1 · The reveal NEVER floats over a ghosted queue (the modal feel).
     expect(watch.ghost, 'reveal presented over a still-painted queue').toBe(0);
-    // 2 · The reveal never presented OUTSIDE the workspace embed zone.
+    // 2 · The reveal never presented OUTSIDE the workspace embed zone — INCLUDING
+    //     its closing tick: when the take folds the workspace the surface loses
+    //     its teleport zone, and a reveal that still renders there re-dresses as
+    //     the standalone band over the board (`drawnRevealDetached`).
     expect(watch.standalone, 'reveal escaped the workspace zone').toBe(0);
+    // 2b · …and never handed the card to the FULLSCREEN VIEWER. A workspace
+    //      owns what it produced; the viewer is X's job, never a take's. The
+    //      one-card prelude (SF Memorial) used to throw the player fullscreen
+    //      the moment «A Взять карту» released the claim.
+    expect(watch.zoom, 'the fullscreen viewer opened on its own during the start effects').toBe(0);
     // 3 · While a reveal was up, the source card stood in its seat…
     const revealFrames = frames.filter((f) => f.revealUp);
     expect(revealFrames.length, 'the reveal actually presented').toBeGreaterThan(5);

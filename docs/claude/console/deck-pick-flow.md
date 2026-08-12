@@ -246,6 +246,39 @@ workspace claim can match. The one board source that IS a colony (Pluto's build
 bonus) is carved out by asking the bonus scene itself
 (`boardCardBonusClaimsReveal`).
 
+### …and the claim ENDS AT THE TAKE (2026-08-12)
+
+The claim answers the RISING edge honestly, and it was still read live — so the
+same question got a different answer on the way out. `takeFocused`'s intake
+stages its proxies, `commit()` marks the card taken and HOLDS the batch on
+screen (`holdRevealForFollowUp`), `onStaged` emits `result-detached`, and the
+shell releases the claim and folds the workspace — all in ONE synchronous block,
+a `$nextTick` before the batch is dismissed. In that window a one-card embedded
+reveal is no longer owned by anybody, flips to headless, and headless means
+exactly one thing: open the viewer. Pressing «A Взять карту» on a prelude's
+single drawn card threw the player into a `mandatory: true` full-bleed viewer of
+the card that was at that moment flying into their hand.
+
+**The presentation is decided ONCE PER BATCH and only ever hardens.**
+`ConsoleRevealOverlay.ownedBatchKey` latches the `revealKey` the moment a
+workspace owns the batch (the rising edge is at or before mount, since the claim
+is live from submit time) and the decision reads *live OR latched* — so no
+watcher ordering is load-bearing at the falling edge, and a claim that lands LATE
+still flips the live term first (the deliberate «claim after an open» path in
+`singleCardNeedsFullscreen` keeps working). The decision itself is pure and
+spec'd: `consoleRevealPresentation.ts` (`drawnRevealHeadless` /
+`drawnRevealViewerOpens`) — the component cannot be unit-mounted, since its
+static `Card` import loads a webpack chunk mochapack cannot, which silently
+zeroes the whole spec file.
+
+Second, independent guard in the same decision: **the viewer never opens for a
+batch with nothing left to take.** It is opened around a take bridge, so a card
+already gone leaves the only way out a take that no-ops.
+
+E2E: `tests/e2e/start-effect-flow-probe.spec.ts` witnesses `dialog.con-zoom[open]`
+per frame across the whole start-effect sequence (SF Memorial draws exactly one
+card) and asserts it never opened — nobody presses X in that run.
+
 ## Iteration 3 — the production polish pass (2026-08-09)
 
 Eight reports, and they resolved into five root causes. Recorded because four

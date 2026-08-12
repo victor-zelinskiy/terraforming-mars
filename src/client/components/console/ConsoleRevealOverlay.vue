@@ -507,6 +507,9 @@ import {
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 import {revealWaveForIndex} from '@/client/console/colonyTrade/colonyTradeModel';
 import {setRevealVeilSuppressed} from '@/client/console/surfaceMotion/surfaceMotionState';
+import {
+  DrawnRevealPresentationCtx, drawnRevealDetached, drawnRevealHeadless, drawnRevealViewerOpens,
+} from '@/client/console/consoleRevealPresentation';
 
 /** The scene phases during which the reveal frame stays fully veiled. */
 const BONUS_PRE_FRAME_PHASES: ReadonlySet<string> = new Set(['lift', 'hover', 'gather', 'fan']);
@@ -603,6 +606,29 @@ export default defineComponent({
        * to keep the card face-down) and the batch commits at that same seam.
        */
       turnedIdx: undefined as number | undefined,
+      /**
+       * THE BATCH THIS SURFACE HAS SEEN A WORKSPACE OWN (`revealKey`; '' = none).
+       *
+       * Ownership is a LIVE claim — and the claim ENDS AT THE TAKE. The last
+       * card's intake stages its proxies, `result-detached` fires, the shell
+       * releases the claim and folds the workspace, all inside ONE synchronous
+       * block — while this surface is still mounted over a batch that is only
+       * dismissed a tick later (`holdRevealForFollowUp` + the `$nextTick` in
+       * `takeFocused`). Re-deriving the presentation from the live claim inside
+       * that window flips a one-card embedded reveal to HEADLESS, and headless
+       * means exactly one thing: auto-open the fullscreen viewer. So pressing
+       * «A Взять карту» threw the player into a full-bleed viewer of the very
+       * card that was at that moment flying into their hand — a viewer opened
+       * `mandatory: true`, over a surface about to unmount.
+       *
+       * So the mode is decided ONCE PER BATCH and only ever HARDENS: the latch
+       * is written on the RISING edge (the claim is live from submit time, so
+       * that is at or before mount) and read on the falling one — no watcher
+       * ordering is load-bearing. A new batch re-stamps it, and a claim that
+       * lands LATE still flips the live term first, so the deliberate
+       * «claim after an open» path in `singleCardNeedsFullscreen` keeps working.
+       */
+      ownedBatchKey: '',
       /**
        * The SHARED stage layout (consoleWsStageLayout) for the embedded strip
        * — the same size / gap / row-shape source the buy pick uses, so
@@ -748,49 +774,57 @@ export default defineComponent({
       return undefined;
     },
     /**
-     * SINGLE-CARD mode — keyed on the batch's TOTAL card count (stable; it
+     * A WORKSPACE OWNS THIS BATCH, right now. Lifted out of `singleCardMode`
+     * because the answer also has to be LATCHED for the batch's life — see
+     * `ownedBatchKey` for why a live read alone is a bug.
+     */
+    workspaceOwnsBatch(): boolean {
+      const src = this.drawnEvent?.source;
+      const claimed = (workspaceClaimsDrawReveal(src) || workspaceClaimsColonyReveal(src)) &&
+        !boardCardBonusClaimsReveal(src);
+      return this.embedded || claimed;
+    },
+    /** The batch identity to LATCH, or '' while nothing owns this one. */
+    workspaceOwnedStamp(): string {
+      return this.workspaceOwnsBatch ? this.revealKey : '';
+    },
+    /**
+     * WHAT THIS HOST KNOWS about the batch — the input of the ONE presentation
+     * decision (`consoleRevealPresentation`, pure and spec'd there).
+     *
+     * ⚠️ OWNERSHIP, not readiness, and LIVE **or** LATCHED. `embedded` is
+     * derived from the embed SLOT existing, and the slot is published
+     * `flush: 'post'` — so for the frames between the claim and the host's
+     * mount `embedded` is false while the card is unambiguously the
+     * workspace's, and `mounted()` fires in exactly that window. The CLAIM is
+     * the honest answer there, and it is live from submit time. At the other
+     * end of the flow the claim is RELEASED before the batch is dismissed,
+     * which is what `ownedBatchKey` covers.
+     *
+     * The BOARD lift still goes fullscreen, by construction rather than by a
+     * flag: a cover lifted off a cell carries `{type:'tile'}` /
+     * `{type:'globalParameter'}`, which no workspace claim can match — and the
+     * one board source that IS a colony (Pluto's build bonus) is carved out by
+     * asking the bonus scene itself (see `workspaceOwnsBatch`).
+     */
+    revealPresentationCtx(): DrawnRevealPresentationCtx {
+      const e = this.mode === 'drawn' ? this.drawnEvent : undefined;
+      return {
+        cardCount: e?.cards.length ?? 0,
+        untakenCount: this.drawnUntaken.length,
+        ownedNow: this.workspaceOwnsBatch,
+        ownedEver: this.ownedBatchKey !== '' && this.ownedBatchKey === this.revealKey,
+        hasClosingStep: this.bonusDiscard !== undefined,
+      };
+    },
+    /**
+     * SINGLE-CARD mode — the headless presentation: the received card IS the
+     * fullscreen viewer. Keyed on the batch's TOTAL card count (stable; it
      * never shrinks as cards are taken), so a multi-card batch taken down to
      * one still stays multi (never a jarring mid-session mode flip).
      */
     singleCardMode(): boolean {
-      // A colony-bonus discard is CLOSED inside this modal (see bonusDiscard), so
-      // even a one-card payout keeps the real modal — the headless fullscreen has
-      // nowhere to host the mandatory step. This is the 1-cube foreign-trade case:
-      // one bonus card, then discard one.
-      if (this.bonusDiscard !== undefined) {
-        return false;
-      }
-      // A WORKSPACE OWNS THIS CARD: never headless. The headless path exists
-      // because a lone received card has no context worth framing — the
-      // fullscreen viewer IS the reveal. Inside a workspace the opposite is
-      // true: the card's whole meaning is that THIS action produced it, and
-      // that context is on screen around it. Throwing the player into a
-      // full-bleed viewer would be the exact "suddenly a different interface"
-      // break the embedding removes, so the card lands in the workspace's own
-      // slot and flips there. X still opens the fullscreen deliberately.
-      //
-      // ⚠️ OWNERSHIP, not readiness. `embedded` is derived from the embed SLOT
-      // existing, and the slot is published `flush: 'post'` — so for the frames
-      // between the claim and the host's mount `embedded` is false while the
-      // card is unambiguously the workspace's. `mounted()` fires in exactly
-      // that window, and it opens the viewer `mandatory: true`, which nothing
-      // later retracts: the player was thrown fullscreen out of a workspace
-      // that was still unfolding around them. The CLAIM is the honest answer,
-      // and it is live from submit time.
-      //
-      // The BOARD lift still goes fullscreen, by construction rather than by a
-      // flag: a cover lifted off a cell carries `{type:'tile'}` /
-      // `{type:'globalParameter'}`, which no workspace claim can match — and
-      // the one board source that IS a colony (Pluto's build bonus) is carved
-      // out by asking the bonus scene itself.
-      const src = this.drawnEvent?.source;
-      const ownedByWorkspace =
-        (workspaceClaimsDrawReveal(src) || workspaceClaimsColonyReveal(src)) &&
-        !boardCardBonusClaimsReveal(src);
-      if (this.embedded || ownedByWorkspace) {
-        return false;
-      }
-      return this.mode === 'drawn' && this.drawnEvent !== undefined && this.drawnEvent.cards.length === 1;
+      return drawnRevealHeadless(this.revealPresentationCtx);
     },
     /**
      * THE PAYOUT ISN'T FINISHED: this trade's colony bonus pays "draw N, then
@@ -849,9 +883,16 @@ export default defineComponent({
     singleCard(): CardModel | undefined {
       return this.singleCardMode ? this.drawnEvent?.cards[0] : undefined;
     },
-    /** In single-card mode the modal is headless — the fullscreen IS the reveal. */
+    /**
+     * NOTHING RENDERS HERE. Two different reasons, one root state:
+     *  · single-card mode — the fullscreen viewer IS the reveal;
+     *  · DETACHED — the batch is finished and its host has let go (the closing
+     *    tick of every embedded take). Without this the surface loses its zone,
+     *    re-dresses as the standalone band and presents — and animates out —
+     *    over the board for a few frames, outside the workspace it belonged to.
+     */
     headless(): boolean {
-      return this.singleCardMode;
+      return this.singleCardMode || drawnRevealDetached(this.revealPresentationCtx);
     },
     /**
      * The single-card reveal SHOULD be showing its fullscreen but isn't (the
@@ -861,11 +902,13 @@ export default defineComponent({
      * then opens off the arrived cover (a physical origin), never over it.
      */
     singleCardNeedsFullscreen(): boolean {
-      // `singleCardMode` already carries the workspace-ownership carve-out, and
-      // it is a computed — so a claim that lands AFTER an open flips this back
-      // to false and the watcher stops re-opening. That is the whole reason the
-      // check lives up there rather than being duplicated here.
-      return this.singleCardMode && consoleCardZoom.card === undefined &&
+      // `drawnRevealViewerOpens` already carries the workspace-ownership
+      // carve-out AND the «nothing left to take» one, and it is read through a
+      // computed — so a claim that lands AFTER an open flips this back to false
+      // and the watcher stops re-opening. That is the whole reason the check
+      // lives in the shared decision rather than being duplicated here.
+      return drawnRevealViewerOpens(this.revealPresentationCtx) &&
+        consoleCardZoom.card === undefined &&
         !bonusHoldingSingleZoom(this.drawnEvent?.id) &&
         !deckDrawHoldingSingleZoom(this.drawnEvent?.id) &&
         !colonyTradeHoldingSingleZoom(this.drawnEvent?.id);
@@ -1106,6 +1149,21 @@ export default defineComponent({
     },
   },
   watch: {
+    /*
+     * LATCH the workspace ownership for this batch (see `ownedBatchKey`).
+     * `immediate` because the rising edge is at or before mount — the claim is
+     * live from submit time — and that is precisely what makes the latch
+     * ordering-free at the falling edge, which is the frame that used to open
+     * a fullscreen viewer over a card already flying to the dock.
+     */
+    workspaceOwnedStamp: {
+      immediate: true,
+      handler(stamp: string): void {
+        if (stamp !== '') {
+          this.ownedBatchKey = stamp;
+        }
+      },
+    },
     /*
      * ARM THE TURN. Re-armed per colony (`activeBonusKey`), and only once the
      * card is on a modal the player can see (`bonusFlipAllowed`). The
