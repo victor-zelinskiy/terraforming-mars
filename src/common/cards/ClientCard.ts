@@ -26,4 +26,19 @@ export type ClientCard = Readonly<{
   cardCost?: number; // Corporation
   compatibility: Array<Expansion>;
   hasAction: boolean; // For Prelude 2 preludes with actions. Can be used for more, of course.
+  /**
+   * This CORPORATION owes a MANDATORY FIRST ACTION when it is played.
+   *
+   * Generated from the card's own declaration under EXACTLY the condition
+   * `Player.playCorporationCard` uses to fill `pendingInitialActions`
+   * (`initialAction !== undefined && initialActionText !== undefined`), so
+   * the client's answer can never disagree with the server's ledger.
+   *
+   * It exists because the ledger only fills at PLAY time, while the console's
+   * start flow must name its stages BEFORE the deployment runs — a chapter
+   * that pops into the journey rail when the corporation lands reads as the
+   * flow changing its mind. (A merger's second corporation is genuinely
+   * unknown until it is chosen, and stays a dynamic addition.)
+   */
+  hasFirstAction?: boolean;
 }>

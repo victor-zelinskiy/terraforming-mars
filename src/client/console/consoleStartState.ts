@@ -120,6 +120,31 @@ export const consoleStartState = reactive({
    * deployment's own prompt gaps must not undo it).
    */
   deploymentBegun: false,
+  /**
+   * THE FIRST-ACTION STAGE (the deployment's conditional last stage).
+   *
+   * MODULE state, not the scene's `data()`: the workspace UNMOUNTS when the
+   * player collapses it (`workspaceFrameMounted` counts live frames only, and
+   * a collapse PARKS the frame), so a stage machine living in the component
+   * resets on every restore — the stage re-entered from scratch, replaying
+   * the corporation's rise and the room's recede, which is exactly the
+   * «РАЗЫГРАНО melькает» flash on restore. Everything that must survive the
+   * collapse lives here, beside the picks and the lifetime hold.
+   *  · 'idle'       — no stage;
+   *  · 'staging'    — the corp card is rising into the source seat;
+   *  · 'standing'   — the briefing stands (waiting for the turn, or live);
+   *  · 'performing' — submitted; the action's own follow-ups are running;
+   *  · 'leaving'    — the chain resolved; the card settles home.
+   */
+  firstAct: {
+    stage: 'idle' as 'idle' | 'staging' | 'standing' | 'performing' | 'leaving',
+    corp: undefined as CardName | undefined,
+    /** The submit is on the wire — the one anti-double-press latch. */
+    submitting: false,
+  },
+  /** The stage has stood at least once this game — keeps its journey chapter
+   *  visible (completed) after the action resolves. */
+  firstActionSeen: false,
 });
 
 /** Reset picks when the prompt identity (player / deal) changes. */
@@ -149,6 +174,8 @@ export function ensureStartWizard(
   // an earlier game (rematch) must never leak into this one's preparation.
   consoleStartState.hold = false;
   consoleStartState.deploymentBegun = false;
+  consoleStartState.firstAct = {stage: 'idle', corp: undefined, submitting: false};
+  consoleStartState.firstActionSeen = false;
   resetStartTransition();
 }
 

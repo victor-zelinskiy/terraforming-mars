@@ -81,9 +81,18 @@ class CardProcessor {
     if (isPreludeCard(card)) {
       startingMegaCredits = card.startingMegaCredits;
     }
+    let hasFirstAction: boolean | undefined = undefined;
     if (isICorporationCard(card)) {
       startingMegaCredits = card.startingMegaCredits;
       cardCost = card.cardCost;
+      // EXACTLY the condition `Player.playCorporationCard` uses to fill
+      // `pendingInitialActions` — the console's start flow names its stages
+      // before the deployment runs, and it must not disagree with the ledger
+      // that will actually be filled. (The declarative `firstAction` Behavior
+      // is turned into this pair by `Card`, so one test covers both forms.)
+      if (card.initialAction !== undefined && card.initialActionText !== undefined) {
+        hasFirstAction = true;
+      }
     }
 
     const production = card.behavior?.production;
@@ -110,6 +119,10 @@ class CardProcessor {
       compatibility: [],
       hasAction: isIActionCard(card),
     };
+
+    if (hasFirstAction === true) {
+      clientCard.hasFirstAction = true;
+    }
 
     if (card.requirements) {
       clientCard.requirements = card.requirements;

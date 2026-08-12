@@ -16999,6 +16999,13 @@ body.con-start-barshold .con-status {
        never a page title (a second big heading is what read as a modal). */
     &__embed .con-ws-stage-title { font-size: .95rem; letter-spacing: .1em; }
 
+    /* A RESTORED first-action stage: the room is already away, and it must
+       not paint for the frames between the remount and the pose landing
+       (`visibility`, so every rect stays measurable — the seat's return
+       flight aims at this shelf). Dropped the moment the pose is applied. */
+    &--roomheld &__queuecol,
+    &--roomheld .con-splayed { visibility: hidden; }
+
     /* ── THE FIRST-ACTION BRIEFING — the stage's own surface ──────────────
        Stands beside the seated corporation card (the source seat reserves the
        left edge), reads as a calm plate of the SAME workspace — never a modal:

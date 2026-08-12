@@ -132,6 +132,46 @@ signals can never read as «the chain is over». The latch resets on
 `yielded` prop covers it for free — `deploymentSettled`, the stage's entry
 and leave predicates all already gate on `yielded`.
 
+## THE ROOM IS ONE DERIVED BIT (`firstActionOwnsRoom`)
+
+The briefing beats (`staging` / `standing`) recede the deployment's queue and
+«РАЗЫГРАНО»; every other stage state hands them back. It is ONE computed with
+ONE watcher — never a release at the entry plus a return on some specific
+prompt-watcher, which is what shipped first and broke Valley Trust: the
+return's watcher carried a `stage === 'performing'` guard and fired BEFORE
+the flush that set that stage, so the room stayed away. The drawn preludes
+were then dealt into a receded queue (no visible deal at all) and the chosen
+prelude had no measurable shelf to fly to, so it committed in one frame —
+both reported as «без анимации».
+
+Two rules the bit encodes: **`performing` gives the room BACK** (the action's
+own follow-ups are what need it — the candidates are dealt INTO the queue and
+the pick flies to the shelf), and **it never becomes a second writer** — an
+embedded reveal claimed by the action recedes/returns the room in the claim's
+own phrase, so the bit yields to `embedActive` on both edges. A deal also
+never measures a travelling surface: `launchDeal` re-arms while `roomSettling`.
+
+## THE STAGE MACHINE LIVES IN MODULE STATE
+
+`consoleStartState.firstAct` (+ `firstActionSeen`), not the scene's `data()`:
+a collapse PARKS the frame and `workspaceFrameMounted` counts live frames
+only, so the workspace UNMOUNTS — a component-local machine reset on every
+restore and re-entered the stage from scratch, replaying the corporation's
+rise and the room's recede («РАЗЫГРАНО показывается и сразу исчезает»). On
+remount the scene only re-establishes the SEAT and applies the receded pose
+INSTANTLY (`poseRoomReceded`), with `.con-start--roomheld` hiding the room by
+class until that pose lands, so not even one frame paints.
+
+## THE JOURNEY KNOWS ITS SHAPE UP FRONT
+
+`ClientCard.hasFirstAction` — generated in `export_card_rendering.ts` under
+exactly the condition `Player.playCorporationCard` uses to fill the ledger
+(`initialAction !== undefined && initialActionText !== undefined`; 33 corps
+today). The chapter is therefore in the rail from the first frame of the
+deployment for the corporation the player CHOSE, instead of popping in when
+the corp lands. Only a MERGER's second corporation — genuinely unknown until
+picked — still joins dynamically, with the `--arrived` beat.
+
 ## Two defects the stage exposed in surfaces around it
 
 **① The journey rail ate its last stage.** `.con-jrail`'s width is BOTH a
