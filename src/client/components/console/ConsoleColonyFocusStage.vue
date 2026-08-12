@@ -674,7 +674,7 @@ import {
 } from '@/client/components/colonies/colonyTradePlan';
 import {presentedColonyModel, colonyTradeState, setColonyStageYielded} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {colonyBonusEntry, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
+import {colonyBonusEntry, colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
 import {cardColonyTradeCard, lockedTradePaymentIndex} from '@/client/console/colonyTrade/colonyTradeEntry';
 import {cardDiscardColonyBonus} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
@@ -771,6 +771,9 @@ export default defineComponent({
       workspaceOutcomeState,
       /** The remote-entry context (module reactive, mirrored for tracking). */
       bonusEntry: colonyBonusEntry,
+      /** The resolution's presentation facts — the payout LIFT-OFF cue lives
+       *  here (a module reactive must be mirrored in `data()` to be tracked). */
+      resolutionUi: colonyResolutionUi,
       /** ONE-SHOT: the outcome handoff (config release + zone unfold) has
        *  played for the current claim — drives the `--handing` pose too, so
        *  the CSS dissolve can never run ahead of the phrase. */
@@ -834,7 +837,20 @@ export default defineComponent({
       }
       const bonusWave = revealIsOwnerBonus(currentRevealEvent()?.source) ||
         cardDiscardColonyBonus() !== undefined;
-      return {roleKey: bonusWave ? 'Owner bonus' : 'Trade reward', bonus: bonusWave, traderColor: '', traderLine: ''};
+      if (bonusWave) {
+        return {roleKey: 'Owner bonus', bonus: true, traderColor: '', traderLine: ''};
+      }
+      // A BUILD's payout is the PLACEMENT bonus, not trade income. Keyed on the
+      // stage's own intent rather than on the build transaction, which ends at
+      // the commit while its cards are still on the table — the label would
+      // otherwise turn into «Торговая награда» halfway through a payout no
+      // trade produced. (Only readable at all since the stage now stays up
+      // through the flight, which is exactly when the player reads it.)
+      const build = this.intent === 'build';
+      return {
+        roleKey: build ? 'Colony placement bonus' : 'Trade reward',
+        bonus: false, traderColor: '', traderLine: '',
+      };
     },
     /**
      * What the SOURCE chip actually shows: the live context, or — past the
@@ -861,6 +877,16 @@ export default defineComponent({
     outcomeHandoffDue(): boolean {
       if (!this.outcomeZone) {
         return false;
+      }
+      // THE CARDS ARE ON THE MOVE — the one fact every cover scene raises
+      // (`colonyResolutionUi.payoutLiftOff`): the trade's covers at their
+      // separation, the build's cover-lift when its proxies take over. The
+      // stage dissolves WITH them, over the whole rise-and-turn, which is what
+      // makes the departure one phrase instead of a cut. Per-scene phase
+      // reads are deliberately gone: the build path had none, so its stage
+      // could only let go once the cards had already landed.
+      if (this.resolutionUi.payoutLiftOff) {
+        return true;
       }
       if (this.colonyTradeState.active &&
           this.colonyTradeState.colonyName === this.colony.name &&

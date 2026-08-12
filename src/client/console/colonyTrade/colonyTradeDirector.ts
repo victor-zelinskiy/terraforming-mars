@@ -71,15 +71,14 @@ export function runTradeCoverFlight(args: {
   fanIndex: number,
   fanCount: number,
   reduced: boolean,
-  /**
-   * Deliver the card FACE DOWN — the colony-bonus cover does not turn in the
-   * air, because the card is opened ON THE TABLE afterwards (the reveal modal
-   * plays the turn in its zone). The handoff then lands a face-down cover on a
-   * face-down card: one object, no contradiction, and the turn reads as the
-   * player opening the bonus rather than as something already decided in
-   * mid-flight.
+  /*
+   * (There is deliberately no `faceDown` option any more. It existed so a
+   * colony-bonus cover could be delivered UNTURNED and opened on the table by
+   * the reveal's zone — which meant the zone had to draw its own card back
+   * while the cover was still in the air (two objects for one card) and then
+   * play a second, differently-shaped turn once it landed. EVERY card of a
+   * payout turns in the air, on the object that carries it.)
    */
-  faceDown?: boolean,
   onLanded: () => void,
 }): TradeDirectorHandle {
   const {proxy, flip, from, naturalH, reduced} = args;
@@ -129,9 +128,7 @@ export function runTradeCoverFlight(args: {
 
   if (reduced) {
     tl.to(proxy, {x: landX, y: landY, scale: landScale, rotation: 0, duration: s(140), ease: 'power2.out'}, s(args.delayMs));
-    if (args.faceDown !== true) {
-      tl.to(flip, {rotateY: 0, duration: s(120), ease: 'power2.out'}, s(args.delayMs));
-    }
+    tl.to(flip, {rotateY: 0, duration: s(120), ease: 'power2.out'}, s(args.delayMs));
     return {kill: () => tl.kill()};
   }
 
@@ -194,17 +191,16 @@ export function runTradeCoverFlight(args: {
   tl.to(proxy, {x: liftPose.x, y: liftPose.y, duration: s(liftMs), ease: 'power2.out'}, departAt);
   tl.to(proxy, {scale: hoverScale, duration: s(liftMs), ease: 'power2.out'}, departAt);
   tl.to(proxy, {rotation: jitterDeg(args.index) * 0.35, duration: s(liftMs), ease: 'sine.out'}, departAt);
-  if (args.faceDown !== true) {
-    // The turn RIDES the growth: it starts with the lift and completes on the
-    // travel's first half — never a flip after a teleport.
-    const turnDur = s(liftMs) + travel * 0.5;
-    tl.to(flip, {rotateY: 0, duration: turnDur, ease: 'power2.inOut'}, departAt);
-    tl.to(flip, {rotateX: -9, duration: s(liftMs), ease: 'sine.out'}, departAt);
-    tl.to(flip, {rotateX: 0, duration: travel * 0.6, ease: 'sine.inOut'}, travelAt);
-    tl.to(flip, {z: 46, duration: s(liftMs), ease: 'power2.out'}, departAt);
-    tl.to(flip, {z: 0, duration: travel, ease: 'power2.inOut'}, travelAt);
-    tl.call(() => proxy.classList.add('con-coltrade-proxy--revealing'), undefined, departAt + s(liftMs) + travel * 0.18);
-  }
+  // The turn RIDES the growth: it starts with the lift and completes on the
+  // travel's first half — never a flip after a teleport, and never one left
+  // for the destination to play.
+  const turnDur = s(liftMs) + travel * 0.5;
+  tl.to(flip, {rotateY: 0, duration: turnDur, ease: 'power2.inOut'}, departAt);
+  tl.to(flip, {rotateX: -9, duration: s(liftMs), ease: 'sine.out'}, departAt);
+  tl.to(flip, {rotateX: 0, duration: travel * 0.6, ease: 'sine.inOut'}, travelAt);
+  tl.to(flip, {z: 46, duration: s(liftMs), ease: 'power2.out'}, departAt);
+  tl.to(flip, {z: 0, duration: travel, ease: 'power2.inOut'}, travelAt);
+  tl.call(() => proxy.classList.add('con-coltrade-proxy--revealing'), undefined, departAt + s(liftMs) + travel * 0.18);
 
   // ── 2 · TRAVEL ──────────────────────────────────────────────────────────
   tl.to(proxy, {x: landX, duration: travel, ease: 'power1.inOut'}, travelAt);

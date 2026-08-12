@@ -274,6 +274,49 @@ the table. The gate asked the wrong list:
   (`con-ws-stage-status`); an in-zone button was what pushed the bonus zone
   past the stage's vertical budget (the clipped top label / bottom CTA).
 
+## Iteration 8 — one flight language for BOTH doors, and one turn per card
+
+The payout's choreography was written for the TRADE and never reached the
+BUILD, and the bonus zone kept a second turn of its own. Three roots, all
+general:
+
+1. **A held EXECUTION BEAT starves the flight that needs the surface.** The
+   build's claim marked the arrival done but not the BEAT, so
+   `revealHeldForWorkspace` kept the reveal unmounted for the whole 2.6 s
+   backstop. The cover-lift scene lifted its cover, reached `gather`, found no
+   `[data-zoom-slot]` to measure (its probe is 40 frames), degraded — and the
+   cards then appeared out of nothing when the backstop fired: the reported
+   «при строительстве колонии карты просто появляются». **A claim whose payout
+   is flown by a scene must mark the beat done at claim time** — the hold
+   exists to protect a beat nobody else is playing.
+2. **Every card of a payout turns IN THE AIR.** The colony-bonus cover used to
+   be delivered face-down for the zone to open on the table
+   (`runTradeCoverFlight({faceDown})`, `con-bonus-turn`). That drew the zone's
+   own card BACK from the moment it mounted — so while the cover was airborne
+   there were TWO backs for one card — and then played a second, differently
+   shaped turn on the one card of the row that had not turned on the way. The
+   zone now renders the card exactly as the strip does, the flip chassis is the
+   take-in-place turn's alone, and `bonus-held` additionally holds every BACK
+   (zone card, waiting placeholder, taken socket): nothing of a card exists in
+   the destination while its cover is still carrying it.
+3. **The stage evaporates WITH the cards, and the cue belongs to no scene.**
+   `colonyResolutionUi.payoutLiftOff` is raised by whichever scene is flying —
+   the trade's covers at their separation (`TRADE_LIFTOFF_AT_F` of the lift
+   leg), the build's cover-lift when its proxies take over — and the focus
+   stage reads that ONE fact. The `--handing` dissolve is now a 620 ms opacity
+   ramp (was 260) so it runs across the rise and turn; the RETURN keeps its
+   own short transition on the base rule, because the closing beat waits
+   `WORKING_AREA_BACK_MS` for it and a slow return would launch the reset
+   marker into a fading track. Per-scene phase reads are gone: the build path
+   never had one, which is why its stage could only let go after the fact.
+
+Guard: `tests/e2e/console-colony-build-flight.spec.ts` (the cover separates,
+both cards fly as their own objects, nothing is painted in the reveal while a
+cover is airborne, no post-landing flip, the stage is still up at launch).
+Diagnosis hook: `__conColonyDiag().bonusScene` (the cover-lift's phase ladder —
+an `idle` scene beside a live colony reveal IS the missing-animation
+signature).
+
 ## The invariant
 
 From the trade confirm to the last owed follow-up, the COLONY WORKSPACE is the

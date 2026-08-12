@@ -166,6 +166,18 @@ export const TRADE_FAN_LEAD_MS = TRADE_FAN_MS + TRADE_FAN_HOLD_MS;
 export const TRADE_COVER_LIFT_MS = 400;
 /** One cover's WHOLE flight time (separation → travel → settle). */
 export const TRADE_COVER_FLIGHT_MS = 1040;
+/**
+ * WHERE IN THE SEPARATION LEG the scene under the flight starts to evaporate,
+ * as a fraction of {@link TRADE_COVER_LIFT_MS}.
+ *
+ * Early on purpose: the dissolve is not a state change that happens to follow
+ * the launch, it is PART OF IT — the interface lets go while the cards rise
+ * and turn, over the whole lift, and is gone by the time they are travelling.
+ * Waiting until they were deep into the travel (the previous cue) put the
+ * change after the eye had already left with the cards, which is what read as
+ * «интерфейс исчезает слишком резко».
+ */
+export const TRADE_LIFTOFF_AT_F = 0.22;
 /** The frame beat after the last cover lands (the modal materializes). */
 export const TRADE_FRAME_MS = 240;
 

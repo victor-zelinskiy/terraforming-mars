@@ -101,6 +101,19 @@
     .con-reveal__strip :is(.con-cards__slot, .con-reveal__flip-face) > :is(.card-container, .pcard) {
         opacity: 0 !important;
     }
+    /*
+     * …AND NO CARD BACKS EITHER, for the same reason and the same window.
+     *
+     * A card that is still in the air must exist ONCE. The colony-bonus zone
+     * used to paint its own back from the moment it mounted, so a player
+     * watching the cover fly saw a second, identical back already lying in the
+     * destination — the flight had nothing left to deliver. The zone's own
+     * placeholders (the next colony's face-down card, the taken card's socket)
+     * belong to the TABLE, so they arrive with the frame, not before the cards.
+     */
+    .con-reveal__strip :is(.con-reveal__flip-back, .con-reveal__bonus-cover, .con-reveal__bonus-socket, .con-reveal__bonus-done) {
+        opacity: 0 !important;
+    }
     /* No focus chrome over cards that "aren't there yet". */
     .con-focus-frame,
     .con-start__slot-a {

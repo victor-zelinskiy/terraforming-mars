@@ -51,9 +51,10 @@ import {
   setColonyTradeBeat, setColonyTradeCardScene, stageColonyTradeReveal, tradeLog,
 } from '@/client/console/colonyTrade/consoleColonyTrade';
 import {
-  TRADE_COVER_FLIGHT_MS, TRADE_COVER_LIFT_MS, TRADE_FRAME_MS, tradeCoverPlan, TradeCoverPlanEntry,
+  TRADE_COVER_FLIGHT_MS, TRADE_COVER_LIFT_MS, TRADE_FRAME_MS, TRADE_LIFTOFF_AT_F,
+  tradeCoverPlan, TradeCoverPlanEntry,
 } from '@/client/console/colonyTrade/colonyTradeModel';
-import {colonyResolutionUi} from '@/client/console/colonyTrade/colonyResolution';
+import {colonyResolutionUi, clearColonyPayoutLiftOff, markColonyPayoutLiftOff} from '@/client/console/colonyTrade/colonyResolution';
 import {
   RectLike, runColonyTrackGlide, runTradeCoverFlight, runTradeCoversHandoff, TradeDirectorHandle,
 } from '@/client/console/colonyTrade/colonyTradeDirector';
@@ -253,6 +254,12 @@ export default defineComponent({
       if (!colonyTradeState.active || !isColonyTradeRevealStaged(e.id)) {
         return;
       }
+      // EVERY PAYOUT RAISES ITS OWN LIFT-OFF CUE. A resolution pays in several
+      // cycles (Pluto's cubes, one per colony), and a cue left standing from
+      // the previous one would dissolve the stage the instant this batch's
+      // zone opened — i.e. before a single card of it had moved, which is the
+      // «dissolve at the claim» the whole cue exists to replace.
+      clearColonyPayoutLiftOff();
       const plan = tradeCoverPlan(e.cards.length, e.tradeSegments);
       this.covers = plan.map((p) => ({name: e.cards[p.index].name, role: p.role}));
       this.coverNonce++;
@@ -348,21 +355,18 @@ export default defineComponent({
       }
 
       /*
-       * DOES THIS CARD OPEN ON THE TABLE OR IN THE AIR? A cover lands FACE
-       * DOWN only where something else will turn it over — the «Бонус
-       * колонии» ZONE, Pluto's per-colony grammar. A bonus card that lands in
-       * the ordinary strip (a colony whose owner bonus is a plain draw —
-       * Miranda) has no zone flip behind it, so a face-down landing would
-       * leave a card back lying in the reveal. Asked of the REAL slot the
-       * cover is flying to, per card: the reveal is already mounted (its rects
-       * were just measured), so the answer is the rendered truth rather than a
-       * second derivation of the server's markers.
+       * EVERY CARD TURNS IN THE AIR — one flip language for the whole payout.
+       *
+       * The colony-bonus cover used to be delivered FACE DOWN so the «Бонус
+       * колонии» zone could open it on the table. Two things were wrong with
+       * that, and both were visible in one frame: the zone drew its own card
+       * BACK from the moment it mounted, so while the cover was still airborne
+       * there were TWO backs for one card (the flight had nothing left to
+       * deliver); and the card that did land then played a SECOND, different
+       * turn inside the zone while its neighbours had turned on the way. One
+       * object, one turn, one grammar — the zone now receives an open card
+       * exactly as the strip does.
        */
-      const landsInZone = (key: string): boolean => {
-        const slot = document.querySelector(`.con-reveal [data-zoom-slot="${cssEscape(key)}"]`);
-        return slot !== null && slot.closest('.con-reveal__bonus-zone') !== null;
-      };
-
       let landed = 0;
       plan.forEach((p, i) => {
         const proxy = this.proxyRefs[i];
@@ -389,10 +393,6 @@ export default defineComponent({
           fanIndex: p.fanIndex,
           fanCount: p.fanCount,
           reduced: colonyTradeState.reducedMotion,
-          // A colony-bonus card whose ZONE will turn it over is delivered face
-          // down (see runTradeCoverFlight.faceDown); a bonus card landing in
-          // the ordinary strip turns in the air like every other card.
-          faceDown: landsInZone(keys[p.index]),
           onLanded: () => {
             landed++;
             if (landed >= plan.length) {
@@ -401,13 +401,27 @@ export default defineComponent({
           },
         }));
       });
-      // THE DISSOLVE CUE. The stage under the flight releases only when the
-      // first cover is deep into its travel and almost grown («как раз когда
-      // карты уже почти полностью увеличились интерфейс растворяется») —
-      // never at the claim, never at the fan. One-shot, guarded: a fast
-      // scene that already reached 'frame' must not be pulled back.
+      // ── TWO CUES, ONE PHRASE ────────────────────────────────────────────
+      // The scene under the flight lets go IN STEP WITH THE CARDS, and the
+      // destination materializes later, under the landing flight.
       const first = plan[0];
       if (first !== undefined && !colonyTradeState.reducedMotion) {
+        // 1 · LIFT-OFF — the first cover separates and STARTS TO TURN. That is
+        //     the moment the colony stage begins to evaporate: the interface
+        //     dissolves WITH the rising, turning cards over the whole lift
+        //     (the pose's own long transition carries it), instead of blinking
+        //     out at some point of their travel. Releasing only deep into the
+        //     travel is what read as «интерфейс исчезает слишком резко»: by
+        //     then the eye has already followed the cards away, so the change
+        //     arrives as a cut rather than as part of their departure.
+        ctx.timers.push(setTimeout(() => {
+          if (colonyTradeState.active) {
+            markColonyPayoutLiftOff();
+          }
+        }, motionMs(first.delayMs + Math.round(TRADE_COVER_LIFT_MS * TRADE_LIFTOFF_AT_F))));
+        // 2 · ASCEND — the first cover deep into its travel and almost grown:
+        //     «Получены карты» materializes under it. One-shot, guarded — a
+        //     fast scene that already reached 'frame' must not be pulled back.
         const ascendAtMs = first.delayMs + TRADE_COVER_LIFT_MS +
           Math.round((TRADE_COVER_FLIGHT_MS - TRADE_COVER_LIFT_MS) * 0.45);
         ctx.timers.push(setTimeout(() => {
@@ -415,6 +429,8 @@ export default defineComponent({
             setColonyTradeCardScene('ascend');
           }
         }, motionMs(ascendAtMs)));
+      } else if (first !== undefined) {
+        markColonyPayoutLiftOff(); // reduced motion: the cue is immediate
       }
       if (plan.length === 0) {
         this.frameAndHandoff();
@@ -477,6 +493,10 @@ export default defineComponent({
           onDone: () => {
             this.covers = [];
             setColonyTradeCardScene('idle');
+            // The cards are delivered: this payout's cue is spent. (The stage
+            // stays yielded on its own latch + the live batch — the pose rides
+            // the payout, never the cue.)
+            clearColonyPayoutLiftOff();
           },
         }));
       }, motionMs(TRADE_FRAME_MS)));
@@ -486,6 +506,9 @@ export default defineComponent({
     degradeToInstant(): void {
       this.covers = [];
       setColonyTradeCardScene('idle');
+      // Nothing flew — the stage's cue belongs to the flight, so it must not
+      // survive one that never happened (the fallback is `outcomeContentIn`).
+      clearColonyPayoutLiftOff();
     },
 
     // ── the white-marker reset glide ─────────────────────────────────────
@@ -562,6 +585,9 @@ export default defineComponent({
       }
       this.covers = [];
       this.markerVisible = false;
+      // The next payout raises its OWN lift-off cue — inheriting this one
+      // would dissolve the stage before its first card had moved.
+      clearColonyPayoutLiftOff();
     },
   },
 });

@@ -2,6 +2,7 @@
     "System error": "Сбой системы",
     "Inspection": "Осмотр",
     "Owner bonus": "Бонус владельца",
+    "Colony placement bonus": "Бонус за постройку",
     "Owner bonus triggered": "Сработал бонус владельца",
     "${0} traded with this colony": "${0} торговал с этой колонией",
     "Colony bonus triggered: ${0}": "Сработал бонус колонии: ${0}",

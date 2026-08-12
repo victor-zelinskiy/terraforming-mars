@@ -181,23 +181,24 @@
                     <b v-if="zone.total > 1">{{ zone.index }}/{{ zone.total }}</b>
                   </span>
 
-                  <!-- ACTIVE: the real card, face DOWN until it flips open. -->
+                  <!-- ACTIVE: the real card, exactly as the strip renders one.
+                       IT ARRIVES ALREADY OPEN — the cover that carried it here
+                       turned in the air like every other card of the payout, so
+                       there is nothing left for this zone to reveal. It used to
+                       hold its own face-down flip chassis, and that produced
+                       both reported faults at once: the zone painted a card
+                       BACK from the moment it mounted (so while the cover was
+                       still airborne there were two backs for one card), and
+                       the landed card then played a SECOND, different turn
+                       in place while its neighbours had turned on the way. One
+                       object, one turn, one grammar. -->
                   <div v-if="zone.state === 'active' && activeBonusEntry !== undefined"
                        class="con-cards__slot con-reveal__bonus-slot"
                        :data-zoom-slot="activeBonusEntry.card.name + '#' + activeBonusEntry.index"
                        :class="{'con-cards__slot--focused': focusIdx === activeBonusEntry.pos}"
                        :ref="focusIdx === activeBonusEntry.pos ? 'focusedCardSlot' : undefined">
-                    <div class="con-reveal__flip"
-                         :class="'con-reveal__flip--' + bonusFlipPhase"
-                         @animationend="onBonusFlipEnd">
-                      <div class="con-reveal__flip-face">
-                        <Card :card="activeBonusEntry.card" :key="activeBonusEntry.card.name" lightweight />
-                      </div>
-                      <div class="con-reveal__flip-back" aria-hidden="true">
-                        <span class="con-card-back"></span>
-                      </div>
-                    </div>
-                    <div v-if="focusIdx === activeBonusEntry.pos && bonusFlipPhase === 'up'" class="con-start__slot-a">
+                    <Card :card="activeBonusEntry.card" :key="activeBonusEntry.card.name" lightweight />
+                    <div v-if="focusIdx === activeBonusEntry.pos && !embedded" class="con-start__slot-a">
                       <GamepadGlyph control="confirm" /><span>{{ $t('Take card') }}</span>
                     </div>
                   </div>
@@ -555,17 +556,10 @@ export default defineComponent({
   emits: ['dismiss-result', 'discard-pick', 'drawn-complete', 'result-detached'],
   data() {
     return {
-      /**
-       * THE ACTIVE COLONY'S CARD is dealt FACE DOWN and opens on the table:
-       *   down     — on the table, back up (its cover just delivered it, or it
-       *              is the next colony's card the player has come back to);
-       *   flipping — the one-shot 3D turn is playing; input is swallowed and
-       *              the card cannot be taken yet;
-       *   up       — open and takeable.
-       * Keyed per batch, so every colony in the sequence opens on its own.
-       */
-      bonusFlipPhase: 'down' as 'down' | 'flipping' | 'up',
-      bonusFlipKey: '',
+      /* (The colony-bonus card no longer opens ON the table: it TURNS IN THE
+         AIR, like every other card of the payout, and the zone receives it
+         already open. The `down/flipping/up` machine that used to live here —
+         and the second, differently-shaped turn it played — is gone with it.) */
       focusIdx: 0,
       /**
        * TAKE-IN-PLACE state machine (EMBEDDED MULTI batches only). A card is
@@ -843,14 +837,15 @@ export default defineComponent({
       return bonusDiscardStep(this.bonusDiscard, this.drawnUntaken.length);
     },
     /**
-     * Ready to hand over — and never while a card is still turning over.
-     * NOT `phase === 'up'`: the phase re-arms to `down` the moment the card
-     * leaves the table (there is nothing left to flip), so requiring `up` would
-     * lock the step exactly when it should open. `ready` already means every
-     * card was taken, so a card that is still turning cannot have been.
+     * Ready to hand over: every card on the table has been taken.
+     *
+     * The «not while a card is still turning» arm is gone with the in-place
+     * turn — cards now arrive open (they turned in the air), and `ready`
+     * already means every one of them was taken, which a card still in flight
+     * cannot be: the arrival gate (`arrivalPending`) owns that window.
      */
     discardStepReady(): boolean {
-      return this.discardStep?.ready === true && this.bonusFlipPhase !== 'flipping';
+      return this.discardStep?.ready === true;
     },
     /** One zone per colony of the recipient's sequence (see bonusZones). */
     bonusZones(): ReadonlyArray<BonusZone> {
@@ -863,21 +858,6 @@ export default defineComponent({
      */
     activeBonusEntry(): StripEntry | undefined {
       return this.drawnGrouped.bonus[0];
-    },
-    /** Identity of the card currently on the table — re-arms the flip per colony. */
-    activeBonusKey(): string {
-      const e = this.activeBonusEntry;
-      return e === undefined ? '' : `${this.drawnEvent?.id ?? 0}|${e.card.name}#${e.index}`;
-    },
-    /**
-     * THE TURN MAY BEGIN. Explicit state, never a timer: the card must be on a
-     * modal the player is actually looking at — no scene veiling it, nothing
-     * holding its cards back, and (for the second colony onward) the hand
-     * overlay that took the previous discard already gone, which is exactly
-     * what mounting this modal again means.
-     */
-    bonusFlipAllowed(): boolean {
-      return this.activeBonusEntry !== undefined && !this.bonusVeiled && !this.bonusHeld;
     },
     /** The single received card (single-card mode). */
     singleCard(): CardModel | undefined {
@@ -1163,28 +1143,6 @@ export default defineComponent({
           this.ownedBatchKey = stamp;
         }
       },
-    },
-    /*
-     * ARM THE TURN. Re-armed per colony (`activeBonusKey`), and only once the
-     * card is on a modal the player can see (`bonusFlipAllowed`). The
-     * double-rAF is a LAYOUT-SETTLED probe, not a delay: the first frame
-     * applies the freshly mounted zone, the second guarantees it has been laid
-     * out, so the turn never plays against a modal that is still assembling —
-     * or, for the second colony onward, behind the hand overlay that has only
-     * just closed.
-     */
-    activeBonusKey: {
-      immediate: true,
-      handler(key: string): void {
-        this.bonusFlipKey = key;
-        this.bonusFlipPhase = 'down';
-        this.armBonusFlip(key);
-      },
-    },
-    bonusFlipAllowed(allowed: boolean): void {
-      if (allowed) {
-        this.armBonusFlip(this.bonusFlipKey);
-      }
     },
     revealKey() {
       this.focusIdx = 0;
@@ -1504,13 +1462,12 @@ export default defineComponent({
     onPress(action: ConsoleAction): void {
       switch (this.mode) {
       case 'drawn':
-        // The card is physically turning over — no take, no take-all, no
-        // hand-over can be triggered mid-turn (and no double-press can slip
+        // The cards are physically arriving — no take, no take-all, no
+        // hand-over can be triggered mid-flight (and no double-press can slip
         // through the beat). Same swallow for the take-in-place turn and the
         // final collection: `taking`/`collecting` absorb EVERY verb, so a
         // near-simultaneous A+B is exactly one transaction by construction.
-        if (this.arrivalPending || this.bonusFlipPhase === 'flipping' ||
-            this.takingIdx !== undefined || this.collecting) {
+        if (this.arrivalPending || this.takingIdx !== undefined || this.collecting) {
           return;
         }
         if (action === 'primary') {
@@ -1975,28 +1932,6 @@ export default defineComponent({
       releaseRevealFollowUp();
       closeAndReleaseEvent(this.playerView.id, e.id, () => undefined);
       this.$emit('discard-pick');
-    },
-    /**
-     * Start the turn once the zone is genuinely on screen and laid out. Guarded
-     * by the key so a batch that changes mid-probe can never flip the wrong
-     * card, and by the phase so it can never restart a turn already playing.
-     */
-    armBonusFlip(key: string): void {
-      if (key === '' || !this.bonusFlipAllowed || this.bonusFlipPhase !== 'down' ||
-          typeof requestAnimationFrame !== 'function') {
-        return;
-      }
-      requestAnimationFrame(() => requestAnimationFrame(() => {
-        if (this.bonusFlipKey === key && this.bonusFlipPhase === 'down' && this.bonusFlipAllowed) {
-          this.bonusFlipPhase = 'flipping';
-        }
-      }));
-    },
-    /** The turn finished — the card is open and may be taken. */
-    onBonusFlipEnd(): void {
-      if (this.bonusFlipPhase === 'flipping') {
-        this.bonusFlipPhase = 'up';
-      }
     },
     /** RT / B: take everything — the STACK intake gesture: the fan gathers
      *  into one back-stack above the hand dock (one confirmation pulse),

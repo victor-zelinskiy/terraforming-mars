@@ -109,6 +109,20 @@ export const colonyResolutionUi = reactive({
    * hand hands the room back (or the resolution ends).
    */
   discardStage: false,
+  /**
+   * THE PAYOUT HAS LIFTED OFF — the first card of this payout has separated
+   * from its source and is rising while it turns.
+   *
+   * ONE FACT, RAISED BY WHICHEVER SCENE IS FLYING (the trade's covers, the
+   * build's cover-lift), read by the colony stage as the cue to start letting
+   * go. It exists because the stage's dissolve must be SYNCHRONOUS WITH THE
+   * CARDS THEMSELVES — the interface evaporates as they rise and turn, one
+   * continuous phrase — and neither scene's private phase ladder is a fact the
+   * stage should have to know. A per-scene predicate here is how the build
+   * path ended up with no cue at all and dissolved on «content landed»
+   * instead, i.e. abruptly and after the fact.
+   */
+  payoutLiftOff: false,
 });
 
 export function noticeColonyResolutionDiscard(): void {
@@ -119,9 +133,21 @@ export function setColonyDiscardStage(on: boolean): void {
   colonyResolutionUi.discardStage = on;
 }
 
+/** A cover scene reports its first card separating (see `payoutLiftOff`). */
+export function markColonyPayoutLiftOff(): void {
+  colonyResolutionUi.payoutLiftOff = true;
+}
+
+/** The payout is over (its claim released / the scene torn down) — the next
+ *  one must raise its own cue, never inherit this one. */
+export function clearColonyPayoutLiftOff(): void {
+  colonyResolutionUi.payoutLiftOff = false;
+}
+
 export function resetColonyResolutionUi(): void {
   colonyResolutionUi.discarded = 0;
   colonyResolutionUi.discardStage = false;
+  colonyResolutionUi.payoutLiftOff = false;
 }
 
 /**

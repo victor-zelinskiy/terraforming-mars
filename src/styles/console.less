@@ -10810,6 +10810,14 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: flex;
         flex-direction: column;
         gap: .6rem;
+        /* THE RETURN IS QUICK — the LEAVING is what evaporates (see
+           `--handing`). The two directions are deliberately different
+           durations, and each is declared on the state it transitions INTO:
+           the closing beat waits `WORKING_AREA_BACK_MS` for exactly this one,
+           so a slow return would launch the reset marker into a fading track. */
+        transition:
+            opacity calc(280ms * var(--motion-scale, 1)) ease,
+            transform calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.6, 1);
     }
     /* The zone head carries the title AND the zone's own rule caption, so the
        rule never costs the scene a whole row of its own. */
@@ -11492,16 +11500,26 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        nothing at all when the claim had no payout to present.
        The order is physical: the MAIN area is where the cards are born, so it
        yields first and the RESULT rail follows — never one flat DOM block. */
+    /* IT EVAPORATES, IT DOES NOT SWITCH OFF. The cue is the cards' own
+       SEPARATION (`payoutLiftOff`), so this transition runs across their rise
+       and turn — the surface thins out under a flight the eye is already
+       following, and is gone by the time the cards are travelling. At 260 ms
+       the same cue reads as a cut: the interface was still fully there when
+       the cards left and simply blinked away a moment later.
+       Kept transform+opacity only (perf-lite safe), and deliberately paced off
+       TRADE_COVER_LIFT_MS (400) — the leg it accompanies. */
     &--handing &__main,
     &--handing &__result {
         pointer-events: none;
         opacity: 0;
-        transform: translateY(.28rem);
+        transform: translateY(.34rem);
         transition:
-            opacity calc(260ms * var(--motion-scale, 1)) ease,
-            transform calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.6, 1);
+            opacity calc(620ms * var(--motion-scale, 1)) cubic-bezier(0.32, 0, 0.5, 1),
+            transform calc(700ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.6, 1);
     }
-    &--handing &__result { transition-delay: calc(90ms * var(--motion-scale, 1)); }
+    /* The RESULT rail follows the MAIN area — the cards are born in the main
+       area, so it lets go first and the rail trails it by a readable beat. */
+    &--handing &__result { transition-delay: calc(120ms * var(--motion-scale, 1)); }
     /* The IDENTITY column stays — the colony may never disappear from under
        its own payout. It is the payout's SOURCE, and a source must read as
        ACTIVE: the old .5 dim made the planet look switched off under the very
@@ -11648,6 +11666,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             linear-gradient(180deg, rgba(13, 21, 32, 0.86), rgba(9, 15, 23, 0.62) 62%, rgba(9, 15, 23, 0.5));
         box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.16);
         overflow: hidden;
+        /* The quick RETURN (see `__main`) — the slow half is `--handing`. */
+        transition:
+            opacity calc(280ms * var(--motion-scale, 1)) ease,
+            transform calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.6, 1);
     }
     &__rsec {
         display: flex;

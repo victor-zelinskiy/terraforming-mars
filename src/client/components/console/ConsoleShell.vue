@@ -1383,7 +1383,7 @@ import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/c
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
-import {armBoardCardBonus, abortBoardCardBonus, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
+import {armBoardCardBonus, abortBoardCardBonus, boardCardBonusState, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {
   planetFocusState, enterPlanetFocus, beginPlanetFocusExit, playPlanetFocusScaleBeat,
   planetFocusBeatAllowed, qualifiesForPlanetFocus, captureGlobalParams,
@@ -9376,6 +9376,16 @@ export default defineComponent({
       if (colonyBuildDrawsCards(getColony(selected.name as ColonyName), slotIndex)) {
         claimWorkspaceOutcome('colonies', selected.name, ['draw']);
         markWorkspaceOutcomeArrivalDone();
+        // …and the BEAT is not owed either — exactly as on the trade paths.
+        // THE COVER-LIFT SCENE OWNS THIS PAYOUT'S PACING: the build bonus
+        // separates from the slot's own printed card glyph and flies into the
+        // reveal's real slots, which it can only measure once that reveal is
+        // MOUNTED. Leaving the beat pending held the surface for the whole
+        // 2.6 s backstop, so the scene found no slots, degraded, and the cards
+        // then appeared out of nothing when the backstop fired — the reported
+        // «при строительстве карты просто появляются». The hold exists to
+        // protect a beat nobody else is playing; here somebody is.
+        markWorkspaceOutcomeBeatDone();
       }
       this.submit(colonyResponse(selected.name));
     },
@@ -11228,6 +11238,16 @@ export default defineComponent({
       arrivalPending: workspaceOutcomeBeatPending(),
       resolutionLive: this.colonyResolutionLive,
       revealPending: this.rawDrawnRevealPending,
+      // The COVER-LIFT scene (a colony BUILD's card bonus rides it, exactly as
+      // a board cell's does). Its phase ladder is the only way to tell «the
+      // flight played» from «the cards just appeared»: an `idle` scene next to
+      // a live colony reveal is the missing-animation signature.
+      bonusScene: {
+        active: boardCardBonusState.active,
+        phase: boardCardBonusState.phase,
+        source: boardCardBonusState.source.kind,
+        staged: boardCardBonusState.stagedEventId ?? null,
+      },
       lastRelease: lastOutcomeReleaseStack.split('\n').slice(1, 7).join(' | '),
     });
     // Phase D of the discard cinematic reuses the ORDINARY hand-close episode;

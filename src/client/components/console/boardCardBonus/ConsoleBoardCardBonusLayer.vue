@@ -48,6 +48,7 @@ import {
   bonusSceneTimings, gatherPoint, presentationTarget, reducedBonusSceneTimings,
   BonusSceneTimings, RectLike,
 } from '@/client/console/boardCardBonus/boardCardBonusModel';
+import {clearColonyPayoutLiftOff, markColonyPayoutLiftOff} from '@/client/console/colonyTrade/colonyResolution';
 import {
   runBonusAbortVisual, runBonusCoverLift, runBonusFanOut, runBonusHandoff,
   runBonusSingleFlight, BonusCoverHandle, BonusSceneHandle,
@@ -363,6 +364,7 @@ export default defineComponent({
         this.degradeToInstant();
         return;
       }
+      this.noticeColonyLiftOff();
       const t = this.timings();
       const reduced = consoleReducedMotionActive();
       ctx.sceneHandle = runBonusSingleFlight({
@@ -421,6 +423,11 @@ export default defineComponent({
         this.degradeToInstant();
         return;
       }
+      // A COLONY payout lets its stage know the cards are on the move (the
+      // trade's covers raise the same one fact): the colony interface
+      // evaporates WITH the rising, turning cards instead of waiting for them
+      // to land somewhere else.
+      this.noticeColonyLiftOff();
       const t = this.timings();
       ctx.sceneHandle = runBonusFanOut({
         proxies,
@@ -464,6 +471,13 @@ export default defineComponent({
       });
       this.restoreLifted();
       endBoardCardBonus();
+    },
+    /** THE PAYOUT LIFTED OFF — for a COLONY source only (a board cell / the
+     *  Venus scale have no colony stage to dissolve). */
+    noticeColonyLiftOff(): void {
+      if (boardCardBonusState.source.kind === 'colony-cell') {
+        markColonyPayoutLiftOff();
+      }
     },
     finishScene(): void {
       this.restoreLifted();
@@ -518,6 +532,12 @@ export default defineComponent({
       this.sceneCards = [];
       this.proxyRefs = [];
       this.flipRefs = [];
+      // THE SINGLE END-OF-SCENE FUNNEL (finish / degrade / abort / teardown):
+      // this payout's lift-off cue is spent, and the next one raises its own.
+      // A cue left standing dissolves the NEXT stage at its claim — before a
+      // card of it has moved. (The pose itself rides the payout, not the cue,
+      // so clearing it here never brings the working area back early.)
+      clearColonyPayoutLiftOff();
     },
     teardownVisuals(): void {
       this.clearTimers();
@@ -529,6 +549,8 @@ export default defineComponent({
       ctx.abortHandle = undefined;
       this.restoreLifted();
       this.clearSceneDom();
+      // The next payout raises its own cue (mirrors the trade layer).
+      clearColonyPayoutLiftOff();
     },
   },
   beforeUnmount() {

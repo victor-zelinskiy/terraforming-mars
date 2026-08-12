@@ -348,21 +348,21 @@
     color: @con-text-dim;
 }
 
-/* ── THE TURN: the card is opened on the table ─────────────────────────
+/* ── THE FLIP CHASSIS ──────────────────────────────────────────────────
    A real 3D turn about the vertical axis — the side swaps at the halfway
-   point by backface culling, never by a cross-fade. Transform + opacity
-   only; the lift/settle is part of the same keyframe, so there is one
-   motion, not a stack of effects. */
+   point by backface culling, never by a cross-fade.
+
+   ⚠️ Its ONE consumer is now the TAKE-IN-PLACE turn (`.con-reveal__takeflip`,
+   console.less): a card is turned FACE-DOWN in its slot as it is taken. The
+   colony-bonus zone used to use it the other way round — to open a card that
+   had been delivered face-down — and that is gone: every card of a payout
+   turns IN THE AIR, on the cover that carries it, so a card that has landed
+   has nothing left to reveal. Keeping a second, differently-shaped turn for
+   one card of the row was exactly the «странный флип уже внутри зоны». */
 .con-reveal__flip {
     position: relative;
     transform-style: preserve-3d;
     will-change: transform;
-
-    &--down { transform: rotateY(180deg); }
-    &--up { transform: none; }
-    &--flipping {
-        animation: con-bonus-turn calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.32, 0.9, 0.28, 1) both;
-    }
 }
 .con-reveal__flip-face,
 .con-reveal__flip-back {
@@ -379,22 +379,6 @@
         width: 100%;
         height: 100%;
         border-radius: .55rem;
-    }
-}
-
-@keyframes con-bonus-turn {
-    0% { transform: translateY(0) scale(1) rotateY(180deg); }
-    /* Lifted off the table and turning — the shadow deepens with the lift. */
-    38% { transform: translateY(-.7rem) scale(1.035) rotateY(112deg); }
-    72% { transform: translateY(-.55rem) scale(1.02) rotateY(18deg); }
-    /* …and laid back down, open. */
-    100% { transform: translateY(0) scale(1) rotateY(0deg); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    /* The card still opens — it simply does not travel. */
-    .con-reveal__flip--flipping {
-        animation-duration: 1ms;
     }
 }
 
