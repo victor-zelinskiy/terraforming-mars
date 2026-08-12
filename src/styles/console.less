@@ -654,7 +654,16 @@ body.con-zoom-open .con-journal {
         align-items: center;
         gap: .4rem;
         min-width: 0;
-        flex: 0 1 auto;
+        /* NEVER SHRINKS. The identity is nowrap text with no overflow clip, so
+           a shrunk box does not truncate it — the deep crumb layer (an absolute
+           overlay on the aux zone, which starts where this box ENDS) then
+           paints straight over the overflowing letters («ДЕЙСТВИЯ КАРТЛЕТАЮЩАЯ
+           ПЛАТФОРМА» on a 1280 line, once the fleet dock joined the trailing
+           zone). A narrow band is absorbed INSIDE the aux zone instead — its
+           own content wraps to a second tier (the Deck's deliberate two-tier
+           header) and the crumb subject ellipsizes; the anchor never loses a
+           letter. */
+        flex: 0 0 auto;
     }
     /* THE WORKSPACE IDENTITY SYMBOL — the same glyph the action wheel's tile
        carries. Part of the PARENT anchor, present through every stage of the
@@ -17006,6 +17015,30 @@ body.con-start-barshold .con-status {
     &--roomheld &__queuecol,
     &--roomheld .con-splayed { visibility: hidden; }
 
+    /* ── THE FIRST-ACTION STAGE ───────────────────────────────────────────
+       The corporation is the SUBJECT here, not the context it is inside an
+       embedded reveal — so its seat carries a HERO-sized card (the compact
+       0.42 thumbnail read as a leftover of another screen, and on a 4K TV it
+       left the whole zone empty around a small plate). One token drives both
+       the card and the briefing's offset, so the pair can never drift apart. */
+    --con-fa-seat-w: calc(320px * 0.74 * var(--con-ui-scale, 1));
+
+    &__embed--firstact &__embedsource-card {
+        width: var(--con-fa-seat-w);
+        border-radius: .6rem;
+        box-shadow:
+            0 1.1rem 2.6rem rgba(0, 0, 0, 0.55),
+            0 0 0 .07rem fade(@con-cyan, 38%),
+            0 0 2.2rem fade(@con-cyan, 12%);
+
+        > * { zoom: calc(0.74 * var(--con-ui-scale, 1)); }
+    }
+    &__embed--firstact &__embedsource { gap: .5rem; }
+    &__embed--firstact &__embedsource-cap {
+        font-size: .66rem;
+        letter-spacing: .16em;
+    }
+
     /* ── THE FIRST-ACTION BRIEFING — the stage's own surface ──────────────
        Stands beside the seated corporation card (the source seat reserves the
        left edge), reads as a calm plate of the SAME workspace — never a modal:
@@ -17015,64 +17048,108 @@ body.con-start-barshold .con-status {
        rides box-shadow — perf-lite keeps it. */
     &__firstact {
         position: absolute;
-        left: 9.8rem;                 /* past the source seat + breathing room */
-        right: 1.2rem;
+        /* Past the seat, derived from the SAME token that sizes it. */
+        left: calc(var(--con-fa-seat-w) + 3.4rem);
         top: 50%;
         transform: translateY(-50%);
-        max-width: 36rem;
-        margin-inline: auto;
+        /* HUGS ITS CONTENT. Stretched to the zone's right edge the plate was
+           mostly empty air on a 4K TV — a briefing of three short lines has
+           no business being 1760 px wide. The cap keeps a long printed ask
+           (Valley Trust) from running away with the line length. */
+        width: fit-content;
+        min-width: 24rem;
+        max-width: min(44rem, calc(100% - var(--con-fa-seat-w) - 5rem));
         display: flex;
         flex-direction: column;
-        gap: .55rem;
-        padding: 1rem 1.25rem 1.05rem;
-        border-radius: .6rem;
-        background: linear-gradient(180deg, rgba(14, 22, 34, 0.94), rgba(10, 16, 25, 0.9));
+        gap: .7rem;
+        padding: 1.5rem 1.7rem 1.4rem;
+        border-radius: .7rem;
+        background:
+            linear-gradient(180deg, rgba(16, 26, 39, 0.96), rgba(10, 16, 25, 0.92)),
+            radial-gradient(120% 90% at 0% 0%, fade(@con-cyan, 7%), transparent 62%);
         box-shadow:
-            inset 0 0 0 .06rem rgba(96, 176, 232, 0.16),
-            0 .9rem 2.2rem rgba(0, 0, 0, 0.4);
+            inset 0 0 0 .06rem rgba(96, 176, 232, 0.18),
+            inset 0 .05rem 0 rgba(190, 226, 250, 0.07),
+            0 1.1rem 2.8rem rgba(0, 0, 0, 0.45);
+
+        /* THE PAIR IS ONE OBJECT: a short hairline reaches from the plate
+           toward the card, so the briefing reads as belonging to it rather
+           than floating beside it. Paint only — no layout, no hit area. */
+        &::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: 100%;
+            width: 2.1rem;
+            height: .07rem;
+            background: linear-gradient(90deg, fade(@con-cyan, 5%), fade(@con-cyan, 42%));
+        }
     }
     &__firstact--ready {
         box-shadow:
             inset 0 0 0 .07rem fade(@con-mint, 42%),
             0 .9rem 2.2rem rgba(0, 0, 0, 0.4);
     }
+    /* The MANDATORY framing is a real chip, not loose text: it is the one
+       thing on this plate the player must not read past. */
     &__firstact-head {
+        align-self: flex-start;
         display: inline-flex;
         align-items: center;
         gap: .4rem;
+        padding: .22rem .55rem .24rem .45rem;
+        border-radius: .35rem;
+        background: linear-gradient(180deg, fade(#ffb74d, 15%), fade(#ffb74d, 7%));
+        box-shadow: inset 0 0 0 .055rem fade(#ffb74d, 34%);
     }
-    &__firstact-flag { color: #ffb74d; font-size: .8rem; }
+    &__firstact-flag { color: #ffb74d; font-size: .78rem; line-height: 1; }
     &__firstact-kicker {
-        font-size: .62rem;
+        font-size: .63rem;
         font-weight: 800;
         letter-spacing: .16em;
         text-transform: uppercase;
-        color: fade(#ffb74d, 88%);
+        color: fade(#ffd8a1, 96%);
     }
+    /* THE ASK LEADS. It is the printed sentence of the corporation's own
+       card, so it carries the plate's brightest, heaviest voice — the stage
+       has no title of its own (the crumb owns that). */
     &__firstact-ask {
-        font-size: 1.05rem;
-        font-weight: 700;
-        line-height: 1.35;
+        font-size: 1.42rem;
+        font-weight: 800;
+        line-height: 1.24;
+        letter-spacing: .004em;
         color: @con-text;
+        text-wrap: balance;
+    }
+    /* A hairline under the ask separates the DEMAND from its consequences. */
+    &__firstact-ask + * { margin-top: .1rem; }
+    &__firstact-ask::after {
+        content: '';
+        display: block;
+        margin-top: .7rem;
+        width: 3.4rem;
+        height: .08rem;
+        border-radius: .04rem;
+        background: linear-gradient(90deg, fade(@con-cyan, 55%), fade(@con-cyan, 0%));
     }
     &__firstact-cap {
-        font-size: .6rem;
-        font-weight: 700;
-        letter-spacing: .12em;
+        font-size: .64rem;
+        font-weight: 800;
+        letter-spacing: .14em;
         text-transform: uppercase;
-        color: @con-text-dim;
-        margin-bottom: .25rem;
+        color: fade(@con-cyan, 78%);
+        margin-bottom: .35rem;
     }
     &__firstact-chips {
         display: flex;
         flex-wrap: wrap;
-        gap: .35rem;
+        gap: .45rem;
     }
     &__firstact-warn {
         display: flex;
         align-items: flex-start;
-        gap: .45rem;
-        font-size: .78rem;
+        gap: .5rem;
+        font-size: .86rem;
         color: fade(#ffcf8a, 92%);
     }
     &__firstact-warn-glyph { flex: 0 0 auto; }
@@ -17085,25 +17162,31 @@ body.con-start-barshold .con-status {
     }
     &__firstact-warn-title { font-weight: 700; }
     &__firstact-warn-text { color: fade(#ffcf8a, 74%); }
+    /* WHAT HAPPENS NEXT — a real plate per consequence, so a placement or a
+       pick reads as a step of this action rather than a footnote under it. */
     &__firstact-next {
         display: flex;
         align-items: center;
-        gap: .4rem;
-        font-size: .78rem;
+        gap: .55rem;
+        padding: .48rem .7rem;
+        border-radius: .45rem;
+        font-size: .88rem;
         color: @con-text-dim;
         min-width: 0;
+        background: linear-gradient(90deg, rgba(22, 36, 52, 0.6), rgba(16, 26, 39, 0.3));
+        box-shadow: inset 0 0 0 .05rem rgba(96, 176, 232, 0.13);
     }
     &__firstact-next-tile {
         flex: 0 0 auto;
-        width: 1.15rem;
-        height: 1.15rem;
+        width: 1.5rem;
+        height: 1.5rem;
         background-size: contain;
         background-repeat: no-repeat;
         background-position: center;
     }
     &__firstact-next-glyph { color: fade(@con-cyan, 75%); font-weight: 800; }
     &__firstact-next-label {
-        font-size: .6rem;
+        font-size: .62rem;
         font-weight: 800;
         letter-spacing: .14em;
         text-transform: uppercase;
@@ -17118,30 +17201,43 @@ body.con-start-barshold .con-status {
     &__firstact-next-tail { color: @con-text-dim; white-space: nowrap; }
     /* The STATE ZONE — one reserved row (waiting → ready never re-layouts). */
     &__firstact-state {
-        min-height: 2.5rem;
+        min-height: 3.1rem;
         display: flex;
         align-items: center;
-        margin-top: .15rem;
+        margin-top: .35rem;
     }
     &__firstact-cta {
         display: inline-flex;
         align-items: center;
-        gap: .55rem;
-        padding: .5rem .95rem;
-        border-radius: .5rem;
-        background: linear-gradient(180deg, fade(@con-mint, 16%), fade(@con-mint, 8%));
-        box-shadow: inset 0 0 0 .07rem fade(@con-mint, 55%);
-        font-size: .92rem;
+        gap: .7rem;
+        padding: .68rem 1.25rem .7rem .8rem;
+        border-radius: .55rem;
+        background: linear-gradient(180deg, fade(@con-mint, 20%), fade(@con-mint, 9%));
+        box-shadow:
+            inset 0 0 0 .075rem fade(@con-mint, 60%),
+            0 .5rem 1.4rem fade(@con-mint, 12%);
+        font-size: 1.06rem;
         font-weight: 800;
+        letter-spacing: .01em;
         color: @con-text;
+    }
+    /* The glyph sits in its own ring — the CTA reads as ONE pressable object
+       at couch distance, where a bare letter beside text does not. */
+    &__firstact-cta-glyph {
+        flex: 0 0 auto;
+        transform: scale(1.06);
     }
     &__firstact--busy &__firstact-cta { opacity: .55; }
     &__firstact-wait {
         display: inline-flex;
         align-items: center;
-        gap: .55rem;
-        font-size: .85rem;
+        gap: .6rem;
+        padding: .5rem .85rem;
+        border-radius: .5rem;
+        font-size: .95rem;
         color: @con-text-dim;
+        background: linear-gradient(90deg, rgba(22, 36, 52, 0.5), rgba(16, 26, 39, 0.2));
+        box-shadow: inset 0 0 0 .05rem rgba(96, 176, 232, 0.12);
     }
     &__firstact-wait--busy { color: fade(@con-cyan, 80%); }
     &__firstact-pulse {

@@ -299,7 +299,10 @@ function onDisconnected(e: GamepadEvent): void {
   inputModeState.padsConnected = connectedCount;
   prevSnapshots.delete(e.gamepad.index);
   pollStates.delete(e.gamepad.index);
-  gpLog(`disconnected ${describePad(e.gamepad)} — pads=${connectedCount}`);
+  // The slot table on BOTH edges: a Chromium/Steam-Input device swap shows up
+  // here as disconnect+connect on the same slot with a DIFFERENT id, which no
+  // single-line log would reveal.
+  gpLog(`disconnected ${describePad(e.gamepad)} — pads=${connectedCount} ${describeAllPads()}`);
   if (e.gamepad.index === election.index) {
     // The driving pad went away: drop to pointer mode (graceful — the W3C
     // disconnect story) and let any remaining pad re-elect itself on its

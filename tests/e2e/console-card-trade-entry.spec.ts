@@ -49,9 +49,13 @@ type Readout = {
   variantChipUp: boolean,
   zoneW: number,
   frameW: number,
-  /** The workspace header's own height — the WsHead contract says a stage
-   *  change may not move it, and the arriving fleet dock is a stage change. */
+  /** The workspace header's own height. It may re-tier ONCE, at the STEP
+   *  boundary (the colonies bring their dock row with them — the same height
+   *  their own standalone header carries); it may never move BETWEEN the
+   *  step's internal stages. */
   headH: number,
+  /** The crumb subject intersects the root's letters — never acceptable. */
+  crumbOverlap: boolean,
 };
 
 async function readout(page: Page): Promise<Readout> {
@@ -100,6 +104,14 @@ async function readout(page: Page): Promise<Readout> {
       frameW: Math.round((document.querySelector('.con-cardactions__frame') as HTMLElement | null)
         ?.getBoundingClientRect().width ?? 0),
       headH: Math.round((head as HTMLElement | null)?.getBoundingClientRect().height ?? 0),
+      // The crumb SUBJECT painting over the ROOT («ДЕЙСТВИЯ КАРТЛЕТАЮЩАЯ…») —
+      // the shrunk-identity overflow a full header line (dock + chips) once
+      // produced. The anchor never loses a letter; the aux zone absorbs.
+      crumbOverlap: (() => {
+        const root = head?.querySelector('.con-wshead__root')?.getBoundingClientRect();
+        const subj = head?.querySelector('.con-wshead__subject')?.getBoundingClientRect();
+        return root !== undefined && subj !== undefined && subj.width > 0 && subj.left < root.right - 1;
+      })(),
     };
   });
 }
@@ -174,17 +186,22 @@ for (const profile of PROFILES) {
       // vertically: the one visual divergence on the one screen whose whole
       // point is «я попал туда же»).
       expectFleetParity(await fleetGeometry(page), standaloneFleets);
-      // …and the arriving dock may not move the workspace header (the WsHead
-      // height contract: a stage change never re-measures the stage below).
-      expect(Math.abs(picking.headH - setup.headH),
-        `the fleet dock changed the header height (${setup.headH} → ${picking.headH})`)
-        .toBeLessThanOrEqual(2);
+      // The dock joining the line must never squeeze the identity under the
+      // crumb (the nowrap anchor has no clip — a shrunk box paints the subject
+      // straight over its letters).
+      expect(picking.crumbOverlap, 'the crumb subject painted over the workspace name').toBe(false);
 
       // ③ A → the colony's focus stage, with the fee already decided.
       await press(page, 'Enter', 2600);
       const onColony = await readout(page);
       expect(onColony.focusUp, 'the focus stage opened').toBe(true);
       expect(onColony.crumbStage, 'the colony folds into the tail beside its stage').toContain('·');
+      // The header re-tiers only at the STEP boundary — never between the
+      // step's own stages (selection → focus is a crumb-tail word change).
+      expect(Math.abs(onColony.headH - picking.headH),
+        `the header moved between the step's stages (${picking.headH} → ${onColony.headH})`)
+        .toBeLessThanOrEqual(2);
+      expect(onColony.crumbOverlap, 'the crumb subject painted over the workspace name').toBe(false);
       // The fee is FIXED by the entry, so it is not a list: a card action walked
       // in through this path and cannot switch. The other paths are not dimmed —
       // they are GONE, because a menu whose every other item refuses the press

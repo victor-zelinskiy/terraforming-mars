@@ -1956,6 +1956,20 @@ export default defineComponent({
       if (phase === Phase.DRAFTING || phase === Phase.INITIALDRAFTING) {
         return true;
       }
+      // …and NEVER while that section is a STEP INSIDE another workspace. The
+      // tuck's whole purpose is local to the BARE section standing in
+      // `.con-main` (its bottom rail, over which the dock's cards must not
+      // poke). Hosted — a colony build raised by a prelude or by the
+      // corporation's first action — the section lives inside the start
+      // workspace, whose own full-bleed plate then paints across the footer's
+      // row: the tuck puts the ONE command bar UNDER it and the player reads
+      // «А ВЫБРАТЬ · L3 ОСМОТРЕТЬ ИСТОЧНИК · B СВЕРНУТЬ» dimmed out. Same
+      // principle as the `dockParkedUnderScene` carve-out below, one nesting
+      // level further out: the bar every surface publishes its hints to may
+      // never be the thing that gets covered.
+      if (workspaceFrameHost('colonies') !== undefined || workspaceFrameHost('hydro') !== undefined) {
+        return false;
+      }
       // The bare colonies / hydro section grid. ⚠ ONLY the bare grid — while a
       // dimming OVERLAY is up (the trade / hydro confirm, inspect, a sheet…)
       // the footer MUST stay at its high z so the command bar reads BRIGHT

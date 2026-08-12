@@ -452,6 +452,11 @@
                  :class="{
                    'con-start__embed--live': embedActive || sponsorStep || firstActionPanelShown,
                    'con-start__embed--sourced': embedSourceShown !== undefined,
+                   // THE FIRST-ACTION STAGE PRESENTS ITS CARD AS THE SUBJECT,
+                   // not as context: the seat holds a hero-sized corporation
+                   // for the whole stage — including its follow-up steps, so
+                   // the card never resizes under the player mid-flow.
+                   'con-start__embed--firstact': firstActionStageLive,
                  }">
               <div v-if="embedSourceShown !== undefined" class="con-start__embedsource" ref="embedSourceCol"
                    :class="{'con-start__embedsource--departing': embedSourceDeparting}">
