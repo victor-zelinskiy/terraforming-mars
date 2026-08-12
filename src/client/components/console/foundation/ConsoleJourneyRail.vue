@@ -205,7 +205,7 @@ export default defineComponent({
   },
   watch: {
     phases(now: ReadonlyArray<JourneyPhase>, was: ReadonlyArray<JourneyPhase> | undefined) {
-      if (!Array.isArray(was)) {
+      if (was === undefined) {
         return; // the initial composition mounts silently
       }
       const seen = new Set(was.flatMap((p) => p.items.map((i) => `${p.id}:${i.id}`)));
