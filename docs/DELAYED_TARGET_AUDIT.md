@@ -48,6 +48,28 @@ will flag both, and the fix is the always-shown `SelectCard` + pre-collect (the 
 of upstream's skip), NOT upstream's auto-apply. Our render-DSL rework of these two files
 (structured `action()` nodes for the Actions overlay) is unrelated and stays.
 
+**Upstream sync (2026-08-12) — DELIBERATELY DECLINED, `c8096edbcb` "Skip single-card
+resource target prompts (#8311)":** the THIRD occurrence of this family, and the most
+subtle — it is not a silent auto-apply. It adds `SelectCard.maybeConvertToSelectOption(title)`,
+which collapses a one-candidate `SelectCard` into a `SelectOption` whose title NAMES the
+target (`Add 3 microbes to Ants`), and applies it to **ExtremeColdFungus, ImportedHydrogen,
+LargeConvoy, LocalHeatTrapping** (base), **Ecotec** (prelude2), plus
+`GainAnyResourceButScienceDeferred` and `GrantVenusAltTrackBonusDeferred`. Upstream already
+had that `length === 1 → SelectOption` branch inline; the commit merely extracts it.
+
+**Why declined even though the target is named.** (1) **We already removed exactly that
+branch** from ExtremeColdFungus / ImportedHydrogen / LargeConvoy during the NO-AUTO-SELECT
+rework — taking this puts it back. (2) A `SelectOption` carries no card face and no
+`current → resulting`, so the player sees WHICH card only as text, never its resulting
+resource count. (3) It changes the prompt SHAPE, and all four base cards are in premium
+scope with co-located `actionPreview` / `cardPlayPreview` hooks that pre-collect the
+`SelectCard` — `ExtremeColdFungus` says so explicitly: *"the microbe target is PRE-COLLECTED
+via the branch's optionInput … even for a single candidate"*. A shape change desynchronises
+the pre-collected batch from the live prompt.
+
+(`LocalHeatTrapping`'s remaining `length === 1` is the exempt case below — the only OR
+BRANCH auto-resolving when there is no animal card, not a hidden target.)
+
 **NOT the bug (kept):** `OrOptions.reduce()` auto-resolving the only available OR BRANCH
 is a different concept (no hidden target — the single branch's effect is what the player
 sees); `AddResourcesToCard`'s `autoSelect` is already forced `false` fork-wide.
