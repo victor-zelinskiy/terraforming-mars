@@ -5,19 +5,22 @@ import {bootWithCards, openCardActions, press, soloGameConfig} from './consoleSt
 import {LAUNCHPAD, cardTradeConfig} from './cardTradeDoor';
 
 /**
- * TEMPORARY VERIFICATION PROBE (manual QA for the embedded trade target step):
+ * THE COLONY CARD-TARGET STEP — «куда положить награду» is a LEVEL of the
+ * colony flow, on the SHARED played-card selector, and its reward physically
+ * lands on the card that was chosen.
  *
- *   test 1 (Колонии door, PICK path) — Titan trade with TWO floater hosts on
- *   the table from turn 0 (Celestic + Stormcraft, twoCorpsVariant): the
- *   decision row descends into the SHARED played-target step (physical faces,
- *   «ЦЕЛЬ НАГРАДЫ» crumb tail), B keeps the pre-select, «Изменить выбор»
- *   re-enters locked, payment change survives, and the confirm lands the
- *   floater ON the presented card — counter frozen until the touchdown.
- *
- *   test 2 (card door, Летающая платформа) — the same stage through the
- *   action's own trade branch, with Celestic beside the played launch-pad so
- *   the SAME pick step appears (two candidates), proving the two doors share
- *   one flow.
+ *   ① Колонии door (trade) — the decision row descends into the shared step
+ *     (physical faces, «ЦЕЛЬ НАГРАДЫ» crumb tail), B keeps the pre-select,
+ *     «Изменить выбор» re-enters locked, a payment change survives, and the
+ *     confirm lands the floater ON the presented card (counter frozen until
+ *     the touchdown; the closing glide never runs under the standing scene).
+ *   ② tv4k — the step composes at the couch profile, and the review panel
+ *     USES the band: no scroll rail, no clipped configuration or rail.
+ *   ③ BUILD on Titan — the placement bonus is pre-collected the same way and
+ *     answered in the build's own batch: no prompt after the cube, and the
+ *     floaters land on the chosen card.
+ *   ④ card door (Летающая платформа) — the same step under the card's own
+ *     crumb, proving the two doors are one flow.
  *
  * Evidence: screenshots/trade-target-step/.
  */
@@ -468,7 +471,6 @@ async function buildOnTitan(page: Page): Promise<void> {
   const sawScene = timeline.some((s) => s.cardland);
   const sawLanded = timeline.some((s) => s.landed);
   console.log('build sawScene', sawScene, 'sawLanded', sawLanded);
-  console.log('build timeline:', JSON.stringify(timeline.slice(0, 6)));
   const strayPrompt = await page.evaluate(() =>
     document.querySelectorAll('.con-task__option').length > 0 &&
     (document.querySelector('.con-task__title')?.textContent ?? '').toLowerCase().includes('карт'));

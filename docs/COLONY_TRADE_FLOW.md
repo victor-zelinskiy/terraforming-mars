@@ -139,6 +139,30 @@ reuses it instead of a text list in the configuration column:
   longer offers (`pruneStaleCaptures`) — a stale target is never shown as
   chosen and never submitted; the confirm re-locks until re-picked.
 
+### BUILDING ASKS THE SAME QUESTION (2026-08-13)
+
+A colony whose PLACEMENT bonus lands on a card (Titan: «положи 3 аэростата на
+любую карту») used to drop that prompt on the player AFTER the cube had
+landed. It is the same decision, so it rides the same machinery end to end:
+
+- **the server offers it** — `ColonyTradePreviewModel.buildFollowUps` (the
+  next free slot's bonus through the very same `benefitFollowUp`, role
+  `buildBonus`; absent for a full colony and for every bonus that resolves
+  without asking). One preview per colony serves both intents;
+- **the stage composes it** — `buildSteps(preview)` produces the same
+  `cardTarget` step, so the same decision row («ЦЕЛЬ БОНУСА ПОСТРОЙКИ»), the
+  same embedded picker and the same `canConfirm` gate apply. A build that
+  composes speaks the trade's grammar (A opens the decision, X builds); a
+  build with nothing to ask keeps its single «A Построить»;
+- **the batch answers it** — `[{type:'colony'}, {type:'card', cards:[…]}]`,
+  truncated at the first uncaptured step exactly like the trade's;
+- **the reward flies to it** — `armColonyBuild(..., targetCard)` →
+  `buildRewardSpecs` emits a `card-resource` spec, so the placement bonus is a
+  chip landing on the chosen card instead of a number that appeared.
+  ⚠️ The build's presented scene takes the SUMMARY RAIL's column
+  (`--carding-rail`), never the working area: its cube is landing in the berth
+  row and both physical events must stay visible at once.
+
 ## THE PRESENTED TARGETS — the reward LANDS on the card, visibly
 
 The confirm derives every card-resource DESTINATION once
@@ -159,17 +183,26 @@ stage's presented scene.
   own stored-resource capsule — the touchdown IS the counter.
 - **The counter is honest**: the face is fed a snapshotted model frozen at the
   pre-trade count (`presentedTargetModel`), ticking by exactly what has
-  PHYSICALLY landed — `colonyTradeState.cardResLanded`, bumped in the same
-  `onArrive` that releases the panel hold — with a re-keyed contact flash per
-  touchdown. A multi-chip payout (two bonus cubes onto one card) ticks per
-  contact; the store committing underneath can never tick it early.
-- **The conclusion waits for the scene.** `stageBusy` (the payout pose OR the
-  standing card scene) feeds `setColonyStageYielded`, so the closing track
-  glide never runs under the presented cards; the scene itself releases after
-  a read beat once everything landed (`CARDLAND_READ_MS`), immediately when a
-  card payout takes the area over (Miranda), and by its own bounded net when a
-  promised chip never came. A failed submit clears it with the held view on
-  the transaction's falling edge — no success scene without a success.
+  PHYSICALLY landed — `cardResourceLandings` in the transfer framework itself,
+  bumped at every arrival path (flight, degrade, reduced motion, safety), so
+  a TRADE reward and a BUILD bonus tick identically — with a re-keyed contact
+  flash per touchdown. A multi-chip payout (two bonus cubes onto one card)
+  ticks per contact; the store committing underneath can never tick it early.
+- **⚠️ THE SCENE OUTLIVES ITS TRANSACTION.** A colony BUILD's transaction ends
+  when the cube seats — several hundred ms before its floaters touch down — so
+  neither the scene's visibility nor the pinned presentation may hang off
+  `resolving`: the card vanished from under its own reward, and the panel
+  re-derived to `inspect` and shrank by a third beneath it. The snapshot IS
+  the proof of «past the commit»; it releases on its own landing + read beat
+  (`CARDLAND_READ_MS`), immediately when a card payout takes the area over
+  (Miranda), by a bounded net when a promised chip never came
+  (`CARDLAND_NET_MS`), and at once on a refusal (nothing landed, nothing in
+  flight) — no success scene without a success.
+- **The conclusion waits for the scene**, twice over: `stageBusy` feeds
+  `setColonyStageYielded` (the closing track glide never runs under the
+  presented cards), and `colonyResolutionUi.cardSceneLive` gates the section's
+  `completeFlow` — a colony may not route home while a reward is still
+  arriving on a card.
 
 ## The STAGED BOT PATH (the field-report root cause — read before touching)
 

@@ -29,10 +29,23 @@ HERO                MAIN — ONE 7-COLUMN GRID                    SUMMARY RAIL
                 └───────────────────────────────────────────┘
 ```
 
-**The surface is a DENSE PANEL, not a stretched one** —
-`height: min(100%, var(--colfocus-h))` + `align-self: center`. The scene is a
-dossier: it is sized by its own composition and centred in the band, so a tall
-host gives it air AROUND it instead of a hole inside it.
+**The surface is a DENSE PANEL, not a stretched one** — content-sized between
+`min-height: min(100%, max(var(--colfocus-h), var(--colfocus-need)))` and
+`max-height: 100%`, centred in the band. The scene is a dossier: it is sized by
+its own composition, so a tall host gives it air AROUND it instead of a hole
+inside it.
+
+⚠️ **THE TOKEN IS A FLOOR, NOT THE HEIGHT (2026-08-13).** Pinned exactly at the
+token, the panel drew a scroll over its own configuration while hundreds of px
+of band sat empty above and below it. And CSS alone cannot fix it: the
+configuration lives inside a `ConsoleScrollArea` whose viewport is `flex: 1`
+(basis 0), so its content contributes NOTHING to any ancestor's intrinsic
+height. The stage therefore MEASURES what its columns want (`measureFit` →
+`--colfocus-need`) — content-derived (`panel − box + content`), which is a
+FIXPOINT, so the panel neither oscillates nor stays inflated once the content
+shrinks — and `max-height: 100%` keeps the internal scroll as the honest last
+resort on a short host. Measured at 4K: band 1636, panel 1432, config viewport
+754 == content 754, zero rails.
 
 **The height is a TOKEN, per MODE, and the TV profile overrides the token.**
 27.5rem for a TRADE (the only mode with a configuration to hold), 21.5rem for
@@ -428,11 +441,23 @@ hero column standing), both documented in `docs/COLONY_TRADE_FLOW.md`
   НАГРАДЫ» (`publishStageName`), the bar speaks the selector's grammar
   (`composerSub === 'targets'`: A Выбрать · X Осмотреть · B Назад).
 - **`__cardland`** (`--carding`, z3, post-commit) — the chosen host card(s),
-  frozen counters ticking per chip touchdown
-  (`colonyTradeState.cardResLanded` → `presentedTargetModel`), contact flash
-  re-keyed per landing. Dims `__main` ONLY — the summary rail stays lit (the
-  chips launch from its income value). `stageBusy` = payout pose ∨ this scene
-  → the closing glide waits for both through `setColonyStageYielded`.
+  frozen counters ticking per chip touchdown (`cardResourceLandings` →
+  `presentedTargetModel`), contact flash re-keyed per landing. A TRADE dims
+  `__main` and keeps the summary rail lit (the chips launch from its income
+  value); a BUILD does the OPPOSITE (`--carding-rail`, `__cardland--rail`) —
+  its cube is landing in the berth row, so the card takes the rail's column
+  and both physical events stay visible. `stageBusy` = payout pose ∨ this
+  scene → the closing glide waits for both through `setColonyStageYielded`,
+  and `colonyResolutionUi.cardSceneLive` additionally gates the section's
+  `completeFlow`.
+
+**The RESULT RAIL states WHERE a card-resource total lands.** «ВАШ ИТОГ» keeps
+the total; under it, «На карту:» / «На карты:» lists the physical cards with
+their honest `before → after` (`cardTargetLines` ← the ONE
+`colonyTradeCardDestinations` read, merged per card, autos included). It is
+NOT part of «СОСТАВ НАГРАДЫ»: that section is the arithmetic behind the total,
+and stating the cards there printed one line per STEP — the same card twice
+when an income and a bonus both landed on it (the reported duplicate).
 
 ## 7 · MODES
 

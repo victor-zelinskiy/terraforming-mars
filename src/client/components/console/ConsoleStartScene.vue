@@ -450,7 +450,7 @@
                  draw, and SETTLES back into the stack on release. -->
             <div class="con-start__embed" data-embed-slot="start"
                  :class="{
-                   'con-start__embed--live': embedActive || sponsorStep || firstActionPanelShown,
+                   'con-start__embed--live': embedPresenting || sponsorStep || firstActionPanelShown,
                    'con-start__embed--sourced': embedSourceShown !== undefined,
                    // THE HERO SIZE BELONGS TO THE BRIEFING, NOT TO THE STAGE.
                    // While the briefing is what the player is looking at, the
@@ -1129,7 +1129,7 @@ export default defineComponent({
         });
       }
       return deploymentCrumb({
-        embedActive: this.embedActive,
+        embedActive: this.embedPresenting,
         embedPhase: this.outcome.phaseKey,
         embedSubject: this.embedSubject,
         corpPending: this.deploymentFlowStage === 'corp',
@@ -1140,7 +1140,7 @@ export default defineComponent({
         // grammar (candidates → «ПРОЛОГИ › РОЗЫГРЫШ», an embedded reveal →
         // the claim's own stage name) — the root never restarts.
         firstAction: this.firstActionPanelShown ||
-          (this.deploymentFlowStage === 'firstAction' && this.candidatePrompt === undefined && !this.embedActive),
+          (this.deploymentFlowStage === 'firstAction' && this.candidatePrompt === undefined && !this.embedPresenting),
       });
     },
     wsSubject(): string {
@@ -1427,8 +1427,28 @@ export default defineComponent({
       const src = workspaceFrameSubject('start');
       return src === '' ? undefined : src as CardName;
     },
+    /**
+     * A follow-up is CLAIMED for this workspace — the step is ours to host.
+     * Says nothing about whether it is on screen yet (see `embedPresenting`).
+     */
     embedActive(): boolean {
       return this.outcome.host === 'start' && this.outcome.sourceCard !== '';
+    },
+    /**
+     * …AND IT IS ACTUALLY ON SCREEN. The distinction is load-bearing.
+     *
+     * A claim is placed at the PRESS, before the server has said what the
+     * play produces — and inside the first-action stage it is placed
+     * optimistically ON PURPOSE (a bespoke action's preview cannot promise
+     * the draw its own follow-up will make). Everything about PRESENTATION —
+     * the crumb's tail, the room receding, the input guard, the status line —
+     * must therefore key on the step being THERE, not on the hope of it.
+     * Keyed on the claim, an optimistic claim emptied the room and titled it
+     * «ДОБОР КАРТ» for a draw that never came, with the candidates it should
+     * have been dealing hidden behind it.
+     */
+    embedPresenting(): boolean {
+      return this.embedActive && this.outcome.stage === 'presenting';
     },
     /**
      * THE START EFFECT FLOW — one derived beat for the whole draw-effect
@@ -1469,7 +1489,7 @@ export default defineComponent({
     /** The ceremony status rail: the focused queue card's NAME (the SOURCE
      *  card while an embedded reveal owns the zone). */
     ceremonyStatusName(): string {
-      if (this.embedActive && this.outcome.sourceCard !== '') {
+      if (this.embedPresenting && this.outcome.sourceCard !== '') {
         return translateText(this.outcome.sourceCard);
       }
       // The first-action stage (its own briefing beats only — a follow-up
@@ -1486,7 +1506,7 @@ export default defineComponent({
     },
     /** …and its resolution CONTEXT — one short state, never a breakdown. */
     ceremonyStatusText(): string {
-      if (this.embedActive) {
+      if (this.embedPresenting) {
         return translateText('Card draw');
       }
       // The first-action stage: the rail carries only the short state — the
@@ -1655,20 +1675,23 @@ export default defineComponent({
       // follow-ups are what the player is looking at, and every one of them
       // NEEDS these surfaces: the drawn candidates are dealt INTO the queue,
       // and the chosen card flies to the shelf. (A follow-up that wants the
-      // room away again — an embedded reveal — recedes it through the claim's
-      // own phrase; this bit must not become a second writer, hence the
-      // `embedActive` term here and the guard on the return.)
+      // room away again — an embedded reveal ON SCREEN — recedes it through
+      // the claim's own phrase; this bit must not become a second writer,
+      // hence the `embedPresenting` term here and the guard on the return.
+      // PRESENTING, not merely claimed: a claim is optimistic here, and
+      // yielding the room to one that never presents empties the deployment
+      // for a step that does not exist.)
       if (stage !== 'staging' && stage !== 'standing') {
         return false;
       }
-      return !this.embedActive && this.candidatePrompt === undefined;
+      return !this.embedPresenting && this.candidatePrompt === undefined;
     },
-    /** The briefing PANEL renders — never over an embedded follow-up (the
-     *  reveal owns the zone then; the seat stays either way) and never once
-     *  the action is off performing its own presentation. */
+    /** The briefing PANEL renders — never over an embedded follow-up that is
+     *  actually on screen (the reveal owns the zone then; the seat stays
+     *  either way) and never once the action is off performing. */
     firstActionPanelShown(): boolean {
       return (this.state.firstAct.stage === 'staging' || this.state.firstAct.stage === 'standing') &&
-        !this.embedActive && this.candidatePrompt === undefined;
+        !this.embedPresenting && this.candidatePrompt === undefined;
     },
     /**
      * ENTRY IS DUE — the deployment's cards are through, nothing is mid-air,
@@ -2763,22 +2786,29 @@ export default defineComponent({
         }
       }
     },
+    /**
+     * THE ROOM YIELDS WHEN THE STEP IS ACTUALLY THERE. The release is
+     * guaranteed here, not only on the hero's `depart` beat — both halves are
+     * latch-guarded, so this is a no-op when the beat already ran, but when
+     * it did NOT (a claim that arrives without a hero flight, a beat that
+     * skipped straight past `staged`) nothing ever receded, and the
+     * deployment then had no return to play.
+     *
+     * Keyed on PRESENTING, never on the claim: a claim is placed at the
+     * press and, inside the first-action stage, deliberately optimistically —
+     * receding the room on it emptied the deployment for a draw that never
+     * came.
+     */
+    'embedPresenting'(now: boolean, was: boolean) {
+      if (now && !was) {
+        this.runQueueRelease();
+        this.runPlayedDockRelease();
+      }
+    },
     /** The claim released (any exit — the take finished, the backstop, the
      *  unmount): the main scene RETURNS first, then the source card carries
      *  on into «Разыграно» (the second half of its interrupted journey). */
     'embedActive'(now: boolean, was: boolean) {
-      if (now && !was) {
-        // THE RELEASE IS GUARANTEED HERE, not only on the hero's `depart`
-        // beat. Both halves are latch-guarded, so this is a no-op when the
-        // beat already ran — but when it did NOT (a claim that arrives without
-        // a hero flight, a beat that skipped straight past `staged`) nothing
-        // ever receded, and the deployment then had no return to play: the
-        // step simply unmounted and the queue reappeared in a single frame.
-        // A scene that is asked to come back must have gone away first.
-        this.runQueueRelease();
-        this.runPlayedDockRelease();
-        return;
-      }
       if (!now && was) {
         void this.runStartEffectReturn();
       }
@@ -4458,7 +4488,7 @@ export default defineComponent({
         // The first-action stage adds two beats of its own: the corp's rise
         // into the seat and the submit round trip — both are one motion the
         // collapse would tear (the standing WAIT itself minimizes freely).
-        if (isPlayedHeroActive() || this.embedActive ||
+        if (isPlayedHeroActive() || this.embedPresenting ||
             isHandDeliveryActive() || this.queueArriving.size > 0 ||
             this.state.firstAct.stage === 'staging' || this.state.firstAct.submitting) {
           return;
@@ -4656,7 +4686,7 @@ export default defineComponent({
       // deployment shell is REVEALED and standing (the receiving stage's
       // container, the compact tableau, the rail all live in it). Before
       // that — mid-materialization — the source card must not release.
-      if (this.mode === 'ceremony' && (!this.ceremonyRevealed || this.embedActive || this.queueArriving.size > 0)) {
+      if (this.mode === 'ceremony' && (!this.ceremonyRevealed || this.embedPresenting || this.queueArriving.size > 0)) {
         return;
       }
       const item = this.focusables.find((f) => f.name === name);
@@ -5043,11 +5073,13 @@ export default defineComponent({
         this.roomPosed = true;
         return;
       }
-      // …unless ANOTHER owner still wants it away: an embedded reveal claimed
-      // by this very action recedes the room in its own phrase and returns it
-      // in its own phrase (`embedActive`'s watcher). Two writers on one
-      // surface is how a return and a release cancel each other mid-flight.
-      if (this.embedActive) {
+      // …unless ANOTHER owner still wants it away: an embedded reveal that is
+      // ON SCREEN recedes the room in its own phrase and returns it in its
+      // own phrase (`embedPresenting` / `embedActive` watchers). Two writers
+      // on one surface is how a return and a release cancel each other
+      // mid-flight. A merely CLAIMED follow-up is not an owner yet — the room
+      // stays until its step actually appears.
+      if (this.embedPresenting) {
         return;
       }
       // THE ROOM COMES BACK, and the deal waits for it: a card dealt into a
