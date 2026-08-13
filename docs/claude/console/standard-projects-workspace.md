@@ -99,6 +99,69 @@ outcome stage · task kind · parked · colony resolution · placement) and re-a
 exactly when one of them changes. Without it the parent list stood on screen,
 committed and empty, until something else happened.
 
+## The STATUS RAIL is the whole projected transaction (iteration 2)
+
+One action must read as one statement. It did not: the M€ half lived in a
+header block of its own shape («У ВАС 442 −14 → 428») while everything else
+lived as chips in the status rail, so a single move looked like two unrelated
+readouts. The header block is **gone** and the M€ change is now an ordinary
+chip — the SERVER's own cost effect, `current → resulting`, rendered by the
+same `ActionEffectChip` every composer uses:
+
+```
+ОЧИСТКА ВОЗДУХА │ [🪙 500 → 486] [Венера 0% → 2%]
+ГОРОД           │ [🪙 500 → 475] [M€ 0 → 1 производство] › ДАЛЕЕ: ВЫБЕРИТЕ МЕСТО НА ПОЛЕ
+```
+
+Nothing is duplicated: the **row** says what the project costs and what it is;
+the **rail** says where the player lands. The viewer's balance already lives on
+the always-visible player rail, so the header stays quiet — deliberately not
+back-filled with decoration.
+
+Order is fixed and meaningful (money → production/parameter → the rest), and
+the set CROSSFADES on a focus change (`transition-group`, keyed by
+`direction:icon:note`) so the M€ chip stays put while the parameter beside it
+swaps — no height change, no re-flow, never two projects' previews at once.
+
+PATENT SALE is the one row with no honest projection before its step: the
+payout depends on cards nobody has picked. The row states the RULE («+1 M€ /
+карта»), the rail states the STEP, and the real `current → resulting` money
+appears INSIDE the hand step, computed from the actual picks.
+
+## The TERMINAL COMMIT is a phrase, not a class swap (iteration 2)
+
+`consoleStdProjectCommit.ts` — four named phases, one motif:
+
+| phase | what the player sees | who ends it |
+| --- | --- | --- |
+| `press` | the row compresses ~0.6 % and its ring tightens — the tactile «принято», on the press frame, owing nothing to the network | the answer arrives |
+| `committing` | the gold SWEEP runs the rail's own body once: the projected green physically becomes committed gold | the sweep's peak |
+| `committed` | the fixed gold holds while the delta chips land, then the flow leaves | the hold (`STDP_HOLD_MS`) |
+| `idle` | released — either the flow concluded, or a refusal rolled the press back | — |
+
+**The HUD is HELD to the sweep's peak.** The response carries the new numbers,
+so applying it on arrival paints the result BEFORE its own cause: the rail's
+colour used to flip on whatever render won the race and the counters ticked
+underneath it. `WaitingFor` now holds the commit (`holdingForStdProject`,
+beside the patent sale's own gate) and `runStdProjectCommit()` resolves at the
+crest — the counters and their delta chips land ON the confirmation. A fast
+server cannot cut the beat; a slow one cannot stall it (the press already
+answered, and the gate carries its own ceiling).
+
+**Only terminal projects.** A project that turns out to need a target releases
+the phrase the moment its follow-up arrives (`releaseStdProjectCommit`) — the
+root list never flashes gold at a move that is not finished; the colony / hand
+/ placement steps commit inside their own workspaces exactly as before.
+
+**A refusal never shows gold.** `abortStdProjectCommit()` unwinds the press,
+bumps `abortNonce`, and the shell's watcher rolls the FLOW back to `browse`
+(otherwise the workspace would sit in its sealed `executing` beat with B dead).
+Nothing is credited and the row is immediately usable again.
+
+**Budget:** the phrase is bounded by the flat 950 ms timer it replaced
+(`stdProjectCommitBeatMs()` is asserted against that ceiling) — press and sweep
+overlap, the chips ride the crest, and the hold that follows is the read.
+
 ## Preview — the shared chip language, from the real rule sources
 
 `CardModel.standardProjectPreview` (`server/models/standardProjectPreview.ts`),

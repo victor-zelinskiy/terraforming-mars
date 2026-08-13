@@ -90,9 +90,25 @@ async function createGame(request: APIRequestContext): Promise<string> {
 const focusedRow = async (page: Page) =>
   (await page.locator('.con-stdp__card--focused .con-stdp__name').textContent().catch(() => '')) ?? '';
 
-/** The viewer's M€ as the workspace header's wallet reads it. */
-const walletNow = async (page: Page) =>
-  Number((await page.locator('.con-stdp__wallet-now b').textContent().catch(() => '')) ?? 'NaN');
+/**
+ * The viewer's M€, read from the SERVER — the authority for «was anything
+ * spent». It used to read the workspace header's wallet block; that block is
+ * gone by design (the whole projected transaction lives in the status rail
+ * now), and a DOM probe for a removed element does not fail fast — it waits
+ * out the whole test timeout.
+ */
+async function serverMegacredits(request: APIRequestContext, playerId: string): Promise<number> {
+  const view = await (await request.get(`/api/player?id=${playerId}`))
+    .json() as {thisPlayer: {megacredits: number}};
+  const mc = view.thisPlayer?.megacredits;
+  expect(typeof mc, 'the player view must carry the viewer`s own M€').toBe('number');
+  return mc;
+}
+
+/** The status rail's chips, as text — the ONE place the projection reads. */
+const railChips = async (page: Page) =>
+  (await page.locator('.con-stdp__context-chips .action-effect-chip').allTextContents())
+    .map((t) => t.replace(/\s+/g, ' ').trim());
 
 /** Walk the 2-column grid until the focused row matches: home to the top-left
  *  corner first, then snake through both columns (a blind cyclic walk can trap
@@ -122,17 +138,24 @@ async function openStdProjects(page: Page): Promise<void> {
 
 test('the Standard-Projects workspace owns the whole flow (nested steps, B-returns, terminal beat)', async ({page, request}) => {
   test.setTimeout(420_000);
-  await bootSeededGame(page, request, await createGame(request), {buy: 2, keepColony: 'Pluto'});
+  const playerId = await createGame(request);
+  await bootSeededGame(page, request, playerId, {buy: 2, keepColony: 'Pluto'});
   await page.waitForTimeout(1500);
 
   await openStdProjects(page);
 
-  // ── BROWSE: the projected result reads in the SHARED chip language and the
-  // HUD carries the quiet ghost ring for the affected dial. ──
+  // ── BROWSE: the WHOLE projected transaction reads in the status rail, in
+  // the shared chip language, and the HUD carries the pre-select ghost ring. ──
   await focusRow(page, /астероид/i);
   await page.waitForTimeout(400);
-  expect(await page.locator('.con-stdp .action-effect-chip').count(),
-    'the focused row must project its result in ActionEffectChip language').toBeGreaterThan(0);
+  const asteroidChips = await railChips(page);
+  expect(asteroidChips.length,
+    'the rail must carry the M€ chip AND the parameter chip — one transaction, one place')
+    .toBeGreaterThanOrEqual(2);
+  expect(asteroidChips.some((t) => /→/.test(t)),
+    'the projection reads as current → resulting, like every other workspace').toBeTruthy();
+  expect(await page.locator('.con-stdp__wallet').count(),
+    'the header must NOT carry a second copy of the money preview').toBe(0);
   expect(await page.locator('.con-status__param--ghost').count(),
     'the affected HUD readout must carry the pre-select ghost ring').toBe(1);
   // The pay-on-commit projects additionally name their NEXT STEP.
@@ -143,7 +166,7 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   await shoot(page, '01-browse-previews');
 
   // ── THE COLONY STEP: nested INSIDE the same panel; B cancels for free. ──
-  const before = await walletNow(page);
+  const before = await serverMegacredits(request, playerId);
   await focusRow(page, /колония/i);
   await press(page, 'Enter', 2200);
   await page.waitForSelector('.con-stdp .con-colonies', {timeout: 15_000});
@@ -158,7 +181,7 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   await page.waitForSelector('.con-stdp .con-colonies', {state: 'detached', timeout: 15_000});
   expect(await page.locator('.con-stdp').count(), 'the workspace must survive the cancel').toBe(1);
   expect(await focusedRow(page), 'the cancel must return to the very row').toMatch(/колония/i);
-  expect(await walletNow(page), 'a cancelled colony pick must spend NOTHING').toBe(before);
+  expect(await serverMegacredits(request, playerId), 'a cancelled colony pick must spend NOTHING').toBe(before);
   await shoot(page, '03-colony-cancelled-back');
 
   // ── THE SALE STEP: the hand nested inside; B folds back with nothing sold. ──
@@ -169,7 +192,7 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   await press(page, 'Escape', 1200);
   await page.waitForSelector('.con-stdp .con-hand', {state: 'detached', timeout: 15_000});
   expect(await focusedRow(page), 'the fold must return to the sale row').toMatch(/продажа патентов/i);
-  expect(await walletNow(page), 'a folded sale must gain NOTHING').toBe(before);
+  expect(await serverMegacredits(request, playerId), 'a folded sale must gain NOTHING').toBe(before);
 
   // ── THE PLACEMENT STEP: the board serves it; a cancel REOPENS the list on
   // the very row the player left. ──
@@ -180,7 +203,7 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   await press(page, 'Escape', 2600); // B = cancel placement (server restores the menu)
   await page.waitForSelector('.con-stdp', {timeout: 15_000});
   expect(await focusedRow(page), 'the cancelled placement must reopen on the same row').toMatch(/город/i);
-  expect(await walletNow(page), 'a cancelled placement must spend NOTHING').toBe(before);
+  expect(await serverMegacredits(request, playerId), 'a cancelled placement must spend NOTHING').toBe(before);
   await shoot(page, '06-city-cancelled-back');
 
   // ── THE COLONY COMMIT: the build's own follow-ups finish INSIDE the step,
@@ -229,21 +252,50 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
 
   // ── THE TERMINAL COMMIT: one press, a committed beat, then the workspace
   // closes itself — and a rapid double-press cannot submit twice. ──
-  const walletBeforeTerminal = await walletNow(page);
+  const beforeTerminal = await serverMegacredits(request, playerId);
   await focusRow(page, /электростанция/i);
+  // Record the commit PHRASE as it plays: the press pose must appear before
+  // the gold, the gold must be an animated sweep rather than a class swap,
+  // and the row must never fall back to its available/green pose on the way
+  // out. Sampling from inside the page — a runner-side poll misses frames.
+  const phrase = page.evaluate(() => new Promise<Array<string>>((resolve) => {
+    const seen: Array<string> = [];
+    const t0 = performance.now();
+    const tick = () => {
+      const row = document.querySelector('.con-stdp__card--pressing, .con-stdp__card--committing, .con-stdp__card--committed');
+      const pose = row === null ? '' :
+        row.classList.contains('con-stdp__card--pressing') ? 'press' :
+          row.classList.contains('con-stdp__card--committing') ? 'gold-sweep' : 'committed';
+      const sweep = document.querySelector('.con-stdp__card--committing .con-stdp__rail-sweep');
+      const sweeping = sweep !== null && getComputedStyle(sweep).opacity !== '0';
+      const tag = pose === 'gold-sweep' ? `gold-sweep:${sweeping ? 'live' : 'idle'}` : pose;
+      if (tag !== '' && seen[seen.length - 1] !== tag) {
+        seen.push(tag);
+      }
+      if (performance.now() - t0 < 3000) {
+        requestAnimationFrame(tick);
+      } else {
+        resolve(seen);
+      }
+    };
+    requestAnimationFrame(tick);
+  }));
   await page.keyboard.press('Enter');
   await page.keyboard.press('Enter'); // absorbed by the executing phase
   await page.keyboard.press('Enter');
   await page.waitForSelector('.con-stdp__card--committed', {timeout: 10_000});
   await shoot(page, '07-terminal-commit-beat');
   await page.waitForSelector('.con-stdp', {state: 'detached', timeout: 10_000});
+  const poses = await phrase;
+  console.log('── commit phrase ──', poses.join(' → '));
+  expect(poses[0], 'the press must answer FIRST — before any gold').toBe('press');
+  expect(poses.some((p) => p.startsWith('gold-sweep')),
+    'the green → gold transition must be an animated sweep, not a class swap').toBeTruthy();
+  expect(poses[poses.length - 1], 'the row must leave in its COMMITTED pose, never back to green')
+    .toBe('committed');
   await page.waitForTimeout(800);
-  // The authoritative "paid exactly once" check: the wallet, read back on the
-  // workspace's own header (the colony above was built, so its 17 M€ is spent
-  // too — the delta that matters here is the Power Plant's 11).
-  const beforeTerminal = walletBeforeTerminal;
   await openStdProjects(page);
-  expect(await walletNow(page),
+  expect(await serverMegacredits(request, playerId),
     'Power Plant (11 M€) must be paid exactly ONCE — a double-press must not double-submit')
     .toBe(beforeTerminal - 11);
   await shoot(page, '08-after-terminal');

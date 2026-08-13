@@ -566,6 +566,33 @@ export function parseAffinityPref(env: string | undefined): AffinityPref {
   return {mode: 'auto'};
 }
 
+/**
+ * A DIAGNOSABLE one-line reason for a failed `powershell` shell-out (the affinity
+ * pin + its core detection). Node's own message is `Command failed: <the entire
+ * command line>` — which on a TIMEOUT kill carries an empty stderr, so the log
+ * reads as "the script broke" when in fact nothing ever ran. That ambiguity cost
+ * a debugging session: a saturated CPU during window load pushed powershell.exe's
+ * cold start past the timeout and the echo blamed the script.
+ *
+ * Pure (unit-tested); the exec call itself lives in main.ts `runPowerShell`.
+ */
+export function describePowerShellFailure(
+  err: {killed?: boolean, code?: number | string | null},
+  elapsedMs: number,
+  timeoutMs: number,
+  stderr: string): string {
+  const detail = stderr.trim().replace(/\s+/g, ' ').slice(0, 300);
+  let why: string;
+  if (err.killed === true) {
+    why = `timed out after ${elapsedMs}ms (limit ${timeoutMs}ms)`;
+  } else if (typeof err.code === 'string') {
+    why = `spawn failed (${err.code}) after ${elapsedMs}ms`; // ENOENT: no powershell on PATH
+  } else {
+    why = `exit ${err.code ?? '?'} after ${elapsedMs}ms`;
+  }
+  return detail === '' ? why : `${why}: ${detail}`;
+}
+
 /** The Windows process-priority preference resolved from TM_ELECTRON_PRIORITY. */
 export type ProcessPriorityPref = 'above' | 'high';
 

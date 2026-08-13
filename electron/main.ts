@@ -22,7 +22,7 @@ import {enforceVersionScopedCache} from './cacheVersion';
 import {registerUpdateIpc, resolveStartupUpdate} from './update';
 import {registerInstallerCheckIpc, runInstallerCheck} from './installerCheck';
 import {originOf, isSameOrigin as sameOrigin, isExternalHttp} from './navGuard';
-import {applyPerformanceSwitches, logGpuStatus, parseAffinityPref, parseCliEnvOverrides, pCoreAffinityMask, processPriorityPref} from './perf';
+import {applyPerformanceSwitches, describePowerShellFailure, logGpuStatus, parseAffinityPref, parseCliEnvOverrides, pCoreAffinityMask, processPriorityPref} from './perf';
 import {execFile} from 'child_process';
 import {installDevtoolsPadCursor} from './devtoolsPadCursor';
 import {installConsoleCapture} from './consoleExport';
@@ -288,14 +288,34 @@ function applyProcessPriority(): void {
   }
 }
 
-/** Run a PowerShell one-liner, resolve its stdout (rejects on error/non-zero). */
-function runPowerShell(command: string): Promise<string> {
+/**
+ * How long a background powershell one-liner may take. MEASURED on the target
+ * hybrid laptop: powershell.exe cold start is ~1.5-3s idle but **6.6-7.6s** while
+ * the CPU is saturated (window load) and the caller is already pinned to the 12
+ * P-core threads — children INHERIT the affinity mask, so the pin throttles its
+ * own helper. The old 8s left no margin and the timeout kill surfaced as a bogus
+ * "apply failed: Command failed". Nothing awaits these calls, so a slow answer is
+ * free; the cap exists only so a wedged powershell can't leak forever.
+ */
+const POWERSHELL_TIMEOUT_MS = 30_000;
+
+/** Run a PowerShell one-liner, resolve its stdout (rejects on error/non-zero/timeout). */
+function runPowerShell(command: string, timeoutMs = POWERSHELL_TIMEOUT_MS): Promise<string> {
   return new Promise((resolve, reject) => {
+    const started = Date.now();
     execFile(
       'powershell',
       ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', command],
-      {windowsHide: true, timeout: 8000},
-      (err, stdout) => (err ? reject(err) : resolve(stdout)));
+      {windowsHide: true, timeout: timeoutMs},
+      (err, stdout, stderr) => {
+        if (err === null) {
+          resolve(stdout);
+        } else {
+          // Never re-throw Node's raw error: its message is the whole command line
+          // with an EMPTY stderr on a kill, which hides a timeout as a script error.
+          reject(new Error(describePowerShellFailure(err, Date.now() - started, timeoutMs, stderr)));
+        }
+      });
   });
 }
 
@@ -304,6 +324,16 @@ let affinityResolved = false;
 let affinityMask: number | undefined;
 // Human-readable WHY, surfaced to the renderer console for on-device diagnosis.
 let affinityDiag = '';
+// The mask+pid set already pinned, plus the line that reported it. A process's
+// affinity STICKS for its whole lifetime, so a reload that reuses the renderer pid
+// is ALREADY pinned — re-running the shell-out would only pay another (seconds-long)
+// powershell.exe start on every load. Re-echo the remembered line instead.
+let affinityAppliedKey = '';
+let affinityAppliedEcho = '';
+// The in-flight apply. did-finish-load can fire again while the previous shell-out
+// is still running (game-boundary reload); without this the one-shot detection
+// races itself and two powershell.exe starts fight for the very cores being pinned.
+let affinityInFlight: Promise<void> | undefined;
 
 /**
  * Resolve the P-core affinity mask once. `auto` reads the physical + logical core
@@ -340,14 +370,34 @@ async function resolveAffinityMask(): Promise<number | undefined> {
  * Pin the main + renderer processes to the P-cores on a hybrid Intel CPU, so the
  * layout-bound renderer main thread stays on the FAST cores instead of migrating
  * onto the weak E-cores (the "same code, worse than the console" gap). Windows-
- * only, auto-detected, idempotent (re-applied each load); every step wrapped so a
- * failure can never break the window. Disable/override via TM_ELECTRON_AFFINITY.
- * See perf.ts `pCoreAffinityMask`.
+ * only, auto-detected; every step wrapped so a failure can never break the window.
+ * Disable/override via TM_ELECTRON_AFFINITY. See perf.ts `pCoreAffinityMask`.
+ *
+ * Called on EVERY did-finish-load but does real WORK only when the pinned set
+ * changes — the shell-out costs a whole powershell.exe start (seconds under load),
+ * while an already-pinned process stays pinned for its lifetime. Concurrent calls
+ * (reload during a slow shell-out) share the one in-flight promise.
  */
-async function applyPCoreAffinity(): Promise<void> {
+function applyPCoreAffinity(): Promise<void> {
   if (process.platform !== 'win32') {
-    return;
+    return Promise.resolve();
   }
+  if (affinityInFlight !== undefined) {
+    return affinityInFlight; // a previous load's shell-out is still running
+  }
+  affinityInFlight = pinToPCores()
+    .catch((err) => {
+      // eslint-disable-next-line no-console
+      console.warn('[TM affinity] unexpected failure', err); // best-effort: never break the window
+    })
+    .finally(() => {
+      affinityInFlight = undefined;
+    });
+  return affinityInFlight;
+}
+
+/** The one shell-out of applyPCoreAffinity — never called concurrently with itself. */
+async function pinToPCores(): Promise<void> {
   if (!affinityResolved) {
     affinityMask = await resolveAffinityMask();
     affinityResolved = true;
@@ -372,17 +422,34 @@ async function applyPCoreAffinity(): Promise<void> {
   if (rendererPid !== undefined && rendererPid > 0) {
     pids.push(rendererPid);
   }
+  // Already pinned (same mask, same pids) → nothing to re-assert. A NEW renderer
+  // pid (process-swap navigation) or a previous FAILURE changes/clears the key and
+  // runs for real, so this stays self-healing.
+  const key = `${affinityMask}:${pids.join(',')}`;
+  if (key === affinityAppliedKey) {
+    echo(affinityAppliedEcho);
+    return;
+  }
   try {
     // Set the affinity, then READ IT BACK per pid — so the echo shows whether it
     // actually stuck (`<pid>=4095`) vs was rejected/reset (`<pid>=1048575`) vs
     // errored. (The old inner catch swallowed the failure and mis-logged success.)
+    // `[Diagnostics.Process]::GetProcessById` rather than the Get-Process cmdlet:
+    // a dead pid then raises a CATCHABLE exception instead of a non-terminating
+    // cmdlet error that escapes to stderr (and would exit 1 under pwsh).
     const out = await runPowerShell(
-      `foreach($id in @(${pids.join(',')})){try{$p=Get-Process -Id $id;` +
+      `foreach($id in @(${pids.join(',')})){try{` +
+      `$p=[System.Diagnostics.Process]::GetProcessById($id);` +
       `$p.ProcessorAffinity=[IntPtr]${affinityMask};"$id=$($p.ProcessorAffinity)"}` +
       `catch{"$id=ERROR $($_.Exception.Message)"}}`);
-    echo(`target 0x${affinityMask.toString(16)} (${affinityDiag}); result ${out.trim().replace(/\s+/g, ' ')}`);
+    // Remember the RUN, not the outcome: a per-pid rejection is deterministic, so
+    // retrying it on every load would burn a powershell start for the same answer.
+    affinityAppliedKey = key;
+    affinityAppliedEcho =
+      `target 0x${affinityMask.toString(16)} (${affinityDiag}); result ${out.trim().replace(/\s+/g, ' ')}`;
+    echo(affinityAppliedEcho);
   } catch (err) {
-    echo(`apply failed: ${String(err)}`);
+    echo(`apply failed: ${String(err)}`); // transport failure → key unset, retried next load
   }
 }
 

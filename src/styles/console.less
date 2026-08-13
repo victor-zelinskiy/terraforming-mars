@@ -8398,8 +8398,11 @@ html.con-profile-handheld .con-mafocus {
        rendered at all, so there is no empty plate and no geometry change. */
     &__cost-delta {
         position: absolute;
-        right: .05rem;
-        bottom: -.42rem;
+        /* Docked to the coin's lower-right CORNER: it touches the value it
+           belongs to without covering the glyph itself (the price stays the
+           main read, the saving is its attached footnote). */
+        right: -.1rem;
+        bottom: -.5rem;
         padding: 0 .22rem 0 .3rem;
         border-radius: .38rem .38rem .38rem 0;
         background: rgba(8, 20, 15, 0.94);

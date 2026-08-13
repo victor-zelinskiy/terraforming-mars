@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {applyPerformanceSwitches, classifySteamHardware, gpuMemBudgetMb, parseAffinityPref, parseCliEnvOverrides, parseExtraSwitches, pCoreAffinityMask, processPriorityPref, rasterThreadCount} from '../../electron/perf';
+import {applyPerformanceSwitches, classifySteamHardware, describePowerShellFailure, gpuMemBudgetMb, parseAffinityPref, parseCliEnvOverrides, parseExtraSwitches, pCoreAffinityMask, processPriorityPref, rasterThreadCount} from '../../electron/perf';
 import {cacheControl} from '../../electron/protocol';
 
 // A minimal App stand-in that records the command-line switches appended.
@@ -305,6 +305,20 @@ describe('electron/perf', () => {
       expect(parseAffinityPref('0')).to.deep.equal({mode: 'off'});
       expect(parseAffinityPref('0xfff')).to.deep.equal({mode: 'mask', mask: 4095});
       expect(parseAffinityPref('4095')).to.deep.equal({mode: 'mask', mask: 4095});
+    });
+
+    it('describePowerShellFailure: a TIMEOUT reads as a timeout, not as a broken script', () => {
+      // The regression: a saturated CPU pushed powershell.exe past the limit, Node
+      // killed it, and the empty stderr made the log blame the script.
+      expect(describePowerShellFailure({killed: true, code: null}, 8123, 8000, ''))
+        .to.equal('timed out after 8123ms (limit 8000ms)');
+      expect(describePowerShellFailure({code: 1}, 900, 30000, '  Get-Process :\r\n  no such\tprocess  '))
+        .to.equal('exit 1 after 900ms: Get-Process : no such process');
+      expect(describePowerShellFailure({code: 'ENOENT'}, 12, 30000, ''))
+        .to.equal('spawn failed (ENOENT) after 12ms');
+      expect(describePowerShellFailure({}, 5, 30000, '')).to.equal('exit ? after 5ms');
+      expect(describePowerShellFailure({code: 1}, 5, 30000, 'x'.repeat(500)))
+        .to.equal(`exit 1 after 5ms: ${'x'.repeat(300)}`);
     });
 
     it('processPriorityPref: HIGH by default, ABOVE opt-in, normal/off leaves the OS default', () => {

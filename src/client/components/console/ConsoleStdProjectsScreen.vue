@@ -254,6 +254,14 @@ export default defineComponent({
       if (target === 'colony') {
         return 'Next: choose a colony.';
       }
+      // PATENT SALE is a client pre-select, so it has no server preview and no
+      // honest projection yet: the payout depends entirely on cards nobody has
+      // picked. The row already states the RULE («+1 M€ / карта»), so the rail
+      // states the STEP — and the real `current → resulting` money appears
+      // inside the hand step, computed from the actual picks.
+      if (this.focused?.key === 'sell-patents') {
+        return 'Next: choose the cards to sell.';
+      }
       return undefined;
     },
     /**
