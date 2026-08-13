@@ -633,6 +633,8 @@ import {
   orderedStepResponses,
   focusFreeDialId,
   InlineDial,
+  // The ONE «may a choice be seeded» rule — shared with the play composer.
+  initialVariantSelection,
 } from '@/client/console/consoleActionComposer';
 import {variablePartsForBranch, ConsoleVariableChip} from '@/client/console/consoleCardActions';
 import {paymentLanes, megacreditsAvailable, paymentCovers, paymentFromCounts, initialCounts, dialLaneCount, buildPaymentView, PaymentView, PaymentSourceRow, editableRows, quickAdjustRow} from '@/client/console/paymentPlan';
@@ -2163,13 +2165,14 @@ export default defineComponent({
       this.sub = undefined;
       this.focusIdx = 0;
       this.submitting = false;
+      // MAY a choice be seeded at all — ONE rule, shared with the play composer
+      // (`initialVariantSelection`): a single option, or exactly one the RULES
+      // allow; a real question opens unanswered. This screen and the play
+      // screen had the same rule written twice, and «two copies of one rule»
+      // is how the payment unit labels drifted apart before them.
       const positions = this.positions;
-      if (positions.length === 1) {
-        this.selectedPos = positions[0];
-      } else {
-        const avail = positions.filter((p) => this.branches[p]?.available === true);
-        this.selectedPos = avail.length === 1 ? avail[0] : undefined;
-      }
+      const seed = initialVariantSelection(positions.map((p) => this.branches[p] ?? {available: false}));
+      this.selectedPos = seed === undefined ? undefined : positions[seed];
       // Focus the first AVAILABLE branch (or the first item) so the player
       // starts on a meaningful choice, not the top of a list.
       if (this.needBranchRow) {

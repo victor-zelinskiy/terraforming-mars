@@ -82,6 +82,32 @@ function choiceKind(input: PlayerInputModel): ComposerChoice['kind'] {
   }
 }
 
+/**
+ * MAY A BRANCH CHOICE BE SEEDED ON OPEN — and it is almost never allowed to be.
+ *
+ * A pre-selected option is an answer the player did not give: the screen opens
+ * already «ready», the commit rail is live, and one press acts on a result
+ * nobody chose. So a selection is seeded ONLY where there is no decision to
+ * make — a single option, or a set the RULES have narrowed to exactly one
+ * playable branch (offering «choose» there would be a ceremony with one door).
+ * Everything else opens UNSELECTED and the player answers with A.
+ *
+ * Lives HERE, in the module both composers already stand on, because the play
+ * screen and the blue-action screen ask the same question and had the same rule
+ * written twice — which is exactly how the payment unit labels drifted apart
+ * before them. Returns an index INTO the array it was given (the action
+ * composer maps its own `positions` through it), or `undefined` for «ask».
+ */
+export function initialVariantSelection(
+  branches: ReadonlyArray<{available: boolean}>,
+): number | undefined {
+  if (branches.length === 1) {
+    return 0;
+  }
+  const choosable = branches.filter((b) => b.available);
+  return choosable.length === 1 ? branches.indexOf(choosable[0]) : undefined;
+}
+
 /** The pre-branch choices (branch-independent — captured once per preview). */
 export function preChoices(preview: ActionPreview | undefined): Array<ComposerChoice> {
   const out: Array<ComposerChoice> = [];

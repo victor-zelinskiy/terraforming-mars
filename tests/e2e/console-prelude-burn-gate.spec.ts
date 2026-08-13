@@ -3,7 +3,7 @@ import * as path from 'path';
 import {test, expect, Page} from '@playwright/test';
 import {
   press, stepKind, stepSubject, waitPressable, summaryVisible, pickCards,
-  submitSummary, queueCards, waitQueueIdle, playQueueCard,
+  submitSummary, queueCards, waitQueueIdle,
 } from './consoleStart';
 
 /**
@@ -171,17 +171,28 @@ async function reachDeployment(page: Page): Promise<void> {
  * in the queue that is not one of the two subjects is that setup.
  */
 async function reachPreludeRail(page: Page): Promise<void> {
-  for (let round = 0; round < 10; round++) {
+  for (let round = 0; round < 14; round++) {
     await waitQueueIdle(page);
     const queue = await queueCards(page);
     const setup = queue.filter((n) => n !== BURNING && n !== PARTNER);
-    if (setup.length === 0 && queue.length > 0) {
-      return;
-    }
-    if (setup.length > 0) {
-      await playQueueCard(page, setup[0]);
+    if (setup.length === 0) {
+      if (queue.length > 0) {
+        return;
+      }
+      await page.waitForTimeout(700);
       continue;
     }
+    // ONE press at a time, and ONLY while the setup card is the focused one.
+    // The generic driver's act→verify→RETRY is wrong here: the queue re-focuses
+    // as it drains, so a retry that fires blind plays the very prelude this
+    // probe came to look at (it did, once — the queue then held Double Down
+    // alone and the subject was gone before the first assertion).
+    if (!(await focusQueue(page, setup[0]))) {
+      await page.waitForTimeout(500);
+      continue;
+    }
+    await waitPressable(page);
+    await press(page, 'Enter', 1500);
     await page.waitForTimeout(700);
   }
   expect(await queueCards(page), 'the deployment drained down to the preludes').toEqual(
@@ -203,6 +214,10 @@ async function focusQueue(page: Page, card: string, maxMoves = 8): Promise<boole
 }
 
 test.describe('console — the prelude BURN GATE', () => {
+  // The fork's authoring baseline (1rem = 20px at 1920×1080) — geometry read
+  // at the runner's default 1280×720 is a claim about a window nobody plays in.
+  test.use({viewport: {width: 1920, height: 1080}});
+
   test('«СГОРИТ» arms on the first A, states its cost, and only the second A burns it', async ({page, request}) => {
     test.setTimeout(300_000); // the setup walk is SETUP, never the subject
     const created = await request.post('/api/creategame', {data: cfg()});

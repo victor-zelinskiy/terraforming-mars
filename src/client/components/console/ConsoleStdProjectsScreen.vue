@@ -9,9 +9,14 @@
       <!-- THE ONE workspace header (ConsoleWsHead): root «СТАНДАРТНЫЕ ПРОЕКТЫ»
            + the identity emblem (the wheel flight's landing anchor). A flow
            grows the crumb tail «› ГОРОД › ВЫБОР» (stable context before the
-           mutable stage; amber past the commit). The viewer's wallet with the
-           live before → after price preview is parent chrome — the trailing
-           zone, stable through every stage. -->
+           mutable stage; amber past the commit).
+
+           NO wallet here any more. The projected transaction of ONE action was
+           split across two zones — the M€ half in this trailing block, the
+           rest as chips in the status rail — so a single move read as two
+           unrelated statements. The rail now carries the WHOLE projection
+           (M€ chip included) and the header is quiet: the balance already
+           lives on the player rail, and the price already lives in the row. -->
       <ConsoleWsHead class="con-stdp__wshead"
                      root="Standard Projects"
                      emblem="standard-projects"
@@ -19,22 +24,7 @@
                      :subject="crumbSubject"
                      :stage="crumbStage"
                      :stageRaw="crumbStageRaw"
-                     :committed="crumbCommitted">
-        <template #trailing>
-          <div class="con-stdp__wallet" :class="{'con-stdp__wallet--short': focusedShort > 0}">
-            <span class="con-stdp__wallet-label">{{ $t('You have') }}</span>
-            <span class="con-stdp__wallet-now"><b>{{ myMegacredits }}</b><i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i></span>
-            <!-- The price preview is a PRE-commit statement: past the commit
-                 the balance has already moved (the live value above ticks),
-                 and re-showing «−N → …» would read as a second spend. -->
-            <template v-if="focusedCost !== undefined && !committing">
-              <span class="con-stdp__wallet-price">−{{ focusedCost }}</span>
-              <span v-if="focusedShort === 0" class="con-stdp__wallet-after">→ <b>{{ myMegacredits - focusedCost }}</b></span>
-              <span v-else class="con-stdp__wallet-shortfall">{{ shortfallText }}</span>
-            </template>
-          </div>
-        </template>
-      </ConsoleWsHead>
+                     :committed="crumbCommitted" />
 
       <!-- ── The stage wrap: the BROWSE layer (the project grid + the focused
            row's context strip) and the flow's NESTED STEP occupy the same
@@ -55,12 +45,25 @@
                      class="con-stdp__card"
                      :class="{
                        'con-stdp__card--focused': i === index,
-                       'con-stdp__card--go': it.available && !committing,
+                       'con-stdp__card--go': it.available && !isCommitRow(it),
                        'con-stdp__card--off': !it.available,
-                       'con-stdp__card--committed': committing && it.key === flowCardKey,
+                       // THE COMMIT PHRASE, on the row that was pressed:
+                       // `--pressing` is the tactile answer (it plays on the
+                       // press frame, before the server has said anything);
+                       // `--committing` runs the gold sweep along the rail;
+                       // `--committed` holds the fixed gold state.
+                       'con-stdp__card--pressing': commitPhase === 'press' && it.key === commitCardKey,
+                       'con-stdp__card--committing': commitPhase === 'committing' && it.key === commitCardKey,
+                       'con-stdp__card--committed': commitPhase === 'committed' && it.key === commitCardKey,
                      }"
                      :ref="i === index ? 'focusedCard' : undefined">
-            <span v-if="it.available" class="con-stdp__rail" aria-hidden="true"></span>
+            <span v-if="it.available" class="con-stdp__rail" aria-hidden="true">
+              <!-- The gold sweep's own body: one motif, one element. It runs
+                   the rail from the pressed end and leaves the committed gold
+                   behind it — the projected state PHYSICALLY becoming the
+                   committed one, never a class swapping a colour. -->
+              <i class="con-stdp__rail-sweep" aria-hidden="true"></i>
+            </span>
             <div class="con-stdp__stage" aria-hidden="true">
               <i class="con-stdp__icon" :class="it.iconClass"></i>
             </div>
@@ -69,7 +72,11 @@
               <div class="con-stdp__desc">{{ $t(it.description) }}</div>
             </div>
             <div class="con-stdp__status">
-              <span v-if="it.cost !== undefined" class="con-stdp__cost" :class="{'con-stdp__cost--short': it.available === false && it.cost > myMegacredits}">
+              <span v-if="it.cost !== undefined" class="con-stdp__cost"
+                    :class="{
+                      'con-stdp__cost--short': it.available === false && it.cost > myMegacredits,
+                      'con-stdp__cost--discounted': it.discount !== undefined,
+                    }">
                 <b>{{ it.cost }}</b><i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
                 <!-- The saving already folded into the price — the SAME compact
                      `−N` capsule the premium card face docks on its cost badge
@@ -99,11 +106,18 @@
               <span v-if="focused !== undefined" class="con-stdp__context-divider" aria-hidden="true"></span>
               <span v-if="focused !== undefined && !focused.available" class="con-stdp__context-state">{{ focusedReason }}</span>
               <template v-else-if="focused !== undefined">
-                <span v-if="committing && focused.key === flowCardKey" class="con-stdp__context-state con-stdp__context-state--committed">{{ $t('Completed') }}</span>
-                <div v-if="focusedChips.length > 0" class="con-stdp__context-chips">
-                  <ActionEffectChip v-for="(e, ci) in focusedChips" :key="ci" :effect="e" />
-                </div>
-                <span v-else-if="!committing" class="con-stdp__context-state">{{ $t('Ready to use now') }}</span>
+                <span v-if="commitPhase === 'committed' && focused.key === commitCardKey"
+                      class="con-stdp__context-state con-stdp__context-state--committed">{{ $t('Completed') }}</span>
+                <!-- THE WHOLE PROJECTED TRANSACTION, one row, one language:
+                     the M€ chip first (what it costs you), then production /
+                     global parameters, then the next step. Keyed by identity
+                     so a focus change CROSSFADES the set in place instead of
+                     re-flowing the line — the rail's height is fixed. -->
+                <transition-group v-if="focusedChips.length > 0" tag="div" class="con-stdp__context-chips"
+                                  name="con-stdp-chip">
+                  <ActionEffectChip v-for="e in focusedChips" :key="chipKey(e)" :effect="e" />
+                </transition-group>
+                <span v-else-if="commitPhase === 'idle'" class="con-stdp__context-state">{{ $t('Ready to use now') }}</span>
                 <span v-if="nextStepKey !== undefined" class="con-stdp__context-next">› {{ $t(nextStepKey) }}</span>
                 <span v-for="w in focusedWarnings" :key="w" class="con-stdp__context-warning">⚠ {{ $t(warningTextOf(w)) }}</span>
               </template>
@@ -147,7 +161,9 @@ import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScr
 import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {translateTextWithParams, translateText} from '@/client/directives/i18n';
 import {StdProjectItem} from '@/client/console/consoleQuickModel';
-import {stdProjectsFlow} from '@/client/console/consoleStdProjects';
+import {
+  StdProjectCommitPhase, stdProjectCommitState,
+} from '@/client/console/consoleStdProjectCommit';
 import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {Warning} from '@/common/cards/Warning';
 import {warningText} from '@/client/components/card/cardWarnings';
@@ -185,19 +201,6 @@ export default defineComponent({
     focused(): StdProjectItem | undefined {
       return this.items[this.index];
     },
-    focusedCost(): number | undefined {
-      return this.focused?.cost;
-    },
-    focusedShort(): number {
-      const cost = this.focusedCost;
-      if (cost === undefined) {
-        return 0;
-      }
-      return Math.max(0, cost - this.myMegacredits);
-    },
-    shortfallText(): string {
-      return translateTextWithParams('Need ${0} more M€', [String(this.focusedShort)]);
-    },
     focusedReason(): string {
       const f = this.focused;
       if (f === undefined || f.reason === '') {
@@ -211,20 +214,31 @@ export default defineComponent({
       if (this.focused === undefined) {
         return '';
       }
-      if (this.committing && this.focused.key === this.flowCardKey) {
+      if (this.commitPhase === 'committed' && this.focused.key === this.commitCardKey) {
         return 'con-stdp__context--committed';
       }
       return this.focused.available ? 'con-stdp__context--ready' : 'con-stdp__context--blocked';
     },
     /**
-     * The focused row's projected-result chips — the server's guaranteed
-     * effects MINUS the M€ cost chip (the price already reads twice: the row
-     * and the wallet preview; a third copy is the duplication rule 6 forbids).
-     * Reserve-unit costs (Moon steel/titanium) stay — shown nowhere else.
+     * THE WHOLE PROJECTED TRANSACTION of the focused project, in the order it
+     * reads: what it costs you (the M€ chip), then what it changes (production
+     * / a global parameter / oceans), then anything else guaranteed.
+     *
+     * The M€ chip is the server's OWN cost effect — `current → resulting` in
+     * the same component every composer renders — not a money widget coined
+     * here. It used to be filtered out because the header carried a second,
+     * differently-shaped copy of it; with that block gone the transaction is
+     * whole, and the row's price is the only other statement (a price is not
+     * a projection: it says what the thing costs, not where you land).
      */
     focusedChips(): ReadonlyArray<ActionEffect> {
-      const effects = this.focused?.preview?.effects ?? [];
-      return effects.filter((e) => !(e.direction === 'cost' && e.icon === 'megacredits'));
+      return this.focused?.preview?.effects ?? [];
+    },
+    /** Chip identity for the crossfade — icon + note is what makes two chips
+     *  the SAME statement across a focus change (the M€ chip stays put while
+     *  the parameter beside it swaps). */
+    chipKeyOf(): (e: ActionEffect) => string {
+      return (e: ActionEffect) => `${e.direction}:${e.icon}:${e.note ?? ''}`;
     },
     focusedWarnings(): ReadonlyArray<Warning> {
       return this.focused?.warnings ?? [];
@@ -242,12 +256,19 @@ export default defineComponent({
       }
       return undefined;
     },
-    /** The terminal-commit beat (the world changed; the row states it). */
-    committing(): boolean {
-      return stdProjectsFlow.state === 'commit';
+    /**
+     * THE COMMIT PHRASE's phase — the row's pose comes from this, never from
+     * whichever render the server's answer happened to land in. `press` is
+     * already true on the press frame (the tactile answer owes nothing to the
+     * network); `committing` is the gold sweep; `committed` is the held gold.
+     */
+    commitPhase(): StdProjectCommitPhase {
+      return stdProjectCommitState.phase;
     },
-    flowCardKey(): string {
-      return stdProjectsFlow.card;
+    /** Which row the phrase belongs to (the pressed one, not the focused one —
+     *  they are the same today, and a stray focus move must not steal it). */
+    commitCardKey(): string {
+      return stdProjectCommitState.card;
     },
     // ── the shared crumb (workspaceStackCrumb → ConsoleWsHead) ──────────────
     crumbSubject(): string {
@@ -305,6 +326,13 @@ export default defineComponent({
   methods: {
     warningTextOf(w: Warning): string {
       return warningText(w);
+    },
+    chipKey(e: ActionEffect): string {
+      return this.chipKeyOf(e);
+    },
+    /** Is this the row the commit phrase is playing on? */
+    isCommitRow(it: StdProjectItem): boolean {
+      return this.commitPhase !== 'idle' && it.key === this.commitCardKey;
     },
     /** Arm the descend phrase from the FOCUSED row — called by the shell
      *  SYNCHRONOUSLY in the press handler (and again when a server round

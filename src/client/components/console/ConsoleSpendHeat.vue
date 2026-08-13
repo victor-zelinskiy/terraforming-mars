@@ -9,6 +9,11 @@
     replaces was a pair of bare number steppers with no idea what they added up
     to — on a TV it was unreadable and unplayable with a pad.
 
+    …and when ONE step covers the bill (`budgetSingleStep`) the dials go away
+    too: A picks the source, X pays. Same rule, same engine and same gesture as
+    the Venus bonus's single-resource mode — the two halves of this chassis
+    always answer the same question the same way.
+
     data-motion-*: rides the shared `.con-shade` dim + the surface-motion
     director — no own backdrop.
   -->
@@ -58,8 +63,11 @@
               </span>
 
               <!-- The dial, and what it BUYS. A floater is worth 2 heat and the
-                   player must never have to do that arithmetic themselves. -->
-              <span class="con-lanes__dial">
+                   player must never have to do that arithmetic themselves.
+                   The dial is a COUNTER: when the bill is one step it can only
+                   read 0 or 1, so the single-step mode drops it and keeps what
+                   still carries information — what this source pays. -->
+              <span v-if="!singleStep" class="con-lanes__dial">
                 <b class="con-lanes__value">{{ valueOf(lane) }}</b>
                 <span class="con-lanes__of">/ {{ lane.max }}</span>
               </span>
@@ -70,7 +78,13 @@
               </span>
 
               <span class="con-lanes__keys" aria-hidden="true">
-                <template v-if="focusIdx === i">
+                <template v-if="singleStep">
+                  <!-- The mark survives the cursor, and stands BESIDE it on the
+                       chosen row: focus is not selection. -->
+                  <span v-if="valueOf(lane) > 0" class="con-lanes__tick">✓</span>
+                  <GamepadGlyph v-if="focusIdx === i" control="confirm" />
+                </template>
+                <template v-else-if="focusIdx === i">
                   <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
                 </template>
               </span>
@@ -106,8 +120,8 @@ import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {spendHeatLanes, spendHeatResponse} from '@/client/console/compositePrompts';
 import {
-  BudgetLane, BudgetRule, BudgetState, budgetBlockedKey, budgetTotal, budgetValid,
-  forcedAllocation, laneValue, maxOntoLane, stepFocus, stepLane,
+  BudgetLane, BudgetRule, BudgetState, budgetBlockedKey, budgetSingleStep, budgetTotal, budgetValid,
+  forcedAllocation, laneValue, maxOntoLane, stepFocus, stepLane, toggleSoleStep,
 } from '@/client/console/budgetLanes';
 
 function textOf(v: string | Message | undefined): string {
@@ -146,6 +160,21 @@ export default defineComponent({
     lanes(): Array<BudgetLane> {
       return this.model === undefined ? [] : spendHeatLanes(this.model);
     },
+    /**
+     * A bill one step covers (one heat OR one floater): the dials mean nothing,
+     * so the surface becomes a RADIO — A picks the source / takes it back. The
+     * SAME question the Venus bonus asks, off the same pure engine, so the two
+     * halves of this chassis can never drift apart. The BILL itself stays on
+     * screen: a payment always states what it costs.
+     */
+    singleStep(): boolean {
+      return budgetSingleStep(this.lanes, this.rule);
+    },
+    /** The lane under the cursor is the chosen source — A takes it back. */
+    focusedPicked(): boolean {
+      const lane = this.lanes[this.focusIdx];
+      return lane !== undefined && laneValue(this.picks, lane.key) > 0;
+    },
     covered(): number {
       return budgetTotal(this.lanes, this.picks);
     },
@@ -175,7 +204,12 @@ export default defineComponent({
       return `${this.target}|${this.lanes.map((l) => l.max).join(',')}`;
     },
     footCommands(): Array<ConsoleCommand> {
-      const cmds: Array<ConsoleCommand> = [
+      // One step covers the bill → one verb, and the confirm right beside it.
+      const cmds: Array<ConsoleCommand> = this.singleStep ? [
+        {control: 'dpad', label: 'Navigate'},
+        {control: 'confirm', label: this.focusedPicked ? 'Remove here' : 'Add here'},
+        {control: 'secondary', label: 'Pay', enabled: this.ready},
+      ] : [
         {control: 'dpad', label: 'Navigate'},
         {control: 'bumperL', label: '−1'},
         {control: 'bumperR', label: '+1'},
@@ -237,6 +271,11 @@ export default defineComponent({
         return;
       }
       switch (consoleActionOf(intent)) {
+      case 'primary': // A — the single-step gesture (free in the dial layout)
+        if (this.singleStep) {
+          this.toggleFocused();
+        }
+        return;
       case 'prevSection': // LB
         this.step(-1);
         return;
@@ -256,17 +295,38 @@ export default defineComponent({
         return;
       }
     },
-    step(delta: number): void {
+    /** The single-step gesture: pay with this source, or take it back. */
+    toggleFocused(): void {
       const lane = this.lanes[this.focusIdx];
       if (lane !== undefined) {
-        this.picks = stepLane(this.lanes, this.picks, this.rule, lane.key, delta);
+        this.picks = toggleSoleStep(this.lanes, this.picks, this.rule, lane.key);
       }
+    },
+    step(delta: number): void {
+      const lane = this.lanes[this.focusIdx];
+      if (lane === undefined) {
+        return;
+      }
+      // SINGLE-STEP mode doesn't advertise the stepper verbs, but they still
+      // land on its one gesture — muscle memory must never meet a dead button.
+      // LB takes the unit off this lane, RB puts it here (MOVING it: a plain
+      // `+1` on top of a covered bill is refused by the engine, as it must be).
+      if (this.singleStep) {
+        this.picks = delta < 0 ?
+          (this.focusedPicked ? {} : this.picks) :
+          stepLane(this.lanes, {}, this.rule, lane.key, 1);
+        return;
+      }
+      this.picks = stepLane(this.lanes, this.picks, this.rule, lane.key, delta);
     },
     maxOnto(): void {
       const lane = this.lanes[this.focusIdx];
-      if (lane !== undefined) {
-        this.picks = maxOntoLane(this.lanes, this.picks, this.rule, lane.key);
+      if (lane === undefined) {
+        return;
       }
+      this.picks = this.singleStep ?
+        stepLane(this.lanes, {}, this.rule, lane.key, 1) :
+        maxOntoLane(this.lanes, this.picks, this.rule, lane.key);
     },
     confirm(): void {
       if (!this.ready || this.submitting) {

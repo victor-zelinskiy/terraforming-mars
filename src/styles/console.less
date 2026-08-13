@@ -8266,6 +8266,10 @@ html.con-profile-handheld .con-mafocus {
         border-radius: .1rem;
         background: @con-mint;
         box-shadow: 0 0 .4rem fade(@con-mint, 60%);
+        /* The commit sweep travels INSIDE the rail — clipped to it, so the
+           motif stays «light running the state marker» and never becomes a
+           streak floating beside the row. */
+        overflow: hidden;
     }
     &__stage {
         position: relative;
@@ -8382,24 +8386,35 @@ html.con-profile-handheld .con-mafocus {
         &--short b { color: @con-red; }
     }
     /* The saving already folded into the price — the SAME compact `−N`
-       capsule language as the premium card face's `.pcard__cost-delta`
-       (mint, docked under the cost's corner). ABSOLUTE: zero row growth,
-       zero layout shift on focus, nothing rendered at zero discount. */
+       capsule the premium card face docks on its cost badge
+       (`.pcard__cost-delta`: mint on a dark plate, one radius flattened where
+       it meets the value it belongs to).
+
+       DOCKED TO THE COIN, not floating under the row: the chip's flat edge
+       butts against the M€ icon's lower-left and it extends LEFTWARD, so the
+       eye reads «15 🪙» first and finds the −1 attached to it rather than
+       hanging somewhere below. `position: absolute` keeps the row's height and
+       the price column's width untouched; at zero discount the element is not
+       rendered at all, so there is no empty plate and no geometry change. */
     &__cost-delta {
         position: absolute;
-        right: -.15rem;
-        bottom: -.72rem;
-        padding: 0 .28rem;
-        border-radius: 0 .4rem .4rem 0;
-        background: rgba(10, 24, 18, 0.92);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%);
+        right: .05rem;
+        bottom: -.42rem;
+        padding: 0 .22rem 0 .3rem;
+        border-radius: .38rem .38rem .38rem 0;
+        background: rgba(8, 20, 15, 0.94);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%), 0 .1rem .25rem rgba(0, 0, 0, 0.5);
         color: @con-mint;
-        font-size: .68rem;
+        font-size: .66rem;
         font-weight: 700;
-        line-height: .95rem;
-        letter-spacing: .02rem;
+        line-height: .92rem;
+        letter-spacing: .01rem;
         white-space: nowrap;
     }
+    /* A discounted price is the CHEAPER number, and it should read like one:
+       the value keeps its size and position (rule: the final price stays the
+       main value) and only gains the mint tint the chip beside it carries. */
+    &__cost--discounted b { color: fade(@con-mint, 92%); }
     &__gain {
         display: inline-flex;
         align-items: center;
@@ -8501,9 +8516,53 @@ html.con-profile-handheld .con-mafocus {
         white-space: nowrap;
     }
     &__context--committed .con-stdp__context-state { color: @con-amber; }
-    /* The TERMINAL COMMITTED beat: the chosen row fixes (amber — a statement,
-       not an invitation) while the world's own delta chips tick on the HUD;
-       the workspace closes only after the beat is READ. */
+
+    /* ── THE TERMINAL COMMIT PHRASE ─────────────────────────────────────────
+       press → gold sweep → (the world's own delta chips) → a short hold.
+       ONE motif: light runs the rail and leaves the committed gold behind it.
+       No particles, no bounce, no second pulse — and everything is transform /
+       opacity / box-shadow, so the perf-lite profile keeps every cue.
+
+       ① PRESS — the tactile answer, on the press frame. A small controlled
+       compression + a tightened ring: «принято», felt before the server has
+       said anything. Deliberately tiny (0.6%): a zoom would read as the row
+       being opened, which is not what happened. */
+    &__card--pressing {
+        transform: scale(0.994);
+        transition: transform calc(90ms * var(--motion-scale, 1)) ease-out,
+            box-shadow calc(90ms * var(--motion-scale, 1)) ease-out;
+        box-shadow: inset 0 0 0 .12rem fade(@con-mint, 95%), 0 0 .5rem fade(@con-mint, 18%);
+    }
+    /* ② SWEEP — the projected green PHYSICALLY becoming committed gold: the
+       rail's own gradient body travels its length once. The rail keeps its
+       geometry (it is the row's state marker, not a decoration that grows). */
+    &__rail-sweep {
+        position: absolute;
+        inset: -10% 0;
+        display: block;
+        border-radius: inherit;
+        opacity: 0;
+        background: linear-gradient(180deg,
+            fade(@con-amber, 0%) 0%,
+            fade(@con-amber, 92%) 38%,
+            #ffe9ad 52%,
+            fade(@con-amber, 92%) 66%,
+            fade(@con-amber, 0%) 100%);
+    }
+    &__card--committing {
+        transform: scale(1);
+        transition: transform calc(160ms * var(--motion-scale, 1)) ease-out;
+
+        .con-stdp__rail-sweep {
+            animation: con-stdp-sweep calc(320ms * var(--motion-scale, 1)) cubic-bezier(.22, .61, .36, 1) forwards;
+        }
+        /* The ring answers the sweep — the same energy reaching the row's own
+           outline, not a separate glow event. */
+        box-shadow: inset 0 0 0 .1rem fade(@con-amber, 70%), 0 0 .9rem fade(@con-amber, 16%);
+        transition: box-shadow calc(220ms * var(--motion-scale, 1)) ease-out;
+    }
+    /* ③ COMMITTED — the fixed state the delta chips land against. It is where
+       the sweep LEFT the rail, so nothing snaps back to green on the way out. */
     &__card--committed {
         box-shadow: inset 0 0 0 .1rem fade(@con-amber, 85%), 0 0 1.1rem fade(@con-amber, 22%);
         opacity: 1;
@@ -8512,7 +8571,17 @@ html.con-profile-handheld .con-mafocus {
             background: @con-amber;
             box-shadow: 0 0 .4rem fade(@con-amber, 60%);
         }
+        .con-stdp__rail-sweep { opacity: 0; }
     }
+    /* The projected chips harden WITH the row (one statement, not a per-value
+       animation): they keep their values and take the committed tone. */
+    &__context--committed .action-effect-chip { filter: saturate(.9); }
+}
+
+@keyframes con-stdp-sweep {
+    0% { opacity: 0; transform: translateY(-100%); }
+    18% { opacity: 1; }
+    100% { opacity: 1; transform: translateY(100%); }
 }
 
 /* -- P27/P28: the right HOME panel -- strategic turn summary.

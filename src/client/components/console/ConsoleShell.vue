@@ -1295,6 +1295,9 @@ import {
   stdProjectsFlowLive,
   stdProjectsFramePhase,
 } from '@/client/console/consoleStdProjects';
+import {
+  STDP_HOLD_MS, armStdProjectCommit, releaseStdProjectCommit, stdProjectCommitState,
+} from '@/client/console/consoleStdProjectCommit';
 import {resetHandStageMotion, handStageTransitioning, guardHandHeroFlight, heroCommitLift} from '@/client/console/consoleHandStageMotion';
 import {armHandPlayPrewarm, cancelHandPlayPrewarm, resetHandPlayPrewarm} from '@/client/console/consoleHandPlayPrewarm';
 import ConsoleCorpFirstActionConfirm from '@/client/components/console/ConsoleCorpFirstActionConfirm.vue';
@@ -1535,10 +1538,9 @@ type PendingClientPayment = {
 /** The synthetic host task for a client-built payment prompt. */
 const CLIENT_PAYMENT_TASK: ConsoleTask = {kind: 'payment'};
 
-/** The terminal std-project COMMITTED beat — long enough for the row's fixed
- *  state + the HUD's own delta tick to be READ, short enough to stay a beat.
- *  The dismiss gates on it (never on the server's speed). */
-const STDP_COMMIT_BEAT_MS = 950;
+/* (The terminal std-project beat's length is the PHRASE's own now — press,
+ * sweep and the post-chip read live in `consoleStdProjectCommit.ts`, so the
+ * dismiss can never disagree with the animation it is waiting for.) */
 
 /** P17: px per full-deflection frame for the right-stick console scroll
  *  (mirrors the DOM engine's SCROLL_STEP_PX so the feel is identical). */
@@ -1654,6 +1656,10 @@ export default defineComponent({
       handRevealState,
       handDeliveryState,
       patentSaleState,
+      /** The terminal std-project commit phrase. MIRRORED for the same reason
+       *  as the two below: `'stdProjectCommitState.abortNonce'` resolves
+       *  against the instance. */
+      stdProjectCommitState,
       /** The card-discard cinematic. MIRRORED HERE ON PURPOSE: a path watcher
        *  key (`'cardDiscardTransaction.phase'`) resolves against the instance,
        *  so a module reactive that is not in data() makes the watcher silently
@@ -6841,6 +6847,19 @@ export default defineComponent({
       }
       this.endStdProjectsFlow();
     },
+    /**
+     * A terminal standard project was REFUSED (server error / network). The
+     * commit phrase has already unwound itself; the FLOW has to follow, or the
+     * workspace would sit in its sealed `executing` beat with B dead and the
+     * rows frozen. Returning to `browse` is the same rollback a lost response
+     * gets — the row is immediately usable again and the reason is stated by
+     * the existing alert/status path.
+     */
+    'stdProjectCommitState.abortNonce'() {
+      if (stdProjectsFlowLive()) {
+        this.rollbackStdProjectFlow();
+      }
+    },
     /** Publish the answer the moment it exists — the beat flips its card on it. */
     workspaceOutcomeAnswerArrived(arrived: boolean) {
       if (arrived) {
@@ -9858,6 +9877,13 @@ export default defineComponent({
       if (workspaceFrameMounted('standard-projects')) {
         beginStdProjectSubmit(cardName, this.stdProjectItems, this.consoleState.sheetIndex,
           `${this.game.gameAge}|${this.game.undoCount}`);
+        // THE COMMIT PHRASE STARTS ON THE PRESS, not on the answer: the row's
+        // tactile response owes nothing to the network, and arming here (in
+        // the same synchronous turn as the submit) is what lets a fast
+        // response find the phrase already running. A project that turns out
+        // to need a TARGET releases it again — the gold belongs to a move
+        // that is finished, and only a terminal project's is.
+        armStdProjectCommit(cardName);
         setWorkspaceFrameSubject('standard-projects', cardName);
         setWorkspaceFrameStage('standard-projects', '');
         setWorkspaceFramePhase('standard-projects', stdProjectsFramePhase('submitting'));
@@ -9934,6 +9960,10 @@ export default defineComponent({
         if (task?.kind === 'colony') {
           // openColoniesForPrompt (the shellTask auto-open below) hosts it as
           // a step of this frame; the flow is still reversible.
+          // The commit phrase was armed on the press — release it: this move
+          // is NOT finished, and the root list must not flash gold at a
+          // project whose target has not been chosen yet.
+          releaseStdProjectCommit();
           markStdProjectTarget();
           if (workspaceFrameMounted('standard-projects')) {
             setWorkspaceFramePhase('standard-projects', stdProjectsFramePhase('target'));
@@ -9944,6 +9974,7 @@ export default defineComponent({
           // The board serves the placement (the placement watcher already
           // folded the frames — the board IS the step). The excursion draft
           // is what brings a cancel back to this very row.
+          releaseStdProjectCommit(); // …and no gold: the move is not finished
           markStdProjectTarget();
           return;
         }
@@ -9956,6 +9987,7 @@ export default defineComponent({
         // A follow-up this workspace has no surface for (a Moon placement, a
         // Collusion party pick, the maxed-oceans Whales redirect): fold
         // honestly and let the prompt route to its own home.
+        releaseStdProjectCommit();
         resetStdProjectsFlow();
         if (workspaceFrameMounted('standard-projects')) {
           goBoardHome();
@@ -10001,8 +10033,17 @@ export default defineComponent({
       }
       // state === 'commit' — the beat timer owns the close.
     },
-    /** The terminal committed beat: the row fixes, the change is READ, the
-     *  workspace closes — never a flash of the list after the close. */
+    /**
+     * The TERMINAL commit's closing half. By the time this runs the gold has
+     * already swept (the `WaitingFor` gate ran it and released the world's
+     * change at its peak — that is why the delta chips are landing right now,
+     * on the crest, and not before the player saw the row fix).
+     *
+     * All that remains is the READ: the committed gold holds for a beat, then
+     * the flow leaves through its ONE guarded conclusion. The workspace can
+     * therefore never close before the commit is legible, and the length is
+     * the phrase's own (`stdProjectCommitBeatMs`), not a number typed here.
+     */
     playStdProjectCommitBeat(): void {
       markStdProjectCommit();
       if (workspaceFrameMounted('standard-projects')) {
@@ -10012,8 +10053,9 @@ export default defineComponent({
         if (stdProjectsFlow.state !== 'commit') {
           return;
         }
+        releaseStdProjectCommit();
         this.endStdProjectsFlow();
-      }, motionMs(STDP_COMMIT_BEAT_MS));
+      }, Math.max(motionMs(STDP_HOLD_MS), 1));
     },
     /**
      * THE FLOW IS OVER — the ONE exit of this workspace, whichever ending

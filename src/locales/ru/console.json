@@ -541,6 +541,8 @@
 
     "Covered": "Покрыто",
     "Placed": "Размещено",
+    "Add here": "Добавить",
+    "Remove here": "Снять",
     "Collect": "Забрать",
     "Collect the card": "Забрать карту",
     "No changes": "Без изменений",
@@ -556,8 +558,10 @@
     "Not enough to cover the cost": "Не хватает, чтобы покрыть стоимость",
     "Remove a step — this overpays": "Уберите шаг — это переплата",
     "Choose how to pay the heat": "Выберите, чем оплатить тепло",
+    "Choose how to pay": "Выберите, чем оплатить",
 
     "Distribute the whole bonus": "Распределите весь бонус",
+    "Choose where it goes": "Выберите, куда положить",
     "Place your Venus track bonus": "Разместите бонус шкалы Венеры",
     "Place the bonus and its wild resource": "Разместите бонус и дополнительный ресурс",
     "Return to the bonus": "Вернуться к бонусу",

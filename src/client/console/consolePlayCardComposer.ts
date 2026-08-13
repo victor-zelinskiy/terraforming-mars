@@ -333,25 +333,11 @@ export function computePrimaryAction(ctx: {
 }
 
 /**
- * WHICH variant the composer may pre-select when the preview lands — and it is
- * deliberately almost never one.
- *
- * A pre-selected option is an answer the player did not give: the screen opens
- * already «ready», the commit rail is live, and one A plays a card on a result
- * nobody chose. So a selection is seeded ONLY where there is no decision to
- * make — a single branch, or a set the RULES have narrowed to exactly one
- * playable branch (offering «choose» there would be a ceremony with one door).
- * Everything else opens UNSELECTED and the player answers with A.
+ * WHICH variant the composer may pre-select when the preview lands — re-exported
+ * from the shared composer base, where BOTH screens read it (the play card's
+ * «ИЛИ» and the blue action's branch radiogroup are the same question).
  */
-export function initialVariantSelection(
-  branches: ReadonlyArray<{available: boolean}>,
-): number | undefined {
-  if (branches.length === 1) {
-    return 0;
-  }
-  const choosable = branches.filter((b) => b.available);
-  return choosable.length === 1 ? branches.indexOf(choosable[0]) : undefined;
-}
+export {initialVariantSelection} from '@/client/console/consoleActionComposer';
 
 /** Which kind of row the cursor is on, as far as A is concerned. */
 export type PlayFocusTarget = 'cta' | 'picker' | 'variant' | 'other' | 'none';

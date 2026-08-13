@@ -149,6 +149,61 @@ export function budgetValid(lanes: ReadonlyArray<BudgetLane>, state: BudgetState
 }
 
 /**
+ * IS THE WHOLE BUDGET ONE STEP? — the shape most of these prompts actually take.
+ *
+ * A Venus track bonus is usually a SINGLE resource, and a stepper is the wrong
+ * instrument for a decision that is really «which one»: the player counts up a
+ * dial to 1 and then hunts for the confirm, on a chassis built for spreading 3
+ * across six lanes. So the surfaces ask this and switch to a RADIO — A places
+ * the unit / takes it back, and LB/RB/MAX are not offered at all.
+ *
+ * Stated as a PROPERTY of the budget, never as `target === 1`: every usable lane
+ * must be a complete answer by itself, and once taken, nothing more may be added
+ * ANYWHERE. That is what makes the stepper meaningless, and it is honest for
+ * `cover` too — a 1-heat bill is one heat OR one floater, and a floater is a
+ * legal (if wasteful) whole answer.
+ *
+ * Below two usable lanes there is no choice to simplify: zero is unanswerable
+ * and one is `forcedAllocation`'s pre-filled confirmation.
+ */
+export function budgetSingleStep(lanes: ReadonlyArray<BudgetLane>, rule: BudgetRule): boolean {
+  if (rule.target <= 0) {
+    return false;
+  }
+  const usable = lanes.filter((lane) => lane.max > 0);
+  if (usable.length < 2) {
+    return false;
+  }
+  return usable.every((lane) => {
+    const filled = stepLane(lanes, {}, rule, lane.key, 1);
+    return laneValue(filled, lane.key) === 1 &&
+      budgetValid(lanes, filled, rule) &&
+      lanes.every((other) => stepsUp(lanes, filled, rule, other.key) === 0);
+  });
+}
+
+/**
+ * A in SINGLE-STEP mode: put the one unit on this lane, or take it back.
+ *
+ * Placing MOVES it (the allocation is rebuilt from empty) rather than trying to
+ * add beside what is already there — under a full budget every `stepLane` up is
+ * refused, so «A on another lane» would otherwise be a dead press on the one
+ * gesture the mode exists for. Only meaningful while `budgetSingleStep` holds;
+ * outside it, clearing the other lanes would throw away real work.
+ */
+export function toggleSoleStep(
+  lanes: ReadonlyArray<BudgetLane>,
+  state: BudgetState,
+  rule: BudgetRule,
+  key: string,
+): BudgetState {
+  if (laneValue(state, key) > 0) {
+    return {};
+  }
+  return stepLane(lanes, {}, rule, key, 1);
+}
+
+/**
  * The honest reason the CONFIRM verb is disabled — never a dead button with no
  * explanation. Returns an English i18n key, or `undefined` when it is ready.
  */
@@ -162,6 +217,12 @@ export function budgetBlockedKey(
   }
   const total = budgetTotal(lanes, state);
   if (total < rule.target) {
+    // In SINGLE-STEP mode «under the target» can only mean «nothing chosen
+    // yet» — and «распределите весь бонус» is the wrong sentence for a radio
+    // with one thing to pick.
+    if (budgetSingleStep(lanes, rule)) {
+      return rule.kind === 'exact' ? 'Choose where it goes' : 'Choose how to pay';
+    }
     return rule.kind === 'exact' ? 'Distribute the whole bonus' : 'Not enough to cover the cost';
   }
   // Over the line: only `cover` can reach here (an `exact` overshoot is

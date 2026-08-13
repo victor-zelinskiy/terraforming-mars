@@ -231,6 +231,107 @@ test('the Venus bonus: one flow — the wild first, then the placement', async (
   await shoot(page, '4c-venus-restored');
 });
 
+test('a one-step bill is a radio too — the same gesture, the bill kept', async ({page, request}) => {
+  test.setTimeout(180_000);
+  page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+  await openGame(page, request);
+
+  await injectPrompt(page, {
+    type: 'and',
+    title: {message: 'Select how to spend ${0} heat', data: [{type: 1, value: '1'}]},
+    buttonLabel: 'Save',
+    spendHeatPrompt: {amount: 1},
+    choiceContext: {source: {kind: 'corporation', card: 'Stormcraft Incorporated'}, mode: 'effect-choice'},
+    options: [amountOption('Heat', 8), amountOption('Stormcraft Incorporated Floaters (2 heat each)', 3)],
+  });
+  await page.reload();
+  await page.waitForSelector('.con-heat', {state: 'visible', timeout: 40_000});
+  await page.waitForTimeout(1200);
+  await shoot(page, '9-heat-single');
+
+  // The DIALS go (0 / 1 is not a number worth a stepper) — but the BILL stays:
+  // a payment always states what it costs.
+  await expect(page.locator('.con-lanes__dial')).toHaveCount(0);
+  await expect(page.locator('.con-lanes__meter-target')).toHaveText('1');
+  await expect(page.locator('.con-lanes__blocked')).toContainText(/выберите, чем оплатить/i);
+
+  const bar = page.locator('.con-cmdbar, .con-commands').first();
+  await expect(bar).toContainText(/ДОБАВИТЬ/i);
+  await expect(bar).not.toContainText(/МАКС/i);
+
+  // Heat covers it exactly; the floater covers it too (wasteful, and legal —
+  // dropping it would leave the bill unpaid), so both are whole answers.
+  await key(page, 'Enter', 700);
+  await expect(page.locator('.con-lanes__meter')).toHaveClass(/con-lanes__meter--ready/);
+  await expect(bar).toContainText(/СНЯТЬ/i);
+  await key(page, 'ArrowDown', 400);
+  await key(page, 'Enter', 700);
+  await shoot(page, '10-heat-single-floater');
+  await expect(page.locator('.con-lanes__row--active')).toHaveCount(1);
+  await expect(page.locator('.con-lanes__pays').nth(1)).toContainText('2');
+});
+
+/*
+ * THE COMMON SHAPE. A Venus step usually hands over ONE resource, and a budget
+ * stepper is the wrong instrument for a decision that is really «which one»: the
+ * player counts a dial to 1 and then hunts for the confirm. The surface asks the
+ * pure engine (`budgetSingleStep`) and becomes a radio instead.
+ */
+test('one resource: the lanes become a radio — A places it, X takes it', async ({page, request}) => {
+  test.setTimeout(180_000);
+  page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+  await openGame(page, request);
+
+  await injectPrompt(page, {
+    type: 'and',
+    title: 'Gain 1 resource(s) for your Venus track bonus.',
+    buttonLabel: 'Save',
+    venusBonusPrompt: {kind: 'standard', baseCount: 1},
+    // The base bonus is `GainResources`'s bare six-amount `and`, in unit order.
+    options: [
+      amountOption('M€', 1), amountOption('Steel', 1), amountOption('Titanium', 1),
+      amountOption('Plants', 1), amountOption('Energy', 1), amountOption('Heat', 1),
+    ],
+  });
+  await page.reload();
+  await page.waitForSelector('.con-venus', {state: 'visible', timeout: 40_000});
+  await page.waitForTimeout(1200);
+  await shoot(page, '7-venus-single');
+
+  await expectsWorkspaceBand(page, '.con-venus');
+  await expect(page.locator('.con-lanes__row')).toHaveCount(6);
+  // The BUDGET chrome is gone: no meter to read, no «+1» counter to parse.
+  await expect(page.locator('.con-lanes__meter')).toHaveCount(0);
+  await expect(page.locator('.con-lanes__delta')).toHaveCount(0);
+  await expect(page.locator('.con-lanes__blocked')).toContainText(/выберите, куда положить/i);
+
+  // ONE verb on the bar, and none of the stepper ones.
+  const bar = page.locator('.con-cmdbar, .con-commands').first();
+  await expect(bar).toContainText(/ДОБАВИТЬ/i);
+  await expect(bar).not.toContainText(/МАКС/i);
+  await expect(bar).toContainText(/ЗАБРАТЬ/i);
+
+  // A puts the resource on the focused lane; the row says so and the verb flips.
+  await key(page, 'ArrowDown', 400);
+  await key(page, 'Enter', 700);
+  await shoot(page, '8-venus-single-picked');
+  const steel = page.locator('.con-lanes__row').nth(1);
+  await expect(steel).toHaveClass(/con-lanes__row--active/);
+  await expect(steel.locator('.con-lanes__next')).toHaveCount(1);
+  await expect(bar).toContainText(/СНЯТЬ/i);
+  await expect(page.locator('.con-lanes__blocked')).toHaveCount(0);
+
+  // …and A on ANOTHER lane MOVES it (a second unit is impossible), so the
+  // gesture is never a dead press.
+  await key(page, 'ArrowDown', 400);
+  await key(page, 'Enter', 700);
+  await expect(page.locator('.con-lanes__row--active')).toHaveCount(1);
+  await expect(page.locator('.con-lanes__row').nth(2)).toHaveClass(/con-lanes__row--active/);
+  // The chosen row keeps its mark once the cursor moves on.
+  await key(page, 'ArrowUp', 400);
+  await expect(page.locator('.con-lanes__tick')).toHaveCount(1);
+});
+
 test('the planetary thresholds: every row says what it DOES', async ({page, request}) => {
   test.setTimeout(180_000);
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));

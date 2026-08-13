@@ -1217,6 +1217,14 @@ Three defects across the PLAY + ACTION composers, all fixed:
    *committing (play/confirm) is a control DISTINCT from A-on-a-pick, and what A
    does is always exactly what the focused row + the bar say.*
 
+   > **SUPERSEDED for VARIANT rows (2026-08-13).** A on a variant no longer
+   > «advances toward the CTA» and no longer moves the cursor afterwards: it
+   > SELECTS, its verb is «Выбрать», and the commit stays a second, deliberate
+   > press. The screen also stopped PRE-SELECTING a branch, so the green frame
+   > means «my answer» and nothing else. Current contract:
+   > `docs/claude/console/play-card-result.md` § 2. Everything else in this item
+   > (A acts on the focused row, the explicit CTA row, Y reserved) stands.
+
 2. **Bottom command bar was wrong (X «Разыграть» + static LB/RB in pure-auto).**
    The shell's `commands()` for `pendingPlayCard` was a HARD-CODED, diverged list
    (`{control:'secondary'→X, label:'Play now'}` — but A plays, X inspects — and a

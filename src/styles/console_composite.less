@@ -264,6 +264,15 @@
         justify-content: flex-end;
         gap: .2rem;
     }
+    /* SINGLE-STEP mode: the chosen lane keeps its mark once the cursor moves on
+       (the focused row shows the A glyph in the same cell instead). Colour, not
+       filter — `con-perf-lite` strips filters and this is a functional cue. */
+    &__tick {
+        font-size: 1.15rem;
+        font-weight: 800;
+        line-height: 1;
+        color: @lanes-gain;
+    }
     &__note {
         font-size: .74rem;
         color: @con-text-dim;

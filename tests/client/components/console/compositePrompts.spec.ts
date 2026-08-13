@@ -2,8 +2,8 @@ import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import {AndOptionsModel, ShiftAresGlobalParametersModel} from '@/common/models/PlayerInputModel';
 import {
-  budgetBlockedKey, budgetTotal, budgetValid, forcedAllocation, maxOntoLane, stepLane, stepsUp,
-  BudgetLane, BudgetRule,
+  budgetBlockedKey, budgetSingleStep, budgetTotal, budgetValid, forcedAllocation, maxOntoLane,
+  stepLane, stepsUp, toggleSoleStep, BudgetLane, BudgetRule,
 } from '@/client/console/budgetLanes';
 import {
   aresResponse, aresResulting, aresThresholdRows, spendHeatLanes, spendHeatResponse,
@@ -105,6 +105,67 @@ describe('budgetLanes (the shared distribution engine)', () => {
       expect(forcedAllocation(onlyHeat, rule)).to.deep.eq({heat: 5});
       // With a real choice it stays empty — the player decides.
       expect(forcedAllocation(HEAT_LANES, rule)).is.undefined;
+    });
+  });
+
+  /*
+   * SINGLE-STEP — the shape most of these prompts actually take, and the one the
+   * surfaces answer with a RADIO instead of a stepper. Stated as a property of
+   * the budget, never as `target === 1`, so both halves of the chassis (a gift
+   * to place, a bill to cover) read the same question.
+   */
+  describe('SINGLE-STEP — one unit, so the stepper is the wrong instrument', () => {
+    const one: BudgetRule = {kind: 'exact', target: 1};
+    const oneLane = venusBonusLanes(1, {megacredits: 44});
+
+    it('a one-resource Venus bonus is a radio', () => {
+      expect(budgetSingleStep(oneLane, one)).to.be.true;
+    });
+
+    it('…and a real budget is not — the dials stay', () => {
+      expect(budgetSingleStep(venusBonusLanes(2, {}), {kind: 'exact', target: 2})).to.be.false;
+      expect(budgetSingleStep(venusBonusLanes(3, {}), {kind: 'exact', target: 3})).to.be.false;
+      expect(budgetSingleStep(HEAT_LANES, {kind: 'cover', target: 5})).to.be.false;
+    });
+
+    it('a 1-heat bill is one heat OR one floater — a whole answer either way', () => {
+      // The floater overshoots (2 for a bill of 1) and is still legal: dropping
+      // it leaves the bill uncovered, so nothing was wasted by the rules.
+      const bill: BudgetRule = {kind: 'cover', target: 1};
+      expect(budgetSingleStep(HEAT_LANES, bill)).to.be.true;
+      expect(budgetValid(HEAT_LANES, {floaters: 1}, bill)).to.be.true;
+    });
+
+    it('below two usable lanes there is nothing to simplify', () => {
+      // One usable lane is `forcedAllocation`'s pre-filled confirmation, not a
+      // choice; none at all is unanswerable.
+      const onlyHeat: Array<BudgetLane> = [
+        {key: 'heat', iconClass: '', label: 'Heat', weight: 1, max: 5},
+        {key: 'floaters', iconClass: '', label: 'Floaters', weight: 2, max: 0},
+      ];
+      expect(budgetSingleStep(onlyHeat, {kind: 'cover', target: 1})).to.be.false;
+    });
+
+    it('A MOVES the unit rather than refusing a second one', () => {
+      // The whole point of the mode: with the budget full, a plain `+1` on
+      // another lane is refused, so the gesture has to rebuild from empty.
+      const placed = toggleSoleStep(oneLane, {}, one, 'plants');
+      expect(placed).to.deep.eq({plants: 1});
+      expect(stepLane(oneLane, placed, one, 'steel', 1), 'a second unit is impossible').to.deep.eq(placed);
+      expect(toggleSoleStep(oneLane, placed, one, 'steel')).to.deep.eq({steel: 1});
+    });
+
+    it('…and A on the chosen lane takes it back', () => {
+      const placed = toggleSoleStep(oneLane, {}, one, 'plants');
+      expect(toggleSoleStep(oneLane, placed, one, 'plants')).to.deep.eq({});
+    });
+
+    it('the blocker says «choose», not «distribute the whole bonus»', () => {
+      expect(budgetBlockedKey(oneLane, {}, one)).to.eq('Choose where it goes');
+      expect(budgetBlockedKey(HEAT_LANES, {}, {kind: 'cover', target: 1})).to.eq('Choose how to pay');
+      // A real budget keeps its own copy.
+      expect(budgetBlockedKey(venusBonusLanes(3, {}), {}, {kind: 'exact', target: 3}))
+        .to.eq('Distribute the whole bonus');
     });
   });
 });

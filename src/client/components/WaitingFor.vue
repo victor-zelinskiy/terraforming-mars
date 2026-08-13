@@ -15,7 +15,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
     `isServerSideRequestInProgress` flag stays raised through the
     hold, so nothing else can trigger a submit during this window.
   -->
-  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker || holdingForPlayedHero || holdingForPatentSale || holdingForCardDiscard || holdingForTilePlacementHero || holdingForColonyBuild || holdingForConsolePlacement">
+  <template v-if="holdingForMarker || holdingForTilePlacement || holdingForConversion || holdingForHazardCleanup || holdingForTradeFleet || holdingForHydroMarker || holdingForPlayedHero || holdingForPatentSale || holdingForStdProject || holdingForCardDiscard || holdingForTilePlacementHero || holdingForColonyBuild || holdingForConsolePlacement">
   </template>
   <template v-else-if="waitingfor === undefined">
     {{ $t('Not your turn to take any actions') }}
@@ -209,6 +209,11 @@ import {
   endPatentSale,
   runPatentSale,
 } from '@/client/console/patentSale/consolePatentSale';
+import {
+  abortStdProjectCommit,
+  detectStdProjectCommit,
+  runStdProjectCommit,
+} from '@/client/console/consoleStdProjectCommit';
 import {
   abortCardDiscard,
   detectCardDiscard,
@@ -441,6 +446,15 @@ type DataModel = {
    * src/client/console/patentSale/consolePatentSale.ts.
    */
   holdingForPatentSale: boolean;
+  /*
+   * Console TERMINAL STANDARD-PROJECT gate: the commit is held while the
+   * pressed row's gold sweep runs, and released at its PEAK — so the new
+   * counters and their delta chips land ON the confirmation instead of ahead
+   * of it. Gated on the console's own press arm (`detectStdProjectCommit`),
+   * so desktop + every non-terminal project are unaffected.
+   * See src/client/console/consoleStdProjectCommit.ts.
+   */
+  holdingForStdProject: boolean;
   holdingForCardDiscard: boolean;
   /*
    * Console TILE-PLACEMENT HERO gate: the commit is held through the tile's
@@ -534,6 +548,7 @@ export default defineComponent({
       holdingForHydroMarker: false,
       holdingForPlayedHero: false,
       holdingForPatentSale: false,
+      holdingForStdProject: false,
       holdingForCardDiscard: false,
       holdingForTilePlacementHero: false,
       holdingForColonyBuild: false,
@@ -835,6 +850,29 @@ export default defineComponent({
                 await runPatentSale();
               } finally {
                 this.holdingForPatentSale = false;
+              }
+            }
+            /*
+             * Console TERMINAL STANDARD-PROJECT gate. A terminal project's
+             * press IS the move, so its answer carries the new numbers — and
+             * applying them on arrival painted the result BEFORE the commit
+             * had read as committed (the rail's colour flipped on whatever
+             * render won the race, and the delta chips ticked underneath it).
+             *
+             * HOLD the commit while the gold sweep runs, and release it AT ITS
+             * PEAK: the counters and their delta chips then land on the crest
+             * of the confirmation, which is the causal order the player reads.
+             * Armed only by the console's own press (undefined on desktop and
+             * on every non-terminal project — the colony / placement paths
+             * release the arm the moment their follow-up arrives), so this is
+             * a no-op everywhere else.
+             */
+            if (detectStdProjectCommit()) {
+              this.holdingForStdProject = true;
+              try {
+                await runStdProjectCommit();
+              } finally {
+                this.holdingForStdProject = false;
               }
             }
             /*
@@ -1292,6 +1330,11 @@ export default defineComponent({
           // return to the hand (un-blanked) and no chip is ever dispensed.
           this.holdingForPatentSale = false;
           abortPatentSale();
+          // …and the terminal standard project: the press pose unwinds, the
+          // gold NEVER plays and nothing is credited — a refused move must not
+          // leave a row sitting in a committed state it never reached.
+          this.holdingForStdProject = false;
+          abortStdProjectCommit();
           // …and the card discard: the server kept the cards — nothing is
           // seized, nothing lands on the pile, the hand stays intact.
           this.holdingForCardDiscard = false;
@@ -1333,6 +1376,8 @@ export default defineComponent({
           abortPlayedHero(); // …and the played-card hero — no ghost card, ever
           this.holdingForPatentSale = false;
           abortPatentSale(); // …and the patent sale — the hand cards un-blank
+          this.holdingForStdProject = false;
+          abortStdProjectCommit(); // …and the std project — no gold, no credit
           this.holdingForCardDiscard = false;
           abortCardDiscard(); // …and the discard — the hand cards un-blank
           this.holdingForTilePlacementHero = false;

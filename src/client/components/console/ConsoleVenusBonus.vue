@@ -9,6 +9,13 @@
     opens the same lanes; the frame, the kicker and the meter never move, so the
     stage advances rather than a second screen arriving.
 
+    …and the INSTRUMENT follows the budget. Most bonuses are a single resource,
+    where a stepper is the wrong tool for a decision that is really «which one»:
+    `budgetSingleStep` turns the lanes into a RADIO — A places it / takes it
+    back, no −1 / +1 / MAX, no meter — which is the same language the wild
+    question one stage up already speaks. A real budget (2, 3, the final step's
+    wild folded in) keeps the dials.
+
     data-motion-*: rides the shared `.con-shade` dim + the surface-motion
     director — no own backdrop.
   -->
@@ -32,8 +39,12 @@
         <!-- The meter belongs to the PLACEMENT stage only: during the wild
              question nothing is placed yet and the budget is not even decided
              (the wild can still fold into it), so a «0 / 2» there states a
-             number that is about to change. -->
-        <div v-if="stage === 'place'" class="con-lanes__meter" :class="{'con-lanes__meter--ready': ready}">
+             number that is about to change.
+             …and it is a BUDGET readout, so it goes away entirely when there is
+             no budget to spread: «РАЗМЕЩЕНО 0 / 1» over six radio rows is the
+             same sentence a third time (title, meter, blocker). The chosen row
+             says it — the mark, and the green «500 → 501» beside it. -->
+        <div v-if="stage === 'place' && !singleStep" class="con-lanes__meter" :class="{'con-lanes__meter--ready': ready}">
           <span class="con-lanes__meter-label">{{ $t('Placed') }}</span>
           <b class="con-lanes__meter-now">{{ placed }}</b>
           <span class="con-lanes__meter-slash" aria-hidden="true">/</span>
@@ -101,12 +112,25 @@
                 </template>
               </span>
 
-              <span class="con-lanes__delta" :class="{'con-lanes__delta--empty': valueOf(lane) === 0}">
+              <!-- The «+N» counter belongs to a BUDGET being spread. With one
+                   unit to place it repeats what the arrow above already says,
+                   so the single-step mode spends that cell on the gesture
+                   instead (see the keys cell below). -->
+              <span v-if="!singleStep" class="con-lanes__delta" :class="{'con-lanes__delta--empty': valueOf(lane) === 0}">
                 <template v-if="valueOf(lane) > 0">+{{ valueOf(lane) }}</template>
               </span>
 
               <span class="con-lanes__keys" aria-hidden="true">
-                <template v-if="focusIdx === i">
+                <template v-if="singleStep">
+                  <!-- The same language the wild question one stage up speaks:
+                       A on the row under the cursor, a mark on the chosen one.
+                       BOTH when they coincide — the cursor is not the answer, so
+                       standing on the chosen row must not erase that it IS the
+                       answer (the console's focus / selection / commit rule). -->
+                  <span v-if="valueOf(lane) > 0" class="con-lanes__tick">✓</span>
+                  <GamepadGlyph v-if="focusIdx === i" control="confirm" />
+                </template>
+                <template v-else-if="focusIdx === i">
                   <GamepadGlyph control="bumperL" /><GamepadGlyph control="bumperR" />
                 </template>
               </span>
@@ -151,8 +175,8 @@ import {
   VenusWildChoice, venusBaseCount, venusBonusLanes, venusBonusResponse, venusWildTargets,
 } from '@/client/console/compositePrompts';
 import {
-  BudgetLane, BudgetRule, BudgetState, budgetBlockedKey, budgetTotal, budgetValid,
-  laneValue, maxOntoLane, stepFocus, stepLane,
+  BudgetLane, BudgetRule, BudgetState, budgetBlockedKey, budgetSingleStep, budgetTotal, budgetValid,
+  laneValue, maxOntoLane, stepFocus, stepLane, toggleSoleStep,
 } from '@/client/console/budgetLanes';
 
 type Stage = 'wild' | 'wildCard' | 'place';
@@ -218,6 +242,21 @@ export default defineComponent({
       const stock = this.playerView.thisPlayer as unknown as Partial<Record<keyof Units, number>>;
       return venusBonusLanes(this.target, stock);
     },
+    /**
+     * THE COMMON CASE: one resource to place, so the decision is «which one» and
+     * the surface becomes a RADIO — A puts it here / takes it back, and the
+     * stepper verbs are not offered. Asked of the pure engine (a property of the
+     * budget, never `target === 1`), so the spend-heat surface reads the same
+     * question and the two can't drift.
+     */
+    singleStep(): boolean {
+      return budgetSingleStep(this.lanes, this.rule);
+    },
+    /** The lane under the cursor already holds the unit — A takes it back. */
+    focusedPicked(): boolean {
+      const lane = this.lanes[this.focusIdx];
+      return lane !== undefined && laneValue(this.picks, lane.key) > 0;
+    },
     placed(): number {
       return budgetTotal(this.lanes, this.picks);
     },
@@ -279,6 +318,17 @@ export default defineComponent({
           {control: 'dpadH', label: 'Navigate'},
           {control: 'confirm', label: 'Select'},
           {control: 'secondary', label: 'Inspect'},
+          back,
+        ];
+      }
+      // ONE resource to place → one verb. Offering −1 / +1 / MAX for a dial that
+      // can only read 0 or 1 is four ways to say the same thing, and it hides
+      // the confirm behind them.
+      if (this.singleStep) {
+        return [
+          {control: 'dpad', label: 'Navigate'},
+          {control: 'confirm', label: this.focusedPicked ? 'Remove here' : 'Add here'},
+          {control: 'secondary', label: 'Collect', enabled: this.ready},
           back,
         ];
       }
@@ -386,7 +436,8 @@ export default defineComponent({
         this.focusIdx = stepFocus(this.lanes, this.focusIdx, dir === 'down' ? 1 : -1);
       }
     },
-    /** A — advances the flow one level; it never submits (X does). */
+    /** A — advances the flow one level, or (single-step placement) puts the one
+     *  resource down / takes it back. It never submits; X does. */
     onConfirmPress(): void {
       if (this.stage === 'wild') {
         const opt = this.wildOptions[this.wildIdx];
@@ -397,6 +448,19 @@ export default defineComponent({
       }
       if (this.stage === 'wildCard') {
         this.wildCard = this.wildTargets[this.cardIdx];
+        return;
+      }
+      // In the multi-lane layout A stays free (the budget is spread with LB/RB),
+      // so claiming it here costs the flow nothing.
+      if (this.singleStep) {
+        this.toggleFocused();
+      }
+    },
+    /** The single-step gesture: place the unit here, or take it back. */
+    toggleFocused(): void {
+      const lane = this.lanes[this.focusIdx];
+      if (lane !== undefined) {
+        this.picks = toggleSoleStep(this.lanes, this.picks, this.rule, lane.key);
       }
     },
     /** B — ONE logical level, and the earned bonus survives it. */
@@ -414,15 +478,29 @@ export default defineComponent({
     },
     step(delta: number): void {
       const lane = this.lanes[this.focusIdx];
-      if (lane !== undefined) {
-        this.picks = stepLane(this.lanes, this.picks, this.rule, lane.key, delta);
+      if (lane === undefined) {
+        return;
       }
+      // SINGLE-STEP mode doesn't advertise the stepper verbs, but they still
+      // land on its one gesture: muscle memory from the multi-lane layout must
+      // never meet a dead button. LB takes the unit off this lane, RB puts it
+      // here (moving it — a plain `+1` under a full budget is refused).
+      if (this.singleStep) {
+        this.picks = delta < 0 ?
+          (this.focusedPicked ? {} : this.picks) :
+          stepLane(this.lanes, {}, this.rule, lane.key, 1);
+        return;
+      }
+      this.picks = stepLane(this.lanes, this.picks, this.rule, lane.key, delta);
     },
     maxOnto(): void {
       const lane = this.lanes[this.focusIdx];
-      if (lane !== undefined) {
-        this.picks = maxOntoLane(this.lanes, this.picks, this.rule, lane.key);
+      if (lane === undefined) {
+        return;
       }
+      this.picks = this.singleStep ?
+        stepLane(this.lanes, {}, this.rule, lane.key, 1) :
+        maxOntoLane(this.lanes, this.picks, this.rule, lane.key);
     },
     collect(): void {
       if (!this.ready || this.submitting || this.meta === undefined) {
