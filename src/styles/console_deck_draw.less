@@ -201,7 +201,12 @@
     cursor: pointer;
     transition:
         box-shadow calc(140ms * var(--motion-scale, 1)) ease,
-        background-color calc(140ms * var(--motion-scale, 1)) ease;
+        background-color calc(140ms * var(--motion-scale, 1)) ease,
+        /* …and the berth's own appearance: it is held while the scene's tray
+           flies here (`.con-reveal--bonus-held`), and takes over UNDER the
+           landed pile on the handoff — a fade, so the swap between the two
+           copies is never a hard edge. */
+        opacity calc(170ms * var(--motion-scale, 1)) ease;
 
     &--focused {
         background: rgba(18, 30, 44, 0.9);

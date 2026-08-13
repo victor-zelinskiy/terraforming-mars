@@ -82,11 +82,22 @@ space it filled — inflated boxes are not composition.
 **Every size is a `--mafocus-*` token on the root, and a profile retunes ONLY
 the token set** (`--mafocus-hero`, `-side-w`, `-name`, `-you`, `-desc`,
 `-note`, `-label`, `-plate-pad`, `-row-h`, `-rowname`, `-rowscore`, `-gap`,
-`-pad`). The TV profile's pass is a real recomposition — a 19rem artefact,
-couch type off `--con-t-*`, standings rows at `--con-hit-min` — because the
-uniform rem scale alone reproduces a 1080 card blown up: the stage used a
-quarter of a 4K panel and read as small and poor. The Deck's block is the same
-tokens one size down. Never add a per-element font ladder here.
+`-pad`, `-cere-frame`). The TV profile's pass is a real recomposition — a
+19rem artefact, couch type off `--con-t-*`, standings rows at `--con-hit-min`
+— because the uniform rem scale alone reproduces a 1080 card blown up: the
+stage used a quarter of a 4K panel and read as small and poor. The Deck's
+block is the same tokens one size down. Never add a per-element font ladder
+here.
+
+⚠️ **THE CEREMONY SEAT IS DERIVED FROM THE ARTEFACT, never a size of its
+own**: `--mafocus-cere-slot = --mafocus-hero × --mafocus-cere-gain` (the
+emblem GAINS a touch of size at the coronation), and the seat is that plus
+`--mafocus-cere-frame` on each side for the ring. They are the same physical
+object, so a hard-coded seat beside a token-scaled hero makes the culmination
+SHRINK what it celebrates — which is exactly what the first TV pass shipped
+(a 19rem hero gliding into a 10.4rem slot). The e2e measures it: the emblem's
+box during the ceremony may never be smaller than its static one, and its
+centre must land in the seat (a fade is not a glide).
 
 ## The flow contract
 

@@ -134,8 +134,8 @@ appears INSIDE the hand step, computed from the actual picks.
 
 | phase | what the player sees | who ends it |
 | --- | --- | --- |
-| `press` | the row compresses ~0.6 % and its ring tightens — the tactile «принято», on the press frame, owing nothing to the network | the answer arrives |
-| `committing` | the gold SWEEP runs the rail's own body once: the projected green physically becomes committed gold | the sweep's peak |
+| `press` | the row COMPRESSES (~2 %) and its ring tightens — the tactile «принято», on the press frame, owing nothing to the network | the answer arrives |
+| `committing` | a gold WAVE crosses the whole row once (the rail is re-forged with it): the projected green physically becomes committed gold | the wave's peak |
 | `committed` | the fixed gold holds while the delta chips land, then the flow leaves | the hold (`STDP_HOLD_MS`) |
 | `idle` | released — either the flow concluded, or a refusal rolled the press back | — |
 
@@ -158,9 +158,41 @@ bumps `abortNonce`, and the shell's watcher rolls the FLOW back to `browse`
 (otherwise the workspace would sit in its sealed `executing` beat with B dead).
 Nothing is credited and the row is immediately usable again.
 
+**Three things this animation cost, all general:**
+1. **A 2 px rail is not a state change.** The first cut ran the gold along the
+   rail alone and read as «просто поменялся цвет». The ROW is what changed
+   state, so the row is what the light crosses; the rail brightens with it, one
+   motif, one pass.
+2. **A press pose must be FAST to exist at all.** At a 110 ms transition the
+   server's ~100 ms answer took the next phase before the compression ever
+   reached its own pose. 70 ms in, spring out.
+3. **The phase change STOPS the animation.** With the release at the wave's
+   midpoint the gold pass was truncated in the middle — so the peak sits near
+   the wave's END (`STDP_SWEEP_PEAK_MS`), where the change still overlaps the
+   crest without cutting it.
+
 **Budget:** the phrase is bounded by the flat 950 ms timer it replaced
 (`stdProjectCommitBeatMs()` is asserted against that ceiling) — press and sweep
 overlap, the chips ride the crest, and the hold that follows is the read.
+
+## The hosted step's ONE entry (the blink that was reported)
+
+Entering the colony pick / the sale's hand made the WHOLE embedded surface
+blink. The cause was a double reveal, and the frame trace named it exactly:
+content up at t≈360 ms (`opacity 1`) → **hidden at t≈556 ms** → cascaded back
+in. A teleported surface is already painted on the frame it mounts, so a JS
+reveal has to hide it first — and that hide is the blink.
+
+The entry is therefore CSS and belongs to the surface itself
+(`.con-stdp__step > *`, `animation … backwards`): `backwards` means the content
+is transparent BEFORE its own animation starts, so its very first painted frame
+is already the beginning of the entry. One reveal, never two, whatever order
+the mount and the phase change happen in. A short delay lets the browse layer
+release first, so the two read as one movement inward.
+
+Guard: the acceptance spec samples the step's opacity per frame and asserts
+both that the FIRST painted frame is transparent and that the surface never
+dips once it has risen.
 
 ## Preview — the shared chip language, from the real rule sources
 

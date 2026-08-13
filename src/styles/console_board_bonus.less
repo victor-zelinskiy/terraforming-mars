@@ -129,6 +129,21 @@
         opacity: 0 !important;
     }
     /*
+     * …and NOT the DISCARD berth either — for the same «one object» reason as
+     * the card backs above, one scale up.
+     *
+     * A conditional search gathers its discards into the scene's own tray, and
+     * this is where that pile ends up. Painted with the frame, the two stood on
+     * screen at once — one at the scene's fixed spot, one here — and then the
+     * first vanished with the layer: a teleport, in the one place where the
+     * player is watching a stack of cards being built. Held until the handoff,
+     * the tray physically FLIES here (`runDeckDrawTraySeat`) and this berth
+     * appears underneath it exactly as it lands.
+     */
+    .con-reveal__discard {
+        opacity: 0 !important;
+    }
+    /*
      * …and no focus LIFT either. The flying covers land on the slot rects
      * measured right now, so a slot that is already lifted + scaled 1.1 makes
      * its cover come down on a different line and at a different size from its

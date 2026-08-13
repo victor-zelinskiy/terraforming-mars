@@ -426,6 +426,7 @@
              geometry, effect-target anchors and arts all prepare during the
              server round trip — the commit reveals a finished scene. -->
         <div v-if="landingMounted"
+             ref="playstage"
              class="con-composer__playstage"
              :class="{'con-composer__playstage--up': landingUp}">
           <ConsolePlayedReceivingStage :playerView="playerView" />
@@ -542,10 +543,14 @@ import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/
 import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
 import {computeCommitGate, commitAllowed, commitAcceptsCursor, commitRedirectTarget, CommitGate} from '@/client/console/consoleCommitGate';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {playedHeroLandingPrewarm} from '@/client/console/played/consolePlayedHero';
-import {playLandingHolding} from '@/client/console/played/consolePlayOutcomeClaim';
+import {
+  beginPlayLandingRelease, markPlayLandingReleased, playLandingHolding, playLandingShowing,
+  playLandingYieldedToDeal,
+} from '@/client/console/played/consolePlayOutcomeClaim';
 import ConsolePlayedReceivingStage from '@/client/components/console/played/ConsolePlayedReceivingStage.vue';
 
 // (The contextual preview + the resource badge live in the ONE shared builder —
@@ -614,6 +619,12 @@ type ListItem = {
  * graceful fallback. Any real on-play choice arrives as a native follow-up.
  */
 const IMPLICIT_BRANCH: ActionPreviewBranch = {index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []};
+
+/**
+ * The landing scene's EXIT (ms @ motion scale 1). Short by design: the deck is
+ * already dealing, so this is a surface stepping aside, not a beat of its own.
+ */
+const PLAYSTAGE_RELEASE_MS = 220;
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -769,20 +780,23 @@ export default defineComponent({
       return 'Playing';
     },
     // ── THE LANDING STAGE (the workspace's «РАЗЫГРАНО» final step) ───────
-    /** The stage is PRESENTING — the review has released, the tableau owns
-     *  the zone, the card is being laid onto its pile… and it stays while
-     *  this workspace is still holding what the play DREW: the deck deals
-     *  those cards only after the hero's scene ends, and letting the tableau
-     *  go there left the workspace empty for the whole flight
-     *  (`playLandingHolding`). */
-    landingUp(): boolean {
+    /** The scene HOLDS the stage — the raw fact, without its exit. The watcher
+     *  below turns its falling edge into a dissolve. */
+    landingHolding(): boolean {
       return this.embedded && playLandingHolding();
+    },
+    /** The stage is ON SCREEN — the review has released, the tableau owns the
+     *  zone, the card is being laid onto its pile… and it stays until the deck
+     *  BEGINS DEALING what the play drew, then dissolves off (the exit is part
+     *  of «on screen», or the `v-if` below would cut it mid-fade). */
+    landingUp(): boolean {
+      return this.embedded && playLandingShowing();
     },
     /** The stage layer is MOUNTED — includes the hidden PREWARM window (the
      *  submit round trip), so after A nothing heavy happens for the first
      *  time: layout done, peek faces painted, arts decoding. */
     landingMounted(): boolean {
-      return this.embedded && (playLandingHolding() || playedHeroLandingPrewarm());
+      return this.landingUp || (this.embedded && playedHeroLandingPrewarm());
     },
     /** The hand-editable rows, in panel order — the editor's focus ring. */
     payEditableRows(): ReadonlyArray<PaymentSourceRow> {
@@ -1525,7 +1539,17 @@ export default defineComponent({
      * content. A REFUSED submit reverses it: the setup returns with the same
      * materialize cascade it entered with, captures intact.
      */
-    landingUp(now: boolean) {
+    landingHolding(now: boolean, was: boolean) {
+      // THE EXIT, not a rollback: the deck has begun dealing what this play
+      // drew, so the tableau dissolves off the stage and the released setup
+      // STAYS released — the play happened. (A refusal falls through to the
+      // rollback below; the two are told apart by the positive fact, never by
+      // the absence of the other.)
+      if (!now && was && playLandingYieldedToDeal()) {
+        beginPlayLandingRelease();
+        this.runPlaystageRelease();
+        return;
+      }
       const right = this.$refs.playRight as HTMLElement | undefined;
       const card = this.$refs.playCard as HTMLElement | undefined;
       const layers = [right, card].filter((el): el is HTMLElement => el !== undefined);
@@ -1565,6 +1589,33 @@ export default defineComponent({
      */
     resetSubmitting(): void {
       this.submitting = false;
+    },
+    /**
+     * THE LANDING SCENE LEAVES THE STAGE — the deck has begun dealing what this
+     * play drew, and what is arriving needs the room.
+     *
+     * A DISSOLVE, never the class flip that used to end this scene: the tableau
+     * simply stopped existing between two frames while the cards it produced
+     * were still on their way, which reads as the interface losing its place.
+     * It sinks a hair as it goes (the same `power2.in` recede every console
+     * surface leaves with), and the flag it clears is what lets the element
+     * unmount — so the exit can never be cut short by its own `v-if`.
+     */
+    runPlaystageRelease(): void {
+      const el = this.$refs.playstage as HTMLElement | undefined;
+      if (el === undefined || el === null || consoleReducedMotionActive()) {
+        markPlayLandingReleased(); // no element / reduced motion: it is simply gone
+        return;
+      }
+      gsap.killTweensOf(el);
+      gsap.to(el, {
+        autoAlpha: 0,
+        scale: 0.985,
+        transformOrigin: '50% 45%',
+        duration: motionMs(PLAYSTAGE_RELEASE_MS) / 1000,
+        ease: 'power2.in',
+        onComplete: () => markPlayLandingReleased(),
+      });
     },
     iconClass(icon: string | undefined): string {
       return icon !== undefined ? iconClassFor(icon) : '';

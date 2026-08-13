@@ -159,7 +159,7 @@ import {
   playedHeroState, playedHeroIncomingCard, playedHeroCardTargets,
   providePlayedHeroTarget, provideReceivingEffectHooks,
 } from '@/client/console/played/consolePlayedHero';
-import {playLandingHolding} from '@/client/console/played/consolePlayOutcomeClaim';
+import {playLandingShowing} from '@/client/console/played/consolePlayOutcomeClaim';
 import {HeroRect} from '@/client/console/played/playedHeroModel';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 
@@ -230,7 +230,11 @@ export default defineComponent({
       return participantDisplayName(this.viewer);
     },
     presenting(): boolean {
-      return playLandingHolding();
+      // SHOWING, not holding: the scene keeps its content while it dissolves
+      // off the stage (the deck has begun dealing) — read live, the front
+      // anchor would empty and the card would jump back into the strips
+      // mid-fade, which is a re-layout the player watches happen.
+      return playLandingShowing();
     },
     revealed(): boolean {
       return this.heroState.revealed || (this.latchedRevealed && this.presenting);

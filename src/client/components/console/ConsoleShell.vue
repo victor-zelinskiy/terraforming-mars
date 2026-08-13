@@ -1428,7 +1428,7 @@ import {
   snapPlanetFocusSettled,
 } from '@/client/console/planetFocus';
 import ConsoleDeckDrawLayer from '@/client/components/console/deckDraw/ConsoleDeckDrawLayer.vue';
-import {abortDeckDraw, deckDrawHolds, isDeckDrawActive} from '@/client/console/deckDraw/consoleDeckDraw';
+import {abortDeckDraw, deckDrawDealing, deckDrawHolds, isDeckDrawActive} from '@/client/console/deckDraw/consoleDeckDraw';
 import ConsolePatentSaleLayer from '@/client/components/console/patentSale/ConsolePatentSaleLayer.vue';
 import {armPatentSale, isPatentSaleActive, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
@@ -3817,7 +3817,11 @@ export default defineComponent({
       // flush later by a watcher: for that one frame the bar already read «ДОБОР
       // КАРТ» while the crumb still said «РОЗЫГРЫШ», i.e. two places naming the
       // same stage differently.
-      const outcomeStage = this.handOutcomeLive && this.workspaceOutcomeEmbedded ?
+      // …and from the moment the DECK STARTS DEALING, which is earlier: the
+      // landing tableau dissolves there and the drawn cards are visibly on
+      // their way, so a crumb that fell back to «РОЗЫГРЫШ» for that stretch
+      // would step BACKWARDS through a flow that only ever moves forward.
+      const outcomeStage = this.handOutcomeLive && (this.workspaceOutcomeEmbedded || deckDrawDealing()) ?
         (workspaceOutcomeState.phaseKey !== '' ? workspaceOutcomeState.phaseKey : focusKicker('draw')) : '';
       const stage = outcomeStage !== '' ? outcomeStage : workspaceFrameStage('hand');
       return {

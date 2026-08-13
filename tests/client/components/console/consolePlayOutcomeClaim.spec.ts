@@ -1,10 +1,14 @@
 import {expect} from 'chai';
 import {
-  claimPlayOutcome, isPlayOutcomeHost, playOutcomeHost,
+  beginPlayLandingRelease, claimPlayOutcome, isPlayOutcomeHost, markPlayLandingReleased,
+  playLandingHolding, playLandingReleasing, playLandingShowing, playLandingYieldedToDeal,
+  playOutcomeHost,
 } from '@/client/console/played/consolePlayOutcomeClaim';
 import {
-  resetWorkspaceOutcome, workspaceClaimsDrawReveal, workspaceClaimsPick, workspaceOutcomeState,
+  releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceClaimsDrawReveal, workspaceClaimsPick,
+  workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
+import {armDeckDraw, markDeckDrawDealing, resetDeckDraw} from '@/client/console/deckDraw/consoleDeckDraw';
 import {
   descendWorkspaceFrame, pushWorkspaceFrame, resetWorkspaceStack,
 } from '@/client/console/consoleWorkspaceStack';
@@ -106,6 +110,73 @@ describe('consolePlayOutcomeClaim — WHERE a card play\'s follow-up presents', 
     descendIntoPlay(LAGRANGE);
     expect(claimPlayOutcome(LAGRANGE, 0)).to.eq('hand');
     expect(workspaceOutcomeState.embedSlot).to.eq('[data-embed-slot="hand-outcome"]');
+  });
+
+  /**
+   * THE LANDING SCENE'S SHIFT CHANGE. The hero transaction ends when the card
+   * has landed and its rewards resolved, but the cards it DREW have not even
+   * left the deck yet (the deck cinematic waits for the hero, by design). So
+   * the tableau holds the stage through that gap — and lets go the moment the
+   * deal actually starts, because from there the room belongs to what is
+   * arriving. It goes with a dissolve, and the dissolve is the reason
+   * «showing» and «holding» are two questions.
+   */
+  describe('the landing scene\'s hold and its exit', () => {
+    afterEach(() => {
+      markPlayLandingReleased();
+      resetDeckDraw();
+    });
+
+    function claimedPlay(): void {
+      standHand();
+      descendIntoPlay(LAGRANGE);
+      claimPlayOutcome(LAGRANGE, 1);
+    }
+
+    it('holds the stage after the hero, while nothing else needs it', () => {
+      claimedPlay();
+      expect(playLandingHolding()).to.eq(true);
+      expect(playLandingShowing()).to.eq(true);
+      expect(playLandingYieldedToDeal()).to.eq(false);
+    });
+
+    it('LETS GO the moment the deck starts dealing — not when the batch arrives', () => {
+      claimedPlay();
+      armDeckDraw(7, {hasDiscards: false, preDrawSize: 40, reducedMotion: false});
+      // Claimed, but the scene is still waiting for the hero: nothing has
+      // moved, so the tableau is right to stay.
+      expect(playLandingHolding(), 'a CLAIMED batch is not a dealing one').to.eq(true);
+      markDeckDrawDealing();
+      expect(playLandingHolding()).to.eq(false);
+      expect(playLandingYieldedToDeal(), 'the fall is an EXIT, not a rollback').to.eq(true);
+    });
+
+    it('stays SHOWING through its dissolve — the mount cannot cut its own exit', () => {
+      claimedPlay();
+      armDeckDraw(7, {hasDiscards: false, preDrawSize: 40, reducedMotion: false});
+      markDeckDrawDealing();
+      beginPlayLandingRelease();
+      expect(playLandingHolding()).to.eq(false);
+      expect(playLandingShowing(), 'mounted + frozen for the fade').to.eq(true);
+      markPlayLandingReleased();
+      expect(playLandingShowing()).to.eq(false);
+    });
+
+    it('a REFUSED play is not an exit — nothing is dealing, so the setup rolls back', () => {
+      claimedPlay();
+      expect(playLandingYieldedToDeal()).to.eq(false);
+      releaseWorkspaceOutcome(); // the claim goes with the refusal
+      expect(playLandingHolding()).to.eq(false);
+      expect(playLandingYieldedToDeal()).to.eq(false);
+    });
+
+    it('a new play never inherits a dissolve the last one left hanging', () => {
+      claimedPlay();
+      beginPlayLandingRelease();
+      expect(playLandingShowing()).to.eq(true);
+      claimPlayOutcome(LAGRANGE, 0);
+      expect(playLandingReleasing(), 'the exit belongs to the play that started it').to.eq(false);
+    });
   });
 
   it('only a PLAY host claims optimistically — the others claim on structural evidence', () => {

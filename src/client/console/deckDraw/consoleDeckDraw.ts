@@ -74,6 +74,17 @@ export const deckDrawState = reactive({
    * replay the entrance. Cleared on the next arm / abort / reset.
    */
   stagedEventId: undefined as number | undefined,
+  /**
+   * THE SCENE IS PHYSICALLY DEALING — cards are coming off the deck RIGHT NOW.
+   *
+   * Deliberately NOT `active`: the batch is claimed at the response, but the
+   * scene then WAITS for whatever earned this draw to finish telling its story
+   * (`waitForStage`), and during that wait nothing has moved yet. This is the
+   * moment the deck actually starts, and it is what a hosting workspace reads
+   * to let its own stage go: the card-play landing tableau dissolves HERE, so
+   * the room is free by the time the drawn cards need it.
+   */
+  dealing: false,
   /** True when the server sequence contains at least one discarded card. */
   hasDiscards: false,
   /** The deck size BEFORE this draw — what the counter shows until a card leaves. */
@@ -175,6 +186,7 @@ export function armDeckDraw(eventId: number, opts: {hasDiscards: boolean, preDra
   }
   deckDrawState.active = true;
   deckDrawState.phase = 'search';
+  deckDrawState.dealing = false;
   deckDrawState.stagedEventId = eventId;
   deckDrawState.hasDiscards = opts.hasDiscards;
   deckDrawState.preDrawSize = opts.preDrawSize;
@@ -198,6 +210,22 @@ export function setDeckDrawPhase(phase: DeckDrawPhase): void {
   if (deckDrawState.active) {
     deckDrawState.phase = phase;
   }
+}
+
+/**
+ * THE DEAL HAS BEGUN — the scene stopped waiting for whoever earned this draw
+ * and the first card is coming off the deck. The stage is the scene's from
+ * here, which is what a hosting workspace needs to know to let its own go.
+ */
+export function markDeckDrawDealing(): void {
+  if (deckDrawState.active) {
+    deckDrawState.dealing = true;
+  }
+}
+
+/** Are cards physically coming off the deck right now? */
+export function deckDrawDealing(): boolean {
+  return deckDrawState.active && deckDrawState.dealing;
 }
 
 /** One card has physically left the deck — tick the held counter down. */
@@ -231,6 +259,7 @@ export function endDeckDraw(): void {
   clearSafety();
   releaseDeckDisplay();
   deckDrawState.active = false;
+  deckDrawState.dealing = false;
   deckDrawState.phase = 'done';
   handle = undefined;
   zoomOriginResolver = undefined;
@@ -251,6 +280,7 @@ export function abortDeckDraw(): void {
   handle = undefined;
   zoomOriginResolver = undefined;
   deckDrawState.active = false;
+  deckDrawState.dealing = false;
   deckDrawState.phase = 'idle';
   deckDrawState.stagedEventId = undefined;
   deckDrawState.hasDiscards = false;
@@ -269,6 +299,7 @@ export function resetDeckDraw(): void {
   handle = undefined;
   zoomOriginResolver = undefined;
   deckDrawState.active = false;
+  deckDrawState.dealing = false;
   deckDrawState.phase = 'idle';
   deckDrawState.stagedEventId = undefined;
   deckDrawState.hasDiscards = false;

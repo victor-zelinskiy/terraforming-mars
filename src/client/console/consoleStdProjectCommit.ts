@@ -48,14 +48,16 @@ export type StdProjectCommitPhase = 'idle' | 'press' | 'committing' | 'committed
 
 /** The row's physical press acknowledgement (tactile, never a zoom). */
 export const STDP_PRESS_MS = 150;
-/** The gold sweep along the rail — the projected → committed transformation. */
-export const STDP_SWEEP_MS = 320;
+/** The gold wave across the row — the projected → committed transformation. */
+export const STDP_SWEEP_MS = 340;
 /**
- * The sweep's PEAK — where the world's change is released (chips + counters).
- * Deliberately before the sweep ends: the change lands ON the gold's crest,
- * so cause and effect overlap instead of queueing.
+ * The wave's PEAK — where the world's change is released (chips + counters).
+ * Deliberately near the wave's end rather than halfway: the phase change is
+ * what stops the animation, so a peak that lands mid-wave CUT the gold pass
+ * off in the middle and the row read as «просто поменялся цвет» again. The
+ * change still overlaps the crest — it just does not truncate it.
  */
-export const STDP_SWEEP_PEAK_MS = 210;
+export const STDP_SWEEP_PEAK_MS = 320;
 /** How long the committed gold is held AFTER the change lands — the read. */
 export const STDP_HOLD_MS = 300;
 

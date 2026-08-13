@@ -91,8 +91,8 @@ import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {
   abortDeckDraw, armDeckDraw, deckDrawState, endDeckDraw, isDeckDrawSource, markDeckCardDrawn,
-  markDeckDrawDiscarded, markDeckDrawZoomReady, registerDeckDrawHandle, registerDeckDrawZoomOrigin,
-  setDeckDrawPhase,
+  markDeckDrawDealing, markDeckDrawDiscarded, markDeckDrawZoomReady, registerDeckDrawHandle,
+  registerDeckDrawZoomOrigin, setDeckDrawPhase,
 } from '@/client/console/deckDraw/consoleDeckDraw';
 import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
@@ -107,7 +107,7 @@ import {
 } from '@/client/console/deckDraw/deckDrawModel';
 import {
   DeckDrawHandle, runDeckDrawAssemble, runDeckDrawBeat, runDeckDrawHandoff, runDeckDrawSettle,
-  runDeckSettleTick,
+  runDeckDrawTraySeat, runDeckSettleTick,
 } from '@/client/console/deckDraw/deckDrawDirector';
 import {preloadPremiumCardArt} from '@/client/cards/cardArt';
 
@@ -165,6 +165,9 @@ function cssEscape(value: string): string {
 type SceneCtx = {
   beatHandles: Array<DeckDrawHandle>,
   sceneHandle?: DeckDrawHandle,
+  /** The discard tray's own leg to its berth — it runs BESIDE the scene
+   *  handle (the frame beat), so it needs its own slot to be killable. */
+  trayHandle?: DeckDrawHandle,
   timers: Array<ReturnType<typeof setTimeout>>,
 };
 const ctx: SceneCtx = {beatHandles: [], timers: []};
@@ -179,6 +182,8 @@ function killAll(): void {
   ctx.beatHandles = [];
   ctx.sceneHandle?.kill();
   ctx.sceneHandle = undefined;
+  ctx.trayHandle?.kill();
+  ctx.trayHandle = undefined;
   clearTimers();
 }
 
@@ -196,18 +201,24 @@ export default defineComponent({
       proxyRefs: [] as Array<HTMLElement | null>,
       flipRefs: [] as Array<HTMLElement | null>,
       trayPulse: false,
-      /**
-       * The scene's own furniture (tray / hold base) appears only once the
-       * cards actually start coming off the deck — while we wait for the
-       * scene that earned the draw, the stage is claimed but empty.
-       */
-      sceneLive: false,
       /** The hold zone's base is only drawn once a card is actually resting. */
       showHoldBase: false,
       holdBaseStyle: {} as Record<string, string>,
     };
   },
   computed: {
+    /**
+     * The scene's own furniture (tray / hold base) appears only once the cards
+     * actually start coming off the deck — while we wait for the scene that
+     * earned the draw, the stage is claimed but empty.
+     *
+     * A READ of the shared fact, not a second copy of it: a hosting workspace
+     * lets its own stage go on the very same signal, and two flags for one
+     * moment is how the two would drift apart.
+     */
+    sceneLive(): boolean {
+      return deckDrawState.dealing;
+    },
     /**
      * The reveal batch this layer should drive NOW. Watched PRE-FLUSH so the
      * arm lands BEFORE the overlay's first render — otherwise the finished
@@ -426,8 +437,9 @@ export default defineComponent({
         return;
       }
       const preDraw = deckDrawState.preDrawSize;
-      // The stage is ours now — the tray may appear, ready to receive.
-      this.sceneLive = true;
+      // The stage is ours now — the tray may appear, ready to receive, and
+      // a hosting workspace lets its own stage go on this same fact.
+      markDeckDrawDealing();
 
       this.sceneCards = steps;
       this.sceneNonce++;
@@ -618,6 +630,10 @@ export default defineComponent({
         return;
       }
 
+      // The discard pile travels ON THE SAME LEG as the cards: they are one
+      // batch arriving at one stage, and a tray that set off later would read
+      // as a second, unrelated move.
+      this.seatDiscardTray(this.timings().routeMs * 1.25);
       ctx.sceneHandle = runDeckDrawAssemble({
         proxies: held,
         targets: resolved as ReadonlyArray<RectLike>,
@@ -626,13 +642,56 @@ export default defineComponent({
         reduced: deckDrawState.reducedMotion,
         onAllLanded: () => {
           // The cards stand in the exact slots — NOW the frame assembles
-          // around them (the overlay unveils via its phase-driven classes).
+          // around them (the overlay unveils via its phase-driven classes),
+          // and the discard tray travels to the berth that frame keeps for it,
+          // landing exactly as the handoff reveals it.
           setDeckDrawPhase('frame');
           ctx.timers.push(setTimeout(() => this.releaseAndHandoff(held), motionMs(this.timings().frameMs)));
         },
       });
     },
 
+    /**
+     * THE TRAY TAKES ITS SEAT — the search's discard pile flies into the berth
+     * the reveal keeps for it, so the same stack of cards is ONE object from
+     * the first discard to the finished stage (it used to blink out of the
+     * scene's fixed spot while a second copy faded in inside the frame).
+     *
+     * Runs on the FRAME beat, so it lands exactly as the handoff releases the
+     * destination underneath it. A search with no discards, a headless
+     * single-card reveal (no berth exists) or an unmeasurable target simply
+     * skips it — the tray then leaves with the layer, as before.
+     */
+    seatDiscardTray(durationMs: number): void {
+      if (!deckDrawState.hasDiscards || deckDrawState.trayCount === 0) {
+        return;
+      }
+      const tray = this.$refs.tray as HTMLElement | undefined;
+      const pile = this.$refs.trayPile as HTMLElement | undefined;
+      if (tray === undefined || tray === null || pile === undefined || pile === null) {
+        return;
+      }
+      // Measured HERE and not polled: the reveal is mounted and laid out (its
+      // card slots were just measured off it in this same block), so the berth
+      // either exists now or does not exist at all — a headless single-card
+      // reveal renders none, and the tray then simply leaves with the layer.
+      const berth = document.querySelector<HTMLElement>('.con-reveal__discard-pile');
+      const target = berth !== null ? berth.getBoundingClientRect() : undefined;
+      if (target === undefined || target.width < 2) {
+        return;
+      }
+      ctx.trayHandle = runDeckDrawTraySeat({
+        tray,
+        pile,
+        target: target as RectLike,
+        meta: (tray.querySelector<HTMLElement>('.con-deckdraw__tray-meta') ?? undefined),
+        durationMs,
+        reduced: deckDrawState.reducedMotion,
+        onDone: () => {
+          ctx.trayHandle = undefined;
+        },
+      });
+    },
     /** Release the overlay's real cards, then dissolve the proxies over them. */
     releaseAndHandoff(held: ReadonlyArray<HTMLElement>): void {
       if (!deckDrawState.active) {
@@ -646,14 +705,17 @@ export default defineComponent({
       if (workspaceClaimsDrawReveal(currentRevealEvent()?.source)) {
         markWorkspaceOutcomeArrivalDone();
       }
+      // …and the tray dissolves in the same breath, over the berth it just
+      // landed on (the destination is released by this very phase) — the
+      // proxies' own handoff, applied to the pile that travelled with them.
+      const tray = this.$refs.tray as HTMLElement | undefined;
       ctx.sceneHandle = runDeckDrawHandoff({
-        proxies: held,
+        proxies: tray !== undefined && tray !== null ? [...held, tray] : held,
         t: this.timings(),
         onDone: () => {
           endDeckDraw();
           this.sceneCards = [];
           this.showHoldBase = false;
-          this.sceneLive = false;
         },
       });
     },
@@ -667,7 +729,6 @@ export default defineComponent({
       }
       this.sceneCards = [];
       this.showHoldBase = false;
-      this.sceneLive = false;
       this.trayPulse = false;
     },
   },

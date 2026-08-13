@@ -328,6 +328,68 @@ export function runDeckDrawHandoff(args: {
   return {kill: () => tl.kill()};
 }
 
+/**
+ * THE DISCARD TRAY TAKES ITS SEAT — the search's side pile travels to the berth
+ * the reveal keeps for it («СБРОШЕНО», bottom-right of the stage) instead of
+ * blinking out of one place and back into another.
+ *
+ * It is the same pile of cards throughout, so it MOVES: the two stacks stood at
+ * different fixed points on the screen, one vanished with the scene's layer and
+ * the other faded in with the frame — two objects for one thing, and the eye
+ * read a teleport. This is the ordinary handoff grammar (`runDeckDrawAssemble`
+ * for the cards): fly to the destination's real rect, let the destination
+ * appear under it, dissolve above it.
+ *
+ * The tween is anchored on the PILES, not on the boxes around them: the source
+ * carries its label underneath, the destination beside, so only the stacks can
+ * be made to coincide — the label lets go on the way (it re-appears in the
+ * destination's own layout).
+ */
+export function runDeckDrawTraySeat(args: {
+  tray: HTMLElement,
+  /** The travelling pile inside the tray — the thing that must land exactly. */
+  pile: HTMLElement,
+  /** The reveal's own berth for it (`.con-reveal__discard-pile`). */
+  target: RectLike,
+  meta: HTMLElement | undefined,
+  /** BASE ms — the CARDS' own leg, so the whole batch arrives as one move. */
+  durationMs: number,
+  reduced: boolean,
+  onDone: () => void,
+}): DeckDrawHandle {
+  const {tray, pile, target, meta} = args;
+  const trayRect = tray.getBoundingClientRect();
+  const pileRect = pile.getBoundingClientRect();
+  if (pileRect.width < 2 || target.width < 2) {
+    args.onDone();
+    return {kill: () => undefined};
+  }
+  // ⚠️ The tray enters on a CSS animation with `fill-mode: both`, and a filling
+  // animation OVERRIDES inline styles for the properties it names — including
+  // the `transform: none` of its last keyframe. Left in place it silently wins
+  // over every transform below, and the tray simply never moves.
+  tray.style.animation = 'none';
+  const scale = target.width / pileRect.width;
+  // Scale about the PILE's centre (expressed inside the tray's own box), so the
+  // stack stays put under the growth and only the translation carries it.
+  const originX = pileRect.left + pileRect.width / 2 - trayRect.left;
+  const originY = pileRect.top + pileRect.height / 2 - trayRect.top;
+  const dx = (target.left + target.width / 2) - (pileRect.left + pileRect.width / 2);
+  const dy = (target.top + target.height / 2) - (pileRect.top + pileRect.height / 2);
+  const dur = s(args.durationMs);
+  const tl = gsap.timeline({onComplete: args.onDone});
+  tl.to(tray, {
+    x: dx, y: dy, scale,
+    transformOrigin: `${originX}px ${originY}px`,
+    duration: dur,
+    ease: args.reduced ? 'power1.out' : 'power2.inOut',
+  }, 0);
+  if (meta !== undefined) {
+    tl.to(meta, {autoAlpha: 0, duration: dur * 0.5, ease: 'power1.in'}, 0);
+  }
+  return {kill: () => tl.kill()};
+}
+
 /** The deck's own reaction: the stack settles a hair as a card leaves it. */
 export function runDeckSettleTick(deckEl: HTMLElement, reduced: boolean): void {
   if (reduced) {

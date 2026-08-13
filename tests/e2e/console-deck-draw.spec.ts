@@ -172,6 +172,61 @@ test.describe('console · deck-draw hero scene', () => {
       await shoot(page, '02-tray');
     }
 
+    // ── THE TRAY TAKES ITS SEAT — it must TRAVEL to the berth the reveal
+    //    keeps for it, never blink out here and back in there. Sampled
+    //    continuously, because a teleport and a flight have the SAME end
+    //    state: the whole difference is the middle.
+    const seat = {
+      moved: 0, // px the tray's own pile travelled
+      landed: Number.POSITIVE_INFINITY, // closest it ever came to the berth
+      /** Frames where BOTH piles were visible in DIFFERENT places (the bug). */
+      doubleFrames: 0,
+      sawBerth: false,
+    };
+    let firstPile: {x: number, y: number} | undefined;
+    for (let i = 0; i < 140; i++) {
+      const s = await page.evaluate(() => {
+        const box = (sel: string) => {
+          const el = document.querySelector(sel);
+          if (el === null) {
+            return undefined;
+          }
+          const r = el.getBoundingClientRect();
+          return {x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width,
+            opacity: Number(getComputedStyle(el).opacity)};
+        };
+        return {
+          tray: box('.con-deckdraw__tray-pile'),
+          berth: box('.con-reveal__discard-pile'),
+          berthBox: box('.con-reveal__discard'),
+          reveal: document.querySelector('.con-reveal__card') !== null,
+          stage: document.querySelector('.con-deckdraw') !== null,
+        };
+      });
+      if (s.tray !== undefined) {
+        if (firstPile === undefined) {
+          firstPile = {x: s.tray.x, y: s.tray.y};
+        }
+        seat.moved = Math.max(seat.moved, Math.hypot(s.tray.x - firstPile.x, s.tray.y - firstPile.y));
+      }
+      if (s.berth !== undefined) {
+        seat.sawBerth = true;
+        if (s.tray !== undefined) {
+          const gap = Math.hypot(s.tray.x - s.berth.x, s.tray.y - s.berth.y);
+          seat.landed = Math.min(seat.landed, gap);
+          // Two piles, two places, both painted — exactly the reading the
+          // seat flight removes (the berth is held until the tray lands).
+          if (gap > 40 && (s.berthBox?.opacity ?? 0) > 0.05) {
+            seat.doubleFrames++;
+          }
+        }
+      }
+      if (!s.stage && s.reveal) {
+        break;
+      }
+      await page.waitForTimeout(60);
+    }
+
     // 2 · The scene resolves into the reveal modal, holding the found cards.
     const revealCard = page.locator('.con-reveal__card');
     await expect(revealCard).toHaveCount(1, {timeout: 45_000});
@@ -198,6 +253,17 @@ test.describe('console · deck-draw hero scene', () => {
     // 3 · The tray survived into the modal, and its count is the SERVER's.
     await expect(trayInModal).toHaveCount(1);
     await expect(trayInModal.locator('.con-reveal__discard-count')).toHaveText(String(discards.length));
+
+    // 3b · …and it GOT there physically: the same stack of cards travelled
+    //      from the scene's own tray into that berth. (`landed` is the closest
+    //      the two piles ever came — a teleport never closes that distance,
+    //      it simply swaps one for the other.)
+    expect(seat.sawBerth, 'the reveal must keep a berth for the discards').toBeTruthy();
+    expect(seat.moved, `the discard pile must TRAVEL to its berth (moved ${Math.round(seat.moved)}px)`)
+      .toBeGreaterThan(40);
+    expect(Math.round(seat.landed), `the pile must land ON the berth (closest ${Math.round(seat.landed)}px)`)
+      .toBeLessThan(40);
+    expect(seat.doubleFrames, 'never two discard piles in two places at once').toBe(0);
 
     // 4 · The tray is opened by R3 ONLY — it is NOT a focus target. Walking
     // the received cards to the end never lands the selection frame on it,

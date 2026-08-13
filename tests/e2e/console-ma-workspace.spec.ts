@@ -161,6 +161,8 @@ for (const profile of PROFILES) {
       // ── 4 · Descend again → COMMIT → the ceremony INSIDE the workspace ─────
       await key(page, 'Enter', 1300);
       await page.waitForSelector('.con-mafocus', {timeout: 6_000});
+      // The artefact's STATIC size, measured on the stage it is about to leave.
+      const heroBefore = await page.locator('[data-ma-focus-hero]').boundingBox();
       await page.keyboard.press('Enter'); // the commit — the stage does NOT close
 
       // The ceremony arrives ON the stage; the global own-beat scene must not.
@@ -168,8 +170,29 @@ for (const profile of PROFILES) {
       expect(await page.locator('.con-ma').count(), 'the workspace stays up for its ceremony').toBe(1);
       expect(await page.locator('.con-macere__scene').count(),
         'the global centre-stage ceremony must not double-present a claimed beat').toBe(0);
-      await page.waitForTimeout(900);
+      // Wait for the SCENE, not for a clock: the dressing is up once the
+      // coronation lines have faded in (a busy 4K frame can spend a second on
+      // the first paint, and a fixed sleep then measures the wrong moment).
+      await page.waitForFunction(() => {
+        const k = document.querySelector('.con-mafocus__cere-kicker');
+        return k !== null && Number(getComputedStyle(k).opacity) > 0.6;
+      }, undefined, {timeout: 20_000});
       expect(await barText(page), 'no commit verb may survive the commit').not.toContain('СПОНСИРОВАТЬ');
+
+      // THE CORONATION MAY NEVER SHRINK THE ARTEFACT. Both are the same
+      // physical object, so the ceremony seat is derived from the detail hero
+      // (`--mafocus-cere-*`); a fixed seat beside a token-scaled hero made the
+      // 4K ceremony smaller than the static emblem it grew out of.
+      const heroAfter = await page.locator('[data-ma-focus-hero]').boundingBox();
+      expect(heroBefore?.width ?? 0, 'the static hero must be measurable').toBeGreaterThan(0);
+      expect(heroAfter?.width ?? 0, 'the ceremony emblem must not be smaller than the static one')
+        .toBeGreaterThanOrEqual((heroBefore?.width ?? 0) - 1);
+      // …and it must actually be IN the seat (the glide ran, not just a fade).
+      const seatBox = await page.locator('[data-ma-cere-seat]').boundingBox();
+      const heroCx = (heroAfter?.x ?? 0) + (heroAfter?.width ?? 0) / 2;
+      const seatCx = (seatBox?.x ?? 0) + (seatBox?.width ?? 0) / 2;
+      expect(Math.abs(heroCx - seatCx), 'the emblem must have glided into the ceremony seat')
+        .toBeLessThan((seatBox?.width ?? 1) * 0.12);
       await shoot(page, profile.tag + '-04-ceremony');
 
       // ── 5 · The workspace closes ONLY after the ceremony settles ───────────

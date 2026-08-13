@@ -58,12 +58,15 @@
                      }"
                      :ref="i === index ? 'focusedCard' : undefined">
             <span v-if="it.available" class="con-stdp__rail" aria-hidden="true">
-              <!-- The gold sweep's own body: one motif, one element. It runs
-                   the rail from the pressed end and leaves the committed gold
-                   behind it — the projected state PHYSICALLY becoming the
-                   committed one, never a class swapping a colour. -->
+              <!-- The gold pass's own body inside the state marker: the rail
+                   is re-forged rather than repainted. -->
               <i class="con-stdp__rail-sweep" aria-hidden="true"></i>
             </span>
+            <!-- THE GOLD WAVE crosses the whole ROW once — the row is what
+                 changed state, so the row is what the light travels. Present
+                 only on the committing row (it is otherwise transparent and
+                 pointer-inert). -->
+            <i v-if="it.available" class="con-stdp__wave" aria-hidden="true"></i>
             <div class="con-stdp__stage" aria-hidden="true">
               <i class="con-stdp__icon" :class="it.iconClass"></i>
             </div>
@@ -168,9 +171,7 @@ import {ActionEffect} from '@/common/models/ActionPreviewModel';
 import {Warning} from '@/common/cards/Warning';
 import {warningText} from '@/client/components/card/cardWarnings';
 import {setWorkspaceFrameSlot, workspaceStackCrumb} from '@/client/console/consoleWorkspaceStack';
-import {
-  armOutcomeOriginFrom, playOutcomeContent, playOutcomePhase,
-} from '@/client/console/consoleActionOutcomeMotion';
+import {armOutcomeOriginFrom} from '@/client/console/consoleActionOutcomeMotion';
 
 /** The zone this workspace publishes for its hosted step (embed rule 4). */
 const STDP_EMBED_SLOT = '.con-stdp [data-embed-slot="stdp-step"]';
@@ -315,17 +316,13 @@ export default defineComponent({
      */
     stepUp(up: boolean) {
       const root = this.$el as HTMLElement | undefined;
-      if (root === undefined || root === null) {
+      if (root === undefined || root === null || up) {
         return;
       }
+      // Folding back: drop anything a previous episode may have left on the
+      // zone. The ENTRY itself is CSS — see below.
       const zone = root.querySelector<HTMLElement>('[data-outcome-zone]');
-      if (up) {
-        void this.$nextTick(() => {
-          playOutcomePhase(root, () => {
-            playOutcomeContent(root);
-          });
-        });
-      } else if (zone !== null) {
+      if (zone !== null) {
         gsap.killTweensOf(zone);
         gsap.set(zone, {clearProps: 'all'});
       }

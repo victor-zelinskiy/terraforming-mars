@@ -168,7 +168,36 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   // ── THE COLONY STEP: nested INSIDE the same panel; B cancels for free. ──
   const before = await serverMegacredits(request, playerId);
   await focusRow(page, /колония/i);
+  // NO DOUBLE REVEAL. The hosted surface is teleported in, so it is painted on
+  // the frame it mounts: a JS reveal had to hide it first, and that showed as
+  // «весь embedded workspace мигает» (content up → hidden → cascaded back).
+  // Its first painted frame must therefore already be transparent.
+  await page.evaluate(() => {
+    const w = window as unknown as {__stepOpacity?: Array<number>};
+    const seen: Array<number> = [];
+    w.__stepOpacity = seen;
+    const t0 = performance.now();
+    const tick = () => {
+      const el = document.querySelector('.con-stdp__step > *');
+      if (el !== null) {
+        seen.push(Number(getComputedStyle(el).opacity));
+      }
+      if (performance.now() - t0 < 1600) {
+        requestAnimationFrame(tick);
+      }
+    };
+    requestAnimationFrame(tick);
+  });
   await press(page, 'Enter', 2200);
+  const stepOpacity = await page.evaluate(() =>
+    (window as unknown as {__stepOpacity?: Array<number>}).__stepOpacity ?? []);
+  expect(stepOpacity.length, 'the step must have been sampled while it entered').toBeGreaterThan(3);
+  expect(stepOpacity[0], 'the step`s FIRST painted frame must be transparent — never shown then hidden')
+    .toBeLessThan(0.2);
+  // …and it must never go back down once it has risen (that dip IS the blink).
+  const peak = stepOpacity.reduce((m, v) => Math.max(m, v), 0);
+  const afterPeak = stepOpacity.slice(stepOpacity.findIndex((v) => v >= peak - 0.01));
+  expect(Math.min(...afterPeak), 'the step must not dip back once it is up').toBeGreaterThan(peak - 0.05);
   await page.waitForSelector('.con-stdp .con-colonies', {timeout: 15_000});
   expect(await page.locator('.con-colonies').count(), 'the colony step must exist').toBe(1);
   expect(await page.locator('.con-stdp .con-colonies').count(),
@@ -283,7 +312,12 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   await page.keyboard.press('Enter');
   await page.keyboard.press('Enter'); // absorbed by the executing phase
   await page.keyboard.press('Enter');
-  await page.waitForSelector('.con-stdp__card--committed', {timeout: 10_000});
+  // Wait for the PHRASE to be under way — any of its poses. (Waiting for the
+  // `--committed` class specifically is a race against a ~300 ms window; the
+  // per-frame sampler below is the honest record of what actually played.)
+  await page.waitForSelector(
+    '.con-stdp__card--pressing, .con-stdp__card--committing, .con-stdp__card--committed',
+    {timeout: 10_000});
   await shoot(page, '07-terminal-commit-beat');
   await page.waitForSelector('.con-stdp', {state: 'detached', timeout: 10_000});
   const poses = await phrase;

@@ -47,6 +47,26 @@ import {
 } from '@/client/console/consoleWorkspaceStack';
 import {playedHeroLandingPrewarm, playedHeroLandingUp} from '@/client/console/played/consolePlayedHero';
 import {workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {deckDrawDealing} from '@/client/console/deckDraw/consoleDeckDraw';
+import {reactive} from 'vue';
+
+/** The landing scene's EXIT window — see `playLandingReleasing`. */
+const landingRelease = reactive({releasing: false});
+
+/**
+ * The exit's backstop. Far above the dissolve itself (~240 ms), far below
+ * anything the player would notice as a stuck stage.
+ */
+const LANDING_RELEASE_SAFETY_MS = 1_200;
+
+let releaseBackstop: ReturnType<typeof setTimeout> | undefined;
+
+function clearReleaseBackstop(): void {
+  if (releaseBackstop !== undefined) {
+    clearTimeout(releaseBackstop);
+    releaseBackstop = undefined;
+  }
+}
 
 /**
  * A workspace a card can be PLAYED inside, and the zone it publishes for what
@@ -91,25 +111,82 @@ export function playOutcomeHost(): PlayOutcomeHostSpec | undefined {
  * IS THE LANDING SCENE STILL THE WORKSPACE'S CONTENT?
  *
  * The played-hero transaction ends when the card has landed and its rewards
- * have resolved — but what the play DREW is still coming off the deck at that
- * moment (the deck cinematic waits for the hero, by design: one scene tells
- * the cause, the next the consequence). Keyed on the transaction alone, the
- * settled tableau vanished the instant it finished and the workspace stood
- * EMPTY for the whole flight, then the reveal appeared into the void.
+ * have resolved — but what the play DREW has not even started coming off the
+ * deck at that moment (the deck cinematic waits for the hero, by design: one
+ * scene tells the cause, the next the consequence). Keyed on the transaction
+ * alone, the settled tableau vanished the instant it finished and the
+ * workspace stood EMPTY for that whole gap.
  *
- * So the landing scene stays while this workspace is still holding what its
- * play produced. It is relieved by the arriving surface itself, one flush
- * after that surface paints (`workspaceOutcomeEmbedded` clears the composer)
- * — one surface leaves as the next takes over, never a gap between them.
+ * So the landing scene stays until the deck ACTUALLY BEGINS DEALING — and then
+ * it lets go, because from that moment the stage belongs to what is arriving:
+ * a tableau still standing there is the previous beat refusing to end. It goes
+ * with a dissolve, never a cut (`playLandingReleasing`).
  *
  * The PREWARM window is excluded on purpose: at the arm the tableau is mounted
  * HIDDEN so its geometry settles during the round trip, and revealing it there
  * would show the result of a move the server has not confirmed.
  */
 export function playLandingHolding(): boolean {
-  return playedHeroLandingUp() ||
-    (workspaceOutcomeState.host === 'hand' && workspaceOutcomeState.sourceCard !== '' &&
-      !playedHeroLandingPrewarm());
+  if (playedHeroLandingUp()) {
+    return true; // the hero's own scene — it owns the stage outright
+  }
+  return workspaceOutcomeState.host === 'hand' && workspaceOutcomeState.sourceCard !== '' &&
+    !playedHeroLandingPrewarm() && !deckDrawDealing();
+}
+
+/**
+ * DID THE LANDING LET GO BECAUSE THE DECK STARTED DEALING?
+ *
+ * The scene's hold can fall for two opposite reasons, and they need opposite
+ * answers: the DEAL is an exit (the stage dissolves and the released setup
+ * stays released — the play happened), a REFUSAL is a rollback (the setup
+ * comes back with every capture intact). This is the positive fact for the
+ * first one, so neither has to be inferred from the absence of the other.
+ */
+export function playLandingYieldedToDeal(): boolean {
+  return workspaceOutcomeState.host === 'hand' && workspaceOutcomeState.sourceCard !== '' &&
+    deckDrawDealing();
+}
+
+/**
+ * THE LANDING SCENE IS DISSOLVING — it has let go (the deal began) but its
+ * exit is still playing, so it must stay MOUNTED and FROZEN for exactly that
+ * long. Without the second half a dissolve is unexpressible: the `v-if` that
+ * mounts the scene is derived from the same fact that ends it, so dropping
+ * that fact would tear the element out mid-fade — the cut this replaces.
+ */
+export function playLandingReleasing(): boolean {
+  return landingRelease.releasing;
+}
+
+/** The scene is on screen — holding OR still dissolving. Every consumer that
+ *  renders it (the layer's mount, its `--up` pose, the stage's own content)
+ *  reads THIS, so the exit animates instead of blinking out. */
+export function playLandingShowing(): boolean {
+  return playLandingHolding() || landingRelease.releasing;
+}
+
+/**
+ * Begin the exit. Called SYNCHRONOUSLY by the component that owns the layer,
+ * from a pre-flush watcher on the holding fact — so the render that follows
+ * already knows to keep the element mounted.
+ *
+ * The backstop is not the schedule: it covers a dissolve that never reports
+ * (the workspace closed under it, a killed timeline), because a stuck flag
+ * would keep the NEXT play's stage mounted from its first frame.
+ */
+export function beginPlayLandingRelease(): void {
+  landingRelease.releasing = true;
+  clearReleaseBackstop();
+  if (typeof setTimeout === 'function') {
+    releaseBackstop = setTimeout(() => markPlayLandingReleased(), LANDING_RELEASE_SAFETY_MS);
+  }
+}
+
+/** The dissolve finished (or was never possible) — the layer may go. */
+export function markPlayLandingReleased(): void {
+  clearReleaseBackstop();
+  landingRelease.releasing = false;
 }
 
 /**
@@ -138,6 +215,9 @@ export function isPlayOutcomeHost(host: WorkspaceOutcomeHost | undefined): boole
  */
 export function claimPlayOutcome(card: string, expectedCards = 0): WorkspaceOutcomeHost | undefined {
   const spec = playOutcomeHost();
+  // A new play starts with a clean stage: an exit left hanging by a workspace
+  // that closed mid-dissolve must never be inherited by the next one.
+  markPlayLandingReleased();
   if (spec === undefined) {
     return undefined;
   }

@@ -304,11 +304,15 @@ test.describe('a play\'s DRAW presents inside the workspace the play was made in
       standaloneFrames: 0,
       /** The fullscreen viewer took the single drawn card (the bug's 1-card shape). */
       viewerFrames: 0,
-      /** The landing scene stayed until the outcome arrived (no empty stage). */
+      /** The landing scene presented at all. */
       sawLanding: false,
       landingFrames: 0,
-      /** Frames with the workspace up and NOTHING in its stage (the gap bug). */
-      emptyFrames: 0,
+      /** Frames where the landing stood WHILE the deck was already dealing —
+       *  the previous beat refusing to end over the one arriving. */
+      overstayFrames: 0,
+      /** …and frames where it had let go while the deck dealt: the stage is
+       *  free for what is coming (the point of the release). */
+      freedFrames: 0,
       /** The stage names itself in the SHARED chassis head + status line. */
       sawHead: false,
       sawStatus: false,
@@ -329,6 +333,13 @@ test.describe('a play\'s DRAW presents inside the workspace the play was made in
           reveal: reveal !== null,
           embedded: embedded !== null,
           landing: document.querySelector('.con-composer__playstage--up') !== null,
+          // The deck is PHYSICALLY dealing — a flyer exists. Deliberately not
+          // `.con-deckdraw`: that layer mounts when the batch is CLAIMED (at
+          // the response) and then waits for whatever earned the draw to
+          // finish its own scene, so it is up for a second while nothing has
+          // moved yet — and the landing tableau is right to hold the stage
+          // through exactly that window.
+          dealing: document.querySelector('.con-deckdraw-proxy') !== null,
           viewer: document.querySelector('.con-zoom') !== null,
           untaken: document.querySelectorAll('.con-reveal .con-cards__slot:not(.con-cards__slot--taken)').length,
           // The stage's own chassis (title row + status line) and the
@@ -344,7 +355,7 @@ test.describe('a play\'s DRAW presents inside the workspace the play was made in
           browseParked: document.querySelector('.con-hand__browse--parked') !== null,
         };
       });
-      log.trace.push(`${i} h:${s.hand ? 1 : 0} r:${s.reveal ? 1 : 0} e:${s.embedded ? 1 : 0} l:${s.landing ? 1 : 0} z:${s.viewer ? 1 : 0} u:${s.untaken} p:${s.browseParked ? 1 : 0} | ${s.crumb}`);
+      log.trace.push(`${i} h:${s.hand ? 1 : 0} r:${s.reveal ? 1 : 0} e:${s.embedded ? 1 : 0} l:${s.landing ? 1 : 0} d:${s.dealing ? 1 : 0} z:${s.viewer ? 1 : 0} u:${s.untaken} p:${s.browseParked ? 1 : 0} | ${s.crumb}`);
       if (s.embedded && s.crumb !== '') {
         log.crumb = s.crumb;
       }
@@ -357,13 +368,19 @@ test.describe('a play\'s DRAW presents inside the workspace the play was made in
           log.landingFrames++;
         }
       }
-      // THE FLIGHT WINDOW — the hero has ended, the deck is dealing the drawn
-      // card, and the workspace must still be showing the settled tableau. An
-      // empty frame here is the «UI исчез → пауза → готовый reveal» shape.
-      if (!s.reveal && !s.landing && !s.viewer && s.hand && log.sawLanding) {
-        log.emptyFrames++;
-        if (log.emptyFrames === 2) {
-          await shoot(page, 'hand-flight-window');
+      // THE HANDOVER between the two scenes. The landing tableau holds the
+      // stage while nothing else needs it — and lets go the moment the DECK
+      // BEGINS DEALING, so the room is free for what is arriving. Both halves
+      // are asserted: it must not overstay into the deal, and the stage must
+      // actually be freed while the deal runs.
+      if (s.dealing && log.sawLanding) {
+        if (s.landing) {
+          log.overstayFrames++;
+        } else if (!s.reveal) {
+          log.freedFrames++;
+          if (log.freedFrames === 1) {
+            await shoot(page, 'hand-stage-freed');
+          }
         }
       }
       if (s.embedded) {
@@ -405,12 +422,18 @@ test.describe('a play\'s DRAW presents inside the workspace the play was made in
     expect(log.standaloneFrames, 'never a full-bleed band outside the workspace that drew it').toBe(0);
     expect(log.orphanFrames, 'the workspace never let go while its own card was on screen').toBe(0);
     expect(log.viewerFrames, 'a single drawn card is the workspace\'s stage, not a fullscreen hand-over').toBe(0);
-    expect(log.sawLanding, 'the landing scene held the stage until the outcome arrived').toBeTruthy();
-    // ONE SURFACE TAKES OVER FROM ANOTHER. The deck deals the drawn card only
-    // after the hero's scene ends, so the settled tableau has to stand through
-    // that flight — an empty workspace there is «UI исчез → пауза → готовый
-    // reveal», the shape this whole contract exists to remove.
-    expect(log.emptyFrames, 'the workspace is never empty between the landing and the draw').toBe(0);
+    expect(log.sawLanding, 'the landing scene held the stage after the play').toBeTruthy();
+    // ONE SURFACE HANDS OVER TO THE NEXT. The tableau holds the stage while
+    // nothing else needs it, and LETS GO the moment the deck starts dealing —
+    // a scene still standing over the cards it produced is the previous beat
+    // refusing to end.
+    // …and PROMPTLY: a sampled frame or two of overlap is the dissolve itself
+    // (it lets go with a fade, never a cut — demanding zero would forbid the
+    // very animation this asserts), but it must not sit there through the
+    // flight, which is the shape the release replaced.
+    expect(log.overstayFrames, `the landing lets go as the deal begins (stayed ${log.overstayFrames} samples)`)
+      .toBeLessThanOrEqual(2);
+    expect(log.freedFrames, 'the stage is freed for the arriving draw').toBeGreaterThan(0);
     expect(log.unparkedFrames, 'the hand shelf stays PARKED behind the stage — never a surface floating over its own screen').toBe(0);
     expect(log.sawHead, 'the stage wears the shared chassis head (it names itself once, in the stage)').toBeTruthy();
     expect(log.sawStatus, 'the stage carries the shared status line («A Взять»)').toBeTruthy();
