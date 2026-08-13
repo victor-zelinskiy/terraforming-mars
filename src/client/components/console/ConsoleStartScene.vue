@@ -452,11 +452,14 @@
                  :class="{
                    'con-start__embed--live': embedActive || sponsorStep || firstActionPanelShown,
                    'con-start__embed--sourced': embedSourceShown !== undefined,
-                   // THE FIRST-ACTION STAGE PRESENTS ITS CARD AS THE SUBJECT,
-                   // not as context: the seat holds a hero-sized corporation
-                   // for the whole stage — including its follow-up steps, so
-                   // the card never resizes under the player mid-flow.
-                   'con-start__embed--firstact': firstActionStageLive,
+                   // THE HERO SIZE BELONGS TO THE BRIEFING, NOT TO THE STAGE.
+                   // While the briefing is what the player is looking at, the
+                   // corporation IS the subject and fills the room. The moment
+                   // its action opens a step (the drawn preludes), the SUBJECT
+                   // MOVES to those cards and the card becomes context again —
+                   // a hero-sized context covers the receiving zone and the
+                   // «РАЗЫГРАНО» shelf, which is exactly what it did.
+                   'con-start__embed--firstact': firstActionPanelShown,
                  }">
               <div v-if="embedSourceShown !== undefined" class="con-start__embedsource" ref="embedSourceCol"
                    :class="{'con-start__embedsource--departing': embedSourceDeparting}">
@@ -724,6 +727,7 @@ import {
   setWorkspaceOutcomeSlot, workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
+import {deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
 import {isHandDeliveryActive} from '@/client/console/handDock/handDeliveryDirector';
 import {captureCards, CapturedFlight, returnFromDock, reseatCards, registerStartDockLayer, resetStartDockMotion, convoyBeats, liveFlightProxies, DockFlightSource, parkSurface, unparkSurface, clearSurfaceParking, measureTargets, pressPile} from '@/client/console/startDockMotion';
@@ -1003,6 +1007,8 @@ export default defineComponent({
       /** A room return is running: the deal must not measure slots inside a
        *  surface that is still travelling. */
       roomSettling: false,
+      /** Stale-guard for the stage's confirmed leave (see the watcher). */
+      firstActionLeaveToken: 0,
       /** GAME FRAME MATERIALIZATION: the summary layer has been SWAPPED OUT
        *  under the flying cards (the deployment stands in its place). */
       matSwap: false,
@@ -1573,6 +1579,11 @@ export default defineComponent({
         !this.heroState.active &&
         !this.embedActive &&
         currentRevealEvent() === undefined &&
+        // …and never in the gap where a draw's cards are already coming off
+        // the deck but its reveal has not been staged yet (see
+        // `firstActionChainQuiet`): the workspace may not dissolve INTO a
+        // cinematic it started.
+        !deckDrawHolds() &&
         !isHandDeliveryActive() &&
         handDeliveryState.held.length === 0 &&
         this.queueCards.length === 0 &&
@@ -1693,10 +1704,22 @@ export default defineComponent({
      * Shared by the leave (below) and the Merger re-stand.
      */
     firstActionChainQuiet(): boolean {
+      // The submit's round trip is chain work too: the server has not said
+      // yet what this action produces.
+      if (this.state.firstAct.submitting) {
+        return false;
+      }
       return !this.yielded && !workspaceFrameHasNested('start') &&
         !this.embedActive && this.candidatePrompt === undefined &&
         startFlowPreludePrompt(this.playerView) === undefined &&
         !this.heroState.active && currentRevealEvent() === undefined &&
+        // THE DECK IS ALREADY DEALING. A draw's cards come off the deck
+        // BEFORE the reveal event exists, so «no reveal yet» is not «no draw»
+        // — read that gap as quiet and the stage leaves, the deployment
+        // settles, and the batch then presents in a standalone modal over a
+        // workspace that has already let go (the reported «карты тянутся в
+        // отдельной модалке»).
+        !deckDrawHolds() &&
         !isHandDeliveryActive() && this.queueCards.length === 0 &&
         this.queueArriving.size === 0;
     },
@@ -2661,12 +2684,34 @@ export default defineComponent({
         }
       },
     },
-    /** EXIT — the action's whole causal chain resolved (ledger drained,
-     *  every follow-up answered, every flight home): one leave, at the end. */
+    /**
+     * EXIT — the action's whole causal chain resolved (ledger drained, every
+     * follow-up answered, every flight home): one leave, at the end.
+     *
+     * CONFIRMED OFF THE FLUSH, never on the edge itself. A response that ends
+     * the prompt and a cinematic that starts because of it land in different
+     * ticks: read the edge synchronously and the stage leaves in the gap, the
+     * deployment settles behind it, and whatever the action produced then has
+     * no workspace left to present in. Same contract as the placement
+     * barrier's release — re-ask after a tick and a frame.
+     */
     'firstActionLeaveDue'(due: boolean) {
-      if (due) {
-        void this.runFirstActionLeave();
+      if (!due) {
+        return;
       }
+      const token = ++this.firstActionLeaveToken;
+      void this.$nextTick(() => {
+        const confirm = () => {
+          if (token === this.firstActionLeaveToken && this.firstActionLeaveDue) {
+            void this.runFirstActionLeave();
+          }
+        };
+        if (typeof requestAnimationFrame === 'function') {
+          requestAnimationFrame(confirm);
+        } else {
+          confirm();
+        }
+      });
     },
     /**
      * A SECOND owed corporation (Merger) — the server re-raised the prompt
@@ -5076,15 +5121,18 @@ export default defineComponent({
         return;
       }
       this.state.firstAct.submitting = true;
-      const expected = firstActionDrawExpected(this.firstActionPreview);
-      if (expected > 0) {
-        setWorkspaceOutcomeSlot('.con-start__embed');
-        claimWorkspaceOutcome('start', corp as CardName, ['draw', 'pick'], 0, expected);
-        // The execution beat is ALREADY played: the source card physically
-        // stands in its seat (the stage's emerge). Without this the claim
-        // sits out the full BEAT_SAFETY before its surface may mount.
-        markWorkspaceOutcomeBeatDone();
-      }
+      // OPTIMISTIC BY CONTRACT (see claimStartFollowUp): whatever this action
+      // turns out to produce — a drawn batch, a pick, nothing at all —
+      // presents INSIDE this workspace. A claim that finds nothing to host is
+      // reconciled away a tick later; a missing claim sends a full-bleed
+      // modal over a workspace that then lets go behind it.
+      setWorkspaceOutcomeSlot('.con-start__embed');
+      claimWorkspaceOutcome('start', corp as CardName, ['draw', 'pick'], 0,
+        Math.max(1, firstActionDrawExpected(this.firstActionPreview)));
+      // The execution beat is ALREADY played: the source card physically
+      // stands in its seat (the stage's emerge). Without this the claim
+      // sits out the full BEAT_SAFETY before its surface may mount.
+      markWorkspaceOutcomeBeatDone();
       this.$emit('submit', {type: 'or', index, response: {type: 'option'}});
     },
     /**
@@ -5159,11 +5207,24 @@ export default defineComponent({
      */
     claimStartFollowUp(name: CardName): void {
       const expected = this.drawExpected.get(name) ?? 0;
-      if (expected <= 0) {
+      // EVERYTHING THE FIRST ACTION SETS OFF STAYS INSIDE THIS WORKSPACE.
+      //
+      // The preview's `cards` chip is a good hint, never a guarantee: a
+      // bespoke first action (Valley Trust) deliberately advertises no draw,
+      // and the prelude the player then picks can draw cards of its own. With
+      // the claim gated on that hint, those cards presented in a STANDALONE
+      // full-bleed «Получены карты» over a workspace that had already let go
+      // — the exact opposite of the contract. So inside the first-action
+      // stage the claim is OPTIMISTIC: the outcome mechanism is built for it
+      // (`reconcileWorkspaceOutcome` drops a claim a tick after the response
+      // when nothing turned out to be embeddable), which makes «claim and
+      // release if unused» strictly safer than «guess and miss».
+      const inFirstAction = this.state.firstAct.stage !== 'idle';
+      if (expected <= 0 && !inFirstAction) {
         return;
       }
       setWorkspaceOutcomeSlot('.con-start__embed');
-      claimWorkspaceOutcome('start', name, ['draw', 'pick'], 0, expected);
+      claimWorkspaceOutcome('start', name, ['draw', 'pick'], 0, Math.max(expected, inFirstAction ? 1 : 0));
       // The EFFECT-SOURCE seat mounts IN THE SAME PRESS: the hero flight
       // needs its intermediate landing slot measurable before it flies, and
       // the column card stays held until the hero's atomic handoff.

@@ -141,5 +141,40 @@ test.describe('console first action · a drawn pick (Valley Trust)', () => {
     expect(resolved, 'the pick never resolved (the candidates stayed in the queue)').toBeTruthy();
     expect(sawHeroProxy, 'the chosen prelude must FLY into «РАЗЫГРАНО», never commit in one frame').toBeTruthy();
     await shoot(page, '04-after-pick');
+
+    // ── ③ EVERYTHING THE FIRST ACTION SET OFF STAYS INSIDE THE WORKSPACE.
+    //    The picked prelude may draw cards of its own; those cards must
+    //    present in the start workspace's OWN zone — never as a standalone
+    //    full-bleed «Получены карты» over a workspace that already let go.
+    let sawStandaloneReveal = false;
+    let startGoneWhileRevealing = false;
+    for (let i = 0; i < 120; i++) {
+      const s = await page.evaluate(() => {
+        const reveal = document.querySelector('.con-reveal');
+        const start = document.querySelector('.con-start');
+        const embedded = document.querySelector('.con-start__embed .con-reveal') !== null;
+        return {
+          reveal: reveal !== null,
+          embedded,
+          startPainted: start !== null &&
+            (start as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true}),
+        };
+      });
+      if (s.reveal && !s.embedded) {
+        sawStandaloneReveal = true;
+      }
+      if (s.reveal && !s.startPainted) {
+        startGoneWhileRevealing = true;
+      }
+      if (!s.reveal && !await page.locator('.con-start').count()) {
+        break; // the whole start flow is over — nothing left to watch
+      }
+      await page.waitForTimeout(100);
+    }
+    await shoot(page, '05-follow-up-presentation');
+    expect(sawStandaloneReveal,
+      'a draw caused by the first action must present INSIDE the workspace, not in a standalone modal').toBeFalsy();
+    expect(startGoneWhileRevealing,
+      'the start workspace may not let go while its own action is still presenting').toBeFalsy();
   });
 });

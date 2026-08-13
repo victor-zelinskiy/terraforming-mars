@@ -17472,6 +17472,12 @@ body.con-start-barshold .con-status {
        the card and the briefing's offset, so the pair can never drift apart. */
     --con-fa-seat-w: calc(320px * 0.92 * var(--con-ui-scale, 1));
 
+    /* The seat returns to its context size the instant a step takes the room.
+       Deliberately NOT transitioned: `width` is not animatable here by
+       contract, and the inner `zoom` cannot transition with it at all — a
+       half-animated pair reads far worse than one clean change, and this one
+       happens inside the room's own return (queue back + deal), where it is
+       simply part of the surface changing. */
     &__embed--firstact &__embedsource-card {
         width: var(--con-fa-seat-w);
         border-radius: .6rem;
