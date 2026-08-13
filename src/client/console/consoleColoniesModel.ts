@@ -100,6 +100,10 @@ export const consoleColoniesUi = reactive({
   composerReady: false,
   /** Focus stage: the focused row opens something on A. */
   composerEditable: false,
+  /** Focus stage: this act COMPOSES (it has decision rows) — the bar then
+   *  speaks the two-verb grammar (A opens the decision, X commits) for a
+   *  build exactly as it does for a trade. */
+  composerDecisions: false,
 });
 
 export function resetConsoleColoniesUi(): void {
@@ -107,6 +111,7 @@ export function resetConsoleColoniesUi(): void {
   consoleColoniesUi.composerSub = '';
   consoleColoniesUi.composerReady = false;
   consoleColoniesUi.composerEditable = false;
+  consoleColoniesUi.composerDecisions = false;
 }
 
 // ── THE COLONY WORKSPACE FLOW — browse ⇄ focus, one typed state ─────────────

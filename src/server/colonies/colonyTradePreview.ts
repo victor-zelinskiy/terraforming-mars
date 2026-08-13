@@ -1,4 +1,4 @@
-import {MAX_COLONY_TRACK_POSITION} from '../../common/constants';
+import {MAX_COLONIES_PER_TILE, MAX_COLONY_TRACK_POSITION} from '../../common/constants';
 import {CardName} from '../../common/cards/CardName';
 import {ColonyBenefit} from '../../common/colonies/ColonyBenefit';
 import {GlobalParameter} from '../../common/GlobalParameter';
@@ -93,14 +93,41 @@ export function buildColonyTradePreview(player: IPlayer, colony: IColony): Colon
     flatBonuses.push({card: CardName.VENUS_TRADE_HUB, resource: 'megacredits', amount: 3});
   }
 
+  // ── What BUILDING here would ask this player (the NEXT free slot's
+  //    placement bonus). Same shape as a trade follow-up, so the console
+  //    pre-collects it with the SAME step and answers it in the SAME batch —
+  //    a Titan build stops dropping «выберите карту» after the cube landed.
+  const buildFollowUps = buildBonusFollowUps(player, colony);
+
   return {
     colonyName: colony.name,
     track: {current: colony.trackPosition, effective, steps, willAsk},
     rewardQuantity,
     ...(megacreditsPayment !== undefined ? {megacreditsPayment} : {}),
     followUps,
+    ...(buildFollowUps.length > 0 ? {buildFollowUps} : {}),
     ...(flatBonuses.length > 0 ? {flatBonuses} : {}),
   };
+}
+
+/**
+ * The follow-ups a NEW SETTLEMENT here would raise for this player — read at
+ * the slot the cube would take (`Colony.addColony` → `giveBonus(build.type,
+ * build.quantity[colonies.length])`, mirrored exactly).
+ *
+ * Empty for a full colony (nothing can be built) and for every bonus that
+ * resolves without asking. It does NOT include the trade's own follow-ups:
+ * building is not trading, and mixing the two lists is how a build would
+ * answer a prompt the server never raised.
+ */
+function buildBonusFollowUps(player: IPlayer, colony: IColony): Array<ColonyTradeFollowUpModel> {
+  const slot = colony.colonies.length;
+  if (slot >= MAX_COLONIES_PER_TILE) {
+    return [];
+  }
+  const build = colony.metadata.build;
+  const followUp = benefitFollowUp(player, colony, 'buildBonus', build.type, build.quantity[slot] ?? 0);
+  return followUp !== undefined ? [followUp] : [];
 }
 
 /**

@@ -221,7 +221,7 @@
                                    :tradeOffset="tradeOffset"
                                    :outcomeZone="focusOutcomeZone"
                                    @confirm="onFocusConfirm"
-                                   @build-confirm="$emit('build-confirm')"
+                                   @build-confirm="$emit('build-confirm', $event)"
                                    @pick-confirm="$emit('pick-confirm')"
                                    @cancel="closeFocus()" />
         </transition>
@@ -815,6 +815,15 @@ export default defineComponent({
         this.completeFlow();
       }
     },
+    /** …and the same for the PRESENTED CARD scene: its release is the last
+     *  physical beat of a card-resource payout, so the completion belongs to
+     *  its falling edge exactly as it belongs to the claim's. */
+    'resolutionUi.cardSceneLive'(now: boolean, was: boolean): void {
+      if (!now && was && this.focusState.open &&
+          !this.tradeState.active && !this.buildState.active) {
+        this.completeFlow();
+      }
+    },
   },
   methods: {
     /** A card-resource benefit (`ADD_RESOURCES_TO_CARD` / `…_VENUS_CARD`) is
@@ -1034,12 +1043,18 @@ export default defineComponent({
      * then belongs to the claim's own falling edge, not to this one.
      */
     completeFlow(): void {
-      if (this.completeTimer !== undefined || workspaceOutcomeClaimed()) {
+      // A REWARD STILL ARRIVING ON A CARD IS THE ACT STILL HAPPENING. The
+      // build's own transaction ends when the cube seats — its floaters are
+      // still in the air — so routing home here tore the receiving card off
+      // the screen mid-flight. The scene publishes its presence
+      // (`cardSceneLive`, released by its own landing + read beat, with its
+      // own bounded net), and the completion re-runs on that falling edge.
+      if (this.completeTimer !== undefined || workspaceOutcomeClaimed() || this.resolutionUi.cardSceneLive) {
         return;
       }
       this.completeTimer = window.setTimeout(() => {
         this.completeTimer = undefined;
-        if (workspaceOutcomeClaimed() || !this.focusState.open) {
+        if (workspaceOutcomeClaimed() || !this.focusState.open || this.resolutionUi.cardSceneLive) {
           return;
         }
         closeColonyFocus();

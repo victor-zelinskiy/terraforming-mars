@@ -26,6 +26,7 @@
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {CardModel} from '@/common/models/CardModel';
+import {ColonyTradeFollowUpRole} from '@/common/models/ColonyTradePreviewModel';
 import {TradeNotice, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {
   BuildPlayedTargetInput, PlayedTargetModel, PlayedTargetPreviewSection,
@@ -108,7 +109,8 @@ export function buildColonyTradeTargetModel(input: BuildColonyTradeTargetInput):
  */
 export type ColonyTradePresentedTarget = {
   card: CardName;
-  role: 'tradeReward' | 'colonyBonus';
+  /** Which act pays it (a BUILD's placement bonus rides the same shape). */
+  role: ColonyTradeFollowUpRole;
   /** Resource icon key ('' when even the card's own type is unknown). */
   icon: string;
   amount: number;
@@ -187,10 +189,13 @@ export function colonyTradeCardDestinations(input: ColonyTradeDestinationsInput)
       amount: step.amount,
       before: model?.resources ?? input.beforeOf(card),
     });
-    if (step.role === 'tradeReward') {
-      targets.incomeTargetCard = card;
-    } else {
+    // `incomeTargetCard` is the ACT's primary destination — the trade's own
+    // income, or the build's placement bonus (there is exactly one). Only a
+    // per-cube COLONY BONUS is a list.
+    if (step.role === 'colonyBonus') {
       bonus.push(card);
+    } else {
+      targets.incomeTargetCard = card;
     }
   });
 
@@ -205,10 +210,10 @@ export function colonyTradeCardDestinations(input: ColonyTradeDestinationsInput)
       amount: notice.amount,
       before: input.beforeOf(notice.card),
     });
-    if (notice.role === 'tradeReward') {
-      targets.incomeTargetCard = targets.incomeTargetCard ?? notice.card;
-    } else {
+    if (notice.role === 'colonyBonus') {
       bonus.push(notice.card);
+    } else {
+      targets.incomeTargetCard = targets.incomeTargetCard ?? notice.card;
     }
   }
 

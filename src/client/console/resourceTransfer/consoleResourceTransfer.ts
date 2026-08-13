@@ -158,6 +158,36 @@ export function releasePanelRewardHold(spec: ResourceTransferSpec): void {
   syncHoldActive();
 }
 
+/**
+ * CARD-RESOURCE TOUCHDOWNS, per host card — how much of the CURRENT payout has
+ * physically landed on each card, bumped at the chip's own contact beat.
+ *
+ * It lives here, with the flights, because the touchdown IS a transfer event:
+ * every host that stands a card on screen (a colony trade's presented target,
+ * a colony BUILD's placement bonus, whatever comes next) reads ONE record and
+ * ticks its frozen counter on contact instead of inventing a second tally.
+ * A payout ARMS by resetting it — a stale count from the last one would tick a
+ * fresh card before its chip ever left.
+ */
+export const cardResourceLandings = reactive<{by: Record<string, number>}>({by: {}});
+
+export function resetCardResourceLandings(): void {
+  cardResourceLandings.by = {};
+}
+
+/** How much has landed on this card in the current payout. */
+export function cardResourceLanded(card: string): number {
+  return cardResourceLandings.by[card] ?? 0;
+}
+
+function noteCardResourceLanding(spec: ResourceTransferSpec): void {
+  if (spec.channel !== 'card-resource' || spec.targetCard === undefined) {
+    return;
+  }
+  const prior = cardResourceLandings.by[spec.targetCard] ?? 0;
+  cardResourceLandings.by = {...cardResourceLandings.by, [spec.targetCard]: prior + spec.amount};
+}
+
 /** Drop every pending hold at once (abort / safety) — the panel snaps to the
  *  committed truth and any remaining chips fire in one honest transition. */
 export function clearPanelRewardHold(): void {
@@ -265,6 +295,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
   }
   const releaseAll = (list: ReadonlyArray<{spec: ResourceTransferSpec}>) => {
     for (const e of list) {
+      noteCardResourceLanding(e.spec);
       run.onArrive?.(e.spec);
     }
   };
@@ -285,6 +316,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
   for (const e of specEntries) {
     const to = targetPointFor(e.spec);
     if (to === undefined || (e.origin === undefined && sourceRect === undefined)) {
+      noteCardResourceLanding(e.spec); // degraded, but the amount HAS arrived
       run.onArrive?.(e.spec);
     } else {
       flights.push({spec: e.spec, to, origin: e.origin});
@@ -319,7 +351,10 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
       // rAF stall / lost stage — release everything, never wedge the caller.
       safetyFired = true;
       trail(runId, 'run:safety', {arrival: run.arrival, ids: entries.map((e) => e.id)});
-      entries.forEach((e) => run.onArrive?.(e.spec));
+      entries.forEach((e) => {
+        noteCardResourceLanding(e.spec);
+        run.onArrive?.(e.spec);
+      });
     }, waveBudget);
 
     // The caller resolves at the TOUCHDOWNS (never held on the absorb tail);
@@ -343,6 +378,9 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
         hold: run.arrival === 'hold',
       });
       const touched = handles.touched.then(() => {
+        // THE CONTACT BEAT, in one place: the tally a card-standing host reads
+        // to tick its frozen counter, then the caller's own release.
+        noteCardResourceLanding(e.spec);
         if (!safetyFired) {
           run.onArrive?.(e.spec);
         }
@@ -372,6 +410,7 @@ export async function runResourceTransfers(run: ResourceTransferRun): Promise<vo
     trail(runId, 'run:threw', String(e));
     console.error('[resource-transfer] wave threw — releasing gate', e);
     entries.forEach((entry) => {
+      noteCardResourceLanding(entry.spec);
       run.onArrive?.(entry.spec);
       removeFlight(entry.id);
     });

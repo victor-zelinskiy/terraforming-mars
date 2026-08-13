@@ -20,9 +20,17 @@ export type ColonyTradeNoteKind =
   | 'placeHazard'
   | 'wgt';
 
-/** Whether a follow-up comes from the colony's TRADE reward or from the
- *  trading player's OWN built-colony bonus on this tile. */
-export type ColonyTradeFollowUpRole = 'tradeReward' | 'colonyBonus';
+/**
+ * Which act of the colony the follow-up belongs to: the colony's TRADE reward,
+ * the trading player's OWN built-colony bonus on this tile, or the PLACEMENT
+ * bonus a new settlement here would pay.
+ *
+ * `buildBonus` rides the same model on purpose — «положи 3 аэростата на карту»
+ * is the same decision whichever act raised it, so it is pre-collected by the
+ * same step and answered in the same batch instead of arriving as a detached
+ * prompt after the cube has already landed.
+ */
+export type ColonyTradeFollowUpRole = 'tradeReward' | 'colonyBonus' | 'buildBonus';
 
 /**
  * One follow-up prompt the TRADING player will face after submitting the
@@ -85,6 +93,17 @@ export type ColonyTradePreviewModel = {
   megacreditsPayment?: SelectPaymentModel;
   /** Every other follow-up, in live prompt order. */
   followUps: ReadonlyArray<ColonyTradeFollowUpModel>;
+  /**
+   * What BUILDING here would ask this player — the placement bonus of the NEXT
+   * free slot (absent when the colony is full or its bonus asks nothing).
+   *
+   * It rides the trade preview because the two are one screen: the focus stage
+   * fetches ONE preview per colony and the player's intent (trade / build)
+   * decides which list it composes. Same shape, same pre-collect, same batch —
+   * so a Titan build no longer drops «выберите карту» on the player AFTER the
+   * cube has landed.
+   */
+  buildFollowUps?: ReadonlyArray<ColonyTradeFollowUpModel>;
   /**
    * Flat card-effect modifiers applied to EVERY trade (Venus Trade Hub's
    * +3 M€) — shown in the outcome so the numbers add up visibly.

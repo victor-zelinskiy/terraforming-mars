@@ -227,7 +227,7 @@
                                 :playerId="playerView.id"
                                 :viewVersion="`${playerView.game.gameAge}|${playerView.game.undoCount}`"
                                 @trade-confirm="onColonyTradeComposerConfirm($event)"
-                                @build-confirm="onColonyBuildConfirm()"
+                                @build-confirm="onColonyBuildConfirm($event)"
                                 @flow-complete="onColonyFlowComplete"
                              @pick-confirm="onColonyPickConfirm()" />
         </Teleport>
@@ -1358,7 +1358,7 @@ import {isResourceTransferActive} from '@/client/console/resourceTransfer/consol
 import {panelCommands} from '@/client/console/consolePanelUi';
 import {consoleActionComposerUi, resetConsoleActionComposerUi, resetConsoleActionRevealClaim} from '@/client/console/consoleActionComposerUi';
 import {focusKicker} from '@/client/console/consoleActionFlow';
-import {buildTradeBatch, colonyBuildDrawsCards, colonyOwnerBonusDrawsCards, colonyTradeMayDrawCards, freeTradeFleets, TradeStep} from '@/client/components/colonies/colonyTradePlan';
+import {buildTradeBatch, colonyBuildDrawsCards, colonyOwnerBonusDrawsCards, colonyTradeMayDrawCards, freeTradeFleets, stepResponse, TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {getColony} from '@/client/colonies/ClientColonyManifest';
 import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
@@ -5090,6 +5090,16 @@ export default defineComponent({
         }
         const intent = this.colonyFocus.intent;
         if (intent === 'build') {
+          // A BUILD THAT COMPOSES speaks the trade's grammar: its placement
+          // bonus needs a card, so A opens that decision and X commits. With
+          // nothing to decide it keeps the single-verb «A Построить».
+          if (consoleColoniesUi.composerDecisions) {
+            return [
+              {control: 'confirm', label: 'Select', enabled: consoleColoniesUi.composerEditable},
+              {control: 'secondary', label: 'Build', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
+              {control: 'back', label: 'Back'},
+            ];
+          }
           return [
             {control: 'confirm', label: 'Build', enabled: consoleColoniesUi.composerReady, highlight: consoleColoniesUi.composerReady},
             {control: 'back', label: 'Back'},
@@ -9607,7 +9617,7 @@ export default defineComponent({
      * was configured. A board follow-up (an ocean/hazard build bonus)
      * self-heals via the `placementActive` watcher.
      */
-    onColonyBuildConfirm(): void {
+    onColonyBuildConfirm(payload?: {steps: ReadonlyArray<TradeStep>, captures: Readonly<Record<number, unknown>>, targets?: ColonyTradeTargets}): void {
       const pick = this.colonyPick;
       const name = this.colonyFocus.colonyName;
       if (pick === undefined || name === '' || isColonyBuildActive()) {
@@ -9623,7 +9633,11 @@ export default defineComponent({
       // resolution (the answer flips its props under the flying cube).
       (this.$refs.coloniesSection as InstanceType<typeof ConsoleColoniesSection> | undefined)?.holdFocusStage();
       const slotIndex = Math.min(2, selected.colonies.length);
-      armColonyBuild(selected.name, slotIndex, this.thisPlayer.color);
+      // THE PLACEMENT BONUS'S HOST CARD, chosen on the stage before the cube
+      // moves (Titan's floaters). It rides the transaction so the reward chip
+      // flies onto that exact card — and the batch below answers the prompt
+      // the server is about to raise, so the player is never asked twice.
+      armColonyBuild(selected.name, slotIndex, this.thisPlayer.color, payload?.targets?.incomeTargetCard);
       // EMBEDDED OUTCOME — the same two lines the trade paths already have.
       // WITHOUT them a build whose placement bonus DRAWS (Pluto: «возьмите 2
       // карты») had no claim, so `workspaceClaimsColonyReveal` was false, the
@@ -9645,6 +9659,22 @@ export default defineComponent({
         // «при строительстве карты просто появляются». The hold exists to
         // protect a beat nobody else is playing; here somebody is.
         markWorkspaceOutcomeBeatDone();
+      }
+      // The BUILD's own pre-collected tail — byte-identical to answering the
+      // live prompts one at a time (`stepResponse`, the trade's own builder),
+      // truncated at the first uncaptured step so a diverged decision still
+      // arrives as an honest live prompt.
+      const responses: Array<unknown> = [colonyResponse(selected.name)];
+      for (const [i, step] of (payload?.steps ?? []).entries()) {
+        const response = stepResponse(step, payload?.captures[i]);
+        if (response === undefined) {
+          break;
+        }
+        responses.push(response);
+      }
+      if (responses.length > 1) {
+        this.submitBatch(responses);
+        return;
       }
       this.submit(colonyResponse(selected.name));
     },

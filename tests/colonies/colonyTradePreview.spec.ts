@@ -11,6 +11,8 @@ import {IColony} from '../../src/server/colonies/IColony';
 import {buildColonyTradePreview} from '../../src/server/colonies/colonyTradePreview';
 import {Tardigrades} from '../../src/server/cards/base/Tardigrades';
 import {GHGProducingBacteria} from '../../src/server/cards/base/GHGProducingBacteria';
+import {Dirigibles} from '../../src/server/cards/venusNext/Dirigibles';
+import {JupiterFloatingStation} from '../../src/server/cards/colonies/JupiterFloatingStation';
 import {TradingColony} from '../../src/server/cards/colonies/TradingColony';
 import {VenusTradeHub} from '../../src/server/cards/prelude2/VenusTradeHub';
 import {SelectCard} from '../../src/server/inputs/SelectCard';
@@ -53,6 +55,56 @@ describe('colonyTradePreview', () => {
     expect(preview.followUps).to.deep.eq([]);
     // A plain M€ player pays automatically — no payment prompt.
     expect(preview.megacreditsPayment).is.undefined;
+  });
+
+  /**
+   * BUILDING IS PRE-COLLECTED TOO. Titan's placement bonus is «положи 3
+   * аэростата на карту» — the very same decision the trade's reward asks, so
+   * it rides the very same follow-up shape and the console answers it in the
+   * build's own batch. Without this the prompt arrived AFTER the cube landed.
+   */
+  describe('buildFollowUps — what BUILDING here would ask', () => {
+    it('offers the placement bonus as a pre-collectable card target', () => {
+      player.playedCards.push(new Dirigibles(), new JupiterFloatingStation());
+      const titan = game.colonies.find((c) => c.name === ColonyName.TITAN)!;
+      const preview = buildColonyTradePreview(player, titan);
+      const build = preview.buildFollowUps ?? [];
+      expect(build).to.have.length(1);
+      const target = build[0];
+      if (target.kind !== 'cardTarget') {
+        throw new Error('expected cardTarget');
+      }
+      expect(target.role, 'its own role — never confused with a trade reward').to.eq('buildBonus');
+      expect(target.amount, 'Titan pays 3 floaters for the first settlement').to.eq(3);
+      expect(target.resource).to.eq(CardResource.FLOATER);
+      expect(target.lost).to.eq(false);
+      // Eligibility is the SERVER's own candidate set, verbatim — the two
+      // FLOATER cards in play, and nothing else the player owns.
+      expect(target.pick?.cards.map((c) => c.name)).to.have.members(
+        [CardName.DIRIGIBLES, CardName.JUPITER_FLOATING_STATION]);
+    });
+
+    it('reads the bonus of the NEXT free slot, and stops at a full colony', () => {
+      player.playedCards.push(new Dirigibles(), new JupiterFloatingStation());
+      const titan = game.colonies.find((c) => c.name === ColonyName.TITAN)!;
+      titan.colonies.push(player2.id);
+      const second = buildColonyTradePreview(player, titan).buildFollowUps ?? [];
+      const target = second[0];
+      if (target === undefined || target.kind !== 'cardTarget') {
+        throw new Error('expected cardTarget');
+      }
+      expect(target.amount, 'read at the NEXT free slot (Titan pays 3 at every one)').to.eq(3);
+
+      titan.colonies.push(player2.id, player2.id);
+      expect(buildColonyTradePreview(player, titan).buildFollowUps,
+        'a full colony cannot be built on — nothing to ask').is.undefined;
+    });
+
+    /** A build bonus that resolves by itself (Luna's M€) asks nothing — the
+     *  list must stay empty rather than inventing a step. */
+    it('is absent for a bonus that resolves without asking', () => {
+      expect(buildColonyTradePreview(player, luna).buildFollowUps).is.undefined;
+    });
   });
 
   it('trade offset (Trading Colony) auto-advances the effective position', () => {

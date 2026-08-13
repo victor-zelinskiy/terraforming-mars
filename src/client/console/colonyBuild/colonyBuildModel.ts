@@ -25,12 +25,13 @@
  * consoleColonyBuild.
  */
 
+import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {Resource} from '@/common/Resource';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
 import {ColonyBenefit} from '@/common/colonies/ColonyBenefit';
-import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {cardResourceKey, ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
 
 /**
  * The explicit, observable lifecycle of ONE colony-build transaction:
@@ -105,11 +106,27 @@ export type BonusExitMode =
  * (`stock` / `production`). Every other benefit type returns `[]` (see
  * `buildBonusMode`). `amount` = the slot's own quantity.
  */
-export function buildRewardSpecs(metadata: ColonyMetadata, slotIndex: number): Array<ResourceTransferSpec> {
+export function buildRewardSpecs(
+  metadata: ColonyMetadata,
+  slotIndex: number,
+  /** The host card the placement bonus was pre-collected onto (Titan's
+   *  floaters). Without one a card bonus has no physical destination and
+   *  stays out of the flight — the honest degrade, never a guessed card. */
+  targetCard?: CardName,
+): Array<ResourceTransferSpec> {
   const build = metadata.build;
   const amount = build.quantity[slotIndex] ?? 0;
   if (amount <= 0) {
     return [];
+  }
+  // A CARD BONUS IS A REWARD LIKE ANY OTHER once its destination is known:
+  // the same chip, the same framework, landing on the chosen card's own
+  // counter instead of a rail row.
+  if (build.type === ColonyBenefit.ADD_RESOURCES_TO_CARD ||
+      build.type === ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD) {
+    return metadata.cardResource !== undefined && targetCard !== undefined ?
+      [{channel: 'card-resource', resource: cardResourceKey(metadata.cardResource), amount, targetCard}] :
+      [];
   }
   const resource = build.resource;
   if (resource === undefined) {
@@ -136,11 +153,11 @@ export function buildBonusIsCard(metadata: ColonyMetadata): boolean {
 }
 
 /** How the slot's bonus leaves — drives the run choreography. */
-export function buildBonusMode(metadata: ColonyMetadata, slotIndex: number): BonusExitMode {
+export function buildBonusMode(metadata: ColonyMetadata, slotIndex: number, targetCard?: CardName): BonusExitMode {
   if (buildBonusIsCard(metadata)) {
     return 'card';
   }
-  return buildRewardSpecs(metadata, slotIndex).length > 0 ? 'resource' : 'none';
+  return buildRewardSpecs(metadata, slotIndex, targetCard).length > 0 ? 'resource' : 'none';
 }
 
 /**

@@ -123,6 +123,18 @@ export const colonyResolutionUi = reactive({
    * instead, i.e. abruptly and after the fact.
    */
   payoutLiftOff: false,
+  /**
+   * THE PRESENTED CARD SCENE IS STANDING — the chosen host card(s) of a
+   * card-resource payout are on the stage with the reward physically arriving.
+   *
+   * Published by the stage, read by the SECTION's completion: a colony act
+   * whose reward lands on a card may not route home while that card is still
+   * on screen receiving it. The BUILD is why it exists — its own transaction
+   * ends at the cube's landing, several hundred ms before the floaters touch
+   * down, so «resolving fell» would tear the card out from under its own
+   * reward (the counter would tick over an unmounted scene).
+   */
+  cardSceneLive: false,
 });
 
 export function noticeColonyResolutionDiscard(): void {
@@ -142,6 +154,7 @@ export function markColonyPayoutLiftOff(): void {
  *  one must raise its own cue, never inherit this one. */
 export function clearColonyPayoutLiftOff(): void {
   colonyResolutionUi.payoutLiftOff = false;
+  colonyResolutionUi.cardSceneLive = false;
 }
 
 export function resetColonyResolutionUi(): void {

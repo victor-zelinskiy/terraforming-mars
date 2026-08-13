@@ -10774,6 +10774,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        shorter instead of carrying an empty half. */
     --colfocus-h: 27.5rem;
     --colfocus-hero-w: 12rem;
+    /* The summary rail's column — ONE token, so the payout scenes that stand
+       over it (`__cardland`, `__outcome`) can never disagree with its width. */
+    --colfocus-rail-w: 13.2rem;
     /* Inspect is the SHORT panel, but it must still seat the full hero column
        with a validation plate AND two lines of the ability text (iteration 4 —
        the old 19.5rem starved `__desc` to zero exactly when a verdict stood). */
@@ -10798,20 +10801,31 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        the panel shrinks and grows again around the very beat it is hosting. */
     &--claimed { --colfocus-h: 27.5rem; }
 
-    /* A DENSE PANEL, not a stretched one. The scene is a dossier: it is sized
-       by its own composition and centred in the band, so a tall host gives it
-       AIR AROUND it instead of a hole inside it. The height is a token, not
-       the content's — a panel that re-measured itself every time a sub-editor
-       opened would move the whole layout under the player's thumb. */
+    /* A DENSE PANEL — sized by its composition, centred in the band, so a tall
+       host gives it AIR AROUND it instead of a hole inside it.
+       ⚠️ THE TOKEN IS A FLOOR, NOT THE HEIGHT. Sized EXACTLY at the token, the
+       panel drew a scroll over its own configuration while hundreds of px of
+       band sat empty above and below it — the reported «скролл там, где есть
+       место». The panel therefore takes its CONTENT's height, floored at the
+       token (a short dossier keeps its calm size and its air) and capped by the
+       band (`max-height: 100%` — the internal scroll stays the last resort, on
+       a genuinely short host like the Deck). */
     &__surface {
         position: relative;
-        /* `flex: 1` is the WIDTH (the row axis); the height is the token and
-           `align-self` centres it on the cross axis. */
+        /* `flex: 1` is the WIDTH (the row axis); the height is content-driven
+           between the two bounds and `align-self` centres it on the cross axis. */
         flex: 1 1 auto;
         align-self: center;
-        height: min(100%, var(--colfocus-h));
+        height: auto;
+        max-height: 100%;
         min-width: 0;
-        min-height: 0;
+        /* THE FLOOR is the mode's token; `--colfocus-need` is what the stage
+           MEASURED its columns to want (see `measureFit`). CSS alone cannot
+           see that number: the configuration lives inside a scroll area whose
+           viewport is `flex: 1` (basis 0), so its content contributes NOTHING
+           to any ancestor's intrinsic height — which is exactly why the panel
+           kept its token height and scrolled with half the band empty. */
+        min-height: min(100%, max(var(--colfocus-h), var(--colfocus-need, 0px)));
         display: flex;
         gap: .95rem;
         padding: .85rem 1rem;
@@ -11383,6 +11397,19 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         height: 44px; /* keep-px */
         zoom: var(--con-ui-scale, 1);
 
+        /* ONE RESOURCE, ONE SIZE. The seat's box is 44 px because it pairs
+           with the CUBE, but the reward drawn inside it is the SAME resource
+           the track cell prints — and there it reads at 40 px (a 32 px sprite
+           through the cell's `zoom: 1.25`). Inheriting the base 32 px made
+           every colony's build reward look like a lesser floater/microbe than
+           the identical one two rows above it. Sized here, in the seat's own
+           px space (`keep-px`: inside the ui-scale zoom), so it holds for
+           EVERY colony and every card resource by construction. */
+        .benefit-glyph__icon.resource {
+            width: 40px;  /* keep-px: == the track cell's 32 × 1.25 */
+            height: 40px; /* keep-px */
+            background-size: 40px 40px;
+        }
         /* A BADGE, not an overlap: the count sits on the token's corner with
            its own plate, clear of the artwork underneath. */
         .benefit-glyph__num { /* keep-px: inside the ui-scale zoom */
@@ -11518,7 +11545,12 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         flex-direction: column;
         gap: .35rem;
     }
-    &__configscroll { flex: 1; min-height: 0; }
+    /* `flex-basis: auto`, deliberately: with the shorthand's `0%` basis the
+       configuration's real height was invisible to the panel above it, so the
+       panel could never GROW to hold it and scrolled instead. Basis auto makes
+       the content a term in the surface's own height (see `__surface`), and
+       `min-height: 0` keeps it shrinkable once the band's cap bites. */
+    &__configscroll { flex: 1 1 auto; min-height: 0; }
     &__sub-title {
         font-size: .8rem;
         font-weight: 700;
@@ -11899,13 +11931,21 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
             opacity calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.32, 0, 0.5, 1),
             transform calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.6, 1);
     }
+    /* A BUILD does not yield its working area — its cube is landing in the
+       berth row — so the card takes the SUMMARY RAIL's column and the rail
+       (whose numbers the payout is about to make true) steps back instead. */
+    &--carding-rail &__result {
+        pointer-events: none;
+        opacity: .12;
+        transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
+    }
     /* The scene occupies the MAIN box only (the rail keeps its column):
        hero-w + gap on the left, result-w + gap + panel padding on the right. */
     &__cardland {
         position: absolute;
         left: calc(var(--colfocus-hero-w) + .95rem);
         top: .85rem;
-        right: calc(13.2rem + .95rem + 1rem); /* __result basis + gap + pad */
+        right: calc(var(--colfocus-rail-w) + .95rem + 1rem); /* rail + gap + pad */
         bottom: .85rem;
         z-index: 3;
         display: flex;
@@ -11926,6 +11966,16 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         &[data-cardland-count='3'] { --con-cardland-zoom: calc(.36 * var(--con-ui-scale, 1)); }
     }
     &__cardland--leaving { opacity: 0; }
+    /* THE RAIL VARIANT (a build): the card stands in the summary column, so
+       the cube's landing in the berth row stays fully visible beside it. */
+    &__cardland--rail {
+        left: auto;
+        right: 1rem;
+        width: var(--colfocus-rail-w);
+        --con-cardland-zoom: calc(.36 * var(--con-ui-scale, 1));
+        &[data-cardland-count='2'] { --con-cardland-zoom: calc(.3 * var(--con-ui-scale, 1)); }
+        &[data-cardland-count='3'] { --con-cardland-zoom: calc(.26 * var(--con-ui-scale, 1)); }
+    }
     &__landcell {
         display: flex;
         flex-direction: column;
@@ -11956,6 +12006,41 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         box-shadow: 0 0 0 .14rem fade(@con-mint, 72%), 0 0 1.2rem fade(@con-mint, 30%);
         transition: box-shadow calc(260ms * var(--motion-scale, 1)) ease;
     }
+    /* ── «На карту(ы):» — WHERE the card-resource total lands, under the
+       total it explains. Rows, not chips: each names a physical card and its
+       honest before → after, one per card (an income and a bonus aimed at
+       the same card are ONE row whose amounts already added up). ── */
+    &__rcards {
+        display: flex;
+        flex-direction: column;
+        gap: .18rem;
+        padding-left: .3rem;
+    }
+    &__rcard {
+        display: flex;
+        align-items: center;
+        gap: .3rem;
+        min-width: 0;
+        font-size: .68rem;
+
+        i { flex: 0 0 auto; }
+        em {
+            margin-left: auto;
+            flex: 0 0 auto;
+            font-style: normal;
+            font-weight: 800;
+            color: @con-mint;
+            font-variant-numeric: tabular-nums;
+        }
+    }
+    &__rcard-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: fade(#dfeaf6, 88%);
+        font-weight: 700;
+    }
     &__landmeta {
         display: inline-flex;
         align-items: center;
@@ -11985,7 +12070,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        belonging there. The CONTENT still starts at the top and stops where it
        stops: the height is a stable role, never a stretch to fill. */
     &__result {
-        flex: 0 0 13.2rem;
+        flex: 0 0 var(--colfocus-rail-w);
         align-self: stretch;
         min-width: 0;
         display: flex;
@@ -12119,7 +12204,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     /* ── MODE DIFFERENTIATION — one scene, genuinely different priorities ──
        INSPECT has no action, so the identity + rules carry it and the amber
        action accents stand down. BUILD leads with the berths. */
-    &--inspect &__result { flex-basis: 12rem; }
+    &--inspect { --colfocus-rail-w: 12rem; }
     /* BUILD dims the berths that are NOT the destination, so the one place
        the token is going — and the position it will protect — is the only
        lit thing in the foundation row. */

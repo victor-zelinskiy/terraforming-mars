@@ -38,6 +38,7 @@
 
 import {reactive, nextTick} from 'vue';
 import {Color} from '@/common/Color';
+import {CardName} from '@/common/cards/CardName';
 import {ColonyName} from '@/common/colonies/ColonyName';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
@@ -56,6 +57,7 @@ import {
 } from '@/client/console/colonyBuild/colonyBuildDirector';
 import {
   runResourceTransfers, abortResourceTransfers, settleResourceTransfers,
+  beginPanelRewardHold, releasePanelRewardHold, resetCardResourceLandings,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ResourceTransferSpec, TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {armBoardCardBonus, abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
@@ -93,6 +95,8 @@ let sceneSafety: number | undefined;
 let runResolve: (() => void) | undefined;
 /** The resource specs the leaving bonus carries (captured at detect). */
 let pendingSpecs: ReadonlyArray<ResourceTransferSpec> = [];
+/** The pre-collected host card of a CARD-resource placement bonus. */
+let buildTargetCard: CardName | undefined;
 /** The resource chip's flight (resolves when it RESTS on the panel — 'hold'). */
 let bonusFlight: Promise<void> | undefined;
 /** The REAL benefit glyph we blanked as the bonus left — restored on finish/abort. */
@@ -128,10 +132,15 @@ registerAnimationHoldSupplier('colony-build', colonyBuildHolding);
 
 // ── the lifecycle ───────────────────────────────────────────────────────────
 
-/** ARM (the colonies-screen Build confirm, BEFORE the POST). Sync `active`. */
-export function armColonyBuild(colonyName: string, slotIndex: number, color: Color): void {
+/** ARM (the colonies-screen Build confirm, BEFORE the POST). Sync `active`.
+ *  `targetCard` = the host card the placement bonus was PRE-COLLECTED onto
+ *  (Titan's floaters) — the chip then flies onto that exact card instead of
+ *  the bonus arriving as a detached prompt after the cube. */
+export function armColonyBuild(colonyName: string, slotIndex: number, color: Color, targetCard?: CardName): void {
   clearTimers();
   claimed = false;
+  buildTargetCard = targetCard;
+  resetCardResourceLandings(); // this payout's own tally starts empty
   pendingSpecs = [];
   bonusFlight = undefined;
   restoreHeldGlyph();
@@ -171,8 +180,8 @@ export function detectColonyBuild(prevView: ViewModel, newView: ViewModel): {col
   }
   colonyBuildState.slotIndex = proof.slotIndex;
   const metadata = getColony(colonyBuildState.colonyName as ColonyName);
-  pendingSpecs = buildRewardSpecs(metadata, proof.slotIndex);
-  colonyBuildState.mode = buildBonusMode(metadata, proof.slotIndex);
+  pendingSpecs = buildRewardSpecs(metadata, proof.slotIndex, buildTargetCard);
+  colonyBuildState.mode = buildBonusMode(metadata, proof.slotIndex, buildTargetCard);
   const landing = measureBuildSlot(colonyBuildState.colonyName, proof.slotIndex);
   colonyBuildState.slotRect = landing?.rect;
   colonyBuildState.cubeFactor = landing?.cubeFactor ?? CUBE_SLOT_F;
@@ -266,10 +275,16 @@ function startBonusExit(): void {
   blankSlotGlyph(); // 1:1 takeover / vacate — the glyph is gone before the cube arrives
   if (mode === 'resource' && slot !== undefined && pendingSpecs.length > 0) {
     const from: TransferPoint = {x: slot.x + slot.w / 2, y: slot.y + slot.h / 2};
+    // A CARD-resource bonus lands ON THE CHOSEN CARD and is absorbed there
+    // ('auto'), releasing its own panel hold at the touchdown — the card's
+    // counter ticks on contact. A rail resource keeps the gated 'hold': it
+    // RESTS on the panel until the commit credits it.
+    const onCard = pendingSpecs.some((s) => s.channel === 'card-resource');
     bonusFlight = runResourceTransfers({
       specs: pendingSpecs,
       source: {point: from},
-      arrival: 'hold',
+      arrival: onCard ? 'auto' : 'hold',
+      ...(onCard ? {onArrive: releasePanelRewardHold} : {}),
     });
   }
 }
@@ -282,10 +297,18 @@ async function settleBonusFlight(): Promise<void> {
   }
 }
 
-/** NO-OP: the resource chip credits via the gated commit ('hold' arrival), so
- *  there is no panel-reward-hold to seed. Kept for the WaitingFor wiring. */
+/**
+ * A RAIL resource credits via the gated commit ('hold' arrival) — nothing to
+ * seed. A CARD resource is different: it flies 'auto' onto the chosen card, so
+ * its number must stay hidden until the chip touches down, exactly like every
+ * other card-resource payout. Seeded HERE because this runs in the same
+ * synchronous block as the view commit (the framework's phantom-chip contract).
+ */
 export function seedColonyBuildRewardHold(): void {
-  // Intentionally empty — see the doc comment.
+  const held = pendingSpecs.filter((s) => s.channel === 'card-resource');
+  if (held.length > 0) {
+    beginPanelRewardHold(held);
+  }
 }
 
 /**
@@ -320,7 +343,9 @@ export function abortColonyBuild(): void {
     killColonyBuildTweens(els);
   }
   abortResourceTransfers();
+  releaseOwnHolds(); // ⚠️ OUR specs only — a global clear would drop a sibling scene's
   restoreHeldGlyph();
+  buildTargetCard = undefined;
   if (colonyBuildState.mode === 'card') {
     abortBoardCardBonus('return'); // the card never came — recall the cover
   }
@@ -338,7 +363,9 @@ export function abortColonyBuild(): void {
 
 function finish(): void {
   clearTimers();
+  releaseOwnHolds(); // belt-and-braces: our seeded amounts are always released
   restoreHeldGlyph();
+  buildTargetCard = undefined;
   pendingSpecs = [];
   bonusFlight = undefined;
   colonyBuildState.active = false;
@@ -358,7 +385,9 @@ export function resetColonyBuild(): void {
     killColonyBuildTweens(els);
   }
   abortResourceTransfers();
+  releaseOwnHolds();
   restoreHeldGlyph();
+  buildTargetCard = undefined;
   pendingSpecs = [];
   bonusFlight = undefined;
   claimed = false;
@@ -368,6 +397,21 @@ export function resetColonyBuild(): void {
 }
 
 // ── internals ───────────────────────────────────────────────────────────────
+
+/**
+ * Release the panel hold THIS transaction seeded — and nothing else.
+ *
+ * ⚠️ Never `clearPanelRewardHold()`: it drops every hold on the board,
+ * including a sibling scene's (the trade's waves run on the same rail), which
+ * makes another flow's numbers jump ahead of its own chips.
+ */
+function releaseOwnHolds(): void {
+  for (const spec of pendingSpecs) {
+    if (spec.channel === 'card-resource') {
+      releasePanelRewardHold(spec);
+    }
+  }
+}
 
 function resetTransient(): void {
   colonyBuildState.phase = 'idle';

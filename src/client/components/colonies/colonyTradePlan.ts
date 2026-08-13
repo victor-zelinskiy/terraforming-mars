@@ -31,7 +31,9 @@ import {ColonyModel} from '@/common/models/ColonyModel';
 import {Color} from '@/common/Color';
 import {InputResponse} from '@/common/inputs/InputResponse';
 import {Payment} from '@/common/inputs/Payment';
-import {ColonyTradePreviewModel} from '@/common/models/ColonyTradePreviewModel';
+import {
+  ColonyTradeFollowUpModel, ColonyTradeFollowUpRole, ColonyTradePreviewModel,
+} from '@/common/models/ColonyTradePreviewModel';
 import {SelectCardModel, SelectPaymentModel} from '@/common/models/PlayerInputModel';
 
 // ── Interactive pre-collect steps ────────────────────────────────────────────
@@ -41,26 +43,16 @@ export type TradeStep =
   | {kind: 'trackChoice', steps: number}
   | {
       kind: 'cardTarget',
-      role: 'tradeReward' | 'colonyBonus',
+      role: ColonyTradeFollowUpRole,
       resource: string | undefined,
       amount: number,
       pick: SelectCardModel,
     };
 
-/**
- * The interactive steps the confirm surface must collect BEFORE submitting,
- * in live prompt order. `useMegacredits` = the player picked the M€ payment
- * path (the only path whose payment can itself prompt).
- */
-export function tradeSteps(preview: ColonyTradePreviewModel | undefined, useMegacredits: boolean): Array<TradeStep> {
-  if (preview === undefined) {
-    return [];
-  }
+/** The interactive steps ONE follow-up list contributes, in its own order. */
+function followUpSteps(followUps: ReadonlyArray<ColonyTradeFollowUpModel>): Array<TradeStep> {
   const steps: Array<TradeStep> = [];
-  if (useMegacredits && preview.megacreditsPayment !== undefined) {
-    steps.push({kind: 'payment', model: preview.megacreditsPayment});
-  }
-  for (const followUp of preview.followUps) {
+  for (const followUp of followUps) {
     if (followUp.kind === 'trackChoice') {
       steps.push({kind: 'trackChoice', steps: followUp.steps});
     } else if (followUp.kind === 'cardTarget' && followUp.pick !== undefined) {
@@ -76,11 +68,39 @@ export function tradeSteps(preview: ColonyTradePreviewModel | undefined, useMega
   return steps;
 }
 
+/**
+ * The interactive steps the confirm surface must collect BEFORE submitting,
+ * in live prompt order. `useMegacredits` = the player picked the M€ payment
+ * path (the only path whose payment can itself prompt).
+ */
+export function tradeSteps(preview: ColonyTradePreviewModel | undefined, useMegacredits: boolean): Array<TradeStep> {
+  if (preview === undefined) {
+    return [];
+  }
+  const steps: Array<TradeStep> = [];
+  if (useMegacredits && preview.megacreditsPayment !== undefined) {
+    steps.push({kind: 'payment', model: preview.megacreditsPayment});
+  }
+  steps.push(...followUpSteps(preview.followUps));
+  return steps;
+}
+
+/**
+ * …and the steps BUILDING here would ask for (the placement bonus of the slot
+ * the cube would take). The SAME shape as a trade step, deliberately: a
+ * «положи N аэростатов на карту» is one decision whichever act raised it, so
+ * it rides the same pre-collect, the same picker and the same batch tail —
+ * never a detached prompt after the cube has already landed.
+ */
+export function buildSteps(preview: ColonyTradePreviewModel | undefined): Array<TradeStep> {
+  return followUpSteps(preview?.buildFollowUps ?? []);
+}
+
 // ── Display-only notices ─────────────────────────────────────────────────────
 
 export type TradeNotice =
-  | {kind: 'autoTarget', role: 'tradeReward' | 'colonyBonus', resource: string | undefined, amount: number, card: CardName}
-  | {kind: 'lostResource', role: 'tradeReward' | 'colonyBonus', resource: string | undefined, amount: number}
+  | {kind: 'autoTarget', role: ColonyTradeFollowUpRole, resource: string | undefined, amount: number, card: CardName}
+  | {kind: 'lostResource', role: ColonyTradeFollowUpRole, resource: string | undefined, amount: number}
   | {kind: 'afterConfirm', note: string};
 
 /** English i18n keys for the "after confirming" note kinds. */
@@ -102,11 +122,18 @@ const NOTE_TEXT: Record<string, string> = {
  * warning, and the "after confirming" follow-ups the modal can't pre-collect.
  */
 export function tradeNotices(preview: ColonyTradePreviewModel | undefined): Array<TradeNotice> {
-  if (preview === undefined) {
-    return [];
-  }
+  return followUpNotices(preview?.followUps ?? []);
+}
+
+/** The same display-only reading for what BUILDING here would do (an auto
+ *  single-candidate target, or an honest «некуда положить»). */
+export function buildNotices(preview: ColonyTradePreviewModel | undefined): Array<TradeNotice> {
+  return followUpNotices(preview?.buildFollowUps ?? []);
+}
+
+function followUpNotices(followUps: ReadonlyArray<ColonyTradeFollowUpModel>): Array<TradeNotice> {
   const notices: Array<TradeNotice> = [];
-  for (const followUp of preview.followUps) {
+  for (const followUp of followUps) {
     if (followUp.kind === 'cardTarget') {
       if (followUp.lost) {
         notices.push({kind: 'lostResource', role: followUp.role, resource: followUp.resource, amount: followUp.amount});
@@ -522,6 +549,13 @@ export function tradeOutcome(args: TradeOutcomeArgs): {cost: Array<TradeOutcomeC
  * SAY where it lands, or the row is an amount with no meaning («+2 животных»
  * — куда?). English i18n keys; `undefined` = the amount speaks for itself.
  */
+/** Does this benefit land on a CARD the player points at? (Both shapes: the
+ *  colony's own card resource and the Venus «any resource on a Venus card».) */
+export function isCardDestination(benefit: ColonyBenefit | undefined): boolean {
+  return benefit === ColonyBenefit.ADD_RESOURCES_TO_CARD ||
+    benefit === ColonyBenefit.ADD_RESOURCES_TO_VENUS_CARD;
+}
+
 export function rewardDestinationKey(benefit: ColonyBenefit | undefined): string | undefined {
   switch (benefit) {
   case ColonyBenefit.ADD_RESOURCES_TO_CARD:
@@ -552,6 +586,16 @@ export type RewardTotal = {
   destinationKey?: string;
   current?: number;
   resulting?: number;
+  /**
+   * This total lands ON A CARD the player picks (or the server auto-picks).
+   *
+   * The destination of such a line is not a phrase but a LIST — «На карту:
+   * Карта ветров 0 → 2» — so the surface that has the picks renders it as a
+   * sub-block under this total instead of the generic note. Flagged here (the
+   * benefit is known only while the chips are being merged) rather than
+   * re-derived from the destination KEY at the call site.
+   */
+  cardDestination?: boolean;
 };
 
 /** One line of «СОСТАВ НАГРАДЫ» — what that total is made of. */
@@ -635,6 +679,7 @@ export function colonyRewardPackage(args: {
         amount: chip.amount,
         production: chip.production,
         destinationKey: rewardDestinationKey(chip.benefit),
+        cardDestination: isCardDestination(chip.benefit),
         current: chip.current,
         resulting: chip.resulting,
       };

@@ -48,9 +48,14 @@ async function playFromHand(page: Page, card: string): Promise<void> {
   }
   expect(await hand.count(), 'the hand screen must open').toBeGreaterThan(0);
   expect(await focusCard(page, card, 16), `${card} must be reachable in hand`).toBe(true);
-  await press(page, 'Enter', 1600); // descend into the play stage
+  // ACT → VERIFY → RETRY: at 4K the descend takes visibly longer, and a fixed
+  // press count silently left the card sitting in the hand.
   const composer = page.locator('.con-composer--play');
-  for (let i = 0; i < 6 && await composer.count() > 0; i++) {
+  for (let i = 0; i < 4 && await composer.count() === 0; i++) {
+    await press(page, 'Enter', 1800);
+  }
+  expect(await composer.count(), `${card} must open its play stage`).toBeGreaterThan(0);
+  for (let i = 0; i < 8 && await composer.count() > 0; i++) {
     await press(page, 'Enter', 1600);
   }
   await expect(composer, `${card} must commit`).toHaveCount(0, {timeout: 25_000});
@@ -148,6 +153,8 @@ type LandingSample = {
   chip: boolean,
   flash: boolean,
   marker: boolean,
+  /** The stage itself (its root classes name the pose it is in). */
+  cls: string,
 };
 
 /** Sample the resolution: the presented card, its counter, the chip flight,
@@ -175,6 +182,7 @@ async function watchLanding(page: Page, ticks: number): Promise<Array<LandingSam
       chip: document.querySelector('.con-transfer__chip') !== null,
       flash: document.querySelector('.con-colfocus__landflash') !== null,
       marker: document.querySelector('.con-coltrade-marker') !== null,
+      cls: (document.querySelector('.con-colfocus') as HTMLElement | null)?.className ?? '',
     }), t));
   }
   return out;
@@ -334,8 +342,140 @@ test.describe('tv4k', () => {
     const overflow = await page.evaluate(() =>
       document.querySelector('.con-colfocus__targetstage .con-ptsel')?.getAttribute('data-overflow') ?? '');
     expect(overflow, 'two candidates never scroll on the TV').toBe('');
+
+    // …and back on the REVIEW: the panel must USE the band it has. The stage
+    // measured what its columns want (`--colfocus-need`); with room to grow
+    // there may be no scroll rail and no clipped configuration.
+    await press(page, 'Escape', 900);
+    const fit = await page.evaluate(() => {
+      const root = document.querySelector('.con-colfocus') as HTMLElement | null;
+      const surface = root?.querySelector('.con-colfocus__surface') as HTMLElement | null;
+      const band = root?.parentElement as HTMLElement | null;
+      const viewport = root?.querySelector('.con-colfocus__configscroll .con-scroll-area__viewport') as HTMLElement | null;
+      const content = viewport?.querySelector('.con-scroll-area__content') as HTMLElement | null;
+      const rail = root?.querySelector('.con-colfocus__result') as HTMLElement | null;
+      return {
+        band: band?.clientHeight ?? 0,
+        panel: surface?.clientHeight ?? 0,
+        need: root?.style.getPropertyValue('--colfocus-need') ?? '',
+        cfgViewport: viewport?.clientHeight ?? 0,
+        cfgContent: content?.scrollHeight ?? 0,
+        cfgRail: document.querySelectorAll('.con-colfocus__configscroll .con-scroll-area__rail').length,
+        railClip: (rail?.scrollHeight ?? 0) - (rail?.clientHeight ?? 0),
+      };
+    });
+    await shoot(page, '21-tv4k-review-fit');
+    console.log('tv4k fit:', JSON.stringify(fit));
+    expect(fit.cfgContent, 'the configuration fits without scrolling')
+      .toBeLessThanOrEqual(fit.cfgViewport + 2);
+    expect(fit.cfgRail, '…so no scroll rail is advertised').toBe(0);
+    expect(fit.railClip, 'and the summary rail is not clipped either').toBeLessThanOrEqual(2);
   });
 });
+
+/**
+ * BUILDING ON TITAN pre-collects its placement bonus THE SAME WAY — the
+ * decision row, the shared picker, and the reward landing on the chosen card.
+ * The old flow dropped «выберите карту» on the player AFTER the cube landed.
+ */
+test('build on Titan: the placement bonus is pre-collected, never a later prompt', async ({page, request}) => {
+  test.setTimeout(300_000);
+  await bootWithCards(page, request, {
+    cards: [LAUNCHPAD],
+    config: soloTitanConfig(),
+    corporation: 'Stormcraft Incorporated',
+    keepColony: 'Titan',
+  });
+  await page.waitForTimeout(1200);
+  await playFromHand(page, LAUNCHPAD); // a SECOND floater host → a real pick
+
+  // The colonies → Titan → «К строительству» (the build intent comes from the
+  // wheel's build slot; the stage's own verb is what we assert).
+  await buildOnTitan(page);
+});
+
+async function buildOnTitan(page: Page): Promise<void> {
+  // The PROVEN drive (console-colony-cube.spec): the LT wheel's centre slot is
+  // Standard Projects, and «Колония» is found by walking the grid and READING
+  // the focused row — never a fixed key path.
+  const sheetRows = page.locator('.con-stdp__card');
+  let open = false;
+  for (let i = 0; i < 8 && !open; i++) {
+    await press(page, 'Comma', 1100);
+    if (await page.locator('.con-quick').count() > 0) {
+      await press(page, 'Enter', 1400);
+    }
+    open = await sheetRows.count() > 0;
+    if (!open) {
+      if (await page.locator('.con-quick, .con-sys').count() > 0) {
+        await press(page, 'Escape', 600);
+      }
+      await page.waitForTimeout(1200);
+    }
+  }
+  expect(open, 'standard projects never opened').toBeTruthy();
+  const focusedRow = page.locator('.con-stdp__card--focused');
+  const walk = [
+    'ArrowRight', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowLeft',
+    'ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp', 'ArrowUp',
+    'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown', 'ArrowDown',
+  ];
+  let found = false;
+  for (let i = 0; i <= walk.length && !found; i++) {
+    const text = await focusedRow.innerText({timeout: 1500}).catch(() => '');
+    if (/колони/i.test(text)) {
+      found = true;
+      break;
+    }
+    if (i < walk.length) {
+      await press(page, walk[i], 420);
+    }
+  }
+  expect(found, 'the Build Colony row was never focused').toBeTruthy();
+  await press(page, 'Enter', 2000); // → SelectColony → the colonies in pick mode
+  expect(await page.locator('.con-colonies').count(), 'the colonies opened for the build').toBeGreaterThan(0);
+  const focused = page.locator('.con-coltile--focused[data-test="con-colony-Titan"]');
+  for (let i = 0; i < 10 && await focused.count() === 0; i++) {
+    await press(page, 'ArrowRight', 400);
+  }
+  expect(await focused.count(), 'could not focus Titan').toBeGreaterThan(0);
+  await press(page, 'Enter', 1500); // descend into the build stage
+  await expect(page.locator('.con-colfocus')).toHaveCount(1, {timeout: 8000});
+  await shoot(page, '30-build-stage');
+
+  // ① THE DECISION EXISTS on the stage — «Цель бонуса постройки».
+  const rows = await page.evaluate(() => Array.from(document.querySelectorAll('.con-colfocus__steprow'))
+    .map((r) => (r.textContent ?? '').replace(/\s+/g, ' ').trim()));
+  console.log('build rows:', JSON.stringify(rows));
+  expect(rows.some((r) => r.toUpperCase().includes('ЦЕЛЬ')), 'the build asks for its host card HERE').toBe(true);
+
+  // ② A opens the SHARED step; A picks; the row reads the card + delta.
+  await press(page, 'Enter', 1300);
+  const step = await readStep(page);
+  await shoot(page, '31-build-target-step');
+  console.log('build step:', JSON.stringify(step));
+  expect(step.stageUp).toBe(true);
+  expect(step.faces).toBeGreaterThanOrEqual(2);
+  await press(page, 'Enter', 1200);
+  const row = await targetRowText(page);
+  console.log('build row after pick:', row);
+  expect(row).toMatch(/\d+\s*→\s*\d+/);
+
+  // ③ X commits — and NO card prompt follows the cube (the batch answered it).
+  await press(page, 'KeyX', 400);
+  const timeline = await watchLanding(page, 60);
+  await shoot(page, '32-build-landed');
+  const sawScene = timeline.some((s) => s.cardland);
+  const sawLanded = timeline.some((s) => s.landed);
+  console.log('build sawScene', sawScene, 'sawLanded', sawLanded);
+  console.log('build timeline:', JSON.stringify(timeline.slice(0, 6)));
+  const strayPrompt = await page.evaluate(() =>
+    document.querySelectorAll('.con-task__option').length > 0 &&
+    (document.querySelector('.con-task__title')?.textContent ?? '').toLowerCase().includes('карт'));
+  expect(strayPrompt, 'the floater target must NEVER be asked again after the cube').toBe(false);
+  expect(sawScene, 'the chosen card stands while the bonus lands').toBe(true);
+  expect(sawLanded, 'the floaters physically landed on it').toBe(true);
+}
 
 test('card door (Летающая платформа): the SAME target step serves the trade branch', async ({page, request}) => {
   test.setTimeout(300_000);

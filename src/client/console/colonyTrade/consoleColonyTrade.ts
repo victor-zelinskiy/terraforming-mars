@@ -50,9 +50,9 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
 import {translateText} from '@/client/directives/i18n';
 import {
-  beginPanelRewardHold, releasePanelRewardHold, runResourceTransfers,
+  beginPanelRewardHold, releasePanelRewardHold, resetCardResourceLandings, runResourceTransfers,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
-import {ResourceTransferSpec, TRANSFER_RESIDUAL_PAUSE_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {TRANSFER_RESIDUAL_PAUSE_MS} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {
   ColonyTradeTargets, benefitCardCount, colonyTradeHeldSpecs, incomeTransferSpecs,
@@ -126,14 +126,6 @@ type ColonyTradeState = {
    * deck-draw re-claim its batch (the colony-build lesson).
    */
   stagedRevealIds: Array<number>;
-  /**
-   * CARD-RESOURCE TOUCHDOWNS, per host card — how much of this trade's reward
-   * has PHYSICALLY LANDED on each chosen card (bumped in the chip's own
-   * `onArrive`, the same beat that releases the panel hold). The focus stage's
-   * presented-target scene reads it: the card's frozen counter ticks — and
-   * pops — at the moment of contact, never on the commit. Reset at the arm.
-   */
-  cardResLanded: Record<string, number>;
   /** Single-card staged batch: the fullscreen auto-open is held until ready. */
   zoomEntryReady: boolean;
   reducedMotion: boolean;
@@ -154,23 +146,10 @@ export const colonyTradeState = reactive<ColonyTradeState>({
   glideNonce: 0,
   settledCell: -1,
   stagedRevealIds: [],
-  cardResLanded: {},
   zoomEntryReady: false,
   reducedMotion: false,
 });
 
-/** A card-resource chip touched down on its chosen host card — the one beat
- *  the presented-target scene keys its counter tick (and pop) on. */
-function noteCardResLanding(spec: ResourceTransferSpec): void {
-  if (spec.channel !== 'card-resource' || spec.targetCard === undefined) {
-    return;
-  }
-  const prior = colonyTradeState.cardResLanded[spec.targetCard] ?? 0;
-  colonyTradeState.cardResLanded = {
-    ...colonyTradeState.cardResLanded,
-    [spec.targetCard]: prior + spec.amount,
-  };
-}
 
 // ── non-reactive transaction context ────────────────────────────────────────
 
@@ -584,7 +563,7 @@ export function armColonyTrade(
   colonyTradeState.trackHold = false;
   colonyTradeState.glideKind = 'reset';
   colonyTradeState.settledCell = -1;
-  colonyTradeState.cardResLanded = {};
+  resetCardResourceLandings();
   colonyTradeState.zoomEntryReady = false;
   colonyTradeState.reducedMotion = consoleReducedMotionActive();
   tradeLog('armed', colonyName);
@@ -734,17 +713,13 @@ export async function runColonyTradeRewards(): Promise<void> {
   // The touchdown is ONE beat with two consequences: the panel hold releases
   // (the rail's number ticks) and — for a card-resource reward — the chosen
   // host card's own frozen counter ticks and pops on the presented scene.
-  const arrive = (spec: ResourceTransferSpec): void => {
-    releasePanelRewardHold(spec);
-    noteCardResLanding(spec);
-  };
   const income = manifest.trader === viewer ? incomeTransferSpecs(manifest, ctx.targets) : [];
   if (income.length > 0) {
     await runResourceTransfers({
       specs: income,
       source: {selectors: [`.con-colfocus [data-colony-trade-source="${sel}"]`, `${tileSel} [data-colony-trade-source]`, tileSel]},
       arrival: 'auto',
-      onArrive: arrive,
+      onArrive: releasePanelRewardHold,
     });
   }
   const bonus = ownBonusTransferSpecs(manifest, viewer, ctx.targets);
@@ -757,7 +732,7 @@ export async function runColonyTradeRewards(): Promise<void> {
       specs: bonus,
       source: {selectors: [`.con-colfocus [data-colony-bonus-source="${sel}"]`, `${tileSel} [data-colony-bonus-source]`, tileSel]},
       arrival: 'auto',
-      onArrive: arrive,
+      onArrive: releasePanelRewardHold,
     });
   }
   ctx.chipsDone = true;

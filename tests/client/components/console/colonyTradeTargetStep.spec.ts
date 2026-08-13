@@ -3,6 +3,7 @@ import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
 import {CardModel} from '@/common/models/CardModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
+import {ColonyTradeFollowUpRole} from '@/common/models/ColonyTradePreviewModel';
 import {TradeStep} from '@/client/components/colonies/colonyTradePlan';
 import {
   buildColonyTradeTargetModel, colonyTradeCardDestinations, colonyTradeTargetIcon,
@@ -12,7 +13,7 @@ import {
 const card = (name: string, resources?: number): CardModel => ({name, resources} as CardModel);
 
 function pickStep(opts: {
-  role?: 'tradeReward' | 'colonyBonus',
+  role?: ColonyTradeFollowUpRole,
   resource?: string,
   amount?: number,
   cards: ReadonlyArray<CardModel>,
@@ -143,6 +144,27 @@ describe('colonyTradeTargetStep — the trade reward on the SHARED target select
       expect(presented[0].amount).to.eq(3);
       expect(presented[0].before, 'the pre-trade truth, once').to.eq(2);
     });
+  });
+
+  /**
+   * A BUILD'S PLACEMENT BONUS IS THE SAME DECISION. It rides the same step
+   * shape and the same destination read, so its card is pre-collected on the
+   * stage and answered in the build's own batch — never a prompt after the
+   * cube has landed. Its target is the ACT's primary one (`incomeTargetCard`,
+   * what the transaction flies), not a per-cube bonus list.
+   */
+  it('routes a BUILD bonus target like the act\'s primary destination', () => {
+    const step = pickStep({role: 'buildBonus', resource: 'Floater', amount: 3, cards: [card('Dirigibles', 1)]});
+    const {targets, presented} = colonyTradeCardDestinations({
+      steps: [step], stepKeys: ['target:0'],
+      captures: {'target:0': 'Dirigibles'},
+      notices: [], resourceOf: () => undefined, beforeOf: () => 0,
+    });
+    expect(targets.incomeTargetCard).to.eq('Dirigibles');
+    expect(targets.bonusTargetCards, 'a build has no per-cube list').is.undefined;
+    expect(presented).to.deep.eq([
+      {card: 'Dirigibles', role: 'buildBonus', icon: 'floater', amount: 3, before: 1},
+    ]);
   });
 
   /**

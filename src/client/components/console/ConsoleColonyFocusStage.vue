@@ -66,12 +66,17 @@
             played-card selector (one level deeper, reversible: B returns and
             everything under the pose is untouched). The hero planet stays. */
          'con-colfocus--targeting': sub === 'targets',
-         /* THE PRESENTED TARGETS — the chosen host card(s) stand over the
-            working area while the reward physically lands on them. The
-            summary rail stays lit (the chips are BORN from its income value). */
-         'con-colfocus--carding': cardlandHolds,
+         /* THE PRESENTED TARGETS — the chosen host card(s) stand while the
+            reward physically lands on them. A TRADE yields its working area
+            (the track and the configuration are spent); a BUILD may NOT —
+            its cube is landing in the berth row right there — so the card
+            takes the summary rail's column instead and both physical events
+            stay visible at once. */
+         'con-colfocus--carding': cardlandHolds && intent !== 'build',
+         'con-colfocus--carding-rail': cardlandHolds && intent === 'build',
        }]"
-       :data-colony-intent="intent">
+       :data-colony-intent="intent"
+       :style="fitNeedPx > 0 ? {'--colfocus-need': fitNeedPx + 'px'} : undefined">
     <div class="con-colfocus__surface" data-unfold-surface>
       <!-- THE EDGE IS NOT THE SUBJECT. The stage's boundary is a separate,
            inert layer so it can be brought up AFTER the surface has finished
@@ -351,14 +356,20 @@
                the whole working area, hosting the SHARED played-card selector.
                See `__targetstage` below the config section.) -->
 
-          <!-- TRADE REVIEW: payment paths + the follow-up decisions. -->
-          <template v-else-if="intent === 'trade' && presentAvailable">
+          <!-- THE REVIEW — the payment paths (trade only) + the decisions this
+               act must collect BEFORE the confirm. A BUILD composes here too
+               whenever its placement bonus asks something (Titan: «положи 3
+               аэростата на карту»): same rows, same picker, same batch — the
+               prompt may never arrive after the cube has landed. A build with
+               nothing to ask still renders NO panel (`stepRows` is empty and
+               the payment block is trade-only). -->
+          <template v-else-if="configLive && (tradeConfigLive || stepRows.length > 0)">
             <ConsoleScrollArea class="con-colfocus__configscroll" ref="scroll">
               <!-- The heading belongs to the ROWS, not to the mode: past the
                    commit the server takes the options away and a bare
                    «СПОСОБ ОПЛАТЫ» over nothing read as a broken panel. -->
-              <div v-if="visiblePayEntries.length + visibleDisabledEntries.length > 0" class="con-colfocus__sec-title">{{ $t('Payment method') }}</div>
-              <div v-for="entry in visiblePayEntries" :key="'p' + entry.index"
+              <div v-if="tradeConfigLive && visiblePayEntries.length + visibleDisabledEntries.length > 0" class="con-colfocus__sec-title">{{ $t('Payment method') }}</div>
+              <div v-for="entry in tradeConfigLive ? visiblePayEntries : []" :key="'p' + entry.index"
                    class="con-colfocus__payrow"
                    :class="{
                      'con-colfocus__payrow--focused': isFocused('pay', entry.index),
@@ -378,7 +389,7 @@
                 <span class="con-colfocus__payrow-title">{{ entry.title }}</span>
                 <span v-if="entry.preview !== ''" class="con-colfocus__payrow-delta">{{ entry.preview }}</span>
               </div>
-              <div v-for="(d, i) in visibleDisabledEntries" :key="'d' + i" class="con-colfocus__payrow con-colfocus__payrow--off">
+              <div v-for="(d, i) in tradeConfigLive ? visibleDisabledEntries : []" :key="'d' + i" class="con-colfocus__payrow con-colfocus__payrow--off">
                 <span class="con-colfocus__payrow-pick" aria-hidden="true"></span>
                 <i v-if="d.iconClass !== ''" class="con-colfocus__payrow-icon" :class="d.iconClass" aria-hidden="true"></i>
                 <span class="con-colfocus__payrow-title">{{ d.title }}</span>
@@ -389,7 +400,7 @@
                    so it keeps showing WHAT WAS CHOSEN. Blanking the zone here
                    left a hole under a flying reward and read as the screen
                    forgetting the decision the moment it was taken. -->
-              <div v-if="heldPayment !== undefined && payEntries.length === 0"
+              <div v-if="tradeConfigLive && heldPayment !== undefined && payEntries.length === 0"
                    class="con-colfocus__payrow con-colfocus__payrow--chosen con-colfocus__payrow--locked">
                 <span class="con-colfocus__payrow-pick" aria-hidden="true">
                   <span class="con-colfocus__payrow-dot"></span>
@@ -504,7 +515,10 @@
            The scene recedes before the closing track glide (the conclusion
            waits for the working area through `stageBusy`). -->
       <section v-if="cardlandVisible" class="con-colfocus__cardland"
-               :class="{'con-colfocus__cardland--leaving': cardlandReleased}"
+               :class="{
+                 'con-colfocus__cardland--leaving': cardlandReleased,
+                 'con-colfocus__cardland--rail': intent === 'build',
+               }"
                :data-cardland-count="presentedTargets.length">
         <div v-for="t in presentedTargets" :key="t.card"
              class="con-colfocus__landcell"
@@ -535,22 +549,41 @@
         <template v-if="intent !== 'build'">
           <div class="con-colfocus__rsec con-colfocus__rsec--lead">
             <div class="con-colfocus__rsec-label" data-unfold-late>{{ $t(presentAvailable && intent !== 'pick' ? 'Your total' : 'On the current level') }}</div>
-            <div v-for="total in rewardPackage.totals" :key="total.key"
-                 class="con-colfocus__rrow con-colfocus__rrow--gain con-colfocus__rrow--big">
-              <span class="con-colfocus__rvalue">
-                <b>+{{ total.amount }}</b>
-                <span class="con-colfocus__rglyph con-colfocus__rglyph--lg"
-                      :class="{'con-colfocus__rglyph--prod': total.production}">
-                  <i v-if="total.icon !== undefined" :class="rewardIconClass(total.icon)" aria-hidden="true"></i>
-                  <span v-else class="con-colfocus__rlabel">{{ $t(total.label ?? '') }}</span>
+            <template v-for="total in rewardPackage.totals" :key="total.key">
+              <div class="con-colfocus__rrow con-colfocus__rrow--gain con-colfocus__rrow--big">
+                <span class="con-colfocus__rvalue">
+                  <b>+{{ total.amount }}</b>
+                  <span class="con-colfocus__rglyph con-colfocus__rglyph--lg"
+                        :class="{'con-colfocus__rglyph--prod': total.production}">
+                    <i v-if="total.icon !== undefined" :class="rewardIconClass(total.icon)" aria-hidden="true"></i>
+                    <span v-else class="con-colfocus__rlabel">{{ $t(total.label ?? '') }}</span>
+                  </span>
                 </span>
-              </span>
-              <!-- The NUMBER when the viewer's stock has one, otherwise WHERE
-                   it goes: «+2 животных» with no destination is an amount the
-                   player cannot place. -->
-              <em v-if="total.current !== undefined" data-unfold-late>{{ total.current }} → {{ total.resulting }}</em>
-              <em v-else-if="total.destinationKey !== undefined" data-unfold-late>{{ $t(total.destinationKey) }}</em>
-            </div>
+                <!-- The NUMBER when the viewer's stock has one, otherwise WHERE
+                     it goes: «+2 животных» with no destination is an amount the
+                     player cannot place. A CARD destination answers with the
+                     card list right below instead of a phrase (see under). -->
+                <em v-if="total.current !== undefined" data-unfold-late>{{ total.current }} → {{ total.resulting }}</em>
+                <em v-else-if="total.cardDestination && cardTargetLines.length > 0" data-unfold-late>
+                  {{ $t(cardTargetLines.length > 1 ? 'To these cards:' : 'To this card:') }}
+                </em>
+                <em v-else-if="total.destinationKey !== undefined" data-unfold-late>{{ $t(total.destinationKey) }}</em>
+              </div>
+              <!-- …AND THE CARDS THEMSELVES, under the total they explain. One
+                   row per PHYSICAL CARD (an income and a bonus aimed at the
+                   same card are one row whose amounts add up — two identical
+                   «Карта ветров 0 → 1» lines were the report), read as the
+                   same before → after the picker promised. They belong to «ВАШ
+                   ИТОГ», not to «СОСТАВ НАГРАДЫ»: this is WHERE the total
+                   lands, not what it is made of. -->
+              <div v-if="total.cardDestination" class="con-colfocus__rcards" data-unfold-late>
+                <div v-for="line in cardTargetLines" :key="line.card" class="con-colfocus__rcard">
+                  <i v-if="line.iconClass !== ''" :class="line.iconClass" aria-hidden="true"></i>
+                  <span class="con-colfocus__rcard-name">{{ $t(line.card) }}</span>
+                  <em>{{ line.before }} → {{ line.after }}</em>
+                </div>
+              </div>
+            </template>
             <div v-if="rewardPackage.totals.length === 0" class="con-colfocus__muted" data-unfold-late>{{ $t('No reward at this level') }}</div>
             <div v-if="resourceLost" class="con-colfocus__notice con-colfocus__notice--warn" data-unfold-late>
               <span aria-hidden="true">⚠</span>
@@ -574,13 +607,10 @@
                 </span>
               </span>
             </div>
-            <!-- The chosen host card's own before → after, under the part it
-                 explains (a card resource has no rail number of its own). -->
-            <div v-for="line in targetOutcomeLines" :key="line.key" class="con-colfocus__rrow con-colfocus__rrow--target">
-              <i v-if="line.iconClass !== ''" :class="line.iconClass" aria-hidden="true"></i>
-              <span class="con-colfocus__rrow-card">{{ $t(line.card) }}</span>
-              <em>{{ line.before }} → {{ line.after }}</em>
-            </div>
+            <!-- (The chosen host cards moved UP, under «ВАШ ИТОГ» — they are
+                 the total's DESTINATION, not a term of its arithmetic, and
+                 stating them here printed one line per STEP: the same card
+                 twice when the income and the bonus both landed on it.) -->
           </div>
 
           <!-- THE OTHER OWNERS — what the trade pays everyone else. Their
@@ -638,6 +668,21 @@
               </span>
             </div>
             <div v-else class="con-colfocus__muted" data-unfold-late>{{ $t('No placement bonus') }}</div>
+            <!-- …and WHERE it lands, the same reading the trade gives: the
+                 card the player chose (or the only eligible one) with its
+                 honest before → after. -->
+            <template v-if="cardTargetLines.length > 0">
+              <div class="con-colfocus__rrow con-colfocus__rrow--gain" data-unfold-late>
+                <em>{{ $t(cardTargetLines.length > 1 ? 'To these cards:' : 'To this card:') }}</em>
+              </div>
+              <div class="con-colfocus__rcards" data-unfold-late>
+                <div v-for="line in cardTargetLines" :key="line.card" class="con-colfocus__rcard">
+                  <i v-if="line.iconClass !== ''" :class="line.iconClass" aria-hidden="true"></i>
+                  <span class="con-colfocus__rcard-name">{{ $t(line.card) }}</span>
+                  <em>{{ line.before }} → {{ line.after }}</em>
+                </div>
+              </div>
+            </template>
             <div v-if="buildLost" class="con-colfocus__notice con-colfocus__notice--warn" data-unfold-late>
               <span aria-hidden="true">⚠</span>
               <span>{{ $t('Resource will be lost — no card') }}</span>
@@ -677,6 +722,7 @@
  * back. The bar mirrors через consoleColoniesUi.
  */
 import {defineComponent, PropType} from 'vue';
+import {useResizeObserver} from '@vueuse/core';
 import {CardModel} from '@/common/models/CardModel';
 import {ColonyModel} from '@/common/models/ColonyModel';
 import {ColonyMetadata} from '@/common/colonies/ColonyMetadata';
@@ -722,6 +768,8 @@ import {
   trackResetAfterBuild,
   trackResetPosition,
   tradeSteps,
+  buildSteps,
+  buildNotices,
 } from '@/client/components/colonies/colonyTradePlan';
 import {presentedColonyModel, colonyTradeState, colonyTrackAdvancing, setColonyStageYielded} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {
@@ -738,6 +786,7 @@ import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTarge
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {playColonyTargetStepEnter, playColonyTargetStepLeave} from '@/client/console/consoleColonyFocusMotion';
+import {cardResourceLandings, resourceTransferState} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {colonyBonusEntry, colonyResolutionUi, revealIsOwnerBonus} from '@/client/console/colonyTrade/colonyResolution';
 import {cardColonyTradeCard, lockedTradePaymentIndex} from '@/client/console/colonyTrade/colonyTradeEntry';
@@ -782,6 +831,13 @@ const WORKING_AREA_BACK_MS = 340;
 /** The landed reading's calm beat: the counter just ticked, the player sees
  *  the new number, THEN the presented scene gives the working area back. */
 const CARDLAND_READ_MS = 680;
+/**
+ * The scene's own NET: how long a released transaction may keep the card on
+ * screen waiting for a chip that never touches down (an unmeasurable
+ * destination, a killed flight). Long enough for the slowest honest landing,
+ * short enough never to read as a stuck screen.
+ */
+const CARDLAND_NET_MS = 2200;
 
 type Sub = undefined | 'lanes' | 'track' | 'targets';
 type NoticeRow = {tone: 'warn' | 'info', iconClass: string, text: string};
@@ -841,6 +897,10 @@ export default defineComponent({
       /** The target zone's measured box (the step's layout + height budget). */
       targetZoneW: 0,
       targetZoneH: 0,
+      /** The MEASURED height the panel's columns want (see `measureFit`). */
+      fitNeedPx: 0,
+      fitRaf: undefined as number | undefined,
+      stopFitObs: undefined as (() => void) | undefined,
       /**
        * THE PRESENTED TARGETS — the card-resource destinations of the
        * confirmed trade (picked + auto), snapshotted at the commit boundary
@@ -863,6 +923,11 @@ export default defineComponent({
       /** The resolution's presentation facts — the payout LIFT-OFF cue lives
        *  here (a module reactive must be mirrored in `data()` to be tracked). */
       resolutionUi: colonyResolutionUi,
+      /** The transfer framework's card-resource touchdown tally (mirrored so
+       *  Vue tracks it — the presented counters tick from it). */
+      landings: cardResourceLandings,
+      /** The transfer layer's live flights (mirrored so Vue tracks them). */
+      transferState: resourceTransferState,
       /** ONE-SHOT: the outcome handoff (config release + zone unfold) has
        *  played for the current claim — drives the `--handing` pose too, so
        *  the CSS dissolve can never run ahead of the phrase. */
@@ -1263,8 +1328,25 @@ export default defineComponent({
     tradeConfigLive(): boolean {
       return this.intent === 'trade' && this.presentAvailable;
     },
+    /** A BUILD whose placement bonus asks something (Titan: «положи 3
+     *  аэростата на карту») composes on this stage too — same rows, same
+     *  picker, same batch: the prompt must never arrive after the cube. */
+    buildConfigLive(): boolean {
+      return this.intent === 'build' && this.presentAvailable;
+    },
+    /** Either act is composing decisions on this stage right now. */
+    configLive(): boolean {
+      return this.tradeConfigLive || this.buildConfigLive;
+    },
+    /** This act asks the player something before it can be committed. */
+    hasDecisions(): boolean {
+      return this.stepRows.length > 0;
+    },
     steps(): Array<TradeStep> {
-      return this.tradeConfigLive ? tradeSteps(this.preview, this.isMcSelected) : [];
+      if (this.tradeConfigLive) {
+        return tradeSteps(this.preview, this.isMcSelected);
+      }
+      return this.buildConfigLive ? buildSteps(this.preview) : [];
     },
     stepKeys(): Array<string> {
       let target = 0;
@@ -1290,15 +1372,21 @@ export default defineComponent({
         return {
           key,
           kind: 'cardTarget' as const,
-          label: step.role === 'tradeReward' ? 'Trade reward target' : 'Colony bonus target',
+          label: step.role === 'tradeReward' ?
+            'Trade reward target' :
+            (step.role === 'buildBonus' ? 'Build bonus target' : 'Colony bonus target'),
           iconClass: this.resourceIconClass(step.resource),
           step,
         };
       });
     },
     focusables(): Array<Focusable> {
-      if (!this.tradeConfigLive) {
+      if (!this.configLive) {
         return [];
+      }
+      // A BUILD has no payment paths — only its decisions are cursor stops.
+      if (this.buildConfigLive) {
+        return this.stepRows.map((_, index) => ({zone: 'step' as const, index}));
       }
       // A LOCKED fee is not a choice, so it is not a cursor stop: the entry
       // came through the card that pays, and «выбрать другой способ» would be
@@ -1411,7 +1499,12 @@ export default defineComponent({
      * (`workingAreaYielded` — the covers' scene outranks it).
      */
     cardlandVisible(): boolean {
-      return this.presentedTargets.length > 0 && this.pastCommit && !this.workingAreaYielded;
+      // The snapshot IS the proof of «past the commit» (it is taken at the
+      // boundary and cleared at the release), so this must NOT re-ask
+      // `pastCommit`: that term drops when the transaction ends, which for a
+      // BUILD is several hundred ms before its floaters land — the card
+      // vanished from under its own reward.
+      return this.presentedTargets.length > 0 && !this.workingAreaYielded;
     },
     /** …and while it stands unreleased it BLOCKS the closing beat: the track
      *  is drawn under it, and a marker gliding under a standing scene is the
@@ -1427,6 +1520,34 @@ export default defineComponent({
      */
     stageBusy(): boolean {
       return this.workingAreaYielded || this.cardlandHolds;
+    },
+    /**
+     * The card-resource DESTINATIONS of this configuration — the picked
+     * targets AND the single-candidate AUTO ones the server applies without a
+     * prompt, merged per physical card.
+     *
+     * ONE derivation feeds THREE consumers (the summary rail's «На карту(ы):»
+     * list, the transfer flight's `targets`, and the presented resolution
+     * scene), so what the player is shown, what the chip flies onto and what
+     * the batch answers can never be three different answers.
+     */
+    cardDestinations(): {targets: ColonyTradeTargets, presented: ReadonlyArray<ColonyTradePresentedTarget>} {
+      return colonyTradeCardDestinations({
+        steps: this.steps,
+        stepKeys: this.stepKeys,
+        captures: this.captures,
+        notices: this.tradeConfigLive ?
+          tradeNotices(this.preview) :
+          (this.buildConfigLive ? buildNotices(this.preview) : []),
+        resourceOf: (name) => getCard(name)?.resourceType,
+        beforeOf: (name) => this.players
+          .flatMap((p) => p.tableau)
+          .find((c) => c.name === name)?.resources ?? 0,
+      });
+    },
+    /** A reward chip of this payout is still in the air. */
+    chipsInFlight(): boolean {
+      return this.transferState.flights.length > 0 || this.transferState.runActive;
     },
     /** Every presented card has received its full landing tally. */
     cardlandAllLanded(): boolean {
@@ -1549,41 +1670,34 @@ export default defineComponent({
         return {...row, name: player !== undefined ? participantDisplayName(player) : row.color};
       });
     },
-    targetOutcomeLines(): Array<{key: string, card: string, amount: number, before: number, after: number, iconClass: string}> {
-      const lines: Array<{key: string, card: string, amount: number, before: number, after: number, iconClass: string}> = [];
-      let ordinal = -1;
-      for (const row of this.stepRows) {
-        if (row.kind !== 'cardTarget' || row.step === undefined) {
-          continue;
-        }
-        ordinal++;
-        const captured = this.captures[row.key];
-        const name = typeof captured === 'string' ? captured : undefined;
-        const card = row.step.pick.cards.find((c) => c.name === name);
-        if (card === undefined) {
-          continue;
-        }
-        const before = card.resources ?? 0;
-        lines.push({
-          key: `line:${ordinal}`,
-          card: card.name,
-          amount: row.step.amount,
-          before,
-          after: before + row.step.amount,
-          iconClass: row.iconClass,
-        });
-      }
-      return lines;
+    /**
+     * WHERE THE CARD-RESOURCE TOTAL LANDS — one row per PHYSICAL CARD.
+     *
+     * The SAME derivation the flight and the landing scene read
+     * (`cardDestinations`): merged per card (an income and a bonus aimed at
+     * one card add up instead of printing it twice) and including the
+     * single-candidate AUTO targets the server applies without asking. A
+     * second, step-by-step derivation here is exactly what printed «Карта
+     * ветров 0 → 1» twice under one «+2».
+     */
+    cardTargetLines(): Array<{card: string, before: number, after: number, iconClass: string}> {
+      return this.cardDestinations.presented.map((t) => ({
+        card: t.card,
+        before: t.before,
+        after: t.before + t.amount,
+        iconClass: t.icon !== '' ? this.rewardIconClass(t.icon) : '',
+      }));
     },
     resourceLost(): boolean {
       return this.benefitResourceLost(this.metadata.trade.type);
     },
     noticeRows(): Array<NoticeRow> {
-      if (!this.tradeConfigLive) {
+      if (!this.configLive) {
         return [];
       }
       const rows: Array<NoticeRow> = [];
-      for (const notice of tradeNotices(this.preview)) {
+      const notices = this.tradeConfigLive ? tradeNotices(this.preview) : buildNotices(this.preview);
+      for (const notice of notices) {
         if (notice.kind === 'autoTarget') {
           rows.push({
             tone: 'info',
@@ -1606,8 +1720,14 @@ export default defineComponent({
       if (!this.actionAvailable) {
         return false;
       }
-      if (this.intent === 'build' || this.intent === 'pick') {
+      if (this.intent === 'pick') {
         return true;
+      }
+      if (this.intent === 'build') {
+        // A build with a decision (its placement bonus needs a card) is not
+        // confirmable until that decision is made — the whole point of
+        // pre-collecting it. A build with none confirms as it always did.
+        return this.steps.every((_step, i) => this.captures[this.stepKeys[i]] !== undefined);
       }
       if (this.intent !== 'trade') {
         return false;
@@ -1645,6 +1765,7 @@ export default defineComponent({
       this.seedPaymentDefault();
     },
     preview() {
+      this.measureFit();
       this.seedPaymentDefault();
       // THE GAME STATE MOVED UNDER A CAPTURE. The preview is the candidates'
       // source of truth, so a fresh one INVALIDATES anything it no longer
@@ -1658,6 +1779,17 @@ export default defineComponent({
     sub() {
       this.publishStageName();
       this.syncUiMirror();
+      this.measureFit();
+    },
+    // Every composition change re-asks how much room the columns want.
+    stepRows() {
+      this.measureFit();
+    },
+    presentMode() {
+      this.measureFit();
+    },
+    cardTargetLines() {
+      this.measureFit();
     },
     canConfirm() {
       this.syncUiMirror();
@@ -1813,19 +1945,55 @@ export default defineComponent({
     },
     resolving(now: boolean, was: boolean) {
       if (!now && was) {
-        // The transaction ended — SUCCESS (the workspace is about to fold) or
-        // a clean rollback (the server refused / the fleet aborted). Either
-        // way the commit-boundary snapshot lets go: the presentation unpins,
-        // the presented-target scene leaves, input returns.
-        this.clearCardlandDwell();
-        this.presentedTargets = [];
-        this.cardlandReleased = false;
-        if (this.heldView !== undefined) {
+        // The transaction ended — SUCCESS or a clean rollback. The pinned
+        // presentation lets go, UNLESS the payout is still physically
+        // arriving on a card: the panel would re-derive to `inspect` and
+        // shrink by a third under the very scene it is hosting.
+        if (this.heldView !== undefined && !this.cardlandHolds) {
           this.heldView = undefined;
           this.publishStageName();
           this.syncUiMirror();
         }
+        // …but the PRESENTED CARD does NOT: a colony BUILD's own transaction
+        // ends when the cube lands, several hundred ms before its floaters
+        // touch down, and tearing the card out here left the reward flying at
+        // a scene that no longer existed. Nothing owed → clear at once (a
+        // refusal must leave no success scene); something owed → the landing
+        // watcher releases it, with a bounded net so a chip that never
+        // arrives can never strand the card on screen.
+        if (this.presentedTargets.length === 0) {
+          return;
+        }
+        if (this.cardlandAllLanded) {
+          return; // the landed watcher owns the read beat
+        }
+        if (!this.presentedTargets.some((t) => this.landedOf(t) > 0) && !this.chipsInFlight) {
+          this.clearCardlandDwell();
+          this.presentedTargets = [];
+          this.cardlandReleased = false;
+          return;
+        }
+        this.clearCardlandDwell();
+        this.cardlandDwell = window.setTimeout(() => {
+          this.cardlandDwell = undefined;
+          this.cardlandReleased = true;
+        }, motionMs(CARDLAND_NET_MS));
       }
+    },
+    /** The scene's own presence, published for the SECTION's completion: the
+     *  colony may not route home while a reward is still arriving on a card. */
+    cardlandHolds: {
+      immediate: true,
+      handler(live: boolean) {
+        colonyResolutionUi.cardSceneLive = live;
+        // The scene was the last thing holding the pinned presentation (see
+        // the `resolving` falling edge) — release it now that it is done.
+        if (!live && this.heldView !== undefined && !this.resolving) {
+          this.heldView = undefined;
+          this.publishStageName();
+          this.syncUiMirror();
+        }
+      },
     },
   },
   methods: {
@@ -1955,7 +2123,11 @@ export default defineComponent({
         '' :
         (this.sub === 'lanes' ? 'lanes' : (this.sub === 'targets' ? 'targets' : 'list'));
       consoleColoniesUi.composerReady = this.canConfirm;
-      consoleColoniesUi.composerEditable = this.tradeConfigLive && this.focusedRowEditable;
+      consoleColoniesUi.composerEditable = this.configLive && this.focusedRowEditable;
+      // The BAR follows the act's real grammar: a build that composes gets the
+      // trade's two verbs (A opens the decision, X builds) instead of the bare
+      // «A Построить», which would silently commit an unanswered decision.
+      consoleColoniesUi.composerDecisions = this.hasDecisions;
     },
     /** The shell routes every intent here while the stage is open. */
     handleIntent(intent: GamepadIntent): void {
@@ -2047,9 +2219,12 @@ export default defineComponent({
       }
       switch (action) {
       case 'primary':
-        // BUILD / PICK: there is nothing else to choose on this stage — A IS
-        // the confirm (the destination slot and the grant are already shown).
-        if (this.sub === undefined && (this.intent === 'build' || this.intent === 'pick')) {
+        // BUILD / PICK with nothing to choose: A IS the confirm (the
+        // destination slot and the grant are already shown). A build that DOES
+        // ask something (its placement bonus needs a card) speaks the trade's
+        // grammar instead — A opens the focused decision, X commits — so one
+        // press can never mean «выбрать» and «построить» on the same screen.
+        if (this.sub === undefined && (this.intent === 'pick' || (this.intent === 'build' && !this.hasDecisions))) {
           if (this.canConfirm) {
             this.$emit(this.intent === 'build' ? 'build-confirm' : 'pick-confirm');
           }
@@ -2058,8 +2233,10 @@ export default defineComponent({
         this.onConfirmPress();
         return;
       case 'inspect':
-        // X = the one final trade confirm (only when every decision is in).
-        if (this.sub === undefined && this.intent === 'trade' && this.canConfirm) {
+        // X = the one final confirm of a composed act (only when every
+        // decision is in) — the trade, and a build that had decisions.
+        if (this.sub === undefined && this.canConfirm &&
+            (this.intent === 'trade' || (this.intent === 'build' && this.hasDecisions))) {
           this.emitConfirm();
         } else if (this.sub !== undefined) {
           this.onConfirmPress();
@@ -2150,6 +2327,56 @@ export default defineComponent({
         const zone = this.$refs.targetZone as HTMLElement | undefined;
         if (zone !== undefined && zone !== null) {
           playColonyTargetStepEnter(zone);
+        }
+      });
+    },
+    /**
+     * THE PANEL TAKES THE ROOM IT NEEDS — measured, because CSS cannot see it.
+     *
+     * The configuration lives inside a `ConsoleScrollArea` whose viewport is
+     * `flex: 1` (basis 0), so its content height is invisible to every
+     * ancestor: the panel stayed at its token, drew a scroll rail, and left a
+     * third of the band empty above and below it (the report).
+     *
+     * The number published is CONTENT-DERIVED, never a delta — `panel − box +
+     * content` is a FIXPOINT (applying it makes the box exactly the content,
+     * and re-measuring yields the same number), so the panel neither
+     * oscillates nor stays inflated once the content shrinks. `max-height:
+     * 100%` still caps it: on a genuinely short host (the Deck) the scroll
+     * comes back as the honest last resort.
+     */
+    measureFit(): void {
+      if (this.fitRaf !== undefined) {
+        return;
+      }
+      this.fitRaf = window.requestAnimationFrame(() => {
+        this.fitRaf = undefined;
+        const root = this.$refs.rootEl as HTMLElement | undefined;
+        const surface = root?.querySelector<HTMLElement>('.con-colfocus__surface');
+        if (root === undefined || root === null || surface === null || surface === undefined) {
+          return;
+        }
+        const panelH = surface.clientHeight;
+        if (panelH <= 0) {
+          return;
+        }
+        let need = 0;
+        // The configuration's own scroll area (the deep one).
+        const viewport = root.querySelector<HTMLElement>('.con-colfocus__configscroll .con-scroll-area__viewport');
+        const content = viewport?.querySelector<HTMLElement>('.con-scroll-area__content');
+        if (viewport !== null && viewport !== undefined && content !== null && content !== undefined) {
+          need = Math.max(need, panelH - viewport.clientHeight + content.scrollHeight);
+        }
+        // …and the SUMMARY RAIL, which has no scroller and would simply clip.
+        const rail = root.querySelector<HTMLElement>('.con-colfocus__result');
+        if (rail !== null && rail !== undefined) {
+          need = Math.max(need, panelH - rail.clientHeight + rail.scrollHeight);
+        }
+        const rounded = Math.ceil(need);
+        // A tolerance, so sub-pixel layout noise can never re-write the token
+        // every frame (each write is a layout the next measure reads back).
+        if (Math.abs(rounded - this.fitNeedPx) > 2) {
+          this.fitNeedPx = rounded;
         }
       });
     },
@@ -2257,7 +2484,9 @@ export default defineComponent({
     },
     /** The presented-target helpers (the resolution scene). */
     landedOf(t: ColonyTradePresentedTarget): number {
-      return this.colonyTradeState.cardResLanded[t.card] ?? 0;
+      // ONE tally for every payout shape — the transfer framework's own
+      // contact record, so a TRADE reward and a BUILD bonus tick identically.
+      return this.landings.by[t.card] ?? 0;
     },
     presentedModelOf(t: ColonyTradePresentedTarget): CardModel {
       const live = this.players
@@ -2326,25 +2555,6 @@ export default defineComponent({
         (this.$refs.scroll as {ensureVisible?: (el: Element | null | undefined) => void} | undefined)?.ensureVisible?.(node);
       });
     },
-    /**
-     * The card-resource DESTINATIONS of this confirm — the picked targets AND
-     * the single-candidate AUTO ones the server applies without a prompt.
-     * ONE derivation feeds both consumers (the transfer flight's `targets`
-     * and the presented resolution scene), so the card a chip lands on and
-     * the card the player is shown can never be two different answers.
-     */
-    cardDestinations(): {targets: ColonyTradeTargets, presented: ReadonlyArray<ColonyTradePresentedTarget>} {
-      return colonyTradeCardDestinations({
-        steps: this.steps,
-        stepKeys: this.stepKeys,
-        captures: this.captures,
-        notices: this.tradeConfigLive ? tradeNotices(this.preview) : [],
-        resourceOf: (name) => getCard(name)?.resourceType,
-        beforeOf: (name) => this.players
-          .flatMap((p) => p.tableau)
-          .find((c) => c.name === name)?.resources ?? 0,
-      });
-    },
     emitConfirm(): void {
       const capturesByIndex: Record<number, unknown> = {};
       this.steps.forEach((step, i) => {
@@ -2359,12 +2569,16 @@ export default defineComponent({
           capturesByIndex[i] = this.captures[key];
         }
       });
-      this.$emit('confirm', {
+      const payload = {
         paymentIndex: this.payIdx,
         steps: this.steps,
         captures: capturesByIndex,
-        targets: this.cardDestinations().targets,
-      });
+        targets: this.cardDestinations.targets,
+      };
+      // ONE payload shape, two acts: the build's own confirm carries the very
+      // same pre-collected steps, so the shell answers both with one batch
+      // builder and both land their reward on the card the player chose.
+      this.$emit(this.intent === 'build' ? 'build-confirm' : 'confirm', payload);
     },
     /**
      * The follow-up's stage handoff, in the shared grammar: the configuration
@@ -2403,22 +2617,35 @@ export default defineComponent({
       // else in the held view: the server's answer will rewrite the preview
       // and the tableau under the resolution, and the scene must keep showing
       // the decision as it was made («было → прилетело → стало»).
-      const destinations = this.cardDestinations();
-      this.presentedTargets = destinations.presented;
+      this.presentedTargets = this.cardDestinations.presented;
       this.cardlandReleased = false;
       this.clearCardlandDwell();
     },
   },
   mounted() {
+    this.measureFit();
+    // The RESPONSIVE path: the band itself changing (a profile switch, the
+    // rail lifting, a font settling) — never a manual window listener.
+    const root = this.$refs.rootEl as HTMLElement | undefined;
+    if (root !== undefined && root !== null) {
+      this.stopFitObs = useResizeObserver(root, () => this.measureFit()).stop;
+    }
     this.seedPaymentDefault();
     this.syncLockedPayment();
     this.publishStageName();
     this.syncUiMirror();
   },
   beforeUnmount() {
+    this.stopFitObs?.();
+    this.stopFitObs = undefined;
+    if (this.fitRaf !== undefined) {
+      window.cancelAnimationFrame(this.fitRaf);
+      this.fitRaf = undefined;
+    }
     consoleColoniesUi.composerSub = '';
     consoleColoniesUi.composerReady = false;
     consoleColoniesUi.composerEditable = false;
+    consoleColoniesUi.composerDecisions = false;
     // A stage that is GONE hides nothing: the closing beat must never wait on
     // a screen that no longer exists (the discard closes this stage mid-flow,
     // and the reset then plays on the restored one — or on the overview tile).
@@ -2427,6 +2654,7 @@ export default defineComponent({
       this.stageBackTimer = undefined;
     }
     this.clearCardlandDwell();
+    colonyResolutionUi.cardSceneLive = false;
     setColonyStageYielded(false);
   },
 });
