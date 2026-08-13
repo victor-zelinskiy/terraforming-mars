@@ -1,32 +1,35 @@
 <template>
-  <section class="con-hydro" role="region" :aria-label="$t('Mars Hydronetwork')">
-    <!-- ── HEADER BAND: identity + live status chips ─────────────────── -->
-    <header class="con-hydro__head">
-      <div class="con-hydro__id">
-        <span class="con-hydro__glyph" data-wheel-anchor="hydro" aria-hidden="true">
-          <BarButtonIcon name="hydronetwork" />
-        </span>
-        <div class="con-hydro__titles">
-          <h2 class="con-hydro__title">{{ $t('Mars Hydronetwork') }}</h2>
-          <p class="con-hydro__sub">{{ $t('A joint engineering megaproject: spend energy to advance; only the stage you stop on grants its reward.') }}</p>
-        </div>
-      </div>
-      <!-- No ⚡-stock chip here: the left resource panel stays visible in the
-           hydro section — the header never duplicates it. Energy shows only
-           CONTEXTUALLY (cost vs have in Требования, N → N−K in the confirm). -->
-      <div class="con-hydro__chips">
-        <span class="con-hydro__chip">
-          <span class="con-hydro__chip-dim">{{ $t('Track position') }}</span>
-          <b>{{ model.currentPosition }} / 11</b>
-        </span>
-        <span class="con-hydro__chip con-hydro__chip--status" :class="'con-hydro__chip--' + statusKind">
-          <span class="con-hydro__chip-dot" aria-hidden="true"></span>
-          <span>{{ $t(statusLabel) }}</span>
-        </span>
-      </div>
-    </header>
+  <section class="con-hydro con-ws"
+           ref="rootEl"
+           role="region"
+           :aria-label="$t('Mars Hydronetwork')"
+           :data-flow="flowKind"
+           :class="{'con-hydro--cere': ceremonyDim}">
+    <!-- ── THE WORKSPACE HEADER — the shared ConsoleWsHead: root «ГИДРОСЕТЬ
+         МАРСА» + the live chips as the aux browse layer; a configuring or
+         committed flow grows the crumb tail «› <этап> › <шаг>». The old
+         two-line lore paragraph is gone: a standing game workspace explains
+         itself through its stages, not a header essay. -->
+    <ConsoleWsHead class="con-hydro__head"
+                   root="Mars Hydronetwork"
+                   emblem="hydronetwork"
+                   wheelAnchor="hydro"
+                   :subject="crumbSubject"
+                   :stage="crumbStage"
+                   :committed="crumbCommitted">
+      <span class="con-hydro__chip">
+        <span class="con-hydro__chip-dim">{{ $t('Track position') }}</span>
+        <b>{{ model.currentPosition }} / 11</b>
+      </span>
+      <span class="con-hydro__chip con-hydro__chip--status" :class="'con-hydro__chip--' + statusKind">
+        <span class="con-hydro__chip-dot" aria-hidden="true"></span>
+        <span>{{ $t(statusLabel) }}</span>
+      </span>
+    </ConsoleWsHead>
 
-    <!-- ── PROGRESS RAIL: all 12 stops, the selected one magnified ───── -->
+    <!-- ── PROGRESS RAIL: all 12 stops, the selected one magnified. THE track
+         is the workspace's permanent protagonist — every scene below keeps it
+         standing. (Unchanged navigation: ←/→ stages, RT farthest.) ───────── -->
     <div class="con-hydro__rail" role="list">
       <template v-for="stop in stops" :key="stop.position">
         <span v-if="stop.position > 0" class="con-hydro__link" :class="'con-hydro__link--' + stop.linkKind" aria-hidden="true"></span>
@@ -38,12 +41,11 @@
                stop.grade !== undefined ? 'con-hydro__stop--grade-' + stop.grade : '',
                {
                  'con-hydro__stop--focused': stop.vm.isSelected,
-                 'con-hydro__stop--emitting': drawEmittingStop === stop.position,
                  'con-hydro__stop--vp': stop.vm.stage.vp !== undefined,
                  'con-hydro__stop--dimmed': !globallyActable && stop.vm.state !== 'current' && stop.vm.state !== 'completed',
                },
              ]"
-             @click="selectPosition(stop.position)">
+             @click="onStopClick(stop.position)">
           <div class="con-hydro__stop-req">
             <span v-if="stop.vm.stage.tag !== undefined" class="con-hydro__stop-tag resource-tag" :class="'tag-' + stop.vm.stage.tag" aria-hidden="true"></span>
             <span v-else-if="stop.vm.stage.vp !== undefined" class="con-hydro__stop-vp">{{ stop.vm.stage.vp }}<small>{{ $t('VP') }}</small></span>
@@ -53,7 +55,6 @@
             <span v-else-if="stop.vm.skippedByViewer" class="con-hydro__stop-badge con-hydro__stop-badge--skip" aria-hidden="true">↷</span>
             <span v-else-if="stop.gradeGlyph !== ''" class="con-hydro__stop-badge con-hydro__stop-badge--grade" aria-hidden="true">{{ stop.gradeGlyph }}</span>
           </div>
-          <!-- The magnified selected stop carries name + reward; compact stops stay glanceable. -->
           <template v-if="stop.vm.isSelected">
             <div class="con-hydro__stop-name">{{ $t(stop.vm.stage.nameKey) }}</div>
             <div class="con-hydro__stop-reward">
@@ -69,8 +70,7 @@
           <!-- The marker row is the STABLE landing anchor of the advance
                micro-interaction (`data-hydro-marker`, a fixed min-size even
                when empty): the gliding proxy locks in EXACTLY here, then the
-               real marker materializes in the same rect. The viewer's own
-               marker at the FROM stop is hidden while the glide carries it. -->
+               real marker materializes in the same rect. -->
           <div class="con-hydro__stop-markers" :data-hydro-marker="stop.position">
             <span v-for="m in stop.vm.markers" :key="m.color"
                   v-show="!(m.isViewer && markerGliding && stop.position === markerFrom)"
@@ -88,277 +88,337 @@
       </template>
     </div>
 
-    <!-- ── DECISION PANEL: identity · requirements · reward + CTA ────── -->
-    <div class="con-hydro__panel con-info__scroll">
-      <!-- Column 1: stage identity + status + route + history -->
-      <div class="con-hydro__col con-hydro__col--id">
-        <div class="con-hydro__stage-id">
-          <span v-if="selectedStage.tag !== undefined" class="con-hydro__stage-tag resource-tag" :class="'tag-' + selectedStage.tag" aria-hidden="true"></span>
-          <span v-else-if="selectedStage.vp !== undefined" class="con-hydro__stage-vp">{{ selectedStage.vp }} {{ $t('VP') }}</span>
-          <span v-else class="con-hydro__stage-flag" aria-hidden="true">⚑</span>
-          <div class="con-hydro__stage-titles">
-            <div class="con-hydro__stage-name">{{ $t(selectedStage.nameKey) }}</div>
-            <div class="con-hydro__stage-pos">{{ stageOfText }}</div>
-          </div>
-        </div>
-        <div class="con-hydro__stage-badge" :class="'con-hydro__stage-badge--' + stageBadge.kind">
-          <span class="con-hydro__chip-dot" aria-hidden="true"></span>
-          <span>{{ stageBadge.text }}</span>
-        </div>
-        <div v-if="model.mode === 'plan'" class="con-hydro__route">
-          <span>{{ model.currentPosition }}</span>
-          <span aria-hidden="true">→</span>
-          <b>{{ model.selectedPosition }}</b>
-          <span class="con-hydro__route-cost">
-            −{{ model.selectedSpend }}
-            <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
-          </span>
-        </div>
-        <div v-if="startSelected" class="con-hydro__start-note">
-          {{ $t('The starting point of the Hydronetwork track.') }}
-        </div>
-        <!-- Who has been here (plan: visitors · details: full history). -->
-        <div v-if="historyRows.length > 0" class="con-hydro__history">
-          <div class="con-hydro__section-label">{{ $t('Stage history') }}</div>
-          <div v-for="h in historyRows" :key="h.color" class="con-hydro__history-row">
-            <span class="con-hydro__history-dot" :class="'player_bg_color_' + h.color" aria-hidden="true"></span>
-            <span class="con-hydro__history-name">{{ displayName(h) }}</span>
-            <span class="con-hydro__history-status">{{ $t(historyStatusText(h)) }}</span>
-          </div>
-        </div>
-      </div>
+    <!-- ── THE SCENE — the transformable lower zone. ONE region whose layers
+         (preview → picker → commit → result) advance IN PLACE via the
+         workspace-descend phrase; the track above never moves. ───────────── -->
+    <div class="con-hydro__scene" ref="sceneEl">
+      <transition :css="false"
+                  @enter="sceneEnter" @leave="sceneLeave"
+                  @enter-cancelled="sceneCancelled" @leave-cancelled="sceneCancelled">
+        <!-- ═══ PREVIEW — the compact plan/details panel. ═══ -->
+        <div v-if="sceneKey === 'preview'" key="preview" class="con-hydro__layer con-hydro__layer--preview">
+          <div class="con-hydro__panel" :class="{'con-hydro__panel--details': model.mode === 'details'}">
+            <!-- Identity row: stage glyph + name + status + route. -->
+            <div class="con-hydro__ident" data-unfold-item>
+              <span v-if="selectedStage.tag !== undefined" class="con-hydro__stage-tag resource-tag" :class="'tag-' + selectedStage.tag" aria-hidden="true"></span>
+              <span v-else-if="selectedStage.vp !== undefined" class="con-hydro__stage-vp">{{ selectedStage.vp }} {{ $t('VP') }}</span>
+              <span v-else class="con-hydro__stage-flag" aria-hidden="true">⚑</span>
+              <div class="con-hydro__stage-titles">
+                <div class="con-hydro__stage-name">{{ $t(selectedStage.nameKey) }}</div>
+                <div class="con-hydro__stage-pos">{{ stageOfText }}</div>
+              </div>
+              <span class="con-hydro__stage-badge" :class="'con-hydro__stage-badge--' + stageBadge.kind">
+                <span class="con-hydro__chip-dot" aria-hidden="true"></span>
+                <span>{{ stageBadge.text }}</span>
+              </span>
+              <span v-if="model.mode === 'plan'" class="con-hydro__route">
+                <span>{{ model.currentPosition }}</span>
+                <span aria-hidden="true">→</span>
+                <b>{{ model.selectedPosition }}</b>
+                <span class="con-hydro__route-cost">
+                  −{{ model.selectedSpend }}
+                  <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
+                </span>
+              </span>
+            </div>
 
-      <!-- Column 2: requirements (plan) / stage reward definition (details) -->
-      <div class="con-hydro__col con-hydro__col--req">
-        <template v-if="model.mode === 'plan'">
-          <div class="con-hydro__section-label">{{ $t('Requirements') }}</div>
-          <div v-if="requiredTags.length > 0" class="con-hydro__req-tags">
-            <span v-for="(t, i) in requiredTags" :key="i"
-                  class="con-hydro__req-tag"
-                  :class="'con-hydro__req-tag--' + tagStatus(t)">
-              <span class="resource-tag" :class="'tag-' + t" aria-hidden="true"></span>
-              <span class="con-hydro__req-mark" aria-hidden="true">{{ tagStatus(t) === 'missing' ? '✕' : '✓' }}</span>
-              <span v-if="tagStatus(t) === 'wild'" class="con-hydro__req-wild" aria-hidden="true">✱</span>
-            </span>
-          </div>
-          <div v-if="hasWildCovered" class="con-hydro__req-legend">✱ {{ $t('Covered by a wild tag') }}</div>
-          <div class="con-hydro__req-energy" :class="{'con-hydro__req-energy--short': !targetAffordable}">
-            <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
-            <b>{{ model.selectedSpend }}</b>
-            <span class="con-hydro__req-have">{{ $t('You have') }}: {{ model.availableEnergy }}</span>
-            <span class="con-hydro__req-mark" aria-hidden="true">{{ targetAffordable ? '✓' : '✕' }}</span>
-          </div>
-          <div v-if="model.destination !== undefined && model.destination.jumpedOverVp2" class="con-hydro__req-note">
-            ⤴ {{ $t('The occupied 2 VP position is leapt over to reach the 5 VP slot.') }}
-          </div>
-          <div v-if="model.skippedStages.length > 0" class="con-hydro__req-note con-hydro__req-note--warn">
-            ⚑ {{ $t('Skipped rewards') }}: {{ skippedNames }}
-          </div>
-        </template>
-        <template v-else>
-          <div class="con-hydro__section-label">{{ $t('Reward') }}</div>
-          <div v-if="selectedStage.rewardOptions.length > 0" class="con-hydro__def-reward">
-            <template v-if="selectedStage.rewardOptions.length > 1">
-              <HydroReward :chips="selectedStage.rewardOptions[0]" />
-              <span class="con-hydro__stop-or">{{ $t('or') }}</span>
-              <HydroReward :chips="selectedStage.rewardOptions[1]" />
+            <template v-if="model.mode === 'plan'">
+              <!-- Requirements row: path tags + energy, one compact line. -->
+              <div class="con-hydro__reqline" data-unfold-item>
+                <span class="con-hydro__section-label">{{ $t('Requirements') }}</span>
+                <span v-for="(t, i) in requiredTags" :key="i"
+                      class="con-hydro__req-tag"
+                      :class="'con-hydro__req-tag--' + tagStatus(t)">
+                  <span class="resource-tag" :class="'tag-' + t" aria-hidden="true"></span>
+                  <span class="con-hydro__req-mark" aria-hidden="true">{{ tagStatus(t) === 'missing' ? '✕' : '✓' }}</span>
+                  <span v-if="tagStatus(t) === 'wild'" class="con-hydro__req-wild" aria-hidden="true">✱</span>
+                </span>
+                <span class="con-hydro__req-energy" :class="{'con-hydro__req-energy--short': !targetAffordable}">
+                  <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
+                  <b>{{ model.selectedSpend }}</b>
+                  <span class="con-hydro__req-have">{{ $t('You have') }}: {{ model.availableEnergy }}</span>
+                  <span class="con-hydro__req-mark" aria-hidden="true">{{ targetAffordable ? '✓' : '✕' }}</span>
+                </span>
+              </div>
+              <!-- Route notes: skipped rewards + the 2VP leap — tied to the
+                   track (the amber route stops), one quiet line each. -->
+              <div v-if="model.skippedStages.length > 0 || jumpedOverVp2" class="con-hydro__routenotes" data-unfold-item>
+                <span v-if="model.skippedStages.length > 0" class="con-hydro__routenote">
+                  ↷ {{ $t('Skipped rewards') }}: {{ skippedNames }}
+                </span>
+                <span v-if="jumpedOverVp2" class="con-hydro__routenote">
+                  ⤴ {{ $t('The occupied 2 VP position is leapt over to reach the 5 VP slot.') }}
+                </span>
+              </div>
+
+              <!-- Outcome row: the honest «сейчас → станет» deltas. -->
+              <div class="con-hydro__gains" data-unfold-item>
+                <span class="con-hydro__section-label">{{ $t('You will gain') }}</span>
+                <template v-if="model.targetNeedsChoice && rewardChoice === undefined">
+                  <span class="con-hydro__gains-choice">
+                    <HydroReward :chips="selectedStage.rewardOptions[0]" :compact="true" />
+                    <span class="con-hydro__stop-or">{{ $t('or') }}</span>
+                    <HydroReward :chips="selectedStage.rewardOptions[1]" :compact="true" />
+                  </span>
+                </template>
+                <template v-else>
+                  <span v-for="(l, i) in rewardView.lines" :key="i" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
+                    <span class="con-hydro__delta-ico" :class="{'con-hydro__delta-ico--prod': l.production}">
+                      <span class="con-hydro__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
+                    </span>
+                    <span class="con-hydro__beforeafter"><b>{{ l.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ l.after }}</b></span>
+                    <span v-if="l.delta !== 0" class="con-hydro__plus">+{{ l.delta }}</span>
+                  </span>
+                  <HydroReward v-if="rewardView.lines.length === 0 && rewardView.rawChips.length > 0" :chips="rewardView.rawChips" />
+                  <span v-if="rewardView.vp !== undefined" class="con-hydro__vpline">
+                    <span class="con-hydro__stage-vp">{{ rewardView.vp }} {{ $t('VP') }}</span>
+                    <span>{{ $t('VP at game end') }}</span>
+                  </span>
+                </template>
+                <span v-if="fizzleNote !== ''" class="con-hydro__routenote con-hydro__routenote--warn">
+                  ⚑ {{ $t('This reward will be skipped') }} — {{ $t(fizzleNote) }}
+                </span>
+              </div>
+
+              <!-- The PRE-SELECT SUMMARY — the configured decision, focusable
+                   («A Изменить» when the cursor stands here). -->
+              <div v-if="summaryPresent"
+                   class="con-hydro__summary"
+                   :class="{'con-hydro__summary--focused': sceneFocus === 'summary'}"
+                   data-unfold-item
+                   role="button"
+                   @click="onChangeSelection">
+                <span class="con-hydro__section-label">{{ $t('Your selection') }}</span>
+                <!-- pos 1/2: the chosen reward option. -->
+                <span v-if="model.targetNeedsChoice && rewardChoice !== undefined" class="con-hydro__summary-body">
+                  <HydroReward :chips="selectedStage.rewardOptions[rewardChoice]" :compact="true" />
+                  <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+                </span>
+                <!-- pos 7: the chosen action — the SAME premium button graphic
+                     the composers draw in their filled repeat slot. -->
+                <span v-else-if="model.needsCardSelect === 'reuse-action' && model.selectedCard !== undefined && repeatNode !== undefined"
+                      class="con-composer__repeatpick con-hydro__pick-action">
+                  <span class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
+                    <CardRenderEffectBoxComponent v-if="repeatNode.actionNode !== undefined" :effectData="repeatNode.actionNode" />
+                    <CardRenderData v-else-if="repeatNode.renderRoot !== undefined" :renderData="repeatNode.renderRoot" />
+                    <span v-else class="con-composer__graphic-text">{{ repeatNode.text }}</span>
+                  </span>
+                  <span class="con-composer__repeatpick-name">{{ $t(model.selectedCard) }}</span>
+                  <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+                </span>
+                <!-- pos 9: the chosen target card + the honest count. -->
+                <span v-else-if="model.selectedCard !== undefined" class="con-hydro__summary-body">
+                  <b>{{ $t(model.selectedCard) }}</b>
+                  <span v-if="selectedAnimalCurrent !== undefined" class="con-hydro__pick-cur">
+                    <span class="card-resource card-resource-animal" aria-hidden="true"></span>
+                    {{ selectedAnimalCurrent }} → {{ selectedAnimalCurrent + 2 }}
+                  </span>
+                  <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+                </span>
+              </div>
+
+              <!-- CTA / the specific reasons — never a bare «недоступно». -->
+              <div class="con-hydro__ctazone" data-unfold-item>
+                <button v-if="primaryVerb !== 'blocked'" type="button"
+                        class="con-hydro__cta"
+                        :class="{'con-hydro__cta--configure': primaryVerb !== 'reinforce'}"
+                        @click="onPrimary">
+                  <GamepadGlyph control="confirm" />
+                  <span>{{ $t(primaryLabel) }}</span>
+                </button>
+                <template v-else>
+                  <div class="con-hydro__cta con-hydro__cta--disabled" aria-disabled="true">
+                    <GamepadGlyph control="confirm" />
+                    <span>{{ $t('Reinforce the hydronetwork') }}</span>
+                  </div>
+                  <div class="con-hydro__reasons">
+                    <div v-if="requirementsUnmet" class="con-hydro__reason">
+                      <span class="con-hydro__reason-glyph" aria-hidden="true">✕</span>
+                      <span>{{ $t('Stage requirements are not met') }}</span>
+                    </div>
+                    <div v-for="(r, i) in ctaReasons" :key="i" class="con-hydro__reason" :class="{'con-hydro__reason--todo': !r.blocking}">
+                      <span class="con-hydro__reason-glyph" aria-hidden="true">{{ r.blocking ? '✕' : '→' }}</span>
+                      <span>{{ reasonText(r) }}</span>
+                    </div>
+                  </div>
+                </template>
+              </div>
             </template>
-            <HydroReward v-else :chips="selectedStage.rewardOptions[0]" />
-          </div>
-          <div v-else-if="selectedStage.vp !== undefined" class="con-hydro__vpline">
-            <span class="con-hydro__stage-vp">{{ selectedStage.vp }} {{ $t('VP') }}</span>
-            <span>{{ $t('VP at game end') }}</span>
-          </div>
-          <div v-else class="con-hydro__req-note">{{ $t('No reward') }}</div>
-        </template>
-      </div>
 
-      <!-- Column 3: reward planning + CTA / specific reasons -->
-      <div class="con-hydro__col con-hydro__col--act">
-        <template v-if="model.mode === 'plan'">
-          <!-- A CHOICE stage (pos 1/2) previews BOTH options read-only here; the
-               actual pick moves to the confirm modal (good presentation, LB/RB). -->
-          <template v-if="model.targetNeedsChoice && model.targetStage !== undefined">
-            <div class="con-hydro__section-label">{{ $t('Bonus') }}</div>
-            <div class="con-hydro__bonus-preview">
-              <HydroReward :chips="model.targetStage.rewardOptions[0]" />
-              <span class="con-hydro__stop-or">{{ $t('or') }}</span>
-              <HydroReward :chips="model.targetStage.rewardOptions[1]" />
+            <!-- Details mode: the viewer's own relation to this stage. -->
+            <template v-else>
+              <div class="con-hydro__detailline" data-unfold-item>
+                <span class="con-hydro__detail-status">{{ detailsStatusText }}</span>
+                <span v-if="startSelected" class="con-hydro__routenote">{{ $t('The starting point of the Hydronetwork track.') }}</span>
+                <span class="con-hydro__routenote">→ {{ $t('Select a stage ahead to plan the advance') }}</span>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- ═══ REWARD CHOICE (pos 1/2) — a physical D-pad row of the two
+             options; focus updates the honest delta preview per option. ═══ -->
+        <div v-else-if="sceneKey === 'choice'" key="choice" class="con-hydro__layer con-hydro__layer--choice">
+          <div class="con-hydro__panel con-hydro__panel--choice">
+            <div class="con-hydro__choice-ask" data-unfold-item>{{ $t('Choose the stage reward') }}</div>
+            <div class="con-hydro__choice-row" data-unfold-item>
+              <button v-for="(opt, i) in choiceOptions" :key="i" type="button"
+                      class="con-hydro__choice-card"
+                      :class="{
+                        'con-hydro__choice-card--focused': choiceFocus === i,
+                        'con-hydro__choice-card--selected': rewardChoice === i,
+                      }"
+                      @click="pickChoice(i)">
+                <HydroReward :chips="opt.chips" />
+                <span class="con-hydro__choice-deltas">
+                  <span v-for="(l, j) in opt.lines" :key="j" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
+                    <span class="con-hydro__delta-ico" :class="{'con-hydro__delta-ico--prod': l.production}">
+                      <span class="con-hydro__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
+                    </span>
+                    <span class="con-hydro__beforeafter"><b>{{ l.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ l.after }}</b></span>
+                  </span>
+                </span>
+                <span v-if="rewardChoice === i" class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+              </button>
             </div>
-            <div class="con-hydro__req-note con-hydro__req-note--muted">
-              ↳ {{ $t('The bonus is chosen when you confirm') }}
+          </div>
+        </div>
+
+        <!-- ═══ TARGET PICK (pos 9) — the SHARED played-card target selector,
+             embedded under the standing track. ═══ -->
+        <div v-else-if="sceneKey === 'target'" key="target" class="con-hydro__layer con-hydro__layer--target" ref="targetZone">
+          <ConsolePlayedTargetStep v-if="targetStepModel !== undefined && targetFocus !== undefined"
+                                   ref="targetStep"
+                                   :model="targetStepModel"
+                                   :layout="targetLayout"
+                                   :focus="targetFocus"
+                                   :bandHeight="targetBandH"
+                                   :lockedCard="targetLockedCard" />
+        </div>
+
+        <!-- ═══ COMMIT — the marker is travelling / the landed stage pays. ═══ -->
+        <div v-else-if="sceneKey === 'commit'" key="commit" class="con-hydro__layer con-hydro__layer--commit">
+          <div class="con-hydro__commitline" data-unfold-item>
+            <span class="con-hydro__route">
+              <span>{{ commitRec.fromPosition }}</span>
+              <span aria-hidden="true">→</span>
+              <b>{{ commitRec.toPosition }}</b>
+              <span class="con-hydro__route-cost">
+                −{{ commitRec.spend }}
+                <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
+              </span>
+            </span>
+            <b class="con-hydro__commit-stage">{{ $t(commitRec.stageNameKey) }}</b>
+            <span class="con-hydro__commit-caption">{{ $t(commitCaption) }}<i class="con-hydro__commit-spin" aria-hidden="true"></i></span>
+          </div>
+
+          <!-- pos 9: the chosen host card, physically ON STAGE — the animals
+               land on its own counter capsule; frozen before-count ticks per
+               touchdown. -->
+          <div v-if="presentedTargetCard !== undefined" class="con-hydro__cardland" data-unfold-item>
+            <div class="con-hydro__landcell"
+                 :class="{'con-hydro__landcell--landed': presentedLanded > 0}"
+                 :data-played-key="presentedTargetCard">
+              <ConsoleCardFaceLite :name="presentedTargetCard" :card="presentedModel" />
+              <span v-if="presentedLanded > 0" :key="'flash' + presentedLanded"
+                    class="con-hydro__landflash" aria-hidden="true"></span>
             </div>
-          </template>
-          <template v-else>
-            <div class="con-hydro__section-label">{{ $t('You will gain') }}</div>
-            <div class="con-hydro__gains">
-              <div v-for="(l, i) in rewardView.lines" :key="i" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
+            <div class="con-hydro__landmeta">
+              <i class="card-resource card-resource-animal" aria-hidden="true"></i>
+              <em>{{ commitRec.targetBefore ?? 0 }} → {{ (commitRec.targetBefore ?? 0) + 2 }}</em>
+            </div>
+          </div>
+
+          <!-- pos 10/11: the finish CEREMONY — the value rises out of the
+               landed stop into this seat; the shared burst fires here. -->
+          <div v-if="commitRec.kind === 'ceremony'" class="con-hydro__cere">
+            <div class="con-hydro__cere-seat" ref="cereSeat">
+              <div class="con-hydro__cere-value" ref="cereValue">
+                {{ commitRec.vp }} <small>{{ $t('VP') }}</small>
+              </div>
+            </div>
+            <div class="con-hydro__cere-line" data-hydro-cere-line>{{ $t(commitRec.stageNameKey) }}</div>
+            <div class="con-hydro__cere-cap" data-hydro-cere-line>{{ $t('VP at game end') }}</div>
+          </div>
+
+          <!-- The EMBED ZONE — the landed stage's own follow-up (the deck
+               pick of pos 5, a repeated action's draw) teleports IN here and
+               gets the whole remaining room. Rendered from the submit frame:
+               the target must exist before the teleport looks for it. -->
+          <div class="con-hydro__embed" data-embed-slot="hydro"></div>
+        </div>
+
+        <!-- ═══ RESULT — the compact read-hold summary. ═══ -->
+        <div v-else key="result" class="con-hydro__layer con-hydro__layer--result">
+          <div class="con-hydro__panel con-hydro__panel--result">
+            <div class="con-hydro__result-head" data-unfold-item>
+              <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+              <b>{{ $t('Reinforcement complete') }}</b>
+              <span class="con-hydro__result-stage">{{ $t(commitRec.stageNameKey) }}</span>
+            </div>
+            <div class="con-hydro__result-rows" data-unfold-item>
+              <span class="con-hydro__route">
+                <span>{{ commitRec.fromPosition }}</span>
+                <span aria-hidden="true">→</span>
+                <b>{{ commitRec.toPosition }}</b>
+                <span class="con-hydro__route-cost">
+                  −{{ commitRec.spend }}
+                  <i class="con-hydro__chip-ico resource_icon resource_icon--energy" aria-hidden="true"></i>
+                </span>
+              </span>
+              <span v-for="(l, i) in commitRec.rewardLines" :key="i" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
                 <span class="con-hydro__delta-ico" :class="{'con-hydro__delta-ico--prod': l.production}">
                   <span class="con-hydro__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
                 </span>
                 <span class="con-hydro__beforeafter"><b>{{ l.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ l.after }}</b></span>
                 <span v-if="l.delta !== 0" class="con-hydro__plus">+{{ l.delta }}</span>
-                <span v-else class="con-hydro__zero">{{ $t('No change') }}</span>
-                <span v-if="l.noteKey" class="con-hydro__delta-note">{{ $t(l.noteKey) }}: {{ l.noteValue }}</span>
-              </div>
-              <HydroReward v-if="rewardView.lines.length === 0 && rewardView.rawChips.length > 0" :chips="rewardView.rawChips" />
-              <div v-if="rewardView.vp !== undefined" class="con-hydro__vpline">
-                <span class="con-hydro__stage-vp">{{ rewardView.vp }} {{ $t('VP') }}</span>
+              </span>
+              <span v-if="commitRec.vp !== undefined" class="con-hydro__vpline">
+                <span class="con-hydro__stage-vp">{{ commitRec.vp }} {{ $t('VP') }}</span>
                 <span>{{ $t('VP at game end') }}</span>
-              </div>
+              </span>
+              <span v-if="commitRec.kind === 'repeat' && commitRec.selectedCard !== undefined" class="con-hydro__result-note">
+                ⟳ {{ $t(commitRec.selectedCard) }}
+              </span>
+              <span v-else-if="commitRec.kind === 'card-resource' && commitRec.selectedCard !== undefined" class="con-hydro__result-note">
+                → {{ $t(commitRec.selectedCard) }}
+              </span>
             </div>
-          </template>
-
-          <!-- Pos 7/9 card pick. Stage 7 routes to the ДЕЙСТВИЯ КАРТ repeat
-               surface (the same premium browser Viron / Проверка проекта use);
-               stage 9 keeps the card sheet. A composed stage-7 pick renders as
-               the SAME chosen-action button the composers draw (icons + name);
-               clicking it re-opens the pick (X in the confirm modal ditto). -->
-          <div v-if="model.needsCardSelect !== undefined" class="con-hydro__pick">
-            <template v-if="model.eligibleCardNames.length > 0">
-              <div v-if="model.needsCardSelect === 'reuse-action' && model.selectedCard !== undefined && repeatNode !== undefined"
-                   class="con-composer__repeatpick con-hydro__pick-action"
-                   role="button"
-                   @click="onChangePick">
-                <div class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
-                  <CardRenderEffectBoxComponent v-if="repeatNode.actionNode !== undefined" :effectData="repeatNode.actionNode" />
-                  <CardRenderData v-else-if="repeatNode.renderRoot !== undefined" :renderData="repeatNode.renderRoot" />
-                  <span v-else class="con-composer__graphic-text">{{ repeatNode.text }}</span>
-                </div>
-                <span class="con-composer__repeatpick-name">{{ $t(model.selectedCard) }}</span>
-                <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
-              </div>
-              <span v-else-if="model.selectedCard !== undefined" class="con-hydro__pick-chosen">
-                <b>{{ $t(model.selectedCard) }}</b>
-                <span v-if="selectedAnimalCurrent !== undefined" class="con-hydro__pick-cur">
-                  <span class="card-resource card-resource-animal" aria-hidden="true"></span>{{ selectedAnimalCurrent }}
-                </span>
-                <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
-              </span>
-              <span v-else class="con-hydro__pick-pending">
-                <GamepadGlyph control="confirm" />
-                <span>{{ $t(pickButtonLabel) }}</span>
-              </span>
-            </template>
-            <span v-else class="con-hydro__req-note con-hydro__req-note--warn">
-              ⚑ {{ $t('This reward will be skipped') }} — {{ $t(fizzleReason) }}
-            </span>
-          </div>
-          <div v-if="rewardView.followUpKey" class="con-hydro__req-note con-hydro__req-note--muted">
-            ↳ {{ $t(rewardView.followUpKey) }}
-          </div>
-
-          <!-- CTA or the SPECIFIC reasons — never a bare «Сейчас недоступно». -->
-          <div class="con-hydro__cta-zone">
-            <button v-if="model.canConfirm" type="button" class="con-hydro__cta" @click="onPrimary">
+            <div class="con-hydro__result-hint" data-unfold-item>
               <GamepadGlyph control="confirm" />
-              <span>{{ $t('Reinforce the hydronetwork') }}</span>
-            </button>
-            <template v-else>
-              <div class="con-hydro__cta con-hydro__cta--disabled" aria-disabled="true">
-                <GamepadGlyph control="confirm" />
-                <span>{{ $t('Reinforce the hydronetwork') }}</span>
-              </div>
-              <!-- Requirement blockers (tags / energy) already stand in RED in
-                   the «Требования» column — never duplicated here; they fold
-                   into ONE pointer line. Only reasons the requirements column
-                   can't show (turn / used / occupied / to-dos) get own rows. -->
-              <div class="con-hydro__reasons">
-                <div v-if="requirementsUnmet" class="con-hydro__reason">
-                  <span class="con-hydro__reason-glyph" aria-hidden="true">✕</span>
-                  <span>{{ $t('Stage requirements are not met') }}</span>
-                </div>
-                <div v-for="(r, i) in ctaReasons" :key="i" class="con-hydro__reason" :class="{'con-hydro__reason--todo': !r.blocking}">
-                  <span class="con-hydro__reason-glyph" aria-hidden="true">{{ r.blocking ? '✕' : '→' }}</span>
-                  <span>{{ reasonText(r) }}</span>
-                </div>
-              </div>
-            </template>
-          </div>
-        </template>
-
-        <!-- Details mode: the viewer's own relation to this stage. -->
-        <template v-else>
-          <div class="con-hydro__section-label">{{ $t('Stage details') }}</div>
-          <div class="con-hydro__detail-status">{{ detailsStatusText }}</div>
-          <div class="con-hydro__req-note con-hydro__req-note--muted">
-            → {{ $t('Select a stage ahead to plan the advance') }}
-          </div>
-        </template>
-      </div>
-    </div>
-
-    <!-- ── HELP / LORE (X = Подробнее) — the full description, never clipped ── -->
-    <transition name="con-layer">
-      <div v-if="ui.helpOpen" class="con-task-host con-hydro__help con-ws" role="dialog" :aria-label="$t('Mars Hydronetwork')">
-        <!-- An INNER layer of the hydro section: carries its OWN dim. -->
-        <div class="con-hydro__help-backdrop" aria-hidden="true" @click="ui.helpOpen = false"></div>
-        <div class="con-task con-hydro__help-frame">
-          <header class="con-task__head">
-            <div class="con-task__kicker">
-              <span class="con-task__kicker-mark" aria-hidden="true">≈</span>
-              <span>{{ $t('Mars Hydronetwork') }}</span>
+              <span>{{ $t('Continue') }}</span>
             </div>
-            <div class="con-task__title">{{ $t('How it works') }}</div>
-          </header>
-          <div class="con-task__body con-hydro__help-body">
-            <p class="con-hydro__help-lore">{{ $t('After the oceans were built, erosion, landslides and subsidence began. The corporations jointly engineer the Mars Hydronetwork — dams, pumping stations, drainage and protective works.') }}</p>
-            <ul class="con-hydro__help-rules">
-              <li>{{ $t('1 energy = 1 step along the track.') }}</li>
-              <li>{{ $t('Only the stage you stop on grants its reward — stages passed over are skipped.') }}</li>
-              <li>{{ $t('The Hydronetwork can be reinforced once per generation.') }}</li>
-              <li>{{ $t('Reaching a stage requires every tag along the path (wild tags count).') }}</li>
-              <li>{{ $t('The finish slots hold one player each: 2 VP, then 5 VP at game end.') }}</li>
-            </ul>
           </div>
         </div>
-      </div>
-    </transition>
-
-    <!-- ── The console-native confirmation modal ─────────────────────── -->
-    <transition name="con-layer">
-      <ConsoleHydroConfirm v-if="ui.confirmOpen"
-                           ref="confirm"
-                           :model="model"
-                           :rewardView="rewardView"
-                           :repeatNode="repeatNode"
-                           @confirm="onModalConfirm"
-                           @change-pick="onChangePick"
-                           @cancel="ui.confirmOpen = false" />
-    </transition>
+      </transition>
+    </div>
   </section>
 </template>
 
 <script lang="ts">
 /**
- * CONSOLE HYDRONETWORK SECTION — the console-NATIVE «Гидросеть Марса» screen
- * (the full rework of P24). The desktop HydroNetworkOverlay is no longer
- * mounted in console mode; this screen renders its own composition on the
- * SAME shared brain, so payloads and legality stay byte-identical:
+ * CONSOLE HYDRONETWORK WORKSPACE — the console-NATIVE «Гидросеть Марса» as a
+ * full North-Star workspace (the rework of the old section + confirm modal).
  *
- *  - state:     hydroNetworkState (selection / bonus / card / preview);
- *  - model:     buildHydroModel (pure, unit-tested);
- *  - rewards:   buildRewardView («сейчас → станет» deltas);
- *  - reasons:   hydroPlanReasons (pure, SPECIFIC unavailability);
- *  - submit:    emits the same {spend, rewardChoice, selectedCard} payload
- *               the shell's submitHydroAdvance has always batched — plus the
- *               console-only `repeat` composition for stage 7 (the chosen
- *               action pre-composed on the ДЕЙСТВИЯ КАРТ repeat surface).
+ * ONE FLOW: preview → pre-select (reward choice / target pick / the stage-7
+ * repeat bridge) → summary → A «Укрепить гидросеть» → marker glide →
+ * resolution ON the landed stage (reward wave / embedded deck pick / repeated
+ * action / VP ceremony) → result → close. The commit modal is GONE; every
+ * stage is a layer of the scene under the permanently standing track.
  *
- * Composition (Steam Deck-first): a header band with live status chips, a
- * single-row PROGRESS RAIL of all 12 stops (the selected one magnified), and
- * a full-width DECISION PANEL (identity · requirements · reward + CTA). The
- * CTA opens {@link ConsoleHydroConfirm} — nothing submits from this screen
- * directly. X opens the full lore/rules (nothing is ever clipped).
+ * Shared brain untouched: hydroNetworkState (plan), buildHydroModel (pure),
+ * buildRewardView (deltas), hydroPlanReasons (specific reasons) — payloads and
+ * legality stay byte-identical with the frozen desktop overlay.
  *
- * Grammar: ←/→ stages · LB/RB (+↑/↓) bonus · Y furthest available ·
- * A smart-primary (pick card → confirm modal) · X details · B back.
+ * The flow's phase machine lives in consoleHydroFlow (module state — survives
+ * a park); this component renders it and routes input.
  */
 import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
-import ConsoleHydroConfirm from './ConsoleHydroConfirm.vue';
+import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
+import ConsolePlayedTargetStep from '@/client/components/console/played/ConsolePlayedTargetStep.vue';
+import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import CardRenderEffectBoxComponent from '@/client/components/card/CardRenderEffectBoxComponent.vue';
 import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import {stripActionPrefix} from '@/client/directives/stripActionPrefix';
@@ -372,26 +432,54 @@ import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 import {$t, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {buildHydroModel, HydroModel, HydroStageVM, HydroStageHistoryEntry} from '@/client/components/hydronetwork/hydroNetworkModel';
-import {HydroStage, HYDRO_STAGES, hydroStageNeedsChoice} from '@/client/components/hydronetwork/hydroStages';
+import {buildHydroModel, HydroModel, HydroStageVM} from '@/client/components/hydronetwork/hydroNetworkModel';
+import {HydroStage} from '@/client/components/hydronetwork/hydroStages';
 import {buildRewardView, HydroDeltaLine, HydroPlayerSnapshot, HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
 import {destinationAt, gradeDestination, HydroReason, hydroPlanReasons, HydroStopGrade, HydroTurnState} from '@/client/components/hydronetwork/hydroReasons';
 import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
 import {Message} from '@/common/logs/Message';
-import {fetchHydroPreview, hydroNetworkState} from '@/client/components/hydronetwork/hydroNetworkState';
-import {consoleHydroUi, resetConsoleHydroUi} from '@/client/console/consoleHydroState';
+import {fetchHydroPreview, hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
+import {consoleHydroUi} from '@/client/console/consoleHydroState';
 import type {ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
-import {hydroDrawState} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {hydroRewardTransfers} from '@/client/console/hydroMarker/hydroRewardTransfers';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
-import {DeltaStop} from '@/common/models/DeltaProjectPlayerModel';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
+import {ConsoleCommand} from '@/client/console/consoleCommandModel';
+import {
+  HydroCommitRecord, closeHydroStep, hydroDraftFresh, hydroFlowState, hydroWorkspacePhase,
+  hydroWorkspaceRestorePlan, noteHydroDraftTouched, openHydroStep, resetHydroFlow,
+  resolutionKindFor, setHydroCeremonyActive,
+} from '@/client/console/hydroFlow/consoleHydroFlow';
+import {buildHydroTargetModel, hydroPresentedTargetModel} from '@/client/console/hydroFlow/hydroTargetStep';
+import {
+  HydroCeremonyHandle, armHydroSceneOrigin, hydroSceneCancelledHook, hydroSceneEnterHook,
+  hydroSceneLeaveHook, runHydroCeremony,
+} from '@/client/console/hydroFlow/consoleHydroFlowMotion';
+import {
+  PlayedTargetCell, PlayedTargetFocus, PlayedTargetLayout, PlayedTargetModel, PlayedTargetNavDir,
+  findPlayedTargetFocus, planPlayedTargetLayout, playedTargetAt,
+  reseatPlayedTargetFocus, stepPlayedTargetFocus, stepPlayedTargetFocusAt, stepPlayedTargetOwner,
+} from '@/client/console/played/consolePlayedTargetModel';
+import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
+import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
+import {getCard} from '@/client/cards/ClientCardManifest';
+import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {cardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {
+  setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject,
+} from '@/client/console/consoleWorkspaceStack';
+import {setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {useConsoleReducedMotion} from '@/client/console/composables/useConsoleReducedMotion';
 
-/** Reason kinds the «Требования» column already shows as red marks — the
- *  CTA zone folds them into one pointer line instead of duplicating. */
+/** Reason kinds the «Требования» row already shows as red marks — the CTA
+ *  zone folds them into one pointer line instead of duplicating. */
 const REQUIREMENT_REASON_KINDS: ReadonlySet<string> = new Set(['missing-tag', 'energy-deficit', 'no-energy']);
+
+/** The hydro workspace's own embed zone (the ONE slot both the outcome claim
+ *  and a hosted frame teleport into). */
+const HYDRO_EMBED_SLOT = '[data-embed-slot="hydro"]';
 
 /** The prompt title as plain text (i18n rewrites a Message's `.message` in
  *  place, but never the action-menu OrOptions title — see turnState). */
@@ -405,7 +493,6 @@ function titleText(t: string | Message | undefined): string {
 type RailStop = {
   position: number;
   vm: HydroStageVM;
-  /** Per-stop availability grade (future stops only — from ITS destination). */
   grade: HydroStopGrade | undefined;
   gradeGlyph: string;
   linkKind: 'done' | 'route' | 'dim';
@@ -413,48 +500,54 @@ type RailStop = {
 
 type GroupNode = ActionGroup['nodes'][number];
 
+type SceneKey = 'preview' | 'choice' | 'target' | 'commit' | 'result';
+
 export default defineComponent({
   name: 'ConsoleHydroSection',
-  components: {GamepadGlyph, BarButtonIcon, HydroReward, ConsoleHydroConfirm, CardRenderEffectBoxComponent, CardRenderData},
+  components: {
+    GamepadGlyph, HydroReward, ConsoleWsHead, ConsolePlayedTargetStep, ConsoleCardFaceLite,
+    CardRenderEffectBoxComponent, CardRenderData,
+  },
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     actionAvailable: {type: Boolean, default: false},
-    /** Preview refetch scope — the host keys it on every signal that can move
-     *  the preview (generation + gameAge + undoCount), NOT the generation
-     *  alone: the delta state changes WITHIN a generation. */
+    /** Preview refetch scope — generation + gameAge + undoCount. */
     cacheKey: {type: String, default: ''},
+    /** A follow-up decision of the committed advance is standing (the shell's
+     *  live fact — turns the resolving beat into the collapsible phase). */
+    followUpLive: {type: Boolean, default: false},
   },
-  emits: ['close', 'confirm', 'pick', 'notice'],
+  emits: ['close', 'confirm', 'pick', 'notice', 'collapse', 'result-done'],
+  setup() {
+    const {reduced} = useConsoleReducedMotion();
+    return {reducedMotion: reduced};
+  },
   data() {
     return {
-      ui: consoleHydroUi,
-      /** The marker-advance controller (drives the glide hide + settle glow). */
+      flow: hydroFlowState,
       hydroMarkerState,
-      /** The card-lift controller (hides the reward icon it flies away with). */
-      hydroDrawState,
+      landings: cardResourceLandings,
+      /** Scene focus: the track (A = primary) or the pre-select summary. */
+      sceneFocus: 'track' as 'track' | 'summary',
+      /** The reward picker's focused option (pos 1/2). */
+      choiceFocus: 0,
+      /** The target step's cursor (pos 9). */
+      targetFocus: undefined as PlayedTargetFocus | undefined,
+      targetZoneW: 0,
+      targetZoneH: 0,
+      /** One-shot: the ceremony has been started for this commit. */
+      cereStarted: false,
+      cereHandle: undefined as HydroCeremonyHandle | undefined,
     };
   },
   computed: {
-    /**
-     * The stop the «Гидромоделирование» cards are coming out of, while they are
-     * still leaving it — the cell gets a calm source glow so the flight reads as
-     * ITS payout. Declarative (never an imperative class on a v-for element, which
-     * a re-render would wipe or strand); bounded by the controller's safety nets.
-     */
-    drawEmittingStop(): number {
-      const d = this.hydroDrawState;
-      return d.active && (d.phase === 'lift' || d.phase === 'fan') ? d.stopPosition : -1;
-    },
-    /** The advance glide is running for THIS viewer — hide the FROM marker
-     *  (the proxy carries it) so the token is never in two places at once. */
     markerGliding(): boolean {
       return this.hydroMarkerState.active;
     },
     markerFrom(): number {
       return this.hydroMarkerState.fromPosition;
     },
-    /** The stop whose real marker JUST locked in — a one-shot settle glow. */
     markerSettled(): number {
       return this.hydroMarkerState.settledPosition;
     },
@@ -498,8 +591,7 @@ export default defineComponent({
         jovianTags: p.tags[Tag.JOVIAN] ?? 0,
       };
     },
-    /** Candidate cards for the pos 7/9 pick (name + live animal count) — the
-     *  shell's hydroPick sheet reads this. */
+    /** Candidate cards for the pos 7/9 pick (name + live animal count). */
     eligibleCards(): ReadonlyArray<{name: CardName; current?: number}> {
       const names = this.model.eligibleCardNames;
       if (names.length === 0) {
@@ -516,14 +608,11 @@ export default defineComponent({
       return this.eligibleCards.find((c) => c.name === this.model.selectedCard)?.current;
     },
     /** The COMPOSED stage-7 repeat pick, honoured only while its chosen card
-     *  still matches the plan's card (the shared brain stays authoritative —
-     *  a stale composition degrades to the bare card pick in the batch). */
+     *  still matches the plan's card. */
     chosenRepeat(): ConsoleRepeatPickResult | undefined {
       const r = consoleHydroUi.repeatResult;
       return r !== undefined && r.chosenCard === this.model.selectedCard ? r : undefined;
     },
-    /** The chosen action's render node — the SAME premium button graphic the
-     *  play/action composers draw in their filled repeat slot. */
     repeatNode(): GroupNode | undefined {
       const r = this.chosenRepeat;
       if (r === undefined) {
@@ -542,7 +631,6 @@ export default defineComponent({
         animalTargetCardName: this.model.selectedCard,
       });
     },
-    /** The SPECIFIC reason list for the selected plan target (pure, tested). */
     reasons(): ReadonlyArray<HydroReason> {
       return hydroPlanReasons({
         model: this.model,
@@ -553,24 +641,21 @@ export default defineComponent({
         occupantName: this.occupantName,
       });
     },
-    /** The REAL turn state — the only honest source for a turn-flavoured
-     *  reason (the action menu being live means the block is a RULE). */
     turnState(): HydroTurnState {
       const wf = this.playerView.waitingFor;
       if (wf === undefined) {
         return 'not-your-turn';
       }
-      // The action-menu OrOptions title is the one title i18n never mutates in
-      // place (the fork's inline action UI relies on the same match).
       return wf.type === 'or' && ACTION_MENU_TITLES.has(titleText(wf.title)) ? 'action-menu' : 'busy';
     },
-    /** Reasons ALREADY visualized in the «Требования» column (red chips). */
     requirementsUnmet(): boolean {
       return this.reasons.some((r) => REQUIREMENT_REASON_KINDS.has(r.kind));
     },
-    /** The CTA-zone rows: everything the requirements column CAN'T show. */
     ctaReasons(): ReadonlyArray<HydroReason> {
-      return this.reasons.filter((r) => !REQUIREMENT_REASON_KINDS.has(r.kind));
+      // The choose-* to-dos are the CTA itself now (its label IS the next
+      // step), so listing them again under it would be a duplicate.
+      return this.reasons.filter((r) =>
+        !REQUIREMENT_REASON_KINDS.has(r.kind) && r.kind !== 'choose-bonus' && r.kind !== 'choose-card');
     },
     occupantName(): string | undefined {
       const pos = this.model.selectedPosition;
@@ -578,7 +663,6 @@ export default defineComponent({
         p.color !== this.viewerColor && (p.deltaProject?.position ?? 0) === pos);
       return occupant !== undefined ? participantDisplayName(occupant) : undefined;
     },
-    /** The whole-screen action state: nothing is mint while the action is gone. */
     globallyActable(): boolean {
       return this.actionAvailable && !this.model.usedThisGeneration && this.preview !== undefined;
     },
@@ -592,9 +676,6 @@ export default defineComponent({
       if (this.actionAvailable) {
         return 'ready';
       }
-      // The action is gone — say WHY honestly. It is «не ваш ход» only when the
-      // server really isn't waiting on the viewer; on the action menu the block
-      // is a rule (the CTA reasons name it), mid-prompt it's the open decision.
       switch (this.turnState) {
       case 'not-your-turn': return 'waiting';
       case 'busy': return 'busy';
@@ -643,21 +724,12 @@ export default defineComponent({
         return {kind: 'blocked', text: $t('Unavailable right now')};
       }
       const pos = this.model.selectedPosition;
-      if (pos === this.model.currentPosition && pos !== 0) {
-        return {kind: 'current', text: $t('Current position')};
-      }
-      if (pos === 0 && this.model.currentPosition === 0) {
+      if (pos === this.model.currentPosition) {
         return {kind: 'current', text: $t('Current position')};
       }
       const vmStop = this.model.stages[pos];
       if (vmStop.rewardedByViewer) {
-        const stop = this.viewerStopAt(pos);
-        return {
-          kind: 'built',
-          text: stop?.generation !== undefined ?
-            translateTextWithParams('Built: generation ${0}', [String(stop.generation)]) :
-            $t('Took the reward'),
-        };
+        return {kind: 'built', text: $t('Took the reward')};
       }
       if (vmStop.skippedByViewer) {
         return {kind: 'passed', text: $t('Passed through — no reward')};
@@ -667,20 +739,15 @@ export default defineComponent({
     requiredTags(): ReadonlyArray<Tag> {
       return (this.model.destination?.requiredTags ?? []) as ReadonlyArray<Tag>;
     },
-    hasWildCovered(): boolean {
-      return (this.model.destination?.wildCoveredTags.length ?? 0) > 0;
-    },
     targetAffordable(): boolean {
       return this.model.destination?.affordable ?? false;
+    },
+    jumpedOverVp2(): boolean {
+      return this.model.destination?.jumpedOverVp2 === true;
     },
     skippedNames(): string {
       return this.model.skippedStages.map((s) => translateText(s.nameKey)).join(', ');
     },
-    historyRows(): ReadonlyArray<HydroStageHistoryEntry> {
-      return this.model.mode === 'plan' ? this.model.targetVisitors : this.model.detailsHistory;
-    },
-    /** The inspected stage is the track START — it grants no reward, so nothing
-     *  there can be «не достигнуто» nor «пройдено мимо награды». */
     startSelected(): boolean {
       return this.model.mode === 'details' && this.model.selectedPosition === 0;
     },
@@ -692,12 +759,243 @@ export default defineComponent({
       default: return $t('Not reached yet');
       }
     },
-    pickButtonLabel(): string {
-      return this.model.needsCardSelect === 'reuse-action' ? 'Choose an action' : 'Choose a card';
-    },
-    fizzleReason(): string {
+    fizzleNote(): string {
+      if (this.model.needsCardSelect === undefined || this.model.eligibleCardNames.length > 0) {
+        return '';
+      }
       return this.model.needsCardSelect === 'reuse-action' ?
         'No used actions to repeat' : 'No card can receive the animals';
+    },
+
+    // ── the FLOW ────────────────────────────────────────────────────────────
+    commitRec(): HydroCommitRecord {
+      // Only read by the commit/result layers, which render iff it stands.
+      return this.flow.commit as HydroCommitRecord;
+    },
+    sceneKey(): SceneKey {
+      const c = this.flow.commit;
+      if (c !== undefined) {
+        return c.phase === 'result' ? 'result' : 'commit';
+      }
+      if (this.flow.step === 'reward') {
+        return 'choice';
+      }
+      if (this.flow.step === 'target') {
+        return 'target';
+      }
+      return 'preview';
+    },
+    flowKind(): string {
+      return hydroWorkspacePhase(this.followUpLive);
+    },
+    ceremonyDim(): boolean {
+      return this.flow.ceremonyActive;
+    },
+    /** The configured pre-select stands and can be revisited. */
+    summaryPresent(): boolean {
+      const m = this.model;
+      if (m.mode !== 'plan') {
+        return false;
+      }
+      if (m.targetNeedsChoice && this.rewardChoice !== undefined) {
+        return true;
+      }
+      return m.needsCardSelect !== undefined && m.selectedCard !== undefined;
+    },
+    /** What A means on the preview layer (the CTA and the bar agree). */
+    primaryVerb(): 'reinforce' | 'choose-reward' | 'choose-action' | 'choose-card' | 'blocked' {
+      const m = this.model;
+      if (m.mode !== 'plan') {
+        return 'blocked';
+      }
+      if (m.targetNeedsChoice && this.rewardChoice === undefined && this.reasons.every((r) => !r.blocking)) {
+        return 'choose-reward';
+      }
+      if (m.mustSelectCard && m.selectedCard === undefined && this.reasons.every((r) => !r.blocking)) {
+        return m.needsCardSelect === 'reuse-action' ? 'choose-action' : 'choose-card';
+      }
+      return m.canConfirm ? 'reinforce' : 'blocked';
+    },
+    primaryLabel(): string {
+      switch (this.primaryVerb) {
+      case 'choose-reward': return 'Choose a reward';
+      case 'choose-action': return 'Choose an action';
+      case 'choose-card': return 'Choose a card';
+      default: return 'Reinforce the hydronetwork';
+      }
+    },
+    commitCaption(): string {
+      const c = this.flow.commit;
+      if (c === undefined) {
+        return '';
+      }
+      if (c.phase === 'moving') {
+        return 'The marker is advancing along the track';
+      }
+      switch (c.kind) {
+      case 'deck-draw': return 'The stage deals its cards';
+      case 'repeat': return 'The chosen action executes';
+      case 'ceremony': return 'The finish stage is reached';
+      default: return 'The stage reward is resolving';
+      }
+    },
+    crumbSubject(): string {
+      const c = this.flow.commit;
+      if (c !== undefined) {
+        return c.stageNameKey;
+      }
+      if (this.flow.step !== undefined || this.flow.repeatBridge) {
+        return this.model.targetStage?.nameKey ?? '';
+      }
+      return '';
+    },
+    crumbStage(): string {
+      const c = this.flow.commit;
+      if (c !== undefined) {
+        if (c.phase === 'result') {
+          return 'Result';
+        }
+        if (c.phase === 'moving') {
+          return 'Movement';
+        }
+        // The embedded surface hands its stage name UP — read it back for the
+        // crumb tail; fall back to the resolution's own noun.
+        if (workspaceOutcomeState.host === 'hydro' && workspaceOutcomeState.phaseKey !== '') {
+          return workspaceOutcomeState.phaseKey;
+        }
+        switch (c.kind) {
+        case 'ceremony': return 'Final reward';
+        case 'repeat': return 'Repeat action';
+        default: return 'Reward';
+        }
+      }
+      switch (this.flow.step) {
+      case 'reward': return 'Reward choice';
+      case 'target': return 'Target card';
+      default: return this.flow.repeatBridge ? 'Repeat action' : '';
+      }
+    },
+    crumbCommitted(): boolean {
+      return this.flow.commit !== undefined;
+    },
+
+    // ── the reward CHOICE layer (pos 1/2) ──────────────────────────────────
+    choiceOptions(): ReadonlyArray<{chips: HydroStage['rewardOptions'][number], lines: ReadonlyArray<HydroDeltaLine>}> {
+      const stage = this.model.targetStage;
+      if (stage === undefined) {
+        return [];
+      }
+      return stage.rewardOptions.map((chips, i) => ({
+        chips,
+        lines: buildRewardView({stage, snapshot: this.snapshot, rewardChoice: i}).lines,
+      }));
+    },
+
+    // ── the TARGET step (pos 9) ────────────────────────────────────────────
+    targetStepModel(): PlayedTargetModel | undefined {
+      if (this.model.needsCardSelect !== 'animal-target' || this.model.eligibleCardNames.length === 0) {
+        return undefined;
+      }
+      return buildHydroTargetModel({
+        eligible: this.model.eligibleCardNames,
+        tableau: this.playerView.thisPlayer.tableau,
+        players: this.playerView.players.map((p) => ({name: p.name, color: p.color, tableau: p.tableau})),
+        viewerColor: this.viewerColor,
+        ask: translateText('Choose a card to receive the animals'),
+        typeOf: (name) => getCard(name)?.type,
+      });
+    },
+    targetLayout(): PlayedTargetLayout {
+      return planPlayedTargetLayout({
+        owners: this.targetStepModel?.owners ?? [],
+        availW: this.targetZoneW > 0 ? this.targetZoneW : 900,
+        ui: conUiScale(),
+        handheld: consoleLayoutState.profile === 'handheld',
+      });
+    },
+    targetBandH(): number {
+      return Math.max(0, this.targetZoneH);
+    },
+    targetLockedCard(): string {
+      return this.model.selectedCard ?? '';
+    },
+
+    // ── the COMMIT scene (pos 9 presented target) ──────────────────────────
+    presentedTargetCard(): CardName | undefined {
+      const c = this.flow.commit;
+      if (c === undefined || c.phase === 'result' || c.kind !== 'card-resource') {
+        return undefined;
+      }
+      return c.selectedCard;
+    },
+    presentedLanded(): number {
+      const card = this.presentedTargetCard;
+      return card !== undefined ? (this.landings.by[card] ?? 0) : 0;
+    },
+    presentedModel(): CardModel {
+      const c = this.flow.commit;
+      const card = this.presentedTargetCard as CardName;
+      const live = this.playerView.thisPlayer.tableau.find((t) => t.name === card);
+      return hydroPresentedTargetModel(card, c?.targetBefore ?? 0, live, this.presentedLanded);
+    },
+
+    /** The command contract of the current step — published to the shell. */
+    footCommands(): ReadonlyArray<ConsoleCommand> {
+      const c = this.flow.commit;
+      if (c !== undefined) {
+        if (c.phase === 'result') {
+          return [{control: 'confirm', label: 'Continue'}];
+        }
+        if (this.followUpLive) {
+          // The embedded follow-up surface publishes its own contract; the
+          // shell's ladder routes there — this slot stays honest and empty
+          // except the collapse verb.
+          return [{control: 'back', label: 'Minimize'}];
+        }
+        return [{control: 'confirm', label: 'Executing', enabled: false}];
+      }
+      if (this.flow.step === 'reward') {
+        return [
+          {control: 'dpadH', label: 'Reward options', priority: 2},
+          {control: 'confirm', label: 'Select'},
+          {control: 'back', label: 'Cancel'},
+        ];
+      }
+      if (this.flow.step === 'target') {
+        const cmds: Array<ConsoleCommand> = [{control: 'dpad', label: 'Navigate', priority: 2}];
+        if (this.targetLayout.mode === 'tabs' && (this.targetStepModel?.owners.length ?? 0) > 1) {
+          cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Owner'});
+        }
+        cmds.push(
+          {control: 'confirm', label: 'Select'},
+          {control: 'secondary', label: 'Inspect'},
+          {control: 'back', label: 'Cancel'},
+        );
+        return cmds;
+      }
+      const cmds: Array<ConsoleCommand> = [{control: 'dpadH', label: 'Stages', priority: 2}];
+      if (this.summaryPresent) {
+        cmds.push({control: 'dpadU', control2: 'dpadD', label: 'Selection', priority: 3});
+      }
+      cmds.push({control: 'triggerR', label: 'Farthest stage'});
+      if (this.model.mode === 'details') {
+        cmds.push({control: 'confirm', label: 'Back to plan'});
+      } else if (this.sceneFocus === 'summary') {
+        cmds.push({control: 'confirm', label: 'Change selection'});
+      } else {
+        cmds.push({control: 'confirm', label: this.primaryLabel, enabled: this.primaryVerb !== 'blocked'});
+      }
+      cmds.push({control: 'back', label: 'To the board'});
+      return cmds;
+    },
+    /** The draft's world-version fingerprint (for RESUME ≠ FRESH decisions). */
+    draftFingerprint(): string {
+      return [
+        hydroNetworkState.selectedPosition,
+        hydroNetworkState.rewardChoice,
+        hydroNetworkState.selectedCard,
+        consoleHydroUi.repeatResult?.chosenCard,
+      ].join('|');
     },
   },
   watch: {
@@ -707,66 +1005,129 @@ export default defineComponent({
     viewerColor(): void {
       this.fetchPreview();
     },
-    // MIRROR the live model into consoleHydroUi so the shell's command bar
-    // (the truth of the current context) never guesses about enabled verbs.
-    model(): void {
-      this.syncUiMirrors();
-    },
-    // The INITIAL target (set outside selectPosition) also gets a default bonus
-    // for a choice stage — the plan never sits on an unconfirmable choice stage.
-    'model.targetNeedsChoice': {
+    footCommands: {
       immediate: true,
-      handler(needs: boolean): void {
-        if (needs && hydroNetworkState.rewardChoice === undefined) {
-          hydroNetworkState.rewardChoice = 0;
+      handler(cmds: ReadonlyArray<ConsoleCommand>): void {
+        consoleHydroUi.commands = [...cmds];
+      },
+    },
+    draftFingerprint(): void {
+      if (this.flow.commit === undefined) {
+        noteHydroDraftTouched(this.cacheKey);
+      }
+    },
+    // The crumb mirrors onto the FRAME (the collapsed chip and every other
+    // stack reader see the same tail the header draws).
+    crumbSubject: {
+      immediate: true,
+      handler(subject: string): void {
+        setWorkspaceFrameSubject('hydro', subject);
+      },
+    },
+    crumbStage: {
+      immediate: true,
+      handler(stage: string): void {
+        setWorkspaceFrameStage('hydro', stage);
+      },
+    },
+    // THE EMBED ZONE — published while the commit scene stands. `flush:
+    // 'post'`: the zone must exist before the teleport looks for it.
+    sceneKey: {
+      flush: 'post',
+      handler(key: SceneKey, prev: SceneKey | undefined): void {
+        if (key === 'commit') {
+          this.publishEmbedZone();
+        } else if (prev === 'commit') {
+          this.retractEmbedZone();
+        }
+        if (key !== 'preview') {
+          this.sceneFocus = 'track';
         }
       },
     },
+    // The ceremony fires once the marker has LOCKED on the finish stop —
+    // never concurrently with the glide.
+    markerSettled(pos: number): void {
+      this.maybeStartCeremony(pos);
+    },
+    'flow.commit.phase'(): void {
+      this.maybeStartCeremony(this.markerSettled);
+    },
+    // A stale pre-selected card silently left the model (the preview moved) —
+    // tell the player instead of letting the CTA flip wordlessly.
+    'model.selectedCard'(card: CardName | undefined, prev: CardName | undefined): void {
+      if (card === undefined && prev !== undefined &&
+          hydroNetworkState.selectedCard === prev && this.flow.commit === undefined) {
+        this.$emit('notice', translateText('The selected card is no longer available'));
+        hydroNetworkState.selectedCard = undefined;
+        consoleHydroUi.repeatResult = undefined;
+      }
+    },
   },
   mounted(): void {
-    resetConsoleHydroUi();
-    this.syncUiMirrors();
+    // RESUME ≠ FRESH-OPEN: decide ONCE, host-scoped, what this mount can
+    // honestly rebuild (the actionWorkspaceRestorePlan idiom).
+    const plan = hydroWorkspaceRestorePlan({
+      commit: this.flow.commit,
+      claimHost: workspaceOutcomeState.host,
+      followUpInteractive: this.followUpLive,
+    });
+    if (plan === 'fold') {
+      resetHydroFlow();
+      resetHydroPlan();
+      consoleHydroUi.repeatResult = undefined;
+    } else if (plan === 'none') {
+      closeHydroStep();
+      if (!hydroDraftFresh(this.cacheKey)) {
+        resetHydroPlan();
+        consoleHydroUi.repeatResult = undefined;
+      }
+    }
+    // A host must republish its zones from mounted() — a change-watcher
+    // cannot fire true→true across a park.
+    if (this.sceneKey === 'commit') {
+      this.publishEmbedZone();
+    }
+    if (this.flow.step === 'target') {
+      void this.$nextTick(() => this.seatTargetStep());
+    }
+    this.syncFrameCrumb();
     this.fetchPreview();
   },
   beforeUnmount(): void {
-    resetConsoleHydroUi();
+    this.cereHandle?.kill();
+    this.cereHandle = undefined;
+    setHydroCeremonyActive(false);
+    this.retractEmbedZone();
+    consoleHydroUi.commands = [];
+    setWorkspaceFrameSubject('hydro', '');
+    setWorkspaceFrameStage('hydro', '');
   },
   methods: {
     $t,
     fetchPreview(): void {
       fetchHydroPreview(this.playerView.id, this.viewerColor, this.cacheKey + ':' + this.viewerColor);
     },
-    syncUiMirrors(): void {
-      const m = this.model;
-      consoleHydroUi.mode = m.mode;
-      consoleHydroUi.bonusChoice = m.mode === 'plan' && m.targetNeedsChoice;
-      consoleHydroUi.pickKind = m.mode === 'plan' ? m.needsCardSelect : undefined;
-      // The confirm modal's «Изменить выбор» (X) verb is live only with a pick.
-      consoleHydroUi.pickChosen = m.mode === 'plan' && m.needsCardSelect !== undefined && m.selectedCard !== undefined;
-      // A is live when it can confirm OR resolve a to-do (bonus / card pick),
-      // and in details mode (it jumps back to planning).
-      const todoOnly = this.reasons.length > 0 && this.reasons.every((r) => !r.blocking);
-      consoleHydroUi.primaryEnabled = m.mode === 'details' || m.canConfirm || todoOnly;
+    syncFrameCrumb(): void {
+      setWorkspaceFrameSubject('hydro', this.crumbSubject);
+      setWorkspaceFrameStage('hydro', this.crumbStage);
+    },
+    publishEmbedZone(): void {
+      setWorkspaceFrameSlot('hydro', HYDRO_EMBED_SLOT);
+      if (workspaceOutcomeState.host === 'hydro') {
+        setWorkspaceOutcomeSlot(HYDRO_EMBED_SLOT);
+      }
+    },
+    retractEmbedZone(): void {
+      setWorkspaceFrameSlot('hydro', '');
+      if (workspaceOutcomeState.host === 'hydro') {
+        setWorkspaceOutcomeSlot('');
+      }
     },
     reasonText(r: HydroReason): string {
       return r.params !== undefined ?
         translateTextWithParams(r.textKey, r.params.map(String)) :
         translateText(r.textKey);
-    },
-    /** The Automa seat's visible label localizes («Бот»); humans keep their name. */
-    displayName(h: HydroStageHistoryEntry): string {
-      return participantDisplayName(h);
-    },
-    historyStatusText(h: HydroStageHistoryEntry): string {
-      switch (h.status) {
-      case 'current': return 'Here now';
-      case 'rewarded': return 'Took the reward';
-      // «Прошёл мимо — без награды» only makes sense where a reward was on the
-      // table: the MarsBot never takes one (reference-card rule) and the START
-      // carries none — both read as a plain traversal.
-      case 'passed': return (h.isMarsBot || this.startSelected) ? 'Advanced through' : 'Passed through — no reward';
-      default: return 'Not reached yet';
-      }
     },
     tagStatus(tag: Tag): 'have' | 'wild' | 'missing' {
       const dest = this.model.destination;
@@ -790,9 +1151,23 @@ export default defineComponent({
       }
       return l.resource !== undefined ? iconClassFor(l.resource) : '';
     },
-    viewerStopAt(position: number): DeltaStop | undefined {
-      const viewer = this.playerView.players.find((p) => p.color === this.viewerColor);
-      return (viewer?.deltaProject?.stops ?? []).find((s) => s.position === position);
+    // ── the SCENE transition hooks (the workspace-descend phrase) ──────────
+    sceneEnter(el: Element, done: () => void): void {
+      hydroSceneEnterHook(el, done);
+    },
+    sceneLeave(el: Element, done: () => void): void {
+      hydroSceneLeaveHook(el, done);
+    },
+    sceneCancelled(el: Element): void {
+      hydroSceneCancelledHook(el);
+    },
+    // ── PREVIEW: track navigation + the smart primary ──────────────────────
+    onStopClick(position: number): void {
+      if (this.flow.commit !== undefined) {
+        return;
+      }
+      closeHydroStep();
+      this.selectPosition(position);
     },
     selectPosition(position: number): void {
       const last = this.model.stages.length - 1;
@@ -801,20 +1176,16 @@ export default defineComponent({
         return;
       }
       hydroNetworkState.selectedPosition = next;
-      // A different destination invalidates a pending card pick. A CHOICE stage
-      // (pos 1/2) carries a DEFAULT bonus (option 0) so the plan CTA is live and
-      // the confirm modal — where the pick now lives — opens with a selection to
-      // switch (LB/RB); a non-choice stage clears it.
-      const stage = HYDRO_STAGES[next];
-      hydroNetworkState.rewardChoice = stage !== undefined && hydroStageNeedsChoice(stage) ? 0 : undefined;
+      // NO SILENT DEFAULTS: a choice stage starts unconfigured — the player
+      // sees both options and picks one deliberately (the pre-select step).
+      hydroNetworkState.rewardChoice = undefined;
       hydroNetworkState.selectedCard = undefined;
-      // The stage-7 composition belongs to the abandoned target.
       consoleHydroUi.repeatResult = undefined;
+      this.sceneFocus = 'track';
     },
-    /** A — the smart primary: resolve the first pending step, then confirm. */
+    /** A — the smart primary: open the pending pre-select, else commit. */
     onPrimary(): void {
       if (this.model.mode !== 'plan') {
-        // Details view: A jumps back to planning the nearest stage.
         this.selectPosition(this.model.currentPosition + Math.max(1, this.model.defaultSpend));
         return;
       }
@@ -823,88 +1194,310 @@ export default defineComponent({
         this.$emit('notice', this.reasonText(blocking[0]));
         return;
       }
-      // The bonus (pos 1/2) is chosen INSIDE the confirm modal now — a choice
-      // stage always carries a default (option 0), so A opens the modal
-      // directly; the pos 7/9 card pick still resolves first via its sheet.
-      if (this.model.mustSelectCard && this.model.selectedCard === undefined) {
+      switch (this.primaryVerb) {
+      case 'choose-reward':
+        this.openChoiceStep();
+        return;
+      case 'choose-action':
+        this.$emit('pick');
+        return;
+      case 'choose-card':
+        this.openTargetStep();
+        return;
+      case 'reinforce':
+        this.emitConfirm();
+        return;
+      default:
+        return;
+      }
+    },
+    /** A on the summary / a click on it — revisit the configured pre-select. */
+    onChangeSelection(): void {
+      const m = this.model;
+      if (m.mode !== 'plan') {
+        return;
+      }
+      this.armSceneFromSummary();
+      if (m.targetNeedsChoice) {
+        this.openChoiceStep();
+        return;
+      }
+      if (m.needsCardSelect === 'reuse-action') {
         this.$emit('pick');
         return;
       }
-      if (this.model.canConfirm) {
-        this.ui.confirmOpen = true;
+      if (m.needsCardSelect === 'animal-target') {
+        this.openTargetStep();
       }
     },
-    /** «Изменить выбор» — X in the confirm modal / a click on the filled
-     *  stage-7 slot: re-open the pick with the previous choice pre-focused
-     *  (the old selection is kept if the player backs out). */
-    onChangePick(): void {
-      if (this.model.needsCardSelect === undefined || this.model.selectedCard === undefined) {
-        return;
-      }
-      this.ui.confirmOpen = false;
-      this.$emit('pick');
+    armSceneFromSummary(): void {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      armHydroSceneOrigin(root?.querySelector<HTMLElement>('.con-hydro__summary') ??
+        root?.querySelector<HTMLElement>('.con-hydro__ctazone'));
     },
-    onModalConfirm(): void {
-      if (!this.model.canConfirm) {
+    armSceneFromCta(): void {
+      const root = this.$refs.rootEl as HTMLElement | undefined;
+      armHydroSceneOrigin(root?.querySelector<HTMLElement>('.con-hydro__ctazone') ??
+        root?.querySelector<HTMLElement>('.con-hydro__panel'));
+    },
+    emitConfirm(): void {
+      if (!this.model.canConfirm || this.flow.commit !== undefined) {
         return;
       }
-      this.ui.confirmOpen = false;
+      this.armSceneFromCta();
+      const repeat = this.model.needsCardSelect === 'reuse-action' ? this.chosenRepeat : undefined;
       this.$emit('confirm', {
         spend: this.model.selectedSpend,
         rewardChoice: this.model.targetNeedsChoice ? hydroNetworkState.rewardChoice : undefined,
         selectedCard: this.model.mustSelectCard ? this.model.selectedCard : undefined,
-        // The stage-7 COMPOSED repeat (chosen action + its pre-collected
-        // responses) — the shell appends the ProjInsp/Viron-parity batch tail.
-        repeat: this.model.needsCardSelect === 'reuse-action' ? this.chosenRepeat : undefined,
-        // The marker glide anchors: from the current stop to the planned one.
+        repeat,
         fromPosition: this.model.currentPosition,
         toPosition: this.model.selectedPosition,
-        // The granted resources (choice + animal target already baked in) —
-        // flown to the panel as the marker locks (Part 2 reward beat).
         rewards: hydroRewardTransfers(this.rewardView),
-        // «Гидромоделирование» (draw 4, keep 2): the follow-up SelectCard is
-        // dressed by the card-lift cinematic (Part 3) instead of a bare modal —
-        // the cards come out of the stop the marker lands on (`toPosition`).
-        drawStage: this.rewardView.rawChips.some((c) => c.special === 'draw-4-keep-2'),
+        // The result stage's frozen truth (the live model moves on with the
+        // commit and would describe the NEXT advance).
+        resultLines: this.rewardView.lines,
+        vp: this.rewardView.vp,
+        stageNameKey: this.model.targetStage?.nameKey ?? '',
+        kind: resolutionKindFor(this.model.selectedPosition, {
+          composedRepeat: repeat !== undefined,
+          selectedCard: this.model.mustSelectCard ? this.model.selectedCard : undefined,
+        }),
+        targetBefore: this.selectedAnimalCurrent,
       });
     },
-    /** The shell routes every hydro-section intent here. */
+    // ── the REWARD CHOICE step (pos 1/2) ───────────────────────────────────
+    openChoiceStep(): void {
+      if (this.model.targetStage === undefined) {
+        return;
+      }
+      if (this.flow.step !== 'reward') {
+        if (this.sceneFocus !== 'summary') {
+          this.armSceneFromCta();
+        }
+        this.choiceFocus = this.rewardChoice ?? 0;
+        openHydroStep('reward');
+      }
+    },
+    pickChoice(index: number): void {
+      hydroNetworkState.rewardChoice = index;
+      closeHydroStep();
+      this.sceneFocus = 'track';
+    },
+    // ── the TARGET step (pos 9) ────────────────────────────────────────────
+    openTargetStep(): void {
+      const owners = this.targetStepModel?.owners ?? [];
+      if (owners.length === 0) {
+        return;
+      }
+      if (this.sceneFocus !== 'summary') {
+        this.armSceneFromCta();
+      }
+      this.targetFocus = findPlayedTargetFocus(this.targetLockedCard, owners) ??
+        reseatPlayedTargetFocus(undefined, owners);
+      if (this.targetFocus === undefined) {
+        return;
+      }
+      openHydroStep('target');
+      void this.$nextTick(() => this.seatTargetStep());
+    },
+    seatTargetStep(): void {
+      this.measureTargetZone();
+      const owners = this.targetStepModel?.owners ?? [];
+      if (this.targetFocus === undefined && owners.length > 0) {
+        this.targetFocus = reseatPlayedTargetFocus(undefined, owners);
+      }
+    },
+    measureTargetZone(): void {
+      const zone = this.$refs.targetZone as HTMLElement | undefined;
+      if (zone === undefined || zone === null) {
+        return;
+      }
+      const cs = getComputedStyle(zone);
+      this.targetZoneW = Math.max(0, zone.clientWidth -
+        (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0));
+      this.targetZoneH = Math.max(0, zone.clientHeight -
+        (parseFloat(cs.paddingTop) || 0) - (parseFloat(cs.paddingBottom) || 0));
+    },
+    targetNav(dir: 'up' | 'down' | 'left' | 'right'): void {
+      const owners = this.targetStepModel?.owners ?? [];
+      const focus = this.targetFocus;
+      if (focus === undefined || owners.length === 0) {
+        return;
+      }
+      const step = this.$refs.targetStep as {cells?: () => ReadonlyArray<PlayedTargetCell>} | undefined;
+      const cells = step?.cells?.() ?? [];
+      const next = cells.length > 0 ?
+        stepPlayedTargetFocusAt(focus, dir as PlayedTargetNavDir, cells) :
+        stepPlayedTargetFocus(focus, dir as PlayedTargetNavDir, owners, this.targetLayout);
+      if (next === undefined) {
+        return; // an edge HOLDS — never a wrap, never a silent owner change
+      }
+      this.targetFocus = next;
+      (this.$refs.targetStep as {ensureFocusVisible?: () => void} | undefined)?.ensureFocusVisible?.();
+    },
+    cycleTargetOwner(delta: number): void {
+      const owners = this.targetStepModel?.owners ?? [];
+      const focus = this.targetFocus;
+      if (focus === undefined || this.targetLayout.mode !== 'tabs' || owners.length < 2) {
+        return;
+      }
+      const ownerId = stepPlayedTargetOwner(focus.ownerId, delta, owners);
+      if (ownerId !== focus.ownerId) {
+        this.targetFocus = reseatPlayedTargetFocus({ownerId, index: 0}, owners) ?? focus;
+      }
+    },
+    targetConfirm(): void {
+      const owners = this.targetStepModel?.owners ?? [];
+      const candidate = playedTargetAt(this.targetFocus, owners);
+      if (candidate === undefined) {
+        return;
+      }
+      hydroNetworkState.selectedCard = candidate.cardName;
+      closeHydroStep();
+      this.sceneFocus = 'track';
+    },
+    targetInspect(): void {
+      const owners = this.targetStepModel?.owners ?? [];
+      const candidate = playedTargetAt(this.targetFocus, owners);
+      if (candidate === undefined) {
+        return;
+      }
+      const cards = owners.flatMap((o) => o.candidates.map((c) => c.model));
+      const at = Math.max(0, cards.findIndex((c) => c.name === candidate.cardName));
+      openConsoleCardZoom(cards, at, undefined, undefined, {
+        origin: playedTargetZoomOrigin(
+          () => this.$refs.rootEl as HTMLElement | undefined,
+          (i) => cards[i]?.name ?? '',
+          ''),
+      });
+    },
+    // ── the CEREMONY (pos 10/11) ───────────────────────────────────────────
+    maybeStartCeremony(settledPos: number): void {
+      const c = this.flow.commit;
+      if (c === undefined || c.kind !== 'ceremony' || c.phase !== 'resolving' ||
+          this.cereStarted || settledPos !== c.toPosition) {
+        return;
+      }
+      this.cereStarted = true;
+      void this.$nextTick(() => {
+        const root = this.$refs.rootEl as HTMLElement | undefined;
+        const seat = this.$refs.cereSeat as HTMLElement | undefined;
+        const sceneEl = this.$refs.sceneEl as HTMLElement | undefined;
+        if (root === undefined || seat === undefined || seat === null || sceneEl === undefined) {
+          this.$emit('result-done');
+          return;
+        }
+        setHydroCeremonyActive(true);
+        this.cereHandle = runHydroCeremony({
+          sceneEl,
+          stopEl: root.querySelector<HTMLElement>(`[data-hydro-stop="${c.toPosition}"]`) ?? undefined,
+          seatEl: seat,
+          valueEl: (this.$refs.cereValue as HTMLElement | undefined) ?? undefined,
+          dressEls: Array.from(root.querySelectorAll<HTMLElement>('[data-hydro-cere-line]')),
+          reduced: this.reducedMotion === true,
+          onCulmination: () => {
+            seat.classList.add('con-hydro__cere-seat--peak');
+          },
+          onDone: () => {
+            this.cereHandle = undefined;
+            setHydroCeremonyActive(false);
+            this.$emit('result-done');
+          },
+        });
+      });
+    },
+    // ── input ──────────────────────────────────────────────────────────────
     handleIntent(intent: GamepadIntent): void {
-      // The confirm modal owns input while open.
-      if (this.ui.confirmOpen) {
-        const confirm = this.$refs.confirm as InstanceType<typeof ConsoleHydroConfirm> | undefined;
-        confirm?.handleIntent(intent);
-        return;
-      }
-      if (this.ui.helpOpen) {
-        const a = consoleActionOf(intent);
-        if (a === 'back' || a === 'inspect') {
-          this.ui.helpOpen = false;
+      const c = this.flow.commit;
+      if (c !== undefined) {
+        if (c.phase === 'result') {
+          const a = consoleActionOf(intent);
+          if (a === 'primary' || a === 'back') {
+            this.$emit('result-done');
+          }
+          return;
+        }
+        // A transient beat / a standing follow-up: B may only collapse; the
+        // embedded surface's own input is routed by the shell before us.
+        if (consoleActionOf(intent) === 'back' && this.followUpLive) {
+          this.$emit('collapse');
         }
         return;
       }
+      if (this.flow.step === 'reward') {
+        if (intent.kind === 'nav') {
+          if (intent.dir === 'left' || intent.dir === 'right') {
+            const n = this.choiceOptions.length;
+            if (n > 0) {
+              this.choiceFocus = (this.choiceFocus + (intent.dir === 'right' ? 1 : n - 1)) % n;
+            }
+          }
+          return;
+        }
+        switch (consoleActionOf(intent)) {
+        case 'primary':
+          this.pickChoice(this.choiceFocus);
+          return;
+        case 'back':
+          closeHydroStep();
+          return;
+        default:
+          return;
+        }
+      }
+      if (this.flow.step === 'target') {
+        if (intent.kind === 'nav') {
+          this.targetNav(intent.dir);
+          return;
+        }
+        switch (consoleActionOf(intent)) {
+        case 'primary':
+          this.targetConfirm();
+          return;
+        case 'inspect':
+          this.targetInspect();
+          return;
+        case 'prevSection':
+          this.cycleTargetOwner(-1);
+          return;
+        case 'nextSection':
+          this.cycleTargetOwner(1);
+          return;
+        case 'back':
+          closeHydroStep();
+          return;
+        default:
+          return;
+        }
+      }
+      // PREVIEW.
       if (intent.kind === 'nav') {
-        // ←/→ move between stages; the bonus choice lives in the confirm modal
-        // now (LB/RB there), so ↑/↓ have no plan-screen action.
         if (intent.dir === 'left' || intent.dir === 'right') {
+          this.sceneFocus = 'track';
           this.selectPosition(this.model.selectedPosition + (intent.dir === 'right' ? 1 : -1));
+        } else if (intent.dir === 'down' && this.summaryPresent) {
+          this.sceneFocus = 'summary';
+        } else if (intent.dir === 'up') {
+          this.sceneFocus = 'track';
         }
         return;
       }
-      // Foundation: presses resolve to SEMANTIC actions (no raw button names).
       switch (consoleActionOf(intent)) {
       case 'nextTab': { // RT — jump to the FURTHEST legal+affordable stage.
         const max = this.preview?.maxLegalSteps ?? 0;
         if (max > 0) {
+          this.sceneFocus = 'track';
           this.selectPosition(this.model.currentPosition + max);
         }
         return;
       }
-      case 'inspect':
-        this.ui.helpOpen = !this.ui.helpOpen;
-        return;
       case 'primary':
-        this.onPrimary();
+        if (this.sceneFocus === 'summary') {
+          this.onChangeSelection();
+        } else {
+          this.onPrimary();
+        }
         return;
       case 'back':
         this.$emit('close');

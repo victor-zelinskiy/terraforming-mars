@@ -372,6 +372,10 @@ export class DeltaProjectExpansion {
     case Tag.MICROBE: { // Reuse a used blue card action
       const actionCards = DeltaProjectExpansion.getUsedActionCards(player);
       if (actionCards.length > 0) {
+        // The console pre-collects this pick (batch-submitted with the
+        // advance). markChoiceContext is the STRUCTURAL identity for the
+        // fallback path (batch divergence / reconnect): the client must
+        // never route this prompt by its translatable title.
         player.defer(() => new SelectCard<IActionCard & ICard>(
           'Use a blue card action that has already been used this generation',
           'Take action',
@@ -379,7 +383,7 @@ export class DeltaProjectExpansion {
         ).andThen(([card]) => {
           player.game.log('${0} reused ${1} action via ${2}', (b) => b.player(player).card(card).cardName(CardName.DELTA_PROJECT));
           return card.action(player);
-        }));
+        }).markChoiceContext(namedCardEffect(CardName.DELTA_PROJECT, false, 'Use a blue card action that has already been used this generation', 'effect-choice')));
       }
       break;
     }
@@ -401,7 +405,12 @@ export class DeltaProjectExpansion {
     }
 
     case Tag.ANIMAL: // Add 2 animals to any card
-      player.game.defer(new AddResourcesToCard(player, CardResource.ANIMAL, {count: 2}));
+      // `cause` = the structural prompt identity (choiceContext) for the
+      // fallback path — the console pre-collects the target, but a batch
+      // divergence / reconnect must still route this premium, not bare.
+      player.game.defer(new AddResourcesToCard(player, CardResource.ANIMAL, {
+        count: 2, cause: namedCardSource(CardName.DELTA_PROJECT),
+      }));
       break;
     }
   }

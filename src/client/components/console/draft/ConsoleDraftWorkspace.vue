@@ -211,16 +211,16 @@
            explains the card the player is looking at, so it may never be
            covered by the collection, nor float over the cards. ─────────── -->
       <div class="con-draftws__statusbar" :class="{'con-draftws__statusbar--held': beatActive}">
+        <!-- The card's NAME, and — only when the card's own printed
+             requirements are not met yet — one amber heads-up. A met
+             requirement is the DEFAULT and says nothing: a line that fires
+             on every card is noise, and the positive state has no reader. -->
         <template v-if="statusEntry !== undefined">
           <span class="con-draftws__status-name" :key="statusEntry.name">{{ $t(statusEntry.name) }}</span>
           <span v-if="statusHeadsUp !== undefined" class="con-draftws__status-warn">
             <span aria-hidden="true">◈</span>
-            <span>{{ $t('Cannot be played yet') }}</span>
+            <span>{{ $t('Requirements not met yet') }}</span>
             <span class="con-draftws__status-why">{{ statusHeadsUpText }}</span>
-          </span>
-          <span v-else class="con-draftws__status-ok">
-            <span aria-hidden="true">✓</span>
-            <span>{{ $t('All requirements met') }}</span>
           </span>
         </template>
         <span v-else-if="zone === 'wait'" class="con-draftws__status-idle">{{ $t('Waiting for the other players') }}</span>

@@ -38,6 +38,21 @@ export type UnplayableReasonType =
 
 export interface UnplayableReason {
   type: UnplayableReasonType;
+  /**
+   * This reason is a PRINTED CARD REQUIREMENT — the condition written on the
+   * card itself (a global parameter, a tag count, a production, a TR, a
+   * counted thing, a political situation), produced by
+   * `collectRequirementReasons` from the card's own `CardRequirement.satisfies`.
+   *
+   * Everything else is SITUATIONAL: affordability, "no space for the tile",
+   * "no valid target", a bespoke rule ("no card action was used this
+   * generation"), the client's turn/phase. Those describe THIS MOMENT, not
+   * the card, so a surface that is about the CARD (the draft pick, the
+   * research buy — where the card is being taken for LATER) must show only
+   * the requirements. `type` alone cannot express this: `production` and
+   * `party` are each produced by both paths.
+   */
+  requirement?: boolean;
   /** English i18n template, e.g. `'Requires ${0}% oxygen'`. */
   message: string;
   /** Values for the template's `${0}`, `${1}`, … slots. */

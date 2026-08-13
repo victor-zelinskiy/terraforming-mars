@@ -23,7 +23,7 @@ import {
 } from '@/client/console/consoleWorkspaceStack';
 
 export type ConsoleSection = 'board' | 'hand' | 'colonies' | 'hydro';
-export type ConsoleSheetId = 'milestones' | 'awards' | 'cardActions' | 'standardProjects' | 'hydroPick';
+export type ConsoleSheetId = 'milestones' | 'awards' | 'cardActions' | 'standardProjects';
 export type ConsoleConfirmKind = 'pass' | 'convertHeat';
 /** P27: which QUICK SELECTOR is open — RT (categories) / LT (basic actions). */
 export type ConsoleQuickId = 'actions' | 'basics';

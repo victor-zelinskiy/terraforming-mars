@@ -869,16 +869,17 @@ describe('consoleWorkspaceStack — the ONE depth model of a workspace', () => {
   });
 
   /*
-   * closeConsoleLayers()'s sheet half - registry-driven, which is why the hydro
-   * pick needs no stayInSection special case any more.
+   * closeConsoleLayers()'s sheet half - registry-driven: popping the sheet
+   * frames uncovers the SECTION frame standing beneath them, no per-sheet
+   * special case.
    */
   it('closing the sheets uncovers the screen beneath them', () => {
     enterWorkspace('hydro');
     pushWorkspaceFrame({
-      kind: 'hydro-pick', subject: '', stage: '', phase: 'configure',
+      kind: 'standard-projects', subject: '', stage: '', phase: 'browse',
       serves: [], anchor: ALWAYS, overlay: true,
     });
-    expect(workspaceStackSheet()).to.eq('hydroPick');
+    expect(workspaceStackSheet()).to.eq('standardProjects');
     closeWorkspaceSheet();
     expect(workspaceStackSheet()).to.eq(undefined);
     expect(workspaceStackSection(), 'the track it was opened from').to.eq('hydro');

@@ -123,19 +123,6 @@
     }
 }
 
-/* ── THE VEIL (the Delta science stage) ──────────────────────────────────
-   Another director is fanning these very cards out of the hydro track cell.
-   The surface must be MEASURABLE for that flight to aim at, so it is made
-   transparent rather than hidden — layout kept, rects real — and it
-   materializes around the landed cards when that scene hands over. */
-.con-deckpick--veiled {
-    opacity: 0;
-    pointer-events: none;
-}
-.con-deckpick .con-deckpick__frame {
-    transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
-}
-
 /* ── THE FLIGHT LAYER ────────────────────────────────────────────────────
    The deck proxies are fixed to the viewport (the director writes absolute
    screen coordinates) and must never be clipped by the frame they land in.

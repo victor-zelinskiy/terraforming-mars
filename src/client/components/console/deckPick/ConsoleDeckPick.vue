@@ -7,7 +7,6 @@
        :class="{
          'con-ws': !embedded,
          'con-deckpick--embedded': embedded,
-         'con-deckpick--veiled': hydroLiftVeiled,
          'con-deckpick--sending': phase === 'sending',
          'con-deckpick--clearing': phase === 'clearing',
        }"
@@ -126,11 +125,6 @@
  * into the start workspace's zone for a prelude and stand in its own band for a
  * card played from hand.
  *
- * NOT ITS FLIGHT, SOMETIMES. The Delta science stage has its own cinematic
- * (`hydroDraw` — the cards fan out of the track cell the marker just landed
- * on, which is a BETTER origin than the deck for that one case). While that
- * scene is claimed this surface mounts VEILED and lets it deliver, exactly as
- * the task host did before.
  */
 import {defineComponent, markRaw, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
@@ -160,7 +154,6 @@ import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZ
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {cardsResponse} from '@/client/console/taskResponses';
 import {markWorkspaceOutcomeArrivalDone, setWorkspaceOutcomePhase, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
-import {hydroDrawState, isHydroDrawClaimed} from '@/client/console/hydroDraw/consoleHydroDraw';
 import {
   armDeckPickFlight, beginDeckPickChoosing, beginDeckPickClearing, beginDeckPickDeal,
   beginDeckPickSend, clearDeckPickFlight, deckPickProxyEls, deckPickState,
@@ -282,7 +275,7 @@ export default defineComponent({
     /** May the player act? Not while cards are still arriving, and never past
      *  the commit — `sending` / `clearing` are beats, not destinations. */
     interactive(): boolean {
-      return this.phase === 'choosing' && !this.submitting && !this.hydroLiftIn;
+      return this.phase === 'choosing' && !this.submitting;
     },
     /** Past the commit boundary — the header dresses the stage calmly. */
     committed(): boolean {
@@ -356,22 +349,6 @@ export default defineComponent({
         'con-cards__verdict--ok': !this.ready && !this.committed,
         'con-cards__verdict--picked': this.ready || this.committed,
       };
-    },
-    /**
-     * The Delta science stage's own cinematic is fanning these cards out of the
-     * hydro track cell. While it is CLAIMED (genuinely on stage, not merely
-     * armed) this surface mounts invisible-but-measurable so the flight has
-     * real slot rects to aim at, then materializes around the landed cards.
-     */
-    hydroLiftIn(): boolean {
-      return isHydroDrawClaimed();
-    },
-    hydroLiftVeiled(): boolean {
-      return this.hydroLiftIn && (hydroDrawState.phase === 'lift' || hydroDrawState.phase === 'fan');
-    },
-    /** The real cards stay hidden until that scene's own handoff. */
-    hydroLiftHeld(): boolean {
-      return this.hydroLiftIn && hydroDrawState.phase !== 'handoff';
     },
     /** The prompt IDENTITY — a change is a genuinely new server ask. Built
      *  structurally (never the translated title, which i18n rewrites in place). */
@@ -466,13 +443,6 @@ export default defineComponent({
     embedded(on: boolean): void {
       setWorkspaceOutcomePhase(on ? this.stageKey : '');
     },
-    /** The hydro cinematic hands over — from here the cards are ours. */
-    hydroLiftHeld(held: boolean): void {
-      if (!held) {
-        this.held.clear();
-        beginDeckPickChoosing();
-      }
-    },
     'entries.length'(): void {
       this.scheduleFit();
     },
@@ -508,7 +478,7 @@ export default defineComponent({
     /** A real card is HELD while a proxy stands over it (Vue-managed, so a
      *  patch can never resurrect it under the flying copy). */
     slotHeld(name: CardName): boolean {
-      return this.hydroLiftHeld || this.held.has(name);
+      return this.held.has(name);
     },
 
     // ── THE DEAL ────────────────────────────────────────────────────────
@@ -516,10 +486,6 @@ export default defineComponent({
      * N cards come off the deck. The row is FIT FIRST (a batch that launched
      * against a pre-fit geometry would land off its own targets), then the
      * proxies are measured and handed to the shared director.
-     *
-     * When another director owns the delivery (the hydro fan) this does
-     * nothing but hold the real cards — two flights for one card would aim at
-     * two places.
      */
     startDeal(): void {
       this.handle?.kill();
@@ -527,12 +493,10 @@ export default defineComponent({
       beginDeckPickDeal();
       const names = this.entries.map((e) => e.name);
       this.held = new Set<string>(names);
-      if (this.hydroLiftIn || typeof window === 'undefined') {
+      if (typeof window === 'undefined') {
         this.flyOn = false;
-        if (!this.hydroLiftIn) {
-          this.held.clear();
-          beginDeckPickChoosing();
-        }
+        this.held.clear();
+        beginDeckPickChoosing();
         return;
       }
       this.flyOn = true;

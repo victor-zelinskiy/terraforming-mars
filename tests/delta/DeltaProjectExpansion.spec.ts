@@ -271,6 +271,9 @@ describe('DeltaProjectExpansion', () => {
 
       const selectCard = cast(player.popWaitingFor(), SelectCard);
       expect(selectCard.cards).includes(regolith);
+      // The STRUCTURAL prompt identity (the client never routes by title):
+      // the reuse pick is sourced to the Delta Project.
+      expect(selectCard.choiceContext?.source).deep.eq({kind: 'card', card: CardName.DELTA_PROJECT});
       selectCard.cb([regolith]);
       runAllActions(game);
 
@@ -335,6 +338,27 @@ describe('DeltaProjectExpansion', () => {
       runAllActions(game);
 
       expect(animalCard.resourceCount).eq(2);
+    });
+
+    it('position 9: the target pick carries the Delta Project choice context', () => {
+      player.energy = 9;
+      playAllDeltaTrackTags(player);
+      player.deltaProjectData!.position = 8;
+      const first = fakeCard({resourceType: CardResource.ANIMAL, name: 'AnimalHostA' as CardName});
+      const second = fakeCard({resourceType: CardResource.ANIMAL, name: 'AnimalHostB' as CardName});
+      player.playedCards.push(first, second);
+
+      DeltaProjectExpansion.advance(player, 1);
+      runAllActions(game);
+
+      // Two legal hosts → a real prompt, and its STRUCTURAL identity names
+      // the Delta Project (the reconnect fallback must never guess by title).
+      const selectCard = cast(player.popWaitingFor(), SelectCard);
+      expect(selectCard.choiceContext?.source).deep.eq({kind: 'card', card: CardName.DELTA_PROJECT});
+      expect(selectCard.choiceContext?.mode).eq('reward');
+      selectCard.cb([first]);
+      runAllActions(game);
+      expect(first.resourceCount).eq(2);
     });
 
     it('only resolves reward for landing position, not intermediate', () => {

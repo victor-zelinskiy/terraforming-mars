@@ -68,6 +68,13 @@ export function choiceSourceView(source: ChoiceContextSource | undefined): Promp
   if (source === undefined) {
     return undefined;
   }
+  if (source.card === CardName.DELTA_PROJECT) {
+    // The fork presents the Hydronetwork as a SYSTEMIC module — the lore
+    // «Delta Project» card is never dealt and never shown as a card face
+    // (the JournalCardChip precedent). Its prompts attribute to the module
+    // by name, with nothing to open fullscreen.
+    return {kindKey: 'Mars Hydronetwork', inspectable: false};
+  }
   if (source.card !== undefined) {
     return {card: source.card, kindKey: cardKindKey(source.kind), inspectable: true};
   }

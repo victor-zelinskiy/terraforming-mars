@@ -98,9 +98,7 @@ export type WorkspaceFrameKind =
   | 'standard-projects'
   /** «ВЕХИ» / «НАГРАДЫ» — the premium MA screen, one kind each. */
   | 'milestones'
-  | 'awards'
-  /** The hydro track's card pick — only ever opened from inside 'hydro'. */
-  | 'hydro-pick';
+  | 'awards';
 
 /**
  * THE WORKSPACE REGISTRY — one row per workspace, and the reason this file
@@ -180,7 +178,15 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
   },
   'hydro': {
     root: 'Mars Hydronetwork', rootSelector: '.con-hydro', section: 'hydro',
+    // (`deckSelect` etc. are EARNED at runtime, never a default: the shell
+    // sets the live frame's `serves` for the span of a committed advance —
+    // the landed stage's follow-up — so a hydro screen idling at its browse
+    // layer can never mask an unrelated stranded pick.)
     serves: [],
+    // The track hosts steps of its own resolution (a repeated action's colony
+    // trade runs INSIDE this workspace). `inFlow`: at the browse layer there
+    // is no flow for a follow-up to belong to.
+    hosts: 'inFlow',
   },
   // The start workspace is a full-bleed scene: it owns the screen outright and
   // projects onto neither axis.
@@ -208,13 +214,6 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
   'awards': {
     root: 'Awards', rootSelector: '.con-ma', sheet: 'awards',
     serves: ['awardFunding'],
-  },
-  // `root` is «the crumb root WHEN this frame is outermost», and this one never
-  // is: the pick only ever opens from inside the hydro track, so the crumb it
-  // appears under is the track's. The sheet draws its own (dynamic) title.
-  'hydro-pick': {
-    root: 'Mars Hydronetwork', rootSelector: '.con-sheet', sheet: 'hydroPick',
-    serves: [],
   },
 };
 

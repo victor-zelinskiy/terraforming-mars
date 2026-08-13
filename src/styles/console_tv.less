@@ -572,8 +572,6 @@ html.con-profile-tv {
        overflowed the row off-screen (player feedback). Only typography
        moves; the stop WIDTH stays on the rem base. */
     .con-hydro {
-        &__title { font-size: 1.7rem; }
-        &__sub { font-size: var(--con-t-secondary); max-width: 52rem; }
         &__chip { font-size: 1.05rem; b { font-size: 1.3rem; } }
         /* The stops are the "areas the marker moves through" — their category
            icon is the glanceable identity of each stage, so it reads a notch
@@ -590,25 +588,17 @@ html.con-profile-tv {
         &__delta { font-size: 1.15rem; }
         &__cta { font-size: 1.15rem; padding: 0.7rem 1.1rem; min-height: var(--con-hit-min); }
         &__reason { font-size: var(--con-t-secondary); }
-        /* ── §3.5 recomposition: the decision panel FILLS its band ──
-           The three columns stop top-packing into a thin strip over an
-           empty lower half: content spreads with real air, requirement
-           chips grow to glance-size, and the fine print rises to the
-           floor (the .625–.675rem strings were the worst 10-foot
-           offenders on this screen). */
-        &__panel { gap: 1.4rem 1.6rem; align-content: stretch; }
-        &__col { gap: 0.9rem; }
-        /* The CTA zone anchors the panel's lower edge — the decision column
-           reads top (what) → bottom (act), no orphan void beneath it. */
-        &__cta-zone { margin-top: auto; }
+        /* The compact scene panel — real air, glance-size chips, the fine
+           print risen to the floor (the .625–.675rem strings were the worst
+           10-foot offenders on this screen). */
+        &__panel { gap: 0.9rem; width: min(78rem, 100%); }
         &__section-label { font-size: var(--con-t-floor); }
         &__req-tag { padding: 0.5rem 0.7rem; min-height: var(--con-hit-min); }
         &__req-tag .resource-tag { width: 2.1rem; height: 2.1rem; }
         &__req-mark { font-size: var(--con-t-secondary); }
         &__req-energy { font-size: 1.05rem; b { font-size: 1.25rem; } }
         &__req-have { font-size: var(--con-t-secondary); }
-        &__req-note { font-size: var(--con-t-caption); }
-        &__req-legend { font-size: var(--con-t-floor); }
+        &__routenote { font-size: var(--con-t-caption); }
         /* Track stops: the VP / flag / position marks read from the couch. */
         &__stop-vp { font-size: 1.25rem; }
         &__stop-flag { font-size: 1.3rem; }
@@ -620,56 +610,32 @@ html.con-profile-tv {
         &__stage-badge { font-size: var(--con-t-caption); }
         &__route { font-size: var(--con-t-secondary); b { font-size: 1.1rem; } }
         &__route-cost { font-size: var(--con-t-caption); }
-        &__history-row { font-size: var(--con-t-caption); }
-        &__start-note { font-size: var(--con-t-caption); }
         /* «You will gain» deltas — the outcome numbers lead. */
         &__delta-img { width: 1.7rem; height: 1.7rem; }
         &__beforeafter b { font-size: 1.2rem; }
         &__plus { font-size: var(--con-t-secondary); }
         &__zero { font-size: var(--con-t-caption); }
         /* The abstract reward chips (draw-4-keep-2 «Посмотреть 4 карты…»,
-           reuse-blue-action, bonus pick, details reward) render through the
-           shared HydroReward, whose icon/label/mini sizes are fixed px and so
-           do NOT ride the rem→ui-scale model — on the 4K couch they stayed
-           tiny (the worst 10-foot offender was this «Вы получите» readout).
-           Scale them the same way the rail-stop reward + confirm rawchips do. */
+           reuse-blue-action, the choice cards) render through the shared
+           HydroReward, whose icon/label/mini sizes are fixed px and so do
+           NOT ride the rem→ui-scale model — on the 4K couch they stayed
+           tiny. Scale them the same way the rail-stop reward does. */
         &__gains .hydro-reward,
-        &__bonus .hydro-reward,
-        &__def-reward .hydro-reward { zoom: calc(1.3 * var(--con-ui-scale, 1)); }
-        &__pick-chosen, &__pick-pending { font-size: var(--con-t-secondary); padding: 0.45rem 0.7rem; }
+        &__choice-card .hydro-reward,
+        &__summary .hydro-reward { zoom: calc(1.3 * var(--con-ui-scale, 1)); }
+        &__summary-body { font-size: var(--con-t-secondary); }
         &__delta-note { font-size: var(--con-t-floor); }
-        &__skip-or { font-size: var(--con-t-floor); }
-        &__skips { font-size: var(--con-t-secondary); }
+        /* The choice cards — the hero decision of the step on TV. */
+        &__choice-card { flex-basis: 26rem; min-height: 7rem; padding: 1rem 1.2rem; }
+        &__choice-ask { font-size: var(--con-t-body); }
+        &__commit-stage { font-size: 1.2rem; }
+        &__commit-caption { font-size: var(--con-t-secondary); }
+        &__cere-value { font-size: 2.8rem; }
+        &__cere-line { font-size: 1.3rem; }
+        &__cere-cap { font-size: var(--con-t-secondary); }
+        &__result-head { font-size: 1.2rem; }
+        &__result-note { font-size: 1.05rem; }
         small { font-size: var(--con-t-floor); }
-    }
-    .con-hydroconfirm {
-        /* Wider on the couch — the bonus picker's two option cards read big. */
-        &__frame { width: min(54rem, 88vw); }
-        &__body { gap: 0.9rem; }
-        /* Section titles (.con-start__section-title) lead each block. */
-        .con-start__section-title { font-size: var(--con-t-body); letter-spacing: 0.06rem; }
-        &__route { padding: 0.7rem 0.95rem; }
-        &__stage-name { font-size: 1.4rem; }
-        &__route-path { font-size: var(--con-t-body); b { font-size: 1.25rem; } }
-        &__spend { padding: 0.55rem 0.9rem; font-size: var(--con-t-body); }
-        &__spend-num { font-size: 1.5rem; }
-        &__beforeafter b { font-size: 1.2rem; }
-        /* The bonus PICKER — the hero decision of the modal on TV. */
-        &__bonus { min-height: 5.4rem; padding: 1rem 1.2rem; }
-        &__bonus-badge { font-size: var(--con-t-caption); top: 0.5rem; left: 0.7rem; }
-        &__bonus-tick { font-size: 1.4rem; top: 0.5rem; right: 0.7rem; }
-        &__delta { font-size: 1.1rem; }
-        &__delta-img { width: 1.7rem; height: 1.7rem; }
-        &__delta-note { font-size: var(--con-t-caption); }
-        &__plus { font-size: var(--con-t-secondary); }
-        &__zero { font-size: var(--con-t-caption); }
-        &__card { font-size: var(--con-t-secondary); }
-        &__note { font-size: var(--con-t-caption); }
-        &__skips { font-size: var(--con-t-secondary); }
-        &__vpline { font-size: var(--con-t-secondary); }
-        &__bonus-keys { font-size: var(--con-t-caption); }
-        /* (__tick inside the ×ui-scale zoomed bonus row stays px — see the
-           keep-px rule in console.less; a rem bump here would double-scale.) */
     }
 
     /* ═══ 14 · COLONIES ═══════════════════════════════════════════

@@ -1180,14 +1180,14 @@ body.con-zoom-open .con-journal {
        flying on top (the old, merely-cosmetic behaviour) instead of having
        its arrival buried.
 
-       Today exactly ONE layer qualifies. Of the fifteen console flights, the
-       rest land on the rail (`.con-transfer`), the «Разыграно» table
+       Today exactly ONE layer qualifies. Of the console flights, the rest
+       land on the rail (`.con-transfer`), the «Разыграно» table
        (`.con-played-hero`), the footer dock (`.con-handdelivery-layer`), a
        reveal modal (`.con-deckdraw`, `.con-bonusfly-layer`,
-       `.con-coltrade-layer`), the task host (`.con-hydrodraw-layer`,
-       `.con-deal-layer`), the hand grid (`.con-handreveal-layer`) or their
-       own tray (`.con-discard`, `.con-sale-hero`) — every one of those
-       targets stays lit, so demoting them broke the arrival outright. */
+       `.con-coltrade-layer`), the task host (`.con-deal-layer`), the hand
+       grid (`.con-handreveal-layer`) or their own tray (`.con-discard`,
+       `.con-sale-hero`) — every one of those targets stays lit, so demoting
+       them broke the arrival outright. */
     .con-flight-to-board {
         z-index: 11444;
     }
@@ -3702,11 +3702,13 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     50% { transform: scale(1.05); }
 }
 
-/* ── The console-NATIVE Hydronetwork screen (full rework) ───────────
-   Its own composition — header band with live status chips, a single-row
-   progress RAIL (the selected stop magnified), and a full-width decision
-   panel (identity · requirements · reward + CTA). No desktop overlay,
-   no zoom hacks, no scrollbars by design. */
+/* ── The console-NATIVE Hydronetwork WORKSPACE ──────────────────────
+   The North-Star rework: ConsoleWsHead crumb + live chips, the permanent
+   single-row progress RAIL (the selected stop magnified), and ONE
+   transformable SCENE beneath it whose layers (preview → picker →
+   commit → result) advance in place. No desktop overlay, no zoom hacks,
+   no scrollbars by design. `con-ws` marker on the root lifts the player
+   rail (the workspace-band family contract). */
 @con-hydro-aqua: #4fc9d8;
 @con-hydro-mint: #5fe3b4;
 @con-hydro-gold: #e6c34a;
@@ -3722,53 +3724,8 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     font-family: @con-font;
     color: @con-text;
 
-    /* ── Header band ─────────────────────────────────────────────── */
-    &__head {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: .9rem;
-        flex-shrink: 0;
-    }
-    &__id {
-        display: flex;
-        align-items: center;
-        gap: .7rem;
-        min-width: 0;
-    }
-    &__glyph {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 1.7rem;
-        height: 1.7rem;
-        color: @con-hydro-aqua;
-        /* decorative glow only (perf-lite may cut it; the colour carries) */
-        filter: drop-shadow(0 0 .45rem fade(@con-hydro-aqua, 45%));
-
-        .bar-btn-icon { width: 100%; height: 100%; }
-    }
-    &__title {
-        margin: 0;
-        font-size: 1.2rem;
-        font-weight: 700;
-        letter-spacing: .1rem;
-        text-transform: uppercase;
-    }
-    &__sub {
-        margin: .15rem 0 0;
-        font-size: .725rem;
-        line-height: 1.3;
-        color: @con-text-dim;
-        max-width: 38rem;
-    }
-    &__chips {
-        display: flex;
-        align-items: center;
-        gap: .5rem;
-        flex-shrink: 0;
-        padding-top: .2rem;
-    }
+    /* The shared workspace header (fall-through class on ConsoleWsHead). */
+    &__head { flex-shrink: 0; }
     &__chip {
         display: inline-flex;
         align-items: center;
@@ -3880,25 +3837,6 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         &--grade-needs-energy .con-hydro__stop-badge--grade { color: @con-amber; }
         &--dimmed { filter: saturate(0.55); opacity: 0.7; }
 
-        /* SOURCE OF THE DRAW: the «Гидромоделирование» cards are leaving THIS
-           cell right now (the stop the marker just landed on). A calm rim +
-           inner bloom, never a moving decoration — the cards are the motion.
-           Driven declaratively by ConsoleHydroSection.drawEmittingStop, so it
-           can never be stranded on a cell by a re-render. Wins over the state
-           rims above by being LAST; --focused (the magnified hero) still wins,
-           which is correct: focus is the louder state. */
-        &--emitting {
-            background: fade(@con-hydro-aqua, 16%);
-            box-shadow:
-                inset 0 0 0 .1rem fade(@con-hydro-aqua, 85%),
-                inset 0 0 1.4rem fade(@con-hydro-aqua, 30%),
-                0 0 1.4rem fade(@con-hydro-aqua, 28%);
-            /* Longer than the rail's own 150ms so the glow arrives with the
-               cards rather than snapping on ahead of them. */
-            transition: box-shadow calc(320ms * var(--motion-scale, 1)) ease,
-                background calc(320ms * var(--motion-scale, 1)) ease;
-        }
-
         /* The SELECTED stop is the magnified hero of the rail. */
         &--focused {
             width: 9.5rem;
@@ -3986,14 +3924,33 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         &--settle { animation: con-hydromarker-settle calc(680ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1); }
     }
 
-    /* ── Decision panel ──────────────────────────────────────────── */
-    &__panel {
+    /* ── THE SCENE — one region, stacked layers, the track never moves. ── */
+    &__scene {
+        position: relative;
         flex: 1;
         min-height: 0;
-        display: grid;
-        grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.15fr);
-        gap: .8rem;
-        padding: .8rem .9rem;
+        min-width: 0;
+    }
+    &__layer {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 0;
+        min-width: 0;
+        overflow: hidden;
+    }
+    /* The compact PANEL — a dossier, not a stretch: composition sets the
+       size, the tall host gives air AROUND it (the colony-focus idiom). */
+    &__panel {
+        width: min(62rem, 100%);
+        max-height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: .55rem;
+        padding: .8rem 1rem;
         border-radius: .7rem;
         background: @con-glass;
         box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 25%), 0 .6rem 2rem rgba(0, 0, 0, 0.4);
@@ -4001,16 +3958,33 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         scrollbar-width: none;
         &::-webkit-scrollbar { display: none; }
     }
-    &__col {
-        min-width: 0;
+    &__panel--details { width: min(46rem, 100%); }
+    &__ident {
         display: flex;
-        flex-direction: column;
-        gap: .5rem;
+        align-items: center;
+        gap: .6rem;
+        flex-wrap: wrap;
+        .con-hydro__route { margin-left: auto; }
     }
-    &__col--req,
-    &__col--act {
-        border-left: .05rem solid rgba(120, 150, 180, 0.14);
-        padding-left: .8rem;
+    &__stage-titles { min-width: 0; }
+    &__reqline {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        flex-wrap: wrap;
+    }
+    &__routenotes { display: flex; flex-direction: column; gap: .25rem; }
+    &__routenote {
+        font-size: .725rem;
+        line-height: 1.35;
+        color: @con-text-dim;
+        &--warn { color: #ffe3b0; }
+    }
+    &__detailline {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        flex-wrap: wrap;
     }
     &__section-label {
         font-size: .7rem;
@@ -4113,20 +4087,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         font-size: .8rem;
         font-weight: 700;
     }
-    &__history { display: flex; flex-direction: column; gap: .3rem; margin-top: .1rem; }
-    &__history-row {
-        display: flex;
-        align-items: center;
-        gap: .4rem;
-        font-size: .775rem;
-    }
-    &__history-dot { width: .6rem; height: .6rem; border-radius: 50%; flex-shrink: 0; }
-    &__history-name { font-weight: 700; }
-    &__history-status { color: @con-text-dim; }
-    &__start-note { font-size: .775rem; color: @con-text-dim; line-height: 1.35; }
-
-    /* Requirements column */
-    &__req-tags { display: flex; flex-wrap: wrap; gap: .4rem; }
+    /* Requirements chips (inline in the req line). */
     &__req-tag {
         position: relative;
         display: inline-flex;
@@ -4156,7 +4117,6 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     }
     &__req-mark { font-size: .75rem; font-weight: 800; }
     &__req-wild { color: @con-cyan; font-size: .7rem; font-weight: 800; }
-    &__req-legend { font-size: .675rem; color: @con-text-dim; }
     &__req-energy {
         display: inline-flex;
         align-items: center;
@@ -4177,16 +4137,6 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         }
     }
     &__req-have { font-size: .725rem; color: @con-text-dim; }
-    &__req-note {
-        font-size: .725rem;
-        line-height: 1.35;
-        color: @con-text-dim;
-        &--warn { color: #ffe3b0; }
-        &--muted { opacity: 0.85; }
-    }
-    /* px HydroReward chips inside → the container zoom must ride the TV
-       scale (a bare zoom froze these at desktop size on 4K). */
-    &__def-reward { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; zoom: calc(1.15 * var(--con-ui-scale, 1)); }
     &__vpline {
         display: flex;
         align-items: center;
@@ -4195,21 +4145,20 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         color: @con-text-dim;
     }
 
-    /* Action column */
-    /* The plan previews BOTH bonus options read-only (the pick moved to the
-       confirm modal); the px HydroReward content rides the TV zoom. */
-    &__bonus-preview {
+    /* The outcome line — the honest «сейчас → станет» deltas, one row. */
+    &__gains {
         display: flex;
+        align-items: center;
+        gap: .55rem 1rem;
+        flex-wrap: wrap;
+    }
+    &__gains-choice {
+        display: inline-flex;
         align-items: center;
         gap: .45rem;
         flex-wrap: wrap;
-        padding: .5rem .7rem;
-        border-radius: .5rem;
-        background: rgba(14, 22, 33, 0.5);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
         zoom: calc(1.05 * var(--con-ui-scale, 1));
     }
-    &__gains { display: flex; flex-direction: column; gap: .4rem; }
     &__delta {
         display: flex;
         align-items: center;
@@ -4269,22 +4218,6 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         font-size: .675rem;
         font-weight: 700;
     }
-    &__pick {
-        display: flex;
-        align-items: center;
-        gap: .5rem;
-        flex-wrap: wrap;
-    }
-    &__pick-chosen {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        padding: .4rem .6rem;
-        border-radius: .5rem;
-        background: fade(@con-cyan, 9%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 50%);
-        font-size: .8rem;
-    }
     &__pick-cur {
         display: inline-flex;
         align-items: center;
@@ -4296,37 +4229,47 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
             background-size: contain;
         }
     }
-    &__pick-pending {
+    /* ── THE PRE-SELECT SUMMARY — the configured decision, focusable
+       («A Изменить» when the cursor stands here; a click does the same).
+       Focus cues ride box-shadow (perf-lite keeps them). ── */
+    &__summary {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        flex-wrap: wrap;
+        align-self: flex-start;
+        padding: .45rem .7rem;
+        border-radius: .55rem;
+        background: fade(@con-cyan, 8%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%);
+        cursor: pointer;
+        transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease;
+        &:hover { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%); }
+        &--focused {
+            background: fade(@con-mint, 10%);
+            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 85%), 0 0 .9rem fade(@con-mint, 18%);
+        }
+    }
+    &__summary-body {
         display: inline-flex;
         align-items: center;
-        gap: .4rem;
-        padding: .4rem .6rem;
-        border-radius: .5rem;
-        background: fade(@con-amber, 9%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%);
-        color: #ffe3b0;
-        font-size: .8rem;
-        font-weight: 700;
+        gap: .45rem;
+        font-size: .85rem;
+        zoom: calc(1.02 * var(--con-ui-scale, 1));
     }
     /* Stage 7: the chosen ACTION drawn as the composers' premium button —
-       the SHARED `.con-composer__repeatpick` chassis plus a click affordance
-       (a click re-opens the pick; X in the confirm modal is the pad verb).
-       Focus/hover cues ride box-shadow (perf-lite keeps them). */
+       the SHARED `.con-composer__repeatpick` chassis. */
     &__pick-action {
-        cursor: pointer;
-        &:hover {
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 72%), 0 0 .7rem fade(@con-mint, 12%);
-        }
         .con-hydro__bonus-tick { margin-left: .15rem; }
     }
+    &__bonus-tick { color: @con-hydro-mint; font-size: .95rem; font-weight: 800; }
 
     /* CTA zone — the strongest control OR the specific reason list. */
-    &__cta-zone {
-        margin-top: auto;
+    &__ctazone {
         display: flex;
         flex-direction: column;
         gap: .4rem;
-        padding-top: .4rem;
+        padding-top: .15rem;
     }
     &__cta {
         display: inline-flex;
@@ -4390,254 +4333,213 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     }
     &__detail-status { font-size: .85rem; font-weight: 700; }
 
-    /* ── Help / lore panel (X = Подробнее) — an INNER layer of the hydro
-       section (outside the surface-motion hooks): its OWN dim + entry. ── */
-    &__help-backdrop {
-        position: fixed; /* full-viewport dim under the bars */
-        inset: 0;
-        .con-backdrop-dim(); // no blur (Steam Deck)
+    /* ── THE REWARD-CHOICE layer (pos 1/2) — a physical D-pad row. ── */
+    &__panel--choice { width: min(52rem, 100%); align-items: center; }
+    &__choice-ask {
+        font-size: .95rem;
+        font-weight: 700;
+        letter-spacing: .04rem;
+        text-transform: uppercase;
+        color: fade(@con-hydro-aqua, 95%);
     }
-    &__help-frame {
-        width: min(38rem, 100%);
-        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    &__choice-row {
+        display: flex;
+        gap: .8rem;
+        align-self: stretch;
+        justify-content: center;
     }
-    &__help-body { gap: .7rem; }
-    &__help-lore {
-        margin: 0;
-        font-size: .85rem;
-        line-height: 1.45;
-        color: @con-text;
-    }
-    &__help-rules {
-        margin: 0;
-        padding-left: 1.1rem;
+    &__choice-card {
+        position: relative;
+        flex: 0 1 20rem;
         display: flex;
         flex-direction: column;
-        gap: .45rem;
-        font-size: .8rem;
-        line-height: 1.35;
-        color: @con-text-dim;
-        li::marker { color: @con-hydro-aqua; }
-    }
-}
-
-/* The confirm modal («Укрепить гидросеть») — con-task chrome + hydro rows. */
-.con-hydroconfirm {
-    /* An INNER layer of the hydro section (child mount — outside the
-       surface-motion hooks): its OWN dim + entry, exactly the retired
-       host-chassis look. The help popup shares the recipe. */
-    &__backdrop {
-        position: fixed; /* full-viewport dim under the bars */
-        inset: 0;
-        .con-backdrop-dim(); // no blur (Steam Deck)
-    }
-    &__frame {
-        width: min(36rem, 100%);
-        animation: con-rise calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    &__body { gap: .5rem; }
-    &__route {
-        display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: .6rem;
-        flex-wrap: wrap;
-        padding: .5rem .7rem;
-        border-radius: .5rem;
-        background: rgba(14, 22, 33, 0.55);
-        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 35%);
-    }
-    &__stage-id { display: inline-flex; align-items: center; gap: .5rem; }
-    &__tag {
-        width: 1.7rem;
-        height: 1.7rem;
-        background-size: contain;
-        background-position: center;
-        background-repeat: no-repeat;
-        border-radius: 50%;
-        flex-shrink: 0;
-    }
-    &__stage-name { font-size: 1rem; }
-    &__vp-pill {
-        display: inline-flex;
-        align-items: center;
-        padding: .2rem .5rem;
-        border-radius: .4rem;
-        background: fade(@con-hydro-gold, 12%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-gold, 55%);
-        color: @con-hydro-gold;
-        font-size: .8rem;
-        font-weight: 800;
-        white-space: nowrap;
-        &--big { font-size: .95rem; }
-    }
-    &__route-path { font-size: .9rem; b { font-size: 1.05rem; color: @con-hydro-mint; } }
-    &__route-of { color: @con-text-dim; font-size: .75rem; margin-left: .3rem; }
-    &__spend {
-        display: inline-flex;
-        align-items: center;
-        gap: .5rem;
-        align-self: flex-start;
-        padding: .4rem .65rem;
-        border-radius: .5rem;
-        background: rgba(14, 22, 33, 0.55);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
-        font-size: .85rem;
-    }
-    &__spend-num { font-size: 1.05rem; color: #ffd9a0; }
-    &__beforeafter {
-        display: inline-flex;
-        align-items: center;
-        gap: .3rem;
-        color: @con-text-dim;
-        b { color: @con-text; font-size: .9rem; }
-    }
-    &__after { color: @con-hydro-mint; }
-    &__bonus-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
-    &__bonus-keys {
-        display: inline-flex;
-        align-items: center;
-        gap: .25rem;
-        font-size: .675rem;
-        color: @con-text-dim;
-        text-transform: none;
-        letter-spacing: .02rem;
-    }
-    /* The bonus PICKER (pos 1/2) — two selectable option cards; the chosen one
-       lights mint. The px HydroReward content rides the TV zoom. */
-    &__bonuses { display: flex; gap: .7rem; }
-    &__bonus {
-        position: relative;
-        flex: 1 1 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 4.2rem;
-        padding: .85rem 1rem;
+        gap: .55rem;
+        min-height: 6.4rem;
+        padding: .9rem 1rem;
         border: none;
         border-radius: .7rem;
         background: rgba(14, 22, 33, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.28);
+        color: @con-text;
+        font-family: @con-font;
         cursor: pointer;
         transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease,
             background calc(150ms * var(--motion-scale, 1)) ease;
         .hydro-reward { zoom: calc(1.3 * var(--con-ui-scale, 1)); }
         &:hover { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 50%); }
-        &--selected {
-            background: fade(@con-hydro-mint, 13%);
-            box-shadow: inset 0 0 0 .1rem fade(@con-hydro-mint, 88%), 0 0 1rem fade(@con-hydro-mint, 22%);
+        &--focused {
+            background: fade(@con-cyan, 10%);
+            box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 88%), 0 0 1rem fade(@con-cyan, 22%);
         }
+        &--selected {
+            background: fade(@con-hydro-mint, 10%);
+            box-shadow: inset 0 0 0 .1rem fade(@con-hydro-mint, 80%);
+        }
+        &--focused&--selected {
+            box-shadow: inset 0 0 0 .1rem fade(@con-hydro-mint, 92%), 0 0 1rem fade(@con-hydro-mint, 24%);
+        }
+        .con-hydro__bonus-tick { position: absolute; top: .4rem; right: .55rem; }
     }
-    &__bonus-badge {
-        position: absolute;
-        top: .35rem;
-        left: .5rem;
-        font-size: .7rem;
-        font-weight: 800;
-        color: @con-text-dim;
+    &__choice-deltas {
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+        align-items: flex-start;
     }
-    &__tick { color: @con-hydro-mint; font-size: .9rem; font-weight: 800; margin-left: auto; }
-    &__bonus-tick {
-        position: absolute;
-        top: .35rem;
-        right: .5rem;
-        color: @con-hydro-mint;
-        font-size: 1rem;
-        font-weight: 800;
-        opacity: 0;
-        transition: opacity calc(150ms * var(--motion-scale, 1)) ease;
+
+    /* ── THE TARGET layer (pos 9) — hosts the SHARED played-target step;
+       the zone IS the room (its budget is measured off this box). ── */
+    &__layer--target {
+        align-items: stretch;
+        justify-content: stretch;
+        padding: .2rem .1rem;
     }
-    &__bonus--selected &__bonus-tick { opacity: 1; }
-    &__gains { display: flex; flex-direction: column; gap: .4rem; }
-    &__delta { display: flex; align-items: center; gap: .45rem; font-size: .85rem; }
-    &__delta-ico {
+
+    /* ── THE COMMIT layer — route line, the landed stage's own scene, and
+       the embed zone the follow-up teleports into. ── */
+    &__layer--commit {
+        justify-content: flex-start;
+        gap: .5rem;
+        padding: .3rem .2rem 0;
+    }
+    &__commitline {
+        display: flex;
+        align-items: center;
+        gap: .8rem;
+        flex-wrap: wrap;
+        flex-shrink: 0;
+        padding: .5rem .9rem;
+        border-radius: .6rem;
+        background: rgba(12, 20, 30, 0.55);
+        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 30%);
+    }
+    &__commit-stage { font-size: .95rem; letter-spacing: .04rem; text-transform: uppercase; }
+    &__commit-caption {
         display: inline-flex;
         align-items: center;
-        justify-content: center;
-        flex-shrink: 0;
-        &--prod {
-            padding: .2rem;
-            border-radius: .25rem;
-            background: linear-gradient(180deg, rgba(138, 90, 43, 0.75), rgba(107, 69, 32, 0.75));
-            box-shadow: inset 0 0 0 .05rem rgba(255, 220, 170, 0.4);
-        }
-    }
-    &__delta-img {
-        display: inline-block;
-        width: 1.3rem;
-        height: 1.3rem;
-        background-size: contain !important;
-        background-position: center;
-        background-repeat: no-repeat;
-    }
-    &__delta-label { color: @con-text-dim; }
-    &__delta-card { font-weight: 700; }
-    &__delta-note { font-size: .675rem; color: @con-text-dim; }
-    &__delta--zero {
+        gap: .45rem;
+        font-size: .775rem;
         color: @con-text-dim;
-        .con-hydroconfirm__after { color: @con-text; }
     }
-    &__zero {
-        padding: .1rem .45rem;
-        border-radius: 49.95rem;
-        background: rgba(14, 22, 33, 0.55);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.28);
-        color: @con-text-dim;
-        font-size: .675rem;
-        font-weight: 700;
+    &__commit-spin {
+        width: .8rem;
+        height: .8rem;
+        border-radius: 50%;
+        border: .12rem solid fade(@con-hydro-aqua, 25%);
+        border-top-color: fade(@con-hydro-aqua, 85%);
+        animation: con-hydro-spin calc(900ms * var(--motion-scale, 1)) linear infinite;
     }
-    &__plus {
-        padding: .1rem .45rem;
-        border-radius: 49.95rem;
-        background: fade(@con-hydro-mint, 12%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 50%);
-        color: @con-hydro-mint;
-        font-size: .75rem;
-        font-weight: 800;
+    /* The follow-up's room — the deck pick / a hosted step teleports in. */
+    &__embed {
+        position: relative; /* the embed-zone contract: never static */
+        flex: 1;
+        min-height: 0;
+        min-width: 0;
+        align-self: stretch;
+        overflow: hidden;
     }
-    &__rawchips { zoom: calc(1.15 * var(--con-ui-scale, 1)); }
-    &__vpline { display: flex; align-items: center; gap: .5rem; font-size: .8rem; color: @con-text-dim; }
-    &__card {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap; /* the stage-7 action button may need its own line */
-        gap: .4rem;
-        padding: .4rem .6rem;
-        border-radius: .5rem;
-        background: fade(@con-cyan, 9%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 50%);
-        font-size: .8rem;
-    }
-    &__card-label { color: @con-text-dim; }
-    /* The stage-7 chosen-action button INSIDE the confirm frame: the shared
-       `.con-composer__repeatpick` chassis one size down (the 36rem frame),
-       clickable — X / a click re-opens the pick. */
-    &__repeatpick {
-        cursor: pointer;
-        padding: .35rem .7rem;
-        .con-composer__repeatpick-graphic { zoom: calc(1.15 * var(--con-ui-scale, 1)); }
-        &:hover {
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 72%), 0 0 .7rem fade(@con-mint, 12%);
-        }
-    }
-    &__note { font-size: .725rem; color: @con-text-dim; }
-    &__skips { font-size: .775rem; }
-    &__skips-head { font-weight: 700; margin-bottom: .3rem; }
-    &__skip {
-        display: flex;
-        align-items: center;
-        gap: .4rem;
-        flex-wrap: wrap;
-        padding: .15rem 0;
-    }
-    &__skip-name { color: @con-text; }
-    &__skip-or { font-size: .6rem; text-transform: uppercase; color: @con-text-dim; }
-}
 
+    /* pos 9 — the chosen host card ON STAGE (frozen counter, per-touchdown
+       tick + flash; the transfer ladder lands on its .pcard__res). */
+    &__cardland {
+        display: flex;
+        align-items: center;
+        gap: .9rem;
+        flex-shrink: 0;
+        padding: .3rem .2rem;
+    }
+    &__landcell { position: relative; }
+    &__landflash {
+        position: absolute;
+        inset: -0.3rem;
+        border-radius: .8rem;
+        pointer-events: none;
+        box-shadow: 0 0 0 .12rem fade(@con-hydro-mint, 85%), 0 0 1.4rem fade(@con-hydro-mint, 40%);
+        animation: con-hydro-landflash calc(560ms * var(--motion-scale, 1)) ease-out forwards;
+    }
+    &__landmeta {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .3rem;
+        font-size: .9rem;
+        em { font-style: normal; font-weight: 800; color: @con-hydro-mint; }
+        .card-resource { width: 1.4rem; height: 1.4rem; background-size: contain; }
+    }
+
+    /* ── THE FINISH CEREMONY (pos 10/11) — the value rises out of the landed
+       stop into this seat; the shared burst fires here. ── */
+    &__cere {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .5rem;
+        flex-shrink: 0;
+        padding: 1rem 0 .4rem;
+    }
+    &__cere-seat {
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 9rem;
+        min-height: 4.6rem;
+    }
+    &__cere-value {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .35rem;
+        padding: .55rem 1.2rem;
+        border-radius: .8rem;
+        background: fade(@con-hydro-gold, 13%);
+        box-shadow: inset 0 0 0 .1rem fade(@con-hydro-gold, 70%), 0 0 1.6rem fade(@con-hydro-gold, 25%);
+        color: @con-hydro-gold;
+        font-size: 2.1rem;
+        font-weight: 800;
+        small { font-size: .95rem; font-weight: 700; }
+    }
+    &__cere-seat--peak .con-hydro__cere-value {
+        box-shadow: inset 0 0 0 .1rem fade(@con-hydro-gold, 95%), 0 0 2.4rem fade(@con-hydro-gold, 45%);
+    }
+    &__cere-line {
+        font-size: 1.05rem;
+        font-weight: 700;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+    }
+    &__cere-cap { font-size: .775rem; color: @con-text-dim; }
+    /* The ceremony dims the scene chrome — NEVER the track above it. */
+    &--cere &__commitline { opacity: 0.35; transition: opacity calc(300ms * var(--motion-scale, 1)) ease; }
+
+    /* ── THE RESULT layer — the compact read-hold summary. ── */
+    &__panel--result { width: min(48rem, 100%); align-items: flex-start; }
+    &__result-head {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        font-size: 1rem;
+        b { letter-spacing: .04rem; text-transform: uppercase; }
+    }
+    &__result-stage { color: @con-text-dim; font-size: .85rem; }
+    &__result-rows {
+        display: flex;
+        align-items: center;
+        gap: .55rem 1.1rem;
+        flex-wrap: wrap;
+    }
+    &__result-note { font-size: .85rem; font-weight: 700; color: fade(@con-cyan, 95%); }
+    &__result-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: .45rem;
+        font-size: .775rem;
+        color: @con-text-dim;
+    }
+}
 /* Hydro reward chips (shared HydroReward renderer) read on dark console
    glass exactly as on the desktop overlay — only sizing is normalized. */
-.con-hydro,
-.con-hydroconfirm {
+.con-hydro {
     .hydro-reward__label { color: @con-text; }
 }
 
@@ -4645,8 +4547,16 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     0%, 100% { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 75%), 0 0 .8rem fade(@con-hydro-mint, 14%); }
     50% { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-mint, 90%), 0 0 1.3rem fade(@con-hydro-mint, 26%); }
 }
+@keyframes con-hydro-spin {
+    to { transform: rotate(360deg); }
+}
+@keyframes con-hydro-landflash {
+    from { opacity: 1; }
+    to { opacity: 0; }
+}
 @media (prefers-reduced-motion: reduce) {
     .con-hydro__cta { animation: none; }
+    .con-hydro__commit-spin { animation: none; }
 }
 
 /* ── Hydronetwork · handheld profile (Steam Deck 1280×800 — the primary
@@ -4654,9 +4564,6 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
 html.con-profile-handheld .con-hydro {
     gap: .35rem;
 
-    .con-hydro__glyph { font-size: 1.35rem; }
-    .con-hydro__title { font-size: .95rem; letter-spacing: .08rem; }
-    .con-hydro__sub { font-size: .625rem; max-width: 26rem; }
     .con-hydro__chip { padding: .25rem .55rem; font-size: .7rem; b { font-size: .8rem; } }
     .con-hydro__chip-ico { width: .9rem; height: .9rem; }
 
@@ -4678,10 +4585,7 @@ html.con-profile-handheld .con-hydro {
     .con-hydro__stop-marker { width: .55rem; height: .55rem; }
     .con-hydro__link { min-width: .2rem; max-width: .7rem; }
 
-    .con-hydro__panel { gap: .6rem; padding: .55rem .65rem; }
-    .con-hydro__col--req,
-    .con-hydro__col--act { padding-left: .6rem; }
-    .con-hydro__col { gap: .35rem; }
+    .con-hydro__panel { gap: .4rem; padding: .55rem .65rem; width: min(52rem, 100%); }
     .con-hydro__section-label { font-size: .6rem; letter-spacing: .07rem; }
     .con-hydro__stage-tag { width: 1.8rem; height: 1.8rem; }
     .con-hydro__stage-name { font-size: .85rem; }
@@ -4689,42 +4593,26 @@ html.con-profile-handheld .con-hydro {
     .con-hydro__stage-badge { font-size: .65rem; padding: .2rem .5rem; }
     .con-hydro__route { font-size: .8rem; b { font-size: .9rem; } }
     .con-hydro__route-cost { font-size: .7rem; }
-    .con-hydro__history-row { font-size: .675rem; }
-    .con-hydro__start-note { font-size: .675rem; }
     .con-hydro__req-tag .resource-tag { width: 1.1rem; height: 1.1rem; }
     .con-hydro__req-energy { font-size: .75rem; padding: .3rem .5rem; b { font-size: .85rem; } }
     .con-hydro__req-have { font-size: .625rem; }
-    .con-hydro__req-note { font-size: .65rem; }
-    .con-hydro__req-legend { font-size: .6rem; }
-    .con-hydro__bonus { padding: .4rem .55rem; zoom: 1; }
-    .con-hydro__bonus-keys { font-size: .6rem; }
+    .con-hydro__routenote { font-size: .65rem; }
     .con-hydro__delta { font-size: .75rem; }
     .con-hydro__delta-img { width: 1.1rem; height: 1.1rem; }
     .con-hydro__beforeafter b { font-size: .8rem; }
     .con-hydro__plus { font-size: .65rem; }
-    .con-hydro__pick-chosen,
-    .con-hydro__pick-pending { font-size: .7rem; padding: .3rem .5rem; }
+    .con-hydro__summary-body { font-size: .7rem; }
     .con-hydro__cta { padding: .5rem .7rem; font-size: .775rem; }
     .con-hydro__reason { font-size: .675rem; padding: .3rem .45rem; }
     .con-hydro__detail-status { font-size: .75rem; }
-    .con-hydro__help-lore { font-size: .75rem; }
-    .con-hydro__help-rules { font-size: .7rem; }
-}
-html.con-profile-handheld .con-hydroconfirm {
-    &__frame { width: min(32rem, 100%); }
-    &__stage-name { font-size: .85rem; }
-    &__route-path { font-size: .8rem; b { font-size: .9rem; } }
-    &__spend { font-size: .75rem; }
-    &__spend-num { font-size: .9rem; }
-    &__delta { font-size: .75rem; }
-    &__delta-img { width: 1.1rem; height: 1.1rem; }
-    &__skips { font-size: .675rem; }
+    .con-hydro__choice-card { flex-basis: 16rem; min-height: 5.4rem; padding: .6rem .7rem; .hydro-reward { zoom: 1.1; } }
+    .con-hydro__choice-ask { font-size: .8rem; }
+    .con-hydro__cere-value { font-size: 1.6rem; }
+    .con-hydro__panel--result { width: min(40rem, 100%); }
 }
 
 /* Hydronetwork · large profile (4K TV): everything one notch up. */
 html.con-profile-large .con-hydro {
-    .con-hydro__title { font-size: 1.5rem; }
-    .con-hydro__sub { font-size: .85rem; max-width: 45rem; }
     .con-hydro__chip { font-size: .95rem; b { font-size: 1.15rem; } }
     .con-hydro__stop { width: 6.1rem; min-height: 11.2rem; &--focused { width: 11.8rem; } }
     .con-hydro__stop-tag { width: 2.1rem; height: 2.1rem; }
@@ -4733,6 +4621,9 @@ html.con-profile-large .con-hydro {
     .con-hydro__delta { font-size: 1rem; }
     .con-hydro__cta { font-size: 1.05rem; padding: .8rem 1.1rem; }
     .con-hydro__reason { font-size: .9rem; }
+    .con-hydro__panel { width: min(74rem, 100%); }
+    .con-hydro__choice-card { flex-basis: 24rem; }
+    .con-hydro__cere-value { font-size: 2.6rem; }
 }
 
 /* ── Milestones/Awards ceremony accents — shared by the MA focus stage

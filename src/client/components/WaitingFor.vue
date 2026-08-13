@@ -195,6 +195,7 @@ import {
 } from '@/client/console/played/consolePlayedHero';
 import {stagePlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {consoleModeState} from '@/client/console/consoleModeState';
+import {rollbackHydroCommit} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {
   abortHydroMarker,
   detectHydroMarker,
@@ -1280,6 +1281,7 @@ export default defineComponent({
           abortColonyTrade(); // …and the whole trade-reward transaction with it
           this.holdingForHydroMarker = false;
           abortHydroMarker();
+          rollbackHydroCommit(); // the refused advance did not happen — the draft returns
           abortBoardCardBonus('return');
           // …and the played-card hero: the play did NOT happen — the armed
           // transaction unwinds with zero visual trace (the composer stays
@@ -1325,6 +1327,7 @@ export default defineComponent({
           abortColonyTrade(); // …and the trade-reward transaction with it
           this.holdingForHydroMarker = false;
           abortHydroMarker(); // network failure — recall the marker too
+          rollbackHydroCommit(); // …and the hydro flow with it — the draft returns
           abortBoardCardBonus('return'); // …and the bonus cover, back onto its cell
           this.holdingForPlayedHero = false;
           abortPlayedHero(); // …and the played-card hero — no ghost card, ever

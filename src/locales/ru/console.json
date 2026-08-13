@@ -606,6 +606,7 @@
     "The rest of the packet went to ${0}": "Остаток пакета передан игроку ${0}",
     "Next packet comes from ${0}": "Следующий пакет — от игрока ${0}",
     "Cannot be played yet": "Сейчас нельзя разыграть",
+    "Requirements not met yet": "Требования пока не выполнены",
     "Waiting for the other players": "Ждём остальных игроков",
     "Research complete": "Исследование завершено",
     "Purchased cards are in your hand": "Купленные карты — в вашей руке",

@@ -49,7 +49,12 @@ export type WorkspaceOutcomeHost =
   /** The COLONY WORKSPACE — a trade the player confirmed there hosts its
    *  drawn-cards payout (Pluto's income / colony bonuses) in the section's
    *  own embed zone. `sourceCard` carries the COLONY name for this host. */
-  | 'colonies';
+  | 'colonies'
+  /** The HYDRO WORKSPACE — a committed advance hosts the landed stage's card
+   *  payout (pos 5 draw-4-keep-2, a repeated action's own draws) in the
+   *  track's commit scene. `sourceCard` is the Delta Project for the track's
+   *  own rewards, or the repeated CARD for a stage-7 composed action. */
+  | 'hydro';
 
 /**
  * What an outcome can BE. The claimant declares which kinds it can host, so a

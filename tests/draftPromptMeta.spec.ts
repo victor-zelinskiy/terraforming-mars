@@ -112,6 +112,29 @@ describe('draftPromptMeta', () => {
     expect(model.draftPrompt).deep.eq(selectCard.draftPrompt);
   });
 
+  it('a PRINTED REQUIREMENT is marked; a situational block is not', () => {
+    const [game, player] = testGame(2, {skipInitialShuffling: true, draftVariant: true});
+    seedDeck(game.projectDeck.drawPile, EIGHT_CARDS);
+    game.generation = 1;
+    finishGeneration(game);
+
+    const model = cast(player.getWaitingFor(), SelectCard<IProjectCard>).toModel(player);
+    const reasons = model.cards.flatMap((c) => c.unplayableReasons ?? []);
+    expect(reasons.length, 'the packet must produce some reasons').greaterThan(0);
+    for (const reason of reasons) {
+      // Requirements come from the card's own `CardRequirement.satisfies`;
+      // everything else describes the moment (money, space, target, rule).
+      const REQUIREMENT_TYPES = ['globalParameter', 'tr', 'tag', 'production', 'count', 'party', 'generic'];
+      if (reason.requirement === true) {
+        expect(REQUIREMENT_TYPES, `${reason.type} was marked as a requirement`).contains(reason.type);
+      }
+      if (reason.type === 'megacredits' || reason.type === 'placement' ||
+          reason.type === 'target' || reason.type === 'rule') {
+        expect(reason.requirement, `${reason.type} must never be a requirement`).is.not.true;
+      }
+    }
+  });
+
   it('draft pick cards carry structured unplayable reasons (requirements heads-up)', () => {
     const [game, player] = testGame(2, {skipInitialShuffling: true, draftVariant: true});
     seedDeck(game.projectDeck.drawPile, EIGHT_CARDS);

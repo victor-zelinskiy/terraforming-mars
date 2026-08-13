@@ -59,7 +59,10 @@ function collectRequirementReasons(player: IPlayer, card: IProjectCard, out: Arr
     if (req.satisfies(player, card)) {
       continue;
     }
-    out.push(requirementReason(req, player, card));
+    // MARKED HERE, once, rather than in each of the twenty branches below:
+    // everything this loop emits IS a printed card requirement by
+    // construction, and a per-branch flag is a flag somebody forgets.
+    out.push({...requirementReason(req, player, card), requirement: true});
   }
 }
 

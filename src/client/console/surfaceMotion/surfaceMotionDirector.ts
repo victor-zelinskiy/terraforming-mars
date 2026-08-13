@@ -216,11 +216,7 @@ export function surfaceEnterHook(el: Element, done: () => void): void {
   if (pickReturn) {
     delete (el as HTMLElement).dataset.motionPickHidden;
   }
-  // `liftin` = the task host is the pick modal a card-lift cinematic
-  // (Гидромоделирование draw) is fanning into — it owns the panel's entrance
-  // (veil → materialize), so the band motion must not touch its opacity. It
-  // still owns the shade (the board dims while the cards fly in).
-  if (isPickBridgeHidden() || pickReturn || variant === 'headless' || variant === 'drawn' || variant === 'liftin') {
+  if (isPickBridgeHidden() || pickReturn || variant === 'headless' || variant === 'drawn') {
     killLive(el);
     done();
     return;

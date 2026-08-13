@@ -245,9 +245,12 @@
                              :playerView="playerView"
                              :actionAvailable="hydroActionAvailable"
                              :cacheKey="hydroCacheKey"
-                             @pick="openHydroPick"
+                             :followUpLive="hydroFollowUpLive"
+                             @pick="openHydroRepeatPick"
                              @notice="showNotice($event)"
                              @confirm="submitHydroAdvance($event)"
+                             @collapse="collapseWorkspace()"
+                             @result-done="finishHydroFlow()"
                              @close="leaveWorkspace()" />
       </transition>
 
@@ -909,11 +912,6 @@
          engineering-flavoured; consoleHydroMarker.ts). -->
     <ConsoleHydroMarkerLayer />
 
-    <!-- The «Гидромоделирование» DRAW stage — 4 cards lift off the reached
-         track stop, fan out + flip open, and land in the pick-2-of-4 modal
-         (which materializes around them; consoleHydroDraw.ts). -->
-    <ConsoleHydroDrawLayer />
-
     <!-- The board CARD-BONUS stage — the card-back bonus physically lifts
          off the placed cell, travels into the reveal space and flips into
          the real received cards (consoleBoardCardBonus.ts). -->
@@ -1395,8 +1393,10 @@ import {govScaleFocusState, beginGovScaleClose, commitGovScaleFocus, resetGovSca
 import ConsoleHydroSection from '@/client/components/console/ConsoleHydroSection.vue';
 import ConsoleHydroMarkerLayer from '@/client/components/console/hydroMarker/ConsoleHydroMarkerLayer.vue';
 import {armHydroMarker, abortHydroMarker, isHydroMarkerActive, hydroMarkerState} from '@/client/console/hydroMarker/consoleHydroMarker';
-import ConsoleHydroDrawLayer from '@/client/components/console/hydroDraw/ConsoleHydroDrawLayer.vue';
-import {armHydroDraw, abortHydroDraw, isHydroDrawActive} from '@/client/console/hydroDraw/consoleHydroDraw';
+import {
+  HydroResolutionKind, advanceHydroCommitPhase, beginHydroCommit, hydroFlowState,
+  hydroWorkspacePhase, isHydroCeremonyActive, resetHydroFlow, setHydroRepeatBridge,
+} from '@/client/console/hydroFlow/consoleHydroFlow';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
@@ -1414,7 +1414,7 @@ import ConsolePatentSaleLayer from '@/client/components/console/patentSale/Conso
 import {armPatentSale, isPatentSaleActive, patentSaleState} from '@/client/console/patentSale/consolePatentSale';
 import ConsoleResourceTransferLayer from '@/client/components/console/resourceTransfer/ConsoleResourceTransferLayer.vue';
 import {ResourceTransferSpec} from '@/client/console/resourceTransfer/resourceTransferModel';
-import {runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold} from '@/client/console/resourceTransfer/consoleResourceTransfer';
+import {runResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold, panelRewardHold, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {ActionCommitPlan, actionCommitHolding, consumeActionCommitPlan, releaseActionCommit} from '@/client/console/consoleActionCommit';
 import ConsoleTilePlacementLayer from '@/client/components/console/tilePlacement/ConsoleTilePlacementLayer.vue';
 import {tilePlacementHolding, tilePlacementState} from '@/client/console/tilePlacement/consoleTilePlacement';
@@ -1423,7 +1423,8 @@ import {armColonyBuild, isColonyBuildActive} from '@/client/console/colonyBuild/
 import {SpaceBonus} from '@/common/boards/SpaceBonus';
 import ConsoleJournalPanel from '@/client/components/console/ConsoleJournalPanel.vue';
 import {hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
-import {consoleHydroUi} from '@/client/console/consoleHydroState';
+import type {HydroDeltaLine} from '@/client/components/hydronetwork/hydroReward';
+import {consoleHydroUi, resetConsoleHydroUi} from '@/client/console/consoleHydroState';
 import {consoleJournalUi} from '@/client/console/consoleJournalState';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {ColonyName} from '@/common/colonies/ColonyName';
@@ -1439,7 +1440,7 @@ import {WheelArmEvent, WheelInputState, initialWheelInput, reduceWheel} from '@/
 import {wheelControlState} from '@/client/console/quickWheel/wheelControlMode';
 import {wheelHandoffSpecFor, CONFIRM_HANDOFF} from '@/client/console/quickWheel/wheelHandoffModel';
 import {pulseWheelAnchors} from '@/client/console/quickWheel/wheelPulse';
-import {ensureActionPreviews, resetActionPreviews} from '@/client/console/actionPreviewStore';
+import {actionPreviewMap, ensureActionPreviews, resetActionPreviews} from '@/client/console/actionPreviewStore';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
 import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook} from '@/client/console/surfaceMotion/surfaceMotionDirector';
@@ -1531,6 +1532,10 @@ const CONSOLE_SCROLL_STEP_PX = 24;
  *  far above any real round-trip, far below the 35 s hold ceiling. */
 const MA_COMMIT_SAFETY_MS = 15_000;
 
+/** The hydro RESULT stage's read hold — long enough for the route + reward
+ *  lines, skippable by A/B (both land in `finishHydroFlow`). */
+const HYDRO_RESULT_HOLD_MS = 2400;
+
 export default defineComponent({
   name: 'ConsoleShell',
   components: {
@@ -1578,7 +1583,6 @@ export default defineComponent({
     ConsoleDraftTray,
     ConsoleDraftWorkspace,
     ConsoleHydroMarkerLayer,
-    ConsoleHydroDrawLayer,
     ConsoleBoardCardBonusLayer,
     ConsoleDeckDrawLayer,
     ConsoleTradeFleetLayer,
@@ -1710,8 +1714,11 @@ export default defineComponent({
       departingPlayCard: undefined as CardName | undefined,
       departingTimer: undefined as number | undefined,
       pendingClientPayment: undefined as PendingClientPayment | undefined,
-      /** P24: the hydro pick-sheet candidates (name + live animal count). */
-      hydroPickCards: [] as Array<{name: CardName, current?: number}>,
+      /** The hydro workspace flow — module reactive, mirrored here for path
+       *  watchers (vue-path-watcher rule). */
+      hydroFlow: hydroFlowState,
+      /** The hydro result stage's read-hold timer (A/B skip it). */
+      hydroResultTimer: undefined as number | undefined,
       /** The colony workspace flow (browse ⇄ focus stage) — module reactive,
        *  mirrored here for path watchers (vue-path-watcher rule). */
       colonyFocus: colonyFocusState,
@@ -1999,7 +2006,7 @@ export default defineComponent({
       // exactly `dockParkedUnderScene` (where the dock is hidden anyway, so
       // nothing needs to tuck behind) + the hydro confirm.
       return (this.consoleState.section === 'colonies' || this.consoleState.section === 'hydro') &&
-        !this.dockParkedUnderScene && !consoleHydroUi.confirmOpen;
+        !this.dockParkedUnderScene;
     },
     /**
      * The pre-game INITIAL-SETUP window: the player has NO actual hand yet —
@@ -2547,6 +2554,50 @@ export default defineComponent({
      *  command bar and the start scene's own ownership all read. */
     deckPickServing(): boolean {
       return this.deckPickActive && !this.deckPickHeldForWorkspace;
+    },
+    // ── the HYDRO workspace flow (post-commit continuation) ──────────────
+    /**
+     * A follow-up DECISION of the committed advance is standing — the flow's
+     * `resolving` beat becomes the collapsible `committed` phase. Any viewer
+     * prompt during a hydro commit IS the advance's own chain (the batch is
+     * replayed sequentially; nothing else can interleave a demand).
+     */
+    hydroFollowUpLive(): boolean {
+      if (this.hydroFlow.commit === undefined) {
+        return false;
+      }
+      if (this.deckPickActive) {
+        return true;
+      }
+      if (this.hostTask !== undefined && !this.consoleState.task.deferred) {
+        return true;
+      }
+      if (this.consoleRevealMode !== undefined) {
+        return true;
+      }
+      // A hosted step (a repeated trade's colony frame) still standing.
+      return workspaceFrameHasNested('hydro');
+    },
+    /** The viewer's committed track position — the SERVER truth the flow's
+     *  recovery net keys on (a degraded glide must not hang the commit). */
+    hydroViewerTrackPosition(): number {
+      return this.thisPlayer.deltaProject?.position ?? 0;
+    },
+    /**
+     * The RESOLUTION is still physically happening: the marker glide, the
+     * reward chips in flight (or still held for their flight), a follow-up
+     * decision, the ceremony. Its falling edge — never a timeout — is what
+     * advances the flow to the result stage.
+     */
+    hydroResolutionBusy(): boolean {
+      if (this.hydroFlow.commit === undefined) {
+        return false;
+      }
+      return isHydroMarkerActive() ||
+        panelRewardHold.active ||
+        isResourceTransferActive() ||
+        isHydroCeremonyActive() ||
+        this.hydroFollowUpLive;
     },
     venusBonusActive(): boolean {
       return this.nativeCompositeTask?.kind === 'venusBonus' && !this.consoleState.task.deferred;
@@ -4500,11 +4551,6 @@ export default defineComponent({
       case 'cardActions': return 'Card actions';
       case 'milestones': return 'Milestones';
       case 'awards': return 'Awards';
-      case 'hydroPick':
-        // Name the pick honestly: a used blue action (pos 7) vs an animal
-        // target card (pos 9) — the mirror comes from the hydro section.
-        return consoleHydroUi.pickKind === 'animal-target' ?
-          'Choose a card for the animals' : 'Choose a used blue card action';
       case 'standardProjects': return 'Standard Projects';
       default: return '';
       }
@@ -4655,20 +4701,7 @@ export default defineComponent({
       return maCeremonyState.current;
     },
     sheetRows(): Array<ConsoleSheetRow> {
-      switch (this.consoleState.sheet) {
-      case 'hydroPick':
-        // P24: hydro stage 7/9 card pick — name + the card's own rule text
-        // (manifest description) + the live resource count where relevant.
-        return this.hydroPickCards.map((c) => ({
-          key: c.name,
-          title: c.name,
-          sub: this.hydroPickDescription(c.name),
-          meta: c.current !== undefined ? `${c.current}` : undefined,
-          available: true,
-        }));
-      default:
-        return [];
-      }
+      return [];
     },
     // ── the command bar (the truth of the current context) ─────────────
     commandContext(): string {
@@ -4810,7 +4843,7 @@ export default defineComponent({
       switch (this.consoleState.section) {
       case 'hand': return 'Hand';
       case 'colonies': return 'Trading';
-      case 'hydro': return consoleHydroUi.confirmOpen ? 'Confirmation' : 'Mars Hydronetwork';
+      case 'hydro': return 'Mars Hydronetwork';
       default:
         if (this.consoleState.scaleInspecting) {
           return 'Scale inspection';
@@ -4845,7 +4878,7 @@ export default defineComponent({
       // moment — the pad is inert, the bar advertises nothing (bounded, plays
       // itself out). The trade-reward gate is PHASE-aware: it frees the pad
       // for the reveal take and for a Pluto discard between bonus draws.
-      if (isTradeFleetActive() || isColonyTradeInputLocked() || isHydroMarkerActive() || isHydroDrawActive() || isBoardCardBonusActive() || isPatentSaleActive() || this.tilePlacementHolds || isDeckDrawActive()) {
+      if (isTradeFleetActive() || isColonyTradeInputLocked() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || this.tilePlacementHolds || isDeckDrawActive()) {
         return [];
       }
       // The played-card hero scene: the bar goes quiet — the card is the
@@ -5286,7 +5319,7 @@ export default defineComponent({
       if (this.consoleState.sheet !== undefined && workspaceStackTopAxis() !== 'section') {
         return [
           {control: 'confirm', label: 'Select'},
-          {control: 'back', label: this.consoleState.sheet === 'hydroPick' ? 'Back' : 'To the board'},
+          {control: 'back', label: 'To the board'},
         ];
       }
       if (this.placementActive) {
@@ -5410,42 +5443,11 @@ export default defineComponent({
         ];
       }
       if (this.consoleState.section === 'hydro') {
-        // The console-native Hydronetwork grammar (full rework). The bar is
-        // honest: enabled flags come from the section's live-model mirrors.
-        if (consoleHydroUi.confirmOpen) {
-          // The bonus (pos 1/2) is CHOSEN in the confirm modal now — LB/RB
-          // switch it, A confirms the highlighted one, B goes back. A held
-          // stage 7/9 pick advertises X = «Изменить выбор» (re-open the pick).
-          const confirmCmds: Array<ConsoleCommand> = [];
-          if (consoleHydroUi.bonusChoice) {
-            confirmCmds.push({control: 'bumperL', control2: 'bumperR', label: 'Switch bonus'});
-          }
-          if (consoleHydroUi.pickChosen) {
-            confirmCmds.push({control: 'secondary', label: 'Change selection'});
-          }
-          confirmCmds.push(
-            {control: 'confirm', label: 'Confirm'},
-            {control: 'back', label: 'Back'},
-          );
-          return confirmCmds;
-        }
-        if (consoleHydroUi.helpOpen) {
-          return [{control: 'back', label: 'Close'}];
-        }
-        // The bonus choice moved to the confirm modal — the plan bar no longer
-        // carries an LB/RB «Bonus» control.
-        const cmds: Array<ConsoleCommand> = [{control: 'dpadH', label: 'Stages', priority: 2}];
-        cmds.push(
-          // The SHORT key on purpose (the old «Farthest available» was the
-          // one atom that reliably truncated in the bay bar).
-          {control: 'triggerR', label: 'Farthest stage'},
-          consoleHydroUi.mode === 'details' ?
-            {control: 'confirm', label: 'Back to plan'} :
-            {control: 'confirm', label: 'Reinforce', enabled: consoleHydroUi.primaryEnabled},
-          {control: 'secondary', label: 'Details'},
-          {control: 'back', label: 'To the board'},
-        );
-        return cmds;
+        // The hydro WORKSPACE publishes its live command contract into its
+        // dedicated store (per step / focus / phase) — the bar never guesses.
+        return consoleHydroUi.commands.length > 0 ?
+          [...consoleHydroUi.commands] :
+          [{control: 'back', label: 'To the board'}];
       }
       // P27b: SCALE INSPECTION MODE — the bonus ring, B/R3 exit.
       if (this.consoleState.scaleInspecting) {
@@ -5921,15 +5923,97 @@ export default defineComponent({
     armedColonyTradeTrack() {
       this.syncColonyTrackCommit();
     },
-    // MARKER ADVANCE lifecycle: the hydro screen STAYS OPEN through the whole
-    // glide; when the marker has locked in + the view committed (active →
-    // false), reset the plan so the (now-used) screen shows a clean state.
-    // The screen is never auto-closed (advancing leaves you in hydro).
+    // MARKER ADVANCE lifecycle: the glide IS the flow's `moving` beat. On the
+    // falling edge with a genuine LOCK (settled on the committed destination)
+    // the flow advances to `resolving` — the landed stage may now pay out
+    // (the reward wave / the embedded deck pick / the ceremony). An abort
+    // (server refusal — WaitingFor's error paths roll the flow back beside
+    // abortHydroMarker) never advances: settledPosition stays foreign.
     'hydroMarkerState.active'(active: boolean) {
-      if (!active && this.consoleState.section === 'hydro') {
-        resetHydroPlan();
-        // The committed advance consumed the stage-7 composition (if any).
-        consoleHydroUi.repeatResult = undefined;
+      if (active) {
+        return;
+      }
+      const c = this.hydroFlow.commit;
+      if (c === undefined || c.phase !== 'moving') {
+        return;
+      }
+      // A genuine LOCK on the committed destination, or a DEGRADED glide over
+      // a commit the SERVER already applied (the view's position is the
+      // truth) — both advance; a refusal has already rolled the flow back
+      // beside abortHydroMarker, so neither branch fires for it.
+      const settled = hydroMarkerState.settledPosition === c.toPosition;
+      const committed = (this.thisPlayer.deltaProject?.position ?? -1) === c.toPosition;
+      if (settled || committed) {
+        advanceHydroCommitPhase('resolving');
+        // The glide WAS the execution beat: an embedded follow-up (the deck
+        // pick) may mount now that the token has physically locked in.
+        if (workspaceOutcomeClaimed() && workspaceOutcomeState.host === 'hydro') {
+          markWorkspaceOutcomeBeatDone();
+        }
+      }
+    },
+    // The RESOLUTION's own completion signal — reward chips landed, the
+    // follow-up answered, the presentation settled. Never a hardcoded
+    // timeout: the result stage waits for the LAST physical event.
+    // ⚠ A PARK is not completion: a deferred follow-up makes every busy
+    // signal false while the decision still stands — the collapsed flow
+    // waits for the restore, never walks itself to the result.
+    hydroResolutionBusy(busy: boolean) {
+      if (this.consoleState.task.deferred || workspaceStackCollapsed()) {
+        return;
+      }
+      const c = this.hydroFlow.commit;
+      if (!busy && c !== undefined && c.phase === 'resolving' && c.kind !== 'ceremony') {
+        advanceHydroCommitPhase('result');
+      }
+    },
+    // The result stage holds READABLE, then the flow completes on its own —
+    // A/B skip the hold through the same door (`finishHydroFlow`).
+    'hydroFlow.commit.phase'(phase: string | undefined) {
+      if (this.hydroResultTimer !== undefined) {
+        window.clearTimeout(this.hydroResultTimer);
+        this.hydroResultTimer = undefined;
+      }
+      if (phase === 'result') {
+        this.hydroResultTimer = window.setTimeout(() => {
+          this.hydroResultTimer = undefined;
+          this.finishHydroFlow();
+        }, motionMs(HYDRO_RESULT_HOLD_MS));
+      }
+      this.syncHydroFramePhase();
+    },
+    hydroFollowUpLive() {
+      this.syncHydroFramePhase();
+    },
+    'hydroFlow.step'() {
+      this.syncHydroFramePhase();
+    },
+    'hydroFlow.repeatBridge'() {
+      this.syncHydroFramePhase();
+    },
+    // THE RECOVERY NET: the SERVER phase drives the flow when the glide
+    // degraded (an expired arm on a slow answer never fires the marker's own
+    // falling edge with the view already moved). Position committed while the
+    // record still says `moving` → advance; visuals fast-forward honestly.
+    hydroViewerTrackPosition(pos: number) {
+      const c = this.hydroFlow.commit;
+      if (c !== undefined && c.phase === 'moving' && pos === c.toPosition && !isHydroMarkerActive()) {
+        advanceHydroCommitPhase('resolving');
+        if (workspaceOutcomeClaimed() && workspaceOutcomeState.host === 'hydro') {
+          markWorkspaceOutcomeBeatDone();
+        }
+      }
+    },
+    // The deck pick's life ended (submitted, closing beats done) — release a
+    // hydro claim so the resolution can settle. (The card-actions host has
+    // its own release doors; the hydro host's is this falling edge.)
+    // ⚠ A DEFER also drops `deckPickActive` — but the decision still stands
+    // in the park, so the claim must survive it for the restore.
+    deckPickActive(active: boolean) {
+      if (!active && !this.consoleState.task.deferred &&
+          workspaceOutcomeState.host === 'hydro' &&
+          this.hydroFlow.commit !== undefined) {
+        releaseWorkspaceOutcome('hydro-pick-done');
       }
     },
     // A mandatory surface claimed the screen — the journal yields so the
@@ -7326,7 +7410,7 @@ export default defineComponent({
       // timers, so it can never stick. The placement's `armed` beat does NOT
       // gate (nothing visual yet — mirrors the played hero's armed policy),
       // and the pick itself can't double-fire (the arm claims the moment).
-      if (isTradeFleetActive() || isHydroMarkerActive() || isHydroDrawActive() || isBoardCardBonusActive() || isPatentSaleActive() || tilePlacementHolding()) {
+      if (isTradeFleetActive() || isHydroMarkerActive() || isBoardCardBonusActive() || isPatentSaleActive() || tilePlacementHolding()) {
         return true;
       }
       // TRADE REWARDS: the chip waves / card covers / marker glide own the
@@ -8221,8 +8305,8 @@ export default defineComponent({
         break;
       case 'hydro':
         this.deferShellTask();
-        resetHydroPlan();
-        consoleHydroUi.repeatResult = undefined; // a fresh visit plans from scratch
+        // The section's own mount decides RESUME vs FRESH (a still-fresh
+        // draft re-seats; a stale one resets) — never a blanket reset here.
         enterWorkspace('hydro');
         break;
       default:
@@ -9139,20 +9223,8 @@ export default defineComponent({
         this.showNotice(row.reason !== undefined && row.reason !== '' ? row.reason : 'Unavailable right now');
         return;
       }
-      switch (this.consoleState.sheet) {
-      case 'hydroPick':
-        // A pure PLAN write (never a submit) — the hydro confirm reads it.
-        hydroNetworkState.selectedCard = row.key as CardName;
-        leaveWorkspace(); // the pick is done; the track it opened from stands
-        // Smart continuation: the pick was the LAST pending to-do, so the
-        // primary flow resumes — the confirmation modal opens with the
-        // complete plan (nothing is submitted until its A).
-        void this.$nextTick(() => {
-          const hydro = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
-          hydro?.onPrimary();
-        });
-        break;
-      }
+      // (No generic sheet carries activatable rows today — the premium
+      // screens each own their activation path.)
     },
     /** A on the Standard-Projects premium screen (P27) — use / sell. */
     activateStdItem(item: StdProjectItem | undefined): void {
@@ -9430,25 +9502,19 @@ export default defineComponent({
       this.submitBatch(batch);
     },
     /**
-     * P24: the hydro stage 7/9 pick. Stage 7 (reuse-a-blue-action) routes to
-     * the ДЕЙСТВИЯ КАРТ surface in REPEAT mode — the SAME premium browser +
-     * composer Viron / Проверка проекта use (full dossier, filters, honest
-     * reasons, pre-selects composed in place); stage 9 (animal target) keeps
-     * the console card sheet. Both write hydroNetworkState.selectedCard (the
-     * same field the desktop pick-mode bridges write), so the confirm payload
-     * stays byte-identical; the stage-7 composition additionally rides the
-     * console-only `consoleHydroUi.repeatResult`.
+     * The hydro stage-7 pick (reuse-a-blue-action) — the ДЕЙСТВИЯ КАРТ
+     * surface in REPEAT mode: the SAME premium browser + composer Viron /
+     * Проверка проекта use (full dossier, filters, honest reasons, EVERY
+     * pre-select of the chosen action composed in place). A PRE-SELECT: the
+     * resolve writes the plan (hydroNetworkState.selectedCard + the composed
+     * tail), the marker does not move, and the player returns to the hydro
+     * summary to commit deliberately. (Stage 9 lives in the workspace's own
+     * embedded target step now — the flat pick sheet is gone.)
      */
-    openHydroPick(): void {
-      if (consoleHydroUi.pickKind === 'reuse-action') {
-        this.openHydroRepeatPick();
-        return;
-      }
-      this.openHydroPickSheet();
-    },
     openHydroRepeatPick(): void {
-      const hydro = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
-      const candidates = (hydro?.eligibleCards ?? []).map((c) => c.name);
+      const preview = hydroNetworkState.previewColor === this.thisPlayer.color ?
+        hydroNetworkState.preview : undefined;
+      const candidates = preview?.reuseActionCards ?? [];
       if (candidates.length === 0 || this.repeatPickActive) {
         this.showNotice('Unavailable right now');
         return;
@@ -9459,6 +9525,7 @@ export default defineComponent({
       const previous = consoleHydroUi.repeatResult;
       const prior = previous !== undefined && previous.chosenCard === hydroNetworkState.selectedCard ?
         {chosenCard: previous.chosenCard, nodeIndex: previous.nodeIndex} : undefined;
+      setHydroRepeatBridge(true);
       enterConsoleRepeatPick({
         title: 'Use a blue card action that has already been used this generation',
         buttonLabel: 'Take action',
@@ -9470,30 +9537,14 @@ export default defineComponent({
         prior,
       }, (result) => {
         // A PLAN write (never a submit): the shared brain keeps the card, the
-        // console layer keeps the composition; the smart primary then resumes —
-        // the confirmation modal opens over the completed plan.
+        // console layer keeps the composition. The player lands back on the
+        // hydro summary — «Укрепить» stays THEIR deliberate press.
         hydroNetworkState.selectedCard = result.chosenCard;
         consoleHydroUi.repeatResult = result;
-        void this.$nextTick(() => {
-          (this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined)?.onPrimary();
-        });
+        setHydroRepeatBridge(false);
+      }, () => {
+        setHydroRepeatBridge(false);
       });
-    },
-    openHydroPickSheet(): void {
-      const hydro = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
-      const cards = hydro?.eligibleCards ?? [];
-      if (cards.length === 0) {
-        this.showNotice('Unavailable right now');
-        return;
-      }
-      this.hydroPickCards = cards.map((c) => ({name: c.name, current: c.current}));
-      // A step INSIDE the hydro track, not a lateral move — which is the whole
-      // reason B on it uncovers the track instead of the board.
-      pushWorkspaceFrame({
-        kind: 'hydro-pick', subject: '', stage: '', phase: 'configure',
-        serves: [], anchor: {type: 'always'}, overlay: true,
-      });
-      this.consoleState.sheetIndex = 0;
     },
     useStandardProject(cardName: CardName): void {
       const action = this.standardProjectsAction;
@@ -9874,30 +9925,96 @@ export default defineComponent({
     },
     // ── hydro advance (mirrors PlayerHome.submitHydroAdvance; the stage-7
     //    COMPOSED repeat appends the ProjInsp/Viron-parity batch tail) ─────
-    submitHydroAdvance(payload: {spend: number, rewardChoice: number | undefined, selectedCard?: CardName, repeat?: ConsoleRepeatPickResult, fromPosition: number, toPosition: number, rewards?: ReadonlyArray<ResourceTransferSpec>, drawStage?: boolean}): void {
+    submitHydroAdvance(payload: {
+      spend: number, rewardChoice: number | undefined, selectedCard?: CardName,
+      repeat?: ConsoleRepeatPickResult, fromPosition: number, toPosition: number,
+      rewards?: ReadonlyArray<ResourceTransferSpec>,
+      resultLines?: ReadonlyArray<HydroDeltaLine>, vp?: number,
+      stageNameKey?: string, kind?: HydroResolutionKind, targetBefore?: number,
+    }): void {
       const path = findHydroActionPath(this.playerView.waitingFor);
-      if (path === undefined || isHydroMarkerActive()) {
-        return; // guard a double-confirm: the marker glide owns the moment
+      if (path === undefined || isHydroMarkerActive() || this.hydroFlow.commit !== undefined) {
+        return; // guard a double-confirm: the flow owns the moment
       }
       const responses = hydroAdvanceResponses(optionResponseForPath(path), payload);
-      // PREMIUM MARKER ADVANCE: ARM the marker glide (client-side, from→to)
-      // FIRST — the confirm modal already closed, the hydro SCREEN STAYS OPEN,
-      // and the marker physically moves to the new stop — THEN submit. The
-      // WaitingFor `holdingForHydroMarker` gate BLOCKS the commit (delta chips /
-      // new position) until the marker LOCKS IN. The plan is reset + the
-      // screen kept open by the `hydroMarkerState.active` watcher (never
-      // `section='board'` — trading leaves you in colonies, advancing leaves
-      // you in hydro). Desktop is unaffected (never arms).
-      armHydroMarker(payload.fromPosition, payload.toPosition, this.thisPlayer.color, payload.rewards ?? []);
-      // «Гидромоделирование» (draw 4, keep 2): dress the follow-up SelectCard
-      // with the card-lift cinematic — once the marker has SETTLED on the new
-      // stop (the cell the player is then looking at), the 4 cards rise out of
-      // that very cell, open into a fan and travel into the pick modal, which
-      // materializes around them.
-      if (payload.drawStage === true) {
-        armHydroDraw(payload.toPosition);
+      const kind: HydroResolutionKind = payload.kind ?? 'plain';
+      // THE COMMIT BOUNDARY — the flow record freezes the decision (route,
+      // choice, target, the result stage's lines) before anything moves.
+      beginHydroCommit({
+        kind,
+        fromPosition: payload.fromPosition,
+        toPosition: payload.toPosition,
+        spend: payload.spend,
+        rewardChoice: payload.rewardChoice,
+        selectedCard: payload.selectedCard,
+        composedRepeat: payload.repeat !== undefined,
+        targetBefore: payload.targetBefore,
+        rewardLines: payload.resultLines ?? [],
+        vp: payload.vp,
+        stageNameKey: payload.stageNameKey ?? '',
+      });
+      // The landed stage's CARD payout presents INSIDE the workspace — the
+      // claim is raised synchronously at submit (the North-Star embedded
+      // outcome), and the follow-up prompt is what the parked frame serves.
+      if (kind === 'deck-draw') {
+        claimWorkspaceOutcome('hydro', CardName.DELTA_PROJECT, ['draw', 'pick'], 0, 4);
+        setWorkspaceFrameServes('hydro', ['deckSelect']);
+      } else if (kind === 'repeat' && payload.repeat !== undefined) {
+        // The repeated action's own draws/picks embed exactly like a direct
+        // activation's would — kinds derived from its cached preview branch
+        // (structural, never a card table); a cache miss degrades standalone.
+        const branch = actionPreviewMap().get(payload.repeat.chosenCard)
+          ?.branches[payload.repeat.composed.branchIndex];
+        let expectedCards = 0;
+        for (const e of branch?.effects ?? []) {
+          if (e.direction === 'gain' && e.icon === 'cards') {
+            expectedCards += Math.max(1, Math.round(e.amount));
+          }
+        }
+        if (expectedCards > 0) {
+          claimWorkspaceOutcome('hydro', payload.repeat.chosenCard, ['draw', 'pick'],
+            payload.repeat.nodeIndex, expectedCards);
+        }
+        setWorkspaceFrameServes('hydro', ['deckSelect', 'cardSelect', 'payment', 'choice', 'amount', 'resource', 'player']);
+      } else if (kind === 'card-resource') {
+        // The presented target's counter ticks off the framework's own
+        // touchdown tally — a payout ARMS by resetting it.
+        resetCardResourceLandings();
       }
+      // PREMIUM MARKER ADVANCE: ARM the glide (client-side, from→to) FIRST —
+      // the WaitingFor `holdingForHydroMarker` gate BLOCKS the commit (delta
+      // chips / new position) until the token LOCKS IN — then submit. The
+      // flow advances off the marker watcher; desktop is unaffected.
+      armHydroMarker(payload.fromPosition, payload.toPosition, this.thisPlayer.color, payload.rewards ?? []);
+      this.syncHydroFramePhase();
       this.submitBatch(responses);
+    },
+    /** The flow is over (result read / skipped) — reset and go home. */
+    finishHydroFlow(): void {
+      if (this.hydroResultTimer !== undefined) {
+        window.clearTimeout(this.hydroResultTimer);
+        this.hydroResultTimer = undefined;
+      }
+      if (this.hydroFlow.commit === undefined) {
+        return;
+      }
+      if (workspaceOutcomeState.host === 'hydro') {
+        releaseWorkspaceOutcome('hydro-flow-complete');
+      }
+      setWorkspaceFrameServes('hydro', []);
+      resetHydroFlow();
+      resetHydroPlan();
+      consoleHydroUi.repeatResult = undefined;
+      if (this.consoleState.section === 'hydro') {
+        goBoardHome();
+      }
+    },
+    /** Mirror the flow's phase onto the FRAME — B's verb and the input gate
+     *  read the stack, never a hydro-private flag. */
+    syncHydroFramePhase(): void {
+      if (workspaceFrameIndex('hydro') >= 0) {
+        setWorkspaceFramePhase('hydro', hydroWorkspacePhase(this.hydroFollowUpLive));
+      }
     },
     confirmSale(): void {
       const picked = this.consoleState.sale.selected;
@@ -10217,7 +10334,9 @@ export default defineComponent({
       // the trade transaction (glide → settle) finishes on the browse grid
       // the embed zone just handed back. Folding here would reset the ACTION
       // workspace's command contract for a flow that never touched it.
-      if (host !== 'colonies') {
+      // The HYDRO host likewise concludes through its own result stage (the
+      // resolution-settled watcher), never a layer close.
+      if (host !== 'colonies' && host !== 'hydro') {
         this.foldWorkspaceAfterResult();
       }
     },
@@ -10256,7 +10375,7 @@ export default defineComponent({
         return;
       }
       releaseWorkspaceOutcome('result-detached');
-      if (host !== 'colonies') {
+      if (host !== 'colonies' && host !== 'hydro') {
         this.foldWorkspaceAfterResult();
       }
     },
@@ -10322,6 +10441,13 @@ export default defineComponent({
           // discard is a handSelect the workspace itself hosts, never «the
           // server asked for something else».
           (workspaceOutcomeState.host === 'colonies' && this.colonyResolutionLive) ||
+          // The HYDRO claim spans the advance's own resolution: the marker
+          // gate delays the view (nothing is «asked» until the token locks),
+          // the deck pick's closing beats outlive its prompt, and a PARKED
+          // follow-up (deferred / collapsed) still owns its restore.
+          (workspaceOutcomeState.host === 'hydro' &&
+            (isHydroMarkerActive() || this.deckPickActive ||
+              this.consoleState.task.deferred || workspaceStackCollapsed())) ||
           // The prompt exists but the gate is still holding it: it may yet be
           // ours once it opens.
           (this.hostServesPrompt && this.hostTask === undefined);
@@ -10601,21 +10727,6 @@ export default defineComponent({
         goBoardHome();
         closeConsoleLayers();
       }
-    },
-    hydroPickDescription(name: CardName): string {
-      try {
-        const meta = getCard(name)?.metadata;
-        const d = meta?.description;
-        if (typeof d === 'string') {
-          return d;
-        }
-        if (d !== undefined && typeof (d as {text?: string}).text === 'string') {
-          return (d as {text: string}).text;
-        }
-      } catch (err) {
-        // manifest miss — the name alone still identifies the card
-      }
-      return '';
     },
     /** The notification's «Отменить размещение» CTA (server-cancellable). */
     onNotificationCancel(): void {
@@ -11672,7 +11783,8 @@ export default defineComponent({
     abortTradeFleet(); // recall any in-flight fleet (zombie-safe on teardown)
     abortColonyTrade(); // unwind any trade-reward transaction (zombie-safe)
     abortHydroMarker(); // recall any in-flight marker glide (zombie-safe)
-    abortHydroDraw(); // drop any in-flight «Гидромоделирование» draw scene (zombie-safe)
+    resetHydroFlow(); // drop any in-flight hydro commit presentation (zombie-safe)
+    resetConsoleHydroUi(); // …and its console-only draft (commands + composed repeat)
     abortBoardCardBonus('instant'); // recall any in-flight bonus cover (zombie-safe)
     abortDeckDraw(); // drop any in-flight deck-draw scene (zombie-safe)
     abortPlayedHero(); // unwind any in-flight played-card hero scene (zombie-safe)

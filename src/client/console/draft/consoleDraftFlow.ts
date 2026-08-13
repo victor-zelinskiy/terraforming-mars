@@ -189,18 +189,26 @@ export function draftNeighbor(view: PlayerViewModel, color: Color | undefined): 
 }
 
 /**
- * The soft requirements HEADS-UP for a focused card: the first structured
- * reason that is NOT affordability. Money is deliberately dropped — during
- * the pick it will have changed by the time it matters, and during the buy
- * the purchase economics (cardCost × picks) are the financial strip's story.
- * A warning, never a blocker: the card can always be taken.
+ * The soft requirements HEADS-UP for a focused card: the first PRINTED CARD
+ * REQUIREMENT that is not met (the server's own `requirement` marker — set
+ * where those reasons are produced, from each `CardRequirement.satisfies`).
+ *
+ * Everything situational is deliberately dropped: affordability (the money
+ * will have changed by the time it matters, and during the buy the economics
+ * are the header's story), "no space for the tile", "no valid target", a
+ * bespoke rule ("no card action was used this generation" — Project
+ * Inspection), the turn/phase. Here the card is being taken FOR LATER, so
+ * only what is written ON it can be a fair warning; a momentary blocker
+ * would be a lie about the card.
+ *
+ * A warning, never a blocker: the card can always be taken and bought.
  */
 export function requirementHeadsUp(card: CardModel | undefined): UnplayableReason | undefined {
   const reasons = card?.unplayableReasons;
   if (reasons === undefined) {
     return undefined;
   }
-  return reasons.find((r) => r.type !== 'megacredits');
+  return reasons.find((r) => r.requirement === true);
 }
 
 // ── the flow rail (ConsoleJourneyRail data) ─────────────────────────────────

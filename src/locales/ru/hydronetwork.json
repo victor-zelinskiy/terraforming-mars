@@ -113,5 +113,21 @@
   "Farthest stage": "К дальнему",
   "Reinforce": "Укрепить",
   "Stage requirements are not met": "Не выполнены требования этапа",
-  "No change": "Без изменений"
+  "No change": "Без изменений",
+  "Your selection": "Ваш выбор",
+  "Movement": "Движение",
+  "Reward choice": "Выбор награды",
+  "Target card": "Целевая карта",
+  "Final reward": "Финальная награда",
+  "Reward options": "Варианты",
+  "Choose the stage reward": "Выберите награду этапа",
+  "Choose a card to receive the animals": "Выберите карту, которая получит животных",
+  "The selected card is no longer available": "Выбранная карта больше недоступна",
+  "Reinforcement complete": "Укрепление завершено",
+  "The marker is advancing along the track": "Маркер движется по треку",
+  "The stage deals its cards": "Этап выдаёт карты",
+  "The chosen action executes": "Выполняется выбранное действие",
+  "The finish stage is reached": "Достигнут финишный этап",
+  "The stage reward is resolving": "Исполняется награда этапа",
+  "Owner": "Владелец"
 }

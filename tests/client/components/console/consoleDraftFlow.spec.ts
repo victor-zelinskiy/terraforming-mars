@@ -174,17 +174,43 @@ describe('consoleDraftFlow', () => {
     expect(draftCompactContext({total: 4, picked: 4, stage: 'buy', completion: 'none'}).ordinal).eq('02');
   });
 
-  it('the requirements heads-up drops the affordability line', () => {
+  it('the heads-up shows PRINTED REQUIREMENTS only — never a situational block', () => {
     expect(requirementHeadsUp(undefined)).is.undefined;
     expect(requirementHeadsUp({name: CardName.FISH} as never)).is.undefined;
     const card = {
       name: CardName.FISH,
       unplayableReasons: [
         {type: 'megacredits', message: 'Need ${0} more M€', params: ['3']},
-        {type: 'globalParameter', message: 'Requires ${0}°C', params: ['2']},
+        {type: 'globalParameter', message: 'Requires ${0}°C', params: ['2'], requirement: true},
       ],
     } as never;
     expect(requirementHeadsUp(card)?.type).eq('globalParameter');
+
+    // A card blocked only by THIS MOMENT (a bespoke rule — Project
+    // Inspection's «no card action was used this generation», a missing
+    // target, no space for its tile) says NOTHING here: it is being taken
+    // for later, and the block describes the moment, not the card.
+    const situational = {
+      name: CardName.FISH,
+      unplayableReasons: [
+        {type: 'rule', message: 'No card action was used this generation'},
+        {type: 'target', message: 'No target to reduce production'},
+        {type: 'placement', message: 'No space available for the tile'},
+        {type: 'megacredits', message: 'Need ${0} more M€', params: ['9']},
+      ],
+    } as never;
+    expect(requirementHeadsUp(situational)).is.undefined;
+
+    // …and a REQUIREMENT of the same `type` as a situational reason is still
+    // told apart (both paths emit `production` / `party`).
+    const production = {
+      name: CardName.FISH,
+      unplayableReasons: [
+        {type: 'production', message: 'Cannot reduce production'},
+        {type: 'production', message: 'Requires ${0} production', params: ['1'], requirement: true},
+      ],
+    } as never;
+    expect(requirementHeadsUp(production)?.message).eq('Requires ${0} production');
   });
 
   it('observeDraftWorkspace latches the marker and resets per generation', () => {

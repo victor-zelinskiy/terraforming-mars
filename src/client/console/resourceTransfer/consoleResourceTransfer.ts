@@ -517,6 +517,8 @@ function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
     const r = measureRect(`.con-recv [data-played-key="${esc}"]`) ??
       measureRect(`.con-colfocus [data-played-key="${esc}"] .pcard__res`) ??
       measureRect(`.con-colfocus [data-played-key="${esc}"]`) ??
+      measureRect(`.con-hydro [data-played-key="${esc}"] .pcard__res`) ??
+      measureRect(`.con-hydro [data-played-key="${esc}"]`) ??
       measureRect(`.con-start__played [data-played-key="${esc}"]`) ??
       measureRect(`.con-played [data-played-key="${esc}"]`);
     if (r !== undefined) {

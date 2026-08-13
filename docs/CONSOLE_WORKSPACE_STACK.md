@@ -144,8 +144,9 @@ workspace ends up waiting on a beat nobody will play. A spec fences it.
 
 `WORKSPACE_KINDS` holds, per workspace: the crumb root (an existing i18n key), the DOM root
 (the leak detector's presence probe), the projection onto `section`/`sheet`, and the default
-`serves`. Nine rows today: `card-actions`, `hand`, `colonies`, `hydro`, `start`,
-`standard-projects`, `milestones`, `awards`, `hydro-pick`.
+`serves`. Rows today: `card-actions`, `hand`, `colonies`, `hydro`, `start`, `draft`,
+`standard-projects`, `milestones`, `awards`. (`hydro-pick` is gone — the hydro workspace's
+own embedded target step replaced the flat pick sheet.)
 
 Three things are deliberately **not** in the registry because they are genuinely not constant
 per kind: `serves` at runtime (a frame earns and loses prompts — an action only serves a card
@@ -236,7 +237,8 @@ the same diffusion in profile, and it would migrate ~183 call sites twice.
 
 Plus one outside the shell: `infoModeState.ts:82` (`restoreConsoleSnapshot`).
 
-**The finding that proves the architecture** — `ConsoleShell.vue:7186-7192`:
+**The finding that proved the architecture** (historical — the `hydroPick` sheet itself is
+gone now, replaced by the hydro workspace's embedded target step):
 
 ```js
 // B: back to the board. The hydro card pick returns to the HYDRO
@@ -246,9 +248,9 @@ this.consoleState.sheet = undefined;
 if (!stayInSection) { this.consoleState.section = 'board'; }
 ```
 
-That is a hand-written special case for exactly what the stack does by construction:
-`leaveWorkspace()` pops the `hydro-pick` frame and leaves `hydro` beneath it. `stayInSection`
-**disappears**. The shell has dozens of this shape — they are the copy-paste to remove.
+That was a hand-written special case for exactly what the stack does by construction:
+`leaveWorkspace()` pops the overlay frame and leaves the section frame beneath it.
+`stayInSection` **disappeared**. The shell had dozens of this shape — the copy-paste removed.
 
 ---
 

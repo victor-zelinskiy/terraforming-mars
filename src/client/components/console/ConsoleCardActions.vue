@@ -26,12 +26,18 @@
            «КАРТЫ В РУКЕ». It owns the identity line and the breadcrumb; we
            supply what is genuinely ours: the faceted filters and the counts
            (the browse layer of the aux zone) and the variant chip (its tail). -->
+      <!-- A NON-card source (the Hydronetwork) passes `source.label`, and the
+           crumb then keeps ITS workspace as the root — «ГИДРОСЕТЬ МАРСА ›
+           ПОВТОР ДЕЙСТВИЯ › …» — so the nested browser reads as a deeper
+           level of the flow the player is inside, never a lateral jump. A
+           card source (Viron / Проверка проекта) keeps the classic
+           «ПОВТОР ДЕЙСТВИЯ › <карта>» form. -->
       <ConsoleWsHead class="con-cardactions__head"
-                     :root="repeat ? 'Repeat action' : 'Card actions'"
+                     :root="repeat ? (repeatRequest?.source.label ?? 'Repeat action') : 'Card actions'"
                      :mark="repeat ? '⟳' : ''"
                      :emblem="repeat ? undefined : 'actions'"
                      :wheelAnchor="repeat ? undefined : 'card-actions'"
-                     :context="repeat && repeatRequest !== undefined ? (repeatRequest.source.label ?? repeatRequest.source.card) : ''"
+                     :context="repeat && repeatRequest !== undefined ? (repeatRequest.source.label !== undefined ? 'Repeat action' : repeatRequest.source.card) : ''"
                      :subject="composer !== undefined ? composer.cardName : ''"
                      :stage="composer !== undefined ? focusKickerKey : ''"
                      :stageRaw="focusKickerRaw"

@@ -46,6 +46,15 @@ describe('promptSource (who asked for this decision?)', () => {
       expect(v?.inspectable).to.be.false;
     });
 
+    it('the Delta Project attributes to the HYDRONETWORK module, never the lore card', () => {
+      const v = choiceSourceView({kind: 'card', card: CardName.DELTA_PROJECT});
+      // The fork never deals the «Delta Project» card — its prompts must not
+      // render (or open) a card face that does not exist in play.
+      expect(v?.card).is.undefined;
+      expect(v?.kindKey).to.eq('Mars Hydronetwork');
+      expect(v?.inspectable).to.be.false;
+    });
+
     it('no source at all → no dock', () => {
       expect(choiceSourceView(undefined)).is.undefined;
     });

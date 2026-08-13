@@ -1,36 +1,23 @@
 /*
  * Console-native Hydronetwork UI state (the console-only layer OVER the shared
- * hydroNetworkState plan brain). Module-level reactive so the shell's command
- * bar — the truth of the current context — can read WHICH hydro surface owns
- * input (the confirm modal / the help panel / the main screen) and whether the
- * primary verb is live, without poking component refs from a computed.
+ * hydroNetworkState plan brain). Module-level reactive so it survives the
+ * workspace's own unmount (a park / a lateral move): the pre-commit DRAFT —
+ * the stage-7 composition — and the live command contract both live here.
  *
- * The `mode / bonusChoice / primaryEnabled / pickKind / pickChosen` fields are
- * MIRRORS the section component syncs from its live model — the bar never
- * guesses.
+ * `commands` is the DEDICATED command store (the consoleStartUi idiom): the
+ * hydro section coexists with surfaces that can steal the bar (the embedded
+ * deck pick, the repeat browser), so it publishes into its own slot and the
+ * shell's ladder reads it only when the hydro frame genuinely owns the bar.
  *
- * Transient by design: reset on entering/leaving the hydro section and on
- * submit. Never persisted.
+ * Transient by design: reset on leaving the flow. Never persisted.
  */
 import {reactive} from 'vue';
+import type {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import type {ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 
 export const consoleHydroUi = reactive({
-  /** The console-native confirmation modal («Укрепить гидросеть») is open. */
-  confirmOpen: false,
-  /** The help / lore panel (X = Подробнее) is open. */
-  helpOpen: false,
-  /** Mirror: the section's current mode (plan a future stage / inspect a past one). */
-  mode: 'plan' as 'plan' | 'details',
-  /** Mirror: the selected stage offers a bonus choice (LB/RB are live). */
-  bonusChoice: false,
-  /** Mirror: A does something meaningful right now (confirm / pick / choose). */
-  primaryEnabled: false,
-  /** Mirror: the pending pos 7/9 pick kind (names the pick sheet honestly). */
-  pickKind: undefined as 'reuse-action' | 'animal-target' | undefined,
-  /** Mirror: the pos 7/9 pick already HOLDS a selection — the confirm modal's
-   *  «Изменить выбор» (X) verb is live. */
-  pickChosen: false,
+  /** The live command contract of the hydro screen (the bar never guesses). */
+  commands: [] as Array<ConsoleCommand>,
   /** The COMPOSED stage-7 repeat pick (chosen action + its pre-collected
    *  responses, from the ДЕЙСТВИЯ КАРТ repeat surface). Console-only — the
    *  shared plan brain keeps just `selectedCard`; the batch tail uses this
@@ -41,12 +28,10 @@ export const consoleHydroUi = reactive({
 });
 
 export function resetConsoleHydroUi(): void {
-  consoleHydroUi.confirmOpen = false;
-  consoleHydroUi.helpOpen = false;
-  consoleHydroUi.mode = 'plan';
-  consoleHydroUi.bonusChoice = false;
-  consoleHydroUi.primaryEnabled = false;
-  consoleHydroUi.pickKind = undefined;
-  consoleHydroUi.pickChosen = false;
+  consoleHydroUi.commands = [];
   consoleHydroUi.repeatResult = undefined;
 }
+
+// (The flow-record half of the console hydro state lives in
+// hydroFlow/consoleHydroFlow.ts — this module keeps only what must survive
+// the workspace's own unmount.)
