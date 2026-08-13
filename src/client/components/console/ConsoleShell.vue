@@ -1166,7 +1166,7 @@ import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/component
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
 import {notificationState, notificationsSettled, pendingSummary, dismiss as dismissNotification} from '@/client/components/notifications/notificationState';
-import {beginNotifHold, cancelNotifHold, consumeNotifHoldRelease, resetNotifHold, setNotifBackOwned} from '@/client/console/consoleNotifHold';
+import {beginNotifHold, cancelNotifHold, consumeNotifHoldRelease, resetNotifHold} from '@/client/console/consoleNotifHold';
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
@@ -2166,21 +2166,6 @@ export default defineComponent({
     topNotification(): LiveNotification | undefined {
       const feed = notificationState.transient;
       return feed.length > 0 ? feed[feed.length - 1] : undefined;
-    },
-    /**
-     * MAY A VISIBLE TOAST CLAIM «B»? Only where B is genuinely free — the board
-     * home with nothing of the player's own open.
-     *
-     * The feed now flows inside workspaces too (the game must keep telling the
-     * player what happened while they work), and in there B is the single most
-     * load-bearing verb in the console: one calm step back / minimize. A toast
-     * that eats it would answer «назад» with «closed a card you were reading»,
-     * exactly the kind of stolen verb the toast contract forbids. Inside a
-     * workspace a toast is pure narration: it expires on its own TTL, and the
-     * player's own submit acknowledges it (acknowledgeFlowHoldingCards).
-     */
-    toastOwnsBack(): boolean {
-      return this.boardHomeIdle;
     },
     /** The pending-queue backlog (the banner-band chip). */
     pendingEvents(): PendingQueueSummary {
@@ -6311,15 +6296,6 @@ export default defineComponent({
         setMandatoryGateHeld(held);
       },
     },
-    // …and whether a visible toast may claim B. The CARD (mounted by the
-    // App-level NotificationLayer) draws its «B Закрыть» hint off this mirror,
-    // so the advertised contract and the input branch can never disagree.
-    toastOwnsBack: {
-      immediate: true,
-      handler(owned: boolean): void {
-        setNotifBackOwned(owned);
-      },
-    },
     // The beat IDENTITY changed (answered / invalidated / superseded) — retire
     // the latches that referred to the old one, so a completed action leaves
     // nothing stale and a NEXT action runs its own pending → presented cycle
@@ -7525,10 +7501,15 @@ export default defineComponent({
       //    (acknowledgeFlowHoldingCards in fetchPlayerInput).
       const topCard = this.topNotification;
       if (topCard !== undefined && this.consoleCardZoom.card === undefined) {
-        // …and B only where B is FREE (see toastOwnsBack): inside a workspace
-        // that verb is the player's way back, and a toast is narration they
-        // never asked for — it must not answer «назад» by closing itself.
-        if (action === 'back' && this.toastOwnsBack) {
+        // A visible toast OVERRIDES B everywhere — the press closes the card
+        // and is consumed; only the NEXT B (no toast) is the screen's own
+        // back/minimize. The other assignment shipped and was wrong within a
+        // day: the player sees a toast, taps B to clear it, and their
+        // workspace steps back under them instead — a navigation they never
+        // asked for is strictly worse than a toast that costs one extra B.
+        // The branch sits BELOW every screen-owning moment (alert / awaiting
+        // handoff / heroes / review), so a cinematic's own swallow still wins.
+        if (action === 'back') {
           cancelNotifHold();
           dismissNotification(topCard.id);
           return true;
@@ -11765,7 +11746,6 @@ export default defineComponent({
     this.consoleState.shellMounted = false;
     resetMandatoryGate(); // never carry an acknowledgment across games/sessions
     setMandatoryGateHeld(false); // shell gone → clear the held mirror (the watcher won't fire on unmount)
-    setNotifBackOwned(false); // …same for the toast's B claim (no shell, no owner)
     resetPromptAdmission(); // shell gone → the placement can never stay held (desktop reads the mirror too)
     // A workspace outcome claim SUPPRESSES standalone presenters, so an
     // orphaned one is worse than a leak: a drawn batch in the next game would

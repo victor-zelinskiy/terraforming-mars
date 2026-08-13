@@ -164,11 +164,10 @@
         <GamepadGlyph control="secondary" />
         <span v-i18n>Watch turn</span>
       </span>
-      <!-- …and «B Закрыть» ONLY where B is actually free (the board home).
-           Inside a workspace that verb belongs to the screen (one step back /
-           minimize), so the toast neither claims it nor advertises it — it is
-           pure narration there and leaves by its own TTL. -->
-      <span v-if="backOwned" class="con-notif__action con-notif__action--close">
+      <!-- «B Закрыть» — a visible toast OVERRIDES B wherever it shows (the
+           shell consumes the press and closes the card; the screen's own
+           back/minimize is the NEXT B). One contract, one hint, everywhere. -->
+      <span class="con-notif__action con-notif__action--close">
         <GamepadGlyph control="back" />
         <span v-i18n>Close</span>
       </span>
@@ -364,10 +363,6 @@ export default defineComponent({
     /** The X-hold on THIS card is filling (shell-tracked, module-reactive). */
     holdActive(): boolean {
       return notifHoldState.noteId === this.notification.id;
-    },
-    /** B closes a toast only where B is free — the shell's mirrored verdict. */
-    backOwned(): boolean {
-      return notifHoldState.backOwned;
     },
     holdMs(): number {
       return NOTIF_HOLD_MS;
