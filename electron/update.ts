@@ -567,16 +567,23 @@ function applyUpdate(): void {
     // the double-apply race this closes.
     logUpdate('installing (Linux/Velopack) — apply + restart via the wrapper loop');
     setTimeout(() => {
-      try {
-        fs.writeFileSync(marker, restartMarkerStamp(statRunningAppImage()));
-      } catch (err) {
-        logUpdate('could not write restart marker — ' + String(err));
-      }
+      // Spawn the updater FIRST, and only then arm the marker. The marker is a standing
+      // instruction to the wrapper ("relaunch me after this exit"), so writing it before the
+      // spawn means an apply that never got off the ground still leaves it on disk — the app
+      // stays open, and the player's NEXT ordinary quit is silently turned into a relaunch.
+      // `waitExitThenApplyUpdate` only spawns UpdateNix (it does not block on the apply), and we
+      // have not exited yet, so nothing can race the write. A marker we then fail to write
+      // degrades to install-and-close: applied, no relaunch — never to a wrong restart.
       try {
         mgr.waitExitThenApplyUpdate(upd, true, false);
       } catch (err) {
         applyFailed(err);
         return;
+      }
+      try {
+        fs.writeFileSync(marker, restartMarkerStamp(statRunningAppImage()));
+      } catch (err) {
+        logUpdate('could not write restart marker — ' + String(err));
       }
       app.quit();
       setTimeout(() => app.exit(0), 3000);

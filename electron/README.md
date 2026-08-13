@@ -433,12 +433,24 @@ the newest 5 (a delta chain needs the prior full present).
   - launched by the **restart-loop wrapper** (`scripts/steamdeck` sets `TM_RESTART_SUPPORTED=1` +
     `TM_RESTART_MARKER`) → the app writes the marker, applies (no relaunch), exits, and the wrapper —
     the process Steam/gamescope tracks — **relaunches the updated AppImage in the same session**.
-    The marker content is `applying <inode> <mtimeSec>` — the identity of the AppImage the app was
+    The marker content is `applying <inode> <mtimeSec>\n` — the identity of the AppImage the app was
     running (`restartMarkerStamp` in `updatePolicy.ts`). The wrapper WAITS until `stat` on the
-    AppImage differs (UpdateNix swapped it), or UpdateNix exits, or 90 s, BEFORE relaunching —
-    without the wait it relaunched the OLD AppImage while the apply was still extracting, which
-    re-downloaded and re-applied the same update (double-apply). Old wrapper ignores the content
-    (only tests `-f`); an old app's bare-timestamp marker makes a new wrapper relaunch immediately.
+    AppImage differs (UpdateNix swapped it) and has settled, or UpdateNix exits (after it has been
+    seen, or a 15 s appear-grace), or 120 s, BEFORE relaunching — without the wait it relaunched the
+    OLD AppImage while the apply was still extracting, which re-downloaded and re-applied the same
+    update (double-apply). Old wrapper ignores the content (only tests `-f`); an old app's
+    bare-timestamp marker makes a new wrapper relaunch immediately.
+    ⚠ **The marker's trailing newline is load-bearing.** The wrapper parses it with
+    `read -r tag ino mtime < "$MARKER"`, and `read` returns FAILURE on an unterminated last line
+    even though it assigned every field — so the original `|| tag=""` clobbered the parse and the
+    apply-wait never ran at all. Live Decks / Steam Machines therefore relaunched the old build into
+    a running UpdateNix on EVERY update: the updater re-installed on each launch, and the two applies
+    racing over the file being executed left the relaunched build unable to paint (black screen in
+    Game Mode, "hold B to close"). Terminating the line fixes wrappers ALREADY INSTALLED in the
+    field — it ships through an ordinary app update, no `install-steamdeck.sh` re-run required. The
+    wrapper's own parse no longer trusts `read`'s status either (it judges the parsed values), and
+    the app arms the marker only AFTER `waitExitThenApplyUpdate` has actually spawned the updater,
+    so a failed apply can no longer leave a stale "relaunch me" instruction on disk.
   - old wrapper / direct launch → *Install and close*: apply + quit cleanly (Steam returns to the
     library) and the player reopens it. `restartSupported` drives which button the overlay shows.
   - not an AppImage at all (dev/unpacked) → premium **manual-download** fallback (needs `$APPIMAGE`).

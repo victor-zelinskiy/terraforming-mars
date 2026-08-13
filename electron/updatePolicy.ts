@@ -128,14 +128,27 @@ export interface AppImageIdentity {
  * UpdateNix was still extracting — re-running the OLD version, which then
  * downloaded and applied the same update a second time (the double-apply seen in
  * the 1.1.325 Steam Machine log). mtime is floored to whole SECONDS because
- * that's what the wrapper's `stat -c '%Y'` yields. The identity-less fallback is
- * the legacy bare timestamp — an OLD wrapper ignores the content entirely (it
- * only tests -f), and a NEW wrapper treats a non-`applying` marker as
- * "relaunch immediately", so every app/wrapper version pairing stays safe.
+ * that's what the wrapper's `stat -c '%Y'` yields.
+ *
+ * ⚠ The trailing NEWLINE is load-bearing, not formatting. The wrapper parses the
+ * marker with `read -r tag ino mtime < "$MARKER" || tag=""`, and `read` returns
+ * FAILURE on a last line with no terminator even though it assigned every field —
+ * so an unterminated marker made that `|| tag=""` clobber the tag it had just
+ * parsed, the `tag = applying` test fail, and the whole apply-wait be skipped.
+ * That is the shipped-field bug: every Deck / Steam Machine update relaunched the
+ * OLD AppImage into a live UpdateNix, so the update re-installed on every launch
+ * and the racing swap left the relaunched build unable to paint (black screen).
+ * Terminating the line makes the wrapper ALREADY INSTALLED on those machines parse
+ * it correctly — the fix reaches them through an app update, with no re-run of
+ * install-steamdeck.sh.
+ *
+ * The identity-less fallback is the legacy bare timestamp — an OLD wrapper ignores
+ * the content entirely (it only tests -f), and a NEW wrapper treats a non-`applying`
+ * marker as "relaunch immediately", so every app/wrapper version pairing stays safe.
  */
 export function restartMarkerStamp(st: AppImageIdentity | undefined, now: number = Date.now()): string {
   if (st === undefined) {
-    return String(now);
+    return `${now}\n`;
   }
-  return `applying ${st.ino} ${Math.floor(st.mtimeMs / 1000)}`;
+  return `applying ${st.ino} ${Math.floor(st.mtimeMs / 1000)}\n`;
 }

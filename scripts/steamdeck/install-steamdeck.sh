@@ -122,21 +122,52 @@ while true; do
     # Velopack's UpdateNix applies the update CONCURRENTLY with this loop: it waits for the
     # app to exit, then extracts + moves the new AppImage into place (~1-2s). Relaunching the
     # instant the app exits re-runs the OLD AppImage, which downloads and applies the same
-    # update a second time. The app stamps the marker with the identity of the AppImage it
-    # was running ("applying <inode> <mtime>"); wait until stat() differs (the swap replaces
-    # the file → new inode/mtime), or UpdateNix is gone (apply done or failed — one grace
-    # second lets a just-finished move settle), or 90s (a hung apply must never brick the
-    # launcher; Velopack's own exit-wait ceiling is 60s). A marker without the stamp (an
-    # older app) keeps the old immediate relaunch.
-    read -r m_tag m_ino m_mtime < "$TM_RESTART_MARKER" 2>/dev/null || m_tag=""
+    # update a second time — and the two applies then race over the very file the relaunched
+    # build is executing, leaving it unable to paint (black screen in Game Mode). The app
+    # stamps the marker with the identity of the AppImage it was running
+    # ("applying <inode> <mtime>"); we wait until that identity STOPS being what we started
+    # with and has settled, or until the budget runs out (a hung apply must never brick the
+    # launcher). A marker without the stamp (an older app) keeps the old immediate relaunch.
+    #
+    # `read` returns FAILURE on a final line with no terminator even though it assigned every
+    # field, so `|| m_tag=""` would clobber a perfectly good parse — the exact bug that
+    # disabled this whole wait in the field. Pre-clear, then ignore read's status and judge
+    # the PARSED VALUES.
+    m_tag=''; m_ino=''; m_mtime=''
+    read -r m_tag m_ino m_mtime < "$TM_RESTART_MARKER" 2>/dev/null || true
     if [ "$m_tag" = "applying" ] && [ -n "$m_ino" ] && [ -n "$m_mtime" ]; then
-      deadline=$(( $(date +%s) + 90 ))
+      deadline=$(( $(date +%s) + 120 ))
+      # UpdateNix may not have spawned yet when we get here, so "no UpdateNix" only means
+      # "apply finished or failed" AFTER we have either seen it running or waited out this
+      # grace window. Treating the very first miss as done is what let the old relaunch race
+      # straight back in.
+      appear_deadline=$(( $(date +%s) + 15 ))
+      seen_updater=''
       while [ "$(stat -c '%i %Y' "$APP" 2>/dev/null)" = "$m_ino $m_mtime" ]; do
-        if ! pgrep -x UpdateNix >/dev/null 2>&1; then sleep 1; break; fi
-        [ "$(date +%s)" -ge "$deadline" ] && break
+        now=$(date +%s)
+        [ "$now" -ge "$deadline" ] && break
+        if pgrep -x UpdateNix >/dev/null 2>&1; then
+          seen_updater=1
+        elif [ -n "$seen_updater" ] || [ "$now" -ge "$appear_deadline" ]; then
+          sleep 1   # let a just-finished move settle
+          break
+        fi
         sleep 0.3
       done
-      echo "=== apply-wait done (AppImage $(stat -c '%i %Y' "$APP" 2>/dev/null || echo '?')): $(date) ===" >> "$LOG"
+      # The identity changed, but the swap may still be mid-write (an in-place overwrite is
+      # not atomic). Relaunching into a half-written AppImage is precisely the black screen,
+      # so require the file to hold still — same identity AND size on two samples — before
+      # exec'ing it. Bounded; a file that never settles falls through and gets tried anyway.
+      settle_deadline=$(( $(date +%s) + 20 ))
+      prev=''
+      while :; do
+        cur="$(stat -c '%i %Y %s' "$APP" 2>/dev/null || echo '?')"
+        [ "$cur" != '?' ] && [ "$cur" = "$prev" ] && break
+        [ "$(date +%s)" -ge "$settle_deadline" ] && break
+        prev="$cur"
+        sleep 0.5
+      done
+      echo "=== apply-wait done (AppImage $(stat -c '%i %Y %s' "$APP" 2>/dev/null || echo '?')): $(date) ===" >> "$LOG"
     fi
     continue
   fi

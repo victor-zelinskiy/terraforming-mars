@@ -122,13 +122,28 @@ describe('electron/updatePolicy restartMarkerStamp', () => {
   it('stamps the AppImage identity for the wrapper apply-wait, mtime floored to whole SECONDS (stat -c %Y)', () => {
     // The wrapper parses `read -r tag ino mtime` and compares against `stat -c '%i %Y'`
     // — three space-separated tokens, seconds precision.
-    expect(restartMarkerStamp({ino: 123456, mtimeMs: 1752760661987})).to.eq('applying 123456 1752760661');
+    expect(restartMarkerStamp({ino: 123456, mtimeMs: 1752760661987})).to.eq('applying 123456 1752760661\n');
+  });
+
+  it('TERMINATES the line — an unterminated marker silently disables the wrapper apply-wait', () => {
+    // Not formatting. The wrapper does `read -r tag ino mtime < "$MARKER" || tag=""`, and read
+    // returns FAILURE on an unterminated last line even though it assigned every field — so the
+    // `|| tag=""` clobbered a good parse, the apply-wait was skipped, and every Deck / Steam
+    // Machine relaunched the OLD AppImage into a live UpdateNix: the update re-installed on each
+    // launch and the racing swap left the relaunched build on a black screen.
+    for (const marker of [
+      restartMarkerStamp({ino: 123456, mtimeMs: 1752760661987}),
+      restartMarkerStamp(undefined, 1752760661987),
+    ]) {
+      expect(marker.endsWith('\n'), `marker must end with a newline: ${JSON.stringify(marker)}`).to.be.true;
+      expect(marker.trimEnd().includes('\n'), 'exactly ONE line — the wrapper reads only the first').to.be.false;
+    }
   });
 
   it('degrades to the legacy bare timestamp when the AppImage identity is unknown', () => {
     // A NEW wrapper treats a non-`applying` marker as "relaunch immediately" (old behaviour);
     // an OLD wrapper never reads the content at all — every pairing stays safe.
-    expect(restartMarkerStamp(undefined, 1752760661987)).to.eq('1752760661987');
+    expect(restartMarkerStamp(undefined, 1752760661987)).to.eq('1752760661987\n');
   });
 });
 
