@@ -55,18 +55,26 @@
             <span v-else-if="stop.vm.skippedByViewer" class="con-hydro__stop-badge con-hydro__stop-badge--skip" aria-hidden="true">↷</span>
             <span v-else-if="stop.gradeGlyph !== ''" class="con-hydro__stop-badge con-hydro__stop-badge--grade" aria-hidden="true">{{ stop.gradeGlyph }}</span>
           </div>
-          <template v-if="stop.vm.isSelected">
-            <div class="con-hydro__stop-name">{{ $t(stop.vm.stage.nameKey) }}</div>
-            <div class="con-hydro__stop-reward">
-              <template v-if="stop.vm.stage.rewardOptions.length > 1">
-                <HydroReward :chips="stop.vm.stage.rewardOptions[0]" :compact="true" />
-                <span class="con-hydro__stop-or">{{ $t('or') }}</span>
-                <HydroReward :chips="stop.vm.stage.rewardOptions[1]" :compact="true" />
-              </template>
-              <HydroReward v-else-if="stop.vm.stage.rewardOptions.length === 1" :chips="stop.vm.stage.rewardOptions[0]" :compact="true" />
-              <span v-else-if="stop.vm.stage.vp === undefined" class="con-hydro__stop-noreward" aria-hidden="true">—</span>
+          <!-- The magnified stop's own content CROSSFADES with the cell's
+               growth (a bare v-if pop is the one thing this rail may never
+               do): it enters a beat AFTER the box has mostly opened, at its
+               FINAL width (no text re-wrap mid-growth), and the leaving
+               content detaches from the flow so the shrinking cell never
+               re-flows it — it simply lets go where it stood. -->
+          <transition name="con-hydro-stopin">
+            <div v-if="stop.vm.isSelected" class="con-hydro__stop-open">
+              <div class="con-hydro__stop-name">{{ $t(stop.vm.stage.nameKey) }}</div>
+              <div class="con-hydro__stop-reward">
+                <template v-if="stop.vm.stage.rewardOptions.length > 1">
+                  <HydroReward :chips="stop.vm.stage.rewardOptions[0]" :compact="true" />
+                  <span class="con-hydro__stop-or">{{ $t('or') }}</span>
+                  <HydroReward :chips="stop.vm.stage.rewardOptions[1]" :compact="true" />
+                </template>
+                <HydroReward v-else-if="stop.vm.stage.rewardOptions.length === 1" :chips="stop.vm.stage.rewardOptions[0]" :compact="true" />
+                <span v-else-if="stop.vm.stage.vp === undefined" class="con-hydro__stop-noreward" aria-hidden="true">—</span>
+              </div>
             </div>
-          </template>
+          </transition>
           <!-- The marker row is the STABLE landing anchor of the advance
                micro-interaction (`data-hydro-marker`, a fixed min-size even
                when empty): the gliding proxy locks in EXACTLY here, then the
@@ -98,6 +106,11 @@
         <!-- ═══ PREVIEW — the compact plan/details panel. ═══ -->
         <div v-if="sceneKey === 'preview'" key="preview" class="con-hydro__layer con-hydro__layer--preview">
           <div class="con-hydro__panel" :class="{'con-hydro__panel--details': model.mode === 'details'}">
+            <!-- ONE body element: stepping between stops RETUNES it (a soft
+                 GSAP dip-and-rise) instead of hard-swapping rows — the panel
+                 frame itself never moves, rows reserve their lines, and the
+                 content breathes through the change. -->
+            <div class="con-hydro__panelbody" ref="panelBody">
             <!-- Identity row: stage glyph + name + status + route. -->
             <div class="con-hydro__ident" data-unfold-item>
               <span v-if="selectedStage.tag !== undefined" class="con-hydro__stage-tag resource-tag" :class="'tag-' + selectedStage.tag" aria-hidden="true"></span>
@@ -141,8 +154,10 @@
                 </span>
               </div>
               <!-- Route notes: skipped rewards + the 2VP leap — tied to the
-                   track (the amber route stops), one quiet line each. -->
-              <div v-if="model.skippedStages.length > 0 || jumpedOverVp2" class="con-hydro__routenotes" data-unfold-item>
+                   track (the amber route stops), one quiet line each. The
+                   STRIP is always in layout (a reserved line, the settings
+                   idiom) — appearing text may never re-flow the rows below. -->
+              <div class="con-hydro__routenotes" data-unfold-item>
                 <span v-if="model.skippedStages.length > 0" class="con-hydro__routenote">
                   ↷ {{ $t('Skipped rewards') }}: {{ skippedNames }}
                 </span>
@@ -253,6 +268,7 @@
                 <span class="con-hydro__routenote">→ {{ $t('Select a stage ahead to plan the advance') }}</span>
               </div>
             </template>
+            </div>
           </div>
         </div>
 
@@ -414,6 +430,7 @@
  * a park); this component renders it and routes input.
  */
 import {defineComponent, PropType} from 'vue';
+import {gsap} from 'gsap';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import HydroReward from '@/client/components/hydronetwork/HydroReward.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
@@ -466,6 +483,7 @@ import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTarge
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {motionMs} from '@/client/components/motion/motionTokens';
 import {cardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   setWorkspaceFrameSlot, setWorkspaceFrameStage, setWorkspaceFrameSubject,
@@ -1053,6 +1071,15 @@ export default defineComponent({
     'flow.commit.phase'(): void {
       this.maybeStartCeremony(this.markerSettled);
     },
+    // Stepping between stops RETUNES the standing panel body (a soft
+    // dip-and-rise under the change) instead of hard-swapping its rows —
+    // `overwrite: 'auto'` makes a held d-pad read as one continuous shimmer,
+    // never a pile of restarts.
+    'model.selectedPosition'(next: number, prev: number | undefined): void {
+      if (prev !== undefined && next !== prev && this.sceneKey === 'preview') {
+        this.retunePanel();
+      }
+    },
     // A stale pre-selected card silently left the model (the preview moved) —
     // tell the player instead of letting the CTA flip wordlessly.
     'model.selectedCard'(card: CardName | undefined, prev: CardName | undefined): void {
@@ -1150,6 +1177,27 @@ export default defineComponent({
         return 'card-resource card-resource-animal';
       }
       return l.resource !== undefined ? iconClassFor(l.resource) : '';
+    },
+    /** The panel-body RETUNE — the content breathes through a stop change
+     *  while the panel frame stands still. GSAP owns the overlap semantics:
+     *  a rapid re-step overwrites the running dip from its CURRENT pose. */
+    retunePanel(): void {
+      if (this.reducedMotion === true) {
+        return;
+      }
+      const body = this.$refs.panelBody as HTMLElement | undefined;
+      if (body === undefined || body === null) {
+        return;
+      }
+      gsap.fromTo(body,
+        {opacity: 0.45, y: 5 * conUiScale()},
+        {
+          opacity: 1, y: 0,
+          duration: motionMs(230) / 1000,
+          ease: 'power2.out',
+          overwrite: 'auto',
+          onComplete: () => gsap.set(body, {clearProps: 'opacity,transform'}),
+        });
     },
     // ── the SCENE transition hooks (the workspace-descend phrase) ──────────
     sceneEnter(el: Element, done: () => void): void {

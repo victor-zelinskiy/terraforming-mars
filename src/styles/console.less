@@ -3792,6 +3792,11 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         align-self: center;
         border-radius: .1rem;
         background: rgba(120, 150, 180, 0.2);
+        /* The route recolour rides the SAME clock as the cell growth — a
+           link snapping mint while its stop is still opening reads as two
+           unrelated events. */
+        transition: background calc(260ms * var(--motion-scale, 1)) ease,
+            box-shadow calc(260ms * var(--motion-scale, 1)) ease;
 
         &--done { background: fade(@con-hydro-aqua, 75%); box-shadow: 0 0 .4rem fade(@con-hydro-aqua, 35%); }
         &--route { background: fade(@con-hydro-mint, 80%); box-shadow: 0 0 .4rem fade(@con-hydro-mint, 40%); }
@@ -3810,9 +3815,15 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         background: rgba(12, 20, 30, 0.62);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
         cursor: pointer;
-        transition: width calc(150ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
-            box-shadow calc(150ms * var(--motion-scale, 1)) ease,
-            background calc(150ms * var(--motion-scale, 1)) ease;
+        /* The cell GROWTH is the rail's one physical gesture — long enough
+           to read as opening (150ms was a snap), the settle-flavoured enter
+           curve, and the dim/ring states riding the same clock so a step
+           never splits into three unrelated blinks. */
+        transition: width calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
+            box-shadow calc(260ms * var(--motion-scale, 1)) ease,
+            background calc(260ms * var(--motion-scale, 1)) ease,
+            opacity calc(260ms * var(--motion-scale, 1)) ease,
+            filter calc(260ms * var(--motion-scale, 1)) ease;
 
         &--completed {
             background: fade(@con-hydro-aqua, 7%);
@@ -3881,6 +3892,17 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         &--done { color: @con-hydro-mint; }
         &--skip { color: rgba(196, 216, 236, 0.65); }
     }
+    /* The magnified stop's own content — laid out at its FINAL width from
+       birth (no re-wrap while the cell opens under it) and crossfaded by the
+       `con-hydro-stopin` transition, never popped. */
+    &__stop-open {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .3rem;
+        width: 8.6rem;
+        min-width: 0;
+    }
     &__stop-name {
         font-size: .725rem;
         font-weight: 700;
@@ -3924,6 +3946,29 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         &--settle { animation: con-hydromarker-settle calc(680ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1); }
     }
 
+    /* ── The stop-content crossfade. ENTER surfaces a beat AFTER the cell
+       has mostly opened (the box first, then what it holds); LEAVE detaches
+       from the flow (absolute) so the shrinking cell never re-flows the
+       departing text — it lets go where it stood, quickly. ── */
+    .con-hydro-stopin-enter-active {
+        transition: opacity calc(190ms * var(--motion-scale, 1)) ease calc(90ms * var(--motion-scale, 1)),
+            transform calc(190ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) calc(90ms * var(--motion-scale, 1));
+    }
+    .con-hydro-stopin-enter-from {
+        opacity: 0;
+        transform: translateY(.3rem);
+    }
+    .con-hydro-stopin-leave-active {
+        position: absolute;
+        top: 2.6rem;
+        left: 50%;
+        transform: translateX(-50%);
+        transition: opacity calc(110ms * var(--motion-scale, 1)) ease;
+    }
+    .con-hydro-stopin-leave-to {
+        opacity: 0;
+    }
+
     /* ── THE SCENE — one region, stacked layers, the track never moves. ── */
     &__scene {
         position: relative;
@@ -3942,15 +3987,26 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         min-width: 0;
         overflow: hidden;
     }
+    /* The PREVIEW panel is TOP-ANCHORED: content that grows moves ONLY the
+       bottom edge (a centred panel moved both — the «дёргание» of stepping). */
+    &__layer--preview {
+        justify-content: flex-start;
+        padding-top: .35rem;
+    }
     /* The compact PANEL — a dossier, not a stretch: composition sets the
-       size, the tall host gives air AROUND it (the colony-focus idiom). */
+       size, the tall host gives air AROUND it (the colony-focus idiom).
+       GEOMETRY IS RESERVED: a fixed width, a floor height and top-anchored
+       placement (the preview layer) — stepping between stops changes what
+       the rows SAY, never where the panel's edges stand. The padding lives
+       on the BODY (the retune target), so a departing body could overlay
+       the frame pixel-exact if it ever had to. */
     &__panel {
+        position: relative;
         width: min(62rem, 100%);
+        min-height: 12rem;
         max-height: 100%;
         display: flex;
         flex-direction: column;
-        gap: .55rem;
-        padding: .8rem 1rem;
         border-radius: .7rem;
         background: @con-glass;
         box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 25%), 0 .6rem 2rem rgba(0, 0, 0, 0.4);
@@ -3958,12 +4014,29 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         scrollbar-width: none;
         &::-webkit-scrollbar { display: none; }
     }
-    &__panel--details { width: min(46rem, 100%); }
+    /* DETAILS shares the EXACT frame geometry of the plan (width + floor):
+       stepping across the current position may not move a single panel edge —
+       width/height are banned from animating, so the only seamless width
+       change is none. The shorter content simply gets air beneath it. */
+    &__panel--details {}
+    &__panelbody {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: .55rem;
+        padding: .8rem 1rem;
+        will-change: opacity, transform;
+    }
+    /* Row RESERVES (the settings-model layout-shift contract): every row
+       keeps its line whether this stop fills it or not — the next row down
+       never re-seats because the content above changed its mind. */
     &__ident {
         display: flex;
         align-items: center;
         gap: .6rem;
         flex-wrap: wrap;
+        min-height: 2.7rem;
         .con-hydro__route { margin-left: auto; }
     }
     &__stage-titles { min-width: 0; }
@@ -3972,8 +4045,14 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         align-items: center;
         gap: .45rem;
         flex-wrap: wrap;
+        min-height: 2.3rem;
     }
-    &__routenotes { display: flex; flex-direction: column; gap: .25rem; }
+    &__routenotes {
+        display: flex;
+        flex-direction: column;
+        gap: .25rem;
+        min-height: 1.05rem;
+    }
     &__routenote {
         font-size: .725rem;
         line-height: 1.35;
@@ -4073,6 +4152,11 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         align-items: center;
         gap: .4rem;
         font-size: .95rem;
+        /* Tabular digits + a reserved cell: 0→6 and 0→11 are the same width,
+           so stepping the target never wobbles the row. */
+        font-variant-numeric: tabular-nums;
+        > span:first-child,
+        b { min-width: 1.15rem; text-align: center; }
         b { font-size: 1.1rem; color: @con-hydro-mint; }
     }
     &__route-cost {
@@ -4151,6 +4235,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         align-items: center;
         gap: .55rem 1rem;
         flex-wrap: wrap;
+        min-height: 2.2rem;
     }
     &__gains-choice {
         display: inline-flex;
@@ -4190,6 +4275,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         display: inline-flex;
         align-items: center;
         gap: .3rem;
+        font-variant-numeric: tabular-nums;
         b { font-size: .9rem; }
     }
     &__after { color: @con-hydro-mint; }
@@ -4334,7 +4420,15 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     &__detail-status { font-size: .85rem; font-weight: 700; }
 
     /* ── THE REWARD-CHOICE layer (pos 1/2) — a physical D-pad row. ── */
-    &__panel--choice { width: min(52rem, 100%); align-items: center; }
+    /* (The base panel's padding lives on the retune BODY — the step panels
+       carry their own, since their content is not the retuned body.) */
+    &__panel--choice {
+        width: min(52rem, 100%);
+        min-height: 0;
+        align-items: center;
+        gap: .55rem;
+        padding: .9rem 1rem;
+    }
     &__choice-ask {
         font-size: .95rem;
         font-weight: 700;
@@ -4513,7 +4607,13 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     &--cere &__commitline { opacity: 0.35; transition: opacity calc(300ms * var(--motion-scale, 1)) ease; }
 
     /* ── THE RESULT layer — the compact read-hold summary. ── */
-    &__panel--result { width: min(48rem, 100%); align-items: flex-start; }
+    &__panel--result {
+        width: min(48rem, 100%);
+        min-height: 0;
+        align-items: flex-start;
+        gap: .55rem;
+        padding: .9rem 1rem;
+    }
     &__result-head {
         display: flex;
         align-items: center;
@@ -4557,6 +4657,10 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
 @media (prefers-reduced-motion: reduce) {
     .con-hydro__cta { animation: none; }
     .con-hydro__commit-spin { animation: none; }
+    .con-hydro__stop,
+    .con-hydro__link { transition-duration: 1ms; }
+    .con-hydro .con-hydro-stopin-enter-active,
+    .con-hydro .con-hydro-stopin-leave-active { transition-duration: 1ms; transition-delay: 0ms; }
 }
 
 /* ── Hydronetwork · handheld profile (Steam Deck 1280×800 — the primary
@@ -4585,7 +4689,12 @@ html.con-profile-handheld .con-hydro {
     .con-hydro__stop-marker { width: .55rem; height: .55rem; }
     .con-hydro__link { min-width: .2rem; max-width: .7rem; }
 
-    .con-hydro__panel { gap: .4rem; padding: .55rem .65rem; width: min(52rem, 100%); }
+    .con-hydro__panel { width: min(52rem, 100%); min-height: 10.4rem; }
+    .con-hydro__panelbody { gap: .4rem; padding: .55rem .65rem; }
+    .con-hydro__stop-open { width: 7.2rem; }
+    .con-hydro__ident { min-height: 2.2rem; }
+    .con-hydro__reqline { min-height: 1.9rem; }
+    .con-hydro__gains { min-height: 1.9rem; }
     .con-hydro__section-label { font-size: .6rem; letter-spacing: .07rem; }
     .con-hydro__stage-tag { width: 1.8rem; height: 1.8rem; }
     .con-hydro__stage-name { font-size: .85rem; }
@@ -4622,6 +4731,7 @@ html.con-profile-large .con-hydro {
     .con-hydro__cta { font-size: 1.05rem; padding: .8rem 1.1rem; }
     .con-hydro__reason { font-size: .9rem; }
     .con-hydro__panel { width: min(74rem, 100%); }
+    .con-hydro__stop-open { width: 11rem; }
     .con-hydro__choice-card { flex-basis: 24rem; }
     .con-hydro__cere-value { font-size: 2.6rem; }
 }
