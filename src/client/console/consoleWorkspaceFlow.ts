@@ -153,3 +153,91 @@ export function workspacePhaseOf(signals: {
   }
   return signals.resultUp ? 'committed' : 'executing';
 }
+
+// ── THE CONCLUSION — where a FINISHED flow leaves the player ─────────────────
+
+/*
+ * WHY THIS IS A POLICY AND NOT A `close()` AT EACH ENDING.
+ *
+ * A committed flow can finish in as many places as it has result flavours: a
+ * plain reward ends on the server's answer, a drawn batch ends when the last
+ * card is taken, a deck-check ends on the player's «ОК», a purchase ends when
+ * its prompt stops being asked. Every one of those used to conclude itself, at
+ * its own call site — and they DISAGREED. Two left the workspace; two folded
+ * back to the browse grid the player had come from:
+ *
+ *   «Поиск жизни» → confirm → the card is pulled, turned over, the verdict
+ *   reads «Условие выполнено» → A → …and the player is standing in the ДЕЙСТВИЯ
+ *   КАРТ list again, looking at the action they just performed, now greyed
+ *   «Активирована». Nobody asked for that screen. It is one more B away from the
+ *   board, and the only reason it appeared is that this action's result happened
+ *   to be embeddable.
+ *
+ * THE RULE. A REVERSIBLE cancel folds back — there is something to fold back TO,
+ * and the player asked to go there. A COMPLETED operation does not: past the
+ * commit boundary the workspace is not a place to return to, it is the thing
+ * that is OVER. It leaves, and the player lands on the board — where the next
+ * move is made.
+ *
+ * …but only once it genuinely owes nothing. A workspace is ONE FLOW, and a flow
+ * routinely outlives the stage that produced its first result: a purchase raises
+ * its payment, a colony step stands INSIDE the activation that opened it, a
+ * drawn batch is still in the air. So «the flow ended» stops being a per-flavour
+ * close and becomes ONE question — is anything inside this workspace still
+ * owed? — asked in one place, with the four ways it can answer «yes» NAMED
+ * rather than re-spelled at every site.
+ *
+ * PURE: the caller reads the four facts off the stack / the claim / the prompt;
+ * this owns what they mean together.
+ */
+
+/** WHY a finished flow may not leave yet. Ordered by how much they outrank
+ *  each other, so the reported reason is the strongest one. */
+export type WorkspaceHoldReason =
+  /** A step — another workspace — is standing INSIDE this one. An inner frame
+   *  cannot outlive its host, so the host cannot leave first. */
+  | 'nested-step'
+  /** This workspace still owns an outcome artifact: on its way, or on screen. */
+  | 'live-outcome'
+  /** The server is still asking something this workspace serves or hosts (the
+   *  second half of a pick-then-pay is the reference case). */
+  | 'owned-prompt'
+  /** The player set the flow aside. Coming back to it is THEIR decision, and a
+   *  conclusion here would silently turn «свернуть» into «закрыть». */
+  | 'parked';
+
+export type WorkspaceConclusion =
+  /** The operation is over — the workspace goes, and takes its stack with it. */
+  | {verdict: 'dismiss'}
+  /** Something is still owed here — stay, and let it present itself. */
+  | {verdict: 'hold', reason: WorkspaceHoldReason};
+
+/**
+ * MAY A FINISHED FLOW DISMISS ITS WORKSPACE? The ONE answer — the ending, the
+ * specs and any future host all read this, so no two endings of the same
+ * workspace can land the player in different places again.
+ */
+export function workspaceConclusionFor(signals: {
+  /** `workspaceFrameHasNested(kind)` — a step is standing inside. */
+  nested: boolean,
+  /** This host still holds its outcome claim. */
+  outcomeLive: boolean,
+  /** A live prompt belongs to this workspace (embedded, or on its way there). */
+  ownsPrompt: boolean,
+  /** This workspace is in the PARK rather than on screen. */
+  parked: boolean,
+}): WorkspaceConclusion {
+  if (signals.nested) {
+    return {verdict: 'hold', reason: 'nested-step'};
+  }
+  if (signals.outcomeLive) {
+    return {verdict: 'hold', reason: 'live-outcome'};
+  }
+  if (signals.ownsPrompt) {
+    return {verdict: 'hold', reason: 'owned-prompt'};
+  }
+  if (signals.parked) {
+    return {verdict: 'hold', reason: 'parked'};
+  }
+  return {verdict: 'dismiss'};
+}

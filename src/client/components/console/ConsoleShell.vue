@@ -6,7 +6,8 @@
     <ConsoleStatusStrip :playerView="playerView"
                         :waitingOnPlayers="waitingOnPlayers"
                         :epoch="playerView.runId"
-                        :attentionPending="mandatoryChipAttention" />
+                        :attentionPending="mandatoryChipAttention"
+                        :ghostParam="stdpGhostParam" />
 
     <!-- P27: the central banner is reserved for MANDATORY / critical states
          (placement, awaited decisions) — never a plain "your turn". -->
@@ -293,6 +294,7 @@
                             @blocked="showNotice"
                             @submit-batch="onCardActionsSubmitBatch"
                             @reveal-ack="onCardActionsRevealAck"
+                            @flow-complete="onCardActionsFlowComplete"
                             @collapse="onCardActionsCollapse"
                             @colony-step="onCardActionsColonyStep"
                             @close="onCardActionsClose" />
@@ -413,9 +415,11 @@
                 @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                 @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
       <ConsoleStdProjectsScreen v-if="workspaceFrameRenders('standard-projects')"
+                                ref="stdpScreen"
                                 :items="stdProjectItems"
                                 :index="consoleState.sheetIndex"
                                 :myMegacredits="thisPlayer.megacredits"
+                                :stepUp="stdpStepUp"
                                 :backLabel="stdBackLabel" />
       <ConsoleMaScreen v-else-if="maScreenKind !== undefined"
                        ref="maScreen"
@@ -1243,14 +1247,17 @@ import {
   descendWorkspaceFrame,
   enterWorkspace,
   foldWorkspaceFrame,
+  frameServing,
   goBoardHome,
   leaveWorkspace,
+  popWorkspaceFrame,
   pushWorkspaceFrame,
   resetWorkspaceStack,
   restoreWorkspaceStack,
   setWorkspaceFramePhase,
   setWorkspaceFrameServes,
   setWorkspaceFrameStage,
+  setWorkspaceFrameSubject,
   workspaceFrameDescended,
   workspaceFrameHasNested,
   workspaceFrameIndex,
@@ -1276,7 +1283,17 @@ import {
   FrameAnchor,
   WorkspaceFrameKind,
 } from '@/client/console/consoleWorkspaceStack';
-import {isCommitted} from '@/client/console/consoleWorkspaceFlow';
+import {acceptsInput, isCommitted, workspaceConclusionFor} from '@/client/console/consoleWorkspaceFlow';
+import {
+  beginStdProjectSubmit,
+  markStdProjectCommit,
+  markStdProjectTarget,
+  requestStdProjectCancel,
+  resetStdProjectsFlow,
+  stdProjectsFlow,
+  stdProjectsFlowLive,
+  stdProjectsFramePhase,
+} from '@/client/console/consoleStdProjects';
 import {resetHandStageMotion, handStageTransitioning, guardHandHeroFlight, heroCommitLift} from '@/client/console/consoleHandStageMotion';
 import {armHandPlayPrewarm, cancelHandPlayPrewarm, resetHandPlayPrewarm} from '@/client/console/consoleHandPlayPrewarm';
 import ConsoleCorpFirstActionConfirm from '@/client/components/console/ConsoleCorpFirstActionConfirm.vue';
@@ -1522,6 +1539,11 @@ type PendingClientPayment = {
 
 /** The synthetic host task for a client-built payment prompt. */
 const CLIENT_PAYMENT_TASK: ConsoleTask = {kind: 'payment'};
+
+/** The terminal std-project COMMITTED beat — long enough for the row's fixed
+ *  state + the HUD's own delta tick to be READ, short enough to stay a beat.
+ *  The dismiss gates on it (never on the server's speed). */
+const STDP_COMMIT_BEAT_MS = 950;
 
 /** P17: px per full-deflection frame for the right-stick console scroll
  *  (mirrors the DOM engine's SCROLL_STEP_PX so the feel is identical). */
@@ -3001,6 +3023,13 @@ export default defineComponent({
       if (this.hostTask?.kind === 'payment' && workspaceFrameMounted('draft') &&
           this.playerView.game.phase === Phase.RESEARCH && draftCompletionHolding()) {
         return '.con-draftws [data-draft-pay-slot]';
+      }
+      // The STD-PROJECT's alt-resource payment (a CLIENT prompt — the plain
+      // M€ case never builds one): choosing the project and paying for it is
+      // ONE decision, so the payment host teleports into the workspace's own
+      // step zone («› ОПЛАТА») instead of replacing the screen it belongs to.
+      if (this.pendingClientPayment !== undefined && workspaceFrameMounted('standard-projects')) {
+        return '.con-stdp [data-embed-slot="stdp-step"]';
       }
       if (!workspaceClaimsPick()) {
         return undefined;
@@ -4513,8 +4542,15 @@ export default defineComponent({
     quickTrigger(): 'triggerR' | 'triggerL' {
       return this.consoleState.quick === 'actions' ? 'triggerR' : 'triggerL';
     },
-    /** The premium Standard-Projects screen rows (Patent sale included). */
+    /** The premium Standard-Projects screen rows (Patent sale included).
+     *  FROZEN for the span of a submit: the live rows derive from `waitingFor`,
+     *  which moves on with the response — without the freeze the browse grid
+     *  re-renders EMPTY under the flow's own beat (the deck-pick precedent). */
     stdProjectItems(): Array<StdProjectItem> {
+      const frozen = stdProjectsFlow.frozenItems;
+      if (frozen !== undefined && stdProjectsFlowLive()) {
+        return [...frozen];
+      }
       return buildStdProjectItems({
         cards: this.standardProjectsAction?.input.cards ?? [],
         blockedReason: this.actionBlockedReason,
@@ -4524,6 +4560,40 @@ export default defineComponent({
         sellAvailable: findSellPatentsAction(this.playerView.waitingFor) !== undefined,
         cardsInHand: this.cardsTotalCount,
       });
+    },
+    /**
+     * A step of the STD-PROJECTS flow is standing inside the workspace — a
+     * nested frame (the colony pick, the sale's hand) or the embedded payment
+     * host (which teleports without a frame of its own). The screen's browse
+     * layer parks on this; the ONE derivation, so the two can never disagree.
+     */
+    stdpStepUp(): boolean {
+      if (!workspaceFrameMounted('standard-projects')) {
+        return false;
+      }
+      return workspaceFrameHasNested('standard-projects') ||
+        this.pendingClientPayment !== undefined;
+    },
+    /**
+     * The SPATIAL PRE-SELECT hint (§9): while the player browses the std
+     * projects, the HUD readout the FOCUSED project would move carries a
+     * quiet ring. Browse only (never during a beat), and never for a maxed
+     * parameter — the honest chip already says «no effect», and ringing a
+     * dial that will not move would be the lie the preview rules forbid.
+     */
+    stdpGhostParam(): 'temperature' | 'oxygen' | 'oceans' | 'venus' | undefined {
+      if (!workspaceFrameMounted('standard-projects') || this.stdpStepUp ||
+          workspaceFramePhase('standard-projects') !== 'browse') {
+        return undefined;
+      }
+      const focused = this.stdProjectItems[this.consoleState.sheetIndex];
+      for (const e of focused?.preview?.effects ?? []) {
+        if ((e.icon === 'temperature' || e.icon === 'oxygen' || e.icon === 'venus' || e.icon === 'oceans') &&
+            e.current !== e.resulting) {
+          return e.icon as 'temperature' | 'oxygen' | 'oceans' | 'venus';
+        }
+      }
+      return undefined;
     },
     /** B on the MANDATORY std-project prompt minimizes (amber chip), else closes. */
     stdBackLabel(): string {
@@ -5243,7 +5313,18 @@ export default defineComponent({
         }
         return [other, {control: 'back', label: 'Close'}];
       }
-      if (this.consoleState.sheet === 'standardProjects') {
+      if (this.consoleState.sheet === 'standardProjects' && workspaceStackTopAxis() !== 'section') {
+        // A SECTION-projecting step standing inside (the sale's hand, the
+        // colony pick) publishes its own contract — this branch yields to it
+        // by DEPTH (the axis rule), exactly like the card-actions branch.
+        //
+        // A beat in flight advertises NOTHING: input is absorbed by phase, so
+        // the bar must not promise verbs that cannot land. (The embedded
+        // PAYMENT step never reaches here — the task-host branch above owns
+        // the bar while a client payment is up.)
+        if (!acceptsInput(workspaceFramePhase('standard-projects') ?? 'browse')) {
+          return [];
+        }
         // One context-sensitive CTA belongs in the canonical command rail;
         // repeating it on every project card adds noise and weakens focus.
         const focused = this.stdProjectItems[this.consoleState.sheetIndex];
@@ -6109,8 +6190,18 @@ export default defineComponent({
      */
     'patentSaleState.phase'(phase: string) {
       if (phase === 'inserting') {
+        // The hand has physically given the cards away — the WHOLE flow closes
+        // in one splice (std-projects host included: no flash of the parent
+        // list between the sale and the payout chip landing on the rail).
+        resetStdProjectsFlow();
         closeConsoleLayers();
         goBoardHome();
+      }
+      // A sale refused BEFORE the terminal took the stack: the picks are
+      // intact (the scene unwinds), so a hosting std-projects frame returns
+      // to its reversible configure stage — B must work again.
+      if (phase === 'failed' && workspaceFrameHost('hand') === 'standard-projects') {
+        setWorkspaceFramePhase('standard-projects', 'configure');
       }
     },
     // PRESENTATION FLOW occupancy: while a console mandatory surface (task
@@ -6843,11 +6934,22 @@ export default defineComponent({
             findConvertPlantsOption(this.playerView.waitingFor, this.thisPlayer.canConvertPlants === true) === undefined) {
           this.convertPlantsPending = undefined;
         }
-        // The sell-patents window closed externally → drop the stale sale mode.
+        // The sell-patents window closed externally → drop the stale sale mode
+        // (and fold the hand STEP it was standing in, if the std-projects flow
+        // hosted one — a step whose mode died must not keep the descent).
         if (this.consoleState.sale.active && findSellPatentsAction(this.playerView.waitingFor) === undefined) {
           this.consoleState.sale.active = false;
           this.consoleState.sale.selected = [];
+          if (workspaceFrameHost('hand') === 'standard-projects' && !isPatentSaleActive()) {
+            popWorkspaceFrame();
+            this.rollbackStdProjectFlow();
+          }
         }
+        // THE STD-PROJECTS FLOW answers its own round trip BEFORE the generic
+        // prompt-identity reconciliation below: a terminal project's response
+        // re-arrives on the SAME action-menu identity, so the identity block
+        // alone would never see it.
+        this.reconcileStdProjectsFlow();
         // T6: the server cleared the reveal result → the ack marker is stale.
         if (this.playerView.lastReveal === undefined && this.dismissedRevealKey !== '') {
           this.dismissedRevealKey = '';
@@ -7061,6 +7163,18 @@ export default defineComponent({
       const anchor: FrameAnchor = {type: 'prompt', promptType: 'colony'};
       if (host === undefined) {
         enterWorkspace('colonies', {anchor});
+      } else if (host === 'standard-projects' && this.colonyCancellable) {
+        // The STD-PROJECTS flow's pay-on-commit target step: NOTHING is spent
+        // yet (the server marks the pick cancellable), so the flow is still
+        // REVERSIBLE — the crumb stays cyan, B cancels server-side for free
+        // and folds back to the very row the player left. The colony's own
+        // confirm is the single atomic commit.
+        this.armStdpStepOrigin();
+        setWorkspaceFramePhase(host, 'configure');
+        pushWorkspaceFrame({
+          kind: 'colonies', subject: '', stage: 'Colony selection', phase: 'configure',
+          serves: ['colony'], anchor,
+        });
       } else {
         // The host's own beat is OVER — what remains is a decision about its
         // result. Past the commit boundary its B means «collapse», and its
@@ -8366,7 +8480,15 @@ export default defineComponent({
     handleSheetIntent(intent: GamepadIntent): void {
       // P27: the Standard-Projects premium screen — 2-column GRID nav,
       // A = use / sell, B = close (MANDATORY prompt → defer to the chip).
-      if (this.consoleState.sheet === 'standardProjects') {
+      // While a SECTION-projecting step stands inside it (the sale's hand,
+      // the colony pick) the deepest axis owns the pad — this branch yields.
+      if (this.consoleState.sheet === 'standardProjects' && workspaceStackTopAxis() !== 'section') {
+        // A beat in flight (the submit round trip / the committed beat)
+        // ABSORBS input: a double submit is impossible by construction, and
+        // a stray press cannot reach the rows underneath.
+        if (!acceptsInput(workspaceFramePhase('standard-projects') ?? 'browse')) {
+          return;
+        }
         if (intent.kind === 'nav') {
           this.consoleState.sheetIndex = stepGrid(
             this.consoleState.sheetIndex, intent.dir, this.stdProjectItems.length, 2);
@@ -8377,6 +8499,13 @@ export default defineComponent({
           if (a === 'primary') {
             this.activateStdItem(this.stdProjectItems[this.consoleState.sheetIndex]);
           } else if (a === 'back') {
+            // The EMBEDDED PAYMENT step folds one level (nothing committed) —
+            // otherwise B closes the browse layer, exactly as before.
+            if (this.pendingClientPayment !== undefined) {
+              this.pendingClientPayment = undefined;
+              this.rollbackStdProjectFlow();
+              return;
+            }
             this.deferShellTask();
             leaveWorkspace();
           }
@@ -8742,9 +8871,23 @@ export default defineComponent({
         return;
       }
       if (this.consoleState.sale.active) {
+        // The sale is ON THE WIRE / physically flying — the press is absorbed
+        // (the move is committed; folding the hand mid-scene would tear the
+        // gather's live slots out from under its own proxies).
+        if (isPatentSaleActive()) {
+          return;
+        }
         this.consoleState.sale.active = false;
         this.consoleState.sale.selected = [];
-        goBoardHome();
+        // A sale hosted as a STEP of the std-projects flow folds ONE level
+        // back — same workspace, same row, nothing sold. A standalone sale
+        // (the legacy lateral entry) still closes to the board.
+        if (workspaceFrameHost('hand') === 'standard-projects') {
+          popWorkspaceFrame();
+          this.rollbackStdProjectFlow();
+        } else {
+          goBoardHome();
+        }
         return;
       }
       // A NESTED STEP (the hand hosted by the start, …): B minimizes the WHOLE
@@ -8779,6 +8922,12 @@ export default defineComponent({
       // (pay-on-commit Build Colony), else DEFER to inspect the board.
       if (this.shellTaskActive) {
         if (this.shellTask?.kind === 'colony' && this.colonyCancellable) {
+          // Inside the std-projects flow the response to this cancel is what
+          // folds the colony step back to the same browse row (the flow's
+          // reconciler) — mark it so the fold is a return, never a close.
+          if (stdProjectsFlowLive()) {
+            requestStdProjectCancel();
+          }
           this.submit(cancelResponse());
           return;
         }
@@ -8979,6 +9128,12 @@ export default defineComponent({
       // the pending decision, and clearing the flag with frames still parked
       // leaves them owned by nobody and reachable by nothing (the invariant
       // `parked non-empty ⇒ deferred`).
+      // A FRESH std-projects open never adopts a dead flow (the module record
+      // outlives the frame by design — the board excursion needs it — but a
+      // deliberate re-entry through the wheel starts at browse).
+      if (sheet === 'standard-projects') {
+        resetStdProjectsFlow();
+      }
       const isTaskSurface = !parkOwed && ((sheet === 'standard-projects' &&
         this.shellTask?.kind === 'projectCard' && this.shellTask.mode === 'standardProject') ||
         (sheet === 'awards' && this.shellTask?.kind === 'awardFunding'));
@@ -9225,10 +9380,25 @@ export default defineComponent({
         return;
       }
       if (item.key === 'sell-patents') {
-        // Patent sale — the hand carousel's SALE mode (A toggles, Y sells).
+        // Patent sale — the hand carousel's SALE mode, hosted as a STEP of
+        // this very flow: the workspace descends («› ПРОДАЖА ПАТЕНТОВ»), the
+        // hand teleports into its zone, B folds back to the same row with
+        // nothing sold. Nothing reaches the server until the sale confirms.
         this.consoleState.sale.active = true;
         this.consoleState.sale.selected = [];
-        enterWorkspace('hand');
+        if (workspaceFrameMounted('standard-projects')) {
+          this.armStdpStepOrigin();
+          setWorkspaceFrameSubject('standard-projects', 'Patent sale');
+          setWorkspaceFramePhase('standard-projects', 'configure');
+          this.openHandWorkspace();
+          // The crumb's tail is the HAND STEP's own stage name, handed up:
+          // «СТАНДАРТНЫЕ ПРОЕКТЫ › ПРОДАЖА ПАТЕНТОВ › ВЫБОР КАРТ».
+          setWorkspaceFrameStage('hand', 'Card selection');
+          this.consoleState.handIndex = 0;
+        } else {
+          // No workspace standing (a degenerate entry) — the lateral fallback.
+          enterWorkspace('hand');
+        }
         return;
       }
       if (item.cardName !== undefined) {
@@ -9535,25 +9705,191 @@ export default defineComponent({
       }
       const cost = card.calculatedCost ?? 0;
       if (hasUsableStandardProjectAlternativeResources(this.thisPlayer, card, action.input.paymentOptions ?? {})) {
-        // T3: the alt-resource payment is hosted NATIVELY by the task host
-        // (promptOverride) — B cancels back to the sheet, nothing committed.
+        // T3 → North Star: the alt-resource payment is a STEP of this flow —
+        // the task host (promptOverride) teleports into the workspace's own
+        // zone («› ОПЛАТА»), the browse layer parks, B cancels back to the
+        // same row with nothing committed. The workspace never closes.
         const title = standardProjectPaymentTitle(cardName);
+        if (workspaceFrameMounted('standard-projects')) {
+          this.armStdpStepOrigin();
+          setWorkspaceFrameSubject('standard-projects', cardName);
+          setWorkspaceFrameStage('standard-projects', 'Payment');
+          setWorkspaceFramePhase('standard-projects', 'configure');
+        }
         this.pendingClientPayment = {
           cardName,
           input: buildStandardProjectPaymentModel(this.playerView, action.input, card, title, cost),
         };
-        closeConsoleLayers();
         return;
       }
-      closeConsoleLayers();
       this.submitStandardProjectPayment(cardName, Payment.of({megacredits: cost}));
     },
+    /**
+     * THE ONE SUBMIT of the standard-projects flow (plain M€ and the payment
+     * step both funnel here). The workspace does NOT close: the frame enters
+     * its `executing` beat (input absorbed by phase — a double press cannot
+     * exist), the rows freeze, and the RESPONSE decides what the flow is —
+     * a nested target step (pay-on-commit), a terminal committed beat, or an
+     * honest fold for a follow-up this workspace has no surface for
+     * (`reconcileStdProjectsFlow`). A lost response rolls back via the safety.
+     */
     submitStandardProjectPayment(cardName: CardName, payment: Payment): void {
       const action = this.standardProjectsAction;
       if (action === undefined) {
         return;
       }
+      if (workspaceFrameMounted('standard-projects')) {
+        beginStdProjectSubmit(cardName, this.stdProjectItems, this.consoleState.sheetIndex,
+          `${this.game.gameAge}|${this.game.undoCount}`);
+        setWorkspaceFrameSubject('standard-projects', cardName);
+        setWorkspaceFrameStage('standard-projects', '');
+        setWorkspaceFramePhase('standard-projects', stdProjectsFramePhase('submitting'));
+        this.armStdProjectSafety();
+      } else {
+        // Degenerate entry (no workspace standing) — the legacy close-first path.
+        closeConsoleLayers();
+      }
       this.submit(wrapPath(action.path, {type: 'projectCard' as const, card: cardName, payment}));
+    },
+    /**
+     * A submit whose response never lands must not strand the player inside a
+     * sealed `executing` beat: roll the flow back to browse and say so. The
+     * fingerprint (flow still submitting for the SAME card) keeps a late
+     * response from being clobbered — mirrors `armMaFocusSafety`.
+     */
+    armStdProjectSafety(): void {
+      const card = stdProjectsFlow.card;
+      window.setTimeout(() => {
+        if (stdProjectsFlow.state === 'submitting' && stdProjectsFlow.card === card) {
+          this.rollbackStdProjectFlow();
+          this.showNotice('Unavailable right now');
+        }
+      }, 12_000);
+    },
+    /** Arm the std-projects DESCEND phrase from the focused row (the screen
+     *  owns the rect; a stale/missing arm degrades to a plain surface). */
+    armStdpStepOrigin(): void {
+      (this.$refs.stdpScreen as InstanceType<typeof ConsoleStdProjectsScreen> | undefined)?.armStepOrigin();
+    },
+    /** A refused/lost submit — the flow returns to its reversible browse layer. */
+    rollbackStdProjectFlow(): void {
+      resetStdProjectsFlow();
+      if (workspaceFrameMounted('standard-projects')) {
+        setWorkspaceFrameSubject('standard-projects', '');
+        setWorkspaceFrameStage('standard-projects', '');
+        setWorkspaceFramePhase('standard-projects', 'browse');
+      }
+    },
+    /**
+     * THE FLOW'S OWN RECONCILER — one place that answers «the server replied;
+     * what is this flow now?» (runs from the playerView watcher, before the
+     * generic identity block). The response, not a client guess, decides:
+     *  · a colony/space follow-up → a NESTED TARGET STEP (pay-on-commit,
+     *    still reversible — B cancels server-side for free);
+     *  · the action menu again → a TERMINAL COMMIT (short committed beat,
+     *    then the workspace closes);
+     *  · anything else → an honest fold (this workspace has no surface for
+     *    it; the prompt routes to its own home, exactly as before).
+     * The cancel legs live here too: the response to a placement/colony
+     * cancel is what folds the step back (or reopens the folded workspace)
+     * onto the very row the player left.
+     */
+    reconcileStdProjectsFlow(): void {
+      if (!stdProjectsFlowLive()) {
+        return;
+      }
+      const task = taskFor(this.playerView);
+      if (stdProjectsFlow.state === 'submitting') {
+        const fp = `${this.game.gameAge}|${this.game.undoCount}`;
+        if (fp === stdProjectsFlow.submittedAt) {
+          return; // no response yet
+        }
+        if (task?.kind === 'colony') {
+          // openColoniesForPrompt (the shellTask auto-open below) hosts it as
+          // a step of this frame; the flow is still reversible.
+          markStdProjectTarget();
+          if (workspaceFrameMounted('standard-projects')) {
+            setWorkspaceFramePhase('standard-projects', stdProjectsFramePhase('target'));
+          }
+          return;
+        }
+        if (task?.kind === 'space' || this.placementActive) {
+          // The board serves the placement (the placement watcher already
+          // folded the frames — the board IS the step). The excursion draft
+          // is what brings a cancel back to this very row.
+          markStdProjectTarget();
+          return;
+        }
+        if (task === undefined || task.kind === 'actionMenu') {
+          // TERMINAL SUCCESS — the world has changed (the HUD ticks its own
+          // delta chips); the row states the commit, then the flow closes.
+          this.playStdProjectCommitBeat();
+          return;
+        }
+        // A follow-up this workspace has no surface for (a Moon placement, a
+        // Collusion party pick, the maxed-oceans Whales redirect): fold
+        // honestly and let the prompt route to its own home.
+        resetStdProjectsFlow();
+        if (workspaceFrameMounted('standard-projects')) {
+          goBoardHome();
+          closeConsoleLayers();
+        }
+        return;
+      }
+      if (stdProjectsFlow.state === 'target') {
+        // The COLONY step's cancel leg: the cancel response restored the
+        // action menu — fold the step back to the same browse row (nothing
+        // spent, focus untouched). The colony COMMIT leg needs nothing here:
+        // the build's own completion signal closes the whole flow
+        // (onColonyFlowComplete), and mid-payout guards live there.
+        if (stdProjectsFlow.cancelRequested && task?.kind !== 'colony' && task?.kind !== 'space' &&
+            !this.placementActive) {
+          if (workspaceFrameHost('colonies') === 'standard-projects') {
+            popWorkspaceFrame();
+          }
+          if (workspaceFrameMounted('standard-projects')) {
+            this.rollbackStdProjectFlow();
+            return;
+          }
+          // The PLACEMENT cancel leg: the workspace was folded for the board —
+          // reopen it on the very row the player left (a RESUME via the
+          // module draft, never a re-homed fresh open).
+          const draft = stdProjectsFlow.boardExcursion;
+          resetStdProjectsFlow();
+          if (draft !== undefined && this.standardProjectsAction !== undefined) {
+            enterWorkspace('standard-projects');
+            this.consoleState.sheetIndex = stepIndex(draft.sheetIndex, 0, this.stdProjectItems.length);
+          }
+          return;
+        }
+        // The placement COMMITTED (a space answered, the flow moved past it):
+        // the tile hero + bonuses play on the board; nothing returns to the
+        // list — the flow is spent the moment the server moved on.
+        if (stdProjectsFlow.boardExcursion !== undefined && !workspaceFrameMounted('standard-projects') &&
+            !stdProjectsFlow.cancelRequested && task?.kind !== 'space' && !this.placementActive) {
+          resetStdProjectsFlow();
+        }
+        return;
+      }
+      // state === 'commit' — the beat timer owns the close.
+    },
+    /** The terminal committed beat: the row fixes, the change is READ, the
+     *  workspace closes — never a flash of the list after the close. */
+    playStdProjectCommitBeat(): void {
+      markStdProjectCommit();
+      if (workspaceFrameMounted('standard-projects')) {
+        setWorkspaceFramePhase('standard-projects', stdProjectsFramePhase('commit'));
+      }
+      window.setTimeout(() => {
+        if (stdProjectsFlow.state !== 'commit') {
+          return;
+        }
+        resetStdProjectsFlow();
+        if (workspaceFrameMounted('standard-projects')) {
+          goBoardHome();
+          closeConsoleLayers();
+        }
+      }, motionMs(STDP_COMMIT_BEAT_MS));
     },
     submitInnerOption(found: {options: ReadonlyArray<unknown>, path: ReadonlyArray<number>} | undefined, targetTitle: string): boolean {
       if (found === undefined) {
@@ -9767,6 +10103,22 @@ export default defineComponent({
      * a live task surface already took it — and otherwise the field does.
      */
     onColonyFlowComplete(): void {
+      // THE RESOLUTION'S LAST NET first: whatever local edge fired this
+      // completion, nothing goes home while the viewer still owes a Pluto
+      // follow-up (a pending discard, a flight, a parked batch). The gate has
+      // one owner (colonyResolutionLive); this is its enforcement here.
+      if (this.colonyResolutionLive) {
+        return;
+      }
+      // A colony built as the STD-PROJECTS flow's target step: the build's own
+      // follow-ups are over — the WHOLE flow closes in one splice (never a
+      // flash of the parent list between the payout and the board).
+      if (workspaceFrameHost('colonies') === 'standard-projects') {
+        resetStdProjectsFlow();
+        goBoardHome();
+        closeConsoleLayers();
+        return;
+      }
       // An embedded host normally CONTINUES the sequence (a played card's own
       // colony pick is one step of playing it) — but a card-sourced TRADE has
       // no continuation: the card action was never submitted, the trade IS the
@@ -9774,13 +10126,6 @@ export default defineComponent({
       // just been used, so returning there would land the player on a screen
       // that no longer offers what they came from.
       if ((this.colonyEmbedActive && cardColonyTradeCard() === '') || this.shellTaskActive) {
-        return;
-      }
-      // THE RESOLUTION'S LAST NET: whatever local edge fired this completion,
-      // the workspace never goes home while the viewer still owes a Pluto
-      // follow-up (a pending discard, a flight, a parked batch). The gate has
-      // one owner (colonyResolutionLive); this is its enforcement here.
-      if (this.colonyResolutionLive) {
         return;
       }
       if (this.consoleState.section === 'colonies') {
@@ -10017,6 +10362,13 @@ export default defineComponent({
       // delta chip) until the payout chip lands on the resource rail.
       // Desktop is unaffected (never arms).
       armPatentSale({cards});
+      // Hosted as a step of the STD-PROJECTS flow: the commit is on the wire —
+      // the frame crosses into its transient beat (crumb amber, B absorbed by
+      // phase). The sale scene's own phases drive the rest; 'failed' rolls
+      // this back beside the picks it preserves.
+      if (workspaceFrameHost('hand') === 'standard-projects') {
+        setWorkspaceFramePhase('standard-projects', 'executing');
+      }
       this.submit(wrapPath(action.path, {type: 'card' as const, cards}));
     },
     onConvertPlantsSpacePicked(spaceResponse: {type: 'space', spaceId: string}): void {
@@ -10066,6 +10418,12 @@ export default defineComponent({
         this.convertPlantsPending = undefined;
         return;
       }
+      // A placement raised by the STD-PROJECTS flow: the cancel's response is
+      // what REOPENS the folded workspace on the very row the player left
+      // (the flow's reconciler) — mark the leg so it reads as a return.
+      if (stdProjectsFlowLive()) {
+        requestStdProjectCancel();
+      }
       const wfRef = this.$refs.waitingFor as {onPlacementCancel?: () => void} | undefined;
       wfRef?.onPlacementCancel?.();
     },
@@ -10113,8 +10471,15 @@ export default defineComponent({
     /** B in the host: defer a SERVER task; CANCEL a client payment. */
     onTaskDefer(): void {
       if (this.pendingClientPayment !== undefined) {
-        // Nothing committed — back to the sheet the payment came from.
+        // Nothing committed — the payment step folds ONE level back to the
+        // browse layer of the workspace that hosts it (the frame never
+        // closed, so the row, focus and preview are exactly where they were).
         this.pendingClientPayment = undefined;
+        if (workspaceFrameMounted('standard-projects')) {
+          this.rollbackStdProjectFlow();
+          return;
+        }
+        // Legacy fallback (no workspace standing): reopen the task surface.
         const task = this.shellTask;
         if (task?.kind === 'projectCard' && task.mode === 'standardProject') {
           this.openShellTaskSurface(task);
@@ -10331,8 +10696,77 @@ export default defineComponent({
      * Idempotent: the buy path reaches it twice (detach + complete).
      */
     foldWorkspaceAfterResult(): void {
+      this.concludeWorkspaceFlow('card-actions');
+    },
+    /**
+     * THE END OF A COMMITTED FLOW — ONE function, EVERY ending.
+     *
+     * A card activation can finish in four different places, one per result
+     * flavour, and each of them used to conclude itself:
+     *
+     *   · a plain reward           → the awaiting resolve's `finishDismiss`;
+     *   · a drawn batch taken      → `onEmbeddedDrawnComplete` / `…Detached`;
+     *   · a deck-check verdict «ОК»→ the workspace's own `onRevealAck`;
+     *   · a purchase answered      → the claim's release (`embed-fell`).
+     *
+     * The first two closed the workspace; the last two folded back to the
+     * ДЕЙСТВИЯ КАРТ browse grid — so «Поиск жизни» ended by putting the player
+     * back in the list, staring at the action they had just performed, now
+     * greyed «Активирована». Same question, four answers, two of them wrong,
+     * and the only thing deciding which one a player got was whether that
+     * action's result happened to be embeddable.
+     *
+     * So the ending is one call now, and the DECISION is the pure policy
+     * (`workspaceConclusionFor`): past the commit boundary the workspace is not
+     * a place to come back to — it leaves and the player lands on the board —
+     * UNLESS the flow still owes something INSIDE it. That last part is the
+     * whole reason this is guarded rather than a bare close: a workspace is ONE
+     * FLOW, and a flow routinely outlives the stage that produced its first
+     * result (a purchase raises its payment, a colony step stands inside the
+     * activation that opened it, a batch is still in the air).
+     *
+     * SYNCHRONOUS on purpose. Every caller that needs a tick already defers
+     * (the claim's falling edge, the embed's, the reconciler's), and the two
+     * result-flight sites must fold in the SAME frame the card detaches — a
+     * tick of daylight there leaves a dead frame over a finished decision while
+     * the intake aims at a still-covered dock.
+     */
+    concludeWorkspaceFlow(kind: WorkspaceFrameKind): void {
+      if (!workspaceFrameKnown(kind)) {
+        return; // already gone (a second, idempotent report) — nothing to end
+      }
+      // MY claim, never «somebody holds one»: a foreign host's live outcome
+      // says nothing about whether THIS flow is finished.
+      const mine = workspaceOutcomeState.host === kind && workspaceOutcomeClaimed();
+      const task = taskFor(this.playerView);
+      const conclusion = workspaceConclusionFor({
+        nested: workspaceFrameHasNested(kind),
+        outcomeLive: mine,
+        // The second half of a pick-then-pay and a DRAW & SELECT still standing
+        // in our zone are both this activation, still being answered — and so
+        // is any prompt this FRAME earned the right to serve.
+        ownsPrompt: (mine && (this.taskBelongsToWorkspace || this.deckPickBelongsToWorkspace)) ||
+          (task !== undefined && frameServing(task.kind)?.kind === kind),
+        parked: workspaceFrameParked(kind),
+      });
+      if (conclusion.verdict === 'hold') {
+        return;
+      }
       resetConsoleActionComposerUi();
+      // The workspace goes and takes everything standing in it. `closeConsoleLayers`
+      // is what clears the transient shell state that rode with it (quick
+      // selector, sale mode, sheet cursor) and pops the sheet-shaped frames;
+      // `closeWorkspaceRoot` is the honest verb for a kind that is not one.
+      closeWorkspaceRoot(kind);
       closeConsoleLayers();
+    },
+    /**
+     * «ДЕЙСТВИЯ КАРТ» reports its committed flow finished (the deck-check
+     * verdict acknowledged, the outcome claim released). The workspace cannot
+     * see the rest of the console, so the ending is decided here.
+     */
+    onCardActionsFlowComplete(): void {
+      this.concludeWorkspaceFlow('card-actions');
     },
     /**
      * THE RESULT HAS LEFT THE WORKSPACE — the card is now an independent

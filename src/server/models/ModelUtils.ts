@@ -16,6 +16,7 @@ import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {unplayableReasons as computeUnplayableReasons} from './unplayableReasons';
 import {actionUnavailableReasons as computeActionUnavailableReasons} from './actionUnavailableReasons';
 import {standardProjectUnavailableReasons} from './standardProjectReasons';
+import {buildStandardProjectPreview} from './standardProjectPreview';
 import {Message} from '../../common/logs/Message';
 
 export function cardsToModel(
@@ -88,6 +89,10 @@ export function cardsToModel(
     };
     if (isIStandardProjectCard(card)) {
       model.standardProjectCanPayWith = card.canPayWith(player);
+      // The guaranteed-result chips + the pay-on-commit target marker (the
+      // console's premium std-projects screen renders both). Same cost number
+      // as the row's own price — overridden costs included.
+      model.standardProjectPreview = buildStandardProjectPreview(player, card, calculatedCost ?? 0);
     }
     if (card.isDisabled) {
       model.isDisabled = true;

@@ -20,6 +20,9 @@ import {standardProjectVisual} from '@/client/components/overview/standardProjec
 import {offTurnReason} from '@/client/console/offTurnReason';
 import {ConsoleMaSource} from '@/client/components/console/consoleMaModel';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
+import {Warning} from '@/common/cards/Warning';
+import {StandardProjectPreviewModel} from '@/common/models/CardModel';
+import {getCard} from '@/client/cards/ClientCardManifest';
 
 // ─── Quick selectors (RT = categories, LT = basic actions) ─────────────────
 
@@ -192,8 +195,24 @@ export type StdProjectItem = {
   description: string,
   /** M€ price (undefined = the Patent-sale entry, which GAINS money). */
   cost?: number,
+  /**
+   * The saving already folded into `cost` (printed manifest price − the
+   * server's calculatedCost, ≥ 1). The row renders it as the same compact
+   * `−N` capsule the premium card face uses — generic, never a per-project
+   * special case (Air Scrapping's Venus-tag discount, Standard Technology's
+   * rebate and Excavator Leasing all arrive through this one number).
+   */
+  discount?: number,
   /** '+1 M€' style gain marker (Patent sale). */
   gain?: string,
+  /**
+   * The server-computed GUARANTEED result chips (`current → resulting`) +
+   * the pay-on-commit target marker — `CardModel.standardProjectPreview`,
+   * passed through untouched (the client re-derives nothing).
+   */
+  preview?: StandardProjectPreviewModel,
+  /** Server warnings (maxed global parameter etc.) — honest, never hidden. */
+  warnings?: ReadonlyArray<Warning>,
   available: boolean,
   /** English i18n key ('' when available). May carry ${0} (deficit). */
   reason: string,
@@ -211,6 +230,8 @@ export type StdProjectScreenContext = {
     calculatedCost?: number,
     isDisabled?: boolean,
     actionReasons?: ReadonlyArray<UnplayableReason>,
+    warnings?: ReadonlyArray<Warning>,
+    standardProjectPreview?: StandardProjectPreviewModel,
   }>,
   myTurn: boolean,
   /** The server is waiting on the viewer at all (see {@link LtQuickContext}). */
@@ -234,6 +255,12 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
   const projectRows: Array<StdProjectItem> = ctx.cards.map((c) => {
     const visual = standardProjectVisual(c.name);
     const cost = c.calculatedCost ?? 0;
+    // The saving is GENERIC: printed manifest price − the server's adjusted
+    // cost. Every discount source (Venus tags, Standard Technology's override,
+    // Excavator Leasing) arrives through this one subtraction — no per-project
+    // special case, and a zero difference renders nothing at all.
+    const printed = getCard(c.name)?.cost;
+    const discount = printed !== undefined && printed > cost ? printed - cost : undefined;
     const available = c.isDisabled !== true;
     let reason = '';
     let reasonParams: ReadonlyArray<string> | undefined;
@@ -242,7 +269,8 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
       // these rows can be started until the player finishes what they set aside.
       return {
         key: c.name, cardName: c.name, title: c.name,
-        iconClass: visual.iconClass, description: visual.description, cost,
+        iconClass: visual.iconClass, description: visual.description, cost, discount,
+        preview: c.standardProjectPreview, warnings: c.warnings,
         available: false, reason: ctx.blockedReason,
       };
     }
@@ -273,6 +301,9 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
       iconClass: visual.iconClass,
       description: visual.description,
       cost,
+      discount,
+      preview: c.standardProjectPreview,
+      warnings: c.warnings,
       available,
       reason,
       reasonParams,

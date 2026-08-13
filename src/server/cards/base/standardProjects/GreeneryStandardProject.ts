@@ -54,6 +54,11 @@ export class GreeneryStandardProject extends StandardProjectCard {
     player.game.defer(new PlaceGreeneryTile(player));
   }
 
+  // Co-located with the pay-on-commit override below — the same fact, declared.
+  public standardProjectTarget(_player: IPlayer): 'space' {
+    return 'space';
+  }
+
   // Pay on commit: present a CANCELLABLE greenery placement FIRST; the cost +
   // oxygen/TR apply only once a space is chosen.
   public override payAndExecute(player: IPlayer, payment: Payment): void {

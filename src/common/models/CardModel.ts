@@ -6,6 +6,26 @@ import {Tag} from '../cards/Tag';
 import {Warning} from '../cards/Warning';
 import {UnplayableReason} from '../cards/UnplayableReason';
 import {Message} from '../logs/Message';
+import {ActionEffect} from './ActionPreviewModel';
+
+/**
+ * The GUARANTEED result of a standard project, computed server-side from the
+ * real rule sources (adjusted cost, the card's own `tr` bump clamped to the
+ * global scales, co-located per-card extras). Attached to a std project's
+ * CardModel in the standard-projects menu so the client can render honest
+ * `current → resulting` chips without re-deriving a single rule.
+ *
+ * `target` names the follow-up the project asks for AFTER the initial submit —
+ * the PAY-ON-COMMIT projects (City / Greenery / Aquifer → a board space,
+ * Build Colony → a colony), whose cost applies only once that target commits.
+ * The console hosts that follow-up as a nested step of the Standard-Projects
+ * flow; target-DEPENDENT consequences (cell bonuses, colony grants) stay with
+ * the step's own preview surfaces and are deliberately NOT guessed here.
+ */
+export interface StandardProjectPreviewModel {
+    effects: ReadonlyArray<ActionEffect>;
+    target?: 'space' | 'colony';
+}
 
 export interface CardModel {
     name: CardName;
@@ -36,4 +56,5 @@ export interface CardModel {
     bonusResource?: Array<Resource>; // Used with the Mining cards and Robotic Workforce
     cloneTag?: Tag; // Used with Pathfinders
     standardProjectCanPayWith?: StandardProjectCanPayWith; // Set for standard projects; undefined for regular project cards
+    standardProjectPreview?: StandardProjectPreviewModel; // Set for standard projects in the std-projects menu
 }

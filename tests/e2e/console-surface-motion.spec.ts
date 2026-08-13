@@ -15,7 +15,9 @@ import {bootWithCards, openActionFocus, openCardActions, openQuickWheel, playCar
  *     as ONE scene: the shade never blinks through the swap, the composer's
  *     source card FLIPs into the result's «Источник» slot (both carry the
  *     `data-motion-anchor="card:Search For Life"` contract), and OK after
- *     the semantic commit lands on the RESULT — never back on the confirm.
+ *     the semantic commit lands on the RESULT — never back on the confirm,
+ *     and never back in the browse grid: acknowledging the verdict ENDS the
+ *     operation, so the workspace leaves with it (THE CONCLUSION).
  *
  * The regression this guards: the composer used to unmount synchronously on
  * confirm (bare board for the whole round-trip), the reveal then faded in as
@@ -173,14 +175,17 @@ for (const profile of PROFILES) {
       await page.waitForTimeout(900);
       await shoot(page, `${profile.tag}-04-reveal-result`);
 
-      // ── 6. OK returns to the REFRESHED browse grid (semantic commit:
-      // never back to a re-confirmable state); B then closes the center and
-      // the shade lets go once the band is empty. ─────────────────────────
+      // ── 6. OK ENDS THE OPERATION — one press, and the player is on the
+      // board. THE CONCLUSION (`workspaceConclusionFor`): past the commit
+      // boundary the workspace is not a place to come back to, it is the thing
+      // that is over. This used to fold to the ДЕЙСТВИЯ КАРТ browse grid and
+      // demand a second press (B) to leave — a screen whose only content was
+      // the action just performed, greyed «Активирована». The stage departs
+      // WITH the workspace in one motion (never a fold-then-close), and the
+      // shade lets go once the band is empty. ─────────────────────────────
       await key(page, 'Enter', 800);
       await expect(page.locator('.con-composer--stage')).toHaveCount(0);
-      await expect(page.locator('.con-cardactions')).toHaveCount(1);
-      await key(page, 'Escape', 800);
-      await expect(page.locator('.con-cardactions')).toHaveCount(0);
+      await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 8000});
       await page.waitForTimeout(600);
       await expect(page.locator('.con-shade--on')).toHaveCount(0);
       await shoot(page, `${profile.tag}-05-back-to-board`);

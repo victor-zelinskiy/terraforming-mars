@@ -43,6 +43,14 @@ export class AquiferStandardProject extends StandardProjectCard {
     player.game.defer(new PlaceOceanTile(player));
   }
 
+  // Co-located with the pay-on-commit override below: the SAME maxed-oceans
+  // condition that sends payAndExecute down the committed legacy path answers
+  // «no target» here, so the client never promises a space pick that the
+  // degenerate flow will not ask for.
+  public standardProjectTarget(player: IPlayer): 'space' | undefined {
+    return player.game.canAddOcean() ? 'space' : undefined;
+  }
+
   // Pay on commit: present a CANCELLABLE ocean placement FIRST; the cost + TR
   // apply only once a space is chosen. When oceans are maxed there is no
   // placement to cancel (a degenerate stall, possibly redirected to Whales) —

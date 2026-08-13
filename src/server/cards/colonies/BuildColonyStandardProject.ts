@@ -106,6 +106,11 @@ export class BuildColonyStandardProject extends StandardProjectCard {
     player.game.defer(new BuildColony(player));
   }
 
+  // Co-located with the pay-on-commit override below — the same fact, declared.
+  public standardProjectTarget(_player: IPlayer): 'colony' {
+    return 'colony';
+  }
+
   // Pay on commit: present a CANCELLABLE colony selection FIRST; the 17 M€ cost +
   // the colony placement (bonuses / triggers) apply only once a colony is chosen.
   // Cancelling before then spends nothing, builds nothing, and returns the player

@@ -203,7 +203,16 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
   },
   'standard-projects': {
     root: 'Standard Projects', rootSelector: '.con-stdp', sheet: 'standardProjects',
+    // (`space` is EARNED at runtime, never a default: the shell adds it to the
+    // live frame's `serves` for the span of a submitted pay-on-commit project —
+    // City / Ocean / Greenery — so an idle browse layer can never mask an
+    // unrelated stranded placement.)
     serves: ['projectCard'],
+    // A standard project's own follow-up (the Build-Colony pick, the patent
+    // sale's hand, the alt-resource payment) is a STEP of this flow, not a
+    // screen of its own. `inFlow`: at the browse layer there is no flow for a
+    // follow-up to belong to.
+    hosts: 'inFlow',
   },
   // Milestones and awards are two kinds on one chassis — the same DOM root,
   // two sheet identities, because they are two different screens to the player.

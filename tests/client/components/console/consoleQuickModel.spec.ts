@@ -263,6 +263,38 @@ describe('consoleQuickModel (P27)', () => {
       expect(items[1].reasonParams).to.deep.eq(['3', '2']);
     });
 
+    it('passes the server preview/warnings through and derives the GENERIC discount', () => {
+      const items = buildStdProjectItems({
+        cards: [{
+          // Venus-variant Air Scrapping: printed 15 (client manifest), the
+          // server already folded the tag discount into calculatedCost — the
+          // row derives `−3` from the one subtraction, no per-project case.
+          name: CardName.AIR_SCRAPPING_STANDARD_PROJECT_VARIANT,
+          calculatedCost: 12,
+          warnings: ['maxvenus'],
+          standardProjectPreview: {
+            effects: [{direction: 'gain', icon: 'venus', amount: 2, current: 26, resulting: 28, unit: '%'}],
+          },
+        }],
+        myTurn: true,
+        awaitingInput: true,
+        myMegacredits: 500,
+        sellAvailable: false,
+        cardsInHand: 0,
+      });
+      const row = items[1];
+      expect(row.cost).to.eq(12);
+      expect(row.discount).to.eq(3);
+      expect(row.warnings).to.deep.eq(['maxvenus']);
+      expect(row.preview?.effects[0].icon).to.eq('venus');
+      // No saving → no capsule at all (never an empty/zero block).
+      const plain = buildStdProjectItems({
+        cards: [{name: CardName.ASTEROID_STANDARD_PROJECT, calculatedCost: 14}],
+        myTurn: true, awaitingInput: true, myMegacredits: 500, sellAvailable: false, cardsInHand: 0,
+      });
+      expect(plain[1].discount).to.eq(undefined);
+    });
+
     it('patent sale is blocked honestly (opponent turn vs mid-action vs empty hand)', () => {
       const noTurn = buildStdProjectItems({cards: [], myTurn: false, awaitingInput: false, myMegacredits: 0, sellAvailable: false, cardsInHand: 3});
       expect(noTurn[0].reason).to.eq('Not your turn to take any actions');

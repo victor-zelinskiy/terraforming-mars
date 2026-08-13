@@ -9,7 +9,9 @@ import {Payment} from '../../../../common/inputs/Payment';
 import {BoardFact} from '../../../../common/boards/BoardInformationFacts';
 import * as placementPreviews from '../../placementPreviews';
 import * as actionReason from '../../actionReasons';
+import * as preview from '../../actionPreviews';
 import {UnplayableReason} from '../../../../common/cards/UnplayableReason';
+import {ActionEffect} from '../../../../common/models/ActionPreviewModel';
 
 export class CityStandardProject extends StandardProjectCard {
   constructor() {
@@ -57,6 +59,17 @@ export class CityStandardProject extends StandardProjectCard {
   actionEssence(player: IPlayer): void {
     player.game.defer(new PlaceCityTile(player));
     player.production.add(Resource.MEGACREDITS, 1);
+  }
+
+  // Co-located with payAndExecute: the guaranteed production step the space
+  // choice does NOT affect (the space-dependent part stays in placementPreview).
+  public standardProjectPreviewEffects(player: IPlayer): ReadonlyArray<ActionEffect> {
+    return [preview.productionChange(player, Resource.MEGACREDITS, 1)];
+  }
+
+  // Co-located with the pay-on-commit override below — the same fact, declared.
+  public standardProjectTarget(_player: IPlayer): 'space' {
+    return 'space';
   }
 
   // Pay on commit: present a CANCELLABLE city placement FIRST; the M€ cost + M€

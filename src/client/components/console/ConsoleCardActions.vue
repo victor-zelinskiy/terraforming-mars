@@ -610,7 +610,7 @@ export default defineComponent({
      *  answer, so this surface never invents a second one. */
     blockedReason: {type: String, default: ''},
   },
-  emits: ['close', 'submit-batch', 'reveal-ack', 'collapse', 'blocked', 'colony-step'],
+  emits: ['close', 'submit-batch', 'reveal-ack', 'collapse', 'blocked', 'colony-step', 'flow-complete'],
   data() {
     return {
       consoleCardActionsUi,
@@ -1034,20 +1034,20 @@ export default defineComponent({
     // and the embedded reveal takes over the column. Immediate for the same
     // reason as `revealSignal`: a fast local response can land the batch
     // before this component's watchers are even installed.
-    // THE OUTCOME IS OVER — the shell released the claim (every card taken, or
-    // the pick and its payment submitted with nothing more asked). The flow
-    // returns ONE level, to the refreshed browse grid where the action now
-    // reads «Активирована», exactly as the deck-check's OK does. No extra
-    // press: finishing the outcome IS the acknowledgement, and demanding
-    // another one over a finished operation would be ceremony.
+    // THE OUTCOME IS OVER — the claim was released (every card taken, the pick
+    // and its payment submitted with nothing more asked, or the reconciler
+    // finding the result went elsewhere). No extra press: finishing the outcome
+    // IS the acknowledgement, and demanding another one over a finished
+    // operation would be ceremony.
     //
-    // ONE watcher for every non-deck-check flavour, because the shell's
+    // ONE watcher for EVERY flavour, whatever released the claim, because the
     // release is the single place that decides an embedded outcome has ended.
+    // What it triggers is the flow's CONCLUSION (`concludeFlow`), never a bare
+    // fold: a completed activation does not belong back on the browse grid.
     'outcomeClaimLive': {
       handler(live: boolean, was: boolean) {
-        const kind = this.outcomeFlow?.kind;
-        if (was && !live && (kind === 'draw' || kind === 'pending')) {
-          void this.$nextTick(() => this.closeComposer());
+        if (was && !live && this.outcomeFlow !== undefined) {
+          void this.$nextTick(() => this.concludeFlow());
         }
       },
     },
@@ -1564,9 +1564,46 @@ export default defineComponent({
       // but re-assert the focused tile's visibility after the return.
       void this.$nextTick(() => this.scrollFocusedIntoView());
     },
-    /** OK on the shown reveal outcome: mark the reveal seen (the shell owns
-     *  the dismissed-key), release the claim and return to the refreshed
-     *  browse grid — the action now reads «Активирована» in the list. */
+    /**
+     * THE COMMITTED FLOW IS OVER — its last stage finished and produced nothing
+     * further. The stage lets go of its own state, and the WORKSPACE's ending is
+     * handed UP.
+     *
+     * Deliberately NOT `closeComposer()`. That is the REVERSIBLE fold — B in
+     * «НАСТРОЙКА», a prompt that moved on before the commit — and it lands on
+     * the browse grid because the player asked to go back there. A COMPLETED
+     * activation has nothing to go back to: the list it would return to shows
+     * the action it just performed, greyed «Активирована», one more B away from
+     * the board. Past the commit boundary the workspace itself is what is over.
+     *
+     * Only the SHELL can see whether anything else still belongs to this
+     * activation (a step standing inside, a prompt held for our zone), so only
+     * the shell decides between «leave» and «stay» — `workspaceConclusionFor`.
+     */
+    concludeFlow(): void {
+      // The repeat instance is not a workspace: it resolves back to the source
+      // composer through its own bridge and owns no frame to conclude.
+      if (this.repeat) {
+        this.closeComposer();
+        return;
+      }
+      this.$emit('flow-complete');
+      // …and NOTHING else, either way.
+      //
+      // DISMISSED: the frame is gone, so the stage departs WITH the workspace in
+      // ONE motion. Folding it back first would play the composer's return and
+      // flash the browse grid on the way out — two beats for one ending, the
+      // second of them a screen the player is leaving anyway. Everything
+      // `closeComposer` would have tidied is owned by the unmount
+      // (`consoleCardActionsUi.draft`, the panel commands, the focus motion) or
+      // by the shell's own `resetConsoleActionComposerUi`.
+      //
+      // HELD: what holds a finished activation is a STEP standing inside it, and
+      // that step is teleported into THIS stage's zone. Folding back to the
+      // browse grid would pull the zone out from under it — the exact ownership-
+      // without-presence strand the workspace stack exists to remove. The step's
+      // own ending concludes the flow again when it is done.
+    },
     /**
      * B on a COMMITTED stage: hide the workspace so the player can read the
      * board, WITHOUT unwinding anything. The decision stays live, the revealed
@@ -1582,9 +1619,20 @@ export default defineComponent({
     collapseWorkspace(): void {
       this.$emit('collapse');
     },
+    /** «ОК» on the shown deck-check verdict: mark the reveal seen (the shell
+     *  owns the dismissed-key) — and CONCLUDE. The verdict is the activation's
+     *  last stage; acknowledging it ends the operation, it does not navigate
+     *  back into the list the player came through. */
     onRevealAck(): void {
       this.$emit('reveal-ack');
-      this.closeComposer();
+      // The claim's job is done — and it is released BEFORE the conclusion is
+      // asked for, because «does this host still own an outcome?» is exactly
+      // the question this press answers. (Every OTHER ending arrives through the
+      // claim's own falling edge, so the answer is already no there.)
+      if (workspaceOutcomeState.host === 'card-actions') {
+        releaseWorkspaceOutcome('card-actions reveal-ack');
+      }
+      this.concludeFlow();
     },
     inspectFocused(): void {
       const tile = this.focusedTile;

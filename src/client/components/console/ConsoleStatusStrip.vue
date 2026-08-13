@@ -46,7 +46,7 @@
         <!-- Every readout announces its change TWICE over: the premium
              flip-swap of the value itself (nested INSIDE the value cell —
              see ConsoleFlipValue's layering note) plus the delta chip. -->
-        <span class="con-status__param">
+        <span class="con-status__param" :class="{'con-status__param--ghost': ghostParam === 'temperature'}">
           <!-- data-wheel-anchor="temp": reserved acknowledgement anchor (the
                heat conversion's SERVER result animates here via the existing
                flip/delta pipeline — no scripted pre-timing). -->
@@ -61,7 +61,7 @@
             :epoch="epoch"
             variant="global-parameter" />
         </span>
-        <span class="con-status__param">
+        <span class="con-status__param" :class="{'con-status__param--ghost': ghostParam === 'oxygen'}">
           <i class="wgt-icon wgt-icon--oxygen con-status__icon" aria-hidden="true"></i>
           <span class="con-status__value">
             <ConsoleFlipValue :value="game.oxygenLevel" :text="`${game.oxygenLevel}%`" />
@@ -73,7 +73,7 @@
             :epoch="epoch"
             variant="global-parameter" />
         </span>
-        <span class="con-status__param">
+        <span class="con-status__param" :class="{'con-status__param--ghost': ghostParam === 'oceans'}">
           <i class="wgt-icon wgt-icon--ocean con-status__icon" aria-hidden="true"></i>
           <span class="con-status__value">
             <ConsoleFlipValue :value="game.oceans" :text="`${game.oceans}/9`" />
@@ -100,7 +100,8 @@
           <span class="con-status__terra-fill" :style="{width: progress.percent + '%'}"></span>
         </span>
       </div>
-      <span v-if="game.gameOptions.expansions.venus" class="con-status__param con-status__param--venus">
+      <span v-if="game.gameOptions.expansions.venus" class="con-status__param con-status__param--venus"
+            :class="{'con-status__param--ghost': ghostParam === 'venus'}">
         <i class="wgt-icon wgt-icon--venus con-status__icon" aria-hidden="true"></i>
         <span class="con-status__value">
           <ConsoleFlipValue :value="game.venusScaleLevel" :text="`${game.venusScaleLevel}%`" />
@@ -205,6 +206,15 @@ export default defineComponent({
      * facts, and only the second one may raise an alarm.
      */
     attentionPending: {type: Boolean, default: false},
+    /**
+     * SPATIAL PRE-SELECT PREVIEW (std-projects §9): the global-parameter
+     * readout the FOCUSED project would move gets a quiet ring — «this dial
+     * is affected». Values never change, markers never move, and the ring is
+     * gone the moment focus leaves — a hint, never a pre-played result. The
+     * numbers themselves stay with the context chips (one source, no
+     * duplication).
+     */
+    ghostParam: {type: String as PropType<'temperature' | 'oxygen' | 'oceans' | 'venus' | undefined>, default: undefined},
     /** Engagement debounce (ms). A prop so specs can shrink it. */
     attentionEngageMs: {type: Number, default: 1200},
   },

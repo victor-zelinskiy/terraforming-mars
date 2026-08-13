@@ -1,7 +1,7 @@
 import {expect} from 'chai';
 import {
   acceptsInput, backLabelFor, backVerbFor, isCommitted, isNavigationDestination, isReversible,
-  WorkspacePhase, workspacePhaseOf,
+  WorkspacePhase, workspaceConclusionFor, workspacePhaseOf,
 } from '@/client/console/consoleWorkspaceFlow';
 import {buildWorkspaceHeader} from '@/client/console/consoleWorkspaceHeader';
 
@@ -65,6 +65,51 @@ describe('consoleWorkspaceFlow — the commit boundary', () => {
       const phase = workspacePhaseOf({open: true, committed: true, resultUp: false, finishing: false});
       expect(phase).to.eq('executing');
       expect(backVerbFor(phase)).to.eq('none');
+    });
+  });
+
+  describe('workspaceConclusionFor — a finished flow does not fold back to browse', () => {
+    const done = {nested: false, outcomeLive: false, ownsPrompt: false, parked: false};
+
+    /**
+     * THE BUG THIS POLICY EXISTS FOR. «Поиск жизни»: confirm → the card is
+     * pulled off the deck, turned over, the verdict reads «Условие выполнено»
+     * → A → and the player was standing in the ДЕЙСТВИЯ КАРТ list again,
+     * looking at the action they had just performed, now greyed «Активирована».
+     * A completed operation has nothing to go back to.
+     */
+    it('REGRESSION: an activation with nothing left owed DISMISSES its workspace', () => {
+      expect(workspaceConclusionFor(done)).to.deep.eq({verdict: 'dismiss'});
+    });
+
+    it('holds while a STEP is standing inside — an inner frame cannot outlive its host', () => {
+      expect(workspaceConclusionFor({...done, nested: true}))
+        .to.deep.eq({verdict: 'hold', reason: 'nested-step'});
+    });
+
+    it('holds while this host still owns its outcome (in the air, or on screen)', () => {
+      expect(workspaceConclusionFor({...done, outcomeLive: true}))
+        .to.deep.eq({verdict: 'hold', reason: 'live-outcome'});
+    });
+
+    /** Pick-then-pay is ONE decision: dismissing between its two halves breaks
+     *  the flow open exactly where the player has already said yes. */
+    it('holds while a prompt of its own is still being asked', () => {
+      expect(workspaceConclusionFor({...done, ownsPrompt: true}))
+        .to.deep.eq({verdict: 'hold', reason: 'owned-prompt'});
+    });
+
+    /** Concluding a PARKED flow would silently turn «свернуть» into «закрыть». */
+    it('never concludes a flow the player set aside', () => {
+      expect(workspaceConclusionFor({...done, parked: true}))
+        .to.deep.eq({verdict: 'hold', reason: 'parked'});
+    });
+
+    it('reports the STRONGEST reason when several hold at once', () => {
+      expect(workspaceConclusionFor({nested: true, outcomeLive: true, ownsPrompt: true, parked: true}))
+        .to.deep.eq({verdict: 'hold', reason: 'nested-step'});
+      expect(workspaceConclusionFor({...done, outcomeLive: true, ownsPrompt: true, parked: true}))
+        .to.deep.eq({verdict: 'hold', reason: 'live-outcome'});
     });
   });
 });

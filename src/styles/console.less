@@ -235,7 +235,8 @@ body.con-zoom-open .con-journal {
 .con-reveal,
 .con-govsupport,
 .con-colfocus,
-.con-prodloss {
+.con-prodloss,
+.con-stdp {
     .action-effect-chip.action-effect-chip {
         font-size: var(--con-chip-fs, 0.85rem);
         gap: 0.3rem;
@@ -1193,6 +1194,25 @@ body.con-zoom-open .con-journal {
     }
 }
 
+/* ── FULL WORKSPACE PANELS COVER THE DOCK PACK ─────────────────────────
+   The hand dock is NEVER hidden and never re-layered as a whole (its plate
+   «КАРТЫ N/M» is the bar's chassis and stays) — but the card PACK pokes
+   ~1.2rem above a band panel's bottom edge and painted OVER the workspace
+   (pack z11704 vs band z11480–11520): the game-surface leak under every
+   full sheet. The answer is the aux-satellite's, one step lower: the pack
+   takes the gap ABOVE the shade (11460) and BELOW every band surface —
+   COVERED where the panel reaches it, never dimmed, never hidden, still
+   measurable as a flight landing anchor.
+
+   The marker is declared BY THE SURFACE (`con-ws--dockcover` beside its
+   `con-ws` — the `con-flight-to-board` precedent: a central list here would
+   rot silently). And the one exception is PHYSICAL ARRIVALS: while cards are
+   flying into the dock it is FULL and on top whatever is open (`--receiving`
+   — the presence contract), so the pack surfaces for exactly that span. */
+.con-root:has(.con-ws--dockcover) .con-handdock:not(.con-handdock--receiving) .con-handdock__pack {
+    z-index: 11469;
+}
+
 .con-wf-host {
     display: none;
 }
@@ -1234,6 +1254,16 @@ body.con-zoom-open .con-journal {
         display: inline-flex;
         align-items: center;
         gap: .5rem;
+    }
+    /* SPATIAL PRE-SELECT hint (std projects §9): the readout the focused
+       project would move carries a quiet ring — «this dial is affected».
+       box-shadow (perf-lite safe), padding+negative margin so the net box —
+       and therefore the strip's layout — does not move by a pixel. */
+    &__param--ghost {
+        padding: .12rem .38rem;
+        margin: -.12rem -.38rem;
+        border-radius: .45rem;
+        box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 45%), 0 0 .55rem fade(@con-cyan, 16%);
     }
     /* The wgt-icon--* classes only carry background-images — their SIZE
        lives on the desktop modal's compound selector, so a standalone use
@@ -7995,28 +8025,46 @@ html.con-profile-handheld .con-mafocus {
         background: @con-glass;
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%), 0 1.2rem 3.5rem rgba(0, 0, 0, 0.6);
     }
-    &__head {
+    /* ── THE STAGE WRAP: the browse layer and the flow's nested step are two
+       stacked layers of ONE zone (never a v-if swap). The browse layer PARKS
+       under a standing step — held by opacity/visibility, its grid selection
+       and scroll untouched; the step zone is an absolute overlay the hosted
+       surface (hand / colonies / payment) teleports into. ── */
+    &__stagewrap {
+        position: relative;
         display: flex;
-        align-items: center;
-        gap: .7rem;
-    }
-    &__emblem {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 2.3rem;
-        height: 2.3rem;
-        border-radius: .5rem;
-        background: rgba(16, 26, 38, 0.8);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
-        .bar-btn-icon { width: 1.5rem; height: 1.5rem; }
-    }
-    &__title {
+        flex-direction: column;
         flex: 1;
-        font-size: 1.3rem;
-        font-weight: 700;
-        letter-spacing: .08rem;
-        text-transform: uppercase;
+        min-height: 0;
+    }
+    &__browse {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        transition:
+            opacity calc(220ms * var(--motion-scale, 1)) ease,
+            visibility calc(220ms * var(--motion-scale, 1)) step-end,
+            transform calc(220ms * var(--motion-scale, 1)) ease;
+
+        &--parked {
+            /* Held, never unmounted (state survives for free); the slight
+               recede is the descend grammar's parent layer letting go. */
+            opacity: 0;
+            visibility: hidden;
+            transform: scale(0.985);
+            pointer-events: none;
+        }
+    }
+    &__step {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        pointer-events: none;
+
+        &--up { pointer-events: auto; }
     }
     &__wallet {
         display: inline-flex;
@@ -8193,6 +8241,7 @@ html.con-profile-handheld .con-mafocus {
         flex-shrink: 0;
     }
     &__cost {
+        position: relative;
         display: inline-flex;
         align-items: center;
         gap: .25rem;
@@ -8200,6 +8249,25 @@ html.con-profile-handheld .con-mafocus {
         b { font-size: 1.2rem; }
         .resource_icon { width: 1.3rem; height: 1.3rem; display: inline-block; background-size: contain; background-repeat: no-repeat; }
         &--short b { color: @con-red; }
+    }
+    /* The saving already folded into the price — the SAME compact `−N`
+       capsule language as the premium card face's `.pcard__cost-delta`
+       (mint, docked under the cost's corner). ABSOLUTE: zero row growth,
+       zero layout shift on focus, nothing rendered at zero discount. */
+    &__cost-delta {
+        position: absolute;
+        right: -.15rem;
+        bottom: -.72rem;
+        padding: 0 .28rem;
+        border-radius: 0 .4rem .4rem 0;
+        background: rgba(10, 24, 18, 0.92);
+        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%);
+        color: @con-mint;
+        font-size: .68rem;
+        font-weight: 700;
+        line-height: .95rem;
+        letter-spacing: .02rem;
+        white-space: nowrap;
     }
     &__gain {
         display: inline-flex;
@@ -8272,6 +8340,46 @@ html.con-profile-handheld .con-mafocus {
             border-radius: 50%;
             background: currentColor;
             box-shadow: 0 0 .35rem currentColor;
+        }
+    }
+    /* The focused row's PROJECTED RESULT — the shared ActionEffectChip row
+       (`current → resulting`), the same language as every composer. */
+    &__context-chips {
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        min-width: 0;
+        flex-wrap: nowrap;
+        overflow: hidden;
+    }
+    /* The pay-on-commit NEXT STEP marker — a quiet tracked-caps accent, the
+       flow affordance («› ДАЛЕЕ: …»), never a second command bar. */
+    &__context-next {
+        flex-shrink: 0;
+        color: @con-cyan;
+        font-size: .72rem;
+        font-weight: 700;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+    }
+    &__context-warning {
+        flex-shrink: 0;
+        color: @con-amber;
+        font-size: .78rem;
+        white-space: nowrap;
+    }
+    &__context--committed .con-stdp__context-state { color: @con-amber; }
+    /* The TERMINAL COMMITTED beat: the chosen row fixes (amber — a statement,
+       not an invitation) while the world's own delta chips tick on the HUD;
+       the workspace closes only after the beat is READ. */
+    &__card--committed {
+        box-shadow: inset 0 0 0 .1rem fade(@con-amber, 85%), 0 0 1.1rem fade(@con-amber, 22%);
+        opacity: 1;
+
+        .con-stdp__rail {
+            background: @con-amber;
+            box-shadow: 0 0 .4rem fade(@con-amber, 60%);
         }
     }
 }
