@@ -544,7 +544,8 @@ import {computeCommitGate, commitAllowed, commitAcceptsCursor, commitRedirectTar
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {playedHeroLandingUp, playedHeroLandingPrewarm} from '@/client/console/played/consolePlayedHero';
+import {playedHeroLandingPrewarm} from '@/client/console/played/consolePlayedHero';
+import {playLandingHolding} from '@/client/console/played/consolePlayOutcomeClaim';
 import ConsolePlayedReceivingStage from '@/client/components/console/played/ConsolePlayedReceivingStage.vue';
 
 // (The contextual preview + the resource badge live in the ONE shared builder —
@@ -769,15 +770,19 @@ export default defineComponent({
     },
     // ── THE LANDING STAGE (the workspace's «РАЗЫГРАНО» final step) ───────
     /** The stage is PRESENTING — the review has released, the tableau owns
-     *  the zone, the card is being laid onto its pile. */
+     *  the zone, the card is being laid onto its pile… and it stays while
+     *  this workspace is still holding what the play DREW: the deck deals
+     *  those cards only after the hero's scene ends, and letting the tableau
+     *  go there left the workspace empty for the whole flight
+     *  (`playLandingHolding`). */
     landingUp(): boolean {
-      return this.embedded && playedHeroLandingUp();
+      return this.embedded && playLandingHolding();
     },
     /** The stage layer is MOUNTED — includes the hidden PREWARM window (the
      *  submit round trip), so after A nothing heavy happens for the first
      *  time: layout done, peek faces painted, arts decoding. */
     landingMounted(): boolean {
-      return this.embedded && (playedHeroLandingUp() || playedHeroLandingPrewarm());
+      return this.embedded && (playLandingHolding() || playedHeroLandingPrewarm());
     },
     /** The hand-editable rows, in panel order — the editor's focus ring. */
     payEditableRows(): ReadonlyArray<PaymentSourceRow> {
@@ -2883,6 +2888,13 @@ export default defineComponent({
           steps: b.steps,
           stepResponses: this.captured,
         }),
+        // HOW MANY CARDS this play PROMISES — the same structural read every
+        // other workspace uses (a `cards` gain in the chosen branch). A HINT
+        // for the arrival's size, never a gate: the workspace claims its
+        // follow-up either way, because a triggered effect (Point Luna's Earth
+        // tag) draws cards no preview can advertise.
+        draws: (b.effects ?? []).reduce((n, e) =>
+          (e.direction === 'gain' && e.icon === 'cards' ? n + Math.max(1, Math.round(e.amount)) : n), 0),
         // ProjectInspection: the chosen already-used action + its composed
         // responses (+ nodeIndex / reveal for the in-frame reveal handoff),
         // appended after the play as `[play, {card}, ...composed]`.

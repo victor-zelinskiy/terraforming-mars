@@ -1395,7 +1395,7 @@ import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, p
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, drawnCardsState, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
@@ -1417,7 +1417,8 @@ import {
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
-import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {claimPlayOutcome, isPlayOutcomeHost} from '@/client/console/played/consolePlayOutcomeClaim';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, boardCardBonusState, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {
@@ -1560,6 +1561,19 @@ const MA_COMMIT_SAFETY_MS = 15_000;
 /** The hydro RESULT stage's read hold — long enough for the route + reward
  *  lines, skippable by A/B (both land in `finishHydroFlow`). */
 const HYDRO_RESULT_HOLD_MS = 2400;
+
+/**
+ * WHICH PROMPTS A CARD PLAY'S CLAIM ANSWERS FOR — the card questions its own
+ * draw raises: the pick over the cards it turned over (`deckSelect` is the
+ * DRAW & SELECT surface, `cardSelect` the buy/keep browser) and the payment
+ * that finishes a buy (pick-then-pay is ONE decision).
+ *
+ * Everything else the same response may carry — a placement, an OrOptions
+ * branch, a resource pick, a discard from hand — is the play's ordinary
+ * follow-up and keeps its own surface, so the claim must let go of it.
+ */
+const PLAY_CLAIMED_TASK_KINDS: ReadonlySet<TaskKind> =
+  new Set<TaskKind>(['deckSelect', 'cardSelect', 'payment']);
 
 export default defineComponent({
   name: 'ConsoleShell',
@@ -3081,6 +3095,17 @@ export default defineComponent({
         this.deckPickEmbedTarget !== undefined;
     },
     /**
+     * THE CARD PLAY WORKSPACE is holding what a play produced (the drawn batch,
+     * the pick it raised). The play's ending is re-asked off its falling edge:
+     * the take never round-trips the server, so no view change will conclude
+     * the flow for us, and an optimistic claim that turns out to host nothing
+     * is released by the reconciler — both of those are «the play is over now»
+     * and neither is a response.
+     */
+    handOutcomeLive(): boolean {
+      return workspaceOutcomeState.host === 'hand' && workspaceOutcomeClaimed();
+    },
+    /**
      * THE ANSWER EXISTS — deliberately independent of whether it may be SHOWN
      * yet. The execution beat turns its card over on this, so it must not be
      * gated on the beat that consumes it (which would deadlock: the beat waits
@@ -3781,11 +3806,23 @@ export default defineComponent({
       if (phase === undefined || phase === 'browse') {
         return undefined;
       }
+      // THE CRUMB ONLY EVER GAINS A TAIL. Once the play's own outcome is on
+      // screen, the stage segment is ITS name — «КАРТЫ В РУКЕ › <карта> ›
+      // ДОБОР КАРТ» — handed UP by the re-homed surface exactly as it is in
+      // «Действия карт» (a surface that titles itself inside someone else's
+      // frame reads as a modal that arrived). Until it publishes, the honest
+      // generic, so the line never blanks and never renames itself twice.
+      // Keyed on the surface being RE-HOMED, exactly like the command bar's own
+      // kicker — never on the claim's `presenting` stage, which is published a
+      // flush later by a watcher: for that one frame the bar already read «ДОБОР
+      // КАРТ» while the crumb still said «РОЗЫГРЫШ», i.e. two places naming the
+      // same stage differently.
+      const outcomeStage = this.handOutcomeLive && this.workspaceOutcomeEmbedded ?
+        (workspaceOutcomeState.phaseKey !== '' ? workspaceOutcomeState.phaseKey : focusKicker('draw')) : '';
+      const stage = outcomeStage !== '' ? outcomeStage : workspaceFrameStage('hand');
       return {
         subject: workspaceFrameSubject('hand'),
-        // Until the composer publishes its own step, the crumb shows the
-        // honest generic — so it never blinks and never renames itself twice.
-        name: workspaceFrameStage('hand') === '' ? 'Playing' : workspaceFrameStage('hand'),
+        name: stage === '' ? 'Playing' : stage,
         committed: isCommitted(phase),
       };
     },
@@ -6041,17 +6078,15 @@ export default defineComponent({
       // question about the frame that came back.
       if (host === 'hand') {
         // THE CARD-PLAY STEP IS OVER — its only remaining business WAS this
-        // colony. Hosted, it LEAVES and the flow that carried it (the start's
-        // deployment) gets its screen back and continues from exactly where it
-        // stopped; standing alone, there is nothing left to show and it goes
-        // home. The played hero's own falling edge does this when no colony was
-        // involved — same pop, one beat earlier.
-        if (workspaceFrameIndex('hand') > 0) {
-          leaveWorkspace();
-        } else {
-          closeConsoleLayers();
-          goBoardHome();
-        }
+        // colony. It ends through the play's ONE guarded ending, which is what
+        // makes the two shapes one call: hosted (`start ⊃ hand`) the hand step
+        // leaves and the deployment gets its screen back exactly where it
+        // stopped; standing alone there is nothing left to show and it goes
+        // home. And it still HOLDS if this play ALSO drew cards — the colony
+        // was one of two things it owed. (The played hero's own closing beat
+        // does this when no colony was involved — same ending, one beat
+        // earlier.)
+        this.endPlayCardFlow();
       } else if (host === 'card-actions') {
         // The activation's follow-up is done — the action workspace folds the
         // way every completed action does.
@@ -6227,41 +6262,22 @@ export default defineComponent({
         return;
       }
       if (phase === 'closing' && playedHeroState.host === 'workspace') {
-        // THE PLAYED CARD ASKED FOR A COLONY (Coordinated Raid / Market
-        // Manipulation): the workspace does NOT fold — the composer leaves,
-        // but the stage stays open and HOSTS the colonies as its next step
-        // («КАРТЫ В РУКЕ › <карта> › КОЛОНИИ»). The deferred fold runs from
-        // the colonyFollowUpLive falling edge, once the whole follow-up
-        // (pick → fleet → rewards) has played out inside the workspace.
-        //
-        // The START is the same workspace scenery (its queue plays arm
-        // `host: 'workspace'` too), and its follow-up stands INSIDE the start
-        // frame (`start ⊃ colonies` — the solo setup pick / Poseidon's build
-        // at deployment). The hand-only guard left that chain unprotected:
-        // the closing beat's `goBoardHome()` truncated the prompt-anchored
-        // colonies frame, the stranded self-heal stood it back up a tick
-        // later, and the section remounted — the reported «колонии мигают»
-        // at game start (the step entry played twice).
-        //
-        // The question is asked of the workspace THE PLAY RAN IN — the hand
-        // when a hand frame is standing (the composer's home, embedded or
-        // not), else the start (a queue play with no hand step). Asking BOTH
-        // is wrong in exactly one shape: the sponsor's ordinary play
-        // (`start ⊃ hand`, no follow-up) — there the thing nested inside the
-        // start IS the play's own hand step, and folding it is this beat's
-        // whole job.
-        const playedIn = workspaceFrameIndex('hand') !== -1 ? 'hand' : 'start';
-        if (workspaceFrameHasNested(playedIn)) {
-          this.pendingPlayCard = undefined;
-          return;
-        }
-        // One synchronous turn, one patch: clearing the pending play folds the
-        // descent (its own watcher) and the workspace goes home in one leave —
-        // the board is already committed and current underneath.
-        this.pendingPlayCard = undefined;
-        closeConsoleLayers();
-        goBoardHome();
+        // The landing scene has told its whole story — the play's ONE ending
+        // decides what happens to the workspace around it (see
+        // `endPlayCardFlow`: it may hold for a nested step, for the cards this
+        // play drew, or for a flow the player parked).
+        this.endPlayCardFlow();
         return;
+      }
+      // THE EXECUTION BEAT of a claimed play, played out. The card has
+      // physically left the hand, flown and landed on its pile — that IS the
+      // «this action is happening» beat the claim withholds its surface for,
+      // so it must be reported here. Left to the 2.6 s backstop instead, a
+      // fast draw's reveal is still held when the deck scene starts flying its
+      // cards at slots that do not exist yet, and the flight degrades.
+      if (phase === 'committing' && playedHeroState.host === 'workspace' &&
+          workspaceOutcomeClaimed()) {
+        markWorkspaceOutcomeBeatDone();
       }
       if (phase === 'failed') {
         const composer = this.$refs.playConfirm as InstanceType<typeof ConsolePlayCardConfirm> | undefined;
@@ -6619,10 +6635,19 @@ export default defineComponent({
       // successful play (the composer closes under the lifted card), and a
       // prompt-identity change that moved the flow on. One place, so a phase
       // can never outlive its flow and leave the shelf parked behind nothing.
-      // ONE exception, and it is the SAME one as everywhere else: a step is
-      // still standing inside this frame (the played card's colony follow-up),
-      // and a host cannot fold under what it is carrying.
-      if (now === undefined && !workspaceFrameHasNested('hand')) {
+      //
+      // TWO exceptions, and they are the same fact twice — something this
+      // frame is CARRYING is still standing inside it, and a host cannot fold
+      // under it:
+      //  · a nested STEP (the played card's colony follow-up);
+      //  · this play's own OUTCOME (the cards it drew, the pick it raised).
+      // Without the second one the composer's departure un-parked the browse
+      // grid UNDERNEATH the embedded reveal: the hand shelf stood fully lit
+      // behind the drawn card, the toolbar came back, and the crumb dropped
+      // its tail — a decision surface floating over the screen it belongs to,
+      // which is exactly the «modal that arrived» reading the embedding
+      // exists to remove.
+      if (now === undefined && !workspaceFrameHasNested('hand') && !this.handOutcomeLive) {
         this.foldHandStage();
       }
     },
@@ -6869,9 +6894,45 @@ export default defineComponent({
         markWorkspaceOutcomeAnswerIn();
       }
     },
+    /**
+     * THE PLAY'S OUTCOME IS OVER (every card taken, the pick answered — or the
+     * claim turned out to host nothing at all): re-ask the play's ending, which
+     * held for exactly this while the cards were on screen.
+     *
+     * Deferred by a tick: the take releases the claim in the same frame the
+     * card detaches onto the flight layer, and the ending must land AFTER that
+     * patch — the intake then measures a dock the folding workspace has already
+     * uncovered. While the hero scene is still running there is nothing to
+     * re-ask (its own closing beat owns the ending).
+     */
+    handOutcomeLive(live: boolean, was: boolean) {
+      if (live || !was || isPlayedHeroActive()) {
+        return;
+      }
+      void this.$nextTick(() => {
+        if (!this.handOutcomeLive && !isPlayedHeroActive()) {
+          this.endPlayCardFlow();
+        }
+      });
+    },
     workspaceOutcomeEmbedded(embedded: boolean, was: boolean) {
       if (embedded) {
         markWorkspaceOutcomePresenting();
+        // THE HANDOFF, for a CARD PLAY: its landing scene («Разыграно») held
+        // the stage while the drawn cards were still coming off the deck — one
+        // surface stays until the next one is actually there, never a blank
+        // frame in between. Now that the outcome is on screen the composer that
+        // carried it lets go, in the flush after the arriving surface painted.
+        if (workspaceOutcomeState.host === 'hand' && !isPlayedHeroActive()) {
+          this.pendingPlayCard = undefined;
+          // …and the frame stops being a BEAT and becomes a decision about the
+          // move's result: `executing` absorbs input by design (a double submit
+          // must be impossible while the server has the move), which is exactly
+          // wrong once the cards are on screen waiting to be taken.
+          if (workspaceFramePhase('hand') === 'executing') {
+            setWorkspaceFramePhase('hand', 'committed');
+          }
+        }
         return;
       }
       if (!was) {
@@ -6934,6 +6995,21 @@ export default defineComponent({
         // arrive, and to time out on its backstop instead of flipping.
         if (workspaceOutcomeClaimed()) {
           markWorkspaceOutcomeAnswerIn();
+          // …AND SETTLE AN OPTIMISTIC CLAIM AGAINST WHAT ACTUALLY CAME BACK. A
+          // card PLAY claims before knowing what it produces, deliberately —
+          // a triggered effect (Point Luna's Earth tag) draws cards no preview
+          // can advertise, so «claim and release if unused» is the only way to
+          // catch them. This is the other half of that bargain: a tick later
+          // the artifact is readable, and a claim that hosts nothing is dropped
+          // instead of expiring on its 20 s backstop — twenty seconds in which
+          // its workspace cannot conclude and the player stands in a stage with
+          // nothing in it. It releases only on POSITIVE evidence that the
+          // outcome went elsewhere, so a real one is never touched. The other
+          // hosts claim structurally and settle through their own paths (the
+          // action's awaiting handoff, the colony's own call above).
+          if (isPlayOutcomeHost(workspaceOutcomeState.host)) {
+            this.reconcileWorkspaceOutcome();
+          }
         }
         const awaiting = surfaceMotionState.awaiting;
         if (awaiting !== undefined) {
@@ -9690,7 +9766,7 @@ export default defineComponent({
         this.departingTimer = undefined;
       }
     },
-    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, repeat?: ConsoleRepeatPickResult}): void {
+    onPlayCardConfirmNative(payload: {branchIndex: number, preResponses: ReadonlyArray<unknown>, optionResponse: unknown, stepResponses: ReadonlyArray<unknown>, payment: Payment, rewards?: ReadonlyArray<ResourceTransferSpec>, draws?: number, repeat?: ConsoleRepeatPickResult}): void {
       const action = this.playAction;
       const pending = this.pendingPlayCard;
       if (pending === undefined || action === undefined) {
@@ -9741,6 +9817,14 @@ export default defineComponent({
         rewards: payload.rewards,
         host: workspaceFrameDescended('hand') && !this.playedOpen ? 'workspace' : 'overlay',
       });
+      // EVERYTHING THIS PLAY SETS OFF STAYS INSIDE THE WORKSPACE IT WAS MADE
+      // IN — the cards it draws, the pick it raises. Claimed in the same press
+      // as the submit (nothing card-shaped can slip past and open a standalone
+      // surface for a frame), by the ONE resolver every play door shares, and
+      // OPTIMISTICALLY: a play that turns out to produce nothing embeddable is
+      // reconciled away a tick after the response, whereas a missing claim
+      // sends a full-bleed reveal over a workspace that has already let go.
+      claimPlayOutcome(pending.cardName, payload.draws ?? 0);
       // The descent crosses its commit boundary HERE: the crumb's stage marker
       // goes amber (a committed step is a statement, not an invitation), the
       // depth model stops offering «back» for a move the server already has —
@@ -10850,15 +10934,7 @@ export default defineComponent({
         return;
       }
       releaseWorkspaceOutcome('drawn-complete');
-      // The COLONY host has nothing to fold: the section IS the surface, and
-      // the trade transaction (glide → settle) finishes on the browse grid
-      // the embed zone just handed back. Folding here would reset the ACTION
-      // workspace's command contract for a flow that never touched it.
-      // The HYDRO host likewise concludes through its own result stage (the
-      // resolution-settled watcher), never a layer close.
-      if (host !== 'colonies' && host !== 'hydro') {
-        this.foldWorkspaceAfterResult();
-      }
+      this.foldWorkspaceAfterResult(host);
     },
     /**
      * The flow is FINISHED and its result is airborne — fold the WHOLE
@@ -10868,9 +10944,24 @@ export default defineComponent({
      * for us; without this the workspace sat over the board while the intake
      * aimed at a covered dock («workspace не закрывается» — the receive bug).
      * Idempotent: the buy path reaches it twice (detach + complete).
+     *
+     * WHICH workspace is the CLAIM's own host, never a hard-coded kind: the
+     * two sites that call this used to name «card-actions» outright and skip
+     * the two hosts that end differently (`host !== 'colonies' && …`), so a
+     * NEW host either concluded somebody else's workspace or nobody's — which
+     * is exactly what left the card-play workspace standing over a board it
+     * had already handed its cards to. `outcomeHostConcludesFlow` is that
+     * question asked once, exhaustively, in the claim's own module:
+     *  · the COLONY section IS the surface, and its transaction finishes on
+     *    the browse grid the embed zone just handed back;
+     *  · the HYDRO track concludes through its own result stage.
      */
-    foldWorkspaceAfterResult(): void {
-      this.concludeWorkspaceFlow('card-actions');
+    foldWorkspaceAfterResult(host = workspaceOutcomeState.host): void {
+      if (outcomeHostConcludesFlow(host) && host !== undefined) {
+        // A card PLAY's frame `serves` are registry defaults, not rights this
+        // flow earned — see `concludeWorkspaceFlow`.
+        this.concludeWorkspaceFlow(host, host !== 'hand');
+      }
     },
     /**
      * THE END OF A COMMITTED FLOW — ONE function, EVERY ending.
@@ -10905,9 +10996,9 @@ export default defineComponent({
      * tick of daylight there leaves a dead frame over a finished decision while
      * the intake aims at a still-covered dock.
      */
-    concludeWorkspaceFlow(kind: WorkspaceFrameKind): void {
+    concludeWorkspaceFlow(kind: WorkspaceFrameKind, servedPromptHolds = true): boolean {
       if (!workspaceFrameKnown(kind)) {
-        return; // already gone (a second, idempotent report) — nothing to end
+        return true; // already gone (a second, idempotent report) — nothing to end
       }
       // MY claim, never «somebody holds one»: a foreign host's live outcome
       // says nothing about whether THIS flow is finished.
@@ -10919,20 +11010,74 @@ export default defineComponent({
         // The second half of a pick-then-pay and a DRAW & SELECT still standing
         // in our zone are both this activation, still being answered — and so
         // is any prompt this FRAME earned the right to serve.
+        //
+        // …EARNED being the word. `servedPromptHolds: false` is for a flow whose
+        // frame carries REGISTRY DEFAULTS instead (the hand's `projectCard` /
+        // `handSelect`): a discard the played card just forced is not this
+        // play's outcome, and holding the workspace for it would stand the
+        // flow around a PARKED browse layer — the picker the prompt needs,
+        // invisible behind a finished stage.
         ownsPrompt: (mine && (this.taskBelongsToWorkspace || this.deckPickBelongsToWorkspace)) ||
-          (task !== undefined && frameServing(task.kind)?.kind === kind),
+          (servedPromptHolds && task !== undefined && frameServing(task.kind)?.kind === kind),
         parked: workspaceFrameParked(kind),
       });
       if (conclusion.verdict === 'hold') {
-        return;
+        return false;
       }
       resetConsoleActionComposerUi();
       // The workspace goes and takes everything standing in it. `closeConsoleLayers`
       // is what clears the transient shell state that rode with it (quick
       // selector, sale mode, sheet cursor) and pops the sheet-shaped frames;
       // `closeWorkspaceRoot` is the honest verb for a kind that is not one.
-      closeWorkspaceRoot(kind);
+      //
+      // …EXCEPT a PHASE-ANCHORED root (the start workspace IS the opening).
+      // Such a frame is not part of anybody's flow, so a flow that ran INSIDE
+      // it — a corporation's play, a prelude's — can never be what ends it:
+      // `goBoardHome` drops everything the flow stood up and leaves the phase
+      // alone, which is the same rule it already states for a placement
+      // excursion mid-deployment.
+      if (workspaceFrameAnchor(kind)?.type === 'phase') {
+        goBoardHome();
+      } else {
+        closeWorkspaceRoot(kind);
+      }
       closeConsoleLayers();
+      return true;
+    },
+    /**
+     * THE CARD PLAY'S ONE ENDING — every way a play can finish routes here.
+     *
+     * A play can end in three places and each of them used to conclude itself:
+     * the landing scene's closing beat, the colony follow-up's completion, and
+     * (never, until now) the cards the play DREW. The third one is what made
+     * the first wrong: the closing beat folded the workspace unconditionally,
+     * so a card that drew cards let its own workspace dissolve and the batch
+     * then arrived as a full-bleed reveal over the board.
+     *
+     * So the ending is the shared guarded conclusion, and it HOLDS while this
+     * workspace still owes something — a nested step (the colony pick), a live
+     * outcome of its own (the drawn batch, the buy prompt) or a park.
+     *
+     * The workspace it asks about is the one the play RAN IN: the hand when a
+     * hand frame is standing (the composer's home, embedded or not), else the
+     * start (a queue play with no hand step). Asking BOTH is wrong in exactly
+     * one shape — the sponsor's ordinary play (`start ⊃ hand`, no follow-up),
+     * where the thing nested inside the start IS the play's own hand step and
+     * ending it is this beat's whole job.
+     */
+    endPlayCardFlow(): void {
+      const playedIn: WorkspaceFrameKind = workspaceFrameIndex('hand') !== -1 ? 'hand' : 'start';
+      // THE LANDING SCENE LETS GO — but not into an empty frame. While this
+      // workspace's own outcome is still on its way, the settled tableau stays
+      // on screen and the arriving surface is what relieves it (the handoff in
+      // `workspaceOutcomeEmbedded`); in every other case the composer goes NOW,
+      // because a step that nests teleports into the very zone it occupies.
+      const awaiting = workspaceOutcomeState.host === playedIn &&
+        workspaceOutcomeClaimed() && workspaceOutcomeState.stage !== 'presenting';
+      if (!awaiting) {
+        this.pendingPlayCard = undefined;
+      }
+      this.concludeWorkspaceFlow(playedIn, false);
     },
     /**
      * «ДЕЙСТВИЯ КАРТ» reports its committed flow finished (the deck-check
@@ -10964,9 +11109,7 @@ export default defineComponent({
         return;
       }
       releaseWorkspaceOutcome('result-detached');
-      if (host !== 'colonies' && host !== 'hydro') {
-        this.foldWorkspaceAfterResult();
-      }
+      this.foldWorkspaceAfterResult(host);
     },
     /**
      * The ACTION COMMIT's reward wave: the resources the activated mechanic
@@ -11016,6 +11159,7 @@ export default defineComponent({
         // its own band. So: keep the claim while anything is (or is about to
         // be) ours, and let it go only when the server has demonstrably asked
         // for something else — or for nothing.
+        const task = taskFor(this.playerView);
         const ours = this.workspaceOutcomeEmbedded ||
           // The prompt IS ours — whether or not its slot has appeared yet.
           // This is the arm that was missing: readiness was being read as
@@ -11037,9 +11181,20 @@ export default defineComponent({
           (workspaceOutcomeState.host === 'hydro' &&
             (isHydroMarkerActive() || this.deckPickActive ||
               this.consoleState.task.deferred || workspaceStackCollapsed())) ||
-          // The prompt exists but the gate is still holding it: it may yet be
-          // ours once it opens.
-          (this.hostServesPrompt && this.hostTask === undefined);
+          (isPlayOutcomeHost(workspaceOutcomeState.host) ?
+            // A PLAY CLAIM IS ABOUT CARDS. Read the RAW prompt, never «the gate
+            // is holding something»: the play's own cinematic holds the task
+            // host for its whole length, so during a play EVERY prompt looks
+            // held — and «held» would then keep the claim alive for a prompt it
+            // can never host (a placement, an OrOptions branch, a resource
+            // pick), which are the play's ordinary follow-ups and route
+            // normally. The workspace would stand open around them until the
+            // 20 s backstop. What IS ours is a card question: the pick this
+            // play raised, and the payment that finishes it.
+            PLAY_CLAIMED_TASK_KINDS.has(task?.kind as TaskKind) :
+            // The prompt exists but the gate is still holding it: it may yet be
+            // ours once it opens.
+            (this.hostServesPrompt && this.hostTask === undefined));
         if (ours) {
           return;
         }

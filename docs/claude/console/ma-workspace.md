@@ -65,6 +65,29 @@ already-taken ones, so a second reading surface has nothing to show.
 «claim», so a double-tap would buy a strategic irreversible thing the player
 never saw — the stage refuses its own commit until it has been readable.
 
+## The detail stage is an EXHIBITION, and it is TOKEN-SCALED
+
+Two columns that both occupy the stage: the ARTEFACT (the carried emblem, its
+name, the state badge, and the viewer's OWN reading of it — «ВЫ 20/29» + the
+meter) beside the DOSSIER (a condition plate carrying the rule and the
+category's mechanic truth, then the race plate). The player's number lives with
+the artefact, not as one row among the rules — that is what left the identity
+column ending at a badge over a void.
+
+**Plates, not naked lines.** Each dossier block is the console's grouped-block
+material (own ground + one inset edge light + real padding). Content-sized, the
+group centred: a two-player race stretched to fill 700 px is emptier than the
+space it filled — inflated boxes are not composition.
+
+**Every size is a `--mafocus-*` token on the root, and a profile retunes ONLY
+the token set** (`--mafocus-hero`, `-side-w`, `-name`, `-you`, `-desc`,
+`-note`, `-label`, `-plate-pad`, `-row-h`, `-rowname`, `-rowscore`, `-gap`,
+`-pad`). The TV profile's pass is a real recomposition — a 19rem artefact,
+couch type off `--con-t-*`, standings rows at `--con-hit-min` — because the
+uniform rem scale alone reproduces a 1080 card blown up: the stage used a
+quarter of a 4K panel and read as small and poor. The Deck's block is the same
+tokens one size down. Never add a per-element font ladder here.
+
 ## The flow contract
 
 - **Overview**: items are selectable WHOLES — no per-item CTA; the bar reads

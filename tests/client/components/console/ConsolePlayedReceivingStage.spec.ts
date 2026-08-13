@@ -2,6 +2,9 @@ import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
 import ConsolePlayedReceivingStage from '@/client/components/console/played/ConsolePlayedReceivingStage.vue';
 import {armPlayedHero, abortPlayedHero, playedHeroState} from '@/client/console/played/consolePlayedHero';
+import {claimPlayOutcome} from '@/client/console/played/consolePlayOutcomeClaim';
+import {resetWorkspaceOutcome} from '@/client/console/consoleWorkspaceOutcome';
+import {descendWorkspaceFrame, pushWorkspaceFrame, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -30,10 +33,23 @@ function make(v: PlayerViewModel) {
 }
 
 describe('ConsolePlayedReceivingStage (the receiving & effect resolution stage)', () => {
+  // Module state is BUNDLE-SHARED under mochapack: a leaked claim / frame
+  // would change what every later spec's workspace believes it is holding.
   afterEach(async () => {
     abortPlayedHero();
+    resetWorkspaceOutcome();
+    resetWorkspaceStack();
     await settle(5);
   });
+
+  /** The hand workspace, descended into a play — the claim's home. */
+  function standPlayFrame(card: CardName): void {
+    pushWorkspaceFrame({
+      kind: 'hand', subject: '', stage: '', phase: 'browse',
+      serves: ['projectCard'], anchor: {type: 'always'},
+    });
+    descendWorkspaceFrame('hand', card, 'Playing', {type: 'cardInHand', card});
+  }
 
   it('is a SPECIALIZED scene — never the embedded overview layout', async () => {
     armPlayedHero(CardName.TREES, false, {manualTableOpen: false, host: 'workspace'});
@@ -82,6 +98,38 @@ describe('ConsolePlayedReceivingStage (the receiving & effect resolution stage)'
     expect(front.find('.con-recv__face').exists()).to.be.true;
     // The previous top is now a covered strip (peek face) — it never moved.
     expect(wrapper.find('.con-recv__strip--prev').findComponent({name: 'ConsolePlayedCardLite'}).props('peek')).to.be.true;
+    expect(wrapper.find('.con-recv__caption-count').text()).to.eq('3');
+    wrapper.unmount();
+  });
+
+  /**
+   * THE SETTLED TABLEAU OUTLIVES ITS TRANSACTION. The hero ends when the card
+   * has landed and its rewards have resolved — but a play that DREW cards is
+   * not over there: the deck deals them only after this scene finishes, and
+   * the workspace keeps the stage until that batch arrives. Read live, the
+   * stage would answer «nothing is arriving» in that window: the front anchor
+   * would empty and the card would jump back into the strips behind it.
+   */
+  it('holds the settled tableau while the play\'s DRAW is still on its way', async () => {
+    armPlayedHero(CardName.TREES, false, {manualTableOpen: false, host: 'workspace'});
+    playedHeroState.phase = 'preparing';
+    const wrapper = make(view([CardName.BUSHES, CardName.GRASS, CardName.TREES]));
+    await wrapper.vm.$nextTick();
+    playedHeroState.revealed = true;
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[data-recv-front]').attributes('data-played-key')).to.eq(CardName.TREES);
+
+    // The transaction ENDS (it clears its own state) while the workspace is
+    // still holding this play's outcome — the claim is what keeps the scene.
+    standPlayFrame(CardName.TREES);
+    claimPlayOutcome(CardName.TREES, 1);
+    playedHeroState.active = false;
+    playedHeroState.phase = 'idle';
+    playedHeroState.card = undefined;
+    playedHeroState.revealed = false;
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('[data-recv-front]').attributes('data-played-key'),
+      'the arrived card stays on its pile until the drawn batch relieves the stage').to.eq(CardName.TREES);
     expect(wrapper.find('.con-recv__caption-count').text()).to.eq('3');
     wrapper.unmount();
   });

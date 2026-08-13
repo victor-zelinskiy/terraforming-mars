@@ -746,9 +746,10 @@ import {
 import ConsoleStartPlayedDock from '@/client/components/console/ConsoleStartPlayedDock.vue';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 import {
-  claimWorkspaceOutcome, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome,
-  setWorkspaceOutcomeSlot, workspaceOutcomeState,
+  markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, releaseWorkspaceOutcome,
+  workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
+import {claimPlayOutcome} from '@/client/console/played/consolePlayOutcomeClaim';
 import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 import {deckDrawHolds} from '@/client/console/deckDraw/consoleDeckDraw';
 import {handDeliveryState} from '@/client/console/handDock/handDeliveryState';
@@ -5268,9 +5269,7 @@ export default defineComponent({
       // presents INSIDE this workspace. A claim that finds nothing to host is
       // reconciled away a tick later; a missing claim sends a full-bleed
       // modal over a workspace that then lets go behind it.
-      setWorkspaceOutcomeSlot('.con-start__embed');
-      claimWorkspaceOutcome('start', corp as CardName, ['draw', 'pick'], 0,
-        Math.max(1, firstActionDrawExpected(this.firstActionPreview)));
+      claimPlayOutcome(corp as string, Math.max(1, firstActionDrawExpected(this.firstActionPreview)));
       // The execution beat is ALREADY played: the source card physically
       // stands in its seat (the stage's emerge). Without this the claim
       // sits out the full BEAT_SAFETY before its surface may mount.
@@ -5349,27 +5348,36 @@ export default defineComponent({
      */
     claimStartFollowUp(name: CardName): void {
       const expected = this.drawExpected.get(name) ?? 0;
-      // EVERYTHING THE FIRST ACTION SETS OFF STAYS INSIDE THIS WORKSPACE.
+      // EVERYTHING THIS PRESS SETS OFF STAYS INSIDE THIS WORKSPACE.
       //
-      // The preview's `cards` chip is a good hint, never a guarantee: a
-      // bespoke first action (Valley Trust) deliberately advertises no draw,
-      // and the prelude the player then picks can draw cards of its own. With
-      // the claim gated on that hint, those cards presented in a STANDALONE
-      // full-bleed «Получены карты» over a workspace that had already let go
-      // — the exact opposite of the contract. So inside the first-action
-      // stage the claim is OPTIMISTIC: the outcome mechanism is built for it
-      // (`reconcileWorkspaceOutcome` drops a claim a tick after the response
-      // when nothing turned out to be embeddable), which makes «claim and
-      // release if unused» strictly safer than «guess and miss».
+      // The preview's `cards` chip is a good hint, never a guarantee, and the
+      // claim is therefore OPTIMISTIC — the same bargain the first-action stage
+      // has always struck, now for every start play, because a `behavior`
+      // preview can only advertise what the card itself declares:
+      //  · a bespoke first action (Valley Trust) declares no draw, and the
+      //    prelude the player then picks can draw cards of its own;
+      //  · a TRIGGERED EFFECT draws for a card that is not the one pressed —
+      //    Point Luna's «сыграв метку Земли, возьмите карту» fires on its OWN
+      //    play, so the corporation's opening draw was advertised by nothing,
+      //    claimed by nobody, and arrived as a full-bleed fullscreen card as
+      //    though it had come off the board.
+      // The outcome mechanism is built for optimism (`reconcileWorkspaceOutcome`
+      // drops a claim a tick after the response when nothing turned out to be
+      // embeddable), which makes «claim and release if unused» strictly safer
+      // than «guess and miss». One resolver, shared with the play composer's
+      // door — see consolePlayOutcomeClaim.
       const inFirstAction = this.state.firstAct.stage !== 'idle';
+      claimPlayOutcome(name, Math.max(expected, inFirstAction ? 1 : 0));
+      // The EFFECT-SOURCE seat mounts IN THE SAME PRESS — but ONLY for a play
+      // whose draw is DECLARED: the seat is an intermediate landing slot the
+      // hero flight aims at (`armStartHero`'s `targetSelector` reads the same
+      // hint), so mounting it for a card that flies straight to «РАЗЫГРАНО»
+      // would seat a second copy of a card already standing there. An
+      // undeclared draw simply presents in the zone with its source on the
+      // shelf below — one physical card, always.
       if (expected <= 0 && !inFirstAction) {
         return;
       }
-      setWorkspaceOutcomeSlot('.con-start__embed');
-      claimWorkspaceOutcome('start', name, ['draw', 'pick'], 0, Math.max(expected, inFirstAction ? 1 : 0));
-      // The EFFECT-SOURCE seat mounts IN THE SAME PRESS: the hero flight
-      // needs its intermediate landing slot measurable before it flies, and
-      // the column card stays held until the hero's atomic handoff.
       this.embedSourceShown = name;
       this.embedSourceArriving = true;
       this.embedSourceLanded = false;

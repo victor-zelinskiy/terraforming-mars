@@ -5,6 +5,7 @@ import {
   markWorkspaceOutcomeArrivalDone,
   markWorkspaceOutcomeBeatDone,
   markWorkspaceOutcomePresenting,
+  outcomeHostConcludesFlow,
   releaseWorkspaceOutcome,
   resetWorkspaceOutcome,
   setWorkspaceOutcomeSlot,
@@ -249,6 +250,68 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
       claimWorkspaceOutcome('card-actions', RESTRICTED, ['draw'], 0, 1);
       expect(workspaceOutcomeState.expectedCards).to.eq(1);
       expect(workspaceOutcomeArrivalPending()).to.eq(true);
+    });
+  });
+
+  /**
+   * THE CHAIN SCOPE — a card PLAY answers for everything one press sets off.
+   *
+   * The server attributes a draw to the card whose EFFECT ran, and a triggered
+   * effect is not the card the player pressed: Point Luna's «сыграв метку
+   * Земли, возьмите карту» fires on its own play and on every later Earth-tag
+   * card. Keyed on the pressed name alone, those batches matched no claim and
+   * left for a fullscreen viewer over a workspace that had already let go.
+   */
+  describe('the claim SCOPE', () => {
+    it('a CHAIN claim answers for a draw a triggered effect made — the pressed card is not the drawer', () => {
+      claimWorkspaceOutcome('hand', RESTRICTED, ['draw', 'pick'], 0, 0, 'chain');
+      // The played card's own draw…
+      expect(workspaceClaimsDrawReveal(cardSource(RESTRICTED))).to.eq(true);
+      // …and the draw its Earth tag triggered on the corporation.
+      expect(workspaceClaimsDrawReveal(cardSource(CardName.POINT_LUNA))).to.eq(true);
+    });
+
+    it('a CHAIN claim is still bounded by the SOURCE TYPE and the kinds', () => {
+      claimWorkspaceOutcome('hand', RESTRICTED, ['draw'], 0, 0, 'chain');
+      // A tile / colony / global-parameter payout keeps its own scene: those
+      // are things the BOARD produced, not this press.
+      expect(workspaceClaimsDrawReveal({type: 'tile'})).to.eq(false);
+      expect(workspaceClaimsDrawReveal({type: 'colony', colonyName: 'Pluto'} as CardDrawRevealSource)).to.eq(false);
+      expect(workspaceClaimsDrawReveal(undefined)).to.eq(false);
+      expect(workspaceClaimsColonyReveal({type: 'colony', colonyName: 'Pluto'} as CardDrawRevealSource)).to.eq(false);
+    });
+
+    it('the default scope stays EXACT — an activation answers for its own card only', () => {
+      claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw', 'pick']);
+      expect(workspaceOutcomeState.scope).to.eq('card');
+      expect(workspaceClaimsDrawReveal(cardSource(RESTRICTED))).to.eq(false);
+    });
+
+    it('the scope never bleeds into the next claim', () => {
+      claimWorkspaceOutcome('hand', RESTRICTED, ['draw'], 0, 0, 'chain');
+      releaseWorkspaceOutcome();
+      expect(workspaceOutcomeState.scope).to.eq('card');
+      claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw']);
+      expect(workspaceClaimsDrawReveal(cardSource(RESTRICTED))).to.eq(false);
+    });
+  });
+
+  /**
+   * WHOSE WORKSPACE ENDS WITH THE OUTCOME. The two sites that fold a finished
+   * flow used to name «card-actions» outright and skip the hosts that end
+   * differently by exclusion (`host !== 'colonies' && host !== 'hydro'`), so a
+   * new host concluded either somebody else's workspace or nobody's.
+   */
+  describe('the host → conclusion table', () => {
+    it('a flow-shaped workspace ends with its outcome; a phase / a longer resolution does not', () => {
+      expect(outcomeHostConcludesFlow('card-actions')).to.eq(true);
+      expect(outcomeHostConcludesFlow('hand')).to.eq(true);
+      // The opening is a PHASE, not a flow — a corporation's play can never end it.
+      expect(outcomeHostConcludesFlow('start')).to.eq(false);
+      // One batch is a LEG of the colony resolution / the hydro advance.
+      expect(outcomeHostConcludesFlow('colonies')).to.eq(false);
+      expect(outcomeHostConcludesFlow('hydro')).to.eq(false);
+      expect(outcomeHostConcludesFlow(undefined)).to.eq(false);
     });
   });
 

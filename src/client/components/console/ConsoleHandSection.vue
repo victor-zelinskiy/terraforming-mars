@@ -289,6 +289,27 @@
            data-unfold-surface
            data-embed-slot="hand-play"></div>
     </transition>
+
+    <!-- ── THE OUTCOME ZONE — «… › ДОБОР КАРТ», the play's own next stage.
+         What the played card PRODUCED (the drawn batch, the buy/keep pick) is
+         re-homed HERE, into the workspace the player composed the play in:
+         the same shell-mounted ConsoleRevealOverlay / ConsoleDeckPick
+         instance, in embedded dress, with the crumb above it simply gaining a
+         tail. Without it the batch left for a full-bleed band over the board
+         while this workspace dissolved under it — the press and its result in
+         two different places.
+
+         An OVERLAY LAYER of the same region, never a sibling of the stage:
+         the landing scene («Разыграно») stays on screen underneath until this
+         surface actually arrives, so the handoff is one surface taking over
+         from another rather than an empty frame in between.
+
+         Rendered from the CLAIM (i.e. from submit time), so the teleport
+         target always exists before anyone looks for it. -->
+    <div v-if="outcomeZoneOn"
+         class="con-hand__outcome"
+         data-outcome-zone
+         data-embed-slot="hand-outcome"></div>
     </div><!-- /__stagewrap -->
   </div><!-- /__frame -->
   </div>
@@ -316,7 +337,10 @@
 import {defineComponent, PropType, markRaw} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
-import {setWorkspaceFrameSlot} from '@/client/console/consoleWorkspaceStack';
+import {setWorkspaceFrameSlot, workspaceFrameParked} from '@/client/console/consoleWorkspaceStack';
+import {
+  releaseWorkspaceOutcome, setWorkspaceOutcomeSlot, workspaceOutcomeState,
+} from '@/client/console/consoleWorkspaceOutcome';
 import {
   handStageEnterHook,
   handStageLeaveHook,
@@ -515,6 +539,9 @@ export default defineComponent({
   data() {
     return {
       box: {w: 0, h: 0},
+      /** The workspace OUTCOME claim (module reactive — a path watcher needs
+       *  the mirror here, or it never fires). */
+      outcome: workspaceOutcomeState,
       /** Row-gated scroll position that drives the render window. */
       scrollTopPx: 0,
       /** Smooth 0..1 scroll fraction for the scrollbar thumb. */
@@ -529,6 +556,15 @@ export default defineComponent({
     /** The workspace has been descended into — the browse layer is parked. */
     stageOpen(): boolean {
       return this.stage !== undefined;
+    },
+    /**
+     * THIS workspace holds the outcome claim of the play it is standing in —
+     * its zone is owed (see the template). Read straight off the claim, never
+     * off «is something on screen»: the zone has to exist BEFORE the artifact
+     * looks for it.
+     */
+    outcomeZoneOn(): boolean {
+      return this.outcome.host === 'hand' && this.outcome.sourceCard !== '';
     },
     selected(): CardModel | undefined {
       return this.entries[this.index]?.card;
@@ -747,6 +783,20 @@ export default defineComponent({
       flush: 'post',
       handler(on: boolean) {
         setWorkspaceFrameSlot('hand', on ? '[data-embed-slot="hand-play"]' : '');
+      },
+    },
+    /** The OUTCOME zone, same law and same reason (POST-flush: the shell is our
+     *  parent and resolves the teleport before we have rendered the node). */
+    outcomeZoneOn: {
+      immediate: true,
+      flush: 'post',
+      handler(on: boolean) {
+        if (on) {
+          setWorkspaceOutcomeSlot('[data-embed-slot="hand-outcome"]');
+        } else if (this.outcome.embedSlot === '[data-embed-slot="hand-outcome"]') {
+          // Only OUR selector: the claim may already have moved to another host.
+          setWorkspaceOutcomeSlot('');
+        }
       },
     },
     index() {
@@ -1043,6 +1093,16 @@ export default defineComponent({
     // teleports the next surface into a detached node, and the unmount watcher
     // does not fire (Vue tears the component down before its watchers run).
     setWorkspaceFrameSlot('hand', '');
+    // A CLAIM CAN NEVER OUTLIVE ITS FLOW: an orphaned one is worse than a leak
+    // (it suppresses the standalone presenters, so the artifact shows NOWHERE).
+    // …unless the workspace was PARKED — «свернуть» keeps the whole decision
+    // alive at full depth, and its surface unmounting is exactly how that
+    // looks. (The raw claim is read here, not the gated computed: the park
+    // happens BEFORE this hook and would already have flipped it false.)
+    if (this.outcome.host === 'hand' && this.outcome.sourceCard !== '' &&
+        !workspaceFrameParked('hand')) {
+      releaseWorkspaceOutcome('hand-unmount');
+    }
     this.ro?.disconnect();
     if (this.rafScroll !== undefined) {
       cancelAnimationFrame(this.rafScroll);

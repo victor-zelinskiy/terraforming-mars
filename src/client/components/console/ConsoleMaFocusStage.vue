@@ -33,48 +33,52 @@
               <span>{{ $t(stateLabel) }}</span>
             </span>
           </div>
+
+          <!-- YOUR STANDING — the personal fact, and the column's second
+               voice. It lived in the dossier as a «Ваш прогресс» block, which
+               left the identity column ending at the badge with a void under
+               it and made the player's own number one row among the rules.
+               Here it belongs to the artefact: this is YOUR reading of it. -->
+          <div class="con-mafocus__you" data-ma-detail data-unfold-late>
+            <span class="con-mafocus__you-label">{{ $t('You') }}</span>
+            <span class="con-mafocus__you-value" :class="{'con-mafocus__you-value--met': kind === 'milestone' && displayView.thresholdMet}">
+              <b>{{ displayView.myScore }}</b><span v-if="displayView.threshold !== undefined" class="con-mafocus__you-req">/{{ displayView.threshold }}</span>
+            </span>
+            <span v-if="displayView.threshold !== undefined" class="con-mafocus__meter" aria-hidden="true"><i :style="{width: meterWidth}"></i></span>
+            <span v-if="standingNote !== ''" class="con-mafocus__you-note" :class="{'con-mafocus__you-note--lead': displayView.raceTone === 'lead' || displayView.raceTone === 'tie'}">{{ standingNote }}</span>
+          </div>
         </div>
 
-        <!-- ── MAIN column: the mechanic truth + the live race. ── -->
+        <!-- ── DOSSIER column: two PLATES — what the rule is, and how the
+             field stands. Material (plate + edge light) rather than naked
+             lines: the stage is the artefact's exhibition, and grouped
+             surfaces are what the rest of the console is built from. ── -->
         <div class="con-mafocus__main" data-ma-detail>
-          <div class="con-mafocus__desc" data-unfold-item v-i18n>{{ displayView.description }}</div>
-
-          <!-- MILESTONE: progress → threshold → the immediate-5-VP truth. The
-               progress block owns the QUANTITY and only it — the counter and
-               the meter. The state word belongs to the badge, and the gap
-               («до порога: 9») is the status rail's blocking reason: three
-               roles, three places, no sentence said twice. -->
-          <template v-if="kind === 'milestone'">
-            <div class="con-mafocus__block" data-unfold-item>
-              <div class="con-mafocus__block-title">{{ $t('Your progress') }}</div>
-              <div class="con-mafocus__progress">
-                <span class="con-mafocus__progress-value" :class="{'con-mafocus__progress-value--met': displayView.thresholdMet}">
-                  <b>{{ displayView.myScore }}</b><span v-if="displayView.threshold !== undefined" class="con-mafocus__progress-req">/{{ displayView.threshold }}</span>
+          <div class="con-mafocus__plate" data-unfold-item>
+            <div class="con-mafocus__block-title">{{ $t('Condition') }}</div>
+            <div class="con-mafocus__desc" v-i18n>{{ displayView.description }}</div>
+            <!-- The MECHANIC TRUTH of the category: a milestone pays its 5 VP
+                 the moment it is claimed; an award pays nothing now and
+                 everything at the end. -->
+            <div class="con-mafocus__truth" data-unfold-late>
+              <template v-if="kind === 'milestone'">
+                <span class="con-mafocus__vp-badge">+5 {{ $t('VP') }}</span>
+                <span class="con-mafocus__truth-note">{{ $t('Milestones grant 5 victory points immediately when claimed.') }}</span>
+              </template>
+              <template v-else>
+                <span class="con-mafocus__truth-mark" aria-hidden="true">⏳</span>
+                <span class="con-mafocus__truth-note">
+                  <b>{{ $t('The award grants no victory points now.') }}</b>
+                  {{ $t(displayInspect.playersCount > 2 ? 'At game end: 5 VP for 1st place, 2 VP for 2nd.' : 'At game end: 5 VP for 1st place.') }}
                 </span>
-                <span v-if="displayView.threshold !== undefined" class="con-mafocus__meter" aria-hidden="true"><i :style="{width: meterWidth}"></i></span>
-              </div>
+              </template>
             </div>
-            <div class="con-mafocus__vp" data-unfold-item>
-              <span class="con-mafocus__vp-badge">+5 {{ $t('VP') }}</span>
-              <span class="con-mafocus__vp-note" data-unfold-late>{{ $t('Milestones grant 5 victory points immediately when claimed.') }}</span>
-            </div>
-          </template>
-
-          <!-- AWARD: the endgame-scoring truth → the live standings. -->
-          <template v-else>
-            <div class="con-mafocus__endgame" data-unfold-item>
-              <span class="con-mafocus__endgame-mark" aria-hidden="true">⏳</span>
-              <span>
-                <b>{{ $t('The award grants no victory points now.') }}</b>
-                {{ $t(displayInspect.playersCount > 2 ? 'At game end: 5 VP for 1st place, 2 VP for 2nd.' : 'At game end: 5 VP for 1st place.') }}
-              </span>
-            </div>
-          </template>
+          </div>
 
           <!-- The RACE / STANDINGS — ranked leader→last with relative bars
                (the inspect view-model; engine-faithful VP projection). A
                claimed milestone has no meaningful race and renders none. -->
-          <div v-if="displayInspect.rows.length > 0" class="con-mafocus__block con-mafocus__race" data-unfold-item>
+          <div v-if="displayInspect.rows.length > 0" class="con-mafocus__plate con-mafocus__race" data-unfold-item>
             <div class="con-mafocus__block-title">{{ $t('Current race') }}</div>
             <div class="con-mafocus__rows">
               <div v-for="r in displayInspect.rows" :key="r.color"
@@ -242,6 +246,23 @@ export default defineComponent({
     /** The claimant's colour dot rides the badge when someone ELSE owns it. */
     ownerColor(): string {
       return this.displayView.takenByOther?.color ?? '';
+    },
+    /**
+     * The one line UNDER the viewer's own number: where they stand in the
+     * race. An award's whole point is the comparison, so it names the leader
+     * (or says the viewer IS one); a milestone's number already carries its
+     * own target («20/29»), so it says nothing rather than something twice.
+     */
+    standingNote(): string {
+      if (this.kind === 'milestone') {
+        return '';
+      }
+      switch (this.displayView.raceTone) {
+      case 'lead': return $t('You lead');
+      case 'tie': return $t('Tied for the lead');
+      case 'behind': return `${$t('Leader')}: ${this.displayView.leaderScore}`;
+      default: return '';
+      }
     },
     meterWidth(): string {
       const t = this.displayView.threshold ?? 0;

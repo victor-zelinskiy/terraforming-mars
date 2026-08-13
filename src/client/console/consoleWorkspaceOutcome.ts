@@ -34,15 +34,27 @@
 import {reactive} from 'vue';
 import {CardDrawRevealSource} from '@/common/models/CardDrawRevealModel';
 import type {ZoomOrigin} from '@/client/console/consoleCardZoom';
+import type {WorkspaceFrameKind} from '@/client/console/consoleWorkspaceStack';
 
 /**
  * Which workspace holds the claim. A closed union on purpose: every host needs
  * its own embedded presentation, so a new one is a deliberate addition, not a
  * string that silently starts matching.
+ *
+ * Deliberately a SUBSET of `WorkspaceFrameKind`, not a parallel vocabulary: the
+ * claim's end is a workspace's end, so the two have to be the same name (the
+ * mapping was once an `if (host !== 'colonies' && host !== 'hydro')` beside a
+ * hard-coded `'card-actions'`, which is how a NEW host silently concluded
+ * somebody else's workspace — or nobody's).
  */
-export type WorkspaceOutcomeHost =
+export type WorkspaceOutcomeHost = Extract<WorkspaceFrameKind,
   /** «Действия карт» → ACTION FOCUS (ConsoleCardActions + ConsoleActionComposer). */
   | 'card-actions'
+  /** «КАРТЫ В РУКЕ» → the CARD PLAY. Everything the played card sets off — the
+   *  cards it draws, the pick it raises — presents inside the workspace the
+   *  player composed the play in, and that workspace does not leave until they
+   *  have taken all of it. */
+  | 'hand'
   /** The GAME START WORKSPACE — a start card (corporation / prelude) that
    *  draws or picks other cards hosts the follow-up in its own embed zone. */
   | 'start'
@@ -54,7 +66,52 @@ export type WorkspaceOutcomeHost =
    *  payout (pos 5 draw-4-keep-2, a repeated action's own draws) in the
    *  track's commit scene. `sourceCard` is the Delta Project for the track's
    *  own rewards, or the repeated CARD for a stage-7 composed action. */
-  | 'hydro';
+  | 'hydro'>;
+
+/**
+ * DOES THE END OF THIS HOST'S OUTCOME END ITS WORKSPACE?
+ *
+ * A card ACTIVATION and a card PLAY are flows whose workspace exists FOR that
+ * flow: once the result has been taken there is nothing left inside them, so
+ * they leave and the player lands on the board (the North Star conclusion). The
+ * other three are not flows of that shape and must never be concluded by one
+ * batch finishing:
+ *  · 'start'    — a PHASE, not a flow: the opening decides its own next step;
+ *  · 'colonies' — one batch is a LEG of a longer resolution (Pluto's draw →
+ *                 discard → the next cube → the track reset);
+ *  · 'hydro'    — the advance concludes through its own result stage.
+ *
+ * A `Record` rather than an exclusion list, so a new host cannot compile until
+ * it has answered this question.
+ */
+const OUTCOME_HOST_CONCLUDES: Record<WorkspaceOutcomeHost, boolean> = {
+  'card-actions': true,
+  'hand': true,
+  'start': false,
+  'colonies': false,
+  'hydro': false,
+};
+
+/** Is this host's workspace OVER when its outcome is? (See the record above.) */
+export function outcomeHostConcludesFlow(host: WorkspaceOutcomeHost | undefined): boolean {
+  return host !== undefined && OUTCOME_HOST_CONCLUDES[host];
+}
+
+/**
+ * WHOSE draws this claim answers for.
+ *
+ *  · 'card'  — EXACTLY the named card. An activation draws for itself, so the
+ *    server's attribution and the claim's key are the same name.
+ *  · 'chain' — anything a CARD produced while this claim stands. Playing a card
+ *    also runs OTHER cards' triggered effects, and the server attributes a draw
+ *    to the card whose EFFECT ran: Point Luna's «сыграв метку Земли, возьмите
+ *    карту» is attributed to POINT LUNA, never to the Earth-tag card the player
+ *    pressed. Keyed on the pressed card alone, that batch matched no claim and
+ *    left for a full-bleed viewer over a workspace that had already let go —
+ *    which is the whole bug this scope exists for. The window is one submit
+ *    wide, and the only card-sourced batch inside it is this play's own chain.
+ */
+export type WorkspaceOutcomeScope = 'card' | 'chain';
 
 /**
  * What an outcome can BE. The claimant declares which kinds it can host, so a
@@ -88,6 +145,8 @@ export const workspaceOutcomeState = reactive({
    */
   nodeIndex: 0,
   kinds: [] as ReadonlyArray<WorkspaceOutcomeKind>,
+  /** Whose card-sourced draws this claim answers for (see WorkspaceOutcomeScope). */
+  scope: 'card' as WorkspaceOutcomeScope,
   /** 'awaiting' — submitted, nothing has arrived yet; 'presenting' — on screen. */
   stage: 'idle' as 'idle' | 'awaiting' | 'presenting',
   /**
@@ -216,16 +275,23 @@ function clearArrival(): void {
   }
 }
 
+function armArrivalSafety(): void {
+  if (workspaceOutcomeState.arrivalDone || typeof setTimeout !== 'function') {
+    return;
+  }
+  clearArrival();
+  arrivalTimer = setTimeout(() => {
+    arrivalTimer = undefined;
+    workspaceOutcomeState.arrivalDone = true;
+  }, ARRIVAL_SAFETY_MS);
+}
+
 /** The shell: the artifact exists — the card may turn over. */
 export function markWorkspaceOutcomeAnswerIn(): void {
   if (workspaceOutcomeState.sourceCard !== '') {
     workspaceOutcomeState.answerIn = true;
-    if (!workspaceOutcomeState.arrivalDone && arrivalTimer === undefined &&
-        typeof setTimeout === 'function') {
-      arrivalTimer = setTimeout(() => {
-        arrivalTimer = undefined;
-        workspaceOutcomeState.arrivalDone = true;
-      }, ARRIVAL_SAFETY_MS);
+    if (arrivalTimer === undefined) {
+      armArrivalSafety();
     }
   }
 }
@@ -310,6 +376,7 @@ export function claimWorkspaceOutcome(
   kinds: ReadonlyArray<WorkspaceOutcomeKind>,
   nodeIndex = 0,
   expectedCards = 0,
+  scope: WorkspaceOutcomeScope = 'card',
 ): void {
   if (sourceCard === '' || kinds.length === 0) {
     releaseWorkspaceOutcome('empty-claim');
@@ -319,6 +386,7 @@ export function claimWorkspaceOutcome(
   workspaceOutcomeState.sourceCard = sourceCard;
   workspaceOutcomeState.nodeIndex = nodeIndex;
   workspaceOutcomeState.kinds = [...kinds];
+  workspaceOutcomeState.scope = scope;
   workspaceOutcomeState.stage = 'awaiting';
   workspaceOutcomeState.expectedCards = Math.max(0, Math.floor(expectedCards));
   clearArrival();
@@ -356,6 +424,13 @@ export function markWorkspaceOutcomePresenting(): void {
   if (workspaceOutcomeState.sourceCard !== '') {
     workspaceOutcomeState.stage = 'presenting';
     clearSafety();
+    // …and the ARRIVAL backstop restarts from HERE. It covers «the flight never
+    // completed», and the flight cannot start before the surface it lands in
+    // exists: a play's own cinematic (the card lifting out of the hand, landing
+    // on its pile, paying its rewards) legitimately stands between the answer
+    // and this moment, and armed from the answer alone the backstop could spend
+    // itself during it — opening the input gate over slots that are still empty.
+    armArrivalSafety();
   }
 }
 
@@ -381,6 +456,7 @@ export function releaseWorkspaceOutcome(reason = 'unspecified'): void {
   workspaceOutcomeState.sourceCard = '';
   workspaceOutcomeState.nodeIndex = 0;
   workspaceOutcomeState.kinds = [];
+  workspaceOutcomeState.scope = 'card';
   workspaceOutcomeState.stage = 'idle';
   workspaceOutcomeState.embedSlot = '';
   workspaceOutcomeState.phaseKey = '';
@@ -414,8 +490,13 @@ export function workspaceClaimOwnsArrival(source: CardDrawRevealSource | undefin
 }
 
 export function workspaceClaimsDrawReveal(source: CardDrawRevealSource | undefined): boolean {
-  return workspaceOutcomeAdmits('draw') &&
-    source?.type === 'card' &&
+  if (!workspaceOutcomeAdmits('draw') || source?.type !== 'card') {
+    return false;
+  }
+  // A 'chain' claim answers for the whole causal chain of one press — the
+  // server names the card whose EFFECT drew, which for a triggered effect is
+  // not the card the player pressed (see WorkspaceOutcomeScope).
+  return workspaceOutcomeState.scope === 'chain' ||
     source.cardName === workspaceOutcomeState.sourceCard;
 }
 

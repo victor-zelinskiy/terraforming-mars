@@ -546,18 +546,35 @@ html.con-profile-tv {
         &__stage { width: 9rem; height: 9rem; }
         &__price-value { font-size: 1.35rem; }
     }
+    /* THE DETAIL STAGE, recomposed for the couch — ONE token set, not a
+       per-element ladder. The rem base already carries the uniform scale;
+       what the TV needs on top is COMPOSITION: a bigger artefact, plates
+       with real air, and standings whose rows clear the 64px hit floor.
+       (At the un-passed sizes the stage read as a small 1080 card blown up,
+       using a quarter of a 4K panel — the reported «мелко и бедно».) */
     .con-mafocus {
-        &__name { font-size: 1.6rem; }
-        &__desc { font-size: var(--con-t-secondary); }
-        &__progress-value { font-size: 2.3rem; }
-        &__row-name { font-size: 1rem; }
-        &__row-score { font-size: 1.15rem; }
+        --mafocus-gap: 1.6rem;
+        --mafocus-pad: 1.6rem 2.2rem 1.2rem;
+        --mafocus-side-w: 24rem;
+        --mafocus-hero: 19rem;
+        --mafocus-name: var(--con-t-title);
+        --mafocus-you: 3.4rem;
+        --mafocus-desc: var(--con-t-body);
+        --mafocus-note: var(--con-t-secondary);
+        --mafocus-label: var(--con-t-caption);
+        --mafocus-vp: var(--con-t-section);
+        --mafocus-plate-pad: 1.2rem 1.5rem 1.3rem;
+        --mafocus-row-h: var(--con-hit-min);
+        --mafocus-rowname: var(--con-t-body);
+        --mafocus-rowscore: var(--con-t-section);
+        --mafocus-bar-h: .4rem;
+
+        &__meter { max-width: 15rem; height: .4rem; }
         /* Floor rule: the fine print never dips below 16. */
-        &__row-vp { font-size: var(--con-t-floor); }
-        &__state-chip { font-size: var(--con-t-floor); }
-        &__progress-gap { font-size: var(--con-t-floor); }
-        &__status { font-size: 1rem; }
-        &__cere-name { font-size: 2.3rem; }
+        &__state-chip { font-size: var(--con-t-secondary); }
+        &__status { font-size: var(--con-t-body); }
+        &__cere-name { font-size: 2.6rem; }
+        &__cere-kicker { font-size: var(--con-t-section); }
     }
     .con-marail {
         &__name { font-size: 1.05rem; }

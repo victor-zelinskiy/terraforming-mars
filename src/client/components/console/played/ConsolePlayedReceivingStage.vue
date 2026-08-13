@@ -156,9 +156,10 @@ import {
   ReceivingPlan, ReceivingStackView, ReceivingMini,
 } from '@/client/console/played/receivingStageModel';
 import {
-  playedHeroState, playedHeroLandingUp, playedHeroIncomingCard, playedHeroCardTargets,
+  playedHeroState, playedHeroIncomingCard, playedHeroCardTargets,
   providePlayedHeroTarget, provideReceivingEffectHooks,
 } from '@/client/console/played/consolePlayedHero';
+import {playLandingHolding} from '@/client/console/played/consolePlayOutcomeClaim';
 import {HeroRect} from '@/client/console/played/playedHeroModel';
 import ConsolePlayedCardLite from '@/client/components/console/played/ConsolePlayedCardLite.vue';
 
@@ -200,6 +201,25 @@ export default defineComponent({
       unregisterHooks: undefined as (() => void) | undefined,
       /** One-shot latches per transaction nonce. */
       emergenceRan: false,
+      /**
+       * THE SETTLED TABLEAU, FROZEN — the arrived card, kept past the end of
+       * the hero transaction.
+       *
+       * The transaction ends when the card has landed and its rewards have
+       * resolved, and it CLEARS its own state there (`card`, `revealed`). But
+       * the workspace legitimately keeps this scene on screen afterwards while
+       * what the play DREW is still coming off the deck (`playLandingHolding`)
+       * — and read live, the stage would answer «nothing is arriving» in that
+       * window: the front anchor would empty and the card would jump back into
+       * the strips behind it, re-laying out a tableau the player is looking at.
+       * Reset with the nonce, so a new play never inherits the last one's.
+       */
+      latchedIncoming: undefined as CardModel | undefined,
+      /** …and that it had ARRIVED. Separate from the card on purpose: the card
+       *  is known from the lift, the arrival only at the dock, and conflating
+       *  them showed the tableau already holding a card that was still in the
+       *  air (a filled front anchor and a ticked count on the first frame). */
+      latchedRevealed: false,
     };
   },
   computed: {
@@ -210,17 +230,18 @@ export default defineComponent({
       return participantDisplayName(this.viewer);
     },
     presenting(): boolean {
-      return playedHeroLandingUp();
+      return playLandingHolding();
     },
     revealed(): boolean {
-      return this.heroState.revealed;
+      return this.heroState.revealed || (this.latchedRevealed && this.presenting);
     },
     /** The front card pulses as the EFFECT SOURCE through the result beat. */
     sourcePulse(): boolean {
-      return this.revealed && this.heroState.phase === 'showing-result';
+      return this.heroState.revealed && this.heroState.phase === 'showing-result';
     },
+    /** The card the hero is bringing (or has brought — see `latchedIncoming`). */
     incoming(): CardModel | undefined {
-      return playedHeroIncomingCard() as CardModel | undefined;
+      return (playedHeroIncomingCard() as CardModel | undefined) ?? this.latchedIncoming;
     },
     zones(): PlayedZones {
       return buildPlayedZones(this.viewer.tableau);
@@ -287,6 +308,25 @@ export default defineComponent({
       this.emergenceRan = false;
       this.emerged = undefined;
       this.targetAccent = undefined;
+      this.latchedIncoming = undefined;
+      this.latchedRevealed = false;
+    },
+    /** Freeze the arrived card while the transaction still knows it. */
+    'incoming': {
+      immediate: true,
+      handler(now: CardModel | undefined) {
+        if (now !== undefined) {
+          this.latchedIncoming = now;
+        }
+      },
+    },
+    'heroState.revealed': {
+      immediate: true,
+      handler(now: boolean) {
+        if (now) {
+          this.latchedRevealed = true;
+        }
+      },
     },
   },
   mounted() {

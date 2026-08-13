@@ -5420,6 +5420,26 @@ html.console-mode {
     &__stage--arming [data-unfold-item] {
         opacity: 0;
     }
+    /* The OUTCOME zone — what the played card PRODUCED (the drawn batch, the
+       buy/keep pick), teleported into this workspace. It stands OVER the
+       landing scene in the same region (never beside it), so the handoff is
+       one surface taking over from another instead of an empty frame; it
+       carries no plate of its own for the same reason `__stage` carries none —
+       the frame above IS the plane. Empty until the artifact arrives, and
+       inert then (pointer-events pass through to nothing underneath: the
+       decision surface inside it takes them back). */
+    &__outcome {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        min-height: 0;
+        z-index: 3;
+        pointer-events: none;
+
+        > * {
+            pointer-events: auto;
+        }
+    }
 
     /* ── the dock ↔ overlay REVEAL transition owns the cards ─────────
        Every slot is held invisible while the proxies fly (one card — one
@@ -7299,28 +7319,29 @@ html.console-mode {
             inset 0 .05rem 0 rgba(255, 255, 255, 0.06);
     }
 
-    /* The content CLUSTER is centred in the available height, not nailed to
-       the top edge: one artefact, one condition, one race — a composed scene
-       rather than a form pinned to the ceiling of a tall container. It is
-       capped so a two-player race never stretches into a poster. */
+    /* THE EXHIBITION. Two columns that both OCCUPY the stage: the artefact
+       with the viewer's own reading of it on the left, the dossier plates on
+       the right. `stretch`, not `center` — the scene fills the room the
+       workspace gives it (at 4K the old centred cluster used the top-left
+       quadrant and the rest of the panel was empty), while `--mafocus-*`
+       tokens carry the couch pass instead of per-element overrides. */
     &__grid {
         flex: 1;
         min-height: 0;
         display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 1.8rem;
-        padding: 1rem 1.6rem .6rem;
+        align-items: stretch;
+        gap: var(--mafocus-gap, 1.8rem);
+        padding: var(--mafocus-pad, 1.2rem 1.6rem .8rem);
     }
 
-    /* ── HERO column: the carried emblem + identity ─────────────── */
+    /* ── HERO column: the artefact + YOUR standing ──────────────── */
     &__side {
         flex-shrink: 0;
-        width: 15.5rem;
-        align-self: center;
+        width: var(--mafocus-side-w, 17rem);
         display: flex;
         flex-direction: column;
         align-items: center;
+        justify-content: center;
         gap: .65rem;
         min-width: 0;
     }
@@ -7329,17 +7350,18 @@ html.console-mode {
        dressing so the halo/ring frame it, never cover it. */
     &__stage {
         position: relative;
-        width: 12.2rem;
-        height: 12.2rem;
+        width: var(--mafocus-hero, 13rem);
+        height: var(--mafocus-hero, 13rem);
         flex-shrink: 0;
         border-radius: .9rem;
         z-index: 6;
         background:
-            radial-gradient(circle at 50% 58%, fade(@con-cyan, 12%), transparent 66%),
-            rgba(9, 15, 24, 0.6);
+            radial-gradient(circle at 50% 58%, fade(@con-cyan, 14%), transparent 66%),
+            rgba(9, 15, 24, 0.66);
         box-shadow:
-            inset 0 0 0 .05rem rgba(120, 150, 180, 0.22),
-            inset 0 -.9rem 1.6rem rgba(0, 0, 0, 0.4);
+            inset 0 0 0 .05rem rgba(120, 150, 180, 0.24),
+            inset 0 -.9rem 1.6rem rgba(0, 0, 0, 0.4),
+            0 .8rem 2.4rem rgba(0, 0, 0, 0.45);
 
         &::after {
             content: '';
@@ -7357,7 +7379,8 @@ html.console-mode {
         inset: 8%;
     }
     &__name {
-        font-size: 1.35rem;
+        max-width: 100%;
+        font-size: var(--mafocus-name, 1.5rem);
         font-weight: 800;
         letter-spacing: .07rem;
         text-transform: uppercase;
@@ -7417,38 +7440,29 @@ html.console-mode {
         }
     }
 
-    /* ── MAIN column: rule → mechanic truth → race ──────────────── */
-    &__main {
-        flex: 1 1 auto;
-        /* A reading measure, not the whole band: the cluster stays composed
-           beside the hero at 4K instead of the race stretching to the frame. */
-        max-width: 64rem;
-        min-width: 0;
-        align-self: center;
+    /* YOUR STANDING — the viewer's own reading of the artefact, under it.
+       The number is the column's second-loudest voice after the name. */
+    &__you {
+        width: 100%;
+        margin-top: .2rem;
+        padding: .55rem .9rem .7rem;
+        border-radius: .7rem;
         display: flex;
         flex-direction: column;
-        gap: .7rem;
+        align-items: center;
+        gap: .25rem;
+        background: rgba(9, 15, 23, 0.72);
+        box-shadow: inset 0 0 0 .05rem rgba(126, 156, 188, 0.2);
     }
-    &__desc {
-        font-size: .85rem;
-        line-height: 1.4;
-        color: @con-text;
-    }
-    &__block-title {
-        font-size: .6rem;
+    &__you-label {
+        font-size: var(--mafocus-label, .6rem);
         font-weight: 800;
         letter-spacing: .12rem;
         text-transform: uppercase;
         color: @con-text-dim;
-        margin-bottom: .35rem;
     }
-    &__progress {
-        display: flex;
-        align-items: center;
-        gap: .8rem;
-    }
-    &__progress-value {
-        font-size: 1.9rem;
+    &__you-value {
+        font-size: var(--mafocus-you, 2.3rem);
         font-weight: 800;
         line-height: 1;
         font-variant-numeric: tabular-nums;
@@ -7458,16 +7472,64 @@ html.console-mode {
            badge already said «МОЖНО ПОЛУЧИТЬ», so no third sentence. */
         &--met { color: #d7ffe9; }
     }
-    &__progress-req {
+    &__you-req {
         margin-left: .15rem;
-        font-size: 1rem;
+        font-size: .55em;
         font-weight: 600;
         color: @con-text-dim;
     }
+    &__you-note {
+        font-size: var(--mafocus-note, .75rem);
+        color: @con-text-dim;
+        white-space: nowrap;
+
+        &--lead { color: #ffe9c4; font-weight: 700; }
+    }
+
+    /* ── DOSSIER column: the condition plate + the race plate ─────
+       Content-sized plates, the group centred against the artefact beside
+       it. They are deliberately NOT stretched to the frame: a two-player
+       race grown to 700 px of plate is emptier than the space it filled —
+       what makes the scene fill a 4K panel is the token pass (a bigger
+       artefact, couch type, hit-floor rows), never inflated boxes. */
+    &__main {
+        flex: 1 1 auto;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        gap: var(--mafocus-gap, 1.1rem);
+    }
+    /* A PLATE is the console's grouped-block material: its own ground, one
+       inset edge light, real padding. Naked text lines on the panel is what
+       made this stage read as a form rather than an exhibition. */
+    &__plate {
+        min-width: 0;
+        padding: var(--mafocus-plate-pad, .8rem 1.1rem .9rem);
+        border-radius: .75rem;
+        background: linear-gradient(165deg, rgba(21, 31, 45, 0.6), rgba(13, 20, 30, 0.6));
+        box-shadow:
+            inset 0 0 0 .05rem rgba(126, 156, 188, 0.18),
+            inset 0 .05rem 0 rgba(255, 255, 255, 0.04);
+    }
+    &__desc {
+        font-size: var(--mafocus-desc, .95rem);
+        line-height: 1.4;
+        color: @con-text;
+    }
+    &__block-title {
+        font-size: var(--mafocus-label, .6rem);
+        font-weight: 800;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        margin-bottom: .4rem;
+    }
     &__meter {
-        flex: 1;
-        max-width: 15rem;
+        width: 100%;
+        max-width: 11rem;
         height: .3rem;
+        margin-top: .15rem;
         border-radius: 49.95rem;
         background: rgba(255, 255, 255, 0.09);
         overflow: hidden;
@@ -7480,69 +7542,58 @@ html.console-mode {
             transition: width calc(220ms * var(--motion-scale, 1)) ease;
         }
     }
-    /* The GAP is the progress block's own quantitative fact — «до порога: 5»,
-       shown only while the threshold is out of reach. It never restates the
-       badge's state word, and it disappears the moment the meter is full. */
-    &__progress-gap {
-        font-size: .75rem;
-        color: #ffe2ad;
-        white-space: nowrap;
-
-        b {
-            font-size: .95rem;
-            font-weight: 800;
-            font-variant-numeric: tabular-nums;
-            color: #ffe9c4;
-        }
+    /* The category's MECHANIC TRUTH, under the rule it qualifies. */
+    &__truth {
+        margin-top: .6rem;
+        padding-top: .55rem;
+        border-top: .05rem solid fade(@con-cyan, 14%);
+        display: flex;
+        align-items: baseline;
+        gap: .6rem;
     }
-    &__vp {
-        display: inline-flex;
-        align-items: center;
-        gap: .7rem;
+    &__truth-mark { flex-shrink: 0; }
+    &__truth-note {
+        font-size: var(--mafocus-note, .75rem);
+        line-height: 1.35;
+        color: @con-text-dim;
+
+        b { color: @con-text; }
     }
     &__vp-badge {
         flex-shrink: 0;
+        align-self: center;
         padding: .3rem .8rem;
         border-radius: .5rem;
         background: fade(@con-ma-gold, 13%);
         box-shadow: inset 0 0 0 .05rem fade(@con-ma-gold, 65%);
         color: @con-ma-gold;
-        font-size: .95rem;
+        font-size: var(--mafocus-vp, .95rem);
         font-weight: 800;
         white-space: nowrap;
     }
-    &__vp-note {
-        font-size: .7rem;
-        color: @con-text-dim;
-    }
-    &__endgame {
-        display: flex;
-        align-items: baseline;
-        gap: .5rem;
-        font-size: .75rem;
-        color: @con-text-dim;
-
-        b { color: @con-text; }
-    }
-    &__endgame-mark { flex-shrink: 0; }
-    /* The race is a PANEL, not a banner: capped to a reading measure so two
-       players read as a compared pair instead of two rules across the band. */
+    /* The race plate is the stage's second subject — a panel of its own,
+       sized by its standings and bounded so a six-player table scrolls
+       nothing and a two-player one is not a poster. */
     &__race {
+        flex: 0 1 auto;
         min-height: 0;
-        max-width: 46rem;
+        display: flex;
+        flex-direction: column;
     }
     &__rows {
         display: flex;
         flex-direction: column;
-        gap: .3rem;
+        justify-content: center;
+        gap: .35rem;
     }
     &__row {
         display: grid;
-        grid-template-columns: 1.2rem auto minmax(4rem, 10rem) minmax(0, 1fr) auto auto;
+        grid-template-columns: 1.4rem auto minmax(4rem, 10rem) minmax(0, 1fr) auto auto;
         align-items: center;
         gap: .55rem;
-        padding: .3rem .6rem;
-        border-radius: .45rem;
+        min-height: var(--mafocus-row-h, 2rem);
+        padding: .3rem .75rem;
+        border-radius: .5rem;
         background: rgba(9, 15, 23, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(126, 156, 188, 0.14);
 
@@ -7553,7 +7604,7 @@ html.console-mode {
         &--leader .con-mafocus__row-score { color: #ffe9c4; }
     }
     &__row-rank {
-        font-size: .7rem;
+        font-size: var(--mafocus-note, .75rem);
         font-weight: 800;
         color: @con-text-dim;
         text-align: center;
@@ -7567,7 +7618,7 @@ html.console-mode {
         box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5), 0 0 .3rem rgba(0, 0, 0, 0.4);
     }
     &__row-name {
-        font-size: .8rem;
+        font-size: var(--mafocus-rowname, .85rem);
         font-weight: 700;
         color: @con-text;
         white-space: nowrap;
@@ -7575,7 +7626,7 @@ html.console-mode {
         text-overflow: ellipsis;
     }
     &__row-bar {
-        height: .25rem;
+        height: var(--mafocus-bar-h, .3rem);
         border-radius: 49.95rem;
         background: rgba(255, 255, 255, 0.07);
         overflow: hidden;
@@ -7588,20 +7639,20 @@ html.console-mode {
         }
     }
     &__row-score {
-        font-size: .95rem;
+        font-size: var(--mafocus-rowscore, 1.05rem);
         font-weight: 800;
         font-variant-numeric: tabular-nums;
         text-align: right;
-        min-width: 1.6rem;
+        min-width: 1.8rem;
     }
     &__row-vp {
-        font-size: .625rem;
+        font-size: var(--mafocus-label, .65rem);
         font-weight: 800;
         color: @con-ma-gold;
         white-space: nowrap;
     }
     &__row-ready {
-        font-size: .7rem;
+        font-size: var(--mafocus-note, .75rem);
         font-weight: 800;
         color: @con-mint;
     }
@@ -7749,10 +7800,22 @@ html.console-mode {
     to { opacity: 1; }
 }
 
+/* The Deck's 1280×800 band: the same composition, one size down — the token
+   set is the only thing a profile ever retunes. */
 html.con-profile-handheld .con-mafocus {
-    &__side { width: 12rem; }
-    &__stage { width: 9.5rem; height: 9.5rem; }
-    &__name { font-size: 1.1rem; }
+    --mafocus-gap: .9rem;
+    --mafocus-pad: .8rem 1.1rem .6rem;
+    --mafocus-side-w: 13rem;
+    --mafocus-hero: 9.5rem;
+    --mafocus-name: 1.15rem;
+    --mafocus-you: 1.9rem;
+    --mafocus-desc: .82rem;
+    --mafocus-note: .7rem;
+    --mafocus-plate-pad: .6rem .85rem .7rem;
+    --mafocus-row-h: 1.8rem;
+    --mafocus-rowname: .78rem;
+    --mafocus-rowscore: .92rem;
+
     &__cere-seat { width: 11rem; height: 11rem; }
     &__cere-slot { inset: 1.5rem; }
     &__cere-name { font-size: 1.45rem; }
