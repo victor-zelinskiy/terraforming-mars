@@ -30,7 +30,12 @@ const GAME_CONFIG = soloGameConfig({
   startingCorporations: 1,
   customCorporationsList: ['Valley Trust'],
   expansions: {corpera: true, prelude: true},
-  customPreludes: ['Donation', 'Loan', 'Martian Industries', 'Metals Company'],
+  // EVERY prelude in the deck DRAWS CARDS, on purpose: Valley Trust's first
+  // action deals three of these as the pick, so whichever one the player
+  // takes produces a draw — which is the whole subject of assertion ③ (that
+  // draw must present INSIDE the workspace). With an ordinary prelude deck
+  // the winner often draws nothing and ③ silently tests nothing at all.
+  customPreludes: ['Biolab', 'Martian Survey', 'Research Network', 'Acquired Space Agency'],
   startingPreludes: 4,
 });
 
@@ -57,11 +62,19 @@ test.describe('console first action · a drawn pick (Valley Trust)', () => {
     await bootIntoGame(page, request, {
       config: GAME_CONFIG,
       corporation: 'Valley Trust',
-      preludes: ['Donation', 'Loan'],
+      preludes: ['Biolab', 'Martian Survey'],
       until: 'startRelease',
     });
 
+    // The deck is all-drawing on purpose, so the player's OWN preludes open
+    // their (embedded) reveals first — take them until the stage stands.
     const stage = page.locator('.con-start__firstact');
+    for (let i = 0; i < 40 && await stage.count() === 0; i++) {
+      if (await page.locator('.con-reveal').count() > 0) {
+        await page.keyboard.press('Escape'); // B = take all
+      }
+      await page.waitForTimeout(700);
+    }
     await stage.waitFor({state: 'visible', timeout: 60_000});
     await page.waitForTimeout(1200);
     await shoot(page, '01-stage');

@@ -151,6 +151,42 @@ embedded reveal claimed by the action recedes/returns the room in the claim's
 own phrase, so the bit yields to `embedActive` on both edges. A deal also
 never measures a travelling surface: `launchDeal` re-arms while `roomSettling`.
 
+## CLAIMED ≠ PRESENTING (and why the claim is optimistic here)
+
+Everything the first action sets off presents INSIDE this workspace, so the
+claim is placed OPTIMISTICALLY: a bespoke action's preview cannot promise the
+draw its own follow-up will make (Valley Trust advertises no cards, and the
+prelude the player then picks draws its own) — and a missing claim sent that
+batch to a standalone full-bleed «Получены карты» over a workspace that had
+already let go. The outcome mechanism is built for optimism:
+`reconcileWorkspaceOutcome` drops a claim a tick after the response when
+nothing turned out to be embeddable.
+
+That makes the second half mandatory: **`embedActive` (claimed) and
+`embedPresenting` (on screen) are different questions.** Lifecycle reads the
+claim (suppression of standalone presenters, the scene's return, «the
+deployment may not settle»); everything about PRESENTATION reads presenting —
+the crumb's tail, the room receding, the input guard, the status line, the
+briefing's visibility. Keyed on the claim, an optimistic claim emptied the
+room and titled it «ДОБОР КАРТ» for a draw that never came, hiding the
+candidates it should have been dealing.
+
+**And the flow may not finish inside its own cinematic.** A draw's cards come
+off the deck BEFORE its reveal event exists, so `deckDrawHolds()` is part of
+both quiet predicates, the submit's round trip counts as chain work, and the
+stage's leave is CONFIRMED a tick + a frame later (same contract as the
+placement barrier's release).
+
+## THE HERO SIZE BELONGS TO THE BRIEFING
+
+The seat carries a hero-sized corporation while the briefing is what the
+player is looking at. The moment the action opens a step, the SUBJECT moves
+to those cards and the seat returns to its context size — a hero-sized
+context covers the receiving zone and the «РАЗЫГРАНО» shelf, which is exactly
+what it did. Not transitioned: `width` is not animatable by contract and the
+inner `zoom` cannot transition with it, so the change rides the room's own
+return instead.
+
 ## THE STAGE MACHINE LIVES IN MODULE STATE
 
 `consoleStartState.firstAct` (+ `firstActionSeen`), not the scene's `data()`:
