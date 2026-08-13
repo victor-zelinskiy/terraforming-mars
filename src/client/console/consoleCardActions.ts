@@ -305,11 +305,20 @@ export function defaultCardActionsFilter(): ActionFilterState {
   return {availability: 'all', activation: 'dormant'};
 }
 
-/** The default REPEAT-mode filter — «Активированы + Доступна», so the player
- *  sees exactly the copyable actions; relaxing either filter reveals the rest
- *  (with an honest reason why they can't be repeated). */
+/**
+ * The default REPEAT-mode filter — «Активированы + Все».
+ *
+ * The ACTIVATION axis is the operation's real scope (only an action used this
+ * generation can be copied at all), so it narrows. The AVAILABILITY axis stays
+ * OPEN on purpose: an activated action that cannot be repeated RIGHT NOW is
+ * precisely what the player needs to SEE — greyed, with the concrete reason —
+ * instead of silently missing from a list that then looks shorter than the
+ * generation was. It used to default to «Доступна», and the fork's own rule
+ * («blocked is stated, never concealed») was the thing the default hid.
+ * Narrowing back is one press of the availability chip.
+ */
 export function defaultRepeatFilter(): ActionFilterState {
-  return {availability: 'available', activation: 'activated'};
+  return {availability: 'all', activation: 'activated'};
 }
 
 /**
@@ -421,8 +430,9 @@ export function actionWorkspaceRestorePlan(input: ActionRestoreInput): ActionRes
  * "available" dimension means "selectable for repeat" (a candidate = used this
  * generation AND `canAct`), and the "activated" dimension is INDEPENDENT (read
  * from `usedThisGen`, not the status) — so a candidate is BOTH activated AND
- * available, and the default «Активированы + Доступна» filter shows exactly the
- * copyable actions while everything else stays visible with a reason.
+ * available, and the default «Активированы + Все» filter shows this generation's
+ * whole activation history: the copyable actions and, beside them, the ones that
+ * cannot be copied right now WITH the reason why.
  */
 export type RepeatAvailability = {
   /** Cards selectable for repeat (the server's repeat SelectCard candidates). */

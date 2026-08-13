@@ -134,6 +134,46 @@ describe('TitanFloatingLaunchPad', () => {
     expect(steps[0]).deep.eq({kind: 'colonyTrade', card: CardName.TITAN_FLOATING_LAUNCHPAD});
   });
 
+  /**
+   * A blocked branch names ONE concrete blocker. «Нет колонии для торговли» is
+   * one of the three ways `Colonies.canTrade()` can fail and it used to speak
+   * for all of them — including the most common one, which has nothing to do
+   * with colonies: the player's only trade fleet is already out.
+   */
+  describe('the blocked trade branch names the ACTUAL blocker', () => {
+    beforeEach(() => {
+      game.colonies = [new Luna(), new Triton()];
+      player.playedCards.push(card);
+      player.addResourceTo(card, 1);
+    });
+
+    function tradeBranchReason() {
+      const branch = card.actionPreview(player).branches[0];
+      expect(branch.available, 'expected the trade branch to be blocked').is.false;
+      return branch.unavailableReason;
+    }
+
+    it('the card carries no floater to spend', () => {
+      card.resourceCount = 0;
+      expect(tradeBranchReason()).to.eq('No floaters on this card');
+    });
+
+    it('every trade fleet is already out — NOT «no colony to trade with»', () => {
+      player.colonies.usedTradeFleets = player.colonies.getFleetSize();
+      expect(tradeBranchReason()).to.eq('No trade fleet available');
+    });
+
+    it('no colony is open for trade', () => {
+      game.colonies = [];
+      expect(tradeBranchReason()).to.eq('No colony available to trade with');
+    });
+
+    it('a trade embargo names itself', () => {
+      game.tradeEmbargo = true;
+      expect(tradeBranchReason()).to.eq('Trade embargo is in effect');
+    });
+  });
+
   it('Cannot take trade action during embargo #6348', () => {
     player.game.tradeEmbargo = true;
 

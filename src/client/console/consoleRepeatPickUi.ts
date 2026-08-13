@@ -16,7 +16,7 @@ export const consoleRepeatPickUi = reactive({
   commands: [] as ReadonlyArray<ConsoleCommand>,
   /** The repeat grid's own filter (SEPARATE from the normal `consoleCardActionsUi`
    *  filter — a repeat instance may overlay a normal Action Center [Viron], so
-   *  the two must not share the filter state). Defaults to «Активированы + Доступна». */
+   *  the two must not share the filter state). Defaults to «Активированы + Все». */
   filter: defaultRepeatFilter() as ActionFilterState,
 });
 
@@ -24,7 +24,7 @@ export function setConsoleRepeatPickCommands(commands: ReadonlyArray<ConsoleComm
   consoleRepeatPickUi.commands = commands;
 }
 
-/** Re-seed the repeat grid to «Активированы + Доступна». Called at the START of
+/** Re-seed the repeat grid to «Активированы + Все». Called at the START of
  *  each FRESH copy-opening so the default is SCOPED to that operation — a filter
  *  the player relaxed during one copy never carries into the next (nor is it ever
  *  the NORMAL Action Center's persisted filter, which lives in `consoleCardActionsUi`). */

@@ -44,9 +44,34 @@ export class Colonies {
    * Returns `true` if this player can execute a trade.
    */
   public canTrade() {
-    return ColoniesHandler.tradeableColonies(this.player.game).length > 0 &&
-      this.getFleetSize() > this.usedTradeFleets &&
-      this.player.game.tradeEmbargo !== true;
+    return this.tradeBlockedReason() === undefined;
+  }
+
+  /**
+   * Why `canTrade()` is false — ONE named blocker (an English i18n key), or
+   * `undefined` when a trade IS possible. It lives right beside the gate ON
+   * PURPOSE: `canTrade()` is now literally derived from it, so the explanation
+   * and the rule are the same code and can never drift.
+   *
+   * The three conditions are three DIFFERENT stories and a card asking "why
+   * can't I trade" must tell the right one. «Нет колонии для торговли» used to
+   * absorb all of them, and the most common by far — the player's only trade
+   * fleet is already out — is not about colonies at all.
+   *
+   * Ordered by how ABSOLUTE the blocker is: a game-wide embargo outranks the
+   * player's own fleet count, which outranks the state of the board.
+   */
+  public tradeBlockedReason(): string | undefined {
+    if (this.player.game.tradeEmbargo === true) {
+      return 'Trade embargo is in effect';
+    }
+    if (this.getFleetSize() <= this.usedTradeFleets) {
+      return 'No trade fleet available';
+    }
+    if (ColoniesHandler.tradeableColonies(this.player.game).length === 0) {
+      return 'No colony available to trade with';
+    }
+    return undefined;
   }
 
   public coloniesTradeAction(): AndOptions | undefined {

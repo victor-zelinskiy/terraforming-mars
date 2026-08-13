@@ -31,10 +31,19 @@ standard deal (the Pluto language), embedded under the standing track.
   farthest, dpad ↓ = the summary chip, B = close.
 - **PRE-SELECT is a client DRAFT** — nothing submits, nothing is spent, the
   marker does not move:
-  - pos 1/2 → the embedded REWARD CHOICE layer (a D-pad row of the two
-    option cards, each with its own delta preview; never LB/RB). NO silent
-    default: `selectPosition` clears `rewardChoice`, the CTA reads «Выберите
-    награду» until the player picks.
+  - pos 1/2 → the embedded REWARD CHOICE step, which **confirms itself**: a
+    D-pad row of the two option cards (each with its own delta preview;
+    never LB/RB) plus the step's OWN commit row underneath. `A` on an option
+    holds it and arms that CTA, `A` again reinforces; `↑`/`←`/`→` return to
+    the options. The flow never walks BACKWARDS to be confirmed on the
+    parent — that was one press of pure delay.
+    ⚠️ **The choice is SCOPED TO THE STEP**, not a standing pre-select:
+    `openChoiceStep` clears it on every entry, `B` clears it on the way out,
+    and a mount with no live step clears it too. It therefore has no summary
+    chip and cannot survive a trip to the board — the shipped bug where a
+    reward configured in an earlier visit was silently committed by a CTA
+    that no longer showed it. (`primaryVerb` on a choice stage is ALWAYS
+    `choose-reward` for the same reason.)
   - pos 7 → the NESTED repeat browser (`enterConsoleRepeatPick` — the same
     Viron-parity surface + composer, every pre-select of the chosen action
     composed there). `source.label` flips the crumb to «ГИДРОСЕТЬ МАРСА ›

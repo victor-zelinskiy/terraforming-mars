@@ -80,10 +80,10 @@ export function enterConsoleRepeatPick(
   onResolve: (result: ConsoleRepeatPickResult) => void,
   onCancel?: () => void,
 ): void {
-  // A FRESH copy-opening (no `prior`) starts at the «Активированы + Доступна»
+  // A FRESH copy-opening (no `prior`) starts at the «Активированы + Все»
   // default — SCOPED to this operation. A «change» re-open (`prior` set) is a
   // continuation of the SAME operation, so it KEEPS whatever filter the player
-  // relaxed to while hunting for the action.
+  // narrowed to while hunting for the action.
   if (request.prior === undefined) {
     resetConsoleRepeatPickFilter();
   }

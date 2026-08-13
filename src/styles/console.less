@@ -4481,6 +4481,25 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         gap: .3rem;
         align-items: flex-start;
     }
+    /* The step's OWN commit row — always in layout (a row that appeared on
+       the pick would re-seat the cards under the cursor). */
+    &__choice-cta {
+        display: flex;
+        justify-content: center;
+        align-self: stretch;
+        padding-top: .15rem;
+    }
+    /* The cursor has moved DOWN onto the commit: it lights, the unchosen
+       option settles back. Both cues are box-shadow/colour (perf-lite keeps
+       them), never opacity on the option itself. */
+    &__cta--armed {
+        box-shadow: inset 0 0 0 .1rem fade(@con-hydro-mint, 95%), 0 0 1.4rem fade(@con-hydro-mint, 30%);
+    }
+    &__choice-card--muted {
+        background: rgba(14, 22, 33, 0.45);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
+        filter: saturate(0.7);
+    }
 
     /* ── THE TARGET layer (pos 9) — hosts the SHARED played-target step;
        the zone IS the room (its budget is measured off this box). ── */

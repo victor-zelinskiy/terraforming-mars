@@ -69,7 +69,11 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
 
   // Branch order MUST match action(): trade-for-free first, add-floater second.
   public actionPreview(player: IPlayer) {
-    const canTrade = this.resourceCount > 0 && player.colonies.canTrade();
+    // ONE named blocker, from the SAME code the gate is (`Colonies.canTrade` is
+    // derived from `tradeBlockedReason`). The card's own floater cost is checked
+    // first — it is the only condition this card adds.
+    const tradeBlocked = player.colonies.tradeBlockedReason();
+    const canTrade = this.resourceCount > 0 && tradeBlocked === undefined;
     return actionPreviews.orBranches(this, [
       {
         // NOT a trade of its own — the second entry point into the ONE trade,
@@ -80,9 +84,15 @@ export class TitanFloatingLaunchPad extends Card implements IProjectCard {
         title: 'Remove 1 floater on this card to trade for free',
         effects: [actionPreviews.cardCost(this, 1)],
         steps: [actionPreviews.colonyTradeStep(this)],
-        unavailableReason: this.resourceCount === 0 ?
-          actionReason.ruleReason('No floaters on this card') :
-          actionReason.ruleReason('No colony available to trade with'),
+        // «Нет колонии для торговли» is ONE of three reasons a trade can be
+        // blocked, and it used to speak for all of them — most often for «your
+        // only trade fleet is already out», which it plainly is not. The
+        // fallback is unreachable (the branch is available exactly when neither
+        // condition holds) and stays only so the type is total.
+        unavailableReason: actionReason.ruleReason(
+          this.resourceCount === 0 ?
+            'No floaters on this card' :
+            tradeBlocked ?? 'No colony available to trade with'),
       },
       {
         available: true,

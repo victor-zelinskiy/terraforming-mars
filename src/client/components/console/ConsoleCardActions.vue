@@ -487,6 +487,8 @@ import {
   consoleCardActionsUi,
   cycleAvailability,
   cycleActivation,
+  defaultCardActionsFilter,
+  defaultRepeatFilter,
   stepActionRows,
   ConsoleActionsModel,
   ConsoleActionTile,
@@ -583,7 +585,7 @@ export default defineComponent({
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     /**
      * REPEAT mode (ProjectInspection / Viron): the SAME Action Center, adapted to
-     * PICK an already-used action to repeat — «Активированы + Доступна» default
+     * PICK an already-used action to repeat — «Активированы + Все» default
      * filters, A = «Выбрать», the composer captures the chosen action's composed
      * responses and RESOLVES `consoleRepeatPick` instead of submitting. Uses its
      * OWN filter/command stores so a repeat instance can overlay a normal one.
@@ -1824,9 +1826,11 @@ export default defineComponent({
       this.activeFilter.activation = cycleActivation(this.activeFilter.activation, step);
     },
     resetFilters(): void {
-      // Repeat mode resets to «Активированы + Доступна» (the copyable slice).
-      this.activeFilter.availability = this.repeat ? 'available' : 'all';
-      this.activeFilter.activation = this.repeat ? 'activated' : 'dormant';
+      // R3 «Сбросить» lands on the SAME pose the surface opens at — from the one
+      // source, never a second hand-written copy (they had already drifted once).
+      const reset = this.repeat ? defaultRepeatFilter() : defaultCardActionsFilter();
+      this.activeFilter.availability = reset.availability;
+      this.activeFilter.activation = reset.activation;
     },
     shake(key: string): void {
       this.shakeKey = key;

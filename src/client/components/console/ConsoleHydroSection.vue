@@ -204,14 +204,12 @@
                    role="button"
                    @click="onChangeSelection">
                 <span class="con-hydro__section-label">{{ $t('Your selection') }}</span>
-                <!-- pos 1/2: the chosen reward option. -->
-                <span v-if="model.targetNeedsChoice && rewardChoice !== undefined" class="con-hydro__summary-body">
-                  <HydroReward :chips="selectedStage.rewardOptions[rewardChoice]" :compact="true" />
-                  <span class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
-                </span>
+                <!-- (pos 1/2 has NO summary row: the reward is chosen and
+                     CONFIRMED inside its own step, so nothing about it is
+                     ever configured out here — see openChoiceStep.) -->
                 <!-- pos 7: the chosen action — the SAME premium button graphic
                      the composers draw in their filled repeat slot. -->
-                <span v-else-if="model.needsCardSelect === 'reuse-action' && model.selectedCard !== undefined && repeatNode !== undefined"
+                <span v-if="model.needsCardSelect === 'reuse-action' && model.selectedCard !== undefined && repeatNode !== undefined"
                       class="con-composer__repeatpick con-hydro__pick-action">
                   <span class="con-composer__repeatpick-graphic card-container" v-i18n v-strip-action-prefix>
                     <CardRenderEffectBoxComponent v-if="repeatNode.actionNode !== undefined" :effectData="repeatNode.actionNode" />
@@ -273,7 +271,12 @@
         </div>
 
         <!-- ═══ REWARD CHOICE (pos 1/2) — a physical D-pad row of the two
-             options; focus updates the honest delta preview per option. ═══ -->
+             options AND the commit that follows them. The step is the WHOLE
+             decision: pick → the CTA right underneath arms → confirm. The
+             flow never walks BACKWARDS to be confirmed somewhere else (that
+             was one press of pure delay), and because the choice belongs to
+             the step it can never be left configured behind the player's
+             back — leaving asks again next time. ═══ -->
         <div v-else-if="sceneKey === 'choice'" key="choice" class="con-hydro__layer con-hydro__layer--choice">
           <div class="con-hydro__panel con-hydro__panel--choice">
             <div class="con-hydro__choice-ask" data-unfold-item>{{ $t('Choose the stage reward') }}</div>
@@ -281,8 +284,9 @@
               <button v-for="(opt, i) in choiceOptions" :key="i" type="button"
                       class="con-hydro__choice-card"
                       :class="{
-                        'con-hydro__choice-card--focused': choiceFocus === i,
+                        'con-hydro__choice-card--focused': choiceStage === 'options' && choiceFocus === i,
                         'con-hydro__choice-card--selected': rewardChoice === i,
+                        'con-hydro__choice-card--muted': choiceStage === 'confirm' && rewardChoice !== i,
                       }"
                       @click="pickChoice(i)">
                 <HydroReward :chips="opt.chips" />
@@ -295,6 +299,22 @@
                   </span>
                 </span>
                 <span v-if="rewardChoice === i" class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
+              </button>
+            </div>
+            <!-- The step's OWN commit. Always in layout (it is what comes
+                 next, and a row that appears would re-seat the cards under
+                 the cursor); live only once an option is actually held. -->
+            <div class="con-hydro__choice-cta" data-unfold-item>
+              <button type="button"
+                      class="con-hydro__cta"
+                      :class="{
+                        'con-hydro__cta--disabled': rewardChoice === undefined,
+                        'con-hydro__cta--armed': choiceStage === 'confirm',
+                      }"
+                      :aria-disabled="rewardChoice === undefined ? 'true' : undefined"
+                      @click="confirmChoiceStep">
+                <GamepadGlyph control="confirm" />
+                <span>{{ $t('Reinforce the hydronetwork') }}</span>
               </button>
             </div>
           </div>
@@ -550,6 +570,9 @@ export default defineComponent({
       sceneFocus: 'track' as 'track' | 'summary',
       /** The reward picker's focused option (pos 1/2). */
       choiceFocus: 0,
+      /** Where the cursor stands INSIDE the reward step: on the options, or
+       *  on the commit that follows them (the step confirms itself). */
+      choiceStage: 'options' as 'options' | 'confirm',
       /** The target step's cursor (pos 9). */
       targetFocus: undefined as PlayedTargetFocus | undefined,
       targetZoneW: 0,
@@ -809,14 +832,19 @@ export default defineComponent({
     ceremonyDim(): boolean {
       return this.flow.ceremonyActive;
     },
-    /** The configured pre-select stands and can be revisited. */
+    /**
+     * The configured pre-select stands and can be revisited.
+     *
+     * The reward CHOICE is deliberately absent: it is not a pre-select at
+     * all any more but the first half of its own step (pick → confirm, both
+     * inside), so there is never a configured reward sitting out here — the
+     * exact state that used to survive a trip to the board and could then
+     * only be changed by finding this chip.
+     */
     summaryPresent(): boolean {
       const m = this.model;
       if (m.mode !== 'plan') {
         return false;
-      }
-      if (m.targetNeedsChoice && this.rewardChoice !== undefined) {
-        return true;
       }
       return m.needsCardSelect !== undefined && m.selectedCard !== undefined;
     },
@@ -826,7 +854,10 @@ export default defineComponent({
       if (m.mode !== 'plan') {
         return 'blocked';
       }
-      if (m.targetNeedsChoice && this.rewardChoice === undefined && this.reasons.every((r) => !r.blocking)) {
+      // A choice stage ALWAYS routes into its step — the commit lives there
+      // (never «reinforce» out here off a reward the player configured in a
+      // previous visit and cannot see).
+      if (m.targetNeedsChoice && this.reasons.every((r) => !r.blocking)) {
         return 'choose-reward';
       }
       if (m.mustSelectCard && m.selectedCard === undefined && this.reasons.every((r) => !r.blocking)) {
@@ -973,6 +1004,16 @@ export default defineComponent({
         return [{control: 'confirm', label: 'Executing', enabled: false}];
       }
       if (this.flow.step === 'reward') {
+        // The step confirms ITSELF: A on an option arms the commit right
+        // under it, A again reinforces. ↑ (or ←/→) goes back to the options
+        // — a change of mind never leaves the step either.
+        if (this.choiceStage === 'confirm') {
+          return [
+            {control: 'dpadU', control2: 'dpadD', label: 'Change selection', priority: 2},
+            {control: 'confirm', label: 'Reinforce the hydronetwork'},
+            {control: 'back', label: 'Cancel'},
+          ];
+        }
         return [
           {control: 'dpadH', label: 'Reward options', priority: 2},
           {control: 'confirm', label: 'Select'},
@@ -1105,6 +1146,11 @@ export default defineComponent({
       consoleHydroUi.repeatResult = undefined;
     } else if (plan === 'none') {
       closeHydroStep();
+      // THE REWARD CHOICE IS STEP-SCOPED, so a mount with no live step has
+      // nothing to carry: without this it survived a trip to the board and
+      // the CTA then committed a reward the player could no longer see.
+      hydroNetworkState.rewardChoice = undefined;
+      this.choiceStage = 'options';
       if (!hydroDraftFresh(this.cacheKey)) {
         resetHydroPlan();
         consoleHydroUi.repeatResult = undefined;
@@ -1225,8 +1271,9 @@ export default defineComponent({
       }
       hydroNetworkState.selectedPosition = next;
       // NO SILENT DEFAULTS: a choice stage starts unconfigured — the player
-      // sees both options and picks one deliberately (the pre-select step).
+      // sees both options and picks one deliberately, inside its own step.
       hydroNetworkState.rewardChoice = undefined;
+      this.choiceStage = 'options';
       hydroNetworkState.selectedCard = undefined;
       consoleHydroUi.repeatResult = undefined;
       this.sceneFocus = 'track';
@@ -1259,17 +1306,15 @@ export default defineComponent({
         return;
       }
     },
-    /** A on the summary / a click on it — revisit the configured pre-select. */
+    /** A on the summary / a click on it — revisit the configured pre-select.
+     *  (Only the card picks have one: the reward is chosen and confirmed
+     *  inside its own step, so it is never configured out here.) */
     onChangeSelection(): void {
       const m = this.model;
       if (m.mode !== 'plan') {
         return;
       }
       this.armSceneFromSummary();
-      if (m.targetNeedsChoice) {
-        this.openChoiceStep();
-        return;
-      }
       if (m.needsCardSelect === 'reuse-action') {
         this.$emit('pick');
         return;
@@ -1286,6 +1331,7 @@ export default defineComponent({
     armSceneFromCta(): void {
       const root = this.$refs.rootEl as HTMLElement | undefined;
       armHydroSceneOrigin(root?.querySelector<HTMLElement>('.con-hydro__ctazone') ??
+        root?.querySelector<HTMLElement>('.con-hydro__choice-cta') ??
         root?.querySelector<HTMLElement>('.con-hydro__panel'));
     },
     emitConfirm(): void {
@@ -1314,21 +1360,42 @@ export default defineComponent({
         targetBefore: this.selectedAnimalCurrent,
       });
     },
-    // ── the REWARD CHOICE step (pos 1/2) ───────────────────────────────────
+    // ── the REWARD CHOICE step (pos 1/2) — pick AND confirm, in place ─────
     openChoiceStep(): void {
-      if (this.model.targetStage === undefined) {
+      if (this.model.targetStage === undefined || this.flow.step === 'reward') {
         return;
       }
-      if (this.flow.step !== 'reward') {
-        if (this.sceneFocus !== 'summary') {
-          this.armSceneFromCta();
-        }
-        this.choiceFocus = this.rewardChoice ?? 0;
-        openHydroStep('reward');
-      }
+      this.armSceneFromCta();
+      // The choice is SCOPED TO THE STEP: entering always asks again, so a
+      // reward can never be silently carried in from an earlier visit (and
+      // «no auto-select» holds by construction — nothing is chosen yet).
+      hydroNetworkState.rewardChoice = undefined;
+      this.choiceFocus = 0;
+      this.choiceStage = 'options';
+      openHydroStep('reward');
     },
+    /** A on an option — hold it and arm the commit right underneath. */
     pickChoice(index: number): void {
       hydroNetworkState.rewardChoice = index;
+      this.choiceFocus = index;
+      this.choiceStage = 'confirm';
+    },
+    /** A on the step's own CTA — the advance commits from HERE. */
+    confirmChoiceStep(): void {
+      if (this.rewardChoice === undefined) {
+        return;
+      }
+      const blocking = this.reasons.filter((r) => r.blocking);
+      if (blocking.length > 0) {
+        this.$emit('notice', this.reasonText(blocking[0]));
+        return;
+      }
+      this.emitConfirm();
+    },
+    /** B — leave the step with NOTHING configured behind it. */
+    closeChoiceStep(): void {
+      hydroNetworkState.rewardChoice = undefined;
+      this.choiceStage = 'options';
       closeHydroStep();
       this.sceneFocus = 'track';
     },
@@ -1475,20 +1542,29 @@ export default defineComponent({
       }
       if (this.flow.step === 'reward') {
         if (intent.kind === 'nav') {
-          if (intent.dir === 'left' || intent.dir === 'right') {
-            const n = this.choiceOptions.length;
-            if (n > 0) {
-              this.choiceFocus = (this.choiceFocus + (intent.dir === 'right' ? 1 : n - 1)) % n;
-            }
+          const n = this.choiceOptions.length;
+          if ((intent.dir === 'left' || intent.dir === 'right') && n > 0) {
+            // Sideways always means «the options» — from the armed CTA it
+            // steps back up into them AND moves, one gesture.
+            this.choiceStage = 'options';
+            this.choiceFocus = (this.choiceFocus + (intent.dir === 'right' ? 1 : n - 1)) % n;
+          } else if (intent.dir === 'down' && this.rewardChoice !== undefined) {
+            this.choiceStage = 'confirm';
+          } else if (intent.dir === 'up') {
+            this.choiceStage = 'options';
           }
           return;
         }
         switch (consoleActionOf(intent)) {
         case 'primary':
-          this.pickChoice(this.choiceFocus);
+          if (this.choiceStage === 'confirm') {
+            this.confirmChoiceStep();
+          } else {
+            this.pickChoice(this.choiceFocus);
+          }
           return;
         case 'back':
-          closeHydroStep();
+          this.closeChoiceStep();
           return;
         default:
           return;

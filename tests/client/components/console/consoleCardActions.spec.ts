@@ -14,6 +14,7 @@ import {
   cycleAvailability,
   cycleActivation,
   defaultCardActionsFilter,
+  defaultRepeatFilter,
   packActionRows,
   arrangeGroupsForGrid,
   stepActionRows,
@@ -292,9 +293,18 @@ describe('consoleCardActions model', () => {
       expect(dormant?.reason?.message).to.eq('This action was not used this generation');
     });
 
-    it('the default «Активированы + Доступна» filter shows ONLY the copyable candidate', () => {
-      const model = buildConsoleActionsModel(entries, NO_PREVIEWS, NO_RESOURCES, {availability: 'available', activation: 'activated'}, repeat);
-      expect(model.groups.map((g) => g.cardName)).to.deep.eq(['Cand']);
+    it('the default «Активированы + Все» filter keeps the NON-copyable action visible, with its reason', () => {
+      const model = buildConsoleActionsModel(entries, NO_PREVIEWS, NO_RESOURCES, defaultRepeatFilter(), repeat);
+      // Both actions used this generation are listed — the copyable one AND the
+      // one that cannot be copied right now. Hiding the latter (the old
+      // «Доступна» default) made the generation look shorter than it was and
+      // left the player with no reason to read.
+      expect(model.groups.map((g) => g.cardName).sort()).to.deep.eq(['Cand', 'UsedBlocked']);
+      expect(tileFor(model, 'UsedBlocked')?.reason?.message).to.eq('This action cannot be repeated right now');
+      // …and the copyable slice is still ONE press of the availability chip away.
+      const copyable = buildConsoleActionsModel(
+        entries, NO_PREVIEWS, NO_RESOURCES, {...defaultRepeatFilter(), availability: 'available'}, repeat);
+      expect(copyable.groups.map((g) => g.cardName)).to.deep.eq(['Cand']);
     });
 
     it('a used-but-blocked action shows the CONCRETE preview reason, never the abstract fallback', () => {

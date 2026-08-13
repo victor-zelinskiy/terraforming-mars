@@ -258,8 +258,13 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     await settle(w);
     expect((w.vm as any).focusKey).to.eq(CardName.IRONWORKS + '#0');
     expect((w.vm as any).focusedTile?.cardName).to.eq(CardName.IRONWORKS);
-    // The source line never leaks the lore card name for a labelled source.
-    expect(w.find('.con-wshead__context').text()).to.eq('Mars Hydronetwork');
+    // The source line never leaks the lore card name for a labelled source: the
+    // ROOT carries the override and the fixed second segment names the operation
+    // («ПОВТОР ДЕЙСТВИЯ»). The assertion used to read the second segment, which
+    // is where the label sat before the identity line grew its two-part anchor.
+    expect(w.find('.con-wshead__root').text()).to.eq('Mars Hydronetwork');
+    expect(w.find('.con-wshead__context').text()).to.eq('Repeat action');
+    expect(w.find('.con-wshead__ident').text()).to.not.contain(CardName.DELTA_PROJECT);
     w.unmount();
     resetConsoleRepeatPick();
     resetConsoleRepeatPickUi();
