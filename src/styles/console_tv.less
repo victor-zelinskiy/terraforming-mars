@@ -629,8 +629,17 @@ html.con-profile-tv {
         &__summary .hydro-reward { zoom: calc(1.3 * var(--con-ui-scale, 1)); }
         &__summary-body { font-size: var(--con-t-secondary); }
         &__delta-note { font-size: var(--con-t-floor); }
-        /* The choice cards — the hero decision of the step on TV. */
-        &__choice-card { flex-basis: 26rem; min-height: 7rem; padding: 1rem 1.2rem; }
+        /* The choice cards — the hero decision of the step on TV: the
+           reward's own icon carries it from ten feet, the reading beside it
+           is the second voice. */
+        &__choice-card { flex-basis: 27rem; min-height: 8.6rem; padding: 1.15rem 1.35rem; gap: 1.1rem; }
+        &__choice-socket { width: 5.2rem; height: 5.2rem; border-radius: .85rem; }
+        &__choice-img { width: 3.5rem; height: 3.5rem; }
+        &__choice-name { font-size: var(--con-t-secondary); }
+        &__choice-values b { font-size: 2rem; }
+        &__choice-arrow { font-size: 1.3rem; }
+        &__choice-mark { width: 1.7rem; height: 1.7rem; font-size: 1.05rem; }
+        &__choice-or { font-size: var(--con-t-caption); }
         &__choice-ask { font-size: var(--con-t-body); }
         &__commit-stage { font-size: 1.2rem; }
         &__commit-caption { font-size: var(--con-t-secondary); }

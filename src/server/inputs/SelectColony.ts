@@ -50,6 +50,16 @@ export class SelectColony extends BasePlayerInput<IColony> {
     if (this.disabledColonies.length > 0) {
       model.disabledColonies = this.disabledColonies.map((d) => ({name: d.colony.name, reason: d.reason}));
     }
+    // The PLACEMENT marker rides the input's own toModel (never the central
+    // decorator — a colony pick is routinely NESTED: a played card's effect,
+    // a standard project's target step), exactly as `SelectSpace` carries it.
+    // Without it the client cannot tell a CANCELLABLE pay-on-commit build
+    // (Build Colony: nothing is spent until a colony is chosen) from a
+    // mandatory one, so B could only ever minimize — the cancel branch the
+    // server has always supported was unreachable.
+    if (this.placementContext !== undefined) {
+      model.placementContext = this.placementContext;
+    }
     return model;
   }
 

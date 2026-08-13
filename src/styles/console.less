@@ -4468,48 +4468,172 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     }
     &__choice-row {
         display: flex;
+        align-items: center;
         gap: .8rem;
         align-self: stretch;
         justify-content: center;
     }
+    /* The alternatives are literally an OR — the same word the track cell
+       prints between two rewards, so the step speaks the rail's language. */
+    &__choice-or {
+        flex: 0 0 auto;
+        font-size: .7rem;
+        font-weight: 700;
+        letter-spacing: .1rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+    }
+    /* ONE STATEMENT PER CARD: the reward's own icon is the hero (socket left),
+       the economy reads beside it. Premium dressing is all gradients +
+       box-shadow (perf-lite keeps every functional cue). */
     &__choice-card {
         position: relative;
-        flex: 0 1 20rem;
+        flex: 0 1 22rem;
         display: flex;
-        flex-direction: column;
         align-items: center;
-        gap: .55rem;
-        min-height: 6.4rem;
-        padding: .9rem 1rem;
+        gap: .95rem;
+        min-height: 7.2rem;
+        padding: 1rem 1.15rem;
         border: none;
-        border-radius: .7rem;
-        background: rgba(14, 22, 33, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.28);
+        border-radius: .8rem;
+        text-align: left;
+        background:
+            radial-gradient(120% 150% at 6% 50%, fade(@con-hydro-aqua, 9%), transparent 62%),
+            linear-gradient(180deg, rgba(19, 29, 42, 0.94), rgba(11, 18, 27, 0.94));
+        box-shadow:
+            inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
+            inset 0 0 0 .05rem rgba(120, 150, 180, 0.28),
+            0 .4rem 1.2rem rgba(0, 0, 0, 0.36);
         color: @con-text;
         font-family: @con-font;
         cursor: pointer;
-        transition: box-shadow calc(150ms * var(--motion-scale, 1)) ease,
-            background calc(150ms * var(--motion-scale, 1)) ease;
+        transition: box-shadow calc(170ms * var(--motion-scale, 1)) ease,
+            background calc(170ms * var(--motion-scale, 1)) ease,
+            transform calc(170ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
         .hydro-reward { zoom: calc(1.3 * var(--con-ui-scale, 1)); }
-        &:hover { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 50%); }
+
+        /* A thin conduit accent along the top edge — the rail's own motif. */
+        &::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 1rem;
+            right: 1rem;
+            height: .1rem;
+            border-radius: 0 0 .1rem .1rem;
+            background: linear-gradient(90deg, transparent, fade(@con-hydro-aqua, 45%), transparent);
+        }
+
+        &:hover { box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 55%), 0 .4rem 1.2rem rgba(0, 0, 0, 0.36); }
         &--focused {
-            background: fade(@con-cyan, 10%);
-            box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 88%), 0 0 1rem fade(@con-cyan, 22%);
+            background:
+                radial-gradient(120% 150% at 6% 50%, fade(@con-cyan, 16%), transparent 62%),
+                linear-gradient(180deg, rgba(19, 32, 46, 0.96), rgba(11, 20, 30, 0.96));
+            box-shadow:
+                inset 0 0 0 .1rem fade(@con-cyan, 88%),
+                0 0 1.2rem fade(@con-cyan, 22%),
+                0 .5rem 1.4rem rgba(0, 0, 0, 0.4);
+            transform: translateY(-.12rem);
+            &::before { background: linear-gradient(90deg, transparent, fade(@con-cyan, 75%), transparent); }
         }
         &--selected {
-            background: fade(@con-hydro-mint, 10%);
-            box-shadow: inset 0 0 0 .1rem fade(@con-hydro-mint, 80%);
+            background:
+                radial-gradient(120% 150% at 6% 50%, fade(@con-hydro-mint, 15%), transparent 62%),
+                linear-gradient(180deg, rgba(18, 34, 34, 0.96), rgba(10, 21, 22, 0.96));
+            box-shadow:
+                inset 0 0 0 .1rem fade(@con-hydro-mint, 82%),
+                0 .4rem 1.2rem rgba(0, 0, 0, 0.36);
+            &::before { background: linear-gradient(90deg, transparent, fade(@con-hydro-mint, 80%), transparent); }
         }
         &--focused&--selected {
-            box-shadow: inset 0 0 0 .1rem fade(@con-hydro-mint, 92%), 0 0 1rem fade(@con-hydro-mint, 24%);
+            box-shadow:
+                inset 0 0 0 .1rem fade(@con-hydro-mint, 95%),
+                0 0 1.3rem fade(@con-hydro-mint, 26%),
+                0 .5rem 1.4rem rgba(0, 0, 0, 0.4);
         }
-        .con-hydro__bonus-tick { position: absolute; top: .4rem; right: .55rem; }
     }
-    &__choice-deltas {
+    /* The icon SOCKET — a seated plate, so a flat sprite reads as a physical
+       token (the production frame keeps its own brown chassis). */
+    &__choice-socket {
+        position: relative;
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 4.1rem;
+        height: 4.1rem;
+        border-radius: .7rem;
+        background:
+            radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.09), transparent 64%),
+            linear-gradient(180deg, rgba(26, 38, 52, 0.9), rgba(13, 21, 31, 0.9));
+        box-shadow:
+            inset 0 0 0 .05rem rgba(140, 175, 205, 0.24),
+            inset 0 -.14rem .4rem rgba(0, 0, 0, 0.4);
+
+        &--prod {
+            background: linear-gradient(180deg, rgba(138, 90, 43, 0.85), rgba(97, 62, 28, 0.9));
+            box-shadow:
+                inset 0 0 0 .07rem rgba(255, 220, 170, 0.5),
+                inset 0 -.14rem .4rem rgba(0, 0, 0, 0.35);
+        }
+    }
+    &__choice-img {
+        display: block;
+        width: 2.7rem;
+        height: 2.7rem;
+        background-size: contain !important;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+    &__choice-read {
         display: flex;
         flex-direction: column;
         gap: .3rem;
-        align-items: flex-start;
+        min-width: 0;
+    }
+    &__choice-name {
+        font-size: .8rem;
+        font-weight: 700;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: fade(@con-hydro-aqua, 92%);
+    }
+    &__choice-values {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .45rem;
+        font-variant-numeric: tabular-nums;
+        b { font-size: 1.5rem; font-weight: 800; }
+        em { font-style: normal; align-self: center; }
+    }
+    &__choice-arrow { font-style: normal; color: @con-text-dim; font-size: 1rem; }
+    &__choice-after { color: @con-hydro-mint; }
+    /* The pick MARK is always in layout (a badge that appears would nudge the
+       card's content); it lights on selection. */
+    &__choice-mark {
+        position: absolute;
+        top: .6rem;
+        right: .7rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.35rem;
+        height: 1.35rem;
+        border-radius: 50%;
+        background: rgba(10, 17, 26, 0.75);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
+        color: transparent;
+        font-size: .85rem;
+        font-weight: 800;
+        transition: color calc(170ms * var(--motion-scale, 1)) ease,
+            background calc(170ms * var(--motion-scale, 1)) ease,
+            box-shadow calc(170ms * var(--motion-scale, 1)) ease;
+
+        &--on {
+            background: fade(@con-hydro-mint, 20%);
+            box-shadow: inset 0 0 0 .07rem fade(@con-hydro-mint, 85%), 0 0 .7rem fade(@con-hydro-mint, 30%);
+            color: @con-hydro-mint;
+        }
     }
     /* The step's OWN commit row — always in layout (a row that appeared on
        the pick would re-seat the cards under the cursor). */
@@ -4763,7 +4887,11 @@ html.con-profile-handheld .con-hydro {
     .con-hydro__cta { padding: .5rem .7rem; font-size: .775rem; }
     .con-hydro__reason { font-size: .675rem; padding: .3rem .45rem; }
     .con-hydro__detail-status { font-size: .75rem; }
-    .con-hydro__choice-card { flex-basis: 16rem; min-height: 5.4rem; padding: .6rem .7rem; .hydro-reward { zoom: 1.1; } }
+    .con-hydro__choice-card { flex-basis: 17rem; min-height: 5.8rem; padding: .7rem .8rem; gap: .7rem; .hydro-reward { zoom: 1.1; } }
+    .con-hydro__choice-socket { width: 3.3rem; height: 3.3rem; border-radius: .55rem; }
+    .con-hydro__choice-img { width: 2.2rem; height: 2.2rem; }
+    .con-hydro__choice-name { font-size: .675rem; }
+    .con-hydro__choice-values b { font-size: 1.2rem; }
     .con-hydro__choice-ask { font-size: .8rem; }
     .con-hydro__cere-value { font-size: 1.6rem; }
     .con-hydro__panel--result { width: min(40rem, 100%); }
@@ -4781,7 +4909,10 @@ html.con-profile-large .con-hydro {
     .con-hydro__reason { font-size: .9rem; }
     .con-hydro__panel { width: min(74rem, 100%); }
     .con-hydro__stop-open { width: 11rem; }
-    .con-hydro__choice-card { flex-basis: 24rem; }
+    .con-hydro__choice-card { flex-basis: 24rem; min-height: 8rem; }
+    .con-hydro__choice-socket { width: 4.6rem; height: 4.6rem; }
+    .con-hydro__choice-img { width: 3.1rem; height: 3.1rem; }
+    .con-hydro__choice-values b { font-size: 1.7rem; }
     .con-hydro__cere-value { font-size: 2.6rem; }
 }
 

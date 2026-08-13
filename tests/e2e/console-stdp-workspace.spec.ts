@@ -94,11 +94,22 @@ const focusedRow = async (page: Page) =>
 const walletNow = async (page: Page) =>
   Number((await page.locator('.con-stdp__wallet-now b').textContent().catch(() => '')) ?? 'NaN');
 
-/** Walk the 2-column grid until the focused row matches. */
+/** Walk the 2-column grid until the focused row matches: home to the top-left
+ *  corner first, then snake through both columns (a blind cyclic walk can trap
+ *  itself on the full-width last row). */
 async function focusRow(page: Page, re: RegExp): Promise<void> {
-  const walk = ['ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'ArrowUp'];
-  for (let i = 0; i < 18 && !re.test(await focusedRow(page)); i++) {
-    await press(page, walk[i % walk.length], 260);
+  const snake = [
+    'ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowLeft', 'ArrowDown',
+    'ArrowRight', 'ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowLeft', 'ArrowDown',
+  ];
+  for (let i = 0; i < 6 && !re.test(await focusedRow(page)); i++) {
+    await press(page, 'ArrowUp', 200);
+  }
+  if (!re.test(await focusedRow(page))) {
+    await press(page, 'ArrowLeft', 200);
+  }
+  for (let i = 0; i < snake.length && !re.test(await focusedRow(page)); i++) {
+    await press(page, snake[i], 240);
   }
   expect(re.test(await focusedRow(page)), `could not focus ${re}`).toBeTruthy();
 }

@@ -280,26 +280,44 @@
         <div v-else-if="sceneKey === 'choice'" key="choice" class="con-hydro__layer con-hydro__layer--choice">
           <div class="con-hydro__panel con-hydro__panel--choice">
             <div class="con-hydro__choice-ask" data-unfold-item>{{ $t('Choose the stage reward') }}</div>
+            <!-- ONE object per option: the reward's own icon is the HERO of
+                 the card (it used to be printed twice — once as the abstract
+                 chip, once inside the delta line — and both were small). The
+                 name and the `сейчас → станет` reading stand beside it, so
+                 the card reads as one statement instead of two stacked
+                 renderings of the same thing. -->
             <div class="con-hydro__choice-row" data-unfold-item>
-              <button v-for="(opt, i) in choiceOptions" :key="i" type="button"
-                      class="con-hydro__choice-card"
-                      :class="{
-                        'con-hydro__choice-card--focused': choiceStage === 'options' && choiceFocus === i,
-                        'con-hydro__choice-card--selected': rewardChoice === i,
-                        'con-hydro__choice-card--muted': choiceStage === 'confirm' && rewardChoice !== i,
-                      }"
-                      @click="pickChoice(i)">
-                <HydroReward :chips="opt.chips" />
-                <span class="con-hydro__choice-deltas">
-                  <span v-for="(l, j) in opt.lines" :key="j" class="con-hydro__delta" :class="{'con-hydro__delta--zero': l.delta === 0}">
-                    <span class="con-hydro__delta-ico" :class="{'con-hydro__delta-ico--prod': l.production}">
-                      <span class="con-hydro__delta-img" :class="deltaIconClass(l)" aria-hidden="true"></span>
+              <template v-for="(opt, i) in choiceOptions" :key="i">
+                <span v-if="i > 0" class="con-hydro__choice-or" aria-hidden="true">{{ $t('or') }}</span>
+                <button type="button"
+                        class="con-hydro__choice-card"
+                        :class="{
+                          'con-hydro__choice-card--focused': choiceStage === 'options' && choiceFocus === i,
+                          'con-hydro__choice-card--selected': rewardChoice === i,
+                          'con-hydro__choice-card--muted': choiceStage === 'confirm' && rewardChoice !== i,
+                        }"
+                        @click="pickChoice(i)">
+                  <template v-if="opt.line !== undefined">
+                    <span class="con-hydro__choice-socket"
+                          :class="{'con-hydro__choice-socket--prod': opt.line.production}">
+                      <span class="con-hydro__choice-img" :class="deltaIconClass(opt.line)" aria-hidden="true"></span>
                     </span>
-                    <span class="con-hydro__beforeafter"><b>{{ l.before }}</b> <span aria-hidden="true">→</span> <b class="con-hydro__after">{{ l.after }}</b></span>
-                  </span>
-                </span>
-                <span v-if="rewardChoice === i" class="con-hydro__bonus-tick" aria-hidden="true">✓</span>
-              </button>
+                    <span class="con-hydro__choice-read">
+                      <span v-if="opt.line.labelKey" class="con-hydro__choice-name">{{ $t(opt.line.labelKey) }}</span>
+                      <span class="con-hydro__choice-values">
+                        <b>{{ opt.line.before }}</b>
+                        <i class="con-hydro__choice-arrow" aria-hidden="true">→</i>
+                        <b class="con-hydro__choice-after">{{ opt.line.after }}</b>
+                        <em v-if="opt.line.delta !== 0" class="con-hydro__plus">+{{ opt.line.delta }}</em>
+                      </span>
+                    </span>
+                  </template>
+                  <!-- A reward with no concrete delta (never a pos 1/2 stage
+                       today) still renders honestly through the shared chip. -->
+                  <HydroReward v-else :chips="opt.chips" />
+                  <span class="con-hydro__choice-mark" :class="{'con-hydro__choice-mark--on': rewardChoice === i}" aria-hidden="true">✓</span>
+                </button>
+              </template>
             </div>
             <!-- The step's OWN commit. Always in layout (it is what comes
                  next, and a row that appears would re-seat the cards under
@@ -929,14 +947,20 @@ export default defineComponent({
     },
 
     // ── the reward CHOICE layer (pos 1/2) ──────────────────────────────────
-    choiceOptions(): ReadonlyArray<{chips: HydroStage['rewardOptions'][number], lines: ReadonlyArray<HydroDeltaLine>}> {
+    /** Each option carries its OWN honest delta (`line`) — the one object the
+     *  card renders. `chips` stays as the fallback for a reward with no
+     *  concrete reading. */
+    choiceOptions(): ReadonlyArray<{
+      chips: HydroStage['rewardOptions'][number],
+      line: HydroDeltaLine | undefined,
+    }> {
       const stage = this.model.targetStage;
       if (stage === undefined) {
         return [];
       }
       return stage.rewardOptions.map((chips, i) => ({
         chips,
-        lines: buildRewardView({stage, snapshot: this.snapshot, rewardChoice: i}).lines,
+        line: buildRewardView({stage, snapshot: this.snapshot, rewardChoice: i}).lines[0],
       }));
     },
 

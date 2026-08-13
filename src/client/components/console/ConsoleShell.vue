@@ -1275,6 +1275,7 @@ import {
   workspaceFrameIsOverlay,
   workspaceFrameKnown,
   workspaceFrameParked,
+  workspaceFrameRoot,
   workspaceFrameTarget,
   workspaceHostForStep,
   workspaceStackCollapsed,
@@ -4894,6 +4895,17 @@ export default defineComponent({
       }
       if (this.consoleState.sale.active) {
         return 'Sell patents';
+      }
+      // A SECTION standing as a STEP of another flow reads as its HOST: the
+      // player is inside «СТАНДАРТНЫЕ ПРОЕКТЫ», picking a colony — the bar
+      // saying «ТОРГОВЛЯ» beside a breadcrumb that says otherwise is the one
+      // place the two voices could contradict each other. (The crumb still
+      // carries the full path; the bar carries only where the player IS.)
+      const sectionHost = this.consoleState.section === 'colonies' ? workspaceFrameHost('colonies') :
+        this.consoleState.section === 'hand' ? workspaceFrameHost('hand') :
+          this.consoleState.section === 'hydro' ? workspaceFrameHost('hydro') : undefined;
+      if (sectionHost !== undefined) {
+        return workspaceFrameRoot(sectionHost);
       }
       switch (this.consoleState.section) {
       case 'hand': return 'Hand';
@@ -9800,9 +9812,19 @@ export default defineComponent({
       }
       const task = taskFor(this.playerView);
       if (stdProjectsFlow.state === 'submitting') {
-        const fp = `${this.game.gameAge}|${this.game.undoCount}`;
-        if (fp === stdProjectsFlow.submittedAt) {
-          return; // no response yet
+        // THE RESPONSE IS THE WATCHER'S OWN EXISTENCE. This runs from the
+        // `playerView` watcher, which fires only when a NEW view arrives — so
+        // being here at all, in `submitting`, IS the answer. A value gate
+        // (`gameAge|undoCount`) looked safer and was strictly worse: those
+        // counters do not have to move for a standard project, so the gate
+        // silently swallowed the colony answer and the flow stayed
+        // `submitting` — a later cancel then arrived at the branch below and
+        // was celebrated as a TERMINAL COMMIT.
+        if (stdProjectsFlow.cancelRequested) {
+          // Answered by a CANCEL (the player pressed B before the follow-up
+          // stood up): nothing was spent — return to the browse layer.
+          this.rollbackStdProjectFlow();
+          return;
         }
         if (task?.kind === 'colony') {
           // openColoniesForPrompt (the shellTask auto-open below) hosts it as
@@ -9845,6 +9867,7 @@ export default defineComponent({
         if (stdProjectsFlow.cancelRequested && task?.kind !== 'colony' && task?.kind !== 'space' &&
             !this.placementActive) {
           if (workspaceFrameHost('colonies') === 'standard-projects') {
+            // The step's own frame goes with the demand that raised it.
             popWorkspaceFrame();
           }
           if (workspaceFrameMounted('standard-projects')) {
@@ -9995,7 +10018,19 @@ export default defineComponent({
       if (selected === undefined || !pick.selectable.includes(selected.name)) {
         return;
       }
-      closeConsoleLayers();
+      // THE ATOMIC COMMIT of a build hosted by the STD-PROJECTS flow: this is
+      // the single press that spends the project's cost (pay-on-commit), so
+      // BOTH frames cross the boundary together — B stops meaning «отмена» and
+      // starts meaning «свернуть», and the flow's conclusion (the build's own
+      // payout finishing) is what closes the chain. `closeConsoleLayers` must
+      // NOT run here: it pops the sheet-shaped host out from under the very
+      // step that is committing.
+      if (workspaceFrameHost('colonies') === 'standard-projects') {
+        setWorkspaceFramePhase('standard-projects', 'committed');
+        setWorkspaceFramePhase('colonies', 'committed');
+      } else {
+        closeConsoleLayers();
+      }
       this.consoleState.task.deferred = false;
       // The guards accepted: freeze the stage's presentation for the whole
       // resolution (the answer flips its props under the flying cube).
@@ -10110,13 +10145,19 @@ export default defineComponent({
       if (this.colonyResolutionLive) {
         return;
       }
-      // A colony built as the STD-PROJECTS flow's target step: the build's own
-      // follow-ups are over — the WHOLE flow closes in one splice (never a
-      // flash of the parent list between the payout and the board).
+      // A colony step of the STD-PROJECTS flow. The completion signal fires for
+      // BOTH endings — the build and the cancel — so the discriminator is the
+      // HOST FRAME's own phase, never the signal: past the commit boundary the
+      // build happened and the WHOLE flow closes in one splice (never a flash
+      // of the parent list between the payout and the board); still reversible
+      // means the player CANCELLED, and the step simply folds back to the row
+      // they came from (the flow's reconciler owns that leg).
       if (workspaceFrameHost('colonies') === 'standard-projects') {
-        resetStdProjectsFlow();
-        goBoardHome();
-        closeConsoleLayers();
+        if (isCommitted(workspaceFramePhase('standard-projects') ?? 'browse')) {
+          resetStdProjectsFlow();
+          goBoardHome();
+          closeConsoleLayers();
+        }
         return;
       }
       // An embedded host normally CONTINUES the sequence (a played card's own
@@ -12052,6 +12093,15 @@ export default defineComponent({
         overlay: f.overlay, slot: f.slot, anchor: f.anchor.type,
       })),
       parked: workspaceStackState.parked.map((f) => f.kind),
+      // The STD-PROJECTS flow, for the acceptance probes: «which project, how
+      // far along, and is a cancel in flight» is the one thing the stack alone
+      // cannot say (the frame phase is shared by several of its states).
+      stdpFlow: {
+        state: stdProjectsFlow.state,
+        card: stdProjectsFlow.card,
+        cancelRequested: stdProjectsFlow.cancelRequested,
+        excursion: stdProjectsFlow.boardExcursion?.card ?? null,
+      },
       hostKind: workspaceFrameHost('colonies') ?? null,
       embedTarget: this.colonyEmbedTarget ?? null,
       promptRaw: this.colonyPromptRaw,
