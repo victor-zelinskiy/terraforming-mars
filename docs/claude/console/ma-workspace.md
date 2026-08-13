@@ -14,12 +14,56 @@ the embed-claim cases in `tests/client/components/ma/maCeremonyState.spec.ts`.
 
 | Concern | File |
 | --- | --- |
-| Flow state (phases, draft, commit outcome — PURE) | `src/client/console/consoleMaFocus.ts` |
+| Flow state (phases, draft, commit outcome, commit ARM — PURE) | `src/client/console/consoleMaFocus.ts` |
+| The STATUS RAIL model (projection / blocker — PURE) | `src/client/components/console/consoleMaRail.ts` |
+| The status rail renderer (over the shared `ActionEffectChip`) | `ConsoleMaRail.vue` |
 | Descend/fold + ceremony choreography | `src/client/console/consoleMaFocusMotion.ts` |
 | The detail stage (renderer over 3 view-models) | `ConsoleMaFocusStage.vue` |
 | The screen (browse layer + stage host + `ConsoleWsHead`) | `ConsoleMaScreen.vue` |
 | Input / commands / submit / watchers / restore | `ConsoleShell.vue` (the `maFocus*` family) |
 | The ceremony queue + the EMBED CLAIM | `src/client/components/ma/maCeremonyState.ts` |
+
+## PRICE in the header · PROJECTION in the rail (iteration 2)
+
+One action must read as ONE statement, so the two halves live in two places
+and never in both:
+
+- **The header states the SYSTEM**: the slot tray, the tally, and a compact
+  PRICE chip («ЦЕНА 8 M€» / «ЦЕНА БЕСПЛАТНО»). No wallet, no `−8 → 454`. The
+  price is the ENGINE's own — `PlayerViewModel.maCosts` = `player.milestoneCost()`
+  / `player.awardFundingCost()` — so Van Allen and Nirgal (free), Staged
+  Protests (+8) and the 8 → 14 → 20 award ladder are already in it. **Never
+  re-derive it from `AWARD_COSTS` in the UI** (that is a degrade default only,
+  for a model that predates the field): the workspace would go on offering a
+  number the server refuses.
+- **The rail states the TRANSACTION** — `M€ 462 → 454` + `0 → 1 спонсировано`,
+  in the shared `ActionEffectChip`s every composer speaks. The list's context
+  strip and the detail stage's bottom band are the SAME component over the
+  SAME pure model (`buildMaRail`), so there is no second preview dialect and
+  no «БУДЕТ ПОТРАЧЕНО» band any more.
+- **A blocked item NEVER renders a success preview.** Money is the one blocker
+  the shared chip states natively (`current < amount` → «6 / 8» in the
+  insufficient style); every other blocker is a sentence and is the only thing
+  the rail says (a milestone short of its threshold states the GAP, since its
+  `blocker` is empty by design). The price chip stays — a price is information,
+  a projection is a promise.
+
+**Roles, one each** (the duplication this iteration removed): the BADGE says
+which state («МОЖНО ПОЛУЧИТЬ» / «СЕЙЧАС НЕДОСТУПНО» / «ПОЛУЧЕНО») and is
+bounded by the hero column — the copy stays short by contract, `max-width` +
+ellipsis is the structural net (the clipped «ПОРОГ ДОСТИГНУТ — МОЖНО ВЗЯТЬ
+СЕЙЧАС» is what it was built against); the PROGRESS block says how much
+(`20/29` + meter); the RAIL says what happens or why not; the FOOTER says what
+A does. Nothing is said twice.
+
+**`X Осмотреть` is gone** — from the bar, the input branch, the shell state and
+the component tree (`ConsoleMaInspect.vue` deleted; its pure model survives as
+the detail stage's standings source). A opens EVERY item, including blocked and
+already-taken ones, so a second reading surface has nothing to show.
+
+**The commit ARM** (`COMMIT_ARM_MS`): A is the list's «open» and the stage's
+«claim», so a double-tap would buy a strategic irreversible thing the player
+never saw — the stage refuses its own commit until it has been readable.
 
 ## The flow contract
 

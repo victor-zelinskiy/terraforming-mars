@@ -240,7 +240,13 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+        <!-- v-show (NOT v-if) while a nested full-scene step is out (the
+             position-7 repeat browser): the plan, the flow record and every
+             capture must survive the round trip, and the director recognizes
+             the pick bridge so neither surface plays a leave/enter pair —
+             the workspace's OWN handoff phrase carries the transition. -->
         <ConsoleHydroSection v-if="workspaceFrameRenders('hydro')"
+                             v-show="!pickBridgeActive"
                              data-motion-surface="section"
                              ref="hydroSection"
                              :playerView="playerView"
@@ -370,13 +376,10 @@
          leak detector counts it as the serving surface for the beat. -->
     <ConsolePlayedHeroLayer />
 
-    <!-- Milestones/Awards — the X → «Осмотреть» full-text READER (the premium
-         reader for the long descriptions the dashboard cards must clamp). -->
-    <transition :css="false" appear
-                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
-                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleMaInspect v-if="maInspectItem !== undefined" :item="maInspectItem" :players="playerView.players" />
-    </transition>
+    <!-- (The MA full-text READER is gone: X → «Осмотреть» was the last trace
+         of the modal era. Every item — available, blocked, already taken —
+         opens INTO the workspace's own detail stage on A, so a second reading
+         surface is a parallel path with nothing left to show.) -->
 
     <!-- THE SURFACE-MOTION SHADE (surfaceMotionState) — the ONE dim behind
          every migrated band surface. Always mounted; only its opacity moves,
@@ -1178,7 +1181,6 @@ import ConsoleHandDock from '@/client/components/console/ConsoleHandDock.vue';
 import {handDockBayRem} from '@/client/console/consoleHandDock';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
-import ConsoleMaInspect from '@/client/components/console/ConsoleMaInspect.vue';
 import ConsoleMaCeremony from '@/client/components/console/ConsoleMaCeremony.vue';
 import {buildConsoleMaItems, ConsoleMaItem, ConsoleMaKind, stepGrid} from '@/client/components/console/consoleMaModel';
 import {buildMaConfirm, MaConfirmView} from '@/client/components/ma/maConfirmModel';
@@ -1204,6 +1206,7 @@ import {
   discardMaFocusDraft,
   resetMaFocus,
   maFocusAcceptsInput,
+  maFocusCommitArmed,
   maFocusCommitOutcome,
 } from '@/client/console/consoleMaFocus';
 import ConsoleQuickSelector from '@/client/components/console/ConsoleQuickSelector.vue';
@@ -1468,6 +1471,9 @@ import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativ
 import {useWorkspaceBandGeometry} from '@/client/console/composables/useWorkspaceBandGeometry';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {awaitingViewerInput, offTurnReason} from '@/client/console/offTurnReason';
+// Only as the DEGRADE default for a player model that predates `maCosts` (an
+// old save, a test fixture) — the live price always comes from the server.
+import {AWARD_COSTS, MILESTONE_COST} from '@/common/constants';
 import {notificationBus} from '@/client/components/notifications/notificationBus';
 import {
   ConvertPlantsMatch,
@@ -1566,7 +1572,6 @@ export default defineComponent({
     ConsoleHandDock,
     ConsoleSheet,
     ConsoleMaScreen,
-    ConsoleMaInspect,
     ConsoleMaCeremony,
     ConsoleQuickSelector,
     BarButtonIcon,
@@ -1792,9 +1797,6 @@ export default defineComponent({
       consoleCardActionsUi,
       /** The MA workspace commit's safety backstop (a verdict may never hang). */
       maFocusSafetyTimer: undefined as number | undefined,
-      // X → «Осмотреть»: the NAME of the milestone/award shown in the premium
-      // full-text reader (the live item is recomputed from maScreenItems).
-      maInspect: undefined as string | undefined,
       notice: '',
       noticeTimer: undefined as number | undefined,
       offIntent: undefined as (() => void) | undefined,
@@ -1977,7 +1979,6 @@ export default defineComponent({
         this.govSupportActive ||
         this.productionLossActive ||
         this.nativeCompositeTask !== undefined ||
-        this.maInspectItem !== undefined ||
         this.colonyInspectModel !== undefined ||
         this.consoleState.sheet !== undefined ||
         this.consoleState.confirm !== undefined ||
@@ -2120,7 +2121,6 @@ export default defineComponent({
         this.consoleState.confirm !== undefined ||
         this.pendingPlayCard !== undefined ||
         this.colonyFocusOpen ||
-        this.maInspectItem !== undefined ||
         this.colonyInspectModel !== undefined ||
         this.corpFirstActionOpen ||
         this.playedTableVisible ||
@@ -4727,29 +4727,34 @@ export default defineComponent({
         availableNow: this.claimableTitles(found?.options),
         describe,
         maxSlots: 3,
-        // Free sponsorship (Vitor) costs 0 — the wallet then reads «Бесплатно».
-        nextCost: kind === 'milestones' ? 8 : (this.awardFundingActive ? 0 : this.awardCostValue),
+        // Free sponsorship (Vitor) costs 0 — the price chip then reads «Бесплатно».
+        nextCost: kind === 'milestones' ? this.milestoneCostValue :
+          (this.awardFundingActive ? 0 : this.awardCostValue),
         // Claimant label resolves the MarsBot seat to «Бот», never the raw name.
         resolveName: (color) => displayNameForColor(this.playerView.players, color),
       });
     },
-    /** The NEXT award funding price as a number (8/14/20). */
+    /**
+     * THE LIVE PRICES — the engine's own `milestoneCost()` / `awardFundingCost()`,
+     * published on the player view (`maCosts`). Every rule that moves them is
+     * already applied there: Van Allen / Nirgal Enterprises make them free,
+     * Staged Protests adds 8, and the award price climbs 8 → 14 → 20 with each
+     * funding. The UI must never re-derive it from constants — it would keep
+     * offering a number the server refuses (and the ladder is only a default
+     * for a model that predates the field).
+     */
+    milestoneCostValue(): number {
+      return this.playerView.maCosts?.milestone ?? MILESTONE_COST;
+    },
     awardCostValue(): number {
       const funded = this.game.awards.filter((a) => a.playerName !== undefined && a.playerName !== '').length;
-      return [8, 14, 20][funded] ?? 20;
+      return this.playerView.maCosts?.award ?? (AWARD_COSTS[funded] ?? AWARD_COSTS[AWARD_COSTS.length - 1]);
     },
     /** The FREE award-funding prompt (Vitor's start action) is the pending
      *  shell task — the premium awards MA screen hosts it (desktop parity:
      *  the AwardsOverlay's free-sponsorship mode), never the generic list. */
     awardFundingActive(): boolean {
       return this.shellTask?.kind === 'awardFunding';
-    },
-    /** The LIVE item shown in the X → «Осмотреть» reader (recomputed from the
-     *  dashboard, so its standings/availability stay fresh); undefined = the
-     *  reader is closed or its item left the list. */
-    maInspectItem(): ConsoleMaItem | undefined {
-      return this.maInspect === undefined ? undefined :
-        this.maScreenItems.find((it) => it.name === this.maInspect);
     },
     /** The descended MA item (undefined = the detail stage is closed). */
     maFocusItem(): ConsoleMaItem | undefined {
@@ -4784,7 +4789,7 @@ export default defineComponent({
       return buildMaConfirm(kind, source, models, {
         myColor: this.thisPlayer.color,
         myMegacredits: this.thisPlayer.megacredits,
-        cost: kind === 'milestone' ? 8 : (free ? 0 : this.awardCostValue),
+        cost: kind === 'milestone' ? this.milestoneCostValue : (free ? 0 : this.awardCostValue),
         free, // Vitor's free sponsorship — the stage shows the free chip.
         maxSlots: 3,
         playerName: (c) => {
@@ -4932,9 +4937,6 @@ export default defineComponent({
       }
       if (this.colonyInspectModel !== undefined) {
         return 'Colony';
-      }
-      if (this.maInspectItem !== undefined) {
-        return this.maInspectItem.name.replace(/[0-9]+$/, '');
       }
       if (this.maFocusItem !== undefined) {
         return this.maFocusItem.name.replace(/[0-9]+$/, '');
@@ -5309,14 +5311,6 @@ export default defineComponent({
         // The read-only JOURNAL colony dossier: B closes, nothing else.
         return [{control: 'back', label: 'Close'}];
       }
-      if (this.maInspectItem !== undefined) {
-        const cmds: Array<ConsoleCommand> = [];
-        if (this.maInspectItem.available) {
-          cmds.push({control: 'confirm', label: this.maInspectItem.kind === 'milestone' ? 'Claim' : 'Fund'});
-        }
-        cmds.push({control: 'back', label: 'Close'});
-        return cmds;
-      }
       if (this.consoleState.confirm !== undefined) {
         return [
           {control: 'confirm', label: 'Confirm'},
@@ -5466,13 +5460,13 @@ export default defineComponent({
             {control: 'back', label: 'Back'},
           ];
         }
-        // The OVERVIEW: A only SELECTS (opens the detail stage) — every item
-        // is selectable, taken/blocked ones included; bumpers switch the
-        // category.
+        // The OVERVIEW: ONE primary verb. A opens the detail stage for EVERY
+        // item — available, blocked, already taken — so the old `X Осмотреть`
+        // has nothing left to show and is gone with the modal era it belonged
+        // to. Bumpers switch the category, B closes the workspace.
         const anyMa = this.maScreenItems.length > 0;
         return [
           {control: 'confirm', label: 'Select', enabled: anyMa},
-          {control: 'secondary', label: 'Inspect', enabled: anyMa},
           {control: this.maScreenKind === 'milestones' ? 'bumperR' : 'bumperL',
             label: this.maScreenKind === 'milestones' ? 'Awards' : 'Milestones'},
           {control: 'back', label: this.awardFundingActive ? 'Minimize' : 'Close'},
@@ -6152,6 +6146,15 @@ export default defineComponent({
     },
     'hydroFlow.repeatBridge'() {
       this.syncHydroFramePhase();
+    },
+    // The bridge flag may never outlive the browser it describes: a HARD
+    // teardown (`resetConsoleRepeatPick` — game switch / shell unmount)
+    // fires no callbacks, and a stale flag would leave the hydro crumb
+    // claiming «ПОВТОР ДЕЙСТВИЯ» over a screen nobody is picking on.
+    repeatPickActive(active: boolean) {
+      if (!active && this.hydroFlow.repeatBridge) {
+        setHydroRepeatBridge(false);
+      }
     },
     // THE RECOVERY NET: the SERVER phase drives the flow when the glide
     // degraded (an expired arm on a slow answer never fires the marker's own
@@ -7810,20 +7813,6 @@ export default defineComponent({
         this.scrollActiveConsole(intent.dy);
         return true;
       }
-      // The premium MA reader (X → «Осмотреть») owns the pad while open: it
-      // sits above the dashboard, so no background command leaks. A descends
-      // into the item's detail stage (the workspace confirmation context),
-      // B or X close back to the dashboard; the right stick scrolls.
-      if (this.maInspectItem !== undefined) {
-        if (intent.kind === 'press') {
-          if (action === 'back' || action === 'inspect') {
-            this.closeMaInspect();
-          } else if (action === 'primary') {
-            this.confirmMaInspect();
-          }
-        }
-        return true;
-      }
       // Information Mode owns everything while open (read-only).
       if (this.infoModeState.open) {
         this.handleInfoIntent(intent);
@@ -8682,12 +8671,9 @@ export default defineComponent({
           case 'primary':
             // A = «Выбрать»: EVERY item descends into its detail stage —
             // taken/blocked ones included (the stage explains the state).
-            // Nothing is ever submitted from the overview.
+            // Nothing is ever submitted from the overview, and there is no
+            // second inspect route: this IS the reading surface.
             this.enterMaFocus();
-            break;
-          case 'inspect':
-            // X → «Осмотреть»: open the full-text reader for the focused item.
-            this.openMaInspect(this.maScreenItems[this.consoleState.sheetIndex]);
             break;
           case 'prevSection':
             if (this.maScreenKind !== 'milestones') {
@@ -9256,8 +9242,6 @@ export default defineComponent({
       // СБРОС КАРТЫ» screen. (`enterWorkspace` is lateral: the park is
       // untouched, and the next restore simply gives this browse visit way.)
       const parkOwed = workspaceStackCollapsed();
-      // A sheet switch / (re)open closes a stale full-text reader.
-      this.maInspect = undefined;
       // Opening anything that is NOT the task's own surface defers the task;
       // opening the task's OWN surface un-defers it (back on the surface).
       // While a park is owed, NOTHING un-defers here: the parked chain owns
@@ -9321,6 +9305,11 @@ export default defineComponent({
      */
     submitMaFocusCommit(): void {
       if (!maFocusState.open || maFocusState.phase !== 'detail') {
+        return;
+      }
+      // A double-tap of A on the list must never buy the thing it just opened:
+      // the stage has to have been READABLE first (consoleMaFocus.COMMIT_ARM_MS).
+      if (!maFocusCommitArmed()) {
         return;
       }
       const item = this.maFocusItem;
@@ -9454,32 +9443,6 @@ export default defineComponent({
       beginMaFocusClosing();
       abandonMaCeremonyEmbed();
       leaveWorkspace();
-    },
-    /** X → «Осмотреть»: open the premium full-text reader for a dashboard
-     *  item (works for taken / blocked items too — it is read-only). */
-    openMaInspect(item: ConsoleMaItem | undefined): void {
-      if (item === undefined) {
-        return;
-      }
-      this.maInspect = item.name;
-    },
-    /** B / X in the reader → back to the dashboard (nothing submitted). */
-    closeMaInspect(): void {
-      this.maInspect = undefined;
-    },
-    /** A in the reader → close the reader and descend into the item's detail
-     *  stage (never submits directly — the stage is the confirmation). */
-    confirmMaInspect(): void {
-      const item = this.maInspectItem;
-      this.maInspect = undefined;
-      if (item === undefined || this.maScreenKind === undefined) {
-        return;
-      }
-      const idx = this.maScreenItems.findIndex((it) => it.name === item.name);
-      if (idx !== -1) {
-        this.consoleState.sheetIndex = idx;
-        void this.$nextTick(() => this.enterMaFocus());
-      }
     },
     activateSheetRow(row: ConsoleSheetRow | undefined): void {
       if (row === undefined || row.kind === 'header') {
@@ -9813,25 +9776,38 @@ export default defineComponent({
       const prior = previous !== undefined && previous.chosenCard === hydroNetworkState.selectedCard ?
         {chosenCard: previous.chosenCard, nodeIndex: previous.nodeIndex} : undefined;
       setHydroRepeatBridge(true);
-      enterConsoleRepeatPick({
-        title: 'Use a blue card action that has already been used this generation',
-        buttonLabel: 'Take action',
-        candidates,
-        disabled: [],
-        // The fork presents the Hydronetwork as a systemic module — the
-        // breadcrumb names IT, never the lore «Delta Project» card.
-        source: {kicker: 'Mars Hydronetwork', card: CardName.DELTA_PROJECT, label: 'Mars Hydronetwork'},
-        prior,
-      }, (result) => {
-        // A PLAN write (never a submit): the shared brain keeps the card, the
-        // console layer keeps the composition. The player lands back on the
-        // hydro summary — «Укрепить» stays THEIR deliberate press.
-        hydroNetworkState.selectedCard = result.chosenCard;
-        consoleHydroUi.repeatResult = result;
-        setHydroRepeatBridge(false);
-      }, () => {
-        setHydroRepeatBridge(false);
-      });
+      // THE HANDOFF: the hydro workspace releases FIRST and the nested scene
+      // opens on its settle — one surface leaves, the next arrives. (Opening
+      // straight away is what stacked one workspace over the other, the
+      // parent still lit underneath.) The return half rides the bridge's own
+      // falling edge, out of the exact pose the release left behind.
+      const openBridge = (): void => {
+        enterConsoleRepeatPick({
+          title: 'Use a blue card action that has already been used this generation',
+          buttonLabel: 'Take action',
+          candidates,
+          disabled: [],
+          // The fork presents the Hydronetwork as a systemic module — the
+          // breadcrumb names IT, never the lore «Delta Project» card.
+          source: {kicker: 'Mars Hydronetwork', card: CardName.DELTA_PROJECT, label: 'Mars Hydronetwork'},
+          prior,
+        }, (result) => {
+          // A PLAN write (never a submit): the shared brain keeps the card, the
+          // console layer keeps the composition. The player lands back on the
+          // hydro summary — «Укрепить» stays THEIR deliberate press.
+          hydroNetworkState.selectedCard = result.chosenCard;
+          consoleHydroUi.repeatResult = result;
+          setHydroRepeatBridge(false);
+        }, () => {
+          setHydroRepeatBridge(false);
+        });
+      };
+      const section = this.$refs.hydroSection as InstanceType<typeof ConsoleHydroSection> | undefined;
+      if (section === undefined || section === null) {
+        openBridge();
+        return;
+      }
+      section.playBridgeHandoff(openBridge);
     },
     useStandardProject(cardName: CardName): void {
       const action = this.standardProjectsAction;

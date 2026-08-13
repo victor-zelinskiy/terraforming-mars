@@ -1,7 +1,7 @@
 <template>
   <!-- data-motion-*: the director animates the panel (NON_SHADE_OWNERS —
        the OWN dim stays by design; density lives in the panel materials). -->
-  <div class="con-ma con-ws" role="dialog" :aria-label="$t(title)"
+  <div class="con-ma con-ws con-ws--dockcover" role="dialog" :aria-label="$t(title)"
        :class="{'con-ma--focus': focusState.open}"
        data-motion-surface="ma-screen">
     <div class="con-ma__backdrop" aria-hidden="true"></div>
@@ -9,9 +9,18 @@
       <!-- ── THE WORKSPACE HEADER — the shared ConsoleWsHead: root «НАГРАДЫ» /
            «ДОСТИЖЕНИЯ» + the category emblem; descending into an item grows
            the crumb tail «› БАНКИР › СПОНСОРСТВО» (stable context before the
-           mutable stage; amber past the commit). The slot tray + tally + the
-           wallet live in the trailing zone — parent chrome, stable through
-           every stage. ── -->
+           mutable stage; amber past the commit).
+
+           The trailing zone states the SYSTEM's current state and nothing
+           else: the slot tray, the tally, and the live PRICE of the next
+           claim/fund. NO wallet delta — the projected transaction of one
+           action belongs to the status rail, whole and in one place; a header
+           that also drew «462 −8 → 454» made a single move read as two
+           statements and printed a payment for an action the player might not
+           even be able to take. The price comes from the ENGINE's own
+           `milestoneCost()` / `awardFundingCost()`, so Van Allen's free
+           milestones, Staged Protests' +8 and the 8 → 14 → 20 award ladder are
+           all already in it. ── -->
       <ConsoleWsHead class="con-ma__wshead"
                      :root="title"
                      :emblem="kind"
@@ -27,17 +36,14 @@
             </div>
             <div v-if="allTaken" class="con-ma__complete">✓ {{ $t(kind === 'awards' ? 'All funded' : 'All claimed') }}</div>
             <div v-else class="con-ma__count">{{ $t(kind === 'awards' ? 'Funded' : 'Claimed') }} <b>{{ takenCount }}/{{ maxSlots }}</b></div>
-            <!-- The WALLET: the overlay covers the resource panel, so the
-                 viewer's M€ live HERE — together with the (category-wide)
-                 price as a premium before → after preview. -->
-            <div class="con-ma__wallet" :class="{'con-ma__wallet--short': !free && walletShort > 0, 'con-ma__wallet--free': free}">
-              <span class="con-ma__wallet-label">{{ $t('You have') }}</span>
-              <span class="con-ma__wallet-now"><b>{{ myMegacredits }}</b><i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i></span>
-              <span v-if="free" class="con-ma__wallet-free">{{ $t('Free sponsorship') }}</span>
-              <template v-else-if="nextCost !== undefined">
-                <span class="con-ma__wallet-price">−{{ nextCost }}</span>
-                <span v-if="walletShort === 0" class="con-ma__wallet-after">→ <b>{{ walletAfter }}</b></span>
-                <span v-else class="con-ma__wallet-shortfall">{{ shortfallText }}</span>
+            <div v-if="!allTaken" class="con-ma__price" :class="{'con-ma__price--free': free || nextCost === 0}">
+              <span class="con-ma__price-label">{{ $t('Cost') }}</span>
+              <template v-if="free || nextCost === 0">
+                <span class="con-ma__price-free">{{ $t('Free') }}</span>
+              </template>
+              <template v-else>
+                <b class="con-ma__price-value">{{ nextCost }}</b>
+                <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
               </template>
             </div>
           </div>
@@ -118,20 +124,12 @@
             </article>
           </ConsoleScrollArea>
 
-          <!-- Footer: the FOCUSED item's context (one fixed line — owner /
-               ready / "+N to the threshold" / the concrete blocker); controller
-               hints live in the global command bar. -->
-          <div class="con-ma__foot">
-            <div class="con-ma__context" :class="contextClass">
-              <template v-if="context.tone === 'owner'">
-                <span class="con-ma__owner-dot" :class="'player_bg_color_' + context.color" aria-hidden="true"></span>
-                <span>{{ $t(context.kind === 'milestone' ? 'claimed by' : 'funded by') }} {{ context.name }}</span>
-              </template>
-              <template v-else-if="context.tone === 'ready'"><span>{{ $t(context.key) }}</span></template>
-              <template v-else-if="context.tone === 'gap'"><span>{{ $t('To the threshold') }}: <b>+{{ context.gap }}</b></span></template>
-              <template v-else-if="context.tone === 'blocked'"><span>{{ $t(context.key) }}</span></template>
-            </div>
-          </div>
+          <!-- THE STATUS RAIL — the focused item's WHOLE projected transaction
+               in the shared `current → resulting` chips (M€ + the category's
+               slot counter), or the ONE concrete blocker. Same component, same
+               model, same line as the detail stage's: the projection is stated
+               once and never in two dialects. -->
+          <ConsoleMaRail class="con-ma__foot" :view="railView" :name="focusedName" />
         </div>
 
         <!-- ── THE MA FOCUS STAGE — the same frame, one level deeper. The
@@ -172,8 +170,9 @@ import {defineComponent, PropType} from 'vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsoleWsHead from '@/client/components/console/foundation/ConsoleWsHead.vue';
 import ConsoleMaFocusStage from '@/client/components/console/ConsoleMaFocusStage.vue';
-import {translateTextWithParams} from '@/client/directives/i18n';
-import {ConsoleMaItem, ConsoleMaKind, ConsoleMaScore, ConsoleMaFocusContext, consoleMaFocusContext} from '@/client/components/console/consoleMaModel';
+import ConsoleMaRail from '@/client/components/console/ConsoleMaRail.vue';
+import {ConsoleMaItem, ConsoleMaKind, ConsoleMaScore} from '@/client/components/console/consoleMaModel';
+import {buildMaRail, MaRailView} from '@/client/components/console/consoleMaRail';
 import {MaConfirmView} from '@/client/components/ma/maConfirmModel';
 import {MaInspectView} from '@/client/components/console/consoleMaInspectModel';
 import {maDisplayName} from '@/client/components/ma/maArt';
@@ -190,7 +189,7 @@ import {
 
 export default defineComponent({
   name: 'ConsoleMaScreen',
-  components: {ConsoleScrollArea, ConsoleWsHead, ConsoleMaFocusStage},
+  components: {ConsoleScrollArea, ConsoleWsHead, ConsoleMaFocusStage, ConsoleMaRail},
   props: {
     kind: {type: String as PropType<ConsoleMaKind>, required: true},
     items: {type: Array as PropType<ReadonlyArray<ConsoleMaItem>>, required: true},
@@ -254,32 +253,30 @@ export default defineComponent({
       }
       return colors.slice(0, this.maxSlots);
     },
+    /** The LIVE price of the next claim/fund — the shell passes the ENGINE's
+     *  own number through the items (`cost`); the header shows it, the rail
+     *  projects it, and the submit charges it. */
     nextCost(): number | undefined {
       return this.items.find((it) => it.cost !== undefined)?.cost;
-    },
-    /** M€ left after the (category-wide) claim/fund price. */
-    walletAfter(): number {
-      return this.myMegacredits - (this.nextCost ?? 0);
-    },
-    walletShort(): number {
-      return Math.max(0, -this.walletAfter);
-    },
-    shortfallText(): string {
-      return translateTextWithParams('Need ${0} more M€', [String(this.walletShort)]);
     },
     focused(): ConsoleMaItem | undefined {
       return this.items[this.index];
     },
-    context(): ConsoleMaFocusContext {
-      return consoleMaFocusContext(this.focused);
+    focusedName(): string {
+      return this.focused !== undefined ? maDisplayName(this.focused.name) : '';
     },
-    contextClass(): string {
-      switch (this.context.tone) {
-      case 'ready': return 'con-ma__context--ready';
-      case 'gap': return 'con-ma__context--gap';
-      case 'blocked': return 'con-ma__context--blocked';
-      default: return '';
-      }
+    /** THE STATUS RAIL of the focused item — the same pure model the detail
+     *  stage renders (one projection, one language, one place). */
+    railView(): MaRailView {
+      return buildMaRail({
+        item: this.focused,
+        kind: this.kind,
+        cost: this.focused?.cost ?? this.nextCost ?? 0,
+        free: this.free,
+        myMegacredits: this.myMegacredits,
+        takenCount: this.takenCount,
+        maxSlots: this.maxSlots,
+      });
     },
   },
   watch: {

@@ -236,7 +236,8 @@ body.con-zoom-open .con-journal {
 .con-govsupport,
 .con-colfocus,
 .con-prodloss,
-.con-stdp {
+.con-stdp,
+.con-ma {
     .action-effect-chip.action-effect-chip {
         font-size: var(--con-chip-fs, 0.85rem);
         gap: 0.3rem;
@@ -4923,389 +4924,6 @@ html.con-profile-large .con-hydro {
 @con-ma-medal: #d6a6e0;
 
 
-/* ── Milestones/Awards READER (ConsoleMaInspect) ───────────────────────
-   X → «Осмотреть»: the full-text reader for ONE milestone/award. The
-   dashboard cards clamp their rule to fit the no-scroll grid; this premium
-   surface shows the WHOLE description on a hero art stage. Read-only (A
-   descends into the item's detail stage; B/X close). */
-.con-mainspect {
-    /* THE MODAL BAND: centres between the bars. */
-    .con-ws-band();
-    z-index: 11515; /* above the MA screen (11500); under ceremony (11720) / fallback (12000) */
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: .4rem 2rem;
-
-    /* NO own __backdrop: rides the shared `.con-shade` dim (surface motion). */
-    &__card {
-        position: relative;
-        width: min(44rem, 100%);
-        max-height: 100%; /* bounded by the modal band */
-        display: flex;
-        flex-direction: column;
-        gap: .9rem;
-        padding: 1.3rem 1.6rem 1rem;
-        border-radius: 1rem;
-        background: linear-gradient(165deg, rgba(19, 28, 41, 0.96), rgba(11, 17, 26, 0.96));
-        box-shadow:
-            inset 0 0 0 .05rem fade(@con-ma-gold, 30%),
-            0 1.5rem 4.5rem rgba(0, 0, 0, 0.7),
-            0 0 2.5rem fade(@con-ma-gold, 8%);
-
-        &--award {
-            box-shadow:
-                inset 0 0 0 .05rem fade(@con-ma-medal, 30%),
-                0 1.5rem 4.5rem rgba(0, 0, 0, 0.7),
-                0 0 2.5rem fade(@con-ma-medal, 8%);
-        }
-    }
-    /* Top bar: category identity (left) + the taken / funded status (right). */
-    &__topbar {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .8rem;
-    }
-    &__kicker {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        font-size: .625rem;
-        font-weight: 800;
-        letter-spacing: .1rem;
-        text-transform: uppercase;
-        color: fade(@con-ma-gold, 92%);
-    }
-    &__card--award &__kicker { color: fade(@con-ma-medal, 92%); }
-    &__kicker-mark { font-size: .7rem; color: @con-ma-gold; }
-    &__card--award &__kicker-mark { color: @con-ma-medal; }
-    &__statuschip {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        padding: .25rem .7rem;
-        border-radius: 49.95rem;
-        font-size: .6rem;
-        font-weight: 800;
-        letter-spacing: .05rem;
-        text-transform: uppercase;
-        white-space: nowrap;
-
-        &--live { background: fade(@con-ma-gold, 14%); box-shadow: inset 0 0 0 .075rem fade(@con-ma-gold, 60%); color: #ffe9b8; }
-        &--open { background: rgba(9, 15, 23, 0.7); box-shadow: inset 0 0 0 .075rem fade(@con-cyan, 45%); color: @con-text-dim; }
-        &--closed { background: rgba(9, 15, 23, 0.7); box-shadow: inset 0 0 0 .075rem rgba(150, 175, 205, 0.28); color: @con-text-dim; }
-    }
-    &__statuschip-dot {
-        width: .55rem;
-        height: .55rem;
-        border-radius: 50%;
-        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5);
-    }
-
-    /* Hero: the 512×512 icon + name + the viewer headline. */
-    &__hero {
-        display: flex;
-        align-items: center;
-        gap: 1.2rem;
-    }
-    &__stage {
-        position: relative;
-        width: 7.5rem;
-        height: 7.5rem;
-        flex-shrink: 0;
-        border-radius: .9rem;
-        background:
-            radial-gradient(circle at 50% 58%, fade(@con-ma-gold, 12%), transparent 66%),
-            rgba(9, 15, 24, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22), inset 0 -.7rem 1.3rem rgba(0, 0, 0, 0.42);
-    }
-    &__card--award &__stage {
-        background:
-            radial-gradient(circle at 50% 58%, fade(@con-ma-medal, 12%), transparent 66%),
-            rgba(9, 15, 24, 0.6);
-    }
-    &__art { position: absolute; inset: 8%; }
-    &__head {
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-        gap: .5rem;
-    }
-    &__name {
-        font-size: 1.5rem;
-        font-weight: 800;
-        letter-spacing: .08rem;
-        text-transform: uppercase;
-        line-height: 1.08;
-    }
-    /* The one-line "so what": lead / gap / claimed. */
-    &__headline {
-        font-size: .9rem;
-        font-weight: 800;
-        letter-spacing: .02rem;
-        color: @con-text;
-
-        &--lead, &--tie-lead, &--can-claim, &--claimed-you, &--condition-met { color: @con-mint; }
-        &--behind, &--progress { color: #ffe0ad; }
-        &--no-race, &--condition-unmet { color: @con-text-dim; }
-    }
-    /* The whole rule text — NEVER clamped; scrolls only for the wordiest. */
-    &__desc {
-        font-size: .825rem;
-        line-height: 1.48;
-        color: #d6e2ef;
-        overflow-y: auto;
-        padding-right: .3rem;
-        border-top: .05rem solid rgba(255, 255, 255, 0.06);
-        border-bottom: .05rem solid rgba(255, 255, 255, 0.06);
-        padding-top: .7rem;
-        padding-bottom: .7rem;
-    }
-
-    /* ── the standings / race panel ─────────────────────────────── */
-    &__panel {
-        display: flex;
-        flex-direction: column;
-        gap: .6rem;
-        min-height: 0;
-    }
-    &__panel-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .7rem;
-        flex-wrap: wrap;
-    }
-    &__panel-title {
-        font-size: .65rem;
-        font-weight: 800;
-        letter-spacing: .1rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-    }
-    &__legend {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        flex-wrap: wrap;
-    }
-    &__vpchip {
-        padding: .2rem .6rem;
-        border-radius: 49.95rem;
-        font-size: .575rem;
-        font-weight: 800;
-        letter-spacing: .025rem;
-        white-space: nowrap;
-
-        &--first { background: fade(@con-ma-gold, 14%); box-shadow: inset 0 0 0 .05rem fade(@con-ma-gold, 55%); color: #ffe9b8; }
-        &--second { background: rgba(200, 210, 225, 0.1); box-shadow: inset 0 0 0 .05rem rgba(210, 220, 235, 0.5); color: #e6edf6; }
-        &--claim { background: fade(@con-mint, 13%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 55%); color: #d7ffe9; }
-    }
-    &__rows {
-        display: flex;
-        flex-direction: column;
-        gap: .35rem;
-        overflow-y: auto;
-        min-height: 0;
-    }
-    &__row {
-        display: grid;
-        grid-template-columns: 1.5rem .7rem minmax(4.8rem, 8.4rem) minmax(0, 1fr) 2.3rem 2.9rem;
-        align-items: center;
-        gap: .65rem;
-        padding: .4rem .7rem;
-        border-radius: .55rem;
-        background: rgba(11, 17, 26, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(126, 156, 188, 0.14);
-
-        &--leader { background: linear-gradient(90deg, fade(@con-ma-medal, 10%), rgba(11, 17, 26, 0.6) 60%); }
-        &--ready { background: linear-gradient(90deg, fade(@con-mint, 12%), rgba(11, 17, 26, 0.6) 60%); }
-        &--viewer {
-            box-shadow: inset 0 0 0 .075rem fade(@con-cyan, 70%), 0 0 .7rem fade(@con-cyan, 10%);
-        }
-    }
-    &__rank {
-        font-size: .75rem;
-        font-weight: 800;
-        font-variant-numeric: tabular-nums;
-        text-align: center;
-        color: @con-text-dim;
-
-        &--gold { color: @con-ma-gold; }
-        &--silver { color: #e6edf6; }
-    }
-    &__row-dot {
-        width: .7rem;
-        height: .7rem;
-        border-radius: 50%;
-        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5), 0 0 .3rem rgba(0, 0, 0, 0.4);
-    }
-    &__row-name {
-        font-size: .775rem;
-        font-weight: 700;
-        color: @con-text;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    &__row--viewer &__row-name { color: #d7f2ff; }
-    &__bar {
-        position: relative;
-        height: .55rem;
-        border-radius: 49.95rem;
-        background: rgba(255, 255, 255, 0.08);
-        overflow: hidden;
-        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.3);
-
-        &--leader { box-shadow: inset 0 0 0 .05rem fade(@con-ma-gold, 30%); }
-        &--ready { box-shadow: inset 0 0 0 .05rem fade(@con-mint, 35%); }
-    }
-    &__bar-fill {
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        min-width: .15rem;
-        border-radius: 49.95rem;
-        opacity: 0.92;
-        box-shadow: inset 0 .05rem 0 rgba(255, 255, 255, 0.25);
-        transition: width calc(260ms * var(--motion-scale, 1)) ease;
-
-        &--ready { background: linear-gradient(90deg, fade(@con-mint, 75%), @con-mint) !important; box-shadow: 0 0 .6rem fade(@con-mint, 40%); }
-    }
-    &__row-score {
-        font-size: .9rem;
-        font-weight: 800;
-        font-variant-numeric: tabular-nums;
-        text-align: right;
-        color: @con-text;
-    }
-    &__row-req { font-size: .625rem; font-weight: 700; color: @con-text-dim; }
-    &__row-vp {
-        text-align: right;
-        font-size: .7rem;
-        font-weight: 800;
-        color: @con-ma-gold;
-
-        &--muted { color: fade(@con-text-dim, 55%); }
-        &--ready { color: @con-mint; font-size: .6rem; letter-spacing: .025rem; text-transform: uppercase; }
-    }
-    &__note {
-        font-size: .625rem;
-        font-style: italic;
-        color: @con-text-dim;
-    }
-
-    /* Condition milestone (no numeric threshold): a met / not-met list, not a
-       progress bar — there is no target to fill toward. */
-    &__row--condition { grid-template-columns: 1.4rem .7rem minmax(0, 1fr) auto; }
-    &__cond-mark {
-        font-size: .85rem;
-        font-weight: 800;
-        text-align: center;
-        color: fade(@con-text-dim, 70%);
-
-        &--met { color: @con-mint; }
-    }
-    &__cond-status {
-        text-align: right;
-        font-size: .625rem;
-        font-weight: 800;
-        letter-spacing: .03rem;
-        text-transform: uppercase;
-
-        &--met { color: @con-mint; }
-        &--unmet { color: fade(@con-text-dim, 70%); }
-    }
-
-    /* ── claimed milestone: owned — no race, just the owner + lock ── */
-    &__claimed {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .9rem;
-        flex-wrap: wrap;
-        padding: .9rem 1.1rem;
-        border-radius: .7rem;
-        background: linear-gradient(120deg, fade(@con-ma-gold, 12%), rgba(11, 17, 26, 0.7) 70%);
-        box-shadow: inset 0 0 0 .075rem fade(@con-ma-gold, 45%), 0 0 1.3rem fade(@con-ma-gold, 9%);
-    }
-    &__claimed-owner { display: inline-flex; align-items: center; gap: .7rem; }
-    &__claimed-dot {
-        width: 1.5rem;
-        height: 1.5rem;
-        border-radius: 50%;
-        box-shadow: inset 0 0 0 .1rem rgba(0, 0, 0, 0.5), 0 0 .6rem rgba(0, 0, 0, 0.4);
-    }
-    &__claimed-text { display: flex; flex-direction: column; gap: .1rem; }
-    &__claimed-label {
-        font-size: .575rem;
-        font-weight: 700;
-        letter-spacing: .07rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-    }
-    &__claimed-name { font-size: 1.1rem; font-weight: 800; color: @con-text; }
-    &__claimed-badges { display: inline-flex; align-items: center; gap: .6rem; }
-    &__claimed-vp {
-        padding: .3rem .8rem;
-        border-radius: 49.95rem;
-        background: fade(@con-ma-gold, 18%);
-        box-shadow: inset 0 0 0 .075rem fade(@con-ma-gold, 75%);
-        color: #ffe9b8;
-        font-size: .9rem;
-        font-weight: 800;
-    }
-    &__claimed-lock {
-        font-size: .6rem;
-        font-weight: 800;
-        letter-spacing: .06rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-    }
-
-    &__foot {
-        display: flex;
-        justify-content: flex-end;
-        gap: 1rem;
-        padding-top: .3rem;
-        border-top: .05rem solid rgba(255, 255, 255, 0.06);
-    }
-    &__foot-item {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        font-size: .7rem;
-        font-weight: 700;
-        color: @con-text-dim;
-
-        &--go { color: @con-mint; }
-    }
-}
-html.con-profile-handheld .con-mainspect {
-    padding: 1.2rem;
-
-    &__card { gap: .65rem; padding: .9rem 1rem .7rem; border-radius: .8rem; }
-    &__hero { gap: .8rem; }
-    &__stage { width: 5.6rem; height: 5.6rem; border-radius: .7rem; }
-    &__name { font-size: 1.1rem; letter-spacing: .055rem; }
-    &__headline { font-size: .75rem; }
-    &__desc { font-size: .7rem; line-height: 1.42; padding-top: .5rem; padding-bottom: .5rem; }
-    &__statuschip { font-size: .525rem; padding: .2rem .55rem; }
-    &__panel-title { font-size: .575rem; }
-    &__vpchip { font-size: .525rem; padding: .15rem .5rem; }
-    &__row { grid-template-columns: 1.2rem .6rem minmax(4rem, 7.5rem) minmax(0, 1fr) 2rem 2.5rem; gap: .5rem; padding: .3rem .55rem; }
-    &__row-name { font-size: .675rem; }
-    &__row-score { font-size: .8rem; }
-    &__rank { font-size: .65rem; }
-    &__bar { height: .45rem; }
-    &__claimed { padding: .7rem .9rem; }
-    &__claimed-name { font-size: .95rem; }
-    &__claimed-vp { font-size: .8rem; padding: .25rem .65rem; }
-    &__foot-item { font-size: .625rem; }
-}
-
 /* ── Ceremony FX layer (gsap-spawned, one-shot) ─────────────────────────
    Shared by ConsoleMaCeremony + ConsoleTerraformingCeremony: ring
    shockwaves, radial sparks, a centre flash and one light sweep
@@ -7181,14 +6799,18 @@ html.console-mode {
             font-variant-numeric: tabular-nums;
         }
     }
-    /* The WALLET capsule: the viewer's M€ (the overlay covers the resource
-       panel) + the category-wide price as a before → after preview. Turns
-       amber-warned when the price exceeds the balance. */
-    &__wallet {
+    /* THE PRICE CHIP — the header states the SYSTEM's current facts, and the
+       live price of the next claim/fund is one of them. It is deliberately
+       NOT a wallet: a balance delta is a projection of one chosen action, and
+       that whole statement belongs to the status rail (the workspace used to
+       print it twice, in two shapes, and for items the player could not even
+       take). Compact by construction — it must never compete with the
+       workspace title or the emblems. */
+    &__price {
         display: inline-flex;
         align-items: center;
-        gap: .5rem;
-        padding: .3rem .8rem;
+        gap: .35rem;
+        padding: .25rem .7rem;
         border-radius: 49.95rem;
         background: rgba(9, 15, 23, 0.75);
         box-shadow: inset 0 0 0 .075rem fade(@con-cyan, 40%);
@@ -7196,73 +6818,38 @@ html.console-mode {
 
         .resource_icon {
             display: inline-block;
-            width: 1.1rem;
-            height: 1.1rem;
+            width: 1.05rem;
+            height: 1.05rem;
             background-repeat: no-repeat;
             background-position: center;
             background-size: contain !important;
         }
 
-        &--short {
-            box-shadow: inset 0 0 0 .075rem fade(@con-amber, 60%);
-        }
-        /* Free sponsorship (Vitor) — a calm mint rim, never a price. */
+        /* A free claim/fund (Van Allen, Nirgal, Vitor's sponsorship) — a calm
+           mint rim, never a struck-through zero. */
         &--free {
             box-shadow: inset 0 0 0 .075rem fade(#7ef0b6, 48%);
         }
     }
-    &__wallet-label {
+    &__price-label {
         font-size: .575rem;
         font-weight: 700;
         letter-spacing: .075rem;
         text-transform: uppercase;
         color: @con-text-dim;
     }
-    &__wallet-now {
-        display: inline-flex;
-        align-items: center;
-        gap: .25rem;
-
-        b {
-            font-size: 1.05rem;
-            font-weight: 800;
-            font-variant-numeric: tabular-nums;
-        }
-    }
-    &__wallet-price {
-        font-size: .75rem;
+    &__price-value {
+        font-size: 1.05rem;
         font-weight: 800;
         font-variant-numeric: tabular-nums;
         color: #ffe2ad;
     }
-    &__wallet-after {
-        font-size: .75rem;
-        color: @con-text-dim;
-
-        b {
-            font-size: .95rem;
-            font-weight: 800;
-            font-variant-numeric: tabular-nums;
-            color: #d7ffe9;
-        }
-    }
-    &__wallet-shortfall {
-        font-size: .7rem;
-        font-weight: 700;
-        color: @con-amber;
-    }
-    /* The free-sponsorship badge — replaces the price capsule (Vitor). */
-    &__wallet-free {
-        padding: .15rem .65rem;
-        border-radius: 49.95rem;
-        background: fade(#7ef0b6, 13%);
-        box-shadow: inset 0 0 0 .075rem fade(#7ef0b6, 62%);
-        color: #d7ffe9;
-        font-size: .625rem;
+    &__price-free {
+        font-size: .675rem;
         font-weight: 800;
         letter-spacing: .03rem;
         text-transform: uppercase;
-        white-space: nowrap;
+        color: #d7ffe9;
     }
     &__complete {
         padding: .2rem .8rem;
@@ -7461,14 +7048,18 @@ html.console-mode {
         text-transform: uppercase;
     }
 
-    /* ── status column: YOU metric / rivals / CTA ───────────────── */
+    /* ── status column: YOU metric / rivals ─────────────────────────
+       FIXED width, not `min-width`: the four-digit values (1013, 990) grew
+       their own card's column while the neighbours kept theirs, so the same
+       reading sat at a different x in every row. One width for every card =
+       the eye compares numbers instead of hunting for them. */
     &__status {
         align-self: center;
         display: flex;
         flex-direction: column;
         align-items: flex-end;
         gap: .5rem;
-        min-width: 9.5rem;
+        width: 9.5rem;
         flex-shrink: 0;
     }
     &__metric {
@@ -7476,7 +7067,7 @@ html.console-mode {
         flex-direction: column;
         align-items: flex-end;
         gap: .15rem;
-        min-width: 6.7rem;
+        width: 100%;
         padding: .4rem .75rem .5rem;
         border-radius: .6rem;
         background: rgba(9, 15, 23, 0.75);
@@ -7506,6 +7097,10 @@ html.console-mode {
         font-weight: 800;
         line-height: 1.05;
         font-variant-numeric: tabular-nums;
+        /* A four-digit heat/steel reading must SHRINK, never widen the box
+           (the column is fixed above) and never wrap onto a second line. */
+        white-space: nowrap;
+        max-width: 100%;
 
         b { font-weight: 800; }
     }
@@ -7580,34 +7175,89 @@ html.console-mode {
             box-shadow: inset 0 0 0 .075rem fade(#ffd87a, 80%), 0 .05rem .25rem rgba(0, 0, 0, 0.4);
         }
     }
-    /* ── footer: focused context + honest hints ─────────────────── */
+    /* ── The STATUS RAIL seat (the shared .con-marail lives below) ─── */
     &__foot {
         flex-shrink: 0;
-        display: flex;
-        align-items: center;
-        gap: .9rem;
-        min-height: 2rem;
         padding-top: .45rem;
         border-top: .05rem solid fade(@con-cyan, 16%);
     }
-    &__context {
+}
+
+/* ── THE MA STATUS RAIL — the ONE projected-transaction line of the
+   Milestones/Awards workspace, rendered identically by the list state and
+   the detail stage (ConsoleMaRail over consoleMaRail.ts). The chips are the
+   SHARED `ActionEffectChip`s every composer speaks; the height is FIXED, so
+   a focus change crossfades the set in place and can never re-flow the
+   line. ─────────────────────────────────────────────────────────────── */
+.con-marail {
+    display: flex;
+    align-items: center;
+    gap: .7rem;
+    height: 2.3rem;
+    min-width: 0;
+    font-size: .8rem;
+    color: @con-text-dim;
+
+    &__name {
+        flex-shrink: 0;
+        max-width: 16rem;
+        font-size: .75rem;
+        font-weight: 800;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        color: fade(#cfe4f7, 78%);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__divider {
+        flex-shrink: 0;
+        width: .05rem;
+        height: 1.1rem;
+        background: fade(@con-cyan, 26%);
+    }
+    &__chips {
         display: inline-flex;
         align-items: center;
-        gap: .45rem;
+        flex-wrap: nowrap;
+        gap: .5rem;
+        min-width: 0;
+    }
+    &__state {
         min-width: 0;
         font-size: .8rem;
-        color: @con-text-dim;
-
-        b { color: @con-text; font-variant-numeric: tabular-nums; }
-
-        &--ready { color: #bdf3da; }
-        &--gap {
-            color: #ffe2ad;
-
-            b { color: #ffe9c4; }
-        }
-        &--blocked { color: @con-amber; }
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
+
+    /* The three tones: a live projection reads calm, a blocker reads amber,
+       an owned item reads as a settled fact. Colour only — the height and
+       the box never move between them. */
+    &--projected &__state { color: #bdf3da; }
+    &--blocked &__state { color: @con-amber; }
+    &--owner &__state { color: @con-text; font-weight: 600; }
+}
+
+/* The chip set crossfades IN PLACE on a focus change (never a re-flow). */
+.con-marail-chip-enter-active,
+.con-marail-chip-leave-active {
+    transition: opacity calc(140ms * var(--motion-scale, 1)) ease,
+                transform calc(140ms * var(--motion-scale, 1)) ease;
+}
+.con-marail-chip-enter-from,
+.con-marail-chip-leave-to {
+    opacity: 0;
+    transform: translateY(.16rem);
+}
+.con-marail-chip-leave-active {
+    position: absolute;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .con-marail-chip-enter-active,
+    .con-marail-chip-leave-active { transition: none; }
 }
 
 /* ── MA FOCUS STAGE — the detail state of the Milestones/Awards workspace
@@ -7649,23 +7299,30 @@ html.console-mode {
             inset 0 .05rem 0 rgba(255, 255, 255, 0.06);
     }
 
+    /* The content CLUSTER is centred in the available height, not nailed to
+       the top edge: one artefact, one condition, one race — a composed scene
+       rather than a form pinned to the ceiling of a tall container. It is
+       capped so a two-player race never stretches into a poster. */
     &__grid {
         flex: 1;
         min-height: 0;
         display: flex;
-        gap: 1.3rem;
-        padding: 1rem 1.4rem .6rem;
+        align-items: center;
+        justify-content: center;
+        gap: 1.8rem;
+        padding: 1rem 1.6rem .6rem;
     }
 
     /* ── HERO column: the carried emblem + identity ─────────────── */
     &__side {
         flex-shrink: 0;
         width: 15.5rem;
+        align-self: center;
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: .65rem;
-        min-height: 0;
+        min-width: 0;
     }
     /* The emblem pedestal — the FLIP twin of `.con-ma__stage` (same recipe,
        hero size) and the ceremony glide's moving body. z above the ceremony
@@ -7708,15 +7365,24 @@ html.console-mode {
         text-align: center;
         text-shadow: 0 0 .9rem fade(@con-cyan, 14%);
     }
+    /* THE STATE BADGE — one short label. It is BOUNDED BY THE COLUMN: the
+       row is the column's full width and the chip may not exceed it, so a
+       longer localization ellipsizes inside its own pill instead of growing
+       out past the hero and being clipped by the panel (that is exactly how
+       «ПОРОГ ДОСТИГНУТ — МОЖНО ВЗЯТЬ СЕЙЧАС» lost its first letters). The
+       copy stays SHORT by contract; this is the structural net under it. */
     &__state {
+        width: 100%;
         min-height: 1.6rem;
         display: flex;
         align-items: center;
+        justify-content: center;
     }
     &__state-chip {
         display: inline-flex;
         align-items: center;
         gap: .45rem;
+        max-width: 100%;
         padding: .25rem .8rem;
         border-radius: 49.95rem;
         font-size: .7rem;
@@ -7724,6 +7390,8 @@ html.console-mode {
         letter-spacing: .04rem;
         text-transform: uppercase;
         white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
         background: rgba(9, 15, 23, 0.8);
         box-shadow: inset 0 0 0 .075rem rgba(150, 175, 205, 0.35);
         color: @con-text-dim;
@@ -7751,12 +7419,15 @@ html.console-mode {
 
     /* ── MAIN column: rule → mechanic truth → race ──────────────── */
     &__main {
-        flex: 1;
+        flex: 1 1 auto;
+        /* A reading measure, not the whole band: the cluster stays composed
+           beside the hero at 4K instead of the race stretching to the frame. */
+        max-width: 64rem;
         min-width: 0;
+        align-self: center;
         display: flex;
         flex-direction: column;
         gap: .7rem;
-        min-height: 0;
     }
     &__desc {
         font-size: .85rem;
@@ -7781,6 +7452,11 @@ html.console-mode {
         font-weight: 800;
         line-height: 1;
         font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+
+        /* Past the threshold the NUMBER carries it (17/16 in mint) — the
+           badge already said «МОЖНО ПОЛУЧИТЬ», so no third sentence. */
+        &--met { color: #d7ffe9; }
     }
     &__progress-req {
         margin-left: .15rem;
@@ -7804,12 +7480,20 @@ html.console-mode {
             transition: width calc(220ms * var(--motion-scale, 1)) ease;
         }
     }
-    &__progress-note {
-        font-size: .7rem;
-        color: @con-text-dim;
+    /* The GAP is the progress block's own quantitative fact — «до порога: 5»,
+       shown only while the threshold is out of reach. It never restates the
+       badge's state word, and it disappears the moment the meter is full. */
+    &__progress-gap {
+        font-size: .75rem;
+        color: #ffe2ad;
         white-space: nowrap;
 
-        &--ok { color: #bdf3da; }
+        b {
+            font-size: .95rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: #ffe9c4;
+        }
     }
     &__vp {
         display: inline-flex;
@@ -7841,8 +7525,11 @@ html.console-mode {
         b { color: @con-text; }
     }
     &__endgame-mark { flex-shrink: 0; }
+    /* The race is a PANEL, not a banner: capped to a reading measure so two
+       players read as a compared pair instead of two rules across the band. */
     &__race {
         min-height: 0;
+        max-width: 46rem;
     }
     &__rows {
         display: flex;
@@ -7920,91 +7607,29 @@ html.console-mode {
     }
 
     /* ── THE DECISION BAND — one centre of decision ─────────────── */
+    /* THE DECISION BAND is now just the STATUS RAIL's seat: one line, one
+       language, the same component the list state carries. Its height is
+       fixed by the rail, so the commit's own line replaces the chips in
+       place — no layout shift between projection, pending and refusal. */
     &__decision {
         flex-shrink: 0;
         display: flex;
         align-items: center;
-        gap: 1.3rem;
         min-height: 3.1rem;
-        padding: .55rem 1.4rem;
+        padding: .35rem 1.6rem;
         border-top: .05rem solid fade(@con-cyan, 16%);
         background: rgba(8, 13, 21, 0.7);
     }
-    &__spend {
-        display: inline-flex;
-        align-items: center;
-        gap: .5rem;
-        white-space: nowrap;
-
-        .resource_icon {
-            display: inline-block;
-            width: 1.15rem;
-            height: 1.15rem;
-            background-repeat: no-repeat;
-            background-position: center;
-            background-size: contain !important;
-        }
-    }
-    &__spend-label {
-        font-size: .6rem;
-        font-weight: 800;
-        letter-spacing: .09rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-    }
-    &__spend-num {
-        font-size: 1.05rem;
-        font-weight: 800;
-        font-variant-numeric: tabular-nums;
-        color: #ffe2ad;
-    }
-    &__beforeafter {
-        font-size: .8rem;
-        color: @con-text-dim;
-
-        b {
-            font-size: 1rem;
-            font-weight: 800;
-            font-variant-numeric: tabular-nums;
-            color: #d7ffe9;
-        }
-    }
-    &__slots {
-        font-size: .8rem;
-        color: @con-text-dim;
-        white-space: nowrap;
-
-        b { color: @con-text; font-variant-numeric: tabular-nums; }
-    }
-    &__slots-after { margin-left: .3rem; }
-    &__free {
-        padding: .2rem .8rem;
-        border-radius: 49.95rem;
-        background: fade(#7ef0b6, 13%);
-        box-shadow: inset 0 0 0 .075rem fade(#7ef0b6, 62%);
-        color: #d7ffe9;
-        font-size: .675rem;
-        font-weight: 800;
-        letter-spacing: .03rem;
-        text-transform: uppercase;
-        white-space: nowrap;
-    }
-    &__free-note {
-        font-size: .7rem;
-        color: @con-text-dim;
-    }
-    /* The status line: ONE reserved slot (committing pulse / inline refusal /
-       concrete blocker) — fixed place, no layout shift when it speaks. */
+    /* The COMMIT's own line (pending / refusal) — it stands where the rail
+       stood, at the same height. */
     &__status {
-        margin-left: auto;
-        min-height: 1.2rem;
+        height: 2.3rem;
         display: inline-flex;
         align-items: center;
         gap: .4rem;
         font-size: .8rem;
         font-weight: 700;
         color: @con-text-dim;
-        text-align: right;
 
         &--wait {
             color: fade(@con-cyan, 92%);

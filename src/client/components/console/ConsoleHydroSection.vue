@@ -510,7 +510,7 @@ import {
 import {buildHydroTargetModel, hydroPresentedTargetModel} from '@/client/console/hydroFlow/hydroTargetStep';
 import {
   HydroCeremonyHandle, armHydroSceneOrigin, hydroSceneCancelledHook, hydroSceneEnterHook,
-  hydroSceneLeaveHook, runHydroCeremony,
+  hydroSceneLeaveHook, playHydroBridgeRelease, playHydroBridgeReturn, runHydroCeremony,
 } from '@/client/console/hydroFlow/consoleHydroFlowMotion';
 import {
   PlayedTargetCell, PlayedTargetFocus, PlayedTargetLayout, PlayedTargetModel, PlayedTargetNavDir,
@@ -1136,6 +1136,19 @@ export default defineComponent({
     'flow.commit.phase'(): void {
       this.maybeStartCeremony(this.markerSettled);
     },
+    // THE NESTED FULL-SCENE STEP (position 7's repeat browser) takes the
+    // whole band, so this workspace hands the screen over and TAKES IT BACK
+    // — never sits lit underneath. The release runs before the bridge opens
+    // (see playBridgeHandoff); this is the return half, one tick after the
+    // host has made us visible again (a tween on a hidden element lands as
+    // a pop).
+    'flow.repeatBridge'(on: boolean): void {
+      if (!on) {
+        void this.$nextTick(() => {
+          playHydroBridgeReturn(this.$refs.rootEl as HTMLElement | undefined, this.reducedMotion === true);
+        });
+      }
+    },
     // Stepping between stops RETUNES the standing panel body (a soft
     // dip-and-rise under the change) instead of hard-swapping its rows —
     // `overwrite: 'auto'` makes a held d-pad read as one continuous shimmer,
@@ -1247,6 +1260,18 @@ export default defineComponent({
         return 'card-resource card-resource-animal';
       }
       return l.resource !== undefined ? iconClassFor(l.resource) : '';
+    },
+    /**
+     * HAND THE SCREEN to a nested full-scene step (the shell calls this
+     * before opening the repeat browser). The workspace releases, and the
+     * bridge opens on the settle — so the two surfaces are never both lit.
+     */
+    playBridgeHandoff(open: () => void): void {
+      if (this.reducedMotion === true) {
+        open();
+        return;
+      }
+      playHydroBridgeRelease(this.$refs.rootEl as HTMLElement | undefined, open);
     },
     /** The panel-body RETUNE — the content breathes through a stop change
      *  while the panel frame stands still. GSAP owns the overlap semantics:

@@ -190,4 +190,17 @@ export interface PlayerViewModel extends ViewModel {
   // its own confirm press. Drives the console premium trade orchestration.
   // See ColonyTradeManifestModel.
   colonyTradeManifest?: ColonyTradeManifestModel;
+  // Self-only: what claiming a milestone / funding the NEXT award costs THIS
+  // player right now — the engine's own `milestoneCost()` / `awardFundingCost()`,
+  // so every rule that moves them is already applied (Van Allen and Nirgal
+  // Enterprises make them free, Staged Protests adds 8, and the award price
+  // climbs 8 → 14 → 20 with each funding). The UI must never re-derive a price
+  // from constants: it would go on offering a stale number the server refuses.
+  maCosts?: MaCostsModel;
 }
+
+/** The live claim/fund prices for the viewer (see `PlayerViewModel.maCosts`). */
+export type MaCostsModel = {
+  milestone: number;
+  award: number;
+};

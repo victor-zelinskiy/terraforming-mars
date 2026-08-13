@@ -47,6 +47,9 @@ export const maFocusState = reactive({
   error: '',
   /** The view identity at submit time — the refusal detector's baseline. */
   committedAt: undefined as {gameAge: number, undoCount: number} | undefined,
+  /** When the detail stage opened (ms). The commit is REFUSED until the stage
+   *  has been readable for `COMMIT_ARM_MS` — see `maFocusCommitArmed`. */
+  openedAt: 0,
   /**
    * The SUSPENDED-INSTANCE record (the workspace-stack rule: what the frames
    * cannot carry across a park lives in a module-level draft). Written when
@@ -57,15 +60,31 @@ export const maFocusState = reactive({
   draft: undefined as {kind: MaKind, name: string} | undefined,
 });
 
+/**
+ * The stage must be READ before it can be committed. A is the list's «open»
+ * and the stage's «claim/fund»: two presses a frame apart would otherwise buy
+ * a strategic, irreversible thing the player never saw — the entrance is still
+ * unfolding at that point. So the commit arms only after this much of the
+ * stage has been on screen (comfortably inside the descend's own phrase, far
+ * below any deliberate second press).
+ */
+export const COMMIT_ARM_MS = 400;
+
 /** Enter the detail stage for one item (the descend). */
-export function openMaFocus(kind: MaKind, name: string): void {
+export function openMaFocus(kind: MaKind, name: string, now: number = Date.now()): void {
   maFocusState.open = true;
   maFocusState.kind = kind;
   maFocusState.name = name;
   maFocusState.phase = 'detail';
   maFocusState.error = '';
   maFocusState.committedAt = undefined;
+  maFocusState.openedAt = now;
   maFocusState.draft = undefined;
+}
+
+/** Is the stage old enough to accept its own commit? (See COMMIT_ARM_MS.) */
+export function maFocusCommitArmed(now: number = Date.now()): boolean {
+  return maFocusState.open && now - maFocusState.openedAt >= COMMIT_ARM_MS;
 }
 
 /** Leave the stage — back at the browse layer (B; PRE-commit only). */

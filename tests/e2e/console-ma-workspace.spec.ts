@@ -79,7 +79,26 @@ for (const profile of PROFILES) {
       // No per-item CTA (criterion 1) and A = «Выбрать» in the footer (2).
       expect(await page.locator('.con-ma__btn').count(), 'the per-item CTA must be gone').toBe(0);
       expect(await page.locator('.con-ma__cta').count(), 'the CTA zone must be gone').toBe(0);
-      expect(await barText(page), 'the overview footer advertises SELECT').toContain('ВЫБРАТЬ');
+      const listBar = await barText(page);
+      expect(listBar, 'the overview footer advertises SELECT').toContain('ВЫБРАТЬ');
+      // The last trace of the modal era: `X Осмотреть` is GONE — one primary
+      // verb, and A opens every item (including the ones it cannot buy).
+      expect(listBar, 'the inspect verb must be gone from the bar').not.toContain('ОСМОТРЕТЬ');
+
+      // THE HEADER states the SYSTEM: the live price, never a wallet delta.
+      const head = (await page.locator('.con-ma__wshead').innerText()).replace(/\s+/g, ' ');
+      expect(head, 'the header carries the live price chip').toContain('ЦЕНА');
+      expect(head, 'the header must not project a balance').not.toContain('→');
+      expect(await page.locator('.con-ma__wallet').count(), 'the header wallet is gone').toBe(0);
+
+      // THE STATUS RAIL carries the WHOLE projection of the focused item, in
+      // the shared chips (M€ + the category counter), and nothing else does.
+      await page.waitForSelector('.con-marail', {timeout: 4_000});
+      const railChips = await page.locator('.con-marail .action-effect-chip').count();
+      expect(railChips, 'the focused award projects M€ + the slot counter').toBe(2);
+      const railText = (await page.locator('.con-marail').innerText()).replace(/\s+/g, ' ');
+      expect(railText, 'the rail states the resulting balance').toContain('→');
+      expect(railText, 'no bespoke «будет потрачено» dialect').not.toContain('потрачено');
       await shoot(page, profile.tag + '-01-overview');
 
       // The focused item (the first fundable award — openSheet homes on it).
@@ -106,7 +125,28 @@ for (const profile of PROFILES) {
       expect((await page.locator('.con-wshead__step').innerText()).trim().toUpperCase(),
         'the pre-commit stage word').toBe('СПОНСОРСТВО');
       expect(await barText(page), 'the detail footer advertises the commit verb').toContain('СПОНСИРОВАТЬ');
-      expect(await page.locator('.con-mafocus__spend').count(), 'the decision band shows the spend').toBe(1);
+
+      // The detail state speaks the SAME rail — one projection, one language,
+      // and the old «БУДЕТ ПОТРАЧЕНО −8 462 → 454» band is gone with it.
+      expect(await page.locator('.con-mafocus .con-marail .action-effect-chip').count(),
+        'the stage projects through the shared rail').toBe(2);
+      expect(await page.locator('.con-mafocus__spend, .con-mafocus__slots-after').count(),
+        'the bespoke spend/slots band must be gone').toBe(0);
+
+      // THE BADGE stays inside its hero column (the clipped «ПОРОГ ДОСТИГНУТ —
+      // МОЖНО ВЗЯТЬ СЕЙЧАС» is what this measures against).
+      const badgeFits = await page.evaluate(() => {
+        const chip = document.querySelector('.con-mafocus__state-chip') as HTMLElement | null;
+        const col = document.querySelector('.con-mafocus__side') as HTMLElement | null;
+        if (chip === null || col === null) {
+          return {ok: false, overflow: 999};
+        }
+        const c = chip.getBoundingClientRect();
+        const s = col.getBoundingClientRect();
+        return {ok: true, overflow: Math.max(s.left - c.left, c.right - s.right)};
+      });
+      expect(badgeFits.ok, 'the state badge must exist').toBeTruthy();
+      expect(badgeFits.overflow, 'the state badge must stay inside the hero column').toBeLessThan(1);
 
       // ── 3 · B folds back; the focus survives on the SAME item ──────────────
       await key(page, 'Escape', 1200);
@@ -148,7 +188,38 @@ for (const profile of PROFILES) {
       await key(page, 'KeyE', 1400);
       const panel = (await page.locator('.con-ma').innerText()).replace(/\s+/g, ' ');
       expect(panel, 'the funded tally is live after the close').toContain('1/3');
+      // …and the PRICE followed the game: the second funding costs 14, from the
+      // engine's own ladder (the UI never re-derives it from a constant).
+      expect((await page.locator('.con-ma__price').innerText()).replace(/\s+/g, ' '),
+        'the header price is the LIVE next-award cost').toContain('14');
       await shoot(page, profile.tag + '-06-reopened');
+
+      // ── 7 · A blocked item still OPENS, and tells the truth ────────────────
+      // (There is no `X` any more: A is the one way in, for every item.)
+      await key(page, 'KeyQ', 1400); // → ДОСТИЖЕНИЯ, where a threshold blocks
+      await page.waitForSelector('.con-ma', {timeout: 8_000});
+      const blockedIdx = await page.evaluate(() => {
+        const cards = Array.from(document.querySelectorAll('.con-ma__card'));
+        return cards.findIndex((c) => c.classList.contains('con-ma__card--go') === false &&
+          c.classList.contains('con-ma__card--taken') === false);
+      });
+      if (blockedIdx >= 0) {
+        for (let i = 0; i < blockedIdx; i++) {
+          await key(page, i % 2 === 0 ? 'ArrowRight' : 'ArrowDown', 260);
+        }
+        await key(page, 'Enter', 1400);
+        if (await page.locator('.con-mafocus').count() > 0) {
+          const stage = (await page.locator('.con-mafocus').innerText()).replace(/\s+/g, ' ');
+          expect(stage, 'a blocked item opens and explains itself')
+            .not.toContain('ПОТРАЧЕНО');
+          // …and it NEVER draws a success preview of a payment it cannot make.
+          const railTone = await page.locator('.con-mafocus .con-marail').getAttribute('class');
+          expect(railTone ?? '', 'a blocked stage rail is blocked, never projected')
+            .not.toContain('con-marail--projected');
+          await shoot(page, profile.tag + '-07-blocked-detail');
+          await key(page, 'Escape', 1000);
+        }
+      }
     });
   });
 }

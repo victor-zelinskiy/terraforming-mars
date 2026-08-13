@@ -1,9 +1,11 @@
 /**
- * CONSOLE MA INSPECT — the PURE view-model for the fullscreen X → «Осмотреть»
- * reader (`ConsoleMaInspect`).
+ * CONSOLE MA INSPECT — the PURE view-model of the RACE behind one milestone /
+ * award. Born for the fullscreen X → «Осмотреть» reader; that reader is gone
+ * with the modal era (every item now opens INTO the workspace's own detail
+ * stage), and this model is what the stage renders its standings from.
  *
- * The dashboard card answers "can I act right now"; the fullscreen reader
- * answers the STRATEGIC question the mechanic actually poses, and ONLY that:
+ * The dashboard card answers "can I act right now"; this answers the STRATEGIC
+ * question the mechanic actually poses, and ONLY that:
  *
  *  - AWARD  → the endgame SCORING RACE. An award is scored at game end for
  *    EVERY player by their metric count (1st = 5 VP, 2nd = 2 VP in 3+ player

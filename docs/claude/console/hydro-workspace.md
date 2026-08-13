@@ -50,6 +50,18 @@ standard deal (the Pluto language), embedded under the standing track.
     ПОВТОР ДЕЙСТВИЯ › …» (a label-carrying source keeps ITS workspace as the
     root — `ConsoleCardActions.vue`). The resolve returns to the SUMMARY;
     commit stays a separate deliberate press.
+    ⚠️ **The workspace HANDS THE SCREEN OVER, it does not sit under it.**
+    A full-scene step needs the whole band, so the hydro section rides
+    `v-show="!pickBridgeActive"` exactly as the card-actions source does
+    (without it the browser simply stacked on a still-lit hydro workspace —
+    two frames at once, the shipped report) and plays its own phrase around
+    the swap: `playHydroBridgeRelease` runs FIRST and the shell opens the
+    bridge on its settle; the return rides the bridge's falling edge
+    (`flow.repeatBridge` watcher, one tick after the host re-shows it) out
+    of the EXACT rest pose the release left behind — which is what makes
+    the round trip seamless instead of a pop. The bridge flag can never
+    outlive the browser: a `repeatPickActive` falling-edge watcher drops it
+    even on a hard teardown (`resetConsoleRepeatPick` fires no callbacks).
   - pos 9 → the embedded TARGET layer hosting the SHARED
     `ConsolePlayedTargetStep` (the colony-trade grammar: A Select ·
     X Inspect · B Back, edges hold, `lockedCard` on re-entry).

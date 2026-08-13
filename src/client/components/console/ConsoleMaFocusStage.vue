@@ -21,22 +21,17 @@
             <MaHeroArt :name="item.name" :kind="kind" class="con-mafocus__hero" />
           </div>
           <div class="con-mafocus__name" data-ma-detail data-unfold-item v-i18n>{{ displayView.displayName }}</div>
+          <!-- THE STATE BADGE — ONE short word-pair, never a sentence. It says
+               WHICH state this is; the progress block says by how much, and
+               the status rail says what the action would do (or why it can't).
+               A badge that tried to carry the whole reason («ПОРОГ ДОСТИГНУТ —
+               МОЖНО ВЗЯТЬ СЕЙЧАС») outgrew the hero column and was clipped by
+               it; the length is the fix, not a smaller font. -->
           <div class="con-mafocus__state" data-ma-detail data-unfold-late>
-            <template v-if="displayView.takenByOther !== undefined">
-              <span class="con-mafocus__state-chip con-mafocus__state-chip--taken">
-                <span class="con-mafocus__dot" :class="'player_bg_color_' + displayView.takenByOther.color" aria-hidden="true"></span>
-                <span>{{ $t(kind === 'milestone' ? 'claimed by' : 'funded by') }} {{ displayView.takenByOther.name }}</span>
-              </span>
-            </template>
-            <template v-else-if="takenByMe">
-              <span class="con-mafocus__state-chip con-mafocus__state-chip--mine">✓ {{ $t(kind === 'milestone' ? 'Claimed' : 'Funded') }}</span>
-            </template>
-            <template v-else-if="available">
-              <span class="con-mafocus__state-chip con-mafocus__state-chip--go">{{ $t(kind === 'milestone' ? 'Threshold reached — claim now' : 'Ready to fund now') }}</span>
-            </template>
-            <template v-else>
-              <span class="con-mafocus__state-chip con-mafocus__state-chip--idle">{{ $t('Unavailable right now') }}</span>
-            </template>
+            <span class="con-mafocus__state-chip" :class="'con-mafocus__state-chip--' + stateTone">
+              <span v-if="ownerColor !== ''" class="con-mafocus__dot" :class="'player_bg_color_' + ownerColor" aria-hidden="true"></span>
+              <span>{{ $t(stateLabel) }}</span>
+            </span>
           </div>
         </div>
 
@@ -44,18 +39,19 @@
         <div class="con-mafocus__main" data-ma-detail>
           <div class="con-mafocus__desc" data-unfold-item v-i18n>{{ displayView.description }}</div>
 
-          <!-- MILESTONE: progress → threshold → the immediate-5-VP truth. -->
+          <!-- MILESTONE: progress → threshold → the immediate-5-VP truth. The
+               progress block owns the QUANTITY and only it — the counter and
+               the meter. The state word belongs to the badge, and the gap
+               («до порога: 9») is the status rail's blocking reason: three
+               roles, three places, no sentence said twice. -->
           <template v-if="kind === 'milestone'">
             <div class="con-mafocus__block" data-unfold-item>
               <div class="con-mafocus__block-title">{{ $t('Your progress') }}</div>
               <div class="con-mafocus__progress">
-                <span class="con-mafocus__progress-value">
+                <span class="con-mafocus__progress-value" :class="{'con-mafocus__progress-value--met': displayView.thresholdMet}">
                   <b>{{ displayView.myScore }}</b><span v-if="displayView.threshold !== undefined" class="con-mafocus__progress-req">/{{ displayView.threshold }}</span>
                 </span>
                 <span v-if="displayView.threshold !== undefined" class="con-mafocus__meter" aria-hidden="true"><i :style="{width: meterWidth}"></i></span>
-                <span class="con-mafocus__progress-note" data-unfold-late :class="{'con-mafocus__progress-note--ok': displayView.thresholdMet}">
-                  {{ $t(displayView.thresholdMet ? 'Threshold reached — claim now' : 'Threshold not reached yet') }}
-                </span>
               </div>
             </div>
             <div class="con-mafocus__vp" data-unfold-item>
@@ -97,32 +93,16 @@
         </div>
       </div>
 
-      <!-- ── THE DECISION BAND — the stage's ONE centre of decision: the
-           economy delta, the slot economics and the honest status line. The
-           verbs live in the global command bar (never a second CTA). ── -->
+      <!-- ── THE STATUS RAIL — the stage's ONE centre of decision, and the
+           SAME line the list state carries: the whole projected transaction in
+           shared `current → resulting` chips, or the one concrete blocker.
+           Past the press it states the commit instead (and after a refusal,
+           the inline reason). The verbs live in the global command bar. ── -->
       <div class="con-mafocus__decision" data-ma-detail data-unfold-item>
-        <template v-if="displayView.free">
-          <span class="con-mafocus__free">{{ $t('Free sponsorship') }}</span>
-          <span class="con-mafocus__free-note" data-unfold-late>{{ $t('This sponsorship costs nothing.') }}</span>
-        </template>
-        <template v-else>
-          <span class="con-mafocus__spend">
-            <span class="con-mafocus__spend-label">{{ $t('You will spend') }}</span>
-            <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
-            <b class="con-mafocus__spend-num">−{{ displayView.cost }}</b>
-            <span class="con-mafocus__beforeafter">{{ displayView.mcBefore }} <span aria-hidden="true">→</span> <b>{{ displayView.mcAfter }}</b></span>
-          </span>
-        </template>
-        <span class="con-mafocus__slots">
-          {{ $t(kind === 'milestone' ? 'Claimed' : 'Funded') }} <b>{{ displayView.takenCount }}/{{ displayView.maxSlots }}</b>
-          <span class="con-mafocus__slots-after">· {{ $t('Slots left after') }}: <b>{{ displayView.openAfter }}</b></span>
-        </span>
-        <!-- The status line: ONE reserved slot — committing pulse / inline
-             refusal / concrete blocker. Fixed height, no layout shift. -->
-        <span class="con-mafocus__status" :class="statusClass">
+        <ConsoleMaRail v-if="commitStatus === ''" :view="railView" />
+        <span v-else class="con-mafocus__status" :class="statusClass">
           <template v-if="phase === 'committing'">{{ $t('Confirming…') }}</template>
-          <template v-else-if="error !== ''">✕ {{ $t(error) }}</template>
-          <template v-else-if="!available && blockReason !== ''">✕ {{ $t(blockReason) }}</template>
+          <template v-else>✕ {{ $t(commitStatus) }}</template>
         </span>
       </div>
 
@@ -177,7 +157,9 @@
  */
 import {defineComponent, PropType} from 'vue';
 import MaHeroArt from '@/client/components/ma/MaHeroArt.vue';
+import ConsoleMaRail from '@/client/components/console/ConsoleMaRail.vue';
 import {ConsoleMaItem} from '@/client/components/console/consoleMaModel';
+import {buildMaRail, MaRailView} from '@/client/components/console/consoleMaRail';
 import {MaConfirmView} from '@/client/components/ma/maConfirmModel';
 import {MaInspectView} from '@/client/components/console/consoleMaInspectModel';
 import {maFocusState, MaFocusPhase} from '@/client/console/consoleMaFocus';
@@ -186,7 +168,7 @@ import {$t} from '@/client/directives/i18n';
 
 export default defineComponent({
   name: 'ConsoleMaFocusStage',
-  components: {MaHeroArt},
+  components: {MaHeroArt, ConsoleMaRail},
   props: {
     item: {type: Object as PropType<ConsoleMaItem>, required: true},
     view: {type: Object as PropType<MaConfirmView>, required: true},
@@ -235,6 +217,32 @@ export default defineComponent({
     takenByMe(): boolean {
       return this.item.takenBy !== undefined && this.item.takenBy.color === this.item.myColor;
     },
+    /** The state BADGE — one short label, one tone. Which state, nothing more:
+     *  the quantity is the progress block's, the consequence is the rail's. */
+    stateTone(): 'taken' | 'mine' | 'go' | 'idle' {
+      if (this.displayView.takenByOther !== undefined) {
+        return 'taken';
+      }
+      if (this.takenByMe) {
+        return 'mine';
+      }
+      return this.available ? 'go' : 'idle';
+    },
+    stateLabel(): string {
+      switch (this.stateTone) {
+      case 'taken':
+      case 'mine':
+        return this.kind === 'milestone' ? 'Claimed' : 'Funded';
+      case 'go':
+        return this.kind === 'milestone' ? 'Can be claimed' : 'Can be sponsored';
+      default:
+        return 'Unavailable right now';
+      }
+    },
+    /** The claimant's colour dot rides the badge when someone ELSE owns it. */
+    ownerColor(): string {
+      return this.displayView.takenByOther?.color ?? '';
+    },
     meterWidth(): string {
       const t = this.displayView.threshold ?? 0;
       if (t <= 0) {
@@ -242,14 +250,37 @@ export default defineComponent({
       }
       return `${Math.min(100, Math.round((this.displayView.myScore / t) * 100))}%`;
     },
-    statusClass(): string {
+    /**
+     * THE STATUS RAIL of this item — the same pure model, the same component
+     * the list state renders. It uses the PINNED view past the commit, so the
+     * ceremony states the economy that was actually paid.
+     */
+    railView(): MaRailView {
+      return buildMaRail({
+        item: this.item,
+        kind: this.kind === 'milestone' ? 'milestones' : 'awards',
+        cost: this.displayView.cost,
+        free: this.displayView.free,
+        myMegacredits: this.displayView.mcBefore,
+        takenCount: this.displayView.takenCount,
+        maxSlots: this.displayView.maxSlots,
+      });
+    },
+    /**
+     * The COMMIT's own line, which REPLACES the rail while it speaks: the
+     * pending beat, or a refusal's inline reason. A blocked-by-state item is
+     * NOT one of these — the rail already names that blocker, and printing it
+     * twice is the duplication this iteration removed.
+     */
+    commitStatus(): string {
       if (this.phase === 'committing') {
-        return 'con-mafocus__status--wait';
+        return 'Confirming…';
       }
-      if (this.error !== '' || (!this.available && this.blockReason !== '')) {
-        return 'con-mafocus__status--blocked';
-      }
-      return '';
+      return this.error;
+    },
+    statusClass(): string {
+      return this.phase === 'committing' ?
+        'con-mafocus__status--wait' : 'con-mafocus__status--blocked';
     },
     ceremonyKicker(): string {
       if (this.kind === 'milestone') {

@@ -12,9 +12,11 @@ import {
   discardMaFocusDraft,
   resetMaFocus,
   maFocusAcceptsInput,
+  maFocusCommitArmed,
   maWorkspacePhase,
   maWorkspaceBackVerb,
   maFocusCommitOutcome,
+  COMMIT_ARM_MS,
 } from '@/client/console/consoleMaFocus';
 
 /**
@@ -31,6 +33,19 @@ describe('consoleMaFocus', () => {
   after(() => resetMaFocus());
 
   const at = {gameAge: 10, undoCount: 2};
+
+  describe('the commit ARM (a double-tap of A must not buy what it just opened)', () => {
+    it('the stage refuses its own commit until it has been readable', () => {
+      openMaFocus('award', 'Banker', 1_000);
+      expect(maFocusCommitArmed(1_000), 'the opening frame is not a decision').to.eq(false);
+      expect(maFocusCommitArmed(1_000 + COMMIT_ARM_MS - 1)).to.eq(false);
+      expect(maFocusCommitArmed(1_000 + COMMIT_ARM_MS)).to.eq(true);
+    });
+
+    it('a closed workspace is never armed', () => {
+      expect(maFocusCommitArmed(9_999_999)).to.eq(false);
+    });
+  });
 
   describe('the phase machine', () => {
     it('opens at the reversible detail; B = back; input live', () => {

@@ -247,6 +247,15 @@ export class Server {
       // Persists until the next trade overwrites it — the client
       // de-duplicates by tradeId and only plays a trade it armed itself.
       colonyTradeManifest: player.colonyTradeManifest,
+      // The LIVE claim/fund prices, straight off the engine methods the action
+      // itself charges with — never the raw constants (Van Allen / Nirgal make
+      // them free, Staged Protests adds 8, the award price climbs with each
+      // funding). The console's Milestones/Awards workspace shows this number
+      // and submits against it.
+      maCosts: {
+        milestone: player.milestoneCost(),
+        award: player.awardFundingCost(),
+      },
     };
     return rv;
   }

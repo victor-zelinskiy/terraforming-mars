@@ -47,7 +47,6 @@ export type SurfaceMotionId =
   | 'confirm'
   | 'trade-composer'
   | 'colony-inspect'
-  | 'ma-inspect'
   | 'effect-decision'
   | 'final-greenery'
   | 'gov-support'

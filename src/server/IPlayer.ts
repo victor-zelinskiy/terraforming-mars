@@ -501,6 +501,10 @@ export interface IPlayer {
   /** Returns the cost a player must spend to claim a milestone. Public for Briber. */
   milestoneCost(): number;
 
+  /** What funding the NEXT award costs this player (8/14/20, ± the card rules).
+   *  Public so the player model can publish the live price the action charges. */
+  awardFundingCost(): number;
+
   /** Shorthand for deferring evaluating a PlayerInput */
   defer(input: PlayerInput | undefined | void | (() => PlayerInput | undefined | void), priority?: Priority): void;
   setAlliedParty(party: IParty): void;
