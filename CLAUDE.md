@@ -46,7 +46,7 @@ A card **always leaves from its real on-screen source** — an action that took 
 ### Embedded step surfaces COMPOSE (the architecture's whole advantage)
 A workspace may host a FULL existing screen as a step (the start workspace hosts «Карты в руке» for a play-from-hand prelude), and hosts NEST for free — because every hostable surface is **host-agnostic** (one `embedded` prop strips its shell; content/input/state untouched) and every host publishes its own `[data-embed-slot]` even while itself embedded, so depth is just the teleport chain. Guaranteed by the six-rule contract in `consoleWorkspaceEmbed.ts` + `.claude/rules/console-ui.md` § EMBEDDED STEP SURFACES — never by per-case wiring.
 
-Mechanism + gotchas: `docs/claude/console/workspace-band.md` § EMBEDDED OUTCOMES / WORKSPACE DESCEND. Reference: `docs/CONSOLE_BLUE_ACTION_PARITY.md`.
+Mechanism + gotchas: `docs/claude/console/workspace-band.md` § EMBEDDED OUTCOMES / WORKSPACE DESCEND. Reference: `docs/CONSOLE_BLUE_ACTION_PARITY.md`; the same migration applied to a MENU-shaped surface (steps + pay-on-commit targets + a terminal commit beat): `docs/claude/console/standard-projects-workspace.md`.
 
 Before UI work read `docs/CONSOLE_MODE_CONCEPT.md`; to decide whether a file is frozen or live, read `docs/DESKTOP_DEPRECATION_AUDIT.md`.
 

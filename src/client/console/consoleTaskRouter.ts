@@ -226,6 +226,90 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
 export const SCENE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['initialDraft', 'startSequence']);
 
 /**
+ * The DEDICATED COMPOSITE surfaces — the prompts that used to fall through to
+ * the desktop modal inside the console shell and now each have a console-native
+ * band surface of their own: the Venus alt-track bonus, Stormcraft's spend-heat,
+ * the planetary-event thresholds and «посмотри N карт колоды, оставь K».
+ *
+ * They are their OWN family: not host-served (`taskServedByHost` returns
+ * undefined for every one of them), not a shell section, not a scene.
+ * Membership says three things: the desktop fallback modal stays suppressed for
+ * them, the shell counts them as a busy screen (footer under-scene, hand dock
+ * compact), and — the one that was missing — they can be MINIMIZED, so the
+ * shell owes them a way back. It lived as a private const inside ConsoleShell,
+ * which is exactly how the shell's «where do I come back to?» predicate came to
+ * enumerate three families and miss the fourth — see `taskMinimizable`.
+ */
+export const NATIVE_COMPOSITE_KINDS: ReadonlySet<TaskKind> =
+  new Set<TaskKind>(['venusBonus', 'spendHeat', 'aresGlobal', 'deckSelect']);
+
+/**
+ * CAN THE PLAYER MINIMIZE THIS PROMPT — and therefore, must the shell offer a
+ * way BACK to it? The completeness anchor for «B СВЕРНУТЬ».
+ *
+ * Every surface that advertises «свернуть» hides itself on
+ * `consoleState.task.deferred`, so the ONLY door back is the board-home
+ * restore card (`.con-mandatory`), which renders on the shell's
+ * `mandatoryDeferredActive`. A kind that can be minimized but is NOT
+ * represented there is a SOFT-LOCK, and a silent one: the surface unmounts, no
+ * card offers the return, B on the board home does nothing, and the leak
+ * detector stays quiet on purpose (a deferred task is deliberately set aside,
+ * never stranded). Only a reload recovers.
+ *
+ * That shipped for the whole NATIVE COMPOSITE family: the predicate listed the
+ * task host, the shell sections and the start scene, and «Разместите бонус
+ * шкалы Венеры» belongs to none of the three — one press of B and the bonus was
+ * unreachable for the rest of the session.
+ *
+ * TRUE for the four families the shell reads live, in this order:
+ *  · the ConsoleTaskHost (and every panel that cascades off it — Government
+ *    Support, production loss, the effect decision, the finale);
+ *  · a SHELL SECTION (`SHELL_SECTION_KINDS`);
+ *  · the full-screen START SCENE (`SCENE_KINDS`);
+ *  · a DEDICATED COMPOSITE (`NATIVE_COMPOSITE_KINDS`).
+ *
+ * FALSE for the rest, and each for its own reason: `actionMenu` / `space` are
+ * served by an ALWAYS-MOUNTED surface (there is no panel to fold, so there is
+ * nothing to come back to); `draftWait` minimizes as a WORKSPACE, where the
+ * parked stack is what offers the way back; `composite` / `unknown` have no
+ * console surface at all (the desktop fallback modal / the honest stranded
+ * guard), and neither offers «свернуть».
+ *
+ * Exhaustive over `TaskKind` (no default): a new kind does not compile until it
+ * declares which side it is on.
+ */
+export function taskMinimizable(kind: TaskKind): boolean {
+  switch (kind) {
+  case 'choice':
+  case 'player':
+  case 'amount':
+  case 'resource':
+  case 'distribute':
+  case 'payment':
+  case 'cardSelect':
+  case 'projectCard':
+  case 'handSelect':
+  case 'colony':
+  case 'colonyBonus':
+  case 'awardFunding':
+  case 'corpFirstAction':
+  case 'initialDraft':
+  case 'startSequence':
+  case 'venusBonus':
+  case 'spendHeat':
+  case 'aresGlobal':
+  case 'deckSelect':
+    return true;
+  case 'actionMenu':
+  case 'space':
+  case 'draftWait':
+  case 'composite':
+  case 'unknown':
+    return false;
+  }
+}
+
+/**
  * Is a `corpFirstAction` prompt part of the GAME START FLOW — i.e. served by
  * the Game Start Workspace's own «ПЕРВОЕ ДЕЙСТВИЕ» stage rather than the
  * standalone confirm modal?

@@ -293,6 +293,8 @@ export function foldCopiedProductionEffects(
  */
 export type PrimaryActionState =
   | {kind: 'ready'}
+  /** The card's ИЛИ choice has not been MADE yet (see `variantPending`). */
+  | {kind: 'need-variant', rowIndex: number}
   | {kind: 'need-preselect', rowIndex: number}
   | {kind: 'blocked-payment'}
   | {kind: 'blocked-requirement', reason: string};
@@ -305,7 +307,19 @@ export function computePrimaryAction(ctx: {
   firstUnresolvedStepRowIndex: number | undefined,
   /** i18n key for the `blocked-requirement` reason (default: a generic one). */
   requirementReason?: string,
+  /**
+   * The card offers a REAL ИЛИ choice (two or more branches the rules allow)
+   * and the player has not made it — `rowIndex` is the first choosable variant.
+   * A choice nobody made is not a blocked card and not a missing step: it is the
+   * screen's own first question, and it outranks everything downstream because
+   * NOTHING downstream is even defined until it is answered (which steps exist,
+   * what the result is, what the card does).
+   */
+  variantPending?: {rowIndex: number},
 }): PrimaryActionState {
+  if (ctx.variantPending !== undefined) {
+    return {kind: 'need-variant', rowIndex: ctx.variantPending.rowIndex};
+  }
   if (!ctx.branchSelectable) {
     return {kind: 'blocked-requirement', reason: ctx.requirementReason ?? 'Unavailable right now'};
   }
@@ -318,8 +332,29 @@ export function computePrimaryAction(ctx: {
   return {kind: 'ready'};
 }
 
+/**
+ * WHICH variant the composer may pre-select when the preview lands — and it is
+ * deliberately almost never one.
+ *
+ * A pre-selected option is an answer the player did not give: the screen opens
+ * already «ready», the commit rail is live, and one A plays a card on a result
+ * nobody chose. So a selection is seeded ONLY where there is no decision to
+ * make — a single branch, or a set the RULES have narrowed to exactly one
+ * playable branch (offering «choose» there would be a ceremony with one door).
+ * Everything else opens UNSELECTED and the player answers with A.
+ */
+export function initialVariantSelection(
+  branches: ReadonlyArray<{available: boolean}>,
+): number | undefined {
+  if (branches.length === 1) {
+    return 0;
+  }
+  const choosable = branches.filter((b) => b.available);
+  return choosable.length === 1 ? branches.indexOf(choosable[0]) : undefined;
+}
+
 /** Which kind of row the cursor is on, as far as A is concerned. */
-export type PlayFocusTarget = 'cta' | 'picker' | 'other' | 'none';
+export type PlayFocusTarget = 'cta' | 'picker' | 'variant' | 'other' | 'none';
 
 /**
  * THE A-BUTTON VERB for the FOCUSED row — one decision, in one place.
@@ -344,6 +379,10 @@ export function playPrimaryVerb(ctx: {
     case 'ready': return {label: 'Play now', enabled: true};
     case 'blocked-payment': return {label: 'Configure payment', enabled: true};
     case 'need-preselect': return {label: 'Choose an option', enabled: true};
+    // The ИЛИ choice is unmade: the rail states the instruction and refuses.
+    // (The cursor cannot normally reach it here — the commit gate withholds it —
+    // but a stale frame must not advertise a play either.)
+    case 'need-variant': return {label: 'Choose the result first', enabled: false};
     // Unplayable: nothing A can do here — the CTA itself carries the reason.
     case 'blocked-requirement': return {label: 'Play now', enabled: false};
     }
@@ -351,7 +390,13 @@ export function playPrimaryVerb(ctx: {
   if (ctx.focused === 'picker') {
     return {label: ctx.pickAnswered === true ? 'Change' : 'Select', enabled: true};
   }
-  // A variant / amount / spend-heat row: A proceeds toward the play CTA.
+  if (ctx.focused === 'variant') {
+    // A on a variant SELECTS it — nothing else. «Далее» here was the ambiguity
+    // this whole grammar removes: the same press then read as «advance», and a
+    // second one (a repeat, a held button) reached the commit rail.
+    return {label: 'Select', enabled: true};
+  }
+  // An amount / spend-heat row: A proceeds toward the play CTA.
   return {label: 'Next', enabled: true};
 }
 

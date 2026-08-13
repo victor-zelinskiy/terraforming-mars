@@ -15460,6 +15460,52 @@ body.con-start-ceremony {
             color: @con-mint;
         }
     }
+    /* THE BURN GATE's rail (an armed «СГОРИТ» prelude): amber like every
+       other caution here, and it takes the state chip's own slot so the
+       reserved rail height carries it — the deployment above never reflows
+       when the gate arms or is taken back. */
+    &__statusrail--burn {
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 55%);
+        background: fade(#2a1a08, 55%);
+    }
+    &__status-burn {
+        flex-shrink: 0;
+        margin-left: auto;
+        min-width: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: .7rem;
+        animation: con-start-limit-in calc(240ms * var(--motion-scale, 1)) ease-out;
+    }
+    /* THE REASON LEADS (what confirming actually costs), the instruction
+       follows as a quiet second voice — the same two voices the task host's
+       confirm bar uses. A second press demanded with no word of why reads as
+       the UI being awkward, not as a caution. */
+    &__status-burn-why {
+        min-width: 0;
+        padding: .18rem .7rem;
+        border-radius: 49.95rem;
+        background: fade(@con-amber, 14%);
+        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 60%);
+        color: #ffe3b0;
+        font-size: .85rem;
+        font-weight: 700;
+        line-height: 1.15;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__status-burn-cta {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: .35rem;
+        font-size: .72rem;
+        font-weight: 700;
+        letter-spacing: .04rem;
+        text-transform: uppercase;
+        white-space: nowrap;
+        color: fade(#ffe3b0, 72%);
+    }
     &__statusrail--limit,
     &__statusrail--unaffordable {
         box-shadow: inset 0 0 0 .05rem fade(@con-amber, 34%);
@@ -15970,6 +16016,17 @@ body.con-start-ceremony {
         text-transform: uppercase;
         white-space: nowrap;
         z-index: 3;
+
+        /* ARMED — the BURN GATE (a «СГОРИТ» prelude waiting for its second
+           press). The affordance does not move or duplicate: the SAME pill
+           swaps mint → amber and «Разыграть» → «Подтвердить», so the change
+           is loud where the player is already looking and costs zero layout.
+           Colour + box-shadow only, so the performance profile keeps it. */
+        &--armed {
+            background: fade(#2a1a08, 88%);
+            box-shadow: inset 0 0 0 .07rem fade(@con-amber, 90%), 0 .2rem .9rem rgba(0, 0, 0, 0.55);
+            color: #ffe3b0;
+        }
     }
     /* The dealt-in stagger (entry only; delay via inline style).
        `backwards` (NOT `both`): a forwards fill would pin the final
@@ -17536,6 +17593,14 @@ body.con-start-barshold .con-status {
            displaced first frame (the visible "jump at liftoff"). */
         &--focused {
             box-shadow: 0 0 0 .12rem fade(@con-cyan, 85%), 0 .6rem 1.4rem rgba(0, 0, 0, 0.45);
+            z-index: 2;
+        }
+        /* ARMED — the BURN GATE. The focus ring turns amber IN PLACE (the
+           card itself never moves: the hero proxy still spawns over this
+           slot's live rect). Ordered after --focused so it wins on the card
+           that is by definition also focused. */
+        &--armed {
+            box-shadow: 0 0 0 .14rem fade(@con-amber, 92%), 0 0 1.4rem fade(@con-amber, 24%), 0 .6rem 1.4rem rgba(0, 0, 0, 0.45);
             z-index: 2;
         }
         &--awaiting > :is(.card-container, .pcard) {

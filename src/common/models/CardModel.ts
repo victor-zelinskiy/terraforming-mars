@@ -6,7 +6,10 @@ import {Tag} from '../cards/Tag';
 import {Warning} from '../cards/Warning';
 import {UnplayableReason} from '../cards/UnplayableReason';
 import {Message} from '../logs/Message';
-import {ActionEffect} from './ActionPreviewModel';
+// `import type`: `ActionPreviewModel` imports `PlayerInputModel`, which imports
+// THIS file — a value import would close that cycle at runtime (the same reason
+// `PlayerInputModel` type-imports `ActionEffect`).
+import type {ActionEffect} from './ActionPreviewModel';
 
 /**
  * The GUARANTEED result of a standard project, computed server-side from the

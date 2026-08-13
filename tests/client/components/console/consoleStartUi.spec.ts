@@ -32,6 +32,7 @@ function state(overrides: Partial<StartSceneCommandState>): StartSceneCommandSta
     ceremonyVerb: 'Play now',
     hasFocusables: true,
     firstAction: 'off',
+    burnArmed: false,
     ...overrides,
   };
 }
@@ -161,5 +162,33 @@ describe('consoleStartUi (initial-setup command contract)', () => {
   it('the first-action stage outranks the generic ceremony verb', () => {
     const cmds = startSceneCommands(state({mode: 'ceremony', firstAction: 'ready', hasFocusables: false}));
     expect(labelOf(cmds, 'confirm')).to.eq('Take first action');
+  });
+
+  /**
+   * THE BURN GATE — A was pressed on a prelude carrying «СГОРИТ» (playing it
+   * now discards it for 15 M€, which cannot be unmade, and is usually only a
+   * matter of ORDER). The bar must say the two things true of this beat and
+   * no other: A CONFIRMS the press already made, and B TAKES IT BACK — never
+   * «свернуть», which would hide the gate with the arm still live and leave
+   * the one moment that needs an undo without a button for it.
+   */
+  it('an armed burn turns A into the confirm and B into the cancel', () => {
+    const cmds = startSceneCommands(state({mode: 'ceremony', burnArmed: true}));
+    expect(cmds.map((c) => c.control)).to.deep.eq(['confirm', 'secondary', 'back']);
+    expect(labelOf(cmds, 'confirm')).to.eq('Confirm');
+    expect(labelOf(cmds, 'back')).to.eq('Cancel');
+    expect(labelOf(cmds, 'back'), 'the way out of an armed burn is BACK, never a minimize').to.not.eq('Minimize');
+  });
+
+  it('an armed burn never earns the launch highlight (a burn is not what the game waits for)', () => {
+    const a = startSceneCommands(state({mode: 'ceremony', burnArmed: true})).find((c) => c.control === 'confirm');
+    expect(a?.highlight).to.be.undefined;
+  });
+
+  it('the burn gate yields to the beats that own the bar outright (pay / first action)', () => {
+    expect(startSceneCommands(state({mode: 'ceremony', burnArmed: true, payBeat: true})).map((c) => c.label))
+      .to.deep.eq(['Pay', 'Minimize']);
+    expect(labelOf(startSceneCommands(state({mode: 'ceremony', burnArmed: true, firstAction: 'ready'})), 'confirm'))
+      .to.eq('Take first action');
   });
 });

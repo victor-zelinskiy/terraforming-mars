@@ -1389,19 +1389,13 @@ import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, p
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, drawnCardsState, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, TaskKind, taskFor, taskServedByHost, shellTaskOnSurface, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
 
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 
-/** The kinds served by a DEDICATED composite surface (not by the task host). */
-// The prompt families served by a DEDICATED console surface rather than by
-// the generic task host. Membership means two things and only two: the
-// desktop fallback modal stays suppressed for them, and the shell counts
-// them as a busy screen (footer under-scene, hand dock compact).
-const NATIVE_COMPOSITE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['venusBonus', 'spendHeat', 'aresGlobal', 'deckSelect']);
 import {ConsoleTaskSummary, consoleTaskSummary, placementKicker} from '@/client/console/consoleTaskSummary';
 import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
 import {corpActionOptionIndexFor, corporationCardNames, corpStatusFor, startFlowCorpPrompt} from '@/client/components/startGameFlow/startGameFlowState';
@@ -2208,16 +2202,26 @@ export default defineComponent({
       return this.playedHeroHolds ? undefined : this.consoleRevealMode;
     },
     /** A console blocking foreground surface is actively presenting (drives
-     *  the lease): task host / start scene / gov-support panel, plus the
-     *  reveal overlays ('drawn' also derives from drawnCardsState — the lease
-     *  covers the console-only 'result'/'viewer' modes too).
+     *  the lease): task host / start scene / gov-support panel / the dedicated
+     *  composites, plus the reveal overlays ('drawn' also derives from
+     *  drawnCardsState — the lease covers the console-only 'result'/'viewer'
+     *  modes too).
      *
      *  A LEASE IS A CLAIM THAT SOMETHING IS VISIBLE — so every branch here must
      *  match a surface that really renders. The two states documented as
      *  "render nowhere" are excluded explicitly: the hero beat unmounting the
      *  reveal (via `revealOverlayVisible`) and a host claimed by a workspace
      *  whose outcome slot does not exist yet (`taskHeldForWorkspace`, see its
-     *  own comment). Everything else the watchdog covers as the net. */
+     *  own comment). Everything else the watchdog covers as the net.
+     *
+     *  …AND THE CONVERSE MATTERS JUST AS MUCH: a surface that renders WITHOUT a
+     *  lease can be retracted out from under the player. `mandatoryPromptsHeld`
+     *  lets a flow-holding bot-turn card hold the NEXT prompt only while no
+     *  mandatory lease is held — its documented fixed point ("with a surface up
+     *  the hold is off and the surface stays"). The DEDICATED COMPOSITES took no
+     *  lease and are gated on the very `admits('host')` that hold feeds, so a
+     *  bot card arriving over «Разместите бонус шкалы Венеры» unmounted it for
+     *  the card's whole TTL. Their branches are the surfaces' own `v-if`s. */
     consoleMandatoryPresenting(): boolean {
       if (this.revealOverlayMode !== undefined) {
         return true;
@@ -2227,7 +2231,8 @@ export default defineComponent({
       }
       return (this.hostTask !== undefined && this.taskSpacePending === undefined) ||
         this.startSceneServes ||
-        this.govSupportActive;
+        this.govSupportActive ||
+        (this.compositeSurfaceActive && !this.deckPickHeldForWorkspace);
     },
     /** The played-card hero scene owns the foreground (spec §13: a follow-up
      *  decision surfaces only after the landing + result beat complete). */
@@ -2615,6 +2620,19 @@ export default defineComponent({
     },
     aresGlobalsActive(): boolean {
       return this.nativeCompositeTask?.kind === 'aresGlobal' && !this.consoleState.task.deferred;
+    },
+    /**
+     * ONE of the four DEDICATED COMPOSITE surfaces is on screen — the family's
+     * own `v-if`s, collected in one place so the shell's cross-cutting
+     * questions («does something own the pad?», «may the journal stay?», «is a
+     * mandatory surface presenting?») can ask about it as a family instead of
+     * naming its members one predicate at a time. It was named nowhere, and the
+     * predicates that enumerate task families therefore skipped it in three
+     * separate places at once.
+     */
+    compositeSurfaceActive(): boolean {
+      return this.venusBonusActive || this.spendHeatActive ||
+        this.aresGlobalsActive || this.deckPickActive;
     },
     /** What the ConsoleTaskHost renders: a server task OR the client payment. */
     hostTask(): ConsoleTask | undefined {
@@ -3173,6 +3191,33 @@ export default defineComponent({
     taskGateHeld(): boolean {
       return this.mandatoryGateHeld;
     },
+    /**
+     * A LIVE PROMPT WHOSE SURFACE HIDES ITSELF WHILE THE TASK IS DEFERRED — the
+     * families of «B СВЕРНУТЬ», stated ONCE.
+     *
+     * Every one of these `v-if`s carries `!consoleState.task.deferred`, so the
+     * panel is gone the moment the player minimizes it and the board-home card
+     * is the only door back. A family missing here is therefore not a cosmetic
+     * gap but a SOFT-LOCK — and a silent one, since a deferred task is
+     * deliberately invisible to the leak detector.
+     *
+     * That is what the DEDICATED COMPOSITE family (`nativeCompositeTask` — the
+     * Venus bonus, spend-heat, the planetary thresholds, «оставь K из N») paid
+     * for: it is neither host-served nor a section nor a scene, and those three
+     * were the only families the predicate used to name. «Разместите бонус
+     * шкалы Венеры» → B → the panel folded and nothing ever brought it back.
+     *
+     * TWO HALVES, and both are load-bearing: the live read (family by family,
+     * so each keeps its own admission gate) and `taskMinimizable` — the
+     * exhaustive-over-`TaskKind` anchor that says the kind is one the player
+     * can fold away at all. A kind no family claims fails the router spec at
+     * build time; a family yielding a kind that cannot be minimized offers no
+     * card, which is the honest answer (there is nothing set aside).
+     */
+    minimizableTaskLive(): boolean {
+      const task = this.hostTask ?? this.shellTask ?? this.startTask ?? this.nativeCompositeTask;
+      return task !== undefined && taskMinimizable(task.kind);
+    },
     /** A task the player OPENED then DEFERRED (set aside) — the "return" state
      *  of the unified mandatory prompt (replaces the legacy amber chip). */
     mandatoryDeferredActive(): boolean {
@@ -3181,8 +3226,7 @@ export default defineComponent({
       // task used to have NO announcement at all — the player could not get
       // back to their own start. It SERVES throughout (the lifetime hold),
       // and that is exactly the right signal here.
-      return (this.hostTask !== undefined || this.shellTask !== undefined ||
-        this.startTask !== undefined || this.startSceneServes ||
+      return (this.minimizableTaskLive || this.startSceneServes ||
         // A PARKED STACK always offers its way back: its frames are alive and
         // the board-home card is the only door to them. Keying this off an
         // ADMITTED task alone is how a live decision became unreachable
@@ -4441,7 +4485,12 @@ export default defineComponent({
         this.consoleRevealMode !== undefined ||
         (this.startSceneServes && !this.consoleState.task.deferred) ||
         (this.hostTask !== undefined && !this.consoleState.task.deferred && this.taskSpacePending === undefined) ||
-        this.shellTaskActive;
+        this.shellTaskActive ||
+        // …and the DEDICATED COMPOSITES, which own the pad exactly like the host
+        // (their branches sit ABOVE it in the routing chain). Left out, the
+        // journal stayed open over «Разместите бонус шкалы Венеры» and kept the
+        // pad it needs.
+        this.compositeSurfaceActive;
     },
     /** VP visibility for the player viewed in Information Mode. */
     infoVpVisible(): boolean {
@@ -4582,6 +4631,35 @@ export default defineComponent({
      * parameter — the honest chip already says «no effect», and ringing a
      * dial that will not move would be the lie the preview rules forbid.
      */
+    /**
+     * THE FACTS A CONCLUSION IS MADE OF, as one value to watch.
+     *
+     * A committed std-projects flow ends when its STEP lets go — and a step
+     * unmounts on its own schedule (the colony's payout settles a second
+     * after the server has moved on), so the response watcher is NOT enough:
+     * the parent list stood on screen, committed and empty, for as long as
+     * nothing else happened. Watching the ingredients means the ending is
+     * re-asked exactly when one of them changes, and `concludeWorkspaceFlow`
+     * stays the ONE place that decides.
+     */
+    stdpConclusionSignal(): string {
+      if (!workspaceFrameKnown('standard-projects')) {
+        return '';
+      }
+      const task = taskFor(this.playerView);
+      return [
+        workspaceFramePhase('standard-projects') ?? '',
+        workspaceFrameHasNested('standard-projects') ? 'nested' : '',
+        // (This workspace claims no outcome of its own — a std project's own
+        // artifacts belong to the STEP that produced them, whose claim is
+        // covered by `nested` + the colony resolution below.)
+        workspaceOutcomeState.stage,
+        task?.kind ?? '',
+        workspaceFrameParked('standard-projects') ? 'parked' : '',
+        this.colonyResolutionLive ? 'colony-resolution' : '',
+        this.placementActive ? 'placement' : '',
+      ].join('|');
+    },
     stdpGhostParam(): 'temperature' | 'oxygen' | 'oceans' | 'venus' | undefined {
       if (!workspaceFrameMounted('standard-projects') || this.stdpStepUp ||
           workspaceFramePhase('standard-projects') !== 'browse') {
@@ -6736,6 +6814,33 @@ export default defineComponent({
      * payment in the same flush, and reading the edge mid-flush would fold the
      * workspace between the two halves of one decision.
      */
+    /**
+     * A COMMITTED std-projects flow ends when everything inside it lets go.
+     * The signal changes on each of those releases, so the guarded conclusion
+     * is re-asked precisely then — and never in a poll.
+     */
+    stdpConclusionSignal(): void {
+      if (!stdProjectsFlowLive() || !workspaceFrameMounted('standard-projects')) {
+        return;
+      }
+      // ONLY the STEP's atomic commit. Two phases are deliberately NOT
+      // endings here, and both cost a bug to learn:
+      //  · `executing` — the round trip. `isCommitted` answers true for it,
+      //    and concluding there closed the workspace mid-submit, so the
+      //    follow-up it had just asked for opened as a lateral screen with no
+      //    parent — the very shape this migration removes.
+      //  · `completing` — the TERMINAL beat, which owns its own dismissal
+      //    (the player must be able to READ the committed row). Ending it
+      //    from here swallowed the beat entirely.
+      if (workspaceFramePhase('standard-projects') !== 'committed') {
+        return;
+      }
+      if (workspaceFrameHasNested('standard-projects') || this.colonyResolutionLive ||
+          this.placementActive) {
+        return; // a step / its payout is still owed — the conclusion holds
+      }
+      this.endStdProjectsFlow();
+    },
     /** Publish the answer the moment it exists — the beat flips its card on it. */
     workspaceOutcomeAnswerArrived(arrived: boolean) {
       if (arrived) {
@@ -9907,12 +10012,20 @@ export default defineComponent({
         if (stdProjectsFlow.state !== 'commit') {
           return;
         }
-        resetStdProjectsFlow();
-        if (workspaceFrameMounted('standard-projects')) {
-          goBoardHome();
-          closeConsoleLayers();
-        }
+        this.endStdProjectsFlow();
       }, motionMs(STDP_COMMIT_BEAT_MS));
+    },
+    /**
+     * THE FLOW IS OVER — the ONE exit of this workspace, whichever ending
+     * reached it (a terminal beat, a colony's own payout, a placement that
+     * committed). It routes through the shared guarded conclusion, so a
+     * hold — a step still standing, a live outcome, an owned prompt, a park —
+     * postpones the ending instead of tearing a result off the screen; the
+     * `stdpConclusionSignal` watcher re-asks as those holds fall.
+     */
+    endStdProjectsFlow(): void {
+      resetStdProjectsFlow();
+      this.concludeWorkspaceFlow('standard-projects');
     },
     submitInnerOption(found: {options: ReadonlyArray<unknown>, path: ReadonlyArray<number>} | undefined, targetTitle: string): boolean {
       if (found === undefined) {
@@ -10154,9 +10267,11 @@ export default defineComponent({
       // they came from (the flow's reconciler owns that leg).
       if (workspaceFrameHost('colonies') === 'standard-projects') {
         if (isCommitted(workspaceFramePhase('standard-projects') ?? 'browse')) {
-          resetStdProjectsFlow();
-          goBoardHome();
-          closeConsoleLayers();
+          // ONE guarded conclusion for every ending of this workspace — never
+          // a local close (the `stdpConclusionSignal` watcher re-asks it as
+          // the holds fall, so a step that unmounts on its own schedule still
+          // ends the flow instead of stranding the parent list on screen).
+          this.endStdProjectsFlow();
         }
         return;
       }

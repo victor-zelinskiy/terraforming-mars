@@ -67,6 +67,16 @@ export type StartSceneCommandState = {
   /** The ceremony has an actionable focus target. */
   hasFocusables: boolean,
   /**
+   * THE BURN GATE is armed — A was pressed on a prelude the server flagged
+   * `preludeFizzle`, so playing it now discards it for 15 M€ and the loss can
+   * never be unmade (usually only because of ORDER — «Двойная ставка» copies
+   * an ALREADY-PLAYED prelude, so the same card is a full prelude one press
+   * later). The press therefore ARMS first and the bar re-states the two
+   * things that are true of this beat and no other: A is the CONFIRM of a
+   * press already made, and B is what takes it back.
+   */
+  burnArmed: boolean,
+  /**
    * The FIRST-ACTION stage (the deployment's conditional last stage):
    *  · 'off'     — no stage (the queue grammar owns the bar);
    *  · 'waiting' — standing, but it is not the player's turn yet: NO active
@@ -157,6 +167,20 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
     hints.push({control: 'secondary', label: 'Inspect'});
     hints.push({control: 'back', label: 'Minimize'});
     return hints;
+  }
+  // THE BURN GATE — the one ceremony beat where B is not «свернуть». The
+  // player has an unconfirmed press standing against them, so the way OUT of
+  // it must be the way back, not a minimize: offering «Свернуть» here would
+  // hide the gate with the arm still live and give the player no visible
+  // undo at the exact moment they most need one. A carries the plain confirm
+  // verb (never the highlight — the setup's highlight means «this press is
+  // what the game is waiting for», and a burn is never that).
+  if (s.burnArmed) {
+    return [
+      {control: 'confirm', label: 'Confirm'},
+      {control: 'secondary', label: 'Inspect'},
+      {control: 'back', label: 'Cancel'},
+    ];
   }
   return [
     {control: 'confirm', label: s.ceremonyVerb, enabled: s.hasFocusables},

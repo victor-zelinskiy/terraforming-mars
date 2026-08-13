@@ -183,7 +183,43 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   expect(await walletNow(page), 'a cancelled placement must spend NOTHING').toBe(before);
   await shoot(page, '06-city-cancelled-back');
 
+  // ── THE COLONY COMMIT: the build's own follow-ups finish INSIDE the step,
+  // and the whole flow then leaves in ONE splice — never a frame in which the
+  // parent list stands alone (the «вспышка списка» acceptance rule). ──
+  await focusRow(page, /колония/i);
+  await press(page, 'Enter', 2200);
+  await page.waitForSelector('.con-stdp .con-colonies', {timeout: 15_000});
+  const stackTrace = page.evaluate(() => new Promise<Array<string>>((resolve) => {
+    const fn = (window as unknown as {__conColonyDiag?: () => Record<string, unknown>}).__conColonyDiag;
+    const out: Array<string> = [];
+    const t0 = performance.now();
+    const tick = () => {
+      const d = fn !== undefined ? fn() : {};
+      const shape = (d.stack as Array<{kind: string}>).map((f) => f.kind).join('+');
+      if (out[out.length - 1] !== shape) {
+        out.push(shape);
+      }
+      if (performance.now() - t0 < 12_000) {
+        setTimeout(tick, 60);
+      } else {
+        resolve(out);
+      }
+    };
+    tick();
+  }));
+  await press(page, 'Enter', 1600); // descend into the focused colony
+  await press(page, 'Enter', 2000); // A = build (the flow's atomic commit)
+  await page.waitForTimeout(10_000);
+  const shapes = await stackTrace;
+  console.log('── std-projects stack shapes ──', shapes.join(' → '));
+  const afterStep = shapes.slice(shapes.findIndex((s) => s.includes('colonies')) + 1);
+  expect(afterStep.includes('standard-projects'),
+    `the parent list must never stand alone after the commit — saw ${shapes.join(' → ')}`).toBeFalsy();
+  expect(shapes[shapes.length - 1], 'the whole flow must be gone once the build settles').toBe('');
+  await shoot(page, '07-after-colony-build');
+
   // ── THE DOCK PACK is COVERED by the panel (never painted over it). ──
+  await openStdProjects(page);
   const packZ = await page.evaluate(() => {
     const pack = document.querySelector('.con-handdock__pack');
     return pack === null ? '' : getComputedStyle(pack).zIndex;
@@ -193,6 +229,7 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
 
   // ── THE TERMINAL COMMIT: one press, a committed beat, then the workspace
   // closes itself — and a rapid double-press cannot submit twice. ──
+  const walletBeforeTerminal = await walletNow(page);
   await focusRow(page, /электростанция/i);
   await page.keyboard.press('Enter');
   await page.keyboard.press('Enter'); // absorbed by the executing phase
@@ -201,14 +238,13 @@ test('the Standard-Projects workspace owns the whole flow (nested steps, B-retur
   await shoot(page, '07-terminal-commit-beat');
   await page.waitForSelector('.con-stdp', {state: 'detached', timeout: 10_000});
   await page.waitForTimeout(800);
-  const railEnergyProd = await page.evaluate(() => {
-    const cell = document.querySelector('[data-res-row="energy"] [data-res-production], .con-res [data-production="energy"]');
-    return cell?.textContent ?? '';
-  });
-  void railEnergyProd; // informational — the authoritative check is the wallet:
+  // The authoritative "paid exactly once" check: the wallet, read back on the
+  // workspace's own header (the colony above was built, so its 17 M€ is spent
+  // too — the delta that matters here is the Power Plant's 11).
+  const beforeTerminal = walletBeforeTerminal;
   await openStdProjects(page);
-  const after = await walletNow(page);
-  expect(after, 'Power Plant (11 M€) must be paid exactly ONCE — a double-press must not double-submit')
-    .toBe(before - 11);
+  expect(await walletNow(page),
+    'Power Plant (11 M€) must be paid exactly ONCE — a double-press must not double-submit')
+    .toBe(beforeTerminal - 11);
   await shoot(page, '08-after-terminal');
 });

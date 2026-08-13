@@ -59,9 +59,14 @@ export const stdProjectsFlow = reactive({
   /** The project the flow is about (a CardName; '' while idle / sale). */
   card: '' as string,
   /**
-   * The view fingerprint (`gameAge|undoCount`) at submit time. The response
-   * detector — the action menu re-arrives with the SAME prompt identity after
-   * a terminal project, so identity alone cannot say «answered».
+   * The view fingerprint (`gameAge|undoCount`) at submit time — DIAGNOSTIC
+   * ONLY (the `__conColonyDiag` probe and post-mortems).
+   *
+   * It was briefly the response DETECTOR and must never be one again: those
+   * counters do not have to move for a standard project, so the gate swallowed
+   * the colony answer, the flow stayed `submitting`, and the player's later
+   * CANCEL was then celebrated as a terminal commit. The honest detector is
+   * the `playerView` watcher's own existence — it fires only on a new view.
    */
   submittedAt: '' as string,
   /**

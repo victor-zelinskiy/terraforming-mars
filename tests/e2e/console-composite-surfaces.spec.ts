@@ -211,6 +211,24 @@ test('the Venus bonus: one flow — the wild first, then the placement', async (
   // B is ONE logical level: back to the wild question, bonus intact.
   await key(page, 'Escape', 900);
   await expect(page.locator('.con-venus__opt')).toHaveCount(2);
+
+  // …and the LAST B is «СВЕРНУТЬ»: the panel folds away and the board-home
+  // card is the ONE door back. It shipped without that door — the surface
+  // hides itself on the deferred flag and the restore card enumerated three
+  // task families, none of them this one, so the bonus was unreachable for
+  // the rest of the session (and silently: a deferred task is never stranded).
+  await key(page, 'Escape', 1200);
+  await expect(page.locator('.con-venus')).toHaveCount(0);
+  await shoot(page, '4b-venus-minimized');
+  const restore = page.locator('[data-test="con-mandatory-announce"]');
+  await expect(restore).toBeVisible();
+  await expect(restore).toContainText(/БОНУС ВЕНЕРЫ/i);
+  await expect(restore).toContainText(/вернуться к бонусу/i);
+  // A brings the very same decision back.
+  await key(page, 'Enter', 1200);
+  await expect(page.locator('.con-venus')).toBeVisible();
+  await expect(page.locator('.con-venus__opt')).toHaveCount(2);
+  await shoot(page, '4c-venus-restored');
 });
 
 test('the planetary thresholds: every row says what it DOES', async ({page, request}) => {

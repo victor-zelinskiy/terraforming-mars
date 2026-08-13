@@ -380,6 +380,7 @@
                        :style="{order: entry.kind === 'prelude' ? 3 : 1}"
                        :class="{
                          'con-start__qcard--focused': isFocused(entry.kind, entry.name),
+                         'con-start__qcard--armed': burnGate !== undefined && burnGate.name === entry.name,
                          'con-start__qcard--awaiting': entry.dimmed,
                          'con-deal-hold': queueArriving.has(entry.name) || heroDepartedName === entry.name || deal.isHeld(entry.name + '#' + entry.dealIdx),
                        }"
@@ -388,8 +389,17 @@
                     <Card :card="{name: entry.name}" :key="entry.name" lightweight />
                     <span v-if="entry.badge !== undefined" class="con-cards__pickband" :class="entry.badgeClass">{{ $t(entry.badge) }}</span>
                     <div v-if="entry.reason !== undefined" class="con-cards__reason">{{ $t(entry.reason) }}</div>
-                    <div v-else-if="isFocused(entry.kind, entry.name) && entry.verb !== undefined" class="con-start__slot-a">
-                      <GamepadGlyph control="confirm" /><span>{{ $t(entry.verb) }}</span>
+                    <!-- THE A PILL IS ALSO THE BURN GATE'S FACE. An armed
+                         «СГОРИТ» prelude relabels the pill in place (amber,
+                         «Подтвердить») instead of growing a second affordance
+                         beside it: the pill is absolutely positioned, so the
+                         gate arms and disarms with ZERO layout shift — the
+                         queue never moves under the player mid-decision. -->
+                    <div v-else-if="isFocused(entry.kind, entry.name) && entry.verb !== undefined"
+                         class="con-start__slot-a"
+                         :class="{'con-start__slot-a--armed': burnGate !== undefined && burnGate.name === entry.name}">
+                      <GamepadGlyph control="confirm" />
+                      <span>{{ burnGate !== undefined && burnGate.name === entry.name ? $t('Confirm') : $t(entry.verb) }}</span>
                     </div>
                   </div>
 
@@ -564,11 +574,25 @@
              own status rail, and with the queue unfocused this one degrades
              to «Ожидаем других игроков» — a lie while the player IS the one
              being waited for (the iteration-2 false-wait bug). -->
+        <!-- …and when a BURN is armed the rail is where the caution is SAID:
+             the reason leads and the instruction follows it quietly (the same
+             two voices the task host's confirm bar uses). A gate that asks for
+             a second press without a word of why is read as the UI being
+             awkward, not as a caution — it costs trust and prevents nothing.
+             It takes the state chip's own slot, so the rail's reserved height
+             carries it and the deployment above never reflows. -->
         <div v-if="mode === 'ceremony' && ceremonyRevealed && !sponsorStep && !colonyStep"
-             class="con-start__statusrail con-start__statusrail--hint">
+             class="con-start__statusrail"
+             :class="burnGate !== undefined ? 'con-start__statusrail--burn' : 'con-start__statusrail--hint'">
           <div class="con-start__status-inner">
             <span class="con-start__status-name" :key="ceremonyStatusName">{{ ceremonyStatusName }}</span>
-            <span v-if="ceremonyStatusText !== ''" class="con-start__status-state">{{ ceremonyStatusText }}</span>
+            <span v-if="burnGate !== undefined" class="con-start__status-burn">
+              <span class="con-start__status-burn-why">⚠ {{ $t(burnGate.notice) }}</span>
+              <span class="con-start__status-burn-cta">
+                <GamepadGlyph control="confirm" /><span>{{ $t('Press again to confirm') }}</span>
+              </span>
+            </span>
+            <span v-else-if="ceremonyStatusText !== ''" class="con-start__status-state">{{ ceremonyStatusText }}</span>
           </div>
         </div>
 
@@ -867,6 +891,14 @@ export default defineComponent({
       focusIdx: 0,
       /** Zero-projects submit armed (second A confirms — the skip warning). */
       armedSkip: false,
+      /**
+       * THE BURN GATE — the prelude whose «СГОРИТ» press is armed and waiting
+       * for its second A. Raw latch only: what the scene renders and acts on
+       * is {@link burnGate}, which re-derives it from the LIVE focus, so a
+       * navigation can never leave a stale arm behind to fire on a card the
+       * player has since walked away from.
+       */
+      armedBurn: undefined as CardName | undefined,
       /** A pressed on a limit-blocked card → the rail message replays its
        *  one-shot settle (restrained feedback; state never changes). */
       blockedNudge: 0,
@@ -2271,6 +2303,33 @@ export default defineComponent({
         ...this.preludeRail.map((e) => e.name),
       ].join('|');
     },
+    /**
+     * THE BURN GATE — the armed prelude and the ONE line that says what
+     * confirming it costs, or `undefined` when nothing is armed.
+     *
+     * A prelude the server flagged `preludeFizzle` does NOT do what its face
+     * says: played right now it is discarded for 15 M€, and that is not
+     * undoable. Nearly always it is only a matter of ORDER — «Двойная ставка»
+     * copies an ALREADY-PLAYED prelude, so the very same card is a full
+     * prelude one press later. The badge alone could not prevent the mistake
+     * (it explains a press the player has already made), so the press ARMS
+     * and the second A commits.
+     *
+     * DERIVED FROM THE FOCUS, never latched on its own: a d-pad move — or the
+     * fullscreen browse, which drives the same cursor — disarms it by
+     * construction. And it re-asks `preludeFizzleNotice` every read, so a card
+     * the server stops flagging (the player played the other prelude first,
+     * which is exactly the advice) drops out of the gate on its own.
+     */
+    burnGate(): {name: CardName, notice: string} | undefined {
+      const name = this.armedBurn;
+      const f = this.focusedItem;
+      if (name === undefined || f === undefined || f.kind !== 'prelude' || f.name !== name) {
+        return undefined;
+      }
+      const notice = preludeFizzleNotice(this.preludeRail, name);
+      return notice === undefined ? undefined : {name, notice};
+    },
     preludeRail(): ReadonlyArray<PreludeEntry> {
       if (this.mode !== 'ceremony') {
         return [];
@@ -2411,6 +2470,7 @@ export default defineComponent({
         ceremonyVerb: this.candidatePrompt !== undefined ? this.candidateVerb : 'Play now',
         hasFocusables: this.focusables.length > 0,
         firstAction: this.firstActionBarState,
+        burnArmed: this.burnGate !== undefined,
       });
     },
     /** The first-action stage as the command contract sees it (see
@@ -2518,6 +2578,7 @@ export default defineComponent({
     ceremonyPromptKey() {
       if (this.mode === 'ceremony') {
         this.focusIdx = 0;
+        this.armedBurn = undefined;
         void this.$nextTick(() => this.scrollFocusedIntoView());
       }
     },
@@ -2911,6 +2972,7 @@ export default defineComponent({
     onFrameSettle(): void {
       this.focusIdx = this.stepInitialFocus();
       this.armedSkip = false;
+      this.armedBurn = undefined;
       this.blockedNudge = 0;
       this.counterNudge = 0;
       if (this.mode === 'wizard' && this.currentStep !== undefined) {
@@ -3602,6 +3664,7 @@ export default defineComponent({
       if (next !== this.focusIdx) {
         this.focusIdx = next;
         this.armedSkip = false;
+        this.armedBurn = undefined;
         void this.$nextTick(() => this.scrollFocusedIntoView());
       }
     },
@@ -3614,6 +3677,9 @@ export default defineComponent({
         (i) => names[i] ?? '',
         follow ? (i) => {
           this.focusIdx = i;
+          // Browsing away in fullscreen is a navigation like any other — an
+          // armed burn does not follow the player onto the next card.
+          this.armedBurn = undefined;
           void this.$nextTick(() => this.scrollFocusedIntoView());
         } : undefined,
       );
@@ -3712,6 +3778,7 @@ export default defineComponent({
       if (best !== -1 && best !== this.focusIdx) {
         this.focusIdx = best;
         this.armedSkip = false;
+        this.armedBurn = undefined;
         void this.$nextTick(() => this.scrollFocusedIntoView());
       }
     },
@@ -4480,6 +4547,16 @@ export default defineComponent({
         }
         return;
       case 'back':
+        // AN ARMED BURN OUTRANKS THE MINIMIZE. There is an unconfirmed press
+        // standing against the player, so B is the way BACK out of it — one
+        // logical level, exactly as everywhere else. Minimizing instead would
+        // hide the gate with the arm still live and leave «отмена» with no
+        // button at the one moment it is the thing the player wants; the NEXT
+        // B (nothing armed) minimizes as always.
+        if (this.burnGate !== undefined) {
+          this.armedBurn = undefined;
+          return;
+        }
         // B = minimize (inspect the board; the amber chip returns — picks,
         // step progress and the whole deployment claim live in module
         // state). NEVER while a play is physically in flight or an embedded
@@ -4693,6 +4770,22 @@ export default defineComponent({
       if (item === undefined || item.disabled) {
         return;
       }
+      // THE BURN GATE (see `burnGate`). A prelude carrying «СГОРИТ» is one
+      // press away from a 15 M€ discard that cannot be unmade, and the whole
+      // difference is usually the ORDER the player picks — so this press only
+      // ARMS it. The card rings amber, its A pill turns into «Подтвердить»,
+      // the rail states what it costs, and the SECOND A commits. Never a
+      // block: burning a prelude is a legal (bad) play, and the tabletop puts
+      // no order restriction on preludes — the gate costs one press, never
+      // the choice. Deliberately re-asked here rather than read off
+      // `burnGate`, so the fullscreen viewer's A (which arrives by name and
+      // may have moved the cursor on its way out) is gated identically.
+      if (item.kind === 'prelude' && this.armedBurn !== name &&
+          preludeFizzleNotice(this.preludeRail, name) !== undefined) {
+        this.armedBurn = name;
+        return;
+      }
+      this.armedBurn = undefined;
       // The card-payment beat: the server holds the exact M€ deduction behind
       // this confirm. The bought cards were shown FACE UP in the pay grid;
       // now they physically fly from there into the hand dock — measure their

@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {taskFor, taskServedByHost, isNativelyHandled, NATIVE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
+import {taskFor, taskServedByHost, isNativelyHandled, taskMinimizable, NATIVE_KINDS, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
 /* Synthetic playerViews — only the fields the router reads. */
@@ -82,6 +82,14 @@ const ALL_INPUT_TYPES = [
   'colony', 'delegate', 'deltaProject', 'globalEvent', 'initialCards',
   'option', 'or', 'party', 'payment', 'player', 'productionToLose',
   'projectCard', 'resource', 'resources', 'space',
+];
+
+/** Every TaskKind — the anchor the coverage assertions below stand on. */
+const ALL_TASK_KINDS: ReadonlyArray<TaskKind> = [
+  'actionMenu', 'space', 'choice', 'awardFunding', 'player', 'amount', 'resource',
+  'distribute', 'payment', 'draftWait', 'cardSelect', 'deckSelect', 'handSelect',
+  'projectCard', 'colony', 'colonyBonus', 'venusBonus', 'spendHeat', 'composite',
+  'initialDraft', 'startSequence', 'corpFirstAction', 'aresGlobal', 'unknown',
 ];
 
 /** The CURRENT red list — shrink it phase by phase (CTS-6). */
@@ -214,6 +222,73 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     const target = view({type: 'card', title: 'Select card to add microbe', buttonLabel: 'Add', cards: [{name: 'Tardigrades'}]}, []);
     expect(taskFor(target)?.kind).to.eq('cardSelect');
     expect(taskServedByHost(target)?.kind).to.eq('cardSelect');
+  });
+
+  it('EXHAUSTIVE: the fixture table covers every TaskKind', () => {
+    const covered = new Set<TaskKind>();
+    for (const f of FIXTURES) {
+      const task = kindOf(f.wf, f.hand ?? [], f.srr ?? []);
+      if (task !== undefined) {
+        covered.add(task.kind);
+      }
+    }
+    expect(ALL_TASK_KINDS.filter((k) => !covered.has(k)),
+      'add a fixture row — the minimize guard below is only as complete as this table').to.deep.eq([]);
+  });
+
+  /**
+   * THE «B СВЕРНУТЬ» CONTRACT. A surface that offers minimize hides itself on
+   * `consoleState.task.deferred`, so the board-home restore card is the ONLY
+   * door back — and that card renders on the shell's `mandatoryDeferredActive`,
+   * which reads exactly FOUR families: the task host, a shell section, the
+   * start scene and the dedicated composites.
+   *
+   * A minimizable kind that no family claims is a silent soft-lock (the panel
+   * unmounts, no card appears, B does nothing, and the leak detector stays
+   * quiet by design — a deferred task is «set aside», never stranded). That is
+   * precisely what shipped for the composites: «Разместите бонус шкалы Венеры»
+   * folded on B and never came back.
+   */
+  it('MINIMIZABLE: every «свернуть» kind is claimed by a family the shell can restore from', () => {
+    for (const f of FIXTURES) {
+      const v = view(f.wf, f.hand ?? [], f.srr ?? []);
+      const task = taskFor(v);
+      if (task === undefined) {
+        continue;
+      }
+      const claimed = taskServedByHost(v) !== undefined ||
+        SHELL_SECTION_KINDS.has(task.kind) ||
+        SCENE_KINDS.has(task.kind) ||
+        NATIVE_COMPOSITE_KINDS.has(task.kind);
+      expect(claimed, `"${task.kind}" (${f.row}): minimizable ⇔ some family offers the way back`)
+        .to.eq(taskMinimizable(task.kind));
+    }
+  });
+
+  it('the DEDICATED COMPOSITES are a family of their OWN (the arm that was missing)', () => {
+    for (const kind of NATIVE_COMPOSITE_KINDS) {
+      expect(taskMinimizable(kind), `"${kind}" advertises «Свернуть»`).to.eq(true);
+      expect(NATIVE_KINDS.has(kind), `"${kind}" is console-native`).to.eq(true);
+      // Not a section, not a scene — and not host-served either (below), which
+      // is why enumerating those three families silently dropped all four.
+      expect(SHELL_SECTION_KINDS.has(kind), `"${kind}" is not a shell section`).to.eq(false);
+      expect(SCENE_KINDS.has(kind), `"${kind}" is not a start scene`).to.eq(false);
+    }
+    expect(taskServedByHost(view({type: 'and', title: 'Gain 2', options: [], venusBonusPrompt: {kind: 'standard', baseCount: 2}}))).to.eq(undefined);
+    expect(taskServedByHost(view({type: 'and', title: 'Spend 6 heat', options: [], spendHeatPrompt: {amount: 6}}))).to.eq(undefined);
+    expect(taskServedByHost(view({type: 'aresGlobalParameters', title: 'Shift'}))).to.eq(undefined);
+    expect(taskServedByHost(view({type: 'card', title: 'Select 2 card(s) to keep', buttonLabel: 'Select', cards: [{name: 'Birds'}], deckPickPrompt: {revealed: 2, min: 2, max: 2, origin: 'deck', mode: 'keep'}}))).to.eq(undefined);
+  });
+
+  it('an ALWAYS-MOUNTED surface has nothing to minimize', () => {
+    // The turn verbs and the board have no panel to fold, so no restore card is
+    // owed — and the draft minimizes as a WORKSPACE (the parked stack answers).
+    expect(taskMinimizable('actionMenu')).to.eq(false);
+    expect(taskMinimizable('space')).to.eq(false);
+    expect(taskMinimizable('draftWait')).to.eq(false);
+    // …and the two kinds no console surface serves at all.
+    expect(taskMinimizable('composite')).to.eq(false);
+    expect(taskMinimizable('unknown')).to.eq(false);
   });
 
   it('a start-game MARKER outranks the raw input type (structural rule)', () => {
