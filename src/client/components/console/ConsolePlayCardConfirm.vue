@@ -158,28 +158,48 @@
                    data-unfold-item
                    :class="{'con-composer__resulthero--muted': payExpanded}">
               <!-- RESULT: variants (selectable) or the single immediate effect. -->
-              <div class="con-composer__sub-title con-composer__sub-title--result">{{ $t('Result') }}</div>
-              <template v-if="hasVariants">
-                <div v-for="row in variantRows" :key="row.id"
-                     class="con-composer__variant"
-                     :class="{
-                       'con-composer__variant--focused': focusIdx === row.i,
-                       'con-composer__variant--selected': selectedPos === row.pos,
-                       'con-composer__variant--off': !branches[row.pos].available,
-                     }"
-                     :ref="focusIdx === row.i ? 'focusedEl' : undefined">
-                  <div class="con-composer__variant-head">
-                    <span class="con-composer__variant-title">{{ branchTitle(branches[row.pos]) }}</span>
-                    <span v-if="selectedPos === row.pos" class="con-composer__variant-check" aria-hidden="true">✓</span>
+              <div class="con-composer__sub-title con-composer__sub-title--result">{{ $t(resultHeading) }}</div>
+              <!-- THE ИЛИ CHOICE — a COMPARISON, so the options stand side by
+                   side while the width allows it and fall into a column when it
+                   does not (intrinsic: `flex-basis: auto` = each card's own
+                   content). Three states, three different things on screen:
+                   the CURSOR (cyan ring, no mark), the CHOICE (green plate +
+                   ✓, and it stays while the cursor walks away) and the COMMIT
+                   (the rail below, unreachable until the choice is made). -->
+              <div v-if="hasVariants" class="con-composer__variants" role="radiogroup" :aria-label="$t(resultHeading)">
+                <template v-for="(row, k) in variantRows" :key="row.id">
+                  <!-- The exclusion, said once between the options: two results
+                       that both look possible are otherwise indistinguishable
+                       from two results that both happen. -->
+                  <div v-if="k > 0" class="con-composer__variants-or" aria-hidden="true">{{ $t('or') }}</div>
+                  <div class="con-composer__variant"
+                       :class="{
+                         'con-composer__variant--focused': focusIdx === row.i,
+                         'con-composer__variant--selected': selectedPos === row.pos,
+                         'con-composer__variant--off': !branches[row.pos].available,
+                       }"
+                       role="radio"
+                       :aria-checked="selectedPos === row.pos"
+                       :aria-disabled="!branches[row.pos].available"
+                       :ref="focusIdx === row.i ? 'focusedEl' : undefined"
+                       @click="clickVariant(row)">
+                    <div class="con-composer__variant-head">
+                      <span class="con-composer__variant-title">{{ branchTitle(branches[row.pos]) }}</span>
+                      <!-- The ✓ slot is RESERVED (visibility, not v-if): choosing
+                           must not re-wrap the title it sits beside. -->
+                      <span class="con-composer__variant-check"
+                            :class="{'con-composer__variant-check--on': selectedPos === row.pos}"
+                            aria-hidden="true">✓</span>
+                    </div>
+                    <div class="con-composer__variant-chips">
+                      <ActionEffectChip v-for="(eff, k2) in branches[row.pos].effects" :key="k2" :effect="eff" />
+                    </div>
+                    <div v-if="!branches[row.pos].available" class="con-composer__variant-reason">
+                      ✕ {{ branchReasonText(branches[row.pos]) }}
+                    </div>
                   </div>
-                  <div class="con-composer__variant-chips">
-                    <ActionEffectChip v-for="(eff, k) in branches[row.pos].effects" :key="k" :effect="eff" />
-                  </div>
-                  <div v-if="!branches[row.pos].available" class="con-composer__variant-reason">
-                    ✕ {{ branchReasonText(branches[row.pos]) }}
-                  </div>
-                </div>
-              </template>
+                </template>
+              </div>
               <div v-else-if="immediateEffects.length > 0" class="con-composer__hero-chips con-composer__result-chips">
                 <ActionEffectChip v-for="(eff, k) in immediateEffects" :key="k" :effect="eff" />
               </div>
@@ -369,7 +389,8 @@
                      'con-composer__cta--held': !ctaPressMeaningful && !submitting,
                      'con-composer__cta--blocked': ctaBlockedReason !== '',
                    }"
-                   :ref="ctaFocused && !payExpanded ? 'focusedEl' : undefined">
+                   :ref="ctaFocused && !payExpanded ? 'focusedEl' : undefined"
+                   @click="clickCta()">
                 <!-- A REFUSED rail does not advertise Ⓐ. It swaps the glyph for
                      the amber blocker mark this UI uses everywhere else, and
                      its LABEL is the reason itself — so the concrete «почему
@@ -377,7 +398,13 @@
                      still on screen, now attached to the control it explains
                      instead of floating two blocks above it. -->
                 <span v-if="ctaBlockedReason !== ''" class="con-composer__cta-block" aria-hidden="true">⚠</span>
-                <GamepadGlyph v-else control="confirm" class="con-composer__cta-glyph" />
+                <!-- …and a rail that cannot RUN advertises no Ⓐ at all: while
+                     the result is unchosen this is the first thing on screen,
+                     and a glyph there invites exactly the accidental press the
+                     pre-select removes. `visibility` keeps its box, so the
+                     label never moves when the play becomes possible. -->
+                <GamepadGlyph v-else control="confirm" class="con-composer__cta-glyph"
+                              :class="{'con-composer__cta-glyph--mute': !ctaPressMeaningful && !submitting}" />
                 <span class="con-composer__cta-label">{{ $t(ctaDisplayLabel) }}</span>
               </div>
             </template>
@@ -486,7 +513,7 @@ import {buildOrItems, orItemResponse, buildTabbedTargets, ConsoleOrItem} from '@
 import {TabbedTargetsStep} from '@/common/models/ActionPreviewModel';
 import {
   playComposerFootHints, FootHint, PlayFocusKind,
-  computePrimaryAction, PrimaryActionState,
+  computePrimaryAction, PrimaryActionState, initialVariantSelection,
   playPrimaryVerb, PlayFocusTarget,
   playChoiceMode, PlayChoiceMode, foldCopiedProductionEffects,
 } from '@/client/console/consolePlayCardComposer';
@@ -513,7 +540,7 @@ import {
 } from '@/client/console/played/consolePlayedTargetModel';
 import {playedTargetPreviewFor, playedTargetResourceFor} from '@/client/console/played/consolePlayedTargetPreview';
 import {playedTargetZoomOrigin} from '@/client/console/played/consolePlayedTargetZoom';
-import {computeCommitGate, commitAllowed, commitAcceptsCursor, CommitGate} from '@/client/console/consoleCommitGate';
+import {computeCommitGate, commitAllowed, commitAcceptsCursor, commitRedirectTarget, CommitGate} from '@/client/console/consoleCommitGate';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
@@ -769,6 +796,30 @@ export default defineComponent({
     },
     hasVariants(): boolean {
       return this.branches.length > 1;
+    },
+    /**
+     * THE CARD ASKS A REAL «ИЛИ» QUESTION — two or more branches the rules
+     * actually allow. One playable branch among several is NOT a question (the
+     * others are shown greyed with their reason, and `initialVariantSelection`
+     * seeds it), so nothing on this screen may demand a choice there.
+     * Stable for the life of the preview, which is why the heading can key on
+     * it without ever re-flowing.
+     */
+    hasVariantChoice(): boolean {
+      return this.branches.filter((b) => b.available).length > 1;
+    },
+    /** The question is asked and NOT yet answered — the screen's first state. */
+    variantChoicePending(): boolean {
+      return this.hasVariantChoice && this.selectedPos === undefined;
+    },
+    /**
+     * THE HEADING. «ВЫБЕРИТЕ РЕЗУЛЬТАТ» while the card asks, «РЕЗУЛЬТАТ» when it
+     * only reports — and it never changes at the moment of choosing (the
+     * predicate is the card's shape, not the player's progress), so answering
+     * cannot re-flow the block under the cursor.
+     */
+    resultHeading(): string {
+      return this.hasVariantChoice ? 'Choose the result' : 'Result';
     },
     selectedBranch(): ActionPreviewBranch | undefined {
       if (this.selectedPos !== undefined) {
@@ -1064,8 +1115,13 @@ export default defineComponent({
     primaryActionState(): PrimaryActionState {
       const b = this.selectedBranch;
       const branchSelectable = b !== undefined && b.available;
-      const firstMissing = this.rows.findIndex((r) => this.rowMissing(r));
+      // The variant rows are requirements too, so they must not ALSO be counted
+      // as an unresolved STEP — «выберите результат» and «сделайте выбор перед
+      // розыгрышем» are different sentences about different rows.
+      const firstMissing = this.rows.findIndex((r) => r.kind !== 'variant' && this.rowMissing(r));
+      const firstVariant = this.rows.findIndex((r) => r.kind === 'variant' && this.rowMissing(r));
       return computePrimaryAction({
+        variantPending: this.variantChoicePending && firstVariant >= 0 ? {rowIndex: firstVariant} : undefined,
         branchSelectable,
         paymentReady: this.paymentReady,
         firstUnresolvedStepRowIndex: firstMissing >= 0 ? firstMissing : undefined,
@@ -1200,6 +1256,10 @@ export default defineComponent({
       const st = this.primaryActionState;
       switch (st.kind) {
       case 'ready': return 'Play card';
+      // Calm INSTRUCTION, not a refusal: the rail says what the screen is
+      // waiting for instead of dangling a live «Разыграть карту» over a result
+      // the player has not chosen.
+      case 'need-variant': return 'Choose the result first';
       case 'need-preselect': return 'Choose an option';
       case 'blocked-payment': return 'Not enough resources';
       case 'blocked-requirement': return st.reason;
@@ -1267,7 +1327,10 @@ export default defineComponent({
       const row = this.focusedRow;
       const focused: PlayFocusTarget = row === undefined ?
         'none' :
-        (row.kind === 'cta' ? 'cta' : (this.focusedOpensPicker ? 'picker' : 'other'));
+        // A VARIANT is its own target: A there says «ВЫБРАТЬ» and does exactly
+        // that. It used to fall through to «ДАЛЕЕ», which named neither the
+        // press's effect nor its consequence.
+        (row.kind === 'cta' ? 'cta' : (row.kind === 'variant' ? 'variant' : (this.focusedOpensPicker ? 'picker' : 'other')));
       return playPrimaryVerb({
         focused,
         pickAnswered: row !== undefined && !this.rowMissing(row),
@@ -1562,16 +1625,12 @@ export default defineComponent({
       this.submitting = false;
     },
     applyPreview(): void {
-      // AUTO-SELECT the first available variant (desktop mirror + the "short
-      // path" contract): a variant is ALWAYS visibly selected, so the card is
-      // immediately playable and A plays it; the player changes it with ↑↓.
-      const branches = this.branches;
-      if (branches.length === 1) {
-        this.selectedPos = 0;
-      } else if (branches.length > 1) {
-        const firstAvail = branches.findIndex((b) => b.available);
-        this.selectedPos = firstAvail >= 0 ? firstAvail : undefined;
-      }
+      // NO auto-select where there is a real ИЛИ choice (`initialVariantSelection`
+      // — pure, and the ONE place the rule lives). The screen used to open with a
+      // branch already selected, the commit rail already live, and one A played
+      // the card on a result the player had never chosen. A seeded selection is
+      // an answer nobody gave.
+      this.selectedPos = initialVariantSelection(this.branches);
       this.seedChoiceDefaults();
       this.focusIdx = this.firstActionableIndex();
       // Dev audit: a genuine preview gap (no immediate result, no follow-up) —
@@ -1607,7 +1666,7 @@ export default defineComponent({
       default: return 'Select';
       }
     },
-    /** Whether a decision row is still unresolved (a variant is auto-selected). */
+    /** Whether a decision row is still unresolved. */
     rowMissing(row: PlayRow): boolean {
       if (row.kind === 'step') {
         return this.stepMissing(row.choice);
@@ -1617,6 +1676,15 @@ export default defineComponent({
       }
       if (row.kind === 'repeat') {
         return this.repeatResult === undefined;
+      }
+      if (row.kind === 'variant') {
+        // THE ИЛИ CHOICE IS A REQUIREMENT. While it is unmade every CHOOSABLE
+        // variant is outstanding, which is what makes the commit gate withhold
+        // the cursor from the commit rail — the structural reason a second A
+        // (a repeat, a held button) cannot reach the play. An unavailable
+        // branch is NOT a requirement: there is nothing to answer there, and it
+        // must not catch the opening cursor either.
+        return this.variantChoicePending && this.branches[row.pos]?.available === true;
       }
       return false;
     },
@@ -1954,13 +2022,11 @@ export default defineComponent({
         // The walk ends at the «Разыграть» row only while the play can actually
         // run — the SAME commit-gate rule the action composer uses. A row whose
         // A would be refused is not a place the cursor may stop.
+        // NAVIGATION MOVES THE CURSOR AND NOTHING ELSE. Walking onto a variant
+        // used to SELECT it, which is why «where I am» and «what I chose» were
+        // one thing on screen and the player could commit a result they had only
+        // scrolled past. Selection is a press (A / a click), never a move.
         this.focusIdx = Math.min(this.navMaxIndex, Math.max(0, this.focusIdx + (dir === 'down' ? 1 : -1)));
-        // Moving onto an available variant SELECTS it (focus = selection for the
-        // radio-group of variants; the result recomputes live).
-        const row = this.focusedRow;
-        if (row?.kind === 'variant' && this.branches[row.pos].available) {
-          this.setSelectedVariant(row.pos);
-        }
         this.scrollFocused();
         return;
       }
@@ -2067,13 +2133,61 @@ export default defineComponent({
         this.scrollFocused();
         return;
       }
+      // A VARIANT: the press SELECTS, and that is the whole of it. The cursor
+      // does not travel to the commit rail afterwards — «выбрать» and
+      // «разыграть» must be two separate, deliberate presses, so one held
+      // button or a fast double press can never do both.
+      if (row.kind === 'variant') {
+        this.selectVariant(row.pos);
+        return;
+      }
       if (this.focusedOpensPicker) {
         this.openRow(row);
         return;
       }
-      // A variant / amount / spend-heat row → proceed toward the play CTA.
+      // An amount / spend-heat row → proceed toward the play CTA.
       this.focusIdx = this.firstActionableIndex();
       this.scrollFocused();
+    },
+    /**
+     * SELECT a variant — the ONE mutation both the pad and the mouse go through.
+     * Idempotent: pressing A on the variant already selected re-affirms it
+     * (never a toggle — a choice that can be un-made by repeating the press has
+     * no stable state to commit).
+     */
+    selectVariant(pos: number): void {
+      if (this.branches[pos]?.available !== true) {
+        return;
+      }
+      this.setSelectedVariant(pos);
+    },
+    /**
+     * The MOUSE half of the same grammar: a click on a variant SELECTS it (it
+     * never plays, so a double click cannot commit), and the cursor follows the
+     * pointer so the pad picks up where the mouse left off.
+     */
+    clickVariant(row: PlayRow & {kind: 'variant'}): void {
+      if (this.loading || this.sub !== undefined) {
+        return;
+      }
+      this.focusIdx = row.i;
+      this.selectVariant(row.pos);
+    },
+    /** …and a click on the commit rail COMMITS — the second, separate press. */
+    clickCta(): void {
+      if (this.loading || this.sub !== undefined) {
+        return;
+      }
+      this.focusIdx = this.ctaIndex;
+      // The gate's own backstop for input that did not come through the cursor:
+      // an unmet requirement redirects instead of running (never a silent no-op).
+      const redirect = commitRedirectTarget(this.commitGate);
+      if (redirect !== undefined) {
+        this.focusIdx = redirect;
+        this.scrollFocused();
+        return;
+      }
+      this.primaryAction();
     },
     /** HOW a choice is served: inline sub / the hand pick / the tableau pick /
      *  an honest post-submit follow-up (the PURE classification). */

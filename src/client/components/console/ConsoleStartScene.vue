@@ -582,8 +582,7 @@
              It takes the state chip's own slot, so the rail's reserved height
              carries it and the deployment above never reflows. -->
         <div v-if="mode === 'ceremony' && ceremonyRevealed && !sponsorStep && !colonyStep"
-             class="con-start__statusrail"
-             :class="burnGate !== undefined ? 'con-start__statusrail--burn' : 'con-start__statusrail--hint'">
+             class="con-start__statusrail" :class="ceremonyRailClass">
           <div class="con-start__status-inner">
             <span class="con-start__status-name" :key="ceremonyStatusName">{{ ceremonyStatusName }}</span>
             <span v-if="burnGate !== undefined" class="con-start__status-burn">
@@ -2321,6 +2320,24 @@ export default defineComponent({
      * the server stops flagging (the player played the other prelude first,
      * which is exactly the advice) drops out of the gate on its own.
      */
+    /**
+     * The ceremony rail's state class. A focused prelude that WOULD BURN takes
+     * the console's amber caution — the same one every other «this costs you»
+     * line carries — instead of the neutral cyan hint: the badge on the card
+     * and the sentence explaining it must speak with ONE voice, and they must
+     * do it BEFORE the press, not only once the gate is armed. The armed gate
+     * then steps up to its own state (ring + the two voices).
+     */
+    ceremonyRailClass(): string {
+      if (this.burnGate !== undefined) {
+        return 'con-start__statusrail--burn';
+      }
+      const f = this.focusedItem;
+      return f !== undefined && f.kind === 'prelude' &&
+        preludeFizzleNotice(this.preludeRail, f.name) !== undefined ?
+        'con-start__statusrail--warn' :
+        'con-start__statusrail--hint';
+    },
     burnGate(): {name: CardName, notice: string} | undefined {
       const name = this.armedBurn;
       const f = this.focusedItem;
@@ -5504,6 +5521,12 @@ export default defineComponent({
       const item = this.focusables.find((f) => f.name === name);
       if (item === undefined || item.disabled) {
         return undefined;
+      }
+      // An ARMED burn keeps its verb honest here too: the viewer's A is the
+      // same press as the scene's, so it must not still promise «Разыграть»
+      // when what it does is confirm a discard.
+      if (this.burnGate !== undefined && this.burnGate.name === name) {
+        return 'Confirm';
       }
       // Every actionable ceremony card — incl. the deferred corporation —
       // is playable from fullscreen (the viewer closes, then actByName runs).

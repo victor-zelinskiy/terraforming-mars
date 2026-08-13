@@ -2,8 +2,11 @@ import {expect} from 'chai';
 import {
   buildPlayCardBatch, playComposerFootHints, FootHint, PlayFootContext,
   computePrimaryAction, buildPaymentView, playChoiceMode, foldCopiedProductionEffects,
-  playPrimaryVerb,
+  playPrimaryVerb, initialVariantSelection,
 } from '@/client/console/consolePlayCardComposer';
+import {
+  computeCommitGate, commitAllowed, commitAcceptsCursor, commitRedirectTarget,
+} from '@/client/console/consoleCommitGate';
 import {CardName} from '@/common/cards/CardName';
 import {Payment} from '@/common/inputs/Payment';
 import {PaymentLane, PaymentView, editableRows, quickAdjustRow} from '@/client/console/paymentPlan';
@@ -285,6 +288,95 @@ describe('consolePlayCardComposer.computePrimaryAction', () => {
     const st = computePrimaryAction({...base, branchSelectable: false});
     expect(st.kind).to.equal('blocked-requirement');
     expect((st as {reason: string}).reason).to.be.a('string').and.not.equal('');
+  });
+
+  /**
+   * THE UNMADE ИЛИ CHOICE outranks everything: nothing downstream is even
+   * defined until it is answered, and «no variant chosen» is neither a blocked
+   * card nor a missing step.
+   */
+  it('an unmade ИЛИ choice → need-variant, ahead of every other state', () => {
+    const pending = {rowIndex: 0};
+    expect(computePrimaryAction({...base, variantPending: pending}))
+      .to.deep.equal({kind: 'need-variant', rowIndex: 0});
+    // …even when the branch reads unselectable (it is unselectable BECAUSE
+    // nothing is selected), when the payment is short, or when a step waits.
+    expect(computePrimaryAction({...base, branchSelectable: false, variantPending: pending}).kind).to.equal('need-variant');
+    expect(computePrimaryAction({...base, paymentReady: false, variantPending: pending}).kind).to.equal('need-variant');
+    expect(computePrimaryAction({...base, firstUnresolvedStepRowIndex: 3, variantPending: pending}).kind).to.equal('need-variant');
+  });
+
+  it('is NEVER ready while the choice is unmade — the CTA cannot go live', () => {
+    expect(computePrimaryAction({...base, variantPending: {rowIndex: 1}}).kind).to.not.equal('ready');
+    // …and the moment it IS made, the same state machine hands the play back.
+    expect(computePrimaryAction(base).kind).to.equal('ready');
+  });
+});
+
+/**
+ * WHAT THE SCREEN PRE-SELECTS ON OPEN — and it is almost never anything.
+ *
+ * The reported defect: the composer opened with a branch already selected, so
+ * the green frame meant «cursor» and «answer» at once and a single A played a
+ * card on a result nobody had chosen.
+ */
+describe('consolePlayCardComposer.initialVariantSelection', () => {
+  const av = (available: boolean) => ({available});
+
+  it('a REAL choice opens with NOTHING selected', () => {
+    expect(initialVariantSelection([av(true), av(true)])).to.equal(undefined);
+    expect(initialVariantSelection([av(true), av(true), av(true)])).to.equal(undefined);
+  });
+
+  it('a single branch is not a choice — it is selected', () => {
+    expect(initialVariantSelection([av(true)])).to.equal(0);
+    // …even an unavailable lone branch: the CTA's own blocked reason speaks
+    // there, and demanding a «choice» among one door would be a ceremony.
+    expect(initialVariantSelection([av(false)])).to.equal(0);
+  });
+
+  it('rules that leave exactly ONE playable branch make the choice themselves', () => {
+    expect(initialVariantSelection([av(false), av(true)])).to.equal(1);
+    expect(initialVariantSelection([av(true), av(false), av(false)])).to.equal(0);
+  });
+
+  it('no branch at all (implicit play) selects nothing', () => {
+    expect(initialVariantSelection([])).to.equal(undefined);
+    // Nothing playable either → still nothing to seed.
+    expect(initialVariantSelection([av(false), av(false)])).to.equal(undefined);
+  });
+});
+
+/**
+ * ONE INPUT CANNOT BOTH CHOOSE AND COMMIT.
+ *
+ * This is the structural half of the guarantee (the component half is that A on
+ * a variant selects and does not move the cursor): while the choice is unmade,
+ * EVERY choosable variant is an outstanding requirement, so the commit gate
+ * refuses the commit AND withholds the cursor from the commit rail. A repeat,
+ * a held button or a double click therefore has nowhere to land.
+ */
+describe('the ИЛИ choice is a commit REQUIREMENT', () => {
+  const variantReqs = (satisfied: boolean) => [
+    {index: 0, verb: 'Choose an option', satisfied},
+    {index: 1, verb: 'Choose an option', satisfied},
+  ];
+
+  it('unmade → commit refused AND the commit rail refuses the cursor', () => {
+    const gate = computeCommitGate({requirements: variantReqs(false), submitting: false});
+    expect(gate.kind).to.equal('incomplete');
+    expect(commitAllowed(gate)).to.equal(false);
+    expect(commitAcceptsCursor(gate)).to.equal(false);
+    // A press that did not come through the cursor (a click) is redirected to
+    // the choice rather than silently doing nothing.
+    expect(commitRedirectTarget(gate)).to.equal(0);
+  });
+
+  it('made → the rail takes the cursor and the commit is allowed', () => {
+    const gate = computeCommitGate({requirements: variantReqs(true), submitting: false});
+    expect(commitAllowed(gate)).to.equal(true);
+    expect(commitAcceptsCursor(gate)).to.equal(true);
+    expect(commitRedirectTarget(gate)).to.equal(undefined);
   });
 });
 
@@ -651,9 +743,20 @@ describe('playPrimaryVerb — one button, one promise', () => {
     expect(blocked.enabled).to.eq(false);
   });
 
-  it('advances toward the play on a variant or a stepper', () => {
+  it('advances toward the play on a stepper', () => {
     expect(playPrimaryVerb({focused: 'other', primary: READY}).label).to.eq('Next');
     expect(playPrimaryVerb({focused: 'none', primary: READY}).label).to.eq('Next');
+  });
+
+  /** A on a VARIANT does one thing and says one thing: it SELECTS. «Далее» was
+   *  the ambiguity — the press then read as «advance», and the next one landed
+   *  on the commit rail. */
+  it('promises SELECT on a variant — never «Далее», never the play', () => {
+    const verb = playPrimaryVerb({focused: 'variant', primary: READY});
+    expect(verb).to.deep.eq({label: 'Select', enabled: true});
+    // …and it says the same on the option the player has already chosen: the
+    // press is idempotent, so its promise must not change either.
+    expect(playPrimaryVerb({focused: 'variant', pickAnswered: true, primary: READY}).label).to.eq('Select');
   });
 
   /** The command bar renders whatever this decided — so the two are one

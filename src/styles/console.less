@@ -15490,9 +15490,13 @@ body.con-start-ceremony {
         color: #ffe3b0;
         font-size: .85rem;
         font-weight: 700;
+        /* The long RU cause fits WITHOUT changing the rail geometry — the
+           same treatment the limit/unaffordable states already use. Never
+           `text-overflow: ellipsis` here: it needs `nowrap` to do anything,
+           and truncating the caution would leave the gate unexplained, which
+           is precisely what this bar exists to avoid. */
+        white-space: normal;
         line-height: 1.15;
-        overflow: hidden;
-        text-overflow: ellipsis;
     }
     &__status-burn-cta {
         flex-shrink: 0;
@@ -15506,6 +15510,10 @@ body.con-start-ceremony {
         white-space: nowrap;
         color: fade(#ffe3b0, 72%);
     }
+    /* `--warn` is the CEREMONY's caution: a focused prelude that would burn
+       says so in the same amber its badge uses. It shares the limit /
+       unaffordable treatment exactly — one caution language, one place. */
+    &__statusrail--warn,
     &__statusrail--limit,
     &__statusrail--unaffordable {
         box-shadow: inset 0 0 0 .05rem fade(@con-amber, 34%);
@@ -21300,7 +21308,11 @@ html.console-mode {
     .con-composer__result-chips { gap: .4rem; padding-bottom: 0; }
     /* Branch variants stay full-width rows: they are a CHOICE, not a summary,
        and a choice must not compact into a chip. */
-    .con-composer__variant { flex: 0 0 auto; width: 100%; }
+    /* Branch variants are a CHOICE, not a summary: they keep their own chassis
+       and their own intrinsic side-by-side/column behaviour (see `__variants`).
+       Only the metrics are tuned for the workspace's wider band. */
+    .con-composer__variants { gap: .4rem .55rem; }
+    .con-composer__variant { padding: .5rem .75rem; }
 
     /* ── 5 · PAYMENT — the level's working zone, on the surface itself. ──── */
     .con-pay {
@@ -22077,21 +22089,97 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     }
     &__sub-title--result { color: fade(@con-mint, 92%); }
 
-    /* Selectable variant cards (the on-play branch pick — live result). */
+    /* ── THE ИЛИ CHOICE — a comparison, not a list ────────────────────────
+       Two mutually-exclusive results are read AGAINST each other, so they
+       stand side by side while the width allows it. The layout is intrinsic:
+       `flex-basis: auto` is each card's own content, so two SHORT options
+       share a line and two LONG ones (or a long localization) can no longer
+       both fit and fall into a column — no breakpoint, no card-specific rule,
+       and it holds for three options as well as for two. */
+    &__variants {
+        /* The CLUSTER is what decides the shape, not the viewport — the band
+           narrows with the profile, the hand dock and the nesting depth, so the
+           query below asks the box the options actually live in. */
+        container-type: inline-size;
+        display: flex;
+        flex-wrap: wrap;
+        /* Equal heights per line — the point is comparability. */
+        align-items: stretch;
+        gap: .4rem .5rem;
+    }
     &__variant {
+        /* A READING MEASURE, not the content's own width. `flex-basis: auto`
+           (max-content) shipped a card whose long sentence claimed the whole
+           line, which pushed its twin onto the next one and left «ИЛИ» stranded
+           beside the first — two options that are meant to be compared, laid out
+           as a list. A basis says «this is how wide an option wants to be»; long
+           text then wraps INSIDE the card, which is what makes the pair
+           comparable at a glance. */
+        flex: 1 1 22rem;
+        min-width: min(19rem, 100%);
+        max-width: 100%;
         display: flex; flex-direction: column; gap: .4rem;
         padding: .6rem .8rem; border-radius: .55rem;
         background: rgba(14, 22, 34, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
-        &--focused { box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-cyan, 28%); background: rgba(20, 34, 50, 0.7); }
-        &--selected { box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 .8rem fade(@con-mint, 24%); }
-        &--selected&--focused { box-shadow: inset 0 0 0 .1rem @con-mint, 0 0 1.1rem fade(@con-mint, 34%); }
-        &--off { opacity: 0.55; filter: saturate(0.6); }
+        cursor: pointer;
+        /* ── THREE STATES, THREE READINGS (never one green ring for two facts)
+           · FOCUS      — the CURSOR: a cold cyan ring and a lifted surface.
+                          It says «you are here», never «this is your answer»,
+                          so it carries no ✓.
+           · SELECTED   — the CHOICE: a warm mint plate + ✓, and it STAYS while
+                          the cursor walks to another option.
+           · BOTH       — the mint plate keeps the answer and the cursor speaks
+                          in a separate OUTER cyan ring: two rings, two facts.
+           Everything is `box-shadow` + colour, so `con-perf-lite` (which strips
+           filters) keeps every cue. */
+        &--focused {
+            box-shadow: inset 0 0 0 .1rem @con-cyan, 0 0 .9rem fade(@con-cyan, 28%);
+            background: rgba(20, 34, 50, 0.7);
+        }
+        &--selected {
+            background: linear-gradient(160deg, fade(@con-mint, 13%) 0%, rgba(14, 24, 30, 0.62) 100%);
+            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 92%), 0 0 .7rem fade(@con-mint, 20%);
+        }
+        &--selected&--focused {
+            box-shadow: inset 0 0 0 .1rem fade(@con-mint, 92%),
+                        0 0 0 .12rem @con-cyan,
+                        0 0 .9rem fade(@con-cyan, 26%);
+        }
+        &--off { opacity: 0.55; filter: saturate(0.6); cursor: default; }
         &--off&--focused { opacity: 1; filter: none; box-shadow: inset 0 0 0 .1rem rgba(150, 175, 205, 0.6); }
+    }
+    /* The exclusion itself — a quiet word, never a third option. */
+    &__variants-or {
+        flex: 0 0 auto;
+        align-self: center;
+        padding: 0 .1rem;
+        font-size: .62rem;
+        font-weight: 800;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: rgba(150, 180, 210, 0.55);
+    }
+    /* …and once the cluster is too narrow for two readable options, the pair
+       becomes a COLUMN and «ИЛИ» takes its own full-width line BETWEEN them.
+       Without this the leftover strip beside a stretched card was still wide
+       enough for the word, so the separator rode up next to option 1 and the
+       exclusion stopped reading as one. (A CONTAINER query, not a media one:
+       what matters is the width of this cluster, which no viewport knows.) */
+    @container (max-width: 47rem) {
+        &__variant { flex-basis: 100%; }
+        &__variants-or { flex-basis: 100%; text-align: center; }
     }
     &__variant-head { display: flex; align-items: center; gap: .5rem; }
     &__variant-title { font-size: .9rem; font-weight: 700; flex: 1; }
-    &__variant-check { font-size: .9rem; font-weight: 800; color: @con-mint; }
+    /* The ✓ means ONE thing: «this is the answer I gave». It is never a cursor —
+       and its slot is reserved in every state, so answering cannot re-wrap the
+       title beside it. */
+    &__variant-check {
+        font-size: .9rem; font-weight: 800; color: @con-mint;
+        visibility: hidden;
+        &--on { visibility: visible; }
+    }
     &__variant-chips { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; }
     &__variant-reason { font-size: .7rem; color: #ffb0a6; }
 
@@ -22214,6 +22302,9 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
     &__cta--held &__cta-label { color: rgba(190, 210, 232, 0.62); }
     /* …and a blocked rail states its reason in that same amber voice. */
     &__cta--blocked &__cta-label { color: #ffe6b0; }
+    /* A rail that cannot run shows NO Ⓐ — but keeps its box, so the label sits
+       at the same pixel before and after the play becomes possible. */
+    &__cta-glyph--mute { visibility: hidden; }
     /* The blocker mark stands in the Ⓐ glyph's slot — the rail advertises a
        press or a reason, never both. */
     &__cta-block {
