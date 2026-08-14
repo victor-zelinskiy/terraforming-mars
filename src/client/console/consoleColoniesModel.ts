@@ -136,9 +136,19 @@ export function resetConsoleColoniesUi(): void {
  *              (a Build SelectColony no longer commits from the overview);
  *  'pick'    — a generic server pick (setup remove / Aridor add-tile): the
  *              verb brief + the pick CTA;
- *  'inspect' — the dossier composition (no fake configuration controls).
+ *  'inspect' — the dossier composition (no fake configuration controls);
+ *  'bonus'   — SOMEBODY ELSE'S TRADE IS PAYING THE VIEWER. There is no action
+ *              to configure and no offer to weigh: the player is here for one
+ *              thing the colony owes them (Pluto's card, Miranda's card, a
+ *              card-resource target). So the stage drops its whole working
+ *              half — the trade track, the berths, the configuration and the
+ *              reward rail — and becomes what the moment actually is: the
+ *              paying colony, WHOSE trade triggered it, and the choice.
+ *              Mixing that into the trade dossier made a two-second collect
+ *              read as the trading screen, with the live decision squeezed
+ *              into a corner of a surface describing an action nobody took.
  */
-export type ColonyFocusIntent = 'trade' | 'build' | 'pick' | 'inspect';
+export type ColonyFocusIntent = 'trade' | 'build' | 'pick' | 'inspect' | 'bonus';
 
 export const colonyFocusState = reactive({
   /** The focus stage is open (the browse grid is parked behind it). */

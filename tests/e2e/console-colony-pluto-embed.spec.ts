@@ -322,7 +322,13 @@ async function watchPayout(page: Page, ms: number): Promise<Sighting> {
   return page.evaluate(() => (window as unknown as {__pluto?: Sighting}).__pluto as Sighting);
 }
 
-test.describe.configure({mode: 'serial'});
+/*
+ * NOT `serial`. Each test boots its OWN game and drives its OWN page, so a
+ * failure in one says nothing about the others — while `serial` marks every
+ * later test «did not run» and removes it from the report. (Where serialising
+ * IS the point — a shared resource two walks would race for — say so, as
+ * `console-card-lore` does.)
+ */
 
 test('Pluto TRADE: the payout presents inside the colony workspace, never as a band', async ({page, request}) => {
   test.setTimeout(420_000);

@@ -1318,11 +1318,46 @@ export default defineComponent({
       // as cards left, so the survivors — and the lone taken-socket — visibly
       // GREW mid-batch. The scale is fixed from the batch's first frame.
       const n = Math.max(this.stripCount, 1);
+      // ⚠️ A BONUS ZONE IS NOT A SLOT, AND THE ENGINE ONLY KNOWS SLOTS.
+      //
+      // `wsStageLayout` solves `n` boxes of exactly `slotW × slotH`. A colony's
+      // «Бонус колонии» zone is a slot PLUS its own furniture: a lateral margin
+      // that keeps its decorative frame off its neighbour, and a caption that
+      // floats ABOVE the row it stands in. Both are real layout the row has to
+      // pay for, and neither was in the budget — so a merged Pluto payout (two
+      // income cards + two colony zones) solved a shape that could not render:
+      // the line came out wider than the width it was solved for, `flex-wrap`
+      // broke a card off, the shape gained a row it had no height for, and the
+      // stage cropped the cards. Measured from the DOM, never re-stated from
+      // LESS: the zone owns those numbers.
+      const zoneEls = Array.from(strip.querySelectorAll<HTMLElement>('.con-reveal__bonus-zone'));
+      let zoneExtraW = 0;
+      let zoneCaptionH = 0;
+      zoneEls.forEach((zone) => {
+        const zs = window.getComputedStyle(zone);
+        zoneExtraW += (parseFloat(zs.marginLeft) || 0) + (parseFloat(zs.marginRight) || 0);
+        const label = zone.querySelector<HTMLElement>('.con-reveal__bonus-zone-label');
+        if (label !== null) {
+          // How far the caption reaches ABOVE its zone's own box — the
+          // clearance a WRAPPED row needs, and which the strip's own padding
+          // only ever provided for the first row.
+          zoneCaptionH = Math.max(zoneCaptionH,
+            zone.getBoundingClientRect().top - label.getBoundingClientRect().top);
+        }
+      });
       // THE SHARED STAGE LAYOUT: size, focus-safe gap and row shape solved
       // together (consoleWsStageLayout). The gap is an OUTPUT, not a CSS
       // constant — that is what stops a focused card's ring from growing over
       // its neighbour, and what lets a big batch wrap instead of only shrinking.
-      const layout = wsStageLayout({availW, availH, slotW, slotH, n, ui, rowGapPx: colGap});
+      // The zone furniture rides in as room the cards may NOT spend (`availW`)
+      // and as room the WRAP CAP must still hold (`padXPx`), so the line that
+      // gets laid out is the line the shape was solved for.
+      const layout = wsStageLayout({
+        availW: Math.max(slotW, availW - zoneExtraW),
+        availH, slotW, slotH, n, ui,
+        rowGapPx: colGap + zoneCaptionH,
+        padXPx: padX + zoneExtraW,
+      });
       this.embedLayoutStyle = wsStageLayoutStyle(layout);
       Object.entries(this.embedLayoutStyle).forEach(([k, v]) => strip.style.setProperty(k, v));
       this.embedFitZoom = layout.zoom;

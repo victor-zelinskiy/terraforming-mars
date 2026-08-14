@@ -66,7 +66,10 @@ async function barLabels(page: Page): Promise<Array<string>> {
     .then((rows) => rows.map((r) => r.replace(/\s+/g, ' ').trim()).filter((r) => r !== ''));
 }
 
-test.describe.configure({mode: 'serial'});
+/*
+ * NOT `serial`. Both tests boot their OWN game and drive their OWN page — a
+ * failure in the first must not report the second as «did not run».
+ */
 
 test('the colonies OVERVIEW offers one verb: «Выбрать», and no «Осмотреть»', async ({page, request}) => {
   test.setTimeout(300_000);

@@ -191,7 +191,13 @@ async function watchLanding(page: Page, ticks: number): Promise<Array<LandingSam
   return out;
 }
 
-test.describe.configure({mode: 'serial'});
+/*
+ * NOT `serial`. Each test below boots its OWN game (`bootWithCards`) and drives
+ * its OWN page, so a failure in one says nothing about the others — while
+ * `serial` marks them «did not run» and drops them from the report. Measured:
+ * the failure at «build on Titan» hid the card-door test entirely, which is the
+ * last of the «did not run» entries this suite used to produce.
+ */
 
 test('Колонии door: the target is a nested step, B keeps the pick, the reward lands on the card', async ({page, request}) => {
   test.setTimeout(540_000);

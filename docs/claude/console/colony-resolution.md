@@ -380,8 +380,38 @@ The close gate is `colonyResolutionLive` (a ConsoleShell computed over
 | `tradeActive` | the viewer's own trade transaction is running | `colonyTradeState.active` — concludes only on the COMMITTED track reset, which the server itself sequences AFTER every colony bonus (`Priority.DECREASE_COLONY_TRACK_AFTER_TRADE` vs the discards' `SUPERPOWER`) |
 | `discardMeta` | a mandatory colony-bonus discard is the pending input | `waitingFor.discardPrompt.colonyBonus` (`{colonyName, index, total}`) |
 | `discardFlightMeta` | the chosen card is physically leaving the hand | the running `cardDiscard` scene's own armed marker (`cardDiscardColonyBonus()`) |
-| `entryColony` | the viewer entered a REMOTE owner-bonus resolution | `colonyBonusEntry` (armed at the announce door, cleared on the resolution's falling edge) |
+| `collectMeta` | a colony-bonus DELIVERY is owed (Miranda) | `waitingFor.colonyBonusPrompt` |
+| `cardPickColony` | a colony bonus must be PLACED («куда положить ресурс») | `waitingFor.choiceContext.source` = `{kind:'colony', name}` on a `SelectCard` with no `discardPrompt` |
+| `discardFlightMeta` | the chosen card is physically leaving the hand | the running `cardDiscard` scene's own armed marker (`cardDiscardColonyBonus()`) |
+| `entryAwaiting` | the viewer entered a REMOTE owner-bonus resolution and NOTHING has arrived yet | `colonyBonusEntry.awaiting` — **bounded**, see below |
 | a colony-sourced reveal | a payout batch is on the table / parked | `currentRevealEvent().source` (`{type:'colony', colonyName, trade?}`) |
+
+⚠️ **THE ENTRY IS THE ONLY TERM THE CLIENT WRITES, SO IT IS THE ONLY ONE THAT
+COULD LATCH — AND IT DID.** `clearColonyBonusEntry()` runs on exactly one edge:
+the FALLING edge of `colonyResolutionLive`. While the armed entry was itself a
+term of that predicate, the edge was unreachable by construction — the flag kept
+the resolution true and the resolution kept the flag. Everything downstream then
+never happened for the rest of the session: the claim was never released, the
+workspace never concluded (the board offered «Вернуться к решению», A returned to
+a colony screen with nothing to do, B left an empty frame), the «СБРОШЕНО»
+receipt kept counting across resolutions, and the stage kept naming a trader from
+a payout two generations old — over the viewer's OWN trade.
+
+The fix splits the gate in two. `colonyResolutionEvidenceFor` is the
+AUTHORITATIVE half (everything above except the entry); the entry contributes
+only `awaiting`, which is:
+
+- **armed** with the entry (`armColonyBonusEntry`),
+- **ended** the moment evidence exists — read straight at the entry site (the
+  marker that opened the door is pending from the same tick) and by the shell's
+  `colonyResolutionEvidence` watcher for every later rise,
+- **ended anyway** on a bounded named net (`COLONY_BONUS_ENTRY_WAIT_MS`, 8 s) for
+  the one case with no signal at all (an answer that produced nothing — an empty
+  deck, a bonus the server resolved silently).
+
+After that the entry is what it always was in substance: CONTEXT (which colony,
+whose trade) carried to the end of the resolution and cleared with it. A bounded
+wait ends; a latch does not, and that is the whole difference.
 
 **What is deliberately NOT a close signal:** «the reveal has no untaken cards».
 An empty reveal between two bonus cycles, a discard prompt whose batch was fully
@@ -460,6 +490,48 @@ marker is the auto-discard edge (the owner's hand was too small for a choice —
 the server discarded silently): no mandatory action exists, no beat could ever
 open the door, and holding it would park the batch forever.
 
+### …and it opens the BONUS COMPOSITION, not the trading screen
+
+`intent: 'bonus'` (`ColonyFocusIntent`) is a fifth composition of the one stage,
+and it exists because the other four all describe an ACTION THE PLAYER IS
+TAKING. Being paid by somebody else's trade is not one: there is nothing to
+configure, nothing to weigh and nothing to confirm — one thing is owed and the
+player has to answer it. So the stage drops its entire working half:
+
+- **no trade track, no guard rail, no berths, no configuration** (`__main` is
+  not rendered — `v-if="!bonusMode"`),
+- **no reward package** (`__result` likewise: it answers «what happens if I
+  confirm now?», a question nobody posed),
+- **no availability verdict** — a red «✕ Здесь стоит ваш флот» over a reward the
+  colony owes you is the screen refusing something nobody asked for,
+- the hero column carries the COLONY BONUS description (not the trade line the
+  player is not performing) plus «ВАШИ КОЛОНИИ ЗДЕСЬ ×N» when more than one
+  settlement is paying,
+- the source context LEADS (`--lead`): the role («БОНУС ВЛАДЕЛЬЦА») as the
+  title, «X торговал с этой колонией» as its subtitle, on their own plate. It is
+  the reason the surface exists, not a footnote to a dossier.
+- the payout zone therefore IS the body, so `--handing` rides `bonusMode &&
+  outcomeZone` (there is no working area to hand over first).
+
+The three shapes of an owner bonus all land here: Pluto's card + mandatory
+discard, Miranda's collect, and a card TARGET pick («куда положить ресурс» —
+Enceladus, Titan). The last one is a plain host task by shape, so the ANNOUNCE
+press routes it (`openMandatoryAnnounce` → `enterColonyBonusStage`) and the
+claim admits `pick`, which teleports `ConsoleTaskHost` into this stage's own
+zone (`taskEmbedTarget` → `workspaceClaimsPick`). Detection is structural —
+`choiceContext.source = {kind:'colony', name}`, the marker the server already
+sets via `colonySource(...)`; the discard half of Pluto's bonus is the same
+input type and is excluded by its `discardPrompt`.
+
+⚠️ **The trader is inferred from the colony's parked `visitor`** for every door
+whose marker does not name one (only the collect marker carries `trader`). That
+is authoritative for a TRADE-triggered bonus — the fleet is parked there until
+the generation ends — and it is why the viewer's own live transaction OUTRANKS
+the entry context in `resolutionContext`: the entry is a client-armed fact about
+a FOREIGN trade, and asking it first is how «Бот торговал с этой колонией» stood
+over the player's own fleet during their own trade. A trader who IS the viewer
+is never named either.
+
 ## B across the resolution
 
 - Focus stage, resolution live, frame committed → **collapse** (the whole stack
@@ -499,6 +571,17 @@ open the door, and holding it would park the batch forever.
    on the stage edge. The embedded strip also reserves the zone frame's
    overhang as padding (`console_colony_trade.less` `:has` rule), so the ring
    and glow never cut.
+   ⚠️ **…and a ZONE IS NOT A SLOT.** `wsStageLayout` solves `n` boxes of exactly
+   `slotW × slotH`; a bonus zone is a slot PLUS furniture — a lateral margin
+   keeping its frame off its neighbour, and a caption that floats ABOVE the row.
+   Both are real layout, so both ride into the fit MEASURED FROM THE DOM (never
+   re-stated from LESS): the margins come off `availW` and go into `padXPx` (the
+   wrap cap must hold the line that will actually be laid out), the caption's
+   overhang is added to `rowGapPx` so a WRAPPED zone has the clearance the
+   strip's own padding only ever gave the first row. Without it a merged Pluto
+   payout at 4K solved a shape that could not render: the line came out wider
+   than the width it was solved for, `flex-wrap` broke a card off, the shape
+   gained a row it had no height for, and the stage cropped the cards.
 4. **The last take's commit runs at the intake's seam — HOLD FIRST, DECIDE A
    TICK LATER.** The reveal's take commit once sampled the discard marker on a
    mid-update frame, read it blinked-off, and closed a batch that still owed
@@ -511,4 +594,19 @@ open the door, and holding it would park the batch forever.
 5. **Debugging a wrong release**: `releaseWorkspaceOutcome(reason)` records
    its caller tag (`lastOutcomeReleaseStack`, exposed via `__conColonyDiag`),
    and the Pluto e2e's `watchPayout` keeps a transition timeline — read those
-   before instrumenting anything new.
+   before instrumenting anything new. `__conColonyDiag` also reports
+   `resolutionLive` beside `resolutionEvidence` and `entry` — «live with no
+   evidence, past the bounded wait» IS the latch, stated in one read.
+6. **A ONE-SHOT ARMED BY A WATCHER NEEDS BOTH ITS EDGES AND ITS MOUNT.** The
+   payout pose (`--handing`, which is what takes the track out from under the
+   reveal) hung off a plain `outcomeHandoffDue` watcher, and there are two ways
+   into a handed-over stage that never fire one: a stage that MOUNTS
+   mid-resolution (the post-discard restore, a remote entry, a reload — no
+   rising edge is left), and the NEXT cycle's zone re-opening while the cue is
+   already true (`payoutLiftOff` is resolution-scoped — true→true fires
+   nothing). Both produced the same screenshot: the reveal drawn ON TOP of a
+   fully lit track and summary rail. The watcher is now `immediate` and the
+   zone's own rising edge re-arms it (`armOutcomeHandoff`, one writer); the
+   animation is skipped when there is no `$el` yet, which is exactly right —
+   a stage that mounts already handed over has nothing to release, only a pose
+   to be in.

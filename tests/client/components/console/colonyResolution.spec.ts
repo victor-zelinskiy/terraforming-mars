@@ -14,10 +14,13 @@ import {
   clearColonyBonusEntry,
   colonyBonusEntry,
   colonyBonusEntryArmed,
+  colonyBonusCardPickOf,
   colonyResolutionColony,
+  colonyResolutionEvidenceFor,
   colonyResolutionLiveFor,
   colonyResolutionPhaseFor,
   colonyResolutionUi,
+  noteColonyBonusEntryWaitOver,
   noticeColonyResolutionDiscard,
   remoteColonyBonusPendingFor,
   resetColonyResolutionUi,
@@ -34,10 +37,15 @@ const IDLE: ColonyResolutionSignals = {
   revealSource: undefined,
   tradeActive: false,
   tradeColony: '',
+  cardPickColony: '',
   discardFlightMeta: undefined,
   entryColony: '',
+  entryAwaiting: false,
   claimedByColonies: false,
 };
+
+/** The entry as the shell arms it: context + the wait it is allowed to hold. */
+const armed = (colony: string) => ({entryColony: colony, entryAwaiting: true});
 
 const incomeSource: CardDrawRevealSource = {
   type: 'colony', colonyName: ColonyName.PLUTO,
@@ -98,7 +106,7 @@ describe('colonyResolution', () => {
     expect(remoteColonyBonusPendingFor(collect)?.colonyName).to.eq('Miranda');
     // Once the viewer has walked in, the delivery is theirs to finish — the
     // hold releases and the batch flows into the workspace.
-    const entered = {...collect, entryColony: 'Miranda'};
+    const entered = {...collect, ...armed('Miranda')};
     expect(remoteColonyBonusPendingFor(entered)).to.eq(undefined);
     expect(colonyResolutionLiveFor(entered)).to.eq(true);
   });
@@ -109,6 +117,25 @@ describe('colonyResolution', () => {
     expect(colonyResolutionColony({...IDLE, discardFlightMeta: meta(1, 1)})).to.eq('Pluto');
     expect(colonyResolutionColony({...IDLE, entryColony: 'Pluto'})).to.eq('Pluto');
     expect(colonyResolutionColony({...IDLE, revealSource: bonusSource})).to.eq('Pluto');
+  });
+
+  it('a colony-caused card TARGET pick is the third shape of an owner bonus', () => {
+    // «Куда положить ресурс» (Enceladus, Titan): a plain SelectCard whose
+    // origin the server states structurally — never the (translated) title.
+    const wf = {type: 'card', choiceContext: {source: {kind: 'colony', name: 'Enceladus'}, mode: 'reward'}};
+    expect(colonyBonusCardPickOf(wf as never)?.colonyName).to.eq('Enceladus');
+    // …and it keeps the workspace standing while it is owed.
+    const owed = {...IDLE, cardPickColony: 'Enceladus'};
+    expect(colonyResolutionLiveFor(owed)).to.eq(true);
+    expect(colonyResolutionColony(owed)).to.eq('Enceladus');
+    expect(colonyResolutionPhaseFor(owed)).to.eq('owner-bonus');
+    // The DISCARD half of Pluto's bonus is the same input type and has its own
+    // owner — it must never be mistaken for a target pick.
+    const discard = {type: 'card', discardPrompt: {colonyBonus: {colonyName: 'Pluto', index: 1, total: 1}}};
+    expect(colonyBonusCardPickOf(discard as never)).to.eq(undefined);
+    // A card pick from anywhere else is nobody's colony business.
+    expect(colonyBonusCardPickOf({type: 'card'} as never)).to.eq(undefined);
+    expect(colonyBonusCardPickOf({type: 'option'} as never)).to.eq(undefined);
   });
 
   it('classifies the reveal source', () => {
@@ -138,11 +165,42 @@ describe('colonyResolution', () => {
     it('never holds the viewer\'s own trade, and releases on entry', () => {
       const own = {...IDLE, tradeActive: true, tradeColony: 'Pluto', discardMeta: meta(1, 1)};
       expect(remoteColonyBonusPendingFor(own)).to.eq(undefined);
-      const entered = {...IDLE, discardMeta: meta(1, 1), entryColony: 'Pluto'};
+      const entered = {...IDLE, discardMeta: meta(1, 1), ...armed('Pluto')};
       expect(remoteColonyBonusPendingFor(entered)).to.eq(undefined);
-      // …and the entry keeps the resolution live between its legs.
-      expect(colonyResolutionLiveFor({...IDLE, entryColony: 'Pluto'})).to.eq(true);
-      expect(colonyResolutionPhaseFor({...IDLE, entryColony: 'Pluto'})).to.eq('owner-bonus');
+      // …and the entry keeps the resolution live across the gap between the
+      // press and the first authoritative signal.
+      expect(colonyResolutionLiveFor({...IDLE, ...armed('Pluto')})).to.eq(true);
+      expect(colonyResolutionPhaseFor({...IDLE, ...armed('Pluto')})).to.eq('owner-bonus');
+      // …AND ONLY THAT GAP. A settled entry (its payout came and went) is
+      // context, not life: it named the trader and the colony for the closing
+      // frames, and the resolution it belonged to is over.
+      //
+      // This is the whole bug the session-long freeze came from — the entry is
+      // cleared on the falling edge of `live`, so an entry that IS a term of
+      // `live` can never be cleared: the claim stood, the workspace never
+      // concluded, the discard receipt kept counting and the stage kept naming
+      // a trader from a payout two generations old.
+      const settled = {...IDLE, entryColony: 'Pluto', entryAwaiting: false};
+      expect(colonyResolutionLiveFor(settled)).to.eq(false);
+      expect(colonyResolutionPhaseFor(settled)).to.eq('idle');
+      // …and the door does not re-open behind it either: the entry is still
+      // this flow's owner while its context stands.
+      expect(remoteColonyBonusPendingFor({...settled, discardMeta: meta(1, 1)})).to.eq(undefined);
+    });
+
+    it('the entry never outlives the evidence it was armed for', () => {
+      // The remote leg, end to end, as the shell drives it: armed on the
+      // announce press (marker pending), evidence takes the wait over, the
+      // marker is answered, the flight lands — and nothing is left standing.
+      const live = {...IDLE, discardMeta: meta(1, 2), ...armed('Pluto')};
+      expect(colonyResolutionEvidenceFor(live)).to.eq(true);
+      const carried = {...live, entryAwaiting: false};
+      expect(colonyResolutionLiveFor(carried)).to.eq(true); // the marker holds it
+      const flight = {...IDLE, entryColony: 'Pluto', discardFlightMeta: meta(2, 2)};
+      expect(colonyResolutionLiveFor(flight)).to.eq(true); // the beat holds it
+      const over = {...IDLE, entryColony: 'Pluto'};
+      expect(colonyResolutionEvidenceFor(over)).to.eq(false);
+      expect(colonyResolutionLiveFor(over)).to.eq(false);
     });
 
     it('the workspace\'s live CLAIM is ownership even after the transaction concluded', () => {
@@ -170,6 +228,11 @@ describe('colonyResolution', () => {
     armColonyBonusEntry('Pluto' as ColonyName, {color: 'red' as Color, name: 'admin'});
     expect(colonyBonusEntryArmed()).to.eq(true);
     expect(colonyBonusEntry.traderName).to.eq('admin');
+    // Armed = waiting for its payout; the wait is what may hold the workspace.
+    expect(colonyBonusEntry.awaiting).to.eq(true);
+    noteColonyBonusEntryWaitOver();
+    expect(colonyBonusEntry.awaiting).to.eq(false);
+    expect(colonyBonusEntryArmed(), 'the context outlives the wait').to.eq(true);
     clearColonyBonusEntry();
     expect(colonyBonusEntryArmed()).to.eq(false);
     expect(colonyBonusEntry.traderColor).to.eq('');

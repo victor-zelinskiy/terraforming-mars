@@ -60,8 +60,12 @@
          /* READINESS — a payout is genuinely STANDING in the zone, so the
             working area is handed over. It comes BACK the moment the payout
             leaves (see `workingAreaYielded`): the closing beat — the track
-            reset — plays on the track this pose hides. */
-         'con-colfocus--handing': workingAreaYielded,
+            reset — plays on the track this pose hides.
+            In the BONUS composition there is no working area to hand over —
+            the zone IS the stage's body — so readiness is simply «the zone
+            exists»: it must paint its volume and take input from the first
+            frame, with nothing to fade out first. */
+         'con-colfocus--handing': workingAreaYielded || (bonusMode && outcomeZone),
          /* THE TARGET STEP — the trade's working area yields to the embedded
             played-card selector (one level deeper, reversible: B returns and
             everything under the pose is untouched). The hero planet stays. */
@@ -116,9 +120,23 @@
             {{ $t(colony.isActive ? 'Active' : 'Not active yet') }}
           </span>
         </div>
+        <!-- WHAT THIS COLONY IS, in the vocabulary of what is happening. On a
+             TRADE that is the trade income; on a BONUS the player is not
+             trading at all, so the trade line would describe an action that
+             is not theirs — the colony's OWN bonus is what they are being
+             paid, and how many of their settlements are paying it. -->
         <div class="con-colfocus__idmeta" data-unfold-late>
-          <div class="con-colfocus__desc" v-i18n>{{ metadata.trade.description }}</div>
-          <div v-if="visitorLine !== ''" class="con-colfocus__fleetline">
+          <div class="con-colfocus__desc" v-i18n>{{ bonusMode ? metadata.colony.description : metadata.trade.description }}</div>
+          <!-- …and how many of the viewer's OWN settlements are paying it
+               (`bonusMath` falls back to the largest holder when the viewer
+               owns none — that number is not «yours» and must not be labelled
+               so). -->
+          <div v-if="bonusMode && bonusMath !== undefined && bonusMath.color === viewerColor"
+               class="con-colfocus__bonusmult">
+            <span class="con-colfocus__bonusmult-label">{{ $t('Your colonies here') }}</span>
+            <b>×{{ bonusMath.count }}</b>
+          </div>
+          <div v-if="!bonusMode && visitorLine !== ''" class="con-colfocus__fleetline">
             <ColonyFleetIcon v-if="colony.visitor !== undefined" :color="colony.visitor" />
             <span>{{ visitorLine }}</span>
           </div>
@@ -133,7 +151,11 @@
              re-derivation flashed «✕ Здесь стоит ваш флот» in red for the
              last second before the close — the screen refusing an action it
              had already carried out. -->
-        <div v-if="!pastCommit && !commitLatched"
+        <!-- …and it never appears in the BONUS composition at all: «can I
+             trade here?» is not the question the player was brought here to
+             answer, and a red «✕ Здесь стоит ваш флот» over a reward they are
+             owed is the screen refusing something nobody asked for. -->
+        <div v-if="!pastCommit && !commitLatched && !bonusMode"
              class="con-colfocus__verdict"
              :class="presentAvailable ? 'con-colfocus__verdict--ok' :
                (blockTone === 'warning' ? 'con-colfocus__verdict--notnow' : 'con-colfocus__verdict--no')"
@@ -158,7 +180,12 @@
              triggered by ANOTHER player's trade names that player — the whole
              entry story lives in the identity column, never a second panel,
              and the planet itself stays lit (the source must read as active). -->
-        <div v-if="presentedContext !== undefined" class="con-colfocus__srcctx">
+        <!-- In the BONUS composition this is not a footnote to a screen about
+             something else — it is the WHY of the whole surface, so it leads
+             (`--lead`: the role reads as the title, the trigger as its
+             subtitle, on their own plate). -->
+        <div v-if="presentedContext !== undefined" class="con-colfocus__srcctx"
+             :class="{'con-colfocus__srcctx--lead': bonusMode}">
           <span class="con-colfocus__srcchip">
             <span class="con-colfocus__srcchip-mark" aria-hidden="true">◈</span>
             <span>{{ $t('Source') }}</span>
@@ -179,8 +206,11 @@
              jump; see ConsoleColoniesSection.) -->
       </section>
 
-      <!-- ═══ MAIN — the game object: track › guard rail › berths › setup ═══ -->
-      <div class="con-colfocus__main" ref="mainEl">
+      <!-- ═══ MAIN — the game object: track › guard rail › berths › setup ═══
+           NOT RENDERED IN THE BONUS COMPOSITION. A player being paid by
+           somebody else's trade has no track to read and nothing to configure;
+           the payout zone below takes this whole area (see `bonusMode`). -->
+      <div v-if="!bonusMode" class="con-colfocus__main" ref="mainEl">
         <!-- ── THE EXPANDED TRADE TRACK. One big cell per position with its
              reward; the MARKER RAIL underneath carries a real seat per cell —
              the seat is the glide anchor, so the flying marker is exactly the
@@ -543,7 +573,10 @@
         </div>
       </section>
 
-      <section class="con-colfocus__result" data-unfold-item>
+      <!-- (The reward package answers «what happens if I confirm now?» — a
+           question the BONUS composition does not pose: nothing is being
+           weighed, the payout itself is on stage.) -->
+      <section v-if="!bonusMode" class="con-colfocus__result" data-unfold-item>
         <div class="con-colfocus__sec-title" data-unfold-late>{{ $t(resultTitle) }}</div>
 
         <!-- TRADE / INSPECT / PICK — THE REWARD PACKAGE. Three questions in
@@ -985,17 +1018,28 @@ export default defineComponent({
      * owns that space.
      */
     resolutionContext(): {roleKey: string, bonus: boolean, traderColor: string, traderLine: string} | undefined {
-      const isEntry = this.bonusEntry.colonyName === this.colony.name;
       const claimed = this.workspaceOutcomeState.host === 'colonies' &&
         this.workspaceOutcomeState.sourceCard === this.colony.name;
       const own = this.colonyTradeState.active && this.colonyTradeState.colonyName === this.colony.name;
+      // ⚠️ THE VIEWER'S OWN TRANSACTION OUTRANKS THE ENTRY CONTEXT. The entry is
+      // a CLIENT-armed fact about a FOREIGN trade; the transaction is proof the
+      // viewer is trading here right now. Asking the entry first is how «Бот
+      // торговал с этой колонией» stood over the player's own fleet on their
+      // own trade — the entry belonged to an earlier payout on the same colony.
+      // A trader who IS the viewer is likewise never named: «you traded here»
+      // is not context, it is the thing they just did.
+      const isEntry = !own && this.bonusEntry.colonyName === this.colony.name;
       if (!isEntry && !claimed && !own) {
         return undefined;
       }
       if (isEntry) {
-        const line = this.bonusEntry.traderName !== '' ?
+        const foreign = this.bonusEntry.traderColor !== '' && this.bonusEntry.traderColor !== this.viewerColor;
+        const line = foreign && this.bonusEntry.traderName !== '' ?
           translateTextWithParams('${0} traded with this colony', [this.bonusEntry.traderName]) : '';
-        return {roleKey: 'Owner bonus triggered', bonus: true, traderColor: this.bonusEntry.traderColor, traderLine: line};
+        return {
+          roleKey: 'Owner bonus triggered', bonus: true,
+          traderColor: foreign ? this.bonusEntry.traderColor : '', traderLine: line,
+        };
       }
       const bonusWave = revealIsOwnerBonus(currentRevealEvent()?.source) ||
         cardDiscardColonyBonus() !== undefined;
@@ -1093,7 +1137,23 @@ export default defineComponent({
       if (this.intent === 'pick') {
         return 'pick';
       }
+      if (this.intent === 'bonus') {
+        return 'bonus';
+      }
       return 'inspect';
+    },
+    /**
+     * THE BONUS COMPOSITION — somebody else's trade is paying us here.
+     *
+     * The stage keeps its identity column and its payout zone and drops
+     * EVERYTHING that describes an action: the trade track, the guard rail,
+     * the berths, the configuration and the reward package. None of it is a
+     * decision the player has in front of them (they are not trading — they
+     * are being paid), and standing it up made the actual choice look like a
+     * detail of the trading screen.
+     */
+    bonusMode(): boolean {
+      return this.intent === 'bonus';
     },
     resultTitle(): string {
       if (this.intent === 'build') {
@@ -1864,16 +1924,31 @@ export default defineComponent({
     // stage (covers airborne / content landing) — never at the bare claim.
     // One-shot per outcome; re-arms when the zone folds (the next cycle's
     // batch opens its own phrase).
-    outcomeHandoffDue(due: boolean) {
-      if (due && !this.outcomeHandoffPlayed) {
-        this.outcomeHandoffPlayed = true;
-        this.playOutcomeHandoff();
-      }
+    // ⚠️ IMMEDIATE, because a stage that MOUNTS mid-resolution (the
+    // post-discard restore, a remote entry, a reload) is handed over from its
+    // FIRST FRAME — there is no rising edge left to wait for. Without it the
+    // pose never armed for such a mount and the payout stood ON TOP of a fully
+    // lit track and summary rail: two surfaces in one zone (the reported
+    // «reveal отрендерился поверх интерфейса колоний»). The animation cannot
+    // fire during setup (`playOutcomeHandoff` has no `$el` yet), which is
+    // exactly right: there is nothing to release, only a pose to be in.
+    outcomeHandoffDue: {
+      immediate: true,
+      handler(due: boolean) {
+        this.armOutcomeHandoff(due);
+      },
     },
     outcomeZone(on: boolean) {
       if (!on) {
         this.outcomeHandoffPlayed = false;
+        return;
       }
+      // …AND THE NEXT CYCLE RE-ARMS IT. The cue is RESOLUTION-scoped
+      // (`payoutLiftOff` is raised once per payout, and the content can already
+      // be in the zone), so when the zone re-opens for the second colony's
+      // bonus the watcher above has nothing to change — true→true fires
+      // nothing, and the one-shot would stay unplayed for the rest of the flow.
+      this.armOutcomeHandoff(this.outcomeHandoffDue);
     },
     /**
      * THE CLOSING BEAT WAITS FOR THIS STAGE. The trade's conclusion (the track
@@ -2122,6 +2197,13 @@ export default defineComponent({
       }
       if (this.intent === 'pick') {
         setColonyFocusStage('Selection');
+        return;
+      }
+      if (this.intent === 'bonus') {
+        // The stage the player is on is the BONUS itself; the payout's own
+        // surface renames the tail as it advances («ДОБОР КАРТ», «СБРОС КАРТЫ»)
+        // exactly as it does inside a trade.
+        setColonyFocusStage('Owner bonus');
         return;
       }
       setColonyFocusStage(this.intent === 'trade' && this.presentAvailable ? 'Trading' : 'Inspection');
@@ -2594,6 +2676,17 @@ export default defineComponent({
      * teleported content surfaces from inside once it actually lands. The
      * origin is armed at the commit, while the configuration still stands.
      */
+    /** ARM the handoff once per zone session: the POSE (`--handing`, which is
+     *  what takes the track out from under the payout) plus — when there is a
+     *  surface to release — the release phrase. One writer, three callers (the
+     *  cue's edge, the mount, the next cycle's zone). */
+    armOutcomeHandoff(due: boolean): void {
+      if (!due || this.outcomeHandoffPlayed) {
+        return;
+      }
+      this.outcomeHandoffPlayed = true;
+      this.playOutcomeHandoff();
+    },
     playOutcomeHandoff(): void {
       const root = this.$el as HTMLElement | undefined;
       if (root === undefined || root === null) {

@@ -74,18 +74,64 @@ export const colonyBonusEntry = reactive({
   /** The trading player (resolved from the colony's `visitor` at entry). */
   traderColor: '' as Color | '',
   traderName: '' as string,
+  /**
+   * ⚠️ THE ENTRY IS THE ONLY TERM OF THE RESOLUTION THE CLIENT ITSELF WRITES,
+   * so it is the only one that could LATCH — and it did, for a whole session.
+   *
+   * `clearColonyBonusEntry()` runs on exactly one edge: the FALLING edge of
+   * `colonyResolutionLive`. While `colonyName` was a liveness term of its own,
+   * that edge became unreachable the moment the entry was armed — the flag kept
+   * the resolution true and the resolution kept the flag. Everything downstream
+   * then never happened either: the claim was never released, the workspace
+   * never concluded (the board offered «Вернуться к решению» over an empty
+   * screen), the «СБРОШЕНО» receipt kept counting across resolutions, and the
+   * stage kept naming a trader from a payout two generations old — over the
+   * viewer's OWN trade.
+   *
+   * So the entry only HOLDS while it is still waiting for the payout it was
+   * armed for. The moment any authoritative term takes over (a marker, a batch,
+   * a discard flight, the viewer's own transaction) the wait is over and the
+   * entry is demoted to what it always was in substance: CONTEXT — which colony
+   * and whose trade — carried to the end of the resolution and cleared with it.
+   * A payout that never arrives at all releases it on a bounded named net
+   * (`COLONY_BONUS_ENTRY_WAIT_MS`), because «armed and waiting» has to be a
+   * state the flow can leave without the server's help.
+   */
+  awaiting: false,
 });
 
 export function armColonyBonusEntry(colonyName: ColonyName, trader?: {color: Color, name: string}): void {
   colonyBonusEntry.colonyName = colonyName;
   colonyBonusEntry.traderColor = trader?.color ?? '';
   colonyBonusEntry.traderName = trader?.name ?? '';
+  colonyBonusEntry.awaiting = true;
+}
+
+/**
+ * HOW LONG «I have entered and nothing has arrived yet» may hold the workspace
+ * on its own. Every real path releases it far sooner (the marker that opened
+ * the door is present from the same tick, and the batch it holds for lands in
+ * the next response); this is the named net for the one case with no signal at
+ * all — an answer that produced nothing (an empty deck, a bonus the server
+ * resolved silently). A bounded wait ends; a latch does not, and that is the
+ * whole difference between this and the bug it replaces.
+ */
+export const COLONY_BONUS_ENTRY_WAIT_MS = 8000;
+
+/**
+ * The entry stops being what HOLDS the resolution up — evidence took over, or
+ * the bounded wait expired. The context (colony + trader) stands until the
+ * resolution itself ends.
+ */
+export function noteColonyBonusEntryWaitOver(): void {
+  colonyBonusEntry.awaiting = false;
 }
 
 export function clearColonyBonusEntry(): void {
   colonyBonusEntry.colonyName = '';
   colonyBonusEntry.traderColor = '';
   colonyBonusEntry.traderName = '';
+  colonyBonusEntry.awaiting = false;
 }
 
 export function colonyBonusEntryArmed(): boolean {
@@ -186,6 +232,30 @@ export function colonyBonusCollectOf(wf: PlayerInputModel | undefined): ColonyBo
   return wf?.colonyBonusPrompt;
 }
 
+/**
+ * A COLONY BONUS THE VIEWER HAS TO PLACE — «куда положить ресурс».
+ *
+ * The other two shapes of an owner bonus hand over cards (Pluto's discard,
+ * Miranda's collect) and carry a marker of their own. This one is a plain
+ * card TARGET pick (Enceladus' microbes, Titan's floaters — `AddResourcesToCard`
+ * with a colony `cause`), and the server already states its origin
+ * structurally: `choiceContext.source = {kind: 'colony', name}`. That is the
+ * whole detection — never the prompt's title, which i18n rewrites in place.
+ *
+ * A prompt carrying a `discardPrompt` is excluded by construction: the discard
+ * half of Pluto's bonus is the same input type and has its own owner.
+ */
+export function colonyBonusCardPickOf(wf: PlayerInputModel | undefined): {colonyName: string} | undefined {
+  if (wf === undefined || wf.type !== 'card' || wf.discardPrompt !== undefined) {
+    return undefined;
+  }
+  const source = wf.choiceContext?.source;
+  if (source?.kind !== 'colony' || typeof source.name !== 'string' || source.name === '') {
+    return undefined;
+  }
+  return {colonyName: source.name};
+}
+
 /** A COLONY-sourced reveal batch's colony name ('' for anything else). */
 export function revealColonyOf(source: CardDrawRevealSource | undefined): string {
   return source?.type === 'colony' ? source.colonyName : '';
@@ -203,6 +273,9 @@ export type ColonyResolutionSignals = {
   /** The pending colony-bonus COLLECT marker (server truth) — a delivery the
    *  viewer owes an answer to before its card is even drawn. */
   collectMeta: ColonyBonusCollectMeta | undefined,
+  /** A pending colony-caused card TARGET pick ('' when none) — the third shape
+   *  of an owner bonus, «куда положить ресурс» (see `colonyBonusCardPickOf`). */
+  cardPickColony: string,
   /** The current reveal batch's source (drawnCardsState truth). */
   revealSource: CardDrawRevealSource | undefined,
   /** The viewer's OWN trade transaction is running (spans to the track reset). */
@@ -213,6 +286,9 @@ export type ColonyResolutionSignals = {
   discardFlightMeta: ColonyBonusDiscardMeta | undefined,
   /** The remote-entry context (armed on gated entry, '' otherwise). */
   entryColony: string,
+  /** …and it is still WAITING for its payout — the ONLY state in which the
+   *  entry holds the resolution up (see `colonyBonusEntry.awaiting`). */
+  entryAwaiting: boolean,
   /**
    * The COLONY WORKSPACE holds the outcome claim — the flow already has a
    * living owner surface. ⚠️ Load-bearing for the own/remote split: the trade
@@ -242,6 +318,9 @@ export function colonyResolutionColony(s: ColonyResolutionSignals): string {
   if (s.collectMeta !== undefined) {
     return s.collectMeta.colonyName;
   }
+  if (s.cardPickColony !== '') {
+    return s.cardPickColony;
+  }
   if (s.discardFlightMeta !== undefined) {
     return s.discardFlightMeta.colonyName;
   }
@@ -263,14 +342,31 @@ export function colonyResolutionColony(s: ColonyResolutionSignals): string {
  * terms true until the next takes over.
  */
 export function colonyResolutionLiveFor(s: ColonyResolutionSignals): boolean {
+  return colonyResolutionEvidenceFor(s) ||
+    // …and the client-armed entry — but ONLY while it is still waiting for the
+    // payout it was armed for. It may EXTEND the resolution across the gap
+    // between the player's press and the first authoritative signal; it may
+    // never BE the resolution (see `colonyBonusEntry.awaiting`).
+    s.entryAwaiting;
+}
+
+/**
+ * THE AUTHORITATIVE HALF of the gate — everything the SERVER (or a physical
+ * beat already in flight) says is still owed, with the client-armed entry
+ * deliberately left out. Named on its own because the shell needs exactly this
+ * to answer «is the resolution standing on its own evidence?» — whose rising
+ * edge is what ends the entry's wait.
+ */
+export function colonyResolutionEvidenceFor(s: ColonyResolutionSignals): boolean {
   return s.tradeActive ||
     s.discardMeta !== undefined ||
     // A COLLECT still owed: the viewer has walked onto the colony and the
     // card is drawn on their answer, so the workspace must stand through the
     // gap where nothing has arrived yet.
     s.collectMeta !== undefined ||
+    // …and the same for a bonus that has to be PLACED: the pick is the payout.
+    s.cardPickColony !== '' ||
     s.discardFlightMeta !== undefined ||
-    s.entryColony !== '' ||
     revealColonyOf(s.revealSource) !== '';
 }
 
@@ -286,17 +382,20 @@ export function colonyResolutionPhaseFor(s: ColonyResolutionSignals): ColonyReso
   if (s.discardMeta !== undefined) {
     return 'discard';
   }
-  if (s.collectMeta !== undefined) {
-    // Answered nothing yet, or answered and the card is on its way: either
-    // way the owner bonus is what the screen is about.
+  if (s.collectMeta !== undefined || s.cardPickColony !== '') {
+    // Answered nothing yet, or answered and the card is on its way; or the
+    // bonus is a resource still to be placed. Either way the owner bonus is
+    // what the screen is about.
     return 'owner-bonus';
   }
   if (s.tradeActive) {
     return 'concluding';
   }
-  if (s.entryColony !== '') {
+  if (s.entryAwaiting) {
     // Entered, nothing arrived yet (the gap before the first held batch is
-    // released) — the bonus stage is standing by.
+    // released) — the bonus stage is standing by. A SETTLED entry (its payout
+    // came and went) names no phase: the resolution is over, and the context it
+    // still carries is for the closing frames to read, not a state to be in.
     return 'owner-bonus';
   }
   return 'idle';
@@ -351,11 +450,15 @@ export function remoteColonyBonusHold(
   return remoteColonyBonusPendingFor({
     discardMeta: colonyBonusDiscardOf(wf),
     collectMeta: colonyBonusCollectOf(wf),
+    // A card-target bonus has no batch to hold, so it is never a reason to
+    // park one — it is still part of the resolution's evidence elsewhere.
+    cardPickColony: colonyBonusCardPickOf(wf)?.colonyName ?? '',
     revealSource: source,
     tradeActive: colonyTradeState.active,
     tradeColony: colonyTradeState.colonyName,
     discardFlightMeta: cardDiscardColonyBonus(),
     entryColony: colonyBonusEntry.colonyName,
+    entryAwaiting: colonyBonusEntry.awaiting,
     claimedByColonies: workspaceOutcomeState.host === 'colonies',
   }) !== undefined;
 }

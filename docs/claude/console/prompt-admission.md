@@ -59,6 +59,7 @@ without declaring what it waits for**.
 | `standaloneModal` | the corp first-action confirm — hosts **none** of the running cinematics |
 | `scene` | the T5 full-screen start scene |
 | `placement` | the server's top-level `SelectSpace`, served by the always-mounted board |
+| `followUp` | a prompt-routed **DOOR**: the OPENING of a surface for a prompt that rode the same response as an effect the player is still working through |
 
 ### Deliberate policy differences
 
@@ -76,6 +77,43 @@ without declaring what it waits for**.
   covered for `placement` by `reveal*`, which the same response raises.
 - **`scene` yields only to a reveal or a blocking presentation** — it owns the
   screen and hosts its own cinematics.
+- **`followUp` is a DOOR, not a presence — so it waits for everything.** The
+  families above decide whether a surface stays MOUNTED, and a surface torn down
+  mid-cinematic is worse than one that came up early; that is exactly why
+  `section` skips `card-arrival`. A door has nothing on screen yet, so it costs
+  nothing to wait, and it must: **«Научная колония» draws 2 cards AND defers a
+  `SelectColony`**, and `SelectColony` was the sixth family — read raw, straight
+  into `pushWorkspaceFrame` — so the colony grid stood up in the section's
+  deliberate `card-arrival` gap, under the batch, and (both teleporting into the
+  same zone) was laid out as its flex sibling: 521 px of a 1621 px band, tile fit
+  solved for that box, then a jump to full width. The list is `host`'s.
+- **`followUp` skips `announce-gate`.** That gate holds a prompt CLOSED until the
+  player's own press, and the press IS this door (`openMandatoryAnnounce`) — a
+  door that also opened on the gate's falling edge would open twice.
+
+### `consoleForegroundBusy` IS this family
+
+The shell's «something the player is still working through owns the foreground»
+computed was a fifth paraphrase of the same policy, and it had drifted by four
+signals (a PENDING reveal batch, the tile hero, a live discard transaction, and
+the watchdog's staleness mask). It is now literally `!admits('followUp')`, and its
+falling-edge watcher is what re-opens a door the gate held.
+
+### Gate the AUTOMATIC doors only
+
+`openShellTaskSurface` is reached from both directions. Gate the ones a RESPONSE
+drives (the prompt watcher, the stranded self-heal, the `playerView` auto-open);
+never the ones the PLAYER drives (A on a mandatory announce, the reveal's closing
+step, a deferred-task restore) — a silently swallowed press is worse than the bug.
+
+### A held door means the flow OWES a step
+
+While `followUp` holds a prompt whose surface is a STEP of the flow that produced
+it (`FOLLOW_UP_STEP_STAGES` in `consoleTaskRouter.ts`), that flow may not tidy
+itself away: `owed-step` holds `concludeWorkspaceFlow`, the host may not fold the
+descent whose zone the step will teleport into, and the crumb already names the
+coming stage (the tail only ever moves FORWARD). See
+`docs/claude/console/workspace-band.md` § ОДНО НАЖАТИЕ — НЕСКОЛЬКО ЭФФЕКТОВ.
 
 ## The draw contract
 

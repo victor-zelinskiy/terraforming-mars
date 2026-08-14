@@ -1315,9 +1315,12 @@ import {
 } from '@/client/console/cardDiscard/consoleCardDiscard';
 import {
   COLONY_RESOLUTION_SERVES,
+  COLONY_BONUS_ENTRY_WAIT_MS,
   ColonyResolutionSignals, armColonyBonusEntry, clearColonyBonusEntry, colonyBonusCollectOf,
   colonyBonusDiscardOf,
-  colonyBonusEntry, colonyResolutionColony, colonyResolutionLiveFor, colonyResolutionUi,
+  colonyBonusCardPickOf,
+  colonyBonusEntry, colonyResolutionColony, colonyResolutionEvidenceFor, colonyResolutionLiveFor,
+  colonyResolutionUi, noteColonyBonusEntryWaitOver,
   noticeColonyResolutionDiscard, remoteColonyBonusPendingFor, resetColonyResolutionUi,
   setColonyDiscardStage,
 } from '@/client/console/colonyTrade/colonyResolution';
@@ -1734,6 +1737,9 @@ export default defineComponent({
       /** The colony-bonus cube this workspace already answered by itself (the
        *  auto-collect's one-shot dedupe — see `colonyBonusAutoCollect`). */
       colonyBonusCollected: '',
+      /** The armed entry's BOUNDED WAIT (COLONY_BONUS_ENTRY_WAIT_MS) — the net
+       *  under «entered, and nothing ever arrived». */
+      colonyEntryWaitTimer: undefined as number | undefined,
       /** The hydronetwork marker-advance controller (the plan-reset watcher). */
       hydroMarkerState,
       pendingPlayCard: undefined as PendingPlayCard | undefined,
@@ -4499,10 +4505,36 @@ export default defineComponent({
         revealSource: currentRevealEvent()?.source,
         tradeActive: this.colonyTradeState.active,
         tradeColony: this.colonyTradeState.colonyName,
+        cardPickColony: this.colonyBonusCardPick?.colonyName ?? '',
         discardFlightMeta: cardDiscardColonyBonus(),
         entryColony: this.bonusEntry.colonyName,
+        entryAwaiting: this.bonusEntry.awaiting,
         claimedByColonies: workspaceOutcomeState.host === 'colonies',
       };
+    },
+    /**
+     * THE THIRD SHAPE OF AN OWNER BONUS: one the viewer has to PLACE (Enceladus'
+     * microbes, Titan's floaters). Structural — the server's own
+     * `choiceContext.source` names the colony that is paying.
+     */
+    colonyBonusCardPick(): {colonyName: string} | undefined {
+      return colonyBonusCardPickOf(this.playerView.waitingFor);
+    },
+    /** The armed entry is still waiting for its payout (its bounded net rides
+     *  this — a computed rather than a path watcher, which is the form module
+     *  reactive state is read in here). */
+    colonyEntryAwaiting(): boolean {
+      return this.bonusEntry.awaiting;
+    },
+    /**
+     * THE AUTHORITATIVE HALF of the gate (`colonyResolutionEvidenceFor`): what
+     * the SERVER — or a beat already physically in flight — says is owed, with
+     * the client-armed entry left out. Its rising edge ENDS the entry's wait:
+     * from then on the resolution stands on its own evidence, so the entry can
+     * never outlive it (the latch that froze the whole colony subsystem).
+     */
+    colonyResolutionEvidence(): boolean {
+      return colonyResolutionEvidenceFor(this.colonyResolutionSignals);
     },
     /**
      * THE PLUTO CLOSE GATE: while true, the colony workspace is the flow's one
@@ -6143,6 +6175,44 @@ export default defineComponent({
       }
     },
     /**
+     * THE ENTRY'S WAIT IS OVER THE MOMENT THE PAYOUT IS REAL. From here on the
+     * resolution stands on server evidence alone and the entry is context —
+     * which is what makes the falling edge below reachable at all. (Immediate,
+     * because a resolution already running when this shell mounts — a reload
+     * straight into one — has no rising edge left to give.)
+     */
+    colonyResolutionEvidence: {
+      immediate: true,
+      handler(live: boolean): void {
+        if (live) {
+          noteColonyBonusEntryWaitOver();
+        }
+      },
+    },
+    /**
+     * …AND A WAIT NOBODY ANSWERS STILL ENDS. The net is bounded and named
+     * (`COLONY_BONUS_ENTRY_WAIT_MS`): armed with the wait, cancelled the
+     * instant it is over. Nothing is torn down here — the flag simply stops
+     * being a reason to stand, and if genuine evidence exists by then the
+     * resolution carries on unaffected.
+     */
+    colonyEntryAwaiting: {
+      immediate: true,
+      handler(awaiting: boolean): void {
+        if (this.colonyEntryWaitTimer !== undefined) {
+          window.clearTimeout(this.colonyEntryWaitTimer);
+          this.colonyEntryWaitTimer = undefined;
+        }
+        if (!awaiting) {
+          return;
+        }
+        this.colonyEntryWaitTimer = window.setTimeout(() => {
+          this.colonyEntryWaitTimer = undefined;
+          noteColonyBonusEntryWaitOver();
+        }, COLONY_BONUS_ENTRY_WAIT_MS);
+      },
+    },
+    /**
      * THE COLONY RESOLUTION'S LIFECYCLE — one watcher, both edges.
      *
      * RISING: the workspace crosses the commit boundary for the whole span of
@@ -6154,7 +6224,8 @@ export default defineComponent({
      * FALLING: the resolution is over — no pending input, no flight, the
      * track reset committed. Only now the claim releases, the serves shrink
      * back, and the phase returns to the player's own depth. This is the ONE
-     * close gate the task demanded: nothing folds earlier.
+     * close gate the task demanded: nothing folds earlier — and the entry's
+     * bounded wait above is what guarantees this edge can be REACHED at all.
      */
     colonyResolutionLive(live: boolean, was: boolean): void {
       if (live && !was) {
@@ -7693,7 +7764,11 @@ export default defineComponent({
         // genuinely standing over it — clearing the flag first uncovered the
         // overview grid for the one-two frames of the swap, and «не
         // показывать Overview даже на один кадр» is the contract.
-        openColonyFocus(name as ColonyName, 'inspect');
+        // …in the composition the resolution belongs to: a FOREIGN trade's
+        // payout comes back to its bonus stage, not to the trade dossier it
+        // never opened (the entry context is what tells them apart).
+        openColonyFocus(name as ColonyName,
+          this.bonusEntry.colonyName === name ? 'bonus' : 'inspect');
         await this.$nextTick();
         setColonyDiscardStage(false);
         // Let the stage publish its zones before anything measures against it
@@ -7734,17 +7809,34 @@ export default defineComponent({
       const idx = this.coloniesForRail.findIndex((c) => c.name === colonyName);
       this.consoleState.colonyIndex = idx !== -1 ? idx : 0;
       if (!this.colonyFocus.open) {
-        openColonyFocus(colonyName as ColonyName, 'inspect');
+        // THE BONUS COMPOSITION, not the trade dossier: the player did not come
+        // to weigh an action here — somebody else's trade owes them one thing.
+        // (`inspect` put the whole trade screen up and hid the actual decision
+        // inside it.)
+        openColonyFocus(colonyName as ColonyName, 'bonus');
       }
       // The workspace claims the payout: the reveal presents INSIDE it and the
       // deck-draw scene SERVES the claim (the cards honestly come off the deck
       // and fly into the embedded slots — the start-host pattern). No execution
       // beat exists for an entry, so it is marked done outright.
+      //
+      // `pick` rides along because an owner bonus has THREE shapes and one of
+      // them is a card TARGET pick («куда положить ресурс»): the claim is what
+      // re-homes that prompt into this stage's own zone (`taskEmbedTarget` →
+      // `workspaceClaimsPick`) instead of raising a band over the colony that
+      // is paying it.
       if (workspaceOutcomeState.host !== 'colonies') {
-        claimWorkspaceOutcome('colonies', colonyName, ['draw']);
+        claimWorkspaceOutcome('colonies', colonyName, ['draw', 'pick']);
         markWorkspaceOutcomeArrivalDone();
       }
       markWorkspaceOutcomeBeatDone();
+      // …AND THE WAIT IS ALREADY OVER IF THE PAYOUT IS ALREADY REAL — which is
+      // the ordinary case: the marker that opened this door is pending from the
+      // same tick. Read here rather than left to the evidence watcher, which
+      // fires on a CHANGE and would have nothing to change.
+      if (this.colonyResolutionEvidence) {
+        noteColonyBonusEntryWaitOver();
+      }
     },
     /**
      * COLLECT the colony bonus ANOTHER player's trade paid the viewer — the
@@ -11151,9 +11243,21 @@ export default defineComponent({
       const task = taskFor(this.playerView);
       if (task !== undefined && SHELL_SECTION_KINDS.has(task.kind)) {
         this.openShellTaskSurface(task);
+        return;
       }
-      // Host tasks (choice/player/amount/…) auto-mount ConsoleTaskHost once the
-      // gate releases — nothing else to open here.
+      // A COLONY BONUS THE VIEWER MUST PLACE is a host task by shape (a card
+      // target pick) and a colony payout by meaning, so the press walks them to
+      // the colony that is paying — the same door Pluto's cards use. The pick
+      // itself then teleports into that stage's zone (the claim admits `pick`),
+      // so «кто-то поторговал на моей колонии» is ONE screen: the planet, whose
+      // trade it was, and the choice — never a band over an unrelated view.
+      const bonusPick = this.colonyBonusCardPick;
+      if (bonusPick !== undefined) {
+        this.enterColonyBonusStage(bonusPick.colonyName);
+        return;
+      }
+      // Other host tasks (choice/player/amount/…) auto-mount ConsoleTaskHost
+      // once the gate releases — nothing else to open here.
     },
     /**
      * The reveal modal's closing step was pressed: the payout's discard now runs
@@ -12720,6 +12824,11 @@ export default defineComponent({
       inputLocked: isColonyTradeInputLocked(),
       arrivalPending: workspaceOutcomeBeatPending(),
       resolutionLive: this.colonyResolutionLive,
+      // …and WHAT is holding it: server evidence, or only the client-armed
+      // entry. A resolution live on the entry ALONE past its bounded wait is
+      // the latch this pair exists to make visible.
+      resolutionEvidence: this.colonyResolutionEvidence,
+      entry: {colony: this.bonusEntry.colonyName, awaiting: this.bonusEntry.awaiting},
       revealPending: this.rawDrawnRevealPending,
       // The COVER-LIFT scene (a colony BUILD's card bonus rides it, exactly as
       // a board cell's does). Its phase ladder is the only way to tell «the
@@ -12831,6 +12940,13 @@ export default defineComponent({
     // its animation hold) across a game switch.
     resetCardDiscard();
     registerDiscardOverlayHandoff(undefined);
+    // The colony-bonus entry is module state as well: a live wait (and its net)
+    // must never carry a stale «a payout is owed here» into the next game.
+    clearColonyBonusEntry();
+    if (this.colonyEntryWaitTimer !== undefined) {
+      window.clearTimeout(this.colonyEntryWaitTimer);
+      this.colonyEntryWaitTimer = undefined;
+    }
     if (this.noticeTimer !== undefined) {
       window.clearTimeout(this.noticeTimer);
     }
