@@ -15,11 +15,14 @@ import {
   cycleActivation,
   defaultCardActionsFilter,
   defaultRepeatFilter,
+  consoleCardActionsUi,
+  resetCardActionsFilter,
   packActionRows,
   arrangeGroupsForGrid,
   stepActionRows,
   ConsoleActionGroup,
 } from '@/client/console/consoleCardActions';
+import {consoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 
 function effect(direction: 'cost' | 'gain', icon: string, amount: number): ActionEffect {
   return {direction, icon, amount};
@@ -167,6 +170,21 @@ describe('consoleCardActions model', () => {
     expect(cycleAvailability('all', -1)).to.eq('unavailable');
     expect(cycleActivation('dormant', 1)).to.eq('activated');
     expect(cycleActivation('dormant', -1)).to.eq('all');
+  });
+
+  it('a FRESH open re-seats the persisted filter on «Все + Не активированы»', () => {
+    // The facets are a reading tool of ONE visit: a player who narrowed the
+    // list to read a blocked action must not meet that narrowed list on their
+    // next trip through the wheel (a grid missing most of its actions reads as
+    // the game having taken them away).
+    expect(defaultCardActionsFilter()).to.deep.eq({availability: 'all', activation: 'dormant'});
+    consoleCardActionsUi.filter = {availability: 'unavailable', activation: 'activated'};
+    resetCardActionsFilter();
+    expect(consoleCardActionsUi.filter).to.deep.eq(defaultCardActionsFilter());
+    // …and the repeat pick is a SEPARATE store with a separate default, so a
+    // wheel open can never re-seat a live copy-pick (Viron / «Проверка
+    // проекта» / the Hydronetwork stage) — nor the other way round.
+    expect(consoleRepeatPickUi.filter).to.deep.eq(defaultRepeatFilter());
   });
 
   // ── Iteration 2: formula COMPLETENESS (never a lossy simplification) ──────

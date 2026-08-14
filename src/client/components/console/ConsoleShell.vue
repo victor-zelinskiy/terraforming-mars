@@ -1151,7 +1151,7 @@ import {Message} from '@/common/logs/Message';
 import {Payment} from '@/common/inputs/Payment';
 import {ColonyBonusCollectMeta, ColonyBonusDiscardMeta, DiscardPromptMeta, SelectCardModel, SelectColonyModel, SelectPaymentModel, SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import ConsoleCardActions from '@/client/components/console/ConsoleCardActions.vue';
-import {consoleCardActionsUi} from '@/client/console/consoleCardActions';
+import {consoleCardActionsUi, resetCardActionsFilter} from '@/client/console/consoleCardActions';
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import {MilestoneName} from '@/common/ma/MilestoneName';
 import {AwardName} from '@/common/ma/AwardName';
@@ -9333,6 +9333,11 @@ export default defineComponent({
       // deliberate re-entry through the wheel starts at browse).
       if (sheet === 'standard-projects') {
         resetStdProjectsFlow();
+      }
+      // …and a fresh ДЕЙСТВИЯ КАРТ open starts at the DEFAULT facets («Все» +
+      // «Не активированы») for the same reason — see resetCardActionsFilter.
+      if (sheet === 'card-actions') {
+        resetCardActionsFilter();
       }
       const isTaskSurface = !parkOwed && ((sheet === 'standard-projects' &&
         this.shellTask?.kind === 'projectCard' && this.shellTask.mode === 'standardProject') ||

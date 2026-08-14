@@ -136,3 +136,16 @@ export function isPreludeEnabler(
   outlook: PreludeOutlook | undefined, name: CardName): boolean {
   return outlook?.state === 'deferred' && outlook.enablers.includes(name);
 }
+
+/**
+ * …and what that tie SAYS. It must not over-promise either: a card that
+ * creates the condition outright («сначала этот») is a different statement from
+ * one that merely MIGHT open a target, and the certainty that separates them is
+ * the same one the risk copy uses.
+ */
+export function preludeEnablerBadge(outlook: PreludeOutlook | undefined): string | undefined {
+  if (outlook?.state !== 'deferred') {
+    return undefined;
+  }
+  return outlook.certainty === 'guaranteed' ? 'Play this one first' : 'Enables the waiting prelude';
+}

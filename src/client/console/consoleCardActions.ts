@@ -345,6 +345,23 @@ export const consoleCardActionsUi = reactive({
   draft: undefined as ActionWorkspaceDraft | undefined,
 });
 
+/**
+ * Re-seed the Action Center to «Все + Не активированы». Called at every FRESH
+ * open of the workspace (the wheel — the only door that builds a new
+ * instance), so the facets are a reading tool of ONE visit, never a setting
+ * the player has to remember they left narrowed: a list silently missing most
+ * of its actions reads as the game having taken them away, and the filter that
+ * hid them is a header chip they last touched a turn ago.
+ *
+ * A RESUME of a parked chain deliberately does NOT come through here — that is
+ * the same visit, filter included — and neither does the repeat pick, which
+ * owns its own default and its own scoped reset (`resetConsoleRepeatPickFilter`
+ * for Viron / «Проверка проекта» / the Hydronetwork's copy stage).
+ */
+export function resetCardActionsFilter(): void {
+  consoleCardActionsUi.filter = defaultCardActionsFilter();
+}
+
 // ── THE RESTORE PLAN — what a mounting Action Center re-seats itself as ─────
 
 /** The signals the mounting surface feeds the pure restore decision. */

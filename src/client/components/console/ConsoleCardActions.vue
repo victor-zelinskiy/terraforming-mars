@@ -498,7 +498,7 @@ import {
   RepeatAvailability,
 } from '@/client/console/consoleCardActions';
 import {actionRuleText} from '@/client/components/actions/actionDescription';
-import {fitActionCanvases, clearActionCanvasFit} from '@/client/console/consoleActionCanvasFit';
+import {fitActionCanvases} from '@/client/console/consoleActionCanvasFit';
 import {resolveDetailFit} from '@/client/console/consoleDetailFit';
 import {buildActionBatch, repeatActionResponses} from '@/client/console/consoleActionComposer';
 import {consoleLayoutState} from '@/client/console/consoleLayoutProfile';
@@ -1190,6 +1190,14 @@ export default defineComponent({
     this.scheduleDetailFit();
   },
   beforeUnmount() {
+    // ⚠️ NOTHING here may write to this surface's OWN DOM. The hook fires
+    // SYNCHRONOUSLY at the B press, while the leave transition keeps the
+    // surface fully painted for the whole dismissal (Vue defers the node
+    // removal, never the hooks) — so a "teardown" plays out on screen as a
+    // change the player did not ask for. Clearing the published `--act-fit`
+    // here snapped every action formula from its fitted size to its natural
+    // one, and the workspace left with enlarged icons. State, timers and
+    // module stores only.
     // The berth dies with the header that offers it — a teleport into a
     // detached node drops its content silently.
     setColonyFleetBerth('');
@@ -1214,7 +1222,9 @@ export default defineComponent({
         this.detailFitFrame = undefined;
       }
     }
-    clearActionCanvasFit(this.$refs.rootEl as HTMLElement | undefined);
+    // (The canvas fits need no cleanup at all: they are inline properties on
+    // nodes that die with this mount, and `fitActionCanvases` resets every
+    // pair before it measures — see the ⚠️ at the top of this hook.)
     // The repeat instance owns none of the shared Action Center stores.
     if (!this.repeat) {
       consoleCardActionsUi.confirmOpen = false;

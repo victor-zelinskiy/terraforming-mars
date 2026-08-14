@@ -7,28 +7,21 @@ import {
 } from './consoleStart';
 
 /**
- * THE BURN GATE — «СГОРИТ» asks before it burns.
+ * THE ORDER-AWARE PRE-COMMIT GATE — «сначала другой пролог» must never sit over
+ * a button that plays this one.
  *
- * A prelude the server flagged `preludeFizzle` does NOT do what its face says:
- * played right now it is discarded for 15 M€, and that cannot be unmade. In
- * the reference case it is only a matter of ORDER — «Двойная ставка» copies an
- * ALREADY-PLAYED prelude, so with nothing played yet it burns, and one press
- * later (after the other prelude) it is a full second prelude.
+ * The defect: a prelude whose effect could not resolve carried a flat «СГОРИТ»,
+ * and pressing A armed a generic «A — Подтвердить». Two true sentences, one
+ * screen: «Сначала разыграйте другой пролог» beside «нажмите ещё раз для
+ * подтверждения» can only be read as «press A to go to the other prelude» — and
+ * A discarded the card instead. The whole fix is that the warning and the verb
+ * now come out of ONE server-computed verdict.
  *
- * The badge alone could not prevent that: it explains a press the player has
- * already made. So the press ARMS and the second A commits — and this probe
- * defends the three things that make the gate readable rather than merely
- * present:
- *   · the first A does NOT play the card (the rail stays, the card stays);
- *   · the armed state SAYS what confirming costs and asks for the press;
- *   · B takes it back, and a d-pad move disarms it by construction;
- *   · a NON-burning prelude keeps its one-press play (the gate is scoped to
- *     the badge, never a tax on every prelude).
- *
- * It also watches the one geometric risk of putting the caution in the status
- * rail: that rail has a RESERVED height (`--con-start-rail-h`) with
- * `overflow: hidden`, so the deployment above it never reflows — an armed gate
- * must not push its own text out of the box it lives in.
+ * The reference case is «Удвоение»: played first it has nothing to copy, and
+ * playing ANY other prelude first makes it whole. So the probe walks exactly
+ * that: the badge says what is wrong, the first A explains rather than commits,
+ * B goes back, and once the other prelude is played the warning disappears on
+ * its own — with no card-specific code anywhere in the path.
  */
 
 const OUT_DIR = path.resolve('screenshots', 'console-prelude-burn-gate');
@@ -38,11 +31,10 @@ async function shoot(page: Page, name: string): Promise<void> {
   await page.screenshot({path: path.join(OUT_DIR, `${name}.png`)});
 }
 
-const BURNING = 'Double Down';
-// A partner that is playable with NOTHING else set up — it needs only M€, so
-// the probe can buy zero projects. («Эксперты-экологи» would fizzle too on an
-// empty hand, and that is a second fizzle, not a control.)
-const PARTNER = 'Business Empire';
+const WAITING = 'Double Down';
+// The enabler: playable with NOTHING else set up (it needs only M€), so the
+// probe can buy zero projects and still have a real order to choose.
+const ENABLER = 'Business Empire';
 
 function cfg() {
   return {
@@ -63,7 +55,7 @@ function cfg() {
     customCorporationsList: ['CrediCor', 'Teractor'],
     bannedCards: [], includedCards: [], customColoniesList: [],
     // FORCE the deal: the probe is about these two preludes and their order.
-    customPreludes: [BURNING, PARTNER, 'Metal-Rich Asteroid', 'Mohole Excavation'],
+    customPreludes: [WAITING, ENABLER, 'Metal-Rich Asteroid', 'Mohole Excavation'],
     requiresMoonTrackCompletion: false, requiresVenusTrackCompletion: false,
     moonStandardProjectVariant: false, moonStandardProjectVariant1: false,
     altVenusBoard: false, escapeVelocity: undefined, twoCorpsVariant: false, customCeos: [],
@@ -71,71 +63,52 @@ function cfg() {
 }
 
 /**
- * The gate as the PLAYER meets it — the card's own ring and pill, the rail's
- * words, the bar's verbs. Read structurally (classes + text), never from
- * component internals.
+ * The gate as the PLAYER meets it — the cards' own rings and pills, the stage's
+ * words, the bar's verbs. Read structurally, never from component internals.
  */
 async function gate(page: Page) {
   return page.evaluate(() => {
     const txt = (el: Element | null): string => (el?.textContent ?? '').replace(/\s+/g, ' ').trim();
     const slots = Array.from(document.querySelectorAll<HTMLElement>('.con-start__qcard'));
-    const armed = slots.find((el) => el.classList.contains('con-start__qcard--armed'));
-    const rail = document.querySelector<HTMLElement>('.con-start__statusrail');
-    const railBox = rail?.getBoundingClientRect();
-    const inner = rail?.querySelector<HTMLElement>('.con-start__status-inner')?.getBoundingClientRect();
+    const named = (list: Element[]) => list.map((el) => el.getAttribute('data-queue-slot') ?? '');
     return {
       /** Every prelude still standing in the queue (the play is the removal). */
-      queue: slots.map((el) => el.getAttribute('data-queue-slot') ?? ''),
-      /** Which cards carry the «СГОРИТ» pickband. */
-      burnBadges: slots
-        .filter((el) => el.querySelector('.con-cards__pickband--warn') !== null)
-        .map((el) => el.getAttribute('data-queue-slot') ?? ''),
-      /**
-       * The «СГОРИТ» badge is the PRE-press warning — the only thing that
-       * speaks before the player commits — and it hangs ABOVE its card
-       * (`top: -.6rem`) inside a deployment that clips (`overflow: hidden`).
-       * So measure how much of it the clip eats: anything above ~1px means
-       * the warning the gate is named after is not actually readable.
-       */
-      badgeHidden: (() => {
-        const badge = document.querySelector<HTMLElement>('.con-start__qcard .con-cards__pickband--warn');
-        const clip = document.querySelector<HTMLElement>('.con-start__ceremony');
-        if (badge === null || clip === null) {
-          return -1;
-        }
-        const b = badge.getBoundingClientRect();
-        const c = clip.getBoundingClientRect();
-        return Math.round(Math.max(0, c.top - b.top) + Math.max(0, b.bottom - c.bottom));
-      })(),
-      badgeH: Math.round(document.querySelector('.con-start__qcard .con-cards__pickband--warn')
-        ?.getBoundingClientRect().height ?? -1),
-      /** The armed card, by name (empty = the gate is not up). */
-      armedCard: armed?.getAttribute('data-queue-slot') ?? '',
-      /** …and the A pill under it, which must relabel IN PLACE. */
+      queue: named(slots),
+      /** Cards carrying a caution badge, and what those badges SAY. */
+      badged: named(slots.filter((el) => el.querySelector('.con-cards__pickband--warn') !== null)),
+      badgeText: txt(document.querySelector('.con-start__qcard .con-cards__pickband--warn')),
+      /** …and the cards marked as a way OUT of the waiting one. */
+      enablers: named(slots.filter((el) => el.classList.contains('con-start__qcard--enabler'))),
+      /** The armed card (empty = the risk stage is not up). */
+      armed: named(slots.filter((el) => el.classList.contains('con-start__qcard--armed')))[0] ?? '',
+      /** The A pill under the focused card — it must name the LOSS while armed. */
       pill: txt(document.querySelector('.con-start__slot-a')),
       pillArmed: document.querySelector('.con-start__slot-a--armed') !== null,
-      /** The rail's caution + instruction (the reason leads). */
-      railBurn: rail?.classList.contains('con-start__statusrail--burn') ?? false,
-      railWhy: txt(document.querySelector('.con-start__status-burn-why')),
-      railCta: txt(document.querySelector('.con-start__status-burn-cta')),
+      /** The inline risk stage (never a modal: no shade, no backdrop of its own). */
+      stageUp: document.querySelector('[data-start-risk]') !== null,
+      stageTitle: txt(document.querySelector('.con-start__risk-title')),
+      stageBody: txt(document.querySelector('.con-start__risk-body')),
+      /** The ordinary pre-press explanation, in the workspace's status rail. */
       railState: txt(document.querySelector('.con-start__status-state')),
-      /** The rail's reserved box must still CONTAIN its content. */
-      railH: Math.round(railBox?.height ?? -1),
-      railOverflow: railBox === undefined || inner === undefined ? -1 :
-        Math.round(inner.height - railBox.height),
+      /** The result beat that follows a deliberate loss. */
+      effectLost: document.querySelector('[data-start-effect-lost]') !== null,
       /** The ONE command bar (the scene renders no inline hints). */
       bar: Array.from(document.querySelectorAll('.con-cmdbar__label'))
         .map((el) => txt(el)).filter((s) => s !== ''),
+      /** A held press advertises itself as held. */
+      holdRing: document.querySelector('.con-cmdbar__hold') !== null,
       /** Nothing about a gate may reach for the legacy modal. */
       legacyModal: document.querySelectorAll('.wf-modal, .waitingfor-modal').length,
+      /** Everything the player can read, for the contradiction check. */
+      screen: (document.body.textContent ?? '').replace(/\s+/g, ' ').toLowerCase(),
     };
   });
 }
 
 /**
  * Walk the setup wizard, taking BOTH subject preludes and buying NOTHING (the
- * purchase block is another queue item to drain, and this probe is not about
- * it — `submitSummary` already answers the zero-buy confirmation), then commit.
+ * purchase block is another queue item to drain and this probe is not about it
+ * — `submitSummary` already answers the zero-buy confirmation), then commit.
  */
 async function reachDeployment(page: Page): Promise<void> {
   await page.waitForSelector('.con-start__frame', {timeout: 45_000});
@@ -149,9 +122,9 @@ async function reachDeployment(page: Page): Promise<void> {
     } else if (kind === 'prelude') {
       // THE SUBJECTS FIRST (the step has a pick LIMIT — filling first burns it
       // on cards nobody asked for; the driver documents this trap).
-      const got = await pickCards(page, [BURNING, PARTNER]);
+      const got = await pickCards(page, [WAITING, ENABLER]);
       expect(got, 'both subject preludes were offered and picked').toEqual(
-        expect.arrayContaining([BURNING, PARTNER]));
+        expect.arrayContaining([WAITING, ENABLER]));
     }
     await press(page, 'Period', 1600);
     for (let w = 0; w < 20 && !(await summaryVisible(page)) &&
@@ -165,16 +138,12 @@ async function reachDeployment(page: Page): Promise<void> {
   await page.waitForSelector('.con-start__queue', {timeout: 45_000});
 }
 
-/**
- * Drain the deployment down to the prelude rail: the corporation lands first
- * (its own beat), and only then is the prelude prompt the live ask. Anything
- * in the queue that is not one of the two subjects is that setup.
- */
+/** Drain the deployment down to the prelude rail (the corporation lands first). */
 async function reachPreludeRail(page: Page): Promise<void> {
   for (let round = 0; round < 14; round++) {
     await waitQueueIdle(page);
     const queue = await queueCards(page);
-    const setup = queue.filter((n) => n !== BURNING && n !== PARTNER);
+    const setup = queue.filter((n) => n !== WAITING && n !== ENABLER);
     if (setup.length === 0) {
       if (queue.length > 0) {
         return;
@@ -185,8 +154,7 @@ async function reachPreludeRail(page: Page): Promise<void> {
     // ONE press at a time, and ONLY while the setup card is the focused one.
     // The generic driver's act→verify→RETRY is wrong here: the queue re-focuses
     // as it drains, so a retry that fires blind plays the very prelude this
-    // probe came to look at (it did, once — the queue then held Double Down
-    // alone and the subject was gone before the first assertion).
+    // probe came to look at (it did, once).
     if (!(await focusQueue(page, setup[0]))) {
       await page.waitForTimeout(500);
       continue;
@@ -196,29 +164,61 @@ async function reachPreludeRail(page: Page): Promise<void> {
     await page.waitForTimeout(700);
   }
   expect(await queueCards(page), 'the deployment drained down to the preludes').toEqual(
-    expect.arrayContaining([BURNING, PARTNER]));
+    expect.arrayContaining([WAITING, ENABLER]));
 }
 
-/** Move the queue focus onto `card` (the rail names the focused card). */
-async function focusQueue(page: Page, card: string, maxMoves = 8): Promise<boolean> {
+/**
+ * Move the queue focus onto `card`. The cursor CLAMPS at both ends (it does not
+ * wrap), so walking one way only reaches the cards on that side — this turns
+ * round at the wall instead, which is what a player does too.
+ */
+async function focusQueue(page: Page, card: string, maxMoves = 10): Promise<boolean> {
+  const focused = async () => page.evaluate(() =>
+    document.querySelector('.con-start__qcard--focused')?.getAttribute('data-queue-slot') ?? '');
+  let dir: 'ArrowRight' | 'ArrowLeft' = 'ArrowRight';
   for (let i = 0; i < maxMoves; i++) {
-    const focused = await page.evaluate(() =>
-      document.querySelector('.con-start__qcard--focused')?.getAttribute('data-queue-slot') ?? '');
-    if (focused === card) {
+    const at = await focused();
+    if (at === card) {
       return true;
     }
-    await press(page, 'ArrowRight', 260);
+    await press(page, dir, 260);
+    if (await focused() === at) {
+      dir = dir === 'ArrowRight' ? 'ArrowLeft' : 'ArrowRight'; // hit the wall
+    }
   }
-  return (await page.evaluate(() =>
-    document.querySelector('.con-start__qcard--focused')?.getAttribute('data-queue-slot') ?? '')) === card;
+  return await focused() === card;
 }
 
-test.describe('console — the prelude BURN GATE', () => {
-  // The fork's authoring baseline (1rem = 20px at 1920×1080) — geometry read
-  // at the runner's default 1280×720 is a claim about a window nobody plays in.
+/**
+ * Move the focus OFF the current card, in whichever direction is available.
+ * The queue's cursor CLAMPS at both ends (it deliberately does not wrap), so a
+ * blind ArrowRight/ArrowLeft round trip does not come back — it walks one way
+ * and stays there, which once made this probe press A on the wrong card.
+ */
+async function moveFocusAway(page: Page): Promise<void> {
+  const focused = async () => page.evaluate(() =>
+    document.querySelector('.con-start__qcard--focused')?.getAttribute('data-queue-slot') ?? '');
+  const from = await focused();
+  await press(page, 'ArrowRight', 450);
+  if (await focused() === from) {
+    await press(page, 'ArrowLeft', 450);
+  }
+  expect(await focused(), 'the focus actually left the card').not.toBe(from);
+}
+
+/** Hold A for `ms` — the shared hold gate's real input. */
+async function holdConfirm(page: Page, ms: number): Promise<void> {
+  await page.keyboard.down('Enter');
+  await page.waitForTimeout(ms);
+  await page.keyboard.up('Enter');
+}
+
+test.describe('console — the prelude ORDER GATE', () => {
+  // The fork's authoring baseline (1rem = 20px at 1920×1080) — geometry read at
+  // the runner's default 1280×720 is a claim about a window nobody plays in.
   test.use({viewport: {width: 1920, height: 1080}});
 
-  test('«СГОРИТ» arms on the first A, states its cost, and only the second A burns it', async ({page, request}) => {
+  test('a fixable prelude explains the ORDER instead of offering a confirm', async ({page, request}) => {
     test.setTimeout(300_000); // the setup walk is SETUP, never the subject
     const created = await request.post('/api/creategame', {data: cfg()});
     expect(created.ok(), 'the server accepted the forced prelude deal').toBeTruthy();
@@ -227,73 +227,146 @@ test.describe('console — the prelude BURN GATE', () => {
     await reachDeployment(page);
     await reachPreludeRail(page);
 
-    // The rail holds both preludes and the server has flagged the copier.
+    // ── THE IDLE READ: an accurate badge, not a flat «СГОРИТ» ──────────────
     const idle = await gate(page);
     expect(idle.queue, 'both preludes stand in the deployment queue').toEqual(
-      expect.arrayContaining([BURNING, PARTNER]));
-    expect(idle.burnBadges, 'the copier carries «СГОРИТ» with nothing yet to copy').toContain(BURNING);
-    expect(idle.burnBadges, 'the ordinary prelude carries no badge').not.toContain(PARTNER);
-    expect(idle.armedCard, 'nothing is armed before a press').toBe('');
-    // The badge is the ONLY voice before the press — it must be READABLE, not
-    // a sliver poking out of the deployment's clip.
-    expect(idle.badgeHidden,
-      `the «СГОРИТ» badge is clipped by the deployment (badge ${idle.badgeH}px)`).toBeLessThanOrEqual(1);
+      expect.arrayContaining([WAITING, ENABLER]));
+    expect(idle.badged, 'the copier is the one that cannot resolve yet').toEqual([WAITING]);
+    expect(idle.badgeText.toLowerCase(),
+      'the badge names the ORDER, never a flat «сгорит» over a fixable card')
+      .toContain('сначала другой пролог');
+    expect(idle.armed, 'nothing is armed before a press').toBe('');
+    expect(idle.stageUp, 'and no stage is open').toBeFalsy();
 
-    expect(await focusQueue(page, BURNING), 'focused the burning prelude').toBeTruthy();
+    expect(await focusQueue(page, WAITING), 'focused the waiting prelude').toBeTruthy();
+    const focused = await gate(page);
+    // The way OUT is marked — on the card that provides it, not chosen for the player.
+    expect(focused.enablers, 'the enabling prelude wears the tie').toEqual([ENABLER]);
+    // …and the explanation is readable BEFORE any press.
+    expect(focused.railState.toLowerCase()).toContain('сначала разыграйте');
 
-    // ── FIRST A: arms, plays NOTHING ──────────────────────────────────────
-    // The queue absorbs presses while anything is still arriving (the scene's
-    // own readiness guard), so wait for it to take input before pressing —
-    // a swallowed press is not a gate that failed to arm.
+    // ── FIRST A: it EXPLAINS. Nothing is sent, nothing moves ──────────────
     await waitQueueIdle(page);
     await waitPressable(page);
     await shoot(page, 'before');
     await press(page, 'Enter', 1200);
     const armed = await gate(page);
-    expect(armed.queue, 'the first press did not play the card').toContain(BURNING);
-    expect(armed.armedCard, 'the pressed card is the armed one').toBe(BURNING);
-    expect(armed.pillArmed, 'its A pill turned into the confirm').toBeTruthy();
-    expect(armed.pill.toLowerCase(), 'and says so').toContain('подтвердить');
-    expect(armed.railBurn, 'the rail took the caution state').toBeTruthy();
-    expect(armed.railWhy, 'the REASON leads — the real advice, not a bare demand').not.toBe('');
-    expect(armed.railWhy.toLowerCase()).toContain('пролог');
-    expect(armed.railCta.toLowerCase(), 'the instruction follows it').toContain('ещё раз');
+    expect(armed.queue, 'the first press did not play the card').toContain(WAITING);
+    expect(armed.armed, 'the pressed card entered the risk stage').toBe(WAITING);
+    expect(armed.stageUp, 'and the stage is an INLINE state of this workspace').toBeTruthy();
+    expect(armed.stageTitle.toLowerCase()).toContain('сейчас нечего повторять');
+    expect(armed.stageBody.toLowerCase(),
+      'the body names the enabling prelude, dynamically').toContain('бизнес-империя');
+    expect(armed.effectLost, 'nothing has been lost yet').toBeFalsy();
     expect(armed.legacyModal, 'no legacy modal was pulled in').toBe(0);
-    // The bar is the ONE hint surface: A confirms, B takes it back.
-    expect(armed.bar.join(' | ').toLowerCase()).toContain('подтвердить');
-    expect(armed.bar.join(' | ').toLowerCase()).toContain('отмена');
-    // The caution fits the rail's RESERVED box — the deployment never reflows.
-    expect(armed.railOverflow, 'the armed rail does not overflow its reserved height').toBeLessThanOrEqual(0);
     await shoot(page, 'armed');
 
-    // ── B TAKES IT BACK (and does not minimize the deployment) ────────────
+    // ── THE CONTRADICTION IS GONE ─────────────────────────────────────────
+    // The verb names the loss, and no generic confirmation is on screen beside
+    // the order advice — that pairing IS the defect this test exists for.
+    expect(armed.pillArmed).toBeTruthy();
+    expect(armed.pill.toLowerCase()).toContain('разыграть без эффекта');
+    expect(armed.bar.join(' | ').toLowerCase()).toContain('разыграть без эффекта');
+    expect(armed.bar.join(' | ').toLowerCase()).toContain('вернуться к выбору');
+    expect(armed.holdRing, 'the commit is HELD, and says so').toBeTruthy();
+    for (const banned of ['нажмите ещё раз', 'подтвердить']) {
+      expect(armed.screen,
+        `«${banned}» beside «сначала разыграйте другой пролог» is the contradiction being removed`)
+        .not.toContain(banned);
+    }
+
+    // ── A FAST DOUBLE PRESS CANNOT BURN THE EFFECT ────────────────────────
+    await press(page, 'Enter', 120);
+    await press(page, 'Enter', 400);
+    const mashed = await gate(page);
+    expect(mashed.queue, 'a reflex double tap must not reach the commit').toContain(WAITING);
+    expect(mashed.effectLost).toBeFalsy();
+
+    // ── B GOES BACK, and does not minimize the deployment ─────────────────
     await press(page, 'Escape', 800);
-    const cancelled = await gate(page);
-    expect(cancelled.armedCard, 'B disarmed the gate').toBe('');
-    expect(cancelled.railBurn, 'the rail returned to its calm state').toBeFalsy();
-    expect(await page.locator('.con-start__queue').isVisible(), 'B cancelled the gate, it did not minimize the workspace').toBeTruthy();
+    const back = await gate(page);
+    expect(back.armed, 'B left the risk stage').toBe('');
+    expect(back.stageUp).toBeFalsy();
+    expect(await page.locator('.con-start__queue').isVisible(),
+      'B went back to CHOOSING, it did not minimize the workspace').toBeTruthy();
+    expect(back.queue, 'and it certainly did not play anything').toContain(WAITING);
 
-    // ── A NAVIGATION DISARMS BY CONSTRUCTION ──────────────────────────────
-    await press(page, 'Enter', 800);
-    expect((await gate(page)).armedCard, 're-armed').toBe(BURNING);
-    await press(page, 'ArrowRight', 500);
-    await press(page, 'ArrowLeft', 500);
-    expect((await gate(page)).armedCard, 'walking away and back disarms — the second A is never inherited').toBe('');
+    // ── EVERY EXIT DISARMS: navigation, and the fullscreen inspect ────────
+    await press(page, 'Enter', 700);
+    expect((await gate(page)).armed, 're-armed').toBe(WAITING);
+    await moveFocusAway(page);
+    const walked = await gate(page);
+    expect(walked.armed, 'walking away drops the stage by construction').toBe('');
+    expect(walked.queue, 'and walking away is not a commit').toContain(WAITING);
+    expect(await focusQueue(page, WAITING), 'walked back to the waiting prelude').toBeTruthy();
+    expect((await gate(page)).armed, 'coming back NEVER inherits the stage').toBe('');
 
-    // ── THE ORDINARY PRELUDE IS UNTAXED: one press plays it ───────────────
-    expect(await focusQueue(page, PARTNER), 'focused the ordinary prelude').toBeTruthy();
+    await press(page, 'Enter', 700);
+    expect((await gate(page)).armed, 're-armed').toBe(WAITING);
+    await press(page, 'KeyX', 900); // inspect
+    await press(page, 'Escape', 900); // close the viewer
+    const read = await gate(page);
+    expect(read.armed,
+      'reading the card is stepping out of the decision — never back into it armed').toBe('');
+    expect(read.queue, 'and inspecting is not a commit either').toContain(WAITING);
+
+    // ── THE ADVICE WAS TRUE: play the enabler, the warning disappears ─────
+    expect(await focusQueue(page, ENABLER), 'focused the enabling prelude').toBeTruthy();
+    await waitQueueIdle(page);
+    await waitPressable(page);
     await press(page, 'Enter', 2600);
     await page.waitForTimeout(1500);
     const played = await gate(page);
-    expect(played.queue, 'a prelude with no badge still plays on ONE press').not.toContain(PARTNER);
+    expect(played.queue, 'an ordinary prelude still plays on ONE press').not.toContain(ENABLER);
 
-    // ── …AND THE ADVICE WAS TRUE: the copier no longer burns ──────────────
     await waitPressable(page).catch(() => {});
     await page.waitForTimeout(1200);
     const after = await gate(page);
-    if (after.queue.includes(BURNING)) {
-      expect(after.burnBadges, 'with a prelude played, the copier is a real prelude again').not.toContain(BURNING);
+    if (after.queue.includes(WAITING)) {
+      expect(after.badged, 'with a prelude played, the copier is a real prelude again').toEqual([]);
+      expect(after.enablers, 'and nothing is waiting on anything').toEqual([]);
       await shoot(page, 'cleared');
     }
+  });
+
+  /**
+   * The other half of the gate: when the player DOES choose to give the effect
+   * up, it takes a deliberate HOLD — and the result says so once, plainly.
+   */
+  test('the loss is committed only by a HOLD, and names itself afterwards', async ({page, request}) => {
+    test.setTimeout(300_000);
+    const created = await request.post('/api/creategame', {data: cfg()});
+    expect(created.ok()).toBeTruthy();
+    const {players} = await created.json();
+    await page.goto(`/player?id=${players[0].id}&console=1`);
+    await reachDeployment(page);
+    await reachPreludeRail(page);
+    expect(await focusQueue(page, WAITING), 'focused the waiting prelude').toBeTruthy();
+
+    await waitQueueIdle(page);
+    await waitPressable(page);
+    await press(page, 'Enter', 1000);
+    expect((await gate(page)).stageUp, 'the risk stage is up').toBeTruthy();
+
+    // A SHORT hold is not a hold: releasing early is a complete, safe cancel.
+    await holdConfirm(page, 200);
+    await page.waitForTimeout(600);
+    expect((await gate(page)).queue, 'an interrupted hold commits nothing').toContain(WAITING);
+
+    // …and the full hold does commit, through the ORDINARY play animation.
+    await holdConfirm(page, 1100);
+    await page.waitForTimeout(1200);
+    // ONE press, ONE commit. The button was still down when the hold completed
+    // and the server answered with the NEXT prelude — a second commit riding
+    // that same press would silently play a card the player never chose.
+    const justCommitted = await gate(page);
+    expect(justCommitted.queue, 'the waiting prelude was played').not.toContain(WAITING);
+    expect(justCommitted.queue,
+      'and the press did NOT carry on into the prelude that followed it').toContain(ENABLER);
+
+    await page.waitForTimeout(2500);
+    const done = await gate(page);
+    expect(done.queue, 'still exactly one card played').toContain(ENABLER);
+    await shoot(page, 'committed');
   });
 });

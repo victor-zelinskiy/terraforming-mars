@@ -460,6 +460,18 @@
                   </div>
                   <div class="con-start__risk-body">{{ riskBodyText }}</div>
                 </div>
+                <!-- …and the RESULT of having gone through with it. The card
+                     played with the ordinary physical animation (it is a
+                     normal play in every other respect), so all this adds is
+                     the one honest word about what happened — briefly, on the
+                     same chassis, with no delta chips for an effect that never
+                     ran and no picker for a target that never existed. -->
+                <div v-else-if="effectLostShown" class="con-start__risk con-start__risk--lost"
+                     data-start-effect-lost>
+                  <div class="con-start__risk-head">
+                    <span class="con-start__risk-title">{{ $t('Effect lost') }}</span>
+                  </div>
+                </div>
               </transition>
 
             </div>
@@ -747,7 +759,9 @@ import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/star
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {afterPreludes, cardCostForCorp, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
 import {beginHoldConfirm, cancelHoldConfirm} from '@/client/console/consoleHoldConfirm';
-import {isPreludeEnabler, preludeBadge, PreludeRisk, preludeRisk} from '@/client/console/startPreludeRisk';
+import {
+  isPreludeEnabler, preludeBadge, preludeEnablerBadge, PreludeRisk, preludeRisk,
+} from '@/client/console/startPreludeRisk';
 import {PreludeOutlook} from '@/common/cards/PreludeOutlook';
 import {
   corpActionOptionIndexFor, corporationCardNames, PreludeEntry, preludeEntries, recordDrawChoice,
@@ -880,6 +894,12 @@ const GRID_ZOOM_CEIL = 1.2;
  * waits on a real completion signal.
  */
 const SEPARATION_BEAT_MS = 55;
+/**
+ * How long «ЭФФЕКТ ПОТЕРЯН» stands after a prelude played without its effect.
+ * A statement, not a ceremony: long enough to read, short enough that the
+ * deployment does not feel punished for a choice the player made on purpose.
+ */
+const EFFECT_LOST_BEAT_MS = 1800;
 
 /** The stable delivery-hold key for a bought-cards set (name-derived, so it
  *  survives a reload mid-ceremony and matches between the summary-submit arm
@@ -946,6 +966,9 @@ export default defineComponent({
        * record that the result the player is watching is a deliberate loss.
        */
       effectLostFor: undefined as CardName | undefined,
+      /** …and whether its short beat is on screen right now. */
+      effectLostShown: false,
+      effectLostTimer: undefined as number | undefined,
       /** A pressed on a limit-blocked card → the rail message replays its
        *  one-shot settle (restrained feedback; state never changes). */
       blockedNudge: 0,
@@ -1984,7 +2007,7 @@ export default defineComponent({
         out.push({
           name: e.name, kind: 'prelude',
           verb: playable ? 'Play now' : undefined,
-          badge: enabler && badge === undefined ? 'Enables the waiting prelude' : badge,
+          badge: enabler && badge === undefined ? preludeEnablerBadge(focusedOutlook) : badge,
           badgeClass: enabler && badge === undefined ?
             'con-cards__pickband--enabler' :
             (badge !== undefined ? 'con-cards__pickband--warn' : undefined),
@@ -2413,6 +2436,14 @@ export default defineComponent({
       }
       return this.focusedRisk;
     },
+    /**
+     * The committed-without-effect card has finished ARRIVING — the hero has
+     * landed and the queue is standing again. Only then may the beat speak.
+     */
+    effectLostReady(): boolean {
+      return this.effectLostFor !== undefined && !isPlayedHeroActive() &&
+        this.queueArriving.size === 0;
+    },
     /** The risk stage's body, with the enabling prelude's name interpolated. */
     riskBodyText(): string {
       const risk = this.riskStage;
@@ -2673,6 +2704,26 @@ export default defineComponent({
       if (!active) {
         void this.$nextTick(() => this.fitCardStrip());
       }
+    },
+    /**
+     * THE RESULT BEAT. `effectLostFor` is latched at the commit, but the word
+     * belongs AFTER the card has physically arrived — the play animation is the
+     * ordinary one and must not be talked over. So the beat waits for the hero
+     * to settle, says one thing, and clears itself.
+     */
+    'effectLostReady'(ready: boolean) {
+      if (!ready || this.effectLostShown) {
+        return;
+      }
+      this.effectLostShown = true;
+      if (this.effectLostTimer !== undefined) {
+        window.clearTimeout(this.effectLostTimer);
+      }
+      this.effectLostTimer = window.setTimeout(() => {
+        this.effectLostTimer = undefined;
+        this.effectLostShown = false;
+        this.effectLostFor = undefined;
+      }, motionMs(EFFECT_LOST_BEAT_MS));
     },
     focusables(now: Array<Focusable>) {
       // Only clamp the CEREMONY focus cursor here — the wizard summary reuses
@@ -3034,6 +3085,13 @@ export default defineComponent({
     this.stopResize = useEventListener(window, 'resize', this.scheduleFit);
   },
   beforeUnmount() {
+    // The hold gate is MODULE state — it must not outlive the surface that
+    // armed it (a live hold with nothing on screen would complete into a
+    // component that no longer exists).
+    this.clearRiskStage();
+    if (this.effectLostTimer !== undefined) {
+      window.clearTimeout(this.effectLostTimer);
+    }
     document.body.classList.remove('con-start-ceremony');
     document.body.classList.remove('con-start-prep');
     this.disposeMaterializationFreeze(true);
@@ -3639,6 +3697,22 @@ export default defineComponent({
     },
     /** The shell routes every intent here while the scene is active. */
     handleIntent(intent: GamepadIntent): void {
+      // ── LETTING GO IS NOT AN ACTION ────────────────────────────────────
+      // The committing press inside the risk stage is a HOLD, so this surface
+      // reads BOTH edges of the button — and the RELEASE edge is handled
+      // FIRST, above every gate below. Those gates exist to stop presses from
+      // ACTING (mid-deal, mid-flight, while yielded); a release does the
+      // opposite — it STOPS something — and swallowing it leaves a hold
+      // running that the player believes they cancelled. That is the one
+      // failure mode a hold-to-confirm may never have: the button is up, the
+      // ring keeps filling, and the irreversible thing happens anyway.
+      // Unconditional and idempotent: a release with nothing held is a no-op.
+      if (intent.kind === 'release') {
+        if (consoleActionOf(intent, START_INPUT_OVERRIDES) === 'primary') {
+          cancelHoldConfirm();
+        }
+        return;
+      }
       // YIELDED — the board owns the screen (see the `yielded` prop). The
       // shell stops routing here (`startSceneOwnsPad`), so this is defence:
       // the guard sits at the ENTRY, not on `onPress` alone, because `onNav`
@@ -3663,19 +3737,6 @@ export default defineComponent({
       }
       if (intent.kind === 'nav') {
         this.onNav(intent.dir);
-        return;
-      }
-      // ── THE HOLD GATE ──────────────────────────────────────────────────
-      // Inside the risk stage the committing press is a HOLD, so this surface
-      // must see BOTH edges of the button — the one place the scene reads a
-      // raw intent rather than a semantic action. Letting go is the cancel, and
-      // it is unconditional: a release that arrives after the stage has already
-      // gone (the commit ran, B was pressed, the workspace minimized) simply
-      // finds nothing held.
-      if (intent.kind === 'release') {
-        if (consoleActionOf(intent, START_INPUT_OVERRIDES) === 'primary') {
-          cancelHoldConfirm(this.riskHoldKey);
-        }
         return;
       }
       const action = consoleActionOf(intent, START_INPUT_OVERRIDES);
@@ -3883,6 +3944,10 @@ export default defineComponent({
         }
         return;
       }
+      // Going to READ the card is leaving the decision for a moment, so the
+      // stage lets go: the viewer must never hand back a screen whose next
+      // input gives an effect up.
+      this.clearRiskStage();
       const items = this.focusables;
       const item = this.focusedItem;
       if (item === undefined || items.length === 0) {
@@ -4740,6 +4805,10 @@ export default defineComponent({
             this.state.firstAct.stage === 'staging' || this.state.firstAct.submitting) {
           return;
         }
+        // Minimizing must never leave the risk stage armed behind it: the
+        // player would come back to a screen one input from losing an effect
+        // they had walked away from.
+        this.clearRiskStage();
         this.$emit('defer');
         return;
       default:
@@ -5687,12 +5756,9 @@ export default defineComponent({
       if (item === undefined || item.disabled) {
         return undefined;
       }
-      // The RISK STAGE keeps its verb honest here too: the viewer's A is the
-      // same press as the scene's, so it must not still promise «Разыграть»
-      // when what it does is give the effect up.
-      if (this.riskStage !== undefined && this.riskArmed === name) {
-        return this.riskStage.commitLabel;
-      }
+      // (No risk verb to mirror here: opening the viewer LEAVES the risk stage
+      // — reading a card is stepping out of the decision — so the viewer's A
+      // is always a first press, and a first press only ever opens the stage.)
       // Every actionable ceremony card — incl. the deferred corporation —
       // is playable from fullscreen (the viewer closes, then actByName runs).
       return this.candidatePrompt !== undefined ? this.candidateVerb : 'Play now';

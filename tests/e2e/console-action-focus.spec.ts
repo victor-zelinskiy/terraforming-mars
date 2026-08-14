@@ -130,6 +130,49 @@ for (const profile of PROFILES) {
       // Leave cleanly (B → browse, B → board).
       await key(page, 'Escape', 700);
       await expect(page.locator('.con-composer--stage')).toHaveCount(0);
+
+      // ── 5. B → BOARD: the dismissal may not RESIZE what it dismisses. ───
+      //    `beforeUnmount` fires SYNCHRONOUSLY on the press while the leave
+      //    transition keeps the surface fully painted, so any teardown that
+      //    writes to this surface's own DOM plays out on screen. Dropping the
+      //    published `--act-fit` there popped every action formula from its
+      //    fitted size to its natural one — the workspace left with enlarged
+      //    icons. The probe samples the SAME nodes across the whole leave
+      //    (a detached node measures 0, so only growth can fail this).
+      //    The sampler is armed BEFORE the press, so the real key path (not a
+      //    synthetic event) is what dismisses the workspace.
+      await page.evaluate(() => {
+        const nodes = [...document.querySelectorAll<HTMLElement>('.con-cardactions__graphic')];
+        const width = (n: HTMLElement) => n.getBoundingClientRect().width;
+        const fits = () => nodes.filter((n) => n.style.getPropertyValue('--act-fit') !== '').length;
+        const probe = {base: nodes.map(width), max: nodes.map(width), fitted: fits(), stillFitted: fits()};
+        (window as unknown as {__actDismiss: typeof probe}).__actDismiss = probe;
+        const until = performance.now() + 1800;
+        const tick = () => {
+          nodes.forEach((n, i) => {
+            probe.max[i] = Math.max(probe.max[i], width(n));
+          });
+          probe.stillFitted = fits();
+          if (performance.now() < until) {
+            requestAnimationFrame(tick);
+          }
+        };
+        requestAnimationFrame(tick);
+      });
+      await key(page, 'Escape', 2000);
+      const dismissal = await page.evaluate(() => {
+        const p = (window as unknown as {__actDismiss: {base: Array<number>, max: Array<number>, fitted: number, stillFitted: number}}).__actDismiss;
+        return {...p, grew: p.base.map((w, i) => (w > 0 ? p.max[i] / w : 1))};
+      });
+      console.log(`[act-dismiss ${profile.tag}] formulas=${dismissal.base.length} fitted=${dismissal.fitted}` +
+        ` stillFitted=${dismissal.stillFitted} maxGrowth=${Math.max(...dismissal.grew).toFixed(3)}`);
+      expect(dismissal.base.length, 'the browse grid must have carried action formulas').toBeGreaterThan(0);
+      // The published fits survive the press (the mechanism)…
+      expect(dismissal.stillFitted, 'a teardown must not drop --act-fit while the surface still paints')
+        .toBe(dismissal.fitted);
+      // …and nothing on the way out is bigger than it was (what the player sees).
+      expect(Math.max(...dismissal.grew), 'no formula may grow during the dismissal').toBeLessThan(1.02);
+      await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 8000});
     });
   });
 }

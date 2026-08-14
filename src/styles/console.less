@@ -9401,6 +9401,36 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         line-height: 1;
         opacity: .75;
     }
+    /* ── THE SHARED HOLD RING (consoleHoldConfirm) ─────────────────────
+       A press the player must HOLD wears its progress around the glyph, so
+       «удерживать» is watched rather than trusted. A conic sweep + a ring:
+       both are BACKGROUND paint, which the performance profile keeps intact
+       (it cuts `filter`/`text-shadow` only), so the one affordance that
+       guards an irreversible action can never quietly disappear. */
+    &__hold {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: .18rem;
+        border-radius: 49.95rem;
+        background:
+            conic-gradient(@con-amber calc(var(--con-hold-progress, 0) * 360deg), transparent 0deg);
+        box-shadow: inset 0 0 0 .07rem fade(@con-amber, 40%);
+
+        /* Punch the centre out of the conic sweep so it reads as a RING
+           around the glyph rather than a filling disc behind it. */
+        &::after {
+            content: '';
+            position: absolute;
+            inset: .1rem;
+            border-radius: 49.95rem;
+            background: @con-glass;
+        }
+        > * { position: relative; z-index: 1; }
+
+        &--live { box-shadow: inset 0 0 0 .07rem fade(@con-amber, 85%); }
+    }
     &__badge {
         min-width: 1.2rem;
         height: 1.2rem;
@@ -14355,6 +14385,15 @@ html.con-scale-focus-oceans .global-numbers-oceans {
         box-shadow: inset 0 0 0 .075rem fade(@con-amber, 90%), 0 .2rem .7rem rgba(0, 0, 0, 0.55), 0 0 .8rem fade(@con-amber, 20%);
         color: #ffe9c4;
     }
+    /* ENABLER: this card could open the WAITING one's effect. Deliberately the
+       quietest badge in the family — it is an invitation, not a state of the
+       card it sits on, and several cards may wear it at once (the screen never
+       picks the player's order for them). */
+    &__pickband--enabler {
+        background: linear-gradient(180deg, fade(@con-amber, 16%), fade(@con-amber, 7%)), @con-glass;
+        box-shadow: inset 0 0 0 .075rem fade(@con-amber, 55%), 0 .2rem .7rem rgba(0, 0, 0, 0.5);
+        color: #ffe9c4;
+    }
     /* WARN: the card IS pressable, but pressing it costs something the player
        would not expect (a prelude that fizzles into a 15 M€ discard). Amber
        like --sale (a caution, never the red --disabled "you can't"), and
@@ -17397,6 +17436,70 @@ body.con-start-barshold .con-status {
         display: flex;
         flex-direction: column;
     }
+    /* ── THE RISK STAGE ────────────────────────────────────────────────────
+       The workspace one state deeper: the player pressed A on a prelude whose
+       effect cannot resolve, and nothing has been sent. ABSOLUTE over the
+       queue column's own slack — entering and leaving it must not move the
+       cards it is about, which stay visible behind it (the waiting card
+       amber-ringed, every card that could open it amber-tied).
+
+       Not a modal: no backdrop, no shade, no dimming of the deployment. It is
+       part of this surface, and the way out of it is B. */
+    &__risk {
+        position: absolute;
+        left: 50%;
+        bottom: .2rem;
+        transform: translateX(-50%);
+        z-index: 5;
+        max-width: min(46rem, 92%);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .3rem;
+        padding: .7rem 1.4rem .8rem;
+        border-radius: .7rem;
+        background: linear-gradient(180deg, rgba(38, 25, 8, 0.94), rgba(20, 14, 6, 0.94));
+        box-shadow: inset 0 0 0 .07rem fade(@con-amber, 62%), 0 .8rem 2rem rgba(0, 0, 0, 0.55);
+        text-align: center;
+    }
+    &__risk-head {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+    }
+    &__risk-flag { color: @con-amber; font-size: 1rem; }
+    &__risk-title {
+        font-size: 1rem;
+        font-weight: 800;
+        letter-spacing: .07em;
+        text-transform: uppercase;
+        color: #ffe3b0;
+    }
+    &__risk-body {
+        font-size: .92rem;
+        line-height: 1.25;
+        color: fade(#ffe9c4, 88%);
+    }
+    /* The three tones are a difference of WEIGHT, never of alarm: `guaranteed`
+       is the calmest of them (one ordinary press away from having everything),
+       and only the final one is an actual loss. */
+    &__risk--guaranteed {
+        box-shadow: inset 0 0 0 .07rem fade(@con-amber, 48%), 0 .8rem 2rem rgba(0, 0, 0, 0.55);
+    }
+    &__risk--final {
+        box-shadow: inset 0 0 0 .07rem fade(@con-red, 55%), 0 .8rem 2rem rgba(0, 0, 0, 0.55);
+
+        .con-start__risk-flag, .con-start__risk-title { color: #ffd2cc; }
+    }
+    /* THE RESULT — one word, on the same chassis, after the ordinary play
+       animation has finished. Never a second ceremony. */
+    &__risk--lost {
+        padding: .55rem 1.4rem;
+        background: linear-gradient(180deg, rgba(30, 18, 18, 0.94), rgba(18, 11, 11, 0.94));
+        box-shadow: inset 0 0 0 .07rem fade(@con-red, 45%), 0 .8rem 2rem rgba(0, 0, 0, 0.5);
+
+        .con-start__risk-title { color: #ffd2cc; }
+    }
     /* An embedded follow-up owns the column: the queue scene RELEASES for
        real (the recede/return grammar, GSAP-owned — runQueueRelease /
        runQueueReturn in the scene). The old in-place dim read as a modal
@@ -17446,6 +17549,12 @@ body.con-start-barshold .con-status {
         &--armed {
             box-shadow: 0 0 0 .14rem fade(@con-amber, 92%), 0 0 1.4rem fade(@con-amber, 24%), 0 .6rem 1.4rem rgba(0, 0, 0, 0.45);
             z-index: 2;
+        }
+        /* The ENABLER TIE — the card that could open the waiting one. A ring
+           only, in the same amber family, so «this is the way out» reads at a
+           glance without competing with the armed card's own state. */
+        &--enabler {
+            box-shadow: 0 0 0 .1rem fade(@con-amber, 55%), 0 .5rem 1.2rem rgba(0, 0, 0, 0.4);
         }
         &--awaiting > :is(.card-container, .pcard) {
             opacity: 0.6;
@@ -17895,6 +18004,29 @@ body.con-start-barshold .con-status {
     transform: translateY(calc(-50% + .5rem)) scale(.994);
 }
 .con-start-firstact-leave-to { opacity: 0; }
+/* THE RISK STAGE surfaces from just under the queue it is about, and lets go
+   in place. Transform + opacity only (perf mode keeps both), and the X shift
+   is deliberately absent: the panel is centred on the cards, so it must not
+   appear to slide in from anywhere else. */
+.con-start-risk-enter-active {
+    transition:
+        opacity calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1),
+        transform calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+}
+.con-start-risk-leave-active {
+    transition:
+        opacity calc(140ms * var(--motion-scale, 1)) ease,
+        transform calc(140ms * var(--motion-scale, 1)) ease;
+}
+.con-start-risk-enter-from,
+.con-start-risk-leave-to {
+    opacity: 0;
+    transform: translateX(-50%) translateY(.4rem);
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-start-risk-enter-active,
+    .con-start-risk-leave-active { transition: none; }
+}
 @keyframes con-start-firstact-dot {
     0%, 100% { opacity: .25; transform: translateY(0); }
     35% { opacity: 1; transform: translateY(-.08rem); }

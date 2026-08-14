@@ -74,12 +74,14 @@ export function fitActionCanvases(root: HTMLElement | undefined | null): void {
   });
 }
 
-/** Drop every published fit (unmount / teardown). */
-export function clearActionCanvasFit(root: HTMLElement | undefined | null): void {
-  if (root === undefined || root === null) {
-    return;
-  }
-  for (const {graphic} of pairsIn(root)) {
-    graphic.style.removeProperty('--act-fit');
-  }
-}
+/*
+ * There is deliberately NO `clear` counterpart, and a teardown must never
+ * grow one back. The fit is an inline property on nodes that are destroyed
+ * with their surface, so there is nothing to clean up — while the ONE moment
+ * a teardown runs (`beforeUnmount`, which Vue fires synchronously at the
+ * press) is the moment the leave transition still has the surface fully
+ * painted: dropping the fit there pops every formula from its fitted size to
+ * its natural one and dismisses the workspace with enlarged icons. A stale
+ * value cannot outlive the mount either — `fitActionCanvases` resets every
+ * pair before it measures.
+ */
