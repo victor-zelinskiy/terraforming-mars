@@ -3,6 +3,7 @@ import {
   claimWorkspaceOutcome,
   markWorkspaceOutcomeAnswerIn,
   markWorkspaceOutcomeArrivalDone,
+  markWorkspaceOutcomeArrivalFlown,
   markWorkspaceOutcomeBeatDone,
   markWorkspaceOutcomePresenting,
   outcomeHostConcludesFlow,
@@ -14,6 +15,7 @@ import {
   workspaceClaimsDrawReveal,
   workspaceClaimsPick,
   workspaceOutcomeAdmits,
+  workspaceOutcomeArrivalFlown,
   workspaceOutcomeArrivalPending,
   workspaceOutcomeBeatPending,
   workspaceOutcomeClaimed,
@@ -52,7 +54,30 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     expect(workspaceClaimsDrawReveal({type: 'tile'})).to.eq(false);
     expect(workspaceClaimsDrawReveal({type: 'other'})).to.eq(false);
     expect(workspaceClaimsDrawReveal({type: 'globalParameter', parameter: 'venus'} as CardDrawRevealSource)).to.eq(false);
-    // An UNATTRIBUTED draw is the deck-draw scene's, never a workspace's.
+  });
+
+  /**
+   * AN UNATTRIBUTED DRAW IS THE OPEN WORKSPACE'S (contract change, 2026-08-14).
+   *
+   * This spec used to assert the opposite — «an unattributed draw is the
+   * deck-draw scene's, never a workspace's» — and that is what shipped
+   * Celestic's first action as a standalone full-bleed «Получены карты» over
+   * a start workspace that was standing right behind it, source seat and all.
+   * The server names a source from the running event scope and not every
+   * effect establishes one, so «no source» does not mean «not ours»; it means
+   * NOTHING IS KNOWN. Every presenter that could compete for a batch is
+   * identified BY its source (tile / colony / global parameter — asserted
+   * above), so a sourceless batch has no other owner, and a modal over an
+   * open workspace is never the answer: if a workspace is open, it hosts the
+   * draw.
+   */
+  it('an UNATTRIBUTED draw belongs to the open workspace — a modal over it never does', () => {
+    expect(workspaceClaimsDrawReveal(undefined), 'no claim → nobody to give it to').to.eq(false);
+    claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw', 'pick']);
+    expect(workspaceClaimsDrawReveal(undefined)).to.eq(true);
+    // …but only when the claim admits DRAWS at all.
+    resetWorkspaceOutcome();
+    claimWorkspaceOutcome('card-actions', 'Search For Life', ['deck-check']);
     expect(workspaceClaimsDrawReveal(undefined)).to.eq(false);
   });
 
@@ -254,6 +279,39 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
   });
 
   /**
+   * WHO PHYSICALLY FLEW THE CARDS. An arriving surface that deals its own batch
+   * off the deck (the draw & select screen) must adopt the host's landed cards
+   * instead of pulling a second batch off the same pile.
+   */
+  describe('the arrival-flown fact', () => {
+    it('is false until a beat actually launches — a surface with no host beat deals as usual', () => {
+      claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw', 'pick'], 0, 2);
+      expect(workspaceOutcomeArrivalFlown()).to.eq(false);
+      markWorkspaceOutcomeArrivalFlown();
+      expect(workspaceOutcomeArrivalFlown()).to.eq(true);
+    });
+
+    it('is never claimed with no claim standing (a standalone deck pick owns its own deal)', () => {
+      markWorkspaceOutcomeArrivalFlown();
+      expect(workspaceOutcomeArrivalFlown()).to.eq(false);
+    });
+
+    it('a second activation starts from scratch — one draw\'s flight never covers the next', () => {
+      claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw', 'pick'], 0, 2);
+      markWorkspaceOutcomeArrivalFlown();
+      claimWorkspaceOutcome('card-actions', RESTRICTED, ['draw', 'pick'], 0, 2);
+      expect(workspaceOutcomeArrivalFlown()).to.eq(false);
+    });
+
+    it('is dropped with the claim', () => {
+      claimWorkspaceOutcome('card-actions', AI_CENTRAL, ['draw'], 0, 1);
+      markWorkspaceOutcomeArrivalFlown();
+      releaseWorkspaceOutcome();
+      expect(workspaceOutcomeArrivalFlown()).to.eq(false);
+    });
+  });
+
+  /**
    * THE CHAIN SCOPE — a card PLAY answers for everything one press sets off.
    *
    * The server attributes a draw to the card whose EFFECT ran, and a triggered
@@ -277,8 +335,10 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
       // are things the BOARD produced, not this press.
       expect(workspaceClaimsDrawReveal({type: 'tile'})).to.eq(false);
       expect(workspaceClaimsDrawReveal({type: 'colony', colonyName: 'Pluto'} as CardDrawRevealSource)).to.eq(false);
-      expect(workspaceClaimsDrawReveal(undefined)).to.eq(false);
       expect(workspaceClaimsColonyReveal({type: 'colony', colonyName: 'Pluto'} as CardDrawRevealSource)).to.eq(false);
+      // …an UNATTRIBUTED batch is NOT one of those: nothing identifies it as
+      // the board's, and a workspace is open (see the contract note above).
+      expect(workspaceClaimsDrawReveal(undefined)).to.eq(true);
     });
 
     it('the default scope stays EXACT — an activation answers for its own card only', () => {

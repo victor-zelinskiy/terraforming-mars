@@ -24,6 +24,9 @@ import {openConsole, press, seedGameOverApi, waitForBoardHome} from './consoleSt
 
 const OUT_DIR = path.resolve('screenshots', 'potential-availability');
 
+/** 4 M€, no requirement, no placement — playable in generation 1 by construction. */
+const POWER_PLANT = 'Power Plant';
+
 function twoPlayerConfig() {
   return {
     players: [
@@ -88,10 +91,28 @@ test.describe('potential availability — the counts survive the turn', () => {
     test.setTimeout(180_000);
 
     // ── the table ────────────────────────────────────────────────────────
-    const created = await request.post('/api/creategame', {data: twoPlayerConfig()});
-    expect(created.ok(), 'the game server accepted the config').toBeTruthy();
-    const {players} = await created.json();
-    const [viewer, rival] = players.map((p: {id: string}) => p.id);
+    // Deal until the viewer is OFFERED «Power Plant» — 4 M€, no requirement,
+    // no placement, so it is playable in generation 1 whatever else lands. The
+    // probe's whole subject is a card whose ONLY blocker is the turn, and a
+    // random deal of two requirement-heavy cards (the first run drew «Великая
+    // плотина» ≥4 oceans and «Губернатор Луны» ≥3 Earth tags) has no such card
+    // to show. `createGameWithCards` does this for a solo game; here both seat
+    // ids are needed, so the same loop runs inline.
+    let viewer = '';
+    let rival = '';
+    for (let attempt = 0; attempt < 60 && viewer === ''; attempt++) {
+      const created = await request.post('/api/creategame',
+        {data: {...twoPlayerConfig(), seed: 0.31 + attempt * 0.017}});
+      expect(created.ok(), 'the game server accepted the config').toBeTruthy();
+      const {players} = await created.json();
+      const model = await (await request.get(`/api/player?id=${players[0].id}`)).json();
+      const dealt: Array<string> = (model.waitingFor?.options ?? [])
+        .flatMap((o: {cards?: Array<{name: string}>}) => (o.cards ?? []).map((c) => c.name));
+      if (dealt.includes(POWER_PLANT)) {
+        [viewer, rival] = players.map((p: {id: string}) => p.id);
+      }
+    }
+    expect(viewer, `no deal in 60 tries offered ${POWER_PLANT}`).not.toBe('');
 
     // Both seats answer their pregame over the API — the subject starts at the
     // action menu, so the wizard is setup, never the story.
@@ -101,13 +122,17 @@ test.describe('potential availability — the counts survive the turn', () => {
     // table-mate who is not being driven yet, and its own wait budget expires
     // «the table never came back to this player (phase research)».
     await Promise.all([
-      seedGameOverApi(request, viewer, {buy: 4}),
+      // Buy the unconditional card by NAME (plus one more for company): the
+      // wallet has to survive the research phase with something genuinely
+      // playable in generation 1, or every count is honestly 0 and the probe
+      // proves nothing.
+      seedGameOverApi(request, viewer, {cards: [POWER_PLANT], buy: 2}),
       // The rival needs only its PREGAME answered. Once the action phase opens
       // the FIRST player moves, so this seat legitimately has nothing left to
       // answer and the shared seeder's «the table never came back» is its
       // expected ending, not a failure. The state it was driving to is
       // asserted positively below, so nothing is swallowed.
-      seedGameOverApi(request, rival, {buy: 4}).catch(() => undefined),
+      seedGameOverApi(request, rival, {buy: 2}).catch(() => undefined),
     ]);
     await expect.poll(async () => activeSeat(request, [viewer, rival]), {timeout: 30_000}).toBe(viewer);
 
@@ -117,10 +142,13 @@ test.describe('potential availability — the counts survive the turn', () => {
     // ── 1 · the viewer's OWN turn ────────────────────────────────────────
     const onTurn = await wheelBadges(page);
     await shoot(page, '01-own-turn');
-    // The premise of the whole probe: there IS something to count. (Cards are
-    // the reliable one — four bought projects are in hand; the other three
-    // categories legitimately vary with the deal.)
-    expect(onTurn.center, 'the viewer holds playable cards on their own turn').toBeGreaterThan(0);
+    // The premise of the whole probe: there IS something to count. WHICH
+    // category carries it depends on the deal and the corporation, so the
+    // premise is the total — a run where everything is honestly 0 would pass
+    // the equality below without testing anything.
+    const total = (b: Record<string, number>) => Object.values(b).reduce((n, v) => n + v, 0);
+    expect(total(onTurn), `the wheel counts something on the viewer's own turn: ${JSON.stringify(onTurn)}`)
+      .toBeGreaterThan(0);
 
     // ── 2 · hand the turn over — and change NOTHING else ─────────────────
     // «Пропустить поколение» (LT ▼ + its confirm card): the only turn-ending

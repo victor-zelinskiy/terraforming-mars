@@ -90,9 +90,10 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {currentRevealEvent, DrawnCardEntry} from '@/client/components/drawnCards/drawnCardsState';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
 import {
-  abortDeckDraw, armDeckDraw, deckDrawState, endDeckDraw, isDeckDrawSource, markDeckCardDrawn,
-  markDeckDrawDealing, markDeckDrawDiscarded, markDeckDrawZoomReady, registerDeckDrawHandle,
-  registerDeckDrawZoomOrigin, setDeckDrawPhase,
+  abortDeckDraw, armDeckDraw, deckDrawState, deckDrawVerdict, DeckDrawVerdict, endDeckDraw,
+  isDeckDrawSource, markDeckCardDrawn, markDeckDrawDealing, markDeckDrawDiscarded,
+  markDeckDrawZoomReady, noteDeckDrawForeign, registerDeckDrawHandle, registerDeckDrawZoomOrigin,
+  setDeckDrawPhase,
 } from '@/client/console/deckDraw/consoleDeckDraw';
 import {isPlayedHeroActive} from '@/client/console/played/consolePlayedHero';
 import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale';
@@ -220,27 +221,24 @@ export default defineComponent({
       return deckDrawState.dealing;
     },
     /**
-     * The reveal batch this layer should drive NOW. Watched PRE-FLUSH so the
-     * arm lands BEFORE the overlay's first render — otherwise the finished
-     * modal would flash for a frame before the scene withheld it.
+     * The reveal batch this layer should drive NOW, and WHOSE it is. Watched
+     * PRE-FLUSH so the arm lands BEFORE the overlay's first render — otherwise
+     * the finished modal would flash for a frame before the scene withheld it.
      *
-     * A batch is ours when its cards came off the DECK; a tile / Venus-scale
-     * bonus belongs to the board card-bonus scene. `id !== stagedEventId`
-     * keeps a finished scene from re-arming its own batch forever (the
-     * board-bonus layer documents that exact trap).
+     * ONE computed, ONE watcher, deliberately: the verdict and the MEMORY of it
+     * (`noteDeckDrawForeign`) have to be taken at the same instant. Split over
+     * two watchers they would fire in registration order, and a memory that ran
+     * second would already have missed the very fact it exists to remember.
      *
-     * NOTE it does NOT wait for another running scene here. The batch must be
-     * CLAIMED the instant it lands (see the watcher) — waiting would let the
-     * finished modal mount in the meantime, and the whole point is that it
-     * doesn't exist yet. The waiting happens after the claim, inside the
+     * NOTE it does NOT wait for another running scene before deciding OWNERSHIP.
+     * The batch must be CLAIMED the instant it lands (see the watcher) — waiting
+     * would let the finished modal mount in the meantime, and the whole point is
+     * that it doesn't exist yet. The waiting happens after the claim, inside the
      * scene.
      */
-    revealToProcess(): DrawnCardEntry | undefined {
+    revealVerdict(): {v: DeckDrawVerdict, e: DrawnCardEntry} | undefined {
       const e = currentRevealEvent();
-      if (e === undefined || deckDrawState.active) {
-        return undefined;
-      }
-      if (e.id === deckDrawState.stagedEventId) {
+      if (e === undefined) {
         return undefined;
       }
       // A colony BUILD card bonus (Pluto) is the board-card-bonus scene's — the
@@ -262,29 +260,27 @@ export default defineComponent({
       // one card. The GAME START host has no beat of its own: this scene
       // SERVES its claim, flying the cards from the HUD pile into the
       // embedded reveal's slots (`workspaceClaimOwnsArrival` draws the line).
-      if (!isDeckDrawSource(e.source) ||
-          workspaceClaimOwnsArrival(e.source) ||
-          boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id) ||
-          colonyTradeClaimsReveal(e.source) || isColonyTradeRevealStaged(e.id) ||
-          isPresentedTradeReveal(e.source)) {
-        return undefined;
-      }
+      // ⚠️ That claim is the one owner here whose life is SHORTER than the
+      // batch's — it is dropped one tick before the last card is dismissed
+      // (`result-detached`) — which is why the verdict is REMEMBERED.
+      const foreign = !isDeckDrawSource(e.source) ||
+        workspaceClaimOwnsArrival(e.source) ||
+        boardCardBonusClaimsReveal(e.source) || isBonusRevealStaged(e.id) ||
+        colonyTradeClaimsReveal(e.source) || isColonyTradeRevealStaged(e.id) ||
+        isPresentedTradeReveal(e.source);
       // A FOREIGN trade's owner bonus waits for its ENTRY (the mandatory
       // announcement is the door): the cards must not start peeling off the
       // deck over whatever screen the player is on. Once the entry is armed
       // the hold drops and this scene SERVES the colony workspace's claim —
       // the cards honestly come off the deck, into the embedded slots.
-      if (remoteColonyBonusHold(this.playerView.waitingFor, e.source)) {
-        return undefined;
-      }
       // …and during the FULL-STAGE DISCARD the next cycle's batch waits for
       // the focus restore (its reveal slot is held empty; flying into an
       // unmounted surface would only degrade). Reactive — the restore
-      // re-fires this computed.
-      if (colonyResolutionUi.discardStage && workspaceClaimsColonyReveal(e.source)) {
-        return undefined;
-      }
-      return e;
+      // re-fires this computed. NEITHER is remembered: they are «not yet».
+      const waiting = remoteColonyBonusHold(this.playerView.waitingFor, e.source) ||
+        (colonyResolutionUi.discardStage && workspaceClaimsColonyReveal(e.source));
+      const v = deckDrawVerdict({eventId: e.id, foreign, waiting});
+      return v === undefined ? undefined : {v, e};
     },
     /**
      * Another cinematic is mid-story. A draw is nearly always EARNED by one
@@ -298,12 +294,17 @@ export default defineComponent({
     },
   },
   watch: {
-    revealToProcess: {
+    revealVerdict: {
       flush: 'pre',
-      handler(e: DrawnCardEntry | undefined): void {
-        if (e !== undefined) {
-          this.claimScene(e);
+      handler(r: {v: DeckDrawVerdict, e: DrawnCardEntry} | undefined): void {
+        if (r === undefined || r.v === undefined) {
+          return;
         }
+        if (r.v.kind === 'foreign') {
+          noteDeckDrawForeign(r.v.eventId);
+          return;
+        }
+        this.claimScene(r.e);
       },
     },
     'deckDrawState.trayCount'(): void {

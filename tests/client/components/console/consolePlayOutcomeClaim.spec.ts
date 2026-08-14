@@ -55,6 +55,30 @@ describe('consolePlayOutcomeClaim — WHERE a card play\'s follow-up presents', 
     expect(workspaceOutcomeState.sourceCard).to.eq('');
     // …and the full-bleed presenters keep their artifact.
     expect(workspaceClaimsDrawReveal(cardSource(LAGRANGE))).to.eq(false);
+    // …including an unattributed one: with no claim there is nobody to give
+    // it to, so the standalone reveal is the honest presenter.
+    expect(workspaceClaimsDrawReveal(undefined)).to.eq(false);
+  });
+
+  /**
+   * AN UNATTRIBUTED BATCH BELONGS TO THE OPEN WORKSPACE.
+   *
+   * The server names a draw's source from the running event scope, and not
+   * every effect establishes one — a corporation's mandatory first action
+   * (Celestic: «reveal until 2 floater cards») reached the client with NO
+   * source. Keyed on a name match alone it belonged to nobody and opened the
+   * standalone full-bleed reveal OVER the workspace whose contract is to host
+   * exactly that. Every presenter that could compete for a batch is
+   * identified BY its source, so a sourceless one has no other owner.
+   */
+  it('a draw with NO source is the open workspace\'s (Celestic\'s first action)', () => {
+    standStart();
+    expect(claimPlayOutcome(CardName.CELESTIC as string, 2)).to.eq('start');
+    expect(workspaceClaimsDrawReveal(undefined)).to.eq(true);
+    // …and a NON-card source still keeps its own presenter: a tile bonus is
+    // identified BY that source and has a scene of its own, so «no source»
+    // is what widens the claim here, never «any source».
+    expect(workspaceClaimsDrawReveal({type: 'tile'} as never)).to.eq(false);
   });
 
   it('the HAND owns a play only once a card is picked up in it — its zone IS the play stage', () => {

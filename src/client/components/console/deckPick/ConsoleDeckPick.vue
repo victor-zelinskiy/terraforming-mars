@@ -153,7 +153,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {cardsResponse} from '@/client/console/taskResponses';
-import {markWorkspaceOutcomeArrivalDone, setWorkspaceOutcomePhase, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeArrivalDone, setWorkspaceOutcomePhase, workspaceOutcomeArrivalFlown, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {
   armDeckPickFlight, beginDeckPickChoosing, beginDeckPickClearing, beginDeckPickDeal,
   beginDeckPickSend, clearDeckPickFlight, deckPickProxyEls, deckPickState,
@@ -490,6 +490,24 @@ export default defineComponent({
     startDeal(): void {
       this.handle?.kill();
       this.handle = undefined;
+      // ADOPT, NEVER RE-DEAL. Hosted inside a workspace whose own execution
+      // beat already pulled these cards off the pile at confirm, there is
+      // nothing left to deal: the cards are standing in these very slots under
+      // the host's landed proxies, and the host's handoff is what uncovers them
+      // (and what opens the arrival gate — we must not open it early over
+      // proxies that are still there). Dealing anyway meant the batch flew
+      // twice off the same deck, with the cards blinking out in between.
+      if (this.embedded && workspaceOutcomeArrivalFlown()) {
+        this.flyOn = false;
+        this.held.clear();
+        // Through `deal` all the same, so a previous commit's bookkeeping is
+        // reset exactly as it is on every other path — the phase simply does
+        // not linger there, because the cards have already landed.
+        beginDeckPickDeal();
+        beginDeckPickChoosing();
+        this.scheduleFit();
+        return;
+      }
       beginDeckPickDeal();
       const names = this.entries.map((e) => e.name);
       this.held = new Set<string>(names);

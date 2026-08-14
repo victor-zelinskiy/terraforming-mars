@@ -224,6 +224,24 @@ export const workspaceOutcomeState = reactive({
    * there. Every embedded stage gates its input on this.
    */
   arrivalDone: true,
+  /**
+   * THE CLAIM'S OWN BEAT HAS ALREADY FLOWN THESE CARDS OFF THE PILE.
+   *
+   * The card-actions composer pulls N cards off `.con-deckstack__pile` into its
+   * prepared stage at CONFIRM — before the server has even said what they are —
+   * and hands them to whatever surface lands in the zone. One of those
+   * surfaces, «посмотри N карт колоды, оставь K», deals its own batch off the
+   * SAME pile on mount, because standing on its own that is exactly its job.
+   * Hosted, that made TWO flights for one draw with a hole between them: the
+   * beat's cards landed, the handoff dissolved them onto slots the arriving
+   * surface was holding invisible, and only then did a second batch peel off
+   * the deck.
+   *
+   * PUBLISHED by whoever actually flew, never inferred from the host's name — a
+   * beat that never ran (no DOM, a torn-down stage, a degenerate layout) must
+   * leave the arriving surface dealing exactly as it does standalone.
+   */
+  arrivalFlown: false,
 });
 
 /**
@@ -313,6 +331,19 @@ export function markWorkspaceOutcomeArrivalDone(): void {
   workspaceOutcomeState.arrivalDone = true;
 }
 
+/** The claim's own beat has physically launched this outcome's cards off the
+ *  pile — an arriving surface must not deal them a second time. */
+export function markWorkspaceOutcomeArrivalFlown(): void {
+  if (workspaceOutcomeState.sourceCard !== '') {
+    workspaceOutcomeState.arrivalFlown = true;
+  }
+}
+
+/** Did the claiming workspace already fly this outcome's cards? (See the flag.) */
+export function workspaceOutcomeArrivalFlown(): boolean {
+  return workspaceOutcomeState.sourceCard !== '' && workspaceOutcomeState.arrivalFlown;
+}
+
 /**
  * Is a claimed batch still ARRIVING? Embedded stages ask this before they
  * draw a focus ring, name a focused card or accept a press.
@@ -389,6 +420,7 @@ export function claimWorkspaceOutcome(
   workspaceOutcomeState.scope = scope;
   workspaceOutcomeState.stage = 'awaiting';
   workspaceOutcomeState.expectedCards = Math.max(0, Math.floor(expectedCards));
+  workspaceOutcomeState.arrivalFlown = false;
   clearArrival();
   // Only a CARD outcome arrives by flying; a deck-check presents in the
   // composer's own slot and must not leave the input gate closed behind it.
@@ -452,6 +484,7 @@ export function releaseWorkspaceOutcome(reason = 'unspecified'): void {
   workspaceOutcomeState.beatDone = false;
   workspaceOutcomeState.expectedCards = 0;
   workspaceOutcomeState.arrivalDone = true;
+  workspaceOutcomeState.arrivalFlown = false;
   workspaceOutcomeState.host = undefined;
   workspaceOutcomeState.sourceCard = '';
   workspaceOutcomeState.nodeIndex = 0;
@@ -490,7 +523,26 @@ export function workspaceClaimOwnsArrival(source: CardDrawRevealSource | undefin
 }
 
 export function workspaceClaimsDrawReveal(source: CardDrawRevealSource | undefined): boolean {
-  if (!workspaceOutcomeAdmits('draw') || source?.type !== 'card') {
+  if (!workspaceOutcomeAdmits('draw')) {
+    return false;
+  }
+  // AN UNATTRIBUTED DRAW BELONGS TO THE OPEN WORKSPACE.
+  //
+  // The server names a draw's source from the running event scope, and not
+  // every effect establishes one — a corporation's mandatory first action
+  // calls `drawCard` outside any scope, so its batch arrives with NO source
+  // at all (Celestic: «reveal until 2 floater cards»). Keyed on a NAME match
+  // alone, that batch belonged to nobody and fell back to the standalone
+  // full-bleed reveal — over an open workspace whose whole contract is to
+  // host exactly this. A sourceless batch has no other owner by construction
+  // (every presenter that competes for one — the tile bonus, the colony
+  // payout, the global-parameter reward — is identified BY its source), so
+  // «a workspace is open ⇒ the workspace takes it» is not a guess here, it
+  // is the only reading available.
+  if (source === undefined) {
+    return true;
+  }
+  if (source.type !== 'card') {
     return false;
   }
   // A 'chain' claim answers for the whole causal chain of one press — the

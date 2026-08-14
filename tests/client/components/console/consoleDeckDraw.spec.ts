@@ -1,9 +1,10 @@
 import {expect} from 'chai';
 import {
   abortDeckDraw, armDeckDraw, deckDrawHolds, deckDrawHoldingSingleZoom, deckDrawState,
-  deckDrawZoomOriginEl, endDeckDraw, isDeckDrawActive, isDeckDrawSource, isDeckDrawStaged,
-  markDeckCardDrawn, markDeckDrawDiscarded, markDeckDrawZoomReady, registerDeckDrawHandle,
-  registerDeckDrawZoomOrigin, resetDeckDraw, setDeckDrawPhase,
+  deckDrawVerdict, deckDrawZoomOriginEl, endDeckDraw, isDeckDrawActive, isDeckDrawForeign,
+  isDeckDrawSource, isDeckDrawStaged, markDeckCardDrawn, markDeckDrawDiscarded,
+  markDeckDrawZoomReady, noteDeckDrawForeign, registerDeckDrawHandle, registerDeckDrawZoomOrigin,
+  resetDeckDraw, setDeckDrawPhase,
 } from '@/client/console/deckDraw/consoleDeckDraw';
 import {displayedDeckSize, isDeckDisplayHeld} from '@/client/console/consoleDeckDisplay';
 
@@ -210,6 +211,86 @@ describe('consoleDeckDraw', () => {
       arm(2);
       expect(isDeckDrawStaged(2)).to.eq(true);
       expect(isDeckDrawStaged(1)).to.eq(false);
+    });
+  });
+
+  /**
+   * WHOSE ARRIVAL IS IT — the entry decision, and the one property that makes
+   * it safe: ownership is decided ONCE PER BATCH and can only harden.
+   *
+   * THE BUG THIS EXISTS FOR. Every «not ours» answer is derived from something
+   * LIVE, and a reveal batch outlives all of them — it stays
+   * `currentRevealEvent()` until the last card has been taken, while the
+   * workspace that owns it deliberately drops its claim ONE TICK EARLIER
+   * (`result-detached`: the card lifts, the frame folds under it). In that one
+   * window a batch that had already been dealt, landed and read looked unowned
+   * — so the scene dealt it again: the HUD counter jumped back up to the
+   * pre-draw number, a second «−1» chip fired, and a ghost card flew off the
+   * pile across the take that was already in the air.
+   */
+  describe('ownership is decided once and only hardens', () => {
+    const own = (eventId: number, foreign: boolean, waiting = false) =>
+      deckDrawVerdict({eventId, foreign, waiting});
+
+    it('claims a batch nobody else is flying', () => {
+      expect(own(9, false)).to.deep.eq({kind: 'claim', eventId: 9});
+    });
+
+    it('hands a foreign batch back — and REMEMBERS it, so an owner letting go cannot re-open the door', () => {
+      // The workspace's own execution beat is flying batch 9.
+      expect(own(9, true)).to.deep.eq({kind: 'foreign', eventId: 9});
+      noteDeckDrawForeign(9);
+      expect(isDeckDrawForeign(9)).to.eq(true);
+      // The take: the claim is released one tick before the batch is dismissed.
+      // The live answer is now «nobody owns it» — the memory is what holds.
+      expect(own(9, false)).to.deep.eq({kind: 'foreign', eventId: 9});
+      // …and only for THAT batch: the next draw is still ours.
+      expect(own(10, false)).to.deep.eq({kind: 'claim', eventId: 10});
+    });
+
+    it('never remembers a WAITING batch — «not yet» must stay re-askable', () => {
+      // A foreign trade's owner bonus behind its mandatory announce.
+      expect(own(11, false, true)).to.eq(undefined);
+      expect(isDeckDrawForeign(11)).to.eq(false);
+      // The door opened — the scene serves it.
+      expect(own(11, false)).to.deep.eq({kind: 'claim', eventId: 11});
+    });
+
+    it('decides ownership BEFORE «are we busy» — a batch arriving mid-scene is still recorded as theirs', () => {
+      arm(1);
+      expect(own(2, true)).to.deep.eq({kind: 'foreign', eventId: 2});
+      noteDeckDrawForeign(2);
+      endDeckDraw();
+      // The scene is free now, and the claim that made batch 2 foreign is gone.
+      expect(own(2, false)).to.deep.eq({kind: 'foreign', eventId: 2});
+    });
+
+    it('one scene at a time, and a finished scene never re-arms its own batch', () => {
+      arm(3);
+      expect(own(4, false)).to.eq(undefined);
+      endDeckDraw();
+      // 3 is this scene's own, finished batch — the reveal is still on screen.
+      expect(own(3, false)).to.eq(undefined);
+      expect(own(4, false)).to.deep.eq({kind: 'claim', eventId: 4});
+    });
+
+    it('nothing on screen is nothing to do', () => {
+      expect(deckDrawVerdict(undefined)).to.eq(undefined);
+    });
+
+    it('the memory is bounded and survives every exit but a full reset', () => {
+      for (let id = 100; id < 120; id++) {
+        noteDeckDrawForeign(id);
+      }
+      // Only the recent batches are kept — the old ones can no longer be asked
+      // about (their reveals are long gone).
+      expect(isDeckDrawForeign(119)).to.eq(true);
+      expect(isDeckDrawForeign(100)).to.eq(false);
+      arm(119);
+      abortDeckDraw();
+      expect(isDeckDrawForeign(119)).to.eq(true);
+      resetDeckDraw();
+      expect(isDeckDrawForeign(119)).to.eq(false);
     });
   });
 });

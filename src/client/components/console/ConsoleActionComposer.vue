@@ -644,7 +644,7 @@ import CardRenderData from '@/client/components/card/CardRenderData.vue';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 import ConsolePaymentPanel from '@/client/components/console/ConsolePaymentPanel.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
-import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeArrivalFlown, markWorkspaceOutcomeBeatDone, setWorkspaceOutcomeSlot, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import {setWorkspaceFrameSlot, workspaceFrameHost} from '@/client/console/consoleWorkspaceStack';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {actionCommitState, armActionCommit, commitKindForBranch, commitRewardSpecs, markActionCommitSettled} from '@/client/console/consoleActionCommit';
@@ -3503,6 +3503,11 @@ export default defineComponent({
         kinds: workspaceOutcomeState.kinds,
         dataReady: workspaceOutcomeState.answerIn && this.beatFaces.every((f) => f !== ''),
       });
+      // THESE CARDS ARE NOW PHYSICALLY OFF THE PILE — published HERE, at the
+      // one point where the flight is genuinely committed (past every degrade
+      // branch above), so an arriving surface that would otherwise deal its own
+      // batch off the same pile adopts these instead of doubling them.
+      markWorkspaceOutcomeArrivalFlown();
       this.beatHandle = runBatchArrival({
         cards, slots, mode,
         // The first card is visibly out of the pile — the counter may now tell

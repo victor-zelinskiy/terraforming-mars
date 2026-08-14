@@ -2130,9 +2130,23 @@ export class Player implements IPlayer {
           message('Take first action of ${0} corporation', (b) => b.card(corp)),
           corp.initialActionText)
           .andThen(() => {
-            game.log('${0} took the first action of ${1} corporation', (b) => b.player(this).card(corp)),
-            this.defer(corp.initialAction?.(this));
-            inplaceRemove(this.pendingInitialActions, corp);
+            // SCOPED TO THE CORPORATION, like every other card action. The
+            // first action used to run outside any scope, so everything it
+            // produced was UNATTRIBUTED: the journal group had no head, and a
+            // draw it made reached the client with no source at all — which
+            // is how Celestic's «reveal until 2 floater cards» arrived as an
+            // anonymous batch (the console then had nothing to match it to).
+            // Same shape as `getPlayActionCard`'s scope, `finally`-closed.
+            const events = this.game?.events;
+            events?.beginAction(this, {kind: 'corporation', card: corp.name, owner: this.color}, {category: 'corporation-action'});
+            try {
+              // Logged INSIDE the scope so it heads the journal group.
+              game.log('${0} took the first action of ${1} corporation', (b) => b.player(this).card(corp));
+              this.defer(corp.initialAction?.(this));
+              inplaceRemove(this.pendingInitialActions, corp);
+            } finally {
+              events?.endScope();
+            }
             return undefined;
           });
         orOptions.options.push(option);
