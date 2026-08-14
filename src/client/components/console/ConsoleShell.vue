@@ -1375,7 +1375,7 @@ import {
 import {armColonyFocusQuickExit} from '@/client/console/consoleColonyFocusMotion';
 import {consolePlayCardUi} from '@/client/console/consolePlayCardUi';
 import {consoleStartUi} from '@/client/console/consoleStartUi';
-import {startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
+import {consoleStartState, startAwaitingOthers, startCorporationPlayed, startDeferredSummary, startSceneHeld} from '@/client/console/consoleStartState';
 import {engageStartExcursion, releaseStartExcursion, startExcursionActive, startExcursionQuiet, startExcursionState} from '@/client/console/startBoardExcursion';
 import {firstActionOwed} from '@/client/console/startFirstAction';
 import {isResourceTransferActive} from '@/client/console/resourceTransfer/consoleResourceTransfer';
@@ -2793,8 +2793,26 @@ export default defineComponent({
       // which wipes the module hold) a lifetime hold. The workspace is still
       // the serving surface of that wait: it owns the pad, the defer summary
       // and the frame exactly as during any other beat of the deployment.
+      //
+      // …AND IT OWNS AN OUTCOME. A workspace that CLAIMED a follow-up may not
+      // stop serving before that follow-up has presented: the claim is what
+      // makes the batch embeddable, so a frame that closes in the gap between
+      // the answer and the cards coming off the deck takes the only host the
+      // draw had with it — the batch then opens a standalone modal over
+      // nothing (Celestic's first action, and any draw at all once a reload
+      // has wiped the lifetime hold).
       return this.startTask !== undefined || startSceneHeld() ||
-        (corpFirstActionInStartFlow(this.playerView) && firstActionOwed(this.playerView));
+        (corpFirstActionInStartFlow(this.playerView) && firstActionOwed(this.playerView)) ||
+        // …AND WHILE ITS OWN STAGE MACHINE IS STILL RUNNING. This is the
+        // durable form of «the workspace owns something»: the CLAIM is
+        // transient by design (it is reconciled away the moment nothing looks
+        // embeddable YET), so a frame whose life hangs off it dies in the gap
+        // between «the ledger drained» and «the cards came off the deck» —
+        // taking with it the only host that draw had, which is how Celestic's
+        // first action ended up in a modal. The stage goes `idle` only
+        // through `firstActionLeaveDue`, which already waits out that gap.
+        consoleStartState.firstAct.stage !== 'idle' ||
+        (workspaceOutcomeState.host === 'start' && workspaceOutcomeState.sourceCard !== '');
     },
     /**
      * The workspace is on SCREEN. It SERVES through the whole start (above),
@@ -7008,6 +7026,21 @@ export default defineComponent({
         // presenter and the drawn cards show NOWHERE.
         const host = workspaceOutcomeState.host;
         if (host !== undefined && workspaceFrameParked(host)) {
+          return;
+        }
+        // …AND «FELL» IS NOT «STILL COMING». A drawn batch legitimately has
+        // no embedded surface for the whole DEAL: the reveal is withheld
+        // while the cards are physically coming off the deck
+        // (`rawDrawnRevealPending` is false by design while `deckDrawHolds`),
+        // so the teleport target disappears mid-flight and comes back when
+        // the reveal assembles. Releasing in that window drops the claim of a
+        // batch that is on its way — and the batch then arrives with nobody
+        // to host it, opening a full-bleed modal over the still-standing
+        // workspace (Celestic's first action: the deck deals for ~8 s).
+        // The server's own unconsumed reveal is the authoritative «it is
+        // coming», available long before the client can render it.
+        if (deckDrawHolds() || this.rawDrawnRevealPending ||
+            this.playerView.cardDrawReveals.length > 0) {
           return;
         }
         if (!this.workspaceOutcomeEmbedded && workspaceOutcomeState.stage === 'presenting') {
@@ -11231,6 +11264,19 @@ export default defineComponent({
           this.rawDrawnRevealPending ||
           deckDrawHolds() ||
           consoleActionComposerUi.revealClaim !== '' ||
+          // THE START CLAIM SPANS THE FIRST ACTION'S WHOLE STAGE. Same shape
+          // as the two below, and the same reason: the artifact can trail the
+          // answer by seconds (the cards come off the deck first, and the
+          // reveal event only exists once they have). At the reconcile tick
+          // there is nothing embeddable to see YET — and reading that as «the
+          // outcome went elsewhere» dropped the claim, so the batch arrived
+          // with nobody to host it and opened a full-bleed modal over the
+          // still-standing workspace (Celestic's «reveal until 2 floaters»).
+          (workspaceOutcomeState.host === 'start' && consoleStartState.firstAct.stage !== 'idle') ||
+          // …and, generally, while the SERVER still holds an unconsumed
+          // reveal for us: that is positive evidence of an artifact on its
+          // way, available a full cinematic before the client can render it.
+          (workspaceOutcomeState.host === 'start' && this.playerView.cardDrawReveals.length > 0) ||
           // The COLONY claim spans its whole resolution — the mandatory bonus
           // discard is a handSelect the workspace itself hosts, never «the
           // server asked for something else».
@@ -12491,7 +12537,25 @@ export default defineComponent({
         source: boardCardBonusState.source.kind,
         staged: boardCardBonusState.stagedEventId ?? null,
       },
-      lastRelease: lastOutcomeReleaseStack.split('\n').slice(1, 7).join(' | '),
+      // ⚠️ The reason is ONE line (`«reason» @ms`) — the old `.split('\n')
+      // .slice(1)` here dropped it entirely, so every probe read «nobody
+      // released it» while the claim was demonstrably gone. Raw, verbatim.
+      lastRelease: lastOutcomeReleaseStack,
+      // THE START WORKSPACE'S LIFE, for the first-action probes: «why is the
+      // frame still here / why did it go» has five terms, and reading them
+      // from pixels is guesswork (the frame's disappearance and the claim's
+      // release look identical on screen — one causes the other).
+      start: {
+        frameLive: this.startFrameLive,
+        serves: this.startSceneServes,
+        held: startSceneHeld(),
+        task: this.startTask?.kind ?? null,
+        owed: firstActionOwed(this.playerView),
+        inFlow: corpFirstActionInStartFlow(this.playerView),
+        outcomeSource: workspaceOutcomeState.sourceCard,
+        mounted: this.startSceneMounted,
+        stage: consoleStartState.firstAct.stage,
+      },
     });
     // Phase D of the discard cinematic reuses the ORDINARY hand-close episode;
     // the transaction awaits this instead of the shell watching a phase.

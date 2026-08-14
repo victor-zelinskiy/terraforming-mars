@@ -410,6 +410,42 @@ for (const profile of PROFILES) {
       await page.goto(`/player?id=${id}&console=1${profile.query}`);
       await reachDeployment(page);
 
+      // ── THE DEAL HAPPENS ONCE. Seven cards coming off the pile is the most
+      //    expensive statement this flow makes, and it is only true the first
+      //    time: a surface that re-deals (a remount, a second owner flying the
+      //    same batch) shows the deck answering twice for one draw — the cards
+      //    land, blink out, and peel off again — and the HUD counter climbs
+      //    back to the pre-draw number with it. Both are watched as EDGES.
+      //    Frame-independent on purpose (a rAF sampler stops sampling exactly
+      //    when the screen goes quiet in headless Chromium).
+      await page.evaluate(() => {
+        const deckNow = (): number => {
+          const el = document.querySelector('.con-deckstack__count .con-flipval__card:not(.con-flipval__card--out)');
+          const n = Number.parseInt((el?.textContent ?? '').trim(), 10);
+          return Number.isFinite(n) ? n : -1;
+        };
+        const st = {deals: 0, deckRises: 0, samples: 0, dealing: false, deck: deckNow()};
+        (window as unknown as {__once?: typeof st}).__once = st;
+        const scan = () => {
+          st.samples++;
+          const dealing = document.querySelector('.con-deckpick[data-flow="dealing"]') !== null;
+          if (dealing && !st.dealing) {
+            st.deals++;
+          }
+          st.dealing = dealing;
+          const d = deckNow();
+          if (d >= 0 && st.deck >= 0 && d > st.deck) {
+            st.deckRises++;
+          }
+          if (d >= 0) {
+            st.deck = d;
+          }
+        };
+        const mo = new MutationObserver(scan);
+        mo.observe(document.body, {childList: true, subtree: true, attributes: true, characterData: true});
+        setInterval(scan, 16);
+      });
+
       const opened = await openDeckPick(page);
       expect(opened, `the surface opened — ${JSON.stringify(await surfaces(page))}`).toBeTruthy();
       const dealt = await waitPickable(page);
@@ -542,6 +578,19 @@ for (const profile of PROFILES) {
       expect(back.dockShelf.opacity, 'the played shelf is back at full strength').toBeGreaterThan(0.9);
       expect(back.shelfBlanked, `no card is left blanked on the shelf — ${JSON.stringify(back)}`).toBe(0);
       expect(back.sourceSeatUp, 'the source seat is gone once its card flew home').toBeFalsy();
+
+      // ── 7. THE DECK ANSWERED ONCE. Read at the very end, because a duplicate
+      //      does not have to be simultaneous: the one this fork paid for fired
+      //      on the way OUT, across the flight that was already carrying the
+      //      cards away. The counter's own trace rides along as diagnostics —
+      //      it legitimately climbs ONCE here (the hold shows the pre-draw
+      //      number while the seven cards physically leave the pile).
+      const once = await page.evaluate(() => (window as unknown as {__once: {
+        deals: number, deckRises: number, samples: number,
+      }}).__once);
+      console.log(`[ONCE:${profile.tag}] ${JSON.stringify(once)}`);
+      expect(once.samples, 'the probe itself must have been alive across the flow').toBeGreaterThan(60);
+      expect(once.deals, `the deck dealt this prompt ${once.deals} times`).toBe(1);
     });
   });
 }

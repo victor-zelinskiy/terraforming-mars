@@ -158,8 +158,16 @@ describe('ConsolePaymentPanel — one panel, two densities', () => {
   });
 
   /** ── The mode-switch affordance lives IN the block, not beside it ──── */
-  it('compact offers the expand hint only when there is something to configure', () => {
-    expect(mountPanel(view()).find('.con-pay__hint').exists()).to.be.true;
+  it('compact offers the expand hint only when the editor is a REAL second stage', () => {
+    // TWO alternatives — a mix the bumpers cannot express → the entry earns its
+    // place.
+    const multi = view({cost: 21, lanes: [STEEL, TITANIUM], counts: {steel: 2, titanium: 1}, mcAvailable: 30});
+    expect(mountPanel(multi).find('.con-pay__hint').exists()).to.be.true;
+    // ONE alternative — this block already IS the editor (its own row carries
+    // the dial pills), so «Настроить оплату» would open the same screen again.
+    expect(mountPanel(view()).find('.con-payrow--dial').exists()).to.be.true;
+    expect(mountPanel(view()).find('.con-pay__hint').exists()).to.be.false;
+    // Pure AUTO M€ — nothing to configure at all.
     expect(mountPanel(view({lanes: [], counts: {}})).find('.con-pay__hint').exists()).to.be.false;
   });
 

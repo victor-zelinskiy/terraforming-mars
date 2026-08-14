@@ -7,6 +7,8 @@ import {consoleActionComposerUi, resetConsoleActionComposerUi} from '@/client/co
 import {enterConsoleRepeatPick, resetConsoleRepeatPick} from '@/client/console/consoleRepeatPick';
 import {resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {resetWorkspaceOutcome, setWorkspaceOutcomePhase} from '@/client/console/consoleWorkspaceOutcome';
+import {actionPreviewStore, resetActionPreviews} from '@/client/console/actionPreviewStore';
+import {resetActionCommit} from '@/client/console/consoleActionCommit';
 import {CardName} from '@/common/cards/CardName';
 
 // Stub the gamepad glyphs — this spec is about the browse ⇄ focus flow.
@@ -347,5 +349,134 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     expect((w2.vm as any).composer).to.eq(undefined);
     expect(w2.find('.con-composer--stage').exists()).to.eq(false);
     w2.unmount();
+  });
+
+  /**
+   * PAST THE COMMIT BOUNDARY THE CONFIGURATION SURFACE DOES NOT MOVE.
+   *
+   * The preview cache is keyed by an AVAILABILITY FINGERPRINT — stored
+   * resources, action reasons, the server's activatable set — and the answer to
+   * the action the player just confirmed moves every one of them. So the store
+   * wipes and refetches WHILE the commit beat is still playing. The composer's
+   * whole draft hangs off that prop, so for the length of that round-trip its
+   * decision rows evaporated and then came back UNANSWERED and re-armed: the
+   * committed ring left the hero card, «Выполняется…» reverted to
+   * «ПОДТВЕРДИТЬ», and the amber «выберите…» line stood over a target the
+   * player had already chosen AND sent — a blink that describes a decision as
+   * unmade while its result is on the wire.
+   */
+  describe('the committed stage is frozen against the preview cache', () => {
+    const COMMITTED_PREVIEW = {
+      card: CARD, isCorporation: false, kind: 'declarative',
+      branches: [{
+        index: -1, title: '', available: true, renderKeys: [], effects: [],
+        steps: [{kind: 'input', input: {
+          type: 'card', title: 'Select card', buttonLabel: 'Select',
+          cards: [{name: CARD}], min: 1, max: 1,
+        }}],
+      }],
+    } as any;
+
+    // Module state is bundle-shared under mochapack — never leave a seeded
+    // preview (or a live commit beat) behind for the rest of the suite.
+    afterEach(() => {
+      resetActionPreviews();
+      resetActionCommit();
+    });
+
+    /**
+     * The player's own path, to the letter: open the action, answer its target
+     * on the embedded step, press A. (The shell's awaiting handoff — what keeps
+     * `submitting` true across the real response — is not simulated: the subject
+     * here is the PREVIEW CACHE, and dropping that lock is one of the symptoms.)
+     */
+    async function committedStage(): Promise<{w: any, composer: any}> {
+      actionPreviewStore.key = 'test';
+      actionPreviewStore.previews = {[CARD]: COMMITTED_PREVIEW};
+      // The target step reads EVERY seat's tableau (the candidate lies on one).
+      const view = playerView();
+      view.players = [{color: 'blue', name: 'Me', tableau: [{name: CARD, resources: 2}]}];
+      const w = mount(ConsoleCardActions, {
+        ...globalConfig,
+        global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+        props: {playerView: view},
+        attachTo: document.body,
+      });
+      await settle(w);
+      const vm = w.vm as any;
+      vm.activateFocused();
+      await settle(w);
+      // (Identity is never asserted: the store is `reactive`, so what the stage
+      // reads is a PROXY of the seed. The branch's own availability is the
+      // discriminator — the refetched preview below says the opposite.)
+      expect(vm.composerPreview?.branches[0].available, 'the stage composes against the cached preview').to.eq(true);
+
+      const composer = w.findComponent({name: 'ConsoleActionComposer'}).vm as any;
+      composer.openPlayedTargetStep(composer.allChoices[0]);
+      await settle(w);
+      composer.confirmPlayedTarget();
+      await settle(w);
+      expect(composer.captured[0], 'the target is answered BEFORE the commit').to.not.eq(undefined);
+      composer.submit();
+      await settle(w);
+      expect(composer.submitting, 'A committed the batch').to.eq(true);
+      expect(w.emitted('submit-batch'), 'the batch went to the shell').to.have.length(1);
+      return {w, composer};
+    }
+
+    it('the answer wiping the preview cache does not empty the committed stage', async () => {
+      const {w, composer} = await committedStage();
+      const vm = w.vm as any;
+      // The response lands: a changed fingerprint clears the cache and refetches.
+      actionPreviewStore.key = 'test-after-the-action';
+      actionPreviewStore.previews = {};
+      await settle(w);
+      expect(vm.composerPreview?.branches.length, 'the committed variant keeps what it was composed against').to.eq(1);
+      expect(w.find('.con-composer--stage').exists()).to.eq(true);
+      // …and the ANSWERED target is still the answered target: the row, the
+      // capture and the chosen card all survive their own result.
+      expect(composer.captured[0]).to.not.eq(undefined);
+      expect(w.find('.con-composer__target-name').text()).to.contain(CARD);
+      expect(w.find('.con-composer__row-empty').exists(), 'no «выберите…» over a made decision').to.eq(false);
+      w.unmount();
+    });
+
+    it('a refetched preview never re-arms the CTA over an action already sent', async () => {
+      const {w, composer} = await committedStage();
+      const vm = w.vm as any;
+      // The refetch lands — same card, a NEW object, and the branch is now
+      // «Активирована» because the server marked the action used.
+      actionPreviewStore.key = 'test-after-the-action';
+      actionPreviewStore.previews = {
+        [CARD]: {...COMMITTED_PREVIEW, branches: [{...COMMITTED_PREVIEW.branches[0], available: false}]},
+      };
+      await settle(w);
+      expect(vm.composerPreview?.branches[0].available, 'the «Активирована» refetch never reaches the stage').to.eq(true);
+      expect(composer.submitting, 'the commit lock survives a preview change').to.eq(true);
+      // The honest in-flight CTA, and no readiness hint over a made decision.
+      expect(w.find('.con-composer__cta--waiting').exists()).to.eq(true);
+      expect(w.find('.con-composer__cta-hint').exists()).to.eq(false);
+      w.unmount();
+    });
+
+    it('the freeze is per VARIANT and lets go with the stage', async () => {
+      const {w} = await committedStage();
+      const vm = w.vm as any;
+      expect(vm.committedPreview).to.not.eq(undefined);
+      actionPreviewStore.key = 'test-after-the-action';
+      actionPreviewStore.previews = {};
+      await settle(w);
+      // Re-pointing the stage at another variant (what the Viron repeat-reveal
+      // handoff does) falls back to the live cache — a frozen preview belongs
+      // to the variant it was committed for, never to the surface.
+      vm.composer = {cardName: CARD, nodeIndex: 1};
+      await settle(w);
+      expect(vm.composerPreview).to.eq(undefined);
+      // …and a genuine fold ends the freeze outright.
+      vm.closeComposer();
+      await settle(w);
+      expect(vm.committedPreview).to.eq(undefined);
+      w.unmount();
+    });
   });
 });

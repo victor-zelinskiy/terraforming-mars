@@ -177,6 +177,54 @@ both quiet predicates, the submit's round trip counts as chain work, and the
 stage's leave is CONFIRMED a tick + a frame later (same contract as the
 placement barrier's release).
 
+## AN UNATTRIBUTED DRAW IS THE OPEN WORKSPACE'S
+
+The server names a draw's source from the RUNNING EVENT SCOPE, and a
+corporation's first action used to establish none — so Celestic's «reveal
+until 2 floater cards» reached the client with **no source at all** and, with
+`workspaceClaimsDrawReveal` keyed on a name match, belonged to nobody: a
+standalone full-bleed «Получены карты» over a start workspace that was
+standing right behind it. Two changes, one on each side:
+
+* **Client (the general rule):** a claim that admits `'draw'` takes a
+  SOURCELESS batch. Every presenter that could compete for one is identified
+  BY its source (tile / colony / global parameter — still excluded), so «no
+  source» means *nothing is known*, never *not ours*. If a workspace is open,
+  it hosts the draw; a modal over an open workspace is never the answer.
+  ⚠️ This REVERSED a documented line in `consoleWorkspaceOutcome.spec.ts`
+  («an unattributed draw is the deck-draw scene's, never a workspace's») —
+  the spec now carries the reversal and its reason.
+* **Server (attribution quality):** the first action runs inside the
+  corporation's own event scope (`beginAction {kind:'corporation'}` …
+  `endScope()` in `Player.takeAction`), the same shape a card action uses. Its
+  log line heads the journal group, and everything it produces — draws
+  included — is attributed to the corporation instead of to nothing.
+
+…and neither of those was enough, because the claim was being dropped before
+the cards existed. **«The embed fell» is not «the batch is gone».** A drawn
+batch legitimately has NO embedded surface for the whole DEAL: the reveal is
+withheld while the cards physically come off the deck (`rawDrawnRevealPending`
+is false by design while `deckDrawHolds()`), so the teleport target vanishes
+mid-flight and returns when the reveal assembles — ~8 s for Celestic's
+reveal-until-2-floaters. The `embed-fell` release fired in that window and
+killed the host of a batch that was on its way. It now yields to three
+positive signals: the deck is dealing, a reveal is pending, or the SERVER
+still holds an unconsumed reveal (`playerView.cardDrawReveals`) — the last one
+is authoritative a full cinematic before the client can render anything.
+
+Two more durability terms came out of the same investigation: the start
+workspace lives while **its own stage machine** is running (the claim is
+transient by design; a frame whose life hangs off it dies in the gap between
+«the ledger drained» and «the cards arrived»), and the reconcile keeps a
+start claim for the stage's whole span — the same carve-out the colony and
+hydro claims already had.
+
+⚠️ **Diagnostics lie too.** `__conColonyDiag.lastRelease` split the release
+REASON (one line, `«reason» @ms`) on `\n` and took `slice(1)`, so it always
+read empty — two investigation rounds were spent believing «nobody released
+it» while the claim was demonstrably gone. It reports the reason verbatim now,
+and that is what named `embed-fell` in one look.
+
 ## THE HERO SIZE BELONGS TO THE BRIEFING
 
 The seat carries a hero-sized corporation while the briefing is what the

@@ -849,19 +849,79 @@ describe('ConsoleActionComposer — premium render', () => {
       w.unmount();
     });
 
-    it('the trigger EXPANDS the block in place — the CTA dock never unmounts, the mix is kept', async () => {
+    /**
+     * ONE alternative source = NO second stage. The compact block already is the
+     * editor (its own row carries the dial pills, the bumpers drive it, RT fills
+     * it), so LT must do nothing at all: «Настроить оплату» there opened the same
+     * rows with a cursor that had nowhere to go.
+     */
+    it('a SINGLE alt source has no editor — LT does nothing, and the block keeps its density', async () => {
       const w = payComposer();
       (w.vm as any).handleIntent({kind: 'press', button: 'bumperL'});
+      await w.vm.$nextTick();
+      expect(w.find('[data-pay-unit="steel"] .con-payrow__used').text()).to.eq('3');
+
+      (w.vm as any).handleIntent({kind: 'press', button: 'triggerL'});
+      await w.vm.$nextTick();
+      expect(w.find('.con-pay--expanded').exists()).to.eq(false);
+      expect(w.find('.con-pay--compact').exists()).to.eq(true);
+      expect(w.find('.con-payrow--focused').exists()).to.eq(false);
+      // ...and the bar never offered it either — it advertises the dial (with
+      // its own MAX), never a second screen.
+      const labels = (w.vm as any).footCommands.map((c: any) => c.label);
+      expect(labels).to.not.include('Configure payment');
+      expect(labels.slice(0, 3)).to.deep.eq(['−1', '+1', 'MAX']);
+      w.unmount();
+    });
+
+    /** RT МАКС. is the dial's own — with no editor to enter, it lives here. */
+    it('RT fills the single alt source to its cap, right on the quick screen', async () => {
+      const w = payComposer();
+      (w.vm as any).handleIntent({kind: 'press', button: 'bumperL'});
+      (w.vm as any).handleIntent({kind: 'press', button: 'bumperL'});
+      await w.vm.$nextTick();
+      expect(w.find('[data-pay-unit="steel"] .con-payrow__used').text()).to.eq('2');
+
+      (w.vm as any).handleIntent({kind: 'press', button: 'triggerR'});
+      await w.vm.$nextTick();
+      // 8 M€ owed, steel @2 → 4 steel covers it exactly; M€ re-balances to 0.
+      expect(w.find('[data-pay-unit="steel"] .con-payrow__used').text()).to.eq('4');
+      expect(w.find('[data-pay-unit="megacredits"] .con-payrow__used').text()).to.eq('0');
+      expect(w.find('.con-paystatus').classes()).to.include('con-paystatus--exact');
+      w.unmount();
+    });
+
+    /** TWO alternatives — a mix the bumpers cannot express, so the editor exists. */
+    it('the trigger EXPANDS a MULTI-lane block in place — the CTA dock never unmounts, the mix is kept', async () => {
+      const w = mount(ConsoleActionComposer, {
+        ...globalConfig,
+        global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+        props: {
+          playerView: {...PAYER, thisPlayer: {...PAYER.thisPlayer, titanium: 3}},
+          entry: entryFor('Paid Action'),
+          preview: {
+            ...PAY_PREVIEW,
+            branches: [{
+              ...PAY_PREVIEW.branches[0],
+              steps: [{kind: 'input', input: {type: 'payment', title: 'Pay', amount: 8, paymentOptions: {steel: true, titanium: true}}}],
+            }],
+          },
+          nodeIndex: 0,
+        },
+      });
       const before = w.findAll('.con-payrow').map((r) => r.attributes('data-pay-unit'));
+      expect(before).to.deep.eq(['steel', 'titanium', 'megacredits']);
       expect(w.find('.con-composer__ctadock').exists()).to.eq(true);
+      const mix = () => w.findAll('.con-payrow__used').map((c) => c.text());
+      const seeded = mix();
 
       (w.vm as any).handleIntent({kind: 'press', button: 'triggerL'});
       await w.vm.$nextTick();
       expect(w.find('.con-pay--expanded').exists()).to.eq(true);
       // Same rows, same order, same values — a density change, not a new screen.
       expect(w.findAll('.con-payrow').map((r) => r.attributes('data-pay-unit'))).to.deep.eq(before);
-      expect(w.find('[data-pay-unit="steel"] .con-payrow__used').text()).to.eq('3');
-      // The cursor opens on the source the compact summary was driving.
+      expect(mix()).to.deep.eq(seeded);
+      // The cursor opens on the first editable source.
       expect(w.find('.con-payrow--focused').attributes('data-pay-unit')).to.eq('steel');
       // The dock survives — this is what keeps the confirm from jumping.
       expect(w.find('.con-composer__ctadock').exists()).to.eq(true);
@@ -870,7 +930,7 @@ describe('ConsoleActionComposer — premium render', () => {
       (w.vm as any).handleIntent({kind: 'press', button: 'triggerL'});
       await w.vm.$nextTick();
       expect(w.find('.con-pay--compact').exists()).to.eq(true);
-      expect(w.find('[data-pay-unit="steel"] .con-payrow__used').text()).to.eq('3');
+      expect(mix()).to.deep.eq(seeded);
       w.unmount();
     });
 

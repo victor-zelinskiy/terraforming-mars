@@ -8,6 +8,9 @@ fee — renders the SAME block, in one of two densities.
 >
 > Same rows · same order · same icons · same numbers · same verdict · same
 > geometry. The switch changes DENSITY, never content or position.
+>
+> …and **the switch only exists where it changes something**: with a single
+> alternative source the compact block already IS the editor.
 
 Before this rework the quick summary and the LT editor were two independent
 implementations with two visual languages, two number formats (`×2 2 / 4` vs
@@ -45,6 +48,31 @@ PaymentStatus = {kind, cost, paid, delta, labelKey, ok}
 //   kind: free | exact | overpay | short | impossible
 ```
 
+Three lane-count facts come out of the same object, and no host re-derives them:
+
+| Field | Means | Drives |
+| --- | --- | --- |
+| `configurable` | ≥1 alternative source | paint / a11y («this mix is yours to shape») |
+| `quickAdjustEligible` | **exactly 1** alternative | the inline dial: LB/RB + RT МАКС. on the row itself |
+| `editorEligible` | **≥2** alternatives | the LT entry — and nothing else |
+
+### The editor only exists where it is a second STAGE
+
+`editorEligible` is `lanes.length > 1`, not `> 0`. With one alternative the
+expanded editor would render the same rows, with the same numbers and the same
+captions, plus a cursor that has exactly one place to stand — the player pressed
+LT and arrived where they already were. So:
+
+- the panel draws no «Настроить оплату» hint, and neither command bar offers LT;
+- `openPaymentEditor` refuses in both composers (the entry is not merely hidden);
+- the play composer's A-on-a-shortfall fallback stays silent too — there is no
+  editor to lead the player into, and the fix is the bumpers under their thumbs;
+- **RT МАКС. therefore belongs to the inline dial**, in the bar and in the input,
+  or the single-lane case would lose «fill it up» along with the editor.
+
+Two or more alternatives keep the editor exactly as it was: the bumpers cannot
+express «3 steel AND 1 titanium», so the cursor earns its screen.
+
 **Row order is fixed**: alt lanes in payment order, then M€ — always last,
 **always rendered, even at 0 spent**. Both densities render the same list.
 
@@ -81,13 +109,16 @@ source as is still useful», never «enough to cover the whole price alone».
 
 | Surface | Density | Entry to the editor |
 | --- | --- | --- |
-| `ConsolePlayCardConfirm` (play a card) | compact, expands in place | LT · also A on a shortfall-blocked CTA |
-| `ConsoleActionComposer` (blue action) | compact, expands in place | LT on the primary payment choice |
+| `ConsolePlayCardConfirm` (play a card) | compact, expands in place | LT · also A on a shortfall-blocked CTA — **both only when `editorEligible`** |
+| `ConsoleActionComposer` (blue action) | compact, expands in place | LT on the primary payment choice, **only when `editorEligible`** |
 | `ConsoleTaskHost` (standalone `SelectPayment`) | **expanded** (the screen IS the payment) | — (`hint-mode="none"`) |
-| `ConsoleColonyTradeConfirm` (trade fee) | **expanded** sub | its own sub row |
+| `ConsoleColonyTradeConfirm` (trade fee) | **expanded** sub | its own sub row (no inline dial there — that row is the only door, whatever the lane count) |
 
 A host owns ALL input and the `counts` state; the density is a prop. Two hosts
 that pay for different things therefore cannot drift apart visually.
+
+Controller grammar on the COMPACT screen (single alternative): LB/RB dial the
+lone lane · **RT = MAX** · no LT · A stays the screen's own primary.
 
 Controller grammar in the editor: d-pad ↑↓ walk the editable sources · LB/RB and
 ←→ dial the focused one · RT = MAX · A = «Готов» (fold back, mix kept) · **LT
@@ -120,13 +151,16 @@ the CTA relabels («Готов») instead of disappearing.
 
 Guarded by:
 - `tests/client/components/console/consolePaymentPanel.spec.ts` — both
-  densities render identical rows/values; exact ⇄ overpay adds no element.
+  densities render identical rows/values; exact ⇄ overpay adds no element; the
+  LT hint appears only for a multi-lane payment.
 - `tests/client/components/console/composerRender.spec.ts` (`payment` describe)
-  — the blue-action flow: bumpers without a cursor, LT expands in place with
-  the CTA dock still mounted, an overpay adds no box.
+  — the blue-action flow: bumpers without a cursor, RT fills the lone lane, LT
+  is a NO-OP on a single-alt payment, LT expands a MULTI-lane block in place
+  with the CTA dock still mounted, an overpay adds no box.
 - `tests/e2e/console-payment-panel.spec.ts` — the real shell: the CTA's
   bounding box is **pixel-identical** across the whole dial range and across
-  compact ⇄ expanded, at 1080p / 4K TV / Steam Deck.
+  compact ⇄ expanded, at 1080p / 4K TV / Steam Deck; and where no editor exists
+  the LT press changes nothing at all.
 
 ## Profiles
 

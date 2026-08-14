@@ -401,9 +401,10 @@ export type PaymentStatus = {
 
 /**
  * The whole payment as a view-model so no UI re-derives the rules: the source
- * rows, the verdict, whether a detailed editor exists (`configurable` → LT), and
+ * rows, the verdict, whether the mix is the player's to shape (`configurable`),
  * whether the simple inline LB/RB quick-adjust applies (`quickAdjustEligible`:
- * EXACTLY one non-M€ lane, with M€ auto-covering the remainder).
+ * EXACTLY one non-M€ lane, with M€ auto-covering the remainder) and whether the
+ * expanded editor is a stage worth offering at all (`editorEligible` → LT).
  */
 export type PaymentView = {
   cost: number;
@@ -412,10 +413,23 @@ export type PaymentView = {
    *  a changing mix can never resize the panel. */
   rows: ReadonlyArray<PaymentSourceRow>;
   status: PaymentStatus;
-  /** Any non-M€ lane → the expanded payment editor (LT) is available. */
+  /** Any non-M€ lane → the mix is the player's to shape (inline, or in the
+   *  editor). Paint + accessibility; NOT the editor's entry condition. */
   configurable: boolean;
   /** Exactly one non-M€ lane → inline LB/RB quick-adjust on the MAIN screen. */
   quickAdjustEligible: boolean;
+  /**
+   * TWO OR MORE non-M€ lanes → the expanded editor (LT) is a REAL second stage:
+   * a cursor with somewhere to go, and a mix the bumpers cannot express.
+   *
+   * With exactly ONE alternative the compact summary already IS the editor —
+   * same row, same numbers, same captions, and the bumpers (+ RT МАКС.) drive
+   * that very lane on the main screen. Offering «Настроить оплату» there
+   * advertises a stage that changes nothing: the player presses LT and lands on
+   * the same block with a cursor that cannot move. So the entry is not offered
+   * (and the hosts refuse to open it) — one flow, no redundant depth.
+   */
+  editorEligible: boolean;
   quickAdjustUnit: SpendableResource | undefined;
   paymentValid: boolean;
   /** M€-equivalent shortfall (0 when valid). */
@@ -464,6 +478,8 @@ export function buildPaymentView(args: {
   const configurable = lanes.length > 0;
   // The 90% case: exactly ONE alt resource, M€ auto-fills the rest.
   const quickAdjustEligible = lanes.length === 1;
+  // ...and that case needs no editor: the one lane is dialed in place.
+  const editorEligible = lanes.length > 1;
   const quickLane = quickAdjustEligible ? lanes[0] : undefined;
 
   const rows: Array<PaymentSourceRow> = lanes.map((lane): PaymentSourceRow => {
@@ -525,6 +541,7 @@ export function buildPaymentView(args: {
     status: statusOf({cost, paid, valid: paymentValid, deficit, overpay}),
     configurable,
     quickAdjustEligible,
+    editorEligible,
     quickAdjustUnit: quickLane?.unit,
     paymentValid,
     deficit,

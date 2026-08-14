@@ -327,7 +327,35 @@ export const draftWorkspaceState = reactive({
   inspecting: false,
   /** The purchase commit's completion beats (frame-lifetime extension). */
   completion: 'none' as 'none' | 'flights' | 'done',
+  /**
+   * The cards the player has MARKED (the purchase selection, a keep-2 pick).
+   *
+   * Module state, not component state, because «свернуть» PARKS the stack:
+   * the surface unmounts while parked and a fresh one mounts on restore —
+   * so a selection living in `data()` is silently thrown away by a button
+   * whose whole promise is that the decision stays live. Keyed by the SET
+   * (see `draftPicksKey`) so a new prompt can never inherit a stale mark.
+   */
+  picks: [] as Array<CardName>,
+  picksKey: '',
 });
+
+/** The identity of the set a selection belongs to — a new packet / a new
+ *  generation's buy is a different question, and answers do not carry over. */
+export function draftPicksKey(stage: 'pick' | 'buy', generation: number, names: ReadonlyArray<CardName>): string {
+  return `${stage}|${generation}|${[...names].sort().join('+')}`;
+}
+
+/** Remember the marked cards (survives a collapse → restore). */
+export function rememberDraftPicks(key: string, picks: ReadonlyArray<CardName>): void {
+  draftWorkspaceState.picksKey = key;
+  draftWorkspaceState.picks = [...picks];
+}
+
+/** The marks made for THIS set, or none when the question has changed. */
+export function recallDraftPicks(key: string): Array<CardName> {
+  return draftWorkspaceState.picksKey === key ? [...draftWorkspaceState.picks] : [];
+}
 
 /** Packets already presented (entrance played or deliberately skipped). */
 const presentedPackets = new Set<string>();
@@ -423,6 +451,8 @@ export function resetDraftWorkspace(): void {
   draftWorkspaceState.sawDraftStart = false;
   draftWorkspaceState.inspecting = false;
   draftWorkspaceState.completion = 'none';
+  draftWorkspaceState.picks = [];
+  draftWorkspaceState.picksKey = '';
   presentedPackets.clear();
 }
 

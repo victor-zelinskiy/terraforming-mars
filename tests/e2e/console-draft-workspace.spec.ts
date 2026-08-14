@@ -345,7 +345,50 @@ test.describe('draft workspace · the between-generations flow', () => {
     s = await surface(page);
     console.log('[inspect while packet arrived]', JSON.stringify(s));
     expect(s.inspect, 'the inspect stays while the packet arrives').toBeTruthy();
-    await press(page, 'Escape', 1600);
+
+    // …and LEAVING it never FLASHES the cards it just sent home. The collect
+    // used to release every hold one tick before the stage stopped being the
+    // zone, and a `v-show` stage keeps PAINTING through its leave transition:
+    // for those frames the full-size cards were back on a stage the player
+    // had watched them leave. Watch the MIDDLE, per frame: a painted inspect
+    // slot that is NOT held is the bug.
+    const flashWatch = page.evaluate(() => new Promise<{witnessed: number, violations: number}>((resolve) => {
+      let witnessed = 0;
+      let violations = 0;
+      const started = performance.now();
+      const tick = () => {
+        const stage = document.querySelector('.con-draftws__stage--inspect');
+        const painted = stage !== null &&
+          (stage as HTMLElement).checkVisibility({opacityProperty: true, visibilityProperty: true});
+        // THE MIDDLE, and only the middle: a card is legitimately live while
+        // the player BROWSES the sub-stage. It stops being legitimate the
+        // moment the collect starts (its clones are in the air) and through
+        // the stage's own leave transition — which is exactly the window the
+        // flash lived in.
+        const leaving = document.querySelector('.con-draftws-flights') !== null ||
+          (stage !== null && stage.classList.contains('con-draftws-stage-leave-active'));
+        if (painted && leaving) {
+          witnessed++;
+          const slots = Array.from(document.querySelectorAll('.con-draftws__stage--inspect .con-cards__slot'));
+          if (slots.some((el) => !el.classList.contains('con-deal-hold'))) {
+            violations++;
+          }
+        }
+        if (performance.now() - started < 3000) {
+          requestAnimationFrame(tick);
+        } else {
+          resolve({witnessed, violations});
+        }
+      };
+      requestAnimationFrame(tick);
+    }));
+    await press(page, 'Escape', 1800);
+    const flash = await flashWatch;
+    console.log('[flash watch]', JSON.stringify(flash));
+    // A witness that saw nothing proves nothing — the probe must have caught
+    // the leave itself before its verdict means anything.
+    expect(flash.witnessed, 'the flash witness actually observed the leave').toBeGreaterThan(3);
+    expect(flash.violations, 'no frame paints an un-held inspect card while it leaves').toBe(0);
     await expect.poll(async () => (await surface(page)).pick, {timeout: 25_000}).toBeTruthy();
     await page.waitForTimeout(3000); // the received packet spreads + settles
     s = await surface(page);
@@ -388,6 +431,17 @@ test.describe('draft workspace · the between-generations flow', () => {
     s = await surface(page);
     expect(s.statusLine.length, 'the status rail explains the focused card').toBeGreaterThan(0);
     await shoot(page, '07-purchase-picked');
+
+    // ── 7a · «СВЕРНУТЬ» KEEPS THE DECISION LIVE. Parking unmounts the
+    //    surface, so marks living in the component were thrown away by the
+    //    one button whose whole promise is that the decision waits.
+    await press(page, 'Escape', 1400);
+    await page.waitForSelector('.con-mandatory', {timeout: 20_000});
+    expect(await surface(page).then((v) => v.workspace), 'the parked workspace is off screen').toBeFalsy();
+    await press(page, 'Enter', 1600);
+    await page.waitForSelector('.con-draftws', {timeout: 20_000});
+    await expect.poll(pickedCount, {timeout: 15_000}).toBe(2);
+    console.log('[restored picks]', await pickedCount());
     // RT commits — press-verify-retry against the server's research flag.
     for (let i = 0; i < 6; i++) {
       await press(page, 'Period', 1400);
@@ -417,10 +471,13 @@ test.describe('draft workspace · the between-generations flow', () => {
       await sendPlayerInput(request, second.id, {type: 'card', cards: []});
     }
     await expect.poll(async () => (await surface(page)).workspace, {timeout: 30_000}).toBeFalsy();
-    await page.waitForTimeout(1500);
+    // POLLED, not sampled: the board home paints over several frames after
+    // the release (the bought cards are still settling into the dock), and a
+    // single read one arbitrary tick later is a coin toss — it flaked once
+    // exactly here while the flow itself was healthy.
+    await expect.poll(async () => (await surface(page)).dock, {timeout: 20_000}).toBeTruthy();
     s = await surface(page);
     console.log('[released]', JSON.stringify(s));
-    expect(s.dock, 'the board home is back with the dock').toBeTruthy();
     await shoot(page, '09-board-return');
   });
 });

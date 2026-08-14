@@ -173,9 +173,14 @@ export type FocusCommandCtx =
        * per-side when the dial reports its limits (payment).
        */
       dial?: {kind: 'amount' | 'spendHeat' | 'payment', canDecrease?: boolean, canIncrease?: boolean},
-      /** A non-M€ payment mix exists → the DEDICATED LT «Configure payment»
-       *  entry (review-level, never a focus row / never A). */
-      configurablePayment?: boolean,
+      /**
+       * TWO OR MORE alternative payment sources → the DEDICATED LT «Configure
+       * payment» entry (review-level, never a focus row / never A). A single
+       * alternative is the inline `dial` above, and the editor would show the
+       * same block with a cursor that cannot move — so it is not offered
+       * (`PaymentView.editorEligible`).
+       */
+      paymentEditor?: boolean,
     };
 
 /**
@@ -257,6 +262,10 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
       }
       if (ctx.dial.kind === 'amount') {
         run.push({control: 'triggerR', label: 'MAX'});
+      } else if (ctx.dial.kind === 'payment') {
+        // MAX belongs to the DIAL, not to the editor: a single-alt payment is
+        // driven in place (no editor to enter), so «fill it up» has to be here.
+        run.push({control: 'triggerR', label: 'MAX', enabled: ctx.dial.canIncrease !== false});
       }
     }
     // The A-verb by the FOCUSED row (never a dial — A never dials anything).
@@ -290,8 +299,9 @@ export function focusCommandRun(ctx: FocusCommandCtx): Array<ConsoleCommand> {
       break;
     }
     // LT — the DEDICATED payment editor entry (review-level, focus-independent),
-    // shown only when a non-M€ mix exists (never for a pure-AUTO M€ payment).
-    if (ctx.configurablePayment === true) {
+    // shown only where the editor is a real second stage (never for a pure-AUTO
+    // M€ payment, and never for the lone lane the bumpers already drive).
+    if (ctx.paymentEditor === true) {
       run.push({control: 'triggerL', label: 'Configure payment'});
     }
     run.push({control: 'secondary', label: 'Inspect'});

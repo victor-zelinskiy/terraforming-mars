@@ -334,6 +334,51 @@ for (const profile of PROFILES) {
         };
         requestAnimationFrame(tick);
       });
+      //
+      // ── THE DOUBLE-DRAW PROBE (the reported bug), watching the same press. ──
+      // This batch was flown by the workspace's OWN execution beat, so nothing
+      // may deal it a second time on the way out. The take is exactly where the
+      // window was: the workspace drops its claim one tick before the batch is
+      // dismissed (`result-detached`), and the deck-draw cinematic — whose every
+      // «not ours» answer was derived from that LIVE claim — then saw an unowned
+      // batch, armed, re-held the HUD counter at the PRE-draw number and flew a
+      // ghost card off the pile across the take already in flight. Both symptoms
+      // are watched structurally: the scene layer must never mount, and the HUD
+      // counter may fall or hold but never climb.
+      //
+      // ⚠️ NOT ON `requestAnimationFrame`. The rAF sampler above measured 25
+      // frames across a five-second window on this very run — headless Chromium
+      // drives rAF off the compositor, so a probe hung on it quietly stops
+      // sampling exactly when the screen goes quiet, which is when this bug
+      // fires. A MutationObserver sees every DOM change whatever the frame rate,
+      // and the interval beside it keeps sampling a counter that changes by text
+      // alone; `samples` is asserted, so a dead probe fails instead of passing.
+      await page.evaluate(() => {
+        const deckNow = (): number => {
+          const el = document.querySelector('.con-deckstack__count .con-flipval__card:not(.con-flipval__card--out)');
+          const n = Number.parseInt((el?.textContent ?? '').trim(), 10);
+          return Number.isFinite(n) ? n : -1;
+        };
+        const st = {deckFrom: deckNow(), deckMax: deckNow(), drawScene: 0, samples: 0};
+        (window as unknown as {__nodup?: typeof st}).__nodup = st;
+        const scan = () => {
+          st.samples++;
+          const d = deckNow();
+          if (d > st.deckMax) {
+            st.deckMax = d;
+          }
+          if (document.querySelector('.con-deckdraw') !== null) {
+            st.drawScene++;
+          }
+        };
+        const mo = new MutationObserver(scan);
+        mo.observe(document.body, {childList: true, subtree: true, characterData: true});
+        const iv = setInterval(scan, 16);
+        setTimeout(() => {
+          clearInterval(iv);
+          mo.disconnect();
+        }, 9000);
+      });
       await key(page, 'Enter', 600);
       const seam = await page.evaluate(() => (window as unknown as {__seam: {hole: number, frames: number}}).__seam);
       expect(seam.hole, `frames with neither the card nor its proxy (of ${seam.frames})`).toBe(0);
@@ -343,6 +388,22 @@ for (const profile of PROFILES) {
       await page.waitForTimeout(1200);
       const dockCountAfter = await page.locator('.con-handdock').innerText().catch(() => '');
       expect(dockCountAfter, `dock ${dockCountBefore} → ${dockCountAfter}`).not.toEqual(dockCountBefore);
+      // ── 3b. NO SECOND DRAW. Read only now: the duplicate fired DURING the
+      //       take flight, i.e. after the fold, which is why «it looked fine
+      //       and then a card came off the deck again».
+      const dup = await page.evaluate(() => (window as unknown as {__nodup: {
+        deckFrom: number, deckMax: number, drawScene: number, samples: number,
+      }}).__nodup);
+      console.log(`[NODUP:${profile.tag}] ${JSON.stringify(dup)}`);
+      expect(dup.samples, 'the probe itself must have been alive across the take').toBeGreaterThan(60);
+      expect(dup.deckFrom, 'the HUD deck counter must be readable for this probe to mean anything')
+        .toBeGreaterThan(0);
+      expect(dup.deckMax,
+        `the deck counter climbed back up (${dup.deckFrom} → ${dup.deckMax}) — a second draw re-held it at the pre-draw size`)
+        .toBeLessThanOrEqual(dup.deckFrom);
+      expect(dup.drawScene,
+        `the deck-draw cinematic armed for a batch this workspace had already flown (${dup.drawScene} samples)`)
+        .toBe(0);
       // …and the turn is live again (the workspace released the player).
       await expect(page.locator('.con-status', {hasText: 'ДЕЙСТВИЕ'})).toHaveCount(1, {timeout: 15_000});
       await shoot(page, `${profile.tag}-02-after-take`);

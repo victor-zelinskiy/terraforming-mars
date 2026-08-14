@@ -6,6 +6,7 @@ import {
   betweenGenDraftLive, draftStageOf, draftPickInput, draftBuyInput, draftPacketKey,
   draftJourneyPhases, draftCrumb, draftCompactContext, draftFlowPresentation,
   requirementHeadsUp, observeDraftWorkspace, draftWorkspaceState, resetDraftWorkspace,
+  draftPicksKey, rememberDraftPicks, recallDraftPicks,
   beginDraftCompletion, markDraftCompletionFlightsDone, finishDraftCompletion,
   draftCompletionHolding, draftNeighbor, draftMandatoryFlowBeat,
 } from '@/client/console/draft/consoleDraftFlow';
@@ -249,6 +250,24 @@ describe('consoleDraftFlow', () => {
     expect(draftWorkspaceState.completion).eq('done');
     finishDraftCompletion();
     expect(draftCompletionHolding()).is.false;
+  });
+
+  it('the marked picks SURVIVE a collapse → restore, keyed by the set', () => {
+    const gen = 4;
+    const buyKey = draftPicksKey('buy', gen, [CardName.FISH, CardName.CAPITAL]);
+    rememberDraftPicks(buyKey, [CardName.FISH]);
+    // The surface unmounts while parked; a fresh one asks the same question.
+    expect(recallDraftPicks(buyKey)).deep.eq([CardName.FISH]);
+    // Card ORDER is not identity — the same set is the same question.
+    expect(recallDraftPicks(draftPicksKey('buy', gen, [CardName.CAPITAL, CardName.FISH])))
+      .deep.eq([CardName.FISH]);
+    // A different set / stage / generation inherits NOTHING.
+    expect(recallDraftPicks(draftPicksKey('buy', gen, [CardName.FISH]))).is.empty;
+    expect(recallDraftPicks(draftPicksKey('pick', gen, [CardName.FISH, CardName.CAPITAL]))).is.empty;
+    expect(recallDraftPicks(draftPicksKey('buy', gen + 1, [CardName.FISH, CardName.CAPITAL]))).is.empty;
+    // …and the flow ending clears it outright.
+    resetDraftWorkspace();
+    expect(recallDraftPicks(buyKey)).is.empty;
   });
 
   it('resolves circle neighbors by color', () => {

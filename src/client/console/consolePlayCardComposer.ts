@@ -408,8 +408,13 @@ export type PlayFootContext = {
   hasRows: boolean;
   /** The focused review row's kind (only meaningful when `sub === 'none'`). */
   focusedKind: PlayFocusKind;
-  /** The card accepts a NON-M€ payment mix — LT opens the payment lanes. */
-  configurablePayment: boolean;
+  /**
+   * The payment offers TWO OR MORE alternative sources — LT opens the lane
+   * editor. A single alternative is dialed inline (`quickAdjust` below), so the
+   * editor would be the same block with an immobile cursor and the entry is not
+   * offered at all (`PaymentView.editorEligible`).
+   */
+  paymentEditor: boolean;
   paymentReady: boolean;
   /**
    * The A-button verb + enabled for the FOCUSED row (the component decides it):
@@ -421,10 +426,10 @@ export type PlayFootContext = {
   primaryLabel: string;
   primaryEnabled: boolean;
   /**
-   * When set, the INLINE quick-adjust owns LB/RB in review (the simple one-alt-
-   * resource payment) — split LB/RB hints with per-side enabled so a dead button
-   * never appears. Absent when a focused stepper owns LB/RB, or there's no
-   * quick-adjust (complex / auto payment).
+   * When set, the INLINE quick-adjust owns LB/RB **and RT МАКС.** in review (the
+   * simple one-alt-resource payment) — split LB/RB hints with per-side enabled
+   * so a dead button never appears. Absent when a focused stepper owns LB/RB, or
+   * there's no quick-adjust (complex / auto payment).
    */
   quickAdjust?: {canDecrease: boolean, canIncrease: boolean};
 };
@@ -433,8 +438,10 @@ export type PlayFootContext = {
  * The footer is fully CONTEXTUAL: LB/RB (−1/+1) and RT (MAX) appear ONLY where a
  * value can actually be dialed — a focused amount stepper, the inline payment
  * quick-adjust, or inside the payment lanes. LT «Configure payment» appears ONLY
- * when the payment is configurable (never for pure-AUTO M€). A is the ONE smart
- * primary action. No dead LB/RB/RT/LT ever appears — unit-tested, not eyeballed.
+ * where the editor is a real second stage (two or more alternative sources —
+ * never for pure-AUTO M€, and never for the single lane the bumpers already
+ * drive). A is the ONE smart primary action. No dead LB/RB/RT/LT ever appears —
+ * unit-tested, not eyeballed.
  */
 export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
   if (ctx.sub === 'payment') {
@@ -492,12 +499,15 @@ export function playComposerFootHints(ctx: PlayFootContext): Array<FootHint> {
     // Inline payment quick-adjust — split so each side reflects its own limit.
     hints.push({control: 'bumperL', label: '−1', enabled: ctx.quickAdjust.canDecrease});
     hints.push({control: 'bumperR', label: '+1', enabled: ctx.quickAdjust.canIncrease});
+    // MAX belongs to the DIAL, not to the editor: the single alt lane is driven
+    // in place, so «fill it up» has to be here or it exists nowhere.
+    hints.push({control: 'triggerR', label: 'MAX', enabled: ctx.quickAdjust.canIncrease});
   }
   // A acts on the FOCUSED row (its verb is `primaryLabel`); it plays ONLY on the
   // explicit CTA row. Y is deliberately NOT used here — it is globally reserved
   // for the information panel.
   hints.push({control: 'confirm', label: ctx.primaryLabel, enabled: ctx.primaryEnabled});
-  if (ctx.configurablePayment) {
+  if (ctx.paymentEditor) {
     hints.push({control: 'triggerL', label: 'Configure payment'});
   }
   hints.push({control: 'secondary', label: 'Inspect'});

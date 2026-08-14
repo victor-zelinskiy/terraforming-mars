@@ -11,7 +11,9 @@ import {bootIntoGame, openQuickWheel} from './consoleStart';
  *
  *  1. LT does not open another screen — the card, the header, the result and
  *     the CTA all keep their pixel position; only the payment block's density
- *     changes.
+ *     changes. And where the editor would add NOTHING (a single alternative
+ *     source, already dialed in place) LT is not offered at all and does
+ *     nothing.
  *  2. An appearing / disappearing OVERPAY does not move the CTA. This is the
  *     bug the rework exists for: the payment block's height must be constant
  *     for a given prompt, whatever the mix.
@@ -21,7 +23,19 @@ import {bootIntoGame, openQuickWheel} from './consoleStart';
 
 const OUT = path.resolve('screenshots', 'console-payment');
 
-function cfg() {
+/**
+ * Cards guaranteed into the first hand for the SINGLE-ALTERNATIVE test.
+ *
+ * «Acquired Company» is an EARTH-tag card and nothing else: no building, space,
+ * city, plant, venus or moon tag, so the only alternative source it accepts is
+ * Helion's heat — exactly one lane, which is the case under test. It also has
+ * no requirement, so it is playable on the opening turn whatever the deal. The
+ * filler is there so the hand is not a single card.
+ */
+const SINGLE_ALT_CARD = 'Acquired Company';
+const SINGLE_ALT_FILLER = ['Investment Loan', 'Business Contacts'];
+
+function cfg(projectCards: ReadonlyArray<string> = []) {
   const expansions: Record<string, boolean> = {
     corpera: true, promo: false, venus: false, colonies: false,
     prelude: false, prelude2: false, turmoil: false, community: false,
@@ -43,6 +57,9 @@ function cfg() {
     startingCorporations: 1, shuffleMapOption: false, randomMA: 'No randomization',
     includeFanMA: false, soloTR: false, customCorporationsList: ['Helion'], bannedCards: [],
     includedCards: [], customColoniesList: [], customPreludes: [],
+    // Guaranteed first-hand project cards (dealt off the top of the deck) —
+    // empty for the layout contract, named for the single-alternative case.
+    customProjectCards: [...projectCards],
     requiresMoonTrackCompletion: false, requiresVenusTrackCompletion: false,
     altVenusBoard: false, escapeVelocity: undefined, twoCorpsVariant: false,
     customCeos: [], startingCeos: 3, startingPreludes: 4,
@@ -83,11 +100,16 @@ async function ctaBox(page: Page) {
  * source (the only case with a quick-adjust and an editor to prove). Shared by
  * the contract test and the display-profile capture below.
  */
-async function reachConfigurablePayment(page: Page, request: APIRequestContext): Promise<void> {
+async function reachConfigurablePayment(
+  page: Page, request: APIRequestContext,
+  opts: {projectCards?: ReadonlyArray<string>, buy?: number} = {},
+): Promise<void> {
   // Pregame is SETUP, not this spec's subject. Use the shared API-backed road
   // and name Helion explicitly: testMode guarantees it is offered but does not
   // narrow the eight-card corporation deal to it.
-  await bootIntoGame(page, request, {config: cfg(), corporation: 'Helion', buy: 5});
+  await bootIntoGame(page, request, {
+    config: cfg(opts.projectCards ?? []), corporation: 'Helion', buy: opts.buy ?? 5,
+  });
 
   await openQuickWheel(page);
   const hand = page.locator('.con-hand');
@@ -135,6 +157,13 @@ test.describe(`console payment — one block, two densities · ${PROFILE_ID}`, (
     // A single-alt payment wears the bumper pills right on its row; a multi-lane
     // one is editor-only by design (the bumpers would be ambiguous).
     const quickAdjustable = await page.locator('.con-payrow--dial .con-payrow__pills').count() === 1;
+    // ...and THAT is also what decides whether an editor exists at all: with one
+    // alternative this block already IS the editor, so LT is not offered (the
+    // player would land on the same rows with an immobile cursor).
+    const altLanes = await page.locator('.con-payrow:not([data-pay-unit="megacredits"])').count();
+    const hasEditor = altLanes > 1;
+    expect(await page.locator('.con-pay__hint').count(), 'the LT entry must appear exactly when the editor exists')
+      .toBe(hasEditor ? 1 : 0);
 
     const compactRows = await page.locator('.con-payrow').count();
     const compactCta = await ctaBox(page);
@@ -181,6 +210,15 @@ test.describe(`console payment — one block, two densities · ${PROFILE_ID}`, (
 
     // ── EXPANDED (LT) — the SAME block, opened ─────────────────────────
     await key(page, 'Comma', 900);
+    if (!hasEditor) {
+      // The single-alt case: LT is a NO-OP by design. The block must stay
+      // exactly as it was — same density, same CTA, no cursor conjured up.
+      expect(await page.locator('.con-pay--expanded').count(), 'LT opened an editor that adds nothing').toBe(0);
+      expect(await page.locator('.con-payrow--focused').count()).toBe(0);
+      expect(await ctaBox(page), 'a no-op LT moved the CTA').toEqual(compactCta);
+      await shoot(page, '04-single-alt-no-editor');
+      return;
+    }
     expect(await page.locator('.con-pay--expanded').count(), 'LT did not expand the payment block').toBe(1);
     await shoot(page, '04-expanded');
 
@@ -214,5 +252,61 @@ test.describe(`console payment — one block, two densities · ${PROFILE_ID}`, (
     expect(await page.locator(`.con-payrow[data-pay-unit="${editedUnit}"] .con-payrow__used`).innerText(),
       'the mix chosen in the editor did not survive the fold back').toBe(editedUsed);
     await shoot(page, '06-back-to-compact');
+  });
+
+  /**
+   * THE SINGLE-ALTERNATIVE CASE — the one the editor must NOT offer.
+   *
+   * One alt lane means the compact block already is the editor: the same rows,
+   * the same numbers, the dial pills on the row itself. So «Настроить оплату»
+   * is absent from the block AND from the command bar, LT does nothing at all,
+   * and RT МАКС. lives here — with no editor to enter, this is the only place
+   * «fill it up» can exist.
+   */
+  test('one alternative source: no editor is advertised, LT is inert, RT still fills it', async ({page, request}) => {
+    test.setTimeout(300_000);
+    page.setDefaultTimeout(15_000);
+    // The deal is GUARANTEED here rather than walked: a hand is mostly cards
+    // whose requirements are not met in generation 1 (this deal offered exactly
+    // one playable card), so «walk until a single-alt card turns up» is a spec
+    // that fails on the setup, not on the subject.
+    await reachConfigurablePayment(page, request, {
+      projectCards: [SINGLE_ALT_CARD, ...SINGLE_ALT_FILLER], buy: 3,
+    });
+
+    const altRows = page.locator('.con-payrow:not([data-pay-unit="megacredits"])');
+    expect(await altRows.count(),
+      `the opened card must offer exactly one alternative (${SINGLE_ALT_CARD} + Helion heat)`).toBe(1);
+
+    const unit = await altRows.first().getAttribute('data-pay-unit');
+    const row = page.locator(`.con-payrow[data-pay-unit="${unit}"]`);
+    // It IS the dial: the pills are on the row, not behind a trigger.
+    expect(await row.locator('.con-payrow__pills').count(), 'the lone alt lane lost its inline dial').toBe(1);
+    // ...and nothing offers a second screen — not the block, not the bar.
+    expect(await page.locator('.con-pay__hint').count(), 'the block advertised an editor that adds nothing').toBe(0);
+    const bar = (await page.locator('.con-cmdbar').innerText()).toLowerCase();
+    expect(bar, 'the command bar advertised an editor that adds nothing').not.toContain('настроить оплату');
+    expect(bar, 'the lone dial lost its MAX along with the editor').toContain('макс');
+    await shoot(page, '07-single-alt-compact');
+
+    const cta = await ctaBox(page);
+    await key(page, 'Comma', 900);
+    expect(await page.locator('.con-pay--expanded').count(), 'LT opened an editor that adds nothing').toBe(0);
+    expect(await page.locator('.con-payrow--focused').count(), 'LT conjured a cursor with nowhere to go').toBe(0);
+    expect(await ctaBox(page), 'an inert LT moved the CTA').toEqual(cta);
+
+    // RT МАКС. on the quick screen: dial the lane down, then fill it back up.
+    const used = async () => Number(await row.locator('.con-payrow__used').innerText());
+    await key(page, 'KeyQ', 320);
+    await key(page, 'KeyQ', 320);
+    const low = await used();
+    await key(page, 'Period', 500);
+    expect(await used(), 'RT did not fill the lone alt source').toBeGreaterThan(low);
+    // «MAX» means the aggregate limit is reached — «+» is spent, and the row
+    // says so on the pill the player is looking at.
+    expect(await row.locator('.con-payrow__pill--off').count(),
+      'after MAX the «+» pill must read as spent').toBeGreaterThan(0);
+    expect(await ctaBox(page), 'the CTA moved while dialing on the quick screen').toEqual(cta);
+    await shoot(page, '08-single-alt-maxed');
   });
 });

@@ -1440,7 +1440,7 @@ export default defineComponent({
         // LB/RB follow the ACTIVE dial (the same resolution the input uses), and
         // LT is the payment editor's dedicated, focus-independent entry.
         dial: this.activeDialHint,
-        configurablePayment: payView?.configurable === true,
+        paymentEditor: payView?.editorEligible === true,
       });
     },
     /**
@@ -1781,7 +1781,25 @@ export default defineComponent({
     },
   },
   watch: {
+    /**
+     * A NEW PREVIEW RE-SEATS THE DRAFT — but never past the COMMIT BOUNDARY.
+     *
+     * The answer to a submitted action moves every ingredient of the preview
+     * cache's availability fingerprint, so the store refetches while the commit
+     * beat is still playing. Re-seating there wiped the captures the batch was
+     * built from, dropped the `submitting` lock (the hero's committed ring and
+     * the «Выполняется…» CTA blinked back to an editable, un-answered screen)
+     * and painted the amber «выберите…» line over a target that had already
+     * been chosen AND sent. The host freezes the prop for exactly this window
+     * (`ConsoleCardActions.committedPreview`); this is the same rule stated
+     * where the draft lives, so no future preview source can reopen it. A
+     * REFUSAL rolls `submitting` back (abortNonce) and the next preview re-seats
+     * normally.
+     */
     preview: {immediate: true, handler() {
+      if (this.submitting) {
+        return;
+      }
       this.resetFromPreview();
     }},
     // The parent opens the outcome stage at confirm time (identity change
@@ -2436,17 +2454,27 @@ export default defineComponent({
       }
       this.adjustPayment(c, 0, step);
     },
-    /** EXPAND the payment block in place (only when a non-M€ mix exists; a
-     *  pure-AUTO M€ payment has nothing to configure). The cursor opens on the
-     *  source the compact summary was already driving. */
-    openPaymentEditor(c: ComposerChoice): void {
-      const view = this.paymentPanelView(c);
-      if (!view.configurable) {
+    /** RT МАКС. on that same single alt source (the quick-adjust's own MAX). */
+    maxQuickPayment(c: ComposerChoice): void {
+      const row = quickAdjustRow(this.paymentPanelView(c));
+      if (row === undefined || !row.canIncrease) {
         return;
       }
-      const quick = quickAdjustRow(view);
-      const idx = quick !== undefined ? editableRows(view).findIndex((r) => r.unit === quick.unit) : 0;
-      this.sub = {kind: 'payment', choiceId: c.id, index: Math.max(0, idx)};
+      this.adjustPayment(c, 0, 0, true);
+    },
+    /**
+     * EXPAND the payment block in place — only where the editor is a REAL second
+     * stage (two or more alternative sources). A pure-AUTO M€ payment has nothing
+     * to configure, and a single alternative is already dialed inline by the
+     * bumpers on this very screen, so LT there would re-open the block the player
+     * is looking at, with a cursor that has nowhere to go.
+     */
+    openPaymentEditor(c: ComposerChoice): void {
+      const view = this.paymentPanelView(c);
+      if (!view.editorEligible) {
+        return;
+      }
+      this.sub = {kind: 'payment', choiceId: c.id, index: 0};
     },
     /** Fold the editor back into the compact summary, keeping the chosen mix. */
     closePaymentEditor(): void {
@@ -2668,10 +2696,17 @@ export default defineComponent({
         }
         return;
       case 'nextTab': {
-        // RT = MAX on the active AMOUNT dial (focused or focus-free).
+        // RT = MAX on the ACTIVE dial: an amount stepper (focused or focus-free),
+        // or the inline payment quick-adjust — the single alt lane has no editor
+        // to enter, so this is the only «fill it up» it gets.
         const dial = this.activeDialChoice;
-        if (dial !== undefined && dial.kind === 'amount') {
+        if (dial === undefined) {
+          return;
+        }
+        if (dial.kind === 'amount') {
           this.setAmount(dial, this.amountModel(dial).max);
+        } else if (dial.kind === 'payment') {
+          this.maxQuickPayment(dial);
         }
         return;
       }

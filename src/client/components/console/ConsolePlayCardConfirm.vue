@@ -747,9 +747,20 @@ export default defineComponent({
         mcAvailable: this.megacreditsOnHand,
       });
     },
-    /** The single row LB/RB drive on the COMPACT screen, when eligible. */
+    /** The single row LB/RB (and RT МАКС.) drive on the COMPACT screen. */
     quickAdjustChip(): PaymentSourceRow | undefined {
       return quickAdjustRow(this.paymentView);
+    },
+    /**
+     * Is the EXPANDED editor a place worth going? Only with two or more
+     * alternative sources — with one the compact block already is the editor
+     * (same rows, same numbers, and the bumpers drive that very lane), so LT
+     * would open a second copy of the screen the player is looking at. The rule
+     * lives in the pure view (`editorEligible`); the host only obeys it — here,
+     * in the CTA's shortfall fallback and in the footer.
+     */
+    payEditorAvailable(): boolean {
+      return this.paymentView.editorEligible;
     },
     /** The EXPANDED payment editor is open — the SAME screen with the payment
      *  block promoted (result dimmed, cursor inside the panel), never a
@@ -1079,11 +1090,12 @@ export default defineComponent({
      * commit row, and there is no requirement to send the cursor to.
      *
      * A PAYMENT SHORTFALL is deliberately NOT modelled as a blocking
-     * requirement here. On this screen the commit row's A is genuinely
-     * meaningful then — it opens the payment editor — so hiding the row from
-     * the cursor would remove a working affordance, which is the opposite of
-     * the problem this model exists to fix. The gate still refuses the COMMIT;
-     * `ctaPressMeaningful` is what decides the ring and the glyph.
+     * requirement here. On this screen the commit row stays reachable — with a
+     * multi-lane payment its A even fixes the shortfall (it opens the editor) —
+     * so hiding the row from the cursor would remove a working affordance,
+     * which is the opposite of the problem this model exists to fix. The gate
+     * still refuses the COMMIT; `ctaPressMeaningful` is what decides the ring
+     * and the glyph.
      */
     commitGate(): CommitGate {
       const st = this.primaryActionState;
@@ -1104,11 +1116,13 @@ export default defineComponent({
     /**
      * Does pressing A on the commit row DO something? That — not «is the play
      * ready» — is what earns the active ring and the live glyph: a payment
-     * shortfall opens the editor, and the expanded editor confirms the payment.
+     * shortfall opens the editor (WHERE there is one — with a single alt lane
+     * the fix is the bumpers under the player's thumbs, and A does nothing),
+     * and the expanded editor confirms the payment.
      */
     ctaPressMeaningful(): boolean {
       return this.commitReady || this.payExpanded ||
-        this.primaryActionState.kind === 'blocked-payment';
+        (this.primaryActionState.kind === 'blocked-payment' && this.payEditorAvailable);
     },
     /** The last cursor stop — the commit row drops out only when a real ROW is
      *  waiting for the player (the gate's `incomplete` / `stale`). */
@@ -1392,7 +1406,7 @@ export default defineComponent({
         // More than the lone CTA row → there's something to navigate between.
         hasRows: this.rows.length > 1,
         focusedKind: this.focusedKind,
-        configurablePayment: this.paymentView.configurable,
+        paymentEditor: this.payEditorAvailable,
         paymentReady: this.paymentReady,
         primaryLabel: this.primaryFooter.label,
         primaryEnabled: this.primaryFooter.enabled,
@@ -2111,9 +2125,9 @@ export default defineComponent({
         return;
       case 'prevTab':
         // LT = EXPAND the payment block in place (secondary — never A). Only
-        // when there's a non-M€ mix to dial; a pure-AUTO M€ payment has nothing
-        // to configure. The cursor opens on the SAME source the compact screen
-        // was quick-adjusting, so nothing about the block relocates.
+        // where the editor is a real stage: a pure-AUTO M€ payment has nothing
+        // to configure, and a single alternative is already being dialed on
+        // this screen. Nothing about the block relocates.
         this.openPaymentEditor();
         return;
       case 'inspect':
@@ -2147,8 +2161,16 @@ export default defineComponent({
         return;
       }
       case 'nextTab':
+        // RT = MAX on whatever LB/RB are driving, and by the SAME precedence a
+        // focused stepper owns them: an amount row takes its own max, a
+        // spend-heat row has no MAX at all, and otherwise it is the inline
+        // payment quick-adjust — whose single lane has no editor to enter, so
+        // this is the only «fill it up» it gets. Any other split here would let
+        // RT move something the command bar does not advertise.
         if (row?.kind === 'step' && row.choice.kind === 'amount') {
           this.setAmount(row.choice, this.amountModel(row.choice).max);
+        } else if (!(row?.kind === 'step' && row.choice.kind === 'spendHeat')) {
+          this.adjustQuickPayment(1, true);
         }
         return;
       default:
@@ -2176,7 +2198,10 @@ export default defineComponent({
           return;
         }
         // Payment shortfall → expand the payment block (the actionable fix).
-        if (this.primaryActionState.kind === 'blocked-payment' && this.payLanes.length > 0) {
+        // Only where the editor exists: a single-alt shortfall is fixed by the
+        // bumpers on the block itself, so A stays silent rather than opening a
+        // screen that would offer the same two buttons.
+        if (this.primaryActionState.kind === 'blocked-payment' && this.payEditorAvailable) {
           this.openPaymentEditor();
           return;
         }
@@ -2731,18 +2756,16 @@ export default defineComponent({
       }
     },
     /**
-     * LT — EXPAND the payment block in place. The cursor opens on the source
-     * the compact summary was already driving (the quick lane, else the first
-     * editable one), so the player is editing the row they were just looking
-     * at: the transition changes density, never position.
+     * LT — EXPAND the payment block in place: the same rows in the same place,
+     * now with a cursor. Only reachable when there is MORE than one alternative
+     * source (a single one is dialed inline — the editor would be this very
+     * screen again), so the cursor opens on the first editable row.
      */
     openPaymentEditor(): void {
-      if (this.payLanes.length === 0) {
+      if (!this.payEditorAvailable) {
         return;
       }
-      const quick = this.quickAdjustChip;
-      const idx = quick !== undefined ? this.payEditableRows.findIndex((r) => r.unit === quick.unit) : 0;
-      this.sub = {kind: 'payment', index: Math.max(0, idx)};
+      this.sub = {kind: 'payment', index: 0};
     },
     /**
      * Fold the editor back to the compact summary, keeping the chosen mix.
@@ -2903,10 +2926,10 @@ export default defineComponent({
       this.payCounts = {...this.payCounts, [lane.unit]: next};
       this.payFlashNonce += 1;
     },
-    /** The compact quick-adjust: LB (−1) / RB (+1) on the SINGLE alt source;
-     *  M€ auto-rebalances. Guarded by the row's own canDecrease/canIncrease so a
-     *  dead press is a no-op (never an invalid mix). */
-    adjustQuickPayment(step: number): void {
+    /** The compact quick-adjust: LB (−1) / RB (+1) / RT (MAX) on the SINGLE alt
+     *  source; M€ auto-rebalances. Guarded by the row's own canDecrease/
+     *  canIncrease so a dead press is a no-op (never an invalid mix). */
+    adjustQuickPayment(step: number, toMax = false): void {
       const row = this.quickAdjustChip;
       if (row === undefined) {
         return;
@@ -2914,7 +2937,7 @@ export default defineComponent({
       if ((step > 0 && !row.canIncrease) || (step < 0 && !row.canDecrease)) {
         return;
       }
-      this.adjustPayRow(this.payEditableRows.findIndex((r) => r.unit === row.unit), step);
+      this.adjustPayRow(this.payEditableRows.findIndex((r) => r.unit === row.unit), step, toMax);
     },
     submit(): void {
       const b = this.selectedBranch;

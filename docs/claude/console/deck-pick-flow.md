@@ -279,6 +279,70 @@ E2E: `tests/e2e/start-effect-flow-probe.spec.ts` witnesses `dialog.con-zoom[open
 per frame across the whole start-effect sequence (SF Memorial draws exactly one
 card) and asserts it never opened — nobody presses X in that run.
 
+### …and so does the ARRIVAL — the other half of the same law (2026-08-14)
+
+The take seam has a second reader, and it was still live: the **deck-draw
+cinematic**. Its entry test is a list of «somebody else owns this batch»
+questions, and one of them — `workspaceClaimOwnsArrival` (the card-actions
+composer's own execution beat already pulled these cards off the pile) — is a
+CLAIM, which dies one tick before the batch is dismissed. So on the take the
+scene saw an unowned, still-current batch and armed for it:
+`holdDeckDisplay(preDrawSize)` put the HUD counter back UP to the pre-draw
+number, the delta chip fired a second «−1», and a ghost card peeled off the pile
+across the take that was already in the air. Reported as «дублирование анимации
+добора карт»; reproduced at the real surface as `183 → 184` on the counter.
+
+The two scenes that came before this one had each hand-rolled the memory for
+exactly this reason (`isBonusRevealStaged`, `isColonyTradeRevealStaged`, both
+documented «persisted past the scene's end»); what was missing was that fact for
+an owner whose ownership is a CLAIM rather than a scene.
+
+**Ownership of a batch's ARRIVAL is decided once per batch and only ever
+hardens.** `consoleDeckDraw.deckDrawVerdict` is the whole entry decision as one
+pure, spec'd function (the layer cannot be unit-mounted — same `Card` import
+trap as the overlay), and it splits the declines in two:
+
+- **`foreign`** — somebody else flies it. REMEMBERED (`noteDeckDrawForeign`, a
+  bounded id list on `deckDrawState`), so the answer outlives that owner letting
+  go. Ownership is judged BEFORE «are we busy», so a batch arriving while the
+  scene is still finishing the previous one is recorded rather than re-judged
+  later, when the claim that made it theirs may already be gone.
+- **`waiting`** — not ours YET (a foreign colony bonus behind its mandatory
+  announce, the next cycle behind a full-stage discard). NEVER remembered: the
+  whole point is that it is re-asked when the door opens.
+
+⚠️ The verdict and its memory are ONE computed + ONE watcher on purpose. Split
+over two watchers they fire in registration order, and a memory that ran second
+would already have missed the fact it exists to remember.
+
+**The second half: an arriving surface must not RE-DEAL what its host already
+flew.** The composer's beat pulls N cards off `.con-deckstack__pile` at confirm
+and hands them to whatever lands in the zone — and one of the things that can
+land there is this surface, which deals its own batch off the same pile on
+mount, because standing on its own that is exactly its job. So the beat
+publishes the fact (`markWorkspaceOutcomeArrivalFlown` at the one point past
+every degrade branch, read as `workspaceOutcomeArrivalFlown()`) and an embedded
+`ConsoleDeckPick` ADOPTS the standing cards instead: no second flight, no second
+`holdDeckDisplay`, and the arrival gate stays the host's handoff to open. The
+fact is PUBLISHED by whoever actually flew, never inferred from the host's name
+— a beat that never ran must leave the surface dealing exactly as it does
+standalone. (No shipping card action currently raises a keep-some pick, so this
+is the structural half: the composer's handoff already seeks
+`[data-outcome-zone] .con-cards__slot`, i.e. this surface's own slots.)
+
+Guards: `consoleDeckDraw.spec.ts` («ownership is decided once and only hardens»
+— including the take-seam case and «a waiting batch is never remembered») and
+`consoleWorkspaceOutcome.spec.ts` («the arrival-flown fact»). At the real
+surface: `console-blue-action-receive.spec.ts` watches the HUD counter and
+`.con-deckdraw` across the take (it climbs to 184 and the scene mounts with the
+memory removed), and `console-deck-pick.spec.ts` asserts the deck answered
+exactly ONCE for its prompt. ⚠️ Both probes are `MutationObserver` +
+`setInterval`, never `requestAnimationFrame`: headless Chromium drives rAF off
+the compositor, and the existing rAF sampler beside them measured 25 frames
+across a five-second window — a probe hung on it stops sampling exactly when the
+screen goes quiet, which is when this bug fires. Each asserts its own
+`samples` count, so a dead probe fails instead of passing.
+
 ## Iteration 3 — the production polish pass (2026-08-09)
 
 Eight reports, and they resolved into five root causes. Recorded because four

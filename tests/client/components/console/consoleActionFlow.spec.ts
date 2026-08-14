@@ -118,21 +118,29 @@ describe('consoleActionFlow', () => {
       expect(run.find((c) => c.control === 'confirm')).to.deep.eq({control: 'confirm', label: 'Confirm', enabled: true});
     });
 
-    it('payment is REVIEW-level (never a focus row): on the CTA, LT + split LB/RB while A stays Confirm', () => {
+    /**
+     * The SINGLE-alt payment: the dial is the whole payment UI, so it owns MAX
+     * too — and there is NO «Настроить оплату», because the editor it would open
+     * is this same block with a cursor that cannot move.
+     */
+    it('payment is REVIEW-level (never a focus row): on the CTA, split LB/RB + MAX while A stays Confirm', () => {
       const run = focusCommandRun({
         state: 'main', focused: 'cta', canConfirm: true,
-        configurablePayment: true, dial: {kind: 'payment', canDecrease: true, canIncrease: false},
+        dial: {kind: 'payment', canDecrease: true, canIncrease: false},
       });
-      // LB/RB split (per-side enabled) → A Confirm (NOT hijacked) → LT → Inspect/Cancel. No MAX for payment.
-      expect(run.map((c) => c.label)).to.deep.eq(['−1', '+1', 'Confirm', 'Configure payment', 'Inspect', 'Cancel']);
+      // LB/RB split (per-side enabled) + MAX → A Confirm (NOT hijacked) → Inspect/Cancel.
+      expect(run.map((c) => c.label)).to.deep.eq(['−1', '+1', 'MAX', 'Confirm', 'Inspect', 'Cancel']);
       expect(run.find((c) => c.control === 'bumperL')?.enabled).to.eq(true);
       expect(run.find((c) => c.control === 'bumperR')?.enabled).to.eq(false);
+      // MAX follows the SAME «up» limit as +1 — a dead button never appears.
+      expect(run.find((c) => c.control === 'triggerR')?.enabled).to.eq(false);
+      expect(run.map((c) => c.label)).to.not.include('Configure payment');
     });
 
-    it('a focused STEPPER owns LB/RB (the payment dial yields) but LT stays available', () => {
+    it('a focused STEPPER owns LB/RB (the payment dial yields) but a MULTI-lane LT stays available', () => {
       const run = focusCommandRun({
         state: 'main', focused: 'amount', canConfirm: true,
-        configurablePayment: true, dial: {kind: 'amount'},
+        paymentEditor: true, dial: {kind: 'amount'},
       });
       expect(run.map((c) => c.label)).to.deep.eq(['−1 / +1', 'MAX', 'Next', 'Configure payment', 'Inspect', 'Cancel']);
     });

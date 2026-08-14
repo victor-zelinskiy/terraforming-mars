@@ -27,7 +27,9 @@
       </span>
 
       <!-- The mode switch as a SECONDARY action OF THIS BLOCK (never a
-           free-floating command): LT opens the editor, B folds it back. -->
+           free-floating command): LT opens the editor, B folds it back. It is
+           absent when the editor would show the same block a second time (a
+           single alt lane — see `editorEligible`). -->
       <span v-if="hint !== undefined" class="con-pay__hint">
         <GamepadGlyph :control="hint.control" /><span>{{ $t(hint.label) }}</span>
       </span>
@@ -52,8 +54,8 @@
  * standalone `SelectPayment` task and the colony trade. Each host feeds it the
  * pure `PaymentView` from `buildPaymentView` and picks a density:
  *
- *   compact  — the summary inside a composer (LB/RB drive the single alt lane,
- *              LT opens the editor);
+ *   compact  — the summary inside a composer (LB/RB + RT МАКС. drive the single
+ *              alt lane; LT opens the editor when there is more than one);
  *   expanded — the same block with the micro captions lifted, a cursor, and
  *              every lane dialable by hand.
  *
@@ -101,7 +103,10 @@ export default defineComponent({
       if (this.mode === 'expanded') {
         return {control: 'back', label: 'Back to quick payment'};
       }
-      return this.view.configurable ? {control: 'triggerL', label: 'Configure payment'} : undefined;
+      // ONLY when the editor is a real second stage. A single alt lane is
+      // already fully dialable right here, so the entry would promise depth
+      // that does not exist — the pure model owns that rule, never the host.
+      return this.view.editorEligible ? {control: 'triggerL', label: 'Configure payment'} : undefined;
     },
     panelLabel(): string {
       return `${translateText(this.titleKey)}: ${translateText('Cost')} ${this.view.cost} M€`;

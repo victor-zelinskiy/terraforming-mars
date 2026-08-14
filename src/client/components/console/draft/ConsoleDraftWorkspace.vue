@@ -175,7 +175,7 @@
                    :data-inspect-slot="entry.name"
                    :class="{
                      'con-cards__slot--focused': zone === 'inspect' && focusIdx === i && !inspectFlightActive,
-                     'con-deal-hold': inspectHeldNames.includes(entry.name),
+                     'con-deal-hold': inspectSlotHeld(entry.name),
                    }">
                 <Card :card="entry.card" :key="entry.name" lightweight />
               </div>
@@ -308,6 +308,7 @@ import {
   draftPacketKey, draftJourneyPhases, draftFlowPresentation, draftCompactContext,
   draftCrumb, draftNeighbor, requirementHeadsUp, draftCollectedNames,
   beginDraftCompletion, markDraftCompletionFlightsDone, finishDraftCompletion,
+  draftPicksKey, rememberDraftPicks, recallDraftPicks,
   DraftStage, DraftJourneyInput,
 } from '@/client/console/draft/consoleDraftFlow';
 import {draftCommands, setConsoleDraftCommands, resetConsoleDraftUi, DraftCommandState} from '@/client/console/draft/consoleDraftUi';
@@ -627,6 +628,13 @@ export default defineComponent({
     buyAffordableWithOneMore(): boolean {
       return (this.picks.length + 1) * this.buyCostPerCard <= this.megacreditsOnHand;
     },
+    /** WHICH SET the current marks belong to — the memory's key, so a new
+     *  packet / a new generation's buy never inherits a stale selection. */
+    picksKey(): string {
+      const buying = this.zone === 'buy' || this.zone === 'pay' || draftWorkspaceState.completion !== 'none';
+      const entries = buying ? this.buyEntries : this.packetEntries;
+      return draftPicksKey(buying ? 'buy' : 'pick', this.playerView.game.generation, entries.map((e) => e.name));
+    },
   },
   watch: {
     /** A fresh packet: reset the pick state + arm its arrival (pre-flush,
@@ -698,6 +706,14 @@ export default defineComponent({
         }, consoleMotionMs(280));
       });
     },
+    /** The marks OUTLIVE this component: «свернуть» parks the stack, which
+     *  unmounts the surface. Mirrored into module state on every change. */
+    picks: {
+      deep: true,
+      handler(picks: ReadonlyArray<CardName>) {
+        rememberDraftPicks(this.picksKey, picks);
+      },
+    },
     /** Keep the command bar mirror current. */
     commandState: {
       immediate: true,
@@ -712,6 +728,10 @@ export default defineComponent({
     // (the frame enters on the phase flip), so a `mounted()` arm is one frame
     // too late — the raw cards flash for that frame before the deal's hold
     // lands. `deal.prepare` is DOM-free; the launch measures later.
+    // READ THE MEMORY FIRST — `resetPickState()` below writes an empty
+    // selection through the same key, so recalling afterwards would read
+    // back the erasure it had just performed.
+    const remembered = recallDraftPicks(this.picksKey);
     this.hydratedPacketKey = this.packetKey;
     if (this.packetKey !== '') {
       this.resetPickState();
@@ -720,6 +740,13 @@ export default defineComponent({
       // Reload straight into the buy: freeze + present instantly.
       this.buySnapshot = this.buyInput?.cards.map((card, i) => ({name: card.name, key: card.name + '#' + i, card}));
       finishRiseScene();
+    }
+    // RESTORED FROM THE PARK (or re-mounted for any other reason): the marks
+    // the player made are theirs, and «свернуть» promised to keep the
+    // decision live. Recall is keyed by the SET, so nothing is inherited
+    // across a new packet or a new generation's buy.
+    if (remembered.length > 0) {
+      this.picks = remembered;
     }
   },
   mounted() {
@@ -1264,6 +1291,22 @@ export default defineComponent({
       this.inspectFlightActive = false;
       this.inspectHeldNames = [];
       this.disposeClones();
+    },
+    /**
+     * The inspect row's REAL card is empty while its clone is in the air —
+     * and for as long as this stage is not the zone at all.
+     *
+     * The second half is what killed the flash: a `v-show` stage keeps
+     * PAINTING through its ~180 ms leave transition, and the collect ended
+     * by releasing every hold (`finishInspectFlight`) one tick BEFORE
+     * `inspecting` went false. For those frames the full-size cards were
+     * back on a stage the player had just watched them leave — they had
+     * physically gone home to the shelf and then blinked back, full size.
+     * Deriving the hold from the ZONE (rather than clearing it on a timer)
+     * makes that window unexpressible.
+     */
+    inspectSlotHeld(name: CardName): boolean {
+      return this.zone !== 'inspect' || this.inspectHeldNames.includes(name);
     },
     /** While its card is OUT on the big row a shelf seat holds empty (one
      *  physical set, never two copies): held from the frame its clone SPAWNS

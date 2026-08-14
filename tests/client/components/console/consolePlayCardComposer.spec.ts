@@ -160,19 +160,19 @@ describe('consolePlayCardComposer.playComposerFootHints', () => {
   function ctx(over: Partial<PlayFootContext> = {}): PlayFootContext {
     return {
       sub: 'none', subIsCardList: false, hasRows: true, focusedKind: 'variant',
-      configurablePayment: false, paymentReady: true, primaryLabel: 'Play now', primaryEnabled: true, ...over,
+      paymentEditor: false, paymentReady: true, primaryLabel: 'Play now', primaryEnabled: true, ...over,
     };
   }
 
-  it('AUTO payment (not configurable) shows NO dial controls and NO LT verb', () => {
-    const hints = playComposerFootHints(ctx({configurablePayment: false}));
+  it('AUTO payment (no editor) shows NO dial controls and NO LT verb', () => {
+    const hints = playComposerFootHints(ctx({paymentEditor: false}));
     expect(hasDialControl(hints)).to.be.false;
     expect(controls(hints)).to.not.include('triggerL');
     expect(labels(hints)).to.not.include('Configure payment');
   });
 
-  it('configurable payment shows LT «Configure payment» (secondary, never A)', () => {
-    const hints = playComposerFootHints(ctx({configurablePayment: true}));
+  it('a MULTI-lane payment shows LT «Configure payment» (secondary, never A)', () => {
+    const hints = playComposerFootHints(ctx({paymentEditor: true}));
     const lt = hints.find((h) => h.control === 'triggerL');
     expect(lt?.label).to.equal('Configure payment');
     // A stays the primary action, not the payment entry.
@@ -227,16 +227,37 @@ describe('consolePlayCardComposer.playComposerFootHints', () => {
     expect(labels(playComposerFootHints(ctx({hasRows: false})))).to.not.include('Navigate');
   });
 
-  it('inline quick-adjust shows SPLIT LB/RB with per-side enabled (+ keeps LT)', () => {
+  it('inline quick-adjust shows SPLIT LB/RB with per-side enabled, and its own MAX', () => {
     const hints = playComposerFootHints(ctx({
-      configurablePayment: true,
       quickAdjust: {canDecrease: true, canIncrease: false},
     }));
     const lb = hints.find((h) => h.control === 'bumperL');
     const rb = hints.find((h) => h.control === 'bumperR');
     expect(lb).to.deep.include({label: '−1', enabled: true});
     expect(rb).to.deep.include({label: '+1', enabled: false});
-    // LT (detailed editor) stays available alongside quick-adjust; A is still primary.
+    // RT МАКС. rides the DIAL, and follows the same «up» limit: the lone alt
+    // lane has no editor to enter, so this is its only «fill it up».
+    expect(hints.find((h) => h.control === 'triggerR')).to.deep.include({label: 'MAX', enabled: false});
+    expect(hints.find((h) => h.control === 'confirm')?.label).to.equal('Play now');
+  });
+
+  /**
+   * THE point of the single-alt case: the quick screen is already the whole
+   * payment UI, so it must not advertise a second one. «Настроить оплату» there
+   * opened the same block with a cursor that cannot move.
+   */
+  it('a single-alt payment offers NO LT entry — the bumpers ARE the editor', () => {
+    const hints = playComposerFootHints(ctx({
+      paymentEditor: false,
+      quickAdjust: {canDecrease: true, canIncrease: true},
+    }));
+    expect(controls(hints)).to.not.include('triggerL');
+    expect(labels(hints)).to.not.include('Configure payment');
+    expect(hints.find((h) => h.control === 'triggerR')).to.deep.include({label: 'MAX', enabled: true});
+  });
+
+  it('a multi-lane payment keeps LT beside a focused stepper\'s own dial', () => {
+    const hints = playComposerFootHints(ctx({paymentEditor: true, focusedKind: 'amount'}));
     expect(controls(hints)).to.include('triggerL');
     expect(hints.find((h) => h.control === 'confirm')?.label).to.equal('Play now');
   });
@@ -260,7 +281,7 @@ describe('consolePlayCardComposer.playComposerFootHints', () => {
     const scenarios = [
       ctx({}), ctx({sub: 'list', subIsCardList: true}), ctx({sub: 'payment'}),
       ctx({focusedKind: 'amount'}), ctx({focusedKind: 'pick', primaryLabel: 'Change'}),
-      ctx({configurablePayment: true}), ctx({quickAdjust: {canDecrease: true, canIncrease: true}}),
+      ctx({paymentEditor: true}), ctx({quickAdjust: {canDecrease: true, canIncrease: true}}),
     ];
     for (const s of scenarios) {
       expect(controls(playComposerFootHints(s)), 'no Y control').to.not.include('inspect');
@@ -389,6 +410,7 @@ describe('consolePlayCardComposer.buildPaymentView', () => {
     const v = buildPaymentView({cost: 11, lanes: [], counts: {}, mcAvailable: 65});
     expect(v.quickAdjustEligible).to.be.false;
     expect(v.configurable).to.be.false;
+    expect(v.editorEligible).to.be.false;
     expect(v.rows).to.have.length(1);
     expect(v.rows[0]).to.deep.include({
       unit: 'megacredits', auto: true, editable: false,
@@ -406,6 +428,9 @@ describe('consolePlayCardComposer.buildPaymentView', () => {
     expect(v.quickAdjustEligible).to.be.true;
     expect(v.quickAdjustUnit).to.equal('steel');
     expect(v.configurable).to.be.true;
+    // ...and NO editor: this one row, dialed in place, is the whole payment UI.
+    // The editor would render the same block with an immobile cursor.
+    expect(v.editorEligible).to.be.false;
     expect(v.rows.map((r) => r.unit)).to.deep.equal(['steel', 'megacredits']);
     expect(rowOf(v, 'steel')).to.deep.include({
       labelKey: 'Steel', rate: 2, available: 5, used: 5, remaining: 0, contribution: 10,
@@ -451,6 +476,8 @@ describe('consolePlayCardComposer.buildPaymentView', () => {
     const v = buildPaymentView({cost: 21, lanes: [steelLane, titaniumLane], counts: {steel: 2, titanium: 1}, mcAvailable: 30});
     expect(v.quickAdjustEligible).to.be.false;
     expect(v.configurable).to.be.true;
+    // A mix the bumpers cannot express → and ONLY here does the editor exist.
+    expect(v.editorEligible).to.be.true;
     expect(v.rows.every((r) => !r.quickAdjust)).to.be.true;
     // Both alt lanes stay hand-editable — that IS the expanded editor.
     expect(editableRows(v).map((r) => r.unit)).to.deep.equal(['steel', 'titanium']);
@@ -765,7 +792,7 @@ describe('playPrimaryVerb — one button, one promise', () => {
     const verb = playPrimaryVerb({focused: 'picker', pickAnswered: true, primary: READY});
     const hints = playComposerFootHints({
       sub: 'none', subIsCardList: false, hasRows: true, focusedKind: 'pick',
-      configurablePayment: false, paymentReady: true,
+      paymentEditor: false, paymentReady: true,
       primaryLabel: verb.label, primaryEnabled: verb.enabled,
     } as PlayFootContext);
     const a = hints.find((h) => h.control === 'confirm');

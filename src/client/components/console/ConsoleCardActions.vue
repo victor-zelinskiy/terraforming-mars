@@ -639,6 +639,24 @@ export default defineComponent({
        * time from the branch preview and released when the outcome is done.
        */
       outcomeFlow: undefined as ComposerOutcome | undefined,
+      /**
+       * THE PREVIEW THE COMMITTED ACTION WAS COMPOSED AGAINST — latched at the
+       * submit, keyed by the variant it belongs to, released when the stage
+       * lets go of that variant.
+       *
+       * The preview cache is keyed by an AVAILABILITY FINGERPRINT (stored
+       * resources, action reasons, the server's activatable set), and the
+       * answer to the action changes every one of them — so the store wipes
+       * and refetches while the COMMIT BEAT is still playing. The composer's
+       * whole draft hangs off this prop: for the length of that round-trip its
+       * decision rows evaporated, then came back UNANSWERED and re-armed
+       * («◈ Выберите карту» over a target the player had already chosen and
+       * sent), and the branch itself came back «Активирована». Past the commit
+       * boundary the configuration surface is not a live view of anything —
+       * it is the record of what was sent, and it must not move under a result
+       * it has already produced.
+       */
+      committedPreview: undefined as {cardName: CardName, nodeIndex: number, preview: ActionPreview} | undefined,
       /** The tile briefly shaken on an unavailable A press. */
       shakeKey: '',
       /** The slot the player just DESCENDED into (the commit pulse rides it
@@ -874,7 +892,18 @@ export default defineComponent({
     },
     composerPreview(): ActionPreview | undefined {
       const c = this.composer;
-      return c === undefined ? undefined : this.previewMap.get(c.cardName);
+      if (c === undefined) {
+        return undefined;
+      }
+      // A COMMITTED variant keeps the preview it was composed against (see
+      // `committedPreview`). Keyed on the variant, so the Viron repeat-reveal
+      // handoff — which re-points the stage at the CHOSEN card — falls back to
+      // the live cache by construction instead of showing the source's.
+      const latched = this.committedPreview;
+      if (latched !== undefined && latched.cardName === c.cardName && latched.nodeIndex === c.nodeIndex) {
+        return latched.preview;
+      }
+      return this.previewMap.get(c.cardName);
     },
     /**
      * The SELECTED variant's render node — the ACTION COMMIT's address into
@@ -1492,6 +1521,10 @@ export default defineComponent({
       // episode completes, B walks it back through `returning`. Nothing
       // derives "are we mid-transition?" from an animation's side effects.
       this.flowState = 'entering';
+      // A fresh descent composes against LIVE data — any frozen preview from an
+      // earlier commit lets go here (it is keyed by variant, so this only ever
+      // matters for re-entering the same one).
+      this.committedPreview = undefined;
       this.composer = {cardName: tile.cardName, nodeIndex: tile.nodeIndex};
       // The DESCENT is recorded where it survives the surface: the module
       // draft (a park unmounts this component, and the draft is what re-seats
@@ -1559,6 +1592,8 @@ export default defineComponent({
     closeComposer(): void {
       this.composer = undefined;
       this.descendKey = '';
+      // The frozen preview belongs to the stage that is going away.
+      this.committedPreview = undefined;
       // A genuine fold ends the descent: the suspended-instance record goes
       // with it. (An UNMOUNT deliberately does not come through here — a park
       // must keep the draft, or the restore has nothing to re-seat.)
@@ -1795,6 +1830,14 @@ export default defineComponent({
         console.warn('Activate action: SelectCard not found in waitingFor tree');
         this.closeComposer();
         return;
+      }
+      // PAST THE COMMIT BOUNDARY — freeze the preview this variant was composed
+      // against. From here the stage shows what was SENT; the answer that is
+      // about to land invalidates the preview cache under it, and re-seating
+      // there is what threw the answered target away mid-commit.
+      const composedPreview = this.composerPreview;
+      if (composedPreview !== undefined) {
+        this.committedPreview = {cardName: comp.cardName, nodeIndex: comp.nodeIndex, preview: composedPreview};
       }
       const batch = buildActionBatch({
         performPath: perform.path,
