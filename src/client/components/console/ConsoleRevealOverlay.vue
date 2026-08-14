@@ -620,6 +620,9 @@ export default defineComponent({
       embedFitScheduled: false,
       stopFitResize: undefined as (() => void) | undefined,
       stopFitObs: undefined as (() => void) | undefined,
+      /** …and the ROW's own observer (attached on the first real measure —
+       *  see `fitEmbeddedStrip`; the row is what the fit reads). */
+      stopRowObs: undefined as (() => void) | undefined,
       settleFitTimer: undefined as number | undefined,
       // ── The 'result' deck→slot reveal flight (reuses the in-frame director) ──
       /** pending → the card is flying / flipping (status shows); settled → the
@@ -1220,7 +1223,7 @@ export default defineComponent({
       this.settleFitTimer = window.setTimeout(() => {
         this.settleFitTimer = undefined;
         this.fitEmbeddedStrip();
-      }, motionMs(420));
+      }, motionMs(480));
     }
   },
   beforeUnmount() {
@@ -1232,6 +1235,7 @@ export default defineComponent({
     this.abortResultFlight();
     this.stopFitResize?.();
     this.stopFitObs?.();
+    this.stopRowObs?.();
     if (this.settleFitTimer !== undefined) {
       window.clearTimeout(this.settleFitTimer);
       this.settleFitTimer = undefined;
@@ -1293,6 +1297,19 @@ export default defineComponent({
         return;
       }
       this.embedFitRetries = 0;
+      // ⚠️ WATCH THE BOX YOU MEASURE. The observer set up in `mounted()` is on
+      // the reveal's ROOT, and the root can keep its size while the ROW loses
+      // height inside it — the host's panel settling on its own measured need,
+      // a status line appearing, the stage's chrome resolving. The fit then
+      // keeps a zoom solved for a budget that no longer exists, and a batch
+      // that overflows by a card's title is CROPPED, silently, on exactly the
+      // profiles where the row is tightest (measured: solved 387px of card into
+      // a 318px row at 1080). The row is what the fit reads, so the row is what
+      // it watches; its own writes cannot feed back (the row is `flex: 1` in a
+      // host-sized frame with `min-height: 0`, so its box is never content-driven).
+      if (this.stopRowObs === undefined) {
+        this.stopRowObs = useResizeObserver(strip, () => this.scheduleEmbedFit()).stop;
+      }
       const cs = window.getComputedStyle(strip);
       const padX = (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0);
       const colGap = parseFloat(cs.columnGap) || parseFloat(cs.gap) || 14;
@@ -1332,10 +1349,26 @@ export default defineComponent({
       // LESS: the zone owns those numbers.
       const zoneEls = Array.from(strip.querySelectorAll<HTMLElement>('.con-reveal__bonus-zone'));
       let zoneExtraW = 0;
+      let zoneExtraH = 0;
       let zoneCaptionH = 0;
       zoneEls.forEach((zone) => {
         const zs = window.getComputedStyle(zone);
         zoneExtraW += (parseFloat(zs.marginLeft) || 0) + (parseFloat(zs.marginRight) || 0);
+        // …and a zone is TALLER than the slot it holds (its own column gap, the
+        // waiting cover's box). That difference does not scale with the card —
+        // it is a fixed cost on the line's height, and the line is as tall as
+        // its tallest item, so the cards must be solved for what is left.
+        // ⚠️ NEVER NEGATIVE. The slot is `zoom`ed and the zone is not, so the
+        // difference is only a COST while the zone is the taller of the two; a
+        // measurement taken mid-write (the probe forces zoom 1, Vue may still
+        // be patching the previous value) can read the other way round, and
+        // subtracting a negative number GROWS the height budget — a card
+        // solved for more room than exists is cropped by the frame, which is
+        // the exact fault this whole line exists to remove.
+        const inner = zone.querySelector<HTMLElement>('.con-cards__slot');
+        if (inner !== null) {
+          zoneExtraH = Math.max(zoneExtraH, zone.offsetHeight - inner.offsetHeight, 0);
+        }
         const label = zone.querySelector<HTMLElement>('.con-reveal__bonus-zone-label');
         if (label !== null) {
           // How far the caption reaches ABOVE its zone's own box — the
@@ -1352,15 +1385,32 @@ export default defineComponent({
       // The zone furniture rides in as room the cards may NOT spend (`availW`)
       // and as room the WRAP CAP must still hold (`padXPx`), so the line that
       // gets laid out is the line the shape was solved for.
+      // ⚠️ SUBTRACT, NEVER FLOOR. `Math.max(slotW/slotH, …)` reads like a safety
+      // rail and is the engine's one forbidden move: a budget raised to a whole
+      // unzoomed card is by definition asking for a card that does not fit
+      // (`consoleWsStageLayout`: «ceiling only… small honest cards beat cropped
+      // ones»). It shipped for one run and cropped the row at 1080 — the fit
+      // solved 387 px of card into a 293 px budget it had itself replaced with
+      // 460. The clamp here guards a degenerate measurement and nothing else.
       const layout = wsStageLayout({
-        availW: Math.max(slotW, availW - zoneExtraW),
-        availH, slotW, slotH, n, ui,
+        availW: Math.max(1, availW - zoneExtraW),
+        availH: Math.max(1, availH - zoneExtraH),
+        slotW, slotH, n, ui,
         rowGapPx: colGap + zoneCaptionH,
         padXPx: padX + zoneExtraW,
       });
       this.embedLayoutStyle = wsStageLayoutStyle(layout);
       Object.entries(this.embedLayoutStyle).forEach(([k, v]) => strip.style.setProperty(k, v));
       this.embedFitZoom = layout.zoom;
+      // THE FIT'S OWN INPUTS, on the row it solved. A cropped batch is always a
+      // disagreement between what the engine measured and what the browser laid
+      // out, and reading the result alone can never tell them apart — this is
+      // the same «state the facts once, where the probe can see them» idiom as
+      // `__conColonyDiag`.
+      strip.dataset.fit = `w${Math.round(availW - zoneExtraW)} h${Math.round(availH - zoneExtraH)} ` +
+        `slot${Math.round(slotW)}x${Math.round(slotH)} n${n} ` +
+        `zx${Math.round(zoneExtraW)}/${Math.round(zoneExtraH)} gap${Math.round(colGap)} ` +
+        `→ z${layout.zoom.toFixed(3)} r${layout.rows}x${layout.perRow}`;
     },
     // ── RESULT reveal flight (deck → slot + flip; reuses the in-frame director) ──
     /**

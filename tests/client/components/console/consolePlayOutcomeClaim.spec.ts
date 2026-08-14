@@ -1,12 +1,12 @@
 import {expect} from 'chai';
 import {
   beginPlayLandingRelease, claimPlayOutcome, isPlayOutcomeHost, markPlayLandingReleased,
-  playLandingHolding, playLandingReleasing, playLandingShowing, playLandingYieldedToDeal,
+  playLandingHolding, playLandingReleasing, playLandingShowing, playLandingYieldedToOutcome,
   playOutcomeHost,
 } from '@/client/console/played/consolePlayOutcomeClaim';
 import {
-  releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceClaimsDrawReveal, workspaceClaimsPick,
-  workspaceOutcomeState,
+  markWorkspaceOutcomePresenting, releaseWorkspaceOutcome, resetWorkspaceOutcome,
+  workspaceClaimsDrawReveal, workspaceClaimsEffect, workspaceClaimsPick, workspaceOutcomeState,
 } from '@/client/console/consoleWorkspaceOutcome';
 import {armDeckDraw, markDeckDrawDealing, resetDeckDraw} from '@/client/console/deckDraw/consoleDeckDraw';
 import {
@@ -97,9 +97,30 @@ describe('consolePlayOutcomeClaim — WHERE a card play\'s follow-up presents', 
     expect(workspaceOutcomeState.sourceCard).to.eq(LAGRANGE);
     expect(workspaceOutcomeState.embedSlot).to.eq('[data-embed-slot="hand-outcome"]');
     expect(workspaceOutcomeState.expectedCards).to.eq(1);
-    // The drawn batch AND the pick it may raise — one press, one claim.
+    // The drawn batch, the pick it may raise AND the optional effect one of
+    // the player's OTHER cards answers this press with — one press, one claim.
     expect(workspaceClaimsDrawReveal(cardSource(LAGRANGE))).to.eq(true);
     expect(workspaceClaimsPick()).to.eq(true);
+    expect(workspaceClaimsEffect()).to.eq(true);
+  });
+
+  /**
+   * «МАРСИАНСКИЙ УНИВЕРСИТЕТ». A triggered effect is invisible to every
+   * preview — the played card knows nothing about the card that answers its
+   * science tag — so the only way to catch the question at all is to claim
+   * before knowing. It is the reconciler that settles the claim against what
+   * actually came back.
+   */
+  it('claims the optional EFFECT a triggered card raises, whichever door the play used', () => {
+    standStart();
+    expect(claimPlayOutcome(CardName.POINT_LUNA as string, 0)).to.eq('start');
+    expect(workspaceClaimsEffect()).to.eq(true);
+    // …and with no workspace behind the play there is nothing to claim, so the
+    // standalone decision band stays honest.
+    resetWorkspaceOutcome();
+    resetWorkspaceStack();
+    expect(claimPlayOutcome(LAGRANGE, 0)).to.eq(undefined);
+    expect(workspaceClaimsEffect()).to.eq(false);
   });
 
   /**
@@ -161,7 +182,7 @@ describe('consolePlayOutcomeClaim — WHERE a card play\'s follow-up presents', 
       claimedPlay();
       expect(playLandingHolding()).to.eq(true);
       expect(playLandingShowing()).to.eq(true);
-      expect(playLandingYieldedToDeal()).to.eq(false);
+      expect(playLandingYieldedToOutcome()).to.eq(false);
     });
 
     it('LETS GO the moment the deck starts dealing — not when the batch arrives', () => {
@@ -172,7 +193,22 @@ describe('consolePlayOutcomeClaim — WHERE a card play\'s follow-up presents', 
       expect(playLandingHolding(), 'a CLAIMED batch is not a dealing one').to.eq(true);
       markDeckDrawDealing();
       expect(playLandingHolding()).to.eq(false);
-      expect(playLandingYieldedToDeal(), 'the fall is an EXIT, not a rollback').to.eq(true);
+      expect(playLandingYieldedToOutcome(), 'the fall is an EXIT, not a rollback').to.eq(true);
+    });
+
+    /**
+     * AN OUTCOME WITH NO CARDS IN IT still needs the stage. «Марсианский
+     * университет» asks its question and nothing comes off the deck, so keyed
+     * on the deal alone the tableau held forever and the only thing that ever
+     * removed it was its own component being torn out — a cut, in the one
+     * place this scene exists to make continuous.
+     */
+    it('LETS GO when the outcome PRESENTS, even though nothing was dealt', () => {
+      claimedPlay();
+      expect(playLandingHolding()).to.eq(true);
+      markWorkspaceOutcomePresenting();
+      expect(playLandingHolding()).to.eq(false);
+      expect(playLandingYieldedToOutcome(), 'the decision took the stage').to.eq(true);
     });
 
     it('stays SHOWING through its dissolve — the mount cannot cut its own exit', () => {
@@ -186,12 +222,12 @@ describe('consolePlayOutcomeClaim — WHERE a card play\'s follow-up presents', 
       expect(playLandingShowing()).to.eq(false);
     });
 
-    it('a REFUSED play is not an exit — nothing is dealing, so the setup rolls back', () => {
+    it('a REFUSED play is not an exit — nothing arrived, so the setup rolls back', () => {
       claimedPlay();
-      expect(playLandingYieldedToDeal()).to.eq(false);
+      expect(playLandingYieldedToOutcome()).to.eq(false);
       releaseWorkspaceOutcome(); // the claim goes with the refusal
       expect(playLandingHolding()).to.eq(false);
-      expect(playLandingYieldedToDeal()).to.eq(false);
+      expect(playLandingYieldedToOutcome()).to.eq(false);
     });
 
     it('a new play never inherits a dissolve the last one left hanging', () => {

@@ -105,6 +105,17 @@ export type EffectDecisionUnavailable = {
 export type EffectDecisionViewModel = {
   /** i18n KEY of the context chip («ЭФФЕКТ КАРТЫ»). */
   eyebrowKey: string;
+  /**
+   * i18n KEY of this decision's own STAGE NAME, for when it is EMBEDDED as a
+   * step of the workspace that produced it («КАРТЫ В РУКЕ › ГАНИМЕД › ЭФФЕКТ»).
+   *
+   * Deliberately NOT the eyebrow. The eyebrow answers «what kind of thing is
+   * asking» to a player looking at a standalone band («ЭФФЕКТ КАРТЫ»); a crumb
+   * tail answers «which step of this flow am I on», in one word, and must never
+   * echo a host's own root noun — «КАРТЫ В РУКЕ › … › ЭФФЕКТ КАРТЫ» says
+   * «карты» twice to say one thing.
+   */
+  stageKey: string;
   /** i18n KEY of the headline — a real question, never «Выберите вариант». */
   headlineKey: string;
   /** WHY this appeared, straight from the server marker. */
@@ -127,6 +138,9 @@ export const EYEBROW_BY_SOURCE: Readonly<Record<string, string>> = {
 };
 export const EYEBROW_ATTACK = 'Attack';
 export const EYEBROW_REWARD = 'Extra bonus';
+
+/** The embedded stage's tail for an ordinary triggered/optional effect. */
+export const STAGE_EFFECT = 'Effect';
 
 export const HEADLINE_CHOOSE = 'Choose an effect';
 export const HEADLINE_USE = 'Use the effect?';
@@ -212,6 +226,23 @@ export function eyebrowKeyOf(context: ChoiceContext): string {
     return EYEBROW_REWARD;
   }
   return EYEBROW_BY_SOURCE[context.source.kind] ?? EYEBROW_BY_SOURCE.system;
+}
+
+/**
+ * The CRUMB TAIL this decision carries when a workspace hosts it. Derived from
+ * the same structural `mode` the eyebrow is — the SOURCE kind deliberately does
+ * not enter, because the crumb's root and subject already say whose flow this
+ * is, and repeating «карты» / «колония» there is the one thing a tail may not
+ * do (see `stageKey`).
+ */
+export function stageKeyOf(context: ChoiceContext): string {
+  if (context.mode === 'attack') {
+    return EYEBROW_ATTACK;
+  }
+  if (context.mode === 'reward') {
+    return EYEBROW_REWARD;
+  }
+  return STAGE_EFFECT;
 }
 
 /**
@@ -347,6 +378,7 @@ export function buildEffectDecision(
 
   return {
     eyebrowKey: eyebrowKeyOf(choice),
+    stageKey: stageKeyOf(choice),
     headlineKey,
     trigger: choice.trigger,
     source: sourceOf(choice.source),

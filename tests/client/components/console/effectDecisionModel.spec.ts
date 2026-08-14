@@ -10,6 +10,7 @@ import {
   HEADLINE_PAY,
   HEADLINE_USE,
   LEAD_HAND_CARDS,
+  STAGE_EFFECT,
   ACTION_DISCARD_DRAW,
   buildEffectDecision,
   chipsFromDiscard,
@@ -193,6 +194,29 @@ describe('effectDecisionModel', () => {
     const attack = buildEffectDecision(
       or([leaf('a'), decline], cardContext('attack')), {handNames: HAND});
     expect(attack?.eyebrowKey).eq(EYEBROW_ATTACK);
+  });
+
+  /**
+   * THE EMBEDDED CRUMB TAIL. When the workspace whose press raised this
+   * decision hosts it, the surface hands its stage name UP instead of drawing a
+   * kicker of its own — and a tail must never echo the host's root noun
+   * («КАРТЫ В РУКЕ › ГАНИМЕД › ЭФФЕКТ КАРТЫ» says «карты» twice). So the SOURCE
+   * kind deliberately does not enter; only the structural mode does.
+   */
+  it('names its embedded STAGE from the mode alone — never from the source', () => {
+    const decline = leaf('Do nothing', {kind: 'skip'});
+    const card = buildEffectDecision(or([leaf('a'), decline], cardContext()), {handNames: HAND});
+    expect(card?.stageKey).eq(STAGE_EFFECT);
+
+    // A colony source is still «ЭФФЕКТ» as a tail — the crumb's root and
+    // subject already say whose flow this is.
+    const colony = buildEffectDecision(
+      or([leaf('a'), decline], {source: {kind: 'colony'}, mode: 'optional-effect'}), {handNames: HAND});
+    expect(colony?.stageKey).eq(STAGE_EFFECT);
+    expect(colony?.eyebrowKey, 'the standalone chip still names the source').eq('Colony effect');
+
+    const attack = buildEffectDecision(or([leaf('a'), decline], cardContext('attack')), {handNames: HAND});
+    expect(attack?.stageKey).eq(EYEBROW_ATTACK);
   });
 
   it('keeps unavailable targets informational — never as a pressable action', () => {

@@ -573,15 +573,45 @@ is never named either.
    and glow never cut.
    ⚠️ **…and a ZONE IS NOT A SLOT.** `wsStageLayout` solves `n` boxes of exactly
    `slotW × slotH`; a bonus zone is a slot PLUS furniture — a lateral margin
-   keeping its frame off its neighbour, and a caption that floats ABOVE the row.
-   Both are real layout, so both ride into the fit MEASURED FROM THE DOM (never
-   re-stated from LESS): the margins come off `availW` and go into `padXPx` (the
-   wrap cap must hold the line that will actually be laid out), the caption's
+   keeping its frame off its neighbour, a caption that floats ABOVE the row, and
+   a box that is simply TALLER than the slot it holds. All three are real
+   layout, so all three ride into the fit MEASURED FROM THE DOM (never re-stated
+   from LESS): margins come off `availW` and go into `padXPx` (the wrap cap must
+   hold the line that will actually be laid out), the extra height comes off
+   `availH` (a flex line is as tall as its tallest item), and the caption's
    overhang is added to `rowGapPx` so a WRAPPED zone has the clearance the
-   strip's own padding only ever gave the first row. Without it a merged Pluto
-   payout at 4K solved a shape that could not render: the line came out wider
-   than the width it was solved for, `flex-wrap` broke a card off, the shape
-   gained a row it had no height for, and the stage cropped the cards.
+   strip's own padding only ever gave the first row.
+
+   ⚠️ **Subtract, NEVER floor.** Writing those costs as
+   `Math.max(slotW/slotH, avail − cost)` reads like a safety rail and is the
+   engine's one forbidden move: a budget raised to a whole unzoomed card is by
+   definition asking for a card that does not fit (`consoleWsStageLayout`:
+   «ceiling only… small honest cards beat cropped ones»). It shipped for one
+   run and cropped the row at 1080 — the fit solved 387 px of card into a
+   293 px budget it had itself replaced with 460. Clamp only against a
+   degenerate measurement (`Math.max(1, …)`).
+
+   **Read the fit's own inputs before theorising**: the row carries them
+   (`data-fit="w… h… slot…x… n… zx…/… gap… → z… r…×…"`, written by
+   `fitEmbeddedStrip` on every solve). Both faults above were one glance each
+   once that existed, and guesswork for an hour before.
+
+   ⚠️⚠️ **…AND THE GAP THE ENGINE SOLVES MUST BE THE GAP THAT RENDERS.** On the
+   TV profile it was not: `html.con-profile-tv .con-reveal__strip { gap: … }`
+   (0,2,1) out-specified the stage row's own
+   `column-gap: var(--con-ws-stage-gap)` (0,2,0) and replaced a solved 30 px gap
+   with 96 px. The engine then planned a line ~200 px narrower than the browser
+   laid out, `flex-wrap` broke a card onto a row the stage had no height for,
+   `align-content: center` split the overflow, and a merged Pluto payout (two
+   income cards + two colony zones) rendered CROPPED TOP AND BOTTOM at 4K —
+   while the very same batch fitted at 1080. Measured before/after:
+   `cg=96px → 29.96px`, 3 rendered lines → 1, overflow `513px → 0`. The profile
+   ladder is now scoped to the standalone band (`&__strip:not(.con-ws-stage-row)`).
+   **A profile that re-states a solved value silently unsolves it** — and a fit
+   claim asserted at one resolution is a claim about one resolution (the first
+   guard for this passed at the 720p default viewport while the screenshot said
+   otherwise; `tests/e2e/console-colony-remote-bonus.spec.ts` now measures the
+   row at 3840×2160 and prints the solved values beside the painted ones).
 4. **The last take's commit runs at the intake's seam — HOLD FIRST, DECIDE A
    TICK LATER.** The reveal's take commit once sampled the discard marker on a
    mid-update frame, read it blinked-off, and closed a batch that still owed

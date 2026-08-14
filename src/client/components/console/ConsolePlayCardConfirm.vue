@@ -549,7 +549,7 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {playedHeroLandingPrewarm} from '@/client/console/played/consolePlayedHero';
 import {
   beginPlayLandingRelease, markPlayLandingReleased, playLandingHolding, playLandingShowing,
-  playLandingYieldedToDeal,
+  playLandingYieldedToOutcome,
 } from '@/client/console/played/consolePlayOutcomeClaim';
 import ConsolePlayedReceivingStage from '@/client/components/console/played/ConsolePlayedReceivingStage.vue';
 
@@ -1554,12 +1554,13 @@ export default defineComponent({
      * materialize cascade it entered with, captures intact.
      */
     landingHolding(now: boolean, was: boolean) {
-      // THE EXIT, not a rollback: the deck has begun dealing what this play
-      // drew, so the tableau dissolves off the stage and the released setup
-      // STAYS released — the play happened. (A refusal falls through to the
-      // rollback below; the two are told apart by the positive fact, never by
-      // the absence of the other.)
-      if (!now && was && playLandingYieldedToDeal()) {
+      // THE EXIT, not a rollback: the play's outcome has taken the stage (the
+      // deck began dealing what it drew, or its decision surface is standing in
+      // the workspace's zone), so the tableau dissolves off and the released
+      // setup STAYS released — the play happened. (A refusal falls through to
+      // the rollback below; the two are told apart by the positive fact, never
+      // by the absence of the other.)
+      if (!now && was && playLandingYieldedToOutcome()) {
         beginPlayLandingRelease();
         this.runPlaystageRelease();
         return;

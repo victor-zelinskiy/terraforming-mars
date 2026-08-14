@@ -13,17 +13,36 @@
     beside them — big enough to recognise, never big enough to dominate — and
     the whole panel sizes to its content, so a two-choice decision is a compact
     card and not a half-empty screen.
+
+    HOST-AGNOSTIC (`embedded`): the very same instance is TELEPORTED into the
+    outcome zone of the workspace whose press raised this decision — «Марсианский
+    университет» answering the science tag the player just played from their
+    hand. What the prop strips is exactly the standalone SHELL — the band, the
+    `con-ws` rail marker, the surface-motion identity, the plate and the KICKER
+    (handed UP to the workspace's breadcrumb instead, so the line reads «КАРТЫ В
+    РУКЕ › ГАНИМЕД › ЭФФЕКТ» rather than a second title floating inside someone
+    else's frame). Content, input path, submit contract and focus memory are
+    untouched.
   -->
-  <div class="con-decision con-ws" role="dialog" :aria-label="$t(vm.headlineKey)"
-       data-motion-surface="effect-decision">
+  <div class="con-decision"
+       :class="{'con-ws': !embedded, 'con-decision--embedded': embedded}"
+       :role="embedded ? 'group' : 'dialog'" :aria-label="$t(vm.headlineKey)"
+       :data-motion-surface="embedded ? undefined : 'effect-decision'">
     <transition name="con-task-swap" mode="out-in">
       <div class="con-decision__panel" :key="panelKey" data-motion-panel>
         <header class="con-decision__head">
-          <div class="con-decision__kicker">
+          <!-- EMBEDDED: the kicker is the WORKSPACE'S crumb tail, published by
+               `stagePhase` below — a surface that announces itself inside
+               another's frame reads as a modal that arrived. -->
+          <div v-if="!embedded" class="con-decision__kicker">
             <span class="con-decision__kicker-mark" aria-hidden="true">◈</span>
             <span>{{ $t(vm.eyebrowKey) }}</span>
           </div>
-          <h2 class="con-decision__title">{{ $t(vm.headlineKey) }}</h2>
+          <h2 class="con-decision__title" :class="{'con-ws-stage-title': embedded}">{{ $t(vm.headlineKey) }}</h2>
+          <!-- WHY this appeared stays in BOTH dresses: an embedded stage may
+               never say less than the standalone surface it replaces, and
+               «Вы разыграли научную метку» is the whole reason the question
+               is on screen. -->
           <p v-if="triggerText !== ''" class="con-decision__trigger">{{ triggerText }}</p>
         </header>
 
@@ -106,6 +125,7 @@ import {
   EffectDecisionAction, EffectDecisionViewModel,
 } from '@/client/console/effectDecision/effectDecisionModel';
 import {effectDecisionState, rememberDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
+import {setWorkspaceOutcomePhase, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 
 function textOf(value: string | Message | undefined): string {
   if (value === undefined) {
@@ -121,6 +141,9 @@ export default defineComponent({
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     vm: {type: Object as PropType<EffectDecisionViewModel>, required: true},
+    /** Hosted as a STEP of the workspace whose press raised this decision —
+     *  the shell teleports THIS instance into that workspace's outcome zone. */
+    embedded: {type: Boolean, default: false},
   },
   emits: ['submit', 'defer', 'hand-pick'],
   data() {
@@ -149,6 +172,10 @@ export default defineComponent({
     triggerText(): string {
       return textOf(this.vm.trigger);
     },
+    /** The crumb tail this stage hands UP while embedded ('' = not ours). */
+    stagePhase(): string {
+      return this.embedded ? this.vm.stageKey : '';
+    },
     /** The pad contract this screen publishes to the shared command bar. The
      *  KEYS are derived in the pure model — this only picks the glyphs. */
     footCommands(): Array<ConsoleCommand> {
@@ -170,6 +197,20 @@ export default defineComponent({
     focusIdx(now: number): void {
       rememberDecisionFocus(now);
     },
+    /**
+     * Hand the STAGE NAME up to the hosting workspace's breadcrumb, exactly as
+     * the task host and the drawn reveal do — so «КАРТЫ В РУКЕ › ГАНИМЕД ›
+     * ЭФФЕКТ» is one continuous line instead of a detached «◈ ЭФФЕКТ КАРТЫ»
+     * floating inside somebody else's frame.
+     */
+    stagePhase: {
+      immediate: true,
+      handler(key: string): void {
+        if (key !== '') {
+          setWorkspaceOutcomePhase(key);
+        }
+      },
+    },
   },
   mounted() {
     // Coming back from the hand overlay must land on the action that opened it,
@@ -179,6 +220,14 @@ export default defineComponent({
   },
   beforeUnmount() {
     clearPanelCommands('effectDecision');
+    // ONLY OUR OWN NAME. This surface unmounts to hand the screen to the very
+    // next stage of the SAME flow — the offer's discard opens the real hand,
+    // and the shell publishes «СБРОС КАРТЫ» before we go. Clearing
+    // unconditionally would blank the crumb's tail for that whole step, i.e.
+    // step BACKWARDS through a flow that only moves forward.
+    if (this.stagePhase !== '' && workspaceOutcomeState.phaseKey === this.stagePhase) {
+      setWorkspaceOutcomePhase('');
+    }
   },
   methods: {
     textOf,

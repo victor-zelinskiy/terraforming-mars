@@ -512,7 +512,7 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleTaskHost v-if="hostTask !== undefined && !taskHeldForWorkspace && !effectDecisionActive && !finalGreeneryActive && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
+        <ConsoleTaskHost v-if="hostTask !== undefined && !taskHeldForWorkspace && !effectDecisionOwnsPrompt && !finalGreeneryActive && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
                          ref="taskHost"
                          :playerView="playerView"
                          :task="hostTask"
@@ -531,18 +531,26 @@
          ("use the effect / pay the price / go and pick" vs a deliberate
          decline). It stands in for the generic task host exactly like the
          Government Support panel below, and ONLY when the pure adapter could
-         represent the prompt honestly — otherwise the host keeps it. -->
-    <transition :css="false" appear
-                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
-                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-      <ConsoleEffectDecision v-if="effectDecisionActive && effectDecisionVm !== undefined"
-                             ref="effectDecision"
-                             :playerView="playerView"
-                             :vm="effectDecisionVm"
-                             @submit="onTaskSubmit"
-                             @defer="onTaskDefer"
-                             @hand-pick="onTaskHandPick" />
-    </transition>
+         represent the prompt honestly — otherwise the host keeps it.
+         EMBEDDED when the player's own press raised it: a science tag played
+         from the hand wakes «Марсианский университет», and that question is the
+         NEXT STAGE of the play, not a window that arrived over it. Same
+         instance teleported into the workspace's outcome zone, same submit
+         path, same command contract. -->
+    <Teleport :to="effectDecisionEmbedTarget ?? 'body'" :disabled="effectDecisionEmbedTarget === undefined">
+      <transition :css="false" appear
+                  @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                  @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+        <ConsoleEffectDecision v-if="effectDecisionActive && effectDecisionVm !== undefined"
+                               ref="effectDecision"
+                               :playerView="playerView"
+                               :vm="effectDecisionVm"
+                               :embedded="effectDecisionEmbedTarget !== undefined"
+                               @submit="onTaskSubmit"
+                               @defer="onTaskDefer"
+                               @hand-pick="onTaskHandPick" />
+      </transition>
+    </Teleport>
 
     <!-- FINAL GREENERY — the endgame conversion beat. Deliberately NOT the
          decision screen above: there the quiet bottom card is a harmless
@@ -1423,10 +1431,10 @@ import {
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
-import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsEffect, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, setWorkspaceOutcomePhase, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
 import type {WorkspaceOutcomeKind} from '@/client/console/consoleWorkspaceOutcome';
 import {ResultRevealPresentation, resultRevealPresentation} from '@/client/console/consoleRevealPresentation';
-import {claimPlayOutcome, isPlayOutcomeHost} from '@/client/console/played/consolePlayOutcomeClaim';
+import {claimPlayOutcome, isPlayOutcomeHost, playLandingShowing} from '@/client/console/played/consolePlayOutcomeClaim';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, boardCardBonusState, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {
@@ -1579,6 +1587,12 @@ const HYDRO_RESULT_HOLD_MS = 2400;
  * Everything else the same response may carry — a placement, an OrOptions
  * branch, a resource pick, a discard from hand — is the play's ordinary
  * follow-up and keeps its own surface, so the claim must let go of it.
+ *
+ * The one addition is not a KIND but a shape: a MARKED optional effect
+ * (`effectDecisionBelongsToWorkspace`) is a `choice` like any other, and only
+ * the server's `choiceContext` tells it apart from the branch pick beside it —
+ * which is why it is asked as a predicate at the call site rather than added to
+ * this set.
  */
 const PLAY_CLAIMED_TASK_KINDS: ReadonlySet<TaskKind> =
   new Set<TaskKind>(['deckSelect', 'cardSelect', 'payment']);
@@ -2380,7 +2394,20 @@ export default defineComponent({
      * gate; there is no per-card switch anywhere.
      */
     effectDecisionVm(): EffectDecisionViewModel | undefined {
-      if (this.hostTask?.kind !== 'choice') {
+      return this.hostTask?.kind === 'choice' ? this.rawEffectDecisionVm : undefined;
+    },
+    /**
+     * …and the SAME decision read off the RAW prompt, with no admission gate.
+     *
+     * OWNERSHIP AND READINESS ARE DIFFERENT QUESTIONS (embed rule 4), and here
+     * they are separated by a whole cinematic: a play's own hero scene holds
+     * the task host for its entire length, so «is the decision surface up?»
+     * cannot answer «is this decision the play's own?». The reconciler asks the
+     * second question — the same reason a play claim reads the RAW prompt kind
+     * rather than «the gate is holding something».
+     */
+    rawEffectDecisionVm(): EffectDecisionViewModel | undefined {
+      if (taskFor(this.playerView)?.kind !== 'choice') {
         return undefined;
       }
       return buildEffectDecision(this.playerView.waitingFor, {handNames: this.viewerHandNames});
@@ -2394,7 +2421,56 @@ export default defineComponent({
       return this.effectDecisionVm !== undefined &&
         !this.govSupportActive && !this.productionLossActive &&
         !this.consoleState.task.deferred && this.taskSpacePending === undefined &&
-        !this.handPickActive;
+        !this.handPickActive && !this.effectDecisionHeldForWorkspace;
+    },
+    /**
+     * THE DECISION BELONGS TO AN OPEN WORKSPACE — the player pressed «Разыграть»
+     * inside a screen and a card of theirs answered that press.
+     *
+     * Read off the RAW prompt for the same reason `taskBelongsToWorkspace` is
+     * split from `taskEmbedTarget`: ownership is settled at submit time, long
+     * before any surface may be shown. The `buildEffectDecision` term is not a
+     * formality — a claim admitted for a shape this console cannot present
+     * would SUPPRESS the standalone band and leave the prompt nowhere.
+     */
+    effectDecisionBelongsToWorkspace(): boolean {
+      return workspaceClaimsEffect() && this.rawEffectDecisionVm !== undefined;
+    },
+    /** Claimed but not ready → render NOWHERE for the gap frame, never in a
+     *  band of our own for one frame and somewhere else the next. The BEAT is
+     *  part of «ready»: the play's own commit must be seen through before its
+     *  consequence is put on screen. */
+    effectDecisionHeldForWorkspace(): boolean {
+      return this.effectDecisionBelongsToWorkspace &&
+        (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
+    },
+    effectDecisionEmbedTarget(): string | undefined {
+      // THE ADMITTED vm, not the raw one. Ownership is settled at submit time,
+      // but a TARGET is a claim that something is about to be re-homed into the
+      // zone — and `workspaceOutcomeEmbedded` reads it. The play's own cinematic
+      // holds this prompt closed for its whole length, so the raw vm made the
+      // zone «occupied» while nothing rendered in it: the crumb's tail dropped
+      // to the generic «ДОБОР КАРТ» for the entire landing beat, i.e. it named a
+      // stage that did not exist, one stage AHEAD of the flow.
+      if (this.effectDecisionVm === undefined ||
+          !this.effectDecisionBelongsToWorkspace || this.effectDecisionHeldForWorkspace) {
+        return undefined;
+      }
+      const slot = workspaceOutcomeState.embedSlot;
+      return slot === '' ? undefined : slot;
+    },
+    /**
+     * THE DECISION SCREEN OWNS THIS PROMPT — it is on screen, OR briefly held
+     * while the workspace that will host it publishes its zone.
+     *
+     * The TASK HOST must stand down for both. `effectDecisionActive` alone
+     * suppresses it only for the first, so the hold would hand a marked
+     * decision to the generic band for the gap frame — a modal blinking between
+     * two stages of one flow, which is the whole class of break the embedding
+     * removes.
+     */
+    effectDecisionOwnsPrompt(): boolean {
+      return this.effectDecisionActive || this.effectDecisionHeldForWorkspace;
     },
     /**
      * THE FINALE. The endgame "turn your plants into greeneries" loop, on its
@@ -3155,7 +3231,35 @@ export default defineComponent({
         // still be live under a decision the player is reading, and the claim
         // would never be released when the flow ends, so the hosting workspace
         // would never come back around its source card.
-        this.deckPickEmbedTarget !== undefined;
+        this.deckPickEmbedTarget !== undefined ||
+        // …and the EFFECT DECISION a play's own triggered card raised. Same
+        // claim, same zone, same two failure modes if it were left out.
+        this.effectDecisionEmbedTarget !== undefined;
+    },
+    /**
+     * MAY THE PLAY COMPOSER LET GO OF THE STAGE?
+     *
+     * Its successor is standing in the outcome zone (a layer ABOVE the stage,
+     * never beside it) AND the landing tableau it carried has finished its own
+     * exit. Two halves of ONE handoff: the first says «there is something to
+     * take over», the second «and the thing being relieved has gone properly».
+     *
+     * Splitting them is what makes the exit a dissolve rather than a cut. When
+     * the outcome is a DEAL the tableau has usually finished releasing long
+     * before the reveal assembles, so this reads exactly as it always did; when
+     * the outcome is a DECISION (nothing comes off the deck at all) both events
+     * land in the same flush, and clearing the composer there tore the tableau
+     * out mid-fade — the one place this whole scene exists to make continuous.
+     *
+     * It cannot hang: with the claim `presenting`, `playLandingShowing()` is
+     * the release flag alone, which is bounded by the dissolve AND its backstop.
+     */
+    playComposerReleasable(): boolean {
+      return this.pendingPlayCard !== undefined &&
+        workspaceOutcomeState.host === 'hand' &&
+        this.workspaceOutcomeEmbedded &&
+        !isPlayedHeroActive() &&
+        !playLandingShowing();
     },
     /**
      * THE CARD PLAY WORKSPACE is holding what a play produced (the drawn batch,
@@ -3927,8 +4031,19 @@ export default defineComponent({
       // for that gap — backwards, through a flow that only ever moves forward —
       // and then forward again to the same word the step itself publishes, so
       // the crumb animated twice to say one thing.
-      const outcomeStage = this.handOutcomeLive && (this.workspaceOutcomeEmbedded || deckDrawDealing()) ?
-        (workspaceOutcomeState.phaseKey !== '' ? workspaceOutcomeState.phaseKey : focusKicker('draw')) :
+      // …and once a stage of this claim HAS named itself, that name stands for
+      // as long as the claim does. A flow can hand the screen from one of its
+      // own stages to the next WITHOUT anything being embedded in between — the
+      // effect decision's offer opens the real hand, which is this workspace's
+      // own shelf, so nothing is teleported anywhere for the whole discard.
+      // Falling back to «РОЗЫГРЫШ» there stepped BACKWARDS through a flow that
+      // only moves forward. `phaseKey` is written only by a surface that really
+      // was this claim's stage and dies with the claim, so reading it is
+      // monotone by construction.
+      const outcomeNamed = workspaceOutcomeState.phaseKey !== '';
+      const outcomeStage = this.handOutcomeLive &&
+        (this.workspaceOutcomeEmbedded || deckDrawDealing() || outcomeNamed) ?
+        (outcomeNamed ? workspaceOutcomeState.phaseKey : focusKicker('draw')) :
         this.followUpStepStageKey;
       // …and once that owed step actually STANDS, the tail is the DEEPEST
       // frame's, not ours. It used to stop at the hand, so the moment the colony
@@ -5147,7 +5262,12 @@ export default defineComponent({
         return 'Government Support';
       }
       if (this.effectDecisionActive) {
-        return this.effectDecisionVm?.eyebrowKey ?? 'Awaiting decision';
+        // EMBEDDED: the bar names the STAGE the crumb above already names —
+        // one voice in two places, exactly as the embedded reveal does. The
+        // standalone band has no crumb, so there it names the KIND of decision.
+        return this.effectDecisionEmbedTarget !== undefined ?
+          (this.effectDecisionVm?.stageKey ?? 'Awaiting decision') :
+          (this.effectDecisionVm?.eyebrowKey ?? 'Awaiting decision');
       }
       if (this.finalGreeneryActive) {
         return FINAL_GREENERY_EYEBROW;
@@ -7172,16 +7292,33 @@ export default defineComponent({
         }
       });
     },
+    /**
+     * THE HANDOFF'S SECOND HALF — the play composer unmounts once its landing
+     * tableau has finished leaving, and never a frame before.
+     *
+     * POST-flush deliberately: the composer's own release watcher runs LATER in
+     * the same flush this fact first changes in (a child's watcher after its
+     * parent's), so asked pre-flush the answer would be «nothing is showing»
+     * one tick too early — and clearing there is the cut this replaces.
+     */
+    playComposerReleasable: {
+      flush: 'post',
+      handler(releasable: boolean): void {
+        if (releasable) {
+          this.pendingPlayCard = undefined;
+        }
+      },
+    },
     workspaceOutcomeEmbedded(embedded: boolean, was: boolean) {
       if (embedded) {
         markWorkspaceOutcomePresenting();
         // THE HANDOFF, for a CARD PLAY: its landing scene («Разыграно») held
         // the stage while the drawn cards were still coming off the deck — one
         // surface stays until the next one is actually there, never a blank
-        // frame in between. Now that the outcome is on screen the composer that
-        // carried it lets go, in the flush after the arriving surface painted.
+        // frame in between. The composer that carried it lets go on the
+        // TABLEAU'S OWN schedule (`playComposerReleasable` below), so what is
+        // being relieved dissolves instead of being cut out from under itself.
         if (workspaceOutcomeState.host === 'hand' && !isPlayedHeroActive()) {
-          this.pendingPlayCard = undefined;
           // …and the frame stops being a BEAT and becomes a decision about the
           // move's result: `executing` absorbs input by design (a double submit
           // must be impossible while the server has the move), which is exactly
@@ -7204,6 +7341,18 @@ export default defineComponent({
       // owed): the claim is the flow's ownership and stays — its release
       // belongs to the resolution's own falling edge, never to one leg's end.
       if (workspaceOutcomeState.host === 'colonies' && this.colonyResolutionLive) {
+        return;
+      }
+      // …and «FELL» IS NOT «BEING ANSWERED ELSEWHERE IN THIS SAME WORKSPACE».
+      // The optional effect a play triggered hands the screen to the workspace's
+      // OWN shelf for its discard: the decision surface unmounts by design (the
+      // hand IS the picker) and the discard cinematic then holds every task
+      // surface closed for its whole length, so the zone is empty for both. The
+      // prompt is still ours and still unanswered — read off the RAW prompt, so
+      // no admission gate can make «held» look like «gone». Without this the
+      // claim was released mid-pick, the flow concluded under the player, and
+      // the card their discard bought arrived over an empty board.
+      if (this.effectDecisionBelongsToWorkspace) {
         return;
       }
       void this.$nextTick(() => {
@@ -7912,12 +8061,43 @@ export default defineComponent({
       // colony resolution's discard) — pops one level, uncovering the flow
       // that asked for the card exactly where it was left. Only a hand the
       // player stood in alone goes home.
-      if (workspaceFrameHost('hand') !== undefined) {
+      const verb = this.handExitVerb();
+      if (verb === 'none') {
+        return;
+      }
+      if (verb === 'pop') {
         leaveWorkspace();
         return;
       }
       closeConsoleLayers();
       goBoardHome();
+    },
+    /**
+     * WHAT LEAVING THE HAND MEANS RIGHT NOW — ONE answer, for the two sites
+     * that ask it: the answer path above and the close episode's own director
+     * (`setHandRevealHooks.setSection`).
+     *
+     * Both used to spell the law out for themselves, and both were wrong in the
+     * same way at different times. A HOSTED hand pops ONE level — spelled
+     * `goBoardHome` in the director, which wiped the whole stack out from under
+     * the colony resolution the instant the gather finished. And a hand whose
+     * OWN FLOW is still owed does not leave AT ALL — spelled «go home» in both,
+     * which dropped the player on the board in the middle of the effect their
+     * play had triggered, so the card their discard bought then arrived as a
+     * full-bleed reveal over an empty board. Two sites, one law, two separate
+     * bugs: the law is stated once now.
+     */
+    handExitVerb(): 'none' | 'pop' | 'home' {
+      if (workspaceFrameIndex('hand') === -1) {
+        return 'none';
+      }
+      if (workspaceFrameHost('hand') !== undefined) {
+        return 'pop';
+      }
+      // A flow ends through its ONE guarded conclusion, never through an answer
+      // given inside it: while this workspace still holds the claim of the play
+      // made in it, everything that play set off is still coming HERE.
+      return this.handOutcomeLive ? 'none' : 'home';
     },
     /** The card-play descent is over — the hand's frame folds back to its
      *  parked browse grid (selection, filter and scroll intact). */
@@ -11046,7 +11226,12 @@ export default defineComponent({
       // is pick-then-pay, and tearing the frame down between the two halves is
       // the same break the embedding removes. The workspace folds on its own
       // signal (the claim's release) once the server stops asking.
-      if (!this.taskBelongsToWorkspace) {
+      //
+      // …and the same holds for an embedded EFFECT DECISION: answering the
+      // question a play's own card asked is a stage of that play, not the end
+      // of the screen it was made in (the discard it opens, and the card that
+      // discard buys, are still inside this workspace).
+      if (!this.taskBelongsToWorkspace && this.effectDecisionEmbedTarget === undefined) {
         closeConsoleLayers();
       }
       this.consoleState.task.deferred = false;
@@ -11096,11 +11281,12 @@ export default defineComponent({
         this.onCardActionsCollapse();
         return;
       }
-      // …and so does an embedded DRAW & SELECT: B on a nested step minimizes
-      // the workspace HOSTING it, never the step alone. Which collapse that is
-      // depends on the host — the action centre has its own atomic one; every
-      // other workspace parks its whole stack, exactly as its own B does.
-      if (this.deckPickEmbedTarget !== undefined) {
+      // …and so does an embedded DRAW & SELECT (and an embedded EFFECT
+      // DECISION): B on a nested step minimizes the workspace HOSTING it, never
+      // the step alone. Which collapse that is depends on the host — the action
+      // centre has its own atomic one; every other workspace parks its whole
+      // stack, exactly as its own B does.
+      if (this.deckPickEmbedTarget !== undefined || this.effectDecisionEmbedTarget !== undefined) {
         if (workspaceOutcomeState.host === 'card-actions') {
           this.onCardActionsCollapse();
         } else {
@@ -11549,7 +11735,14 @@ export default defineComponent({
           // …and, generally, while the SERVER still holds an unconsumed
           // reveal for us: that is positive evidence of an artifact on its
           // way, available a full cinematic before the client can render it.
-          (workspaceOutcomeState.host === 'start' && this.playerView.cardDrawReveals.length > 0) ||
+          //
+          // EVERY play host, not just the start. A play's chain can put a
+          // whole DECISION between the press and the cards («Марсианский
+          // университет»: answer the effect → discard → only THEN is a card
+          // drawn), so the batch arrives on a later response than the claim —
+          // and at that tick the client has nothing rendered yet while the
+          // server plainly does.
+          (isPlayOutcomeHost(workspaceOutcomeState.host) && this.playerView.cardDrawReveals.length > 0) ||
           // The COLONY claim spans its whole resolution — the mandatory bonus
           // discard is a handSelect the workspace itself hosts, never «the
           // server asked for something else».
@@ -11571,7 +11764,16 @@ export default defineComponent({
             // normally. The workspace would stand open around them until the
             // 20 s backstop. What IS ours is a card question: the pick this
             // play raised, and the payment that finishes it.
-            PLAY_CLAIMED_TASK_KINDS.has(task?.kind as TaskKind) :
+            //
+            // …plus the one question that is NOT about cards and is
+            // unmistakably this press's own: the optional EFFECT a card of the
+            // player's woke up («Марсианский университет» answering the science
+            // tag they just played). Structural on both sides — the server's
+            // `choiceContext` marker, and a shape this console can actually
+            // present — so an ordinary un-hostable OrOptions branch still
+            // releases the claim exactly as before.
+            PLAY_CLAIMED_TASK_KINDS.has(task?.kind as TaskKind) ||
+              this.effectDecisionBelongsToWorkspace :
             // The prompt exists but the gate is still holding it: it may yet be
             // ours once it opens.
             (this.hostServesPrompt && this.hostTask === undefined));
@@ -11767,6 +11969,27 @@ export default defineComponent({
         reasons[d.name] = d.disabledReason === undefined ? '' :
           (typeof d.disabledReason === 'string' ? translateText(d.disabledReason) : translateMessage(d.disabledReason));
       }
+      // THE PICK IS THE NEXT STAGE OF THE SAME EFFECT, not a screen the player
+      // was dropped into: inside the workspace that raised the decision the
+      // hand's own shelf becomes the picker (the play stage steps aside —
+      // `--stagepaused`), so the crumb's tail must ADVANCE («… › ЭФФЕКТ» →
+      // «… › СБРОС КАРТЫ») instead of blanking.
+      //
+      // Published HERE because the decision surface unmounts for the pick and
+      // its own `beforeUnmount` would otherwise clear the tail; it deliberately
+      // only clears a phase that is still its own, so this write wins.
+      const ownsStage = workspaceClaimsEffect();
+      const pickStage = prompt.discardPrompt !== undefined ? 'Discarding a card' : 'Card selection';
+      // …and the tail is HANDED ON at the answer rather than retracted. What
+      // this pick buys is the flow's next stage (the card the discard draws),
+      // and between the submit and the deal nothing owns the tail — retracting
+      // there would drop it back to the composer's last stage, «РАЗЫГРАНО»,
+      // which is two steps BACK through a flow that only moves forward. The
+      // exchange marker is the server's own, so this is structure, not a guess.
+      const nextStage = prompt.discardPrompt?.exchange?.icon === 'cards' ? focusKicker('draw') : '';
+      if (ownsStage) {
+        setWorkspaceOutcomePhase(pickStage);
+      }
       enterConsoleHandPick({
         title: prompt.title,
         buttonLabel: prompt.buttonLabel || 'Select',
@@ -11785,6 +12008,12 @@ export default defineComponent({
           {kicker: this.effectDecisionVm?.eyebrowKey ?? 'Card effect', card: payload.source.card} :
           undefined,
       }, (cards) => {
+        // ONLY OUR OWN KEY: by now the claim may already be naming something
+        // else (or be gone entirely), and overwriting a stage we do not own is
+        // how a crumb starts describing a screen that is not there.
+        if (ownsStage && workspaceOutcomeState.phaseKey === pickStage) {
+          setWorkspaceOutcomePhase(nextStage);
+        }
         this.submit(orWrappedResponse(payload.index, cardsResponse(cards)));
       });
     },
@@ -12884,16 +13113,16 @@ export default defineComponent({
           this.openHandWorkspace();
           return;
         }
-        // A HOSTED hand — an overlay (pick bridge) or an embedded step (the
-        // colony resolution's discard) — pops ONE level: the host keeps the
-        // room and its own flow continues. `goBoardHome` here wiped the whole
-        // stack out from under the colony resolution the instant the gather
-        // finished (the e2e tail: stack empty at t≈0.75s, before the server
-        // even answered) — the home verb belongs only to a hand standing
-        // alone.
-        if (workspaceFrameHost('hand') !== undefined) {
+        // THE SHARED LAW (`handExitVerb`): a HOSTED hand pops ONE level (the
+        // host keeps the room and its own flow continues — `goBoardHome` here
+        // wiped the whole stack out from under the colony resolution the
+        // instant the gather finished), and a hand whose OWN flow is still owed
+        // does not leave at all. The home verb belongs only to a hand standing
+        // alone with nothing left to host.
+        const verb = this.handExitVerb();
+        if (verb === 'pop') {
           leaveWorkspace();
-        } else {
+        } else if (verb === 'home') {
           goBoardHome();
         }
       },

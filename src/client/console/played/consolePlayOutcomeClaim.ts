@@ -109,6 +109,28 @@ export function playOutcomeHost(): PlayOutcomeHostSpec | undefined {
 }
 
 /**
+ * THE OUTCOME HAS TAKEN THE STAGE — the play's next surface is on it (or its
+ * cards are visibly on their way), so the tableau that told the CAUSE has to
+ * make room for the one telling the CONSEQUENCE.
+ *
+ * TWO signals, deliberately, because a play's outcome comes in two shapes and
+ * only one of them is a deal. Cards coming off the deck announce themselves
+ * long before the reveal assembles, so `deckDrawDealing()` is the earliest
+ * honest moment there; an outcome with no cards at all (the effect decision
+ * «Марсианский университет» raises, a buy prompt) has no deal to watch and
+ * announces itself by PRESENTING — the claimed surface is in the workspace's
+ * zone, standing over this very tableau.
+ *
+ * Keyed on the deal alone, that second shape never let go: the settled tableau
+ * stayed underneath the arriving decision for the rest of the flow, and the
+ * only thing that removed it was its own component being torn out — a cut, in
+ * the one place this module exists to make a dissolve.
+ */
+function outcomeTookTheStage(): boolean {
+  return deckDrawDealing() || workspaceOutcomeState.stage === 'presenting';
+}
+
+/**
  * IS THE LANDING SCENE STILL THE WORKSPACE'S CONTENT?
  *
  * The played-hero transaction ends when the card has landed and its rewards
@@ -118,10 +140,10 @@ export function playOutcomeHost(): PlayOutcomeHostSpec | undefined {
  * alone, the settled tableau vanished the instant it finished and the
  * workspace stood EMPTY for that whole gap.
  *
- * So the landing scene stays until the deck ACTUALLY BEGINS DEALING — and then
- * it lets go, because from that moment the stage belongs to what is arriving:
- * a tableau still standing there is the previous beat refusing to end. It goes
- * with a dissolve, never a cut (`playLandingReleasing`).
+ * So the landing scene stays until the outcome ACTUALLY TAKES THE STAGE — and
+ * then it lets go, because from that moment the stage belongs to what is
+ * arriving: a tableau still standing there is the previous beat refusing to
+ * end. It goes with a dissolve, never a cut (`playLandingReleasing`).
  *
  * The PREWARM window is excluded on purpose: at the arm the tableau is mounted
  * HIDDEN so its geometry settles during the round trip, and revealing it there
@@ -132,21 +154,21 @@ export function playLandingHolding(): boolean {
     return true; // the hero's own scene — it owns the stage outright
   }
   return workspaceOutcomeState.host === 'hand' && workspaceOutcomeState.sourceCard !== '' &&
-    !playedHeroLandingPrewarm() && !deckDrawDealing();
+    !playedHeroLandingPrewarm() && !outcomeTookTheStage();
 }
 
 /**
- * DID THE LANDING LET GO BECAUSE THE DECK STARTED DEALING?
+ * DID THE LANDING LET GO BECAUSE THE OUTCOME ARRIVED?
  *
  * The scene's hold can fall for two opposite reasons, and they need opposite
- * answers: the DEAL is an exit (the stage dissolves and the released setup
+ * answers: the OUTCOME is an exit (the stage dissolves and the released setup
  * stays released — the play happened), a REFUSAL is a rollback (the setup
  * comes back with every capture intact). This is the positive fact for the
  * first one, so neither has to be inferred from the absence of the other.
  */
-export function playLandingYieldedToDeal(): boolean {
+export function playLandingYieldedToOutcome(): boolean {
   return workspaceOutcomeState.host === 'hand' && workspaceOutcomeState.sourceCard !== '' &&
-    deckDrawDealing();
+    outcomeTookTheStage();
 }
 
 /**
@@ -220,6 +242,12 @@ export function isPlayOutcomeHost(host: WorkspaceOutcomeHost | undefined): boole
  * same «kinds come from the preview branch, never from the card's identity»
  * rule the direct activation follows. Claiming it for every play would put a
  * workspace's name on a verdict it had no part in.
+ *
+ * `effect` IS claimed for every play, and for the same reason `draw` and `pick`
+ * are: a TRIGGERED effect is invisible to every preview («Марсианский
+ * университет» answers a science tag played on a card that knows nothing about
+ * it), so «claim, and release what turns out not to be ours» is the only way to
+ * catch it at all. The reconciler settles it against the actual response.
  */
 export function claimPlayOutcome(
   card: string,
@@ -237,7 +265,7 @@ export function claimPlayOutcome(
   // exist yet drops its content on the floor, and the claim is what makes the
   // consumers start looking for it.
   setWorkspaceOutcomeSlot(spec.zone);
-  const kinds: Array<WorkspaceOutcomeKind> = ['draw', 'pick'];
+  const kinds: Array<WorkspaceOutcomeKind> = ['draw', 'pick', 'effect'];
   if (opts.deckCheck === true) {
     kinds.push('deck-check');
   }

@@ -100,9 +100,39 @@ async function createGame(request: APIRequestContext): Promise<string> {
 type Model = Record<string, any>;
 
 /**
- * THE SEQUENCE, exactly as the server plays it for two settlements on Pluto:
- * one bonus card at a time, each closed by its own mandatory discard, and
- * nothing at all once the last one is answered.
+ * THE MERGED PAYOUT, exactly as a Pluto trade pays a player with TWO
+ * settlements: two income cards, the first colony's bonus card beside them, and
+ * a second zone standing for the colony whose card is not drawn yet. FOUR boxes
+ * in the strip — the composition the 4K report was made of.
+ */
+function patchMerged(body: Model): void {
+  if (body.game !== undefined) {
+    body.game.gameAge = (body.game.gameAge ?? 0) + 1;
+  }
+  body.cardDrawReveals = [{
+    id: 950,
+    source: {type: 'colony', colonyName: 'Pluto', trade: {tradeId: 'merged:g1:a1', role: 'income'}},
+    cards: [{name: 'Micro-Mills'}, {name: 'Insulation'}, {name: 'Windmills'}],
+    tradeSegments: [{role: 'income', count: 2}, {role: 'bonus', count: 1}],
+  }];
+  body.waitingFor = {
+    type: 'card',
+    title: 'Pluto colony bonus. Select a card to discard',
+    buttonLabel: 'Discard',
+    cards: (body.cardsInHand ?? []).slice(0, 6),
+    min: 1,
+    max: 1,
+    showOnlyInLearnerMode: false,
+    discardPrompt: {
+      min: 1, max: 1, source: {kind: 'colony'},
+      colonyBonus: {colonyName: 'Pluto', index: 1, total: 2},
+    },
+  };
+}
+
+/**
+ * THE SEQUENCE, one leg per answered input: the bonus card and its mandatory
+ * discard, then nothing at all once that discard is answered.
  */
 function patchForCycle(body: Model, cycle: number): void {
   // ⚠️ EVERY LEG IS A NEW RESPONSE, and the client's own «is this a new
@@ -177,6 +207,104 @@ async function installSequence(page: Page): Promise<{cycle: () => number, settle
       cycle = 99;
     },
   };
+}
+
+/** The MERGED payout, frozen (every poll answers the same standing table). */
+async function installMerged(page: Page): Promise<void> {
+  await page.route('**/api/player*', async (route: Route) => {
+    const response = await route.fetch();
+    const body = await response.json() as Model;
+    patchMerged(body);
+    await route.fulfill({response, json: body});
+  });
+}
+
+/**
+ * THE GEOMETRY OF THE PAYOUT ROW, measured where it is laid out.
+ *
+ * ⚠️ A fit claim asserted at ONE resolution is a claim about one resolution —
+ * and the default e2e viewport is 720p, which is exactly where this composition
+ * fits by accident. The numbers below are what the engine solved against
+ * (`--con-cards-zoom`, the strip's own box) beside what the browser actually
+ * painted, so a divergence names itself instead of showing up as «cards look
+ * cropped».
+ */
+async function rowGeometry(page: Page) {
+  return page.evaluate(() => {
+    const box = (el: Element | null) => {
+      if (el === null) {
+        return null;
+      }
+      const r = el.getBoundingClientRect();
+      return {x: Math.round(r.left), y: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height)};
+    };
+    const zone = document.querySelector('.con-colfocus__outcome');
+    const strip = document.querySelector('.con-reveal__strip');
+    const items = Array.from(strip?.children ?? []) as Array<HTMLElement>;
+    const cards = Array.from(document.querySelectorAll('.con-reveal__strip .con-cards__slot')) as Array<HTMLElement>;
+    const cs = strip === null ? undefined : getComputedStyle(strip as HTMLElement);
+    const stripBox = strip === null ? null : {
+      w: (strip as HTMLElement).clientWidth, h: (strip as HTMLElement).clientHeight,
+      sw: (strip as HTMLElement).scrollWidth, sh: (strip as HTMLElement).scrollHeight,
+    };
+    // ⚠️ TWO different questions, and only the first one is «cropped».
+    //
+    // `clipped` measures the painted cards against the row's BORDER box — the
+    // box that actually clips (`overflow: hidden`). Its padding is deliberate
+    // headroom (the focused card's ring and lift live there), so measuring
+    // against the CONTENT box calls a healthy focus emphasis an overflow.
+    // `spill` is that softer reading, kept as a budget: a line that eats more
+    // than its headroom is one profile tweak away from being cropped.
+    let clipped = 0;
+    let spill = 0;
+    const rows = new Set<number>();
+    const s = (strip as HTMLElement).getBoundingClientRect();
+    const pad = {
+      t: parseFloat(cs?.paddingTop ?? '0'), b: parseFloat(cs?.paddingBottom ?? '0'),
+      l: parseFloat(cs?.paddingLeft ?? '0'), r: parseFloat(cs?.paddingRight ?? '0'),
+    };
+    cards.forEach((c) => {
+      const r = c.getBoundingClientRect();
+      rows.add(Math.round(r.top / 200));
+      clipped = Math.max(clipped, s.top - r.top, r.bottom - s.bottom, s.left - r.left, r.right - s.right);
+      spill = Math.max(spill,
+        (s.top + pad.t) - r.top, r.bottom - (s.bottom - pad.b),
+        (s.left + pad.l) - r.left, r.right - (s.right - pad.r));
+    });
+    const worst = clipped;
+    return {
+      zone: box(zone),
+      strip: stripBox,
+      stripBox: box(strip),
+      pad: cs === undefined ? '' :
+        `${cs.paddingTop}/${cs.paddingRight}/${cs.paddingBottom}/${cs.paddingLeft}`,
+      root: document.querySelector('.con-reveal')?.className ?? '',
+      fit: (strip as HTMLElement | null)?.dataset.fit ?? '',
+      flex: cs === undefined ? '' :
+        `cg=${cs.columnGap} rg=${cs.rowGap} wrap=${cs.flexWrap} ac=${cs.alignContent} ai=${cs.alignItems} of=${cs.overflow} mw=${cs.maxWidth}`,
+      rem: getComputedStyle(document.documentElement).fontSize,
+      zoom: cs?.getPropertyValue('--con-cards-zoom').trim() ?? '',
+      rowMax: cs?.getPropertyValue('--con-ws-stage-rowmax').trim() ?? '',
+      perRow: cs?.getPropertyValue('--con-ws-stage-per-row').trim() ?? '',
+      gap: cs?.getPropertyValue('--con-ws-stage-gap').trim() ?? '',
+      items: items.length,
+      cards: cards.length,
+      renderedRows: rows.size,
+      // The RAW row, item by item (class + box + margins) — the only way to see
+      // the model and the layout disagree.
+      layout: items.map((el) => {
+        const s = getComputedStyle(el);
+        return {
+          cls: el.className.replace(/con-(reveal|cards)__/g, ''),
+          ...box(el),
+          m: `${s.marginTop}/${s.marginRight}/${s.marginBottom}/${s.marginLeft}`,
+        };
+      }),
+      card: box(cards[0] ?? null),
+      overflow: Math.round(worst),
+      spill: Math.round(spill),
+    };
+  });
 }
 
 /** Every fact this spec asserts, sampled from inside the page. */
@@ -331,3 +459,77 @@ test('a FOREIGN trade pays this colony: the bonus composition, and an ending', a
   expect(end.parked, 'the finished flow was PARKED instead of finishing').toBe('');
   expect(end.taskDeferred, 'the finished flow was left deferred («Вернуться к решению»)').toBeFalsy();
 });
+
+/**
+ * THE MERGED PAYOUT FITS THE ZONE IT IS IN — at 4K, which is the only place it
+ * was ever reported broken.
+ *
+ * Two income cards, one colony-bonus card in its zone and one zone still to
+ * come: four boxes. On a 4K TV they rendered as three cards CROPPED AT THE TOP
+ * with the fourth wrapped onto a line the stage had no height for — a shape the
+ * fit never solved and could not have solved, because the row is measured with
+ * a model that says every item is exactly one slot wide.
+ *
+ * ⚠️ The default e2e viewport is 720p and this composition fits there by
+ * accident, which is why the first version of this guard passed while the
+ * screenshot said otherwise. Geometry is asserted where the geometry lives.
+ */
+const FIT_PROFILES = [
+  {tag: 'fhd', width: 1920, height: 1080, query: ''},
+  {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
+] as const;
+
+for (const profile of FIT_PROFILES) {
+  test.describe(`the merged payout · ${profile.tag}`, () => {
+    test.use({
+      viewport: {width: profile.width, height: profile.height},
+      deviceScaleFactor: 1,
+      screen: {width: profile.width, height: profile.height},
+    });
+
+    test('four boxes fit the payout zone — no crop, no wrap the stage cannot hold', async ({page, request}) => {
+      test.setTimeout(240_000);
+      const playerId = await createGame(request);
+      await page.goto(`/player?id=${playerId}&console=1${profile.query}`);
+      await page.waitForSelector('.con-root, .con-start__frame', {timeout: 45_000});
+      await page.waitForSelector('.con-load', {state: 'detached'}).catch(() => {});
+      await page.waitForTimeout(2500);
+      await bootToBoard(page, {
+        onStep: async (p, kind) => {
+          if (kind === 'corporation') {
+            await press(p, 'Enter', 600);
+          } else if (kind === 'project') {
+            await fillPicks(p, 2);
+          }
+        },
+      });
+      await page.waitForTimeout(1500);
+
+      await installMerged(page);
+      await page.reload();
+      expect(await openMandatoryAnnounce(page), 'the colony bonus was not announced').toBeTruthy();
+      await page.waitForSelector('.con-reveal__bonus-zone', {state: 'visible', timeout: 40_000});
+      await page.waitForTimeout(3200); // the arrival + the fit's own settle pass
+      await shoot(page, `10-merged-${profile.tag}`);
+
+      const geo = await rowGeometry(page);
+      console.log(`── merged payout @${profile.tag} ──`, JSON.stringify(geo));
+      expect(geo.items, 'two income cards + two colony zones').toBe(4);
+      // ① NOTHING IS CROPPED — measured against the box that actually clips.
+      expect(geo.overflow, `a card stuck ${geo.overflow}px out of the row`).toBeLessThanOrEqual(2);
+      // …and the line does not eat its own focus headroom either.
+      expect(geo.spill, `the line spent ${geo.spill}px of the row's headroom`).toBeLessThanOrEqual(24);
+      // ② THE SHAPE THAT RENDERS IS THE SHAPE THAT WAS SOLVED — a line that
+      //    breaks where the engine did not plan it doubles the height it was
+      //    solved for, and the height is what crops.
+      expect(geo.renderedRows, `the row rendered ${geo.renderedRows} lines for a ${geo.perRow}-per-row shape`)
+        .toBe(Math.ceil(4 / Number(geo.perRow || 4)));
+      // ③ …and the whole row is inside the payout zone.
+      const zone = geo.zone!;
+      const card = geo.card!;
+      expect(card.y, 'the first card starts above the payout zone').toBeGreaterThanOrEqual(zone.y - 2);
+      expect(card.y + card.h, 'the first card runs past the payout zone')
+        .toBeLessThanOrEqual(zone.y + zone.h + 2);
+    });
+  });
+}

@@ -124,7 +124,20 @@ export type WorkspaceOutcomeKind =
   /** A `CardDrawRevealModel` batch — cards physically drawn from the deck. */
   | 'draw'
   /** A follow-up card PICK the same activation produced (buy / keep-some). */
-  | 'pick';
+  | 'pick'
+  /**
+   * An OPTIONAL CARD EFFECT the same press triggered — «Марсианский
+   * университет: вы разыграли научную метку, сбросить карту и взять новую?».
+   *
+   * The server marks it structurally (`choiceContext` on a top-level
+   * `OrOptions`), and it is the one follow-up family that is not about the
+   * cards this press produced but about a card the press WOKE UP. It belongs
+   * to the workspace all the same: the player pressed «Разыграть» inside a
+   * screen, and every question that press raises is that screen's next stage —
+   * otherwise the workspace dissolves and an unrelated-looking window takes
+   * its place, which is precisely the break the embedding removes.
+   */
+  | 'effect';
 
 /**
  * The live claim. `sourceCard` is the key every predicate matches on; `kinds`
@@ -599,6 +612,24 @@ export function workspaceClaimsDeckCheck(action: string | undefined): boolean {
  */
 export function workspaceClaimsPick(): boolean {
   return workspaceOutcomeAdmits('pick');
+}
+
+/**
+ * Does an open workspace own the optional EFFECT DECISION the server just
+ * raised? Same shape — and same safety — as `workspaceClaimsPick`: a
+ * `choiceContext` carries no attribution to the card the player PRESSED (the
+ * asking card is a third one entirely — Mars University answering somebody
+ * else's science tag), so what makes this honest is the claim's narrowness. It
+ * exists only between a workspace's submit and its outcome, and one press's
+ * whole causal chain is exactly what a `'chain'` claim answers for.
+ *
+ * The CALLER still has to check that the prompt really is a decision this
+ * console can present (`buildEffectDecision`): claiming a shape with no
+ * embedded surface would suppress the standalone one and show the player
+ * nothing at all.
+ */
+export function workspaceClaimsEffect(): boolean {
+  return workspaceOutcomeAdmits('effect');
 }
 
 /** Full reset (game switch / test cleanup). */

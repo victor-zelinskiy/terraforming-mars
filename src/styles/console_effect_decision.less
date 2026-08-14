@@ -33,6 +33,57 @@
     contain: layout style;
 }
 
+/* ── EMBEDDED — teleported into the outcome zone of the workspace whose press
+   raised this decision («Марсианский университет» answering a science tag the
+   player just played from their hand).
+
+   What comes off is the standalone SHELL: the band geometry, the stacking, the
+   `contain` (as a flow child it would clip the panel's own glows against a box
+   it no longer owns) and the PLATE — the workspace frame is already the plane,
+   and a box inside a box is exactly what makes a step read as a modal that
+   arrived. What deliberately STAYS is the content-sized panel: «a two-choice
+   decision is a compact card, not a half-empty screen» is this surface's own
+   law, and a zone three times wider than the question does not change it. */
+.con-decision--embedded {
+    position: relative;
+    inset: auto;
+    left: auto;
+    right: auto;
+    top: auto;
+    bottom: auto;
+    contain: none;
+    z-index: auto;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    width: 100%;
+    max-width: none;
+    padding: 0;
+
+    /* A QUIET plate — the standalone card's WEIGHT changes, its material does
+       not disappear. The workspace frame already carries the depth, so the drop
+       shadow and the ring come off; the FILL deliberately stays, because this
+       zone is a LAYER OVER the play's landing tableau (that overlap is how the
+       handoff avoids a blank frame) and a content-sized panel does not cover
+       the zone the way a card ROW does — without a fill the surface it is
+       relieving reads straight through its own text for the whole dissolve. */
+    .con-decision__panel {
+        box-shadow: none;
+        max-height: 100%;
+    }
+    /* The stage's sentence sits where every other embedded stage's does —
+       centred over its content, on the shared type voice (`con-ws-stage-title`
+       is carried by the element itself). The kicker is gone: the workspace's
+       breadcrumb is where this stage names itself. */
+    .con-decision__head {
+        align-items: center;
+        text-align: center;
+    }
+    .con-decision__trigger {
+        text-align: center;
+    }
+}
+
 .con-decision__panel {
     position: relative;
     width: min(46rem, 100%);

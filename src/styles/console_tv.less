@@ -1002,7 +1002,21 @@ html.con-profile-tv {
            name for the descendant — a second `&` inside a profile block
            expands the WHOLE parent and matches nothing.) */
         &--embedded .con-reveal__verdict-slot { min-width: 24rem; max-width: 29rem; }
-        &__strip {
+        /* ⚠️ THE STANDALONE BAND ONLY. Inside a workspace the row's gap is an
+           OUTPUT of the shared fit engine (`consoleWsStageLayout` publishes
+           `--con-ws-stage-gap`, solved so a focused card's ring can never reach
+           its neighbour and so the LINE FITS THE WIDTH IT WAS SOLVED FOR).
+           This selector is `html.con-profile-tv .con-reveal__strip` (0,2,1), so
+           the flat `gap` here out-specified the stage row's own
+           `column-gap: var(--con-ws-stage-gap)` (0,2,0) and silently replaced a
+           30 px solved gap with 96 px. The engine then planned a line ~200 px
+           narrower than the one the browser laid out: `flex-wrap` broke a card
+           onto a SECOND row the stage had no height for, `align-content: center`
+           split the overflow, and a merged Pluto payout rendered with its cards
+           cropped top and bottom at 4K — while the same batch fitted at 1080.
+           (The tv block a few lines below already states this rule for the
+           stage row's padding; the gap is the half that was missing.) */
+        &__strip:not(.con-ws-stage-row) {
             gap: var(--con-reveal-strip-gap);
             padding: 3rem 1.6rem 2.2rem;
         }
