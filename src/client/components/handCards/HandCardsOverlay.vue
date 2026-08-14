@@ -21,7 +21,7 @@ See docs/DESKTOP_DEPRECATION_AUDIT.md + the deprecation banner in CLAUDE.md.
         <h2 class="hand-board__title" v-i18n>Cards in hand</h2>
         <span class="hand-board__player" :class="'player_translucent_bg_color_' + player.color">
           <span class="hand-board__player-dot" :class="'player_bg_color_' + player.color" aria-hidden="true"></span>
-          {{ player.name }}
+          {{ playerLabel }}
         </span>
         <span v-if="totalCount > 0" class="hand-board__total">{{ totalCount }}</span>
         <span
@@ -262,6 +262,7 @@ import HandCardsFilters from '@/client/components/handCards/HandCardsFilters.vue
 import HandCardsEmptyState from '@/client/components/handCards/HandCardsEmptyState.vue';
 import HandCardReasonPopover from '@/client/components/handCards/HandCardReasonPopover.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 
 /**
  * Premium "cards in hand" overlay — the single modern surface for the
@@ -363,6 +364,10 @@ export default defineComponent({
     };
   },
   computed: {
+    /** The hand owner's VISIBLE label — the Automa seat localizes («Бот»). */
+    playerLabel(): string {
+      return participantDisplayName(this.player);
+    },
     // Filter state lives in module scope (`handFilterState`) so the player's
     // availability / type / tag / sort choices survive the overlay's v-if
     // close AND PlayerHome's playerkey remount on every server response. The

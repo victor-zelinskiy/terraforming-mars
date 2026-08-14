@@ -3,7 +3,7 @@ import {Phase} from '../../src/common/Phase';
 import {IGame} from '../../src/server/IGame';
 import {CardName} from '../../src/common/cards/CardName';
 import {botTurnKey} from '../../src/common/automa/MarsBotTurn';
-import {BotTurnScheduler, BOT_TURN_MAX_EXTENSIONS, BOT_TURN_MAX_EXTENSIONS_MULTI} from '../../src/server/automa/BotTurnScheduler';
+import {BotTurnScheduler, BOT_TURN_MAX_EXTENSIONS, BOT_TURN_MAX_EXTENSIONS_MULTI, UNACKED_MAX_AGE_MS} from '../../src/server/automa/BotTurnScheduler';
 import {Game} from '../../src/server/Game';
 import {marsBotOf} from '../../src/server/automa/AutomaUtil';
 import {testAutomaGame} from './AutomaTestGame';
@@ -228,6 +228,77 @@ describe('BotTurnScheduler', () => {
     expect(scheduler.extensionsForTesting(game.id)).to.eq(BOT_TURN_MAX_EXTENSIONS_MULTI);
     await scheduler.fireDueForTesting(game.id);
     expect(resolved).to.eq(2);
+  });
+
+  it('an ack that never arrives stops gating once the reading window is over', async () => {
+    // REGRESSION: the unacked map had no wall clock, so ONE turn a client failed
+    // to ack (notifications off, viewer mid-prompt, closed tab, lost POST) pinned
+    // the gate forever and EVERY later bot turn silently paid the full extension
+    // budget for the rest of the game. Nothing ever looked stuck — the bot was
+    // just permanently slow.
+    const {game, raw, human} = fakeGame('g-stale');
+    let resolved = 0;
+    let clock = 1_000;
+    scheduler.enableForTesting();
+    scheduler.configureForTesting({
+      setTimer: noopTimer,
+      now: () => clock,
+      connectedProvider: () => new Set([human.id]),
+      gameProvider: () => Promise.resolve(game),
+      resolveTurn: (g) => {
+        resolved++; g.automa!.lastTurn = {id: 11, generation: 4, steps: []};
+      },
+    });
+    scheduler.onBotTurnDue(game);
+    await scheduler.fireDueForTesting(game.id); // turn 11 resolved, never acked
+    expect(resolved).to.eq(1);
+
+    raw.automa.pendingTurn = true;
+    scheduler.onBotTurnDue(game);
+    await scheduler.fireDueForTesting(game.id); // inside the window → extend
+    expect(resolved).to.eq(1);
+    expect(scheduler.extensionsForTesting(game.id)).to.eq(1);
+
+    clock += UNACKED_MAX_AGE_MS + 1; // the card can no longer be on screen
+    await scheduler.fireDueForTesting(game.id);
+    expect(resolved).to.eq(2); // resolves without burning the rest of the budget
+  });
+
+  it('only the LATEST turn paces the next one — an older unacked card is history', async () => {
+    // The compact cards present serially, so a viewer who acked turn N has
+    // necessarily seen N-1; an older entry that was never acked is exactly the
+    // stale case above and must not gate a turn two moves later.
+    const {game, raw, human, bot} = fakeGame('g-latest');
+    let resolved = 0;
+    let turnId = 20;
+    scheduler.enableForTesting();
+    scheduler.configureForTesting({
+      setTimer: noopTimer,
+      connectedProvider: () => new Set([human.id]),
+      gameProvider: () => Promise.resolve(game),
+      resolveTurn: (g) => {
+        resolved++; g.automa!.lastTurn = {id: turnId, generation: 5, steps: []};
+      },
+    });
+    scheduler.onBotTurnDue(game);
+    await scheduler.fireDueForTesting(game.id); // turn 20 — never acked
+
+    turnId = 21;
+    raw.automa.pendingTurn = true;
+    scheduler.onBotTurnDue(game);
+    await scheduler.fireDueForTesting(game.id); // extends on turn 20, does not resolve
+    expect(resolved).to.eq(1);
+    scheduler.ack(game.id, human.id, botTurnKey(bot.color, {generation: 5, id: 20}));
+    await scheduler.fireDueForTesting(game.id); // turn 21 resolves, replacing 20
+    expect(resolved).to.eq(2);
+
+    turnId = 22;
+    raw.automa.pendingTurn = true;
+    scheduler.onBotTurnDue(game);
+    scheduler.ack(game.id, human.id, botTurnKey(bot.color, {generation: 5, id: 21}));
+    await scheduler.fireDueForTesting(game.id);
+    expect(resolved).to.eq(3); // nothing outstanding → no extension at all
+    expect(scheduler.extensionsForTesting(game.id)).to.be.undefined;
   });
 
   it('a connected SPECTATOR (not a player) never paces a bot turn', async () => {

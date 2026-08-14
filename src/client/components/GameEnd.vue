@@ -115,7 +115,7 @@
               <div class="game-end-flexrow">
                   <div v-for="p in playersInPlace" :key="p.color" class="game-end-column">
                       <div class="game-end-winer-scorebreak-player-title">
-                          <div :class="'game-end-player ' + getEndGamePlayerRowColorClass(p.color)"><a :href="'player?id='+p.id+'&noredirect'">{{p.name}}</a></div>
+                          <div :class="'game-end-player ' + getEndGamePlayerRowColorClass(p.color)"><a :href="'player?id='+p.id+'&noredirect'">{{displayName(p)}}</a></div>
                       </div>
                       <div v-for="v in p.victoryPointsBreakdown.detailsCards" :key="v.cardName">
                         <div class="game-end-column-row">
@@ -356,7 +356,7 @@ export default defineComponent({
     vpDataset(): ReadonlyArray<DataSet> {
       return this.players.map((player) => {
         return {
-          label: player.name,
+          label: this.displayName(player),
           data: player.victoryPointsByGeneration,
           color: player.color,
         };
@@ -398,7 +398,7 @@ export default defineComponent({
         const moonLogistic = steps[GlobalParameter.MOON_LOGISTIC_RATE] || 0;
 
         return {
-          player: player.name,
+          player: this.displayName(player),
           color: player.color,
           temp,
           oxygen,

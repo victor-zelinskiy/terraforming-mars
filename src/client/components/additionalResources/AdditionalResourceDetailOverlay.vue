@@ -30,7 +30,7 @@
             </div>
             <div class="additional-resource-detail__player" :class="'player_color_' + player.color">
               <span class="additional-resource-detail__player-dot" :class="'player_bg_color_' + player.color" aria-hidden="true"></span>
-              <span class="additional-resource-detail__player-name">{{ isViewer ? $t('You') : player.name }}</span>
+              <span class="additional-resource-detail__player-name">{{ isViewer ? $t('You') : playerLabel }}</span>
             </div>
             <button class="additional-resource-detail__close" type="button" :aria-label="$t('Close')" @click="close">✕</button>
           </header>
@@ -163,6 +163,7 @@ import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValu
 import {additionalResourceGroup, AdditionalResourceGroup, AdditionalResourceCardEntry, resourceScoring, accumulatedVp as calcAccumulatedVp} from '@/client/components/additionalResources/additionalResources';
 import {specialResourceState, SpecialResourceState} from '@/client/components/additionalResources/additionalResourceSpecialCases';
 import {additionalResourcesState, closeAdditionalResourceDetail} from '@/client/components/additionalResources/additionalResourcesState';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 
 /**
  * Per-card info-plate descriptor, precomputed in `summaries` so the template
@@ -202,6 +203,10 @@ export default defineComponent({
         return undefined;
       }
       return this.playerView.players.find((p) => p.color === color);
+    },
+    /** The participant's VISIBLE label — the Automa seat localizes («Бот»). */
+    playerLabel(): string {
+      return this.player !== undefined ? participantDisplayName(this.player) : '';
     },
     group(): AdditionalResourceGroup | undefined {
       if (this.resource === undefined || this.player === undefined) {

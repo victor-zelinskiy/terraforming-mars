@@ -121,6 +121,7 @@ import {translateText, translateMessage} from '@/client/directives/i18n';
 import Card from '@/client/components/card/CardFace.vue';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import ActionVpProgress from '@/client/components/actions/ActionVpProgress.vue';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 
 type Tile = {
   name: CardName;
@@ -268,7 +269,7 @@ export default defineComponent({
     findOwner(card: CardModel): {name: string, color: Color} | undefined {
       for (const player of this.playerView.players) {
         if (player.tableau.find((c) => c.name === card.name)) {
-          return {name: player.name, color: player.color};
+          return {name: participantDisplayName(player), color: player.color};
         }
       }
       // Not on anyone's tableau → it's the VIEWER's own card not in play yet: a

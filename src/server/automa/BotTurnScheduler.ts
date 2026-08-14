@@ -43,14 +43,43 @@ export const BOT_TURN_MAX_EXTENSIONS = 3;
  * safety), still a hard bound (~200 + 6×500 ≈ 3.2 s worst case).
  */
 export const BOT_TURN_MAX_EXTENSIONS_MULTI = 6;
-/** Bound the per-game unacked-turn map (a game is finite, but be tidy). */
-const UNACKED_TURN_CAP = 12;
+/**
+ * How long a resolved turn may keep gating the NEXT one while still unacked.
+ *
+ * The ack is a signal that a HUMAN finished reading the compact turn card, and
+ * that card's own lifetime is bounded (`BOT_TURN_TTL` = 5 s client-side) plus
+ * the time it can spend queued behind another one. Past this window the ack is
+ * never coming — the viewer is mid-prompt (their client skips the refresh that
+ * would show the card), notifications are switched off, the tab was closed, or
+ * the POST was lost — and every extra 500 ms spent waiting on it buys nothing.
+ *
+ * WHY IT EXISTS: without a wall clock the gate was pinned by the FIRST turn a
+ * client failed to ack, and every later bot turn then silently paid the whole
+ * extension budget (1.7 s solo, 3.2 s with 2+ connected humans) for the rest of
+ * the game. The bounded per-session cap hid it — nothing ever looked stuck, the
+ * bot was just permanently slow.
+ */
+export const UNACKED_MAX_AGE_MS = 10_000;
 
 type TimerHandle = ReturnType<typeof setTimeout>;
 type SetTimer = (cb: () => void, ms: number) => TimerHandle;
 type ClearTimer = (handle: TimerHandle) => void;
 type ConnectedProvider = (gameId: GameId) => ReadonlySet<string>;
 type GameProvider = (gameId: GameId) => Promise<IGame | undefined>;
+type Clock = () => number;
+
+/**
+ * The turn the players are currently expected to be reading — the ONLY one that
+ * paces the next turn. An older unacked turn is history: the cards present
+ * serially, so a viewer who has caught up with turn N has necessarily seen
+ * N-1, and one that was never presented is exactly the stale entry above.
+ */
+interface UnackedTurn {
+  readonly key: string;
+  readonly registeredAt: number;
+  /** Connected humans that have NOT yet acked this turn. */
+  readonly remaining: Set<string>;
+}
 
 interface PendingSession {
   readonly gameId: GameId;
@@ -68,13 +97,14 @@ export class BotTurnScheduler {
   private enabled = false;
   private tokenSeq = 0;
   private readonly sessions = new Map<GameId, PendingSession>();
-  /** gameId → (turnKey → participants that have NOT yet acked that turn). */
-  private readonly unacked = new Map<GameId, Map<string, Set<string>>>();
+  /** gameId → the LATEST resolved turn, while anyone still owes an ack for it. */
+  private readonly unacked = new Map<GameId, UnackedTurn>();
 
   // Injectable seams so the scheduler is unit-testable without real timers,
   // the realtime hub or the game loader.
   private setTimer: SetTimer = (cb, ms) => setTimeout(cb, ms);
   private clearTimer: ClearTimer = (handle) => clearTimeout(handle);
+  private now: Clock = () => Date.now();
   /** How a due turn is actually resolved — the real automa turn in production;
    *  a spy in unit tests (so the scheduler logic is testable without a game). */
   private resolveTurn: (game: IGame) => void = (game) => AutomaController.takeTurn(game);
@@ -153,17 +183,15 @@ export class BotTurnScheduler {
    * reason); it can never block, and a lost ack is bounded by the max delay.
    */
   public ack(gameId: GameId, participantId: string, turnKey: string): void {
-    const perGame = this.unacked.get(gameId);
-    if (perGame === undefined) {
+    const pending = this.unacked.get(gameId);
+    // An ack for anything but the turn currently being paced (an older card the
+    // player worked through late, a replayed key) is a harmless no-op.
+    if (pending === undefined || pending.key !== turnKey) {
       return;
     }
-    const remaining = perGame.get(turnKey);
-    if (remaining === undefined) {
-      return;
-    }
-    remaining.delete(participantId);
-    if (remaining.size === 0) {
-      perGame.delete(turnKey);
+    pending.remaining.delete(participantId);
+    if (pending.remaining.size === 0) {
+      this.unacked.delete(gameId);
     }
   }
 
@@ -291,21 +319,12 @@ export class BotTurnScheduler {
   private registerResolvedTurn(game: IGame, turnKey: string): void {
     const relevant = this.relevantConnected(game);
     if (relevant.size === 0) {
-      return; // nobody connected to wait for
+      this.unacked.delete(game.id); // nobody connected to wait for
+      return;
     }
-    let perGame = this.unacked.get(game.id);
-    if (perGame === undefined) {
-      perGame = new Map();
-      this.unacked.set(game.id, perGame);
-    }
-    perGame.set(turnKey, new Set(relevant));
-    while (perGame.size > UNACKED_TURN_CAP) {
-      const oldest = perGame.keys().next().value;
-      if (oldest === undefined) {
-        break;
-      }
-      perGame.delete(oldest);
-    }
+    // The newest turn REPLACES the previous one: it is the card the players are
+    // about to read, and the one before it can no longer be what holds them up.
+    this.unacked.set(game.id, {key: turnKey, registeredAt: this.now(), remaining: new Set(relevant)});
   }
 
   /** The extension budget scales with the table: one shared window suffices
@@ -320,15 +339,19 @@ export class BotTurnScheduler {
     if (relevant.size === 0) {
       return false;
     }
-    const perGame = this.unacked.get(game.id);
-    if (perGame === undefined) {
+    const pending = this.unacked.get(game.id);
+    if (pending === undefined) {
       return false;
     }
-    for (const remaining of perGame.values()) {
-      for (const participantId of remaining) {
-        if (relevant.has(participantId)) {
-          return true;
-        }
+    // Past the reading window the ack is never coming — stop paying for it (and
+    // drop the entry, so the check stays O(1) and cannot leak across a game).
+    if (this.now() - pending.registeredAt > UNACKED_MAX_AGE_MS) {
+      this.unacked.delete(game.id);
+      return false;
+    }
+    for (const participantId of pending.remaining) {
+      if (relevant.has(participantId)) {
+        return true;
       }
     }
     return false;
@@ -365,7 +388,11 @@ export class BotTurnScheduler {
     connectedProvider?: ConnectedProvider,
     gameProvider?: GameProvider,
     resolveTurn?: (game: IGame) => void,
+    now?: Clock,
   }): void {
+    if (opts.now !== undefined) {
+      this.now = opts.now;
+    }
     if (opts.setTimer !== undefined) {
       this.setTimer = opts.setTimer;
     }
@@ -416,6 +443,7 @@ export class BotTurnScheduler {
     this.unacked.clear();
     this.enabled = false;
     this.tokenSeq = 0;
+    this.now = () => Date.now();
     this.setTimer = (cb, ms) => setTimeout(cb, ms);
     this.clearTimer = (handle) => clearTimeout(handle);
     this.resolveTurn = (game) => AutomaController.takeTurn(game);

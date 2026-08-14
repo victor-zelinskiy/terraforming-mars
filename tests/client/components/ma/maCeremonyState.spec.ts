@@ -12,6 +12,7 @@ import {
   observeMaCeremony,
   resetMaCeremony,
 } from '@/client/components/ma/maCeremonyState';
+import {automaDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import type {Color} from '@/common/Color';
 
 /**
@@ -72,6 +73,42 @@ describe('maCeremonyState', () => {
     expect(observeMaCeremony(view({awards: [{name: 'Banker', playerName: 'Riv', color: rival}]}), 1000)).to.eq(true);
     expect(maCeremonyState.current).to.deep.include({kind: 'award', name: 'Banker', own: false, actorName: 'Riv', color: rival});
     expect(maCeremonyState.current?.cost).to.eq(undefined); // a rival's price is not invented
+  });
+
+  it('the actor is named by COLOUR through the display helper, not by the raw model field', () => {
+    // REGRESSION: the ceremony read `ClaimedMilestoneModel.playerName` — the RAW
+    // server name — so the Automa seat was announced as «MarsBot» while every
+    // other surface said «Бот». Under the test runner no dictionary is loaded, so
+    // `automaDisplayName()` is the English 'MarsBot'; what is pinned is the
+    // ROUTING (a human resolves from `players` too, proving the colour lookup).
+    const players = [
+      {color: me, name: 'Me'},
+      {color: rival, name: 'MarsBot', isMarsBot: true},
+    ];
+    observeMaCeremony({thisPlayer: {color: me}, players, game: {milestones: [{name: 'Mayor'}], awards: [{name: 'Banker'}]}}, 500);
+    observeMaCeremony({
+      thisPlayer: {color: me},
+      players,
+      game: {
+        milestones: [{name: 'Mayor', playerName: 'MarsBot', color: rival}],
+        awards: [{name: 'Banker'}],
+      },
+    }, 1000);
+    expect(maCeremonyState.current?.actorName).to.eq(automaDisplayName());
+
+    resetMaCeremony();
+    const humans = [{color: me, name: 'Me'}, {color: rival, name: 'Riv'}];
+    observeMaCeremony({thisPlayer: {color: me}, players: humans, game: {milestones: [{name: 'Mayor'}], awards: [{name: 'Banker'}]}}, 500);
+    observeMaCeremony({
+      thisPlayer: {color: me},
+      players: humans,
+      game: {
+        milestones: [{name: 'Mayor'}],
+        // A stale/different raw field must lose to the participant list.
+        awards: [{name: 'Banker', playerName: 'stale-raw-name', color: rival}],
+      },
+    }, 1000);
+    expect(maCeremonyState.current?.actorName).to.eq('Riv');
   });
 
   it('a lost race drops the arm AND plays the rival beat instead', () => {

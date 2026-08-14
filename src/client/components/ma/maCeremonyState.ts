@@ -33,6 +33,7 @@
 import {reactive} from 'vue';
 import {Color} from '@/common/Color';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
+import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {MaKind} from '@/client/components/ma/maArt';
 
 export type MaCeremonyEvent = {
@@ -40,6 +41,7 @@ export type MaCeremonyEvent = {
   name: string,
   /** The claiming/funding player. */
   color: Color,
+  /** The DISPLAY label of the actor — the Automa seat reads «Бот», not «MarsBot». */
   actorName: string,
   /** True when the VIEWER did it — the full centre-stage presentation. */
   own: boolean,
@@ -144,6 +146,8 @@ export function armMaCeremony(event: {kind: MaKind, name: string, cost: number, 
 /** The minimal slice of PlayerViewModel the observer needs (test-friendly). */
 type MaCeremonyView = {
   thisPlayer?: {color: Color},
+  /** The participant list — how the actor's VISIBLE label is resolved. */
+  players?: ReadonlyArray<{color: Color, name: string, isMarsBot?: boolean}>,
   game: {
     milestones: ReadonlyArray<{name: string, playerName?: string, color?: Color}>,
     awards: ReadonlyArray<{name: string, playerName?: string, color?: Color}>,
@@ -152,6 +156,18 @@ type MaCeremonyView = {
 
 function takenKey(kind: MaKind, name: string): string {
   return `${kind === 'milestone' ? 'm' : 'a'}:${name}`;
+}
+
+/**
+ * The actor's VISIBLE label. `ClaimedMilestoneModel.playerName` is the RAW
+ * server name, so the Automa seat came through the ceremony as «MarsBot» while
+ * every other surface said «Бот» — resolve it by COLOUR through the one display
+ * helper, exactly like `ConsoleContextPanel.ownerDisplayName`. The raw name is
+ * the fallback for a colour that isn't in the list (never in a live game).
+ */
+function actorNameOf(view: MaCeremonyView, color: Color, playerName: string): string {
+  const player = view.players?.find((p) => p.color === color);
+  return player !== undefined ? participantDisplayName(player) : playerName;
 }
 
 /**
@@ -207,7 +223,7 @@ export function observeMaCeremony(view: MaCeremonyView | undefined, now: number 
         kind,
         name: m.name,
         color: m.color,
-        actorName: m.playerName,
+        actorName: actorNameOf(view, m.color, m.playerName),
         own,
         cost: own && matchesArm ? armed.cost : undefined,
         free: own && matchesArm ? armed.free : false,
