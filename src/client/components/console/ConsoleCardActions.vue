@@ -377,8 +377,15 @@
                      verdict's `reason` vs the branch's named `choiceKinds`) —
                      the distinction is data, not colour. ────────────────── -->
                 <div class="con-cardactions__tile-meta">
-                  <div v-if="slotMeta(tile).kind === 'validation'" class="con-cardactions__tile-reason">
-                    <span aria-hidden="true">✕</span>
+                  <!-- The TONE is data, never a colour choice made here: a
+                       turn/phase gate is `warning` («не сейчас», ⏳), a rules
+                       verdict is `danger` (✕). Same distinction the «НЕ СЕЙЧАС»
+                       badge above already draws — the diagnostics line used to
+                       contradict it in salmon. -->
+                  <div v-if="slotMeta(tile).kind === 'validation'"
+                       class="con-cardactions__tile-reason"
+                       :class="'con-cardactions__tile-reason--' + slotMeta(tile).tone">
+                    <span aria-hidden="true">{{ slotMeta(tile).tone === 'warning' ? '⏳' : '✕' }}</span>
                     <span>{{ slotMeta(tile).text }}</span>
                   </div>
                   <div v-else-if="slotMeta(tile).kind === 'continuation'" class="con-cardactions__tile-choices">
@@ -1273,17 +1280,17 @@ export default defineComponent({
      *                     draw (`choiceKinds`: payment, a card pick, …).
      * Nothing else may enter this zone.
      */
-    slotMeta(tile: ConsoleActionTile): {kind: 'validation' | 'continuation' | 'none', text: string} {
+    slotMeta(tile: ConsoleActionTile): {kind: 'validation' | 'continuation' | 'none', text: string, tone: 'warning' | 'danger'} {
       if (tile.status !== 'available') {
         const reason = this.tileReason(tile);
         if (reason !== '') {
-          return {kind: 'validation', text: reason};
+          return {kind: 'validation', text: reason, tone: tile.blocker?.tone ?? 'danger'};
         }
       }
       if (tile.choiceKinds.length > 0) {
-        return {kind: 'continuation', text: this.choiceKindsLabel(tile)};
+        return {kind: 'continuation', text: this.choiceKindsLabel(tile), tone: 'danger'};
       }
-      return {kind: 'none', text: ''};
+      return {kind: 'none', text: '', tone: 'danger'};
     },
     reasonText(reason: ConsoleActionReason | undefined): string {
       if (reason === undefined) {

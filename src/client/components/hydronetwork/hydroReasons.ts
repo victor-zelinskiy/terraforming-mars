@@ -16,6 +16,12 @@
  */
 import {DeltaTrackDestination, DeltaTrackPreviewModel} from '@/common/models/DeltaTrackPreviewModel';
 import {HydroModel} from './hydroNetworkModel';
+import {
+  AvailabilityBlocker,
+  AVAILABILITY_BLOCKERS,
+  BlockerCode,
+  primaryBlocker,
+} from '@/common/availability/AvailabilityBlocker';
 
 export type HydroReasonKind =
   | 'loading'
@@ -41,6 +47,47 @@ export type HydroReason = {
   /** true = a hard rule block; false = a resolvable to-do gate. */
   blocking: boolean;
 };
+
+/**
+ * The STRUCTURED semantics of each reason kind (see
+ * `src/common/availability/AvailabilityBlocker.ts`). Two of the kinds — the two
+ * turn gates — are NOT statements about the track: the advance would be entirely
+ * legal, the moment is simply someone else's, so they take the calm register and
+ * never make the stage read «Сейчас недоступно». Everything else is a real
+ * Delta-track rule (energy, path tags, an occupied VP slot, the once-per-
+ * generation gate) and does exclude the advance from the wheel's count.
+ *
+ * The to-do gates (`choose-*`) and `loading` are transient client states, not
+ * verdicts — they carry a gate code so nothing paints them as a refusal.
+ */
+const REASON_BLOCKER_CODE: Readonly<Record<HydroReasonKind, BlockerCode>> = {
+  'loading': 'EXECUTION_GATE',
+  'not-your-turn': 'NOT_YOUR_TURN',
+  'finish-current-action': 'FINISH_CURRENT_ACTION',
+  'choose-bonus': 'EXECUTION_GATE',
+  'choose-card': 'EXECUTION_GATE',
+  'end-of-track': 'DOMAIN',
+  'used-this-generation': 'DOMAIN',
+  'unavailable': 'DOMAIN',
+  'missing-tag': 'DOMAIN',
+  'vp-occupied': 'DOMAIN',
+  'no-energy': 'DOMAIN',
+  'energy-deficit': 'DOMAIN',
+};
+
+/** The blocker semantics of one reason row. */
+export function hydroReasonBlocker(reason: HydroReason): AvailabilityBlocker {
+  return AVAILABILITY_BLOCKERS[REASON_BLOCKER_CODE[reason.kind]];
+}
+
+/**
+ * The reason list's WINNING blocker (a real rule outranks a turn gate — «Сейчас
+ * не ваш ход» must never mask «не хватает энергии»). `undefined` = nothing
+ * blocks the advance.
+ */
+export function hydroPrimaryBlocker(reasons: ReadonlyArray<HydroReason>): AvailabilityBlocker | undefined {
+  return primaryBlocker(reasons.filter((r) => r.blocking).map(hydroReasonBlocker));
+}
 
 /**
  * WHY the action menu isn't offering the advance — the ONLY honest source for a

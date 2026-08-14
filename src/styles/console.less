@@ -4167,6 +4167,12 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
             box-shadow: inset 0 0 0 .05rem fade(@con-red, 50%);
             .con-hydro__chip-dot { background: @con-red; }
         }
+        /* Every requirement met, only the turn missing — amber, never red. */
+        &--notnow {
+            background: fade(@con-amber, 9%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 50%);
+            .con-hydro__chip-dot { background: @con-amber; }
+        }
         &--current {
             background: fade(@con-hydro-aqua, 10%);
             box-shadow: inset 0 0 0 .05rem fade(@con-hydro-aqua, 55%);
@@ -4436,6 +4442,16 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
             background: fade(@con-cyan, 7%);
             box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 40%);
             .con-hydro__reason-glyph { color: @con-cyan; }
+        }
+        /* The EXECUTION GATE («сейчас не ваш ход» / «завершите действие»): the
+           advance is legal, the moment is not. Amber — the same register the
+           header chip already uses for exactly these two states, so the screen
+           stops contradicting itself. */
+        &--notnow {
+            background: fade(@con-amber, 8%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%);
+            color: #ffe6b0;
+            .con-hydro__reason-glyph { color: @con-amber; }
         }
     }
     &__reason-glyph { color: @con-red; font-weight: 800; flex-shrink: 0; }
@@ -5569,6 +5585,14 @@ html.console-mode {
             filter: grayscale(0.16) brightness(0.94);
             box-shadow: 0 0 0 .15rem fade(@con-red, 72%), 0 0 .9rem fade(@con-red, 30%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
         }
+        /* «НЕ СЕЙЧАС»: legal by the rules, merely outside the player's window.
+           NO dim at all — the card is exactly as good as it will be a moment
+           from now — and the focus ring turns amber so the state is readable
+           without colour alone (it is a box-shadow, so `con-perf-lite` keeps
+           it; see the performance-mode contract). */
+        &--selected&--notnow > :is(.card-container, .pcard) {
+            box-shadow: 0 0 0 .15rem fade(@con-amber, 78%), 0 0 .9rem fade(@con-amber, 30%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
+        }
         /* SALE mode: picked cards get the amber sale frame + state band. */
         &--sale-picked > :is(.card-container, .pcard) {
             filter: none;
@@ -5666,6 +5690,12 @@ html.console-mode {
         &--blocked {
             border-left-color: fade(@con-red, 64%);
             box-shadow: inset 0 0 0 .05rem fade(@con-red, 22%), inset .15rem 0 .8rem -.45rem fade(@con-red, 55%);
+        }
+        /* Blocked ONLY by the execution window — the card is legal, the moment
+           is not. Amber, never the red rail. */
+        &--notnow {
+            border-left-color: fade(@con-amber, 68%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 22%), inset .15rem 0 .8rem -.45rem fade(@con-amber, 55%);
         }
         &--sale {
             border-left-color: fade(@con-amber, 72%);
@@ -5767,8 +5797,10 @@ html.console-mode {
         &--placement,
         &--target { border-left-color: #e08a4d; }
         &--party { border-left-color: #b58be0; }
+        /* turn / phase are the EXECUTION GATE, not a rule verdict — they take
+           the warning register so the whole line reads as one state. */
         &--turn,
-        &--phase,
+        &--phase { border-left-color: fade(@con-amber, 70%); color: #ffe6b0; }
         &--rule,
         &--generic { border-left-color: rgba(150, 175, 205, 0.6); }
     }
@@ -11123,6 +11155,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
         &--ok { background: fade(@con-mint, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%); color: @con-mint; }
         &--no { background: fade(@con-red, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-red, 40%); color: #ffb0a6; }
+        /* The trade is legal, the moment is not (see AvailabilityBlocker). */
+        &--notnow { background: fade(@con-amber, 10%); box-shadow: inset 0 0 0 .05rem fade(@con-amber, 45%); color: #ffe6b0; }
     }
 
     /* ═══════════════ MAIN — the game object ═══════════════ */
@@ -14190,6 +14224,23 @@ html.con-scale-focus-oceans .global-numbers-oceans {
                 overflow: hidden;
                 text-overflow: ellipsis;
             }
+        }
+        /* «НЕ СЕЙЧАС» — the EXECUTION-GATE register, and deliberately NOT a
+           quieter --blocked: the object is entirely fine and only the moment is
+           wrong, so it wears the same calm amber the action centre's «НЕ
+           СЕЙЧАС» badge and the start scene's pick LIMIT wear. A red verdict
+           here would tell the player their card is broken and unlearn itself
+           the moment the turn came back. Semantics:
+           `src/common/availability/AvailabilityBlocker.ts` (tone 'warning'). */
+        &--notnow {
+            background: fade(@con-amber, 12%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-amber, 52%);
+            color: #ffe6b0;
+            max-width: 34rem;
+            min-width: 0;
+            flex-shrink: 1;
+            white-space: nowrap;
+            > span:last-child { overflow: hidden; text-overflow: ellipsis; }
         }
         /* Start-scene context rail: a reached pick LIMIT is a NORMAL state —
            calm amber (never the red error look, never a ✕ that collides with
@@ -20427,6 +20478,11 @@ html.console-mode {
         animation: con-cardact-meta-in calc(160ms * var(--motion-scale, 1)) ease;
         /* ONE line — the strip is a diagnostic, the dossier holds the prose. */
         span:last-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        /* The EXECUTION-GATE register: same amber as this slot's own «НЕ
+           СЕЙЧАС» badge, so the tile speaks with one voice. The line used to
+           be salmon whatever the state, which read as «this action is broken»
+           for the commonest case of all — an opponent's turn. */
+        &--warning { color: fade(#ffe6b0, 92%); }
     }
     /* Non-amount pre-submit choices, NAMED (card / player / payment pick). */
     &__tile-choices {

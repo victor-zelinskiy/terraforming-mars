@@ -82,9 +82,17 @@ export class Colonies {
     return undefined;
   }
 
-  private tradeWithColony(openColonies: Array<IColony>): AndOptions | undefined {
+  /**
+   * Every way this player could pay a trade fee, in offer order. ONE list: the
+   * live trade action builds its payment OrOptions from it AND
+   * {@link potentialTradeCount} asks it whether any path is usable — so the
+   * "can I afford a trade at all" question can never drift from the options the
+   * player is actually shown. Construction is read-only (a handler only reads
+   * the player's stock / cards to compute its own fee).
+   */
+  private tradeHandlers(): Array<IColonyTrader> {
     const player = this.player;
-    const handlers: Array<IColonyTrader> = [
+    return [
       new TradeWithDarksideSmugglersUnion(player),
       new TradeWithTitanFloatingLaunchPad(player),
       new TradeWithCollegiumCopernicus(player),
@@ -93,6 +101,46 @@ export class Colonies {
       new TradeWithTitanium(player),
       new TradeWithMegacredits(player),
     ];
+  }
+
+  /** Trade fleets in this player's supply (never negative). */
+  public freeTradeFleets(): number {
+    return Math.max(0, this.getFleetSize() - this.usedTradeFleets);
+  }
+
+  /**
+   * TURN-INDEPENDENT PROJECTION: how many more colony trades this player could
+   * execute in the current game state — `min(tradeable colonies, free fleets)`,
+   * and 0 when a trade is impossible at all.
+   *
+   * It reuses the authoritative validators rather than restating them:
+   * `tradeBlockedReason()` (embargo / fleet / an open colony) and the SAME
+   * {@link tradeHandlers} list the live action offers, so special effects,
+   * alternative payment paths (Titan Floating Launch-Pad, Collegium Copernicus,
+   * Darkside Smugglers' Union, Hecate Speditions) and per-game discounts are all
+   * already accounted for. Read-only.
+   *
+   * Deliberately NOT folded into `tradeBlockedReason()`: that predicate backs
+   * `canTrade()`, which several cards use as their own `canAct` gate — widening
+   * it would change game rules, not just the display.
+   */
+  public potentialTradeCount(): number {
+    if (this.player.game.gameOptions.coloniesExtension !== true) {
+      return 0;
+    }
+    if (this.tradeBlockedReason() !== undefined) {
+      return 0;
+    }
+    if (!this.tradeHandlers().some((handler) => handler.canUse())) {
+      return 0; // a free fleet and an open colony, but nothing to pay the fee with
+    }
+    const colonies = ColoniesHandler.tradeableColonies(this.player.game).length;
+    return Math.min(colonies, this.freeTradeFleets());
+  }
+
+  private tradeWithColony(openColonies: Array<IColony>): AndOptions | undefined {
+    const player = this.player;
+    const handlers = this.tradeHandlers();
 
     let selected: IColonyTrader | undefined = undefined;
 

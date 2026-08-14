@@ -9,7 +9,7 @@ describe('wheelHandoffModel', () => {
     // their reveal is the placement mode / the status flip / a HUD pulse.
     const surfaceOpening = new Set(['trading', 'cardActions', 'standardProjects', 'hydro', 'pass']);
     const rt = buildRtQuickEntries({
-      cardsPlayable: 1, cardsTotal: 2, actionsAvailable: 1,
+      cardsPlayable: 1, cardsTotal: 2, actionsAvailable: 1, tradesAvailable: 1, hydroAvailable: 1,
       hasColonies: true, hasTurmoil: true, hasHydro: true,
     });
     const lt = buildLtQuickEntries({

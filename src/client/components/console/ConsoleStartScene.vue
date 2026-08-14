@@ -2568,9 +2568,28 @@ export default defineComponent({
     dealSignature(): string {
       return `${this.dealFrame}|${this.railPos}|${this.dealCards.map((c) => c.name).join(',')}`;
     },
-    /** The ceremony beat identity — resets the focus cursor without a remount. */
+    /**
+     * The ceremony beat identity — resets the focus cursor without a remount.
+     *
+     * ⚠️ STRUCTURAL, never the TITLE. It used to be `type|textOf(title)`, and
+     * i18n mutates `Message.message` IN PLACE on render (cross-cutting
+     * invariant 1): the key therefore flipped spontaneously WITHIN one prompt,
+     * this watcher fired, and the focus cursor jumped back to index 0 while the
+     * player was mid-decision. Harmless-looking for years, because the queue
+     * mostly had one obvious card — and then genuinely dangerous the moment a
+     * decision could STAND on the focused card: the risk stage was dropped
+     * under the player and the next A played whatever the cursor had landed on.
+     * Card NAMES are enum values and never translated, so this changes exactly
+     * when the ask changes.
+     */
     ceremonyPromptKey(): string {
-      return this.mode === 'ceremony' ? `${this.wf?.type ?? ''}|${textOf(this.wf?.title)}` : '';
+      const wf = this.wf;
+      if (this.mode !== 'ceremony' || wf === undefined) {
+        return '';
+      }
+      const kind = wf.startGamePrompt?.kind ?? '';
+      const cards = wf.type === 'card' ? (wf.cards ?? []).map((c) => c.name).join(',') : '';
+      return `${wf.type}|${kind}|${cards}`;
     },
     /** Diagnostic: the corp is on the table but this session never staged its
      *  landing — an assigned/test-mode corp, or a client newer than the server
@@ -3697,22 +3716,10 @@ export default defineComponent({
     },
     /** The shell routes every intent here while the scene is active. */
     handleIntent(intent: GamepadIntent): void {
-      // ── LETTING GO IS NOT AN ACTION ────────────────────────────────────
-      // The committing press inside the risk stage is a HOLD, so this surface
-      // reads BOTH edges of the button — and the RELEASE edge is handled
-      // FIRST, above every gate below. Those gates exist to stop presses from
-      // ACTING (mid-deal, mid-flight, while yielded); a release does the
-      // opposite — it STOPS something — and swallowing it leaves a hold
-      // running that the player believes they cancelled. That is the one
-      // failure mode a hold-to-confirm may never have: the button is up, the
-      // ring keeps filling, and the irreversible thing happens anyway.
-      // Unconditional and idempotent: a release with nothing held is a no-op.
-      if (intent.kind === 'release') {
-        if (consoleActionOf(intent, START_INPUT_OVERRIDES) === 'primary') {
-          cancelHoldConfirm();
-        }
-        return;
-      }
+      // (LETTING GO is not this surface's business: the shared hold gate
+      // observes the intent bus itself, above every consuming branch —
+      // `consoleHoldConfirm`. A surface that had to be trusted to forward the
+      // button-up is exactly how a released hold once kept filling.)
       // YIELDED — the board owns the screen (see the `yielded` prop). The
       // shell stops routing here (`startSceneOwnsPad`), so this is defence:
       // the guard sits at the ENTRY, not on `onPress` alone, because `onNav`

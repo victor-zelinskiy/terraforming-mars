@@ -1,4 +1,5 @@
 import {Color} from '@/common/Color';
+import {AvailabilityBlocker, AVAILABILITY_BLOCKERS, turnGateBlocker} from '@/common/availability/AvailabilityBlocker';
 
 /**
  * The SINGLE smart source of truth for «why can't I trade at THIS colony right
@@ -55,8 +56,19 @@ export type ColonyTradeReason = {
    * already docked): untradeable regardless of turn or fleet count. The tile
    * shows these as a hard ✕; a merely turn/fleet/afford block stays CALM on the
    * tile (its reason surfaces on the trade-attempt notice instead).
+   *
+   * A DIFFERENT question from {@link ColonyTradeReason.blocker}: «is this about
+   * the colony» vs «is this about the rules at all». A docked fleet is both;
+   * «нет свободного флота» is a rules blocker that is not about the colony.
    */
   intrinsic: boolean,
+  /**
+   * The STRUCTURED semantics (see `src/common/availability/AvailabilityBlocker.ts`):
+   * rungs 1–3 are real trade rules (`DOMAIN` — red, and the trade drops out of
+   * the wheel's count), rung 4 is the turn gate (`warning` — the trade is
+   * entirely legal and simply cannot be submitted this instant).
+   */
+  blocker: AvailabilityBlocker,
 };
 
 /**
@@ -67,28 +79,34 @@ export function colonyTradeReason(input: ColonyTradeReasonInput): ColonyTradeRea
   if (input.tradeable.includes(input.colony.name)) {
     return undefined; // the server offers this trade — no blocker
   }
+  const domain = AVAILABILITY_BLOCKERS.DOMAIN;
   // 1. COLONY-INTRINSIC — true regardless of turn / fleet. MUST win over any
   //    generic turn message.
   if (!input.colony.isActive) {
-    return {key: 'This colony is not active yet', intrinsic: true};
+    return {key: 'This colony is not active yet', intrinsic: true, blocker: domain};
   }
   if (input.colony.visitor !== undefined) {
     return input.colony.visitor === input.viewerColor ?
-      {key: 'Your trade fleet is currently here', intrinsic: true} :
-      {key: 'Trade fleet of ${0} is currently here', params: [input.resolveName(input.colony.visitor)], intrinsic: true};
+      {key: 'Your trade fleet is currently here', intrinsic: true, blocker: domain} :
+      {key: 'Trade fleet of ${0} is currently here', params: [input.resolveName(input.colony.visitor)], intrinsic: true, blocker: domain};
   }
   // 2. The colony itself is fine — the blocker is the viewer's ability to trade.
   if (input.availableFleets <= 0) {
-    return {key: 'No trade fleet available', intrinsic: false};
+    return {key: 'No trade fleet available', intrinsic: false, blocker: domain};
   }
   // 3. A window is open for OTHER colonies, or the action menu is live while a
   //    free fleet exists, yet this trade isn't offered → can't afford the cost.
   if (input.tradeable.length > 0 || input.myTurn) {
-    return {key: 'Not enough resources to cover the cost', intrinsic: false};
+    return {key: 'Not enough resources to cover the cost', intrinsic: false, blocker: domain};
   }
-  // 4. No window at all despite a free fleet → the turn is the blocker.
+  // 4. No window at all despite a free fleet → the TURN is the blocker, and
+  //    that is an execution gate, not a verdict on the trade: everything the
+  //    rules ask for is in place. Calm register, and the trade still counts as
+  //    potentially available.
+  const gate = turnGateBlocker(input.awaitingInput);
   return {
     key: input.awaitingInput ? 'Finish your current action first' : 'Not your turn to take any actions',
     intrinsic: false,
+    blocker: gate,
   };
 }

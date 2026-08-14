@@ -19,7 +19,7 @@ import {OneOrArray} from '../../common/utils/types';
 import {JSONValue} from '../../common/Types';
 import {IStandardProjectCard} from './IStandardProjectCard';
 import {Warning} from '../../common/cards/Warning';
-import {PreludeNeed, PreludeOutlook} from '../../common/cards/PreludeOutlook';
+import {PreludeNeed} from '../../common/cards/PreludeOutlook';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {ActionPreview} from '../../common/models/ActionPreviewModel';
 import {Resource} from '../../common/Resource';
@@ -270,14 +270,6 @@ export interface ICard {
    * creates it by being played).
    */
   readonly preludeProvides?: ReadonlyArray<PreludeNeed>;
-
-  /**
-   * The order-aware verdict for THIS prompt, written by `computePreludeOutlooks`
-   * just before the candidates are serialized. Ephemeral and prompt-scoped in
-   * exactly the way `warnings` is (same lifetime, same reset, not serialized as
-   * card state) — it reaches the client on `CardModel.preludeOutlook`.
-   */
-  preludeOutlook?: PreludeOutlook;
 
   readonly behavior?: Behavior,
 

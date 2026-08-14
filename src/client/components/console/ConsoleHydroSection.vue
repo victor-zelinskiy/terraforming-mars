@@ -249,8 +249,14 @@
                       <span class="con-hydro__reason-glyph" aria-hidden="true">✕</span>
                       <span>{{ $t('Stage requirements are not met') }}</span>
                     </div>
-                    <div v-for="(r, i) in ctaReasons" :key="i" class="con-hydro__reason" :class="{'con-hydro__reason--todo': !r.blocking}">
-                      <span class="con-hydro__reason-glyph" aria-hidden="true">{{ r.blocking ? '✕' : '→' }}</span>
+                    <!-- The tone is the reason's OWN semantics: a turn gate is
+                         amber «не сейчас», a track rule is the red ✕. -->
+                    <div v-for="(r, i) in ctaReasons" :key="i" class="con-hydro__reason"
+                         :class="{
+                           'con-hydro__reason--todo': !r.blocking,
+                           'con-hydro__reason--notnow': r.blocking && reasonTone(r) === 'warning',
+                         }">
+                      <span class="con-hydro__reason-glyph" aria-hidden="true">{{ !r.blocking ? '→' : (reasonTone(r) === 'warning' ? '⏳' : '✕') }}</span>
                       <span>{{ reasonText(r) }}</span>
                     </div>
                   </div>
@@ -490,7 +496,8 @@ import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {buildHydroModel, HydroModel, HydroStageVM} from '@/client/components/hydronetwork/hydroNetworkModel';
 import {HydroStage} from '@/client/components/hydronetwork/hydroStages';
 import {buildRewardView, HydroDeltaLine, HydroPlayerSnapshot, HydroRewardView} from '@/client/components/hydronetwork/hydroReward';
-import {destinationAt, gradeDestination, HydroReason, hydroPlanReasons, HydroStopGrade, HydroTurnState} from '@/client/components/hydronetwork/hydroReasons';
+import {destinationAt, gradeDestination, HydroReason, hydroPlanReasons, hydroPrimaryBlocker, hydroReasonBlocker, HydroStopGrade, HydroTurnState} from '@/client/components/hydronetwork/hydroReasons';
+import {AvailabilityBlocker} from '@/common/availability/AvailabilityBlocker';
 import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
 import {Message} from '@/common/logs/Message';
 import {fetchHydroPreview, hydroNetworkState, resetHydroPlan} from '@/client/components/hydronetwork/hydroNetworkState';
@@ -707,6 +714,14 @@ export default defineComponent({
       }
       return wf.type === 'or' && ACTION_MENU_TITLES.has(titleText(wf.title)) ? 'action-menu' : 'busy';
     },
+    /**
+     * The WINNING blocker of the selected plan — a real Delta-track rule
+     * outranks the turn gate, so «Сейчас не ваш ход» can never mask «не хватает
+     * энергии». `undefined` = nothing blocks the advance.
+     */
+    planBlocker(): AvailabilityBlocker | undefined {
+      return hydroPrimaryBlocker(this.reasons);
+    },
     requirementsUnmet(): boolean {
       return this.reasons.some((r) => REQUIREMENT_REASON_KINDS.has(r.kind));
     },
@@ -779,6 +794,13 @@ export default defineComponent({
         }
         if (!blocking && this.reasons.length > 0) {
           return {kind: 'todo', text: $t('Selection is required')};
+        }
+        // ONLY the turn stands in the way → the stage is legal and merely out
+        // of reach this moment. «Сейчас недоступно» in red would be a verdict
+        // on a stage whose every requirement is met (the ✓ ticks are right
+        // above it) — the calm «НЕ СЕЙЧАС» is the honest state.
+        if (this.planBlocker?.tone === 'warning') {
+          return {kind: 'notnow', text: $t('Not now')};
         }
         return {kind: 'blocked', text: $t('Unavailable right now')};
       }
@@ -1238,6 +1260,10 @@ export default defineComponent({
       return r.params !== undefined ?
         translateTextWithParams(r.textKey, r.params.map(String)) :
         translateText(r.textKey);
+    },
+    /** The reason's visual register — data, never a per-row colour choice. */
+    reasonTone(r: HydroReason): 'warning' | 'danger' {
+      return hydroReasonBlocker(r).tone;
     },
     tagStatus(tag: Tag): 'have' | 'wild' | 'missing' {
       const dest = this.model.destination;

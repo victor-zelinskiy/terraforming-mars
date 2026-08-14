@@ -211,6 +211,7 @@
                                    :intent="focusState.intent"
                                    :actionAvailable="focusActionAvailable"
                                    :blockReason="focusBlockReason"
+                                   :blockTone="focusBlockTone"
                                    :pickLabel="pick !== undefined ? pick.buttonLabel : ''"
                                    :options="tradePaymentOptions"
                                    :disabledOptions="tradeDisabledPayments"
@@ -287,7 +288,8 @@ import PlayerCube from '@/client/components/PlayerCube.vue';
 import {tradeFleetState} from '@/client/console/colonyFleet/consoleTradeFleet';
 import {colonyTradeState, colonyTradeTileStatusText, presentedColonyModel} from '@/client/console/colonyTrade/consoleColonyTrade';
 import {colonyBuildState} from '@/client/console/colonyBuild/consoleColonyBuild';
-import {colonyTradeReason} from '@/client/console/colonyTradeReason';
+import {colonyTradeReason, ColonyTradeReason} from '@/client/console/colonyTradeReason';
+import {AvailabilityBlocker} from '@/common/availability/AvailabilityBlocker';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {cssLengthPx} from '@/client/console/cssUnits';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
@@ -624,6 +626,18 @@ export default defineComponent({
       }
       return this.reasonFor(model);
     },
+    /**
+     * The stage verdict's REGISTER. A trade blocked only by the turn is legal in
+     * every rule sense — it wears «НЕ СЕЙЧАС», not the red ✕ that says the
+     * colony refused the player. Read from the shared blocker model, never from
+     * the reason's text.
+     */
+    focusBlockTone(): 'warning' | 'danger' {
+      if (this.focusActionAvailable || this.pick !== undefined || this.focusColonyModel === undefined) {
+        return 'danger';
+      }
+      return this.blockerFor(this.focusColonyModel)?.tone ?? 'danger';
+    },
     // ── Focused-colony compact rail (mirrors ConsoleColonyTile's reward/bonus
     //    logic so the readout can never disagree with the tile). ──
     focusedMeta(): ColonyMetadata | undefined {
@@ -913,10 +927,10 @@ export default defineComponent({
       const reason = this.pick?.reasons[name];
       return reason !== undefined && reason !== '' ? reason : translateText('Unavailable right now');
     },
-    /** The full «why can't I trade here» reason for `colony` (translated). */
-    reasonFor(colony: ColonyModel): string {
+    /** The shared smart ladder's verdict for `colony` (undefined = tradeable). */
+    tradeReasonFor(colony: ColonyModel): ColonyTradeReason | undefined {
       const viewer = this.players.find((p) => p.color === this.viewerColor);
-      const reason = colonyTradeReason({
+      return colonyTradeReason({
         colony,
         tradeable: this.tradeable,
         viewerColor: this.viewerColor ?? ('' as Color),
@@ -928,6 +942,14 @@ export default defineComponent({
           return p !== undefined ? participantDisplayName(p) : '';
         },
       });
+    },
+    /** Its structured semantics (undefined = nothing blocks the trade). */
+    blockerFor(colony: ColonyModel): AvailabilityBlocker | undefined {
+      return this.tradeReasonFor(colony)?.blocker;
+    },
+    /** The full «why can't I trade here» reason for `colony` (translated). */
+    reasonFor(colony: ColonyModel): string {
+      const reason = this.tradeReasonFor(colony);
       if (reason === undefined) {
         return this.tradeBlockReason;
       }

@@ -1212,6 +1212,8 @@ import {
 import ConsoleQuickSelector from '@/client/components/console/ConsoleQuickSelector.vue';
 import ConsoleStdProjectsScreen from '@/client/components/console/ConsoleStdProjectsScreen.vue';
 import {buildRtQuickEntries, buildLtQuickEntries, buildStdProjectItems, buildHomeMaSummary, HomeMaSummary, QuickEntry, QuickSlot, StdProjectItem} from '@/client/console/consoleQuickModel';
+import {wheelPotentialCounts, WheelCounts} from '@/client/console/potentialAvailability';
+import {blockersForReasons, potentiallyAvailable} from '@/common/availability/AvailabilityBlocker';
 import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel.vue';
 import {scaleTooltipState, ScaleTooltipContent, hideScaleTooltip} from '@/client/components/board/scaleTooltipState';
 import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
@@ -1849,12 +1851,32 @@ export default defineComponent({
     playAction() {
       return findPlayProjectCardAction(this.playerView.waitingFor);
     },
-    // ── action intelligence (same sources as the desktop bar buttons) ──
+    // ── action intelligence: POTENTIAL availability, one meaning ────────
+    /**
+     * The four wheel counts, all of them «what could I do in this game state»
+     * — the server's turn-independent projection, clamped for card intake.
+     *
+     * They used to be read off the LIVE prompt tree, so «КАРТЫ 4» vanished the
+     * instant an opponent took over and came back when the turn returned: the
+     * wheel described the clock, not the position. Nothing here consults
+     * `waitingFor`; the turn gate is an EXECUTION gate and is applied where a
+     * move is actually submitted (see `src/common/availability/AvailabilityBlocker.ts`).
+     */
+    wheelCounts(): WheelCounts {
+      return wheelPotentialCounts({
+        potential: this.thisPlayer.potentialActions,
+        handTotal: this.cardsTotalCount,
+        hasColonies: this.game.colonies.length > 0,
+        hasHydro: this.game.gameOptions.expansions.deltaProject === true,
+      });
+    },
     cardsPlayableCount(): number {
-      const raw = (this.playAction?.input.cards ?? []).filter((c) => c.isDisabled !== true).length;
-      // Never read ahead of the intake-aware total (a card still mid-flight
-      // into the dock is not "in hand" on any HUD readout).
-      return Math.min(raw, this.cardsTotalCount);
+      return this.wheelCounts.cards;
+    },
+    /** Everything the RT wheel could offer, in one number (its bar badge). */
+    wheelCountsTotal(): number {
+      const c = this.wheelCounts;
+      return c.cards + c.cardActions + c.hydro + c.trade;
     },
     /** The hand total every HUD readout shows — the same intake-aware count
      *  the dock's «КАРТЫ» line uses (held / in-flight / untaken-reveal
@@ -1875,7 +1897,7 @@ export default defineComponent({
       return this.handDockCards.length - hidden;
     },
     actionsAvailableCount(): number {
-      return this.thisPlayer.availableBlueCardActionCount;
+      return this.wheelCounts.cardActions;
     },
     actionsTotalCount(): number {
       return playerActionSourceCount(this.thisPlayer.tableau);
@@ -3760,6 +3782,8 @@ export default defineComponent({
     // The WHOLE hand (playable-first), before the tag filter. Drives the
     // filter panel's option counts + the "All" total.
     handEntriesAll(): Array<ConsoleHandEntry> {
+      // EXECUTABLE NOW — the server's live play offer. It gates the press and
+      // nothing else; off-turn it is empty by construction.
       const playable = new Set((this.playAction?.input.cards ?? [])
         .filter((c) => c.isDisabled !== true)
         .map((c) => c.name));
@@ -3771,12 +3795,18 @@ export default defineComponent({
       const entries = all.map((card) => ({
         card,
         playable: playable.has(card.name),
+        // POTENTIAL — the server's own turn-independent verdict on the card
+        // (`unplayableReasons`, all of them domain reasons). One validation,
+        // two questions.
+        potential: potentiallyAvailable(blockersForReasons(card.unplayableReasons ?? [])),
         robot: robots.has(card.name),
       }));
-      // Playable-first, stable within groups (CONSOLE_MODE_CONCEPT §8).
+      // Playable-first, stable within groups (CONSOLE_MODE_CONCEPT §8) — by
+      // POTENTIAL, so the shelf keeps its reading order when the turn passes
+      // (on the viewer's own turn the two sets coincide).
       return [
-        ...entries.filter((e) => e.playable),
-        ...entries.filter((e) => !e.playable),
+        ...entries.filter((e) => e.potential),
+        ...entries.filter((e) => !e.potential),
       ];
     },
     // The VISIBLE hand — narrowed by the active tag filter (sale mode always
@@ -4608,9 +4638,11 @@ export default defineComponent({
     quickEntries(): Array<QuickEntry> {
       if (this.consoleState.quick === 'actions') {
         return buildRtQuickEntries({
-          cardsPlayable: this.cardsPlayableCount,
+          cardsPlayable: this.wheelCounts.cards,
           cardsTotal: this.cardsTotalCount,
-          actionsAvailable: this.actionsAvailableCount,
+          actionsAvailable: this.wheelCounts.cardActions,
+          tradesAvailable: this.wheelCounts.trade,
+          hydroAvailable: this.wheelCounts.hydro,
           hasColonies: this.game.colonies.length > 0,
           hasTurmoil: this.game.gameOptions.expansions.turmoil === true,
           hasHydro: this.game.gameOptions.expansions.deltaProject === true,
@@ -5669,8 +5701,12 @@ export default defineComponent({
       const home: Array<ConsoleCommand> = [
         {control: 'inspect', label: 'Information'},
         {control: 'secondary', label: 'Played'},
-        {control: 'triggerR', label: 'Actions', badge: this.cardsPlayableCount + this.actionsAvailableCount,
-          highlight: this.myTurn && (this.cardsPlayableCount + this.actionsAvailableCount) > 0},
+        // The bar's badge is the SUM of the wheel it opens — all four
+        // categories, same potential semantics — so the hint and the wheel can
+        // never say different numbers. The HIGHLIGHT is the other question
+        // («can I act right now»), and that one is legitimately turn-gated.
+        {control: 'triggerR', label: 'Actions', badge: this.wheelCountsTotal,
+          highlight: this.myTurn && this.wheelCountsTotal > 0},
         // The SHORT hint key on purpose — the footer's centre bay (hand
         // dock) splits this richest set across two zones, and the full
         // «Базовые действия» is the one atom that fits neither; the LT
@@ -7872,6 +7908,14 @@ export default defineComponent({
         // double-acts on a button-up or a stick gesture. The quick wheel is
         // the one such surface today: its armed slot commits on the release
         // of the SAME control that seated it (wheelArmModel).
+        //
+        // ⚠️ A falling edge that STOPS something must never be routed through
+        // here at all. The shared hold-to-confirm gate learned that the hard
+        // way — it read the button-up as «the player let go», this branch ate
+        // it, and the ring kept filling after the release until an
+        // irreversible action fired. `consoleHoldConfirm` therefore observes
+        // the intent bus directly (`observeConsoleIntents`), above every
+        // consuming branch including this one.
         if (this.consoleState.quick !== undefined) {
           this.handleQuickIntent(intent);
         }
@@ -12115,7 +12159,9 @@ export default defineComponent({
           {card} :
           {card, dim: 'strong', chip: 'Unavailable'};
       }
-      if (entry === undefined || entry.playable) {
+      // Mirrors the slot: the dim belongs to the RULES verdict, never to the
+      // turn — a card the player simply cannot play YET lands bright.
+      if (entry === undefined || entry.potential) {
         return {card};
       }
       return {card, dim: 'soft', chip: shortBlockerLabel(entry.card.unplayableReasons ?? [])};

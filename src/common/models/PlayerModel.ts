@@ -19,6 +19,7 @@ import {EnergyHeatConversionModel} from './EnergyHeatConversionModel';
 import {OceanAdjacencyBonusModel} from './OceanAdjacencyBonusModel';
 import {StartingSetupModel} from './StartingSetupModel';
 import {ColonyTradeManifestModel} from './ColonyTradeManifestModel';
+import {PotentialActionsModel} from './PotentialActionsModel';
 
 export interface ViewModel {
   game: GameModel;
@@ -105,7 +106,15 @@ export type PublicPlayerModel = {
   // the menu.
   canConvertHeat: boolean;
   // The global "Гидросеть" (Delta Project) advance action is available this turn.
+  // = `potentialActions.hydroAdvance` AND the player's action window is live.
   canAdvanceDelta?: boolean;
+  /**
+   * The TURN-INDEPENDENT availability projection — what this player COULD do if
+   * it were their window right now (see {@link PotentialActionsModel}). Present
+   * on the viewer's OWN model only. Drives the action wheel's green counts,
+   * which must not move when the turn does.
+   */
+  potentialActions?: PotentialActionsModel;
   plantProduction: number;
   protectedResources: Record<Resource, Protection>;
   protectedProduction: Record<Resource, Protection>;

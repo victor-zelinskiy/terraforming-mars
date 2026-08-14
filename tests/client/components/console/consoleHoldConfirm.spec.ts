@@ -3,6 +3,7 @@ import {
   advanceHoldConfirmForTest, beginHoldConfirm, cancelHoldConfirm, HOLD_CONFIRM_MS,
   holdConfirmProgress, holdConfirmState, isHoldConfirmActive,
 } from '@/client/console/consoleHoldConfirm';
+import {dispatchConsoleIntent} from '@/client/console/consoleRouter';
 
 /**
  * THE SHARED HOLD GATE — «keep the button down to do the thing you cannot
@@ -77,6 +78,41 @@ describe('consoleHoldConfirm (shared hold-to-confirm)', () => {
     advanceHoldConfirmForTest(HOLD_CONFIRM_MS / 2);
     expect(holdConfirmProgress('k')).to.be.greaterThan(0.3);
     expect(holdConfirmProgress('other'), 'never leak another surface’s progress').to.eq(0);
+  });
+
+  /**
+   * THE EDGE THE GATE MUST NEVER MISS. The button-up travels the same intent
+   * bus every surface reads, and several of them legitimately SWALLOW falling
+   * edges — the shell's press→release branch ate this one, and the ring went
+   * on filling after the player had let go until the irreversible action
+   * fired. So the gate observes the bus itself, above every consumer.
+   */
+  it('a release on the intent bus cancels the hold, whoever else consumes it', () => {
+    let fired = 0;
+    beginHoldConfirm('k', () => fired++);
+    dispatchConsoleIntent({kind: 'release', button: 'confirm'});
+    expect(holdConfirmState.key, 'letting go is a complete cancel').to.eq('');
+    advanceHoldConfirmForTest(HOLD_CONFIRM_MS * 2);
+    expect(fired, 'and nothing fires afterwards').to.eq(0);
+  });
+
+  it('…and only the button that ARMED it disarms it', () => {
+    beginHoldConfirm('k', () => {});
+    dispatchConsoleIntent({kind: 'release', button: 'back'});
+    expect(isHoldConfirmActive('k'), 'an unrelated button-up is not a let-go').to.be.true;
+    dispatchConsoleIntent({kind: 'release', button: 'confirm'});
+    expect(isHoldConfirmActive('k')).to.be.false;
+  });
+
+  it('the observer does not outlive the hold', () => {
+    let fired = 0;
+    beginHoldConfirm('k', () => fired++);
+    cancelHoldConfirm();
+    // A later, unrelated release must not resurrect anything.
+    dispatchConsoleIntent({kind: 'release', button: 'confirm'});
+    beginHoldConfirm('k2', () => fired++);
+    advanceHoldConfirmForTest(HOLD_CONFIRM_MS + 10);
+    expect(fired, 'the SECOND hold completed exactly once').to.eq(1);
   });
 
   it('an empty key arms nothing (a caller with no identity cannot open the gate)', () => {

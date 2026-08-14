@@ -27,7 +27,6 @@ import {asArray} from '../../common/utils/utils';
 import {AdditionalProjectCosts} from '../../common/cards/Types';
 import {GlobalParameter} from '../../common/GlobalParameter';
 import {Warning} from '../../common/cards/Warning';
-import {PreludeOutlook} from '../../common/cards/PreludeOutlook';
 import {Resource} from '@/common/Resource';
 
 const NO_WARNINGS: ReadonlySet<Warning> = new Set();
@@ -114,9 +113,6 @@ export abstract class Card implements ICard {
   public resourceCount = 0;
   // Warnings are a read-only set because the X00_000 sets that are just empty consume many MB for no value.
   public warnings: ReadonlySet<Warning> = NO_WARNINGS;
-  /** The prompt-scoped order-aware verdict (see ICard.preludeOutlook) — the
-   *  same ephemeral lifetime as `warnings`, cleared alongside them. */
-  public preludeOutlook?: PreludeOutlook = undefined;
   public additionalProjectCosts?: AdditionalProjectCosts = undefined;
 
   private internalize(external: StaticCardProperties): InternalProperties {
@@ -474,10 +470,6 @@ export abstract class Card implements ICard {
 
   public clearWarnings(): void {
     this.warnings = NO_WARNINGS;      // drop the per-card Set, back to shared empty
-    // The order-aware verdict is the same kind of prompt-scoped annotation and
-    // must never outlive the evaluation that produced it — a stale «wait for
-    // another prelude» is exactly the contradiction this whole feature removes.
-    this.preludeOutlook = undefined;
   }
 }
 

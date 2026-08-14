@@ -35,15 +35,15 @@ export class PreludesExpansion {
     // read by the UI as both «wait for another prelude» and «this is over» — so
     // it once advertised the order fix over a button that burned the card. The
     // structured verdict (`computePreludeOutlooks`) is the SAME question asked
-    // properly, and the legacy warning is now DERIVED from it, so the two can
-    // never disagree. Pool = what the player can still play afterwards (their
-    // remaining preludes in hand) — in a drew-N ask the rivals are discarded on
-    // the spot and enable nothing.
+    // properly, and the legacy warning is DERIVED from it here, so the two can
+    // never disagree. The verdict the CLIENT reads is recomputed on every
+    // serialization instead (`SelectCard.toModel`): a warning set at prompt
+    // creation is wiped by anything that later re-evaluates the card, and a
+    // verdict that silently disappears is worse than no verdict at all.
     const outlooks = computePreludeOutlooks(player, cards, player.preludeCardsInHand);
     for (const card of cards) {
       card.clearWarnings();
       const outlook = outlooks.get(card.name);
-      card.preludeOutlook = outlook;
       if (outlook !== undefined && outlook.state !== 'playable') {
         card.addWarning('preludeFizzle');
       }

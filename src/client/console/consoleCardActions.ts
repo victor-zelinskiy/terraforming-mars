@@ -36,7 +36,8 @@ import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/
 import {SelectAmountModel} from '@/common/models/PlayerInputModel';
 import {ActionGroup} from '@/client/components/actions/actionExtraction';
 import {ActionEntry, ActionFilterState, AvailabilityFilter, ActivationFilter} from '@/client/components/actions/actionModel';
-import {ActionStatus} from '@/client/components/actions/actionPlayability';
+import {ActionStatus, actionStatusBlocker} from '@/client/components/actions/actionPlayability';
+import {AvailabilityBlocker} from '@/common/availability/AvailabilityBlocker';
 import {branchPositionForNode, branchPositionsForNode, branchTitleText, stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {ActionRules, actionRules} from '@/client/components/actions/actionDescription';
 import {ActionBranchScope, branchMetricTokens} from '@/client/components/actions/actionUsageSummary';
@@ -102,6 +103,13 @@ export type ConsoleActionTile = {
   choiceKinds: ReadonlyArray<'card' | 'player' | 'or' | 'payment' | 'spendHeat'>;
   /** Why this variant can't be used right now (undefined when available). */
   reason: ConsoleActionReason | undefined;
+  /**
+   * The STRUCTURED semantics of that reason (undefined when available): does it
+   * take the action out of the potential count, and which register does the
+   * slot paint? Never re-derived from the reason's TEXT — see
+   * `src/common/availability/AvailabilityBlocker.ts`.
+   */
+  blocker: AvailabilityBlocker | undefined;
   /** How many variants the SOURCE card has (1 = a single-action card) — the
    *  flat grid's tiles are self-describing, so the «N/M» badge lives here. */
   variantTotal: number;
@@ -168,7 +176,14 @@ export type ConsoleActionsModel = {
   activationChips: ReadonlyArray<ConsoleFilterChip<ActivationFilter>>;
   /** Total variants across every source (the header count — BY VARIANT). */
   totalTiles: number;
-  /** Variants activatable right now (`status === 'available'`) — "can activate: N". */
+  /**
+   * Variants POTENTIALLY performable — everything the rules allow, whether or
+   * not it is this player's window (`available` ∪ `soft`, exactly the set the
+   * «Доступна» facet counts, and exactly the number the action wheel's green
+   * badge promised). It stays put when the turn passes; each such tile then
+   * carries its own «НЕ СЕЙЧАС», so the screen never contradicts the wheel that
+   * opened it. See `src/common/availability/AvailabilityBlocker.ts`.
+   */
   availableTiles: number;
   /** Flat focus order over the VISIBLE tiles (group order, node order within). */
   flatKeys: ReadonlyArray<string>;
@@ -723,6 +738,9 @@ function buildTiles(
       hasChoices: (preview?.preSteps ?? []).length > 0 || branchNeedsChoices(branch),
       choiceKinds: branchChoiceKinds(branch, preview),
       reason,
+      // A 'soft' variant is blocked by the WINDOW only (the card meets every
+      // rule) — it keeps the calm register and stays in the potential count.
+      blocker: actionStatusBlocker(status, entry.state.softReason),
       // Self-describing tile data (the flat grid has no group chrome to carry it).
       variantTotal: group.nodes.length,
       cardResource,
@@ -860,7 +878,7 @@ export function buildConsoleActionsModel(
     availabilityChips,
     activationChips,
     totalTiles: allTiles.length,
-    availableTiles: allTiles.filter((t) => t.status === 'available').length,
+    availableTiles: allTiles.filter((t) => t.blocker === undefined || !t.blocker.affectsPotentialCount).length,
     flatKeys: tiles.map((t) => t.key),
     rows: packActionRows(visibleGroups, layoutColumns),
   };

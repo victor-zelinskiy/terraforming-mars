@@ -38,7 +38,7 @@ import {PartyHooks} from '../turmoil/parties/PartyHooks';
 import {PartyName} from '../../common/turmoil/PartyName';
 import {ConvertPlants} from '../cards/base/standardActions/ConvertPlants';
 import {ConvertHeat} from '../cards/base/standardActions/ConvertHeat';
-import {DeltaProjectExpansion} from '../delta/DeltaProjectExpansion';
+import {potentialActions, potentialHydroAdvance} from './potentialActions';
 import {KELVINISTS_POLICY_3} from '../turmoil/parties/Kelvinists';
 
 const DEFAULT_HEAT_FOR_TEMPERATURE = 8;
@@ -494,19 +494,25 @@ export class Server {
       PartyHooks.shouldApplyPolicy(player, PartyName.KELVINISTS, 'kp03') ?
         KELVINISTS_POLICY_3.canAct(player) :
         new ConvertHeat().canAct(player));
-    // The global "Гидросеть" advance action is available right now (drives the
-    // bottom-bar ready cue + the pass warning). Same gate as Player.getActions().
+    // ── AVAILABILITY, in two separate senses ───────────────────────────────
+    // POTENTIAL (turn-independent, self model only): what this player could do
+    // if it were their window — the action wheel's green counts read this, so
+    // they cannot vanish just because an opponent is acting.
+    const potential = modelIsForThisPlayer ? potentialActions(player) : undefined;
+    // EXECUTABLE NOW = potential AND the action window is live. The global
+    // "Гидросеть" advance drives the bottom-bar ready cue + the pass warning;
+    // same gate as Player.getActions(). Derived from the projection rather than
+    // restating its rules, so the two can never disagree.
     const canAdvanceDelta = inActionSelection &&
-      game.gameOptions.deltaProjectExpansion === true &&
-      player.deltaProjectData !== undefined &&
-      player.deltaProjectData.usedThisGeneration !== true &&
-      DeltaProjectExpansion.maxSteps(player) > 0;
+      (potential !== undefined ? potential.hydroAdvance > 0 : potentialHydroAdvance(player));
     const model: PublicPlayerModel = {
       actionsTakenThisRound: player.actionsTakenThisRound,
       actionsTakenThisGame: player.actionsTakenThisGame,
       actionsThisGeneration: Array.from(player.actionsThisGeneration),
       alliedParty: player.alliedParty,
-      availableBlueCardActionCount: player.getPlayableActionCards().length,
+      // Public for every seat; for the viewer's own model it is the same number
+      // `potentialActions.cardActions` carries (one validator, two readers).
+      availableBlueCardActionCount: potential?.cardActions ?? player.getPlayableActionCards().length,
       cardCost: player.cardCost,
       cardDiscount: player.colonies.cardDiscount,
       cardsInHandNbr: player.cardsInHand.length,
@@ -545,6 +551,7 @@ export class Server {
       canConvertPlants,
       canConvertHeat,
       canAdvanceDelta,
+      potentialActions: potential,
       protectedResources: Server.getResourceProtections(player),
       protectedProduction: Server.getProductionProtections(player),
       // actionReasons only for the viewer's OWN tableau (the self-model): the

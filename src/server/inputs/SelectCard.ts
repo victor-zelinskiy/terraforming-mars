@@ -7,6 +7,8 @@ import {InputResponse, isSelectCardResponse} from '../../common/inputs/InputResp
 import {SelectCardModel} from '../../common/models/PlayerInputModel';
 import {IPlayer} from '../IPlayer';
 import {cardsToModel} from '../models/ModelUtils';
+import {IPreludeCard, isPreludeCard} from '../cards/prelude/IPreludeCard';
+import {computePreludeOutlooks} from '../preludes/preludeOutlook';
 import {InputError} from './InputError';
 
 export type Options = {
@@ -118,6 +120,36 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
     // substep total off it — never off the translatable title.
     if (this.draftPrompt !== undefined) {
       model.draftPrompt = this.draftPrompt;
+    }
+    // THE ORDER-AWARE PRELUDE VERDICT rides this input's own toModel, and is
+    // recomputed on EVERY serialization on purpose.
+    //
+    // It first lived on the card instance beside `warnings` — and warnings are
+    // wiped by anything that re-evaluates a card (`getPlayableCards` stamps and
+    // clears them as it answers). So the verdict silently vanished on the next
+    // server response, the console's risk stage disappeared under the player
+    // mid-decision, and the very next A played whatever was focused. A value
+    // whose lifetime is «until somebody else touches an unrelated field» is not
+    // a value; deriving it HERE means it is always exactly as fresh as the
+    // prompt that carries it, and there is no ephemeral state to go stale.
+    if (this.startGamePrompt?.kind === 'preludeSelection') {
+      const preludes: Array<IPreludeCard> = [];
+      for (const card of this.cards) {
+        if (isPreludeCard(card)) {
+          preludes.push(card);
+        }
+      }
+      if (preludes.length > 0) {
+        // Pool = what the player can still play AFTER this decision. In a
+        // drew-N ask the rivals are discarded on the spot and enable nothing.
+        const outlooks = computePreludeOutlooks(player, preludes, player.preludeCardsInHand);
+        for (const card of model.cards) {
+          const outlook = outlooks.get(card.name);
+          if (outlook !== undefined) {
+            card.preludeOutlook = outlook;
+          }
+        }
+      }
     }
     const disabled = this.config.disabled;
     if (disabled !== undefined && disabled.length > 0) {

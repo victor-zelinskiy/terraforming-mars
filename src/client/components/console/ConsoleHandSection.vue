@@ -179,7 +179,12 @@
                  :class="{
                    'con-hand__slot--selected': row * plan.cols + ci === index,
                    'con-hand__slot--playable': !saleActive && !selectActive && entry.playable,
-                   'con-hand__slot--unplayable': !saleActive && !selectActive && !entry.playable,
+                   // DIM only what the RULES refuse. A card whose only blocker
+                   // is the turn keeps its bright pose — dimming it says «this
+                   // card is wrong», which is false and unlearns itself the
+                   // moment the turn comes back.
+                   'con-hand__slot--unplayable': !saleActive && !selectActive && !entry.potential,
+                   'con-hand__slot--notnow': !saleActive && !selectActive && entry.potential && !entry.playable,
                    'con-hand__slot--sale-picked': saleActive && isSaleSelected(entry.card.name),
                    'con-hand__slot--select-picked': selectActive && isSelectPicked(entry.card.name),
                    'con-hand__slot--select-disabled': selectActive && !isSelectable(entry.card.name),
@@ -223,7 +228,9 @@
          class="con-cards__verdictbar con-hand__verdictbar"
          :class="{
            'con-hand__verdictbar--ok': !saleActive && !selectActive && selectedPlayable,
-           'con-hand__verdictbar--blocked': !saleActive && !selectActive && !selectedPlayable,
+           // «НЕ СЕЙЧАС» is its own register: the card is fine, the moment is not.
+           'con-hand__verdictbar--notnow': !saleActive && !selectActive && softBlocked,
+           'con-hand__verdictbar--blocked': !saleActive && !selectActive && !selectedPlayable && !softBlocked,
            'con-hand__verdictbar--sale': saleActive,
            'con-hand__verdictbar--select': selectActive && discard === undefined,
            'con-hand__verdictbar--discard': discard !== undefined,
@@ -246,13 +253,19 @@
       <template v-else-if="selectedPlayable">
         <span class="con-cards__verdict con-cards__verdict--ok"><span aria-hidden="true">✓</span> {{ $t('Playable now') }}</span>
       </template>
+      <!-- A card with NO server rules-reason but not playable is rules-OK, just
+           not your window (opponent's turn / mid-action). That is an EXECUTION
+           GATE, not a verdict on the card: it wears the calm «НЕ СЕЙЧАС» state
+           and names the moment — never a red «Нельзя разыграть», never a
+           misleading "conditions not met". (See
+           `src/common/availability/AvailabilityBlocker.ts`.) -->
+      <template v-else-if="softBlocked">
+        <span class="con-cards__verdict con-cards__verdict--notnow"><span aria-hidden="true">⏳</span> {{ $t('Not now') }}</span>
+        <span class="con-hand__reason con-hand__reason--bar con-hand__reason--turn">{{ $t(softReason) }}</span>
+      </template>
       <template v-else>
         <span class="con-cards__verdict con-cards__verdict--blocked"><span aria-hidden="true">✕</span> {{ $t('Unplayable now') }}</span>
-        <!-- A card with NO server rules-reason but not playable is rules-OK,
-             just not your window (opponent's turn / mid-action) — say so, never
-             a bare "Нельзя разыграть" nor a misleading "conditions not met". -->
-        <span v-if="softBlocked" class="con-hand__reason con-hand__reason--bar con-hand__reason--turn">{{ $t(softReason) }}</span>
-        <span v-else v-for="(r, i) in reasons.slice(0, 2)" :key="i" class="con-hand__reason con-hand__reason--bar" :class="'con-hand__reason--' + r.type">{{ reasonLine(r) }}</span>
+        <span v-for="(r, i) in reasons.slice(0, 2)" :key="i" class="con-hand__reason con-hand__reason--bar" :class="'con-hand__reason--' + r.type">{{ reasonLine(r) }}</span>
       </template>
       <!-- Filtered count lives HERE (compact, right-aligned) — never in the
            header, so the header height can't jump when the filter changes. -->
@@ -350,6 +363,7 @@ import {
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
+import {blockersForReasons, potentiallyAvailable} from '@/common/availability/AvailabilityBlocker';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
 import {consoleState} from '@/client/console/consoleRouter';
@@ -362,7 +376,15 @@ import {DiscardIntent} from '@/client/console/cardDiscard/discardIntent';
 
 export type ConsoleHandEntry = {
   card: CardModel,
+  /** Playable RIGHT NOW — the server's live play offer (executable now). */
   playable: boolean,
+  /**
+   * Playable by the RULES, whoever's turn it is — the server's structured
+   * `unplayableReasons` are empty. `playable ⊆ potential`, and the gap between
+   * them is exactly the turn/phase gate: such a card is «НЕ СЕЙЧАС», never
+   * «Нельзя разыграть», it keeps its bright pose, and it counts on the wheel.
+   */
+  potential: boolean,
   /** Hosted on Self-Replicating Robots. */
   robot: boolean,
 };
@@ -575,10 +597,16 @@ export default defineComponent({
     reasons(): ReadonlyArray<UnplayableReason> {
       return this.selected?.unplayableReasons ?? [];
     },
-    /** The selected card is blocked only by the window (no server rules-reason),
-     *  so the panel shows the soft turn/phase reason instead of a bare block. */
+    /**
+     * The selected card is blocked ONLY by the execution window: every reason
+     * the server produced is a domain reason, so an empty list means the card
+     * itself is fine and the moment is not. Asked through the shared blocker
+     * model rather than `reasons.length === 0` so the rule that «a turn gate is
+     * not a domain blocker» lives in exactly one place.
+     */
     softBlocked(): boolean {
-      return !this.saleActive && !this.selectActive && this.selected !== undefined && !this.selectedPlayable && this.reasons.length === 0;
+      return !this.saleActive && !this.selectActive && this.selected !== undefined &&
+        !this.selectedPlayable && potentiallyAvailable(blockersForReasons(this.reasons));
     },
     // ── mandatory hand SELECT (discard / reveal / place) ──────────────────
     selectActive(): boolean {
@@ -668,8 +696,11 @@ export default defineComponent({
     totalCount(): number {
       return this.tagFilters.find((o) => o.value === 'all')?.count ?? this.entries.length;
     },
+    /** «Можно разыграть: N» — POTENTIAL, the same number the wheel shows: a
+     *  count that halves because an opponent started thinking is not a fact
+     *  about the hand. (The press itself still needs `playable`.) */
     playableCount(): number {
-      return this.entries.reduce((n, e) => n + (e.playable ? 1 : 0), 0);
+      return this.entries.reduce((n, e) => n + (e.potential ? 1 : 0), 0);
     },
     /** The header shows the plain total ONLY when there are no filter chips to
      *  carry it (the "All" chip shows it otherwise). It NEVER shows "Показано X

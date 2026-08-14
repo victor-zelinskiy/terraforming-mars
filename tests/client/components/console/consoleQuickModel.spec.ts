@@ -24,7 +24,7 @@ describe('consoleQuickModel (P27)', () => {
   describe('RT — action categories', () => {
     it('maps the spec slots: Cards center, Card actions up, Trading right, Voting down, Hydro left', () => {
       const entries = buildRtQuickEntries({
-        cardsPlayable: 3, cardsTotal: 5, actionsAvailable: 2,
+        cardsPlayable: 3, cardsTotal: 5, actionsAvailable: 2, tradesAvailable: 2, hydroAvailable: 1,
         hasColonies: true, hasTurmoil: false, hasHydro: true,
       });
       const bySlot = new Map(entries.map((e) => [e.slot, e]));
@@ -37,9 +37,44 @@ describe('consoleQuickModel (P27)', () => {
       expect(bySlot.get('up')?.badge).to.eq(2);
     });
 
+    /*
+     * ONE MEANING FOR EVERY GREEN NUMBER (potential availability).
+     *
+     * «Карты» and «Действия карт» carried a count; «Гидросеть» and «Торговля»
+     * carried none, so the same wheel spoke two languages — one half told the
+     * player how much there was to do, the other half only that the category
+     * existed. All four now read the same way, and the trade badge is the
+     * number of TRADES still possible (min(colonies, free fleets)), never the
+     * number of colonies on the board.
+     */
+    it('all four action categories carry a potential count', () => {
+      const bySlot = new Map(buildRtQuickEntries({
+        cardsPlayable: 4, cardsTotal: 7, actionsAvailable: 3, tradesAvailable: 2, hydroAvailable: 1,
+        hasColonies: true, hasTurmoil: false, hasHydro: true,
+      }).map((e) => [e.slot, e]));
+      expect(bySlot.get('center')?.badge, 'cards').to.eq(4);
+      expect(bySlot.get('up')?.badge, 'card actions').to.eq(3);
+      expect(bySlot.get('right')?.badge, 'trading').to.eq(2);
+      expect(bySlot.get('left')?.badge, 'hydronetwork').to.eq(1);
+    });
+
+    it('a category with nothing to do keeps its slot and shows no badge', () => {
+      // The template renders a badge only for `badge > 0`, so a zero count
+      // degrades to the plain tile — never a «0» chip screaming at the player.
+      const bySlot = new Map(buildRtQuickEntries({
+        cardsPlayable: 0, cardsTotal: 7, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0,
+        hasColonies: true, hasTurmoil: false, hasHydro: true,
+      }).map((e) => [e.slot, e]));
+      expect(bySlot.get('right')?.badge).to.eq(0);
+      expect(bySlot.get('left')?.badge).to.eq(0);
+      // …and both categories are still REACHABLE (the player may inspect them).
+      expect(bySlot.get('right')?.available).to.eq(true);
+      expect(bySlot.get('left')?.available).to.eq(true);
+    });
+
     it('keeps unavailable categories VISIBLE with honest reasons', () => {
       const entries = buildRtQuickEntries({
-        cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 0,
+        cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0,
         hasColonies: false, hasTurmoil: false, hasHydro: false,
       });
       const bySlot = new Map(entries.map((e) => [e.slot, e]));
@@ -53,7 +88,7 @@ describe('consoleQuickModel (P27)', () => {
 
     it('names the Turmoil-reserved reason when the expansion is on', () => {
       const entries = buildRtQuickEntries({
-        cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 0,
+        cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0,
         hasColonies: true, hasTurmoil: true, hasHydro: false,
       });
       const voting = entries.find((e) => e.id === 'voting');
@@ -61,7 +96,7 @@ describe('consoleQuickModel (P27)', () => {
     });
 
     it('every slot has a glyph mapping', () => {
-      for (const e of buildRtQuickEntries({cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 0, hasColonies: true, hasTurmoil: false, hasHydro: true})) {
+      for (const e of buildRtQuickEntries({cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0, hasColonies: true, hasTurmoil: false, hasHydro: true})) {
         expect(QUICK_SLOT_GLYPH[e.slot]).to.not.eq(undefined);
       }
     });

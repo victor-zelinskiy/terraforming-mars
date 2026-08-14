@@ -129,12 +129,6 @@ export function cardsToModel(
     if (card.warnings.size > 0) {
       model.warnings = Array.from(card.warnings);
     }
-    // The order-aware prelude verdict rides the card exactly as `warnings` do
-    // (same prompt-scoped lifetime, written by `computePreludeOutlooks` just
-    // before this serialization). Present only inside a prelude-selection ask.
-    if (card.preludeOutlook !== undefined) {
-      model.preludeOutlook = card.preludeOutlook;
-    }
     if (unplayableReasonList !== undefined) {
       model.unplayableReasons = unplayableReasonList;
     }

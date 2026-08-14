@@ -1,5 +1,6 @@
 import {CardModel} from '@/common/models/CardModel';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
+import {AvailabilityBlocker, AVAILABILITY_BLOCKERS, blockerCodeForReasonType, blockerForReason} from '@/common/availability/AvailabilityBlocker';
 
 /*
  * Per-action availability state for the Actions overlay — the analog of
@@ -80,4 +81,30 @@ export function computeActionState(card: CardModel, input: ActionStateInput): Ac
     {type: 'phase', message: 'Finish your current action first'} :
     {type: 'turn', message: 'Not your turn right now'};
   return {status: 'soft', activatable: false, reasons: [], softReason};
+}
+
+/**
+ * The STRUCTURED semantics of an {@link ActionStatus} — what the status means
+ * for «could I do this at all» vs «can I do it now», and which visual register
+ * it takes (see `src/common/availability/AvailabilityBlocker.ts`).
+ *
+ * `soft` is BY DEFINITION not a rules failure (the action meets every rule; the
+ * moment is wrong), so it never carries a domain blocker: an unclassified soft
+ * reason still degrades to a generic execution gate rather than to «нельзя».
+ * `activated` IS a domain fact — the action is spent for this generation, and
+ * no change of turn brings it back.
+ */
+export function actionStatusBlocker(
+  status: ActionStatus,
+  softReason?: UnplayableReason,
+): AvailabilityBlocker | undefined {
+  if (status === 'available') {
+    return undefined;
+  }
+  if (status !== 'soft') {
+    return AVAILABILITY_BLOCKERS.DOMAIN;
+  }
+  return softReason !== undefined && blockerCodeForReasonType(softReason.type) !== 'DOMAIN' ?
+    blockerForReason(softReason) :
+    AVAILABILITY_BLOCKERS.EXECUTION_GATE;
 }

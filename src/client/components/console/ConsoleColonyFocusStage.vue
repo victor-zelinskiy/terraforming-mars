@@ -135,14 +135,19 @@
              had already carried out. -->
         <div v-if="!pastCommit && !commitLatched"
              class="con-colfocus__verdict"
-             :class="presentAvailable ? 'con-colfocus__verdict--ok' : 'con-colfocus__verdict--no'"
+             :class="presentAvailable ? 'con-colfocus__verdict--ok' :
+               (blockTone === 'warning' ? 'con-colfocus__verdict--notnow' : 'con-colfocus__verdict--no')"
              data-unfold-late>
           <template v-if="presentAvailable">
             <span class="con-coltile__status-dot" aria-hidden="true"></span>
             <span>{{ $t(intent === 'build' ? 'Build here' : intent === 'pick' ? (pickLabel || 'Can select') : 'Trade available') }}</span>
           </template>
+          <!-- The turn gate is not a refusal: every trade rule is satisfied and
+               the colony would take the fleet — it is simply not this player's
+               moment. Amber ⏳, never the red ✕ that reads as «эта колония вас
+               не принимает». (AvailabilityBlocker: tone 'warning'.) -->
           <template v-else>
-            <span aria-hidden="true">✕</span>
+            <span aria-hidden="true">{{ blockTone === 'warning' ? '⏳' : '✕' }}</span>
             <span>{{ blockReason !== '' ? $t(blockReason) : $t('Trade unavailable') }}</span>
           </template>
         </div>
@@ -866,6 +871,9 @@ export default defineComponent({
     actionAvailable: {type: Boolean, default: false},
     /** Honest reason when the action is impossible ('' when available). */
     blockReason: {type: String, default: ''},
+    /** That reason's REGISTER (`AvailabilityBlocker.tone`): 'warning' = the
+     *  trade is legal and merely out of the player's window right now. */
+    blockTone: {type: String as PropType<'warning' | 'danger'>, default: 'danger'},
     /** The pick's server verb ('Build' / 'Remove colony' …, pick intent). */
     pickLabel: {type: String, default: ''},
     /**

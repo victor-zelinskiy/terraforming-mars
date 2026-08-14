@@ -222,7 +222,31 @@ export function registerConsoleIntentHandler(fn: ConsoleIntentHandler): () => vo
   };
 }
 
+/**
+ * NON-CONSUMING observers, run before the handler on EVERY intent.
+ *
+ * The routing handler above is a single owner that surfaces legitimately
+ * swallow intents through — which is right for ACTING on input, and wrong for
+ * the one thing that must never be swallowed: the falling edge that STOPS
+ * something already running. The shared hold-to-confirm gate is the case in
+ * point — it reads a button-up as «the player let go», and that edge dying in
+ * a swallowing branch meant the ring kept filling after the player released,
+ * and an irreversible action fired half a second later. An observer cannot
+ * consume, cannot re-order and cannot be starved.
+ */
+const observers = new Set<(intent: GamepadIntent) => void>();
+
+export function observeConsoleIntents(fn: (intent: GamepadIntent) => void): () => void {
+  observers.add(fn);
+  return () => {
+    observers.delete(fn);
+  };
+}
+
 /** Returns true when the console shell consumed the intent. */
 export function dispatchConsoleIntent(intent: GamepadIntent): boolean {
+  for (const observe of observers) {
+    observe(intent);
+  }
   return handler !== undefined ? handler(intent) : false;
 }

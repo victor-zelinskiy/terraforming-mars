@@ -58,10 +58,25 @@ export const QUICK_SLOT_GLYPH: Record<QuickSlot, GlyphControl> = {
   left: 'dpadL',
 };
 
+/**
+ * The RT wheel's counts are POTENTIAL availability, uniformly: «how many of
+ * these could I do in the current game state», deliberately NOT «what is the
+ * server offering me on this frame». They therefore survive the turn passing to
+ * an opponent — see `potentialAvailability.ts` (which produces all four) and
+ * `src/common/availability/AvailabilityBlocker.ts` (which defines why the turn
+ * gate does not count). Every number comes from a server-authoritative
+ * validator; this model only places it on a slot.
+ */
 export type RtQuickContext = {
+  /** Project cards potentially playable (hand + SRR-hosted). */
   cardsPlayable: number,
   cardsTotal: number,
+  /** Card / corporation actions potentially performable. */
   actionsAvailable: number,
+  /** Remaining potential trade actions — min(open colonies, free fleets). */
+  tradesAvailable: number,
+  /** 0 or 1 — the once-per-generation Hydronetwork advance. */
+  hydroAvailable: number,
   /** The game has colony tiles in play (Trading is a view too). */
   hasColonies: boolean,
   /** Turmoil is part of this game (the reserved Voting slot's honesty). */
@@ -85,7 +100,11 @@ export function buildRtQuickEntries(ctx: RtQuickContext): Array<QuickEntry> {
       badge: ctx.actionsAvailable, available: true, reason: '',
     },
     {
+      // The badge is the number of trades still POSSIBLE, not the number of
+      // colonies on the board: a second open colony is worth nothing without a
+      // second free fleet, and neither is worth anything with no way to pay.
       id: 'trading', slot: 'right', label: 'Trading', barIcon: 'colonies',
+      badge: ctx.tradesAvailable,
       available: ctx.hasColonies, reason: 'No colonies in this game',
     },
     {
@@ -94,7 +113,9 @@ export function buildRtQuickEntries(ctx: RtQuickContext): Array<QuickEntry> {
       reason: ctx.hasTurmoil ? 'Voting arrives with a future update' : 'Not in this game',
     },
     {
+      // At most 1 — the track may be advanced once per generation.
       id: 'hydro', slot: 'left', label: 'Hydronetwork', barIcon: 'hydronetwork',
+      badge: ctx.hydroAvailable,
       available: ctx.hasHydro, reason: 'Not in this game',
     },
   ];

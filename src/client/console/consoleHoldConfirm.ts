@@ -21,6 +21,8 @@
  * trip by accident. Reduced motion quietens the RING, never the hold.
  */
 import {reactive} from 'vue';
+import {observeConsoleIntents} from '@/client/console/consoleRouter';
+import type {SemanticButton} from '@/client/gamepad/gamepadPollModel';
 
 /** Long enough to be a decision, short enough not to be a chore. */
 export const HOLD_CONFIRM_MS = 700;
@@ -35,6 +37,8 @@ export const holdConfirmState = reactive({
 let frame: number | undefined;
 let startedAt = 0;
 let pending: (() => void) | undefined;
+let watching: (() => void) | undefined;
+let heldButton: SemanticButton = 'confirm';
 
 /** The clock, in one place, so the test seam and the frame loop agree. */
 function now(): number {
@@ -47,6 +51,11 @@ function stopFrame(): void {
     cancelAnimationFrame(frame);
   }
   frame = undefined;
+}
+
+function stopWatch(): void {
+  watching?.();
+  watching = undefined;
 }
 
 function tick(now: number): void {
@@ -68,6 +77,7 @@ function tick(now: number): void {
   // «finished but still armed» would re-fire on the next release intent.
   const done = pending;
   pending = undefined;
+  stopWatch();
   holdConfirmState.key = '';
   holdConfirmState.progress = 0;
   done?.();
@@ -78,11 +88,25 @@ function tick(now: number): void {
  * treated as a fresh press and restarts the ring — a pad that reports a
  * bounce can never be interpreted as «held all along».
  */
-export function beginHoldConfirm(key: string, onComplete: () => void): void {
+export function beginHoldConfirm(
+  key: string, onComplete: () => void, button: SemanticButton = 'confirm'): void {
   if (key === '') {
     return;
   }
   stopFrame();
+  stopWatch();
+  heldButton = button;
+  // THE GATE OWNS ITS OWN RELEASE. It deliberately does not rely on the host
+  // surface forwarding the button-up: that edge travels through the shell's
+  // routing, where several legitimate branches swallow falling edges, and a
+  // hold that outlives the button is the one failure this mechanism may never
+  // have. Observing the bus directly makes «letting go cancels» true by
+  // construction, for every caller, on the pad and on the keyboard alike.
+  watching = observeConsoleIntents((intent) => {
+    if (intent.kind === 'release' && intent.button === heldButton) {
+      cancelHoldConfirm();
+    }
+  });
   holdConfirmState.key = key;
   holdConfirmState.progress = 0;
   pending = onComplete;
@@ -107,6 +131,7 @@ export function cancelHoldConfirm(key?: string): void {
     return;
   }
   stopFrame();
+  stopWatch();
   pending = undefined;
   holdConfirmState.key = '';
   holdConfirmState.progress = 0;
