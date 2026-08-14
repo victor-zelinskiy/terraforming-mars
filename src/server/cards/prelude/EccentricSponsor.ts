@@ -48,6 +48,16 @@ export class EccentricSponsor extends PreludeCard {
    * finds no card), while a false "no" would silently rob the player of the
    * card — so anything undecidable must stay playable.
    */
+  /**
+   * ORDER DEPENDENCY (co-located with the `canPlay` above): what this card
+   * lacks when it says no is a legally playable PROJECT — so a prelude that
+   * draws cards, or hands over enough M€ to reach one already in hand, MAY
+   * open a target. May, never will: nobody has seen the drawn cards yet, which
+   * is exactly why the engine reports this need as `possible` and the UI must
+   * not promise a fix.
+   */
+  public readonly preludeNeeds = 'playableCard' as const;
+
   public override canPlay(player: IPlayer): boolean {
     const playable = player.getPlayableCards({extraDiscount: ECCENTRIC_SPONSOR_DISCOUNT}).length > 0;
     // `getPlayableCards` STAMPS warnings + additional costs onto every hand card

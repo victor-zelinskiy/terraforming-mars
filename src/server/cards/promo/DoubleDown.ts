@@ -25,6 +25,15 @@ export class DoubleDown extends PreludeCard {
     });
   }
 
+  /**
+   * ORDER DEPENDENCY (co-located with the `bespokeCanPlay` it explains): this
+   * card copies an ALREADY-PLAYED prelude, so played first it has nothing to
+   * work with — and playing ANY other prelude first fixes that outright. The
+   * engine (`preludeOutlook.ts`) turns that into the `guaranteed` verdict; it
+   * knows nothing about this card beyond this one word.
+   */
+  public readonly preludeNeeds = 'playedPrelude' as const;
+
   private cloneablePreludes(player: IPlayer) {
     const cards = player.playedCards.preludes()
       .filter((card) => card.name !== this.name)

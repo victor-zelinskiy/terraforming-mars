@@ -380,7 +380,8 @@
                        :style="{order: entry.kind === 'prelude' ? 3 : 1}"
                        :class="{
                          'con-start__qcard--focused': isFocused(entry.kind, entry.name),
-                         'con-start__qcard--armed': burnGate !== undefined && burnGate.name === entry.name,
+                         'con-start__qcard--armed': riskStage !== undefined && riskArmed === entry.name,
+                         'con-start__qcard--enabler': entry.enabler === true,
                          'con-start__qcard--awaiting': entry.dimmed,
                          'con-deal-hold': queueArriving.has(entry.name) || heroDepartedName === entry.name || deal.isHeld(entry.name + '#' + entry.dealIdx),
                        }"
@@ -389,17 +390,19 @@
                     <Card :card="{name: entry.name}" :key="entry.name" lightweight />
                     <span v-if="entry.badge !== undefined" class="con-cards__pickband" :class="entry.badgeClass">{{ $t(entry.badge) }}</span>
                     <div v-if="entry.reason !== undefined" class="con-cards__reason">{{ $t(entry.reason) }}</div>
-                    <!-- THE A PILL IS ALSO THE BURN GATE'S FACE. An armed
-                         «СГОРИТ» prelude relabels the pill in place (amber,
-                         «Подтвердить») instead of growing a second affordance
-                         beside it: the pill is absolutely positioned, so the
-                         gate arms and disarms with ZERO layout shift — the
-                         queue never moves under the player mid-decision. -->
+                    <!-- THE A PILL IS ALSO THE RISK STAGE'S FACE. Inside the
+                         stage the pill relabels IN PLACE to the verb that
+                         names the loss — never «Подтвердить», which beside
+                         «Сначала разыграйте другой пролог» could only be read
+                         as «press A to go to that one». The pill is absolutely
+                         positioned, so entering and leaving the stage costs
+                         ZERO layout shift: the queue never moves under the
+                         player mid-decision. -->
                     <div v-else-if="isFocused(entry.kind, entry.name) && entry.verb !== undefined"
                          class="con-start__slot-a"
-                         :class="{'con-start__slot-a--armed': burnGate !== undefined && burnGate.name === entry.name}">
+                         :class="{'con-start__slot-a--armed': riskStage !== undefined && riskArmed === entry.name}">
                       <GamepadGlyph control="confirm" />
-                      <span>{{ burnGate !== undefined && burnGate.name === entry.name ? $t('Confirm') : $t(entry.verb) }}</span>
+                      <span>{{ riskStage !== undefined && riskArmed === entry.name ? $t(riskStage.commitLabel) : $t(entry.verb) }}</span>
                     </div>
                   </div>
 
@@ -431,6 +434,33 @@
                   </div>
                 </transition-group>
               </div>
+
+              <!-- ── THE RISK STAGE ────────────────────────────────────────
+                   The player pressed A on a prelude whose effect cannot
+                   resolve. NOTHING was sent, nothing moved, no empty picker
+                   opened — this is the same workspace one state deeper, and
+                   the cards it is about (the waiting one, amber-ringed; every
+                   prelude that could open it, amber-tied) stay on screen
+                   behind it.
+
+                   It is ABSOLUTELY POSITIONED over the queue column's own
+                   slack: entering and leaving the stage must not move the
+                   cards the player is reading. It carries the two things the
+                   rail cannot — WHAT is missing (the heading) and WHAT COULD
+                   STILL FIX IT (the body, with the enabling prelude named
+                   only when there is exactly one). The verb of the press
+                   lives in the ONE command bar, as everywhere else. -->
+              <transition name="con-start-risk">
+                <div v-if="riskStage !== undefined" class="con-start__risk"
+                     :class="'con-start__risk--' + riskStage.tone"
+                     data-start-risk>
+                  <div class="con-start__risk-head">
+                    <span class="con-start__risk-flag" aria-hidden="true">⚠</span>
+                    <span class="con-start__risk-title">{{ $t(riskStage.title) }}</span>
+                  </div>
+                  <div class="con-start__risk-body">{{ riskBodyText }}</div>
+                </div>
+              </transition>
 
             </div>
 
@@ -574,24 +604,17 @@
              own status rail, and with the queue unfocused this one degrades
              to «Ожидаем других игроков» — a lie while the player IS the one
              being waited for (the iteration-2 false-wait bug). -->
-        <!-- …and when a BURN is armed the rail is where the caution is SAID:
-             the reason leads and the instruction follows it quietly (the same
-             two voices the task host's confirm bar uses). A gate that asks for
-             a second press without a word of why is read as the UI being
-             awkward, not as a caution — it costs trust and prevents nothing.
-             It takes the state chip's own slot, so the rail's reserved height
-             carries it and the deployment above never reflows. -->
+        <!-- …and BEFORE any press the rail is where a waiting prelude's
+             situation is SAID: the sentence sits under the badge that marks
+             it, so the player reads the whole thing without pressing anything.
+             Once the RISK STAGE is up the stage owns that sentence and the
+             rail's chip goes quiet — one voice per statement, never the same
+             warning printed twice on one screen. -->
         <div v-if="mode === 'ceremony' && ceremonyRevealed && !sponsorStep && !colonyStep"
              class="con-start__statusrail" :class="ceremonyRailClass">
           <div class="con-start__status-inner">
             <span class="con-start__status-name" :key="ceremonyStatusName">{{ ceremonyStatusName }}</span>
-            <span v-if="burnGate !== undefined" class="con-start__status-burn">
-              <span class="con-start__status-burn-why">⚠ {{ $t(burnGate.notice) }}</span>
-              <span class="con-start__status-burn-cta">
-                <GamepadGlyph control="confirm" /><span>{{ $t('Press again to confirm') }}</span>
-              </span>
-            </span>
-            <span v-else-if="ceremonyStatusText !== ''" class="con-start__status-state">{{ ceremonyStatusText }}</span>
+            <span v-if="ceremonyStatusText !== ''" class="con-start__status-state">{{ ceremonyStatusText }}</span>
           </div>
         </div>
 
@@ -723,8 +746,11 @@ import {
 import {buildStartStatusPreview, StartStatusPreview} from '@/client/console/startStatusPreview';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {afterPreludes, cardCostForCorp, startingMegacredits} from '@/client/components/initialDraft/initialDraftMoney';
+import {beginHoldConfirm, cancelHoldConfirm} from '@/client/console/consoleHoldConfirm';
+import {isPreludeEnabler, preludeBadge, PreludeRisk, preludeRisk} from '@/client/console/startPreludeRisk';
+import {PreludeOutlook} from '@/common/cards/PreludeOutlook';
 import {
-  corpActionOptionIndexFor, corporationCardNames, PreludeEntry, preludeEntries, preludeFizzleNotice, recordDrawChoice,
+  corpActionOptionIndexFor, corporationCardNames, PreludeEntry, preludeEntries, recordDrawChoice,
   startFlowCorpPayPrompt, startFlowCorpPlayPrompt, startFlowCorpPrompt, startFlowCorpSelectPrompt,
   startFlowPreludeCopyPrompt, startFlowPreludeDrawPrompt, startFlowPreludePrompt,
 } from '@/client/components/startGameFlow/startGameFlowState';
@@ -800,6 +826,20 @@ function textOf(v: string | Message | undefined): string {
 
 
 type Focusable = {kind: 'corp' | 'prelude' | 'candidate' | 'pay', name: CardName, disabled: boolean};
+
+/** One physical slot of the deployment queue. */
+type QueueEntry = {
+  name: CardName,
+  kind: Focusable['kind'],
+  verb?: string,
+  badge?: string,
+  badgeClass?: string,
+  reason?: string,
+  /** This card could open the FOCUSED one's waiting effect (the amber tie). */
+  enabler?: boolean,
+  dimmed: boolean,
+  dealIdx: number,
+};
 
 /** The card-payment beat's synthetic focus key (it is not a card). */
 const PAY_KEY = '#pay' as CardName;
@@ -892,13 +932,20 @@ export default defineComponent({
       /** Zero-projects submit armed (second A confirms — the skip warning). */
       armedSkip: false,
       /**
-       * THE BURN GATE — the prelude whose «СГОРИТ» press is armed and waiting
-       * for its second A. Raw latch only: what the scene renders and acts on
-       * is {@link burnGate}, which re-derives it from the LIVE focus, so a
-       * navigation can never leave a stale arm behind to fire on a card the
-       * player has since walked away from.
+       * THE RISK STAGE — the prelude whose first A opened the «this cannot
+       * resolve» stage. Raw latch only: what the scene renders and acts on is
+       * {@link riskStage}, re-derived from the LIVE focus, so a navigation can
+       * never leave a stale arm behind to fire on a card the player has since
+       * walked away from.
        */
-      armedBurn: undefined as CardName | undefined,
+      riskArmed: undefined as CardName | undefined,
+      /**
+       * The prelude the player COMMITTED knowing its effect would not happen.
+       * Latched (not derived): by the time the beat is shown the card has left
+       * the rail and the server no longer describes it — this is the only
+       * record that the result the player is watching is a deliberate loss.
+       */
+      effectLostFor: undefined as CardName | undefined,
       /** A pressed on a limit-blocked card → the rail message replays its
        *  one-shot settle (restrained feedback; state never changes). */
       blockedNudge: 0,
@@ -1561,6 +1608,11 @@ export default defineComponent({
         // an actually-active opponent to NAME; otherwise the rail is silent.
         return this.heroState.active ? '' : this.ceremonyWaitLine;
       }
+      // The RISK STAGE owns the sentence while it is up (see its markup) —
+      // the rail must not print the same warning a second time.
+      if (this.riskStage !== undefined) {
+        return '';
+      }
       switch (f.kind) {
       case 'corp':
         return translateText('Ready to play');
@@ -1569,11 +1621,13 @@ export default defineComponent({
       case 'candidate':
         return translateText('Select one');
       default: {
-        // A prelude that would FIZZLE names what pressing A actually costs (the
-        // badge is only the marker — the sentence is the rail's job).
-        const notice = preludeFizzleNotice(this.preludeRail, f.name);
-        if (notice !== undefined) {
-          return translateText(notice);
+        // A prelude whose effect cannot resolve names the situation IN THE
+        // RAIL, before any press — the badge is only the marker, the sentence
+        // is the rail's job. Same source as the badge and the risk stage, so
+        // the three can never describe different situations.
+        const risk = this.focusedRisk;
+        if (risk !== undefined) {
+          return translateTextWithParams(risk.body, [...risk.bodyParams]);
         }
         const idx = this.queueCards.findIndex((q) => q.name === f.name);
         return idx <= 0 ? translateText('Ready to play') : translateText('Next prelude');
@@ -1885,11 +1939,11 @@ export default defineComponent({
      * physical row: the pending corporation, the draw/Merger candidates, the
      * prelude rail. A resolved card leaves; the rest only ever slide over.
      */
-    queueCards(): ReadonlyArray<{name: CardName, kind: Focusable['kind'], verb?: string, badge?: string, badgeClass?: string, reason?: string, dimmed: boolean, dealIdx: number}> {
+    queueCards(): ReadonlyArray<QueueEntry> {
       if (this.mode !== 'ceremony') {
         return [];
       }
-      const out: Array<{name: CardName, kind: Focusable['kind'], verb?: string, badge?: string, badgeClass?: string, reason?: string, dimmed: boolean, dealIdx: number}> = [];
+      const out: Array<QueueEntry> = [];
       const corp = this.corpPlayCard;
       if (corp !== undefined) {
         out.push({name: corp.name, kind: 'corp', verb: 'Play now', dimmed: false, dealIdx: -1});
@@ -1910,18 +1964,31 @@ export default defineComponent({
         });
       });
       const preludesLive = startFlowPreludePrompt(this.playerView) !== undefined;
+      const focusedOutlook = this.focusedItem?.kind === 'prelude' ?
+        this.outlookOf(this.focusedItem.name) : undefined;
       for (const e of this.preludeRail) {
         const playable = e.status === 'playable' && preludesLive;
-        // A would-FIZZLE prelude stays fully pressable — the badge warns, it never
-        // withholds. What it costs is the status rail's line (`ceremonyStatusText`);
-        // the badge is the at-a-glance marker that survives losing focus, and it
-        // rides the pickband — OUTSIDE the dimmable card body, so a state badge
-        // never fades with the card it describes.
+        // A prelude whose effect cannot resolve stays fully pressable — the
+        // badge warns, it never withholds. But it must warn ACCURATELY: a flat
+        // «СГОРИТ» over a card that is one ordinary press away from working is
+        // the same false alarm the whole order-aware pass exists to remove, so
+        // the badge is the verdict's own word («СНАЧАЛА ДРУГОЙ ПРОЛОГ» / «ПОКА
+        // НЕТ ДОСТУПНОЙ ЦЕЛИ» / «ЭФФЕКТ НЕ СРАБОТАЕТ»). It rides the pickband —
+        // OUTSIDE the dimmable card body — so a state badge never fades with
+        // the card it describes.
+        const badge = playable ? preludeBadge(e.outlook) : undefined;
+        // …and while a waiting card is focused, every prelude that could open
+        // it wears the tie. EVERY one, equally: singling one out would be the
+        // screen choosing the player's order for them.
+        const enabler = playable && isPreludeEnabler(focusedOutlook, e.name);
         out.push({
           name: e.name, kind: 'prelude',
           verb: playable ? 'Play now' : undefined,
-          badge: playable && e.fizzles ? 'Will fizzle' : undefined,
-          badgeClass: playable && e.fizzles ? 'con-cards__pickband--warn' : undefined,
+          badge: enabler && badge === undefined ? 'Enables the waiting prelude' : badge,
+          badgeClass: enabler && badge === undefined ?
+            'con-cards__pickband--enabler' :
+            (badge !== undefined ? 'con-cards__pickband--warn' : undefined),
+          enabler,
           dimmed: !playable,
           dealIdx: -1,
         });
@@ -2304,49 +2371,72 @@ export default defineComponent({
       ].join('|');
     },
     /**
-     * THE BURN GATE — the armed prelude and the ONE line that says what
-     * confirming it costs, or `undefined` when nothing is armed.
-     *
-     * A prelude the server flagged `preludeFizzle` does NOT do what its face
-     * says: played right now it is discarded for 15 M€, and that is not
-     * undoable. Nearly always it is only a matter of ORDER — «Двойная ставка»
-     * copies an ALREADY-PLAYED prelude, so the very same card is a full
-     * prelude one press later. The badge alone could not prevent the mistake
-     * (it explains a press the player has already made), so the press ARMS
-     * and the second A commits.
-     *
-     * DERIVED FROM THE FOCUS, never latched on its own: a d-pad move — or the
-     * fullscreen browse, which drives the same cursor — disarms it by
-     * construction. And it re-asks `preludeFizzleNotice` every read, so a card
-     * the server stops flagging (the player played the other prelude first,
-     * which is exactly the advice) drops out of the gate on its own.
+     * The ORDER-AWARE verdict of a queued prelude, straight from the server
+     * (`CardModel.preludeOutlook` → `PreludeEntry.outlook`). The ONE place the
+     * scene asks «can this card's effect actually resolve?» — badge, rail,
+     * risk stage and the commit gate all read it, so they cannot describe
+     * different situations.
      */
-    /**
-     * The ceremony rail's state class. A focused prelude that WOULD BURN takes
-     * the console's amber caution — the same one every other «this costs you»
-     * line carries — instead of the neutral cyan hint: the badge on the card
-     * and the sentence explaining it must speak with ONE voice, and they must
-     * do it BEFORE the press, not only once the gate is armed. The armed gate
-     * then steps up to its own state (ring + the two voices).
-     */
-    ceremonyRailClass(): string {
-      if (this.burnGate !== undefined) {
-        return 'con-start__statusrail--burn';
-      }
-      const f = this.focusedItem;
-      return f !== undefined && f.kind === 'prelude' &&
-        preludeFizzleNotice(this.preludeRail, f.name) !== undefined ?
-        'con-start__statusrail--warn' :
-        'con-start__statusrail--hint';
+    outlookOf(): (name: CardName) => PreludeOutlook | undefined {
+      const rail = this.preludeRail;
+      return (name: CardName) => rail.find((e) => e.name === name)?.outlook;
     },
-    burnGate(): {name: CardName, notice: string} | undefined {
-      const name = this.armedBurn;
+    /**
+     * THE RISK of the FOCUSED prelude — what is missing, what could still fix
+     * it, and the verb of the press that would give it up. `undefined` when
+     * the focused card can simply be played (or is not a prelude at all).
+     *
+     * The whole feature hangs off this being ONE value: the old screen derived
+     * its warning in one place and its button label in another, and printed
+     * «Сначала разыграйте другой пролог» beside «A — Подтвердить». Read
+     * together those two can only mean «press A to go to the other prelude» —
+     * and A burned the card. Here the sentence and the verb come out of the
+     * same call.
+     */
+    focusedRisk(): PreludeRisk | undefined {
       const f = this.focusedItem;
-      if (name === undefined || f === undefined || f.kind !== 'prelude' || f.name !== name) {
+      if (f === undefined || f.kind !== 'prelude') {
         return undefined;
       }
-      const notice = preludeFizzleNotice(this.preludeRail, name);
-      return notice === undefined ? undefined : {name, notice};
+      return preludeRisk(this.outlookOf(f.name), (n) => translateText(n), {hold: true});
+    },
+    /**
+     * …and whether the player has ENTERED that risk stage (A pressed once).
+     * Derived from the focus, never latched alone: any d-pad move, fullscreen
+     * browse, minimize or re-open drops it by construction, so the player can
+     * never come back to a screen that is one input from losing an effect.
+     */
+    riskStage(): PreludeRisk | undefined {
+      const f = this.focusedItem;
+      if (this.riskArmed === undefined || f === undefined || f.name !== this.riskArmed) {
+        return undefined;
+      }
+      return this.focusedRisk;
+    },
+    /** The risk stage's body, with the enabling prelude's name interpolated. */
+    riskBodyText(): string {
+      const risk = this.riskStage;
+      return risk === undefined ? '' : translateTextWithParams(risk.body, [...risk.bodyParams]);
+    },
+    /** The hold gate's key — one per card, so a re-focus can never inherit a hold. */
+    riskHoldKey(): string {
+      return this.riskArmed === undefined ? '' : `start-prelude-risk:${this.riskArmed}`;
+    },
+    /**
+     * The ceremony rail's state class. A focused prelude whose effect cannot
+     * resolve takes the console's amber caution — the same one every other
+     * «this costs you» line carries — instead of the neutral cyan hint: the
+     * badge on the card and the sentence explaining it must speak with ONE
+     * voice, and they must do it BEFORE the press. The risk stage then steps
+     * up to its own state.
+     */
+    ceremonyRailClass(): string {
+      if (this.riskStage !== undefined) {
+        return 'con-start__statusrail--burn';
+      }
+      return this.focusedRisk !== undefined ?
+        'con-start__statusrail--warn' :
+        'con-start__statusrail--hint';
     },
     preludeRail(): ReadonlyArray<PreludeEntry> {
       if (this.mode !== 'ceremony') {
@@ -2488,7 +2578,8 @@ export default defineComponent({
         ceremonyVerb: this.candidatePrompt !== undefined ? this.candidateVerb : 'Play now',
         hasFocusables: this.focusables.length > 0,
         firstAction: this.firstActionBarState,
-        burnArmed: this.burnGate !== undefined,
+        riskCommitLabel: this.riskStage?.commitLabel,
+        riskHold: this.riskStage !== undefined,
       });
     },
     /** The first-action stage as the command contract sees it (see
@@ -2596,7 +2687,7 @@ export default defineComponent({
     ceremonyPromptKey() {
       if (this.mode === 'ceremony') {
         this.focusIdx = 0;
-        this.armedBurn = undefined;
+        this.clearRiskStage();
         void this.$nextTick(() => this.scrollFocusedIntoView());
       }
     },
@@ -2990,7 +3081,7 @@ export default defineComponent({
     onFrameSettle(): void {
       this.focusIdx = this.stepInitialFocus();
       this.armedSkip = false;
-      this.armedBurn = undefined;
+      this.clearRiskStage();
       this.blockedNudge = 0;
       this.counterNudge = 0;
       if (this.mode === 'wizard' && this.currentStep !== undefined) {
@@ -3574,10 +3665,70 @@ export default defineComponent({
         this.onNav(intent.dir);
         return;
       }
+      // ── THE HOLD GATE ──────────────────────────────────────────────────
+      // Inside the risk stage the committing press is a HOLD, so this surface
+      // must see BOTH edges of the button — the one place the scene reads a
+      // raw intent rather than a semantic action. Letting go is the cancel, and
+      // it is unconditional: a release that arrives after the stage has already
+      // gone (the commit ran, B was pressed, the workspace minimized) simply
+      // finds nothing held.
+      if (intent.kind === 'release') {
+        if (consoleActionOf(intent, START_INPUT_OVERRIDES) === 'primary') {
+          cancelHoldConfirm(this.riskHoldKey);
+        }
+        return;
+      }
       const action = consoleActionOf(intent, START_INPUT_OVERRIDES);
+      if (action === 'primary' && this.riskStage !== undefined) {
+        // The stage is up: A no longer «confirms», it HOLDS. A reflex double
+        // tap therefore cannot reach the commit at all — the second tap only
+        // restarts a ring the player can watch not finishing.
+        this.beginRiskHold();
+        return;
+      }
       if (action !== undefined) {
         this.onPress(action);
       }
+    },
+    /**
+     * Start the hold that COMMITS a prelude whose effect will not happen.
+     * Keyed per card, so a re-focus can never inherit somebody else's hold.
+     */
+    beginRiskHold(): void {
+      const armed = this.riskArmed;
+      if (armed === undefined) {
+        return;
+      }
+      beginHoldConfirm(this.riskHoldKey, () => {
+        // Re-check on completion: the hold spans real time, and the player may
+        // have been moved off this card by a server response in the meantime.
+        if (this.riskArmed === armed && this.focusedItem?.name === armed) {
+          this.commitRiskyPlay(armed);
+        }
+      });
+    },
+    /**
+     * THE COMMIT — the only path that plays a prelude whose effect is lost.
+     * It hands straight back to the ordinary play (`actByName` runs with the
+     * card already armed, so the gate above lets it through): the physical
+     * animation, the hero landing and the queue's own bookkeeping are the
+     * SAME ones every prelude uses. The only addition is the honest result
+     * beat, latched here so it survives the card leaving the rail.
+     */
+    commitRiskyPlay(name: CardName): void {
+      this.effectLostFor = name;
+      cancelHoldConfirm();
+      this.actByName(name);
+    },
+    /**
+     * Drop the risk stage and everything armed with it. ONE exit used by B,
+     * by every focus change, by the fullscreen browse, by the beat reset and
+     * by the commit — so «the player is one input from losing an effect» can
+     * never survive a navigation or a re-open.
+     */
+    clearRiskStage(): void {
+      this.riskArmed = undefined;
+      cancelHoldConfirm();
     },
     /**
      * DEAL CINEMATIC (console_card_deal.less / cardDealSequence.ts): decide
@@ -3682,7 +3833,7 @@ export default defineComponent({
       if (next !== this.focusIdx) {
         this.focusIdx = next;
         this.armedSkip = false;
-        this.armedBurn = undefined;
+        this.clearRiskStage();
         void this.$nextTick(() => this.scrollFocusedIntoView());
       }
     },
@@ -3697,7 +3848,7 @@ export default defineComponent({
           this.focusIdx = i;
           // Browsing away in fullscreen is a navigation like any other — an
           // armed burn does not follow the player onto the next card.
-          this.armedBurn = undefined;
+          this.clearRiskStage();
           void this.$nextTick(() => this.scrollFocusedIntoView());
         } : undefined,
       );
@@ -3796,7 +3947,7 @@ export default defineComponent({
       if (best !== -1 && best !== this.focusIdx) {
         this.focusIdx = best;
         this.armedSkip = false;
-        this.armedBurn = undefined;
+        this.clearRiskStage();
         void this.$nextTick(() => this.scrollFocusedIntoView());
       }
     },
@@ -4565,14 +4716,15 @@ export default defineComponent({
         }
         return;
       case 'back':
-        // AN ARMED BURN OUTRANKS THE MINIMIZE. There is an unconfirmed press
-        // standing against the player, so B is the way BACK out of it — one
-        // logical level, exactly as everywhere else. Minimizing instead would
-        // hide the gate with the arm still live and leave «отмена» with no
-        // button at the one moment it is the thing the player wants; the NEXT
-        // B (nothing armed) minimizes as always.
-        if (this.burnGate !== undefined) {
-          this.armedBurn = undefined;
+        // THE RISK STAGE OUTRANKS THE MINIMIZE. B here means «back to
+        // choosing»: it drops the stage, returns the card to its ordinary
+        // pose, and leaves the player free to walk to the enabling prelude
+        // themselves — the screen never plays it for them. Minimizing instead
+        // would hide the stage with the gate still armed, and take away the
+        // undo at the one moment it is the thing the player wants; the NEXT B
+        // (nothing armed) minimizes as always.
+        if (this.riskStage !== undefined) {
+          this.clearRiskStage();
           return;
         }
         // B = minimize (inspect the board; the amber chip returns — picks,
@@ -4788,22 +4940,27 @@ export default defineComponent({
       if (item === undefined || item.disabled) {
         return;
       }
-      // THE BURN GATE (see `burnGate`). A prelude carrying «СГОРИТ» is one
-      // press away from a 15 M€ discard that cannot be unmade, and the whole
-      // difference is usually the ORDER the player picks — so this press only
-      // ARMS it. The card rings amber, its A pill turns into «Подтвердить»,
-      // the rail states what it costs, and the SECOND A commits. Never a
-      // block: burning a prelude is a legal (bad) play, and the tabletop puts
-      // no order restriction on preludes — the gate costs one press, never
-      // the choice. Deliberately re-asked here rather than read off
-      // `burnGate`, so the fullscreen viewer's A (which arrives by name and
-      // may have moved the cursor on its way out) is gated identically.
-      if (item.kind === 'prelude' && this.armedBurn !== name &&
-          preludeFizzleNotice(this.preludeRail, name) !== undefined) {
-        this.armedBurn = name;
+      // ── THE PRE-COMMIT GATE ────────────────────────────────────────────
+      // A prelude whose effect cannot resolve is NOT played by this press. It
+      // ENTERS the risk stage instead: nothing is sent, nothing animates, no
+      // card moves and no empty target picker opens — the workspace simply
+      // says what is missing and what could still fix it. The commit lives
+      // behind the HOLD (`onRiskCommit`), and its verb names the loss.
+      //
+      // Never a block: burning a prelude for the 15 M€ stays a legal (bad)
+      // play, and the tabletop puts no order restriction on preludes. The gate
+      // costs one deliberate input, never the choice.
+      //
+      // Deliberately re-asked here rather than read off `riskStage`, so the
+      // fullscreen viewer's A (which arrives by NAME and may have moved the
+      // cursor on its way out) is gated identically.
+      if (item.kind === 'prelude' && this.riskArmed !== name &&
+          preludeRisk(this.outlookOf(name), (n) => translateText(n)) !== undefined) {
+        this.riskArmed = name;
+        cancelHoldConfirm();
         return;
       }
-      this.armedBurn = undefined;
+      this.clearRiskStage();
       // The card-payment beat: the server holds the exact M€ deduction behind
       // this confirm. The bought cards were shown FACE UP in the pay grid;
       // now they physically fly from there into the hand dock — measure their
@@ -5530,11 +5687,11 @@ export default defineComponent({
       if (item === undefined || item.disabled) {
         return undefined;
       }
-      // An ARMED burn keeps its verb honest here too: the viewer's A is the
+      // The RISK STAGE keeps its verb honest here too: the viewer's A is the
       // same press as the scene's, so it must not still promise «Разыграть»
-      // when what it does is confirm a discard.
-      if (this.burnGate !== undefined && this.burnGate.name === name) {
-        return 'Confirm';
+      // when what it does is give the effect up.
+      if (this.riskStage !== undefined && this.riskArmed === name) {
+        return this.riskStage.commitLabel;
       }
       // Every actionable ceremony card — incl. the deferred corporation —
       // is playable from fullscreen (the viewer closes, then actByName runs).

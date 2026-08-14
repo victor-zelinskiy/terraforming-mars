@@ -3,6 +3,7 @@ import {Resource} from '../../common/Resource';
 import {CardAction, IPlayer} from '../IPlayer';
 import {IPreludeCard} from '../cards/prelude/IPreludeCard';
 import {SelectCard} from '../inputs/SelectCard';
+import {computePreludeOutlooks} from './preludeOutlook';
 
 export class PreludesExpansion {
   public static fizzle(player: IPlayer, card: IPreludeCard): void {
@@ -29,9 +30,21 @@ export class PreludesExpansion {
     cardAction: CardAction = 'add'): SelectCard<IPreludeCard> {
     // This preps the warning attribute in preludes.
     // All preludes can be presented. Unplayable ones just fizzle.
+    //
+    // ORDER-AWARE: `preludeFizzle` answers «not now», which is one bit and was
+    // read by the UI as both «wait for another prelude» and «this is over» — so
+    // it once advertised the order fix over a button that burned the card. The
+    // structured verdict (`computePreludeOutlooks`) is the SAME question asked
+    // properly, and the legacy warning is now DERIVED from it, so the two can
+    // never disagree. Pool = what the player can still play afterwards (their
+    // remaining preludes in hand) — in a drew-N ask the rivals are discarded on
+    // the spot and enable nothing.
+    const outlooks = computePreludeOutlooks(player, cards, player.preludeCardsInHand);
     for (const card of cards) {
       card.clearWarnings();
-      if (!card.canPlay(player)) {
+      const outlook = outlooks.get(card.name);
+      card.preludeOutlook = outlook;
+      if (outlook !== undefined && outlook.state !== 'playable') {
         card.addWarning('preludeFizzle');
       }
       if (card.behavior?.addResources && player.game.inDoubleDown) {

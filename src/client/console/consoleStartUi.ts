@@ -24,7 +24,14 @@ import type {GlyphControl} from '@/client/gamepad/glyphSets';
 
 // A structural subset of the command bar's `ConsoleCommand`, so the shell can
 // render these verbatim.
-export type StartCommand = {control: GlyphControl, label: string, enabled?: boolean, highlight?: boolean};
+export type StartCommand = {
+  control: GlyphControl,
+  label: string,
+  enabled?: boolean,
+  highlight?: boolean,
+  /** The press is a HOLD (the shared confirm gate) — the bar draws the ring. */
+  hold?: boolean,
+};
 
 /** The scene facts the command contract is derived from (pure — testable). */
 export type StartSceneCommandState = {
@@ -67,15 +74,22 @@ export type StartSceneCommandState = {
   /** The ceremony has an actionable focus target. */
   hasFocusables: boolean,
   /**
-   * THE BURN GATE is armed — A was pressed on a prelude the server flagged
-   * `preludeFizzle`, so playing it now discards it for 15 M€ and the loss can
-   * never be unmade (usually only because of ORDER — «Двойная ставка» copies
-   * an ALREADY-PLAYED prelude, so the same card is a full prelude one press
-   * later). The press therefore ARMS first and the bar re-states the two
-   * things that are true of this beat and no other: A is the CONFIRM of a
-   * press already made, and B is what takes it back.
+   * THE RISK STAGE is up — A was pressed on a prelude whose effect cannot
+   * resolve right now, so the press did NOT commit: it opened the stage that
+   * says what is missing and what could still fix it.
+   *
+   * `undefined` = not in that stage. Otherwise it carries the VERB of the
+   * committing press, and that verb comes from the same function as the
+   * warning text (`preludeRisk`) — which is the whole point. The bar used to
+   * read «A — Подтвердить» beside «Сначала разыграйте другой пролог»: two true
+   * sentences whose only possible joint reading was «press A to go to the
+   * other prelude», and pressing A burned the card instead. A generic verb is
+   * therefore not merely vague here, it is WRONG, and it can no longer be
+   * supplied — this field IS the label.
    */
-  burnArmed: boolean,
+  riskCommitLabel?: string,
+  /** …and whether that press is a HOLD (the shared gate) or a second tap. */
+  riskHold?: boolean,
   /**
    * The FIRST-ACTION stage (the deployment's conditional last stage):
    *  · 'off'     — no stage (the queue grammar owns the bar);
@@ -168,18 +182,17 @@ export function startSceneCommands(s: StartSceneCommandState): Array<StartComman
     hints.push({control: 'back', label: 'Minimize'});
     return hints;
   }
-  // THE BURN GATE — the one ceremony beat where B is not «свернуть». The
-  // player has an unconfirmed press standing against them, so the way OUT of
-  // it must be the way back, not a minimize: offering «Свернуть» here would
-  // hide the gate with the arm still live and give the player no visible
-  // undo at the exact moment they most need one. A carries the plain confirm
-  // verb (never the highlight — the setup's highlight means «this press is
-  // what the game is waiting for», and a burn is never that).
-  if (s.burnArmed) {
+  // THE RISK STAGE — the one ceremony beat where B is not «свернуть» and A is
+  // not «подтвердить». The bar states, in the player's own words, exactly what
+  // the next input does: it plays the card WITHOUT its effect (held, so a
+  // reflex tap cannot produce it), and B goes back to choosing. Never the
+  // highlight — the setup's highlight means «this press is what the game is
+  // waiting for», and a lost effect is never that.
+  if (s.riskCommitLabel !== undefined) {
     return [
-      {control: 'confirm', label: 'Confirm'},
+      {control: 'confirm', label: s.riskCommitLabel, hold: s.riskHold === true},
       {control: 'secondary', label: 'Inspect'},
-      {control: 'back', label: 'Cancel'},
+      {control: 'back', label: 'Back to selection'},
     ];
   }
   return [

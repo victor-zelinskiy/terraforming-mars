@@ -18,6 +18,7 @@
 import {reactive} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardType} from '@/common/cards/CardType';
+import {PreludeOutlook} from '@/common/cards/PreludeOutlook';
 import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
@@ -299,6 +300,16 @@ export type PreludeEntry = {
    * that depends on the alternatives ({@link preludeFizzleNotice}) is presentation.
    */
   fizzles: boolean;
+  /**
+   * THE ORDER-AWARE VERDICT the server computed for this prelude
+   * (`CardModel.preludeOutlook`) — the structured form of the same question
+   * `fizzles` answers with one bit, and the only thing that can tell «played
+   * FIRST this has nothing to copy yet» apart from «this can no longer work».
+   *
+   * `undefined` on an older server; consumers then have only `fizzles` and must
+   * degrade to the flat wording rather than invent a certainty.
+   */
+  outlook?: PreludeOutlook;
 };
 
 /**
@@ -319,6 +330,13 @@ export function preludeEntries(view: PlayerViewModel): ReadonlyArray<PreludeEntr
   // (Double Down with nothing to copy; a prelude with unmet requirements).
   const fizzleNames = new Set(
     candidates.filter((c) => (c.warnings ?? []).includes('preludeFizzle')).map((c) => c.name));
+  // …and the STRUCTURED verdict behind that flag, when the server sends it.
+  const outlookByName = new Map<CardName, PreludeOutlook>();
+  for (const c of candidates) {
+    if (c.preludeOutlook !== undefined) {
+      outlookByName.set(c.name, c.preludeOutlook);
+    }
+  }
   const drawNames = drawChoiceCandidateNames(view.id);
 
   // Current name → status (insertion order: played, then hand — only used the
@@ -350,7 +368,11 @@ export function preludeEntries(view: PlayerViewModel): ReadonlyArray<PreludeEntr
   for (const name of order) {
     const status = statusByName.get(name);
     if (status !== undefined) {
-      entries.push({name, status, fizzles: status === 'playable' && fizzleNames.has(name)});
+      entries.push({
+        name, status,
+        fizzles: status === 'playable' && fizzleNames.has(name),
+        outlook: status === 'playable' ? outlookByName.get(name) : undefined,
+      });
     }
   }
   return entries;

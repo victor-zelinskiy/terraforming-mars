@@ -46,6 +46,14 @@ export class EcologyExperts extends PreludeCard {
   // mirror (`unplayableReasons`) honest. The behavior here is only `production:
   // {plants: 1}` (always executable), so this is behavior-identical to the old
   // full override while conforming to the reason-consistency invariant.
+  /**
+   * ORDER DEPENDENCY (co-located with the `bespokeCanPlay` below): the half of
+   * this card that can fail is «play a card from your hand» — so what it lacks
+   * is a legally playable PROJECT, and another prelude's draw MAY supply one.
+   * `possible`, never `guaranteed`: an unseen card is not a promise.
+   */
+  public readonly preludeNeeds = 'playableCard' as const;
+
   public override bespokeCanPlay(player: IPlayer) {
     // NOTE: If the player has production-based benefits from this prelude (like )
     player.temporaryGlobalParameterRequirementBonus += 50;

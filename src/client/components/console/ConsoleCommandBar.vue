@@ -15,7 +15,16 @@
             <GamepadGlyph :control="cmd.control2" />
           </template>
           <template v-else>
+          <!-- A HOLD press wears the shared progress ring around its glyph, so
+               «удерживать» is something the player watches happen instead of a
+               word they have to take on trust. One ring for the whole console
+               (consoleHoldConfirm) — never a per-surface affordance. -->
+          <span v-if="cmd.hold === true" class="con-cmdbar__hold"
+                :style="{'--con-hold-progress': holdProgress}"
+                :class="{'con-cmdbar__hold--live': holdProgress > 0}">
             <GamepadGlyph :control="cmd.control" />
+          </span>
+          <GamepadGlyph v-else :control="cmd.control" />
             <GamepadGlyph v-if="cmd.control2 !== undefined" :control="cmd.control2" />
             <span class="con-cmdbar__label">{{ $t(cmd.label) }}</span>
             <span v-if="cmd.badge !== undefined && cmd.badge > 0" class="con-cmdbar__badge">{{ cmd.badge }}</span>
@@ -40,7 +49,16 @@
           <GamepadGlyph :control="cmd.control2" />
         </template>
         <template v-else>
-          <GamepadGlyph :control="cmd.control" />
+          <!-- A HOLD press wears the shared progress ring around its glyph, so
+               «удерживать» is something the player watches happen instead of a
+               word they have to take on trust. One ring for the whole console
+               (consoleHoldConfirm) — never a per-surface affordance. -->
+          <span v-if="cmd.hold === true" class="con-cmdbar__hold"
+                :style="{'--con-hold-progress': holdProgress}"
+                :class="{'con-cmdbar__hold--live': holdProgress > 0}">
+            <GamepadGlyph :control="cmd.control" />
+          </span>
+          <GamepadGlyph v-else :control="cmd.control" />
           <GamepadGlyph v-if="cmd.control2 !== undefined" :control="cmd.control2" />
           <span class="con-cmdbar__label">{{ $t(cmd.label) }}</span>
           <span v-if="cmd.badge !== undefined && cmd.badge > 0" class="con-cmdbar__badge">{{ cmd.badge }}</span>
@@ -76,6 +94,7 @@ import {useConsoleViewport} from '@/client/console/composables/useConsoleViewpor
 import {commandWidthRem, contextWidthRem, handDockBayRem} from '@/client/console/consoleHandDock';
 import {ConsoleCommand, defaultDropPriority, planCommandRun} from '@/client/console/consoleCommandModel';
 import {translateText} from '@/client/directives/i18n';
+import {holdConfirmState} from '@/client/console/consoleHoldConfirm';
 
 /* The type lives in consoleCommandModel.ts (pure TS — importable by plain
  * .ts modules); re-exported here so the existing .vue importers keep their
@@ -96,6 +115,15 @@ export default defineComponent({
     return {vpWidth: width, profile, uiScale};
   },
   computed: {
+    /**
+     * The live progress of the SHARED hold gate (`consoleHoldConfirm`). Read
+     * globally on purpose: the bar shows at most one hold command at a time,
+     * so it needs no key of its own and cannot fall out of sync with whichever
+     * surface armed the hold.
+     */
+    holdProgress(): number {
+      return holdConfirmState.key === '' ? 0 : holdConfirmState.progress;
+    },
     /**
      * The TV fit plan: which commands RENDER and how they split around the
      * bay. When the run overflows both zone budgets, whole low-priority

@@ -50,6 +50,13 @@ export type ConsoleCommand = {
    */
   tone?: 'danger',
   /**
+   * The press is a HOLD, not a tap (`consoleHoldConfirm`). The bar draws the
+   * shared progress ring around the glyph, so «удерживать» is something the
+   * player SEES rather than a word they have to trust. One flag, one ring, one
+   * timing — a surface must never grow its own hold affordance.
+   */
+  hold?: boolean,
+  /**
    * TV fit model: when the run overflows the bay zones, WHOLE commands drop
    * instead of labels truncating. Higher drops first; omitted → derived
    * from the control class (defaultDropPriority). A/B never drop.

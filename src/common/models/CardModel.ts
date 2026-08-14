@@ -4,6 +4,7 @@ import {Resource} from '../Resource';
 import {AdditionalProjectCosts, CardDiscount, StandardProjectCanPayWith} from '../cards/Types';
 import {Tag} from '../cards/Tag';
 import {Warning} from '../cards/Warning';
+import {PreludeOutlook} from '../cards/PreludeOutlook';
 import {UnplayableReason} from '../cards/UnplayableReason';
 import {Message} from '../logs/Message';
 // `import type`: `ActionPreviewModel` imports `PlayerInputModel`, which imports
@@ -43,6 +44,12 @@ export interface CardModel {
     disabledReason?: string | Message;
     additionalProjectCosts?: AdditionalProjectCosts;
     warnings?: ReadonlyArray<Warning>;
+    // The ORDER-AWARE verdict for a prelude the player is being asked to play
+    // (`playable` / `deferred` + certainty + enablers / `noEffect`). Set only
+    // inside a prelude-selection prompt, computed from the real rule sources —
+    // the client renders it and never re-derives a rule. Absent on an older
+    // server: the client then falls back to the flat `preludeFizzle` warning.
+    preludeOutlook?: PreludeOutlook;
     // Structured reasons this card can't be played right now. Set only for
     // the viewer's OWN cards in hand (in their private PlayerViewModel) and
     // only when the card is currently unplayable. See UnplayableReason.

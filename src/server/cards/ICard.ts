@@ -19,6 +19,7 @@ import {OneOrArray} from '../../common/utils/types';
 import {JSONValue} from '../../common/Types';
 import {IStandardProjectCard} from './IStandardProjectCard';
 import {Warning} from '../../common/cards/Warning';
+import {PreludeNeed, PreludeOutlook} from '../../common/cards/PreludeOutlook';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
 import {ActionPreview} from '../../common/models/ActionPreviewModel';
 import {Resource} from '../../common/Resource';
@@ -246,6 +247,37 @@ export interface ICard {
   readonly warnings: ReadonlySet<Warning>;
   addWarning(warning: Warning): void;
   clearWarnings(): void;
+
+  /**
+   * PRELUDE ORDER DEPENDENCY — what this prelude's effect is waiting for when
+   * `canPlay` says no. CO-LOCATED with the card's own `canPlay` (never a
+   * fork-only central table: when upstream changes the card, the declaration
+   * is in the same diff), and deliberately declarative — the engine that
+   * reasons about play ORDER (`server/preludes/preludeOutlook.ts`) knows no
+   * card names at all, only these two vocabularies.
+   *
+   * Declare it ONLY when another prelude could plausibly create the condition.
+   * A requirement nothing at the table can change (a global parameter this
+   * generation) stays out: its honest verdict is «no effect», not «wait».
+   */
+  readonly preludeNeeds?: PreludeNeed;
+
+  /**
+   * …and what playing this prelude CREATES for someone else's `preludeNeeds`,
+   * BEYOND what the engine already reads off `behavior` (a declarative draw or
+   * an M€ gain). Only bespoke cards whose effect is invisible to `behavior`
+   * need to say this; `playedPrelude` is never declared here (every prelude
+   * creates it by being played).
+   */
+  readonly preludeProvides?: ReadonlyArray<PreludeNeed>;
+
+  /**
+   * The order-aware verdict for THIS prompt, written by `computePreludeOutlooks`
+   * just before the candidates are serialized. Ephemeral and prompt-scoped in
+   * exactly the way `warnings` is (same lifetime, same reset, not serialized as
+   * card state) — it reaches the client on `CardModel.preludeOutlook`.
+   */
+  preludeOutlook?: PreludeOutlook;
 
   readonly behavior?: Behavior,
 
