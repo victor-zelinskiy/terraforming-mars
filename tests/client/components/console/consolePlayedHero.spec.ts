@@ -33,6 +33,23 @@ function settle(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/**
+ * Wait for a FACT, with a bounded budget — never a fixed sleep sized to «how
+ * long this usually takes».
+ *
+ * The result beat is skippable but the transfers before it are real timers, and
+ * a flat `settle(700)` is a bet on the machine: it held locally and lost under a
+ * loaded CI runner, where the hooks simply had not fired yet. Polling the
+ * condition costs nothing when it is already true and only spends the budget
+ * when the machine genuinely needs it.
+ */
+async function until(what: () => boolean, budgetMs = 5000): Promise<void> {
+  const deadline = Date.now() + budgetMs;
+  while (!what() && Date.now() < deadline) {
+    await settle(10);
+  }
+}
+
 describe('consolePlayedHero (the animation transaction)', () => {
   afterEach(async () => {
     abortPlayedHero();
@@ -148,6 +165,43 @@ describe('consolePlayedHero (the animation transaction)', () => {
     expect(isPlayedHeroActive()).to.be.false;
     await settle(5);
     expect(playedHeroState.phase).to.eq('idle');
+  });
+
+  /**
+   * A DEAD EPISODE MAY NOT DRIVE THE NEXT ONE.
+   *
+   * The abort frees the commit gate IMMEDIATELY (WaitingFor must never wait on
+   * an animation), so `executeFlight` routinely outlives the transaction that
+   * started it — suspended on the source-rect poll, which in JSDOM never
+   * succeeds and therefore runs its full ~26 frames. `active` is not a lifetime:
+   * the next `armPlayedHero()` raises it again, and the stale continuation then
+   * woke up inside SOMEBODY ELSE'S play and published `phase = 'lifting'` — the
+   * phase the shell watches to tear `pendingPlayCard` down.
+   *
+   * This shipped as a CI-only failure of the neighbouring spec («expected
+   * 'lifting' to equal 'idle'»), i.e. it was found by luck of scheduling. Here it
+   * is pinned on purpose: arm a second play while the first is still suspended,
+   * and let the abandoned poll run past its whole budget.
+   */
+  it('an aborted flight never drives the NEXT play (its continuation is episode-scoped)', async () => {
+    armPlayedHero(CardName.TREES, false, {manualTableOpen: false});
+    expect(detectPlayedHero(viewWithTableau([CardName.TREES]))).to.not.be.undefined;
+    const gate = runPlayedHero(viewWithTableau([CardName.TREES]));
+    abortPlayedHero();
+    await gate; // frees at once, with the flight still suspended mid-poll
+
+    // A NEW transaction, while the old continuation is still pending.
+    armPlayedHero(CardName.ASTEROID, false, {manualTableOpen: false});
+    const phases: Array<string> = [];
+    const stop = watch(() => playedHeroState.phase, (p) => phases.push(p), {flush: 'sync'});
+    // Longer than the abandoned poll's remaining budget (26 × 16ms), so a
+    // continuation that still believed it owned the scene would have spoken.
+    await settle(520);
+    stop();
+
+    expect(phases, `the dead episode published ${JSON.stringify(phases)}`).to.be.empty;
+    expect(playedHeroState.phase, 'the new play is untouched, still merely armed').to.eq('armed');
+    expect(playedHeroState.card).to.eq(CardName.ASTEROID);
   });
 
   it('endPlayedHero after an abort is a clean no-op', async () => {
@@ -283,7 +337,9 @@ describe('consolePlayedHero (the animation transaction)', () => {
         await runPlayedHero(viewWithTableau([CardName.LOCAL_HEAT_TRAPPING]));
         expect(calls, 'nothing delivers before the dock').to.be.empty;
         const end = endPlayedHero();
-        await settle(700); // READ beat + degraded (geometry-less) transfers
+        // The READ beat + the degraded (geometry-less) transfers — waited for by
+        // their own observable, the second hook call.
+        await until(() => calls.length >= 2);
         skipPlayedHeroResult();
         await end;
         expect(calls).to.deep.eq([`emerge:${CardName.BIRDS}`, `settle:${CardName.BIRDS}`]);

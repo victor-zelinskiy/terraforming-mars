@@ -61,7 +61,34 @@ export type PromptSurface =
    * whether the board goes LIVE, whether the section is force-switched and
    * whether the context panel / command bar flip to placement.
    */
-  | 'placement';
+  | 'placement'
+  /**
+   * A FOLLOW-UP SURFACE'S OWN DOOR — the prompt-routed OPENING of a screen for
+   * a prompt that arrived beside an effect the player is still working through.
+   *
+   * WHY IT IS ITS OWN FAMILY. One press routinely produces SEVERAL effects and
+   * the server sends them in ONE response: «Научная колония» draws 2 cards
+   * (synchronously, in the executor) and DEFERS a `SelectColony`. The other
+   * families here are PRESENCE computeds — they decide whether a surface stays
+   * MOUNTED, and a surface torn down mid-cinematic is worse than one that came
+   * up early, which is exactly why `section` deliberately does not wait for
+   * `card-arrival` (the hydro draw lands its cards INSIDE a section pick, and
+   * the card deal plays inside the host). A DOOR carries no such cost: nothing
+   * of it is on screen yet, so it can wait out the whole arrival chain — and it
+   * MUST, or the next surface is handed to the player on top of the one they
+   * have not finished. That shipped as the colony grid standing under a live
+   * drawn-cards reveal, both from one play, the lower one unreachable.
+   *
+   * The list is therefore `host`'s: a follow-up step is the same thing — a
+   * continuation handed to the player after something finished, so it waits out
+   * everything that «something» is still showing.
+   *
+   * `announce-gate` is deliberately ABSENT. That gate holds a prompt CLOSED
+   * until the player's own press, and the press IS this door
+   * (`openMandatoryAnnounce`) — a door that ALSO opened on the gate's falling
+   * edge would open twice.
+   */
+  | 'followUp';
 
 /** What is holding the foreground, in the order the reason is resolved. */
 export type AdmissionBlock =
@@ -160,6 +187,9 @@ function raised(block: AdmissionBlock, s: AdmissionSignals): boolean {
  *
  * `scene` is the opening ceremony — it owns the screen and hosts its own
  * cinematics, so only a reveal or a blocking presentation outranks it.
+ *
+ * `followUp` shares `host`'s list minus the announce gate — see the member's
+ * own doc for both halves of that.
  */
 const POLICY: Record<PromptSurface, ReadonlySet<AdmissionBlock>> = {
   host: new Set<AdmissionBlock>([
@@ -178,6 +208,10 @@ const POLICY: Record<PromptSurface, ReadonlySet<AdmissionBlock>> = {
   placement: new Set<AdmissionBlock>([
     'reveal', 'played-hero', 'tile-hero', 'card-arrival',
     'card-discard', 'presentation', 'announce-gate',
+  ]),
+  followUp: new Set<AdmissionBlock>([
+    'reveal', 'played-hero', 'tile-hero', 'card-arrival', 'board-bonus',
+    'card-discard', 'presentation',
   ]),
 };
 

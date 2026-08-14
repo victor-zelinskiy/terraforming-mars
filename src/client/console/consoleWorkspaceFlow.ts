@@ -213,10 +213,10 @@ export function workspacePhaseOf(signals: {
  * its payment, a colony step stands INSIDE the activation that opened it, a
  * drawn batch is still in the air. So «the flow ended» stops being a per-flavour
  * close and becomes ONE question — is anything inside this workspace still
- * owed? — asked in one place, with the four ways it can answer «yes» NAMED
+ * owed? — asked in one place, with every way it can answer «yes» NAMED
  * rather than re-spelled at every site.
  *
- * PURE: the caller reads the four facts off the stack / the claim / the prompt;
+ * PURE: the caller reads the facts off the stack / the claim / the prompt;
  * this owns what they mean together.
  */
 
@@ -226,6 +226,19 @@ export type WorkspaceHoldReason =
   /** A step — another workspace — is standing INSIDE this one. An inner frame
    *  cannot outlive its host, so the host cannot leave first. */
   | 'nested-step'
+  /**
+   * A step this flow OWES is not on screen yet: one press produced several
+   * effects and the next one's door is still waiting for the previous one to
+   * finish being presented (`followUp` in consolePromptAdmission).
+   *
+   * The SAME FACT as `nested-step`, one beat earlier — «a host does not fold
+   * under what it carries» holds for a step that is standing inside it, for an
+   * outcome still moving, and for a step still owed. Without it «Научная
+   * колония» concluded its hand workspace the instant the drawn batch was
+   * taken, and the colony grid — the play's OTHER effect — then opened as a
+   * lateral screen of its own: one press, two unrelated places.
+   */
+  | 'owed-step'
   /** This workspace still owns an outcome artifact: on its way, or on screen. */
   | 'live-outcome'
   /** The server is still asking something this workspace serves or hosts (the
@@ -249,6 +262,8 @@ export type WorkspaceConclusion =
 export function workspaceConclusionFor(signals: {
   /** `workspaceFrameHasNested(kind)` — a step is standing inside. */
   nested: boolean,
+  /** A step this flow owes is still waiting for its door (see `owed-step`). */
+  owedStep?: boolean,
   /** This host still holds its outcome claim. */
   outcomeLive: boolean,
   /** A live prompt belongs to this workspace (embedded, or on its way there). */
@@ -258,6 +273,9 @@ export function workspaceConclusionFor(signals: {
 }): WorkspaceConclusion {
   if (signals.nested) {
     return {verdict: 'hold', reason: 'nested-step'};
+  }
+  if (signals.owedStep === true) {
+    return {verdict: 'hold', reason: 'owed-step'};
   }
   if (signals.outcomeLive) {
     return {verdict: 'hold', reason: 'live-outcome'};

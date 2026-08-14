@@ -387,6 +387,22 @@ async function executeFlight(): Promise<void> {
   if (!playedHeroState.active || card === undefined) {
     return;
   }
+  /**
+   * THIS EPISODE, and nothing else.
+   *
+   * `active` alone is not a lifetime: `abortPlayedHero()` lowers it, but the
+   * NEXT `armPlayedHero()` raises it again — so a continuation still suspended
+   * on one of the awaits below wakes up inside a DIFFERENT play and happily
+   * drives it (publishing `lifting`, blanking a source that is not its own).
+   * The abort resolves the commit gate immediately, which is exactly why this
+   * function routinely outlives the transaction that started it.
+   *
+   * `nonce` is bumped by every arm, so comparing it makes every await point
+   * safe BY CONSTRUCTION rather than by remembering to add a check — which is
+   * how the source-rect poll below came to be the one that was forgotten.
+   */
+  const episode = playedHeroState.nonce;
+  const mine = () => playedHeroState.active && playedHeroState.nonce === episode;
   playedHeroState.phase = 'preparing';
   // The table opens NOW (play-animation mode) so its +1 layout settles while
   // the card lifts; a manually-open table just gains the reserved slot. The
@@ -405,10 +421,20 @@ async function executeFlight(): Promise<void> {
   // Poll briefly (≈430ms — covers the zoom return) before giving up; the
   // proxy then lifts from the settled slot, exactly where the card stands.
   if (sourceRect === undefined) {
-    for (let i = 0; i < 26 && sourceRect === undefined && playedHeroState.active; i++) {
+    for (let i = 0; i < 26 && sourceRect === undefined && mine(); i++) {
       await frame();
       sourceRect = captureSourceRect();
     }
+  }
+  // ⚠️ THE POLL IS AN AWAIT POINT, so it needs the guard the scene's other await
+  // points have (see the one before the flight below). An abort — an error path,
+  // the 12 s safety, a play the server refused — can land INSIDE this loop, and
+  // everything below then ran anyway: it published `phase = 'lifting'` ON TOP of
+  // the abort's `failed`/`idle`, and the shell watches that phase to tear
+  // `pendingPlayCard` down. So an aborted play went on driving the transaction it
+  // had just cancelled.
+  if (!mine()) {
+    return; // aborted mid-scene — abort already cleaned up
   }
 
   if (sourceRect !== undefined) {
@@ -443,7 +469,7 @@ async function executeFlight(): Promise<void> {
   }
   const target = await targetPromise;
 
-  if (!playedHeroState.active) {
+  if (!mine()) {
     return; // aborted mid-scene — abort already cleaned up
   }
   if (playedHeroState.proxy === undefined || els === undefined) {

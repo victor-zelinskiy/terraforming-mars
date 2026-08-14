@@ -5426,6 +5426,30 @@ html.console-mode {
         min-height: 0;
         z-index: 2;
     }
+    /* ── EVERY OCCUPANT OWNS THE WHOLE ZONE — a LAYER STACK, never a row.
+       This zone hosts the play composer (a PHASE of this frame) and any STEP
+       nested inside that phase (the colony pick a played card owes), and both
+       are `flex: 1; width: 100%`. As flex SIBLINGS they therefore SHARE the
+       band: the colony grid was laid out into 521 px of a 1621 px zone, solved
+       its tile fit for that box, and jumped to full width when the composer
+       left — «сначала половина экрана, криво рендерится, потом весь workspace».
+       The same law the deck-pick source seat pays with `position: absolute`:
+       CONTEXT MUST NOT SHRINK WHAT IT IS CONTEXT FOR.
+
+       Sequencing keeps them from OVERLAPPING in the first place (a step's
+       door waits for the previous effect — `followUp` admission), but a
+       departing surface still paints for the whole of its leave, so «they
+       never coexist» can only ever be true of the DECISION, not of the DOM.
+       Layering makes the arriving step full-size regardless.
+
+       The class is DOUBLED on purpose: `.con-composer--embed` declares its own
+       `position: relative` at equal specificity and LATER in this file, so a
+       single-class rule here loses the tie silently — the one failure mode with
+       no visible tell until a step arrives and is squeezed again. */
+    &__stage&__stage > * {
+        position: absolute;
+        inset: 0;
+    }
     /* ARMING — the enter phrase's window between the zone opening and the
        work-surface groups' materialize: groups born in it (the composer
        teleports in one flush after the zone) stay hidden until the cascade

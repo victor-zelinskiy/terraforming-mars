@@ -113,6 +113,20 @@ describe('consoleWorkspaceFlow — the commit boundary', () => {
         .to.deep.eq({verdict: 'hold', reason: 'nested-step'});
     });
 
+    /**
+     * ONE PRESS, SEVERAL EFFECTS. «Научная колония» draws 2 cards AND builds a
+     * colony, and the server sends both in one response. The colony's door waits
+     * for the batch to be taken — so at the moment the last card is taken this
+     * flow owns no outcome, hosts no step and is asked no prompt, and it used to
+     * DISMISS: the workspace left, and the play's second effect then opened as a
+     * lateral screen of its own. A step still owed is the same fact as a step
+     * standing inside, one beat earlier.
+     */
+    it('REGRESSION: holds while a step it OWES has not been handed over yet', () => {
+      expect(workspaceConclusionFor({...done, owedStep: true}))
+        .to.deep.eq({verdict: 'hold', reason: 'owed-step'});
+    });
+
     it('holds while this host still owns its outcome (in the air, or on screen)', () => {
       expect(workspaceConclusionFor({...done, outcomeLive: true}))
         .to.deep.eq({verdict: 'hold', reason: 'live-outcome'});
@@ -132,8 +146,11 @@ describe('consoleWorkspaceFlow — the commit boundary', () => {
     });
 
     it('reports the STRONGEST reason when several hold at once', () => {
-      expect(workspaceConclusionFor({nested: true, outcomeLive: true, ownsPrompt: true, parked: true}))
+      expect(workspaceConclusionFor(
+        {nested: true, owedStep: true, outcomeLive: true, ownsPrompt: true, parked: true}))
         .to.deep.eq({verdict: 'hold', reason: 'nested-step'});
+      expect(workspaceConclusionFor({...done, owedStep: true, outcomeLive: true, parked: true}))
+        .to.deep.eq({verdict: 'hold', reason: 'owed-step'});
       expect(workspaceConclusionFor({...done, outcomeLive: true, ownsPrompt: true, parked: true}))
         .to.deep.eq({verdict: 'hold', reason: 'live-outcome'});
     });

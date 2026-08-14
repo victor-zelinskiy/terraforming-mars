@@ -217,6 +217,47 @@ export function shellTaskOnSurface(task: ConsoleTask | undefined, ctx: ShellSurf
 }
 
 /**
+ * A FOLLOW-UP STEP — the prompt kinds whose surface opens as a STEP INSIDE the
+ * flow that produced it, together with the crumb tail that step carries.
+ *
+ * ONE PRESS CAN PRODUCE SEVERAL EFFECTS, and the server sends them in one
+ * response: «Научная колония» draws 2 cards and defers a `SelectColony`. The
+ * draw's surface must be worked through first (`followUp` in
+ * consolePromptAdmission holds the step's door), which makes «a step is OWED»
+ * a real state of the flow — and while it lasts:
+ *
+ *   · the flow may not CONCLUDE (`owed-step` in consoleWorkspaceFlow) — its
+ *     workspace is the step's host-to-be;
+ *   · the host may not fold its descent — the zone the step will teleport into
+ *     is that descent's own;
+ *   · the CRUMB names the step already, because a breadcrumb only ever moves
+ *     FORWARD: falling back to «РОЗЫГРЫШ» for the gap between the batch leaving
+ *     and the door opening would step backwards through a flow that does not.
+ *     The value is the SAME key `openColoniesForPrompt` pushes as the frame's
+ *     stage, so the line animates once and then stands still.
+ *
+ * A table rather than a `=== 'colony'` at three call sites: a new step-shaped
+ * follow-up is a row here, and the crumb / the hold / the door read the one
+ * answer. Deliberately NOT `handSelect` — a discard the played card forced is
+ * not a step of the play (it needs the hand's own browse layer, which the
+ * play's descent has parked; see `servedPromptHolds` in `concludeWorkspaceFlow`).
+ */
+const FOLLOW_UP_STEP_STAGES: Partial<Record<TaskKind, string>> = {
+  // The name `ConsoleColoniesSection` publishes UP for an embedded pick (its
+  // `embeddedCrumb` default) and the one `openColoniesForPrompt` pushes — ONE
+  // stage, ONE word, so the tail animates once and then stands still. It said
+  // «КОЛОНИИ» here and the section corrected it to «ВЫБОР КОЛОНИИ» a frame
+  // later: two animations to say one thing.
+  colony: 'Colony selection',
+};
+
+/** Does this prompt open as a step INSIDE the flow that produced it, and under
+ *  what crumb tail? `undefined` = not a step-shaped follow-up. */
+export function followUpStepStage(kind: TaskKind | undefined): string | undefined {
+  return kind === undefined ? undefined : FOLLOW_UP_STEP_STAGES[kind];
+}
+
+/**
  * Kinds served by the full-screen START SCENE (T5): the `initialCards`
  * wizard (corporation / preludes / CEO / project buy / summary) and the
  * marked start-sequence prompts (play preludes one by one, apply the corp

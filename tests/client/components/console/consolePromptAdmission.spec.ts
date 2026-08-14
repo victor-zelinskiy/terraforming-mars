@@ -26,7 +26,8 @@ function idle(): AdmissionSignals {
   };
 }
 
-const SURFACES: ReadonlyArray<PromptSurface> = ['host', 'section', 'standaloneModal', 'scene', 'placement'];
+const SURFACES: ReadonlyArray<PromptSurface> =
+  ['host', 'section', 'standaloneModal', 'scene', 'placement', 'followUp'];
 
 describe('consolePromptAdmission (the one prompt-surface admission gate)', () => {
   beforeEach(() => resetPromptAdmission());
@@ -131,6 +132,45 @@ describe('consolePromptAdmission (the one prompt-surface admission gate)', () =>
         expect(isPromptAdmitted(surface, s), surface).to.be.false;
       }
       expect(isPromptAdmitted('scene', s)).to.be.true;
+    });
+  });
+
+  /*
+   * ONE PRESS, SEVERAL EFFECTS — «Научная колония» draws 2 cards AND defers a
+   * `SelectColony`, so one response carries a batch to work through and the next
+   * surface's prompt. `followUp` is the DOOR that surface opens through.
+   */
+  describe('the FOLLOW-UP door (a step of the flow that produced it)', () => {
+    it('waits out the WHOLE arrival chain — which is what `section` does not', () => {
+      // The deck is still dealing: `section` is admitted here BY DESIGN (holding
+      // a live section would unmount the stage the cinematic plays on), and that
+      // gap is exactly where the colony grid used to stand up under the batch.
+      const dealing = {...idle(), cardArrival: true};
+      expect(isPromptAdmitted('section', dealing), 'section keeps its surface').to.be.true;
+      expect(promptAdmissionBlock('followUp', dealing)).to.equal('card-arrival');
+      // …and every other link of the same chain.
+      expect(promptAdmissionBlock('followUp', {...idle(), playedHero: true})).to.equal('played-hero');
+      expect(promptAdmissionBlock('followUp', {...idle(), revealPending: true})).to.equal('reveal');
+      expect(promptAdmissionBlock('followUp', {...idle(), revealOpen: true})).to.equal('reveal');
+      expect(promptAdmissionBlock('followUp', {...idle(), tileHero: true})).to.equal('tile-hero');
+      expect(promptAdmissionBlock('followUp', {...idle(), boardBonus: true})).to.equal('board-bonus');
+      expect(promptAdmissionBlock('followUp', {...idle(), cardDiscard: true})).to.equal('card-discard');
+      expect(promptAdmissionBlock('followUp', {...idle(), presentation: true})).to.equal('presentation');
+    });
+
+    /*
+     * The announce gate holds a prompt CLOSED until the player's press, and that
+     * press IS this door — a door that also opened on the gate's falling edge
+     * would open twice.
+     */
+    it('is NOT held by the announce gate (the press is the door)', () => {
+      expect(isPromptAdmitted('followUp', {...idle(), announceGate: true})).to.be.true;
+    });
+
+    /* A 'notification-only' hold (the intake / the deal) is covered by
+     * `card-arrival` already; the ambient scope must not hold a door on its own. */
+    it('is not held by an ambient animation hold', () => {
+      expect(isPromptAdmitted('followUp', {...idle(), anyAnimation: true})).to.be.true;
     });
   });
 

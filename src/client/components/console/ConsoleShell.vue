@@ -1284,6 +1284,7 @@ import {
   workspaceFrameTarget,
   workspaceHostForStep,
   workspaceStackCollapsed,
+  workspaceStackCrumb,
   workspaceStackState,
   workspaceStackTopAxis,
   FrameAnchor,
@@ -1397,7 +1398,7 @@ import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, p
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, drawnCardsState, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
-import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
+import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
@@ -2196,17 +2197,21 @@ export default defineComponent({
     presentationHeld(): boolean {
       return isMandatoryPromptsHeld();
     },
-    /** A blocking foreground presentation is up: the console reveal overlay
-     *  (drawn cards / result / viewer) OR a mandatory hold (bot-turn holding
-     *  card / theater). While busy, a pending shell-section prompt is held
-     *  BEHIND it and its section is NOT auto-opened; a watcher opens the
-     *  serving surface the moment this clears (else it'd be a stranded prompt). */
+    /**
+     * SOMETHING THE PLAYER IS STILL WORKING THROUGH OWNS THE FOREGROUND — so no
+     * prompt-routed DOOR may open into it. While busy, a pending shell-section
+     * prompt is held BEHIND what is running; a watcher opens the serving surface
+     * the moment this clears (else it'd be a stranded prompt).
+     *
+     * It is the `followUp` ADMISSION, not a list of its own. The hand-rolled
+     * version listed the reveal, the presentation hold, the played hero and the
+     * card arrival — and had drifted from the policy it was paraphrasing by four
+     * signals (a PENDING reveal batch, the tile-placement hero, a live discard
+     * transaction, and the watchdog's staleness mask). That is precisely the
+     * drift `consolePromptAdmission` exists to end: one table, one evaluation.
+     */
     consoleForegroundBusy(): boolean {
-      return this.consoleRevealMode !== undefined || this.presentationHeld || this.playedHeroHolds ||
-        // Cards still travelling (deck draw / board lift / the intake into the
-        // dock) — the SAME rule the host family follows, so a hand-select
-        // prompt cannot open over a card in the air either.
-        this.cardArrivalBusy;
+      return !this.admits('followUp');
     },
     /** The surface-motion shade (`.con-shade--on`): ≥1 migrated band surface
      *  owns the foreground, a committed submit is awaiting its answer, or
@@ -3910,9 +3915,26 @@ export default defineComponent({
       // landing tableau dissolves there and the drawn cards are visibly on
       // their way, so a crumb that fell back to «РОЗЫГРЫШ» for that stretch
       // would step BACKWARDS through a flow that only ever moves forward.
+      // …and once that batch is gone, the tail moves ON to the step this play
+      // still OWES (the colony it also builds), whose door is waiting for the
+      // cards to finish landing. Without it the line fell back to «РОЗЫГРЫШ»
+      // for that gap — backwards, through a flow that only ever moves forward —
+      // and then forward again to the same word the step itself publishes, so
+      // the crumb animated twice to say one thing.
       const outcomeStage = this.handOutcomeLive && (this.workspaceOutcomeEmbedded || deckDrawDealing()) ?
-        (workspaceOutcomeState.phaseKey !== '' ? workspaceOutcomeState.phaseKey : focusKicker('draw')) : '';
-      const stage = outcomeStage !== '' ? outcomeStage : workspaceFrameStage('hand');
+        (workspaceOutcomeState.phaseKey !== '' ? workspaceOutcomeState.phaseKey : focusKicker('draw')) :
+        this.followUpStepStageKey;
+      // …and once that owed step actually STANDS, the tail is the DEEPEST
+      // frame's, not ours. It used to stop at the hand, so the moment the colony
+      // grid opened inside this workspace the line read «КАРТЫ В РУКЕ › НАУЧНАЯ
+      // КОЛОНИЯ › РОЗЫГРЫШ» — naming a stage the player had just left, one
+      // screen up. The step publishes its own name UP the stack
+      // (`setWorkspaceFrameStage`), so this is a READ of the one source, never a
+      // second one; it outranks the terms below because depth outranks phase.
+      const nestedStage = workspaceFrameHasNested('hand') ?
+        (workspaceStackCrumb()?.stage ?? '') : '';
+      const stage = nestedStage !== '' ? nestedStage :
+        (outcomeStage !== '' ? outcomeStage : workspaceFrameStage('hand'));
       return {
         subject: workspaceFrameSubject('hand'),
         name: stage === '' ? 'Playing' : stage,
@@ -4530,6 +4552,56 @@ export default defineComponent({
       return this.playerView.waitingFor?.type === 'colony';
     },
     /**
+     * …AND THE SURFACE MAY OPEN FOR IT NOW — the colony workspace's own DOOR.
+     *
+     * The prompt above is the structural latch; this is the admission. It was
+     * the ONE prompt-routed door that never asked (`waitingFor.type === 'colony'`
+     * raw, straight into `pushWorkspaceFrame`), and that is the whole of the
+     * reported bug: «Научная колония» draws 2 cards AND builds a colony in one
+     * response, so the grid stood up on the raw prompt while the drawn batch
+     * assembled on top of it — two live decision surfaces from one press, the
+     * lower one unreachable. Worse, both teleport into the SAME zone, so the
+     * grid was laid out beside whatever still occupied it (the landing tableau,
+     * then the reveal) and re-solved its fit when that left: measured 521 px of
+     * a 1621 px band, then a jump to full width — «сначала половина экрана,
+     * криво, потом весь workspace».
+     *
+     * GATED, NOT DEFERRED: the value is reactive, so the door opens by itself
+     * the instant the previous effect has finished being presented (for a draw
+     * that is «every card taken and landed» — the `followUp` policy's whole
+     * arrival chain). Nothing else changes: the same door, the same host
+     * resolution, the same crumb — one beat later.
+     */
+    colonyPromptOpenable(): boolean {
+      return this.colonyPromptRaw && this.admits('followUp');
+    },
+    /**
+     * A STEP THIS FLOW OWES IS NOT ON SCREEN YET — the door above is holding it
+     * back while the previous effect of the same press finishes.
+     *
+     * THE THIRD FORM OF «a host does not fold under what it carries». The first
+     * is a step STANDING inside it (`workspaceFrameHasNested`), the second is an
+     * outcome still MOVING (`handOutcomeLive`), and this is one still OWED —
+     * without it the take folded the hand's descent and concluded its workspace,
+     * and the colony grid then opened as a lateral screen: one press, two
+     * unrelated places. Read by the conclusion (`owed-step`), by the descent's
+     * fold guard and by the crumb, which names the coming step rather than
+     * stepping backwards for the gap.
+     *
+     * `frameServing` covers the PARK too: a chain the player set aside already
+     * has a home for this prompt, so nothing is owed.
+     */
+    followUpStepOwed(): boolean {
+      const task = taskFor(this.playerView);
+      return task !== undefined && followUpStepStage(task.kind) !== undefined &&
+        !this.consoleState.task.deferred && frameServing(task.kind) === undefined &&
+        !this.admits('followUp');
+    },
+    /** The crumb tail an OWED step already carries (see `followUpStepOwed`). */
+    followUpStepStageKey(): string {
+      return (this.followUpStepOwed ? followUpStepStage(taskFor(this.playerView)?.kind) : undefined) ?? '';
+    },
+    /**
      * The colony FOLLOW-UP is still running: the prompt itself, the armed
      * fleet flight, the reward transaction, the claimed Pluto payout — or ANY
      * leg of the colony RESOLUTION (a mandatory bonus discard, its physical
@@ -4583,9 +4655,16 @@ export default defineComponent({
      * only ever removed from the top, so a host cannot vanish out from under
      * the step it is carrying. That disagreement between ownership and presence
      * was the soft-lock.
+     *
+     * It reads the DOOR (`colonyPromptOpenable`), never the raw prompt: a prompt
+     * whose door is deliberately held behind a running cinematic is not
+     * stranded, it is WAITING — and healing it there would re-open the very
+     * overlap the gate exists to remove. The leak detector agrees by
+     * construction (`isAnimationHoldActive` early-returns), and the value is
+     * reactive, so the heal still fires the moment the chain clears.
      */
     colonyPromptStranded(): boolean {
-      return this.colonyPromptRaw && !this.consoleState.task.deferred &&
+      return this.colonyPromptOpenable && !this.consoleState.task.deferred &&
         workspaceFrameIndex('colonies') === -1;
     },
     hydroActionAvailable(): boolean {
@@ -6140,7 +6219,11 @@ export default defineComponent({
     // second place recording «who hosts whom», so it cannot disagree with the
     // stack, and the host cannot be re-derived later (after the composer left,
     // after a screen change) into a different answer.
-    colonyPromptRaw(on: boolean) {
+    // …and it is the ADMITTED door, never the raw prompt (`colonyPromptOpenable`):
+    // one press can produce several effects in one response, and the previous
+    // one must be worked through before this surface is handed over. Reactive,
+    // so the push happens by itself on the frame the chain clears.
+    colonyPromptOpenable(on: boolean) {
       if (!on || workspaceFrameIndex('colonies') !== -1) {
         return;
       }
@@ -6735,18 +6818,22 @@ export default defineComponent({
       // prompt-identity change that moved the flow on. One place, so a phase
       // can never outlive its flow and leave the shelf parked behind nothing.
       //
-      // TWO exceptions, and they are the same fact twice — something this
-      // frame is CARRYING is still standing inside it, and a host cannot fold
-      // under it:
+      // THREE exceptions, and they are the same fact three times — something
+      // this frame is CARRYING is still owed, and a host cannot fold under it:
       //  · a nested STEP (the played card's colony follow-up);
-      //  · this play's own OUTCOME (the cards it drew, the pick it raised).
+      //  · this play's own OUTCOME (the cards it drew, the pick it raised);
+      //  · a step still OWED — its door is held behind the effect that arrived
+      //    with it (one press, several effects). Folding here would retract the
+      //    very zone that step is going to teleport into, and the grid would then
+      //    open as a lateral screen instead of one level deeper.
       // Without the second one the composer's departure un-parked the browse
       // grid UNDERNEATH the embedded reveal: the hand shelf stood fully lit
       // behind the drawn card, the toolbar came back, and the crumb dropped
       // its tail — a decision surface floating over the screen it belongs to,
       // which is exactly the «modal that arrived» reading the embedding
       // exists to remove.
-      if (now === undefined && !workspaceFrameHasNested('hand') && !this.handOutcomeLive) {
+      if (now === undefined && !workspaceFrameHasNested('hand') && !this.handOutcomeLive &&
+          !this.followUpStepOwed) {
         this.foldHandStage();
       }
     },
@@ -7360,8 +7447,16 @@ export default defineComponent({
           // workspace of its own, and the first restore would then splice the
           // live stack away underneath the player with no close and no fold.
           // (`consoleForegroundBusy`'s auto-open is gated the same way.)
+          //
+          // …and it asks the DOOR's admission, not the section's. `shellTask` is
+          // a PRESENCE computed: it deliberately waits for less than an opening
+          // does (holding a live section for `card-arrival` would unmount the
+          // stage a cinematic is playing on — see `followUp`). Response-driven
+          // auto-opening is an OPENING, so a prompt that rides the same payload
+          // as a still-running effect waits here; `consoleForegroundBusy`'s own
+          // watcher opens it the moment that effect is finished.
           const shellTask = this.shellTask;
-          if (shellTask !== undefined && !this.consoleState.task.deferred) {
+          if (shellTask !== undefined && !this.consoleState.task.deferred && this.admits('followUp')) {
             this.openShellTaskSurface(shellTask);
           }
         }
@@ -7514,7 +7609,11 @@ export default defineComponent({
         // crumb tail hands over to the step now standing inside it.
         setWorkspaceFramePhase(host, 'committed');
         pushWorkspaceFrame({
-          kind: 'colonies', subject: '', stage: 'Colonies', phase: 'committed',
+          // The SAME stage name the section publishes up on mount (and the same
+          // one the reversible branch above pushes): a frame that opens under a
+          // placeholder its own surface immediately corrects makes the crumb
+          // tail animate twice to say one thing.
+          kind: 'colonies', subject: '', stage: 'Colony selection', phase: 'committed',
           serves: ['colony'], anchor,
         });
       }
@@ -11154,6 +11253,13 @@ export default defineComponent({
       const task = taskFor(this.playerView);
       const conclusion = workspaceConclusionFor({
         nested: workspaceFrameHasNested(kind),
+        // …and a step this flow OWES but has not been handed yet: the door is
+        // held behind the effect that arrived with it, and THIS workspace is the
+        // host it will teleport into (`workspaceHostForStep` is the same lookup
+        // `openColoniesForPrompt` will make). Concluding here would drop the
+        // player on the board and then throw the second effect at them as a
+        // screen of its own.
+        owedStep: this.followUpStepOwed && workspaceHostForStep() === kind,
         outcomeLive: mine,
         // The second half of a pick-then-pay and a DRAW & SELECT still standing
         // in our zone are both this activation, still being answered — and so
@@ -12584,6 +12690,12 @@ export default defineComponent({
       hostKind: workspaceFrameHost('colonies') ?? null,
       embedTarget: this.colonyEmbedTarget ?? null,
       promptRaw: this.colonyPromptRaw,
+      // …and whether its own DOOR is open yet: a prompt that is live while its
+      // surface is deliberately held is the state the sequencing probes read
+      // («one press, several effects» — the previous one is still being worked
+      // through). `owedStep` is the same fact from the FLOW's side.
+      promptOpenable: this.colonyPromptOpenable,
+      owedStep: this.followUpStepOwed,
       followUp: this.colonyFollowUpLive,
       section: this.consoleState.section,
       sheet: this.consoleState.sheet ?? null,

@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {taskFor, taskServedByHost, isNativelyHandled, taskMinimizable, NATIVE_KINDS, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
+import {taskFor, taskServedByHost, isNativelyHandled, taskMinimizable, followUpStepStage, NATIVE_KINDS, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, ConsoleTask, TaskKind} from '@/client/console/consoleTaskRouter';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 
 /* Synthetic playerViews — only the fields the router reads. */
@@ -289,6 +289,40 @@ describe('consoleTaskRouter (CTS-2 coverage)', () => {
     // …and the two kinds no console surface serves at all.
     expect(taskMinimizable('composite')).to.eq(false);
     expect(taskMinimizable('unknown')).to.eq(false);
+  });
+
+  /*
+   * A FOLLOW-UP STEP — the prompt kinds whose surface opens INSIDE the flow that
+   * produced it, so «a step is owed» is a real state of that flow: it holds the
+   * conclusion, holds the descent open and names the crumb tail in advance.
+   */
+  describe('followUpStepStage (the step-shaped follow-ups)', () => {
+    it('a colony pick is a step of its flow, under the crumb the frame publishes', () => {
+      // The SAME key `openColoniesForPrompt` pushes and `ConsoleColoniesSection`
+      // publishes up — one stage, one word, so the tail animates once.
+      expect(followUpStepStage('colony')).to.eq('Colony selection');
+    });
+
+    /* A discard the played card FORCED is not a step of the play: it needs the
+     * hand's own browse layer, which that play's descent has parked. */
+    it('a forced hand pick is NOT one', () => {
+      expect(followUpStepStage('handSelect')).to.be.undefined;
+      expect(followUpStepStage('projectCard')).to.be.undefined;
+      expect(followUpStepStage('space')).to.be.undefined;
+      expect(followUpStepStage(undefined)).to.be.undefined;
+    });
+
+    /* The door being gated is `openShellTaskSurface`'s, so a step-shaped
+     * follow-up has to be a kind a SHELL SECTION serves — otherwise the gate
+     * would hold a prompt no section ever opens for. */
+    it('a step-shaped follow-up is a kind a shell section serves', () => {
+      const stepKinds = ([...SHELL_SECTION_KINDS, 'space', 'choice', 'payment'] as ReadonlyArray<TaskKind>)
+        .filter((kind) => followUpStepStage(kind) !== undefined);
+      expect(stepKinds).to.deep.eq(['colony']);
+      for (const kind of stepKinds) {
+        expect(SHELL_SECTION_KINDS.has(kind), kind).to.eq(true);
+      }
+    });
   });
 
   it('a start-game MARKER outranks the raw input type (structural rule)', () => {
