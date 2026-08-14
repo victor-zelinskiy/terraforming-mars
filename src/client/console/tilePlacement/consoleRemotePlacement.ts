@@ -68,11 +68,37 @@ import {
   holdCubeForHeroPlacement, dropCubeForHeroPlacement, restCubeForHeroPlacement,
 } from '@/client/components/board/cubeDropState';
 import {TransferPoint} from '@/client/console/resourceTransfer/resourceTransferModel';
+import {workspaceStackActive} from '@/client/console/consoleWorkspaceStack';
+import {playedHeroHolding} from '@/client/console/played/consolePlayedHero';
+import {isDeckDrawActive} from '@/client/console/deckDraw/consoleDeckDraw';
+import {currentRevealEvent} from '@/client/components/drawnCards/drawnCardsState';
 
 /** A whole queue can legitimately take several seconds (N sequential
  *  flights) — far past that, something stalled and every held tile must
  *  become visible. Deliberately under the animation-hold 35 s ceiling. */
 const REMOTE_STAGE_SAFETY_MS = 15000;
+
+/**
+ * HOW LONG A LANDING WILL WAIT FOR A BOARD THE PLAYER CAN SEE.
+ *
+ * A tile that places itself (a card's own reserved slot — Stratopolis,
+ * Ganymede, Phobos) arrives while the player is still INSIDE the workspace
+ * they played it from, and the board section is `display: none` behind it. Two
+ * things followed, and they are the same bug: `measureBoardHexRect` reads a
+ * zero rect and the flight degrades to an instant reveal, so by the time the
+ * workspace folds the tile is simply THERE — the placement never happened as
+ * far as the player is concerned.
+ *
+ * So the landing waits for the board instead. Bounded, because a hidden tile
+ * is a worse lie than a missed animation: a player who parks a workspace and
+ * walks away must still find their city on the map.
+ */
+const BOARD_WAIT_MAX_MS = 20000;
+
+/** …and once it IS back, the flight lets the screen settle first: the
+ *  workspace's own leave is still dissolving over the board it just vacated,
+ *  and a tile landing under it is the same invisible flight one beat later. */
+const BOARD_SETTLE_MS = 320;
 
 export const remotePlacementState = reactive({
   /** TRUE while a remote proxy is on stage (drives the layer's remote block). */
@@ -243,9 +269,20 @@ async function drainQueue(): Promise<void> {
 }
 
 async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
+  // THE BOARD MUST BE WATCHABLE FIRST. A landing nobody can see is not a
+  // landing — and it is worse than that here, because the board section is
+  // `display: none` behind a workspace, so the flight would not even resolve
+  // a rect: it would degrade to an instant reveal and the tile would simply
+  // BE there when the workspace folds. This is the whole reason the tile
+  // stays held: the wait costs nothing (the cell reads untouched) and buys
+  // the player the one moment the placement actually happens.
+  await awaitWatchableBoard(myEpoch);
+  if (epoch !== myEpoch) {
+    return;
+  }
   const hex = measureBoardHexRect(ev.spaceId);
   if (hex === undefined) {
-    degradeReveal(ev); // the board isn't measurable (section hidden) — no flight
+    degradeReveal(ev); // still unmeasurable (a hidden section) — no flight
     return;
   }
   const ui = conUiScale();
@@ -284,6 +321,51 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   if (epoch === myEpoch && ev.color !== undefined) {
     dropCubeForHeroPlacement(ev.spaceId);
   }
+}
+
+/**
+ * IS SOMETHING STANDING OVER THE BOARD? Each term is a surface that owns the
+ * screen while it is up, and behind every one of them the board is either
+ * hidden outright (`v-show` on the section) or unwatchable:
+ *  · a WORKSPACE screen — the hand, the action centre, the colonies, the
+ *    deployment… all of them are frames in the one stack (a PARKED stack is
+ *    deliberately not: parking is the player going to look at the board);
+ *  · the played-card scene, which owns the foreground through its landing;
+ *  · the deck dealing — cards are physically crossing the screen;
+ *  · a drawn batch still on the table.
+ */
+function boardCovered(): boolean {
+  return workspaceStackActive() || playedHeroHolding() || isDeckDrawActive() ||
+    currentRevealEvent() !== undefined;
+}
+
+/**
+ * Wait for the board to come back, then let it settle. Bounded (see
+ * `BOARD_WAIT_MAX_MS`) — past that the tile shows without its flight, the same
+ * honest degradation as an unmeasurable board.
+ *
+ * The stage safety is re-armed while we wait ON PURPOSE: nothing is stalled
+ * here, so its 15 s stall clock must not spend itself on a deliberate hold —
+ * it starts counting when the flight can actually run.
+ */
+function awaitWatchableBoard(myEpoch: number): Promise<void> {
+  if (!boardCovered()) {
+    return Promise.resolve();
+  }
+  const deadline = Date.now() + BOARD_WAIT_MAX_MS;
+  return new Promise<void>((done) => {
+    const poll = () => {
+      if (epoch !== myEpoch || !boardCovered() || Date.now() > deadline) {
+        // The board is back (or we gave up): let the workspace's own leave
+        // finish before the tile flies into the space it just vacated.
+        window.setTimeout(done, epoch === myEpoch ? motionMs(BOARD_SETTLE_MS) : 0);
+        return;
+      }
+      armStageSafety();
+      window.setTimeout(poll, 140);
+    };
+    poll();
+  });
 }
 
 /** The degraded path (no stage / unmeasurable board): the committed tile
