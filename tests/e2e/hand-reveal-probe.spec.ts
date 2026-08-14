@@ -1,7 +1,7 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, APIRequestContext, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, press} from './consoleStart';
+import {bootIntoGame} from './consoleStart';
 
 /**
  * HAND REVEAL probe — the dock ↔ hand-overlay physical transition
@@ -90,21 +90,18 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
  * shared start driver's job (`consoleStart`), not a key script that a start
  * rework silently invalidates.
  */
-async function bootGame(page: Page, request: any, buyProjects: number, profileQuery = ''): Promise<void> {
-  const created = await request.post('/api/creategame', {data: newGameConfig()});
-  expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-  const model = await created.json() as {players: Array<{id: string}>};
-  await page.goto(`/player?id=${model.players[0].id}&console=1${profileQuery}`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  await bootToBoard(page, {
-    onStep: async (p, kind) => {
-      if (kind === 'corporation') {
-        await press(p, 'Enter', 600);
-      } else if (kind === 'project') {
-        await fillPicks(p, buyProjects); // the cards this probe needs in hand
-      }
-    },
+async function bootGame(page: Page, request: APIRequestContext, buyProjects: number, profileQuery = ''): Promise<void> {
+  // ⚠️ THE API PATH, not the wizard walk. The subject here is the dock ↔ hand
+  // transition, so the pregame is pure SETUP — and `consoleStart`'s own contract
+  // is that a spec whose subject is NOT the pregame answers it over
+  // `player/input` instead of simulating a keyboard through it («seconds instead
+  // of minutes, and none of the walk's load-sensitivity»). Six tests in this
+  // file each walked a full wizard; that walk, not the episode under test, was
+  // most of the file's 6.6-minute runtime.
+  await bootIntoGame(page, request, {
+    config: newGameConfig(),
+    buy: buyProjects, // the cards this probe needs in hand
+    query: profileQuery,
   });
   // The hand must actually hold cards — otherwise the episode under test
   // has nothing to fly and every assertion below would be vacuous.

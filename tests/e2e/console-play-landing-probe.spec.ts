@@ -623,7 +623,12 @@ function assertScene(log: SceneLog, opts: {isEvent: boolean, minEvents?: number}
 }
 
 test.describe('console Game Start Workspace + play landing', () => {
-  test.describe.configure({mode: 'serial'});
+  /*
+   * NOT `serial`. Every test below boots its OWN game and drives its OWN page,
+   * so they share nothing — while `serial` costs twice over: a failure in the
+   * first marks the other three «did not run» (they vanish from the report
+   * entirely), and the file can never use more than one worker.
+   */
 
   test('4K TV: the root-connected start flow commits to READY before release', async ({page, request}) => {
     test.setTimeout(600_000);
