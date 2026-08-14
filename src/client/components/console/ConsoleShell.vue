@@ -11962,7 +11962,7 @@ export default defineComponent({
      * re-mounted by its own v-if, showing «Выберите вариант» again — which is
      * exactly where the player was before choosing this branch.
      */
-    onTaskHandPick(payload: {index: number, cardPrompt: SelectCardModel, source?: EffectDecisionSource}): void {
+    onTaskHandPick(payload: {index: number, cardPrompt: SelectCardModel, source?: EffectDecisionSource, nextStage?: string}): void {
       const prompt = payload.cardPrompt;
       const reasons: Record<string, string> = {};
       for (const d of prompt.disabledCards ?? []) {
@@ -11984,9 +11984,12 @@ export default defineComponent({
       // this pick buys is the flow's next stage (the card the discard draws),
       // and between the submit and the deal nothing owns the tail — retracting
       // there would drop it back to the composer's last stage, «РАЗЫГРАНО»,
-      // which is two steps BACK through a flow that only moves forward. The
-      // exchange marker is the server's own, so this is structure, not a guess.
-      const nextStage = prompt.discardPrompt?.exchange?.icon === 'cards' ? focusKicker('draw') : '';
+      // which is two steps BACK through a flow that only moves forward.
+      //
+      // The asking surface computes it (`nextStageKeyOf`, one pure rule for
+      // both press kinds); a pick handed over by the generic task host carries
+      // none, which is the honest answer there — nothing claims that flow.
+      const nextStage = payload.nextStage ?? '';
       if (ownsStage) {
         setWorkspaceOutcomePhase(pickStage);
       }

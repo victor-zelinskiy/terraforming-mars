@@ -141,6 +141,10 @@ export const EYEBROW_REWARD = 'Extra bonus';
 
 /** The embedded stage's tail for an ordinary triggered/optional effect. */
 export const STAGE_EFFECT = 'Effect';
+/** …and the stage the flow moves ON to when the chosen branch draws cards.
+ *  The same key the drawn stage names itself with (`focusKicker('draw')`), so
+ *  the tail is handed over rather than re-coined. */
+export const STAGE_CARD_DRAW = 'Card draw';
 
 export const HEADLINE_CHOOSE = 'Choose an effect';
 export const HEADLINE_USE = 'Use the effect?';
@@ -226,6 +230,22 @@ export function eyebrowKeyOf(context: ChoiceContext): string {
     return EYEBROW_REWARD;
   }
   return EYEBROW_BY_SOURCE[context.source.kind] ?? EYEBROW_BY_SOURCE.system;
+}
+
+/**
+ * WHERE THE FLOW GOES WHEN THIS ACTION IS TAKEN — the crumb tail this stage
+ * hands ON at the press, or '' when nothing countable follows.
+ *
+ * A BREADCRUMB ONLY EVER MOVES FORWARD, and between an answer and the thing it
+ * bought nobody owns the tail: «Олимпийская конференция» resolves ON the press
+ * (both its branches are leaves), so retracting the name there dropped the line
+ * back to the composer's last stage — «РАЗЫГРАНО», two steps BEHIND the flow —
+ * for the whole round trip. The chips are the server's own effect list, so this
+ * is structure, not a guess; the discard-then-draw shape reads the same way,
+ * because `chipsFromDiscard` builds its gain from the very same marker.
+ */
+export function nextStageKeyOf(action: EffectDecisionAction | undefined): string {
+  return action !== undefined && gainsCards(action.chips) ? STAGE_CARD_DRAW : '';
 }
 
 /**

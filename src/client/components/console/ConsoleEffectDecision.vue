@@ -121,7 +121,7 @@ import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {choiceSourceView, PromptSourceView} from '@/client/console/promptSource';
 import {orOptionResponse} from '@/client/console/taskResponses';
 import {
-  decisionCommandKeys, decisionFocusStep, decisionPressIntent,
+  decisionCommandKeys, decisionFocusStep, decisionPressIntent, nextStageKeyOf,
   EffectDecisionAction, EffectDecisionViewModel,
 } from '@/client/console/effectDecision/effectDecisionModel';
 import {effectDecisionState, rememberDecisionFocus} from '@/client/console/effectDecision/effectDecisionState';
@@ -270,6 +270,10 @@ export default defineComponent({
           index: press.action.optionIndex,
           cardPrompt: press.action.nested as SelectCardModel,
           source: this.vm.source,
+          // WHERE THE FLOW GOES once the pick is answered — derived ONCE, in
+          // the pure model, so the immediate branch above and this one can
+          // never disagree about what follows a card-for-a-card exchange.
+          nextStage: nextStageKeyOf(press.action),
         });
         return;
       case 'submit':
@@ -277,6 +281,14 @@ export default defineComponent({
         rememberDecisionFocus(this.focusIdx);
         this.submitting = true;
         this.armed = true;
+        // THE TAIL IS HANDED ON, never retracted. This branch resolves ON the
+        // press («Олимпийская конференция»: «снять жетон и взять карту»), so
+        // between here and the card coming off the deck nobody would own the
+        // crumb's stage — and `beforeUnmount` clearing it there dropped the
+        // line back to «РАЗЫГРАНО», two steps behind the flow.
+        if (this.embedded) {
+          setWorkspaceOutcomePhase(nextStageKeyOf(this.vm.actions[this.focusIdx]));
+        }
         this.$emit('submit', orOptionResponse(press.optionIndex));
       }
     },

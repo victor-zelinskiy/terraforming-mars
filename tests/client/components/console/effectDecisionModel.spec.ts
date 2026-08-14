@@ -10,8 +10,10 @@ import {
   HEADLINE_PAY,
   HEADLINE_USE,
   LEAD_HAND_CARDS,
+  STAGE_CARD_DRAW,
   STAGE_EFFECT,
   ACTION_DISCARD_DRAW,
+  nextStageKeyOf,
   buildEffectDecision,
   chipsFromDiscard,
   decisionCommandKeys,
@@ -217,6 +219,36 @@ describe('effectDecisionModel', () => {
 
     const attack = buildEffectDecision(or([leaf('a'), decline], cardContext('attack')), {handNames: HAND});
     expect(attack?.stageKey).eq(EYEBROW_ATTACK);
+  });
+
+  /**
+   * THE TAIL IS HANDED ON, NEVER RETRACTED. Between an answer and the thing it
+   * bought nobody owns the crumb's stage, and clearing it there drops the line
+   * back to the play's own «РАЗЫГРАНО» — two steps behind a flow that only
+   * moves forward. Derived from the server's own effect chips, so the branch
+   * that resolves on the press («Конференция на Олимпе») and the one that opens
+   * the hand («Марсианский университет») can never disagree.
+   */
+  it('names the stage a branch LEADS TO — from the chips, for both press kinds', () => {
+    // Olympus: «снять жетон, чтобы добрать карту» resolves on the press.
+    const olympus = buildEffectDecision(or([
+      leaf('Remove a science resource from this card to draw a card',
+        {effects: [{direction: 'gain', icon: 'cards', amount: 1}]}),
+      leaf('Add a science resource to this card',
+        {effects: [{direction: 'gain', icon: 'science', amount: 1}]}),
+    ], cardContext('effect-choice')), {handNames: HAND});
+    expect(nextStageKeyOf(olympus?.actions[0]), 'the branch that draws leads to the draw').eq(STAGE_CARD_DRAW);
+    expect(nextStageKeyOf(olympus?.actions[1]), 'a branch that draws nothing leads nowhere countable').eq('');
+
+    // Mars University: the same rule read off a discard EXCHANGE, so the hand
+    // pick hands over the very same stage.
+    const university = buildEffectDecision(or([
+      handPick({discardPrompt: {min: 1, max: 1, exchange: {icon: 'cards', amount: 1, perCard: false}}}),
+      leaf('Do nothing', {kind: 'skip'}),
+    ], cardContext()), {handNames: HAND});
+    expect(nextStageKeyOf(university?.actions[0])).eq(STAGE_CARD_DRAW);
+    expect(nextStageKeyOf(university?.actions[1]), 'the decline leads nowhere').eq('');
+    expect(nextStageKeyOf(undefined)).eq('');
   });
 
   it('keeps unavailable targets informational — never as a pressable action', () => {
