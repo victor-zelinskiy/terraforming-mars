@@ -41,7 +41,26 @@ describe('tracker coverage guard', () => {
       const card = getCard(entry.cardName);
       const isCorp = card?.type === CardType.CORPORATION;
       const sig = entry.signature;
-      const measurable = sig.icons.length > 0 || sig.discount || sig.valueAsPayment || sig.valueModifier;
+      /*
+       * ⚠️ `valueModifier` IS NOT A MEASURABLE SIGNAL, and demanding it here asked
+       * for something the production contract forbids.
+       *
+       * It is derived from the effect's CAUSE side («does the condition mention a
+       * standard resource»), which is why `emptyNoteCategory` explicitly refuses
+       * to categorise by it — the heuristic mislabels threshold conditions
+       * («play a 20 M€ card»: Advertising / CrediCor). Asteroid Deflection System
+       * is the clean counter-example: its passive effect is «opponents may not
+       * remove your plants», so the cause names `plants` (⇒ `valueModifier`) while
+       * the RESULT is a protection rule with no measurable output at all. A bare
+       * «passive rule» note is the honest framing for it, yet the guard insisted
+       * it was mis-framed — an unsatisfiable demand, since no branch of
+       * `emptyNoteCategory` can return anything else for that signature.
+       *
+       * The signals below are exactly the ones the production code CAN act on, so
+       * a failure here still means a real gap (an unfired trigger or an unused
+       * discount collapsing to the bare rule note — the class this was written for).
+       */
+      const measurable = sig.icons.length > 0 || sig.discount || sig.valueAsPayment;
       if (!measurable) {
         continue; // a genuine rule-only effect — the honest "passive rule" note is fine
       }

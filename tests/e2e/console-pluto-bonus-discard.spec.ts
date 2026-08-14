@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootToBoard, fillPicks, press} from './consoleStart';
+import {bootToBoard, fillPicks, openMandatoryAnnounce, press} from './consoleStart';
 
 /**
  * PLUTO'S PAYOUT CLOSES INSIDE THE REVEAL MODAL — ONE COLONY AT A TIME.
@@ -176,9 +176,23 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   // NOW the payout can arrive: a real hand, a real dock, no wizard in the way.
   await injectPayout(page, 3);
   await page.reload();
-  await page.waitForSelector('.con-reveal__closer', {state: 'visible', timeout: 40_000});
+  // A `colonyBonus` collect is an INTERRUPTIVE prompt, and those are ANNOUNCED,
+  // not auto-opened (`consoleMandatoryGate.ts`): the board home shows «БОНУС
+  // КОЛОНИИ · Ⓐ Открыть» and the payout mounts on the press. Waiting for the
+  // reveal directly waits forever with a perfectly healthy board underneath.
+  expect(await openMandatoryAnnounce(page), 'the colony-bonus collect was announced').toBeTruthy();
+  // ⚠️ THE PAYOUT IS EMBEDDED IN THE COLONY WORKSPACE («КОЛОНИИ › ПЛУТОН › ДОБОР
+  // КАРТ»), which is what owns a colony resolution end to end. So the closing
+  // step lives in the ONE bottom status bar (`.con-reveal__namebar`), and the
+  // per-zone `.con-reveal__closer` button is explicitly STANDALONE-ONLY
+  // (`v-if="… && !embedded"`) — an in-zone button pushed the zone past the
+  // stage's vertical budget. The ZONES are the payout's own layout either way,
+  // so they are what says «the stage is up».
+  await page.waitForSelector('.con-reveal__bonus-zone', {state: 'visible', timeout: 40_000});
   await page.waitForTimeout(3000); // the entrance + the card's own turn settle
   await shoot(page, 'locked');
+  /** The payout's closing step, wherever it is hosted (one bar when embedded). */
+  const closer = page.locator('.con-reveal__namebar .con-cards__verdict, .con-reveal__closer-cta');
 
   // 1 · THREE zones — one live, the rest waiting face-down.
   const zones = page.locator('.con-reveal__bonus-zone');
@@ -190,25 +204,43 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   expect(await page.locator('.con-reveal__bonus-zone--future .con-reveal__closer').count()).toBe(0);
   await expect(page.locator('.con-reveal__bonus-wait').first()).toContainText(/Ожидает/i);
 
-  // 2 · the live colony's card finished opening by itself — no input was given.
-  await expect(page.locator('.con-reveal__flip--up')).toHaveCount(1);
+  // 2 · the live colony's card is OPEN with no input given.
+  //     The zone no longer owns a face-down flip chassis of its own: the card
+  //     turns IN THE AIR on the cover that carried it here, so the zone mounts
+  //     it already face-up («one object, one turn, one grammar» — the old
+  //     `.con-reveal__flip--up` is gone, and its presence used to mean the zone
+  //     was painting a SECOND back for a card already in flight).
+  await expect(page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-slot :is(.pcard, .card-container)'))
+    .toHaveCount(1);
+  await expect(page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-cover')).toHaveCount(0);
 
-  // 3 · LOCKED with an honest reason while cards are untaken.
-  await expect(page.locator('.con-reveal__closer-cta--locked')).toHaveCount(1);
-  await expect(page.locator('.con-reveal__closer-lock')).toContainText(/Сначала заберите/i);
-  await expect(page.locator('.con-reveal__closer-cta')).toContainText(/Выбрать карту для сброса/i);
+  // 3 · THE PAYOUT CANNOT BE CLOSED BEFORE ITS CARDS ARE TAKEN.
+  //     Embedded, the ONE status bar carries whatever the player owes NEXT: with
+  //     cards still untaken that is the TAKE, named for the focused card — the
+  //     discard step is not offered at all yet, so there is nothing to lock.
+  //     (The standalone band states the same thing the other way round, with a
+  //     locked CTA + «Сначала заберите…» — one host, one voice, never both.)
+  await expect(closer).toContainText(/Взять/i);
+  await expect(closer).not.toContainText(/сброса/i);
 
-  // 4 · Card scale is FIXED for the batch: taking cards must re-centre the row,
-  //     never resize what is left. Measure a survivor before and after.
-  const cardBox = () => page.locator('.con-reveal__strip .con-cards__slot').first()
+  // 4 · THE ZONE'S FOOTPRINT IS FIXED across the take — the card leaves an EMPTY
+  //     SOCKET of exactly its size, «so nothing resizes or shifts»
+  //     (ConsoleRevealOverlay's own contract for this slot).
+  //     ⚠️ Measure THE ZONE, not `.con-reveal__strip .con-cards__slot` first:
+  //     that selector silently RE-POINTS once the income cards are taken (its
+  //     first match becomes the bonus slot), so it compared two different
+  //     elements and reported the difference as a resize.
+  const zoneSlotBox = () => page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-slot')
     .evaluate((el) => {
-      const b = el.getBoundingClientRect(); return {w: Math.round(b.width), x: Math.round(b.left)};
+      const b = el.getBoundingClientRect(); return {w: Math.round(b.width), h: Math.round(b.height)};
     });
-  const before = await cardBox();
+  const before = await zoneSlotBox();
 
   // 5 · B is the take-all shortcut, never an exit.
   await page.keyboard.press('Escape');
-  await page.waitForSelector('.con-reveal__closer--ready', {state: 'visible', timeout: 20_000});
+  // …and once every card is taken the SAME bar becomes the closing step.
+  await expect(closer).toContainText(/Выбрать карту для сброса/i, {timeout: 20_000});
+  await expect(page.locator('.con-reveal__closer-cta--locked')).toHaveCount(0);
   await page.waitForTimeout(900); // the re-centring glide settles
   await shoot(page, 'ready');
 
@@ -217,8 +249,9 @@ test('the merged payout closes with its MANDATORY discard step', async ({page, r
   expect(await page.locator('.con-reveal__bonus-socket').count(), 'the taken card leaves its socket').toBe(1);
   expect(await page.locator('.con-reveal__bonus-zone--active .con-reveal__bonus-cover').count(),
     'the resolved colony must NOT show a card back').toBe(0);
-  const after = await cardBox();
-  expect(after.w, `card width must not change (${before.w} → ${after.w})`).toBe(before.w);
+  const after = await zoneSlotBox();
+  expect(after, `the socket keeps the card's footprint (${JSON.stringify(before)} → ${JSON.stringify(after)})`)
+    .toEqual(before);
   expect(await page.locator('.con-reveal').count(), 'the modal must NOT be dismissable').toBe(1);
   await page.keyboard.press('Escape');
   await page.waitForTimeout(600);

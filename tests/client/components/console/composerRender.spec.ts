@@ -437,15 +437,17 @@ describe('ConsoleActionComposer — premium render', () => {
   });
 
   /**
-   * THE QUIET READING MUST REACH THE DOM.
+   * THE RAIL STATES WHAT MOVES — and a model-level test cannot see that it
+   * really reached the DOM.
    *
-   * A VP that responds but does not move is shown deliberately (it is how «1 ПО
-   * за каждую фишку» is told apart from «1 ПО за каждые две»), and it is shown
-   * QUIETLY. If the marker never reaches the chip, the two read identically and
-   * the distinction the server went to the trouble of computing is lost on the
-   * way out. A model-level test cannot see that.
+   * The one-line rail summarises the card under the cursor; it is not a
+   * comparison, so «ПО 0 → 0» beside a real «0 → 1» would be a second chip that
+   * says nothing while taking the eye off the one that does
+   * (`playedTargetImpactMoves`, 2026-08-12). The static reading is kept where the
+   * comparison actually happens — the full sections — and is pinned there by
+   * `consolePlayedTargetPreview.spec.ts`.
    */
-  it('a static VP reading reaches the rail marked, a moving one does not', async () => {
+  it('a MOVING VP reading reaches the rail; a static one is not stated there', async () => {
     const mk = (vp: {from: number, to: number}) => factory({
       card: 'P', isCorporation: false, kind: 'declarative',
       branches: [{
@@ -461,9 +463,9 @@ describe('ConsoleActionComposer — premium render', () => {
     await still.vm.$nextTick();
     (still.vm as any).openChoice((still.vm as any).allChoices[0]);
     await still.vm.$nextTick();
-    const quiet = still.findAll('.con-ptsel__imp--static');
-    expect(quiet.length, 'the static reading is marked').to.be.greaterThan(0);
-    expect(quiet[0].text().replace(/\s/g, ''), 'and still states both numbers').to.contain('1→1');
+    const railStill = still.find('.con-ptsel__railimpacts').text().replace(/\s/g, '');
+    expect(railStill, 'a static reading is not stated on the rail').to.not.contain('1→1');
+    expect(still.findAll('.con-ptsel__imp--static').length, 'and nothing is marked quiet there').to.eq(0);
     still.unmount();
 
     const moving = mk({from: 3, to: 2});

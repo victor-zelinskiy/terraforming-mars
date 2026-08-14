@@ -4,6 +4,9 @@ import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import PremiumCardArt from '@/client/components/premiumCard/PremiumCardArt.vue';
+import {byType, getCards} from '@/client/cards/ClientCardManifest';
+import {CardType} from '@/common/cards/CardType';
+import {premiumCardArt} from '@/client/cards/cardArt';
 
 function model(name: CardName, overrides: Partial<CardModel> = {}): CardModel {
   return {name, ...overrides} as CardModel;
@@ -42,14 +45,39 @@ describe('PremiumCard', () => {
     expect(wrapper.classes()).to.include('pcard--theme-azure');
   });
 
-  it('corporation face: identity zone hosts the wordmark, no art, no cost badge', () => {
-    const wrapper = mount(PremiumCard, {props: {card: model(CardName.HELION)}});
+  /*
+   * A corporation resolves ONLY to real per-card art (premiumCardViewModel
+   * `resolveArt`): with an illustration it renders like any other card, without
+   * one the identity zone carries the brand wordmark. Both corporations are
+   * DERIVED from the art manifest rather than named — the manifest is generated
+   * by `make:cards`, so a hardcoded name silently changes what the test asserts
+   * the day that card gets art (which is exactly how this spec broke).
+   */
+  const corporations = getCards(byType(CardType.CORPORATION));
+  const corpWithoutArt = corporations.find((c) => premiumCardArt(c.name).fallback)?.name;
+  const corpWithArt = corporations.find((c) => !premiumCardArt(c.name).fallback)?.name;
+
+  it('corporation face: no cost badge, and the identity zone hosts the wordmark when there is no art', () => {
+    expect(corpWithoutArt, 'a corporation with no illustration of its own').to.not.eq(undefined);
+    const wrapper = mount(PremiumCard, {props: {card: model(corpWithoutArt!)}});
     expect(wrapper.classes()).to.include('pcard--theme-corporation');
     expect(wrapper.find('.pcard__cost-badge').exists()).to.eq(false);
     expect(wrapper.findComponent(PremiumCardArt).exists()).to.eq(false);
     // the identity zone hosts the EXISTING wordmark system inside the stage
     expect(wrapper.find('.pcard-corp .pcard-corp-stage .card-corporation-logo').exists()).to.eq(true);
-    // the flattened corp box renders as ordinary mech groups (starting row + effect)
+  });
+
+  it('corporation face: a corporation WITH its own illustration shows it like any card', () => {
+    expect(corpWithArt, 'a corporation with real art').to.not.eq(undefined);
+    const wrapper = mount(PremiumCard, {props: {card: model(corpWithArt!)}});
+    expect(wrapper.classes()).to.include('pcard--theme-corporation');
+    expect(wrapper.find('.pcard__cost-badge').exists()).to.eq(false);
+    expect(wrapper.findComponent(PremiumCardArt).exists()).to.eq(true);
+  });
+
+  it('corporation face: the flattened corp box renders as ordinary mech groups', () => {
+    // Helion: a starting row + an effect — two groups, whichever face it wears.
+    const wrapper = mount(PremiumCard, {props: {card: model(CardName.HELION)}});
     expect(wrapper.findAll('.pcard-mech-group').length).to.be.greaterThan(1);
   });
 

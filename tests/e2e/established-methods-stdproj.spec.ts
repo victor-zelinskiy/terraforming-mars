@@ -126,13 +126,24 @@ test('EstablishedMethods: both std-project prompts served by .con-stdp, never st
   const before = await (await request.get(`/api/player?id=${playerId}`)).json() as
     {thisPlayer: {energyProduction: number}};
   const target = {energyProduction: before.thisPlayer.energyProduction + 1, promptType: 'projectCard'};
+  const posts: Array<string> = [];
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && r.url().includes('player/input')) {
+      posts.push((r.postData() ?? '').slice(0, 200));
+    }
+  });
   let resolved = false;
+  // Keep what the server ACTUALLY said, so a failure names the half that did not
+  // happen (production vs the next prompt) instead of a bare boolean.
+  let seen = '(never polled)';
   for (let attempt = 0; attempt < 4 && !resolved; attempt++) {
     await page.keyboard.press('Enter');
     const deadline = Date.now() + 6_000;
     while (Date.now() < deadline) {
       const view = await (await request.get(`/api/player?id=${playerId}`)).json() as
-        {thisPlayer: {energyProduction: number}, waitingFor?: {type?: string}};
+        {thisPlayer: {energyProduction: number}, waitingFor?: {type?: string, title?: unknown}};
+      seen = `energyProduction=${view.thisPlayer.energyProduction} (want ${target.energyProduction}), ` +
+        `waitingFor.type=${String(view.waitingFor?.type)} (want ${target.promptType})`;
       resolved = view.thisPlayer.energyProduction === target.energyProduction &&
         view.waitingFor?.type === target.promptType;
       if (resolved) {
@@ -145,7 +156,12 @@ test('EstablishedMethods: both std-project prompts served by .con-stdp, never st
         'Power Plant stayed actionable after a guarded press').toHaveCount(1);
     }
   }
-  expect(resolved, 'the first project resolved and the second projectCard prompt became current').toBeTruthy();
+  console.log(`  [stdp] input POSTs during the presses: ${posts.length}`);
+  posts.forEach((p) => console.log(`    ${p}`));
+  expect(resolved,
+    `the first project resolved and the second projectCard prompt became current — server said: ${seen}; ` +
+    `${posts.length} input POST(s) were sent`)
+    .toBeTruthy();
 
   await openStandardProjectPrompt(page, 'second');
 });

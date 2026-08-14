@@ -1,4 +1,5 @@
-import {test, expect, Page} from '@playwright/test';
+import {test, expect, APIRequestContext, Page} from '@playwright/test';
+import {bootIntoGame} from './consoleStart';
 
 /**
  * THE PLANET DOES NOT MOVE WHEN A SECTION HANDS THE SCREEN BACK.
@@ -238,102 +239,21 @@ async function key(page: Page, code: string, settleMs = 450): Promise<void> {
   await page.waitForTimeout(settleMs);
 }
 
-/** Boot a solo game and land on the board home (from console-hand-workspace). */
-async function bootGame(page: Page, request: any, buyProjects: number, profileQuery = ''): Promise<void> {
-  const created = await request.post('/api/creategame', {data: newGameConfig()});
-  expect(created.ok(), `create-game failed: ${created.status()}`).toBeTruthy();
-  const model = await created.json() as {players: Array<{id: string}>};
-  await page.goto(`/player?id=${model.players[0].id}&console=1${profileQuery}`);
-  await page.waitForSelector('.con-start__frame, .con-root', {timeout: 45_000});
-  await page.waitForSelector('.con-load', {state: 'detached', timeout: 45_000}).catch(() => {});
-  await page.waitForTimeout(3500);
-  const launch = page.getByText('НАЧАТЬ ПАРТИЮ').first();
-  // 1 · CORPORATION. Press A until the step's OWN counter says the pick took,
-  // never once blindly: a single Enter that lands before the scene is armed
-  // leaves «Выбрано 0 из 1» and the rest of the walk has no way back — which
-  // is exactly how this boot stalled in the wizard.
-  const frameText = async () => (await page.locator('.con-start__frame').first()
-    .innerText().catch(() => '')).replace(/\s+/g, ' ').toUpperCase();
-  for (let i = 0; i < 10; i++) {
-    if (/ВЫБРАНО 1 ИЗ 1/.test(await frameText())) {
-      break;
-    }
-    await key(page, 'Enter', 900);
-  }
-  await key(page, 'Period', 1700);
-  await page.getByText('стартовые карты для покупки').first().waitFor({timeout: 12_000}).catch(() => {});
-  for (let i = 0; i < buyProjects; i++) {
-    await key(page, 'Enter', 700);
-    await key(page, 'ArrowRight', 260);
-  }
-  await key(page, 'Period', 1700);
-  for (let i = 0; i < 4 && await launch.count() === 0; i++) {
-    await key(page, 'Period', 1300);
-  }
-  if (await launch.count() > 0) {
-    await key(page, 'Enter', 2400);
-  }
-  await page.waitForTimeout(3000);
-  const live = page.locator('.con-handdock--live');
-  const placement = page.locator('.con-context__task-kicker');
-  const wizard = page.locator('.con-start__frame');
-  const quick = page.locator('.con-quick');
-  const handSec = page.locator('.con-hand');
-  const composer = page.locator('.con-composer');
-  const finishers = ['ArrowRight', 'Enter', 'KeyE'];
-  const dirs = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'];
-  for (let round = 0; round < 3; round++) {
-    for (let i = 0; i < 36 && (await live.count() === 0 || await placement.count() > 0); i++) {
-      if (await page.locator('.con-zoom').count() > 0) {
-        await key(page, 'Escape', 1100);
-      } else if (await quick.count() > 0) {
-        await key(page, 'Escape', 1100);
-      } else if (await composer.count() > 0) {
-        const corpFirst = await page.locator('.con-composer--corpfirst').count() > 0;
-        await key(page, corpFirst ? 'Enter' : 'Escape', 1600);
-      } else if (await handSec.count() > 0) {
-        await key(page, 'Escape', 1400);
-      } else if (await wizard.count() > 0) {
-        await key(page, finishers[i % finishers.length], 900);
-      } else if (await placement.count() > 0) {
-        await key(page, 'Enter', 1200);
-        if (await placement.count() > 0) {
-          await key(page, dirs[i % dirs.length], 600);
-          await key(page, 'Enter', 1400);
-        }
-      } else {
-        await key(page, 'Enter', 1500);
-      }
-    }
-    await page.waitForTimeout(2500);
-    if (await live.count() === 1 && await placement.count() === 0) {
-      break;
-    }
-  }
-  if (await live.count() === 0) {
-    // The self-healing walk is shared with console-hand-workspace and is
-    // inherently timing-sensitive; say WHAT it was looking at rather than
-    // just "0 elements", or every boot flake costs a full re-run to read.
-    const fs = await import('node:fs');
-    const p = await import('node:path');
-    fs.mkdirSync(p.resolve('screenshots', 'console-board-framing'), {recursive: true});
-    await page.screenshot({path: p.resolve('screenshots', 'console-board-framing', 'boot-stuck.png')});
-    const surfaces = await page.evaluate(() => [
-      '.con-start__frame', '.con-load', '.con-hand', '.con-composer', '.con-quick',
-      '.con-zoom', '.con-mandatory', '.con-task-host', '.con-sheet', '.con-reveal',
-      '.con-context__task-kicker', '.con-handdock', '.con-stranded', '.con-banner',
-    ].filter((s) => document.querySelector(s) !== null).join(' '));
-    const banner = await page.locator('.con-banner').first().innerText().catch(() => '');
-    console.log(`  !! boot stuck — mounted: [${surfaces}] banner="${banner.trim()}"`);
-  }
-  await expect(live).toHaveCount(1);
-  for (let i = 0; i < 8 && await page.locator('.con-mandatory').count() > 0; i++) {
-    await key(page, 'Enter', 1400);
-    if (await placement.count() > 0) {
-      await key(page, 'Enter', 1400);
-    }
-  }
-  await page.waitForTimeout(1000);
+/**
+ * Boot a solo game and land on the board home.
+ *
+ * ⚠️ THE WALK IS SETUP, NEVER THE SUBJECT — so it goes through the SHARED
+ * driver (`consoleStart.bootIntoGame`, API path), not a hand-rolled key script.
+ * This file used to carry its own: a fixed cadence of A / RT presses that
+ * decided the wizard was over by counting `.con-start__frame` nodes and matching
+ * RU screen text. All four tests here failed on it — «boot stuck — mounted:
+ * [.con-start__frame .con-handdock]», i.e. still inside the wizard after five
+ * minutes — while the product's framing (the actual subject) was never
+ * exercised at all. That is precisely the failure mode `consoleStart.ts` exists
+ * to delete, and the API path also turns a ~5-minute walk into seconds.
+ */
+async function bootGame(page: Page, request: APIRequestContext, buy: number, profileQuery = ''): Promise<void> {
+  await bootIntoGame(page, request, {config: newGameConfig(), buy, query: profileQuery});
 }
 
 /** RT wheel → A («КАРТЫ»), then let the reveal episode settle. */

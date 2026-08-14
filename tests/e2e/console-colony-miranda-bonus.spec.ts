@@ -146,7 +146,27 @@ test('Miranda OWNER BONUS: the drawn card is on the stage and can be taken', asy
     requestAnimationFrame(tick);
   }, 30_000);
 
-  await page.keyboard.press('KeyX'); // confirm the trade
+  // CONFIRM THE TRADE — with evidence, never blind. A press dropped on a heavy
+  // frame is indistinguishable from «the product did nothing», and the wait
+  // below would then spend 30 s on a board that was never asked to do anything
+  // (observed once in five repeats: the run ended on a settled board home).
+  // The reveal ATTACHING is the commit's own first observable, so it is what
+  // stops the retries — bounded, and it never presses into a live payout.
+  // ⚠️ «Acted» is EITHER observable, not the payout alone: the commit takes the
+  // focus stage away first and the payout mounts after its own cover flight, so
+  // requiring the reveal within one short window fails a trade that is merely
+  // still in the air. A press is DROPPED only when neither happened — stage
+  // still up, nothing revealed — and that is the only case worth re-pressing.
+  for (let tries = 0; tries < 3; tries++) {
+    await page.keyboard.press('KeyX');
+    const acted = await page.waitForFunction(
+      () => document.querySelector('.con-reveal') !== null ||
+        document.querySelector('.con-colfocus') === null,
+      undefined, {timeout: 8_000}).then(() => true).catch(() => false);
+    if (acted) {
+      break;
+    }
+  }
 
   // THE CARD MUST BE ON THE STAGE. The bug rendered a reveal with a title, a
   // status line naming the card — and nothing in the strip.

@@ -60,6 +60,22 @@ export type ActionBranchScope = {
 };
 
 /**
+ * ⚠️ THE TWO SIDES SPELL A CARD RESOURCE DIFFERENTLY, so the token must fold the
+ * case. An `ActionEffect.icon` is the lower-case sprite key the preview builder
+ * emits (`floater`), while an `EffectSummaryLine` for the net «Added» row is
+ * keyed by the `CardResource` ENUM VALUE, which is capitalised (`Floater` —
+ * `effectSummary.ts` iterates `stat.cardResources` and uses the key verbatim).
+ * `cardres:floater` therefore never equalled `cardres:Floater`, and per-branch
+ * filtering silently stopped working for EVERY card resource: Red Spot
+ * Observatory's «spend a floater to draw» branch listed the floaters the OTHER
+ * branch had added. Production/`cards` tokens are lower-case on both sides, so
+ * only this family was affected.
+ */
+function metricToken(prefix: string, icon: string | undefined): string {
+  return prefix + (icon ?? '').toLowerCase();
+}
+
+/**
  * The metric TOKEN a preview-branch EFFECT lays claim to — must line up with
  * {@link lineMetricToken} so a branch's effects map onto the aggregate lines.
  * A card-resource COST (spending the resource) does NOT claim the net "Added"
@@ -74,10 +90,10 @@ export function branchMetricTokens(effects: ReadonlyArray<ActionEffect>): Array<
     // (spending it) does NOT claim that accumulation line.
     if (e.note === 'on this card' || e.note === 'to a card') {
       if (e.direction === 'gain') {
-        out.push('cardres:' + e.icon);
+        out.push(metricToken('cardres:', e.icon));
       }
     } else if (e.note === 'production') {
-      out.push('prod:' + e.icon);
+      out.push(metricToken('prod:', e.icon));
     } else if (e.note === 'draw' || e.icon === 'cards') {
       out.push('cards');
     } else {
@@ -90,8 +106,8 @@ export function branchMetricTokens(effects: ReadonlyArray<ActionEffect>): Array<
 /** The metric TOKEN of a generic summary LINE (mirrors `branchMetricTokens`). */
 function lineMetricToken(l: EffectSummaryLine): string {
   switch (l.label) {
-  case 'Added': return 'cardres:' + (l.icon ?? '');
-  case 'Production': return 'prod:' + (l.icon ?? '');
+  case 'Added': return metricToken('cardres:', l.icon);
+  case 'Production': return metricToken('prod:', l.icon);
   default: return l.icon ?? '';
   }
 }

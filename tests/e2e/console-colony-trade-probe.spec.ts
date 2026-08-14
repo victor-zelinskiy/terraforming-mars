@@ -1,7 +1,7 @@
 import {test, expect, Page, APIRequestContext} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import {bootSeededGame} from './consoleStart';
+import {bootSeededGame, openMandatoryAnnounce} from './consoleStart';
 
 /**
  * COLONY-TRADE REWARD PROBE — drives a REAL game (colonies on, Pluto
@@ -113,6 +113,28 @@ async function bootGame(page: Page, request: APIRequestContext, playerId: string
   await page.waitForTimeout(1500); // entry animations settle
 }
 
+/**
+ * THE TRACK RESET, ASSERTED ON THE GAME STATE.
+ *
+ * The trade's rules outcome is that the colony's track returns to its post-trade
+ * position — that is what «the marker steps home» DEPICTS. The depiction itself
+ * is conditional by design: `ConsoleColonyTradeLayer` glides a marker proxy only
+ * while the track is measurable on screen, and during a payout it is not — the
+ * colony workspace has descended into «КОЛОНИИ › <колония> › ДОБОР КАРТ», so the
+ * overview with its track cells is not on stage and the layer takes its own
+ * documented branch («track glide skipped — track not measurable»). Requiring
+ * the proxy therefore asserted a screen the flow deliberately replaced; the
+ * server's own number cannot be missed and cannot be raced.
+ */
+async function trackPosition(request: APIRequestContext, playerId: string, colony: string): Promise<number> {
+  const resp = await request.get(`/api/player?id=${playerId}`);
+  expect(resp.ok()).toBeTruthy();
+  const view = await resp.json() as {game: {colonies: Array<{name: string, trackPosition: number}>}};
+  const found = view.game.colonies.find((c) => c.name === colony);
+  expect(found, `colony ${colony} is in play`).not.toBe(undefined);
+  return found!.trackPosition;
+}
+
 /** The colony names actually in play (the automa deal is seeded-random). */
 async function dealtColonies(request: APIRequestContext, playerId: string): Promise<Array<string>> {
   const resp = await request.get(`/api/player?id=${playerId}`);
@@ -192,41 +214,101 @@ type Observation = {
   sawMarker: boolean;
   sawBonusMode: boolean;
   sawReveal: boolean;
+  /** How many times the in-page recorder actually looked (a dead probe = 0). */
+  samples: number;
 };
 
-async function tradeAndObserve(page: Page, tag: string, journal: Array<string>, windowTicks: number): Promise<Observation> {
+/**
+ * ⚠️ THE SIGHTINGS ARE RECORDED IN THE PAGE, NEVER POLLED FROM NODE.
+ *
+ * Everything watched here is TRANSIENT by construction — a cover proxy, a track
+ * marker that glides once and is gone, a `--bonus-mode` class that lives for the
+ * length of one arrival. The old loop asked Playwright for five `count()`s
+ * between 200 ms sleeps, so one pass cost ~0.5 s of round trips and the sampler
+ * routinely blinked straight past the marker: «the track-reset marker glide
+ * never played» was a statement about the PROBE, not about the product.
+ *
+ * A `MutationObserver` fires on the very mutation that inserts the node, and the
+ * 50 ms interval covers a node that is only re-CLASSED. Deliberately not
+ * `requestAnimationFrame`: headless Chromium drives rAF off the compositor, so a
+ * rAF sampler stops sampling exactly when the screen goes quiet. `samples` is
+ * returned and asserted so a probe that died cannot pass as «nothing happened».
+ */
+async function armSightings(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const w = window as unknown as Record<string, any>;
+    const state = {proxy: false, marker: false, bonusMode: false, reveal: false,
+      deckDraw: [] as Array<number>, samples: 0, t0: performance.now()};
+    w.__sight = state;
+    const scan = () => {
+      state.samples++;
+      const at = Math.round(performance.now() - state.t0);
+      if (document.querySelector('.con-coltrade-proxy') !== null) {
+        state.proxy = true;
+      }
+      if (document.querySelector('.con-coltrade-marker') !== null) {
+        state.marker = true;
+      }
+      if (document.querySelector('.con-reveal--bonus-mode') !== null) {
+        state.bonusMode = true;
+      }
+      if (document.querySelector('.con-reveal') !== null || document.querySelector('.con-zoom') !== null) {
+        state.reveal = true;
+      }
+      if (document.querySelector('.con-deckdraw') !== null && state.deckDraw.at(-1) !== at) {
+        state.deckDraw.push(at);
+      }
+    };
+    w.__sightObs = new MutationObserver(scan);
+    w.__sightObs.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['class']});
+    w.__sightTimer = window.setInterval(scan, 50);
+    scan();
+  });
+}
+
+async function tradeAndObserve(page: Page, tag: string, journal: Array<string>, windowMs: number): Promise<Observation> {
   await key(page, 'Enter', 1400); // A = Trade → the COLONY FOCUS STAGE (the workspace descend)
   const stage = page.locator('.con-colfocus');
   expect(await stage.count(), 'the colony focus stage did not open').toBeGreaterThan(0);
   await shoot(page, `${tag}-composer`);
+  // Arm BEFORE the commit — the cover leaves the tile on the very next frames.
+  await armSightings(page);
   await key(page, 'KeyX', 200); // X = confirm (folds back to the surface, the fleet lifts off)
 
-  const obs: Observation = {journal, deckDrawSightings: [], sawTradeProxy: false, sawMarker: false, sawBonusMode: false, sawReveal: false};
-  for (let tick = 0; tick < windowTicks; tick++) {
-    await page.waitForTimeout(200);
-    if (await page.locator('.con-deckdraw').count() > 0) {
-      obs.deckDrawSightings.push(`t+${tick * 200}ms`);
-    }
-    obs.sawTradeProxy = obs.sawTradeProxy || await page.locator('.con-coltrade-proxy').count() > 0;
-    obs.sawMarker = obs.sawMarker || await page.locator('.con-coltrade-marker').count() > 0;
-    obs.sawBonusMode = obs.sawBonusMode || await page.locator('.con-reveal--bonus-mode').count() > 0;
-    obs.sawReveal = obs.sawReveal || await page.locator('.con-reveal').count() > 0 || await page.locator('.con-zoom').count() > 0;
-    if (tick === 12) {
-      await shoot(page, `${tag}-t2.4s`);
-    }
-    if (tick === 30) {
-      await shoot(page, `${tag}-t6s`);
-    }
-  }
+  await page.waitForTimeout(2400);
+  await shoot(page, `${tag}-t2.4s`);
+  await page.waitForTimeout(3600);
+  await shoot(page, `${tag}-t6s`);
+  await page.waitForTimeout(Math.max(0, windowMs - 6000));
   await shoot(page, `${tag}-end`);
+
+  const raw = await page.evaluate(() => {
+    const w = window as unknown as Record<string, any>;
+    w.__sightObs?.disconnect();
+    window.clearInterval(w.__sightTimer);
+    return w.__sight as {proxy: boolean, marker: boolean, bonusMode: boolean, reveal: boolean,
+      deckDraw: Array<number>, samples: number};
+  });
+  const obs: Observation = {
+    journal,
+    deckDrawSightings: raw.deckDraw.map((ms) => `t+${ms}ms`),
+    sawTradeProxy: raw.proxy,
+    sawMarker: raw.marker,
+    sawBonusMode: raw.bonusMode,
+    sawReveal: raw.reveal,
+    samples: raw.samples,
+  };
 
   console.log(`── [colony-trade] journal (${tag}) ──`);
   journal.forEach((line) => console.log(line));
+  console.log('recorder samples:', obs.samples);
   console.log('deck-draw sightings:', obs.deckDrawSightings.length > 0 ? obs.deckDrawSightings.join(', ') : 'none');
   console.log('trade cover proxy seen:', obs.sawTradeProxy);
   console.log('track marker proxy seen:', obs.sawMarker);
   console.log('reveal bonus-mode seen:', obs.sawBonusMode);
   console.log('reveal/zoom surface seen:', obs.sawReveal);
+  // A silent probe must never read as «the product did nothing».
+  expect(obs.samples, 'the in-page sighting recorder ran').toBeGreaterThan(10);
   return obs;
 }
 
@@ -241,11 +323,22 @@ function collectJournal(page: Page): Array<string> {
   return journal;
 }
 
-test.describe.configure({mode: 'serial'});
-
+/*
+ * NOT `serial`. Each test creates its OWN game and drives its OWN page, so a
+ * failure in one says nothing about the others — while `serial` marks them «did
+ * not run» and removes them from the report entirely.
+ */
 test('visual: a merged trade batch renders the labelled colony-bonus zone', async ({page, request}) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   const game = await createGame(request, false);
+
+  // ⚠️ BOOT PAST THE PREGAME FIRST. The injection used to run against a browser
+  // still sitting in the start wizard, where a payout is correctly SUPPRESSED
+  // (the start workspace owns the screen, and the hand dock has no real pack
+  // slots for the take to land in) — so the spec waited 30 s for a zone that
+  // was never going to mount, on a perfectly healthy corporation-pick screen.
+  // Its two sibling tests already boot; this one simply never did.
+  await bootGame(page, request, game.playerId, 'Pluto');
 
   // Inject a merged Pluto trade batch (2 income + 1 bonus card of a 2-colony
   // sequence) into every /api/player response — the route-interception
@@ -265,19 +358,36 @@ test('visual: a merged trade batch renders the labelled colony-bonus zone', asyn
       ],
       tradeSegments: [{role: 'income', count: 2}, {role: 'bonus', count: 1}],
     }];
+    // ⚠️ A WHOLE PROMPT, not a marker bolted onto whatever was already there.
+    // The zones render off a colony-bonus DISCARD prompt, i.e. a `type: 'card'`
+    // select carrying `discardPrompt.colonyBonus`. Spreading the board-home
+    // action menu and only adding the marker left `type: 'or'`, so nothing
+    // classified it as an interruptive colony-bonus collect: no announce, no
+    // zone, and a 30 s wait on a perfectly ordinary board. Same shape as
+    // console-pluto-bonus-discard, which is the flow this mirrors.
     body.waitingFor = {
-      ...(body.waitingFor ?? {type: 'option', title: ''}),
+      type: 'card',
+      title: 'Pluto colony bonus. Select a card to discard',
+      buttonLabel: 'Discard',
+      cards: (body.cardsInHand ?? []).slice(0, 6),
+      min: 1,
+      max: 1,
+      showOnlyInLearnerMode: false,
       discardPrompt: {
-        title: 'Select a card to discard',
+        min: 1, max: 1, source: {kind: 'colony'},
         colonyBonus: {colonyName: 'Pluto', index: 1, total: 2},
       },
     };
     await route.fulfill({response, json: body});
   });
 
-  await page.goto(`/player?id=${game.playerId}&console=1`);
-  await page.waitForSelector('.con-root, .con-start__frame', {timeout: 45_000});
+  await page.reload();
+  await page.waitForSelector('.con-root', {timeout: 45_000});
   await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 60_000}).catch(() => {});
+  // A `colonyBonus` collect is INTERRUPTIVE, and interruptive prompts are
+  // ANNOUNCED rather than auto-opened (`consoleMandatoryGate.ts`): the board
+  // shows «БОНУС КОЛОНИИ · Ⓐ Открыть» and the payout mounts on the press.
+  await openMandatoryAnnounce(page);
   await page.waitForSelector('.con-reveal__bonus-zone', {state: 'visible', timeout: 30_000});
   await page.waitForTimeout(3000); // entrance settles
   await shoot(page, 'bonus-zone');
@@ -299,14 +409,17 @@ test('solo (gated path): the trade cinematic claims the Pluto reveal', async ({p
   const game = await createGame(request, false);
   await bootGame(page, request, game.playerId, 'Pluto');
   await openColoniesAndFocus(page, 'solo', 'Pluto');
-  const obs = await tradeAndObserve(page, 'solo', journal, 60);
+  const before = await trackPosition(request, game.playerId, 'Pluto');
+  const obs = await tradeAndObserve(page, 'solo', journal, 12_000);
 
   // The `[colony-trade]` journal is dev-only (stripped from the production
   // bundle) — the verdicts ride the OBSERVABLE stage facts instead.
   expect(obs.deckDrawSightings.length, 'deck-draw wrongly claimed the trade reveal').toBe(0);
   expect(obs.sawTradeProxy, 'no trade cover ever flew off the tile').toBeTruthy();
   expect(obs.sawBonusMode, 'the reveal never mounted staged (covers→slots)').toBeTruthy();
-  expect(obs.sawMarker, 'the track-reset marker glide never played').toBeTruthy();
+  // …and the trade actually happened (see `trackPosition`).
+  expect(await trackPosition(request, game.playerId, 'Pluto'),
+    'the trade did not reset the colony track').toBeLessThan(before);
 });
 
 test('vs MarsBot (staged bot path): the trade that ENDS the turn still claims', async ({page, request}) => {
@@ -327,13 +440,16 @@ test('vs MarsBot (staged bot path): the trade that ENDS the turn still claims', 
   await burnActionOnHeatConversion(page);
 
   await openColoniesAndFocus(page, 'bot', target);
+  const before = await trackPosition(request, game.playerId, target);
   // Longer window: the bot's turn cards (TTL ~5 s each) deliver BEFORE the
   // buffered commit lands the reveal / track reset.
-  const obs = await tradeAndObserve(page, 'bot', journal, 120);
+  const obs = await tradeAndObserve(page, 'bot', journal, 24_000);
 
   // Dev journal is stripped from the production bundle — assert the stage.
   expect(obs.deckDrawSightings.length, 'deck-draw wrongly claimed the trade reveal').toBe(0);
-  expect(obs.sawMarker, 'the track-reset marker glide never played').toBeTruthy();
+  // The STAGED bot path must still land the trade itself (see `trackPosition`).
+  expect(await trackPosition(request, game.playerId, target),
+    'the staged commit never applied the trade').toBeLessThan(before);
   if (target === 'Pluto') {
     expect(obs.sawTradeProxy, 'no trade cover ever flew (Pluto)').toBeTruthy();
     expect(obs.sawBonusMode, 'the reveal never mounted staged (Pluto)').toBeTruthy();

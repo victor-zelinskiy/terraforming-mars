@@ -108,7 +108,12 @@ describe('action usage summary view-model', () => {
 
     it('the ADD branch shows only floaters added, never cards drawn', () => {
       const vm = getActionUsageSummary(mixedStat, {mineTokens: ['cardres:floater'], siblingTokens: ['cards']});
-      expect(vm.lines).to.deep.eq([{icon: 'floater', label: 'Added', value: '+2'}]);
+      // The «Added» line is keyed by the stat's own `cardResources` key, i.e. the
+      // `CardResource` ENUM value ('Floater'). That is the shape `iconClassFor`
+      // is documented to accept alongside the normalised one — it lower-cases at
+      // the single resolution point — so the line is correct as it stands. Only
+      // the TOKEN comparison had to fold the case (actionUsageSummary.metricToken).
+      expect(vm.lines).to.deep.eq([{icon: 'Floater', label: 'Added', value: '+2'}]);
       expect(vm.kind).to.eq('resource');
       expect(vm.cardScoped).to.be.true;
     });
@@ -161,7 +166,9 @@ describe('action usage summary view-model', () => {
       const mine = branchMetricTokens(animalEffects);
       const sibling = branchMetricTokens(plantsEffects);
       const vm = getActionUsageSummary(mixedStat, {mineTokens: mine, siblingTokens: sibling});
-      expect(vm.lines.some((l) => l.icon === 'animal' && l.label === 'Added')).to.be.true;
+      // 'Animal' — the stat's own `cardResources` key (the CardResource enum
+      // value); see the note on the floater case above.
+      expect(vm.lines.some((l) => l.icon === 'Animal' && l.label === 'Added')).to.be.true;
       expect(vm.lines.some((l) => l.icon === 'plants' && l.label === 'Gained'), 'no plants line on the animal branch').to.be.false;
       expect(vm.cardScoped).to.be.true;
     });

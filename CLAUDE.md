@@ -104,9 +104,15 @@ npm run test:client          # Mochapack client component tests
 # Single server test file
 npx mocha --import=tsx --require tests/testing/setup.ts "tests/cards/base/Algae.spec.ts"
 
-# Single client test file (the --webpack-config flag is required when invoking mochapack directly)
-npx mochapack --webpack-config webpack.config.js --require tests/client/components/setup.ts "tests/client/components/Board.spec.ts"
+# Single client test file. BOTH extra flags are required when invoking mochapack
+# directly: webpack.test.config.js builds ONE chunk (webpack.config.js's fixed-name
+# `vendors` split silently makes the runner collect ZERO tests and exit 0), and
+# bundleSetup.ts auto-unmounts wrappers so specs stay order-independent.
+npx mochapack --webpack-config webpack.test.config.js --require tests/client/components/setup.ts \
+  --include ./tests/client/components/bundleSetup.ts "tests/client/components/Board.spec.ts"
 ```
+
+Both `npm run test:server` and `npm run test:client` run through `scripts/run-tests.mjs`, which **fails the run when fewer tests were collected than the declared floor** — a suite that quietly stops collecting can no longer report success.
 
 `npm run build:test` is **mandatory** whenever you touch `tests/` — it is the only thing that typechecks the test tree and the thing that catches case-sensitive import paths that break CI.
 

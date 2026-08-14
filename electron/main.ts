@@ -885,6 +885,15 @@ if (!app.requestSingleInstanceLock()) {
     console.log('[shutdown] will-quit — all windows closed, tearing down');
   });
 
+  // The LAST breadcrumb JS can leave. On the Steam Machine the log ends at `will-quit` and the
+  // process then lived on past Velopack's 60s wait — so the stall is in Chromium's native
+  // teardown, where no timer of ours will ever run again (hence the external watchdog in
+  // shutdown.ts). Whether this line appears says which side of `quit` the native stall is on.
+  app.on('quit', () => {
+    // eslint-disable-next-line no-console
+    console.log('[shutdown] quit — event loop done, process should end now');
+  });
+
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
       // Idempotent when a quit is already running (the usual case — this fires as a

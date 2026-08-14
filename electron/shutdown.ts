@@ -26,8 +26,12 @@
 // against a fake clock (tests/electron/shutdown.spec.ts) rather than trusted by eye.
 
 import {app, BrowserWindow} from 'electron';
+import {spawn} from 'child_process';
+import * as fs from 'fs';
 
 export interface ShutdownHost {
+  /** Stage 0 — hand the guarantee to a process that outlives us (Linux; see armWatchdog). */
+  armWatchdog?(): void;
   /** Graceful stage — Electron's `app.quit()`. */
   quit(): void;
   /** Force stage — Electron's `app.exit(code)`. */
@@ -78,6 +82,9 @@ export function createShutdownController(host: ShutdownHost): ShutdownController
       }
       started = true;
       host.log(`[shutdown] ${reason} — quitting${state()}`);
+      // FIRST, before anything can stall: hand the guarantee to a process that outlives us.
+      // The in-process stages below are a courtesy; this is the one that always lands.
+      host.armWatchdog?.();
       host.quit();
       host.setTimer(() => {
         host.log(`[shutdown] still alive ${FORCE_EXIT_DELAY_MS}ms after quit() — forcing exit${state()}`);
@@ -91,8 +98,99 @@ export function createShutdownController(host: ShutdownHost): ShutdownController
   };
 }
 
+/**
+ * How long the EXTERNAL watchdog gives us to die before it pulls the trigger. A healthy quit
+ * takes about a second, so this is pure slack — but it must stay well under Velopack's 60 s
+ * parent-exit wait, or a stalled shutdown burns that whole minute before the update applies
+ * (observed: "Failed to wait for process (6660) to exit (Parent process timed out)").
+ */
+export const WATCHDOG_DELAY_SECONDS = 10;
+
+/**
+ * The external watchdog's shell program (PURE — unit-tested).
+ *
+ * Why a separate PROCESS and not a timer: by the time Electron reaches `will-quit` the Node
+ * environment is being torn down, so `setTimeout` callbacks never run again. A shutdown that
+ * stalls in Chromium's NATIVE teardown — which is exactly what the Steam Machine log shows,
+ * `[shutdown] will-quit` followed by silence, no exit for the full 60 s Velopack waited — is
+ * therefore invisible and unstoppable from inside. Only something outside the process can end
+ * it, and until now that something was the player holding B.
+ *
+ * Identity is checked before killing: `/proc/<pid>/stat` field 22 is the process START TIME, so
+ * a pid that was recycled between our exit and the trigger can never be mistaken for us (the
+ * relaunched game is the obvious candidate). Everything after `)` is taken first because a
+ * process name may itself contain spaces or parentheses, which would shift field numbering.
+ */
+export function buildWatchdogScript(input: {
+  pid: number;
+  startTime: string;
+  delaySeconds: number;
+  logFile?: string;
+}): string {
+  const {pid, startTime, delaySeconds} = input;
+  const note = `=== shutdown watchdog: pid ${pid} still alive ${delaySeconds}s after quit — SIGKILL ===`;
+  const lines = [
+    `sleep ${delaySeconds}`,
+    `now=$(sed 's/.*) //' /proc/${pid}/stat 2>/dev/null | cut -d' ' -f20)`,
+    `[ "$now" = "${startTime}" ] || exit 0`,
+  ];
+  if (input.logFile !== undefined && input.logFile !== '') {
+    // Single-quoted so a path with spaces survives; ' is closed/escaped/reopened.
+    lines.push(`echo '${note}' >> '${input.logFile.replace(/'/g, `'\\''`)}'`);
+  }
+  lines.push(`kill -9 ${pid}`);
+  return lines.join('\n');
+}
+
+/** Our own start time from /proc (Linux) — the watchdog's proof of identity. */
+function processStartTime(pid: number | 'self'): string | undefined {
+  try {
+    const stat = fs.readFileSync(`/proc/${pid}/stat`, 'utf8');
+    // Fields after the comm's closing ')' start at #3, so starttime (#22) is index 19.
+    return stat.slice(stat.lastIndexOf(') ') + 2).split(' ')[19];
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Spawn the external watchdog. Linux only — that is where the native-teardown stall lives, and
+ * where /proc gives a cheap exact identity check. Detached + unref'd so it survives us: a child
+ * that died with the parent would be no watchdog at all.
+ */
+function armExternalWatchdog(): void {
+  if (process.platform !== 'linux') {
+    return;
+  }
+  const startTime = processStartTime('self');
+  if (startTime === undefined) {
+    // eslint-disable-next-line no-console
+    console.log('[shutdown] no /proc — external watchdog unavailable, relying on the in-process stages');
+    return;
+  }
+  try {
+    const script = buildWatchdogScript({
+      pid: process.pid,
+      startTime,
+      delaySeconds: WATCHDOG_DELAY_SECONDS,
+      // The wrapper's log, so the kill is visible in the same timeline as everything else.
+      logFile: (process.env.TM_LOG_FILE ?? '').trim() || undefined,
+    });
+    // /bin/sh from the SYSTEM, never the AppImage's own — a watchdog holding our squashfs
+    // mount busy would be working against the very shutdown it is guarding.
+    const child = spawn('/bin/sh', ['-c', script], {detached: true, stdio: 'ignore'});
+    child.unref();
+    // eslint-disable-next-line no-console
+    console.log(`[shutdown] external watchdog armed — SIGKILL in ${WATCHDOG_DELAY_SECONDS}s if pid ${process.pid} is still alive`);
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.log(`[shutdown] could not arm the external watchdog — ${String(err)}`);
+  }
+}
+
 /** The one controller the app uses — every quit path routes through it. */
 const controller = createShutdownController({
+  armWatchdog: armExternalWatchdog,
   quit: () => app.quit(),
   exit: (code) => app.exit(code),
   // SIGKILL to our own pid. Node maps it to TerminateProcess on Windows, so the backstop is

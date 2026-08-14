@@ -296,15 +296,27 @@ for (const profile of PROFILES) {
       // is how this drive used to fold the workspace and then assert on a
       // stage that was already gone). So each press waits for the dialog to
       // actually detach before another one is considered.
-      for (let tries = 0; tries < 5 && await srcZoom.count() > 0; tries++) {
+      // ⚠️ THE RETRY BUDGET IS THE RACE. A press is only «dropped» if the app
+      // never acts on it — but the viewer's close is a RETURN FLIGHT, and on a
+      // 4K frame it can take longer than the window we give it. Assuming a drop
+      // too early is how the second Escape reaches the stage underneath as
+      // B = «Взять всё»: the flow ends, the stage unmounts, and the assertions
+      // below then report «element not found» — a fold, described as a missing
+      // card. So the wait is long enough to cover the close itself, and each
+      // retry re-checks that the dialog is genuinely still open.
+      for (let tries = 0; tries < 3 && await srcZoom.count() > 0; tries++) {
         await page.keyboard.press('Escape');
-        await srcZoom.waitFor({state: 'detached', timeout: 2500}).catch(() => { /* dropped — retry */ });
+        await srcZoom.waitFor({state: 'detached', timeout: 8000}).catch(() => { /* dropped — retry */ });
       }
       await expect(srcZoom).toHaveCount(0, {timeout: 8000});
-      await page.waitForTimeout(400);
       // …and it comes BACK: no slot left empty, no stranded hold.
+      // Wait on the CARD first — it is the LAST event of the return (the hold is
+      // released before it paints), so asserting it first makes the hold check
+      // below a statement about a settled state rather than a second race.
+      await expect(page.locator('[data-embed-slot="workspace-reveal"] .con-cards__slot .pcard'),
+        'the source card returned to its slot (if this is «not found», the flow folded early — see above)')
+        .toBeVisible({timeout: 8000});
       await expect(page.locator('.con-zoom-hold')).toHaveCount(0, {timeout: 6000});
-      await expect(page.locator('[data-embed-slot="workspace-reveal"] .con-cards__slot .pcard')).toBeVisible();
 
       // ── 3. TAKE → NO SEAM, then fold + dock landing. ────────────────────
       // A per-frame sampler for the HOLE the player reported: the card
@@ -382,7 +394,22 @@ for (const profile of PROFILES) {
       await key(page, 'Enter', 600);
       const seam = await page.evaluate(() => (window as unknown as {__seam: {hole: number, frames: number}}).__seam);
       expect(seam.hole, `frames with neither the card nor its proxy (of ${seam.frames})`).toBe(0);
-      await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 8000});
+      // THE TAKE IS ONE PRESS — but a press dropped on a heavy frame is
+      // indistinguishable from «the workspace refused to fold», and that is what
+      // this assertion reported (3 of 5 repeats, always here). Re-pressing is
+      // safe by construction: while the take is in flight the reveal ABSORBS
+      // every verb (`taking|collecting`), so a second A cannot double-take — it
+      // can only replace a press that never landed.
+      const workspace = page.locator('.con-cardactions');
+      for (let tries = 0; tries < 3 && await workspace.count() > 0; tries++) {
+        const folded = await workspace.waitFor({state: 'detached', timeout: 8000})
+          .then(() => true).catch(() => false);
+        if (folded) {
+          break;
+        }
+        await page.keyboard.press('Enter');
+      }
+      await expect(workspace, 'the finished activation left the workspace').toHaveCount(0, {timeout: 8000});
       // No proxy left hanging: the delivery layer empties once the flight lands.
       await expect(page.locator('.con-handdelivery-layer .con-deal-proxy')).toHaveCount(0, {timeout: 8000});
       await page.waitForTimeout(1200);

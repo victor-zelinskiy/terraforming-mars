@@ -3,6 +3,10 @@ import {globalConfig} from './getLocalVue';
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import SortableCards from '@/client/components/SortableCards.vue';
+// The hosted card is the FACADE (`card/CardFace.vue`, registered locally as
+// `Card`), which renders either the premium face or the legacy one. Matching on
+// `{name: 'Card'}` silently found nothing once the premium face took over.
+import CardFace from '@/client/components/card/CardFace.vue';
 import {FakeLocalStorage} from './FakeLocalStorage';
 
 describe('SortableCards', () => {
@@ -28,9 +32,7 @@ describe('SortableCards', () => {
         playerId: 'foo',
       },
     });
-    let cards = sortable.findAllComponents({
-      name: 'Card',
-    });
+    let cards = sortable.findAllComponents(CardFace);
     expect(cards).has.length(2);
     expect(cards[0].props().card.name).to.eq(CardName.ANTS);
     expect(cards[1].props().card.name).to.eq(CardName.CARTEL);
@@ -40,9 +42,7 @@ describe('SortableCards', () => {
     const droppers = sortable.findAll('.drop-target');
     await droppers[0].trigger('dragover');
     await draggers[1].trigger('dragend');
-    cards = sortable.findAllComponents({
-      name: 'Card',
-    });
+    cards = sortable.findAllComponents(CardFace);
     expect(cards[0].props().card.name).to.eq(CardName.CARTEL);
     expect(cards[1].props().card.name).to.eq(CardName.ANTS);
     const order = localStorage.getItem('cardOrderfoo');
@@ -71,9 +71,7 @@ describe('SortableCards', () => {
         playerId: 'foo',
       },
     });
-    let cards = sortable.findAllComponents({
-      name: 'Card',
-    });
+    let cards = sortable.findAllComponents(CardFace);
     expect(cards).has.length(3);
     expect(cards[0].props().card.name).to.eq(CardName.CARTEL);
     expect(cards[1].props().card.name).to.eq(CardName.ANTS);
@@ -84,9 +82,7 @@ describe('SortableCards', () => {
     const droppers = sortable.findAll('.drop-target');
     await droppers[2].trigger('dragover');
     await draggers[0].trigger('dragend');
-    cards = sortable.findAllComponents({
-      name: 'Card',
-    });
+    cards = sortable.findAllComponents(CardFace);
     expect(cards[0].props().card.name).to.eq(CardName.ANTS);
     expect(cards[1].props().card.name).to.eq(CardName.CARTEL);
     expect(cards[2].props().card.name).to.eq(CardName.BIRDS);

@@ -1,6 +1,7 @@
 import {test, expect, Page} from '@playwright/test';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import {bootToBoard, fillPicks, press} from './consoleStart';
 
 /**
  * TV display-profile screenshot matrix (TV-3).
@@ -141,37 +142,39 @@ for (const preset of PRESETS) {
       // is deterministic (no wizard walk required).
       await key(page, 'KeyX', 4200); // open flight + settle + leaders
       await shoot(page, preset, '09-card-zoom');
-      await key(page, 'Escape', 1200);
+      // CLOSE IT FOR REAL before anything else drives the wizard: an open
+      // fullscreen viewer owns the pad, so every later press is swallowed and
+      // the walk stalls on a start scene that is perfectly healthy. Bounded
+      // press-verify-retry, never a fixed sleep (the close is a return flight
+      // and takes visibly longer at 4K).
+      const zoom = page.locator('dialog.con-zoom[open]');
+      for (let tries = 0; tries < 3 && await zoom.count() > 0; tries++) {
+        await page.keyboard.press('Escape');
+        await zoom.waitFor({state: 'detached', timeout: 6000}).catch(() => { /* dropped — retry */ });
+      }
+      await expect(zoom, 'the card viewer closed before the walk').toHaveCount(0, {timeout: 8000});
 
-      // ── 3 · Drive the start flow STATE-AWARE (not a blind press list) ──
-      // A (Enter) picks / pays / plays the focused item, RB (KeyE)
-      // advances a completed step, ArrowRight nudges multi-pick steps
-      // (2 preludes / 2 project cards). Heavy 4K rendering + animation
-      // holds can swallow any single press, so the driver simply keeps
-      // alternating them while the start scene is mounted — extra presses
-      // are inert per step; bounded so a genuine hang still fails fast.
-      for (let i = 0; i < 24; i++) {
-        if (await page.locator('.con-start__frame').count() === 0) {
-          break;
-        }
-        await key(page, 'Enter', 1300);
-        await key(page, 'KeyE', 900);
-        if (i % 2 === 1) {
-          await key(page, 'ArrowRight', 400);
-        }
-      }
-      // The wizard hands over to the PRELUDE-PHASE scene through a brief
-      // unmount window (the loop above may break inside it). Give the next
-      // scene time to mount, then play the preludes with a second bounded
-      // state-aware loop (A plays the focused prelude; extra presses inert).
-      await page.waitForTimeout(3000);
-      for (let i = 0; i < 8; i++) {
-        if (await page.locator('.con-start__frame, .con-task-host').count() === 0) {
-          break;
-        }
-        await key(page, 'Enter', 2600);
-      }
-      await page.waitForTimeout(2500);
+      // ── 3 · Drive the start flow through the SHARED driver ─────────────
+      // This used to be two blind press loops — up to 24 rounds of
+      // «Enter(1300) + KeyE(900) + ArrowRight(400)» plus 8 × 2600ms, i.e. ~80
+      // SECONDS OF SLEEPING PER PRESET whether or not anything was still
+      // happening, and 5 presets of that is most of this file's 10.8-minute
+      // runtime. `bootToBoard` reads the live step and waits on the surfaces'
+      // own signals instead, so it takes exactly as long as the game does. The
+      // gallery is unchanged: the shots above are taken BEFORE the walk (the
+      // start scene is the deterministic moment), and this one after it.
+      // The wizard's default hook only answers the CORPORATION step; this game
+      // deals preludes and projects too, and an unsatisfied step greys out RT
+      // («СЛЕД. ШАГ»), so the walk would sit on «Выберите ещё 2» forever.
+      await bootToBoard(page, {
+        onStep: async (p, kind) => {
+          if (kind === 'corporation') {
+            await press(p, 'Enter', 600);
+          } else if (kind === 'prelude' || kind === 'project') {
+            await fillPicks(p, 2);
+          }
+        },
+      });
       await shoot(page, preset, '03-after-start');
 
       // ── 4 · The main board + HUD ───────────────────────────────────

@@ -1,6 +1,6 @@
 {
   "name": "terraforming-mars",
-  "version": "1.2.357",
+  "version": "1.2.358",
   "description": "Terraforming Mars Game",
   "engines": {
     "node": ">=22.22.2 <23"
@@ -99,11 +99,11 @@
     "card-art:extract": "tsx scripts/card-art/extract-card-art.ts",
     "make:static": "npm run make:css && npm run make:json",
     "test": "npm run test:server && npm run test:client",
-    "test:server": "mocha --import=tsx --require tests/testing/setup.ts \"tests/*.spec.ts\" \"tests/!(client|integration|e2e)/**/*.spec.ts\"",
+    "test:server": "node scripts/run-tests.mjs --label server --min 8500 -- node ./node_modules/mocha/bin/mocha.js --import=tsx --require tests/testing/setup.ts \"tests/*.spec.ts\" \"tests/!(client|integration|e2e)/**/*.spec.ts\"",
     "test:integration": "mocha --import=tsx --no-timeouts \"tests/integration/**/*.spec.ts\"",
     "test:postgresql": "mocha --import=tsx \"tests/integration/PostgreSQL.spec.ts\"",
-    "test:client": "cross-env NODE_ENV=development mochapack --require tests/client/components/setup.ts \"tests/client/**/*.spec.ts\"",
-    "test:client:watch": "cross-env NODE_ENV=development mochapack --watch --require tests/client/components/setup.ts \"tests/client/**/*.spec.ts\"",
+    "test:client": "cross-env NODE_ENV=development node scripts/run-tests.mjs --label client --min 4000 -- node ./node_modules/mochapack/bin/mochapack --webpack-config webpack.test.config.js --require tests/client/components/setup.ts --include ./tests/client/components/bundleSetup.ts \"tests/client/**/*.spec.ts\"",
+    "test:client:watch": "cross-env NODE_ENV=development mochapack --watch --webpack-config webpack.test.config.js --require tests/client/components/setup.ts --include ./tests/client/components/bundleSetup.ts \"tests/client/**/*.spec.ts\"",
     "test:e2e": "playwright test",
     "test:e2e:all": "npm run build:test && playwright test tests/e2e --workers=1 --reporter=list,html --trace=retain-on-failure",
     "test:e2e:failed": "playwright test --last-failed --workers=1 --reporter=list,html --trace=retain-on-failure",

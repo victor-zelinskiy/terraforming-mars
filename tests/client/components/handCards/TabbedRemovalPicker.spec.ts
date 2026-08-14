@@ -59,10 +59,17 @@ describe('TabbedRemovalPicker', () => {
     expect(emitted![0][0]).to.deep.equal({type: 'or', index: 0, response: {type: 'card', cards: ['Birds']}});
   });
 
-  it('highlights the selected target parsed from the `selected` prop', () => {
+  it('highlights the selected target parsed from the `selected` prop', async () => {
     const plant = factory(MODEL, {type: 'or', index: 1, response: {type: 'option'}});
-    expect((plant.vm as any).selectedPlantIndex).to.eq(1);
+    // `selectedPlantIndex` was widened to `selectedOptionIndex` when the MarsBot
+    // target joined the same list — it is the PLAYER-target's OrOptions index.
+    expect((plant.vm as any).selectedOptionIndex).to.eq(1);
     expect((plant.vm as any).selectedAnimalName).is.undefined;
+    // …and the highlight this test is named for actually lands on that row.
+    await plant.findAll('.virus-tabs__tab')[1].trigger('click');
+    const marked = plant.findAll('.virus-plant--selected');
+    expect(marked.length, 'exactly one row is marked').to.eq(1);
+    expect(marked[0].text()).to.contain('Red');
 
     const animal = factory(MODEL, {type: 'or', index: 0, response: {type: 'card', cards: ['Birds']}});
     expect((animal.vm as any).selectedAnimalName).to.eq('Birds');

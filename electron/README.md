@@ -463,7 +463,21 @@ way out, and the restart-loop wrapper (which waits on the app PROCESS) never get
 update or relaunch, so the same update re-installs on every launch. Every quit path — the renderer's
 ВЫЙТИ, `window-all-closed`, the mode-change relaunch, and all three update-apply branches — routes
 through `beginShutdown(reason)`, which escalates `quit()` → `app.exit(0)` at 2.5 s → `SIGKILL` at
-5 s, logging each stage with the live window state. Related: the always-fullscreen re-enforcement
+5 s, logging each stage with the live window state.
+
+⚠ **Those in-process stages are a courtesy, not the guarantee.** A Steam Machine log caught the real
+failure: `[shutdown] will-quit` was reached and then the process simply never ended — Velopack's
+`WaitPid` gave up after its full 60 s ("Parent process timed out"), no wrapper line was ever written,
+and the player killed it with B. No escalation line appeared either, because by `will-quit` the Node
+environment is being torn down and `setTimeout` callbacks never run again — a stall in Chromium's
+NATIVE teardown is invisible AND unstoppable from inside the process. So `beginShutdown` FIRST spawns
+an **external watchdog** (`buildWatchdogScript`, Linux, detached `/bin/sh`, unref'd) that outlives us
+and `kill -9`s the pid if it is still alive after `WATCHDOG_DELAY_SECONDS` (10 s — well inside
+Velopack's 60 s wait, so the apply is not delayed by a stall). It proves identity from
+`/proc/<pid>/stat` field 22 (start time) before firing, so a recycled pid — the freshly relaunched
+game being the obvious candidate — can never be hit, and it notes the kill in the wrapper log.
+
+Related: the always-fullscreen re-enforcement
 stands down once the window is closing (`windowClosing` / `isShuttingDown()`) — re-asserting
 fullscreen into a half-closed window is a WM round-trip on X11/gamescope that can leave the close
 unfinished, which is precisely how `window-all-closed` stops firing.

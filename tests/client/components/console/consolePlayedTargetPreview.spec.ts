@@ -178,14 +178,24 @@ describe('consolePlayedTargetPreview — what the rail actually says', () => {
      * opposite answers, rendered the same. It is kept, and MARKED so the rail
      * can state it quietly instead of competing with the ones that move.
      */
-    it('keeps a VP entry that does not move, marked static', () => {
+    it('keeps a static VP entry in the SECTIONS, marked — and off the one-line reading', () => {
       const sections = playedTargetPreviewFor(
         undefined, input([{name: 'Ants', resources: 2}]), 'Ants' as CardName,
         [onCardGain('microbes', 1)], {['Ants' as CardName]: {from: 1, to: 1}});
+
+      // The SECTIONS are the comparison, so the static reading is kept + marked.
+      const vp = sections.flatMap((s) => s.impacts).filter((i) => i.label === 'VP');
+      expect(vp, 'the comparison keeps it').to.have.length(1);
+      expect(vp[0].static, 'stated, but stated quietly').to.eq(true);
+      expect(vp[0]).to.include({from: 1, to: 1});
+
+      // The ONE-LINE readings went the other way on 2026-08-12
+      // (`playedTargetImpactMoves`): the focus rail summarises the card under the
+      // cursor and the answered summary states a decision already made — neither
+      // is a comparison, and «ПО 0 → 0» beside a real «0 → 1» is a second chip
+      // that says nothing while taking the eye off the one that does.
       const impacts = playedTargetQuickImpacts(sections);
-      expect(impacts.map((i) => i.label)).to.deep.eq(['Resources on this card', 'VP']);
-      expect(impacts[1].static, 'stated, but stated quietly').to.eq(true);
-      expect(impacts[1]).to.include({from: 1, to: 1});
+      expect(impacts.map((i) => i.label)).to.deep.eq(['Resources on this card']);
     });
 
     /** A MOVING reading is never marked static — the two must stay tellable

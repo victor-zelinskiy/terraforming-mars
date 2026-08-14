@@ -162,8 +162,13 @@ function reportEntry(tag: string, samples: Array<Sample>): void {
   console.log(`   planet width settle   : ${at((s) => s.planetW >= 200)}ms`);
 }
 
-test.describe.configure({mode: 'serial'});
-
+/*
+ * NOT `serial`. Each test below creates its OWN game and drives its OWN page,
+ * so they share nothing — and `serial` turns the first failure into «did not
+ * run» for every later test in the file. That is how a CI report showed «8
+ * failed, 3 did not run»: two of those three were simply never attempted, and
+ * the run said nothing about whether they still worked.
+ */
 test('colony focus: entry choreography + trade resolution', async ({page, request}) => {
   test.setTimeout(420_000);
   await boot(page, request, await createGame(request));

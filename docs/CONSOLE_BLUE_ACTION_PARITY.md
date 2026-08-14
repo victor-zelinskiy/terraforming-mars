@@ -784,11 +784,42 @@ workspace'ов; принципы закреплены в `docs/claude/console/wo
 
 Гейты: make:json / make:css / vue-tsc / eslint / build:test — зелёные; юнит-
 батчи console (59+62+26) зелёные; glyphLiteralGuard зелёный.
-⚠ Pre-existing: `consoleRevealResultFlight.spec.ts` — молчаливый 0-passing
-(статический импорт `ConsoleRevealOverlay` → `CardFace` → async-chunk, тот же
-класс, что убил composerRender в ит. 16; файл в таком состоянии с 25.07) — и
-он глушит ЛЮБОЙ батч, в котором стоит. Рабочий список: перевести спек на
-stub/async-импорт.
+
+✅ **ЗАКРЫТО 2026-08-14** (было: «⚠ Pre-existing: `consoleRevealResultFlight.spec.ts`
+— молчаливый 0-passing … перевести спек на stub/async-импорт»).
+
+Диагноз оказался НЕ про спеку, и «stub» её бы не вылечил. Корень — в
+**чанковании тестовой сборки**: `webpack.config.js` кладёт node_modules в
+cache-группу с ФИКСИРОВАННЫМ именем (`vendors`, `chunks: 'all'`), поэтому в
+один и тот же чанк попадают и модули, достижимые только через ленивый
+`import()` (транзитивные зависимости markdown-it через `CardHelp.vue`, gsap
+через `gsapMotionBridge`, chart.js). `vendors` становится ребёнком И начальной
+группы, И асинхронной — а значит `chunk.isOnlyInitial()` для него ЛОЖЕН.
+mochapack отдаёт mocha только `isOnlyInitial`-чанки, так что `vendors.js` не
+подгружается никогда, а `main.js` стартует через
+`__webpack_require__.O(0, ['vendors'], …)` — отложенный старт, который уже не
+разрешится. Entry-модуль (в нём и живёт список спек) НЕ ВЫПОЛНЯЕТСЯ: ноль
+`describe`, «0 passing», **exit 0**. Батч глушится целиком именно потому, что
+entry у батча один.
+
+Масштаб был больше, чем считалось: молчал не один файл, а **весь
+`npm run test:client`** — с 2026-07-02 (коммит, добавивший ленивый импорт в
+`CardHelp.vue` рядом с `vendors`-группой).
+
+Починено:
+* **`webpack.test.config.js`** — сборка юнит-раннера без split-чанков и без
+  асинхронных чанков вовсе (`dynamicImportMode: 'eager'`), т.е. ровно один
+  only-initial чанк. Продакшн-бандл (BND-1) не тронут.
+  ⚠️ `LimitChunkCountPlugin({maxChunks: 1})` НЕ подходит: слияние async-чанка
+  в `main` делает уже `main` членом асинхронной группы — mocha тогда не
+  получает ни одного файла.
+* **`tests/client/components/bundleSetup.ts`** (`--include`) —
+  `enableAutoUnmount`: сьют перестал зависеть от порядка файлов (было 432
+  падения и 6 мин, стало 17 и 52 с).
+* **`scripts/run-tests.mjs`** — порог собранных тестов: «0 собрано» больше не
+  может быть зелёным.
+* Сама спека переписана под ДЕЙСТВУЮЩИЙ контракт ит. 26 (вердикт — общий
+  `ConsoleRevealVerdict`, а не `.con-reveal__outcome*`), проверена мутацией.
 
 ---
 

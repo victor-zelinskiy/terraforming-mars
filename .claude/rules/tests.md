@@ -16,21 +16,29 @@ paths:
 
 ## Runners
 ```bash
-npm run test:server          # mocha, ~7400 specs
-npm run test:client          # mochapack
+npm run test:server          # mocha, ~8740 specs, ~50s
+npm run test:client          # mochapack, ~4140 specs, ~85s
 npm run build:test           # tsc --build tests/tsconfig.json
 
 # one server spec
 npx mocha --import=tsx --require tests/testing/setup.ts "tests/cards/base/Algae.spec.ts"
 
-# one client spec (the --webpack-config flag is REQUIRED when invoking mochapack directly)
-npx mochapack --webpack-config webpack.config.js --require tests/client/components/setup.ts "<spec>"
-cross-env NODE_ENV=development mochapack --require tests/client/components/setup.ts "<spec>"   # package-script form
+# one client spec — BOTH flags are required when invoking mochapack directly:
+#   --webpack-config webpack.test.config.js   (single-chunk build; see below)
+#   --include ./tests/client/components/bundleSetup.ts   (auto-unmount)
+cross-env NODE_ENV=development npx mochapack \
+  --webpack-config webpack.test.config.js \
+  --require tests/client/components/setup.ts \
+  --include ./tests/client/components/bundleSetup.ts "<spec>"
 ```
+
+**Both `npm run test:*` scripts go through `scripts/run-tests.mjs`**, which fails the run when fewer tests are COLLECTED than the declared floor (`--min`). Raise a floor when a batch of specs lands; never lower one to make a run pass.
 
 ## Traps that have bitten before
 - **`npm run build:test` is mandatory when you touch `tests/`** — it is the only thing that typechecks the test tree (mocha + tsx do not), and it is what catches case-sensitive import paths that break CI on Linux.
-- A full `npm run test:client` run can be **falsely green** (0 tests, exit 0) — verify by running groups through mochapack directly.
+- ⚠️ **The client suite ran ZERO tests, green, from 2026-07-02 to 2026-08-14.** A fixed-name `vendors` split chunk that also collects lazily-imported deps makes `chunk.isOnlyInitial()` false for it, mochapack then never loads it, and `main.js` waits forever on a deferred startup — so the entry module (which runs the specs) never executes: «0 passing», exit 0, and every spec in the batch silenced. Fixed by `webpack.test.config.js` (no split chunks, no async chunks). **Never point the unit runner at `webpack.config.js`.** Full write-up in that file's header.
+- **A mount that is never unmounted is a live subscriber.** Specs share one process and one module-state graph, so stale components re-render on every later spec's writes: measured 432 failures + 6 min together vs 19 failures + 55 s apart. `bundleSetup.ts` auto-unmounts after each test — so **mount in `beforeEach`, never in `before`** (a wrapper does not survive into the next `it`).
+- `tests/client/components/setup.ts` exposes **every jsdom CONSTRUCTOR** (not a hand-picked list) — Vue's own `v-model` needs `Document`/`ShadowRoot`. Imperative APIs (`requestAnimationFrame`, `matchMedia`, …) are deliberately NOT added: feature detection must keep seeing this environment.
 - `npm run lint:server` with `--cache` can mask errors; run `eslint --no-cache` when in doubt.
 - **Module state is BUNDLE-SHARED in mochapack.** A spec that overrides an injected supplier or leaves module reactive state set (an open flow, a live animation hold, a foreground lease) corrupts every later spec — restore it in `after()`.
 - A PURE helper spec with no Vue dependency also runs under the faster server runner.

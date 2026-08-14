@@ -1,5 +1,5 @@
 import {expect} from 'chai';
-import {createShutdownController, FORCE_EXIT_DELAY_MS, HARD_KILL_DELAY_MS, ShutdownHost} from '../../electron/shutdown';
+import {buildWatchdogScript, createShutdownController, FORCE_EXIT_DELAY_MS, HARD_KILL_DELAY_MS, ShutdownHost, WATCHDOG_DELAY_SECONDS} from '../../electron/shutdown';
 
 /**
  * The escalation exists because a quit that stalls is INVISIBLE on the target hardware:
@@ -16,6 +16,7 @@ function fakeHost(): {host: ShutdownHost; calls: string[]; timers: Fired[]} {
     calls,
     timers,
     host: {
+      armWatchdog: () => calls.push('armWatchdog'),
       quit: () => calls.push('quit'),
       exit: (code) => calls.push(`exit(${code})`),
       hardKill: () => calls.push('hardKill'),
@@ -34,26 +35,27 @@ function advance(timers: Fired[], ms: number): void {
 }
 
 describe('electron/shutdown escalation', () => {
-  it('starts with the GRACEFUL quit — a healthy exit never reaches the force stages', () => {
+  it('arms the EXTERNAL watchdog BEFORE quitting — the only stage a native stall cannot swallow', () => {
+    // Order matters: the Steam Machine log ends at `will-quit` and the process then outlived
+    // Velopack's whole 60s wait. By that point Node's timers are gone, so anything armed after
+    // (or by) the quit is already too late. Stage 0 must be handed off first.
     const {host, calls} = fakeHost();
     createShutdownController(host).begin('renderer quit');
-    // Only quit() ran: the escalation timers exist but the process is expected to be gone
-    // before they fire, which is exactly why they cost nothing on a healthy quit.
-    expect(calls.filter((c) => !c.startsWith('log:'))).to.deep.equal(['quit']);
+    expect(calls.filter((c) => !c.startsWith('log:'))).to.deep.equal(['armWatchdog', 'quit']);
   });
 
   it('force-exits when the process is STILL ALIVE after quit()', () => {
     const {host, calls, timers} = fakeHost();
     createShutdownController(host).begin('renderer quit');
     advance(timers, FORCE_EXIT_DELAY_MS);
-    expect(calls.filter((c) => !c.startsWith('log:'))).to.deep.equal(['quit', 'exit(0)']);
+    expect(calls.filter((c) => !c.startsWith('log:'))).to.deep.equal(['armWatchdog', 'quit', 'exit(0)']);
   });
 
   it('SIGKILLs when even app.exit() did not end it — the backstop nothing can refuse', () => {
     const {host, calls, timers} = fakeHost();
     createShutdownController(host).begin('update apply');
     advance(timers, HARD_KILL_DELAY_MS);
-    expect(calls.filter((c) => !c.startsWith('log:'))).to.deep.equal(['quit', 'exit(0)', 'hardKill']);
+    expect(calls.filter((c) => !c.startsWith('log:'))).to.deep.equal(['armWatchdog', 'quit', 'exit(0)', 'hardKill']);
   });
 
   it('measures the SIGKILL from the start, not from the force stage (a stalled exit() cannot push it out)', () => {
@@ -71,7 +73,7 @@ describe('electron/shutdown escalation', () => {
     const controller = createShutdownController(host);
     controller.begin('renderer quit');
     controller.begin('all windows closed');
-    expect(calls.filter((c) => !c.startsWith('log:'))).to.deep.equal(['quit']);
+    expect(calls.filter((c) => !c.startsWith('log:'))).to.deep.equal(['armWatchdog', 'quit']);
     expect(timers).to.have.length(2);
   });
 
@@ -91,5 +93,47 @@ describe('electron/shutdown escalation', () => {
     expect(logs).to.have.length(3);
     expect(logs[0]).to.contain('update apply (linux, wrapper restart)');
     logs.forEach((l) => expect(l).to.contain('windows=1 alive=1'));
+  });
+});
+
+describe('electron/shutdown buildWatchdogScript', () => {
+  const script = (over: Partial<Parameters<typeof buildWatchdogScript>[0]> = {}): string =>
+    buildWatchdogScript({pid: 6660, startTime: '4242424', delaySeconds: 10, ...over});
+
+  it('waits, then SIGKILLs the pid that would not die', () => {
+    const s = script();
+    expect(s).to.contain('sleep 10');
+    expect(s).to.contain('kill -9 6660');
+  });
+
+  it('REFUSES to kill a recycled pid — start time is checked, so the relaunched game is safe', () => {
+    // The wrapper relaunches within a second of our exit. Without this the watchdog could fire
+    // into whatever now owns the pid, and the likeliest candidate is the fresh game itself.
+    const s = script();
+    expect(s).to.contain('/proc/6660/stat');
+    expect(s).to.contain('[ "$now" = "4242424" ] || exit 0');
+    expect(s.indexOf('exit 0')).to.be.lessThan(s.indexOf('kill -9'));
+  });
+
+  it('reads the stat fields AFTER the comm — a process name with spaces must not shift them', () => {
+    expect(script()).to.contain(`sed 's/.*) //'`);
+  });
+
+  it('notes the kill in the wrapper log so the timeline shows who ended the process', () => {
+    const s = script({logFile: '/home/deck/Applications/terraforming-mars-steam.log'});
+    expect(s).to.contain(`>> '/home/deck/Applications/terraforming-mars-steam.log'`);
+    expect(s).to.contain('still alive 10s after quit');
+  });
+
+  it('quotes a log path safely and works with no log path at all', () => {
+    expect(script({logFile: "/tmp/it's odd/tm.log"})).to.contain(`'/tmp/it'\\''s odd/tm.log'`);
+    expect(script({logFile: undefined})).to.not.contain('echo');
+  });
+
+  it('fires well inside Velopack\'s 60s parent-exit wait — a stall must not cost that whole minute', () => {
+    // Observed on the Steam Machine: "Failed to wait for process (6660) to exit (Parent process
+    // timed out.)" — the apply sat idle for 60s because nothing ended the process.
+    expect(WATCHDOG_DELAY_SECONDS).to.be.lessThan(60);
+    expect(WATCHDOG_DELAY_SECONDS * 1000).to.be.greaterThan(HARD_KILL_DELAY_MS);
   });
 });

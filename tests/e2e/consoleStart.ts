@@ -739,6 +739,39 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
 }
 
 /**
+ * A GATED INTERRUPTIVE PROMPT IS ANNOUNCED, NEVER AUTO-OPENED — so open it.
+ *
+ * `consoleMandatoryGate.ts`: a mandatory ACTION (a forced `handSelect`, a
+ * `colonyBonus` collect, an off-turn forced reaction) leaves its surface CLOSED
+ * and names itself on a board-home plate; **A opens it**. A spec that injects or
+ * provokes one and then waits for the surface directly waits forever — which is
+ * exactly how `console-pluto-bonus-discard` and `console-colony-trade-probe`
+ * both timed out on `.con-reveal__*` while the board underneath was perfectly
+ * healthy, showing «БОНУС КОЛОНИИ · Ⓐ Открыть».
+ *
+ * Returns whether a plate was found and acknowledged, so a caller can stay
+ * honest about which path it took. The wait is bounded and structural — the
+ * plate's own root class, never its copy.
+ */
+export async function openMandatoryAnnounce(page: Page, maxMs = 25_000): Promise<boolean> {
+  const plate = page.locator('.con-mandatory');
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    if (await plate.count() > 0) {
+      await press(page, 'Enter', 900);
+      // The gate hands the screen to the surface it announced; if the plate is
+      // still up, the press raced the entrance — try again inside the budget.
+      if (await plate.count() === 0) {
+        return true;
+      }
+      continue;
+    }
+    await page.waitForTimeout(200);
+  }
+  return false;
+}
+
+/**
  * What the player would actually SEE right now (root surface classes that
  * are genuinely painted). A failure message built on this names the screen
  * the run got stuck on — parked `v-show` layers (the summary pane lives on

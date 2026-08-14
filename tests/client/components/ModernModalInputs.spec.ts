@@ -95,15 +95,43 @@ describe('Modern modal inputs', () => {
         (out) => {
           saved = out;
         });
+      // THE INSTRUMENT FOLLOWS THE BUDGET: `cost === 1` is a CHOICE, not a
+      // number, so the surface renders selectable tiles («modern-ptl-pick-*»)
+      // and no steppers at all — counting a dial up to 1 past four verbs is
+      // exactly the shape that mode replaced.
+      expect(c.find('[data-test="modern-ptl-inc-steel"]').exists(), 'no steppers at cost 1').to.be.false;
       // megacredits (floor -5 → maxFor 5) and steel (2) are deductible; the
       // zero-production resources are hidden.
-      expect(c.find('[data-test="modern-ptl-inc-steel"]').exists()).to.be.true;
-      expect(c.find('[data-test="modern-ptl-inc-plants"]').exists()).to.be.false;
+      expect(c.find('[data-test="modern-ptl-pick-steel"]').exists()).to.be.true;
+      expect(c.find('[data-test="modern-ptl-pick-megacredits"]').exists()).to.be.true;
+      expect(c.find('[data-test="modern-ptl-pick-plants"]').exists()).to.be.false;
       const confirm = c.find('[data-test="modern-ptl-confirm"]');
       expect(confirm.attributes('disabled')).to.not.eq(undefined);
-      await c.find('[data-test="modern-ptl-inc-steel"]').trigger('click');
+      await c.find('[data-test="modern-ptl-pick-steel"]').trigger('click');
       await confirm.trigger('click');
       expect(saved).to.deep.eq({type: 'productionToLose', units: {...Units.EMPTY, steel: 1}});
+    });
+
+    it('a MULTI-unit budget keeps the steppers, and confirm waits for the exact total', async () => {
+      let saved: InputResponse | undefined;
+      const c = mountInput(ModernProductionToLose,
+        {
+          type: 'productionToLose',
+          title: 't',
+          buttonLabel: '',
+          payProduction: {cost: 2, units: {megacredits: 0, steel: 2, titanium: 0, plants: 0, energy: 0, heat: 0}},
+        },
+        (out) => {
+          saved = out;
+        });
+      const confirm = c.find('[data-test="modern-ptl-confirm"]');
+      expect(c.find('[data-test="modern-ptl-pick-steel"]').exists(), 'no single-pick tiles above cost 1').to.be.false;
+      await c.find('[data-test="modern-ptl-inc-steel"]').trigger('click');
+      expect(confirm.attributes('disabled'), 'one of two is not an answer').to.not.eq(undefined);
+      await c.find('[data-test="modern-ptl-inc-steel"]').trigger('click');
+      expect(confirm.attributes('disabled')).to.eq(undefined);
+      await confirm.trigger('click');
+      expect(saved).to.deep.eq({type: 'productionToLose', units: {...Units.EMPTY, steel: 2}});
     });
   });
 

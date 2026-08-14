@@ -27,6 +27,9 @@ assets/locales
 # variants + manifest.json — stay committed; rebuild review with --review-only.
 assets/card-art/review/
 
+# Scratch dir for local test logs + mochapack's own temporary output path.
+/.tmp/
+
 # Playwright (E2E) artifacts
 /test-results/
 /test-results-codex-*/

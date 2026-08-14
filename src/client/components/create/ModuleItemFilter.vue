@@ -27,7 +27,18 @@
                 <a href="#" v-i18n v-on:click.prevent="invertSelection(group.key)">Invert</a>
               </div>
             </div>
-            <div v-for="item in itemsByGroup[group.key]" v-bind:key="item" v-show="include(item)">
+            <!-- ⚠️ THE LIST IS FILTERED AT ITS SOURCE — no `v-show` here, and no
+                 `v-if` on this element either (in Vue 3 `v-if` binds BEFORE `v-for`,
+                 so `item` would be out of scope).
+                 Why it matters: this list lives inside a component SLOT and is
+                 re-rendered by the header's filter input. In that position Vue
+                 re-creates the `v-show` vnodes without re-assigning their `el`, and
+                 the next teardown walks `vShow.beforeUnmount` into a null element
+                 («Cannot read properties of null (reading 'style')»). Reproduced
+                 through the product's own close path — a parent `v-if` flipping to
+                 false after typing in the filter; ModuleItemFilter.spec.ts pins it.
+                 A filtered-out row has no reason to be in the DOM anyway. -->
+            <div v-for="item in visibleItems(group.key)" v-bind:key="item">
               <label class="form-checkbox">
                 <input type="checkbox" v-model="localSelected" :value="item"/>
                 <i class="form-icon"></i>
@@ -131,6 +142,11 @@ function icon(module: string | undefined): string | undefined {
 function showGroup(key: string) {
   const items = props.itemsByGroup[key];
   return (items ?? []).length > 0;
+}
+
+/** The group's items that survive the text filter — see the template's note. */
+function visibleItems(key: string): Array<T> {
+  return (props.itemsByGroup[key] ?? []).filter((item) => include(item));
 }
 
 watch(localSelected, (value) => {

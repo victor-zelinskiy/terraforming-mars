@@ -3,6 +3,10 @@ import {globalConfig} from './getLocalVue';
 import {expect} from 'chai';
 import {CardName} from '@/common/cards/CardName';
 import SelectProjectCardToPlay from '@/client/components/SelectProjectCardToPlay.vue';
+// The hosted card is the FACADE (`card/CardFace.vue`), not the legacy `Card.vue`
+// — matching on `{name: 'Card'}` silently found nothing once the premium face
+// took over.
+import CardFace from '@/client/components/card/CardFace.vue';
 import {SelectProjectCardToPlayModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel, PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Units} from '@/common/Units';
@@ -68,9 +72,7 @@ describe('SelectProjectCardToPlay', () => {
         showtitle: true,
       },
     });
-    const cards = sortable.findAllComponents({
-      name: 'Card',
-    });
+    const cards = sortable.findAllComponents(CardFace);
     expect(cards).has.length(2);
     expect(cards[0].props().card.name).to.eq(CardName.BIRDS);
     expect(cards[1].props().card.name).to.eq(CardName.ANTS);

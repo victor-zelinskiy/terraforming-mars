@@ -9,6 +9,7 @@ import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {RecursivePartial} from '@/common/utils/utils';
 import {Color} from '@/common/Color';
+import {paths} from '@/common/app/paths';
 
 function endgameModel(): EndgameModel {
   const breakdown: VictoryPointsBreakdown = {
@@ -94,7 +95,10 @@ describe('EndgameResultsOverlay — rematch control', () => {
     const w = overlay(false);
     const link = w.find('a.eg-results__ctl--cta');
     expect(link.exists()).to.eq(true);
-    expect(link.attributes('href')).to.eq('new-game');
+    // The premium «Mission Control» create screen replaced the legacy create
+    // form (paths.NEW_GAME_PREMIUM). Read the constant, not its current value,
+    // so a future move fails the COMPONENT and not this line.
+    expect(link.attributes('href')).to.eq(paths.NEW_GAME_PREMIUM);
   });
 
   it('a created rematch links a spectator to watch the new game', () => {

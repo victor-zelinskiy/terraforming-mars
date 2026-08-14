@@ -23,6 +23,7 @@ import raw_settings from '@/genfiles/settings.json';
 import {paths} from '@/common/app/paths';
 import {legacyRemountEnabled, __resetLegacyRemountForTesting} from '@/client/utils/legacyRemount';
 import {actionsOverlayState, resetActionsOverlay} from '@/client/components/actions/actionsOverlayState';
+import {consoleModeState} from '@/client/console/consoleModeState';
 
 async function flushPromises(): Promise<void> {
   await Promise.resolve();
@@ -50,16 +51,27 @@ function mountPlayerHome(view = fakePlayerViewModel(), resetEpoch = 0) {
 describe('AppNoRemount', () => {
   let localStorage: FakeLocalStorage;
   let originalFetch: unknown;
+  let originalConsoleMode: boolean;
 
   beforeEach(() => {
     localStorage = new FakeLocalStorage();
     FakeLocalStorage.register(localStorage);
     __resetLegacyRemountForTesting();
     originalFetch = (global as any).fetch;
+    /*
+     * The subject here is the DESKTOP update model, and App's shell split puts
+     * `<ConsoleShell>` on the same `v-else-if` chain one branch ABOVE
+     * `<player-home>`. Console mode defaults ON (it is the product), so without
+     * this the desktop subtree never renders at all and every lookup below finds
+     * an empty wrapper — a boot condition, not a contract failure.
+     */
+    originalConsoleMode = consoleModeState.enabled;
+    consoleModeState.enabled = false;
   });
 
   afterEach(() => {
     (global as any).fetch = originalFetch;
+    consoleModeState.enabled = originalConsoleMode;
     __resetLegacyRemountForTesting();
     FakeLocalStorage.deregister(localStorage);
     resetActionsOverlay();
