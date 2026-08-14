@@ -456,6 +456,24 @@ the newest 5 (a delta chain needs the prior full present).
   - not an AppImage at all (dev/unpacked) → premium **manual-download** fallback (needs `$APPIMAGE`).
 - The main process logs `[updater] provider=velopack-github platform=… appImage=… current=… channel=… — <status>`.
 
+**Shutdown is guaranteed, never assumed** (`electron/shutdown.ts`). No quit path may end at
+`app.quit()`. On a desktop OS a stalled quit is untidy; under gamescope it is fatal AND invisible —
+the window is already gone, so the compositor shows BLACK and Steam's "hold B to close" is the only
+way out, and the restart-loop wrapper (which waits on the app PROCESS) never gets to apply the
+update or relaunch, so the same update re-installs on every launch. Every quit path — the renderer's
+ВЫЙТИ, `window-all-closed`, the mode-change relaunch, and all three update-apply branches — routes
+through `beginShutdown(reason)`, which escalates `quit()` → `app.exit(0)` at 2.5 s → `SIGKILL` at
+5 s, logging each stage with the live window state. Related: the always-fullscreen re-enforcement
+stands down once the window is closing (`windowClosing` / `isShuttingDown()`) — re-asserting
+fullscreen into a half-closed window is a WM round-trip on X11/gamescope that can leave the close
+unfinished, which is precisely how `window-all-closed` stops firing.
+
+**Reading a Deck/Steam Machine hang out of the log** (`~/Applications/terraforming-mars-steam.log`):
+`[shutdown] <reason> — quitting` → `[shutdown] before-quit` → `[shutdown] will-quit` →
+`=== app exited (rc=…) ===` (wrapper) → `=== apply-wait done … ===` → `=== restart after update ===`.
+Whichever line is MISSING names the stalled stage; a `[shutdown] still alive …` line means the
+escalation had to step in and the graceful path is broken upstream of it.
+
 ## Not in this phase (later)
 
 Game-boundary reset, command transport rewrite, signing/notarization (any OS),

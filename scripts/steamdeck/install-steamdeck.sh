@@ -117,6 +117,11 @@ while true; do
   rm -f "$TM_RESTART_MARKER"
   chmod +x "$APP" 2>/dev/null || true
   "$APP" --no-sandbox --disable-gpu-sandbox "$@" >> "$LOG" 2>&1
+  # Timestamp the EXIT. Everything the player experiences as "the black hang" is the gap
+  # between the window disappearing and this line: if the app's own "[shutdown] …" lines are
+  # here but this one is minutes later (or missing), the process did not end and no wrapper
+  # logic ran at all; if this lands promptly, the delay is the apply-wait below instead.
+  echo "=== app exited (rc=$?): $(date) ===" >> "$LOG"
   if [ -f "$TM_RESTART_MARKER" ]; then
     echo "=== restart after update: $(date) ===" >> "$LOG"
     # Velopack's UpdateNix applies the update CONCURRENTLY with this loop: it waits for the

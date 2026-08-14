@@ -31,6 +31,7 @@ import * as fs from 'fs';
 import {UpdateManager, type UpdateInfo} from 'velopack';
 import {AppImageIdentity, CompatSnapshot, isLocalBuild, planPostPendingBridge, resolveUpdateDecision, restartMarkerStamp} from './updatePolicy';
 import {getLastKnownGood, setLastKnownGood} from './session';
+import {beginShutdown} from './shutdown';
 
 export type DesktopUpdateMode =
   | 'idle'
@@ -547,7 +548,7 @@ function applyUpdate(): void {
     setImmediate(() => {
       try {
         mgr.waitExitThenApplyUpdate(upd, true, true);
-        app.quit();
+        beginShutdown('update apply (windows)');
       } catch (err) {
         applyFailed(err);
       }
@@ -585,8 +586,11 @@ function applyUpdate(): void {
       } catch (err) {
         logUpdate('could not write restart marker — ' + String(err));
       }
-      app.quit();
-      setTimeout(() => app.exit(0), 3000);
+      // The wrapper waits on THIS PROCESS, so an exit that stalls doesn't just look bad —
+      // it cancels the update (no exit → no apply-wait → no relaunch) and leaves the player
+      // on a black screen. beginShutdown escalates to exit(0) then SIGKILL, so the wrapper
+      // always gets its exit.
+      beginShutdown('update apply (linux, wrapper restart)');
     }, 500);
     return;
   }
@@ -600,10 +604,9 @@ function applyUpdate(): void {
       applyFailed(err);
       return;
     }
-    app.quit();
-    // Hang-proof: if quit() is ever blocked by a handler, force-exit so the process can never
-    // sit spinning — Steam then cleanly returns to the library.
-    setTimeout(() => app.exit(0), 3000);
+    // Hang-proof: if quit() is ever blocked, beginShutdown force-exits (then SIGKILLs) so the
+    // process can never sit spinning — Steam then cleanly returns to the library.
+    beginShutdown('update apply (linux, reopen manually)');
   }, 900);
 }
 

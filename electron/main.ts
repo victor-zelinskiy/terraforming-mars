@@ -27,6 +27,7 @@ import {execFile} from 'child_process';
 import {installDevtoolsPadCursor} from './devtoolsPadCursor';
 import {installConsoleCapture} from './consoleExport';
 import {installNativeGamepads} from './nativeGamepadLinux';
+import {beginShutdown, isShuttingDown} from './shutdown';
 import {addToSteam, isAddedToSteam} from './steamShortcut';
 import {readSteamPersonaName} from './steamPersona';
 import {getSteamPromptDismissed, setSteamPromptDismissed, getAppMode, setAppMode, getLanVisible, setLanVisible, getLanName, setLanName} from './session';
@@ -185,6 +186,11 @@ let perfEchoPayload: string | undefined;
 // Display power-save blocker, held only while the game window is focused (see
 // the focus/blur wiring in createWindow). Module-level so 'closed' can release it.
 let displayBlockerId: number | undefined;
+
+// True from the moment the main window starts closing. The fullscreen re-enforcement
+// reads it: a window in teardown must never be asked to re-enter fullscreen (see the
+// `leave-full-screen` handler in createWindow for the gamescope stall that causes).
+let windowClosing = false;
 
 function startDisplayBlocker(): void {
   if (displayBlockerId === undefined) {
@@ -469,6 +475,7 @@ const DEV_WINDOW_ICON = path.join(
 
 function createWindow(): void {
   const cfg = runtimeConfig();
+  windowClosing = false; // a fresh window is not in teardown (macOS 'activate' re-creates one)
 
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -601,11 +608,27 @@ function createWindow(): void {
 
   // Keep the desktop app ALWAYS in fullscreen — if it's ever exited (F11 / an OS
   // gesture), immediately re-enter. `setFullScreen(true)` fires enter-full-screen
-  // (not leave-full-screen), so there is no loop; the isDestroyed guard avoids
-  // fighting window teardown. Alt+Tab / minimize are unaffected (they don't leave
-  // fullscreen). Quitting still works normally.
+  // (not leave-full-screen), so there is no loop. Alt+Tab / minimize are unaffected
+  // (they don't leave fullscreen).
+  //
+  // ⚠ NOT while the window is CLOSING. Tearing a fullscreen window down makes the WM
+  // drop the fullscreen state, which fires this very event — and `isDestroyed()` is
+  // still false at that point, so the old guard let us re-assert fullscreen INTO a
+  // half-closed window. On Windows that is a harmless no-op; on X11/gamescope
+  // `setFullScreen` is a round-trip handshake with the compositor, and asking a window
+  // that is going away to come back fullscreen can leave the close unfinished — so
+  // `window-all-closed` never fires, `app.quit()` never completes, and the app sits
+  // there with no window: BLACK SCREEN on the Deck, with Steam's "hold B to close" as
+  // the only way out. The same stall is what stops the updater's restart (the wrapper
+  // waits on this process), so the update re-installs on the next launch, forever.
   if (FULLSCREEN) {
+    mainWindow.on('close', () => {
+      windowClosing = true;
+    });
     mainWindow.on('leave-full-screen', () => {
+      if (windowClosing || isShuttingDown()) {
+        return;
+      }
       if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
         mainWindow.setFullScreen(true);
       }
@@ -627,10 +650,11 @@ function createWindow(): void {
 // Narrow IPC surface backing the preload's desktopBridge. Nothing else is exposed.
 ipcMain.handle('desktop:getVersion', () => app.getVersion());
 // Console-native pre-game shell (P10): the renderer's ВЫЙТИ confirm quits
-// through this — never a browser workaround. Safe: quit() runs the normal
-// Electron shutdown (will-quit hooks, updater cleanup) and is idempotent.
+// through this — never a browser workaround. Routed through beginShutdown, which
+// runs the normal Electron teardown and then MAKES SURE the process actually ends
+// (a quit that stalls is a black screen under gamescope — see shutdown.ts).
 ipcMain.handle('desktop:quitApp', () => {
-  app.quit();
+  beginShutdown('renderer quit');
 });
 // Native window fullscreen — more reliable than the browser Fullscreen API
 // inside Electron (no user-activation requirement; survives reloads as a
@@ -740,7 +764,7 @@ ipcMain.handle('desktop:getLanHosts', () => getLanHosts());
 // Settings-row "apply now": relaunch into the newly persisted mode.
 ipcMain.handle('desktop:relaunchApp', () => {
   app.relaunch();
-  app.quit();
+  beginShutdown('mode-change relaunch');
 });
 
 // The app:// scheme must be registered as privileged BEFORE 'ready'.
@@ -844,15 +868,29 @@ if (!app.requestSingleInstanceLock()) {
     });
   });
 
+  // Teardown breadcrumbs. A stalled shutdown is invisible from the outside (the window is
+  // already gone — see shutdown.ts), so the log has to say which stage was reached: no
+  // before-quit = the quit never started; before-quit but no will-quit = a window refused to
+  // close; will-quit but no wrapper "app exited" line = the process itself would not end.
   app.on('before-quit', () => {
+    // eslint-disable-next-line no-console
+    console.log('[shutdown] before-quit — stopping the embedded server');
     // Best-effort graceful stop; never blocks quit (saves are already durable —
     // every action is a completed synchronous file write).
     stopEmbeddedServer();
   });
 
+  app.on('will-quit', () => {
+    // eslint-disable-next-line no-console
+    console.log('[shutdown] will-quit — all windows closed, tearing down');
+  });
+
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
-      app.quit();
+      // Idempotent when a quit is already running (the usual case — this fires as a
+      // CONSEQUENCE of desktop:quitApp closing the window); the watchdog it arms is what
+      // covers the other direction, where the window was closed directly.
+      beginShutdown('all windows closed');
     }
   });
 }
