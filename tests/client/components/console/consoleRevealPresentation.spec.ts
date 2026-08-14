@@ -5,7 +5,7 @@ import {
   drawnRevealDetached,
   drawnRevealHeadless,
   drawnRevealViewerOpens,
-  resultRevealPresents,
+  resultRevealPresentation,
 } from '@/client/console/consoleRevealPresentation';
 
 /*
@@ -97,20 +97,36 @@ describe('consoleRevealPresentation — a finished batch whose host let go rende
 
 describe('consoleRevealPresentation — the deck-check VERDICT belongs to whoever claimed it', () => {
   function rctx(over: Partial<ResultRevealPresentationCtx> = {}): ResultRevealPresentationCtx {
-    return {present: true, acknowledged: false, workspaceOwns: false, stageMounted: false, ...over};
+    return {
+      present: true, acknowledged: false, workspaceOwns: false,
+      hostDrawsItself: false, stageMounted: false, ...over,
+    };
   }
 
-  it('a verdict with no parent surface is the standalone overlay\'s (Project Inspection from the band)', () => {
-    expect(resultRevealPresents(rctx())).to.eq(true);
+  it('a verdict with no parent surface is the standalone band\'s — that is what it is FOR', () => {
+    expect(resultRevealPresentation(rctx())).to.eq('standalone');
   });
 
   it('nothing to present / already acknowledged', () => {
-    expect(resultRevealPresents(rctx({present: false}))).to.eq(false);
-    expect(resultRevealPresents(rctx({acknowledged: true}))).to.eq(false);
+    expect(resultRevealPresentation(rctx({present: false}))).to.eq('none');
+    expect(resultRevealPresentation(rctx({acknowledged: true}))).to.eq('none');
   });
 
-  it('the workspace\'s own stage is up — the overlay must not double-mount over it', () => {
-    expect(resultRevealPresents(rctx({workspaceOwns: true, stageMounted: true}))).to.eq(false);
+  /** «ДЕЙСТВИЯ КАРТ» draws its own verdict stage (hero column + deck flight +
+   *  source FLIP): re-homing the overlay into it would be a second copy. */
+  it('a host that draws its own verdict takes the overlay NOWHERE', () => {
+    expect(resultRevealPresentation(rctx({workspaceOwns: true, hostDrawsItself: true, stageMounted: true})))
+      .to.eq('none');
+  });
+
+  /**
+   * THE NORTH STAR. A repeated action played from the hand («Проверка проекта»)
+   * and the Hydronetwork's stage-7 copy are workspaces too — the press was made
+   * inside them, so the verdict is THEIR stage. They have no verdict surface of
+   * their own, so the SAME overlay is re-homed into their zone.
+   */
+  it('a claiming host with no verdict stage of its own gets the RE-HOMED overlay', () => {
+    expect(resultRevealPresentation(rctx({workspaceOwns: true}))).to.eq('embedded');
   });
 
   /**
@@ -122,12 +138,13 @@ describe('consoleRevealPresentation — the deck-check VERDICT belongs to whoeve
    * CLAIM survives the park, and it is the honest witness.
    */
   it('REGRESSION: a PARKED workspace still owns its verdict — the stage is gone, the claim is not', () => {
-    expect(resultRevealPresents(rctx({workspaceOwns: true, stageMounted: false}))).to.eq(false);
+    expect(resultRevealPresentation(rctx({workspaceOwns: true, hostDrawsItself: true, stageMounted: false})))
+      .to.eq('none');
   });
 
   /** The other order: a repeat-reveal points the stage at the chosen card in the
    *  same tick it claims, so the mirror can be the first witness. */
-  it('the mounted stage alone also suppresses it (the claim has not landed yet)', () => {
-    expect(resultRevealPresents(rctx({workspaceOwns: false, stageMounted: true}))).to.eq(false);
+  it('the mounted stage alone also suppresses the band (the claim has not landed yet)', () => {
+    expect(resultRevealPresentation(rctx({workspaceOwns: false, stageMounted: true}))).to.eq('none');
   });
 });

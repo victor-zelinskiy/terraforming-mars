@@ -99,18 +99,42 @@ export type ResultRevealPresentationCtx = {
   acknowledged: boolean,
   /** A workspace holds a `deck-check` CLAIM on this verdict's acting card. */
   workspaceOwns: boolean,
-  /** The claiming workspace's stage is mounted right now (the composer's own
-   *  mirror). Kept only as a second, weaker witness — see below. */
+  /**
+   * The claiming workspace draws the verdict ITSELF — the card-actions
+   * composer's own «Результат вскрытия» stage, which owns the deck flight, the
+   * source-card FLIP and the hero column. Nothing is re-homed there.
+   */
+  hostDrawsItself: boolean,
+  /** The card-actions stage is mounted right now (the composer's own mirror).
+   *  Kept only as a second, weaker witness — see below. */
   stageMounted: boolean,
 };
 
+/** WHERE the deck-check verdict is shown. */
+export type ResultRevealPresentation =
+  /** Nowhere: no verdict, already acknowledged, or its host draws its own. */
+  | 'none'
+  /** The full-bleed band — a verdict with no parent surface. */
+  | 'standalone'
+  /** RE-HOMED into the claiming workspace's outcome zone (same instance). */
+  | 'embedded';
+
 /**
- * DOES THE STANDALONE RESULT OVERLAY PRESENT THIS VERDICT?
+ * WHERE DOES THIS VERDICT PRESENT?
  *
- * Only when nobody else owns it. A deck-check the player started inside
- * «ДЕЙСТВИЯ КАРТ» is presented by that workspace's own «Результат вскрытия»
- * stage, and the full-bleed overlay must neither double-mount over it nor rise
- * BESIDE it.
+ * The North-Star question, asked of a verdict exactly as it is asked of a drawn
+ * batch: the player pressed inside a workspace, so what that press produced
+ * belongs to that workspace. Three doors reach a deck-check and all three are
+ * workspaces — a direct activation («ДЕЙСТВИЯ КАРТ»), a repeated action played
+ * from the hand («Проверка проекта»), the Hydronetwork's stage-7 copy — so the
+ * standalone band is left with what it is actually for: a result the player did
+ * not open a surface for.
+ *
+ * The first door DRAWS ITS OWN (`hostDrawsItself`): the composer's stage owns
+ * the deck flight, the source-card FLIP and the hero column, so re-homing the
+ * overlay into it would be a second copy of a verdict already on screen. The
+ * other two have no verdict stage of their own and take the RE-HOMED overlay —
+ * one instance, one command contract, one input path, in both homes.
  *
  * ⚠️ THE CLAIM IS THE ANSWER, NOT THE MOUNTED STAGE. `consoleActionComposerUi.
  * revealClaim` is a component-lifetime mirror: it is cleared by the composer's
@@ -127,6 +151,12 @@ export type ResultRevealPresentationCtx = {
  *
  * PURE: the shell passes what it knows.
  */
-export function resultRevealPresents(ctx: ResultRevealPresentationCtx): boolean {
-  return ctx.present && !ctx.acknowledged && !ctx.workspaceOwns && !ctx.stageMounted;
+export function resultRevealPresentation(ctx: ResultRevealPresentationCtx): ResultRevealPresentation {
+  if (!ctx.present || ctx.acknowledged) {
+    return 'none';
+  }
+  if (ctx.workspaceOwns) {
+    return ctx.hostDrawsItself ? 'none' : 'embedded';
+  }
+  return ctx.stageMounted ? 'none' : 'standalone';
 }

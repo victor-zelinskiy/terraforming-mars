@@ -96,6 +96,23 @@ describe('consoleWorkspaceOutcome — the EMBEDDED claim', () => {
     expect(workspaceClaimsDeckCheck(undefined)).to.eq(false);
   });
 
+  /**
+   * A REPEAT commits one card and the server attributes the verdict to the card
+   * whose action actually RAN: «Проверка проекта» is played, «Поиски жизни»
+   * turns the card over. Keyed on the name alone that verdict matched no claim
+   * and left for the full-bleed modal over the very workspace whose press had
+   * produced it — the same reason a draw's claim carries a scope.
+   */
+  it('a CHAIN claim answers for the whole causal chain — the repeated card\'s verdict included', () => {
+    claimWorkspaceOutcome('hand', 'Project Inspection', ['draw', 'pick', 'deck-check'], 0, 0, 'chain');
+    expect(workspaceClaimsDeckCheck('Search For Life')).to.eq(true);
+    // …but the KINDS still bound it: a play that copies nothing revealing
+    // claims no verdict at all.
+    resetWorkspaceOutcome();
+    claimWorkspaceOutcome('hand', 'Project Inspection', ['draw', 'pick'], 0, 0, 'chain');
+    expect(workspaceClaimsDeckCheck('Search For Life')).to.eq(false);
+  });
+
   it('an EMPTY kind list is a no-op, not a claim on everything', () => {
     claimWorkspaceOutcome('card-actions', AI_CENTRAL, []);
     expect(workspaceOutcomeClaimed()).to.eq(false);

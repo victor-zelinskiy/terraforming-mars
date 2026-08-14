@@ -1420,7 +1420,8 @@ import {
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
 import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
-import {resultRevealPresents} from '@/client/console/consoleRevealPresentation';
+import type {WorkspaceOutcomeKind} from '@/client/console/consoleWorkspaceOutcome';
+import {ResultRevealPresentation, resultRevealPresentation} from '@/client/console/consoleRevealPresentation';
 import {claimPlayOutcome, isPlayOutcomeHost} from '@/client/console/played/consolePlayOutcomeClaim';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, boardCardBonusState, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
@@ -3024,6 +3025,16 @@ export default defineComponent({
      * exists before Vue resolves the target.
      */
     revealEmbedTarget(): string | undefined {
+      // THE VERDICT re-homes on exactly the same terms as a batch. Keyed on
+      // `revealOverlayMode`, not on `consoleRevealMode`: a card PLAY's verdict
+      // waits behind its own played-hero scene («сначала карта сыграна, потом
+      // результат»), and reading the ungated mode here would publish the embed
+      // — and with it `markWorkspaceOutcomePresenting` — while the hero still
+      // owns the screen and nothing had been re-homed yet.
+      if (this.revealOverlayMode === 'result') {
+        return this.resultRevealPresentation === 'embedded' && workspaceOutcomeState.embedSlot !== '' ?
+          workspaceOutcomeState.embedSlot : undefined;
+      }
       if (this.consoleRevealMode !== 'drawn') {
         return undefined;
       }
@@ -3184,6 +3195,23 @@ export default defineComponent({
         (workspaceClaimsDrawReveal(source) || workspaceClaimsColonyReveal(source)) &&
         (workspaceOutcomeState.embedSlot === '' || workspaceOutcomeBeatPending());
     },
+    /**
+     * WHERE THE DECK-CHECK VERDICT PRESENTS — nowhere, the full-bleed band, or
+     * RE-HOMED into the claiming workspace's own zone. The pure decision, fed
+     * from the claim (which survives a park) and the composer's mirror.
+     */
+    resultRevealPresentation(): ResultRevealPresentation {
+      const lr = this.playerView.lastReveal;
+      return resultRevealPresentation({
+        present: lr !== undefined,
+        acknowledged: lr !== undefined && `${lr.action}|${lr.revealed.name}` === this.dismissedRevealKey,
+        workspaceOwns: workspaceClaimsDeckCheck(lr?.action),
+        // «ДЕЙСТВИЯ КАРТ» owns a verdict stage of its own (hero column + deck
+        // flight + source FLIP); every other host takes the re-homed overlay.
+        hostDrawsItself: workspaceOutcomeState.host === 'card-actions',
+        stageMounted: lr !== undefined && lr.action === consoleActionComposerUi.revealClaim,
+      });
+    },
     consoleRevealMode(): ConsoleRevealMode | undefined {
       if (this.revealHeldForWorkspace) {
         return undefined;
@@ -3191,18 +3219,16 @@ export default defineComponent({
       if (this.rawDrawnRevealPending) {
         return 'drawn';
       }
-      const lr = this.playerView.lastReveal;
-      // A verdict a WORKSPACE owns presents IN-FRAME («Действия карт › <карта> ›
-      // Результат вскрытия») — the standalone overlay neither double-mounts over
-      // it nor rises beside it while the workspace is merely parked. The CLAIM
-      // is the witness, never the mounted stage (`consoleRevealPresentation`).
-      if (resultRevealPresents({
-        present: lr !== undefined,
-        acknowledged: lr !== undefined && `${lr.action}|${lr.revealed.name}` === this.dismissedRevealKey,
-        workspaceOwns: workspaceClaimsDeckCheck(lr?.action),
-        stageMounted: lr !== undefined && lr.action === consoleActionComposerUi.revealClaim,
-      })) {
-        return 'result';
+      // A verdict a WORKSPACE owns is ITS stage — either drawn by the host
+      // itself («Действия карт») or the SAME overlay re-homed into its zone
+      // («Проверка проекта», the Hydronetwork's copy). Only what nobody claimed
+      // rises as the full-bleed band. See `resultRevealPresentation`.
+      if (this.resultRevealPresentation !== 'none') {
+        // Claimed but the zone is not there yet → hold, exactly like a claimed
+        // drawn batch: never our own band for a frame and somewhere else the
+        // next one.
+        return this.resultRevealPresentation === 'embedded' &&
+          workspaceOutcomeState.embedSlot === '' ? undefined : 'result';
       }
       if (revealViewerState.open) {
         return 'viewer';
@@ -7002,8 +7028,12 @@ export default defineComponent({
           // move's result: `executing` absorbs input by design (a double submit
           // must be impossible while the server has the move), which is exactly
           // wrong once the cards are on screen waiting to be taken.
+          //
+          // …unless what arrived is a VERDICT, which is not a decision at all:
+          // nothing is chosen, owed or continued after it, so the phase is
+          // TERMINAL and B is not on offer (consoleWorkspaceFlow 'verdict').
           if (workspaceFramePhase('hand') === 'executing') {
-            setWorkspaceFramePhase('hand', 'committed');
+            setWorkspaceFramePhase('hand', this.revealOverlayMode === 'result' ? 'verdict' : 'committed');
           }
         }
         return;
@@ -9901,10 +9931,11 @@ export default defineComponent({
       // play — never into the Action Center (that surface is the Viron entry
       // point). The event card runs its played-hero scene FIRST (same as any
       // play, repeat tail already in the batch); a repeated REVEAL action
-      // (SearchForLife / AsteroidDeflection) then shows its outcome via the
-      // STANDALONE reveal overlay AFTER the hero (gated on !playedHeroHolds
-      // below) and acks back to the BOARD. So the order is always: the card is
-      // seen played, THEN the action result applies.
+      // (SearchForLife / AsteroidDeflection) then presents its verdict as this
+      // workspace's own next stage, AFTER the hero (the reveal is withheld
+      // while `playedHeroHolds`). So the order is always: the card is seen
+      // played, THEN the action result applies — inside the surface the press
+      // was made in, exactly like every other outcome of a play.
       // `rewards` = the play's immediate resource gains (composer-extracted
       // from the server preview) — the hero scene's reward beat carries them
       // from the landed card onto the left panel, delta chips at contact.
@@ -9925,7 +9956,12 @@ export default defineComponent({
       // OPTIMISTICALLY: a play that turns out to produce nothing embeddable is
       // reconciled away a tick after the response, whereas a missing claim
       // sends a full-bleed reveal over a workspace that has already let go.
-      claimPlayOutcome(pending.cardName, payload.draws ?? 0);
+      // …including a REPEATED action's verdict: the composed repeat says
+      // structurally whether the branch it copied reveals a card, so «Проверка
+      // проекта» hosts its «Результат вскрытия» itself instead of handing it to
+      // the full-bleed modal over a workspace that had just produced it.
+      claimPlayOutcome(pending.cardName, payload.draws ?? 0,
+        {deckCheck: payload.repeat?.reveal === true});
       // The descent crosses its commit boundary HERE: the crumb's stage marker
       // goes amber (a committed step is a statement, not an invitation), the
       // depth model stops offering «back» for a move the server already has —
@@ -10645,9 +10681,13 @@ export default defineComponent({
         claimWorkspaceOutcome('hydro', CardName.DELTA_PROJECT, ['draw', 'pick'], 0, 4);
         setWorkspaceFrameServes('hydro', ['deckSelect']);
       } else if (kind === 'repeat' && payload.repeat !== undefined) {
-        // The repeated action's own draws/picks embed exactly like a direct
-        // activation's would — kinds derived from its cached preview branch
-        // (structural, never a card table); a cache miss degrades standalone.
+        // The repeated action's own draws/picks/VERDICT embed exactly like a
+        // direct activation's would — kinds derived from its cached preview
+        // branch (structural, never a card table); a cache miss degrades
+        // standalone. `deck-check` is here for the same reason the other two
+        // are: the copy is this workspace's move, so what it turns over is this
+        // workspace's result — «ГИДРОСЕТЬ › ПОИСКИ ЖИЗНИ › РЕЗУЛЬТАТ ВСКРЫТИЯ»,
+        // not a full-bleed modal over the track that produced it.
         const branch = actionPreviewMap().get(payload.repeat.chosenCard)
           ?.branches[payload.repeat.composed.branchIndex];
         let expectedCards = 0;
@@ -10656,8 +10696,15 @@ export default defineComponent({
             expectedCards += Math.max(1, Math.round(e.amount));
           }
         }
+        const kinds: Array<WorkspaceOutcomeKind> = [];
+        if (branch?.reveal !== undefined) {
+          kinds.push('deck-check');
+        }
         if (expectedCards > 0) {
-          claimWorkspaceOutcome('hydro', payload.repeat.chosenCard, ['draw', 'pick'],
+          kinds.push('draw', 'pick');
+        }
+        if (kinds.length > 0) {
+          claimWorkspaceOutcome('hydro', payload.repeat.chosenCard, kinds,
             payload.repeat.nodeIndex, expectedCards);
         }
         setWorkspaceFrameServes('hydro', ['deckSelect', 'cardSelect', 'payment', 'choice', 'amount', 'resource', 'player']);
@@ -11271,6 +11318,15 @@ export default defineComponent({
           this.rawDrawnRevealPending ||
           deckDrawHolds() ||
           consoleActionComposerUi.revealClaim !== '' ||
+          // …and while the SERVER is holding a VERDICT this claim owns. Same
+          // shape as the reveal arms above and the same reason: the artifact
+          // exists long before it can be RE-HOMED. A play's own hero scene
+          // («сначала карта сыграна») stands between the answer and the moment
+          // the verdict may present, so at this tick there is nothing embedded
+          // to see — and reading that as «the outcome went elsewhere» dropped
+          // the claim of a repeated action's verdict, which then opened as a
+          // full-bleed modal over the workspace that had just produced it.
+          workspaceClaimsDeckCheck(this.playerView.lastReveal?.action) ||
           // THE START CLAIM SPANS THE FIRST ACTION'S WHOLE STAGE. Same shape
           // as the two below, and the same reason: the artifact can trail the
           // answer by seconds (the cards come off the deck first, and the
@@ -11546,11 +11602,30 @@ export default defineComponent({
       this.submit(orWrappedResponse(pending.index, spaceResponse));
     },
     // ── T6: reveal-result ack + notification CTAs ────────────────────────
-    /** «ОК» on the deck-check result: mark seen until the server clears it. */
+    /**
+     * «ОК» on the deck-check result: mark seen until the server clears it.
+     *
+     * …and, when the verdict stood as a WORKSPACE'S OWN STAGE (the overlay
+     * re-homed into its zone — a repeated action played from the hand, the
+     * Hydronetwork's copy), this press is also the end of what that workspace
+     * was holding: the claim is released and the ONE guarded conclusion is
+     * asked, exactly as «ДЕЙСТВИЯ КАРТ» does through `onCardActionsRevealAck`.
+     * Without it the claim would stand until its 20 s backstop with nothing on
+     * screen, and the flow could never conclude.
+     *
+     * The card-actions host is carved out because it acks through its OWN path
+     * (it draws its own verdict stage and releases the claim there); calling
+     * both would release twice and conclude a workspace that is mid-fold.
+     */
     onDismissRevealResult(): void {
       const lr = this.playerView.lastReveal;
       if (lr !== undefined) {
         this.dismissedRevealKey = `${lr.action}|${lr.revealed.name}`;
+      }
+      const host = workspaceOutcomeState.host;
+      if (host !== undefined && host !== 'card-actions' && workspaceClaimsDeckCheck(lr?.action)) {
+        releaseWorkspaceOutcome('reveal-result-ack');
+        this.foldWorkspaceAfterResult(host);
       }
     },
     /** «ОК» on the IN-FRAME reveal phase (the Action Focus stage): mark the

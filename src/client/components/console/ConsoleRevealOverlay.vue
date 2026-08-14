@@ -44,7 +44,14 @@
                height for two short strings, and the cards paid for it in size.
                Byte-identical to the buy stage's heading by construction: it is
                the same component, not a matching rule set. -->
-          <ConsoleWsStageHead v-if="embedded"
+          <!-- EMBEDDED RESULT has NO head at all: the workspace breadcrumb
+               already says «… › РЕЗУЛЬТАТ ВСКРЫТИЯ» (this surface hands that
+               name UP — see the `embedded` watcher), and the only sentence a
+               head could add is the acting card's name, which the labelled
+               «ИСТОЧНИК» column below states as an object rather than as a
+               title. A stage that titles itself inside someone else's frame is
+               exactly how an embedded surface starts reading as a modal. -->
+          <ConsoleWsStageHead v-if="embedded && mode !== 'result'"
                               class="con-reveal__head con-reveal__head--embedded"
                               :title="titleText">
             <template v-if="mode === 'drawn' && drawnEvent !== undefined && drawnEvent.cards.length > 1" #badges>
@@ -55,7 +62,7 @@
               </span>
             </template>
           </ConsoleWsStageHead>
-          <header v-else class="con-reveal__head">
+          <header v-else-if="!embedded" class="con-reveal__head">
             <div class="con-task__kicker">
               <span class="con-task__kicker-mark" aria-hidden="true">◈</span>
               <span>{{ $t(kickerText) }}</span>
@@ -303,7 +310,12 @@
           <!-- ── RESULT: the deck-check outcome (SearchForLife etc.) — a filled
                left→right story: the SOURCE card (the acting card, position/role
                UNCHANGED — the connection to the previous action overlay), a
-               connector, the REVEALED card, then the verdict + info panel. ─── -->
+               connector, the REVEALED card, then the verdict + info panel.
+               EMBEDDED (a play's repeated action, the Hydronetwork's copy) the
+               SAME story stands inside the workspace's own zone: the source
+               column is what tells the player WHICH action turned this card
+               over — «Проверка проекта» copies somebody else's, so the acting
+               card is nowhere else on screen. -->
           <div v-else-if="mode === 'result' && lastReveal !== undefined" class="con-reveal__body con-reveal__body--result">
             <div class="con-reveal__source">
               <div class="con-start__section-title">{{ $t('Source') }}</div>
@@ -449,7 +461,8 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
 import ConsoleRevealVerdict from '@/client/components/console/foundation/ConsoleRevealVerdict.vue';
-import {workspaceClaimsColonyReveal, workspaceClaimsDrawReveal, workspaceOutcomeArrivalPending, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
+import {focusKicker} from '@/client/console/consoleActionFlow';
+import {setWorkspaceOutcomePhase, workspaceClaimsColonyReveal, workspaceClaimsDrawReveal, workspaceOutcomeArrivalPending, workspaceOutcomeState, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {
   DrawnCardEntry, closeAndReleaseEvent, currentRevealEvent, holdRevealForFollowUp, markAllTaken,
@@ -1011,6 +1024,11 @@ export default defineComponent({
     resultRevealed(): boolean {
       return this.resultStage !== 'pending';
     },
+    /** This surface is a workspace's own VERDICT STAGE — the one case that
+     *  publishes its name into the host's breadcrumb (see the watcher). */
+    resultEmbedPhase(): boolean {
+      return this.embedded && this.mode === 'result';
+    },
     /* (The verdict's own readings — the checked tag, its icon, the VP delta —
        live in the SHARED panel component beside its markup. Keeping copies here
        is how the two renderings of one event drifted apart in the first place.) */
@@ -1143,6 +1161,28 @@ export default defineComponent({
         setRevealVeilSuppressed(veiled);
       },
     },
+    /**
+     * THE STAGE NAME GOES UP. An embedded surface never titles itself — it
+     * hands its name to the workspace's breadcrumb, which is the ONE line that
+     * says where the player is: «КАРТЫ В РУКЕ › ПРОВЕРКА ПРОЕКТА › РЕЗУЛЬТАТ
+     * ВСКРЫТИЯ». Without this the crumb falls back to its host's generic
+     * («ДОБОР КАРТ» for a play), i.e. it would name a stage that is not the one
+     * on screen.
+     *
+     * Only the RESULT publishes: the drawn stage's own name is already handed
+     * up by its host (the composer's phase), and a second writer would fight it.
+     */
+    resultEmbedPhase: {
+      immediate: true,
+      handler(on: boolean): void {
+        if (on) {
+          setWorkspaceOutcomePhase(focusKicker('reveal'));
+        } else if (workspaceOutcomeState.phaseKey === focusKicker('reveal')) {
+          // Only OUR key — the claim may already be naming another stage.
+          setWorkspaceOutcomePhase('');
+        }
+      },
+    },
   },
   mounted() {
     // The take grammar is decided by WHERE THE CARDS CAN GO, so it is sampled
@@ -1185,6 +1225,10 @@ export default defineComponent({
   },
   beforeUnmount() {
     setRevealVeilSuppressed(false);
+    // The stage name dies with the stage (the watcher does not fire on unmount).
+    if (this.resultEmbedPhase && workspaceOutcomeState.phaseKey === focusKicker('reveal')) {
+      setWorkspaceOutcomePhase('');
+    }
     this.abortResultFlight();
     this.stopFitResize?.();
     this.stopFitObs?.();
@@ -1451,9 +1495,15 @@ export default defineComponent({
         }
         return;
       case 'result':
+        // A VERDICT IS TERMINAL: nothing is chosen, owed or continued after it,
+        // so «ОК» is the only way out and B is not on offer (the bar advertises
+        // A/X/L3 and nothing else). B used to dismiss here as an unadvertised
+        // alias — harmless standalone, but embedded it is the same press that
+        // means «свернуть», and a verdict that keeps no decision alive has
+        // nothing to be minimized to (consoleWorkspaceFlow 'verdict').
         if (action === 'inspect') {
           this.zoomRevealed();
-        } else if (action === 'primary' || action === 'nextTab' || action === 'back') {
+        } else if (action === 'primary') {
           this.$emit('dismiss-result');
         }
         return;

@@ -571,11 +571,19 @@ export function workspaceClaimsColonyReveal(source: CardDrawRevealSource | undef
 /**
  * Does an open workspace own this DECK-CHECK result? `action` is
  * `lastReveal.action` — the acting card's name.
+ *
+ * SCOPE applies here exactly as it does to a draw. A REPEAT flow (Project
+ * Inspection played from the hand, the Hydronetwork's stage-7 copy) commits one
+ * card and the server attributes the verdict to the card whose action actually
+ * ran — «Поиски жизни», never «Проверка проекта». Keyed on the name alone that
+ * batch matched no claim and left for the full-bleed modal over the very
+ * workspace whose press had produced it; a 'chain' claim answers for everything
+ * one press set off, and its window is one submit wide.
  */
 export function workspaceClaimsDeckCheck(action: string | undefined): boolean {
   return workspaceOutcomeAdmits('deck-check') &&
     action !== undefined &&
-    action === workspaceOutcomeState.sourceCard;
+    (workspaceOutcomeState.scope === 'chain' || action === workspaceOutcomeState.sourceCard);
 }
 
 /**

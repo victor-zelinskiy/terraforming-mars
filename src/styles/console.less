@@ -16102,6 +16102,28 @@ body.con-start-ceremony {
            workspace the zone already has a stable height, and forcing 42rem
            here would overflow the band. */
         .con-reveal__card--drawn { height: auto; }
+        /* ── THE EMBEDDED VERDICT STAGE («Проверка проекта» repeating an
+           action, the Hydronetwork's stage-7 copy). Same left→right story as
+           the band — source · вскрывает · revealed card · verdict — but the
+           zone is the room: it CENTRES inside the stage column instead of
+           filling it, and the two cards step down a notch, because a workspace
+           column also carries a breadcrumb, a status bar and (for a play) the
+           shelf it just came from. The verdict panel keeps its reserved slot,
+           so the landing rect the deck flight was aimed at cannot move when
+           «Вскрываем карту» yields to the breakdown. */
+        .con-reveal__body--result {
+            flex: 0 1 auto;
+            align-self: center;
+            width: 100%;
+            min-height: 0;
+            gap: 1rem;
+            padding: .2rem 0;
+
+            .con-reveal__source { zoom: calc(0.82 * var(--con-ui-scale, 1)); }
+            .con-reveal__revealed { zoom: calc(1 * var(--con-ui-scale, 1)); }
+            .con-reveal__link-beam { width: 3.2rem; }
+            .con-reveal__verdict-slot { min-width: 18rem; max-width: 22rem; }
+        }
         /* The stage's own sentence, dressed EXACTLY like the buy stage's
            heading next door: BOTH read the shared `.con-ws-stage-heading()`
            role — the two cases are the SAME moment («вот карта — решай/

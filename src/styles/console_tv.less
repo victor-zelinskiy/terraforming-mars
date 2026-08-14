@@ -996,6 +996,12 @@ html.con-profile-tv {
            panel itself is tuned once, in the shared `.con-verdict` block). */
         &__verdict-slot { min-width: 22rem; max-width: 26rem; }
         &__verdict--pending { font-size: var(--con-t-secondary); }
+        /* …and the EMBEDDED stage's berth too: its own cap is tuned for the
+           1080 logical column, and at couch sizes «ПРОВЕРКА · Бактерия · НЕ
+           НАЙДЕНО» wrapped its chip onto a second line inside it. (Full class
+           name for the descendant — a second `&` inside a profile block
+           expands the WHOLE parent and matches nothing.) */
+        &--embedded .con-reveal__verdict-slot { min-width: 24rem; max-width: 29rem; }
         &__strip {
             gap: var(--con-reveal-strip-gap);
             padding: 3rem 1.6rem 2.2rem;

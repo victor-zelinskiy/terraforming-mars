@@ -38,6 +38,7 @@
  */
 import {
   WorkspaceOutcomeHost,
+  WorkspaceOutcomeKind,
   claimWorkspaceOutcome,
   setWorkspaceOutcomeSlot,
 } from '@/client/console/consoleWorkspaceOutcome';
@@ -212,8 +213,19 @@ export function isPlayOutcomeHost(host: WorkspaceOutcomeHost | undefined): boole
  * prepared arrival, it never decides whether to claim. Returns the host that
  * took it (undefined = no workspace behind this play — nothing is claimed and
  * the standalone presenters keep their artifact, exactly as before).
+ *
+ * `deckCheck` is the one kind that is NOT claimed optimistically. A verdict is
+ * produced by an ACTION, and a play only reaches one by REPEATING it (Project
+ * Inspection), which the composed repeat descriptor states structurally — the
+ * same «kinds come from the preview branch, never from the card's identity»
+ * rule the direct activation follows. Claiming it for every play would put a
+ * workspace's name on a verdict it had no part in.
  */
-export function claimPlayOutcome(card: string, expectedCards = 0): WorkspaceOutcomeHost | undefined {
+export function claimPlayOutcome(
+  card: string,
+  expectedCards = 0,
+  opts: {deckCheck?: boolean} = {},
+): WorkspaceOutcomeHost | undefined {
   const spec = playOutcomeHost();
   // A new play starts with a clean stage: an exit left hanging by a workspace
   // that closed mid-dissolve must never be inherited by the next one.
@@ -225,9 +237,14 @@ export function claimPlayOutcome(card: string, expectedCards = 0): WorkspaceOutc
   // exist yet drops its content on the floor, and the claim is what makes the
   // consumers start looking for it.
   setWorkspaceOutcomeSlot(spec.zone);
+  const kinds: Array<WorkspaceOutcomeKind> = ['draw', 'pick'];
+  if (opts.deckCheck === true) {
+    kinds.push('deck-check');
+  }
   // 'chain': the play runs OTHER cards' triggered effects too, and the server
-  // attributes their draws to THEM (Point Luna). Everything one press sets off
-  // is this workspace's.
-  claimWorkspaceOutcome(spec.host, card, ['draw', 'pick'], 0, expectedCards, 'chain');
+  // attributes their draws to THEM (Point Luna) — and a repeated action's
+  // verdict to the card that was COPIED. Everything one press sets off is this
+  // workspace's.
+  claimWorkspaceOutcome(spec.host, card, kinds, 0, expectedCards, 'chain');
   return spec.host;
 }
