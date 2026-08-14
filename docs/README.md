@@ -21,6 +21,7 @@ files here are the deeper dives it points at.
 - [COLONY_TRADE_FLOW.md](COLONY_TRADE_FLOW.md) — the premium colony-trade reward transaction (atomic tradeId manifest, merged Pluto reveal, track-reset glide).
 - [GAMEPAD_SUPPORT_DESIGN.md](GAMEPAD_SUPPORT_DESIGN.md) / [GAMEPAD_SUPPORT_BRIEF.md](GAMEPAD_SUPPORT_BRIEF.md) — controller-first support design + status.
 - [DEV_GUARANTEED_CARDS.md](DEV_GUARANTEED_CARDS.md) — dev tool: pin chosen cards into the first hand dealt (test-mode sub-setting, admin only).
+- [TEST_CONTOUR.md](TEST_CONTOUR.md) — what «green» is allowed to mean: the chunking bug that made the whole client suite a silent no-op, the collected-count floor, wrapper auto-unmount, the `serial` cascade behind «did not run», and the probe/press disciplines E2E failures kept coming from.
 
 ## Desktop UI / rendering / performance
 - [DESKTOP_DEPRECATION_AUDIT.md](DESKTOP_DEPRECATION_AUDIT.md) — desktop-only vs shared vs console-only file inventory (read before touching a UI file).
