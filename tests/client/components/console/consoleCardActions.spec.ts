@@ -109,6 +109,62 @@ describe('consoleCardActions model', () => {
     expect(model.availableTiles).to.eq(1);
   });
 
+  /*
+   * POTENTIAL vs EXECUTABLE NOW. An opponent's turn ('soft') is an EXECUTION
+   * GATE, not a verdict on the action: the tile keeps the calm register, stays
+   * in «можно выполнить» and matches the green number on the wheel that opened
+   * this screen. A real rule blocker ('rules') and a spent action ('activated')
+   * do the opposite — no change of turn brings either back.
+   */
+  it('an off-turn action stays POTENTIALLY performable and takes the calm register', () => {
+    const entries = [entry('Solo', 'soft', ['use'], {softReason: {type: 'turn', message: 'Not your turn right now'}})];
+    const model = buildConsoleActionsModel(entries, NO_PREVIEWS, NO_RESOURCES, {availability: 'all', activation: 'all'});
+    const tile = model.groups[0].tiles[0];
+    expect(tile.status).to.eq('soft');
+    expect(tile.blocker?.code).to.eq('NOT_YOUR_TURN');
+    expect(tile.blocker?.tone, 'never the red refusal').to.eq('warning');
+    expect(tile.blocker?.blocksExecutionNow, 'the commit is still refused').to.eq(true);
+    expect(model.availableTiles, 'it still counts').to.eq(1);
+  });
+
+  it('mid a mandatory decision it is the OTHER gate, equally calm', () => {
+    const entries = [entry('Solo', 'soft', ['use'], {softReason: {type: 'phase', message: 'Finish your current action first'}})];
+    const model = buildConsoleActionsModel(entries, NO_PREVIEWS, NO_RESOURCES, {availability: 'all', activation: 'all'});
+    expect(model.groups[0].tiles[0].blocker?.code).to.eq('FINISH_CURRENT_ACTION');
+    expect(model.availableTiles).to.eq(1);
+  });
+
+  it('a rules block and a spent activation are DOMAIN facts and leave the count', () => {
+    const blocked = buildConsoleActionsModel(
+      [entry('Blocked', 'rules', ['use'], {reasons: [{type: 'resource', message: 'Not enough steel'}]})],
+      NO_PREVIEWS, NO_RESOURCES, {availability: 'all', activation: 'all'});
+    expect(blocked.groups[0].tiles[0].blocker?.tone).to.eq('danger');
+    expect(blocked.availableTiles).to.eq(0);
+
+    const used = buildConsoleActionsModel(
+      [entry('Used', 'activated', ['use'])],
+      NO_PREVIEWS, NO_RESOURCES, {availability: 'all', activation: 'all'});
+    expect(used.groups[0].tiles[0].blocker?.affectsPotentialCount).to.eq(true);
+    expect(used.availableTiles).to.eq(0);
+  });
+
+  it('a soft CARD whose branch is itself blocked is a rules block, not a turn one', () => {
+    // The refinement must survive: «не ваш ход» may not absorb «нет ресурса».
+    const entries = [entry('Catapult', 'soft', ['plants'], {softReason: {type: 'turn', message: 'Not your turn right now'}})];
+    const previews = new Map<CardName, ActionPreview>([
+      ['Catapult' as CardName, preview('Catapult', [
+        {index: 0, title: 'plants', available: false, unavailableReason: 'Not enough plants', renderKeys: [],
+          effects: [], steps: []},
+      ])],
+    ]);
+    const model = buildConsoleActionsModel(entries, previews, NO_RESOURCES, {availability: 'all', activation: 'all'});
+    const tile = model.groups[0].tiles[0];
+    // The card-level status stays 'soft' (that is the server's card verdict),
+    // but the model must not claim the branch is merely waiting for a turn.
+    expect(tile.reason?.message).to.eq('Not your turn right now');
+    expect(tile.status).to.eq('soft');
+  });
+
   it('the availability filter narrows a group to its matching variant(s)', () => {
     const entries = [entry('Catapult', 'available', ['plants', 'steel'])];
     const previews = new Map<CardName, ActionPreview>([

@@ -3798,7 +3798,15 @@ export default defineComponent({
         // POTENTIAL — the server's own turn-independent verdict on the card
         // (`unplayableReasons`, all of them domain reasons). One validation,
         // two questions.
-        potential: potentiallyAvailable(blockersForReasons(card.unplayableReasons ?? [])),
+        //
+        // `playable ⊆ potential` is enforced here rather than assumed: the live
+        // offer can be WIDER than the plain rules verdict, because a prompt may
+        // carry its own discount (Eccentric Sponsor's play-from-hand prelude) —
+        // `unplayableReasons` knows nothing of it, so a card playable only
+        // thanks to that discount would otherwise be dimmed while its own
+        // РАЗЫГРАТЬ button was live.
+        potential: playable.has(card.name) ||
+          potentiallyAvailable(blockersForReasons(card.unplayableReasons ?? [])),
         robot: robots.has(card.name),
       }));
       // Playable-first, stable within groups (CONSOLE_MODE_CONCEPT §8) — by

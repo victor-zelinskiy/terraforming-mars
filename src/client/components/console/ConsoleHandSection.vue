@@ -363,7 +363,6 @@ import {
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
-import {blockersForReasons, potentiallyAvailable} from '@/common/availability/AvailabilityBlocker';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
 import {consoleState} from '@/client/console/consoleRouter';
@@ -598,15 +597,14 @@ export default defineComponent({
       return this.selected?.unplayableReasons ?? [];
     },
     /**
-     * The selected card is blocked ONLY by the execution window: every reason
-     * the server produced is a domain reason, so an empty list means the card
-     * itself is fine and the moment is not. Asked through the shared blocker
-     * model rather than `reasons.length === 0` so the rule that «a turn gate is
-     * not a domain blocker» lives in exactly one place.
+     * The selected card is blocked ONLY by the execution window — legal by the
+     * rules (`potential`), just not submittable this moment (`!playable`). Read
+     * from the entry the shell already classified through the shared blocker
+     * model, so the info bar and the card's own pose can never disagree.
      */
     softBlocked(): boolean {
       return !this.saleActive && !this.selectActive && this.selected !== undefined &&
-        !this.selectedPlayable && potentiallyAvailable(blockersForReasons(this.reasons));
+        !this.selectedPlayable && this.entries[this.index]?.potential === true;
     },
     // ── mandatory hand SELECT (discard / reveal / place) ──────────────────
     selectActive(): boolean {

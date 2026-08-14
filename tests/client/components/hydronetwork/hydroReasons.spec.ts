@@ -1,6 +1,6 @@
 import {expect} from 'chai';
 import {buildHydroModel, HydroModelInput, HydroPlayerPos} from '../../../../src/client/components/hydronetwork/hydroNetworkModel';
-import {destinationAt, gradeDestination, hydroPlanReasons, HydroTurnState} from '../../../../src/client/components/hydronetwork/hydroReasons';
+import {destinationAt, gradeDestination, hydroPlanReasons, hydroPrimaryBlocker, hydroReasonBlocker, HydroReasonKind, HydroTurnState} from '../../../../src/client/components/hydronetwork/hydroReasons';
 import {DeltaTrackDestination, DeltaTrackPreviewModel} from '../../../../src/common/models/DeltaTrackPreviewModel';
 import {Tag} from '../../../../src/common/cards/Tag';
 import {CardName} from '../../../../src/common/cards/CardName';
@@ -208,6 +208,61 @@ describe('hydroPlanReasons', () => {
 
   it('details mode (current / passed stage) is informational — no reasons', () => {
     expect(reasonsFor({selectedPosition: 0})).deep.eq([]);
+  });
+});
+
+/*
+ * THE TURN GATE IS NOT A TRACK RULE. «Сейчас не ваш ход» over a stage whose
+ * every requirement shows a green ✓ told the player the Hydronetwork refused
+ * them; it does not — it is simply not their moment. So the two turn kinds take
+ * the calm register and keep the advance potentially available, while every real
+ * Delta-track rule (energy, path tags, an occupied VP slot, the once-per-
+ * generation gate) does the opposite and outranks them when both apply.
+ */
+describe('hydro blocker semantics', () => {
+  it('the turn gates are WARNINGS that keep the advance potentially available', () => {
+    for (const turnState of ['not-your-turn', 'busy'] as ReadonlyArray<HydroTurnState>) {
+      const rs = reasonsFor({selectedPosition: 1, actionAvailable: false}, {turnState});
+      const blocker = hydroPrimaryBlocker(rs);
+      expect(blocker?.tone, turnState).eq('warning');
+      expect(blocker?.affectsPotentialCount, turnState).eq(false);
+      expect(blocker?.blocksExecutionNow, 'the reinforce button stays disabled').eq(true);
+    }
+  });
+
+  it('a real track rule is a DANGER and OUTRANKS the turn gate', () => {
+    // No energy at all AND an opponent's turn: the useful line must win.
+    const rs = reasonsFor({selectedPosition: 1, preview: fullPreview(0), actionAvailable: false});
+    expect(rs.some((r) => r.kind === 'no-energy')).eq(true);
+    const blocker = hydroPrimaryBlocker(rs);
+    expect(blocker?.tone).eq('danger');
+    expect(blocker?.affectsPotentialCount).eq(true);
+  });
+
+  it('the once-per-generation gate is a domain fact, not a timing one', () => {
+    const rs = reasonsFor({preview: fullPreview(3, {usedThisGeneration: true}), selectedPosition: 1, actionAvailable: false});
+    expect(rs[0].kind).eq('used-this-generation');
+    expect(hydroReasonBlocker(rs[0]).tone).eq('danger');
+  });
+
+  it('every reason kind is classified (the exhaustiveness guard)', () => {
+    const kinds: ReadonlyArray<HydroReasonKind> = [
+      'loading', 'end-of-track', 'used-this-generation', 'not-your-turn', 'finish-current-action',
+      'unavailable', 'missing-tag', 'vp-occupied', 'no-energy', 'energy-deficit',
+      'choose-bonus', 'choose-card',
+    ];
+    for (const kind of kinds) {
+      const blocker = hydroReasonBlocker({kind, textKey: 'x', blocking: true});
+      expect(blocker, kind).to.not.eq(undefined);
+      expect(['warning', 'danger'], kind).to.include(blocker.tone);
+    }
+  });
+
+  it('nothing blocking → no blocker at all', () => {
+    expect(hydroPrimaryBlocker([])).eq(undefined);
+    // A to-do gate is not a refusal either.
+    const todo = reasonsFor({selectedPosition: 1}, {turnState: 'action-menu'});
+    expect(hydroPrimaryBlocker(todo)).eq(undefined);
   });
 });
 

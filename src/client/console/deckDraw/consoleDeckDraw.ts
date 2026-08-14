@@ -101,7 +101,34 @@ export const deckDrawState = reactive({
    * a fresh copy appearing over a dissolving one.
    */
   zoomEntryReady: false,
+  /**
+   * BATCHES SOMEBODY ELSE FLEW — remembered past that owner's own lifetime.
+   *
+   * Every «not ours» answer this scene gives is derived from a LIVE fact (a
+   * claim, another scene's active flag), and a batch outlives all of them: the
+   * reveal stays `currentRevealEvent()` until the player has taken every card,
+   * and an embedded workspace deliberately drops its claim ONE TICK BEFORE
+   * that (`result-detached` — the card lifts, the frame folds under it). In
+   * that window a batch whose cards had already been dealt, landed and read
+   * suddenly looked unowned, and this scene dealt it a SECOND time: the HUD
+   * counter jumped back to the pre-draw number, a second «−1» chip fired and a
+   * ghost card flew off the pile across the take that was already in flight.
+   *
+   * The two scenes that came before this one each hand-rolled the same memory
+   * for the same reason (`isBonusRevealStaged`, `isColonyTradeRevealStaged`,
+   * both documented «persisted past the scene's end»); this is that fact for
+   * every owner, including the ones whose ownership is a claim rather than a
+   * scene. An id is only ever ADDED, never revoked — ownership of a batch's
+   * arrival is decided once and can only harden.
+   *
+   * Bounded: the game plays hundreds of batches and only the ones still on
+   * screen can ever be asked about.
+   */
+  foreign: [] as Array<number>,
 });
+
+/** How many finished batches the «somebody else flew it» memory keeps. */
+const FOREIGN_MEMORY = 8;
 
 let handle: DeckDrawHandle | undefined;
 let zoomOriginResolver: (() => HTMLElement | null) | undefined;
@@ -247,6 +274,74 @@ export function isDeckDrawStaged(eventId: number | undefined): boolean {
   return eventId !== undefined && deckDrawState.stagedEventId === eventId;
 }
 
+/** Remember that another owner flies this batch's arrival (see `foreign`). */
+export function noteDeckDrawForeign(eventId: number): void {
+  if (deckDrawState.foreign.includes(eventId)) {
+    return;
+  }
+  deckDrawState.foreign.push(eventId);
+  const over = deckDrawState.foreign.length - FOREIGN_MEMORY;
+  if (over > 0) {
+    deckDrawState.foreign.splice(0, over);
+  }
+}
+
+/** Has this batch's arrival already been claimed by somebody else? */
+export function isDeckDrawForeign(eventId: number | undefined): boolean {
+  return eventId !== undefined && deckDrawState.foreign.includes(eventId);
+}
+
+/**
+ * WHOSE ARRIVAL IS THE BATCH ON SCREEN — the layer's whole entry decision, as
+ * one pure function so it can be spec'd (the layer itself cannot be unit
+ * mounted: its card-face import pulls a webpack chunk mochapack cannot load —
+ * the same reason `consoleRevealPresentation` exists).
+ *
+ * The caller supplies the two ownership facts, and the DIFFERENCE between them
+ * is the point:
+ *  · `foreign` — somebody else flies this batch (another scene, or a workspace
+ *    whose own execution beat already pulled these cards off this very pile).
+ *    PERMANENT: it is remembered, so the answer survives that owner letting go.
+ *  · `waiting` — not ours YET (a door still has to open: a foreign colony
+ *    bonus behind its mandatory announce, the next cycle behind a full-stage
+ *    discard). NEVER remembered — the whole point is that it is re-asked.
+ */
+export type DeckDrawOwnership = {
+  eventId: number,
+  foreign: boolean,
+  waiting: boolean,
+};
+
+export type DeckDrawVerdict =
+  /** Ours, and free to start — run the scene for this batch. */
+  | {kind: 'claim', eventId: number}
+  /** Somebody else's — record it, so the answer outlives their ownership. */
+  | {kind: 'foreign', eventId: number}
+  /** Nothing to do this tick (waiting, busy, or already handled). */
+  | undefined;
+
+export function deckDrawVerdict(o: DeckDrawOwnership | undefined): DeckDrawVerdict {
+  if (o === undefined) {
+    return undefined;
+  }
+  // WHOSE it is, first and once — before any «are we busy» test, so a batch
+  // that arrives while this scene is still finishing the previous one is still
+  // recorded as somebody else's rather than judged later, when the claim that
+  // made it theirs may already be gone.
+  if (o.foreign || isDeckDrawForeign(o.eventId)) {
+    return {kind: 'foreign', eventId: o.eventId};
+  }
+  if (o.waiting) {
+    return undefined;
+  }
+  // Ours — but one scene at a time, and a finished scene never re-arms its own
+  // batch (the reveal stays current until the last card is taken).
+  if (deckDrawState.active || deckDrawState.stagedEventId === o.eventId) {
+    return undefined;
+  }
+  return {kind: 'claim', eventId: o.eventId};
+}
+
 /**
  * Clean finish. `stagedEventId` is deliberately KEPT (see its doc) so the
  * overlay's staged mode persists for the batch's on-screen life; the deck
@@ -307,4 +402,8 @@ export function resetDeckDraw(): void {
   deckDrawState.trayCount = 0;
   deckDrawState.reducedMotion = false;
   deckDrawState.zoomEntryReady = false;
+  // Only HERE. An abort/end deliberately keeps the memory — a batch somebody
+  // else flew stays theirs for its whole on-screen life, which is exactly the
+  // window in which their ownership expires.
+  deckDrawState.foreign = [];
 }
