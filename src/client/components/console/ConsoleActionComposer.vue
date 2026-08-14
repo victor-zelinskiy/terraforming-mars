@@ -159,7 +159,13 @@
         </div>
       </div>
 
-      <div v-else class="con-composer__revealzone" data-outcome-zone>
+      <!-- ── DECK-CHECK — the revealed card BESIDE its verdict, the reading
+           order of the whole flow: the source card stands to the left (the hero
+           column, unmoved since setup), the deck's answer next to it, and what
+           that answer MEANS beside that. The verdict slot reserves its width
+           from the phase's first frame, so the landing rect the flight was
+           aimed at never moves under the arriving card. -->
+      <div v-else class="con-composer__revealzone con-composer__revealzone--check" data-outcome-zone>
           <div class="con-composer__revealslot" ref="revealSlot" data-outcome-item
                :class="{
                  'con-composer__revealslot--met': revealOutcomeOn && revealPayload !== undefined && revealPayload.conditionMet,
@@ -173,19 +179,20 @@
                                  :name="revealPayload.revealed.name"
                                  :style="{visibility: revealStage === 'settled' ? 'visible' : 'hidden'}" />
           </div>
-          <transition name="con-actfocus-outcome" mode="out-in">
-            <div v-if="!revealOutcomeOn || revealPayload === undefined" key="status" class="con-composer__revealstatus" role="status">
-              <span class="con-composer__revealstatus-spin" aria-hidden="true"></span>
-              <span>{{ $t('Revealing the card') }}</span>
-            </div>
-            <div v-else key="outcome" class="con-composer__revealoutcome"
-                 :class="revealPayload.conditionMet ? 'con-composer__revealoutcome--met' : 'con-composer__revealoutcome--miss'">
-              <span class="con-composer__revealoutcome-badge" aria-hidden="true">{{ revealPayload.conditionMet ? '✓' : '✕' }}</span>
-              <span>{{ $t(revealPayload.conditionMet ? 'Condition met' : 'Condition not met') }}</span>
-              <ActionEffectChip v-if="revealPayload.reward !== undefined" :effect="revealPayload.reward" />
-              <span v-if="revealVpGain > 0" class="con-composer__revealvp">+{{ revealVpGain }} {{ $t('VP') }}</span>
-            </div>
-          </transition>
+          <!-- The verdict SLOT — reserved width, so the swap «Вскрываем карту»
+               → the full breakdown moves nothing. The breakdown itself is the
+               SHARED panel (ConsoleRevealVerdict): the embedded stage and the
+               legacy overlay render the same component, so the embedded flow
+               can never again say less about the same event. -->
+          <div class="con-composer__verdictslot">
+            <transition name="con-actfocus-outcome" mode="out-in">
+              <div v-if="!revealOutcomeOn || revealPayload === undefined" key="status" class="con-composer__revealstatus" role="status">
+                <span class="con-composer__revealstatus-spin" aria-hidden="true"></span>
+                <span>{{ $t('Revealing the card') }}</span>
+              </div>
+              <ConsoleRevealVerdict v-else key="outcome" :reveal="revealPayload" />
+            </transition>
+          </div>
         </div>
       </template>
       <template v-else>
@@ -680,6 +687,7 @@ import {BatchArrivalHandle, runBatchArrival, settleBatchProxiesOnto} from '@/cli
 import {resolveCardArrivalMode} from '@/client/console/consoleCardArrival';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
+import ConsoleRevealVerdict from '@/client/components/console/foundation/ConsoleRevealVerdict.vue';
 import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
@@ -804,7 +812,7 @@ export type ComposerOutcome =
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink},
+  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1341,10 +1349,9 @@ export default defineComponent({
     revealOutcomeOn(): boolean {
       return this.revealStage !== 'pending' && this.revealPayload !== undefined;
     },
-    revealVpGain(): number {
-      const vp = this.revealPayload?.vp;
-      return vp === undefined ? 0 : Math.max(0, vp.to - vp.from);
-    },
+    /* (No `revealVpGain` here any more: the VP delta is one row of the SHARED
+       verdict panel, which derives it from the same payload — one reading of
+       one fact, in the one place that renders it.) */
     /** The counter value the player SEES: the pre-reveal baseline until the
      *  gain beat lands, the live tableau value everywhere else. */
     displayedStoredCount(): number {
@@ -2564,8 +2571,13 @@ export default defineComponent({
       }
       // THE DECK-CHECK PHASE owns the pad: post-commit, nothing can re-fire or
       // cancel. While the card is still face down every press is swallowed
-      // (the beat is short and self-explaining); once settled A/B acknowledge
-      // and X inspects the revealed card.
+      // (the beat is short and self-explaining); once settled A acknowledges,
+      // X inspects the revealed card and L3 lifts the source.
+      //
+      // B never arrives here at all — the verdict is the flow's TERMINAL phase
+      // and the host swallows the back verb above us (consoleWorkspaceFlow
+      // 'verdict'). It used to ALSO ack here, which was two buttons for one
+      // meaning and, once the workspace model took B, plain dead code.
       if (this.deckCheckOn) {
         if (this.revealStage !== 'settled' || this.revealPayload === undefined) {
           return;
@@ -2577,7 +2589,7 @@ export default defineComponent({
           return;
         }
         const action = consoleActionOf(intent);
-        if (action === 'primary' || action === 'back') {
+        if (action === 'primary') {
           this.ackReveal();
         } else if (action === 'inspect') {
           this.inspectRevealed();

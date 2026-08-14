@@ -5,12 +5,13 @@ import {
 } from '@/client/console/consoleWorkspaceFlow';
 import {buildWorkspaceHeader} from '@/client/console/consoleWorkspaceHeader';
 
-const ALL: ReadonlyArray<WorkspacePhase> = ['browse', 'configure', 'executing', 'committed', 'completing'];
+const ALL: ReadonlyArray<WorkspacePhase> =
+  ['browse', 'configure', 'executing', 'committed', 'verdict', 'completing'];
 
 describe('consoleWorkspaceFlow — the commit boundary', () => {
   it('splits the phases at the commit: browse/configure are undoable, the rest are not', () => {
     expect(ALL.filter(isReversible)).to.deep.eq(['browse', 'configure']);
-    expect(ALL.filter(isCommitted)).to.deep.eq(['executing', 'committed', 'completing']);
+    expect(ALL.filter(isCommitted)).to.deep.eq(['executing', 'committed', 'verdict', 'completing']);
   });
 
   /**
@@ -32,6 +33,23 @@ describe('consoleWorkspaceFlow — the commit boundary', () => {
     // A beat in flight swallows B: nothing to cancel, nothing to come back to.
     expect(backVerbFor('executing')).to.eq('none');
     expect(backVerbFor('completing')).to.eq('none');
+  });
+
+  /**
+   * THE OTHER BUG THIS MODEL EXISTS FOR. B on «Действия карт › Поиски жизни ›
+   * РЕЗУЛЬТАТ ВСКРЫТИЯ» parked the workspace — and `lastReveal` (server state
+   * until the next input) was then picked up by the STANDALONE reveal overlay,
+   * so minimizing the verdict put the very same verdict back on screen as a
+   * legacy full-bleed modal. A verdict keeps no decision alive, so «свернуть»
+   * buys nothing: it is not offered.
+   */
+  it('REGRESSION: a TERMINAL verdict offers no collapse — «ОК» is the only way out', () => {
+    expect(backVerbFor('verdict')).to.eq('none');
+    expect(backLabelFor('verdict')).to.eq(undefined);
+    // …but it is a stage the player ACTS on: A/X/L3 must still land.
+    expect(acceptsInput('verdict')).to.eq(true);
+    expect(isCommitted('verdict')).to.eq(true);
+    expect(isNavigationDestination('verdict')).to.eq(false);
   });
 
   it('the LABEL follows the verb, so the bar can never say one thing while B does another', () => {
@@ -59,6 +77,14 @@ describe('consoleWorkspaceFlow — the commit boundary', () => {
       expect(workspacePhaseOf({...base, open: true, committed: true, resultUp: true})).to.eq('committed');
       expect(workspacePhaseOf({...base, open: true, committed: true, resultUp: true, finishing: true}))
         .to.eq('completing');
+    });
+
+    it('a result that is the flow\'s LAST word is `verdict`, not `committed`', () => {
+      expect(workspacePhaseOf({...base, open: true, committed: true, resultUp: true, terminal: true}))
+        .to.eq('verdict');
+      // …and `terminal` only ever qualifies a result that is actually on stage:
+      // the beat before it stays a beat.
+      expect(workspacePhaseOf({...base, open: true, committed: true, terminal: true})).to.eq('executing');
     });
 
     it('the pending beat is EXECUTING, not committed — so B cannot collapse into an empty stage', () => {

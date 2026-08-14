@@ -336,44 +336,17 @@
             <!-- VERDICT + INFO panel: the «revealing» status while the card
                  flies, the full breakdown (verdict · what was checked · reward ·
                  VP) once it lands. A reserved-width slot keeps the card centred
-                 across the swap. -->
+                 across the swap.
+                 The breakdown is the SHARED panel — the same component the
+                 EMBEDDED workspace stage renders, so this legacy surface can
+                 never again be the more informative of the two. -->
             <div class="con-reveal__verdict-slot">
               <transition name="con-actfocus-outcome" mode="out-in">
                 <div v-if="!resultRevealed" key="status" class="con-reveal__verdict con-reveal__verdict--pending" role="status">
                   <span class="con-reveal__revealstatus-spin" aria-hidden="true"></span>
                   <span class="con-reveal__verdict-waiting">{{ $t('Revealing the card') }}</span>
                 </div>
-                <div v-else key="verdict" class="con-reveal__verdict"
-                     :class="lastReveal.conditionMet ? 'con-reveal__verdict--met' : 'con-reveal__verdict--miss'">
-                  <div class="con-reveal__verdict-head">
-                    <span class="con-reveal__verdict-badge" aria-hidden="true">{{ lastReveal.conditionMet ? '✓' : '✕' }}</span>
-                    <span class="con-reveal__verdict-title">{{ $t(lastReveal.conditionMet ? 'Condition met' : 'Condition not met') }}</span>
-                  </div>
-                  <!-- What the action was looking for + whether the card had it. -->
-                  <div v-if="revealCheck !== undefined" class="con-reveal__verdict-row">
-                    <span class="con-reveal__verdict-label">{{ $t('Checked') }}</span>
-                    <span class="con-reveal__verdict-value">
-                      <i v-if="revealCheckIcon" class="con-reveal__verdict-tagicon" :style="{backgroundImage: 'url(' + revealCheckIcon + ')'}"></i>
-                      <span>{{ $t(revealCheck.label) }}</span>
-                      <span class="con-reveal__verdict-found"
-                            :class="lastReveal.conditionMet ? 'con-reveal__verdict-found--yes' : 'con-reveal__verdict-found--no'">
-                        {{ $t(lastReveal.conditionMet ? 'found' : 'not found') }}
-                      </span>
-                    </span>
-                  </div>
-                  <!-- The reward (gained on a match; not received on a miss). -->
-                  <div class="con-reveal__verdict-row">
-                    <span class="con-reveal__verdict-label">{{ $t('Reward') }}</span>
-                    <span class="con-reveal__verdict-value">
-                      <ActionEffectChip v-if="lastReveal.reward !== undefined" :effect="lastReveal.reward" />
-                      <span v-else class="con-reveal__verdict-none">{{ $t('Not received') }}</span>
-                    </span>
-                  </div>
-                  <div v-if="vpGain > 0" class="con-reveal__verdict-row">
-                    <span class="con-reveal__verdict-label">{{ $t('Victory points') }}</span>
-                    <span class="con-reveal__verdict-value"><span class="con-reveal__vp">+{{ vpGain }} {{ $t('VP') }}</span></span>
-                  </div>
-                </div>
+                <ConsoleRevealVerdict v-else key="verdict" :reveal="lastReveal" />
               </transition>
             </div>
             <!-- The deck→slot FLIGHT layer (fixed proxy — the shared deal
@@ -462,11 +435,8 @@ import Card from '@/client/components/card/CardFace.vue';
 import ConsoleCardFaceLite from '@/client/components/console/cardDeal/ConsoleCardFaceLite.vue';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import ActionEffectChip from '@/client/components/actions/ActionEffectChip.vue';
 import {runActionRevealFlight, ActionRevealFlightHandle} from '@/client/console/consoleActionRevealMotion';
 import {motionMs} from '@/client/components/motion/motionTokens';
-import {tagIconUrl} from '@/client/components/premiumCard/premiumCardIcons';
-import {Tag} from '@/common/cards/Tag';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {CardModel} from '@/common/models/CardModel';
 import {RevealResultModel} from '@/common/models/RevealResultModel';
@@ -478,6 +448,7 @@ import {consoleReducedMotionActive} from '@/client/console/composables/useConsol
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
+import ConsoleRevealVerdict from '@/client/components/console/foundation/ConsoleRevealVerdict.vue';
 import {workspaceClaimsColonyReveal, workspaceClaimsDrawReveal, workspaceOutcomeArrivalPending, workspaceSourceZoomOrigin} from '@/client/console/consoleWorkspaceOutcome';
 import {useEventListener, useResizeObserver} from '@vueuse/core';
 import {
@@ -534,7 +505,7 @@ type StripEntry = {card: CardModel, index: number, pos: number};
 
 export default defineComponent({
   name: 'ConsoleRevealOverlay',
-  components: {Card, ConsoleCardFaceLite, ConsoleWsStageHead, GamepadGlyph, ActionEffectChip},
+  components: {Card, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, GamepadGlyph},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     mode: {type: String as PropType<ConsoleRevealMode>, required: true},
@@ -1035,24 +1006,14 @@ export default defineComponent({
     lastReveal(): RevealResultModel | undefined {
       return this.mode === 'result' ? this.playerView.lastReveal : undefined;
     },
-    vpGain(): number {
-      const vp = this.lastReveal?.vp;
-      return vp !== undefined ? Math.max(0, vp.to - vp.from) : 0;
-    },
     /** The face has turned up — show the verdict + the real card (the status
      *  «Вскрываем карту» yields the instant the flip crosses the camera plane). */
     resultRevealed(): boolean {
       return this.resultStage !== 'pending';
     },
-    /** What the action was checking for (a tag) — explains the ✓/✗ verdict. */
-    revealCheck(): {tag: Tag, label: string} | undefined {
-      return this.lastReveal?.check;
-    },
-    /** The checked tag's icon URL (empty when the check is absent). */
-    revealCheckIcon(): string {
-      const c = this.revealCheck;
-      return c !== undefined ? tagIconUrl(c.tag) : '';
-    },
+    /* (The verdict's own readings — the checked tag, its icon, the VP delta —
+       live in the SHARED panel component beside its markup. Keeping copies here
+       is how the two renderings of one event drifted apart in the first place.) */
     // ── viewer ───────────────────────────────────────────────────────
     viewerReveal(): RevealMeta | undefined {
       return this.mode === 'viewer' ? revealViewerState.reveal : undefined;

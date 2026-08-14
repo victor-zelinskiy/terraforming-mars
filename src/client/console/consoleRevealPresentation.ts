@@ -89,3 +89,44 @@ export function drawnRevealViewerOpens(ctx: DrawnRevealPresentationCtx): boolean
 export function drawnRevealDetached(ctx: DrawnRevealPresentationCtx): boolean {
   return ctx.ownedEver && !ctx.ownedNow && !ctx.hasClosingStep && ctx.untakenCount === 0;
 }
+
+// ── The DECK-CHECK RESULT (`lastReveal`) — the same question, other artifact ──
+
+export type ResultRevealPresentationCtx = {
+  /** The server is reporting a verdict at all (`lastReveal` exists). */
+  present: boolean,
+  /** The player has already acknowledged THIS verdict (the dismissed key). */
+  acknowledged: boolean,
+  /** A workspace holds a `deck-check` CLAIM on this verdict's acting card. */
+  workspaceOwns: boolean,
+  /** The claiming workspace's stage is mounted right now (the composer's own
+   *  mirror). Kept only as a second, weaker witness — see below. */
+  stageMounted: boolean,
+};
+
+/**
+ * DOES THE STANDALONE RESULT OVERLAY PRESENT THIS VERDICT?
+ *
+ * Only when nobody else owns it. A deck-check the player started inside
+ * «ДЕЙСТВИЯ КАРТ» is presented by that workspace's own «Результат вскрытия»
+ * stage, and the full-bleed overlay must neither double-mount over it nor rise
+ * BESIDE it.
+ *
+ * ⚠️ THE CLAIM IS THE ANSWER, NOT THE MOUNTED STAGE. `consoleActionComposerUi.
+ * revealClaim` is a component-lifetime mirror: it is cleared by the composer's
+ * own unmount, and a PARK performs exactly that unmount while the workspace
+ * still owns the flow (`resetConsoleActionComposerUi` in `parkWorkspaceStack`).
+ * So «свернуть» on the verdict cleared the mirror, `lastReveal` was still
+ * server state (it lives until the player's next input), and the legacy
+ * full-bleed modal rose over the board carrying the very verdict the player had
+ * just minimized — the same information twice, in the shape the embedded flow
+ * exists to retire. The CLAIM survives the park (module state, released by the
+ * ack / the workspace's genuine end), which is what makes it the honest
+ * witness; the mirror stays only as a second one, for the frames before a
+ * repeat-reveal claim is raised.
+ *
+ * PURE: the shell passes what it knows.
+ */
+export function resultRevealPresents(ctx: ResultRevealPresentationCtx): boolean {
+  return ctx.present && !ctx.acknowledged && !ctx.workspaceOwns && !ctx.stageMounted;
+}

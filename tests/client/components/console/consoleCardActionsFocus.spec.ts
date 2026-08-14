@@ -6,7 +6,9 @@ import {consoleCardActionsUi, defaultCardActionsFilter} from '@/client/console/c
 import {consoleActionComposerUi, resetConsoleActionComposerUi} from '@/client/console/consoleActionComposerUi';
 import {enterConsoleRepeatPick, resetConsoleRepeatPick} from '@/client/console/consoleRepeatPick';
 import {resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
-import {resetWorkspaceOutcome, setWorkspaceOutcomePhase} from '@/client/console/consoleWorkspaceOutcome';
+import {
+  claimWorkspaceOutcome, markWorkspaceOutcomePresenting, resetWorkspaceOutcome, setWorkspaceOutcomePhase,
+} from '@/client/console/consoleWorkspaceOutcome';
 import {actionPreviewStore, resetActionPreviews} from '@/client/console/actionPreviewStore';
 import {resetActionCommit} from '@/client/console/consoleActionCommit';
 import {CardName} from '@/common/cards/CardName';
@@ -169,6 +171,49 @@ describe('ConsoleCardActions — the browse ⇄ ACTION FOCUS flow', () => {
     setWorkspaceOutcomePhase('');
     await settle(w);
     expect(vm.focusKickerKey).to.eq('Card draw');
+    resetWorkspaceOutcome();
+    w.unmount();
+  });
+
+  /**
+   * B PAST THE COMMIT — «свернуть», EXCEPT on a verdict.
+   *
+   * THE BUG. B on «Действия карт › Поиски жизни › РЕЗУЛЬТАТ ВСКРЫТИЯ» parked the
+   * workspace, and the verdict came straight back as the LEGACY full-bleed
+   * modal: `lastReveal` is server state until the player's next input, and the
+   * park unmounts the very stage whose mirror was suppressing the standalone
+   * presenter. A verdict keeps no decision alive, so there is nothing to come
+   * back to — it is a TERMINAL phase and «ОК» is the only way out.
+   */
+  it('REGRESSION: B collapses a live outcome, but is DEAD on the terminal verdict', async () => {
+    const w = factory();
+    await settle(w);
+    resetWorkspaceOutcome();
+    const vm = w.vm as any;
+    vm.activateFocused();
+    await settle(w);
+
+    // A DRAW result on stage: post-commit, still a live decision → «свернуть».
+    vm.outcomeFlow = {kind: 'draw'};
+    claimWorkspaceOutcome('card-actions', vm.composer.cardName, ['draw'], 0, 1);
+    markWorkspaceOutcomePresenting();
+    await settle(w);
+    expect(vm.workspacePhase).to.eq('committed');
+    vm.handleIntent({kind: 'press', button: 'back'});
+    expect(w.emitted('collapse')).to.have.length(1);
+
+    // THE VERDICT: same side of the commit boundary, but the flow's last word.
+    resetWorkspaceOutcome();
+    vm.outcomeFlow = {kind: 'deck-check', payload: {
+      action: vm.composer.cardName, revealed: {name: 'Insulation'}, conditionMet: false,
+    }};
+    await settle(w);
+    expect(vm.workspacePhase).to.eq('verdict');
+    vm.handleIntent({kind: 'press', button: 'back'});
+    // Still ONE — the press was swallowed, the workspace stayed put, and the
+    // claim it would have left behind never got the chance to resurface as a
+    // standalone modal.
+    expect(w.emitted('collapse')).to.have.length(1);
     resetWorkspaceOutcome();
     w.unmount();
   });

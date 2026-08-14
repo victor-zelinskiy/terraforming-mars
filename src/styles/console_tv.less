@@ -992,6 +992,10 @@ html.con-profile-tv {
         &__count-label { font-size: var(--con-t-caption); }
         &__count-num { font-size: var(--con-t-section); }
         &__chip { font-size: var(--con-t-secondary); }
+        /* The verdict's berth grows with the couch-sized panel it holds (the
+           panel itself is tuned once, in the shared `.con-verdict` block). */
+        &__verdict-slot { min-width: 22rem; max-width: 26rem; }
+        &__verdict--pending { font-size: var(--con-t-secondary); }
         &__strip {
             gap: var(--con-reveal-strip-gap);
             padding: 3rem 1.6rem 2.2rem;
@@ -1282,11 +1286,30 @@ html.con-profile-tv {
         .con-composer__panel--stage { width: 100%; max-height: none; }
         .con-composer__actmain--stage { max-width: 86rem; column-gap: 2.2rem; }
         .con-composer__cta-hint { font-size: var(--con-t-secondary); }
-        /* The reveal phase reads at couch weight. */
+        /* The reveal phase reads at couch weight. (The VERDICT PANEL's own
+           couch sizes are NOT here: it is the shared `.con-verdict`, tuned once
+           below for every host — a per-host override is exactly how the two
+           renderings of one verdict drifted apart.) */
         .con-composer__revealstatus { font-size: var(--con-t-secondary); }
-        .con-composer__revealoutcome { font-size: var(--con-t-body); }
-        .con-composer__revealoutcome-badge { font-size: 1.3rem; }
-        .con-composer__revealvp { font-size: var(--con-t-secondary); }
+        .con-composer__verdictslot { min-width: 22rem; max-width: 26rem; }
+    }
+
+    /* ═══ THE DECK-CHECK VERDICT PANEL — couch reading, both hosts ══════════
+       Shared by the embedded workspace stage and the standalone overlay, so it
+       is tuned ONCE. At 4K the panel's own rem sizes read as caption text from
+       a sofa: the rows carry the whole explanation («ПРОВЕРКА · Бактерия · НЕ
+       НАЙДЕНО», «НАГРАДА · не получена»), which is the reason the surface
+       exists at all. */
+    .con-verdict {
+        gap: 0.75rem;
+        padding: 1.25rem 1.45rem;
+
+        &__badge { width: 2.4rem; height: 2.4rem; font-size: 1.35rem; }
+        &__title { font-size: var(--con-t-section); }
+        &__row { font-size: var(--con-t-body); }
+        &__label { min-width: 7.4rem; font-size: var(--con-t-caption); }
+        &__found { font-size: var(--con-t-caption); }
+        &__vp { font-size: var(--con-t-secondary); }
     }
 
     /* ═══ 19b · MARSBOT TURN REVIEW («Разбор хода») ═══════════════

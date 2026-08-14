@@ -1419,7 +1419,8 @@ import {
 } from '@/client/console/hydroFlow/consoleHydroFlow';
 import {bonusDiscardStep, BonusDiscardStep} from '@/client/console/colonyTrade/colonyBonusDiscardStep';
 import {drawnRevealCommandRun} from '@/client/console/consoleRevealCommands';
-import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {workspaceClaimsDrawReveal, workspaceClaimsColonyReveal, workspaceClaimsDeckCheck, workspaceClaimsPick, workspaceOutcomeClaimed, workspaceOutcomeBeatPending, claimWorkspaceOutcome, lastOutcomeReleaseStack, markWorkspaceOutcomeAnswerIn, markWorkspaceOutcomeArrivalDone, markWorkspaceOutcomeBeatDone, markWorkspaceOutcomePresenting, outcomeHostConcludesFlow, releaseWorkspaceOutcome, resetWorkspaceOutcome, workspaceOutcomeState} from '@/client/console/consoleWorkspaceOutcome';
+import {resultRevealPresents} from '@/client/console/consoleRevealPresentation';
 import {claimPlayOutcome, isPlayOutcomeHost} from '@/client/console/played/consolePlayOutcomeClaim';
 import ConsoleBoardCardBonusLayer from '@/client/components/console/boardCardBonus/ConsoleBoardCardBonusLayer.vue';
 import {armBoardCardBonus, abortBoardCardBonus, boardCardBonusState, isBoardCardBonusActive, isBoardCardBonusFieldPhase} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
@@ -3191,10 +3192,16 @@ export default defineComponent({
         return 'drawn';
       }
       const lr = this.playerView.lastReveal;
-      if (lr !== undefined && `${lr.action}|${lr.revealed.name}` !== this.dismissedRevealKey &&
-          lr.action !== consoleActionComposerUi.revealClaim) {
-        // A reveal CLAIMED by the Action Focus stage presents IN-FRAME —
-        // the standalone result overlay must not double-mount over it.
+      // A verdict a WORKSPACE owns presents IN-FRAME («Действия карт › <карта> ›
+      // Результат вскрытия») — the standalone overlay neither double-mounts over
+      // it nor rises beside it while the workspace is merely parked. The CLAIM
+      // is the witness, never the mounted stage (`consoleRevealPresentation`).
+      if (resultRevealPresents({
+        present: lr !== undefined,
+        acknowledged: lr !== undefined && `${lr.action}|${lr.revealed.name}` === this.dismissedRevealKey,
+        workspaceOwns: workspaceClaimsDeckCheck(lr?.action),
+        stageMounted: lr !== undefined && lr.action === consoleActionComposerUi.revealClaim,
+      })) {
         return 'result';
       }
       if (revealViewerState.open) {

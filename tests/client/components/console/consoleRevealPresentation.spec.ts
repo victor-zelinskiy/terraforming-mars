@@ -1,9 +1,11 @@
 import {expect} from 'chai';
 import {
   DrawnRevealPresentationCtx,
+  ResultRevealPresentationCtx,
   drawnRevealDetached,
   drawnRevealHeadless,
   drawnRevealViewerOpens,
+  resultRevealPresents,
 } from '@/client/console/consoleRevealPresentation';
 
 /*
@@ -90,5 +92,42 @@ describe('consoleRevealPresentation — a finished batch whose host let go rende
 
   it('the host still holds it: the workspace is presenting, not folding', () => {
     expect(drawnRevealDetached(ctx({ownedEver: true, ownedNow: true, untakenCount: 0}))).to.eq(false);
+  });
+});
+
+describe('consoleRevealPresentation — the deck-check VERDICT belongs to whoever claimed it', () => {
+  function rctx(over: Partial<ResultRevealPresentationCtx> = {}): ResultRevealPresentationCtx {
+    return {present: true, acknowledged: false, workspaceOwns: false, stageMounted: false, ...over};
+  }
+
+  it('a verdict with no parent surface is the standalone overlay\'s (Project Inspection from the band)', () => {
+    expect(resultRevealPresents(rctx())).to.eq(true);
+  });
+
+  it('nothing to present / already acknowledged', () => {
+    expect(resultRevealPresents(rctx({present: false}))).to.eq(false);
+    expect(resultRevealPresents(rctx({acknowledged: true}))).to.eq(false);
+  });
+
+  it('the workspace\'s own stage is up — the overlay must not double-mount over it', () => {
+    expect(resultRevealPresents(rctx({workspaceOwns: true, stageMounted: true}))).to.eq(false);
+  });
+
+  /**
+   * THE BUG. B on «Действия карт › Поиски жизни › РЕЗУЛЬТАТ ВСКРЫТИЯ» parked the
+   * workspace, which UNMOUNTS the composer and clears its `revealClaim` mirror
+   * (`resetConsoleActionComposerUi`). `lastReveal` is server state until the
+   * player's next input, so with only the mirror to go on the legacy full-bleed
+   * modal rose over the board carrying the very verdict just minimized. The
+   * CLAIM survives the park, and it is the honest witness.
+   */
+  it('REGRESSION: a PARKED workspace still owns its verdict — the stage is gone, the claim is not', () => {
+    expect(resultRevealPresents(rctx({workspaceOwns: true, stageMounted: false}))).to.eq(false);
+  });
+
+  /** The other order: a repeat-reveal points the stage at the chosen card in the
+   *  same tick it claims, so the mirror can be the first witness. */
+  it('the mounted stage alone also suppresses it (the claim has not landed yet)', () => {
+    expect(resultRevealPresents(rctx({workspaceOwns: false, stageMounted: true}))).to.eq(false);
   });
 });

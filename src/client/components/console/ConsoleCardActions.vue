@@ -950,14 +950,26 @@ export default defineComponent({
     outcomeBeatDone(): boolean {
       return workspaceOutcomeState.beatDone;
     },
+    /**
+     * THE DECK-CHECK VERDICT IS ON STAGE — the activation's LAST word.
+     *
+     * It is the one outcome of this workspace that continues into nothing: no
+     * card to take, no purchase to answer, no step to host. That makes it a
+     * `verdict` phase rather than an ordinary `committed` one, and the whole
+     * difference is B (see consoleWorkspaceFlow: «свернуть» on a verdict parks a
+     * workspace whose artifact then reappears as a standalone modal).
+     */
+    revealVerdictUp(): boolean {
+      return this.outcomeFlow?.kind === 'deck-check' && this.outcomeFlow.payload !== undefined;
+    },
     workspacePhase(): WorkspacePhase {
       return workspacePhaseOf({
         open: this.composer !== undefined,
         committed: this.outcomeFlow !== undefined,
         // The outcome is INTERACTIVE once something is actually on stage; the
         // «pending» beat before that is machine time, not a destination.
-        resultUp: workspaceOutcomeState.stage === 'presenting' ||
-          (this.outcomeFlow?.kind === 'deck-check' && this.outcomeFlow.payload !== undefined),
+        resultUp: workspaceOutcomeState.stage === 'presenting' || this.revealVerdictUp,
+        terminal: this.revealVerdictUp,
         finishing: false,
       });
     },
@@ -1396,7 +1408,11 @@ export default defineComponent({
           return;
         }
         if (verb === 'none') {
-          return; // a machine beat owns the screen; nothing to undo
+          // A machine beat owns the screen (nothing to undo), or the stage is
+          // the flow's TERMINAL verdict — which keeps no decision alive, so
+          // there is nothing to minimize either. «A ОК» is the way out, and it
+          // is the only thing the bar advertises.
+          return;
         }
       }
       if (this.composer !== undefined) {

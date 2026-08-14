@@ -674,7 +674,7 @@ describe('ConsoleActionComposer — premium render', () => {
     await w.vm.$nextTick();
     await w.vm.$nextTick();
     expect((w.vm as any).revealStage).to.eq('settled');
-    expect(w.find('.con-composer__revealoutcome').text()).to.contain('Condition not met');
+    expect(w.find('.con-verdict').text()).to.contain('Condition not met');
     expect(w.find('.con-composer__revealslot--miss').exists()).to.eq(true);
     expect(w.find('.con-composer__revealslot').attributes('data-zoom-slot')).to.eq('revealed:Insulation');
     // A acknowledges (OK) — the parent returns the flow to browse.
@@ -694,16 +694,53 @@ describe('ConsoleActionComposer — premium render', () => {
       action: 'Search For Life',
       revealed: {name: 'Tardigrades'},
       conditionMet: true,
+      check: {tag: 'microbe', label: 'Microbe'},
       reward: {direction: 'gain', icon: 'science', amount: 1},
       vp: {from: 0, to: 3},
     }}});
     await w.vm.$nextTick();
     await w.vm.$nextTick();
-    const outcome = w.find('.con-composer__revealoutcome');
-    expect(outcome.classes()).to.contain('con-composer__revealoutcome--met');
+    const outcome = w.find('.con-verdict');
+    expect(outcome.classes()).to.contain('con-verdict--met');
     expect(outcome.text()).to.contain('Condition met');
     expect(outcome.find('.action-effect-chip').exists()).to.eq(true);
-    expect(w.find('.con-composer__revealvp').text()).to.contain('+3');
+    expect(w.find('.con-verdict__vp').text()).to.contain('+3');
+    w.unmount();
+  });
+
+  /**
+   * THE EMBEDDED STAGE IS NOT THE POORER READING. It used to show a single pill
+   * — a ✓/✕ and four words — while the legacy standalone modal showed the whole
+   * breakdown for the same event: what was checked, whether it was found, and
+   * that the reward was NOT received. Both hosts now mount the SAME panel, so
+   * the embedded flow states the full case.
+   */
+  it('REGRESSION: a MISSED reveal names the CHECK and says the reward was not received', async () => {
+    const w = factory({
+      card: 'Search For Life', isCorporation: false, kind: 'bespoke',
+      branches: [{index: -1, title: '', available: true, renderKeys: [], effects: [], steps: []}],
+    }, 'Search For Life');
+    await w.setProps({outcome: {kind: 'deck-check'}});
+    await w.vm.$nextTick();
+    await w.setProps({outcome: {kind: 'deck-check', payload: {
+      action: 'Search For Life',
+      revealed: {name: 'Magnetic Field Dome'},
+      conditionMet: false,
+      check: {tag: 'microbe', label: 'Microbe'},
+    }}});
+    await w.vm.$nextTick();
+    await w.vm.$nextTick();
+    const verdict = w.find('.con-verdict');
+    expect(verdict.classes()).to.contain('con-verdict--miss');
+    // WHAT was checked, and that it was not there.
+    expect(verdict.text()).to.contain('Microbe');
+    expect(verdict.find('.con-verdict__found--no').exists()).to.eq(true);
+    // …and the reward row still speaks: a missing row would read as «nothing
+    // was at stake», which is exactly what the player wants to know here.
+    expect(verdict.text()).to.contain('Not received');
+    expect(verdict.find('.action-effect-chip').exists()).to.eq(false);
+    // No VP row when nothing was scored.
+    expect(verdict.find('.con-verdict__vp').exists()).to.eq(false);
     w.unmount();
   });
 
@@ -744,7 +781,7 @@ describe('ConsoleActionComposer — premium render', () => {
     await w.vm.$nextTick();
     await w.vm.$nextTick();
     expect((w.vm as any).revealStage).to.eq('settled');
-    expect(w.find('.con-composer__revealoutcome').exists()).to.eq(true);
+    expect(w.find('.con-verdict').exists()).to.eq(true);
     w.unmount();
   });
 

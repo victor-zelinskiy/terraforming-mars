@@ -51,6 +51,22 @@ export type WorkspacePhase =
    * board), not Back.
    */
   | 'committed'
+  /**
+   * COMMITTED + TERMINAL — the flow's LAST stage: a verdict to read and
+   * acknowledge (the deck-check «Результат вскрытия»). Nothing is owed, nothing
+   * is chosen, nothing continues after it: the single «ОК» ends the operation.
+   *
+   * WHY IT IS NOT `committed`. «Свернуть» exists so a live decision can wait
+   * while the player reads the board — it is a ROUND TRIP, and the way back is
+   * the board-home restore card. A verdict has no decision to keep alive, so
+   * that trip buys nothing and costs plenty: the workspace parks, its stage
+   * unmounts, and the artifact that outlives it (`lastReveal` is server state
+   * until the next input) is then free to be picked up by the standalone
+   * presenter — which is exactly how B on «Поиск жизни» put a legacy full-bleed
+   * modal on screen carrying the very verdict the player had just minimized.
+   * So B is not on offer here at all: the stage advertises «A ОК» and means it.
+   */
+  | 'verdict'
   /** COMPLETION — the result is leaving (to the hand, to the discard). */
   | 'completing';
 
@@ -105,6 +121,9 @@ export function backVerbFor(phase: WorkspacePhase): WorkspaceBackVerb {
   // has the move) and neither is collapsing (there is nothing to come back to
   // yet — the very next state is the one worth showing).
   case 'executing': return 'none';
+  // A TERMINAL verdict: nothing to undo, and nothing to come back TO — see the
+  // phase's own doc. The one press that means anything here is «ОК».
+  case 'verdict': return 'none';
   case 'completing': return 'none';
   }
 }
@@ -124,6 +143,10 @@ export function backLabelFor(phase: WorkspacePhase): string | undefined {
  * absorbs input: the move is committed, so a stray press must not reach the
  * rows underneath, and a double-submit must be impossible by construction
  * rather than by a `submitting` flag someone remembers to check.
+ *
+ * `verdict` accepts input — it is a stage the player ACTS on («ОК», «Осмотреть»,
+ * «Источник»); what it refuses is only the back VERB, which is `backVerbFor`'s
+ * answer, not this one.
  */
 export function acceptsInput(phase: WorkspacePhase): boolean {
   return phase !== 'executing' && phase !== 'completing';
@@ -137,12 +160,15 @@ export function acceptsInput(phase: WorkspacePhase): boolean {
  *  - `open`       — a specific object is being configured (vs the browse grid);
  *  - `committed`  — the batch has been sent (the claim is live);
  *  - `resultUp`   — the outcome is on screen and interactive;
+ *  - `terminal`   — …and it is the flow's LAST stage: a verdict to acknowledge,
+ *                   with nothing chosen, owed or continuing after it;
  *  - `finishing`  — the result is leaving.
  */
 export function workspacePhaseOf(signals: {
   open: boolean,
   committed: boolean,
   resultUp: boolean,
+  terminal?: boolean,
   finishing: boolean,
 }): WorkspacePhase {
   if (signals.finishing) {
@@ -151,7 +177,10 @@ export function workspacePhaseOf(signals: {
   if (!signals.committed) {
     return signals.open ? 'configure' : 'browse';
   }
-  return signals.resultUp ? 'committed' : 'executing';
+  if (!signals.resultUp) {
+    return 'executing';
+  }
+  return signals.terminal === true ? 'verdict' : 'committed';
 }
 
 // ── THE CONCLUSION — where a FINISHED flow leaves the player ─────────────────

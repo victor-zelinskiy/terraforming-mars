@@ -170,10 +170,26 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-composer--stage [data-motion-anchor="card:Search For Life"]')).toHaveCount(1);
       // The outcome settles (deck flight + the in-place flip). The longer
       // beat lets the status → verdict crossfade finish even on a heavy 4K
-      // frame, so the screenshot always carries the verdict pill.
-      await expect(page.locator('.con-composer__revealoutcome')).toHaveCount(1, {timeout: 10_000});
+      // frame, so the screenshot always carries the verdict panel.
+      await expect(page.locator('.con-composer--stage .con-verdict')).toHaveCount(1, {timeout: 10_000});
+      // The EMBEDDED stage carries the WHOLE reading, not a four-word pill: the
+      // reward row is stated either way («не получена» on a miss), which is what
+      // the legacy modal used to be the only surface to say.
+      await expect(page.locator('.con-composer--stage .con-verdict__row')).not.toHaveCount(0);
       await page.waitForTimeout(900);
       await shoot(page, `${profile.tag}-04-reveal-result`);
+
+      // ── 5b. REGRESSION — B ON THE VERDICT DOES NOTHING. «Свернуть» used to
+      // park the workspace here; `lastReveal` is server state until the next
+      // input, so the LEGACY full-bleed modal then rose over the board carrying
+      // the very verdict the player had just minimized — the same information
+      // twice, the second time in the shape the embedded flow exists to retire.
+      // A verdict keeps no decision alive, so it is a TERMINAL phase: no
+      // collapse, no B, «ОК» is the way out (consoleWorkspaceFlow 'verdict').
+      await key(page, 'Escape', 500);
+      await expect(page.locator('.con-composer--stage .con-verdict')).toHaveCount(1);
+      expect(await page.locator('.con-reveal').count(),
+        'B on the verdict must not summon the standalone reveal modal').toBe(0);
 
       // ── 6. OK ENDS THE OPERATION — one press, and the player is on the
       // board. THE CONCLUSION (`workspaceConclusionFor`): past the commit
@@ -188,6 +204,10 @@ for (const profile of PROFILES) {
       await expect(page.locator('.con-cardactions')).toHaveCount(0, {timeout: 8000});
       await page.waitForTimeout(600);
       await expect(page.locator('.con-shade--on')).toHaveCount(0);
+      // …and the ack leaves NOTHING behind: the claim is released and the key
+      // marked seen in the same press, so the standalone overlay has no verdict
+      // to pick up as the workspace departs.
+      await expect(page.locator('.con-reveal')).toHaveCount(0);
       await shoot(page, `${profile.tag}-05-back-to-board`);
     });
   });
