@@ -1,6 +1,6 @@
 {
   "name": "terraforming-mars",
-  "version": "1.2.372",
+  "version": "1.2.373",
   "description": "Terraforming Mars Game",
   "engines": {
     "node": ">=22.22.2 <23"
@@ -86,6 +86,7 @@
     "build:test": "tsc --build tests/tsconfig.json",
     "build:tests": "npm run build:test",
     "clean": "rimraf ./build/ ./build-desktop/ ./src/genfiles/",
+    "push": "node scripts/sync-push.mjs",
     "lint": "npm run lint:server && npm run lint:i18n && npm run lint:client",
     "lint:client": "vue-tsc --noEmit -p tsconfig.vue-tsc.json",
     "lint:server": "eslint --cache src tests",

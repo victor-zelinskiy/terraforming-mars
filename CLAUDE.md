@@ -117,6 +117,10 @@ Both `npm run test:server` and `npm run test:client` run through `scripts/run-te
 
 `npm run build:test` is **mandatory** whenever you touch `tests/` — it is the only thing that typechecks the test tree and the thing that catches case-sensitive import paths that break CI.
 
+### Pushing
+
+**Always `npm run push`, never a bare `git push`.** Two clones share `main`; the wrapper fetches, rebases, re-derives the release version against the remote and retries. The release version may **never** be derived from the local base — a `pre-push` guard refuses a push that claims an already-released version or force-pushes `main`. Rationale and the failure it prevents: `docs/SHARED_MAIN_WORKFLOW.md`.
+
 ### Dev servers
 
 ```bash

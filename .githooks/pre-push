@@ -1,0 +1,15 @@
+#!/bin/sh
+# Guard the shared main. Two clones push here, which makes two mistakes cheap to
+# make and expensive to discover:
+#   - a version some release already claimed → `vpk pack` fails minutes later, in
+#     CI, on another machine, with a message about channels;
+#   - a force push → silently deletes the commit the other clone is based on.
+# Both are decidable locally in a second, so they are decided here instead.
+#
+# Delegates to node so it can reuse the version rule in scripts/version.mjs. Git
+# feeds the standard pre-push stdin (<local ref> <local sha> <remote ref> <remote
+# sha>) straight through, and passes the remote name/url as arguments.
+#
+# Fail-open when it cannot tell (no node, unreachable remote): a guard that blocks
+# work over its own hiccups gets disabled, and then it guards nothing.
+node scripts/check-push.mjs "$@"

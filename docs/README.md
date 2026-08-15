@@ -11,6 +11,9 @@ files here are the deeper dives it points at.
 ## Extracted CLAUDE.md reference
 - [claude/README.md](claude/README.md) — **index of `docs/claude/**`**: the full, verbatim subsystem write-ups moved out of the root `CLAUDE.md` on 2026-07-27 (context-budget split). Not auto-loaded — read on demand. Path-scoped condensed contracts live in [`../.claude/rules/`](../.claude/rules/); the pre-split original is preserved at `../CLAUDE.md.backup.md`.
 
+## Repo workflow / release
+- [SHARED_MAIN_WORKFLOW.md](SHARED_MAIN_WORKFLOW.md) — two clones pushing to one `main`: `npm run push`, why the release version may never be derived from the local base, and what the pre-commit / push / pre-push trio each guarantee.
+
 ## Console / gamepad / TV
 - [CONSOLE_MODE_CONCEPT.md](CONSOLE_MODE_CONCEPT.md) — console-native shell design (the default UI surface).
 - [CONSOLE_FOUNDATION.md](CONSOLE_FOUNDATION.md) — VueUse foundation layer (semantic input, overflow policy, viewport).

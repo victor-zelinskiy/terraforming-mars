@@ -6,7 +6,14 @@
 # bump-version.mjs is fail-open (exit 0 on any trouble) so a commit is never
 # blocked by versioning. Skip when a rebase/merge is in progress — replaying old
 # commits must not re-bump.
+#
+# TM_SKIP_VERSION_BUMP is set by scripts/sync-push.mjs, which re-derives the version
+# against the REMOTE after its rebase and amends it in itself — bumping again here
+# would push the number one past what it just decided.
 git_dir=$(git rev-parse --git-dir 2>/dev/null) || exit 0
+if [ -n "$TM_SKIP_VERSION_BUMP" ]; then
+  exit 0
+fi
 if [ -d "$git_dir/rebase-merge" ] || [ -d "$git_dir/rebase-apply" ] || [ -f "$git_dir/MERGE_HEAD" ]; then
   exit 0
 fi
