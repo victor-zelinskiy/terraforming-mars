@@ -5814,8 +5814,9 @@ html.console-mode {
             background: none;
             box-shadow: none;
         }
-        /* Inside a host zone there is no viewport boundary to compensate. */
-        .con-hand__verdictbar { padding-right: 0; }
+        /* Inside a host zone there is no viewport boundary to compensate
+           (three classes — must outrank the combined compensation rule). */
+        .con-hand__verdictbar.con-cards__verdictbar { padding-right: .6rem; }
         /* The host's ConsoleWsHead already carries the crumb; this is the
            screen's own TOOLBAR (counts · playable · tag filters · mode bars),
            laid out on the same line the header's aux zone used. */
@@ -6180,8 +6181,6 @@ html.console-mode {
     &__verdictbar {
         position: relative;
         border-left: .15rem solid transparent;
-        /* Text stays content-safe while the frame rides the stage inset. */
-        padding-right: var(--con-stage-gain, 0rem);
         transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, border-color calc(160ms * var(--motion-scale, 1)) ease;
 
         &--ok {
@@ -6235,6 +6234,13 @@ html.console-mode {
        reserve rides the combined selector to win the cascade. */
     &__verdictbar.con-cards__verdictbar {
         min-height: 2.7rem;
+        /* TWO-LEVEL SAFE AREA: text claws the content-safe difference back
+           while the frame rides the stage inset. Combined selector ON
+           PURPOSE — the `.con-cards__verdictbar` base declares a `padding`
+           SHORTHAND later in the file at single-class specificity, which
+           silently stripped a single-class longhand (the documented
+           profile-shorthand trap, cascade edition). */
+        padding-right: calc(.6rem + var(--con-stage-gain, 0rem));
     }
     /* The STATUS RAIL rides ABOVE the footer/dock band (11700): with the
        PER-CARD dock lift a card outside the active tag filter keeps its
