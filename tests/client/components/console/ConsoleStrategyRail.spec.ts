@@ -17,30 +17,6 @@ import type {Color} from '@/common/Color';
  * driven through a captured `later` queue — no real waits, no flakiness.
  */
 
-// Vue's CSS-transition machinery reaches for a bare `requestAnimationFrame`
-// on every ELEMENT REMOVAL inside a <transition>/<TransitionGroup> — and the
-// shared jsdom setup deliberately does not provide one (feature detection
-// must keep seeing this environment). The recomposition specs below remove
-// keyed rows, so this file polyfills rAF for its own duration and restores
-// the bare environment after (module state is bundle-shared).
-type RafGlobal = {requestAnimationFrame?: (cb: (t: number) => void) => number, cancelAnimationFrame?: (id: number) => void};
-let rafPrev: RafGlobal['requestAnimationFrame'];
-let cafPrev: RafGlobal['cancelAnimationFrame'];
-before(() => {
-  const g = globalThis as RafGlobal;
-  rafPrev = g.requestAnimationFrame;
-  cafPrev = g.cancelAnimationFrame;
-  g.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0) as unknown as number;
-  g.cancelAnimationFrame = (id) => clearTimeout(id as unknown as ReturnType<typeof setTimeout>);
-});
-after(async () => {
-  // Let any in-flight leave transition settle before the environment reverts.
-  await new Promise((resolve) => setTimeout(resolve, 20));
-  const g = globalThis as RafGlobal;
-  g.requestAnimationFrame = rafPrev;
-  g.cancelAnimationFrame = cafPrev;
-});
-
 const me: Color = 'red';
 const rival: Color = 'blue';
 const third: Color = 'green';
@@ -102,6 +78,36 @@ function mountRail(props: Partial<{milestones: MaHudZone, awards: MaHudZone, cov
 }
 
 describe('ConsoleStrategyRail', () => {
+  // Vue's CSS-transition machinery reaches for a bare `requestAnimationFrame`
+  // on every ELEMENT REMOVAL inside a <transition>/<TransitionGroup> — and the
+  // shared jsdom setup deliberately does not provide one (feature detection
+  // must keep seeing this environment). The recomposition specs below remove
+  // keyed rows, so THIS SUITE polyfills rAF and restores the bare environment
+  // when it ends. ⚠️ Suite-scoped hooks on purpose: a top-level before/after
+  // is a mocha ROOT hook of the whole shared bundle, and the polyfill then
+  // silently moves every later spec onto its non-degraded code path (that
+  // shipped as two CardSelectionContent failures before this comment).
+  type RafGlobal = {requestAnimationFrame?: (cb: (t: number) => void) => number, cancelAnimationFrame?: (id: number) => void};
+  let rafPrev: RafGlobal['requestAnimationFrame'];
+  let cafPrev: RafGlobal['cancelAnimationFrame'];
+  before(() => {
+    const g = globalThis as RafGlobal;
+    rafPrev = g.requestAnimationFrame;
+    cafPrev = g.cancelAnimationFrame;
+    g.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0) as unknown as number;
+    g.cancelAnimationFrame = (id) => clearTimeout(id as unknown as ReturnType<typeof setTimeout>);
+  });
+  afterEach(async () => {
+    // Drain in-flight transition callbacks while the polyfill (and the
+    // wrapper) are still alive — before the shared bundle unmount runs.
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  });
+  after(() => {
+    const g = globalThis as RafGlobal;
+    g.requestAnimationFrame = rafPrev;
+    g.cancelAnimationFrame = cafPrev;
+  });
+
   it('renders both zones: medal per item, LB/RB door caps, slot pips, price', () => {
     const wrapper = mountRail();
     const zones = wrapper.findAll('.con-strat__zone');

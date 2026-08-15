@@ -3328,9 +3328,9 @@ each(@players, {
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%), 0 .6rem 1.8rem rgba(0, 0, 0, 0.45);
     overflow-y: auto;
     scrollbar-width: thin;
-    /* The overflow affordances are anchored to the PANEL, not the scrolled
-       content, so they stay pinned to the cut edges while the content moves. */
-    position: relative;
+    /* (The overflow-affordance pseudos anchor to the panel through the
+       overlay's own `position: absolute` above — no second declaration, or
+       it silently overrides the absolute and re-enters the flex flow.) */
 
     /* Fades at whichever edge is actually cutting content. A 3 px custom
        scrollbar is invisible from a couch; a soft cut edge reads instantly as
@@ -8595,13 +8595,13 @@ html.con-profile-handheld .con-mafocus {
         overflow: hidden;
     }
     &__item {
+        position: relative;
         display: flex;
         align-items: center;
         gap: .4rem;
         padding: .1rem .2rem;
         border-radius: .4rem;
         cursor: pointer;
-        .premium-tooltip(16rem);
     }
 
     /* The medal: a layered physical object — owner under-plate, state halo,

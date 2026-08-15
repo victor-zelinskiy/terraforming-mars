@@ -47,7 +47,7 @@
              class="con-strat__item"
              :class="rowClasses(z, row)"
              :data-ma-hud="z.kind + ':' + row.name"
-             :data-hint="rowHint(z, row)"
+             :aria-label="rowHint(z, row)"
              role="button" tabindex="-1"
              @click="$emit('open', z.kind)">
           <span class="con-strat__medal">
@@ -274,7 +274,10 @@ export default defineComponent({
     artStyle(name: string): Record<string, string> {
       return {backgroundImage: `url(${maArtUrl(name)})`};
     },
-    /** The mouse-hover dossier line: name + the one relevant number. */
+    /** The row's accessible one-liner: name + the one relevant number.
+     *  (Deliberately NOT a hover tooltip: the rail clips its list against
+     *  extreme-mod overflow, and a clipped bubble is worse than none — the
+     *  workspace, one press away, is the detail surface.) */
     rowHint(z: ZoneView, row: RowView): string {
       const name = translateText(maDisplayName(row.name));
       if (row.showTaken) {
