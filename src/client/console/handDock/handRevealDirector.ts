@@ -79,9 +79,11 @@ import {
 
 export type RevealRect = {left: number, top: number, width: number, height: number};
 
-/** Screen-px overflow of a slot rect beyond the grid viewport — the real
- *  slot renders CLIPPED by exactly that much (the grid's overflow). */
-export type RevealClip = {top: number, bottom: number};
+/** Screen-px overflow of a card beyond the album viewport. Historically the
+ *  scroll-grid's top/bottom boundary; the ALBUM adds the horizontal sides —
+ *  a card flying to a page PACKET wipes out behind the stage edge instead of
+ *  sliding visibly over the HUD beside the album. */
+export type RevealClip = {top: number, bottom: number, left?: number, right?: number};
 
 /** One hand card's two homes (overlay order — the grid's own order). */
 export type RevealPair = {
@@ -206,7 +208,8 @@ function clipInset(clip: RevealClip | undefined, slotW: number): string {
     return 'inset(0px 0px 0px 0px)';
   }
   const s = Math.max(0.01, slotW / CARD_NATURAL_W);
-  return `inset(${Math.max(0, clip.top / s)}px 0px ${Math.max(0, clip.bottom / s)}px 0px)`;
+  const px = (v: number | undefined) => Math.max(0, (v ?? 0) / s);
+  return `inset(${px(clip.top)}px ${px(clip.right)}px ${px(clip.bottom)}px ${px(clip.left)}px)`;
 }
 
 /** 0..1 rank of a card's distance from the centre axis (row-weighted). */
@@ -315,18 +318,26 @@ function teardown(instant: boolean): void {
     // The deferred clear is EPOCH-GUARDED: it only fires while this fade is
     // still the current handoff — a new episode spawned inside the window
     // kills the fade (spawnProxies) and owns the flights from then on.
+    const settle = () => {
+      if (handoffFade === fade) {
+        handoffFade = undefined;
+        fade.kill();
+        clearRevealFlights();
+      }
+    };
     const fade = gsap.to(els, {
       autoAlpha: 0,
       duration: motionMs(HANDOFF_MS) / 1000,
       ease: 'power1.out',
-      onComplete: () => {
-        if (handoffFade === fade) {
-          handoffFade = undefined;
-          clearRevealFlights();
-        }
-      },
+      onComplete: settle,
     });
     handoffFade = fade;
+    // HARD BACKSTOP on a WALL-CLOCK timer: GSAP ticks on rAF, and a quiet
+    // headless/backgrounded compositor can stop delivering frames the moment
+    // the screen goes still — which is exactly when this fade runs. Without
+    // it the (already invisible) proxy nodes linger on the layer forever.
+    // Same epoch guard, so a normal completion makes this a no-op.
+    window.setTimeout(settle, motionMs(HANDOFF_MS) + 700);
   }
   episode = undefined;
 }
@@ -394,8 +405,16 @@ export async function runHandOpenEpisode(allPairs: ReadonlyArray<RevealPair>): P
         tl.to(el, {clipPath: clipInset(p.clip, p.target.width), duration: flight * 0.3, ease: 'power1.inOut'}, at + flight * 0.7);
       }
     } else {
-      // The scroll tail: the card exits through the grid's lower boundary.
-      tl.to(el, {autoAlpha: 0, duration: flight * 0.35, ease: 'power1.in'}, at + flight * 0.55);
+      // A PAGE-PACKET flight (the album's parked pages / out-of-view
+      // universe): the card visibly reaches the stage edge, WIPES behind it
+      // (the side clip) and lets go — late enough that the departure toward
+      // the packet reads, never a card dissolving over the middle of the
+      // stage (or crossing the HUD beside the album whole).
+      if (p.clip !== undefined) {
+        gsap.set(el, {clipPath: 'inset(0px 0px 0px 0px)'});
+        tl.to(el, {clipPath: clipInset(p.clip, p.target.width), duration: flight * 0.34, ease: 'power1.in'}, at + flight * 0.62);
+      }
+      tl.to(el, {autoAlpha: 0, duration: flight * 0.26, ease: 'power1.in'}, at + flight * 0.72);
     }
   });
 
@@ -460,11 +479,13 @@ export async function runHandCloseEpisode(allPairs: ReadonlyArray<RevealPair>, s
     const at = s(spread) * (1 - ranks[i]);
     const flight = s(CLOSE_FLIGHT_MS);
     if (!p.visible) {
-      // The scroll tail re-enters through the grid's lower boundary.
+      // A page PACKET re-enters through the album's edge on its way home.
       tl.to(el, {autoAlpha: 1, duration: flight * 0.3, ease: 'power1.out'}, at);
-    } else if (p.clip !== undefined) {
-      // Spawned pre-clipped like the real slot — the clip releases as the
-      // card lifts off the boundary (the exact reverse of the landing clip).
+    }
+    if (p.clip !== undefined) {
+      // Spawned pre-clipped (a boundary slot / a packet wiped behind the
+      // stage edge) — the clip releases as the card lifts away from it
+      // (the exact reverse of the landing clip / packet wipe).
       tl.to(el, {clipPath: 'inset(0px 0px 0px 0px)', duration: flight * 0.3, ease: 'power1.out'}, at);
     }
     tl.to(el, {x: p.source.left, y: p.source.top, scale: scaleTo, duration: flight, ease: 'power2.inOut'}, at);

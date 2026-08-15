@@ -119,7 +119,7 @@ async function surfaces(page: Page) {
         flow: document.querySelector('.con-hand')?.getAttribute('data-flow') ?? '',
         rows: document.querySelectorAll('.con-hand__row').length,
         heldSlots: document.querySelectorAll('.con-hand__slot.con-deal-hold').length,
-        gridH: Math.round(document.querySelector('.con-hand__grid')?.getBoundingClientRect().height ?? -1),
+        gridH: Math.round(document.querySelector('.con-hand__album')?.getBoundingClientRect().height ?? -1),
       },
       /** The embedded hand's browse toolbar (filters/counters) is VISIBLE. */
       toolbarShown: (() => {

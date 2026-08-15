@@ -628,13 +628,16 @@ page-level scrollbar — заблокирован (`html.console-native` surface
 | ConsoleStartScene | ✅ | 📄 (fit-strip + 3 body-варианта) | ✅ | migrated · deal ✅ (§10) |
 | ConsoleColoniesSection | (наследует) | 📄 (flex-центр контракт; resize✅) | shell-driven | migrated |
 | ConsoleParticipantEditor / ConsoleProfileEditor | (наследует) | — | ✅ (text-entry + A/B) | migrated |
-| ConsoleHandSection | (наследует) | 📄 (свой fit+scroll engine, chrome-less) | shell-driven | doc exception |
+| ConsoleHandSection | (наследует) | 📄 (ALBUM: строгие страницы, transform-слайд — скролла НЕТ вовсе; `consoleHandAlbum.ts`) | shell-driven | no-scroll by design |
 | ConsoleColonyInspect / InfoMode / ConsoleContextPanel / ConsoleResourcePanel | (наследует) | 📄 (chrome-less display `.con-info__scroll`) | shell-driven | doc exception |
 
 **Documented scroll-exceptions (все с CSS-комментарием + причиной):** always-fit
-(GovSupport 2×2), bespoke-scroll-engine (Hand — `scrollTop`/`scrollHeight` math), flex-
-центрирующий контракт (Colonies), fit-strip bounded (TaskHost/Reveal/StartScene), chrome-
-less display-панели (Info/ColonyInspect/ContextPanel/Res, CardActions `__detail`).
+(GovSupport 2×2), flex-центрирующий контракт (Colonies), fit-strip bounded
+(TaskHost/Reveal/StartScene), chrome-less display-панели (Info/ColonyInspect/
+ContextPanel/Res, CardActions `__detail`). Рука БОЛЬШЕ НЕ исключение: её
+bespoke-scroll-engine заменён ALBUM-страницами (`consoleHandAlbum.ts`) —
+переполнение невыразимо (страницы позиционируются transform'ами в
+overflow:hidden вьюпорте, вертикального скролла карточной зоны не существует).
 Общий признак: chrome-less (нативный бар не виден) + либо always-fits, либо cursor-scroll
 ограничен in-shell зоной (страница залочена, нет промежуточного scroll-предка).
 

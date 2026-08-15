@@ -152,6 +152,8 @@
     "Select all": "Выбрать все",
     "Unselect all": "Снять все",
     "Shown ${0} of ${1}": "Показано ${0} из ${1}",
+    "${0} of ${1}": "${0} из ${1}",
+    "Pages": "Страницы",
     "No cards with this tag": "Нет карт с этой меткой",
     "Not selected": "Не выбрана",
     "Discarding a card": "Сброс карты",

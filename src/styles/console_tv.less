@@ -442,8 +442,8 @@ html.con-profile-tv {
     .con-cards__verdictbar.con-ws-stage-status,
     .con-reveal__namebar.con-ws-stage-status,
     .con-composer__beatstatus.con-ws-stage-status { height: 2.4rem; }
-    /* The hand grid's focused card + its state band get the same headroom. */
-    .con-hand__pad { padding-top: 1.6rem; }
+    /* (The hand album reserves the focused card + state band headroom in its
+       pure plan — ALBUM_GUTTER_TOP scales with the profile's uiScale.) */
     /* The TV rules panel beside the hero card (Этап 1-R2): a full reading
        column — body text at couch size, capped to the card's height band. */
     .con-zoom-rules {

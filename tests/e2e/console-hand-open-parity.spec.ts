@@ -92,7 +92,7 @@ function readArt(page: Page): Promise<{flying: number, flyingPainted: number, la
       return {all: imgs.length, painted: painted.length};
     };
     const fly = count('.con-handreveal-layer');
-    const land = count('.con-hand__grid');
+    const land = count('.con-hand__album');
     return {flying: fly.all, flyingPainted: fly.painted, landed: land.all, landedPainted: land.painted};
   });
 }
@@ -135,7 +135,7 @@ test.describe('console hand open — no flicker at the handoff', () => {
           // probe ends up disagreeing with its own evidence.
           art = await readArt(page);
           proxies = await readFaces(page, '.con-handreveal-layer');
-          slots = await readFaces(page, '.con-hand__grid');
+          slots = await readFaces(page, '.con-hand__album');
           await shoot(page, 'mid-flight');
           break;
         }

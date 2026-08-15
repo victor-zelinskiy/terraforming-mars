@@ -95,7 +95,7 @@
 }
 /* The chrome steps back with the row, so the surface reads as one object
    handing its cards over rather than a grid with a dimmed area in it. */
-.con-hand--discarding :is(.con-hand__filters, .con-hand__verdictbar, .con-hand__scrollbar) {
+.con-hand--discarding :is(.con-hand__filters, .con-hand__verdictbar, .con-hand__pageind, .con-hand__pgedge) {
     transition: opacity calc(220ms * var(--motion-scale, 1)) ease-out;
     opacity: .4;
 }

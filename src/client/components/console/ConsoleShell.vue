@@ -183,6 +183,7 @@
                           :saleSelected="consoleState.sale.selected"
                           :saleMegacredits="thisPlayer.megacredits"
                           :select="handSelectProps"
+                          :packetExtras="handPacketExtras"
                           :discarding="discardInOverlay"
                           :softReason="handSoftReason"
                           :tagFilters="handTagFilterOptions"
@@ -1505,6 +1506,7 @@ import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick,
 import {hydroAdvanceResponses} from '@/client/console/consoleHydroAdvance';
 import {consoleRepeatPickUi, resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
+import {albumSpecFor} from '@/client/components/console/consoleHandAlbum';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {useWorkspaceBandGeometry} from '@/client/console/composables/useWorkspaceBandGeometry';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -1982,15 +1984,17 @@ export default defineComponent({
       return out;
     },
     /**
-     * Dock backs the hand OVERLAY owns right now (hidden in the tray) —
+     * Dock backs the hand ALBUM owns right now (hidden in the tray) —
      * DERIVED, never stored, so it can't drift from the live hand:
-     *  - the VISIBLE (filtered) entries while the overlay owns the cards —
-     *    phase `open`/`closing`, or `opening` once its proxies stand (the
-     *    old whole-pack `dockLifted` timing). A card OUTSIDE the tag filter
-     *    is not in `handEntries`, so its back stays physically in the tray
-     *    the whole time the hand is open;
-     *  - plus `dockExtraLift`: tag-filter leavers still airborne on their
-     *    way back to the pack (released at the episode's materialization).
+     *  - the WHOLE album universe while the album owns the cards — phase
+     *    `open`/`closing`, or `opening` once its proxies stand (the old
+     *    whole-pack `dockLifted` timing). THE WHOLE HAND LEAVES THE DOCK:
+     *    a card outside the tag filter is not on any page, but it is parked
+     *    with the far page packets beyond the stage edge — the dock never
+     *    shows a «remainder» while the player is leafing the album (one
+     *    card, one home);
+     *  - plus `dockExtraLift`: filter-episode leavers still airborne
+     *    (released at the episode's materialization).
      */
     dockLiftedNames(): ReadonlyArray<string> {
       const st = handRevealState;
@@ -1999,7 +2003,7 @@ export default defineComponent({
       if (!overlayOwns) {
         return st.dockExtraLift;
       }
-      return [...this.handEntries.map((e) => e.card.name), ...st.dockExtraLift];
+      return [...this.handAlbumUniverse.map((e) => e.card.name), ...st.dockExtraLift];
     },
     /**
      * The dock renders IDENTICALLY in every shell state (welded into the
@@ -4255,6 +4259,48 @@ export default defineComponent({
       }
       return filterHandByTag(this.handEntriesAll, this.consoleState.handTagFilter);
     },
+    /**
+     * THE ALBUM UNIVERSE — every card PHYSICALLY IN THE ALBUM while the hand
+     * is open: mode-narrowed (a client pick's shown hand excludes the staged
+     * card + SRR-hosted cards) but NEVER view-filtered. The tag filter and
+     * «only suitable» decide which PAGE a card is on — or that it parks with
+     * the far page packets — never whether it left the dock. The dock's lift
+     * and the open/close flights read THIS, which is what makes the dock
+     * genuinely empty for the whole open hand.
+     */
+    handAlbumUniverse(): ReadonlyArray<ConsoleHandEntry> {
+      if (this.handPickActive) {
+        const shown = new Set(this.handPickHandNames);
+        return this.handEntriesAll.filter((e) => shown.has(e.card.name));
+      }
+      return this.handEntriesAll;
+    },
+    /** Universe cards OUTSIDE the current view (tag / suitable filter) —
+     *  parked with the far-side page packets by the section's transition
+     *  geometry, so the reveal flies them out of the dock and the close
+     *  gathers them home with everything else. */
+    handPacketExtras(): ReadonlyArray<string> {
+      const visible = new Set(this.handEntries.map((e) => e.card.name));
+      const out: Array<string> = [];
+      for (const e of this.handAlbumUniverse) {
+        if (!visible.has(e.card.name)) {
+          out.push(e.card.name);
+        }
+      }
+      return out;
+    },
+    /** The album's page count for the VISIBLE hand — mirrors the section's
+     *  own plan (page shape is a profile fact, so no measure is needed). */
+    handPageCount(): number {
+      const spec = albumSpecFor(consoleLayoutState.profile);
+      return Math.max(1, Math.ceil(this.handEntries.length / (spec.cols * spec.rows)));
+    },
+    /** The PAGES hint every hand mode shares (right-stick flick; d-pad across
+     *  the page edge does the same walking) — advertised only when a second
+     *  page exists. */
+    handPagesHint(): ReadonlyArray<ConsoleCommand> {
+      return this.handPageCount > 1 ? [{control: 'stickScroll', label: 'Pages'}] : [];
+    },
     // ── mandatory hand SELECT (server `handSelect` task) ──────────────────
     /** The active mandatory hand-select prompt (all candidates in hand), or
      *  undefined. Derived from the shell-section task + the raw waitingFor. */
@@ -5673,6 +5719,7 @@ export default defineComponent({
         if (this.handSelectFiltered) {
           cmds.push({control: 'triggerL', label: this.handSelectSuitableOnly ? 'All cards' : 'Only suitable'});
         }
+        cmds.push(...this.handPagesHint);
         cmds.push({control: 'back', label: 'Back'});
         return cmds;
       }
@@ -5945,6 +5992,7 @@ export default defineComponent({
           {control: 'stickL', label: this.saleAllSelected ? 'Unselect all' : 'Select all'},
           {control: 'secondary', label: 'Inspect'},
           {control: 'triggerR', label: 'Sell', enabled: n > 0, badge: n, highlight: n > 0, priority: 1},
+          ...this.handPagesHint,
           {control: 'back', label: 'Cancel'},
         ];
       }
@@ -5969,6 +6017,7 @@ export default defineComponent({
         if (this.handSelectFiltered) {
           cmds.push({control: 'triggerL', label: this.consoleState.select.suitableOnly ? 'All cards' : 'Only suitable'});
         }
+        cmds.push(...this.handPagesHint);
         cmds.push({control: 'back', label: 'Minimize'});
         return cmds;
       }
@@ -5992,6 +6041,7 @@ export default defineComponent({
           cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Tag filter', spread: true});
           cmds.push({control: 'stickR', label: 'Reset filter', enabled: this.consoleState.handTagFilter !== 'all'});
         }
+        cmds.push(...this.handPagesHint);
         cmds.push({control: 'back', label: this.shellTaskActive ? 'Minimize' : 'To the board'});
         return cmds;
       }
@@ -8459,7 +8509,7 @@ export default defineComponent({
           (this.$refs.cardActions as InstanceType<typeof ConsoleCardActions> | undefined)?.handleIntent(intent);
           return true;
         }
-        this.scrollActiveConsole(intent.dy);
+        this.scrollActiveConsole(intent.dy, intent.dx);
         return true;
       }
       // Information Mode owns everything while open (read-only).
@@ -12551,16 +12601,17 @@ export default defineComponent({
     /** P17: right-stick scroll for the ACTIVE console scroll container —
      *  the journal peek while open, else the topmost visible scrollable
      *  `.con-info__scroll` (console layers stack in DOM order). */
-    scrollActiveConsole(dy: number): void {
-      if (Math.abs(dy) < 0.05) {
+    scrollActiveConsole(dy: number, dx = 0): void {
+      if (Math.abs(dy) < 0.05 && Math.abs(dx) < 0.05) {
         return;
       }
-      // The hand SMART GRID owns its own vertical scroll (+ keep-selected-visible
-      // reconcile) — but only when it is the active surface (no play-confirm /
-      // task / reveal / zoom on top, which would otherwise scroll it blindly).
+      // The hand ALBUM turns pages on the right stick (either axis — a firm
+      // flick, hold-to-repeat) — but only when it is the active surface (no
+      // play-confirm / task / reveal / zoom on top, which would otherwise be
+      // paged through blindly).
       if (this.handScrollActive) {
         const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
-        hand?.stickScroll(dy);
+        hand?.stickScroll(dy, dx);
         return;
       }
       // The EMBEDDED «Разыграно» table (Information Workspace X detail) owns
@@ -12768,15 +12819,17 @@ export default defineComponent({
     },
     /**
      * Apply a tag-filter mutation as a PHYSICAL transition (the cards are
-     * objects in the player's hand, they never blink): measure the OLD slot
-     * rects + the dock homes BEFORE the change, apply it (entries recompute
-     * synchronously — the director's state writes ride the SAME patch flush,
-     * so nothing flashes), then hand the episode to `runHandFilterEpisode`:
-     * leavers gather into the dock, enterers fan out of it, survivors glide
-     * to their re-planned slots. Rapid re-filtering stays responsive: a
+     * objects in the player's album, they never blink): measure the OLD slot
+     * rects BEFORE the change, apply it (entries recompute synchronously —
+     * the director's state writes ride the SAME patch flush, so nothing
+     * flashes), then hand the episode to `runHandFilterEpisode`. In the
+     * ALBUM model a filter is a RE-PAGINATION: leavers gather into the edge
+     * PACKETS (never back into the dock — the dock stays empty for the whole
+     * open hand), enterers glide out of those packets, survivors glide to
+     * their re-planned slots. Rapid re-filtering stays responsive: a
      * still-running episode is SNAPPED to its end state first (never queued).
      * Falls back to the plain instant switch outside the browsable open hand
-     * (sale/select never reach here; staged-card / reduced-motion / unmounted
+     * (sale never reaches here; staged-card / reduced-motion / unmounted
      * refs degrade the same way).
      */
     applyHandFilterChange(apply: () => void): void {
@@ -12787,7 +12840,6 @@ export default defineComponent({
         finishInstant();
       }
       const section = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
-      const dock = this.$refs.handDock as InstanceType<typeof ConsoleHandDock> | undefined;
       // During a CLIENT hand pick the staged (being-played) card is EXCLUDED
       // from the entries, so the episode is safe to run under it — that's how
       // the pick's «suitable only» toggle gets the same physical transition
@@ -12795,7 +12847,7 @@ export default defineComponent({
       const canAnimate = this.consoleState.section === 'hand' &&
         handRevealState.phase === 'open' && !isHandRevealEpisodeRunning() &&
         (this.stagedHandCard === undefined || this.handPickActive) &&
-        section !== undefined && dock !== undefined;
+        section !== undefined;
       if (!canAnimate) {
         apply();
         this.refocusAfterFilter(selectedName);
@@ -12805,21 +12857,31 @@ export default defineComponent({
       apply();
       this.refocusAfterFilter(selectedName);
       const newNames = this.handEntries.map((e) => e.card.name);
-      // The ENTERERS never had a grid slot under the old filter, so their art
-      // has never mounted: warm it before their proxies fan out of the dock,
-      // or they fly a black art window (see openHandWithReveal). Already-warm
-      // URLs are a memory-cache no-op.
+      // The ENTERERS never had an album slot under the old filter, so their
+      // art has never mounted: warm it before their proxies glide out of the
+      // packets, or they fly a black art window (see openHandWithReveal).
+      // Already-warm URLs are a memory-cache no-op.
       const seen = new Set(before.pairs.map((p) => p.name));
       preloadPremiumCardArt(newNames.filter((n) => !seen.has(n)));
-      const involved = new Set<string>([...before.pairs.map((p) => p.name), ...newNames]);
-      const dockRects = dock.sourceRects([...involved]);
+      const newSet = new Set<string>(newNames);
+      // A card parked in the packets that STAYS out of view takes no part in
+      // the episode (no proxy at all): a packet→packet flight would paint a
+      // phantom card at the stage edge. Kept pairs: everything visible before,
+      // plus a parked card ENTERING the view (it glides in from its packet).
+      const beforePairs = before.pairs.filter((p) => p.visible || newSet.has(p.name));
+      const involved = new Set<string>([...beforePairs.map((p) => p.name), ...newNames]);
+      // Leaver landings + enterer origins = the right-edge PACKET anchors —
+      // the same conceptual place the open/close flights park the out-of-view
+      // universe, so a filtered-out card always exits toward where it lives.
+      const packetHomes = section.packetHomeRects([...involved]);
       void runHandFilterEpisode({
-        before: before.pairs.map((p) => ({name: p.name, rect: p.rect, visible: p.visible, clip: p.clip})),
-        dock: dockRects,
+        before: beforePairs.map((p) => ({name: p.name, rect: p.rect, visible: p.visible, clip: p.clip})),
+        dock: packetHomes,
         newNames,
         measureAfter: () => {
-          // Seat the grid scroll on the refocused card FIRST (sync layout),
-          // so the measured targets are the settled post-filter geometry.
+          // The album derives its page from the refocused index — the patch
+          // has already flushed, so the measured targets are the settled
+          // post-filter geometry.
           section.ensureSelectedVisible();
           return section.transitionTargets().pairs.map((p) => ({name: p.name, rect: p.rect, visible: p.visible, clip: p.clip}));
         },
