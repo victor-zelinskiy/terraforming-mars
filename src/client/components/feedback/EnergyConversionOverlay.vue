@@ -1,6 +1,9 @@
 <template>
+  <!-- state.leadIn = the HANDOFF beat: the surface that caused the conversion
+       is still playing its leave, so the visible motion (arrow + chips) waits;
+       the cells' highlight + held counters already run underneath. -->
   <transition name="energy-conversion-layer-fade">
-    <div v-if="state.active"
+    <div v-if="state.active && !state.leadIn"
          class="resource-conversion-layer"
          aria-hidden="true">
       <!--

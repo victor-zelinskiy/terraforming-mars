@@ -522,7 +522,16 @@
       <transition :css="false" appear
                   @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
                   @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
-        <ConsoleTaskHost v-if="hostTask !== undefined && !taskHeldForWorkspace && !effectDecisionOwnsPrompt && !finalGreeneryActive && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
+        <!-- !energyConversionState.active: the COMMIT HANDOFF of the optional
+             energy→heat conversion (Supercapacitors). The moment the server's
+             answer arms the rail transition the amount surface has nothing
+             left to decide — it leaves (its leave rides the transition's
+             lead-in), the shade lifts, and the existing rail animation plays
+             on a fully readable rail. The old view (still holding this very
+             prompt) stays committed through the await, so without this term
+             the band would stand over its own result. Safe: the transition is
+             a registered animation hold, so the leak detector stays quiet. -->
+        <ConsoleTaskHost v-if="hostTask !== undefined && !taskHeldForWorkspace && !effectDecisionOwnsPrompt && !finalGreeneryActive && !govSupportActive && !productionLossActive && !govScaleFocusState.holding && !energyConversionState.active && !consoleState.task.deferred && taskSpacePending === undefined && !handPickActive"
                          ref="taskHost"
                          :playerView="playerView"
                          :task="hostTask"
@@ -1419,6 +1428,7 @@ import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeCons
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {currentRevealEvent, drawnCardsState, untakenNameMultiset} from '@/client/components/drawnCards/drawnCardsState';
+import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
 import {revealViewerState} from '@/client/components/notifications/revealViewerState';
 import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
@@ -1743,6 +1753,11 @@ export default defineComponent({
       /** Re-entrancy guard: an X TAP being replayed past the toast's hold capture. */
       notifTapReplay: false,
       govScaleFocusState,
+      /** The energy→heat conversion transition (feedback module) — in data()
+       *  so the task-host v-if tracks its `active` flip reliably: the amount
+       *  surface that ANSWERED the conversion leaves the moment the rail
+       *  animation claims the foreground, and the rail plays it un-dimmed. */
+      energyConversionState,
       botTurnReviewState,
       /** The colony trade-launch controller (drives the docked-settle glow). */
       tradeFleetState,

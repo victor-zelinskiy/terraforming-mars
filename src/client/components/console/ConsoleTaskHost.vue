@@ -215,28 +215,104 @@
 
             <!-- ── AMOUNT ─────────────────────────────────────────── -->
             <template v-else-if="activeTask.kind === 'amount'">
-              <div class="con-task__stepper">
-                <i v-if="amountIconClass !== ''" :class="amountIconClass" class="con-task__stepper-icon" aria-hidden="true"></i>
-                <div class="con-task__stepper-readout">
-                  <span class="con-task__stepper-value">{{ value }}</span>
-                  <span v-if="amountUnit !== ''" class="con-task__stepper-unit">{{ amountUnit }}</span>
+              <!-- PREMIUM CONVERSION (the server's `conversion` hint — e.g.
+                   Supercapacitors' optional production-phase energy→heat):
+                   compact selector + ONE result preview stating both sides'
+                   `current → after`. No in-panel button hints — the bottom
+                   command bar is the one source of verbs (§3.2). The panel
+                   locks visually on submit; the ACTUAL conversion plays as the
+                   existing rail transition after this surface leaves. -->
+              <div v-if="conversionVm !== undefined" class="con-convert"
+                   :class="{'con-convert--committing': submitting}">
+                <!-- 0..1 = a BINARY CHOICE, not a dial («THE INSTRUMENT FOLLOWS
+                     THE BUDGET»): two plates, focus IS the pending value, A
+                     commits the focused one. LB/RB/MAX still land here. -->
+                <div v-if="conversionVm.binary" class="con-convert__choices">
+                  <div class="con-task__option con-task__option--skip"
+                       :class="{'con-task__option--focused': value === 0}">
+                    <div class="con-task__option-main">
+                      <span class="con-task__opt-title">{{ $t('Do not convert') }}</span>
+                      <GamepadGlyph v-if="value === 0" control="confirm" class="con-task__opt-a" />
+                    </div>
+                  </div>
+                  <div class="con-task__option"
+                       :class="{'con-task__option--focused': value === conversionVm.max}">
+                    <div class="con-task__option-main">
+                      <i class="con-task__opt-icon" :class="'resource_icon resource_icon--' + conversionVm.from.icon" aria-hidden="true"></i>
+                      <span class="con-task__opt-title">{{ convertMaxLabel }}</span>
+                      <GamepadGlyph v-if="value === conversionVm.max" control="confirm" class="con-task__opt-a" />
+                    </div>
+                  </div>
                 </div>
-                <div class="con-task__stepper-range">{{ amountMin }} – {{ amountMax }}</div>
-                <div class="con-task__stepper-keys" aria-hidden="true">
-                  <span class="con-task__key"><GamepadGlyph control="bumperL" /><span>−1</span></span>
-                  <span class="con-task__key"><GamepadGlyph control="bumperR" /><span>+1</span></span>
-                  <span class="con-task__key"><GamepadGlyph control="triggerR" /><span>{{ $t('MAX') }}</span></span>
+                <!-- >1 available: the compact dial. The − / + pills are STATE
+                     (dim at the bound — no wrap-around), not mouse targets:
+                     this host is pad/keyboard-driven like every con-task kind. -->
+                <div v-else class="con-convert__dial">
+                  <span class="con-convert__step" :class="{'con-convert__step--out': value <= conversionVm.min}" aria-hidden="true">−</span>
+                  <span class="con-convert__readout">
+                    <i class="con-convert__res resource_icon" :class="'resource_icon--' + conversionVm.from.icon" aria-hidden="true"></i>
+                    <span class="con-convert__value">{{ value }}</span>
+                    <span class="con-convert__of">/ {{ conversionVm.max }}</span>
+                  </span>
+                  <span class="con-convert__step" :class="{'con-convert__step--out': value >= conversionVm.max}" aria-hidden="true">+</span>
+                </div>
+                <!-- THE OPERATION, both sides at once: source row → target row,
+                     linked. Value 0 keeps it deliberately CALM — no deltas, no
+                     gain accent, an honest «Без изменений». -->
+                <div class="con-convert__preview" :class="{'con-convert__preview--neutral': conversionVm.neutral}">
+                  <span class="con-convert__link" aria-hidden="true"></span>
+                  <div class="con-convert__row con-convert__row--from">
+                    <i class="con-convert__res resource_icon" :class="'resource_icon--' + conversionVm.from.icon" aria-hidden="true"></i>
+                    <span v-if="conversionVm.from.labelKey !== ''" class="con-convert__name">{{ $t(conversionVm.from.labelKey) }}</span>
+                    <span v-if="conversionVm.from.production" class="con-convert__scope">{{ $t('Production rate') }}</span>
+                    <span v-if="conversionVm.from.current !== undefined" class="con-convert__figures">
+                      <span class="con-convert__cur">{{ conversionVm.from.current }}</span>
+                      <span class="con-convert__arr" aria-hidden="true">→</span>
+                      <span class="con-convert__aft">{{ conversionVm.from.after }}</span>
+                    </span>
+                    <!-- The delta slot is ALWAYS in layout (opacity at 0) so
+                         stepping 0↔N never re-flows the row. -->
+                    <span class="con-convert__delta con-convert__delta--spend"
+                          :class="{'con-convert__delta--none': conversionVm.neutral}">{{ conversionVm.from.delta }}</span>
+                  </div>
+                  <div class="con-convert__row con-convert__row--to">
+                    <i class="con-convert__res resource_icon" :class="'resource_icon--' + conversionVm.to.icon" aria-hidden="true"></i>
+                    <span v-if="conversionVm.to.labelKey !== ''" class="con-convert__name">{{ $t(conversionVm.to.labelKey) }}</span>
+                    <span v-if="conversionVm.to.production" class="con-convert__scope">{{ $t('Production rate') }}</span>
+                    <span v-if="conversionVm.to.current !== undefined" class="con-convert__figures">
+                      <span class="con-convert__cur">{{ conversionVm.to.current }}</span>
+                      <span class="con-convert__arr" aria-hidden="true">→</span>
+                      <span class="con-convert__aft con-convert__aft--gain">{{ conversionVm.to.after }}</span>
+                    </span>
+                    <span class="con-convert__delta con-convert__delta--gain"
+                          :class="{'con-convert__delta--none': conversionVm.neutral}">+{{ conversionVm.to.delta }}</span>
+                  </div>
+                  <!-- Reserved caption line — «Без изменений» at 0, blank
+                       otherwise; the preview's height never jumps. -->
+                  <div class="con-convert__note">{{ conversionVm.neutral ? $t('No changes') : '' }}</div>
                 </div>
               </div>
-              <!-- The dial's DIRECTION, when the model states one (conversion /
-                   result / price): the same live cost → gain chips the composer
-                   shows, so a natively-arriving SelectAmount is never a bare
-                   number the player has to guess the meaning of. -->
-              <div v-if="amountCostChips.length > 0 || amountGainChips.length > 0" class="con-task__stepper-formula">
-                <ActionEffectChip v-for="(eff, k) in amountCostChips" :key="'ac' + k" :effect="eff" />
-                <span v-if="amountCostChips.length > 0 && amountGainChips.length > 0" class="con-task__stepper-arrow" aria-hidden="true">→</span>
-                <ActionEffectChip v-for="(eff, k) in amountGainChips" :key="'ag' + k" :effect="eff" />
-              </div>
+              <!-- Generic amount dial (no conversion hint) — hints live in the
+                   bottom command bar only, never repeated in the panel. -->
+              <template v-else>
+                <div class="con-task__stepper">
+                  <i v-if="amountIconClass !== ''" :class="amountIconClass" class="con-task__stepper-icon" aria-hidden="true"></i>
+                  <div class="con-task__stepper-readout">
+                    <span class="con-task__stepper-value">{{ value }}</span>
+                    <span v-if="amountUnit !== ''" class="con-task__stepper-unit">{{ amountUnit }}</span>
+                  </div>
+                  <div class="con-task__stepper-range">{{ amountMin }} – {{ amountMax }}</div>
+                </div>
+                <!-- The dial's DIRECTION, when the model states one (result /
+                     price): the same live cost → gain chips the composer
+                     shows, so a natively-arriving SelectAmount is never a bare
+                     number the player has to guess the meaning of. -->
+                <div v-if="amountCostChips.length > 0 || amountGainChips.length > 0" class="con-task__stepper-formula">
+                  <ActionEffectChip v-for="(eff, k) in amountCostChips" :key="'ac' + k" :effect="eff" />
+                  <span v-if="amountCostChips.length > 0 && amountGainChips.length > 0" class="con-task__stepper-arrow" aria-hidden="true">→</span>
+                  <ActionEffectChip v-for="(eff, k) in amountGainChips" :key="'ag' + k" :effect="eff" />
+                </div>
+              </template>
             </template>
 
             <!-- ── RESOURCE ───────────────────────────────────────── -->
@@ -463,7 +539,9 @@ import {Tag} from '@/common/cards/Tag';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
-import {translateMessage, translateText} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
+import {conversionPromptVm, conversionCommitLabel, ConversionPromptVm} from '@/client/console/conversionPromptModel';
+import {setConversionPromptWatch, clearConversionPromptWatch} from '@/client/console/conversionPromptUi';
 import {Warning} from '@/common/cards/Warning';
 import {warningText} from '@/client/components/card/cardWarnings';
 import {targetImpactIsLoss} from '@/client/components/modalInputs/targetImpactRows';
@@ -677,6 +755,12 @@ export default defineComponent({
       return `${this.taskKey}|c${this.cardEntries.map((e) => e.card.name).join(',')}`;
     },
     titleText(): string {
+      // A recognised CONVERSION leads with its compact headline
+      // («Преобразование энергии») — the server ask moves to the subtext.
+      // Structural (the conversion hint), never a title match.
+      if (this.conversionAskDemoted) {
+        return translateText(this.conversionVm?.headlineKey ?? '');
+      }
       // Phase-aware card-browser titles — the server title there is generic
       // ("Select up to N cards to buy" / "Select a card to keep and pass…").
       // Other kinds AND every nested step keep the descriptive server title.
@@ -1037,6 +1121,62 @@ export default defineComponent({
       return this.wf?.type === 'amount' ? this.wf as SelectAmountModel : undefined;
     },
     /**
+     * The PREMIUM CONVERSION composition (the server's `conversion` hint —
+     * Supercapacitors' energy→heat is the reference): both sides'
+     * `current → after` for the dialed value, the neutral/binary verdicts and
+     * the headline. One pure source (`conversionPromptModel`), so the panel,
+     * the commit label and the spec all state the same numbers — and the
+     * preview mirrors exactly what the server's own callback will apply.
+     */
+    conversionVm(): ConversionPromptVm | undefined {
+      return conversionPromptVm(this.amountModel, this.playerView.thisPlayer, this.value);
+    },
+    /** The binary plate's act label («Преобразовать 1»). */
+    convertMaxLabel(): string {
+      const vm = this.conversionVm;
+      return vm === undefined ? '' : translateTextWithParams('Convert ${0}', [String(vm.max)]);
+    },
+    /**
+     * The amount commit verb for the command bar. A conversion names the
+     * OPERATION and its magnitude — «ПРЕОБРАЗОВАТЬ N», or the honest
+     * «НЕ ПРЕОБРАЗОВЫВАТЬ» at 0 (a zero commit is a stated refusal, never a
+     * generic «ОК»). A bare amount keeps the server's button label.
+     */
+    amountConfirmLabel(): string {
+      if (this.conversionVm === undefined) {
+        return this.confirmLabel;
+      }
+      const label = conversionCommitLabel(this.value);
+      return label.params.length > 0 ?
+        translateTextWithParams(label.key, label.params) :
+        translateText(label.key);
+    },
+    /**
+     * The conversion headline REPLACES the generic server title as the panel's
+     * main line («Преобразование энергии»), demoting the server ask to the
+     * subtext — only standalone (an embedded stage's one-line head keeps the
+     * full ask; a nested wizard step keeps its own title).
+     */
+    conversionAskDemoted(): boolean {
+      return this.nested === undefined && !this.embedded &&
+        this.conversionVm?.headlineKey !== undefined;
+    },
+    /**
+     * The player-rail FOCUS accent: while a conversion prompt is live, its two
+     * affected STOCK rows are what the decision is about (and where the commit
+     * animation will play), so the rail marks them. '' = nothing to watch
+     * (no conversion / embedded / production-scope sides have no stock row).
+     */
+    conversionWatchKey(): string {
+      const vm = this.conversionVm;
+      if (vm === undefined || this.embedded) {
+        return '';
+      }
+      const from = vm.from.production ? '' : vm.from.icon;
+      const to = vm.to.production ? '' : vm.to.icon;
+      return from === '' && to === '' ? '' : `${from}|${to}`;
+    },
+    /**
      * What the CURRENT dial value SPENDS — the pool it comes out of, with
      * `current → resulting`. A `conversion`/`amountResult` dial counts the thing
      * spent (its own icon); an `amountCost` dial counts the thing GAINED and is
@@ -1240,8 +1380,11 @@ export default defineComponent({
       return this.confirmLabel;
     },
     /** A one-line explanation under the title (single-keep draft: what happens
-     *  to the cards you don't keep). */
+     *  to the cards you don't keep; a conversion: the demoted server ask). */
     phaseSubtext(): string {
+      if (this.conversionAskDemoted) {
+        return textOf(this.wf?.title);
+      }
       return this.isDraftPick && this.singlePick ?
         translateText('The card is kept for you, the rest are passed on.') : '';
     },
@@ -1351,11 +1494,26 @@ export default defineComponent({
         cmds.push(defer);
         return cmds;
       }
-      case 'amount':
+      case 'amount': {
+        // A dial has NO select step, so the commit sits on A (the console-wide
+        // decisive press — the same convention every one-press surface
+        // advertises); X stays a silent alias in the input path. A conversion's
+        // verb names the operation and its magnitude and follows the dial live.
+        const amountCommit: ConsoleCommand =
+          {control: 'confirm', label: this.amountConfirmLabel, enabled: this.confirmReady};
+        if (this.conversionVm?.binary === true) {
+          // Binary = two plates: the d-pad walks them, A commits the focused
+          // one. LB/RB/RT still land silently (muscle memory), but the bar
+          // advertises only the two real verbs — no dial chrome for one unit.
+          return [
+            {control: 'dpad', label: 'Navigate'}, amountCommit, ...this.sourceHint, defer,
+          ];
+        }
         return [
           {control: 'bumperL', label: '−1'}, {control: 'bumperR', label: '+1'},
-          {control: 'triggerR', label: 'MAX'}, confirm, ...this.sourceHint, defer,
+          {control: 'triggerR', label: 'MAX'}, amountCommit, ...this.sourceHint, defer,
         ];
+      }
       case 'distribute':
         return [
           {control: 'dpad', label: 'Navigate'},
@@ -1549,6 +1707,19 @@ export default defineComponent({
         setPanelCommands('taskHost', cmds);
       },
     },
+    /** While a conversion prompt is live, the player rail marks the two stock
+     *  rows the decision is about (a delicate focus, values untouched). */
+    conversionWatchKey: {
+      immediate: true,
+      handler(key: string) {
+        if (key === '') {
+          clearConversionPromptWatch();
+          return;
+        }
+        const [from, to] = key.split('|');
+        setConversionPromptWatch(from ?? '', to ?? '');
+      },
+    },
   },
   mounted() {
     void this.$nextTick(() => this.fitCardStrip());
@@ -1558,6 +1729,9 @@ export default defineComponent({
   },
   beforeUnmount() {
     clearPanelCommands('taskHost');
+    // Same rule as the panel commands: watchers do not fire on unmount, so the
+    // rail's conversion focus is retracted explicitly (idempotent).
+    clearConversionPromptWatch();
     // The watcher does not fire on unmount — retract the published stage name
     // explicitly, or the workspace breadcrumb keeps announcing a step that is
     // no longer on screen.
@@ -1607,8 +1781,14 @@ export default defineComponent({
       // Payment opens on the SAME optimal default mix the desktop form uses.
       this.payCounts = this.activeTask.kind === 'payment' ?
         initialCounts(this.paymentCost, this.payLanes, this.megacreditsOnHand) : {};
-      const init = this.wf?.type === 'amount' ?
-        ((this.wf as PlayerInputModel & {type: 'amount'}).maxByDefault ? this.amountMax : this.amountMin) :
+      // A CONVERSION opens at the SAFE floor (0 — «не преобразовывать») even
+      // when the server marks maxByDefault: converting is a deliberate opt-in
+      // and the commit verb names the refusal explicitly, so nothing can be
+      // spent by a reflex press. Bare amounts keep the server's default.
+      const amountModel = this.wf?.type === 'amount' ? (this.wf as SelectAmountModel) : undefined;
+      const init = amountModel !== undefined ?
+        (amountModel.conversion !== undefined ? amountModel.min :
+          (amountModel.maxByDefault ? this.amountMax : this.amountMin)) :
         this.amountMax;
       this.value = init;
     },
@@ -1903,10 +2083,13 @@ export default defineComponent({
     onNav(dir: NavDirection): void {
       const vertical = dir === 'up' || dir === 'down';
       if (this.activeTask.kind === 'amount') {
-        if (dir === 'left') {
+        // The BINARY conversion renders as two vertical plates, so ↑/↓ walk
+        // them too (the value IS the focus); ←/→ keep adjusting everywhere.
+        const binaryRows = this.conversionVm?.binary === true;
+        if (dir === 'left' || (binaryRows && dir === 'up')) {
           this.adjust(-1);
         }
-        if (dir === 'right') {
+        if (dir === 'right' || (binaryRows && dir === 'down')) {
           this.adjust(1);
         }
         return;
@@ -2335,6 +2518,12 @@ export default defineComponent({
       return this.payCounts[unit] ?? 0;
     },
     adjust(step: number): void {
+      // COMMIT LOCK: past the submit the dialed value is the committed value —
+      // a dial move racing the server response would repaint the preview (and
+      // the commit verb) as something the player did NOT confirm.
+      if (this.submitting) {
+        return;
+      }
       if (this.activeTask.kind === 'amount') {
         this.value = Math.min(this.amountMax, Math.max(this.amountMin, this.value + step));
         return;
@@ -2368,6 +2557,9 @@ export default defineComponent({
       }
     },
     maxOut(): void {
+      if (this.submitting) {
+        return; // commit lock — see adjust()
+      }
       if (this.activeTask.kind === 'amount') {
         this.value = this.amountMax;
         return;

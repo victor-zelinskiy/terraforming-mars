@@ -133,6 +133,36 @@ describe('consoleTaskSummary (no prompt is ever a bare «awaiting decision»)', 
     expect(s.kickerKey).to.eq('Spend heat');
   });
 
+  // Supercapacitors: the optional energy→heat conversion arrives as a
+  // SelectAmount with a `conversion` hint DURING the production phase — the
+  // kicker names the moment («ЭФФЕКТ ПРОИЗВОДСТВА»), and the choiceContext
+  // marker reaches the copy layer as the source card. Structural on both
+  // counts (hint + phase + marker), never the title.
+  it('a production-phase conversion amount reads «Production effect» and names its source', () => {
+    const wf = {
+      type: 'amount', title: 'Choose how much energy to convert to heat',
+      min: 0, max: 2, conversion: {from: 'energy', to: 'heat'},
+      choiceContext: {source: {kind: 'card', card: 'Supercapacitors'}, mode: 'optional-effect'},
+    };
+    const v = {
+      waitingFor: wf, cardsInHand: [], game: {phase: 'production'},
+      thisPlayer: {selfReplicatingRobotsCards: []},
+    } as unknown as PlayerViewModel;
+    const s = consoleTaskSummary(taskFor(v) as ConsoleTask, v);
+    expect(s.kickerKey).to.eq('Production effect');
+    expect(s.sourceCard).to.eq('Supercapacitors');
+  });
+
+  it('a conversion amount OUTSIDE the production phase keeps the plain «Amount» kicker', () => {
+    const wf = {type: 'amount', title: 'Convert', min: 0, max: 2, conversion: {from: 'heat', to: 'megacredits'}};
+    const v = {
+      waitingFor: wf, cardsInHand: [], game: {phase: 'action'},
+      thisPlayer: {selfReplicatingRobotsCards: []},
+    } as unknown as PlayerViewModel;
+    const s = consoleTaskSummary(taskFor(v) as ConsoleTask, v);
+    expect(s.kickerKey).to.eq('Amount');
+  });
+
   // Philares: the resource dial arrives with the tile already placed — often on
   // an OPPONENT's turn — so the marker must reach the copy layer for a NON-`or`
   // prompt too. All three surfaces (deferred band, command bar, host kicker)

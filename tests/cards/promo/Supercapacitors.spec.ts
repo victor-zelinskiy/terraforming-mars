@@ -47,6 +47,10 @@ describe('Supercapacitors', () => {
 
     doWait(player, SelectAmount, (selectAmount) => {
       expect(selectAmount.max).eq(5);
+      // The premium client keys its layout + source dock off these structural
+      // markers — never off the (translatable) title.
+      expect(selectAmount.options?.conversion).deep.eq({from: 'energy', to: 'heat'});
+      expect(selectAmount.choiceContext?.source).deep.eq({kind: 'card', card: card.name});
       selectAmount.cb(4);
     });
 
@@ -59,6 +63,29 @@ describe('Supercapacitors', () => {
     expect(player.energyHeatConversion).to.deep.include({amount: 4, energyBefore: 5, heatBefore: 0});
 
     // Select cards for next generation
+    cast(player.popWaitingFor(), SelectCard);
+  });
+
+  it('Choosing 0 converts nothing and leaves NO transition snapshot (no empty ceremony)', () => {
+    cast(player.popWaitingFor(), undefined);
+    player.playedCards.push(card);
+    player.production.override({energy: 1, heat: 1});
+    player.energy = 2;
+    player.heat = 3;
+    forceGenerationEnd(game);
+    runAllActions(game);
+
+    doWait(player, SelectAmount, (selectAmount) => {
+      expect(selectAmount.min).eq(0);
+      selectAmount.cb(0);
+    });
+
+    // Energy kept, production still added on both counters.
+    expect(player.energy).eq(3); // 2 - 0 + 1
+    expect(player.heat).eq(4); // 3 + 0 + 1
+    // A zero conversion is a refusal — the client must not get a snapshot to
+    // animate (that would be the "empty ceremony" / double-count bug).
+    expect(player.energyHeatConversion).to.be.undefined;
     cast(player.popWaitingFor(), SelectCard);
   });
 });

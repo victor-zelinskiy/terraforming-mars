@@ -42,7 +42,8 @@
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {LogMessageDataType} from '@/common/logs/LogMessageDataType';
-import {PlacementEffect, PlayerInputModel} from '@/common/models/PlayerInputModel';
+import {Phase} from '@/common/Phase';
+import {PlacementEffect, PlayerInputModel, SelectAmountModel} from '@/common/models/PlayerInputModel';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {nestedDiscardBranch} from '@/client/console/cardDiscard/discardIntent';
@@ -262,10 +263,19 @@ export function consoleTaskSummary(
   case 'player':
     return {kickerKey: 'Choose a player', ask: ask(wf, 'Choose a player'), sourceCard: source, returnKey: 'Return to selection'};
 
-  case 'amount':
-    return task.flavor === 'delta' ?
-      {kickerKey: 'Mars Hydronetwork', ask: ask(wf, 'Amount'), returnKey: 'Return to the decision'} :
-      {kickerKey: 'Amount', ask: ask(wf, 'Amount'), sourceCard: source, returnKey: 'Return to the decision'};
+  case 'amount': {
+    if (task.flavor === 'delta') {
+      return {kickerKey: 'Mars Hydronetwork', ask: ask(wf, 'Amount'), returnKey: 'Return to the decision'};
+    }
+    // A CONVERSION amount arriving in the PRODUCTION phase is a production
+    // effect (Supercapacitors' optional energy→heat) — the kicker names the
+    // moment, never the widget. Structural: the server's `conversion` hint +
+    // the game phase, per cross-cutting invariant 1 (no title matching).
+    const conversion = wf?.type === 'amount' ? (wf as SelectAmountModel).conversion : undefined;
+    const kicker = conversion !== undefined && view.game?.phase === Phase.PRODUCTION ?
+      'Production effect' : 'Amount';
+    return {kickerKey: kicker, ask: ask(wf, 'Amount'), sourceCard: source, returnKey: 'Return to the decision'};
+  }
 
   case 'resource':
     return {kickerKey: 'Resource', ask: ask(wf, 'Choose a resource'), sourceCard: source, returnKey: 'Return to the decision'};

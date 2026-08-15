@@ -1189,7 +1189,18 @@ export default defineComponent({
               // so committing right after shows the production REMAINDER chips,
               // not the full pre-conversion delta. isServerSideRequestInProgress
               // stays raised through the await (cleared in .finally).
-              await runEnergyConversion(conversionEvent);
+              //
+              // HANDOFF beat (console): when the conversion was ANSWERED on a
+              // console prompt surface (the Supercapacitors amount — the still-
+              // displayed old view names it), that surface hides on the sync
+              // `active` flip and needs its leave to finish before the visible
+              // motion starts — the animation must play on a fully readable
+              // rail, never under the dimming band. The automatic conversion
+              // (no prompt on screen) and the desktop shell keep 0.
+              const conversionLeadInMs =
+                consoleModeState.enabled && this.waitingfor?.type === 'amount' ?
+                  motionMs(320) : 0;
+              await runEnergyConversion(conversionEvent, {leadInMs: conversionLeadInMs});
             }
             /*
              * Console HYDRONETWORK marker-advance gate. Detect the ARMED

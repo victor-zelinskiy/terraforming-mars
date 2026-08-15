@@ -55,6 +55,15 @@ type EnergyConversionState = {
   heatAfter: number;
   /** Gate the floating delta chips on/off independently of `active`. */
   showChips: boolean;
+  /**
+   * The HANDOFF beat: `active` is already true (gate closed, counters held at
+   * the pre-conversion values, cells highlighted) but the visible motion — the
+   * arrow glyph, the chips, the counter glide — has not started yet. Used to
+   * let the console prompt surface that caused the conversion LEAVE first, so
+   * the animation never plays under a dimming overlay (the overlay + the
+   * interpolation both wait for this to drop).
+   */
+  leadIn: boolean;
   reducedMotion: boolean;
   /** Bumped on each run so the overlay re-measures cell rects. */
   nonce: number;
@@ -69,6 +78,7 @@ export const energyConversionState = reactive<EnergyConversionState>({
   energyAfter: 0,
   heatAfter: 0,
   showChips: false,
+  leadIn: false,
   reducedMotion: false,
   nonce: 0,
 });
@@ -141,10 +151,18 @@ export function detectEnergyConversion(
  * SYNCHRONOUSLY before returning so the re-entrancy guard is closed immediately.
  * A safety timer guarantees the Promise resolves even if rAF is frozen (e.g. a
  * backgrounded tab), so the modal gate can never hang forever.
+ *
+ * `opts.leadInMs` (default 0) is the HANDOFF beat: the gate closes and the
+ * cells highlight immediately, but the visible motion (arrow / chips / counter
+ * glide) starts only after the delay — the window in which the console prompt
+ * surface that caused this conversion plays its leave, so the animation is
+ * never run under a dimming overlay. The caller passes 0 when nothing stands
+ * over the rail (the poll path, the desktop shell, the automatic conversion).
  */
-export function runEnergyConversion(event: EnergyConversionEvent): Promise<void> {
+export function runEnergyConversion(event: EnergyConversionEvent, opts?: {leadInMs?: number}): Promise<void> {
   cancelTimers();
   const reduced = prefersReducedMotion();
+  const leadInMs = Math.max(0, opts?.leadInMs ?? 0);
 
   energyConversionState.active = true;
   energyConversionState.color = event.color;
@@ -154,13 +172,13 @@ export function runEnergyConversion(event: EnergyConversionEvent): Promise<void>
   energyConversionState.displayEnergy = event.source.before;
   energyConversionState.displayHeat = event.target.before;
   energyConversionState.reducedMotion = reduced;
-  energyConversionState.showChips = true;
+  energyConversionState.showChips = false;
+  energyConversionState.leadIn = leadInMs > 0;
   energyConversionState.nonce++;
 
   // The pure model returns the `standard`-preset duration; the motion speed
   // preset scales it here (the caller), keeping the model unit-testable.
   const duration = motionMs(conversionDurationMs(event.amount, reduced));
-  const startedAt = now();
   const frameGate = createFrameGate();
 
   const promise = new Promise<void>((resolve) => {
@@ -168,6 +186,7 @@ export function runEnergyConversion(event: EnergyConversionEvent): Promise<void>
   });
 
   const finish = () => {
+    energyConversionState.leadIn = false;
     energyConversionState.displayEnergy = event.source.after;
     energyConversionState.displayHeat = event.target.after;
     // Re-baseline so the production-income chips on the upcoming commit show the
@@ -181,32 +200,46 @@ export function runEnergyConversion(event: EnergyConversionEvent): Promise<void>
     r?.();
   };
 
-  if (reduced || typeof requestAnimationFrame !== 'function') {
-    // Reduced motion (or no rAF, e.g. tests): snap the override to the result,
-    // hold for a brief readable highlight, then resolve.
-    energyConversionState.displayEnergy = event.source.after;
-    energyConversionState.displayHeat = event.target.after;
-    safetyTimerId = window.setTimeout(finish, duration) as unknown as number;
-  } else {
-    const tick = () => {
-      const nowTs = now();
-      const t = Math.min(1, (nowTs - startedAt) / duration);
-      // Honour the configured FPS cap for JS-driven interpolation: skip the
-      // WORK on gated frames while keeping the rAF cadence (and always render
-      // the final t=1 frame so the counters land exactly).
-      if (frameGate.shouldRender(nowTs) || t >= 1) {
-        energyConversionState.displayEnergy = interpolate(event.source.before, event.source.after, t);
-        energyConversionState.displayHeat = interpolate(event.target.before, event.target.after, t);
-      }
-      if (t >= 1) {
-        finish();
-        return;
-      }
+  const start = () => {
+    energyConversionState.leadIn = false;
+    energyConversionState.showChips = true;
+    const startedAt = now();
+    if (reduced || typeof requestAnimationFrame !== 'function') {
+      // Reduced motion (or no rAF, e.g. tests): snap the override to the result,
+      // hold for a brief readable highlight, then resolve.
+      energyConversionState.displayEnergy = event.source.after;
+      energyConversionState.displayHeat = event.target.after;
+      safetyTimerId = window.setTimeout(finish, duration) as unknown as number;
+    } else {
+      const tick = () => {
+        const nowTs = now();
+        const t = Math.min(1, (nowTs - startedAt) / duration);
+        // Honour the configured FPS cap for JS-driven interpolation: skip the
+        // WORK on gated frames while keeping the rAF cadence (and always render
+        // the final t=1 frame so the counters land exactly).
+        if (frameGate.shouldRender(nowTs) || t >= 1) {
+          energyConversionState.displayEnergy = interpolate(event.source.before, event.source.after, t);
+          energyConversionState.displayHeat = interpolate(event.target.before, event.target.after, t);
+        }
+        if (t >= 1) {
+          finish();
+          return;
+        }
+        rafId = requestAnimationFrame(tick);
+      };
       rafId = requestAnimationFrame(tick);
-    };
-    rafId = requestAnimationFrame(tick);
-    // rAF is paused in background tabs; this guarantees resolution + commit.
-    safetyTimerId = window.setTimeout(finish, duration + 400) as unknown as number;
+      // rAF is paused in background tabs; this guarantees resolution + commit.
+      safetyTimerId = window.setTimeout(finish, duration + 400) as unknown as number;
+    }
+  };
+
+  if (leadInMs > 0 && typeof window !== 'undefined') {
+    // The lead-in rides the same safety slot as the run itself (cancelTimers
+    // clears it), and start() re-arms the real safety — the gate can never
+    // hang on a lost timer.
+    safetyTimerId = window.setTimeout(start, leadInMs) as unknown as number;
+  } else {
+    start();
   }
 
   return promise;
@@ -222,6 +255,7 @@ export function endEnergyConversion(): void {
   cancelTimers();
   energyConversionState.active = false;
   energyConversionState.showChips = false;
+  energyConversionState.leadIn = false;
   energyConversionState.color = '';
 }
 
@@ -238,6 +272,7 @@ export function resetEnergyConversion(): void {
   energyConversionState.energyAfter = 0;
   energyConversionState.heatAfter = 0;
   energyConversionState.showChips = false;
+  energyConversionState.leadIn = false;
   energyConversionState.reducedMotion = false;
   energyConversionState.nonce = 0;
 }

@@ -6,6 +6,7 @@ import {CardRenderer} from '../render/CardRenderer';
 import {Size} from '../../../common/cards/render/Size';
 import {IPlayer} from '../../IPlayer';
 import {SelectAmount} from '../../inputs/SelectAmount';
+import {namedCardEffect} from '../../inputs/choiceContext';
 import {Card} from '../Card';
 
 export class Supercapacitors extends Card implements IProjectCard {
@@ -44,8 +45,13 @@ export class Supercapacitors extends Card implements IProjectCard {
     player.defer(
       // The conversion hint lets the modern stepper render the rich
       // [energy] → [heat] composition + a live stock preview for both sides.
-      new SelectAmount('Select amount of energy to convert to heat', 'OK', 0, player.energy, true,
+      // The choiceContext marker attributes the prompt to this card (console
+      // source dock + L3 «Источник» + the deferred chip), and the console's
+      // premium conversion prompt keys its layout off the conversion hint —
+      // never off this (translatable) title.
+      new SelectAmount('Choose how much energy to convert to heat', 'OK', 0, player.energy, true,
         {icon: 'energy', conversion: {from: 'energy', to: 'heat'}})
+        .markChoiceContext(namedCardEffect(CardName.SUPERCAPACITORS, false))
         .andThen((amount) => {
           // Snapshot the player-chosen conversion for the premium paired
           // "Energy −X → Heat +X" transition animation, BEFORE mutating the

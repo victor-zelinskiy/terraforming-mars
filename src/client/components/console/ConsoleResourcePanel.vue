@@ -77,6 +77,7 @@
                'con-res__row--' + row.key,
                conversionRole(row.key) !== '' ? 'con-res__row--conv-' + conversionRole(row.key) : '',
                convertReady(row.key) ? 'con-res__row--convertible con-res__row--convertible-' + row.key : '',
+               convWatch(row.key) ? 'con-res__row--conv-watch' : '',
              ]"
              :data-conversion-cell="conversionAnchor(row.key)">
           <!-- data-wheel-anchor="res-heat": the LT wheel's heat-conversion
@@ -229,6 +230,7 @@ import ConsoleVpBadge from '@/client/components/console/ConsoleVpBadge.vue';
 import PrivateScoreMask from '@/client/components/overview/PrivateScoreMask.vue';
 import {shouldMaskOwnPassiveVp} from '@/client/components/overview/privateScoreState';
 import {energyConversionState} from '@/client/components/feedback/energyConversionTransition';
+import {conversionPromptUi} from '@/client/console/conversionPromptUi';
 import {startSetupOverrideFor} from '@/client/components/startGameFlow/startSetupRevealState';
 import {cardResourceCSS} from '@/client/components/common/cardResources';
 import {additionalResourceGroups, additionalResourceMetricKey, AdditionalResourceGroup} from '@/client/components/additionalResources/additionalResources';
@@ -390,6 +392,18 @@ export default defineComponent({
     },
   },
   methods: {
+    /**
+     * A live CONVERSION PROMPT (Supercapacitors' amount) names this stock row
+     * as one of its two sides → the delicate pre-commit focus accent. Own rail
+     * only, and never while the transition itself plays (its own highlight
+     * takes over on the same rows).
+     */
+    convWatch(key: string): boolean {
+      if (!this.own || this.conversionActive) {
+        return false;
+      }
+      return conversionPromptUi.watchFrom === key || conversionPromptUi.watchTo === key;
+    },
     /**
      * 3+ characters (≥100, or a negative two-digit) step the score type down
      * INSIDE its reserved slot — the header's geometry never moves with the

@@ -13939,7 +13939,9 @@ html.console-mode {
     }
     &__stepper-unit { font-size: 1.1rem; color: @con-text-dim; }
     &__stepper-range { font-size: .9rem; color: @con-text-dim; }
-    &__stepper-keys { display: flex; gap: 1.1rem; }
+    /* (The in-panel __stepper-keys / __key hint row is GONE: the bottom
+       command bar is the one source of the LB/RB/RT verbs — a second copy in
+       the panel was exactly the duplication the bar exists to end.) */
     /* The dial's live cost → gain formula (a SelectAmount that states its
        direction): centred under the readout, same chips as the composer hero. */
     &__stepper-formula {
@@ -13952,13 +13954,6 @@ html.console-mode {
         padding-bottom: .5rem;
     }
     &__stepper-arrow { color: @con-text-dim; font-size: 1.1rem; }
-    &__key {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        font-size: .9rem;
-        color: @con-text-dim;
-    }
 
     /* Resource tiles */
     &__tiles {
@@ -17127,6 +17122,207 @@ body.con-start-ceremony {
     }
 }
 
+/* ── PREMIUM CONVERSION PROMPT (the con-task amount with a `conversion`
+   hint — Supercapacitors' optional production-phase energy→heat is the
+   reference). Compact by construction: a selector (binary plates reuse the
+   `.con-task__option` control language; >1 gets the inline dial) + ONE
+   result preview stating both sides' `current → after` as a single
+   operation. The directional LINK carries the from→to accent (violet
+   energy → warm heat) — a thin rail, no particles, no extra frames.
+   Functional state rides box-shadow/color (perf mode keeps it); the commit
+   pulse is transform-only. Value 0 keeps the whole block deliberately calm:
+   no deltas, no gain accent, an honest «Без изменений». */
+@con-energy-violet: #b57ae0;
+.con-convert {
+    display: flex;
+    flex-direction: column;
+    gap: .65rem;
+    padding: .1rem 0 .3rem;
+
+    &__choices {
+        display: flex;
+        flex-direction: column;
+        gap: .4rem;
+    }
+
+    /* The >1 dial: − [icon value / max] +. The pills are STATE readouts of
+       the LB/RB verbs (dim at the bound — no wrap-around), not mouse targets. */
+    &__dial {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: .9rem;
+        padding: .25rem 0 .05rem;
+    }
+    &__step {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.3rem;
+        height: 2.3rem;
+        border-radius: .5rem;
+        font-size: 1.45rem;
+        font-weight: 700;
+        color: @con-text;
+        background: rgba(14, 22, 33, 0.7);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%);
+        .con-visual-transition(140ms);
+
+        /* At the bound the verb is DEAD and says so — never a wrap-around. */
+        &--out {
+            color: rgba(196, 216, 236, 0.38);
+            box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.18);
+        }
+    }
+    &__readout {
+        display: inline-flex;
+        align-items: center;
+        gap: .55rem;
+        padding: .4rem 1.3rem;
+        border-radius: .6rem;
+        background: rgba(14, 22, 33, 0.7);
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%), 0 0 1.1rem fade(@con-cyan, 10%);
+    }
+    &__res {
+        display: inline-block;
+        width: 1.6rem;
+        height: 1.6rem;
+        flex-shrink: 0;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain !important;
+    }
+    &__value {
+        font-size: 2.1rem;
+        font-weight: 700;
+        line-height: 1;
+        min-width: 1.3em;
+        text-align: center;
+    }
+    &__of { font-size: 1rem; color: @con-text-dim; }
+
+    /* The RESULT PREVIEW — one operation, two rows, linked. */
+    &__preview {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: .3rem;
+        padding: .55rem .8rem .45rem 1.15rem;
+        border-radius: .5rem;
+        background: linear-gradient(180deg, rgba(19, 29, 42, 0.72), rgba(11, 18, 27, 0.6));
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+    }
+    /* The directional link: energy (violet) → heat (warm). Calms to a
+       neutral hairline while nothing changes. */
+    &__link {
+        position: absolute;
+        left: .45rem;
+        top: .8rem;
+        bottom: .8rem;
+        width: .16rem;
+        border-radius: 49.95rem;
+        background: linear-gradient(180deg, fade(@con-energy-violet, 85%), fade(@con-heat-warm, 85%));
+        .con-visual-transition(160ms);
+    }
+    &__row {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        min-height: 1.9rem;
+    }
+    &__name {
+        font-size: .85rem;
+        letter-spacing: .09rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        min-width: 4.6rem;
+    }
+    &__scope {
+        font-size: .75rem;
+        letter-spacing: .05rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        padding: .08rem .4rem;
+        border-radius: .3rem;
+        box-shadow: inset 0 0 0 .05rem rgba(255, 220, 170, 0.4);
+    }
+    &__figures {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .45rem;
+        margin-left: auto;
+    }
+    &__cur { font-size: 1.05rem; font-weight: 600; color: @con-text-dim; }
+    &__arr { font-size: .95rem; color: rgba(196, 216, 236, 0.45); }
+    &__aft {
+        font-size: 1.35rem;
+        font-weight: 700;
+        color: @con-text;
+        min-width: 1.2em;
+        text-align: right;
+    }
+    /* Signed change chips: spend reads as a cost, gain as a receipt. The slot
+       is ALWAYS reserved (opacity at neutral) so stepping 0↔1 never re-flows
+       the row — the payment panel's layout-shift discipline. */
+    &__delta {
+        min-width: 2.5rem;
+        text-align: center;
+        padding: .1rem .45rem;
+        border-radius: 49.95rem;
+        font-size: .95rem;
+        font-weight: 700;
+        .con-visual-transition(140ms);
+
+        &--spend {
+            color: #ffb9ae;
+            background: fade(@con-red, 13%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-red, 45%);
+        }
+        &--gain {
+            color: @con-mint;
+            background: fade(@con-mint, 11%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%);
+        }
+        &--none {
+            opacity: 0;
+        }
+    }
+    /* Reserved caption line: «Без изменений» at 0, empty otherwise — the
+       preview's height never jumps between the two states. */
+    &__note {
+        min-height: 1.15rem;
+        font-size: .85rem;
+        color: @con-text-dim;
+        padding-left: .1rem;
+    }
+
+    /* NEUTRAL (value 0): the resulting figures stop shouting and the link
+       drops its direction — nothing is happening, and the block says so. */
+    &__preview--neutral {
+        .con-convert__aft { color: @con-text-dim; font-size: 1.1rem; }
+        .con-convert__link {
+            background: rgba(150, 175, 205, 0.28);
+        }
+    }
+
+    /* COMMIT: one short press-in pulse (transform only), then the surface
+       leaves and the rail transition carries the actual conversion. The dial
+       verbs read dead — the value is committed, nothing here is live. */
+    &--committing {
+        .con-convert__preview,
+        .con-convert__dial,
+        .con-convert__choices {
+            animation: con-convert-commit calc(200ms * var(--motion-scale, 1)) ease-out;
+        }
+        .con-convert__step { color: rgba(196, 216, 236, 0.38); }
+    }
+}
+@keyframes con-convert-commit {
+    0% { transform: scale(1); }
+    45% { transform: scale(0.985); }
+    100% { transform: scale(1); }
+}
+
 /* Energy→heat transition highlight on the console resource rail (T6). */
 .con-res__row--conv-source {
     box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 65%), 0 0 .7rem fade(@con-cyan, 18%);
@@ -17134,6 +17330,14 @@ body.con-start-ceremony {
 }
 .con-res__row--conv-target {
     box-shadow: inset 0 0 0 .05rem fade(@con-amber, 65%), 0 0 .7rem fade(@con-amber, 18%);
+    border-radius: .4rem;
+}
+/* Pre-commit FOCUS: a live conversion PROMPT names these two stock rows as
+   the operation's sides — a delicate neutral rim (deliberately quieter than
+   the transition highlight that follows a commit, and colour-free so it
+   never pre-announces gain/loss). Values untouched until the server answers. */
+.con-res__row--conv-watch {
+    box-shadow: inset 0 0 0 .05rem rgba(196, 216, 236, 0.32), 0 0 .5rem rgba(106, 176, 230, 0.12);
     border-radius: .4rem;
 }
 
@@ -17193,6 +17397,9 @@ body.con-start-ceremony {
 @media (prefers-reduced-motion: reduce) {
     .con-res__row--convertible-plants,
     .con-res__row--convertible-heat { animation: none; }
+    .con-convert--committing .con-convert__preview,
+    .con-convert--committing .con-convert__dial,
+    .con-convert--committing .con-convert__choices { animation: none; }
     .con-extra-enter-active,
     .con-extra-leave-active,
     .con-extra-move { transition: none; }
