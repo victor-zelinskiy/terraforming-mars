@@ -122,6 +122,17 @@ trips. It now arms an in-page recorder (`MutationObserver` + a 50 ms
 driving exactly when the screen goes quiet) and **asserts its own sample count**,
 so a dead probe can never read as «the product did nothing».
 
+Re-confirmed twice on 2026-08-15, same class, two new shapes. The 4K landing
+probe's evaluate loop measured FOUR samples across 8.6 s on a healthy local run
+(one 6.7 s hole — the round trips starve exactly when the page is busiest), so
+on CI the whole «РАЗЫГРАНО» crumb window fit inside a hole; and `watchLanding`'s
+first-sighting SCREENSHOT (~200–500 ms) stood between the locator check and the
+evaluate sample, so a run that had already shot `06b-landed-tick.png` — the
+class was there, on disk — still reported `landed: false` on every tick. Both
+now arm in-page recorders (the same MutationObserver + interval shape) whose
+sightings merge into the poll log; the recorder's own sample count rides the
+printed trace.
+
 ## 6. A blind press is not a test step
 
 Three separate E2E failures were one shape: a single `keyboard.press` that a

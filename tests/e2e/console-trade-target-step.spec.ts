@@ -166,6 +166,35 @@ async function watchLanding(page: Page, ticks: number): Promise<Array<LandingSam
   const out: Array<LandingSample> = [];
   let shotScene = false;
   let shotLanded = false;
+  // RECORD IN-PAGE, don't only poll (TEST_CONTOUR §5). The landed beat is
+  // shorter than this loop's own overhead: the first-sighting SCREENSHOT
+  // (~200-500 ms) stands between the locator check and the evaluate sample,
+  // so a run has already shot `06b-landed-tick.png` — the class was there —
+  // while every evaluate tick read `landed: false` and the assert blamed the
+  // product for a landing it demonstrably played. The observer sees every
+  // class flip whatever the poll cadence is; its sightings merge in at the end.
+  await page.evaluate(() => {
+    const w = window as unknown as {__landRec?: {cardland: number, landed: number, samples: number}};
+    const rec = {cardland: 0, landed: 0, samples: 0};
+    w.__landRec = rec;
+    const scan = () => {
+      rec.samples++;
+      if (document.querySelector('.con-colfocus__cardland') !== null) {
+        rec.cardland++;
+      }
+      if (document.querySelector('.con-colfocus__landcell--landed') !== null) {
+        rec.landed++;
+      }
+    };
+    scan();
+    const mo = new MutationObserver(scan);
+    mo.observe(document.body, {subtree: true, childList: true, attributes: true, attributeFilter: ['class']});
+    const iv = setInterval(scan, 50);
+    setTimeout(() => {
+      clearInterval(iv);
+      mo.disconnect();
+    }, 16_000);
+  });
   for (let t = 0; t < ticks; t++) {
     await page.waitForTimeout(200);
     if (!shotScene && await page.locator('.con-colfocus__cardland').count() > 0) {
@@ -187,6 +216,18 @@ async function watchLanding(page: Page, ticks: number): Promise<Array<LandingSam
       marker: document.querySelector('.con-coltrade-marker') !== null,
       cls: (document.querySelector('.con-colfocus') as HTMLElement | null)?.className ?? '',
     }), t));
+  }
+  // Merge the recorder's sightings as one synthetic sample, so every caller's
+  // `timeline.some(...)` reads them without a signature change. The sample
+  // count rides `cls` — a dead recorder is visible in the printed timeline.
+  const rec = await page.evaluate(() =>
+    (window as unknown as {__landRec?: {cardland: number, landed: number, samples: number}}).__landRec);
+  if (rec !== undefined && (rec.cardland > 0 || rec.landed > 0)) {
+    out.push({
+      t: -1, cardland: rec.cardland > 0, leaving: false, landed: rec.landed > 0,
+      counter: '', chip: false, flash: false, marker: false,
+      cls: `[recorder] samples=${rec.samples} cardland=${rec.cardland} landed=${rec.landed}`,
+    });
   }
   return out;
 }

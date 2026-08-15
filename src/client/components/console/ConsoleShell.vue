@@ -3041,8 +3041,15 @@ export default defineComponent({
       // over («Корпоративные архивы») puts a real decision inside the scene's
       // own zone; leaving the pad with the scene there is what made the seven
       // cards unpickable while the bar still advertised «A РАЗЫГРАТЬ».
+      // …and never over a SHEET-projecting workspace standing above the phase
+      // root. EstablishedMethods' prelude prompt («сыграйте стандартный
+      // проект») opens the std-projects workspace as a lateral frame OVER the
+      // surviving start root — the deepest frame owns the pad (the stack's
+      // own law). Without this term the scene swallowed every A over a served
+      // prompt with a focused row and a live bar: four presses, zero submits.
       return this.startSceneVisible && this.startSceneServes &&
-        !this.startSponsorEmbed && !this.colonyEmbedActive && !this.deckPickServing;
+        !this.startSponsorEmbed && !this.colonyEmbedActive && !this.deckPickServing &&
+        this.consoleState.sheet === undefined;
     },
     /** OPTIONAL draft re-pick — the fork shows a calm "waiting for the other
      *  players" banner instead of offering to change the pick (desktop parity). */

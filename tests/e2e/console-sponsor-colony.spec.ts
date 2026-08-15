@@ -213,7 +213,11 @@ test.describe('console colonies · double-nested continuation (sponsor → card 
     expect(s.legacyModal, 'no legacy modal anywhere in the chain').toBe(0);
     expect(s.askBanner, 'no ask banner over the step that answers the prompt').toBe(0);
     // The overview NEVER commits (iteration 2): A enters the build focus.
-    expect(s.footer.includes('к строительству'), `the bar names the descend verb — got «${s.footer}»`).toBeTruthy();
+    // ONE VERB ON THE OVERVIEW — «Выбрать» (ConsoleShell's pick-mode bar): the
+    // label names the press, never a destination it cannot promise; the old
+    // «К строительству» is retired for exactly that reason (a colony that
+    // refuses the build read it as a commitment).
+    expect(s.footer.includes('выбрать'), `the bar names the ONE overview verb — got «${s.footer}»`).toBeTruthy();
     expect(s.footer.includes('разыграть'), 'the host hand\'s browse verb must not leak into the colony step').toBeFalsy();
 
     // ── BUILD through the FOCUS STAGE: A descends (destination ringed),

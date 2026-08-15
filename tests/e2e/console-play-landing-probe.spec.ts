@@ -528,6 +528,30 @@ async function runLandingScene(page: Page, card: string, isEvent: boolean, shotP
     sawStepPlayed: false, sawDocked: false, sawCardColHidden: false, maxMinis: 0, maxEvents: 0,
     handSurvivedUntilStage: false, trace: [],
   };
+  // THE CRUMB TAIL IS RECORDED IN-PAGE, NEVER ONLY POLLED (TEST_CONTOUR §5).
+  // On a loaded 4K frame the Playwright-side loop below undersamples brutally —
+  // a healthy local run measured FOUR samples across 8.6 s (one 6.7 s hole),
+  // and on the CI runner the whole «РАЗЫГРАНО» window fits inside such a hole:
+  // the product moved the tail, the sampler slept through it, and the spec
+  // reported «the breadcrumb tail read „РАЗЫГРАНО"» about a tail it never
+  // looked at. A MutationObserver + a 50 ms interval see every text the tail
+  // carries whatever the evaluate round-trip latency is.
+  await page.evaluate(() => {
+    const w = window as unknown as {__stepRec?: {texts: Array<string>, samples: number}};
+    const rec = {texts: [] as Array<string>, samples: 0};
+    w.__stepRec = rec;
+    const read = () => {
+      rec.samples++;
+      const t = (document.querySelector('.con-wshead__step')?.textContent ?? '').trim().toUpperCase();
+      if (t !== '' && rec.texts[rec.texts.length - 1] !== t) {
+        rec.texts.push(t);
+      }
+    };
+    read();
+    new MutationObserver(read).observe(document.body, {subtree: true, childList: true, characterData: true});
+    const iv = setInterval(read, 50);
+    setTimeout(() => clearInterval(iv), 20_000);
+  });
   await key(page, 'Enter', 60); // A · Разыграть карту
   const deadline = Date.now() + 16_000;
   let shotFlight = false;
@@ -607,6 +631,15 @@ async function runLandingScene(page: Page, card: string, isEvent: boolean, shotP
       break; // the workspace folded — the episode is over
     }
     await page.waitForTimeout(70);
+  }
+  // Merge the in-page recorder (armed before the press): the tail's whole
+  // journey, immune to the poll holes above. Its sample count rides the trace
+  // so a dead recorder is visible in the failure it would otherwise cause.
+  const stepRec = await page.evaluate(() =>
+    (window as unknown as {__stepRec?: {texts: Array<string>, samples: number}}).__stepRec);
+  log.trace.push(`[steprec] samples=${stepRec?.samples ?? 0} texts=${(stepRec?.texts ?? []).join('›')}`);
+  if ((stepRec?.texts ?? []).includes('РАЗЫГРАНО')) {
+    log.sawStepPlayed = true;
   }
   await page.waitForTimeout(900);
   await shoot(page, `${shotPrefix}-3-after`);
