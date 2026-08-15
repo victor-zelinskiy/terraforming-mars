@@ -138,3 +138,76 @@ independent runners (each with its own app + server, so isolation is structural)
 merges the shards' `blob` reports into ONE HTML report, and records the exact
 commit / shard / command / config next to the traces. `fail-fast: false` — the
 point of a run is to learn the state of the whole suite.
+
+## 8. The two failures that survived §1–§7 — one real bug, one removed door
+
+2026-08-15, the point pass over what was still red. The split matters: one spec
+was RIGHT and had caught a product bug; the other was WRONG about the product's
+current grammar and had been passing its own first half silently for the same
+reason it failed its second.
+
+**`console-community-marker` — a REAL BUG, honestly caught.** After a
+corporation first action that produces nothing card-shaped (Arcadian's marker
+claim: `space`, then the action menu), the start workspace stood for twenty
+seconds on an empty «ПЕРВОЕ ДЕЙСТВИЕ» stage swallowing every press — exactly
+the window the spec pressed RT in, which is why it failed identically on all
+three CI attempts. The mechanism was a DEADLOCK between two holds each waiting
+for the other: `reconcileWorkspaceOutcome` kept the optimistic first-action
+claim while the stage machine was running, and the stage machine
+(`firstActionChainQuiet` → `firstActionLeaveDue`) could not go idle while the
+claim stood (`embedActive`). Only the claim's 20 s backstop broke the loop.
+Fixed by removing the stage arm from the reconciler (ConsoleShell): the
+artifact-trail window it existed for (Celestic) is covered by the POSITIVE
+evidence arms — `cardDrawReveals` rides the very answer that resolves a draw
+(`DrawCards.keepAll` → `enqueueCardDrawReveal`), a pick is a claimed prompt
+kind, an effect decision is its own predicate. The general lesson: **a claim
+may be held only by evidence of its artifact, never by a stage that is itself
+waiting on the claim** — a self-referential hold is a deadlock with a timer on
+it, and the timer's duration is what the player experiences.
+
+**`console-colony-focus-probe` (build test) — an OUTDATED spec probing a
+REMOVED door.** The colonies overview deliberately lost its X («Осмотреть» and
+«Выбрать» led to the same stage, so the bar advertised a choice that did not
+exist — `ConsoleShell.handleSectionIntent`, `case 'inspect'`); the spec still
+pressed KeyX to descend. Its first half — probe-only, no assertions — «passed»
+silently over a stage that never mounted and printed numbers about nothing;
+the guard half then read zeros off the same absent stage while the PRODUCT was
+correct throughout (the cube seated on Luna, the std-projects flow concluded to
+the board per the North Star). The spec now descends with A and additionally
+pins the conclusion (`.con-stdp` and `.con-colonies` gone after the build).
+The lesson extends §5: **a probe half with no assertion of its own subject is a
+silent lie** — if a beat matters enough to sample, assert at least that its
+surface MOUNTED, or the sampler reports the void as data.
+
+## 9. An unbounded action against a panel that legitimately leaves
+
+Found while verifying §8's product fix against its neighbours:
+`console-corp-first-action` timed out at its full 300 s on EVERY run — before
+and after the fix, i.e. pre-existing — with a healthy board home in the final
+snapshot. The sink: the config leaves Playwright's `actionTimeout` at its
+default **0 (unlimited)**, so `locator('.con-context').innerText()` against a
+panel that has UNMOUNTED auto-waits until the test's own timeout reaps it —
+and the placement loop's verdict read runs exactly one press after the press
+that makes the panel leave. The `.catch(() => '')` around it guards a rejection
+that never comes: with no action timeout there is nothing to reject.
+
+The rule: **a read whose subject is ALLOWED to be absent must carry its own
+`{timeout}`** — an absent panel is an ANSWER («the placement resolved»), never
+a thing to wait for. A bare locator action is only safe when something else in
+the spec already guarantees the node's presence (an assertion on the same
+surface immediately before it).
+
+## 10. A walk budget must not race an input gate — wait for the gate's own fall
+
+The same sweep's second neighbour: `console-play-landing-probe · 4K` failed
+intermittently (across BOTH builds, so unrelated to §8's fix) at «hand cursor
+never reached <card>» — over a perfectly healthy, fully populated grid. The
+hand's dock→grid OPEN REVEAL deliberately gates navigation until its flights
+settle, and at 4K that episode can outlast the walk's entire 60-press budget:
+the spec spent its patience knocking on a gated grid. §6 already names the
+cure — press → wait for the flow's OWN observable — and the observable exists:
+`.con-hand--transit` falls when the reveal episode releases input (the shared
+driver's `playCardFromHand` waits on exactly that marker; the probe's local
+walk predates it). A budget only measures what it is pointed at: pointed at
+«presses until the cursor lands», it silently also pays for «presses until the
+gate opens», and the second bill is load-shaped.

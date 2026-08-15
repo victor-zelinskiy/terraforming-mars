@@ -296,9 +296,13 @@ test('colony focus: inspect composition + build cube docking', async ({page, req
   await openColonies(page);
   await focusTile(page, 'Luna');
 
-  // ── INSPECT (X) — the dossier must not read as a stripped trade screen ──
+  // ── THE DOSSIER — the ONE stage (A descends; it is the dossier AND the
+  //    action). THE COLONIES OVERVIEW HAS NO X any more: «Осмотреть» and
+  //    «Выбрать» led to the same place, so the bar advertised a choice that
+  //    did not exist (ConsoleShell.handleSectionIntent, case 'inspect') —
+  //    a spec pressing KeyX here probes a door the product removed.
   await armSampler(page, 2200);
-  await page.keyboard.press('KeyX');
+  await page.keyboard.press('Enter');
   await page.waitForTimeout(2400);
   reportEntry('inspect', await collect(page));
   await shoot(page, '03-inspect');
@@ -380,18 +384,20 @@ test('colony focus: inspect composition + build cube docking', async ({page, req
   }
   [cubeLog[0], cubeLog[Math.floor(cubeLog.length / 3)], cubeLog[Math.floor(cubeLog.length * 2 / 3)], cubeLog[cubeLog.length - 1]]
     .filter((l) => l !== undefined).forEach((l) => console.log('   ' + l));
-  const seatedAfter = await page.evaluate(() => {
-    const el = document.querySelector('.con-coltile__build-seat .player-cube') as HTMLElement | null;
-    return el === null ? null : Math.round(el.getBoundingClientRect().width);
-  });
-  console.log('── seated cube on the overview tile after the build:', seatedAfter);
+  // A FINISHED flow LEAVES (the North-Star conclusion): the std-projects
+  // workspace — and the colonies step inside it — must be gone, the board
+  // home live. The overview tile is therefore NOT on screen here; the seated
+  // cube is read after the deliberate re-entry below.
+  expect(await page.locator('.con-stdp').count(), 'the std-projects workspace concluded').toBe(0);
+  expect(await page.locator('.con-colonies').count(), 'the colonies step left with its host').toBe(0);
 
   // ── THE PROTECTION, after the fact: re-enter the colony we just built on
   //    and read the guard rail. This is the physical statement the iteration
-  //    is judged on — position 1 is HELD and the stop has moved to 2. ──
+  //    is judged on — position 1 is HELD and the stop has moved to 2.
+  //    A descends into the ONE stage (the overview has no X — see above). ──
   await openColonies(page);
   await focusTile(page, 'Luna');
-  await press(page, 'KeyX', 2400);
+  await press(page, 'Enter', 2400);
   await shoot(page, '09-protected');
   const guard = await page.evaluate(() => {
     const cells = Array.from(document.querySelectorAll('.con-colfocus__xcell'));

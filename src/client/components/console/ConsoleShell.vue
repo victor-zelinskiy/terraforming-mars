@@ -11755,15 +11755,22 @@ export default defineComponent({
           // the claim of a repeated action's verdict, which then opened as a
           // full-bleed modal over the workspace that had just produced it.
           workspaceClaimsDeckCheck(this.playerView.lastReveal?.action) ||
-          // THE START CLAIM SPANS THE FIRST ACTION'S WHOLE STAGE. Same shape
-          // as the two below, and the same reason: the artifact can trail the
-          // answer by seconds (the cards come off the deck first, and the
-          // reveal event only exists once they have). At the reconcile tick
-          // there is nothing embeddable to see YET — and reading that as «the
-          // outcome went elsewhere» dropped the claim, so the batch arrived
-          // with nobody to host it and opened a full-bleed modal over the
-          // still-standing workspace (Celestic's «reveal until 2 floaters»).
-          (workspaceOutcomeState.host === 'start' && consoleStartState.firstAct.stage !== 'idle') ||
+          // ⚠️ DELIBERATELY NO «the first-action STAGE is still running» arm.
+          // One stood here (for Celestic's trail window — the batch arrives a
+          // beat after the answer), but the stage itself waits on the CLAIM
+          // (`embedActive` → `firstActionChainQuiet` → `firstActionLeaveDue`),
+          // so claim and stage held EACH OTHER and only the 20 s claim backstop
+          // broke the loop: a first action with nothing card-shaped in its
+          // answer (Arcadian's marker claim — space, then the action menu)
+          // left the workspace standing on an EMPTY «ПЕРВОЕ ДЕЙСТВИЕ» stage,
+          // swallowing the pad for twenty seconds. The trail window is covered
+          // by the POSITIVE evidence arms around this spot — the server-held
+          // reveal below (`cardDrawReveals` rides the very answer that resolves
+          // a draw), the client-side pending batch (`rawDrawnRevealPending`),
+          // the live deal (`deckDrawHolds`) and the claimed prompt kinds — and
+          // a prompt the claim can never host must release it even mid-stage:
+          // that release is exactly what lets the stage finish and the
+          // workspace conclude.
           // …and, generally, while the SERVER still holds an unconsumed
           // reveal for us: that is positive evidence of an artifact on its
           // way, available a full cinematic before the client can render it.

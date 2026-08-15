@@ -453,6 +453,15 @@ async function descendIntoPlay(page: Page, card: string): Promise<void> {
   // The hand INTAKE may still be flying the starting cards in (slower at 4K)
   // — walk the cursor only over a populated grid, never into a void.
   await expect(page.locator('.con-hand__slot').first()).toBeVisible({timeout: 20_000});
+  // …and the dock→grid OPEN REVEAL gates nav until its flights settle —
+  // LONGEST at 4K, where it can outlast the whole walk budget below (the
+  // cursor then «never reaches» a card on a perfectly healthy grid). Wait for
+  // the hand's own structural ready signal first — the same marker the shared
+  // driver's playCardFromHand waits on (`.con-hand--transit` falls when the
+  // reveal episode releases input). The catch keeps the old patient walk as
+  // the bounded fallback rather than failing the boot on a missing marker.
+  await page.locator('.con-hand:not(.con-hand--transit)')
+    .waitFor({state: 'visible', timeout: 25_000}).catch(() => {});
   await page.waitForTimeout(800);
 
   // Cursor onto the target card (right-major adaptive walk with a down fallback).

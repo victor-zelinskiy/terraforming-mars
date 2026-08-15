@@ -159,9 +159,16 @@ test.describe('console corp first action — the start workspace stage', () => {
     // ── A performs the action: the workspace yields to the city placement.
     await key(page, 'Enter', 1800);
     const placement = page.locator('.con-context__task-kicker');
+    // ⚠️ EVERY `.con-context` read here is BOUNDED. The config leaves
+    // Playwright's actionTimeout at its default 0 (unlimited), so an
+    // `innerText()` against a panel that has UNMOUNTED auto-waits until the
+    // TEST timeout kills it — this spec burned its whole 300 s exactly there:
+    // the first Enter of the placement loop below landed on the seeded legal
+    // cell, `.con-context` left with the placement, and the next read hung
+    // forever. An absent panel must read as «not placing», never as a wait.
     let placing = false;
     for (let i = 0; i < 20 && !placing; i++) {
-      placing = (await page.locator('.con-context').innerText().catch(() => '')).includes('РАЗМЕЩЕНИЕ ТАЙЛА');
+      placing = (await page.locator('.con-context').innerText({timeout: 2000}).catch(() => '')).includes('РАЗМЕЩЕНИЕ ТАЙЛА');
       if (!placing) {
         await page.waitForTimeout(600);
       }
@@ -176,7 +183,9 @@ test.describe('console corp first action — the start workspace stage', () => {
     //    it returns exactly once, onto a settled frame.
     for (let i = 0; i < 24; i++) {
       await key(page, 'Enter', 500);
-      if ((await page.locator('.con-context').innerText().catch(() => '')).includes('РАЗМЕЩЕНИЕ ТАЙЛА') === false) {
+      // Bounded read (see the note above): once the placement resolves the
+      // panel UNMOUNTS, and an unbounded innerText would hang the test here.
+      if ((await page.locator('.con-context').innerText({timeout: 1500}).catch(() => '')).includes('РАЗМЕЩЕНИЕ ТАЙЛА') === false) {
         break;
       }
       await key(page, 'ArrowRight', 260);
