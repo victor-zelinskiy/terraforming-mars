@@ -41,20 +41,27 @@ export type StageBox = {
 };
 
 /**
- * Re-synced 2026-08-09 — ONLY the zoom moved (1.476→1.475, 2.739→2.736,
- * 0.970→0.968), and identically on all three profiles; every box is unchanged.
- * That is the deliberate cost of two engine rules that landed together:
- * `wsStageLayout` now SNAPS onto the grid its own CSS is serialized with (so a
- * `toFixed` that rounds up can no longer make the rendered row wider than the
- * budget it was solved for — the 4K seven-card stage broke on 0.06 px of it),
- * and the vertical budget keeps a sub-pixel guard the way the width already
- * kept 2 %. A tenth of a percent of card, for a row that can no longer be
- * clipped by a rounding disagreement.
+ * Re-synced 2026-08-15 — the HUD/BAR UNIFICATION rework landed (one shared
+ * `--con-hud-h` bar height, `--con-main-gap: var(--con-hud-gap)`, and
+ * `--con-ws-left` re-derived through `--con-rail-outer-w`), so the band
+ * between the two bars grew and the workspace zone widened on the scaled
+ * profiles: the ROW gained height everywhere (fhd 719→768, tv4k 1356→1492,
+ * deck 482→512), width on tv4k/deck (2340→2380, 828→840, with host/zone
+ * following), and the zoom followed the taller room (1.475→1.581,
+ * 2.736→3.032, 0.968→1.033). Heads and status lines are untouched, and the
+ * PARITY these constants exist for was verified before pasting: at every
+ * profile the purchase and receive stages measured BYTE-IDENTICAL boxes
+ * (tv4k hero 970.23×1394.72 on both) — the chassis moved, the two stages
+ * moved together.
+ *
+ * (2026-08-09 — the previous sync: only the zoom moved, when `wsStageLayout`
+ * started SNAPPING onto the grid its own CSS is serialized with and the
+ * vertical budget gained a sub-pixel guard.)
  */
 export const WS_STAGE_BOX: Record<string, StageBox> = {
-  fhd: {headH: 36, rowH: 719, rowW: 1065, statusH: 48, zoom: '1.475', hostW: 1113, zoneW: 1113},
-  tv4k: {headH: 94, rowH: 1356, rowW: 2340, statusH: 96, zoom: '2.736', hostW: 2436, zoneW: 2436},
-  deck: {headH: 36, rowH: 482, rowW: 828, statusH: 44, zoom: '0.968', hostW: 864, zoneW: 864},
+  fhd: {headH: 36, rowH: 768, rowW: 1065, statusH: 48, zoom: '1.581', hostW: 1113, zoneW: 1113},
+  tv4k: {headH: 94, rowH: 1492, rowW: 2380, statusH: 96, zoom: '3.032', hostW: 2476, zoneW: 2476},
+  deck: {headH: 36, rowH: 512, rowW: 840, statusH: 44, zoom: '1.033', hostW: 876, zoneW: 876},
 };
 
 /**
