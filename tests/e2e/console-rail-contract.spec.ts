@@ -39,6 +39,10 @@ async function shoot(page: Page, name: string): Promise<void> {
 const PROFILES = [
   {tag: 'fhd', width: 1920, height: 1080, query: ''},
   {tag: 'tv4k', width: 3840, height: 2160, query: '&consoleProfile=tv'},
+  // A mid-size desktop window (the reported reproduction: ~2175×1237,
+  // standard profile) — the in-between widths are exactly where a vw-based
+  // inset and a fixed compensation can drift apart.
+  {tag: 'win2k', width: 2176, height: 1216, query: ''},
 ] as const;
 
 type Box = {x: number, y: number, w: number, h: number, r: number, b: number};
@@ -49,6 +53,9 @@ type RailAudit = {
   viewportW: number,
   strat: {
     rail: Box,
+    scrollHeight: number,
+    clientHeight: number,
+    zones: ReadonlyArray<{b: number, count: number, lastB: number, listScroll: number, listClient: number}>,
     items: ReadonlyArray<Box>,
     nums: ReadonlyArray<{r: number, clipped: boolean, text: string}>,
   },
@@ -86,6 +93,19 @@ async function readRails(page: Page): Promise<RailAudit> {
     probe.remove();
 
     const strat = one('.con-strat');
+    const stratEl = strat as HTMLElement;
+    const zones = [...document.querySelectorAll('.con-strat__zone')].map((z) => {
+      const list = z.querySelector('.con-strat__list') as HTMLElement | null;
+      const zoneItems = [...z.querySelectorAll('.con-strat__item')];
+      const last = zoneItems[zoneItems.length - 1];
+      return {
+        b: box(z).b,
+        count: zoneItems.length,
+        lastB: last !== undefined ? box(last).b : 0,
+        listScroll: list !== null ? list.scrollHeight : 0,
+        listClient: list !== null ? list.clientHeight : 0,
+      };
+    });
     const items = [...document.querySelectorAll('.con-strat__item')];
     // The AXIS is the reserved third grid track: measure the value BLOCK
     // (cell / race-wrap) right edge — the contract's own boundary — and
@@ -119,6 +139,9 @@ async function readRails(page: Page): Promise<RailAudit> {
       viewportW: window.innerWidth,
       strat: {
         rail: box(strat),
+        scrollHeight: stratEl.scrollHeight,
+        clientHeight: stratEl.clientHeight,
+        zones,
         items: items.map(box),
         nums,
       },
@@ -175,7 +198,22 @@ for (const profile of PROFILES) {
       console.log(`[RAIL:${profile.tag}] rem=${rem} contentSafe=${a.contentSafePx.toFixed(1)} ` +
         `stratRail=[${a.strat.rail.x.toFixed(0)}..${a.strat.rail.r.toFixed(0)}] ` +
         `numsR=[${a.strat.nums.map((n) => n.r.toFixed(0)).join(',')}] ` +
+        `zones=${JSON.stringify(a.strat.zones.map((z) => ({n: z.count, lastB: Math.round(z.lastB), zB: Math.round(z.b)})))} ` +
+        `stratScroll=${a.strat.scrollHeight}/${a.strat.clientHeight} ` +
         `resScroll=${a.res.scrollHeight}/${a.res.clientHeight} tagmxB=${a.res.tagmxBottom.toFixed(0)} footerTop=${a.res.footerTop.toFixed(0)}`);
+
+      // ── THE FRAME INVARIANTS (the shell's own geometry law) ──
+      // Both side rails share one true width, sit between the beams, and
+      // hide nothing behind a scroll — measured, never assumed.
+      expect(Math.abs(a.res.rail.w - a.strat.rail.w), 'left/right rail equal TRUE width').toBeLessThanOrEqual(1);
+      expect(a.strat.rail.b, 'right rail ends above the bottom beam').toBeLessThanOrEqual(a.res.footerTop + 1);
+      expect(a.strat.scrollHeight, 'right rail hides nothing behind a scroll')
+        .toBeLessThanOrEqual(a.strat.clientHeight + 2);
+      for (const [zi, z] of a.strat.zones.entries()) {
+        expect(z.lastB, `zone[${zi}] (${z.count} items): last row fully inside the zone`)
+          .toBeLessThanOrEqual(z.b + 1);
+        expect(z.listScroll, `zone[${zi}] list hides no rows`).toBeLessThanOrEqual(z.listClient + 2);
+      }
 
       // ── RIGHT RAIL: the row contract ──
       expect(a.strat.items.length).toBeGreaterThanOrEqual(8);

@@ -231,14 +231,28 @@ for (const preset of PRESETS) {
         }
         const r = el.getBoundingClientRect();
         const cs = getComputedStyle(el);
-        return {right: r.right, left: r.left, radius: cs.borderTopRightRadius, padRight: parseFloat(cs.paddingRight)};
+        const probe = document.createElement('div');
+        probe.style.cssText = 'position:fixed;left:0;top:0;height:1px;visibility:hidden;width:var(--con-stage-x)';
+        document.querySelector('.con-root')?.appendChild(probe);
+        const stageX = probe.getBoundingClientRect().width;
+        probe.style.width = 'var(--con-hud-pad-x)';
+        const contentSafe = probe.getBoundingClientRect().width;
+        probe.remove();
+        const verdict = document.querySelector('.con-hand__verdictbar');
+        const verdictPad = verdict !== null ? parseFloat(getComputedStyle(verdict).paddingRight) : 0;
+        return {right: r.right, left: r.left, radius: cs.borderTopRightRadius, padRight: parseFloat(cs.paddingRight), stageX, contentSafe, verdictPad};
       });
       expect(hand, 'the hand workspace frame is up').not.toBe(undefined);
       expect(Math.abs((hand?.right ?? 0) - vw), 'the workspace stage welds to the right viewport edge')
         .toBeLessThanOrEqual(eps);
       expect(hand?.radius, 'the stage is square — a scene state, not a modal card').toBe('0px');
-      expect(hand?.padRight ?? 0, 'stage content keeps the safe inset')
-        .toBeGreaterThanOrEqual(g.padXPx - eps);
+      // TWO-LEVEL SAFE AREA: the gallery body rides the VISUAL-STAGE inset
+      // (smaller than the content-safe line — that is the point), and the
+      // verdict bar's TEXT claws the difference back to the content line.
+      expect(hand?.padRight ?? 0, 'stage body rides the visual-stage inset')
+        .toBeGreaterThanOrEqual((hand?.stageX ?? 0) - eps);
+      expect((hand?.padRight ?? 0) + (hand?.verdictPad ?? 0), 'verdict text sits on the content-safe line')
+        .toBeGreaterThanOrEqual((hand?.contentSafe ?? 0) - 1 - eps);
       expect(Math.abs((hand?.left ?? 0) - ((g.resRail?.right ?? 0) + g.gapPx)),
         'the workspace keeps the same rail seam as the board').toBeLessThanOrEqual(1 + eps);
       fs.mkdirSync(path.join(OUT_ROOT, preset.id), {recursive: true});

@@ -146,7 +146,9 @@ export default defineComponent({
       const rootPad = this.profile === 'tv' ?
         Math.min(3.4, Math.max(1, wRem * 0.032)) :
         wRem * (this.profile === 'handheld' ? 0.007 : 0.016);
-      const barPad = this.profile === 'handheld' ? 0.25 : 0.35;
+      // Mirrors the alignment-grammar breathing of --con-hud-pad-x (the
+      // shared first-content anchor: safe area + ~the rail's interior).
+      const barPad = this.profile === 'handheld' ? 0.85 : 1.05;
       const halfRem = wRem / 2 - handDockBayRem(this.profile) / 2 - rootPad - barPad - 1;
       // The width estimate (`commandWidthRem`) is calibrated for the COMPACT
       // bay typography (label .95rem / glyph 1.3rem). The TV profile renders

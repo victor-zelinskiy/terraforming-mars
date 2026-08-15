@@ -300,9 +300,14 @@ html.console-native {
        (margin) and INSIDE the rails (content padding). The inset stays a
        TOKEN: the workspace band derives its left edge from it. */
     --con-pad-x: 1.6vw;
-    /* The rails' own content inset: safe area + a hair of breathing, so
-       chips/hints never start hard at the screen edge. */
-    --con-hud-pad-x: calc(var(--con-pad-x) + .35rem);
+    /* THE HORIZONTAL ALIGNMENT GRAMMAR: one first-content anchor for the
+       whole shell. The beams' content (player chips, hints, readouts) and
+       the side rails' instrument column start on the SAME line — safe area
+       + the rail's own interior (panel pad .6 + row pad .5 ≈ 1.05rem). The
+       old «+ .35rem hair» was the deleted gutter's coordinate living on:
+       the chips started neither at the shell edge nor on any line the rest
+       of the cockpit used. */
+    --con-hud-pad-x: calc(var(--con-pad-x) + 1.05rem);
     /* ═══ TWO-LEVEL SAFE AREA ═══
        CONTENT-SAFE (--con-hud-pad-x): text, controller hints, prices, every
        interactive control — nothing a TV overscan may crop.
@@ -2667,16 +2672,24 @@ html.console-native {
         transition: opacity calc(200ms * var(--motion-scale, 1)) ease;
 
         &--muted { opacity: .4; }
-        &--empty:not(.con-draftws__shelf--pulse) { opacity: .55; }
-        /* IDLE DOCK: with nothing collected yet the shelf is a compact
-           statement of capacity (small prepared seats), never a full-height
-           empty box. The pose switches INSTANTLY with the first pick — no
-           size transition, so the real slot (which only renders once a card
-           is collected) is at its final rect before the pick flight
-           measures it. Gallery geometry is untouched either way: the shelf
-           is an absolute overlay over a constant stage reserve. */
-        &--empty .con-draftws__shelf-row { min-height: 3.4rem; }
-        &--empty .con-draftws__shelf-seat { width: 2.4rem; height: 3.35rem; opacity: .6; }
+        &--empty:not(.con-draftws__shelf--pulse) { opacity: .8; }
+        /* IDLE DOCK — a CAPTION, not a container: with nothing collected
+           the plate, ring and seat boxes all go — what remains is one quiet
+           «ОТОБРАННЫЕ 0/4» line over the open stage (an empty bordered box
+           the height of a card row is exactly the «huge empty area» read).
+           The pose switches INSTANTLY with the first pick — no size
+           transition — so the real slot (which only renders once a card is
+           collected) is at its final rect before the pick flight measures
+           it. Gallery geometry is untouched either way: the shelf is an
+           absolute overlay over a constant stage reserve, so the dock's
+           materialization never moves a card above it. */
+        &--empty {
+            background: none;
+            box-shadow: none;
+            padding-top: .2rem;
+            padding-bottom: .2rem;
+        }
+        &--empty .con-draftws__shelf-row { display: none; }
         &--pulse .con-draftws__shelf-row {
             animation: con-tray-pulse calc(260ms * var(--motion-scale, 1)) ease-out;
         }
@@ -9190,7 +9203,11 @@ html.con-profile-handheld .con-mafocus {
         align-items: center;
         column-gap: .4rem;
         margin-right: calc(-1 * (.5rem + var(--con-pad-x, 0vw)));
-        padding: .12rem calc(.4rem + var(--con-pad-x, 0vw)) .12rem .25rem;
+        /* Thin vertical padding: five plated rows + head + meta must fit
+           HALF the rail between the beams — the plate may not tax the
+           zone's height budget (the .12rem pair overflowed the fifth row
+           under the bottom beam at 2160). */
+        padding: .08rem calc(.4rem + var(--con-pad-x, 0vw)) .08rem .25rem;
         border-radius: .4rem 0 0 .4rem;
         background: rgba(16, 26, 38, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
@@ -24427,7 +24444,9 @@ html.con-profile-handheld {
        edge derives from them next to the rail; see .con-root. */
     .con-root {
         --con-pad-x: 0.7vw;
-        --con-hud-pad-x: calc(var(--con-pad-x) + .25rem);
+        /* The Deck's first-content anchor (rail interior .4 + .35 + a hair)
+           — the same alignment grammar, compacted. */
+        --con-hud-pad-x: calc(var(--con-pad-x) + .85rem);
         /* (--con-main-gap rides the shared --con-hud-gap seam token now.) */
         --con-rail-w: 7.3rem;
         /* The Deck has no overscan: the stage inset collapses toward the

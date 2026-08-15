@@ -247,10 +247,13 @@ html.con-profile-tv {
        medal — the carrier of the whole read at couch distance. The base is
        sized so the standard FIVE items fill the zone height; six and more
        step through the dense/ultra poses (component threshold > 5). */
-    /* Medal 4rem is the exact five-items-fill-the-zone size (the base doc
-       comment) — 4.3rem clipped the fifth medal at the zone seam. Only the
-       VALUES take the pass-2 bump. */
-    .con-strat__zone { --strat-medal: 4rem; --strat-num: 1.4rem; --strat-num2: 1.1rem; }
+    /* THE ZONE BUDGET, measured: five plated rows + head + meta must sit
+       INSIDE half the rail between the beams. 4rem medals overflowed the
+       zone by 53px at 2160 (the last row clipped under the beam — the
+       plate's own padding joined the bill); 3.8rem + the thinner plate
+       padding brings the five-row column back inside with margin. Only the
+       VALUES keep the pass-2 bump. */
+    .con-strat__zone { --strat-medal: 3.7rem; --strat-num: 1.4rem; --strat-num2: 1.1rem; }
     .con-strat__zone--dense { --strat-medal: 3.1rem; }
     .con-strat__zone--ultra { --strat-medal: 2.35rem; }
     .con-strat__zone--milestones.con-strat__zone--done { --strat-medal: 5.4rem; }
