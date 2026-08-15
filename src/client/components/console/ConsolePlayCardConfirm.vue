@@ -298,7 +298,15 @@
                     <span class="con-composer__stepper-value">{{ amountFor(row.choice.id) }}</span>
                     <span class="con-composer__stepper-range">{{ amountModel(row.choice).min }} – {{ amountModel(row.choice).max }}</span>
                   </div>
-                  <div v-if="amountResultLine(row.choice) !== ''" class="con-composer__row-note">{{ amountResultLine(row.choice) }}</div>
+                  <!-- The OPERATION preview — both sides' current→after for the
+                       dialed value (the SHARED component; one derivation with
+                       the action composer and the standalone prompt — this
+                       copy of the row had already fallen behind once). The
+                       one-element v-for is the template-narrowing idiom. -->
+                  <template v-for="op in [amountOperation(row.choice)]" :key="row.choice.id + '#op'">
+                    <ConsoleAmountOperation v-if="op !== undefined" :vm="op" compact />
+                    <div v-else-if="amountResultLine(row.choice) !== ''" class="con-composer__row-note">{{ amountResultLine(row.choice) }}</div>
+                  </template>
                 </template>
                 <template v-else-if="row.choice.kind === 'spendHeat'">
                   <div class="con-composer__row-label">{{ $t('Heat sources') }}</div>
@@ -499,6 +507,9 @@ import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
 import {enterConsoleHandPick} from '@/client/console/consoleHandPick';
 import {enterConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {playerResourceValue} from '@/client/components/modalInputs/playerResourceFields';
+import ConsoleAmountOperation from '@/client/components/console/foundation/ConsoleAmountOperation.vue';
+import {amountOperationVm, ConversionPromptVm} from '@/client/console/conversionPromptModel';
 import {targetImpactRows, targetImpactText, targetImpactIsLoss} from '@/client/components/modalInputs/targetImpactRows';
 import {playedTargetSelfState} from '@/client/console/played/consolePlayedTargetSelf';
 import {TargetImpactChange} from '@/common/models/TargetImpactModel';
@@ -639,7 +650,7 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsolePlayCardConfirm',
-  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage},
+  components: {Card, ConsoleScrollArea, GamepadGlyph, ActionEffectChip, ConsolePaymentPanel, CardRenderEffectBoxComponent, CardRenderData, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsolePlayedReceivingStage, ConsoleAmountOperation},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -1901,6 +1912,17 @@ export default defineComponent({
         return `→ ${chosen * (m.conversion.ratio ?? 1)}`;
       }
       return '';
+    },
+    /**
+     * The premium two-sided OPERATION for this dial — the SHARED derivation
+     * (conversionPromptModel) the action composer and the standalone prompt
+     * use. Play-time dials touch the viewer's own stocks/production
+     * (Insulation's heat→M€ production), so the public-player read is the
+     * whole pool story here.
+     */
+    amountOperation(c: ComposerChoice): ConversionPromptVm | undefined {
+      return amountOperationVm(this.amountModel(c), this.amountFor(c.id),
+        (icon, scope) => playerResourceValue(this.thisPlayer, icon, scope));
     },
     heatStockFor(c: ComposerChoice): number {
       const plan = spendHeatPlan(c.input);

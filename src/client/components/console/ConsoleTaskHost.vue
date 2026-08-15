@@ -257,40 +257,9 @@
                   <span class="con-convert__step" :class="{'con-convert__step--out': value >= conversionVm.max}" aria-hidden="true">+</span>
                 </div>
                 <!-- THE OPERATION, both sides at once: source row → target row,
-                     linked. Value 0 keeps it deliberately CALM — no deltas, no
-                     gain accent, an honest «Без изменений». -->
-                <div class="con-convert__preview" :class="{'con-convert__preview--neutral': conversionVm.neutral}">
-                  <span class="con-convert__link" aria-hidden="true"></span>
-                  <div class="con-convert__row con-convert__row--from">
-                    <i class="con-convert__res resource_icon" :class="'resource_icon--' + conversionVm.from.icon" aria-hidden="true"></i>
-                    <span v-if="conversionVm.from.labelKey !== ''" class="con-convert__name">{{ $t(conversionVm.from.labelKey) }}</span>
-                    <span v-if="conversionVm.from.production" class="con-convert__scope">{{ $t('Production rate') }}</span>
-                    <span v-if="conversionVm.from.current !== undefined" class="con-convert__figures">
-                      <span class="con-convert__cur">{{ conversionVm.from.current }}</span>
-                      <span class="con-convert__arr" aria-hidden="true">→</span>
-                      <span class="con-convert__aft">{{ conversionVm.from.after }}</span>
-                    </span>
-                    <!-- The delta slot is ALWAYS in layout (opacity at 0) so
-                         stepping 0↔N never re-flows the row. -->
-                    <span class="con-convert__delta con-convert__delta--spend"
-                          :class="{'con-convert__delta--none': conversionVm.neutral}">{{ conversionVm.from.delta }}</span>
-                  </div>
-                  <div class="con-convert__row con-convert__row--to">
-                    <i class="con-convert__res resource_icon" :class="'resource_icon--' + conversionVm.to.icon" aria-hidden="true"></i>
-                    <span v-if="conversionVm.to.labelKey !== ''" class="con-convert__name">{{ $t(conversionVm.to.labelKey) }}</span>
-                    <span v-if="conversionVm.to.production" class="con-convert__scope">{{ $t('Production rate') }}</span>
-                    <span v-if="conversionVm.to.current !== undefined" class="con-convert__figures">
-                      <span class="con-convert__cur">{{ conversionVm.to.current }}</span>
-                      <span class="con-convert__arr" aria-hidden="true">→</span>
-                      <span class="con-convert__aft con-convert__aft--gain">{{ conversionVm.to.after }}</span>
-                    </span>
-                    <span class="con-convert__delta con-convert__delta--gain"
-                          :class="{'con-convert__delta--none': conversionVm.neutral}">+{{ conversionVm.to.delta }}</span>
-                  </div>
-                  <!-- Reserved caption line — «Без изменений» at 0, blank
-                       otherwise; the preview's height never jumps. -->
-                  <div class="con-convert__note">{{ conversionVm.neutral ? $t('No changes') : '' }}</div>
-                </div>
+                     linked — the SHARED preview (same component the composers'
+                     amount rows render, one derivation, one markup). -->
+                <ConsoleAmountOperation :vm="conversionVm" />
               </div>
               <!-- Generic amount dial (no conversion hint) — hints live in the
                    bottom command bar only, never repeated in the panel. -->
@@ -549,6 +518,7 @@ import {ConsoleTask} from '@/client/console/consoleTaskRouter';
 import {fitRowZoom} from '@/client/console/cardStripFit';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
+import ConsoleAmountOperation from '@/client/components/console/foundation/ConsoleAmountOperation.vue';
 import {rememberCardBrowserPicks, recallCardBrowserPicks, clearCardBrowserPicks} from '@/client/console/consoleRouter';
 import {consoleTaskSummary} from '@/client/console/consoleTaskSummary';
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
@@ -659,7 +629,7 @@ const RESOURCE_FIELD: Record<string, {stock: string, production: string}> = {
 
 export default defineComponent({
   name: 'ConsoleTaskHost',
-  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel, ConsoleWsStageHead},
+  components: {Card, GamepadGlyph, ActionEffectChip, Tag: TagComponent, ConsoleCardDealLayer, ConsolePaymentPanel, ConsoleWsStageHead, ConsoleAmountOperation},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
     task: {type: Object as PropType<ConsoleTask>, required: true},
@@ -1137,13 +1107,15 @@ export default defineComponent({
       return vm === undefined ? '' : translateTextWithParams('Convert ${0}', [String(vm.max)]);
     },
     /**
-     * The amount commit verb for the command bar. A conversion names the
-     * OPERATION and its magnitude — «ПРЕОБРАЗОВАТЬ N», or the honest
+     * The amount commit verb for the command bar. A CONVERSION names the
+     * operation and its magnitude — «ПРЕОБРАЗОВАТЬ N», or the honest
      * «НЕ ПРЕОБРАЗОВЫВАТЬ» at 0 (a zero commit is a stated refusal, never a
-     * generic «ОК»). A bare amount keeps the server's button label.
+     * generic «ОК»). Spend/priced operations (result / cost) and bare amounts
+     * keep the server's own specific verb («Потратить энергию», «Получить
+     * энергию», «Сбросить аэростаты»).
      */
     amountConfirmLabel(): string {
-      if (this.conversionVm === undefined) {
+      if (this.conversionVm?.kind !== 'conversion') {
         return this.confirmLabel;
       }
       const label = conversionCommitLabel(this.value);

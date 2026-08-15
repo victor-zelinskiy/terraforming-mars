@@ -17664,6 +17664,26 @@ body.con-start-ceremony {
         padding-left: .1rem;
     }
 
+    /* COMPOSER-ROW density (`compact` on ConsoleAmountOperation): the preview
+       is one item of a configuration list, beside the row's own dial — same
+       grammar, quieter metrics, no reserved note line (spend dials open at
+       min 1, so the neutral caption has nothing to say there). */
+    &__preview--inrow {
+        margin-top: .2rem;
+        padding: .4rem .6rem .35rem 1.05rem;
+        gap: .22rem;
+
+        .con-convert__row { min-height: 1.55rem; }
+        .con-convert__name { font-size: .76rem; min-width: 4rem; }
+        .con-convert__scope { font-size: .68rem; }
+        .con-convert__res { width: 1.3rem; height: 1.3rem; }
+        .con-convert__cur { font-size: .92rem; }
+        .con-convert__arr { font-size: .85rem; }
+        .con-convert__aft { font-size: 1.12rem; }
+        .con-convert__delta { font-size: .85rem; min-width: 2.2rem; padding: .06rem .4rem; }
+        .con-convert__link { top: .6rem; bottom: .6rem; }
+    }
+
     /* NEUTRAL (value 0): the resulting figures stop shouting and the link
        drops its direction — nothing is happening, and the block says so. */
     &__preview--neutral {
