@@ -41,6 +41,10 @@ const OLYMPUS = 'Olympus Conference';
 /** A plain science tag with no follow-up of its own — the second play, i.e.
  *  the one «Конференция на Олимпе» answers. */
 const SCIENCE_TAG = 'Adaptation Technology';
+/** Science tag AND `drawCard: 2` — ONE press produces a BATCH и an effect
+ *  question in the SAME response (the user-reported «Акведуки + Рециклон»
+ *  shape, on in-scope cards). */
+const DRAW_AND_TAG = 'Technology Demonstration';
 /** Filler, so the hand still holds something to discard after the play (Mars
  *  University's own guard returns nothing on an empty hand) and the cursor has
  *  somewhere to walk. */
@@ -124,12 +128,21 @@ type ChainLog = {
   trace: Array<string>,
 };
 
+type ChainOpts = {
+  /** Take an embedded batch with RT («Забрать все») instead of per-card A —
+   *  the exact gesture of the reported bug. */
+  takeAll?: boolean,
+  /** Answer the decision with its DECLINE (the last row) instead of the offer —
+   *  walk down until the decline row holds the focus, then press. */
+  decline?: boolean,
+};
+
 /**
  * Watch the whole episode after the confirm, pressing A through it (every stage
  * of this chain is answered with A by contract) and recording — per frame — WHO
  * owns the screen and what the crumb's tail says.
  */
-async function watchEffectChain(page: Page, shotPrefix: string): Promise<ChainLog> {
+async function watchEffectChain(page: Page, shotPrefix: string, opts: ChainOpts = {}): Promise<ChainLog> {
   const log: ChainLog = {
     decisionEmbedded: false,
     decisionStandaloneFrames: 0,
@@ -153,6 +166,10 @@ async function watchEffectChain(page: Page, shotPrefix: string): Promise<ChainLo
   let shotDecision = false;
   let shotDraw = false;
   let goneStreak = 0;
+  /** The chain's first surface has shown — the play's OWN stage is over. A
+   *  frame with nothing on it after that is a hand-off gap between two stages
+   *  (batch gone, decision not mounted yet), never the play again. */
+  let chainStarted = false;
   for (let i = 0; i < 160; i++) {
     const s = await page.evaluate(() => {
       const decision = document.querySelector('.con-decision');
@@ -175,12 +192,24 @@ async function watchEffectChain(page: Page, shotPrefix: string): Promise<ChainLo
     log.trace.push(`${i} h:${s.hand ? 1 : 0} d:${s.decision ? 1 : 0}/${s.decisionEmbedded ? 'e' : '-'} ` +
       `p:${s.picking ? 1 : 0} r:${s.reveal ? 1 : 0}/${s.revealEmbedded ? 'e' : '-'} «${stage}»`);
 
-    if (!s.decision && !s.picking && !s.reveal && log.stageAtDecision === '') {
-      log.stageAtPlay = stage; // the play's own stage, before the effect asked
+    if (s.decision || s.picking || s.reveal) {
+      chainStarted = true;
+    } else if (!chainStarted && log.stageAtPlay === '') {
+      // FIRST non-empty read — the play's own stage. The crumb legitimately
+      // advances BEFORE the next surface mounts (the deck names «ДОБОР КАРТ»
+      // while the cards are still flying and no reveal exists yet), so a
+      // last-write capture here reads the chain's first stage, not the play's.
+      log.stageAtPlay = stage;
     }
+    // STAGE CAPTURES ARE FIRST-FRAME, deliberately. The tail moves FORWARD at
+    // a hand-off (the take names the coming effect while the batch is still
+    // painting its leave — «they never coexist» is true of the decision, not
+    // of the DOM), so the LAST frame of a departing surface legitimately reads
+    // the NEXT stage's name. What each stage was ANNOUNCED as is its first
+    // frame's read.
     if (s.decisionEmbedded) {
       log.decisionEmbedded = true;
-      log.stageAtDecision = stage;
+      log.stageAtDecision = log.stageAtDecision === '' ? stage : log.stageAtDecision;
       if (!shotDecision) {
         shotDecision = true;
         // The ARRIVAL frame (the relieved tableau is still dissolving under it)
@@ -202,11 +231,11 @@ async function watchEffectChain(page: Page, shotPrefix: string): Promise<ChainLo
         await shoot(page, `${shotPrefix}-discard`);
       }
       log.pickedInPlace = true;
-      log.stageAtPick = stage;
+      log.stageAtPick = log.stageAtPick === '' ? stage : log.stageAtPick;
     }
     if (s.revealEmbedded) {
       log.drawEmbedded = true;
-      log.stageAtDraw = stage;
+      log.stageAtDraw = log.stageAtDraw === '' ? stage : log.stageAtDraw;
       if (!shotDraw) {
         shotDraw = true;
         await shoot(page, `${shotPrefix}-draw`);
@@ -228,8 +257,17 @@ async function watchEffectChain(page: Page, shotPrefix: string): Promise<ChainLo
       goneStreak = 0;
     }
     // A drives the whole chain: take the offer, discard the focused card, take
-    // the drawn one. Every one of them is «A» by contract.
-    if (s.focusedDecisionRow || s.picking || s.revealEmbedded) {
+    // the drawn one. Every one of them is «A» by contract — with two OPT-IN
+    // variations that mirror real gestures: RT takes a whole batch at once
+    // («Забрать все» — the reported bug's own press), and a declining player
+    // walks the cursor to the decline row before pressing.
+    if (s.revealEmbedded && opts.takeAll === true) {
+      await press(page, 'Period', 800);
+    } else if (s.focusedDecisionRow && opts.decline === true) {
+      const onDecline = await page.evaluate(() =>
+        document.querySelector('.con-decision__action--decline.con-decision__action--focused') !== null);
+      await press(page, onDecline ? 'Enter' : 'ArrowDown', onDecline ? 800 : 300);
+    } else if (s.focusedDecisionRow || s.picking || s.revealEmbedded) {
       await press(page, 'Enter', 800);
     } else {
       await page.waitForTimeout(250);
@@ -269,7 +307,7 @@ function assertOneFlow(log: ChainLog, stages: ReadonlyArray<'play' | 'effect' | 
     expect(read[name], `the tail named the ${name} stage ${seen}`).not.toBe('');
   }
   expect(new Set(stages.map((n) => read[n])).size,
-    `${stages.length} stages, ${stages.length} names ${seen}`).toBe(stages.length);
+    `${stages.length} stages, ${stages.length} names ${seen} read=${JSON.stringify(read)}`).toBe(stages.length);
   expect(log.stages, 'the tail never returned to a stage already left')
     .toHaveLength(new Set(log.stages).size);
 }
@@ -321,6 +359,41 @@ test.describe('a play\'s TRIGGERED effect resolves inside the workspace it was p
     expect(log.pickedInPlace,
       'nothing is picked from hand here — both branches resolve on the press').toBeFalsy();
     assertOneFlow(log, ['play', 'effect', 'draw']);
+    await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
+  });
+
+  /**
+   * A BATCH AND AN EFFECT IN THE SAME RESPONSE — the reported «Акведуки +
+   * Рециклон» shape, on in-scope cards: «Демонстрация технологий» draws 2
+   * cards AND its science tag wakes «Марсианский университет», both delivered
+   * with one answer. The batch presents first (surfaces go in turn), and the
+   * TAKE is where the flow used to end: `result-detached`/`drawn-complete`
+   * released the claim and folded the workspace under a prompt that had been
+   * standing in `waitingFor` the whole time — the decision then rose as a
+   * standalone band over the board.
+   *
+   * The take is the batch-wide RT («Забрать все»), the exact press of the bug
+   * report; the decision is answered with its DECLINE, so the chain ends there
+   * and the stage names stay unique for the crumb assertion.
+   */
+  test('a draw AND an effect from one press: the take does not end the chain', async ({page, request}) => {
+    await bootWithHand(page, request, [MARS_UNIVERSITY, DRAW_AND_TAG, ...FILLER]);
+
+    // The FIRST play puts the university on the table; its own science tag
+    // asks at once — decline, and the workspace finishes.
+    await playFromHand(page, MARS_UNIVERSITY);
+    const setup = await watchEffectChain(page, 'setup-mu', {decline: true});
+    console.log(`[setup trace]\n${setup.trace.join('\n')}`);
+    await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
+    await page.waitForTimeout(1500);
+
+    // The SECOND play is the subject: batch + effect, one response.
+    await playFromHand(page, DRAW_AND_TAG);
+    const log = await watchEffectChain(page, 'batch-effect', {takeAll: true, decline: true});
+    console.log(`[batch+effect trace]\n${log.trace.join('\n')}`);
+    console.log(`[crumb stages] ${log.stages.join(' › ')}`);
+
+    assertOneFlow(log, ['play', 'draw', 'effect']);
     await expect(page.locator('.con-hand__frame')).toHaveCount(0, {timeout: 60_000});
   });
 });

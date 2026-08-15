@@ -309,13 +309,18 @@ html.console-native {
     z-index: 40;
 
     /* ONE source for the rail↔workspace seam geometry (hoisted from .con-main
-       so FIXED workspace-band overlays can read it too): the rail's width,
-       the main-column gap, and the derived LEFT EDGE of every workspace
-       surface. Profiles override the tokens HERE — never a per-surface
-       constant. */
+       so FIXED workspace-band overlays can read it too). THE PERIMETER MODEL:
+       the four rails are full-bleed hull members welded to the viewport
+       edges; every seam between a member and the central stage is the SAME
+       narrow void joint (--con-hud-gap — one expansion-joint rhythm around
+       the whole opening). A side rail's CONTENT stays --con-rail-w wide at
+       the safe inset; its CHASSIS additionally absorbs the former viewport
+       gutter (--con-rail-outer-w). Profiles override the tokens HERE — never
+       a per-surface constant. */
     --con-rail-w: 9.1rem;
-    --con-main-gap: .6rem;
-    --con-ws-left: calc(var(--con-pad-x) + var(--con-rail-w) + var(--con-main-gap));
+    --con-rail-outer-w: calc(var(--con-pad-x) + var(--con-rail-w));
+    --con-main-gap: var(--con-hud-gap);
+    --con-ws-left: calc(var(--con-rail-outer-w) + var(--con-main-gap));
 }
 
 /* A fixed overlay spanning EXACTLY the space between the two bars. The
@@ -348,11 +353,12 @@ html.console-native {
     top: var(--con-ws-top, var(--con-band-top, 4.5rem));
     bottom: var(--con-ws-bottom, var(--con-band-bottom, 4.5rem));
     left: var(--con-ws-left, 11.3rem);
-    /* The RIGHT edge is the shell's own inset — the same one `.con-main`
-       (and therefore the Information Workspace) ends at. `.con-modal-band()`
-       runs to the raw viewport edge, which left the fixed surfaces ~31px
-       wider than the in-main ones: the family read as two geometries. */
-    right: var(--con-pad-x, 1.6vw);
+    /* PERIMETER SHELL: the band's right edge is the VIEWPORT edge — a
+       workspace surface welds to it exactly like the HUD rails (`.con-main`
+       spans full width, so fixed and in-main surfaces stay one geometry).
+       CONTENT keeps the safe inset through each screen's stage padding
+       (--con-hud-pad-x) — full-bleed chrome, safe-inset content. */
+    right: 0;
 }
 
 /* The workspace SCREEN's frame: it FILLS the band exactly like the
@@ -366,6 +372,30 @@ html.console-native {
     width: 100%;
     max-width: none;
     align-self: stretch;
+}
+
+/* ═══ THE STAGE SURFACE — a workspace SCREEN is a state of the central
+   scene, never a modal ═══
+   One material for every full-screen workspace plate (hand / colonies /
+   card actions / info / MA / standard projects / draft / bounded start):
+   SQUARE (radius belongs to the inner premium modules, not to the scene),
+   welded to the viewport's right edge like every hull member, separated
+   from the rails by the uniform void seam. Edge definition is three quiet
+   hairlines — a machined top seam and soft left/bottom edges against the
+   void joint — never the old full cyan ring (that ring is precisely what
+   read as «a giant modal arrived»). Content keeps the safe inset through
+   the screen's own `padding-right: var(--con-hud-pad-x)` (declared per
+   screen — several solve fits against their padding box). */
+.con-stage-surface() {
+    border-radius: 0;
+    background:
+        linear-gradient(90deg, rgba(12, 19, 29, 0.55), transparent 9rem),
+        linear-gradient(180deg, rgba(9, 15, 23, 0.97), rgba(7, 12, 19, 0.975) 46%, rgba(5, 9, 15, 0.985));
+    box-shadow:
+        inset 0 .06rem 0 rgba(190, 225, 255, 0.055),
+        inset .05rem 0 0 rgba(120, 160, 200, 0.13),
+        inset 0 -.05rem 0 rgba(110, 150, 190, 0.07),
+        0 .9rem 2.6rem rgba(0, 0, 0, 0.5);
 }
 
 /* THE STAGE PLATE — the ONE quiet plane a workspace stage stands on (the
@@ -1151,8 +1181,11 @@ html.console-native {
        host's own containing-block role is untouched. */
     .con-res {
         z-index: 11520;
-        box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 40%),
-            0 .4rem 1.6rem rgba(0, 0, 0, 0.5);
+        /* The lifted rail keeps the WELDED grammar: the stage-facing edge
+           brightens and the seam shadow deepens — never the old full ring
+           (a ring re-reads the hull member as a floating card). */
+        box-shadow: inset -.07rem 0 0 fade(@con-cyan, 48%),
+            .4rem 0 1.6rem rgba(0, 0, 0, 0.5);
     }
     /* The satellite lands in the ONE gap in the ladder: ABOVE the shade
        (11460) and BELOW every band surface (11480+) and the wheel (11500).
@@ -2099,9 +2132,9 @@ html.console-native {
     z-index: 11480;
     display: flex;
     flex-direction: column;
-    padding: 1.05rem 1.6rem 1.1rem;
-    background: linear-gradient(180deg, rgba(10, 18, 28, 0.97), rgba(7, 12, 20, 0.985));
-    box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.22), 0 1.4rem 3.4rem rgba(0, 0, 0, 0.55);
+    /* THE STAGE SURFACE (perimeter shell) — see .con-stage-surface(). */
+    padding: 1.05rem var(--con-hud-pad-x, 1.6rem) 1.1rem 1.6rem;
+    .con-stage-surface();
     font-family: @con-font;
     overflow: hidden;
 
@@ -2832,11 +2865,13 @@ html.con-profile-handheld .con-terracere {
        .con-root now — fixed workspace-band overlays read them too. */
     /* P29c: tighter side chrome — every saved px goes to the board scale. */
     gap: var(--con-main-gap);
-    /* FULL-BLEED FRAME: the root lost its horizontal padding (the rails run
-       edge to edge) — the central area keeps the inset as its own MARGIN
-       (margin, not padding: absolute overlays — journal / info workspace /
-       context panel — must keep anchoring to the same box edges). */
-    margin: 0 var(--con-pad-x);
+    /* PERIMETER SHELL: the central band spans the FULL viewport width — the
+       side rails inside it are full-bleed hull members (their chassis absorbs
+       the former gutter; content keeps the safe inset), and a workspace
+       surface welds to the right edge exactly like the HUD rails do. The
+       absolute overlays (journal / info workspace / context panel) anchor to
+       the viewport edges by construction now. */
+    margin: 0;
     /* The console journal is an ABSOLUTE overlay anchored to this box —
        it may overlap the board, the board never reflows for it. */
     position: relative;
@@ -2889,12 +2924,13 @@ html.con-profile-handheld .con-terracere {
         z-index: 11561;
     }
     /* The rail is the workspace's SUMMARY half — the inspected player's
-       accent ring binds it to the panel across the seam. Functional state
-       rides box-shadow (perf-lite keeps it); the color recolors through the
-       con-insp-* tokens below with the .con-res transition. */
+       accent binds it to the panel across the seam (the welded grammar: the
+       stage-facing edge carries the colour, never a full ring). Functional
+       state rides box-shadow (perf-lite keeps it); the color recolors
+       through the con-insp-* tokens below with the .con-res transition. */
     .con-res {
-        box-shadow: inset 0 0 0 .07rem var(--con-insp-accent-soft, fade(@con-cyan, 45%)),
-            0 .4rem 1.6rem rgba(0, 0, 0, 0.5),
+        box-shadow: inset -.07rem 0 0 var(--con-insp-accent-soft, fade(@con-cyan, 45%)),
+            .4rem 0 1.6rem rgba(0, 0, 0, 0.5),
             0 0 1.4rem var(--con-insp-accent-faint, rgba(0, 0, 0, 0));
     }
 }
@@ -2934,15 +2970,24 @@ each(@players, {
 }
 .con-res {
     flex-shrink: 0;
-    width: var(--con-rail-w, 9.1rem); /* seam token — see .con-main */
+    /* THE LEFT HULL MEMBER: the chassis runs from the physical viewport edge
+       (absorbing the former gutter — --con-rail-outer-w), the CONTENT stays
+       at the safe inset (the extra padding-left) exactly --con-rail-w wide.
+       Full-bleed chrome + safe-inset content, like the HUD rails. */
+    width: var(--con-rail-outer-w, 10.7rem); /* seam token — see .con-root */
     align-self: stretch;  /* fill the host (stretched to con-main height) */
     display: flex;
     flex-direction: column;
     gap: var(--cr-panel-gap); /* tokenized — the aux column's top offset reuses it */
     padding: var(--cr-pad);
-    border-radius: .6rem;
-    background: @con-glass-soft;
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%), 0 .4rem 1.3rem rgba(0, 0, 0, 0.35);
+    padding-left: calc(var(--cr-pad) + var(--con-pad-x, 1.6vw));
+    /* Welded member: square corners (the screen edge is the shape); the
+       hull darkens a touch toward the physical edge, the frame accent sits
+       on the stage-facing edge — the same one-accent grammar as the top
+       rail's bottom line. */
+    border-radius: 0;
+    background: linear-gradient(90deg, rgba(4, 8, 13, 0.6), transparent calc(var(--con-pad-x, 1.6vw) + 1.2rem)) @con-glass-soft;
+    box-shadow: inset -.06rem 0 0 fade(@con-cyan, 24%), .35rem 0 1.2rem rgba(0, 0, 0, 0.35);
     /* The Information-Workspace accent ring (.con-main--info) recolors per
        inspected player — a short ride keeps the seam change composed. */
     transition: box-shadow calc(200ms * var(--motion-scale, 1)) ease;
@@ -3372,19 +3417,22 @@ each(@players, {
        edge of .con-main, over the strategy rail and the board's free right
        band. The board layout NEVER reflows for a mode change: the planet
        fit and the planet-focus scene keep one constant geometry. Above the
-       rail/board flow, below the journal (60). */
+       rail/board flow, below the journal (60).
+       PERIMETER SHELL: `.con-main` reaches the viewport edge now, so the
+       dossier is a WELDED DRAWER — chassis to the physical edge, content at
+       the safe inset, radius on the inner (stage-facing) corners only. */
     position: absolute;
     top: 0;
     right: 0;
     bottom: 0;
     z-index: 50;
     width: 26%;
-    min-width: 17rem;
-    max-width: 22rem;
-    padding: .8rem .9rem;
-    border-radius: .6rem;
-    background: @con-glass;
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%), 0 .6rem 1.8rem rgba(0, 0, 0, 0.45);
+    min-width: calc(17rem + var(--con-pad-x, 1.6vw));
+    max-width: calc(22rem + var(--con-pad-x, 1.6vw));
+    padding: .8rem calc(.9rem + var(--con-pad-x, 1.6vw)) .8rem .9rem;
+    border-radius: .6rem 0 0 .6rem;
+    background: linear-gradient(270deg, rgba(4, 8, 13, 0.5), transparent calc(var(--con-pad-x, 1.6vw) + 1.2rem)) @con-glass;
+    box-shadow: inset .06rem 0 0 fade(@con-cyan, 28%), inset 0 .05rem 0 rgba(190, 225, 255, 0.05), -.6rem 0 1.8rem rgba(0, 0, 0, 0.45);
     overflow-y: auto;
     scrollbar-width: thin;
     /* (The overflow-affordance pseudos anchor to the panel through the
@@ -3835,7 +3883,10 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     display: flex;
     flex-direction: column;
     gap: .5rem;
-    padding: .1rem .2rem 0;
+    /* PERIMETER SHELL: the section spans to the viewport's right edge now —
+       the track scene stays open (no plate; the void IS its stage), but the
+       content honours the shared safe-inset guide on both flanks. */
+    padding: .1rem var(--con-hud-pad-x, .55rem) 0 .55rem;
     font-family: @con-font;
     color: @con-text;
 
@@ -5405,10 +5456,11 @@ html.console-mode {
         display: flex;
         flex-direction: column;
         gap: .55rem;
-        padding: .75rem 1.1rem .7rem;
-        border-radius: .7rem;
-        background: rgba(7, 12, 19, 0.96);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 .9rem 2.6rem rgba(0, 0, 0, 0.6);
+        /* THE STAGE SURFACE (perimeter shell): the screen is a state of the
+           central scene — square, welded to the viewport's right edge, the
+           right CONTENT line on the shared safe-inset guide. */
+        padding: .75rem var(--con-hud-pad-x, 1.1rem) .7rem 1.1rem;
+        .con-stage-surface();
     }
 
     /* ── EMBEDDED (a STEP of another workspace — the Game Start Workspace's
@@ -6903,18 +6955,11 @@ html.console-mode {
         display: flex;
         flex-direction: column;
         gap: .7rem;
-        padding: .9rem 1.2rem .6rem;
-        border-radius: .8rem;
-        /* DENSITY: a decision surface, not a translucent overlay — the board
-           must not read through the rows (the premium material language is
-           depth + edge light, never see-through panels). */
-        background:
-            linear-gradient(160deg, fade(@con-cyan, 6%), transparent 42%),
-            rgba(10, 16, 25, 0.985);
-        box-shadow:
-            inset 0 0 0 .05rem fade(@con-cyan, 38%),
-            inset 0 .05rem 0 rgba(255, 255, 255, 0.05),
-            0 1.1rem 3.5rem rgba(0, 0, 0, 0.6);
+        /* THE STAGE SURFACE (perimeter shell) — square scene welded right,
+           content on the shared safe-inset guide. Density note stands: a
+           decision surface, never see-through. */
+        padding: .9rem var(--con-hud-pad-x, 1.2rem) .6rem 1.2rem;
+        .con-stage-surface();
         /* Entry moved to the surface-motion director. */
     }
 
@@ -7988,10 +8033,9 @@ html.con-profile-handheld .con-mafocus {
         gap: .7rem;
         .con-ws-fill();
         max-height: 100%;
-        padding: .9rem 1.1rem .7rem;
-        border-radius: .7rem;
-        background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%), 0 1.2rem 3.5rem rgba(0, 0, 0, 0.6);
+        /* THE STAGE SURFACE (perimeter shell) — see .con-stage-surface(). */
+        padding: .9rem var(--con-hud-pad-x, 1.1rem) .7rem 1.1rem;
+        .con-stage-surface();
     }
     /* ── THE STAGE WRAP: the browse layer and the flow's nested step are two
        stacked layers of ONE zone (never a v-if swap). The browse layer PARKS
@@ -8503,14 +8547,16 @@ html.con-profile-handheld .con-mafocus {
    geometry can never jump. */
 .con-strat {
     flex-shrink: 0;
-    width: var(--con-rail-w, 9.1rem); /* seam token — the left rail's twin */
+    /* THE RIGHT HULL MEMBER — the left rail's mirror: chassis to the
+       physical right edge, content at the safe inset, --con-rail-w wide. */
+    width: var(--con-rail-outer-w, 10.7rem); /* seam token — the left rail's twin */
     align-self: stretch;
     display: flex;
     flex-direction: column;
-    padding: .5rem .5rem .55rem;
-    border-radius: .6rem;
-    background: @con-glass-soft;
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%), 0 .4rem 1.3rem rgba(0, 0, 0, 0.35);
+    padding: .5rem calc(.5rem + var(--con-pad-x, 1.6vw)) .55rem .5rem;
+    border-radius: 0;
+    background: linear-gradient(270deg, rgba(4, 8, 13, 0.6), transparent calc(var(--con-pad-x, 1.6vw) + 1.2rem)) @con-glass-soft;
+    box-shadow: inset .06rem 0 0 fade(@con-cyan, 24%), -.35rem 0 1.2rem rgba(0, 0, 0, 0.35);
     overflow: hidden;
 
     &__zone {
@@ -8938,14 +8984,22 @@ html.con-profile-handheld .con-mafocus {
     right: 0;
     bottom: 0;
     z-index: 60;
-    width: min(28rem, 46%);
+    /* PERIMETER SHELL: a welded drawer — the chassis reaches the physical
+       edge (former gutter absorbed into the width + right padding), the
+       content box stays exactly where it was; inner corners only. */
+    width: min(calc(28rem + var(--con-pad-x, 1.6vw)), 48%);
+    padding-right: var(--con-pad-x, 1.6vw);
     display: flex;
     flex-direction: column;
-    border-radius: .6rem;
+    border-radius: .6rem 0 0 .6rem;
     /* P29: near-opaque — the surface REPLACES the right panel; nothing may
-       bleed through it (the panel underneath is also visibility-hidden). */
-    background: linear-gradient(180deg, rgba(11, 19, 29, 0.99), rgba(8, 14, 22, 0.99));
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 32%), -1rem 0 2.4rem rgba(0, 0, 0, 0.5);
+       bleed through it (the panel underneath is also visibility-hidden).
+       Drawer grammar: the accent sits on the stage-facing edge, the hull
+       darkens toward the physical edge — never a full ring. */
+    background:
+        linear-gradient(270deg, rgba(4, 8, 13, 0.5), transparent calc(var(--con-pad-x, 1.6vw) + 1.2rem)),
+        linear-gradient(180deg, rgba(11, 19, 29, 0.99), rgba(8, 14, 22, 0.99));
+    box-shadow: inset .06rem 0 0 fade(@con-cyan, 32%), inset 0 .05rem 0 rgba(190, 225, 255, 0.05), -1rem 0 2.4rem rgba(0, 0, 0, 0.5);
     font-family: @con-font;
     overflow: hidden;
     /* P29: the map-highlight PEEK (L3 «Показать») fades the whole surface
@@ -10252,7 +10306,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     top: 0;
     right: 0;
     bottom: 0;
-    left: calc(var(--con-rail-w, 9.1rem) + var(--con-main-gap, .6rem));
+    /* PERIMETER SHELL: `.con-main` spans the full viewport — the seam
+       coordinate is the shared token. */
+    left: var(--con-ws-left, 11.3rem);
     z-index: 11560;
     display: flex;
     align-items: stretch;
@@ -10269,16 +10325,16 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: flex;
         flex-direction: column;
         gap: .6rem;
-        padding: .9rem 1.3rem .6rem 1.5rem;
-        border-radius: .7rem;
-        /* Denser than @con-glass: the workspace covers LIVE surfaces (the
-           right dashboard, band sheets) — at 0.92 their bright rows ghosted
-           through the pane. Near-opaque body, same glass family. */
-        background: rgba(6, 11, 18, 0.97);
-        /* The left inset bar is the workspace half of the rail↔panel seam —
-           the same inspected-player accent as the rail's ring. */
+        /* THE STAGE SURFACE (perimeter shell): square scene welded right;
+           the right content line rides the shared safe-inset guide. */
+        padding: .9rem var(--con-hud-pad-x, 1.3rem) .6rem 1.5rem;
+        .con-stage-surface();
+        /* …plus the workspace half of the rail↔panel seam: the inspected
+           player's accent on the LEFT edge (recolors via con-insp-*) — it
+           REPLACES the mixin's neutral left hairline, same grammar. */
         box-shadow: inset .18rem 0 0 var(--con-insp-accent-soft, fade(@con-cyan, 45%)),
-            inset 0 0 0 .05rem fade(@con-cyan, 30%),
+            inset 0 .06rem 0 rgba(190, 225, 255, 0.055),
+            inset 0 -.05rem 0 rgba(110, 150, 190, 0.07),
             0 1.2rem 4rem rgba(0, 0, 0, 0.65);
         transition: box-shadow calc(200ms * var(--motion-scale, 1)) ease;
         /* Entry moved to the surface-motion director (the own dim stays —
@@ -10734,10 +10790,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: flex;
         flex-direction: column;
         gap: .45rem;
-        padding: .75rem 1.1rem .6rem;
-        border-radius: .7rem;
-        background: rgba(7, 12, 19, 0.96);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 .9rem 2.6rem rgba(0, 0, 0, 0.6);
+        /* THE STAGE SURFACE (perimeter shell) — see .con-stage-surface(). */
+        padding: .75rem var(--con-hud-pad-x, 1.1rem) .6rem 1.1rem;
+        .con-stage-surface();
     }
 
     /* ── EMBEDDED (a STEP of another workspace). The SHELL comes off and the
@@ -15323,10 +15378,12 @@ body.con-start-ceremony {
         transition: none !important;
     }
 
-    /* THE BOUNDED DEPLOYMENT — the system workspace band box. */
+    /* THE BOUNDED DEPLOYMENT — the system workspace band box (PERIMETER
+       SHELL: welded to the viewport's right edge like every stage; the
+       frame below carries the safe-inset content line). */
     &--bounded {
         padding-top: var(--con-ws-top, var(--con-band-top, 3.4rem));
-        padding-right: var(--con-pad-x, .9rem);
+        padding-right: 0;
         padding-bottom: var(--con-ws-bottom, var(--con-band-bottom, 3rem));
         padding-left: var(--con-ws-left, 11.3rem);
     }
@@ -15438,11 +15495,31 @@ body.con-start-ceremony {
         gap: .45rem;
     }
 
-    /* Bounded: the plate is the family workspace panel. FULLY opaque — the
-       board home's side panels must never ghost through the work surface on
-       a high-contrast panel (the shade behind carries the board dim). */
+    /* Bounded: the plate is the family workspace panel — THE STAGE SURFACE
+       (perimeter shell): square, welded right, safe-inset content line.
+       FULLY opaque body — the board home's side panels must never ghost
+       through the work surface (the shade behind carries the board dim). */
     &--bounded .con-start__frame {
-        background: #0a1119;
+        padding-right: var(--con-hud-pad-x, 1.2rem);
+        border-radius: 0;
+        background:
+            linear-gradient(90deg, rgba(12, 19, 29, 0.6), transparent 9rem),
+            #0a1119;
+        box-shadow:
+            inset 0 .06rem 0 rgba(190, 225, 255, 0.055),
+            inset .05rem 0 0 rgba(120, 160, 200, 0.13),
+            inset 0 -.05rem 0 rgba(110, 150, 190, 0.07),
+            0 .9rem 2.6rem rgba(0, 0, 0, 0.5);
+    }
+    /* The RESOLVED beat inside the bounded stage: the answer rides the
+       stage's left edge + top seam in mint (the welded grammar), never a
+       full ring around the scene. */
+    &--bounded&--resolved .con-start__frame {
+        box-shadow:
+            inset .18rem 0 0 fade(@con-mint, 55%),
+            inset 0 .06rem 0 rgba(190, 255, 225, 0.08),
+            inset 0 -.05rem 0 rgba(110, 190, 150, 0.1),
+            0 .9rem 2.6rem rgba(0, 0, 0, 0.5);
     }
     /* The final RESOLVED beat — the boundary answers in mint before the
        workspace releases the field (state, not decoration). */
@@ -20292,7 +20369,9 @@ html.console-mode {
     top: 0;
     right: 0;
     bottom: 0;
-    left: calc(var(--con-rail-w, 9.1rem) + var(--con-main-gap, .6rem));
+    /* PERIMETER SHELL: `.con-main` spans the full viewport now — the seam
+       coordinate is the shared token (rail chassis + the uniform joint). */
+    left: var(--con-ws-left, 11.3rem);
     z-index: 11480;
     display: flex;
     flex-direction: column;
@@ -20316,10 +20395,9 @@ html.console-mode {
         display: flex;
         flex-direction: column;
         gap: .55rem;
-        padding: .75rem 1.1rem .7rem;
-        border-radius: .7rem;
-        background: rgba(7, 12, 19, 0.96);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 42%), 0 .9rem 2.6rem rgba(0, 0, 0, 0.6);
+        /* THE STAGE SURFACE (perimeter shell) — see .con-stage-surface(). */
+        padding: .75rem var(--con-hud-pad-x, 1.1rem) .7rem 1.1rem;
+        .con-stage-surface();
     }
 
     /* ── Header — the SHARED workspace line (`.con-wshead`, rendered by
@@ -23466,7 +23544,7 @@ html .con-composer--stage.con-composer--colonystep {
    geometry itself (right of the rail) rides the seam tokens the profile
    already overrides on .con-main. */
 html.con-profile-handheld .con-cardactions {
-    .con-cardactions__frame { padding: .5rem .7rem .45rem; gap: .45rem; }
+    .con-cardactions__frame { padding: .5rem var(--con-hud-pad-x, .7rem) .45rem .7rem; gap: .45rem; }
     /* The Deck's control tier must stay ONE row: the LB/RB · LT/RT keycaps
        already identify the groups — the text labels are couch luxury
        (same call as .con-status__intel-label). */
@@ -23590,7 +23668,7 @@ html.con-profile-handheld {
     .con-root {
         --con-pad-x: 0.7vw;
         --con-hud-pad-x: calc(var(--con-pad-x) + .25rem);
-        --con-main-gap: .4rem;
+        /* (--con-main-gap rides the shared --con-hud-gap seam token now.) */
         --con-rail-w: 7.3rem;
     }
     .con-status {
@@ -23785,7 +23863,7 @@ html.con-profile-handheld {
 
     /* ── 7 · Y Information Workspace ─────────────────────────────── */
     .con-info {
-        &__frame { padding: .6rem .8rem .5rem 1rem; gap: .45rem; }
+        &__frame { padding: .6rem var(--con-hud-pad-x, .8rem) .5rem 1rem; gap: .45rem; }
         &__name { font-size: 1.15rem; }
         &__head { padding-bottom: .4rem; }
         &__grid { gap: .5rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -23827,7 +23905,7 @@ html.con-profile-handheld {
         &__view--terminal { padding-top: .1rem; padding-bottom: .1rem; }
     }
     .con-hand {
-        &__frame { padding: .5rem .7rem .45rem; gap: .45rem; border-radius: .6rem; }
+        &__frame { padding: .5rem var(--con-hud-pad-x, .7rem) .45rem .7rem; gap: .45rem; }
         &__browse { gap: .45rem; }
         &__shelf { padding: .3rem .2rem; }
         &__reason { font-size: .65rem; padding: .3rem .55rem; }

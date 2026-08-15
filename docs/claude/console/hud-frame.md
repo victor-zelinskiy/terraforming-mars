@@ -1,6 +1,57 @@
-# The HUD FRAME — two full-bleed horizontal rails, ONE height token
+# The HUD FRAME — the full-bleed PERIMETER SHELL, ONE height token
 
-*(2026-08-15 rework: «архитектурно-визуальный реворк верхнего и нижнего HUD-rail».)*
+*(2026-08-15 rework: «архитектурно-визуальный реворк верхнего и нижнего HUD-rail» + the same-day PERIMETER extension: «системный UI-архитектурный реворк внешнего shell».)*
+
+## THE PERIMETER MODEL (second pass, same day)
+
+The two horizontal rails turned out to be half of the system: the side
+rails and the workspaces still floated as rounded cards inside viewport
+gutters. The shell is now ONE cockpit hull:
+
+- **Four hull members weld to the viewport edges.** Top/bottom (below) plus
+  the LEFT resource rail and the RIGHT strategy rail: `.con-main` spans the
+  full width (`margin: 0`), a side rail's chassis is
+  `--con-rail-outer-w = --con-pad-x + --con-rail-w` wide with the extra as
+  `padding` toward the physical edge — **full-bleed chrome + safe-inset
+  content**, content boxes byte-identical to the floating era. Square
+  corners; ONE accent hairline on the stage-facing edge (the top rail's
+  bottom-line grammar, mirrored); a subtle hull-darkening gradient toward
+  the physical edge. The ws-mode lift and the info-mode accent recolor that
+  same edge — never a full ring.
+- **One seam.** `--con-main-gap: var(--con-hud-gap)` — every rail↔stage
+  joint is the same narrow void «expansion joint» (top/bottom/left/right of
+  the stage opening).
+- **A workspace SCREEN is a state of the central scene, not a modal.**
+  `.con-ws-band()` right edge is `0` (the viewport); the shared
+  `.con-stage-surface()` mixin re-dresses every full-screen workspace plate
+  (hand / colonies / card-actions / info / MA / std-projects / draft /
+  bounded start): square, welded right, machined top seam + quiet left/
+  bottom hairlines, `padding-right: var(--con-hud-pad-x)` puts the right
+  CONTENT line on the same guide as the top rail's content. The old bright
+  cyan ring + `border-radius .7rem` + `right: pad-x` — the «giant modal»
+  reading — are gone. DIALOGS (task cards, confirm, colinspect, govsupport,
+  sheets, composers) deliberately KEEP their centred-card shape.
+- **`--con-ws-left` = `--con-rail-outer-w + --con-main-gap`** — unchanged
+  meaning (the stage's left seam), and `.con-info` / `.con-cardactions`
+  anchor with it (they used the raw `rail-w + gap` pair before, which broke
+  the moment `.con-main` went full-width).
+- **Right-edge overlays are welded drawers**: `.con-journal` and
+  `.con-inspector` grow by `--con-pad-x` (chassis to the edge, content box
+  unchanged), round only their inner corners, and carry the same
+  edge-accent + hull-darkening grammar. `.con-played` (fixed band) welds
+  via `right: 0` + `padding-right: var(--con-hud-pad-x)` (reset to 0 in its
+  `--embedded` seat).
+- **TV width caps on filled panels are gone** (`.con-stdp__panel`,
+  `.con-ma__panel` → `width: 100%`): a capped centred panel inside a welded
+  band was the modal look reborn at 4K. Handheld/TV frame-padding ladders
+  keep the right component on `var(--con-hud-pad-x)`.
+- The hydro section stays plate-less (its track already lives on the open
+  void — the «scene» reading by construction); it only honours the shared
+  right content guide now.
+
+Guards: `tests/e2e/console-hud-frame.spec.ts` § 7–9 (rails at x=0 / x=vw
+with safe-inset content, ONE seam value on all three joints, the hand
+workspace welded + square + safe-inset + same rail seam as the board).
 
 The top status strip (`ConsoleStatusStrip` / `.con-status`) and the bottom
 command bar (the shell instance of `ConsoleCommandBar` inside `.con-footer`)

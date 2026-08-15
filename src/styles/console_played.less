@@ -20,9 +20,12 @@
     position: fixed;
     /* WORKSPACE-FAMILY geometry: the table starts right of the always-visible
        player rail (the ws seam token) — the rail keeps the resource context
-       while the tableau is browsed; the right edge follows the shell inset. */
+       while the tableau is browsed. PERIMETER SHELL: the band runs to the
+       viewport's right edge; the tableau itself keeps the safe-inset content
+       line through the root padding below. */
     left: var(--con-ws-left, 11.3rem);
-    right: var(--con-pad-x, 1.1rem);
+    right: 0;
+    padding-right: var(--con-hud-pad-x, 1.1rem);
     /* The MODAL-BAND bottom, floored at the historical 4.3rem dock-plate
        clearance (the table sits a touch higher than the bare bar band). */
     bottom: ~"max(var(--con-band-bottom, 4.3rem), 4.3rem)";
@@ -50,6 +53,8 @@
         min-width: 0;
         min-height: 0;
         align-items: stretch;
+        /* The HOST frame already carries the shell inset — no second one. */
+        padding-right: 0;
 
         .con-played__panel {
             flex: 1;

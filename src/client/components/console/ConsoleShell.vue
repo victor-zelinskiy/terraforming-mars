@@ -2469,6 +2469,26 @@ export default defineComponent({
       return slot === '' ? undefined : slot;
     },
     /**
+     * THE PLAY'S CHAIN STILL OWES AN EFFECT DECISION — a batch was only ONE
+     * effect of the press, and the server is still asking the other one.
+     *
+     * «Акведуки» draw three cards AND wake «Рециклон» in the SAME response:
+     * the batch presents first (surfaces go in turn), and the take is where
+     * the flow used to end — `result-detached`/`drawn-complete` released the
+     * claim and folded the workspace under a prompt that had been standing in
+     * `waitingFor` the whole time, so the decision then rose as a standalone
+     * band over the board. The same fact the colony resolution states with
+     * `colonyResolutionLive`: a claim is the CHAIN's ownership, and no single
+     * leg's end may release it while another leg is still owed.
+     *
+     * Structural on both sides (the server's `choiceContext` + a shape the
+     * adapter can present), and scoped to the play hosts — the only claims
+     * that admit `'effect'`.
+     */
+    playEffectOwed(): boolean {
+      return isPlayOutcomeHost(workspaceOutcomeState.host) && this.effectDecisionBelongsToWorkspace;
+    },
+    /**
      * THE DECISION SCREEN OWNS THIS PROMPT — it is on screen, OR briefly held
      * while the workspace that will host it publishes its zone.
      *
@@ -11502,8 +11522,34 @@ export default defineComponent({
       if (host === 'colonies' && this.colonyResolutionLive) {
         return;
       }
+      // …and a PLAY'S CHAIN outlives its batch the same way: the press also
+      // woke an optional EFFECT («Рециклон» answering the building tag), and
+      // that prompt has been standing in `waitingFor` since the play's own
+      // response. The claim stays — the decision teleports into this very zone
+      // once the intake settles, and the flow concludes when IT is answered
+      // (the reconciler's release → `handOutcomeLive`'s falling edge).
+      if (this.playEffectOwed) {
+        this.handEffectStageOn();
+        return;
+      }
       releaseWorkspaceOutcome('drawn-complete');
       this.foldWorkspaceAfterResult(host);
+    },
+    /**
+     * HAND THE CRUMB'S TAIL ON to the coming effect stage — at the take, not
+     * at the decision's mount. Between the batch leaving and the decision
+     * arriving nobody owns the tail (the reveal's name dies with it, the
+     * decision publishes a flush after its teleport), and falling back to the
+     * composer's parked «РАЗЫГРАНО» there is a step BACKWARDS through a flow
+     * that only moves forward — the same law the discard hand-off and the
+     * on-press branch already follow. Idempotent: the decision publishes the
+     * same key again on mount, and an unchanged string does not re-animate.
+     */
+    handEffectStageOn(): void {
+      const key = this.rawEffectDecisionVm?.stageKey ?? '';
+      if (key !== '') {
+        setWorkspaceOutcomePhase(key);
+      }
     },
     /**
      * The flow is FINISHED and its result is airborne — fold the WHOLE
@@ -11682,6 +11728,13 @@ export default defineComponent({
       // The colony RESOLUTION's claim spans every batch — same law as the
       // drawn-complete arm above.
       if (host === 'colonies' && this.colonyResolutionLive) {
+        return;
+      }
+      // …and so does a play chain still owing its EFFECT DECISION (this fires
+      // at the intake's staged seam, BEFORE `drawn-complete` — both ends of
+      // the take must hold, or the first one folds the workspace under it).
+      if (this.playEffectOwed) {
+        this.handEffectStageOn();
         return;
       }
       releaseWorkspaceOutcome('result-detached');

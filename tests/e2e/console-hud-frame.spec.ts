@@ -45,19 +45,25 @@ const PRESETS: ReadonlyArray<Preset> = [
   {id: 'tv-4k', viewport: {width: 3840, height: 2160}, profileQuery: '&consoleProfile=tv', profileClass: 'con-profile-tv'},
 ];
 
+type Box = {top: number, bottom: number, left: number, right: number, height: number, width: number};
+
 type FrameGeometry = {
   remPx: number;
   hudToken: string;
   hudPx: number;
   gapPx: number;
+  padXPx: number;
   rootPadding: string;
-  strip: {top: number, bottom: number, left: number, right: number, height: number};
+  strip: Box;
   stripComputedHeight: string;
-  bar: {top: number, bottom: number, left: number, right: number, height: number};
+  bar: Box;
   barComputedHeight: string;
-  main: {top: number, bottom: number, height: number};
-  resRail: {top: number, bottom: number, height: number} | undefined;
-  stratRail: {top: number, bottom: number, height: number} | undefined;
+  main: Box;
+  resRail: Box | undefined;
+  resContent: Box | undefined;
+  stratRail: Box | undefined;
+  stratContent: Box | undefined;
+  board: Box | undefined;
   plateTop: number | undefined;
   dockCardTop: number | undefined;
   boardStageBottom: number | undefined;
@@ -72,7 +78,7 @@ async function readFrameGeometry(page: Page): Promise<FrameGeometry> {
         return undefined;
       }
       const r = el.getBoundingClientRect();
-      return {top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height};
+      return {top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height, width: r.width};
     };
     const root = document.querySelector('.con-root') as HTMLElement;
     const rootCs = getComputedStyle(root);
@@ -80,6 +86,12 @@ async function readFrameGeometry(page: Page): Promise<FrameGeometry> {
     const hudToken = rootCs.getPropertyValue('--con-hud-h').trim();
     const gapToken = rootCs.getPropertyValue('--con-hud-gap').trim();
     const toPx = (token: string) => token.endsWith('rem') ? parseFloat(token) * remPx : parseFloat(token);
+    // --con-pad-x is vw/clamp-valued — resolve it through a probe element.
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;visibility:hidden;width:var(--con-pad-x,0px)';
+    root.appendChild(probe);
+    const padXPx = probe.getBoundingClientRect().width;
+    probe.remove();
     const strip = document.querySelector('.con-status') as HTMLElement;
     const bar = document.querySelector('.con-footer .con-cmdbar') as HTMLElement;
     const dockCard = document.querySelector('.con-handdock__card');
@@ -88,14 +100,18 @@ async function readFrameGeometry(page: Page): Promise<FrameGeometry> {
       hudToken,
       hudPx: toPx(hudToken),
       gapPx: toPx(gapToken),
+      padXPx,
       rootPadding: rootCs.padding,
       strip: rectOf('.con-status')!,
       stripComputedHeight: getComputedStyle(strip).height,
       bar: rectOf('.con-footer .con-cmdbar')!,
       barComputedHeight: getComputedStyle(bar).height,
       main: rectOf('.con-main')!,
-      resRail: rectOf('.con-res-host'),
+      resRail: rectOf('.con-res'),
+      resContent: rectOf('.con-res .con-score'),
       stratRail: rectOf('.con-strat'),
+      stratContent: rectOf('.con-strat__zone'),
+      board: rectOf('.con-board'),
       plateTop: rectOf('.con-handdock__plate')?.top,
       dockCardTop: dockCard === null ? undefined : dockCard.getBoundingClientRect().top,
       boardStageBottom: rectOf('.con-board__stage')?.bottom,
@@ -169,6 +185,63 @@ for (const preset of PRESETS) {
       // The rails never eat into the side panels.
       expect((g.resRail?.top ?? 0)).toBeGreaterThanOrEqual(g.strip.bottom - eps);
       expect((g.resRail?.bottom ?? vh)).toBeLessThanOrEqual(g.bar.top + eps);
+
+      // ── 7 · PERIMETER: the side rails are full-bleed hull members —
+      // chassis at the physical edges, content at the safe inset. ──
+      expect(g.resRail, 'left rail mounted').not.toBe(undefined);
+      expect(Math.abs(g.resRail?.left ?? 99), 'left rail chassis starts at x=0')
+        .toBeLessThanOrEqual(eps);
+      expect(g.resContent?.left ?? 0, 'left rail content stays at the safe inset')
+        .toBeGreaterThanOrEqual(g.padXPx - eps);
+      expect(g.stratRail, 'right rail mounted').not.toBe(undefined);
+      expect(Math.abs((g.stratRail?.right ?? 0) - vw), 'right rail chassis ends at the viewport edge')
+        .toBeLessThanOrEqual(eps);
+      expect(g.stratContent?.right ?? vw, 'right rail content stays at the safe inset')
+        .toBeLessThanOrEqual(vw - g.padXPx + eps);
+
+      // ── 8 · ONE seam rhythm: every rail↔stage joint is the same token. ──
+      const seamLeft = (g.board?.left ?? 0) - (g.resRail?.right ?? 0);
+      const seamRight = (g.stratRail?.left ?? vw) - (g.board?.right ?? vw);
+      const seamTop = g.main.top - g.strip.bottom;
+      expect(Math.abs(seamLeft - g.gapPx), `left seam ${seamLeft} == gap ${g.gapPx}`).toBeLessThanOrEqual(eps);
+      expect(Math.abs(seamRight - g.gapPx), `right seam ${seamRight} == gap ${g.gapPx}`).toBeLessThanOrEqual(eps);
+      expect(Math.abs(seamTop - g.gapPx), `top seam ${seamTop} == gap ${g.gapPx}`).toBeLessThanOrEqual(eps);
+
+      // ── 9 · a WORKSPACE is a state of the scene: its stage welds to the
+      // right edge, square (no modal card), content inside the safe inset. ──
+      for (let i = 0; i < 5 && await page.locator('.con-hand').count() === 0; i++) {
+        if (await page.locator('.con-zoom, .con-quick, .con-composer').count() > 0) {
+          await page.keyboard.press('Escape');
+          await page.waitForTimeout(700);
+          continue;
+        }
+        await page.keyboard.press('Period');
+        await page.waitForTimeout(700);
+        await page.keyboard.press('Enter');
+        await page.waitForTimeout(2000);
+      }
+      await expect(page.locator('.con-hand__frame')).toHaveCount(1, {timeout: 15_000});
+      const hand = await page.evaluate(() => {
+        const el = document.querySelector('.con-hand__frame');
+        if (el === null) {
+          return undefined;
+        }
+        const r = el.getBoundingClientRect();
+        const cs = getComputedStyle(el);
+        return {right: r.right, left: r.left, radius: cs.borderTopRightRadius, padRight: parseFloat(cs.paddingRight)};
+      });
+      expect(hand, 'the hand workspace frame is up').not.toBe(undefined);
+      expect(Math.abs((hand?.right ?? 0) - vw), 'the workspace stage welds to the right viewport edge')
+        .toBeLessThanOrEqual(eps);
+      expect(hand?.radius, 'the stage is square — a scene state, not a modal card').toBe('0px');
+      expect(hand?.padRight ?? 0, 'stage content keeps the safe inset')
+        .toBeGreaterThanOrEqual(g.padXPx - eps);
+      expect(Math.abs((hand?.left ?? 0) - ((g.resRail?.right ?? 0) + g.gapPx)),
+        'the workspace keeps the same rail seam as the board').toBeLessThanOrEqual(1 + eps);
+      fs.mkdirSync(path.join(OUT_ROOT, preset.id), {recursive: true});
+      await page.screenshot({path: path.join(OUT_ROOT, preset.id, 'hand-workspace.png')});
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(900);
 
       const outDir = path.join(OUT_ROOT, preset.id);
       fs.mkdirSync(outDir, {recursive: true});
