@@ -254,38 +254,59 @@ body.con-zoom-open .con-journal {
 }
 
 /* ── Root frame (overscan-safe) ──────────────────────────────────── */
+/* ═══ THE HUD FRAME — ONE height for BOTH horizontal rails ═══════════════
+   The top status strip and the bottom command bar are the two horizontal
+   borders of the console cockpit: full-bleed chrome welded to the viewport
+   edges (y=0 / y=100%), strictly EQUAL in height, with their content held
+   inside the safe horizontal inset. `--con-hud-h` is the ONE token both
+   rails consume — never two similar constants; borders and inner chrome
+   live INSIDE it (border-box). Defined on <html> (not .con-root) because
+   body-level floating layers (the notification stack, the teleported bot
+   review) anchor to the same numbers. Profiles override the TOKENS on
+   their own html.con-profile-* scope. */
+html.console-mode,
+html.console-native {
+    /* The shared rail height. The tallest residents — the player chips
+       (name line + status pill) and the 1.8rem global-parameter icons —
+       centre in one line with minimal breathing. */
+    --con-hud-h: 2.2rem;
+    /* Breathing between a rail and the central area: border + focus-ring
+       clearance and nothing more (the freed height goes to the board). */
+    --con-hud-gap: .3rem;
+    /* Legacy alias — the dock chassis + a few older consumers read the bar
+       height through this name. ONE source: the shared rail token. */
+    --con-bar-h: var(--con-hud-h);
+    /* ═══ THE MODAL BAND — the ONE layout contract of every console modal /
+       overlay ═══
+       The two rails are ALWAYS visible chrome (z 11706 / 11700): no decision
+       surface may lay its content under them. These two tokens describe the
+       reserved top/bottom viewport bands (rail + gap), and `.con-modal-band()`
+       positions a fixed overlay EXACTLY between them. DECISION surfaces use
+       the WORKSPACE variant `.con-ws-band()` (further docked right of the
+       player rail). Symmetric by construction — both derive from the one
+       rail height. */
+    --con-band-top: calc(var(--con-hud-h) + var(--con-hud-gap));
+    --con-band-bottom: calc(var(--con-hud-h) + var(--con-hud-gap));
+}
+
 .con-root {
     position: fixed;
     inset: 0;
     display: flex;
     flex-direction: column;
-    gap: .4rem;
-    /* Feedback iteration 2: tighter chrome — the freed height goes to the board.
-       The horizontal inset is a TOKEN: the workspace band derives its left
-       edge from it (profiles override the token, the padding follows). */
+    gap: var(--con-hud-gap);
+    /* FULL-BLEED FRAME: the root carries NO padding — the two rails run to
+       the physical viewport edges; the horizontal inset lives on `.con-main`
+       (margin) and INSIDE the rails (content padding). The inset stays a
+       TOKEN: the workspace band derives its left edge from it. */
     --con-pad-x: 1.6vw;
-    padding: 1.2vh var(--con-pad-x) 1vh;
+    /* The rails' own content inset: safe area + a hair of breathing, so
+       chips/hints never start hard at the screen edge. */
+    --con-hud-pad-x: calc(var(--con-pad-x) + .35rem);
+    padding: 0;
     font-family: @con-font;
     color: @con-text;
     z-index: 40;
-
-    /* ═══ THE MODAL BAND — the ONE layout contract of every console modal /
-       overlay ═══
-       The top HUD strip and the bottom command bar are ALWAYS visible chrome
-       (z 11706 / 11700): no decision surface may lay its content under them.
-       These two tokens describe the reserved top/bottom viewport bands
-       (root padding + bar + column gap + breathing), and `.con-modal-band()`
-       below positions a fixed overlay EXACTLY between them. DECISION surfaces
-       use the WORKSPACE variant `.con-ws-band()` (further docked right of the
-       player rail) — the two bands share the vertical contract, so surfaces
-       exchanging places still agree on their geometry. The bare modal band
-       remains for the command wheel + cinematic layers only.
-       Profile overrides (Deck footer / TV safe-area) adjust the SAME tokens —
-       never a per-overlay constant again. `--con-bar-h` lives HERE (not on
-       .con-footer) so the bottom band derives from it; the footer inherits. */
-    --con-bar-h: 2.6rem;
-    --con-band-top: calc(1.2vh + 3.1rem);
-    --con-band-bottom: calc(1vh + .6rem + var(--con-bar-h));
 
     /* ONE source for the rail↔workspace seam geometry (hoisted from .con-main
        so FIXED workspace-band overlays can read it too): the rail's width,
@@ -1224,10 +1245,19 @@ body.con-zoom-open .con-journal {
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
-    padding: .3rem .9rem;
-    border-radius: .5rem;
+    /* THE TOP RAIL of the cockpit frame: a fixed one-line height from the
+       SHARED rail token (strictly equal to the command bar's — the
+       architectural invariant), full-bleed to the viewport's top/left/right
+       edges. Content keeps the safe inset; borders live INSIDE the height. */
+    box-sizing: border-box;
+    height: var(--con-hud-h, 2.7rem);
+    padding: 0 var(--con-hud-pad-x, .9rem);
+    border-radius: 0;
     background: @con-glass-soft;
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%), 0 .4rem 1.3rem rgba(0, 0, 0, 0.35);
+    /* Full-bleed band: the frame accent sits on the BOTTOM edge (the seam
+       toward the game), never an outer ring — the top/left/right edges ARE
+       the screen's. box-shadow only (perf-lite safe). */
+    box-shadow: inset 0 -.06rem 0 fade(@con-cyan, 26%), 0 .35rem 1.2rem rgba(0, 0, 0, 0.35);
     /* The top HUD is chrome — the hand-dock CARDS must NEVER paint over it, in
        any state. The dock rides the footer band (z11700, card pack z11705) or,
        under a workspace/scene, drops to z0; either way this sits ABOVE it, so
@@ -1303,17 +1333,24 @@ body.con-zoom-open .con-journal {
         display: flex;
         align-items: center;
         gap: .7rem;
-        flex-wrap: wrap;
+        /* ONE LINE by contract — the rail is a fixed-height border of the
+           screen, so a second chip row can no longer grow it. Chips SHRINK
+           instead (the name ellipsizes) on crowded tables. */
+        flex-wrap: nowrap;
+        min-width: 0;
     }
     &__player {
         display: inline-flex;
         align-items: center;
         gap: .45rem;
-        padding: .3rem .7rem;
+        /* Compact vertical rhythm: the chip is the rail's tallest resident —
+           every saved padding px is board height. Fonts stay untouched. */
+        padding: .16rem .7rem;
         border-radius: .4rem;
         background: rgba(16, 26, 38, 0.66);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.22);
         font-size: 1rem;
+        min-width: 0;
 
         &--me {
             box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 65%), 0 0 .6rem fade(@con-cyan, 18%);
@@ -1370,6 +1407,12 @@ body.con-zoom-open .con-journal {
     &__pname {
         font-weight: 700;
         letter-spacing: .02rem;
+        /* Crowded-table degradation: the NAME gives way first (ellipsis),
+           the status pill and the counter never truncate. */
+        max-width: 9rem;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
     /* P27: the live status chip (ДЕЙСТВИЕ 1/2 / ОЖИДАЕТ / СПАСОВАЛ / …). */
     &__pstatus {
@@ -1494,16 +1537,17 @@ body.con-zoom-open .con-journal {
    percent deliberately carries no word label — its attachment to the
    trio IS the meaning. Venus sits OUTSIDE the group behind a divider
    (it is never part of the total); the generation block follows.
-   All three flex items share the same padding-bottom so their content
-   rows stay optically aligned while the rail lives in the group's
-   reserved underline zone. */
+   The underline no longer buys its own padding row: the group STRETCHES
+   to the rail's fixed height, content centres, and the underline anchors
+   just above the rail's bottom edge — merging with the frame's own
+   bottom accent instead of costing height. */
 .con-status {
     &__terra {
         position: relative;
         display: flex;
         align-items: center;
         gap: 1.3rem;
-        padding-bottom: .45rem;
+        align-self: stretch;
     }
     &__terra-pct {
         position: relative; // delta-chip anchor
@@ -1518,7 +1562,7 @@ body.con-zoom-open .con-journal {
         position: absolute;
         left: .1rem;
         right: .1rem;
-        bottom: 0;
+        bottom: .14rem;
         height: .15rem;
         border-radius: .1rem;
         overflow: hidden;
@@ -1552,14 +1596,12 @@ body.con-zoom-open .con-journal {
     /* Venus is deliberately SEPARATED from the shared rail group. */
     &__param--venus {
         padding-left: 1rem;
-        padding-bottom: .45rem;
         border-left: .05rem solid fade(@con-cyan, 25%);
     }
-    &__gen {
-        padding-bottom: .45rem;
-    }
-    /* Persistent FINAL GENERATION marker — the generation block turns gold
-       («ФИНАЛЬНОЕ ПКЛ.»). Calm and compact: state, not an announcement. */
+    /* Persistent FINAL GENERATION marker — the generation block turns gold.
+       COLOUR IS THE WHOLE SIGNAL: the label stays the ordinary «ПКЛ.» (same
+       text, same box, zero layout shift) — never an added word, badge or
+       icon. Calm state, not an announcement. */
     &__gen--final .con-status__gen-label {
         color: fade(@con-amber, 92%);
         text-shadow: 0 0 .4rem fade(@con-amber, 30%);
@@ -1574,6 +1616,17 @@ body.con-zoom-open .con-journal {
     16% { filter: drop-shadow(0 0 .7rem fade(@con-mint, 85%)); }
     52% { filter: drop-shadow(0 0 .35rem fade(@con-amber, 55%)); }
     100% { filter: drop-shadow(0 0 0 rgba(242, 193, 78, 0)); }
+}
+
+/* The rail is welded to y=0 now — a feedback chip that used to pop ABOVE
+   the readout would leave the screen. In the top rail the chips anchor
+   BELOW their cell instead: a transient overlay over the board's top edge
+   (the strip has no paint containment, z11706 keeps it above the main
+   area) — never a reason to grow the rail. */
+.con-status .metric-feedback-host--global-parameter,
+.con-status .metric-feedback-host--misc {
+    top: auto;
+    bottom: -1.35rem;
 }
 
 /* Delta-chip feedback in the top HUD — the SAME number-transition the
@@ -1723,9 +1776,9 @@ body.con-zoom-open .con-journal {
     align-items: center;
     gap: .55rem;
     padding-left: 1rem;
-    /* Optical alignment with the terra group / Venus / generation, which
-       all reserve the same underline zone. */
-    padding-bottom: .45rem;
+    /* (The old shared underline padding is gone — the whole params row
+       centres in the fixed-height rail; the terra underline anchors to the
+       rail's bottom edge instead of costing a padding row.) */
     border-left: .05rem solid fade(@con-cyan, 25%);
     pointer-events: none;
 
@@ -1808,9 +1861,10 @@ body.con-zoom-open .con-journal {
 .con-banner {
     /* P21: an OVERLAY, not a flow row — toggling the banner (placement /
        inspect / turn) must never move the planet. It floats centred just
-       under the status strip; the board keeps the freed height. */
+       under the status strip (anchored to the SHARED rail token, so every
+       profile follows automatically); the board keeps the freed height. */
     position: absolute;
-    top: calc(1.2vh + 2.5rem);
+    top: calc(var(--con-hud-h, 2.7rem) - .35rem);
     left: 50%;
     transform: translateX(-50%);
     /* The banner band (mandatory/critical bannerText + the pending-events chip)
@@ -1868,7 +1922,7 @@ body.con-zoom-open .con-journal {
    none — the board stays inspectable, the pad grammar lives elsewhere. */
 .con-drafttray {
     position: absolute;
-    top: calc(1.2vh + 2.9rem);
+    top: calc(var(--con-hud-h, 2.7rem) + .05rem);
     left: 50%;
     transform: translateX(-50%);
     z-index: 64;
@@ -2778,6 +2832,11 @@ html.con-profile-handheld .con-terracere {
        .con-root now — fixed workspace-band overlays read them too. */
     /* P29c: tighter side chrome — every saved px goes to the board scale. */
     gap: var(--con-main-gap);
+    /* FULL-BLEED FRAME: the root lost its horizontal padding (the rails run
+       edge to edge) — the central area keeps the inset as its own MARGIN
+       (margin, not padding: absolute overlays — journal / info workspace /
+       context panel — must keep anchoring to the same box edges). */
+    margin: 0 var(--con-pad-x);
     /* The console journal is an ABSOLUTE overlay anchored to this box —
        it may overlap the board, the board never reflows for it. */
     position: relative;
@@ -3458,12 +3517,14 @@ each(@players, {
        reserved just below. Mirrored in JS (the focus fit adds it to the
        usable height and re-centres by half of it). Keep the two in step. */
     --pfocus-bleed: 2.9rem;
-    /* HAND-DOCK clearance: the dock's pack rises ~3rem above the footer
-       into the main band's bottom centre. Reserving it HERE (the stage box
-       shrinks) lets the self-calibrating fit engine re-scale + re-centre
+    /* HAND-DOCK clearance: the dock's pack rises ~2.4rem above the bar into
+       the main band's bottom centre (static card tops sit at ≈4.85rem from
+       the viewport bottom; the main band now ends at ≈2.5rem — plus the
+       raised pose's .45rem lift and breathing). Reserving it HERE (the stage
+       box shrinks) lets the self-calibrating fit engine re-scale + re-centre
        the planet — the deliberate small board-scale trade the dock buys.
        The side panels keep their full height (the dock never reaches them). */
-    padding-bottom: 3.3rem;
+    padding-bottom: 3.05rem;
 
     &__stage {
         flex: 1;
@@ -9468,7 +9529,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 .con-notice {
     position: fixed;
     left: 50%;
-    bottom: 4.8rem;
+    bottom: calc(var(--con-band-bottom, 3.5rem) + 1.3rem);
     transform: translateX(-50%);
     /* Above the footer band (11700 — the command bar + the hand dock cards
        at 11705, which RISE past this toast's 4.8rem line when the pack is
@@ -9503,7 +9564,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     justify-content: space-between;
     gap: 1.2rem;
     padding: .5rem 1.2rem;
-    /* P21: a fixed one-line height — hint changes never reflow the board. */
+    /* P21: a fixed one-line height — hint changes never reflow the board.
+       (This is the STANDALONE bar the menus / bot review embed — a floating
+       card. The in-game shell instance is re-dressed as the full-bleed
+       BOTTOM RAIL below — `.con-root .con-footer > .con-cmdbar`.) */
     height: 2.6rem;
     box-sizing: border-box;
     border-radius: .5rem;
@@ -9718,8 +9782,23 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
        z now does the tucking, so the plate/counter never go under with it.) */
     position: relative;
     flex-shrink: 0;
-    /* --con-bar-h is defined on .con-root (the modal-band contract needs it);
-       the footer + dock read it through inheritance. */
+    /* --con-bar-h aliases the shared rail token (html scope — the modal-band
+       contract needs it); the footer + dock read it through inheritance. */
+}
+
+/* THE BOTTOM RAIL — the in-game shell instance of the command bar: the
+   cockpit frame's lower border. The SAME shared height token as the top
+   strip (strict equality is the architectural invariant, never two similar
+   constants), full-bleed to the bottom/left/right viewport edges, content
+   inside the safe inset, the frame accent on the TOP edge (the seam toward
+   the game). Three classes of specificity ON PURPOSE: the per-profile
+   `.con-cmdbar` height/padding overrides (the menus' floating-card bars)
+   must never re-dress the welded rail. */
+.con-root .con-footer > .con-cmdbar {
+    height: var(--con-hud-h, 2.7rem);
+    padding: 0 var(--con-hud-pad-x, .9rem);
+    border-radius: 0;
+    box-shadow: inset 0 .06rem 0 fade(@con-cyan, 28%), 0 -.3rem 1.2rem rgba(0, 0, 0, 0.35);
 }
 
 /* The hand dock — the permanent bottom-centre "hand of cards" presence
@@ -9739,7 +9818,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     right: 0;
     margin-left: auto;
     margin-right: auto;
-    bottom: .35rem;
+    /* Welded to the physical bottom edge with the full-bleed bar — the
+       chassis is PART of the rail now, not a float above it. */
+    bottom: 0;
     width: calc(var(--con-hd-bay, 16rem) - 1.6rem);
     height: calc(var(--hd-card-h, 4.4rem) + 1.5rem);
     /* Pack presentation knobs (the three poses retune them).
@@ -9772,7 +9853,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     /* ── shoulder rails: the bar's top rim flowing around the bay ── */
     &__wing {
         position: absolute;
-        bottom: calc(var(--con-bar-h, 2.6rem) - .35rem - .1rem);
+        bottom: calc(var(--con-bar-h, 2.6rem) - .1rem);
         width: 2.7rem;
         height: .12rem;
         border-radius: .06rem;
@@ -9794,7 +9875,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__pack {
         position: absolute;
         left: 50%;
-        bottom: .8rem;
+        /* Seated deeper toward the edge with the welded chassis — the cards
+           keep their read while the visible protrusion above the (thinner)
+           bar stays at the old ≈3rem. */
+        bottom: .45rem;
         width: 0; /* cards centre themselves around this axis */
         height: var(--hd-card-h);
         pointer-events: none;
@@ -9867,7 +9951,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         left: 0;
         right: 0;
         bottom: 0;
-        height: 2.7rem;
+        /* The plate is FLUSH with the bottom rail: one shared height token,
+           so the bay socket never pokes above the frame — only the CARDS
+           (the hand's identity) rise over it, as an overlay. */
+        height: var(--con-hud-h, 2.7rem);
         pointer-events: none;
         /* The CHASSIS counter — ABOVE the pack (z11704) so the card bottoms
            sink INTO the tray, and ABOVE `.con-main` (z1) so «КАРТЫ N/M» is
@@ -9898,7 +9985,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__status {
         position: absolute;
         left: 50%;
-        bottom: .26rem;
+        bottom: .45rem;
         transform: translateX(-50%);
         z-index: 201; /* on the plate, never under a card */
         display: inline-flex;
@@ -16179,7 +16266,8 @@ body.con-start-ceremony {
     /* THE MODAL BAND on top (the card's head never slides under the HUD
        strip); the BOTTOM keeps its own LARGER reserve — cards are taken ONE
        BY ONE here and each must visibly fly into a fully UNCOVERED dock
-       below the panel (dock top ≈ 6.25rem + breathing > the bar band). */
+       below the panel (static dock-card tops ≈ 4.85rem + breathing > the
+       bar band). */
     top: var(--con-band-top, 4.5rem);
     bottom: 0;
     left: 0;
@@ -16188,7 +16276,7 @@ body.con-start-ceremony {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding-bottom: 6.9rem;
+    padding-bottom: 5.6rem;
     font-family: @con-font;
     color: @con-text;
 
@@ -17170,7 +17258,9 @@ body.con-start-ceremony {
    TRANSIENT feed renders through ConsoleNotificationCard - the
    console-native presentation of the same model. Console-only. */
 html.console-mode .notifications-layer {
-    top: 5.4rem;
+    /* Anchored to the SHARED rail token (the strip is thinner now and welded
+       to y=0) — profiles follow automatically, no per-profile top anchors. */
+    top: calc(var(--con-hud-h, 2.7rem) + 1.9rem);
     right: 1rem;
     /* The desktop layer is a FIXED 340px box; the console card (.con-notif)
        is rem-sized and — on the TV profile — scales past that, so a fixed
@@ -19408,7 +19498,7 @@ body.con-start-barshold .con-status {
    holds a hostile loss / an AI turn. Sits BELOW the mandatory prompt card's
    band so the two never overlap. */
 .con-banner--events {
-    top: calc(1.2vh + 7.4rem);
+    top: calc(var(--con-hud-h, 2.7rem) + 4.55rem);
 
     .con-banner__count {
         font-weight: 700;
@@ -19439,7 +19529,7 @@ body.con-start-barshold .con-status {
    a soft one-shot entrance + a gentle idle pulse, never aggressive motion. */
 .con-mandatory {
     position: absolute;
-    top: calc(1.2vh + 4.6rem); /* the prompt band, below the status strip */
+    top: calc(var(--con-hud-h, 2.7rem) + 1.75rem); /* the prompt band, below the status strip */
     left: 50%;
     transform: translateX(-50%);
     z-index: 11962; /* a nose above the plain banner chips (see .con-banner) */
@@ -23490,36 +23580,40 @@ html.con-profile-handheld {
     --con-chip-c-radius: 0.42rem;
 
     /* ── 1/2 · root chrome + top HUD ─────────────────────────────── */
+    /* The HUD frame tokens (html scope — see the base declaration): the
+       Deck's rails compact with their content, the equality invariant
+       holds through the same one token. */
+    --con-hud-h: 1.7rem;
+    --con-hud-gap: .25rem;
     /* The seam TOKENS (not bare gap/width) — every workspace surface's left
        edge derives from them next to the rail; see .con-root. */
     .con-root {
         --con-pad-x: 0.7vw;
+        --con-hud-pad-x: calc(var(--con-pad-x) + .25rem);
         --con-main-gap: .4rem;
         --con-rail-w: 7.3rem;
-        padding: 0.6vh var(--con-pad-x);
-        gap: .25rem;
     }
     .con-status {
         gap: .6rem;
-        padding: .2rem .6rem;
 
         &__params { gap: .7rem; }
+        /* The 1.8rem param icons would burst the 1.7rem Deck rail. */
+        &__icon { width: 1.3rem; height: 1.3rem; }
         &__value { font-size: .8rem; }
-        &__terra { gap: .7rem; padding-bottom: .35rem; }
+        &__terra { gap: .7rem; }
         &__terra-pct { font-size: .65rem; }
-        &__terra-rail { height: .1rem; }
-        &__param--venus { padding-left: .6rem; padding-bottom: .35rem; }
-        &__gen { padding-bottom: .35rem; }
+        &__terra-rail { height: .1rem; bottom: .1rem; }
+        &__param--venus { padding-left: .6rem; }
         /* The «ПКЛ.» label stays VISIBLE on handheld (an earlier pass hid
            it — a bare number read as ambiguous), just compact. The gold
-           «ФИНАЛЬНОЕ ПКЛ.» final marker rides the same element. */
+           final-generation marker recolours the same element (colour only). */
         &__gen-label { font-size: .55rem; letter-spacing: .06rem; }
         &__intel { gap: .6rem; }
         &__intel-label { display: none; } /* icon + numbers suffice */
         &__intel-value { font-size: .8rem; b { font-size: .9rem; } }
         &__players { gap: .4rem; }
-        &__player { gap: .3rem; padding: .15rem .45rem; font-size: .7rem; }
-        &__pname { max-width: 4.4rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        &__player { gap: .3rem; padding: .1rem .45rem; font-size: .7rem; }
+        &__pname { max-width: 4.4rem; }
         &__pstatus { font-size: .575rem; padding: .05rem .3rem; gap: .2rem; }
         &__pstatus-counter { font-size: .65rem; }
         &__dot { width: .55rem; height: .55rem; }
@@ -23528,7 +23622,6 @@ html.con-profile-handheld {
     .con-deckstack {
         gap: .35rem;
         padding-left: .6rem;
-        padding-bottom: .35rem;
 
         &__pile { width: 1.05rem; height: 1.5rem; }
         &__count { font-size: .7rem; }
@@ -23555,6 +23648,9 @@ html.con-profile-handheld {
        block — see `html.con-profile-handheld .con-terracere`.) */
 
     /* ── 3 · bottom command bar + hand dock ──────────────────────── */
+    /* (height/padding here dress the MENUS' floating bars only — the shell's
+       welded bottom rail reads the shared token through the higher-
+       specificity `.con-root .con-footer > .con-cmdbar` rule.) */
     .con-cmdbar {
         gap: .7rem;
         padding: .3rem .7rem;
@@ -23584,7 +23680,7 @@ html.con-profile-handheld {
         &--bay .con-cmdbar__context { font-size: .7rem; }
         .gp-glyph { min-width: .85rem; height: .85rem; font-size: .475rem; }
     }
-    .con-root { --con-bar-h: 1.9rem; } /* the band-bottom token follows */
+    /* (--con-bar-h aliases the shared rail token at the html scope now.) */
     /* The dock compacts with the Deck footer (the bay itself narrows via
        the model's handDockBayRem — the shell writes --con-hd-bay). */
     .con-handdock {
@@ -23597,13 +23693,10 @@ html.con-profile-handheld {
            amount adapts. */
         --hd-compact-scale: .78;
         --hd-compact-sink: .08rem;
-        bottom: .3rem;
         width: calc(var(--con-hd-bay, 12.4rem) - 1.2rem);
         height: calc(var(--hd-card-h) + 1.2rem);
 
-        &__pack { bottom: .62rem; }
-        &__plate { height: 2.05rem; }
-        &__status { bottom: .2rem; gap: .32rem; }
+        &__status { bottom: .28rem; gap: .32rem; }
         &__status-label { font-size: .45rem; letter-spacing: .16rem; padding-left: .16rem; }
         &__num { font-size: .58rem; }
         &__sep { font-size: .52rem; }
@@ -23611,11 +23704,11 @@ html.con-profile-handheld {
     }
     /* The dock's rise is shallower on the Deck — hand the freed clearance
        back to the board (every px is board scale there). */
-    .con-board { padding-bottom: 2.9rem; }
-    /* The reveal raise follows the shorter Deck dock (top ≈ 5.15rem). */
-    .con-reveal { padding-bottom: 5.6rem; }
-    .con-reveal__card { max-height: calc(100vh - 7.2rem); }
-    .con-reveal__card--drawn { height: ~"min(42rem, calc(100vh - 7.2rem))"; }
+    .con-board { padding-bottom: 2.8rem; }
+    /* The reveal raise follows the shorter Deck dock (card tops ≈ 4.1rem). */
+    .con-reveal { padding-bottom: 4.8rem; }
+    .con-reveal__card { max-height: calc(100vh - 6.8rem); }
+    .con-reveal__card--drawn { height: ~"min(42rem, calc(100vh - 6.8rem))"; }
 
     /* ── 4 · right context + command panel (placement dossier) ───── */
     .con-inspector {

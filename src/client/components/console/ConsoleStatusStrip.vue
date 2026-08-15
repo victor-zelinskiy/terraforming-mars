@@ -119,10 +119,12 @@
       <ConsoleProjectDeck :deckSize="game.deckSize" :epoch="epoch" />
       <!-- The generation carries NO delta chip: the flip-swap alone is its
            announcement (and the console suppresses the desktop's "new
-           generation" toast — the HUD tick IS the event). Its beat goes
-           gold on the final generation, matching the persistent marker. -->
+           generation" toast — the HUD tick IS the event). The FINAL
+           generation changes COLOUR ONLY (the --final gold, matching the
+           flip accent): the label stays the ordinary «ПКЛ.» — same text,
+           same box, zero layout shift, no added word/badge/icon. -->
       <span class="con-status__gen" :class="{'con-status__gen--final': finalGeneration}">
-        <span class="con-status__gen-label">{{ $t(finalGeneration ? 'FINAL GEN.' : 'GEN.') }}</span>
+        <span class="con-status__gen-label">{{ $t('GEN.') }}</span>
         <span class="con-status__value">
           <ConsoleFlipValue :value="game.generation" :accent="finalGeneration ? 'gold' : 'cyan'" />
         </span>

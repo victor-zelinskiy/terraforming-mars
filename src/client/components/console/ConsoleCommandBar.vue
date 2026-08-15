@@ -137,11 +137,16 @@ export default defineComponent({
       }
       const remPx = 20 * (this.uiScale || 1);
       const wRem = this.vpWidth / remPx;
-      // Root horizontal padding per profile (console.less / console_tv.less).
+      // The rail's content inset (--con-hud-pad-x = --con-pad-x + breathing):
+      // the bar is FULL-BLEED now, so the whole horizontal inset lives on the
+      // bar itself (console.less / console_tv.less). rootPad mirrors
+      // --con-pad-x per profile (the TV estimate stays deliberately over the
+      // real clamp — conservative drops beat clipped labels), barPad the
+      // extra breathing.
       const rootPad = this.profile === 'tv' ?
         Math.min(3.4, Math.max(1, wRem * 0.032)) :
         wRem * (this.profile === 'handheld' ? 0.007 : 0.016);
-      const barPad = this.profile === 'handheld' ? 0.7 : 1.2;
+      const barPad = this.profile === 'handheld' ? 0.25 : 0.35;
       const halfRem = wRem / 2 - handDockBayRem(this.profile) / 2 - rootPad - barPad - 1;
       // The width estimate (`commandWidthRem`) is calibrated for the COMPACT
       // bay typography (label .95rem / glyph 1.3rem). The TV profile renders

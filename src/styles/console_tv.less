@@ -55,9 +55,18 @@ html.con-profile-tv {
        feedback: the first 3.2% pass pushed the side panels visibly off
        the edges). vw/vh measure the PHYSICAL viewport, the rem clamps
        scale with the profile. ONE source: root chrome + floating layers
-       consume these; components never add their own second safe inset. */
+       consume these; components never add their own second safe inset.
+       (Since the HUD-frame rework the rails are FULL-BLEED — the safe area
+       applies to the rails' CONTENT and the central column, never as an
+       outer margin of the frame itself.) */
     --con-safe-x: ~"clamp(0.9rem, 1.8vw, 2.6rem)";
     --con-safe-y: ~"clamp(0.7rem, 1.8vh, 2rem)";
+    /* THE HUD FRAME (shared rail height — see console.less): the couch
+       readout sizes (1.9rem param icons / 1.4rem values / 1.15rem chips)
+       centre in one line; the equality of the two rails rides the ONE
+       token. */
+    --con-hud-h: 2.3rem;
+    --con-hud-gap: .35rem;
     /* Couch type scale (logical px / 20). */
     --con-t-hero: 2.2rem;      /* 44 — key numeric readouts */
     --con-t-title: 1.8rem;     /* 36 — screen/panel titles */
@@ -112,14 +121,14 @@ html.con-profile-tv.console-native .gp-glyph {
 /* ═══ 1 · ROOT FRAME + SAFE AREA ══════════════════════════════════ */
 html.con-profile-tv {
     .con-root {
+        /* The rails run full-bleed (root padding stays 0 — base rule); the
+           rails' CONTENT inset follows the safe area through --con-hud-pad-x,
+           whose base calc resolves against this override on the same element. */
         --con-pad-x: var(--con-safe-x);
-        padding: var(--con-safe-y) var(--con-pad-x) calc(var(--con-safe-y) * 0.7);
-        gap: 0.45rem;
     }
-    /* Floating chrome anchored to the old 1.2vh root inset follows the
-       safe area instead (single-source rule). */
-    .con-banner { top: calc(var(--con-safe-y) + 2.7rem); }
-    .con-drafttray { top: calc(var(--con-safe-y) + 3.1rem); }
+    /* (Floating chrome — banner / draft tray / mandatory plate — anchors to
+       the shared --con-hud-h token in the base rules; no per-profile
+       re-anchors needed since the safe area left the vertical axis.) */
     /* (The terraforming ceremony is a fixed full-screen centre stage —
        no safe-area anchor needed; couch-scale bump below.) */
     .con-terracere__name { font-size: 2.4rem; }
@@ -127,8 +136,6 @@ html.con-profile-tv {
 
     /* ═══ 2 · STATUS STRIP (top HUD) — readable, never board-hungry ═ */
     .con-status {
-        padding: 0.35rem 1rem;
-
         &__icon { width: 1.9rem; height: 1.9rem; }
         &__value { font-size: 1.4rem; }
         &__gen-label { font-size: 0.85rem; }
@@ -229,9 +236,9 @@ html.con-profile-tv {
     .con-journal__controls .gp-glyph { min-width: 1.55rem; height: 1.25rem; font-size: var(--con-t-floor); }
 
     /* ═══ 5 · COMMAND BAR (controller hints — must read from the couch) ═ */
+    /* (The shell's welded rail reads the shared --con-hud-h token; the
+       standalone menu bars keep their base height. Only type moves here.) */
     .con-cmdbar {
-        height: 2.9rem;
-
         &__context { font-size: 1.15rem; }
         &__label { font-size: 1.15rem; }
         &__badge { min-width: 1.35rem; height: 1.35rem; font-size: 0.8rem; }
@@ -243,14 +250,8 @@ html.con-profile-tv {
         }
     }
     /* Footer bay + hand dock: rem geometry scales with the profile for
-       free — only the bar-height mirror and the couch count bump move. */
-    .con-root {
-        --con-bar-h: 2.9rem;
-        /* The TV root swaps its padding to the safe area — the modal band
-           follows the SAME source (strip ≈2.6rem + gap + breathing). */
-        --con-band-top: calc(var(--con-safe-y) + 3.3rem);
-        --con-band-bottom: calc(var(--con-safe-y) * 0.7 + .6rem + var(--con-bar-h));
-    }
+       free (--con-bar-h and the band tokens all derive from the shared
+       --con-hud-h at the html scope) — only the couch count bump moves. */
     /* Couch bump for the dock's status line (label + n/m digits) — held to
        the type floor (§3.4): service text, but still read from the couch. */
     .con-handdock__status-label { font-size: var(--con-t-floor); }
@@ -1463,7 +1464,7 @@ html.con-profile-tv .boot-loader__panel {
 
 /* ═══ 25 · NOTIFICATION LAYER placement (safe-area aware) ═════════ */
 html.console-mode.con-profile-tv .notifications-layer {
-    top: calc(var(--con-safe-y) + 4.4rem);
+    /* (top rides the shared --con-hud-h anchor from the base rule.) */
     right: var(--con-safe-x);
 }
 html.con-profile-tv.console-mode .notifications-layer.notifications-layer--journal-open {

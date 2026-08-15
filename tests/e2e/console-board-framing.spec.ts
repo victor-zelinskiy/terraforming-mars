@@ -89,17 +89,24 @@ type Sample = {
 
 /**
  * A PER-FRAME in-page recorder. `docs/claude/console/planet-focus.md` is
- * explicit that this class of bug is diagnosed with an rAF trace and not by
- * reading code — a Playwright poll (~60ms/round trip) is far too coarse to
- * see a 300ms glide start, and coarse sampling is what made the previous
- * three fixes here guesses.
+ * explicit that this class of bug is diagnosed with a fine-grained trace and
+ * not by reading code — a Playwright poll (~60ms/round trip) is far too
+ * coarse to see a 300ms glide start, and coarse sampling is what made the
+ * previous three fixes here guesses.
+ *
+ * ⚠️ setInterval, NEVER requestAnimationFrame (the console-ui probe rule):
+ * headless Chromium drives rAF off the compositor, so an rAF sampler stops
+ * sampling exactly when the screen goes quiet — which is when a framing bug
+ * would fire. This probe shipped on rAF and starved to ≤5 live frames per
+ * round trip at 4K (the «no live frames captured» flake) while the framing
+ * itself was perfectly still. 16ms lands on the same per-frame granularity
+ * whenever frames ARE being produced.
  */
 async function startTrace(page: Page): Promise<void> {
   await page.evaluate(() => {
     const w = window as unknown as {__planetTrace?: Array<unknown>, __planetStop?: () => void};
     w.__planetTrace = [];
     const t0 = performance.now();
-    let raf = 0;
     const tick = () => {
       const r = (el: Element | null) => {
         if (el === null) {
@@ -122,10 +129,10 @@ async function startTrace(page: Page): Promise<void> {
         tf: cont === null ? 'none' : getComputedStyle(cont).transform,
         cls: board === null ? 'unmounted' : board.className,
       });
-      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    w.__planetStop = () => cancelAnimationFrame(raf);
+    const timer = window.setInterval(tick, 16);
+    tick();
+    w.__planetStop = () => window.clearInterval(timer);
   });
 }
 

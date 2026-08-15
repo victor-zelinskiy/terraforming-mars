@@ -10,7 +10,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 /** `awaited` = the server is waiting on the VIEWER (their chip reads active). */
-function view(opts: {awaited?: boolean} = {}): PlayerViewModel {
+function view(opts: {awaited?: boolean, isTerraformed?: boolean} = {}): PlayerViewModel {
   const awaited = opts.awaited ?? true;
   const players = [
     {color: 'red', name: 'Вы', actionsTakenThisRound: 0, isActive: awaited, isWaitingForInput: awaited},
@@ -29,14 +29,14 @@ function view(opts: {awaited?: boolean} = {}): PlayerViewModel {
       deckSize: 100,
       phase: Phase.ACTION,
       passedPlayers: [],
-      isTerraformed: false,
+      isTerraformed: opts.isTerraformed ?? false,
       lastSoloGeneration: 14,
       gameOptions: {expansions: {venus: false}},
     },
   } as unknown as PlayerViewModel;
 }
 
-function mountStrip(engageMs: number, opts: {awaited?: boolean} = {}) {
+function mountStrip(engageMs: number, opts: {awaited?: boolean, isTerraformed?: boolean} = {}) {
   return mount(ConsoleStatusStrip, {
     global: {
       ...globalConfig.global,
@@ -126,5 +126,32 @@ describe('ConsoleStatusStrip attention beacon', () => {
     await w.setProps({playerView: view({awaited: false})});
     await w.vm.$nextTick();
     expect(w.find('.con-status__beacon').exists()).to.be.false;
+  });
+});
+
+// The FINAL generation is signalled by COLOUR ONLY (the --final gold on the
+// same element): the label stays the ordinary «GEN.» — same text, same box,
+// zero layout shift, never an added word/badge/icon. The English key IS the
+// i18n key, so asserting the raw label also pins every locale: a locale can
+// only translate the ONE ordinary key.
+describe('ConsoleStatusStrip generation label', () => {
+  it('ordinary generation: the «GEN.» label without the final marker class', () => {
+    const w = mountStrip(5);
+    const gen = w.find('.con-status__gen');
+    expect(gen.exists()).to.be.true;
+    expect(gen.find('.con-status__gen-label').text()).to.equal('GEN.');
+    expect(gen.classes()).to.not.include('con-status__gen--final');
+  });
+
+  it('FINAL generation: the SAME «GEN.» label — colour class is the whole signal', () => {
+    const w = mountStrip(5, {isTerraformed: true});
+    const gen = w.find('.con-status__gen');
+    expect(gen.classes()).to.include('con-status__gen--final');
+    // Same text, no added word — «ФИНАЛЬНОЕ» (or any other marker) may not
+    // reappear in any locale: the one key rendered is the ordinary one.
+    expect(gen.find('.con-status__gen-label').text()).to.equal('GEN.');
+    expect(gen.text()).to.not.match(/FINAL/i);
+    // No extra badge/icon nodes joined the block for the final state.
+    expect(gen.findAll('.con-status__gen-label').length).to.equal(1);
   });
 });
