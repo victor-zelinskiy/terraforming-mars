@@ -270,6 +270,18 @@ html.console-native {
        (name line + status pill) and the 1.8rem global-parameter icons —
        centre in one line with minimal breathing. */
     --con-hud-h: 2.2rem;
+    /* ═══ THE EDGE TOKEN — the ONE optical inset from the physical viewport
+       edge, mirrored left/right ═══
+       Every hull member derives its horizontal edge geometry from this one
+       value: the beams' content padding (--con-hud-pad-x), the side rails'
+       hull depth (--con-rail-outer-w) and their instrument-plate bleed
+       compensations, the welded drawers, the notification stack. It is a
+       small OPTICAL pad, not a reserved gutter: the former vw/safe-area
+       band (~1.6–2.6rem) survived the full-bleed rework as a dead stripe
+       INSIDE every bar — chassis at the edge, content still at the old
+       floating-era line. Defined on <html> (like --con-hud-h) because
+       body-level floating layers anchor to the same edge. */
+    --con-edge-x: .6rem;
     /* Breathing between a rail and the central area: border + focus-ring
        clearance and nothing more (the freed height goes to the board). */
     --con-hud-gap: .3rem;
@@ -298,26 +310,30 @@ html.console-native {
     /* FULL-BLEED FRAME: the root carries NO padding — the two rails run to
        the physical viewport edges; the horizontal inset lives on `.con-main`
        (margin) and INSIDE the rails (content padding). The inset stays a
-       TOKEN: the workspace band derives its left edge from it. */
-    --con-pad-x: 1.6vw;
+       TOKEN: the workspace band derives its left edge from it.
+       ONE MIRRORED EDGE SYSTEM: --con-pad-x IS the edge token now (the
+       html-scoped --con-edge-x) — a small optical pad, not the former
+       vw-sized viewport gutter. Everything that used to absorb the gutter
+       (hull widths, bleed compensations, drawer growth) shrinks with it;
+       the freed width belongs to the rails' CONTENT (--con-rail-w grew by
+       the same amount, so the hull members keep their outer footprint and
+       the board is untouched). */
+    --con-pad-x: var(--con-edge-x, .6rem);
     /* THE HORIZONTAL ALIGNMENT GRAMMAR: one first-content anchor for the
        whole shell. The beams' content (player chips, hints, readouts) and
-       the side rails' instrument column start on the SAME line — safe area
-       + the rail's own interior (panel pad .6 + row pad .5 ≈ 1.05rem). The
-       old «+ .35rem hair» was the deleted gutter's coordinate living on:
-       the chips started neither at the shell edge nor on any line the rest
-       of the cockpit used. */
+       the side rails' instrument column start on the SAME line — the edge
+       pad + the rail's own interior (panel pad .6 + row pad .5 ≈ 1.05rem). */
     --con-hud-pad-x: calc(var(--con-pad-x) + 1.05rem);
-    /* ═══ TWO-LEVEL SAFE AREA ═══
-       CONTENT-SAFE (--con-hud-pad-x): text, controller hints, prices, every
-       interactive control — nothing a TV overscan may crop.
-       VISUAL-STAGE (--con-stage-x): the SMALLER inset large VISUAL objects
-       are allowed to approach the physical edge with — card galleries, icon
-       plates, grids, hero objects, decorative chrome. One boundary is
-       protected by exactly ONE of these, never both stacked: a workspace
-       whose body uses the stage inset gives its status-rail TEXT the
-       difference back via --con-stage-gain. */
-    --con-stage-x: calc(var(--con-pad-x) * 0.55);
+    /* ═══ TWO-LEVEL EDGE ═══
+       CONTENT line (--con-hud-pad-x): text, controller hints, prices, every
+       interactive control — aligned with the rails' instrument column.
+       VISUAL-STAGE line (--con-stage-x): large VISUAL objects (card
+       galleries, icon plates, grids, hero objects, decorative chrome) sit
+       on the bare edge pad itself. One boundary is protected by exactly
+       ONE of these, never both stacked: a workspace whose body uses the
+       stage inset gives its status-rail TEXT the difference back via
+       --con-stage-gain. */
+    --con-stage-x: var(--con-pad-x);
     --con-stage-gain: calc(var(--con-hud-pad-x) - var(--con-stage-x));
     /* ═══ THE STABLE STATUS-RAIL CONTRACT ═══
        Every workspace foot/status rail is a FIXED-height instrument: its
@@ -337,10 +353,14 @@ html.console-native {
        edges; every seam between a member and the central stage is the SAME
        narrow void joint (--con-hud-gap — one expansion-joint rhythm around
        the whole opening). A side rail's CONTENT stays --con-rail-w wide at
-       the safe inset; its CHASSIS additionally absorbs the former viewport
-       gutter (--con-rail-outer-w). Profiles override the tokens HERE — never
-       a per-surface constant. */
-    --con-rail-w: 9.1rem;
+       the edge inset; its CHASSIS additionally carries the small optical
+       pad toward the physical edge (--con-rail-outer-w). Profiles override
+       the tokens HERE — never a per-surface constant.
+       The rail width GREW by what the dead gutter gave back (9.1 + ~.9):
+       the outer footprint — and therefore the board — stays where it was,
+       while the instrument rows gain the width their content (4-digit
+       stocks, production chips, award duels) actually needs. */
+    --con-rail-w: 10rem;
     --con-rail-outer-w: calc(var(--con-pad-x) + var(--con-rail-w));
     --con-main-gap: var(--con-hud-gap);
     --con-ws-left: calc(var(--con-rail-outer-w) + var(--con-main-gap));
@@ -3138,7 +3158,7 @@ each(@players, {
     flex-direction: column;
     gap: var(--cr-panel-gap); /* tokenized — the aux column's top offset reuses it */
     padding: var(--cr-pad);
-    padding-left: calc(var(--cr-pad) + var(--con-pad-x, 1.6vw));
+    padding-left: calc(var(--cr-pad) + var(--con-pad-x, .6rem));
     /* Welded member: square corners (the screen edge is the shape); the
        hull darkens a touch toward the physical edge. The stage-facing
        accent lives on the HOST's ::after now (a faded-end gradient — see
@@ -3151,7 +3171,10 @@ each(@players, {
        empty background between the bezel and the instruments. The plate IS
        the rail now; the instruments sit ON it, slightly raised. */
     background:
-        linear-gradient(90deg, rgba(5, 9, 15, 0.9), rgba(11, 18, 28, 0.35) calc(var(--con-pad-x, 1.6vw) + 1.4rem), rgba(11, 18, 28, 0) 78%),
+        /* Hull darkening matched to the THIN edge pad (the old +1.4rem reach
+           was tuned for the retired vw gutter and put the instrument column
+           inside the dark zone — icons and values read as cropped). */
+        linear-gradient(90deg, rgba(5, 9, 15, 0.9), rgba(11, 18, 28, 0.35) calc(var(--con-pad-x, .6rem) + .55rem), rgba(11, 18, 28, 0) 78%),
         @con-glass-soft;
     /* Member caps: the TOP receives the beam's falling shadow (the post
        stands UNDER the beam — that overlap is the junction), the bottom
@@ -3176,9 +3199,17 @@ each(@players, {
         gap: var(--cr-rgap);
     }
     &__row {
-        display: flex;
+        /* THE ROW GRID — one fixed track shape for EVERY row:
+           `icon | value | production`. The icon track is the token box, the
+           value column flexes and right-aligns on one shared axis, the
+           production chip lives in its own content-sized end track — so it
+           can never be pushed past the plate by a wide value, and a wide
+           chip («+12») claims its width from the flexible middle instead
+           of overflowing the row. */
+        display: grid;
+        grid-template-columns: var(--cr-icon) minmax(0, 1fr) auto;
         align-items: center;
-        gap: .5rem;
+        column-gap: .4rem;
         /* ADAPTIVE (rail-stack policy): the instrument plate OWNS the hull
            zone the welded chassis gained — it bleeds toward the physical
            edge while the icon/value stay on the safe content line (the
@@ -3190,6 +3221,10 @@ each(@players, {
         background: rgba(16, 26, 38, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
     }
+    /* The value block sits at its column's right edge (content-sized, so
+       the delta-chip anchor — the stockwrap's right corner — stays put on
+       the shared axis whatever the digit count). */
+    &__stockwrap { justify-self: end; }
     &__icon {
         display: inline-block;
         width: var(--cr-icon);
@@ -3212,11 +3247,12 @@ each(@players, {
         text-align: right;
         font-variant-numeric: tabular-nums;
     }
-    /* Production chip — the classic brown TM production tile read. */
+    /* Production chip — the classic brown TM production tile read. Lives
+       in the row grid's own end track (no margin push): whole by
+       construction, inside the plate's right padding. */
     &__prod {
-        margin-left: auto;
         min-width: 2rem;
-        padding: .15rem .4rem;
+        padding: .15rem .3rem;
         border-radius: .25rem;
         background: linear-gradient(180deg, #8a5a2b, #6b4520);
         box-shadow: inset 0 0 0 .05rem rgba(255, 220, 170, 0.35), 0 .1rem .25rem rgba(0, 0, 0, 0.45);
@@ -3650,11 +3686,11 @@ each(@players, {
     bottom: 0;
     z-index: 50;
     width: 26%;
-    min-width: calc(17rem + var(--con-pad-x, 1.6vw));
-    max-width: calc(22rem + var(--con-pad-x, 1.6vw));
-    padding: .8rem calc(.9rem + var(--con-pad-x, 1.6vw)) .8rem .9rem;
+    min-width: calc(17rem + var(--con-pad-x, .6rem));
+    max-width: calc(22rem + var(--con-pad-x, .6rem));
+    padding: .8rem calc(.9rem + var(--con-pad-x, .6rem)) .8rem .9rem;
     border-radius: .6rem 0 0 .6rem;
-    background: linear-gradient(270deg, rgba(4, 8, 13, 0.5), transparent calc(var(--con-pad-x, 1.6vw) + 1.2rem)) @con-glass;
+    background: linear-gradient(270deg, rgba(4, 8, 13, 0.5), transparent calc(var(--con-pad-x, .6rem) + 1.2rem)) @con-glass;
     box-shadow: inset .06rem 0 0 fade(@con-cyan, 28%), inset 0 .05rem 0 rgba(190, 225, 255, 0.05), -.6rem 0 1.8rem rgba(0, 0, 0, 0.45);
     overflow-y: auto;
     scrollbar-width: thin;
@@ -9013,13 +9049,15 @@ html.con-profile-handheld .con-mafocus {
     display: flex;
     flex-direction: column;
     position: relative; /* the faded-end accent below anchors to the member */
-    padding: .5rem calc(.5rem + var(--con-pad-x, 1.6vw)) .55rem .5rem;
+    padding: .5rem calc(.5rem + var(--con-pad-x, .6rem)) .55rem .5rem;
     border-radius: 0;
     /* One continuous engineered panel from the physical edge in (the left
        rail's material, mirrored) — no separate stripe of empty background
        between the bezel and the instruments. */
     background:
-        linear-gradient(270deg, rgba(5, 9, 15, 0.9), rgba(11, 18, 28, 0.35) calc(var(--con-pad-x, 1.6vw) + 1.4rem), rgba(11, 18, 28, 0) 78%),
+        /* Same thin-hull darkening as the left rail (mirrored): the value
+           column must sit on the LIT plate, never inside the edge shade. */
+        linear-gradient(270deg, rgba(5, 9, 15, 0.9), rgba(11, 18, 28, 0.35) calc(var(--con-pad-x, .6rem) + .55rem), rgba(11, 18, 28, 0) 78%),
         @con-glass-soft;
     /* Member caps — the left rail's grammar, mirrored: the top receives
        the beam's falling shadow, the accent hairline fades at both ends
@@ -9213,7 +9251,7 @@ html.con-profile-handheld .con-mafocus {
            HALF the rail between the beams — the plate may not tax the
            zone's height budget (the .12rem pair overflowed the fifth row
            under the bottom beam at 2160). */
-        padding: .08rem calc(.4rem + var(--con-pad-x, 0vw)) .08rem .25rem;
+        padding: .08rem calc(.5rem + var(--con-pad-x, 0vw)) .08rem .25rem;
         border-radius: .4rem 0 0 .4rem;
         background: rgba(16, 26, 38, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
@@ -9511,8 +9549,8 @@ html.con-profile-handheld .con-mafocus {
     /* PERIMETER SHELL: a welded drawer — the chassis reaches the physical
        edge (former gutter absorbed into the width + right padding), the
        content box stays exactly where it was; inner corners only. */
-    width: min(calc(28rem + var(--con-pad-x, 1.6vw)), 48%);
-    padding-right: var(--con-pad-x, 1.6vw);
+    width: min(calc(28rem + var(--con-pad-x, .6rem)), 48%);
+    padding-right: var(--con-pad-x, .6rem);
     display: flex;
     flex-direction: column;
     border-radius: .6rem 0 0 .6rem;
@@ -9521,7 +9559,7 @@ html.con-profile-handheld .con-mafocus {
        Drawer grammar: the accent sits on the stage-facing edge, the hull
        darkens toward the physical edge — never a full ring. */
     background:
-        linear-gradient(270deg, rgba(4, 8, 13, 0.5), transparent calc(var(--con-pad-x, 1.6vw) + 1.2rem)),
+        linear-gradient(270deg, rgba(4, 8, 13, 0.5), transparent calc(var(--con-pad-x, .6rem) + 1.2rem)),
         linear-gradient(180deg, rgba(11, 19, 29, 0.99), rgba(8, 14, 22, 0.99));
     box-shadow: inset .06rem 0 0 fade(@con-cyan, 32%), inset 0 .05rem 0 rgba(190, 225, 255, 0.05), -1rem 0 2.4rem rgba(0, 0, 0, 0.5);
     font-family: @con-font;
@@ -24446,18 +24484,19 @@ html.con-profile-handheld {
        holds through the same one token. */
     --con-hud-h: 1.7rem;
     --con-hud-gap: .25rem;
+    /* The Deck's edge pad (html scope, like the base token): compact
+       optical inset — the rails' content takes the freed width. */
+    --con-edge-x: .45rem;
     /* The seam TOKENS (not bare gap/width) — every workspace surface's left
        edge derives from them next to the rail; see .con-root. */
     .con-root {
-        --con-pad-x: 0.7vw;
         /* The Deck's first-content anchor (rail interior .4 + .35 + a hair)
            — the same alignment grammar, compacted. */
         --con-hud-pad-x: calc(var(--con-pad-x) + .85rem);
         /* (--con-main-gap rides the shared --con-hud-gap seam token now.) */
-        --con-rail-w: 7.3rem;
-        /* The Deck has no overscan: the stage inset collapses toward the
-           edge, and the fixed foot compacts with the chrome. */
-        --con-stage-x: calc(var(--con-pad-x) * 0.5);
+        /* Grew by the retired gutter's width — outer footprint unchanged. */
+        --con-rail-w: 7.55rem;
+        /* (--con-stage-x rides the shared edge pad — base rule.) */
         --con-ws-foot-h: 2.1rem;
     }
     .con-status {

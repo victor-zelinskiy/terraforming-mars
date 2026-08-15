@@ -1,6 +1,45 @@
 # The HUD FRAME — the full-bleed PERIMETER SHELL, ONE height token
 
-*(2026-08-15 rework: «архитектурно-визуальный реворк верхнего и нижнего HUD-rail» + the same-day PERIMETER extension: «системный UI-архитектурный реворк внешнего shell».)*
+*(2026-08-15 rework: «архитектурно-визуальный реворк верхнего и нижнего HUD-rail» + the same-day PERIMETER extension: «системный UI-архитектурный реворк внешнего shell»; 2026-08-16: the MIRRORED EDGE SYSTEM — the reserved gutter retired.)*
+
+## THE MIRRORED EDGE SYSTEM (fifth pass — the dead gutter removed)
+
+**One edge token, `--con-edge-x`, on the html scope** (base `.6rem` / TV `.7rem`
+/ handheld `.45rem`), and `.con-root { --con-pad-x: var(--con-edge-x) }`. The
+former vw-clamped viewport gutter (base `1.6vw`, TV `clamp(.9rem, 1.8vw,
+2.6rem)` — ~31–70 physical px) is RETIRED: after the perimeter pass made the
+chassis full-bleed, that inset survived as a **dead stripe inside every bar**
+(content at the old floating-era line — measured 51.7px@FHD / 111px@4K of
+empty band, and the left rail's rows were so starved the production chips
+overflowed their plates). Modern TV game/PC modes do not overscan; a small
+OPTICAL pad is all the edge needs.
+
+Consequences, all token-derived (no per-surface change):
+- The beams' content padding `--con-hud-pad-x = pad-x + 1.05rem` shrinks to
+  `1.65rem`/`1.75rem`/`1.3rem` — still the rails' instrument-column line.
+- **The rails' content took the freed width**: `--con-rail-w` base `9.1 → 10rem`,
+  TV `9.8 → 11rem`, handheld `7.3 → 7.55rem` — `--con-rail-outer-w` (and so the
+  board) is within a few px of where it was. The left row fits
+  `icon + 4-digit value + «+12» chip`; the strat value track fits a 4-digit
+  duel with cubes + «+N» on its value line.
+- `--con-stage-x: var(--con-pad-x)` everywhere (the TV clamp is gone): large
+  visual objects sit on the bare edge pad, text keeps the content line via
+  `--con-stage-gain` (now a constant `1.05rem`).
+- JS mirror: `ConsoleCommandBar.runPlan` rootPad = `.7/.45/.6` per profile.
+- Diagnostics (`consoleDisplayDiagnostics`) read `--con-edge-x`;
+  `--con-safe-x`/`--con-safe-y` no longer exist.
+- **The rails' hull-darkening gradients follow the thin hull**: reach
+  `calc(--con-pad-x + .55rem)` (the old `+1.4rem` was tuned for the vw
+  gutter and put the instrument columns inside the shade — a value flush
+  against darkness reads as cropped even when every pixel is drawn).
+- The left resource row is a GRID `var(--cr-icon) minmax(0,1fr) auto`
+  (icon → value → production): the chip has its own end track and cannot be
+  pushed out; `__stockwrap { justify-self: end }` keeps the delta-chip
+  anchor on one axis.
+
+Guards: `tests/e2e/console-rail-contract.spec.ts` (value line = structural
+`vw − pad-x − .3rem`, production chip whole inside its row plate) +
+`console-hud-frame.spec.ts` (bleed compensation = exactly the edge pad).
 
 ## THE TWO-LEVEL SAFE AREA + THE STABLE STATUS RAIL (fourth pass, same day)
 
@@ -8,7 +47,7 @@ Three tokens on `.con-root` (profiles override THERE):
 
 | Token | Base | TV | Handheld | Meaning |
 | --- | --- | --- | --- | --- |
-| `--con-stage-x` | `calc(--con-pad-x * .55)` | `clamp(.5rem, .9vw, 1.35rem)` | `calc(--con-pad-x * .5)` | **VISUAL-STAGE inset** — how close large VISUAL objects (card galleries, grids, icon plates, hero objects) may come to the physical edge. |
+| `--con-stage-x` | `var(--con-pad-x)` | (same) | (same) | **VISUAL-STAGE inset** — how close large VISUAL objects (card galleries, grids, icon plates, hero objects) may come to the physical edge. |
 | `--con-stage-gain` | `calc(--con-hud-pad-x - --con-stage-x)` | — | — | What a TEXT row inside a stage-inset panel adds back to sit on the content-safe line. |
 | `--con-ws-foot-h` | `2.5rem` | `3.2rem` | `2.1rem` | **THE STABLE STATUS-RAIL height** — a workspace foot is a FIXED-height instrument (border-box, overflow hidden, one line, ellipsis). |
 

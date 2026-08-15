@@ -50,17 +50,14 @@ html.console-native.con-profile-tv {
 
 html.con-profile-tv {
     /* ── central TV tokens ──
-       Safe area: ~1.8% of the panel each side (clamped) — enough that
-       nothing touches the bezel, WITHOUT wasting board width (player
-       feedback: the first 3.2% pass pushed the side panels visibly off
-       the edges). vw/vh measure the PHYSICAL viewport, the rem clamps
-       scale with the profile. ONE source: root chrome + floating layers
-       consume these; components never add their own second safe inset.
-       (Since the HUD-frame rework the rails are FULL-BLEED — the safe area
-       applies to the rails' CONTENT and the central column, never as an
-       outer margin of the frame itself.) */
-    --con-safe-x: ~"clamp(0.9rem, 1.8vw, 2.6rem)";
-    --con-safe-y: ~"clamp(0.7rem, 1.8vh, 2rem)";
+       THE EDGE PAD (shared token — see console.less): a small optical
+       inset from the panel's physical edge, a notch wider than the base
+       profile for couch distance. The former vw-clamped «safe area»
+       (~1.7rem) is retired: modern TV game/PC modes do not overscan, and
+       the reserved band survived the full-bleed rework as a dead stripe
+       inside every bar — chassis at the edge, content still at the old
+       floating-era line. */
+    --con-edge-x: .7rem;
     /* THE HUD FRAME (shared rail height — see console.less): the couch
        readout sizes (1.9rem param icons / 1.4rem values / 1.15rem chips)
        centre in one line; the equality of the two rails rides the ONE
@@ -121,15 +118,8 @@ html.con-profile-tv.console-native .gp-glyph {
 /* ═══ 1 · ROOT FRAME + SAFE AREA ══════════════════════════════════ */
 html.con-profile-tv {
     .con-root {
-        /* The rails run full-bleed (root padding stays 0 — base rule); the
-           rails' CONTENT inset follows the safe area through --con-hud-pad-x,
-           whose base calc resolves against this override on the same element. */
-        --con-pad-x: var(--con-safe-x);
-        /* VISUAL-STAGE inset on the TV: large visual objects (card galleries,
-           grids, hero plates) may come closer to the bezel than text — the
-           panel's own overscan margin is what --con-safe-x protects, and a
-           card edge surviving a crop is nothing like a cropped price. */
-        --con-stage-x: ~"clamp(0.5rem, 0.9vw, 1.35rem)";
+        /* (--con-pad-x and --con-stage-x ride the shared --con-edge-x —
+           base rules; the TV only widens the edge token above.) */
         /* Couch chips (1.6rem icon) + breathing inside the fixed foot. */
         --con-ws-foot-h: 3.2rem;
     }
@@ -168,13 +158,15 @@ html.con-profile-tv {
         --cr-rgap: 0.45rem;
         --cr-score-h: 3rem;
     }
-    /* 196 logical — a notch wider for the value bump. The SEAM TOKEN (not a
-       bare width): every workspace surface's left edge derives from it
-       (hoisted to .con-root so fixed band overlays read it too). */
-    .con-root { --con-rail-w: 9.8rem; }
+    /* 220 logical — the couch value bump PLUS the retired gutter's width
+       (the outer footprint barely moves, the instrument rows gain the room
+       their content needs). The SEAM TOKEN (not a bare width): every
+       workspace surface's left edge derives from it (hoisted to .con-root
+       so fixed band overlays read it too). */
+    .con-root { --con-rail-w: 11rem; }
     .con-res {
         /* Four couch digits on the shared axis («1003» at 1.5rem). */
-        &__value { font-size: 1.5rem; min-width: 3.5rem; }
+        &__value { font-size: 1.5rem; min-width: 3.4rem; }
         &__prod { font-size: 1.05rem; }
     }
     .con-res-aux__value { font-size: 1.05rem; }
@@ -1536,8 +1528,8 @@ html.con-profile-tv .boot-loader__panel {
 /* ═══ 25 · NOTIFICATION LAYER placement (safe-area aware) ═════════ */
 html.console-mode.con-profile-tv .notifications-layer {
     /* (top rides the shared --con-hud-h anchor from the base rule.) */
-    right: var(--con-safe-x);
+    right: var(--con-edge-x, .7rem);
 }
 html.con-profile-tv.console-mode .notifications-layer.notifications-layer--journal-open {
-    right: calc(min(44rem, 40vw) + var(--con-safe-x) + 0.8rem);
+    right: calc(min(44rem, 40vw) + var(--con-edge-x, .7rem) + 0.8rem);
 }

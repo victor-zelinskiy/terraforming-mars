@@ -99,9 +99,25 @@ for (const profile of PROFILES) {
       await press(page, 'Comma', 1100);
       await press(page, 'Enter', 1500);
       await page.waitForSelector('.con-stdp', {timeout: 8_000});
-      await page.waitForTimeout(600); // entry motion settles
-
-      const base = await readGeometry(page);
+      // The entry motion's TAIL can outlive any fixed pause on a loaded 4K
+      // run (measured: the grid still eases ~3px between 2.1s and 2.4s after
+      // the open — with old and new edge tokens alike), and a baseline
+      // captured mid-ease indicts the focus walk for the entry's last
+      // easing frame. Capture it only once two consecutive reads agree.
+      await page.waitForTimeout(600);
+      let base = await readGeometry(page);
+      for (let i = 0; i < 12; i++) {
+        await page.waitForTimeout(250);
+        const now = await readGeometry(page);
+        const settled = now.cards.length === base.cards.length &&
+          Math.abs(now.body.y - base.body.y) === 0 &&
+          now.cards.every((c, j) => Math.abs(c.y - base.cards[j].y) === 0 &&
+            Math.abs(c.x - base.cards[j].x) === 0);
+        base = now;
+        if (settled) {
+          break;
+        }
+      }
       expect(base.cards.length, 'the whole family renders').toBeGreaterThanOrEqual(6);
       // The stable-foot token in action: the rail is a fixed-height box.
       expect(base.foot.h).toBeGreaterThan(0);

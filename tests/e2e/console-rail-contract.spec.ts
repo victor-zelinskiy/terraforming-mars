@@ -50,6 +50,7 @@ type Box = {x: number, y: number, w: number, h: number, r: number, b: number};
 type RailAudit = {
   rem: number,
   contentSafePx: number,
+  padXPx: number,
   viewportW: number,
   strat: {
     rail: Box,
@@ -67,6 +68,7 @@ type RailAudit = {
     tagmxBottom: number,
     rowIconXs: ReadonlyArray<number>,
     rowValueRs: ReadonlyArray<number>,
+    rowProdOver: ReadonlyArray<number>,
     tagColCenters: ReadonlyArray<ReadonlyArray<number>>,
   },
   deck: {cell: Box, host?: Box},
@@ -90,6 +92,8 @@ async function readRails(page: Page): Promise<RailAudit> {
     probe.style.cssText = 'position:fixed;left:0;top:0;width:var(--con-hud-pad-x);height:1px;visibility:hidden';
     one('.con-root').appendChild(probe);
     const contentSafePx = probe.getBoundingClientRect().width;
+    probe.style.width = 'var(--con-pad-x)';
+    const padXPx = probe.getBoundingClientRect().width;
     probe.remove();
 
     const strat = one('.con-strat');
@@ -136,6 +140,7 @@ async function readRails(page: Page): Promise<RailAudit> {
     return {
       rem: parseFloat(getComputedStyle(document.documentElement).fontSize),
       contentSafePx,
+      padXPx,
       viewportW: window.innerWidth,
       strat: {
         rail: box(strat),
@@ -158,6 +163,13 @@ async function readRails(page: Page): Promise<RailAudit> {
         rowValueRs: rows.map((r) => {
           const v = r.querySelector('.con-res__value');
           return v !== null ? v.getBoundingClientRect().right : -1;
+        }),
+        // Production chip vs its own row plate: right-edge delta (negative =
+        // inside). The row grid's third track makes overflow impossible by
+        // construction — this measures the construction.
+        rowProdOver: rows.map((r) => {
+          const p = r.querySelector('.con-res__prod');
+          return p !== null ? p.getBoundingClientRect().right - r.getBoundingClientRect().right : -99;
         }),
         tagColCenters: colCenters,
       },
@@ -182,7 +194,7 @@ for (const profile of PROFILES) {
       await bootIntoGame(page, request, {
         config: soloGameConfig({
           automa: {difficulty: 'normal'},
-          expansions: {venusNext: true},
+          expansions: {venus: true},
         }),
         query: profile.query,
       });
@@ -225,10 +237,14 @@ for (const profile of PROFILES) {
       }
       expect(a.strat.nums.length).toBeGreaterThanOrEqual(6);
       for (const n of a.strat.nums) {
-        // Fully visible AND on the content-safe line — never at the bezel.
+        // Fully visible AND on the rail's own value line — never inside the
+        // edge pad, never at the bezel. The line is STRUCTURAL: the item's
+        // right content inset is `.4rem + --con-pad-x` (the instrument-plate
+        // bleed compensation), so a value past `vw − pad-x − .3rem` means the
+        // row's track budget overflowed into the edge zone.
         expect(n.clipped, `value «${n.text}» horizontally clipped`).toBe(false);
-        expect(n.r, `value «${n.text}» right edge on the safe line`)
-          .toBeLessThanOrEqual(a.viewportW - a.contentSafePx * 0.55);
+        expect(n.r, `value «${n.text}» right edge on the value line`)
+          .toBeLessThanOrEqual(a.viewportW - a.padXPx - 0.3 * a.rem);
       }
       // One optical axis for the value column (6 logical px @1080 tolerance).
       const rs = a.strat.nums.map((n) => n.r);
@@ -247,6 +263,12 @@ for (const profile of PROFILES) {
       expect(iconXs.length).toBeGreaterThanOrEqual(5);
       expect(Math.max(...iconXs) - Math.min(...iconXs), 'icon column').toBeLessThanOrEqual(2);
       expect(Math.max(...valRs) - Math.min(...valRs), 'value axis').toBeLessThanOrEqual(2);
+      // …and the production chip stays WHOLE inside its own row plate.
+      for (const over of a.res.rowProdOver) {
+        if (over !== -99) {
+          expect(over, 'production chip right edge inside its row').toBeLessThanOrEqual(-1);
+        }
+      }
 
       // Tag grid: three stable columns.
       for (const col of a.res.tagColCenters) {

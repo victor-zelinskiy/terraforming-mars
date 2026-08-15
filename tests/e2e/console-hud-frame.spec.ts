@@ -297,8 +297,12 @@ for (const preset of PRESETS) {
         return {rowLeft: row.getBoundingClientRect().left, iconLeft: icon.getBoundingClientRect().left};
       });
       expect(rail, 'the resource rows are mounted').not.toBe(undefined);
-      expect(rail?.rowLeft ?? 99, 'the instrument plate bleeds into the hull zone')
-        .toBeLessThan(g.padXPx * 0.7);
+      // The bleed grammar, token-derived: the plate extends toward the
+      // physical edge by exactly the edge pad the row compensates for
+      // (margin −pad-x + padding +pad-x), so the icon line sits at least
+      // --con-pad-x right of the plate's own left edge.
+      expect((rail?.iconLeft ?? 0) - (rail?.rowLeft ?? 99), 'the instrument plate bleeds past the icon line by the edge pad')
+        .toBeGreaterThanOrEqual(g.padXPx - eps);
       expect(rail?.iconLeft ?? 0, 'the resource icon stays on the safe content line')
         .toBeGreaterThanOrEqual(g.padXPx - eps);
 

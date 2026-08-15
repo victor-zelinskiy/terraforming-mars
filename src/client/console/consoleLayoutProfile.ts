@@ -295,11 +295,11 @@ export function consoleDisplayDiagnostics() {
   const viewportW = typeof window !== 'undefined' ? window.innerWidth : 0;
   const viewportH = typeof window !== 'undefined' ? window.innerHeight : 0;
   let safeX = '';
-  let safeY = '';
+  const safeY = '';
   if (typeof document !== 'undefined' && typeof getComputedStyle === 'function') {
     const cs = getComputedStyle(document.documentElement);
-    safeX = cs.getPropertyValue('--con-safe-x').trim();
-    safeY = cs.getPropertyValue('--con-safe-y').trim();
+    // The one mirrored edge token (the former --con-safe-x/-y pair).
+    safeX = cs.getPropertyValue('--con-edge-x').trim();
   }
   return {
     profile: consoleLayoutState.profile,

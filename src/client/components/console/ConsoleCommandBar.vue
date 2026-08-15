@@ -139,13 +139,12 @@ export default defineComponent({
       const wRem = this.vpWidth / remPx;
       // The rail's content inset (--con-hud-pad-x = --con-pad-x + breathing):
       // the bar is FULL-BLEED now, so the whole horizontal inset lives on the
-      // bar itself (console.less / console_tv.less). rootPad mirrors
-      // --con-pad-x per profile (the TV estimate stays deliberately over the
-      // real clamp — conservative drops beat clipped labels), barPad the
-      // extra breathing.
-      const rootPad = this.profile === 'tv' ?
-        Math.min(3.4, Math.max(1, wRem * 0.032)) :
-        wRem * (this.profile === 'handheld' ? 0.007 : 0.016);
+      // bar itself (console.less / console_tv.less). rootPad mirrors the
+      // EDGE token --con-edge-x per profile (constants since the mirrored
+      // edge system replaced the vw-sized gutter), barPad the extra
+      // breathing.
+      const rootPad = this.profile === 'tv' ? 0.7 :
+        (this.profile === 'handheld' ? 0.45 : 0.6);
       // Mirrors the alignment-grammar breathing of --con-hud-pad-x (the
       // shared first-content anchor: safe area + ~the rail's interior).
       const barPad = this.profile === 'handheld' ? 0.85 : 1.05;
