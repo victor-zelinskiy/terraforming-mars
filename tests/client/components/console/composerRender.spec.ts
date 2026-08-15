@@ -130,8 +130,14 @@ describe('ConsoleActionComposer — premium render', () => {
     expect(chips).to.have.length(2);
     expect(chips[0].text().replace(/\s/g, '')).to.contain('47→45');
     expect(chips[1].text().replace(/\s/g, '')).to.contain('0→1');
-    // The row states the price too, instead of an "In stock: 0" that says nothing.
-    expect(w.find('.con-composer__row-note').text()).to.contain('2');
+    // The row carries the PREMIUM operation preview now (the shared
+    // ConsoleAmountOperation): both sides' current→after with the live price —
+    // strictly more than the old one-line «Cost: 2» note it replaces.
+    const preview = w.find('.con-convert__preview--inrow');
+    expect(preview.exists()).to.eq(true);
+    expect(preview.find('.con-convert__row--from').text().replace(/\s/g, '')).to.contain('47→45');
+    expect(preview.find('.con-convert__row--from').text()).to.contain('-2');
+    expect(preview.find('.con-convert__row--to').text().replace(/\s/g, '')).to.contain('0→1');
     w.unmount();
   });
 

@@ -395,8 +395,20 @@
                     <span class="con-composer__dial-pill" :class="{'con-composer__dial-pill--off': amountFor(item.choice.id) >= amountModel(item.choice).max}"><GamepadGlyph control="bumperR" /><span>+1</span></span>
                   </span>
                 </div>
-                <div v-if="amountResultLine(item.choice) !== ''" class="con-composer__row-note">{{ amountResultLine(item.choice) }}</div>
-                <div v-else-if="amountStockLine(item.choice) !== ''" class="con-composer__row-note">{{ amountStockLine(item.choice) }}</div>
+                <!-- The OPERATION preview — both sides' current→after for the
+                     dialed value (the SHARED component the standalone prompt
+                     renders; conversionPromptModel is the one derivation).
+                     The old one-line notes stay only as the fallback for a
+                     hint shape the VM cannot state honestly. (The one-element
+                     v-for is the template-narrowing idiom — a method call
+                     cannot be narrowed by v-if.) -->
+                <template v-for="op in [amountOperation(item.choice)]" :key="item.choice.id + '#op'">
+                  <ConsoleAmountOperation v-if="op !== undefined" :vm="op" compact />
+                  <template v-else>
+                    <div v-if="amountResultLine(item.choice) !== ''" class="con-composer__row-note">{{ amountResultLine(item.choice) }}</div>
+                    <div v-else-if="amountStockLine(item.choice) !== ''" class="con-composer__row-note">{{ amountStockLine(item.choice) }}</div>
+                  </template>
+                </template>
               </template>
 
               <template v-else-if="item.choice.kind === 'spendHeat'">
@@ -687,6 +699,8 @@ import {BatchArrivalHandle, runBatchArrival, settleBatchProxiesOnto} from '@/cli
 import {resolveCardArrivalMode} from '@/client/console/consoleCardArrival';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import ConsoleWsStageHead from '@/client/components/console/foundation/ConsoleWsStageHead.vue';
+import ConsoleAmountOperation from '@/client/components/console/foundation/ConsoleAmountOperation.vue';
+import {amountOperationVm, ConversionPromptVm} from '@/client/console/conversionPromptModel';
 import ConsoleRevealVerdict from '@/client/components/console/foundation/ConsoleRevealVerdict.vue';
 import {isSurfaceAwaitingHandoff} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {enterConsoleHandPick, isHandCardSelection, isCardSelectionWithin} from '@/client/console/consoleHandPick';
@@ -812,7 +826,7 @@ export type ComposerOutcome =
 
 export default defineComponent({
   name: 'ConsoleActionComposer',
-  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink},
+  components: {ActionEffectChip, CardRenderEffectBoxComponent, CardRenderData, ConsoleScrollArea, ConsolePaymentPanel, ConsoleCardFaceLite, ConsoleWsStageHead, ConsoleRevealVerdict, GamepadGlyph, ConsolePlayedTargetStep, ConsolePlayedTargetLink, ConsoleAmountOperation},
   directives: {stripActionPrefix},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
@@ -2371,6 +2385,17 @@ export default defineComponent({
     amountStockLine(c: ComposerChoice): string {
       const stock = this.poolOf(this.amountIcon(c));
       return stock !== undefined ? `${translateText('In stock')}: ${stock}` : '';
+    },
+    /**
+     * The premium two-sided OPERATION for this dial (spend → receive with
+     * `current → after` on both sides) — the SHARED derivation the standalone
+     * prompt uses. The pool reader is this composer's own `poolOf`, so a dial
+     * spending the source card's stored floaters/microbes (Titan Shuttles,
+     * Sulphur Eating Bacteria) previews the card's own count.
+     */
+    amountOperation(c: ComposerChoice): ConversionPromptVm | undefined {
+      return amountOperationVm(this.amountModel(c), this.amountFor(c.id),
+        (icon, scope) => this.poolOf(icon, scope));
     },
     /**
      * The CURRENT value of the pool an amount chip touches — the viewer's stock or

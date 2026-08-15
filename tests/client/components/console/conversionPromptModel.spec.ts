@@ -1,8 +1,10 @@
 import {expect} from 'chai';
 import {
+  amountOperationVm,
   conversionCommitLabel,
   conversionHeadlineKey,
   conversionPromptVm,
+  PoolReader,
 } from '@/client/console/conversionPromptModel';
 import {SelectAmountModel} from '@/common/models/PlayerInputModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
@@ -101,5 +103,55 @@ describe('conversionPromptModel', () => {
   it('commit verb: 0 is a stated refusal, N names the magnitude — never a generic OK', () => {
     expect(conversionCommitLabel(0)).to.deep.eq({key: 'Do not convert', params: []});
     expect(conversionCommitLabel(2)).to.deep.eq({key: 'Convert ${0}', params: ['2']});
+  });
+
+  // ── The generalized OPERATION shapes (the composers' amount rows) ─────────
+
+  it('amountResult: spend the dialed icon, receive result×perUnit — both sides previewed', () => {
+    // Sulphur Eating Bacteria: remove X microbes (the CARD's own store, via the
+    // caller's pool reader), gain 3 M€ each.
+    const pool: PoolReader = (icon) => icon === 'microbe' ? 4 : icon === 'megacredits' ? 10 : undefined;
+    const vm = amountOperationVm(amount({
+      min: 1, max: 4, icon: 'microbe', conversion: undefined,
+      amountResult: {icon: 'megacredits', perUnit: 3},
+    }), 2, pool)!;
+    expect(vm.kind).to.eq('result');
+    expect(vm.from).to.deep.include({icon: 'microbe', labelKey: 'Microbes', current: 4, after: 2, delta: -2});
+    expect(vm.to).to.deep.include({icon: 'megacredits', labelKey: 'M€', current: 10, after: 16, delta: 6});
+    expect(vm.binary).to.be.false;
+    expect(vm.headlineKey).to.be.undefined;
+  });
+
+  it('amountResult: a non-standard receiving side keeps the server label and drops the figures', () => {
+    // Hi-Tech Lab: spend X energy → draw X cards («Cards drawn»).
+    const pool: PoolReader = (icon) => icon === 'energy' ? 3 : undefined;
+    const vm = amountOperationVm(amount({
+      min: 1, max: 3, icon: 'energy', conversion: undefined,
+      amountResult: {icon: 'cards', perUnit: 1, label: 'Cards drawn'},
+    }), 3, pool)!;
+    expect(vm.from).to.deep.include({current: 3, after: 0, delta: -3});
+    expect(vm.to).to.deep.include({icon: 'cards', labelKey: 'Cards drawn', current: undefined, after: undefined, delta: 3});
+  });
+
+  it('amountCost: the dial counts the GAIN; the price leaves the other pool', () => {
+    // Energy Market: gain X energy for 2X M€.
+    const pool: PoolReader = (icon) => icon === 'energy' ? 1 : icon === 'megacredits' ? 21 : undefined;
+    const vm = amountOperationVm(amount({
+      min: 1, max: 10, icon: 'energy', conversion: undefined,
+      amountCost: {icon: 'megacredits', perUnit: 2},
+    }), 3, pool)!;
+    expect(vm.kind).to.eq('cost');
+    expect(vm.from).to.deep.include({icon: 'megacredits', current: 21, after: 15, delta: -6});
+    expect(vm.to).to.deep.include({icon: 'energy', current: 1, after: 4, delta: 3});
+  });
+
+  it('a result/cost hint without the spent icon degrades honestly (no half-stated operation)', () => {
+    const pool: PoolReader = () => undefined;
+    expect(amountOperationVm(amount({icon: undefined, conversion: undefined, amountResult: {icon: 'megacredits'}}), 1, pool)).to.be.undefined;
+    expect(amountOperationVm(amount({icon: undefined, conversion: undefined, amountCost: {icon: 'megacredits'}}), 1, pool)).to.be.undefined;
+  });
+
+  it('a hint-less dial stays a bare stepper (no operation to state)', () => {
+    expect(amountOperationVm(amount({conversion: undefined}), 1, () => 5)).to.be.undefined;
   });
 });
