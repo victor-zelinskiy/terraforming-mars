@@ -1,7 +1,8 @@
 /**
  * P27 — the console MAIN-BOARD COMMAND MODEL: pure view-models behind the
- * RT / LT quick selectors, the premium Standard-Projects screen and the
- * right home panel's strategic Milestones/Awards summary.
+ * RT / LT quick selectors and the premium Standard-Projects screen.
+ * (The right rail's Milestones/Awards HUD projection lives in
+ * consoleMaHudModel.ts.)
  *
  * Everything here is PURE derivation (no DOM, no Vue) so the whole state
  * matrix is unit-testable: entry availability + honest reasons, the
@@ -13,12 +14,9 @@
  * truth for "can act right now"); this module only shapes them for the UI.
  */
 import {CardName} from '@/common/cards/CardName';
-import {Color} from '@/common/Color';
-import {awardLeaders} from '@/common/models/awardDisplay';
 import {GlyphControl} from '@/client/gamepad/glyphSets';
 import {standardProjectVisual} from '@/client/components/overview/standardProjectVisuals';
 import {offTurnReason} from '@/client/console/offTurnReason';
-import {ConsoleMaSource} from '@/client/components/console/consoleMaModel';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {Warning} from '@/common/cards/Warning';
 import {StandardProjectPreviewModel} from '@/common/models/CardModel';
@@ -350,68 +348,5 @@ export function buildStdProjectItems(ctx: StdProjectScreenContext): Array<StdPro
   return [sellRow, ...projectRows];
 }
 
-// ─── The right home panel — strategic Milestones/Awards summary ────────────
-
-export type HomeMaRow = {
-  name: string,
-  /** Claimed / funded by (undefined = still open). */
-  takenBy?: {color: Color, name: string},
-  /** Awards only: the current race leader among the players ('' name = tie shown by color list). */
-  leaders?: ReadonlyArray<{color: Color, score: number}>,
-  /** Milestones only: the viewer's progress toward the threshold. */
-  my?: {score: number, threshold?: number, ready: boolean},
-  /** Claimable / fundable RIGHT NOW (server-filtered) — the attention rail. */
-  availableNow: boolean,
-};
-
-export type HomeMaSummary = {
-  rows: ReadonlyArray<HomeMaRow>,
-  takenCount: number,
-  maxSlots: number,
-  /** Claimable / fundable RIGHT NOW (server-filtered). */
-  actionable: number,
-  /** Slots still open in the 3-slot race (0 = completed). */
-  slotsLeft: number,
-};
-
-export function buildHomeMaSummary(
-  kind: 'milestones' | 'awards',
-  models: ReadonlyArray<ConsoleMaSource>,
-  opts: {myColor: Color, availableNow: ReadonlySet<string>, maxSlots: number},
-): HomeMaSummary {
-  const isTaken = (m: ConsoleMaSource) => m.playerName !== undefined && m.playerName !== '';
-  const takenCount = models.filter(isTaken).length;
-  const slotsLeft = Math.max(0, opts.maxSlots - takenCount);
-  const rows: Array<HomeMaRow> = models.map((m) => {
-    const row: HomeMaRow = {name: m.name, availableNow: !isTaken(m) && opts.availableNow.has(m.name)};
-    if (isTaken(m) && m.color !== undefined) {
-      row.takenBy = {color: m.color, name: m.playerName ?? ''};
-    }
-    if (kind === 'awards') {
-      // Awards are a race to game END — the LEADER (who actually scores the VP)
-      // stays relevant even AFTER the award is funded, because the funder is not
-      // necessarily the scorer. So compute leaders regardless of `takenBy`, via
-      // the SHARED `awardLeaders` derivation (ties → every co-leader).
-      row.leaders = awardLeaders(m.scores);
-    } else if (row.takenBy === undefined) {
-      // Milestones lock in on claim — progress only matters while unclaimed.
-      const mine = m.scores.find((s) => s.color === opts.myColor);
-      row.my = {
-        score: mine?.score ?? 0,
-        threshold: m.threshold,
-        ready: mine?.claimable === true ||
-          (m.threshold !== undefined && (mine?.score ?? 0) >= m.threshold),
-      };
-    }
-    return row;
-  });
-  // Taken rows first (the story of the race), open rows after.
-  rows.sort((a, b) => (a.takenBy !== undefined ? 0 : 1) - (b.takenBy !== undefined ? 0 : 1));
-  return {
-    rows,
-    takenCount,
-    maxSlots: opts.maxSlots,
-    actionable: models.filter((m) => !isTaken(m) && opts.availableNow.has(m.name)).length,
-    slotsLeft,
-  };
-}
+// (The former right-home-panel Milestones/Awards summary moved to the
+// dedicated STRATEGY RAIL projection — see consoleMaHudModel.ts.)

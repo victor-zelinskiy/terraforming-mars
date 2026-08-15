@@ -206,36 +206,26 @@ html.con-profile-tv {
     .con-context .con-inspector__facts {
         zoom: calc(1.35 * var(--con-ui-scale, 1));
     }
-    .con-home__value b { font-size: 1.5rem; }
-    /* ── TV-4K iteration 2: the dashboard CONTENT reads from the couch
-       WITHOUT growing the panel footprint (26% / max 27rem stays — the
-       board keeps its scale). Rows rise to ~t-secondary, the progress
-       bars become real bars, the award pennant/crown/cube marks reach
-       glance size. Paddings stay tight so modular-MA lists still fit. */
-    .con-home__title { font-size: 0.95rem; }
-    .con-home__state { font-size: 0.9rem; }
-    .con-home__foot { font-size: var(--con-t-caption); }
-    .con-home__ma { font-size: 0.9rem; padding: 0.3rem 0.5rem 0.3rem 0.7rem; }
-    .con-home__ma-bar { width: 3.2rem; height: 0.35rem; }
-    .con-home__ma-progress { font-size: 1rem; i { font-size: var(--con-t-floor); } }
-    .con-home__ma-owner-name { max-width: 5.6rem; }
-    .con-home__block--awards { --con-award-cols: minmax(0, 1fr) 2.8rem 5.6rem; }
-    .con-award-row { font-size: 0.9rem; padding: 0.3rem 0.5rem 0.3rem 0.7rem; }
-    .con-award__flag { width: 1rem; height: 1rem; }
-    .con-award__crown { width: 1.15rem; height: 0.95rem; }
-    .con-award__cube { width: 0.85rem; height: 0.85rem; }
-    .con-award__leader-val { font-size: 0.95rem; }
-    .con-award__leader-more { font-size: var(--con-t-floor); }
-    .con-award__legend-glyph.con-award__flag { width: 0.75rem; height: 0.75rem; }
-    .con-award__legend-glyph.con-award__crown { width: 0.85rem; height: 0.7rem; }
-    /* Floor rule (§3.4): the smallest legend on the board home reads at the
-       service floor, never below it. */
-    .con-award__legend-span { font-size: var(--con-t-floor); }
-    /* The on-object LB/RB keys + badges on the home MA blocks and the
-       journal header controls — real key caps, not specks (their base
+    /* ── P30 · the right STRATEGY RAIL from the couch: the medal is the
+       carrier, so it takes the bump; numbers ride the zone tokens and hold
+       the service-text floor (§3.4). The rail's WIDTH is the seam token
+       above — geometry never moves here. */
+    .con-strat__zone { --strat-medal: 3rem; --strat-num: 1.1rem; --strat-num2: 0.92rem; }
+    .con-strat__zone--dense { --strat-medal: 2.4rem; }
+    .con-strat__zone--ultra { --strat-medal: 1.9rem; }
+    .con-strat__zone--milestones.con-strat__zone--done { --strat-medal: 4rem; }
+    .con-strat__zone--awards.con-strat__zone--done { --strat-medal: 3.3rem; --strat-num: 1.25rem; --strat-num2: 1.02rem; }
+    .con-strat__title { font-size: var(--con-t-floor); }
+    .con-strat__key .gp-glyph { min-width: 1.7rem; height: 1.3rem; font-size: var(--con-t-floor); }
+    .con-strat__pip { width: 0.62rem; height: 0.62rem; }
+    .con-strat__price b { font-size: 0.95rem; }
+    .con-strat__price .resource_icon { width: 1rem; height: 1rem; }
+    .con-strat__gem { width: 0.72rem; height: 0.72rem; }
+    .con-strat__cube { width: 0.68rem; height: 0.68rem; }
+    .con-strat__req { font-size: 0.78rem; }
+    .con-strat__none { font-size: 0.95rem; }
+    /* The journal header controls — real key caps, not specks (their base
        compact sizes out-specify the global §0b floor). */
-    .con-home__hint .gp-glyph { min-width: 1.7rem; height: 1.3rem; font-size: var(--con-t-floor); }
-    .con-home__badge .gp-glyph { min-width: 1.5rem; height: 1.5rem; font-size: var(--con-t-floor); }
     .con-journal__controls .gp-glyph { min-width: 1.55rem; height: 1.25rem; font-size: var(--con-t-floor); }
 
     /* ═══ 5 · COMMAND BAR (controller hints — must read from the couch) ═ */
@@ -293,7 +283,6 @@ html.con-profile-tv {
     .con-status .delta-chip,
     .con-res .delta-chip,
     .con-res-aux .delta-chip,
-    .con-home .delta-chip,
     .con-hand .delta-chip,
     .con-handdock .delta-chip {
         zoom: var(--con-ui-scale, 1);

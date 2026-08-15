@@ -3,24 +3,17 @@ import {
   buildRtQuickEntries,
   buildLtQuickEntries,
   buildStdProjectItems,
-  buildHomeMaSummary,
   QUICK_SLOT_GLYPH,
 } from '@/client/console/consoleQuickModel';
-import {ConsoleMaSource} from '@/client/components/console/consoleMaModel';
 import {CardName} from '@/common/cards/CardName';
-import type {Color} from '@/common/Color';
 
 /**
  * P27: the main-board command model view-models — the RT/LT quick-selector
- * entries (slot map + honest reasons), the premium Standard-Projects rows
- * (Patent sale as a first-class basic action, M€ deficits named) and the
- * right home panel's strategic Milestones/Awards summary (claimed-by /
- * leaders / slots left). All pure — guarded here without a DOM.
+ * entries (slot map + honest reasons) and the premium Standard-Projects rows
+ * (Patent sale as a first-class basic action, M€ deficits named).
+ * All pure — guarded here without a DOM.
  */
 describe('consoleQuickModel (P27)', () => {
-  const me: Color = 'red';
-  const rival: Color = 'blue';
-
   describe('RT — action categories', () => {
     it('maps the spec slots: Cards center, Card actions up, Trading right, Voting down, Hydro left', () => {
       const entries = buildRtQuickEntries({
@@ -340,59 +333,6 @@ describe('consoleQuickModel (P27)', () => {
     });
   });
 
-  describe('home Milestones/Awards summary', () => {
-    const source = (over: Partial<ConsoleMaSource>): ConsoleMaSource => ({
-      name: 'Mayor',
-      playerName: undefined,
-      color: undefined,
-      scores: [],
-      ...over,
-    });
-
-    it('claimed rows carry the claimant and sort first; slots derive', () => {
-      const summary = buildHomeMaSummary('milestones', [
-        source({name: 'Mayor', scores: [{color: me, score: 1}]}),
-        source({name: 'Terraformer', playerName: 'Vika', color: rival, scores: []}),
-      ], {myColor: me, availableNow: new Set(), maxSlots: 3});
-      expect(summary.rows[0].name).to.eq('Terraformer');
-      expect(summary.rows[0].takenBy).to.deep.eq({color: rival, name: 'Vika'});
-      expect(summary.slotsLeft).to.eq(2);
-      expect(summary.takenCount).to.eq(1);
-    });
-
-    it('milestones expose MY progress toward the threshold', () => {
-      const summary = buildHomeMaSummary('milestones', [
-        source({name: 'Mayor', threshold: 3, scores: [{color: me, score: 2}, {color: rival, score: 3}]}),
-      ], {myColor: me, availableNow: new Set(), maxSlots: 3});
-      expect(summary.rows[0].my).to.deep.eq({score: 2, threshold: 3, ready: false});
-    });
-
-    it('awards expose the live race leaders (ties included)', () => {
-      const summary = buildHomeMaSummary('awards', [
-        source({name: 'Banker', scores: [{color: me, score: 4}, {color: rival, score: 4}]}),
-      ], {myColor: me, availableNow: new Set(), maxSlots: 3});
-      expect(summary.rows[0].leaders).to.have.length(2);
-      expect(summary.rows[0].leaders?.[0].score).to.eq(4);
-    });
-
-    it('awards KEEP the live leader after funding (funder is not necessarily the scorer)', () => {
-      const summary = buildHomeMaSummary('awards', [
-        source({name: 'Banker', playerName: 'Vika', color: rival,
-          scores: [{color: me, score: 5}, {color: rival, score: 2}]}),
-      ], {myColor: me, availableNow: new Set(), maxSlots: 3});
-      const row = summary.rows[0];
-      // Funder is preserved …
-      expect(row.takenBy).to.deep.eq({color: rival, name: 'Vika'});
-      // … AND the live leader (a DIFFERENT player) still shows.
-      expect(row.leaders).to.deep.eq([{color: me, score: 5}]);
-    });
-
-    it('actionable counts only OPEN entries offered right now', () => {
-      const summary = buildHomeMaSummary('awards', [
-        source({name: 'Banker'}),
-        source({name: 'Thermalist', playerName: 'Vika', color: rival}),
-      ], {myColor: me, availableNow: new Set(['Banker', 'Thermalist']), maxSlots: 3});
-      expect(summary.actionable).to.eq(1);
-    });
-  });
+  // (The right-rail Milestones/Awards HUD projection has its own model —
+  // consoleMaHudModel — and its own spec: consoleMaHudModel.spec.ts.)
 });

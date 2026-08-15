@@ -112,133 +112,9 @@
       <div v-else-if="loading" class="con-inspector__loading">{{ $t('Loading') }}…</div>
     </template>
 
-    <!-- ── IDLE MODE (P27): the console home — the strategic summary.
-         P27b: no «Ваш ход» kicker — the top player chips own that read.
-         P28: the premium readability pass — hero numbers, status dots,
-         mini-card MA rows with progress rails / leader chips, slot
-         footers; the LB/RB keys live ON the blocks they open. ── -->
-    <template v-else>
-
-      <!-- (The former Cards block moved OUT of this panel: hand presence,
-           count and the playable accent live on the bottom-centre HAND DOCK
-           now — the panel would only duplicate it.) -->
-
-      <!-- Card actions: available blue-card/corp activations. -->
-      <section class="con-home__block" :class="{'con-home__block--hot': actionsAvailable > 0}">
-        <header class="con-home__head">
-          <BarButtonIcon name="actions" />
-          <span class="con-home__title">{{ $t('Card actions') }}</span>
-          <span class="con-home__value"><b>{{ actionsAvailable }}</b><i>/{{ actionsTotal }}</i></span>
-        </header>
-        <div class="con-home__state" :class="actionsAvailable > 0 ? 'con-home__state--go' : 'con-home__state--mute'">
-          <span class="con-home__state-dot" aria-hidden="true"></span>
-          <span>{{ $t(actionsAvailable > 0 ? 'Available now' : 'No actions available') }}</span>
-        </div>
-      </section>
-
-      <!-- Milestones: who claimed what, my progress, slots left. -->
-      <section class="con-home__block con-home__block--ma" :class="{'con-home__block--hot': milestoneSummary.actionable > 0}">
-        <header class="con-home__head">
-          <BarButtonIcon name="milestones" />
-          <span class="con-home__title">{{ $t('Milestones') }}</span>
-          <span v-if="milestoneSummary.actionable > 0" class="con-home__badge">{{ milestoneSummary.actionable }}</span>
-          <span class="con-home__hint"><GamepadGlyph control="bumperL" /></span>
-        </header>
-        <div v-for="row in milestoneSummary.rows" :key="row.name"
-             class="con-home__ma"
-             :class="{'con-home__ma--taken': row.takenBy !== undefined, 'con-home__ma--now': row.availableNow}">
-          <span class="con-home__ma-name" v-i18n>{{ shortName(row.name) }}</span>
-          <span v-if="row.takenBy !== undefined" class="con-home__ma-owner">
-            <span class="con-home__ma-check" aria-hidden="true">✓</span>
-            <span :class="'con-status__dot player_bg_color_' + row.takenBy.color"></span>
-            <span class="con-home__ma-owner-name">{{ ownerDisplayName(row.takenBy) }}</span>
-          </span>
-          <template v-else-if="row.my !== undefined">
-            <span v-if="row.my.threshold !== undefined" class="con-home__ma-bar" aria-hidden="true">
-              <span class="con-home__ma-bar-fill"
-                    :class="{'con-home__ma-bar-fill--ready': row.my.ready}"
-                    :style="{width: progressPct(row.my.score, row.my.threshold) + '%'}"></span>
-            </span>
-            <span class="con-home__ma-progress" :class="{'con-home__ma-progress--ready': row.my.ready}">
-              {{ row.my.score }}<i v-if="row.my.threshold !== undefined">/{{ row.my.threshold }}</i>
-            </span>
-          </template>
-        </div>
-        <div class="con-home__foot">
-          <span v-if="milestoneSummary.slotsLeft === 0" class="con-home__foot-done">✓ {{ $t('All claimed') }}</span>
-          <span v-else class="con-home__foot-slots">{{ $t('Slots left') }}: <b>{{ milestoneSummary.slotsLeft }}</b></span>
-        </div>
-      </section>
-
-      <!-- Awards: who funded what + the live race leaders. P29: funding
-           availability is an ECONOMY action, not a met condition — no hot
-           block / no mint row rails (that language is milestone-only);
-           a quiet count chip communicates "can sponsor" instead. -->
-      <section class="con-home__block con-home__block--ma con-home__block--awards">
-        <header class="con-home__head">
-          <BarButtonIcon name="awards" />
-          <span class="con-home__title">{{ $t('Awards') }}</span>
-          <span v-if="awardSummary.actionable > 0" class="con-home__badge con-home__badge--quiet">{{ awardSummary.actionable }}</span>
-          <span class="con-home__hint"><GamepadGlyph control="bumperR" /></span>
-        </header>
-        <!-- Legend = a helper row on the SAME grid: empty title cell, then ONE
-             quiet hint that SPANS the sponsor + leader columns (so the flag sits
-             above the sponsor column start, and the words have room to flow
-             without «спонсор» colliding with the crown). -->
-        <div class="con-award-row con-award-row--legend" aria-hidden="true">
-          <span class="con-award__name"></span>
-          <span class="con-award__legend-span">
-            <svg class="con-award__flag con-award__legend-glyph" viewBox="0 0 16 16">
-              <path d="M4 1.6v12.8" />
-              <path d="M4 2.4h8.4l-2.1 2.8 2.1 2.8H4z" class="con-award__flag-fill" />
-            </svg>
-            <span class="con-award__legend-word" v-i18n>Sponsor</span>
-            <span class="con-award__legend-sep">·</span>
-            <svg class="con-award__crown con-award__legend-glyph" viewBox="0 0 20 16">
-              <path d="M2 12.4h16l1.1-8-4.4 3.1L10 3.2 5.3 7.5.9 4.4z" />
-              <rect x="2" y="13.2" width="16" height="1.8" rx="0.9" />
-            </svg>
-            <span class="con-award__legend-word" v-i18n>Leader</span>
-          </span>
-        </div>
-        <div v-for="row in awardSummary.rows" :key="row.name"
-             class="con-award-row"
-             :class="{'con-award-row--taken': row.takenBy !== undefined}">
-          <span class="con-award__name" v-i18n>{{ shortName(row.name) }}</span>
-          <!-- SPONSOR zone: flag + funder cube, or flag + «—» when unsponsored. -->
-          <span class="con-award__sponsor">
-            <svg class="con-award__flag" viewBox="0 0 16 16" aria-hidden="true">
-              <path d="M4 1.6v12.8" />
-              <path d="M4 2.4h8.4l-2.1 2.8 2.1 2.8H4z" class="con-award__flag-fill" />
-            </svg>
-            <span v-if="row.takenBy !== undefined"
-                  class="con-status__dot con-award__cube"
-                  :class="['player_bg_color_' + row.takenBy.color, {'con-award__cube--me': row.takenBy.color === viewerColor}]"></span>
-            <span v-else class="con-award__none">—</span>
-          </span>
-          <!-- LEADER zone: crown + (cube value) per co-leader, or a bare «—». -->
-          <span class="con-award__leader">
-            <template v-if="hasLeaders(row)">
-              <svg class="con-award__crown" viewBox="0 0 20 16" aria-hidden="true">
-                <path d="M2 12.4h16l1.1-8-4.4 3.1L10 3.2 5.3 7.5.9 4.4z" />
-                <rect x="2" y="13.2" width="16" height="1.8" rx="0.9" />
-              </svg>
-              <span v-for="l in displayLeaders(row)" :key="l.color" class="con-award__leader-unit">
-                <span class="con-status__dot con-award__cube"
-                      :class="['player_bg_color_' + l.color, {'con-award__cube--me': l.color === viewerColor}]"></span>
-                <span class="con-award__leader-val">{{ l.score }}</span>
-              </span>
-              <span v-if="extraLeaders(row) > 0" class="con-award__leader-more">+{{ extraLeaders(row) }}</span>
-            </template>
-            <span v-else class="con-award__none">—</span>
-          </span>
-        </div>
-        <div class="con-home__foot">
-          <span v-if="awardSummary.slotsLeft === 0" class="con-home__foot-done">✓ {{ $t('All funded') }}</span>
-          <span v-else class="con-home__foot-slots">{{ $t('Slots left') }}: <b>{{ awardSummary.slotsLeft }}</b></span>
-        </div>
-      </section>
-    </template>
+    <!-- (The former IDLE mode is gone: the strategic Milestones/Awards
+         summary is the dedicated right STRATEGY RAIL now — this panel is a
+         TASK/INSPECTION dossier only, overlaid while one is active.) -->
 
     <!-- The panel scrolls with the right stick, but a couch player cannot see a
          3 px scrollbar from three metres — so the OVERFLOW announces itself: a
@@ -253,26 +129,23 @@
 
 <script lang="ts">
 /**
- * The right CONTEXT + INFO panel (feedback iteration 2; P27 rework) — the
- * console home's explaining surface. Four modes:
+ * The right CONTEXT dossier (feedback iteration 2; P27 rework; P30: the
+ * strategic idle summary moved OUT into the dedicated STRATEGY RAIL, and
+ * this panel became a task-time OVERLAY — the board never reflows for it).
+ * Three modes:
  *  - placement: the TASK state (legal/illegal + the SERVER's illegal
  *    reason + cell facts + the minimal command set incl. honest B);
  *  - track (P27): a focused global-parameter TRACK bonus — the SAME
  *    already-translated rows the premium ScaleTooltip shows;
  *  - cell: inspection identity (header/name/owner) + facts from the
- *    shared BoardInformation pipeline;
- *  - idle (P27): the STRATEGIC turn summary — playable cards / available
- *    card actions (moved here from the top HUD) + the Milestones/Awards
- *    race (who claimed/funded what, live award leaders, slots left).
- * Deliberately NOT a duplicate of the bottom command bar — only the two
- * single-button panels (LB/RB) carry a mini glyph for direct clarity.
+ *    shared BoardInformation pipeline.
+ * Deliberately NOT a duplicate of the bottom command bar.
  * Pure presentation: every value is a prop computed in ConsoleShell from
  * the same sources the desktop buttons use.
  */
 import {defineComponent, PropType} from 'vue';
 import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
 import BoardPlacementPreviewContent from '@/client/components/board/BoardPlacementPreviewContent.vue';
-import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {BoardCellInfo, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
@@ -281,7 +154,6 @@ import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
 import {translateMessage, translateText} from '@/client/directives/i18n';
 import {ScaleTooltipContent} from '@/client/components/board/scaleTooltipState';
-import {HomeMaSummary, HomeMaRow} from '@/client/console/consoleQuickModel';
 import {CardName} from '@/common/cards/CardName';
 import {PromptSourceView} from '@/client/console/promptSource';
 
@@ -292,15 +164,9 @@ function textOf(v: string | Message | undefined): string {
   return typeof v === 'string' ? translateText(v) : translateMessage(v);
 }
 
-const EMPTY_SUMMARY: HomeMaSummary = {rows: [], takenCount: 0, maxSlots: 3, actionable: 0, slotsLeft: 3};
-
-// How many co-leaders show a cube+score before the rest collapse to «+N»
-// (keeps the leader column a stable width — priority 4 in the spec).
-const MAX_LEADER_CUBES = 2;
-
 export default defineComponent({
   name: 'ConsoleContextPanel',
-  components: {BoardFactGroups, BoardPlacementPreviewContent, BarButtonIcon, GamepadGlyph},
+  components: {BoardFactGroups, BoardPlacementPreviewContent, GamepadGlyph},
   data() {
     return {
       /** Content continues below the fold — drives the fade + the stick hint. */
@@ -338,7 +204,7 @@ export default defineComponent({
     this.resizeObserver = undefined;
   },
   props: {
-    mode: {type: String as PropType<'placement' | 'cell' | 'track' | 'idle'>, required: true},
+    mode: {type: String as PropType<'placement' | 'cell' | 'track'>, required: true},
     info: {type: Object as PropType<BoardCellInfo | undefined>, default: undefined},
     /** placement mode: the focused LEGAL cell's placement consequences. */
     preview: {type: Object as PropType<BoardPlacementPreview | undefined>, default: undefined},
@@ -362,12 +228,6 @@ export default defineComponent({
     trackScale: {type: Object as PropType<{titleKey: string, nounKey: string, valueText: string, descriptionKey: string} | null>, default: null},
     // cell mode (P27b): curated special-cell lore
     lore: {type: Object as PropType<{title: string, description: string} | undefined>, default: undefined},
-    // idle mode
-    myTurn: {type: Boolean, default: false},
-    actionsAvailable: {type: Number, default: 0},
-    actionsTotal: {type: Number, default: 0},
-    milestoneSummary: {type: Object as PropType<HomeMaSummary>, default: () => EMPTY_SUMMARY},
-    awardSummary: {type: Object as PropType<HomeMaSummary>, default: () => EMPTY_SUMMARY},
   },
   computed: {
     /** The source CARD, when there is one — what X opens fullscreen. */
@@ -422,37 +282,6 @@ export default defineComponent({
     resetScroll(): void {
       (this.$refs.root as HTMLElement | undefined)?.scrollTo?.({top: 0});
       this.$nextTick(() => this.measureScroll());
-    },
-    /** MA owner chip — the Automa seat localizes through the resolver. */
-    ownerDisplayName(takenBy: {color: Color, name: string}): string {
-      const player = this.players.find((p) => p.color === takenBy.color);
-      return player !== undefined ? participantDisplayName(player) : takenBy.name;
-    },
-    /** Strip the numeric variant suffix (Terraformer26 → Terraformer). */
-    shortName(name: string): string {
-      return name.replace(/[0-9]+$/, '');
-    },
-    /** Awards only: the row has a live race leader (someone with a non-zero top score). */
-    hasLeaders(row: HomeMaRow): boolean {
-      return row.leaders !== undefined && row.leaders.length > 0;
-    },
-    // Keep the fixed leader column a stable width: a 2-way tie shows BOTH
-    // cubes+scores; a 3+-way tie collapses to the first cube+score + «+N» (all
-    // co-leaders share the same score, so one value still reads correctly).
-    displayLeaders(row: HomeMaRow): ReadonlyArray<{color: Color, score: number}> {
-      const l = row.leaders ?? [];
-      return l.length <= MAX_LEADER_CUBES ? l : l.slice(0, 1);
-    },
-    extraLeaders(row: HomeMaRow): number {
-      const n = row.leaders?.length ?? 0;
-      return n <= MAX_LEADER_CUBES ? 0 : n - 1;
-    },
-    /** Milestone progress → the mini rail width (bounded 0..100). */
-    progressPct(score: number, threshold: number): number {
-      if (threshold <= 0) {
-        return 0;
-      }
-      return Math.min(100, Math.round((score / threshold) * 100));
     },
   },
 });

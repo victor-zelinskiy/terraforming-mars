@@ -120,28 +120,38 @@
                            :playerView="playerView"
                            :placementActive="placementActive"
                            :inspecting="consoleState.inspecting" />
-      <!-- The right CONTEXT + INFO panel (board home / inspection / task). -->
-      <ConsoleContextPanel v-show="consoleState.section === 'board'"
-                           :mode="contextMode"
-                           :info="selectedCellInfo"
-                           :preview="selectedCellPreview"
-                           :loading="cellInfoLoading"
+      <!-- The right STRATEGY RAIL — the Milestones/Awards premium HUD, the
+           LEFT rail's geometric twin (same width token). Always the board
+           home's right edge; task overlays and workspaces stand OVER it. -->
+      <ConsoleStrategyRail v-show="consoleState.section === 'board'"
+                           :milestones="hudMilestoneZone"
+                           :awards="hudAwardZone"
                            :viewerColor="thisPlayer.color"
-                           :players="playerView.players"
-                           :placementKickerKey="placementKickerKey"
-                           :placementTitle="placementTitle"
-                           :selectedLegal="selectedCellLegal"
-                           :illegalReason="selectedCellIllegalReason"
-                           :inspectAll="consoleState.freeRoam"
-                           :sourceView="placementSourceView"
-                           :myTurn="myTurn"
-                           :actionsAvailable="actionsAvailableCount"
-                           :actionsTotal="actionsTotalCount"
-                           :milestoneSummary="homeMilestoneSummary"
-                           :awardSummary="homeAwardSummary"
-                           :trackInfo="trackInfo"
-                           :trackScale="trackScaleOverview"
-                           :lore="selectedCellLore" />
+                           :epoch="playerView.runId"
+                           :covered="strategyRailCovered"
+                           @open="openSheet($event)" />
+      <!-- The right CONTEXT dossier (placement / inspection / track) — a
+           task-time OVERLAY pinned to the right edge (the journal's idiom):
+           the board layout NEVER reflows for a mode change, so the planet
+           fit + the planet-focus scene keep one constant geometry. -->
+      <transition name="con-ctx">
+        <ConsoleContextPanel v-if="consoleState.section === 'board' && contextOverlayMode !== undefined"
+                             :mode="contextOverlayMode ?? 'cell'"
+                             :info="selectedCellInfo"
+                             :preview="selectedCellPreview"
+                             :loading="cellInfoLoading"
+                             :viewerColor="thisPlayer.color"
+                             :players="playerView.players"
+                             :placementKickerKey="placementKickerKey"
+                             :placementTitle="placementTitle"
+                             :selectedLegal="selectedCellLegal"
+                             :illegalReason="selectedCellIllegalReason"
+                             :inspectAll="consoleState.freeRoam"
+                             :sourceView="placementSourceView"
+                             :trackInfo="trackInfo"
+                             :trackScale="trackScaleOverview"
+                             :lore="selectedCellLore" />
+      </transition>
       <!-- The console-NATIVE journal (View) — REPLACES the right info panel
            while open: an absolute overlay anchored to the right edge, wider
            than the panel and free to overlap the board. The board layout is
@@ -1163,7 +1173,6 @@ import {consoleCardActionsUi, resetCardActionsFilter} from '@/client/console/con
 import {getMilestone, getAward} from '@/client/MilestoneAwardManifest';
 import {MilestoneName} from '@/common/ma/MilestoneName';
 import {AwardName} from '@/common/ma/AwardName';
-import {playerActionSourceCount} from '@/client/components/actions/actionExtraction';
 import {placementReasonToUnplayable} from '@/client/components/board/placementReason';
 import {getSpecialCellInfo} from '@/client/components/board/specialCellInfo';
 import {SpaceId} from '@/common/Types';
@@ -1219,10 +1228,12 @@ import {
 } from '@/client/console/consoleMaFocus';
 import ConsoleQuickSelector from '@/client/components/console/ConsoleQuickSelector.vue';
 import ConsoleStdProjectsScreen from '@/client/components/console/ConsoleStdProjectsScreen.vue';
-import {buildRtQuickEntries, buildLtQuickEntries, buildStdProjectItems, buildHomeMaSummary, HomeMaSummary, QuickEntry, QuickSlot, StdProjectItem} from '@/client/console/consoleQuickModel';
+import {buildRtQuickEntries, buildLtQuickEntries, buildStdProjectItems, QuickEntry, QuickSlot, StdProjectItem} from '@/client/console/consoleQuickModel';
+import {buildMaHudZone, MaHudZone} from '@/client/console/consoleMaHudModel';
 import {wheelPotentialCounts, WheelCounts} from '@/client/console/potentialAvailability';
 import {blockersForReasons, potentiallyAvailable} from '@/common/availability/AvailabilityBlocker';
 import ConsoleContextPanel from '@/client/components/console/ConsoleContextPanel.vue';
+import ConsoleStrategyRail from '@/client/components/console/ConsoleStrategyRail.vue';
 import {scaleTooltipState, ScaleTooltipContent, hideScaleTooltip} from '@/client/components/board/scaleTooltipState';
 import {ARC_SCALE_THEMES} from '@/client/components/board/arcScaleTheme';
 import ConsoleBoardSection from '@/client/components/console/ConsoleBoardSection.vue';
@@ -1613,6 +1624,7 @@ export default defineComponent({
     BarButtonIcon,
     ConsoleStdProjectsScreen,
     ConsoleContextPanel,
+    ConsoleStrategyRail,
     ConsoleSystemAlert,
     ConsoleBoardSection,
     ConsoleHandSection,
@@ -1921,9 +1933,6 @@ export default defineComponent({
     },
     actionsAvailableCount(): number {
       return this.wheelCounts.cardActions;
-    },
-    actionsTotalCount(): number {
-      return playerActionSourceCount(this.thisPlayer.tableau);
     },
     // ── the permanent HAND DOCK (bottom-centre footer bay) ──────────────
     /** The dock's hand in SERVER order (append-stable — backs only, so the
@@ -3914,20 +3923,43 @@ export default defineComponent({
         descriptionKey: theme.description,
       };
     },
-    /** P27: the right home panel's strategic Milestones/Awards summaries. */
-    homeMilestoneSummary(): HomeMaSummary {
-      return buildHomeMaSummary('milestones', this.game.milestones, {
+    /** The dossier overlay's mode — undefined on the idle home (unmounted). */
+    contextOverlayMode(): 'placement' | 'cell' | 'track' | undefined {
+      const m = this.contextMode;
+      return m === 'idle' ? undefined : m;
+    },
+    /** P30: the right STRATEGY RAIL's Milestones/Awards projections — the
+     *  same authoritative sources as the workspaces (models + the live
+     *  waitingFor option set + the server's own `maCosts` prices). */
+    hudMilestoneZone(): MaHudZone {
+      return buildMaHudZone('milestones', this.game.milestones, {
         myColor: this.thisPlayer.color,
         availableNow: this.claimableTitles(findMilestoneOptionPath(this.playerView.waitingFor)?.options),
         maxSlots: 3,
+        cost: this.milestoneCostValue,
       });
     },
-    homeAwardSummary(): HomeMaSummary {
-      return buildHomeMaSummary('awards', this.game.awards, {
+    hudAwardZone(): MaHudZone {
+      return buildMaHudZone('awards', this.game.awards, {
         myColor: this.thisPlayer.color,
         availableNow: this.claimableTitles(findAwardOptionPath(this.playerView.waitingFor, this.awardNames)?.options),
         maxSlots: 3,
+        // Free sponsorship (Vitor's start action) — the honest live price is 0.
+        cost: this.awardFundingActive ? 0 : this.awardCostValue,
       });
+    },
+    /**
+     * The strategy rail is NOT watchable: the player left the board home, or a
+     * workspace / cinematic / full-bleed layer stands over the rail's edge.
+     * While true the rail QUEUES its seal beats — they play on the uncover as
+     * the continuation of the workspace ceremony, never underneath one.
+     */
+    strategyRailCovered(): boolean {
+      // Deliberately NOT the mandatory announce: the plate is centre-stage
+      // while the rail seals at the edge — result first, demand beside it.
+      return !this.boardHomeIdle ||
+        this.consoleRevealMode !== undefined ||
+        this.startSceneVisible;
     },
     selectedCellInfo() {
       const info = boardInfoState.info;

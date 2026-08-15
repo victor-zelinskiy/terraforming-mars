@@ -3295,7 +3295,30 @@ each(@players, {
 }
 
 /* ── The inspector (ONE stable detail surface) ───────────────────── */
+/* The dossier's arrival/departure — a calm slide off the right edge
+   (transform/opacity only; scaled by the shared motion token). */
+.con-ctx-enter-active,
+.con-ctx-leave-active {
+    transition: opacity calc(240ms * var(--motion-scale, 1)) ease,
+        transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.con-ctx-enter-from,
+.con-ctx-leave-to {
+    opacity: 0;
+    transform: translateX(1.1rem);
+}
+
 .con-inspector {
+    /* P30: a task-time OVERLAY (the journal's idiom) — pinned to the right
+       edge of .con-main, over the strategy rail and the board's free right
+       band. The board layout NEVER reflows for a mode change: the planet
+       fit and the planet-focus scene keep one constant geometry. Above the
+       rail/board flow, below the journal (60). */
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
     width: 26%;
     min-width: 17rem;
     max-width: 22rem;
@@ -8407,338 +8430,437 @@ html.con-profile-handheld .con-mafocus {
     to { opacity: 1; transform: none; }
 }
 
-/* -- P27/P28: the right HOME panel -- strategic turn summary.
-   The P28 readability pass: hero numbers, status dots, mini-card MA rows
-   with a status rail + progress bar / leader chips, slot footers. The
-   LB/RB keys sit ON the blocks they open (moved off the bottom bar). -- */
-.con-home__block {
-    margin-top: .6rem;
-
-    &:first-child { margin-top: 0; }
-    padding: .5rem .6rem .45rem;
-    border-radius: .5rem;
-    background: rgba(14, 23, 34, 0.6);
-    box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
-
-    &--hot {
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 45%), 0 0 .6rem fade(@con-mint, 10%);
-    }
-}
-.con-home__head {
-    display: flex;
-    align-items: center;
-    gap: .4rem;
-    .bar-btn-icon { width: 1.1rem; height: 1.1rem; flex-shrink: 0; }
-}
-.con-home__title {
-    flex: 1;
-    font-size: .8rem;
-    font-weight: 700;
-    letter-spacing: .065rem;
-    text-transform: uppercase;
-    color: @con-text;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-/* Hero read: the AVAILABLE count is the biggest number in the block. */
-.con-home__value {
-    display: inline-flex;
-    align-items: baseline;
-    gap: .1rem;
-    color: @con-text-dim;
-    white-space: nowrap;
-    b { color: @con-mint; font-size: 1.25rem; font-weight: 700; line-height: 1; }
-    i { font-style: normal; font-size: .75rem; opacity: 0.85; }
-}
-/* The block's OWN controller key (LB/RB) — a real, readable key cap. */
-.con-home__hint {
-    display: inline-flex;
-    opacity: 0.9;
-    .gp-glyph { min-width: 1.5rem; height: 1.05rem; font-size: .575rem; }
-}
-.con-home__badge {
-    min-width: 1.1rem;
-    height: 1.1rem;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0 .3rem;
-    border-radius: 49.95rem;
-    background: fade(@con-mint, 20%);
-    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 70%);
-    color: @con-mint;
-    font-size: .7rem;
-    font-weight: 700;
-
-    /* P29: the QUIET availability chip (awards — "can sponsor" is an
-       economy fact, not an alert; steel-cyan, no mint urgency). */
-    &--quiet {
-        background: fade(@con-cyan, 12%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%);
-        color: fade(@con-cyan, 90%);
-    }
-}
-/* One-line state under the hero numbers (dot + verdict, no repeats). */
-.con-home__state {
-    display: flex;
-    align-items: center;
-    gap: .4rem;
-    margin-top: .35rem;
-    font-size: .75rem;
-}
-.con-home__state-dot {
-    width: .45rem;
-    height: .45rem;
-    border-radius: 50%;
-    background: currentColor;
-    box-shadow: 0 0 .4rem currentColor;
+/* ── P30: the right STRATEGY RAIL — the Milestones/Awards premium HUD ──
+   The LEFT resource rail's geometric twin: SAME width token
+   (--con-rail-w), same glass, same edge ring — the board reads as centred
+   between two equal instruments. Icon-first by design: the real medal art
+   carries the identity, COLOUR carries the owner, the diamond gem/pip
+   carries the slot state, POSITION + SIZE carry race hierarchy. No name
+   columns, no progress bars, no tables — the workspaces (LB/RB) hold the
+   detail. Each zone owns a FIXED share of the rail (flex: 1 1 0), so the
+   3/3 recomposition redistributes INSIDE its box and the rail's outer
+   geometry can never jump. */
+.con-strat {
     flex-shrink: 0;
-}
-.con-home__state--go { color: @con-mint; }
-.con-home__state--mute {
-    color: @con-text-dim;
-    .con-home__state-dot { box-shadow: none; opacity: 0.5; }
-}
-/* MA mini-rows — one bounded card per milestone/award with a status rail:
-   steel = open race, cyan = taken (dimmed), mint = actionable NOW. */
-.con-home__ma {
-    position: relative;
+    width: var(--con-rail-w, 9.1rem); /* seam token — the left rail's twin */
+    align-self: stretch;
     display: flex;
-    align-items: center;
-    gap: .4rem;
-    margin-top: .3rem;
-    padding: .25rem .45rem .25rem .65rem;
-    border-radius: .35rem;
-    background: rgba(10, 18, 28, 0.55);
-    box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.12);
-    font-size: .775rem;
-    line-height: 1.25;
+    flex-direction: column;
+    padding: .5rem .5rem .55rem;
+    border-radius: .6rem;
+    background: @con-glass-soft;
+    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 22%), 0 .4rem 1.3rem rgba(0, 0, 0, 0.35);
+    overflow: hidden;
 
-    &::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: .15rem;
-        border-radius: .35rem 0 0 .35rem;
-        background: rgba(120, 150, 180, 0.28);
+    &__zone {
+        flex: 1 1 0;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        /* The zone's medal scale — poses and profiles override the TOKEN. */
+        --strat-medal: 2.7rem;
+        --strat-num: .95rem;
+        --strat-num2: .8rem;
+
+        &--dense { --strat-medal: 2.15rem; }
+        &--ultra { --strat-medal: 1.7rem; }
     }
-    &--taken {
-        opacity: 0.75;
-        &::before { background: fade(@con-cyan, 45%); }
+    /* The seam between the two systems — one hairline, no second panel. */
+    &__zone--awards {
+        margin-top: .45rem;
+        padding-top: .4rem;
+        border-top: .05rem solid rgba(120, 150, 180, 0.16);
     }
-    &--now {
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 42%);
-        &::before {
-            background: @con-mint;
-            box-shadow: 0 0 .4rem fade(@con-mint, 55%);
+
+    /* ── zone head — the workspace DOOR (LB/RB cap + title, clickable) ── */
+    &__head {
+        display: flex;
+        align-items: center;
+        gap: .35rem;
+        margin: 0;
+        padding: .05rem .1rem;
+        border: 0;
+        background: none;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        cursor: pointer;
+        border-radius: .3rem;
+
+        &:hover .con-strat__title,
+        &:focus-visible .con-strat__title { color: #fff; }
+        &:focus-visible {
+            outline: none;
+            box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 60%);
         }
-        .con-home__ma-name { color: @con-mint; }
     }
-}
-.con-home__ma-name {
-    flex: 1;
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: @con-text;
-}
-.con-home__ma-owner {
-    display: inline-flex;
-    align-items: center;
-    gap: .3rem;
-    color: @con-text-dim;
-    .con-status__dot { width: .6rem; height: .6rem; }
-}
-.con-home__ma-check {
-    color: @con-mint;
-    font-size: .65rem;
-    line-height: 1;
-}
-.con-home__ma-owner-name {
-    max-width: 4.8rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-/* Milestone progress: a mini rail + the score/threshold readout. */
-.con-home__ma-bar {
-    flex-shrink: 0;
-    width: 2.6rem;
-    height: .25rem;
-    border-radius: 49.95rem;
-    background: rgba(120, 150, 180, 0.18);
-    overflow: hidden;
-}
-.con-home__ma-bar-fill {
-    display: block;
-    height: 100%;
-    border-radius: 49.95rem;
-    background: fade(@con-cyan, 75%);
-
-    &--ready {
-        background: @con-mint;
-        box-shadow: 0 0 .3rem fade(@con-mint, 60%);
-    }
-}
-.con-home__ma-progress {
-    color: @con-text;
-    font-weight: 700;
-    font-size: .825rem;
-    i { font-style: normal; font-weight: 400; color: @con-text-dim; font-size: .675rem; }
-
-    &--ready { color: @con-mint; }
-    &--none { color: @con-text-dim; font-weight: 400; }
-}
-/* ── Awards block: a fixed 3-column grid NAME | SPONSOR (⚑) | LEADER (👑) ─
-   Awards read in one second: flag = who sponsored, crown = who's winning,
-   number = the current score. A funded award still RACES, so the leader is
-   always shown (funder ≠ scorer). The `con-award-*` rows are dedicated to
-   awards (milestones keep `con-home__ma`) so the two never fight.
-
-   ONE grid template (`--con-award-cols`) drives BOTH the legend row and every
-   award row, so sponsor + leader sit at the SAME x in every row. Only the NAME
-   column (1fr) may ellipsis; sponsor/leader are fixed so they never float. */
-.con-home__block--awards {
-    --con-award-cols: minmax(0, 1fr) 2.4rem 5rem;
-}
-.con-award-row {
-    position: relative;
-    display: grid;
-    grid-template-columns: var(--con-award-cols);
-    align-items: center;
-    gap: .4rem;
-    margin-top: .3rem;
-    padding: .25rem .45rem .25rem .65rem;
-    border-radius: .35rem;
-    background: rgba(10, 18, 28, 0.55);
-    box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.12);
-    font-size: .775rem;
-    line-height: 1.25;
-
-    &::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: .15rem;
-        border-radius: .35rem 0 0 .35rem;
-        background: rgba(120, 150, 180, 0.28);
-    }
-    &--taken {
+    &__key {
+        display: inline-flex;
+        flex-shrink: 0;
         opacity: 0.92;
-        &::before { background: fade(@con-cyan, 45%); }
+        .gp-glyph { min-width: 1.4rem; height: 1rem; font-size: .55rem; }
     }
-    /* Legend row: same grid, but a quiet helper line — no chrome. */
-    &--legend {
-        margin-top: .25rem;
-        padding-top: 0;
-        padding-bottom: .05rem;
-        background: transparent;
-        box-shadow: none;
-        &::before { display: none; }
+    &__title {
+        flex: 1;
+        min-width: 0;
+        font-size: .66rem;
+        font-weight: 700;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        color: @con-text;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
+
+    /* ── the system line: slot tray + live price / the sealed mark ── */
+    &__meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: .4rem;
+        padding: .1rem .2rem .2rem .25rem;
+    }
+    /* The 3-slot diamond tray — the SAME grammar as the MA workspace
+       header's tally (filled with each taker's colour, hollow while open). */
+    &__slots {
+        display: inline-flex;
+        gap: .4rem;
+    }
+    &__pip {
+        width: .5rem;
+        height: .5rem;
+        border-radius: .12rem;
+        transform: rotate(45deg);
+        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5);
+        transition: background-color calc(260ms * var(--motion-scale, 1)) ease,
+            box-shadow calc(260ms * var(--motion-scale, 1)) ease;
+
+        &--empty {
+            background: rgba(15, 24, 36, 0.9);
+            box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 35%);
+        }
+    }
+    /* The compact live price — the workspace price chip one register down
+       (value gold, M€ icon, no label). Free (Van Allen / Vitor) = mint rim. */
+    &__price {
+        display: inline-flex;
+        align-items: center;
+        gap: .22rem;
+        padding: .08rem .38rem;
+        border-radius: 49.95rem;
+        background: rgba(9, 15, 23, 0.75);
+        box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 36%);
+        white-space: nowrap;
+
+        b {
+            font-size: .78rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+            color: #ffe2ad;
+        }
+        .resource_icon {
+            display: inline-block;
+            width: .85rem;
+            height: .85rem;
+            background-repeat: no-repeat;
+            background-position: center;
+            background-size: contain !important;
+        }
+        &--free { box-shadow: inset 0 0 0 .06rem fade(@con-mint, 48%); }
+    }
+    /* 3/3 — nothing here is buyable any more: the sealed gold mark. */
+    &__done {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.05rem;
+        height: 1.05rem;
+        border-radius: 50%;
+        background: fade(#e8c268, 14%);
+        box-shadow: inset 0 0 0 .07rem fade(#e8c268, 80%);
+        color: #ffe9b8;
+        font-size: .62rem;
+        font-weight: 800;
+    }
+
+    /* ── the medal stack ── */
+    &__list {
+        position: relative; /* the FLIP leave pins against this box */
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-evenly;
+        overflow: hidden;
+    }
+    &__item {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        padding: .1rem .2rem;
+        border-radius: .4rem;
+        cursor: pointer;
+        .premium-tooltip(16rem);
+    }
+
+    /* The medal: a layered physical object — owner under-plate, state halo,
+       the art itself, the corner gem, and the one-shot seal kiss. */
+    &__medal {
+        position: relative;
+        flex-shrink: 0;
+        width: var(--strat-medal);
+        height: var(--strat-medal);
+    }
+    &__plate {
+        position: absolute;
+        inset: -7%;
+        border-radius: 30%;
+        opacity: 0.32;
+        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.4);
+    }
+    &__halo {
+        position: absolute;
+        inset: -16%;
+        border-radius: 50%;
+        background: radial-gradient(circle, fade(@con-mint, 30%) 30%, fade(@con-mint, 12%) 58%, transparent 72%);
+        opacity: 0;
+        transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
+    }
+    &__art {
+        position: absolute;
+        inset: 0;
+        background-repeat: no-repeat;
+        background-position: center;
+        background-size: contain;
+        transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
+    }
+    /* The owner gem — the tray's diamond at full strength, seated on the
+       medal's shoulder: the enamel proof of WHO sealed it. */
+    &__gem {
+        position: absolute;
+        top: -4%;
+        right: -7%;
+        width: .58rem;
+        height: .58rem;
+        border-radius: .12rem;
+        transform: rotate(45deg);
+        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5), 0 .1rem .3rem rgba(0, 0, 0, 0.5);
+    }
+    &__gem--me { box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5), 0 0 0 .08rem rgba(255, 255, 255, 0.8); }
+    &__kiss {
+        position: absolute;
+        inset: -12%;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(255, 255, 255, 0.85) 18%, rgba(255, 255, 255, 0.25) 48%, transparent 70%);
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    /* ── item states ── */
+    /* Available RIGHT NOW (server-offered): the mint halo breathes. */
+    &__item--now .con-strat__halo {
+        opacity: 1;
+        animation: strat-now-pulse calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
+    }
+    /* Condition met but not offered on this frame (opponent's turn, mid-
+       action): the SAME mint presence, steady — yours, waiting; not an error. */
+    &__item--ready .con-strat__halo { opacity: 0.5; }
+    /* An unsponsored award is a quieter object than a sponsored one. */
+    &__item--quiet .con-strat__art { opacity: 0.74; }
+
+    /* ── the value cell (milestones: MY count toward the threshold) ── */
+    &__cell {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: baseline;
+        gap: .08rem;
+        white-space: nowrap;
+    }
+    &__num {
+        display: inline-block;
+        font-size: var(--strat-num);
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
+        color: @con-text;
+        line-height: 1.1;
+
+        &--ready { color: @con-mint; }
+        &--tick { animation: strat-tick calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.56, 0.64, 1); }
+    }
+    &__req {
+        font-style: normal;
+        font-size: .62rem;
+        font-weight: 400;
+        color: @con-text-dim;
+    }
+
+    /* ── the award duel: leader above, chaser below ── */
+    &__race-wrap {
+        margin-left: auto;
+        min-width: 0;
+    }
+    &__race {
+        position: relative; /* the FLIP leave pins against this box */
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: .12rem;
+    }
+    &__unit { display: inline-flex; }
+    &__unitbody {
+        display: inline-flex;
+        align-items: center;
+        gap: .18rem;
+        transform: scale(0.8);
+        transform-origin: right center;
+        opacity: 0.66;
+        transition: transform calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+            opacity calc(340ms * var(--motion-scale, 1)) ease;
+
+        &--lead {
+            transform: none;
+            opacity: 1;
+        }
+        .con-strat__num { font-size: var(--strat-num2); }
+        &--lead .con-strat__num { font-size: var(--strat-num); }
+    }
+    &__cube {
+        flex-shrink: 0;
+        width: .55rem;
+        height: .55rem;
+        border-radius: .14rem;
+        box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.45);
+
+        &--me { box-shadow: 0 0 0 .08rem rgba(255, 255, 255, 0.75); }
+    }
+    &__morecnt {
+        font-size: .58rem;
+        font-weight: 700;
+        color: @con-text-dim;
+    }
+    &__none {
+        color: fade(@con-text-dim, 60%);
+        font-size: .8rem;
+    }
+
+    /* ── the SEAL — the claim/fund landing on the rail (one beat, both
+       kinds): the owner plate stamps in from above the surface, the gem
+       sets with an overshoot, one kiss of light crosses the medal, and a
+       milestone's value line hands its job to the enamel. ── */
+    &__item--sealing {
+        .con-strat__plate { animation: strat-seal-plate calc(950ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+        .con-strat__gem { animation: strat-seal-gem calc(950ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+        .con-strat__kiss { animation: strat-seal-kiss calc(950ms * var(--motion-scale, 1)) ease-out both; }
+        .con-strat__cell { animation: strat-seal-cell calc(520ms * var(--motion-scale, 1)) ease both; }
+        .con-strat__halo { opacity: 0; animation: none; }
+    }
+
+    /* ── the COMPLETED poses — same box, a different composition ── */
+    /* Milestones 3/3: a fixed TROPHY column — the three sealed medals,
+       larger, centred, owner enamel carrying the whole read. The race is
+       OVER, so no values return. */
+    &__zone--milestones&__zone--done {
+        --strat-medal: 3.6rem;
+
+        .con-strat__item { justify-content: center; }
+        .con-strat__cell { display: none; }
+        .con-strat__gem { width: .68rem; height: .68rem; }
+    }
+    /* Awards 3/3: a LIVE scoreboard of three races — bigger medals AND
+       bigger numbers (the race runs to game end; first and second stay). */
+    &__zone--awards&__zone--done {
+        --strat-medal: 3rem;
+        --strat-num: 1.08rem;
+        --strat-num2: .88rem;
+
+        .con-strat__gem { width: .66rem; height: .66rem; }
+        .con-strat__race { gap: .18rem; }
+    }
+    /* The pose ARRIVAL (a transient class while the recomposition plays):
+       survivors settle into the new scale — transform-only, one shot. */
+    &__zone--arriving .con-strat__art { animation: strat-pose-in calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both; }
 }
-/* Legend spans the sponsor + leader columns as ONE hint — the flag aligns with
-   the sponsor column start (above the row flags), the words flow freely so
-   «спонсор» can never collide with the crown. Small, muted, lowercase. */
-.con-award__legend-span {
-    grid-column: 2 / 4;
-    display: inline-flex;
-    align-items: center;
-    gap: .2rem;
-    font-size: .475rem;
-    letter-spacing: .01rem;
-    text-transform: lowercase; // helper text, never caps
-    color: fade(@con-text-dim, 78%);
-    white-space: nowrap;
+
+/* The seal keyframes (transform/opacity only — perf-lite safe). */
+@keyframes strat-seal-plate {
+    0% { opacity: 0; transform: scale(1.28); }
+    45% { opacity: 0.44; transform: scale(0.985); }
+    100% { opacity: 0.32; transform: none; }
 }
-.con-award__legend-sep { opacity: 0.5; margin: 0 .15rem; }
-.con-award__legend-glyph {
-    flex-shrink: 0;
-    opacity: 0.8; // a quieter twin of the row glyph — a hint, not a marker
-    &.con-award__flag { width: .55rem; height: .55rem; }
-    &.con-award__crown { width: .65rem; height: .55rem; }
+@keyframes strat-seal-gem {
+    0% { opacity: 0; transform: rotate(45deg) scale(2.3); }
+    55% { opacity: 1; transform: rotate(45deg) scale(0.9); }
+    100% { opacity: 1; transform: rotate(45deg) scale(1); }
 }
-.con-award__name {
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    color: @con-text;
+@keyframes strat-seal-kiss {
+    0% { opacity: 0; }
+    16% { opacity: 0.9; }
+    60% { opacity: 0; }
+    100% { opacity: 0; }
 }
-.con-award__sponsor,
-.con-award__leader {
-    display: inline-flex;
-    align-items: center;
-    gap: .25rem;
-    min-width: 0;
+@keyframes strat-seal-cell {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
 }
-/* Sponsor flag — a small premium pennant (cyan), NOT a check. */
-.con-award__flag {
-    flex-shrink: 0;
-    width: .75rem;
-    height: .75rem;
-    fill: none;
-    stroke: @con-cyan;
-    stroke-width: 1.4;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-    .con-award__flag-fill { fill: fade(@con-cyan, 82%); stroke: none; }
+@keyframes strat-now-pulse {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
 }
-/* Leader crown — the single, gold marker for the current winner. */
-.con-award__crown {
-    flex-shrink: 0;
-    width: .9rem;
-    height: .75rem;
-    fill: @con-ma-gold;
-    filter: drop-shadow(0 0 .15rem fade(@con-ma-gold, 45%));
+@keyframes strat-tick {
+    0% { transform: scale(1.26); }
+    100% { transform: none; }
 }
-/* Player marker — a small rounded CUBE (overrides the round `con-status__dot`). */
-.con-award__cube {
-    flex-shrink: 0;
-    width: .65rem;
-    height: .65rem;
-    border-radius: .15rem;
-    box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.45);
+@keyframes strat-pose-in {
+    0% { transform: scale(0.82); }
+    100% { transform: none; }
 }
-.con-award__cube--me { box-shadow: 0 0 0 .1rem rgba(255, 255, 255, 0.72); }
-.con-award__leader-unit {
-    display: inline-flex;
-    align-items: center;
-    gap: .15rem;
+@media (prefers-reduced-motion: reduce) {
+    .con-strat__item--now .con-strat__halo { animation: none; }
 }
-.con-award__leader-val {
-    color: @con-text;
-    font-weight: 700;
-    font-size: .775rem;
+
+/* The recomposition's TransitionGroup classes: survivors FLIP (move),
+   leavers pin in place (position: absolute — inline top/left set by the
+   component) and dissolve, arrivals (an undo) rise back in. */
+.con-strat-row-move {
+    transition: transform calc(520ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 }
-.con-award__leader-more {
-    color: @con-text-dim;
-    font-weight: 700;
-    font-size: .6rem;
+.con-strat-row-enter-active {
+    transition: opacity calc(320ms * var(--motion-scale, 1)) ease,
+        transform calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
 }
-.con-award__none {
-    color: @con-text-dim;
+.con-strat-row-leave-active {
+    position: absolute;
+    z-index: 0;
+    transition: opacity calc(380ms * var(--motion-scale, 1)) ease,
+        transform calc(380ms * var(--motion-scale, 1)) cubic-bezier(0.55, 0, 0.55, 0.2);
 }
-/* Block footer: slots left / the gold completed state (P23 language). */
-.con-home__foot {
-    margin-top: .4rem;
-    padding-top: .3rem;
-    border-top: .05rem solid rgba(120, 150, 180, 0.14);
-    font-size: .675rem;
-    color: @con-text-dim;
-    b { color: @con-text; }
+.con-strat-row-enter-from { opacity: 0; transform: scale(0.92); }
+.con-strat-row-leave-to { opacity: 0; transform: scale(0.86); }
+
+/* The duel's swap: units exchange places (FLIP), a changed group crossfades. */
+.con-strat-race-move {
+    transition: transform calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 }
-.con-home__foot-done {
-    color: fade(@con-amber, 92%);
-    font-weight: 700;
-    letter-spacing: .02rem;
+.con-strat-race-enter-active {
+    transition: opacity calc(300ms * var(--motion-scale, 1)) ease,
+        transform calc(300ms * var(--motion-scale, 1)) ease;
 }
+.con-strat-race-leave-active {
+    position: absolute;
+    transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
+}
+.con-strat-race-enter-from { opacity: 0; transform: translateY(.3rem); }
+.con-strat-race-leave-to { opacity: 0; }
+
+/* The meta swap (price ⇄ sealed mark). */
+.con-strat-meta-enter-active,
+.con-strat-meta-leave-active {
+    transition: opacity calc(220ms * var(--motion-scale, 1)) ease,
+        transform calc(220ms * var(--motion-scale, 1)) ease;
+}
+.con-strat-meta-enter-from { opacity: 0; transform: scale(0.85); }
+.con-strat-meta-leave-to { opacity: 0; transform: scale(0.85); }
 
 /* ── The console-native JOURNAL (View — the P28 flagship) ──────────
    REPLACES the right info panel while open: an ABSOLUTE overlay pinned
@@ -23410,32 +23532,22 @@ html.con-profile-handheld {
         &__count { font-size: .7rem; }
     }
 
-    /* P27c: the right HOME panel packs tight — all four blocks (cards /
-       card actions / milestones / awards incl. «Свободных слотов») fit
-       the Deck height with no scroll. */
-    .con-home__block { margin-top: .4rem; padding: .35rem .5rem; }
-    .con-home__head { gap: .3rem; .bar-btn-icon { width: .9rem; height: .9rem; } }
-    .con-home__title { font-size: .65rem; letter-spacing: .05rem; }
-    .con-home__value { b { font-size: 1rem; } i { font-size: .65rem; } }
-    .con-home__hint .gp-glyph { min-width: 1.2rem; height: .85rem; font-size: .475rem; }
-    .con-home__badge { min-width: .9rem; height: .9rem; font-size: .6rem; padding: 0 .25rem; }
-    .con-home__state { font-size: .625rem; margin-top: .2rem; gap: .3rem; }
-    .con-home__state-dot { width: .35rem; height: .35rem; }
-    .con-home__ma { font-size: .625rem; margin-top: .2rem; gap: .3rem; padding: .15rem .35rem .15rem .5rem; }
-    .con-home__ma-owner .con-status__dot { width: .5rem; height: .5rem; }
-    .con-home__ma-bar { width: 1.9rem; height: .2rem; }
-    .con-home__ma-progress { font-size: .675rem; i { font-size: .55rem; } }
-    /* Awards — tighter columns + smaller cubes/glyphs on the handheld profile. */
-    .con-home__block--awards { --con-award-cols: minmax(0, 1fr) 2.1rem 4.4rem; }
-    .con-award-row { font-size: .625rem; margin-top: .2rem; gap: .35rem; padding: .15rem .35rem .15rem .5rem; }
-    .con-award__cube { width: .55rem; height: .55rem; }
-    .con-award__flag { width: .65rem; height: .65rem; }
-    .con-award__crown { width: .75rem; height: .65rem; }
-    .con-award__leader-val { font-size: .675rem; }
-    .con-award__legend-span { font-size: .45rem; }
-    .con-award__legend-glyph.con-award__flag { width: .5rem; height: .5rem; }
-    .con-award__legend-glyph.con-award__crown { width: .6rem; height: .5rem; }
-    .con-home__foot { margin-top: .3rem; padding-top: .25rem; font-size: .575rem; }
+    /* P30: the right STRATEGY RAIL packs to the Deck rail width — the
+       medal stacks compress a step; nothing scrolls. */
+    .con-strat { padding: .35rem .35rem .4rem; }
+    .con-strat__zone { --strat-medal: 2rem; --strat-num: .8rem; --strat-num2: .68rem; }
+    .con-strat__zone--dense { --strat-medal: 1.65rem; }
+    .con-strat__zone--ultra { --strat-medal: 1.35rem; }
+    .con-strat__zone--milestones.con-strat__zone--done { --strat-medal: 2.7rem; }
+    .con-strat__zone--awards.con-strat__zone--done { --strat-medal: 2.3rem; --strat-num: .9rem; --strat-num2: .75rem; }
+    .con-strat__title { font-size: .52rem; letter-spacing: .05rem; }
+    .con-strat__key .gp-glyph { min-width: 1.15rem; height: .82rem; font-size: .45rem; }
+    .con-strat__pip { width: .42rem; height: .42rem; }
+    .con-strat__price b { font-size: .68rem; }
+    .con-strat__price .resource_icon { width: .72rem; height: .72rem; }
+    .con-strat__gem { width: .5rem; height: .5rem; }
+    .con-strat__cube { width: .46rem; height: .46rem; }
+    .con-strat__req { font-size: .52rem; }
     .con-banner { font-size: .75rem; padding: .25rem .6rem; }
     /* (The terraforming ceremony's handheld sizes live next to its own
        block — see `html.con-profile-handheld .con-terracere`.) */
@@ -24064,13 +24176,12 @@ html.con-profile-large {
     .con-journal__title { font-size: 1.15rem; }
     .con-journal__gen-label b { font-size: 1rem; }
     .con-journal__filterpop-row { font-size: .85rem; }
-    .con-home__value b { font-size: 1.4rem; }
-    .con-home__ma { font-size: .85rem; }
-    .con-home__block--awards { --con-award-cols: minmax(0, 1fr) 2.9rem 5.8rem; }
-    .con-award-row { font-size: .85rem; }
-    .con-award__cube { width: .75rem; height: .75rem; }
-    .con-award__leader-val { font-size: .85rem; }
-    .con-award__legend-span { font-size: .55rem; }
+    /* P30 · the strategy rail — a gentle readability boost only. */
+    .con-strat__zone { --strat-num: 1.05rem; --strat-num2: .88rem; }
+    .con-strat__zone--awards.con-strat__zone--done { --strat-num: 1.18rem; --strat-num2: .98rem; }
+    .con-strat__title { font-size: .72rem; }
+    .con-strat__cube { width: .62rem; height: .62rem; }
+    .con-strat__req { font-size: .68rem; }
     .con-task__title { font-size: 1.5rem; }
     /* THE EMBEDDED STAGE LADDER — ONE set of numbers for BOTH stages (buy and
        drawn reveal carry the same chassis classes). Declared after the task /
