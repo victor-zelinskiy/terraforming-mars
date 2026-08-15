@@ -306,6 +306,9 @@ export default defineComponent({
       return {
         'con-strat__num--tick': this.tickKeys.includes(`${itemKey(z.kind, row.name)}|${slot}`),
         'con-strat__num--ready': z.kind === 'milestones' && row.ready,
+        // An untouched milestone count recedes (a column of zeros is noise).
+        'con-strat__num--zero': z.kind === 'milestones' && !row.ready &&
+          row.my !== undefined && !row.my.conditional && row.my.score === 0,
       };
     },
     buildZoneView(kind: ZoneKind, glyph: 'bumperL' | 'bumperR', title: string, zone: MaHudZone): ZoneView {
