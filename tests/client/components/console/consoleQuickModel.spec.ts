@@ -190,6 +190,31 @@ describe('consoleQuickModel (P27)', () => {
       const bySlot = new Map(buildLtQuickEntries(ctx()).map((e) => [e.slot, e]));
       expect(bySlot.get('left')?.reason).to.eq('Not enough plants');
     });
+
+    /* SOFT vs HARD blockers — presentation semantics, one source.
+     * Every LT gate is an EXECUTION gate (turn order / parked decision /
+     * arithmetic a turn changes) → `soft: true`: the tile keeps presence.
+     * RT's structural absences («Not in this game», the reserved Voting
+     * slot) stay hard — a de-energized plate is the honest pose there. */
+    it('every LT blocker is SOFT; RT structural absences stay HARD', () => {
+      for (const e of buildLtQuickEntries(ctx({
+        blockedReason: 'Finish your current action first',
+      }))) {
+        expect(e.soft, `'${e.id}' is a temporary gate`).to.eq(true);
+      }
+      for (const e of buildLtQuickEntries(ctx({
+        myTurn: false, awaitingInput: false, stdAvailable: false, passAvailable: false, convertHeatAvailable: false,
+      })).filter((x) => !x.available)) {
+        expect(e.soft, `'${e.id}' off-turn is a temporary gate`).to.eq(true);
+      }
+      const rt = buildRtQuickEntries({
+        cardsPlayable: 0, cardsTotal: 0, actionsAvailable: 0, tradesAvailable: 0, hydroAvailable: 0,
+        hasColonies: false, hasTurmoil: false, hasHydro: false,
+      });
+      for (const e of rt.filter((x) => !x.available)) {
+        expect(e.soft, `'${e.id}' is a structural absence`).to.eq(undefined);
+      }
+    });
   });
 
   describe('Standard-Projects screen rows', () => {

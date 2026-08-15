@@ -2,6 +2,58 @@
 
 *(2026-08-15 rework: «архитектурно-визуальный реворк верхнего и нижнего HUD-rail» + the same-day PERIMETER extension: «системный UI-архитектурный реворк внешнего shell».)*
 
+## THE TWO-LEVEL SAFE AREA + THE STABLE STATUS RAIL (fourth pass, same day)
+
+Three tokens on `.con-root` (profiles override THERE):
+
+| Token | Base | TV | Handheld | Meaning |
+| --- | --- | --- | --- | --- |
+| `--con-stage-x` | `calc(--con-pad-x * .55)` | `clamp(.5rem, .9vw, 1.35rem)` | `calc(--con-pad-x * .5)` | **VISUAL-STAGE inset** — how close large VISUAL objects (card galleries, grids, icon plates, hero objects) may come to the physical edge. |
+| `--con-stage-gain` | `calc(--con-hud-pad-x - --con-stage-x)` | — | — | What a TEXT row inside a stage-inset panel adds back to sit on the content-safe line. |
+| `--con-ws-foot-h` | `2.5rem` | `3.2rem` | `2.1rem` | **THE STABLE STATUS-RAIL height** — a workspace foot is a FIXED-height instrument (border-box, overflow hidden, one line, ellipsis). |
+
+- **One boundary, one inset.** A workspace panel whose body is card/grid matter
+  takes `padding-right: var(--con-stage-x)`; its status rail (TEXT) adds
+  `padding-right: var(--con-stage-gain)`. Never stack `screen inset +
+  workspace padding + gallery padding` for the same edge. An `--embedded`
+  surface zeroes the gain (there is no viewport boundary inside a host zone).
+- Adopters: `.con-stdp__panel`, `.con-ma__panel`, `.con-draftws`,
+  `.con-hand__frame`, `.con-colonies__frame`, `.con-hydro` (root). Text
+  compensators: `.con-stdp__foot`, `.con-ma__foot`, `.con-colonies__rail`,
+  `.con-hand__verdictbar`, `.con-draftws .con-wshead`.
+- **`min-height` on a workspace foot is the jumping-grid bug**: the stdp foot
+  grew with the focused row's chips, the scroll host re-shared its rows and
+  the whole grid moved on every cursor step. Foot height is the TOKEN, fixed;
+  a profile ladder must not re-introduce a `min-height` there.
+
+## THE JUNCTION GRAMMAR v2 (same pass)
+
+- **The beams carry ONE graded accent each** (`.con-status::after` /
+  `.con-footer > .con-cmdbar::after`): full-width, quiet over the side-post
+  projections, brightest across the stage opening — the light belongs to the
+  scene. The old per-junction weld TICKS and the flat hairline are gone.
+- **The posts fade their accents before the beams** (`.con-res-host::after`,
+  `.con-strat::after` — vertical hairlines with faded ends) and their TOP
+  edge receives the beam's falling shadow (`inset 0 .6rem 1rem -.6rem`):
+  the T-junction is an overlap (beam ON posts), never two lines colliding.
+  State accents (ws-lift / info) still re-draw the post edge at full
+  strength via `box-shadow` on `.con-res` itself.
+- **The stage is RECESSED**: `.con-board::before` is a static four-side
+  interior shade (strongest from the top beam); `.con-stage-surface()`
+  carries the same falling top shade — a workspace opens UNDER the beam.
+- **Both side rails speak the INSTRUMENT-PLATE grammar**: rows/items bleed
+  through the hull zone to the physical edge (`margin` into the gutter +
+  compensating padding), content on the safe line — `.con-res__row`,
+  `.con-score`, `.con-tagmx`, and now `.con-strat__item`.
+- **Layer rule: the beams span the full width and OVERLAP the posts'
+  projection** — top-rail content (player chips) may legitimately cross the
+  side-rail column; the posts' faded accents are what make that read as one
+  construction.
+- ⚠ A profile ladder that re-states a compensated `padding` as a bare
+  shorthand strips the safe inset (shipped thrice: handheld `.con-res__row`,
+  handheld `.con-score__cell`, handheld `.con-ma__panel`). Repeat the
+  compensation in the override, with a comment.
+
 ## THE PERIMETER MODEL (second pass, same day)
 
 The two horizontal rails turned out to be half of the system: the side
