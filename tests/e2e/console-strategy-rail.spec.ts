@@ -103,6 +103,26 @@ test.describe('console strategy rail — FHD', () => {
   });
 });
 
+test.describe('console strategy rail — Deck handheld', () => {
+  test.use({viewport: {width: 1280, height: 800}});
+
+  test('the twin-rail geometry holds on the handheld profile; nothing clips', async ({page, request}) => {
+    await bootHome(page, request);
+    const {left, right} = await railBoxes(page);
+    expect(Math.abs(left.width - right.width)).toBeLessThanOrEqual(1.5);
+    const rail = await page.locator('.con-strat').boundingBox();
+    const rows = await page.locator('.con-strat__item').all();
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const box = await row.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box!.y).toBeGreaterThanOrEqual(rail!.y - 1);
+      expect(box!.y + box!.height).toBeLessThanOrEqual(rail!.y + rail!.height + 1);
+    }
+    await page.screenshot({path: 'screenshots/strategy-rail/deck-home.png'});
+  });
+});
+
 test.describe('console strategy rail — 4K TV profile', () => {
   test.use({viewport: {width: 3840, height: 2160}});
 
