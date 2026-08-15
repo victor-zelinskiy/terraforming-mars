@@ -53,6 +53,53 @@ Guards: `tests/e2e/console-hud-frame.spec.ts` § 7–9 (rails at x=0 / x=vw
 with safe-inset content, ONE seam value on all three joints, the hand
 workspace welded + square + safe-inset + same rail seam as the board).
 
+## THE ADAPTIVE-SURFACES PASS (third pass, same day)
+
+The shell had grown but the CONTENT still lived in the old geometry (grids
+pinned to the top of 4K bodies, fixed art sizes, the rail internals sized
+for the floating era). The policy layer:
+
+- **`.con-fill-scroll()`** — a scroll-hosted layout FILLS the body it was
+  given: the ConsoleScrollArea viewport becomes a flex column and the
+  content grows to AT LEAST the viewport (`flex: 1 0 auto` — the scroll
+  behaviour is untouched). The host's grid takes `flex: 1 0 auto` +
+  `grid-auto-rows: minmax(<floor>, 1fr)`: rows SHARE the real height when
+  the list fits, fall back to readable content rows when it scrolls.
+  ⚠️ **Never set `display` inside the mixin's content scope** —
+  `content-class` puts the host's GRID class on that very element, and a
+  higher-specificity `display: flex` silently flattened the stdp 2-column
+  grid into one full-width column.
+- **Adaptive art stages** (`.con-ma__stage`, `.con-stdp__stage`):
+  `align-self: center; height: 100%; aspect-ratio: 1/1` between a readable
+  floor and an art-quality ceiling — the % height resolves against the
+  definite filled card, a scrolling content-sized card falls to the floor.
+  ⚠️ The MA card had to become **flex** (was an inner grid): a grid's
+  `auto` first column resolves BEFORE stretch, circularly off the min
+  floor — the medal never grew. Flex stretches the cross axis first (the
+  stdp tile was the working reference).
+- **Strategy rail**: medal/number tokens up a class (base 3.3rem / tv 4rem
+  / done-poses up to 5.4rem), dense pose from SIX items (`> 5` — the
+  enlarged base medal fits exactly the standard five in the zone height).
+- **Left rail**: the instrument plates (rows, score cap, tag seam) BLEED
+  into the hull zone (`margin-left: -pad-x` + compensating content
+  padding) — content stays on the safe line; profile ladders that
+  re-declare cell padding must repeat the first-cell compensation
+  (`console_tv.less .con-score__cell:first-child`).
+- **Beam material + weld points**: both HUD rails carry a layered
+  overhead-sheen gradient; a short bright segment on the stage-facing
+  accent at the LEFT hull column marks the T-junction (constant geometry;
+  the right column deliberately unmarked — a workspace welds to the edge
+  there). Side rails carry top/bottom cap lights.
+
+⚠️ **The game server CACHES static files at boot** — after `make:css` an
+already-running `npm start` on 8080 keeps serving the OLD styles.css and
+Playwright's `reuseExistingServer` happily uses it. Kill the listener
+before a visual run (`Get-NetTCPConnection -LocalPort 8080`).
+
+Guards: § 10 of the same spec — «ДОСТИЖЕНИЯ» zone title, medal size, rail
+plate bleed + safe content line, stdp/MA grid fills ≥ host, art-stage
+growth; screenshots `stdp-adaptive.png` / `ma-adaptive.png`.
+
 The top status strip (`ConsoleStatusStrip` / `.con-status`) and the bottom
 command bar (the shell instance of `ConsoleCommandBar` inside `.con-footer`)
 are the two horizontal borders of the console cockpit. They are **full-bleed

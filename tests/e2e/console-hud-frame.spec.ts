@@ -108,7 +108,10 @@ async function readFrameGeometry(page: Page): Promise<FrameGeometry> {
       barComputedHeight: getComputedStyle(bar).height,
       main: rectOf('.con-main')!,
       resRail: rectOf('.con-res'),
-      resContent: rectOf('.con-res .con-score'),
+      /* CONTENT witness, not the plate: the instrument plates deliberately
+         BLEED into the hull zone (adaptive pass) — what must stay on the
+         safe line is the printed content (the TR tile). */
+      resContent: rectOf('.con-res .con-score__icon'),
       stratRail: rectOf('.con-strat'),
       stratContent: rectOf('.con-strat__zone'),
       board: rectOf('.con-board'),
@@ -240,6 +243,100 @@ for (const preset of PRESETS) {
         'the workspace keeps the same rail seam as the board').toBeLessThanOrEqual(1 + eps);
       fs.mkdirSync(path.join(OUT_ROOT, preset.id), {recursive: true});
       await page.screenshot({path: path.join(OUT_ROOT, preset.id, 'hand-workspace.png')});
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(900);
+
+      // ── 10 · ADAPTIVE SURFACES: the freed area becomes CONTENT, never
+      // background. ──
+      // The right STRATEGY RAIL: the top competition zone names itself
+      // («ДОСТИЖЕНИЯ» — the actions wheel never returns to this rail), and
+      // the medal is a first-class carrier sized for the widened member.
+      const strat = await page.evaluate(() => {
+        const title = document.querySelector('.con-strat__zone--milestones .con-strat__title');
+        const medal = document.querySelector('.con-strat__zone--milestones .con-strat__medal');
+        return {
+          title: title?.textContent?.trim() ?? '',
+          medalH: medal === null ? 0 : medal.getBoundingClientRect().height,
+        };
+      });
+      expect(strat.title, 'the top zone is the MILESTONES competition, never actions')
+        .toMatch(/^(ДОСТИЖЕНИЯ|MILESTONES)$/i);
+      expect(strat.medalH, `the milestone medal is couch-first — ${strat.medalH}px`)
+        .toBeGreaterThanOrEqual((preset.id === 'tv-4k' ? 3.8 : 3.1) * g.remPx);
+
+      // The LEFT RAIL: the instrument plates own the hull zone the welded
+      // chassis gained, while the icons stay on the safe content line.
+      const rail = await page.evaluate(() => {
+        const row = document.querySelector('.con-res__row');
+        const icon = document.querySelector('.con-res__row .con-res__icon');
+        if (row === null || icon === null) {
+          return undefined;
+        }
+        return {rowLeft: row.getBoundingClientRect().left, iconLeft: icon.getBoundingClientRect().left};
+      });
+      expect(rail, 'the resource rows are mounted').not.toBe(undefined);
+      expect(rail?.rowLeft ?? 99, 'the instrument plate bleeds into the hull zone')
+        .toBeLessThan(g.padXPx * 0.7);
+      expect(rail?.iconLeft ?? 0, 'the resource icon stays on the safe content line')
+        .toBeGreaterThanOrEqual(g.padXPx - eps);
+
+      // STANDARD PROJECTS (LT wheel → БАЗОВЫЕ): the tile grid fills the
+      // whole body and the art stage grows with its adaptive row.
+      await page.keyboard.press('Comma');
+      await page.waitForTimeout(900);
+      await page.keyboard.press('Enter');
+      await page.waitForTimeout(1600);
+      await expect(page.locator('.con-stdp')).toHaveCount(1, {timeout: 12_000});
+      const stdp = await page.evaluate(() => {
+        const host = document.querySelector('.con-stdp__scroll-host');
+        const grid = document.querySelector('.con-stdp__grid');
+        const stage = document.querySelector('.con-stdp__stage');
+        if (host === null || grid === null || stage === null) {
+          return undefined;
+        }
+        const s = stage.getBoundingClientRect();
+        return {
+          hostH: host.getBoundingClientRect().height,
+          gridH: grid.getBoundingClientRect().height,
+          stageH: s.height,
+          stageW: s.width,
+        };
+      });
+      expect(stdp, 'the standard-projects grid is mounted').not.toBe(undefined);
+      expect(stdp?.gridH ?? 0, 'the tile grid fills the body it was given')
+        .toBeGreaterThanOrEqual((stdp?.hostH ?? 9999) - 3);
+      expect(Math.abs((stdp?.stageW ?? 0) - (stdp?.stageH ?? 9)), 'the art stage keeps its square')
+        .toBeLessThanOrEqual(2);
+      expect(stdp?.stageH ?? 0, 'the artwork grew with the adaptive row')
+        .toBeGreaterThanOrEqual((preset.id === 'tv-4k' ? 4.8 : 3.7) * g.remPx);
+      await page.screenshot({path: path.join(OUT_ROOT, preset.id, 'stdp-adaptive.png')});
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(1000);
+
+      // MILESTONES workspace (LB): the competition grid fills the body and
+      // the artefact stage takes the height the filled rows hand out.
+      await page.keyboard.press('KeyQ');
+      await page.waitForTimeout(1800);
+      await expect(page.locator('.con-ma')).toHaveCount(1, {timeout: 12_000});
+      const ma = await page.evaluate(() => {
+        const host = document.querySelector('.con-ma__scroll-host');
+        const grid = document.querySelector('.con-ma__grid');
+        const stage = document.querySelector('.con-ma__stage');
+        if (host === null || grid === null || stage === null) {
+          return undefined;
+        }
+        return {
+          hostH: host.getBoundingClientRect().height,
+          gridH: grid.getBoundingClientRect().height,
+          stageH: stage.getBoundingClientRect().height,
+        };
+      });
+      expect(ma, 'the milestones grid is mounted').not.toBe(undefined);
+      expect(ma?.gridH ?? 0, 'the competition grid fills the body it was given')
+        .toBeGreaterThanOrEqual((ma?.hostH ?? 9999) - 3);
+      expect(ma?.stageH ?? 0, 'the artefact stage grew with the filled rows')
+        .toBeGreaterThanOrEqual((preset.id === 'tv-4k' ? 6 : 4.8) * g.remPx);
+      await page.screenshot({path: path.join(OUT_ROOT, preset.id, 'ma-adaptive.png')});
       await page.keyboard.press('Escape');
       await page.waitForTimeout(900);
 

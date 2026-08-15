@@ -398,6 +398,33 @@ html.console-native {
         0 .9rem 2.6rem rgba(0, 0, 0, 0.5);
 }
 
+/* ═══ ADAPTIVE SURFACES — a scroll-hosted layout FILLS the body it was
+   given ═══
+   Inside ConsoleScrollArea the content wrapper is auto-height, so `1fr`
+   grid rows collapse to their content and the freed stage height turns
+   into dead background under the list (the post-full-bleed defect: six
+   award cards pinned to the top third of a 4K body). The policy: the
+   scroll VIEWPORT becomes a flex column and the content grows to AT LEAST
+   the viewport — `flex-basis: auto` still lets it exceed it, so the
+   scroll behaviour (and the custom rail) is untouched. Apply on the
+   scroll HOST scope; the host's grid additionally takes `flex: 1 0 auto`
+   + `grid-auto-rows: minmax(<floor>, 1fr)` so rows SHARE the real height
+   when the list fits and fall back to readable content rows when it
+   scrolls. */
+.con-fill-scroll() {
+    .con-scroll-area__viewport {
+        display: flex;
+        flex-direction: column;
+    }
+    /* ⚠️ GROW ONLY — never `display` here: `content-class` puts the host's
+       GRID class on this very element, and a `display: flex` at the scope's
+       higher specificity silently flattened a 2-column grid into one
+       full-width flex column (shipped once as «stdp lost its columns»). */
+    .con-scroll-area__content {
+        flex: 1 0 auto;
+    }
+}
+
 /* THE STAGE PLATE — the ONE quiet plane a workspace stage stands on (the
    blue-action configuration surface, its outcome zone, and any future
    in-workspace stage). A single material for every stage of a flow is what
@@ -1286,11 +1313,37 @@ html.console-native {
     height: var(--con-hud-h, 2.7rem);
     padding: 0 var(--con-hud-pad-x, .9rem);
     border-radius: 0;
-    background: @con-glass-soft;
-    /* Full-bleed band: the frame accent sits on the BOTTOM edge (the seam
-       toward the game), never an outer ring — the top/left/right edges ARE
-       the screen's. box-shadow only (perf-lite safe). */
-    box-shadow: inset 0 -.06rem 0 fade(@con-cyan, 26%), 0 .35rem 1.2rem rgba(0, 0, 0, 0.35);
+    /* THE LOAD-BEARING BEAM material: a cool overhead sheen falling into a
+       machined dark alloy — depth inside the same minimal height, so the
+       bridge between the two side members reads structural, not flat. */
+    background:
+        radial-gradient(130% 240% at 50% -110%, rgba(88, 132, 180, 0.14), transparent 58%),
+        linear-gradient(180deg, rgba(16, 25, 38, 0.97), rgba(10, 16, 25, 0.965) 58%, rgba(7, 12, 19, 0.975));
+    /* Full-bleed band: a faint machined top light + the frame accent on the
+       BOTTOM edge (the seam toward the game), never an outer ring — the
+       top/left/right edges ARE the screen's. box-shadow only (perf-lite
+       safe). */
+    box-shadow:
+        inset 0 .06rem 0 rgba(200, 230, 255, 0.05),
+        inset 0 -.06rem 0 fade(@con-cyan, 26%),
+        0 .35rem 1.2rem rgba(0, 0, 0, 0.35);
+
+    /* THE WELD POINT — where the left hull member's inner edge meets this
+       beam, the bottom accent brightens for a short segment: the T-junction
+       reads as a designed joint, not two lines that happen to touch. (The
+       left column is constant geometry — the rail is always mounted; the
+       right column deliberately carries no mark: in a workspace the stage
+       welds to the viewport there and a floating tick would read as noise.) */
+    &::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: calc(var(--con-rail-outer-w, 10.7rem) - .8rem);
+        width: 1.6rem;
+        height: .12rem;
+        background: linear-gradient(90deg, transparent, fade(@con-cyan, 52%), transparent);
+        pointer-events: none;
+    }
     /* The top HUD is chrome — the hand-dock CARDS must NEVER paint over it, in
        any state. The dock rides the footer band (z11700, card pack z11705) or,
        under a workspace/scene, drops to z0; either way this sits ABOVE it, so
@@ -2987,7 +3040,13 @@ each(@players, {
        rail's bottom line. */
     border-radius: 0;
     background: linear-gradient(90deg, rgba(4, 8, 13, 0.6), transparent calc(var(--con-pad-x, 1.6vw) + 1.2rem)) @con-glass-soft;
-    box-shadow: inset -.06rem 0 0 fade(@con-cyan, 24%), .35rem 0 1.2rem rgba(0, 0, 0, 0.35);
+    /* Member caps: faint machined top/bottom lights close the box toward
+       the beam seams — the T-junctions read designed on both ends. */
+    box-shadow:
+        inset -.06rem 0 0 fade(@con-cyan, 24%),
+        inset 0 .06rem 0 rgba(190, 225, 255, 0.05),
+        inset 0 -.05rem 0 rgba(0, 0, 0, 0.32),
+        .35rem 0 1.2rem rgba(0, 0, 0, 0.35);
     /* The Information-Workspace accent ring (.con-main--info) recolors per
        inspected player — a short ride keeps the seam change composed. */
     transition: box-shadow calc(200ms * var(--motion-scale, 1)) ease;
@@ -3002,8 +3061,14 @@ each(@players, {
         display: flex;
         align-items: center;
         gap: .5rem;
-        padding: var(--cr-row-py) .5rem;
-        border-radius: .4rem;
+        /* ADAPTIVE (rail-stack policy): the instrument plate OWNS the hull
+           zone the welded chassis gained — it bleeds toward the physical
+           edge while the icon/value stay on the safe content line (the
+           compensating padding). The rail reads as one wide instrument
+           bank, not a narrow column on a wide background. */
+        margin-left: calc(-1 * var(--con-pad-x, 0vw));
+        padding: var(--cr-row-py) .5rem var(--cr-row-py) calc(.5rem + var(--con-pad-x, 0vw));
+        border-radius: 0 .4rem .4rem 0;
         background: rgba(16, 26, 38, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
     }
@@ -3059,6 +3124,11 @@ each(@players, {
     --ct-gap-y: .35rem;   /* row rhythm */
     --ct-gap-x: .2rem;
 
+    /* ADAPTIVE (rail-stack): the section seam runs into the hull zone with
+       the instrument plates above it — one wide bank, one seam grammar.
+       The medallion grid itself stays on the safe content line. */
+    margin-left: calc(-1 * var(--con-pad-x, 0vw));
+    padding-left: var(--con-pad-x, 0vw);
     border-top: .05rem solid fade(@con-cyan, 20%);
     padding-top: .55rem;
 
@@ -3261,7 +3331,11 @@ each(@players, {
     align-items: stretch;
     height: var(--cr-score-h);
     flex-shrink: 0;
-    border-radius: .4rem;
+    /* ADAPTIVE (rail-stack): the score cap bleeds into the hull zone like
+       the resource plates below it — content stays on the safe line via
+       the first cell's compensating padding. */
+    margin-left: calc(-1 * var(--con-pad-x, 0vw));
+    border-radius: 0 .4rem .4rem 0;
     background: linear-gradient(180deg, rgba(31, 39, 53, 0.85), rgba(13, 20, 30, 0.82));
     box-shadow:
         inset 0 0 0 .05rem fade(@con-action-gold, 24%),
@@ -3276,6 +3350,10 @@ each(@players, {
         align-items: center;
         gap: .25rem;
         padding: 0 .4rem;
+
+        &:first-child {
+            padding-left: calc(.4rem + var(--con-pad-x, 0vw));
+        }
     }
     &__divider {
         flex: 0 0 auto;
@@ -5455,11 +5533,13 @@ html.console-mode {
         min-height: 0;
         display: flex;
         flex-direction: column;
-        gap: .55rem;
+        /* ADAPTIVE: chrome trimmed a notch — every saved row px is card
+           height for the gallery fit below. */
+        gap: .45rem;
         /* THE STAGE SURFACE (perimeter shell): the screen is a state of the
            central scene — square, welded to the viewport's right edge, the
            right CONTENT line on the shared safe-inset guide. */
-        padding: .75rem var(--con-hud-pad-x, 1.1rem) .7rem 1.1rem;
+        padding: .6rem var(--con-hud-pad-x, 1.1rem) .55rem 1.1rem;
         .con-stage-surface();
     }
 
@@ -7092,21 +7172,33 @@ html.console-mode {
     }
 
     /* ── the dashboard grid (ConsoleScrollArea host + grid content) ─── */
+    /* ADAPTIVE SURFACE (competition-grid policy): the grid fills the whole
+       body the workspace was given — rows SHARE the real height when the
+       list fits (the standard 5–6 items always do), and fall back to
+       readable content-sized rows when a modular-MA list genuinely
+       scrolls. The card's art stage stretches with its row (below), so the
+       freed height turns into bigger medals, not into dead background. */
     &__scroll-host {
         flex: 1;
         min-height: 0;
+        .con-fill-scroll();
     }
     &__grid {
+        flex: 1 0 auto;
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
-        grid-auto-rows: minmax(0, 1fr);
+        grid-auto-rows: minmax(6.2rem, 1fr);
         gap: .7rem;
     }
     &__card {
         position: relative;
         min-height: 0;
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto;
+        /* FLEX, not an inner grid: the adaptive art stage sizes itself by
+           STRETCH + aspect-ratio, and a grid's `auto` first column resolves
+           BEFORE the stretch (circularly, off the min floor) — the medal
+           then never grew past its minimum. Flex stretches the cross axis
+           first, exactly like the stdp tile (the working reference). */
+        display: flex;
         align-items: center;
         gap: .75rem;
         padding: .55rem .8rem .55rem .9rem;
@@ -7166,12 +7258,18 @@ html.console-mode {
     }
 
     /* ── art stage (512×512 transparent format) ─────────────────── */
+    /* ADAPTIVE: the stage GROWS with its row (the % height resolves against
+       the definite filled card; a scrolling content-sized card falls back
+       to the readable floor) between the floor and an art-quality ceiling —
+       the filled body hands its height to the artefact, never to padding. */
     &__stage {
         position: relative;
         align-self: center;
-        width: 6.3rem;
-        height: 6.3rem;
-        max-height: 100%;
+        height: 100%;
+        width: auto;
+        aspect-ratio: 1 / 1;
+        min-height: 5.2rem;
+        max-height: 9.4rem;
         flex-shrink: 0;
         border-radius: .7rem;
         background:
@@ -7205,6 +7303,7 @@ html.console-mode {
 
     /* ── body: name / rule / owner ──────────────────────────────── */
     &__body {
+        flex: 1 1 auto;
         min-width: 0;
         align-self: center;
         display: flex;
@@ -8119,13 +8218,20 @@ html.con-profile-handheld .con-mafocus {
     &__wallet-shortfall { color: @con-red; font-size: .8rem; }
 
     /* ConsoleScrollArea host + grid content (foundation). */
+    /* ADAPTIVE SURFACE (tile-grid policy): the project rows split the WHOLE
+       body height between them — the old content-height rows left half the
+       stage as dead background. The floor keeps a readable row when an
+       extreme list genuinely scrolls; the art stage stretches with the row. */
     &__scroll-host {
         flex: 1;
         min-height: 0;
+        .con-fill-scroll();
     }
     &__grid {
+        flex: 1 0 auto;
         display: grid;
         grid-template-columns: 1fr 1fr;
+        grid-auto-rows: minmax(4.6rem, 1fr);
         gap: .6rem;
         padding: .2rem .1rem;
     }
@@ -8134,8 +8240,8 @@ html.con-profile-handheld .con-mafocus {
         display: flex;
         align-items: center;
         gap: .85rem;
-        min-height: 4.6rem;
-        padding: .7rem .85rem;
+        min-height: 0;
+        padding: .55rem .85rem;
         border-radius: .55rem;
         background: rgba(14, 23, 34, 0.86);
         box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.2);
@@ -8169,13 +8275,20 @@ html.con-profile-handheld .con-mafocus {
            streak floating beside the row. */
         overflow: hidden;
     }
+    /* ADAPTIVE: the project's art stage grows with its row (the % height
+       resolves against the definite filled card; a scrolling content-sized
+       card falls back to the floor) between a floor and an art ceiling. */
     &__stage {
         position: relative;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 3.8rem;
-        height: 3.8rem;
+        align-self: center;
+        height: 100%;
+        width: auto;
+        aspect-ratio: 1 / 1;
+        min-height: 3.8rem;
+        max-height: 6.4rem;
         flex-shrink: 0;
         border-radius: .6rem;
         background: linear-gradient(145deg, rgba(28, 45, 63, 0.86), rgba(10, 18, 28, 0.94));
@@ -8204,30 +8317,29 @@ html.con-profile-handheld .con-mafocus {
         }
     }
     &__icon {
-        --con-stdp-art: 2.8rem;
-        --con-stdp-art-compact: 2.5rem;
         position: relative;
         z-index: 1;
         display: inline-block;
-        width: 3.2rem;
-        height: 3.2rem;
+        /* ADAPTIVE: the icon box + the artwork are PERCENTAGES of the
+           stage, so the art itself grows with the adaptive row — one
+           mechanism on every profile (the old fixed rem art sizes stalled
+           the growth the taller rows hand out). */
+        width: 84%;
+        height: 84%;
         transition: transform calc(150ms * var(--motion-scale, 1)) ease;
 
-        /* The shared std-icon family uses fixed px artwork sizes for the
-           desktop overlay. Console owns its rem scale so the art itself,
-           not only its empty box, grows with the TV profile. */
-        &.std-icon--energy { background-size: var(--con-stdp-art) var(--con-stdp-art); }
-        &.std-icon--temperature { background-size: auto var(--con-stdp-art); }
+        &.std-icon--energy { background-size: 87% 87%; }
+        &.std-icon--temperature { background-size: auto 92%; }
         &.std-icon--ocean,
         &.std-icon--greenery,
-        &.std-icon--city { background-size: var(--con-stdp-art) var(--con-stdp-art); }
-        &.std-icon--venus { background-size: var(--con-stdp-art) auto; }
+        &.std-icon--city { background-size: 87% 87%; }
+        &.std-icon--venus { background-size: 92% auto; }
         &.std-icon--colony,
         &.std-icon--tr,
         &.std-icon--moon-habitat,
         &.std-icon--moon-mining,
         &.std-icon--moon-logistics {
-            background-size: var(--con-stdp-art-compact) var(--con-stdp-art-compact);
+            background-size: 78% 78%;
         }
         &.std-icon--excavate,
         &.std-icon--delegate,
@@ -8556,7 +8668,12 @@ html.con-profile-handheld .con-mafocus {
     padding: .5rem calc(.5rem + var(--con-pad-x, 1.6vw)) .55rem .5rem;
     border-radius: 0;
     background: linear-gradient(270deg, rgba(4, 8, 13, 0.6), transparent calc(var(--con-pad-x, 1.6vw) + 1.2rem)) @con-glass-soft;
-    box-shadow: inset .06rem 0 0 fade(@con-cyan, 24%), -.35rem 0 1.2rem rgba(0, 0, 0, 0.35);
+    /* Member caps — the left rail's grammar, mirrored. */
+    box-shadow:
+        inset .06rem 0 0 fade(@con-cyan, 24%),
+        inset 0 .06rem 0 rgba(190, 225, 255, 0.05),
+        inset 0 -.05rem 0 rgba(0, 0, 0, 0.32),
+        -.35rem 0 1.2rem rgba(0, 0, 0, 0.35);
     overflow: hidden;
 
     &__zone {
@@ -8564,13 +8681,15 @@ html.con-profile-handheld .con-mafocus {
         min-height: 0;
         display: flex;
         flex-direction: column;
-        /* The zone's medal scale — poses and profiles override the TOKEN. */
-        --strat-medal: 2.7rem;
-        --strat-num: .95rem;
-        --strat-num2: .8rem;
+        /* The zone's medal scale — poses and profiles override the TOKEN.
+           ADAPTIVE-SURFACE pass: the rail owns a full hull member now — the
+           medal is the carrier and takes the width the chassis gained. */
+        --strat-medal: 3.3rem;
+        --strat-num: 1.05rem;
+        --strat-num2: .88rem;
 
-        &--dense { --strat-medal: 2.15rem; }
-        &--ultra { --strat-medal: 1.7rem; }
+        &--dense { --strat-medal: 2.55rem; }
+        &--ultra { --strat-medal: 2rem; }
     }
     /* The seam between the two systems — one hairline, no second panel. */
     &__zone--awards {
@@ -8870,20 +8989,20 @@ html.con-profile-handheld .con-mafocus {
        larger, centred, owner enamel carrying the whole read. The race is
        OVER, so no values return. */
     &__zone--milestones&__zone--done {
-        --strat-medal: 3.6rem;
+        --strat-medal: 4.4rem;
 
         .con-strat__item { justify-content: center; }
         .con-strat__cell { display: none; }
-        .con-strat__gem { width: .68rem; height: .68rem; }
+        .con-strat__gem { width: .78rem; height: .78rem; }
     }
     /* Awards 3/3: a LIVE scoreboard of three races — bigger medals AND
        bigger numbers (the race runs to game end; first and second stay). */
     &__zone--awards&__zone--done {
-        --strat-medal: 3rem;
-        --strat-num: 1.08rem;
-        --strat-num2: .88rem;
+        --strat-medal: 3.7rem;
+        --strat-num: 1.18rem;
+        --strat-num2: .95rem;
 
-        .con-strat__gem { width: .66rem; height: .66rem; }
+        .con-strat__gem { width: .74rem; height: .74rem; }
         .con-strat__race { gap: .18rem; }
     }
     /* The pose ARRIVAL (a transient class while the recomposition plays):
@@ -9852,7 +9971,27 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     height: var(--con-hud-h, 2.7rem);
     padding: 0 var(--con-hud-pad-x, .9rem);
     border-radius: 0;
-    box-shadow: inset 0 .06rem 0 fade(@con-cyan, 28%), 0 -.3rem 1.2rem rgba(0, 0, 0, 0.35);
+    /* The beam material, mirrored (sheen rises from below the screen). */
+    background:
+        radial-gradient(130% 240% at 50% 210%, rgba(88, 132, 180, 0.12), transparent 58%),
+        linear-gradient(0deg, rgba(16, 25, 38, 0.97), rgba(10, 16, 25, 0.965) 58%, rgba(8, 13, 20, 0.975));
+    box-shadow:
+        inset 0 .06rem 0 fade(@con-cyan, 28%),
+        inset 0 -.05rem 0 rgba(0, 0, 0, 0.4),
+        0 -.3rem 1.2rem rgba(0, 0, 0, 0.35);
+
+    /* The weld point at the left hull member's column (the top rail's
+       grammar, mirrored onto this beam's top accent). */
+    &::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: calc(var(--con-rail-outer-w, 10.7rem) - .8rem);
+        width: 1.6rem;
+        height: .12rem;
+        background: linear-gradient(90deg, transparent, fade(@con-cyan, 52%), transparent);
+        pointer-events: none;
+    }
 }
 
 /* The hand dock — the permanent bottom-centre "hand of cards" presence
@@ -23915,11 +24054,11 @@ html.con-profile-handheld {
     /* P30: the right STRATEGY RAIL packs to the Deck rail width — the
        medal stacks compress a step; nothing scrolls. */
     .con-strat { padding: .35rem .35rem .4rem; }
-    .con-strat__zone { --strat-medal: 2rem; --strat-num: .8rem; --strat-num2: .68rem; }
-    .con-strat__zone--dense { --strat-medal: 1.65rem; }
-    .con-strat__zone--ultra { --strat-medal: 1.35rem; }
-    .con-strat__zone--milestones.con-strat__zone--done { --strat-medal: 2.7rem; }
-    .con-strat__zone--awards.con-strat__zone--done { --strat-medal: 2.3rem; --strat-num: .9rem; --strat-num2: .75rem; }
+    .con-strat__zone { --strat-medal: 2.25rem; --strat-num: .85rem; --strat-num2: .72rem; }
+    .con-strat__zone--dense { --strat-medal: 1.85rem; }
+    .con-strat__zone--ultra { --strat-medal: 1.5rem; }
+    .con-strat__zone--milestones.con-strat__zone--done { --strat-medal: 3.1rem; }
+    .con-strat__zone--awards.con-strat__zone--done { --strat-medal: 2.6rem; --strat-num: .95rem; --strat-num2: .8rem; }
     .con-strat__title { font-size: .52rem; letter-spacing: .05rem; }
     .con-strat__key .gp-glyph { min-width: 1.15rem; height: .82rem; font-size: .45rem; }
     .con-strat__pip { width: .42rem; height: .42rem; }
@@ -24369,10 +24508,11 @@ html.con-profile-handheld {
         &__wallet-shortfall { font-size: .6rem; }
         &__wallet-free { font-size: .525rem; padding: .1rem .5rem; }
         &__complete { font-size: .6rem; padding: .15rem .6rem; }
-        &__grid { gap: .5rem; }
+        &__grid { gap: .5rem; grid-auto-rows: minmax(4.9rem, 1fr); }
         &__card { gap: .6rem; padding: .45rem .55rem .45rem .7rem; border-radius: .55rem; }
         &__rail { width: .2rem; }
-        &__stage { width: 4.7rem; height: 4.7rem; border-radius: .55rem; }
+        /* Adaptive stage caps for the Deck window (see the base rule). */
+        &__stage { min-height: 3.9rem; max-height: 5.8rem; border-radius: .55rem; }
         &__name { font-size: .825rem; letter-spacing: .05rem; }
         &__desc { font-size: .625rem; line-height: 1.3; -webkit-line-clamp: 3; }
         &__owner { font-size: .65rem; gap: .35rem; }
@@ -24593,7 +24733,8 @@ html.con-profile-large {
         &__name { font-size: 1.2rem; }
         &__desc { font-size: .85rem; }
         &__metric-value { font-size: 1.7rem; }
-        &__stage { width: 8.5rem; height: 8.5rem; }
+        /* Adaptive stage caps for the large window (see the base rule). */
+        &__stage { min-height: 6rem; max-height: 11rem; }
     }
 }
 

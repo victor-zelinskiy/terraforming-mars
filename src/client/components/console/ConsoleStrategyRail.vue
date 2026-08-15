@@ -1,10 +1,14 @@
 <template>
   <aside class="con-strat" :aria-label="$t('Milestones') + ' · ' + $t('Awards')">
+    <!-- ADAPTIVE POSES: the medal scale follows the item count. The dense
+         step starts at SIX items (not seven) — the enlarged base medal is
+         sized so the standard five fill the zone's height; a sixth would
+         overflow it on the TV profile. -->
     <section v-for="z in zoneViews" :key="z.kind"
              class="con-strat__zone"
              :class="['con-strat__zone--' + z.kind, {
                'con-strat__zone--done': z.composed,
-               'con-strat__zone--dense': z.zone.items.length > 6 && !z.composed,
+               'con-strat__zone--dense': z.zone.items.length > 5 && !z.composed,
                'con-strat__zone--ultra': z.zone.items.length > 9 && !z.composed,
              }]">
       <!-- The zone head IS the workspace door: the LB/RB cap the shell already
