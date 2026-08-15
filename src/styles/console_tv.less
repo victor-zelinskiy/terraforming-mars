@@ -125,6 +125,13 @@ html.con-profile-tv {
            rails' CONTENT inset follows the safe area through --con-hud-pad-x,
            whose base calc resolves against this override on the same element. */
         --con-pad-x: var(--con-safe-x);
+        /* VISUAL-STAGE inset on the TV: large visual objects (card galleries,
+           grids, hero plates) may come closer to the bezel than text — the
+           panel's own overscan margin is what --con-safe-x protects, and a
+           card edge surviving a crop is nothing like a cropped price. */
+        --con-stage-x: ~"clamp(0.5rem, 0.9vw, 1.35rem)";
+        /* Couch chips (1.6rem icon) + breathing inside the fixed foot. */
+        --con-ws-foot-h: 3.2rem;
     }
     /* (Floating chrome — banner / draft tray / mandatory plate — anchors to
        the shared --con-hud-h token in the base rules; no per-profile
@@ -152,11 +159,12 @@ html.con-profile-tv {
     /* ═══ 3 · LEFT RESOURCE RAIL ══════════════════════════════════ */
     .con-res-host {
         --cr-pad: 0.65rem;
-        /* Adaptive-surface pass: the widened hull member carries a bigger
-           icon + value line (the aux satellite follows the SAME tokens, so
-           the two columns stay row-for-row aligned by construction). */
-        --cr-icon: 1.9rem;
-        --cr-row-py: 0.38rem;
+        /* Adaptive-surface pass 2: the icon is the row's identity from the
+           couch — a full step up, the value follows (the aux satellite
+           follows the SAME tokens, so the two columns stay row-for-row
+           aligned by construction). */
+        --cr-icon: 2.2rem;
+        --cr-row-py: 0.4rem;
         --cr-rgap: 0.45rem;
         --cr-score-h: 3rem;
     }
@@ -165,16 +173,16 @@ html.con-profile-tv {
        (hoisted to .con-root so fixed band overlays read it too). */
     .con-root { --con-rail-w: 9.8rem; }
     .con-res {
-        &__value { font-size: 1.3rem; }
-        &__prod { font-size: 0.95rem; }
+        &__value { font-size: 1.5rem; }
+        &__prod { font-size: 1.05rem; }
     }
     .con-res-aux__value { font-size: 1.05rem; }
     /* Tag matrix: couch-readable medallions + counts inside the wider rail —
        the zero state keeps enough contrast to survive OLED + distance. */
     .con-tagmx {
-        --ct-icon: 2.35rem;
-        --ct-num: 1.1rem;
-        --ct-gap-y: 0.45rem;
+        --ct-icon: 2.6rem;
+        --ct-num: 1.15rem;
+        --ct-gap-y: 0.5rem;
         /* MarsBot track rows (couch): bigger medals + a thicker gauge. */
         --ct-track-icon: 1.6rem;
         --ct-track-gap: 0.35rem;
@@ -191,11 +199,11 @@ html.con-profile-tv {
            shorthand must not strip the base rule's padding-left. */
         &__cell { padding: 0 0.5rem; gap: 0.3rem; }
         &__cell:first-child { padding-left: calc(0.5rem + var(--con-pad-x, 0vw)); }
-        &__icon { width: 1.55rem; height: 1.55rem; }
-        &__vp-icon { width: 1.45rem; height: 1.6rem; }
+        &__icon { width: 1.7rem; height: 1.7rem; }
+        &__vp-icon { width: 1.6rem; height: 1.75rem; }
         &__value {
-            font-size: 1.4rem;
-            &--wide { font-size: 1.05rem; }
+            font-size: 1.5rem;
+            &--wide { font-size: 1.1rem; }
         }
         .vp-private__eye { width: 1.1rem; height: 0.75rem; }
     }
@@ -228,7 +236,10 @@ html.con-profile-tv {
        medal — the carrier of the whole read at couch distance. The base is
        sized so the standard FIVE items fill the zone height; six and more
        step through the dense/ultra poses (component threshold > 5). */
-    .con-strat__zone { --strat-medal: 4rem; --strat-num: 1.3rem; --strat-num2: 1.05rem; }
+    /* Medal 4rem is the exact five-items-fill-the-zone size (the base doc
+       comment) — 4.3rem clipped the fifth medal at the zone seam. Only the
+       VALUES take the pass-2 bump. */
+    .con-strat__zone { --strat-medal: 4rem; --strat-num: 1.4rem; --strat-num2: 1.1rem; }
     .con-strat__zone--dense { --strat-medal: 3.1rem; }
     .con-strat__zone--ultra { --strat-medal: 2.35rem; }
     .con-strat__zone--milestones.con-strat__zone--done { --strat-medal: 5.4rem; }
@@ -300,26 +311,31 @@ html.con-profile-tv {
         zoom: var(--con-ui-scale, 1);
     }
 
-    /* ═══ 6 · RT/LT QUICK WHEELS — the couch cross ════════════════
-       Bigger, weightier slots (each answers to ONE direct press): larger
-       plates + icons + labels; the disabled reason reads at the floor,
-       never below. The backdrop rises to dim-strong via the §0 dim vars. */
+    /* ═══ 6 · RT/LT QUICK WHEELS — the couch ACTION FOCUS MODE ═══════
+       While the wheel is open it is the screen's one object: command-deck
+       plates (not context-menu buttons), a wide focus halo claiming the
+       stage, counters read from the couch. The plates FILL their grid
+       cells (no inner slot padding — the cross gap is the spacing); the
+       labels wrap inside the wider boxes (base rule). */
     .con-quick {
-        &__kicker { font-size: 1.3rem; }
-        /* WIDER columns + more gap so a wrapped side label (КОНВЕРТАЦИЯ
-           РАСТЕНИЙ / ТЕПЛА) has room and never crowds the centre slot. The
-           labels wrap (base rule) inside these boxes. */
-        &__cross { grid-template-columns: repeat(3, 18rem); gap: 1rem 1.4rem; }
-        &__slot { min-height: 5.2rem; min-width: 0; padding: 0.9rem 1.1rem; }
-        &__slot-label { font-size: 1.2rem; line-height: 1.15; }
+        &__kicker { font-size: 1.35rem; }
+        &__halo { inset: -8rem -14rem -9rem; }
+        &__cross { grid-template-columns: repeat(3, 20.5rem); gap: 1.1rem 1.6rem; }
+        &__slot { min-height: 7rem; min-width: 0; }
+        &__slot--center { min-height: 7.9rem; }
+        &__slot-body { gap: .45rem; padding: 1rem 1.2rem .8rem; }
+        &__slot-label { font-size: 1.25rem; line-height: 1.15; }
         &__slot-meta { font-size: 0.95rem; }
-        &__slot-glyph { font-size: 1.8rem; }
+        &__slot-glyph { font-size: 2.1rem; }
         &__slot-reason { font-size: var(--con-t-floor); max-width: 100%; }
-        &__slot-badge { min-width: 1.4rem; height: 1.4rem; font-size: 0.9rem; }
+        &__slot-badge { top: .5rem; right: .55rem; min-width: 1.9rem; height: 1.9rem; font-size: 1.15rem; }
+        &__slot-key { padding: .16rem .4rem; }
         &__slot-icon {
-            .bar-btn-icon { width: 2.4rem; height: 2.4rem; }
-            .resource_icon { width: 2.2rem; height: 2.2rem; }
-            .std-icon { width: 2.4rem; height: 2.4rem; }
+            width: 3.5rem;
+            height: 3.5rem;
+            .bar-btn-icon { width: 2.5rem; height: 2.5rem; }
+            .resource_icon { width: 2.3rem; height: 2.3rem; }
+            .std-icon { width: 2.5rem; height: 2.5rem; }
         }
     }
 
@@ -501,7 +517,7 @@ html.con-profile-tv {
         /* PERIMETER SHELL: the panel IS the stage — it fills the welded band
            (the old width cap re-centred it as a modal); the right content
            line stays on the shared safe-inset guide. */
-        &__panel { width: 100%; max-height: 100%; gap: .9rem; padding: 1.1rem var(--con-hud-pad-x, 1.35rem) .8rem 1.35rem; }
+        &__panel { width: 100%; max-height: 100%; gap: .9rem; padding: 1.1rem var(--con-stage-x, 1.35rem) .8rem 1.35rem; }
         &__title { font-size: var(--con-t-title); }
         &__emblem { width: 3.2rem; height: 3.2rem; .bar-btn-icon { width: 2.05rem; height: 2.05rem; } }
         &__wallet { font-size: 1.05rem; }
@@ -534,7 +550,9 @@ html.con-profile-tv {
         }
         /* The focused item's context line (reason / «можно использовать»). */
         &__context { font-size: var(--con-t-secondary); }
-        &__foot { min-height: 2.3rem; padding-top: .45rem; }
+        /* (The foot's height is the shared --con-ws-foot-h token now — a
+           per-profile min-height here is exactly the unstable-rail bug.) */
+        &__foot { padding-top: .45rem; }
         &__wallet-price, &__wallet-after, &__wallet-shortfall { font-size: var(--con-t-secondary); }
     }
 
@@ -557,6 +575,9 @@ html.con-profile-tv {
        (At the un-passed sizes the stage read as a small 1080 card blown up,
        using a quarter of a 4K panel — the reported «мелко и бедно».) */
     .con-mafocus {
+        /* The dense-scene floor at couch scale: hero 19rem + name + state +
+           the YOU plate, with the ceremony's seat still fitting inside. */
+        --mafocus-h: 34rem;
         --mafocus-gap: 1.6rem;
         --mafocus-pad: 1.6rem 2.2rem 1.2rem;
         --mafocus-side-w: 24rem;
@@ -600,7 +621,7 @@ html.con-profile-tv {
            icon is the glanceable identity of each stage, so it reads a notch
            larger than the desktop density (the stop WIDTH stays on the rem
            base — a width bump overflowed the 11-stop row). */
-        &__stop-tag { width: 2.6rem; height: 2.6rem; }
+        &__stop-tag { width: 2.9rem; height: 2.9rem; }
         &__stop-req { gap: 0.4rem; }
         /* The rail-stop reward chip (e.g. the «4→2» on Гидромоделирование)
            rides the shared HydroReward, whose sizes are fixed px — bump its
@@ -611,11 +632,12 @@ html.con-profile-tv {
         &__delta { font-size: 1.15rem; }
         &__cta { font-size: 1.15rem; padding: 0.7rem 1.1rem; min-height: var(--con-hit-min); }
         &__reason { font-size: var(--con-t-secondary); }
-        /* The compact scene panel — real air, glance-size chips, the fine
-           print risen to the floor (the .625–.675rem strings were the worst
-           10-foot offenders on this screen). */
-        &__panel { width: min(78rem, 100%); min-height: 14rem; }
-        &__panelbody { gap: 0.9rem; }
+        /* The dossier is a WORKING SURFACE on the couch stage, not a compact
+           card floating in a void: wider, taller, generous vertical rhythm —
+           and the CTA zone seats its bottom edge (base margin-top: auto), so
+           the grown height reads as composed air, never dead reserve. */
+        &__panel { width: min(88rem, 100%); min-height: 21rem; }
+        &__panelbody { gap: 1.15rem; }
         &__ident { min-height: 3.4rem; }
         &__reqline { min-height: 3rem; }
         &__gains { min-height: 3rem; }
@@ -710,8 +732,10 @@ html.con-profile-tv {
         &__fleetchip-count .colony-fleet-icon { width: 1.6rem; height: 1.6rem; }
         .colony-fleet-pad { width: 2.2rem; height: 1.05rem; }
         /* Compact status rail — one line, couch-readable. FIXED height
-           (content varies per mode/colony; a varying height jumped the grid). */
-        &__rail { gap: 1rem; padding: 0.4rem 1rem; height: 3rem; }
+           (content varies per mode/colony; a varying height jumped the grid).
+           ⚠ the right side keeps the content-safe compensation — a bare
+           shorthand here is the documented profile-shorthand trap. */
+        &__rail { gap: 1rem; padding: 0.4rem calc(1rem + var(--con-stage-gain, 0rem)) 0.4rem 1rem; height: 3rem; }
         &__rail-track { font-size: var(--con-t-secondary); }
         &__rail-label { font-size: var(--con-t-floor); }
         &__rail .colony-fleet-icon { width: 1.7rem; height: 1.7rem; }
@@ -735,8 +759,13 @@ html.con-profile-tv {
     /* The COLONY FOCUS STAGE (iteration 3) — couch typography; the geometry
        is rem and scales with the profile, only the type + hit targets move. */
     .con-colfocus {
-        &__hero { flex-basis: 15rem; }
-        &__planet { width: 12rem; height: 12rem; }
+        /* The couch scale pass 2: the planet and the track are the HERO pair
+           of the trade scene — real physical presence, the payment/result
+           surfaces stay supporting instruments. */
+        &__hero { flex-basis: 16.5rem; }
+        &__planet { width: 13.6rem; height: 13.6rem; }
+        &__xtrack { height: 7.4rem; min-height: 6.2rem; }
+        &__berths { height: 6.3rem; min-height: 5.2rem; }
         &__desc { font-size: var(--con-t-caption); -webkit-line-clamp: 5; }
         &__sec-title { font-size: var(--con-t-floor); }
         &__xcell-num { font-size: var(--con-t-floor); }
@@ -748,16 +777,17 @@ html.con-profile-tv {
         /* THE PANEL BUDGET. The payment rows are `--con-hit-min` tall here,
            so the configuration needs ~4.5rem more room than on the base
            profile — sizing the panel for the base row height is exactly what
-           drew a scrollbar over three options. */
-        --colfocus-h: 32.5rem;
+           drew a scrollbar over three options. Pass 2 grows the whole scene
+           with the enlarged hero pair above. */
+        --colfocus-h: 36.5rem;
         /* Inspect seats the whole hero column + a verdict + two lines of the
            ability text at TV type sizes (iteration 4 — 21rem starved `__desc`
            to zero under «Здесь стоит ваш флот»). */
         &--inspect { --colfocus-h: 23.5rem; }
-        &--handing { --colfocus-h: 32.5rem; }
+        &--handing { --colfocus-h: 36.5rem; }
         &__fleetline { font-size: var(--con-t-caption); }
         &__verdict { font-size: var(--con-t-secondary); }
-        --colfocus-rail-w: 17rem;
+        --colfocus-rail-w: 18.5rem;
         &__rsec-label { font-size: var(--con-t-floor); }
         &__rrow { font-size: var(--con-t-secondary); }
         &__rowners { font-size: var(--con-t-caption); }

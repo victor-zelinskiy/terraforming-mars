@@ -45,6 +45,13 @@ export type QuickEntry = {
   available: boolean,
   /** English i18n key naming the CONCRETE blocker ('' when available). */
   reason: string,
+  /**
+   * The blocker is TEMPORARY (an execution gate — not your turn, finish the
+   * set-aside decision, first-action ordering), not a structural absence.
+   * Presentation only: a soft-blocked tile keeps more presence than a
+   * «not in this game» one — «НЕ СЕЙЧАС» is not «НИКОГДА».
+   */
+  soft?: boolean,
 };
 
 /** The glyph each slot answers to (shown on the slot AND in the bar). */
@@ -150,11 +157,14 @@ export type LtQuickContext = {
 
 /** LT — the basic-actions selector: standard projects / turn control / conversions. */
 export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
-  const turnGate = (available: boolean, reason: string): {available: boolean, reason: string} => {
+  const turnGate = (available: boolean, reason: string): {available: boolean, reason: string, soft?: boolean} => {
     // A set-aside decision blocks EVERY basic action, whatever its own
     // arithmetic says — and it blocks even the ones the server still offers.
+    // Every gate this function produces is TEMPORARY by construction (turn
+    // order / a parked decision / resource arithmetic that a turn changes),
+    // so the tile keeps its presence — `soft`, never the de-energized pose.
     if (ctx.blockedReason !== undefined && ctx.blockedReason !== '') {
-      return {available: false, reason: ctx.blockedReason};
+      return {available: false, reason: ctx.blockedReason, soft: true};
     }
     if (available) {
       return {available: true, reason: ''};
@@ -162,7 +172,7 @@ export function buildLtQuickEntries(ctx: LtQuickContext): Array<QuickEntry> {
     // Menu live → the verb's own reason; else the shared off-turn reason
     // («завершите действие» while a mandatory decision is pending, «не ваш ход»
     // only on a genuine opponent turn).
-    return {available: false, reason: ctx.myTurn ? reason : offTurnReason(ctx.awaitingInput)};
+    return {available: false, reason: ctx.myTurn ? reason : offTurnReason(ctx.awaitingInput), soft: true};
   };
   return [
     {

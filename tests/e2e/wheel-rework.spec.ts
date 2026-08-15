@@ -180,7 +180,9 @@ test.describe('quick-wheel rework', () => {
     await shoot(page, '07-lt-wheel');
     await key(page, 'Period', 700); // and back to categories
     await expect(page.locator('.con-quick__kicker')).not.toContainText(/базовые/i);
-    await expect(page.locator('.con-quick__kicker')).toContainText(/действия/i);
+    // «ВЫБЕРИТЕ ДЕЙСТВИЕ» — the RT kicker no longer duplicates the top
+    // node's first word («ДЕЙСТВИЯ» over «ДЕЙСТВИЯ КАРТ»).
+    await expect(page.locator('.con-quick__kicker')).toContainText(/действ/i);
     await expect(page.locator('.con-cmdbar')).toContainText(/базовые/i); // «LT Базовые действия»
     await key(page, 'Escape', 600);
 

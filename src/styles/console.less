@@ -303,6 +303,24 @@ html.console-native {
     /* The rails' own content inset: safe area + a hair of breathing, so
        chips/hints never start hard at the screen edge. */
     --con-hud-pad-x: calc(var(--con-pad-x) + .35rem);
+    /* ═══ TWO-LEVEL SAFE AREA ═══
+       CONTENT-SAFE (--con-hud-pad-x): text, controller hints, prices, every
+       interactive control — nothing a TV overscan may crop.
+       VISUAL-STAGE (--con-stage-x): the SMALLER inset large VISUAL objects
+       are allowed to approach the physical edge with — card galleries, icon
+       plates, grids, hero objects, decorative chrome. One boundary is
+       protected by exactly ONE of these, never both stacked: a workspace
+       whose body uses the stage inset gives its status-rail TEXT the
+       difference back via --con-stage-gain. */
+    --con-stage-x: calc(var(--con-pad-x) * 0.55);
+    --con-stage-gain: calc(var(--con-hud-pad-x) - var(--con-stage-x));
+    /* ═══ THE STABLE STATUS-RAIL CONTRACT ═══
+       Every workspace foot/status rail is a FIXED-height instrument: its
+       content changes with the cursor, its box never does — the body above
+       it can therefore never re-fit on focus navigation (the stdp jumping-
+       grid regression). Fixed height, border-box, overflow hidden; longer
+       content ellipsizes inside. Profiles override the TOKEN. */
+    --con-ws-foot-h: 2.5rem;
     padding: 0;
     font-family: @con-font;
     color: @con-text;
@@ -391,8 +409,14 @@ html.console-native {
     background:
         linear-gradient(90deg, rgba(12, 19, 29, 0.55), transparent 9rem),
         linear-gradient(180deg, rgba(9, 15, 23, 0.97), rgba(7, 12, 19, 0.975) 46%, rgba(5, 9, 15, 0.985));
+    /* The workspace OPENS UNDER the top beam: a soft interior shade falls
+       from its top edge (the beam's weight landing on the scene), so the
+       plate reads recessed INTO the shell rather than glued below a line.
+       Depth + the machined seam together carry the boundary — never a
+       hairline alone (TV rule). */
     box-shadow:
         inset 0 .06rem 0 rgba(190, 225, 255, 0.055),
+        inset 0 1.1rem 1.8rem -1.1rem rgba(0, 0, 0, 0.6),
         inset .05rem 0 0 rgba(120, 160, 200, 0.13),
         inset 0 -.05rem 0 rgba(110, 150, 190, 0.07),
         0 .9rem 2.6rem rgba(0, 0, 0, 0.5);
@@ -1319,29 +1343,38 @@ html.console-native {
     background:
         radial-gradient(130% 240% at 50% -110%, rgba(88, 132, 180, 0.14), transparent 58%),
         linear-gradient(180deg, rgba(16, 25, 38, 0.97), rgba(10, 16, 25, 0.965) 58%, rgba(7, 12, 19, 0.975));
-    /* Full-bleed band: a faint machined top light + the frame accent on the
-       BOTTOM edge (the seam toward the game), never an outer ring — the
-       top/left/right edges ARE the screen's. box-shadow only (perf-lite
-       safe). */
+    /* Full-bleed band: a faint machined top light; the bottom seam accent
+       moved to the GRADED ::after below (the old flat hairline + weld tick
+       read as two unrelated lines meeting by accident). The beam's own
+       weight — the drop shadow falling ONTO the stage — is what separates
+       it from the scene; the line is never the only carrier. box-shadow
+       only (perf-lite safe). */
     box-shadow:
         inset 0 .06rem 0 rgba(200, 230, 255, 0.05),
-        inset 0 -.06rem 0 fade(@con-cyan, 26%),
-        0 .35rem 1.2rem rgba(0, 0, 0, 0.35);
+        inset 0 -.05rem 0 rgba(0, 0, 0, 0.35),
+        0 .45rem 1.5rem rgba(0, 0, 0, 0.42);
 
-    /* THE WELD POINT — where the left hull member's inner edge meets this
-       beam, the bottom accent brightens for a short segment: the T-junction
-       reads as a designed joint, not two lines that happen to touch. (The
-       left column is constant geometry — the rail is always mounted; the
-       right column deliberately carries no mark: in a workspace the stage
-       welds to the viewport there and a floating tick would read as noise.) */
+    /* THE JUNCTION GRAMMAR — one graded accent for the whole beam edge.
+       The light BELONGS TO THE STAGE OPENING: quiet where the beam passes
+       over the side posts' projection, brightest across the central scene,
+       easing out toward the far edge. The side posts fade their own accents
+       before reaching this line (no hard T-termination), so the three
+       members read as one construction: a horizontal beam RESTING on two
+       posts, with the opening between them carrying the energy. */
     &::after {
         content: '';
         position: absolute;
         bottom: 0;
-        left: calc(var(--con-rail-outer-w, 10.7rem) - .8rem);
-        width: 1.6rem;
-        height: .12rem;
-        background: linear-gradient(90deg, transparent, fade(@con-cyan, 52%), transparent);
+        left: 0;
+        right: 0;
+        height: .1rem;
+        background: linear-gradient(90deg,
+            fade(@con-cyan, 7%),
+            fade(@con-cyan, 14%) calc(var(--con-rail-outer-w, 10.7rem) * 0.7),
+            fade(@con-cyan, 46%) calc(var(--con-rail-outer-w, 10.7rem) + 2.4rem),
+            fade(@con-cyan, 42%) 58%,
+            fade(@con-cyan, 18%) calc(100% - var(--con-rail-outer-w, 10.7rem) * 0.55),
+            fade(@con-cyan, 7%));
         pointer-events: none;
     }
     /* The top HUD is chrome — the hand-dock CARDS must NEVER paint over it, in
@@ -2185,14 +2218,20 @@ html.console-native {
     z-index: 11480;
     display: flex;
     flex-direction: column;
-    /* THE STAGE SURFACE (perimeter shell) — see .con-stage-surface(). */
-    padding: 1.05rem var(--con-hud-pad-x, 1.6rem) 1.1rem 1.6rem;
+    /* THE STAGE SURFACE (perimeter shell) — see .con-stage-surface().
+       VISUAL-STAGE inset right: the gallery is the largest visual object of
+       the whole flow — the freed width goes straight into the card fit.
+       Textual chrome (the head's trailing readouts) claws the content-safe
+       difference back below. */
+    padding: 1.05rem var(--con-stage-x, 1.6rem) 1.1rem 1.6rem;
     .con-stage-surface();
     font-family: @con-font;
     overflow: hidden;
 
     &__head {
         flex-shrink: 0;
+        /* Trailing readouts (pass chip / fin strip) are TEXT — content-safe. */
+        padding-right: var(--con-stage-gain, 0rem);
     }
     &__pass {
         display: inline-flex;
@@ -2607,6 +2646,15 @@ html.console-native {
 
         &--muted { opacity: .4; }
         &--empty:not(.con-draftws__shelf--pulse) { opacity: .55; }
+        /* IDLE DOCK: with nothing collected yet the shelf is a compact
+           statement of capacity (small prepared seats), never a full-height
+           empty box. The pose switches INSTANTLY with the first pick — no
+           size transition, so the real slot (which only renders once a card
+           is collected) is at its final rect before the pick flight
+           measures it. Gallery geometry is untouched either way: the shelf
+           is an absolute overlay over a constant stage reserve. */
+        &--empty .con-draftws__shelf-row { min-height: 3.4rem; }
+        &--empty .con-draftws__shelf-seat { width: 2.4rem; height: 3.35rem; opacity: .6; }
         &--pulse .con-draftws__shelf-row {
             animation: con-tray-pulse calc(260ms * var(--motion-scale, 1)) ease-out;
         }
@@ -3010,7 +3058,9 @@ each(@players, {
     /* Alignment tokens — consumed by BOTH the main rows AND the aux cells so
        the two columns can't drift. Overridden once, on the handheld profile. */
     --cr-pad: .6rem;       /* panel padding → first-row / aux top offset */
-    --cr-icon: 1.6rem;      /* resource icon box (drives row + aux cell height) */
+    /* ADAPTIVE-SURFACE pass 2: the widened hull member carries a bigger
+       instrument line — the icon is the row's identity and reads first. */
+    --cr-icon: 1.75rem;     /* resource icon box (drives row + aux cell height) */
     --cr-row-py: .3rem;     /* row vertical padding */
     --cr-rgap: .4rem;       /* gap between rows / aux cells */
     --cr-panel-gap: .6rem;  /* .con-res flex gap (score cap → rows → tags) */
@@ -3020,6 +3070,26 @@ each(@players, {
     flex-shrink: 0;       /* keep the rail's footprint — the board never reflows */
     display: flex;        /* lay out the panel; the aux is out of flow (absolute) */
     min-height: 0;
+
+    /* The post's RESTING stage-facing accent — on the HOST (not the scroll
+       container, whose absolute children scroll away with the content): a
+       vertical hairline whose ends FADE before the beam seams, so the
+       T-junctions read as one construction instead of two lines colliding.
+       State accents (ws-lift / info) out-paint it on `.con-res` itself. */
+    &::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        right: 0;
+        width: .07rem;
+        background: linear-gradient(180deg,
+            transparent,
+            fade(@con-cyan, 26%) 14%,
+            fade(@con-cyan, 26%) 86%,
+            transparent);
+        pointer-events: none;
+    }
 }
 .con-res {
     flex-shrink: 0;
@@ -3035,16 +3105,18 @@ each(@players, {
     padding: var(--cr-pad);
     padding-left: calc(var(--cr-pad) + var(--con-pad-x, 1.6vw));
     /* Welded member: square corners (the screen edge is the shape); the
-       hull darkens a touch toward the physical edge, the frame accent sits
-       on the stage-facing edge — the same one-accent grammar as the top
-       rail's bottom line. */
+       hull darkens a touch toward the physical edge. The stage-facing
+       accent lives on the HOST's ::after now (a faded-end gradient — see
+       .con-res-host), so the post's line never hard-terminates into the
+       beams; state accents (ws-lift / info) still re-draw this edge at
+       full strength via box-shadow. */
     border-radius: 0;
     background: linear-gradient(90deg, rgba(4, 8, 13, 0.6), transparent calc(var(--con-pad-x, 1.6vw) + 1.2rem)) @con-glass-soft;
-    /* Member caps: faint machined top/bottom lights close the box toward
-       the beam seams — the T-junctions read designed on both ends. */
+    /* Member caps: the TOP receives the beam's falling shadow (the post
+       stands UNDER the beam — that overlap is the junction), the bottom
+       keeps its dark cap toward the lower beam. */
     box-shadow:
-        inset -.06rem 0 0 fade(@con-cyan, 24%),
-        inset 0 .06rem 0 rgba(190, 225, 255, 0.05),
+        inset 0 .6rem 1rem -.6rem rgba(0, 0, 0, 0.5),
         inset 0 -.05rem 0 rgba(0, 0, 0, 0.32),
         .35rem 0 1.2rem rgba(0, 0, 0, 0.35);
     /* The Information-Workspace accent ring (.con-main--info) recolors per
@@ -3083,10 +3155,11 @@ each(@players, {
         filter: drop-shadow(0 .1rem .25rem rgba(0, 0, 0, 0.5));
     }
     &__value {
-        font-size: 1.15rem;
+        font-size: 1.25rem;
         font-weight: 700;
         letter-spacing: .02rem;
         min-width: 1.9rem;
+        font-variant-numeric: tabular-nums;
     }
     /* Production chip — the classic brown TM production tile read. */
     &__prod {
@@ -3119,8 +3192,8 @@ each(@players, {
    State language is perf-lite safe: the zero state rides opacity + count
    colour + transform; saturation via filter is a decorative assist only. */
 .con-tagmx {
-    --ct-icon: 1.9rem;    /* medallion box — the PNG's own ring lands flush */
-    --ct-num: .95rem;     /* count typography */
+    --ct-icon: 2.1rem;    /* medallion box — the PNG's own ring lands flush */
+    --ct-num: 1rem;       /* count typography */
     --ct-gap-y: .35rem;   /* row rhythm */
     --ct-gap-x: .2rem;
 
@@ -3639,6 +3712,26 @@ each(@players, {
     min-width: 0;
     display: flex;
     gap: .9rem;
+    position: relative;
+
+    /* THE RECESSED STAGE — the central scene sits DEEPER than the frame:
+       a quiet interior shade falls in from all four members (strongest
+       from the top beam), so the opening reads as a well the planet lives
+       in, not as four panels around a flat picture. Static box-shadow
+       (perf-lite safe), pointer-inert, edges only — the planet itself is
+       untouched. */
+    &::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        z-index: 2;
+        box-shadow:
+            inset 0 .9rem 1.8rem -1rem rgba(0, 0, 0, 0.55),
+            inset 0 -.8rem 1.7rem -1rem rgba(0, 0, 0, 0.5),
+            inset .8rem 0 1.7rem -1rem rgba(0, 0, 0, 0.45),
+            inset -.8rem 0 1.7rem -1rem rgba(0, 0, 0, 0.45);
+    }
     /* How far PLANET FOCUS may bleed below the stage — the dock clearance
        reserved just below. Mirrored in JS (the focus fit adds it to the
        usable height and re-centres by half of it). Keep the two in step. */
@@ -3962,9 +4055,11 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     flex-direction: column;
     gap: .5rem;
     /* PERIMETER SHELL: the section spans to the viewport's right edge now —
-       the track scene stays open (no plate; the void IS its stage), but the
-       content honours the shared safe-inset guide on both flanks. */
-    padding: .1rem var(--con-hud-pad-x, .55rem) 0 .55rem;
+       the track scene stays open (no plate; the void IS its stage). The
+       track and the dossier are large visual matter: the VISUAL-STAGE inset
+       (two-level safe area) — nothing textual lives at this screen's right
+       edge. */
+    padding: .1rem var(--con-stage-x, .55rem) 0 .55rem;
     font-family: @con-font;
     color: @con-text;
 
@@ -4048,8 +4143,8 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
     &__stop {
         position: relative;
         flex: 0 0 auto;
-        width: 4.8rem;
-        min-height: 9.3rem;
+        width: 5.2rem;
+        min-height: 10.4rem;
         display: flex;
         flex-direction: column;
         align-items: center;
@@ -4094,11 +4189,28 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
 
         /* The SELECTED stop is the magnified hero of the rail. */
         &--focused {
-            width: 9.5rem;
+            width: 10.2rem;
             opacity: 1;
             filter: none;
             background: fade(@con-cyan, 11%);
             box-shadow: inset 0 0 0 .1rem fade(@con-cyan, 85%), 0 0 1.1rem fade(@con-cyan, 25%);
+
+            /* TRACK → DETAIL: a short stem grows from the hero stop toward
+               the dossier below — the panel reads as THIS stop's own reading,
+               not a neighbouring surface. Static paint on the focused cell
+               only; it rides the same 260ms clock as the cell growth. */
+            &::after {
+                content: '';
+                position: absolute;
+                top: 100%;
+                left: 50%;
+                transform: translateX(-50%);
+                width: .14rem;
+                height: .85rem;
+                border-radius: .07rem;
+                background: linear-gradient(180deg, fade(@con-cyan, 75%), fade(@con-cyan, 12%));
+                pointer-events: none;
+            }
         }
     }
     &__stop-req {
@@ -4107,8 +4219,8 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         gap: .3rem;
     }
     &__stop-tag {
-        width: 1.7rem;
-        height: 1.7rem;
+        width: 1.9rem;
+        height: 1.9rem;
         background-size: contain;
         background-position: center;
         background-repeat: no-repeat;
@@ -4144,7 +4256,7 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         flex-direction: column;
         align-items: center;
         gap: .3rem;
-        width: 8.6rem;
+        width: 9.2rem;
         min-width: 0;
     }
     &__stop-name {
@@ -4246,8 +4358,8 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
        the frame pixel-exact if it ever had to. */
     &__panel {
         position: relative;
-        width: min(62rem, 100%);
-        min-height: 12rem;
+        width: min(70rem, 100%);
+        min-height: 13.5rem;
         max-height: 100%;
         display: flex;
         flex-direction: column;
@@ -4606,6 +4718,11 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         flex-direction: column;
         gap: .4rem;
         padding-top: .15rem;
+        /* The decision line SEATS the panel's bottom edge: when the dossier
+           has more room than content (the tall 4K stage), the air opens
+           BETWEEN the facts and the action — a composed instrument, not a
+           stack of rows with a void below it. */
+        margin-top: auto;
     }
     &__cta {
         display: inline-flex;
@@ -5130,15 +5247,15 @@ html.con-profile-handheld .con-hydro {
 /* Hydronetwork · large profile (4K TV): everything one notch up. */
 html.con-profile-large .con-hydro {
     .con-hydro__chip { font-size: .95rem; b { font-size: 1.15rem; } }
-    .con-hydro__stop { width: 6.1rem; min-height: 11.2rem; &--focused { width: 11.8rem; } }
-    .con-hydro__stop-tag { width: 2.1rem; height: 2.1rem; }
+    .con-hydro__stop { width: 6.4rem; min-height: 12.2rem; &--focused { width: 12.2rem; } }
+    .con-hydro__stop-tag { width: 2.2rem; height: 2.2rem; }
     .con-hydro__stop-name { font-size: .85rem; }
     .con-hydro__stage-name { font-size: 1.25rem; }
     .con-hydro__delta { font-size: 1rem; }
     .con-hydro__cta { font-size: 1.05rem; padding: .8rem 1.1rem; }
     .con-hydro__reason { font-size: .9rem; }
-    .con-hydro__panel { width: min(74rem, 100%); }
-    .con-hydro__stop-open { width: 11rem; }
+    .con-hydro__panel { width: min(80rem, 100%); }
+    .con-hydro__stop-open { width: 11.4rem; }
     .con-hydro__choice-card { flex-basis: 24rem; min-height: 8rem; }
     .con-hydro__choice-socket { width: 4.6rem; height: 4.6rem; }
     .con-hydro__choice-img { width: 3.1rem; height: 3.1rem; }
@@ -5537,9 +5654,11 @@ html.console-mode {
            height for the gallery fit below. */
         gap: .45rem;
         /* THE STAGE SURFACE (perimeter shell): the screen is a state of the
-           central scene — square, welded to the viewport's right edge, the
-           right CONTENT line on the shared safe-inset guide. */
-        padding: .6rem var(--con-hud-pad-x, 1.1rem) .55rem 1.1rem;
+           central scene — square, welded to the viewport's right edge.
+           VISUAL-STAGE inset right: the gallery is card matter and the
+           freed width goes straight into the fit; the verdict bar's text
+           compensates back to the content-safe line. */
+        padding: .6rem var(--con-stage-x, 1.1rem) .55rem 1.1rem;
         .con-stage-surface();
     }
 
@@ -5557,6 +5676,8 @@ html.console-mode {
             background: none;
             box-shadow: none;
         }
+        /* Inside a host zone there is no viewport boundary to compensate. */
+        .con-hand__verdictbar { padding-right: 0; }
         /* The host's ConsoleWsHead already carries the crumb; this is the
            screen's own TOOLBAR (counts · playable · tag filters · mode bars),
            laid out on the same line the header's aux zone used. */
@@ -5921,6 +6042,8 @@ html.console-mode {
     &__verdictbar {
         position: relative;
         border-left: .15rem solid transparent;
+        /* Text stays content-safe while the frame rides the stage inset. */
+        padding-right: var(--con-stage-gain, 0rem);
         transition: box-shadow calc(160ms * var(--motion-scale, 1)) ease, border-color calc(160ms * var(--motion-scale, 1)) ease;
 
         &--ok {
@@ -6350,14 +6473,27 @@ html.console-mode {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 1rem;
+        gap: 1.1rem;
+    }
+    /* THE FOCUS HALO — the wheel's pocket of depth. The shared shade dims
+       the scene; this layer CONCENTRATES the remaining light at the command
+       cross, so the wheel reads as the room's one lit instrument, not five
+       buttons floating on a darkened photo. Static paint, riding the
+       panel's own GSAP tween; wide enough to visually claim the stage. */
+    &__halo {
+        position: absolute;
+        inset: -6rem -10rem -7rem;
+        pointer-events: none;
+        background:
+            radial-gradient(56% 60% at 50% 52%, rgba(34, 58, 88, 0.4), rgba(12, 21, 34, 0.22) 55%, transparent 78%),
+            radial-gradient(80% 86% at 50% 52%, transparent 62%, rgba(2, 5, 9, 0.4) 100%);
     }
     &__kicker {
         position: relative;
         padding-bottom: .35rem;
         font-size: 1.1rem;
         font-weight: 700;
-        letter-spacing: .14rem;
+        letter-spacing: .18rem;
         text-transform: uppercase;
         color: fade(@con-cyan, 95%);
         text-shadow: 0 0 .9rem fade(@con-cyan, 35%);
@@ -6384,18 +6520,21 @@ html.console-mode {
        EQUAL fixed columns on purpose — content-sized tracks let a long
        side label (Гидросеть's reason) shove the CENTRE slot off the
        viewport centre, and the centre slot is the axis the hand dock
-       below is built to share (the footer-bay coaxiality contract). */
+       below is built to share (the footer-bay coaxiality contract).
+       Scale: the wheel is the screen's ONE object while it is open — the
+       plates take command-deck size, not context-menu size. */
     &__cross {
+        position: relative; /* paints above the halo */
         display: grid;
-        grid-template-columns: repeat(3, 14rem);
+        grid-template-columns: repeat(3, 15.5rem);
         grid-template-rows: repeat(3, auto);
-        gap: .8rem .9rem;
+        gap: .9rem 1.1rem;
         align-items: stretch;
         justify-items: stretch;
     }
     &__slot {
         position: relative;
-        min-height: 5.1rem;
+        min-height: 5.8rem;
         display: flex;
         align-items: stretch;
         justify-items: stretch;
@@ -6404,7 +6543,9 @@ html.console-mode {
         &--left { grid-area: 2 / 1; }
         &--right { grid-area: 2 / 3; }
         &--down { grid-area: 3 / 2; }
-        &--center { grid-area: 2 / 2; }
+        /* The HUB carries a touch more mass than the arms — the axis of the
+           whole instrument (and of the dock below it). */
+        &--center { grid-area: 2 / 2; min-height: 6.5rem; }
     }
     /* THE PLATE — the tile's physical body (the layer that presses). */
     &__slot-body {
@@ -6483,27 +6624,27 @@ html.console-mode {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 2.55rem;
-        height: 2.55rem;
-        border-radius: .65rem;
+        width: 2.85rem;
+        height: 2.85rem;
+        border-radius: .7rem;
         color: #dfeaf5;
         background: radial-gradient(80% 80% at 50% 42%, rgba(10, 17, 27, 0.0) 30%, rgba(5, 9, 16, 0.55) 100%);
         box-shadow:
             inset 0 .1rem .3rem rgba(0, 0, 0, 0.45),
             inset 0 0 0 .05rem rgba(120, 150, 185, 0.16);
         transition: transform calc(90ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
-        .bar-btn-icon { width: 1.7rem; height: 1.7rem; }
-        .resource_icon { display: inline-block; width: 1.55rem; height: 1.55rem; background-size: contain; background-repeat: no-repeat; background-position: center; }
-        .std-icon { display: inline-block; width: 1.7rem; height: 1.7rem; }
+        .bar-btn-icon { width: 1.9rem; height: 1.9rem; }
+        .resource_icon { display: inline-block; width: 1.75rem; height: 1.75rem; background-size: contain; background-repeat: no-repeat; background-position: center; }
+        .std-icon { display: inline-block; width: 1.9rem; height: 1.9rem; }
     }
     &__slot-glyph {
-        font-size: 1.4rem;
+        font-size: 1.55rem;
         line-height: 1;
     }
     &__slot-label {
-        font-size: .95rem;
+        font-size: 1rem;
         font-weight: 700;
-        letter-spacing: .03rem;
+        letter-spacing: .04rem;
         text-transform: uppercase;
         /* WRAP, never nowrap: a long side label (КОНВЕРТАЦИЯ РАСТЕНИЙ) with
            nowrap overflowed its fixed grid column and bled into the centre
@@ -6518,22 +6659,32 @@ html.console-mode {
         font-size: .8rem;
         color: @con-text-dim;
     }
+    /* THE AVAILABILITY COUNTER — part of the plate's own composition, not
+       a floating mini-badge overhanging its corner: a machined counter
+       socket seated INSIDE the top-right of the plate, sized to be read
+       from the couch. Mint = «this many could be done in this game state»
+       (the potential-availability contract — turn-independent). */
     &__slot-badge {
         position: absolute;
-        top: -.5rem;
-        right: -.4rem;
-        min-width: 1.3rem;
-        height: 1.3rem;
+        top: .4rem;
+        right: .45rem;
+        min-width: 1.55rem;
+        height: 1.55rem;
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        padding: 0 .35rem;
-        border-radius: 49.95rem;
-        background: fade(@con-mint, 20%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 70%), 0 0 .5rem fade(@con-mint, 25%);
+        padding: 0 .4rem;
+        border-radius: .5rem;
+        background:
+            linear-gradient(180deg, fade(@con-mint, 16%), fade(@con-mint, 7%)),
+            rgba(8, 14, 22, 0.85);
+        box-shadow:
+            inset 0 0 0 .06rem fade(@con-mint, 60%),
+            inset 0 .1rem .25rem rgba(0, 0, 0, 0.4);
         color: @con-mint;
-        font-size: .8rem;
-        font-weight: 700;
+        font-size: .95rem;
+        font-weight: 800;
+        font-variant-numeric: tabular-nums;
     }
     &__slot-reason {
         display: inline-block;
@@ -6564,26 +6715,44 @@ html.console-mode {
     &__slot--disabled &__slot-meta { opacity: 0.42; }
     &__slot--disabled &__slot-key { opacity: 0.45; }
 
+    /* ── SOFT blocker (a TEMPORARY gate — «не сейчас», never «никогда»):
+       the tile keeps clear presence and its amber voice, one register up
+       from the de-energized structural absence above (later in the file at
+       equal specificity — soft wins over the generic disabled pose). ── */
+    &__slot--soft &__slot-icon,
+    &__slot--soft &__slot-label,
+    &__slot--soft &__slot-meta { opacity: 0.66; }
+    &__slot--soft &__slot-key { opacity: 0.62; }
+    &__slot--soft &__slot-body {
+        box-shadow:
+            inset 0 .07rem 0 rgba(210, 235, 255, 0.05),
+            inset 0 -.4rem .6rem -.35rem rgba(0, 0, 0, 0.5),
+            inset 0 0 0 .05rem fade(@con-amber, 26%),
+            0 .4rem 1rem rgba(0, 0, 0, 0.45);
+    }
+    &__slot--soft &__slot-reason { color: fade(@con-amber, 88%); }
+
     /* ── FOCUS (focus-confirm's persistent cursor): the CALM first stage —
        a clear ring, a touch of extra depth, a soft inner light. Deliberately
        LESS than armed (the player must feel the second stage when A goes
        down), steady for long display (no pulse, no motion loop), and the
        neighbours stay fully readable (no muting at focus level). ── */
     &__slot--focus &__slot-body {
-        transform: translateY(-.04rem);
+        transform: translateY(-.07rem) scale(1.012);
         box-shadow:
-            inset 0 .08rem 0 rgba(215, 240, 255, 0.1),
+            inset 0 .08rem 0 rgba(215, 240, 255, 0.11),
             inset 0 -.4rem .6rem -.35rem rgba(0, 0, 0, 0.5),
-            inset 0 0 0 .06rem fade(@con-cyan, 55%),
-            0 .55rem 1.3rem rgba(0, 0, 0, 0.55),
-            0 0 1rem fade(@con-cyan, 10%);
+            inset 0 0 0 .07rem fade(@con-cyan, 62%),
+            0 .65rem 1.5rem rgba(0, 0, 0, 0.55),
+            0 0 1.2rem fade(@con-cyan, 13%);
     }
     &__slot--focus &__slot-icon {
-        transform: translateY(-.04rem) scale(1.03);
+        transform: translateY(-.05rem) scale(1.05);
         box-shadow:
             inset 0 .1rem .3rem rgba(0, 0, 0, 0.4),
-            inset 0 0 0 .05rem fade(@con-cyan, 30%);
+            inset 0 0 0 .05rem fade(@con-cyan, 34%);
     }
+    &__slot--focus &__slot-label { color: #fff; }
     &__slot--focus &__slot-key {
         box-shadow:
             inset 0 .05rem 0 rgba(210, 240, 255, 0.1),
@@ -6662,17 +6831,8 @@ html.console-mode {
     }
     &__slot--muted &__slot-key { opacity: 0.75; }
 
-    &__foot {
-        display: flex;
-        gap: 1.5rem;
-    }
-    &__foot-item {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        color: @con-text-dim;
-        font-size: .9rem;
-    }
+    /* (the old __foot/__foot-item hint row was dead chassis — the command
+       bar is the one source of button truth; removed with the rework.) */
 }
 @keyframes con-quick-reason-pulse {
     0% { transform: scale(1); }
@@ -7035,10 +7195,12 @@ html.console-mode {
         display: flex;
         flex-direction: column;
         gap: .7rem;
-        /* THE STAGE SURFACE (perimeter shell) — square scene welded right,
-           content on the shared safe-inset guide. Density note stands: a
+        /* THE STAGE SURFACE (perimeter shell) — square scene welded right.
+           VISUAL-STAGE inset on the right (the award/milestone cards are
+           large visual matter); the status rail's text claws the
+           content-safe difference back below. Density note stands: a
            decision surface, never see-through. */
-        padding: .9rem var(--con-hud-pad-x, 1.2rem) .6rem 1.2rem;
+        padding: .9rem var(--con-stage-x, 1.2rem) .6rem 1.2rem;
         .con-stage-surface();
         /* Entry moved to the surface-motion director. */
     }
@@ -7483,6 +7645,9 @@ html.console-mode {
     &__foot {
         flex-shrink: 0;
         padding-top: .45rem;
+        /* Text stays content-safe while the grid above rides the stage
+           inset (two-level safe area — one boundary, one inset each). */
+        padding-right: var(--con-stage-gain, 0rem);
         border-top: .05rem solid fade(@con-cyan, 16%);
     }
 }
@@ -7574,11 +7739,21 @@ html.console-mode {
     position: absolute;
     inset: 0;
     display: flex;
+    /* THE DENSE SCENE (the colony-focus idiom): the exhibition is a
+       CONTENT-DRIVEN panel centred in the band, never a full-height well —
+       a two-plate dossier stretched over a 4K body was mostly empty panel,
+       with the decision line orphaned at the far bottom. The token is the
+       height FLOOR (the ceremony needs its room); content may grow it. */
+    align-items: center;
+    --mafocus-h: 26rem;
 
     &__surface {
         position: relative;
-        flex: 1;
+        flex: 1 1 auto;
         min-width: 0;
+        height: auto;
+        max-height: 100%;
+        min-height: min(100%, var(--mafocus-h));
         display: flex;
         flex-direction: column;
         border-radius: .8rem;
@@ -8132,8 +8307,11 @@ html.con-profile-handheld .con-mafocus {
         gap: .7rem;
         .con-ws-fill();
         max-height: 100%;
-        /* THE STAGE SURFACE (perimeter shell) — see .con-stage-surface(). */
-        padding: .9rem var(--con-hud-pad-x, 1.1rem) .7rem 1.1rem;
+        /* THE STAGE SURFACE (perimeter shell) — see .con-stage-surface().
+           VISUAL-STAGE inset on the right: the grid is large visual matter
+           and may approach the edge; the status rail (text) claws the
+           content-safe difference back via --con-stage-gain. */
+        padding: .9rem var(--con-stage-x, 1.1rem) .7rem 1.1rem;
         .con-stage-surface();
     }
     /* ── THE STAGE WRAP: the browse layer and the flow's nested step are two
@@ -8457,8 +8635,15 @@ html.con-profile-handheld .con-mafocus {
         align-items: center;
         justify-content: space-between;
         gap: .8rem;
-        min-height: 1.9rem;
-        padding: .35rem .15rem 0;
+        /* THE STABLE STATUS-RAIL CONTRACT: a FIXED-height instrument (the
+           shared token) — focus navigation changes what the line SAYS,
+           never the box. `min-height` here is exactly what re-fit the grid
+           above on every cursor move (the stdp jumping-grid regression):
+           a chip row one pixel taller re-solved every row's share. */
+        height: var(--con-ws-foot-h, 2.5rem);
+        box-sizing: border-box;
+        overflow: hidden;
+        padding: .3rem calc(.15rem + var(--con-stage-gain, 0rem)) .25rem .15rem;
         border-top: .05rem solid rgba(120, 150, 180, 0.18);
     }
     &__context {
@@ -8468,6 +8653,9 @@ html.con-profile-handheld .con-mafocus {
         min-width: 0;
         font-size: .85rem;
         color: @con-text-dim;
+        /* One line by contract — a long reason ellipsizes, never wraps
+           (a wrapped second line has nowhere to go inside the fixed rail). */
+        white-space: nowrap;
         &--ready .con-stdp__context-state { color: @con-mint; }
         &--blocked .con-stdp__context-state { color: @con-amber; }
     }
@@ -8490,6 +8678,9 @@ html.con-profile-handheld .con-mafocus {
         display: inline-flex;
         align-items: center;
         gap: .4rem;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
 
         &::before {
             content: '';
@@ -8665,16 +8856,33 @@ html.con-profile-handheld .con-mafocus {
     align-self: stretch;
     display: flex;
     flex-direction: column;
+    position: relative; /* the faded-end accent below anchors to the member */
     padding: .5rem calc(.5rem + var(--con-pad-x, 1.6vw)) .55rem .5rem;
     border-radius: 0;
     background: linear-gradient(270deg, rgba(4, 8, 13, 0.6), transparent calc(var(--con-pad-x, 1.6vw) + 1.2rem)) @con-glass-soft;
-    /* Member caps — the left rail's grammar, mirrored. */
+    /* Member caps — the left rail's grammar, mirrored: the top receives
+       the beam's falling shadow, the accent hairline fades at both ends
+       (see .con-res-host::after — one junction grammar for both posts). */
     box-shadow:
-        inset .06rem 0 0 fade(@con-cyan, 24%),
-        inset 0 .06rem 0 rgba(190, 225, 255, 0.05),
+        inset 0 .6rem 1rem -.6rem rgba(0, 0, 0, 0.5),
         inset 0 -.05rem 0 rgba(0, 0, 0, 0.32),
         -.35rem 0 1.2rem rgba(0, 0, 0, 0.35);
     overflow: hidden;
+
+    &::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        width: .07rem;
+        background: linear-gradient(180deg,
+            transparent,
+            fade(@con-cyan, 26%) 14%,
+            fade(@con-cyan, 26%) 86%,
+            transparent);
+        pointer-events: none;
+    }
 
     &__zone {
         flex: 1 1 0;
@@ -8825,8 +9033,17 @@ html.con-profile-handheld .con-mafocus {
         display: flex;
         align-items: center;
         gap: .4rem;
-        padding: .1rem .2rem;
-        border-radius: .4rem;
+        /* THE INSTRUMENT PLATE (the left rail's row grammar, mirrored):
+           the plate bleeds through the hull zone to the physical edge —
+           medal and values stay on the safe content line via the
+           compensating padding. The rail reads as one bank of instruments,
+           not a floating column on a wide background. Clipping is safe:
+           the bleed stays inside .con-strat's own padding box. */
+        margin-right: calc(-1 * (.5rem + var(--con-pad-x, 0vw)));
+        padding: .12rem calc(.4rem + var(--con-pad-x, 0vw)) .12rem .25rem;
+        border-radius: .4rem 0 0 .4rem;
+        background: rgba(16, 26, 38, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
         cursor: pointer;
     }
 
@@ -9976,20 +10193,26 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         radial-gradient(130% 240% at 50% 210%, rgba(88, 132, 180, 0.12), transparent 58%),
         linear-gradient(0deg, rgba(16, 25, 38, 0.97), rgba(10, 16, 25, 0.965) 58%, rgba(8, 13, 20, 0.975));
     box-shadow:
-        inset 0 .06rem 0 fade(@con-cyan, 28%),
         inset 0 -.05rem 0 rgba(0, 0, 0, 0.4),
-        0 -.3rem 1.2rem rgba(0, 0, 0, 0.35);
+        0 -.45rem 1.5rem rgba(0, 0, 0, 0.42);
 
-    /* The weld point at the left hull member's column (the top rail's
-       grammar, mirrored onto this beam's top accent). */
+    /* The junction grammar, mirrored: ONE graded accent along the beam's
+       top edge — the stage opening carries the light, the post projections
+       stay quiet (see `.con-status::after`). */
     &::after {
         content: '';
         position: absolute;
         top: 0;
-        left: calc(var(--con-rail-outer-w, 10.7rem) - .8rem);
-        width: 1.6rem;
-        height: .12rem;
-        background: linear-gradient(90deg, transparent, fade(@con-cyan, 52%), transparent);
+        left: 0;
+        right: 0;
+        height: .1rem;
+        background: linear-gradient(90deg,
+            fade(@con-cyan, 7%),
+            fade(@con-cyan, 14%) calc(var(--con-rail-outer-w, 10.7rem) * 0.7),
+            fade(@con-cyan, 46%) calc(var(--con-rail-outer-w, 10.7rem) + 2.4rem),
+            fade(@con-cyan, 42%) 58%,
+            fade(@con-cyan, 18%) calc(100% - var(--con-rail-outer-w, 10.7rem) * 0.55),
+            fade(@con-cyan, 7%));
         pointer-events: none;
     }
 }
@@ -10929,8 +11152,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: flex;
         flex-direction: column;
         gap: .45rem;
-        /* THE STAGE SURFACE (perimeter shell) — see .con-stage-surface(). */
-        padding: .75rem var(--con-hud-pad-x, 1.1rem) .6rem 1.1rem;
+        /* THE STAGE SURFACE (perimeter shell) — see .con-stage-surface().
+           VISUAL-STAGE inset right (tile grid + focus scene are large
+           visual matter); the status rail claws the difference back. */
+        padding: .75rem var(--con-stage-x, 1.1rem) .6rem 1.1rem;
         .con-stage-surface();
     }
 
@@ -10945,6 +11170,8 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         background: none;
         box-shadow: none;
     }
+    /* Inside a host zone there is no viewport boundary to compensate. */
+    &--embedded .con-colonies__rail { padding-right: .8rem; }
     /* The host's crumb speaks; this is the screen's own TOOLBAR (the fleet
        dock), laid out on the line the header's aux zone used. Held past a
        deeper descent by opacity — height reserved, state untouched. */
@@ -11239,7 +11466,9 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         display: flex;
         align-items: center;
         gap: .7rem;
-        padding: .3rem .8rem;
+        /* Text stays content-safe while the frame above rides the stage
+           inset (two-level safe area). */
+        padding: .3rem calc(.8rem + var(--con-stage-gain, 0rem)) .3rem .8rem;
         border-radius: .5rem;
         height: 2.6rem;
         box-sizing: border-box;
@@ -24016,6 +24245,10 @@ html.con-profile-handheld {
         --con-hud-pad-x: calc(var(--con-pad-x) + .25rem);
         /* (--con-main-gap rides the shared --con-hud-gap seam token now.) */
         --con-rail-w: 7.3rem;
+        /* The Deck has no overscan: the stage inset collapses toward the
+           edge, and the fixed foot compacts with the chrome. */
+        --con-stage-x: calc(var(--con-pad-x) * 0.5);
+        --con-ws-foot-h: 2.1rem;
     }
     .con-status {
         gap: .6rem;
@@ -24167,7 +24400,12 @@ html.con-profile-handheld {
     }
     /* (width rides --con-rail-w — set in the root-chrome block above.) */
     .con-res {
-        &__row { gap: .35rem; padding: var(--cr-row-py) .35rem; }
+        /* ⚠ The LEFT side must repeat the hull-bleed compensation — the base
+           rule pairs `margin-left: -pad-x` with `padding-left: … + pad-x`,
+           and a bare shorthand here stripped the second half: the Deck's
+           resource content sat pad-x closer to the physical edge than the
+           safe line (the documented profile-shorthand trap). */
+        &__row { gap: .35rem; padding: var(--cr-row-py) .35rem var(--cr-row-py) calc(.35rem + var(--con-pad-x, 0vw)); }
         &__value { font-size: .85rem; }
         &__prod { font-size: .6rem; }
     }
@@ -24191,6 +24429,9 @@ html.con-profile-handheld {
     .con-res-aux__value { font-size: .75rem; min-width: 1rem; }
     .con-score {
         &__cell { padding: 0 .3rem; gap: .2rem; }
+        /* Same shorthand trap as the rows above: the first cell keeps the
+           hull-bleed compensation (mirrors the TV block's explicit repeat). */
+        &__cell:first-child { padding-left: calc(.3rem + var(--con-pad-x, 0vw)); }
         &__divider { margin: .25rem 0; }
         &__icon { width: 1rem; height: 1rem; }
         &__vp-icon { width: .95rem; height: 1.05rem; }
@@ -24202,10 +24443,14 @@ html.con-profile-handheld {
     }
 
     /* ── 6 · RT action wheel ─────────────────────────────────────── */
-    .con-quick__cross { gap: .5rem .6rem; grid-template-columns: repeat(3, 12rem); }
-    .con-quick__slot { min-height: 4.1rem; }
+    .con-quick__cross { gap: .5rem .6rem; grid-template-columns: repeat(3, 12.5rem); }
+    .con-quick__slot { min-height: 4.3rem; }
+    .con-quick__slot--center { min-height: 4.7rem; }
     .con-quick__slot-body { padding: .5rem .7rem .45rem; }
     .con-quick__slot-label { font-size: .85rem; }
+    .con-quick__slot-icon { width: 2.3rem; height: 2.3rem; }
+    .con-quick__slot-badge { top: .3rem; right: .35rem; min-width: 1.25rem; height: 1.25rem; font-size: .78rem; }
+    .con-quick__halo { inset: -4rem -6rem -5rem; }
 
     /* ── 7 · Y Information Workspace ─────────────────────────────── */
     .con-info {
@@ -24491,7 +24736,10 @@ html.con-profile-handheld {
            or this screen's frame stops matching every other workspace's. */
         padding: 0;
 
-        &__panel { gap: .5rem; padding: .6rem .8rem .4rem; border-radius: .6rem; }
+        /* ⚠ The right side must stay the TOKEN — a bare shorthand here
+           silently stripped the safe inset (the documented profile-shorthand
+           trap): the Deck's award grid ran to .8rem of the physical edge. */
+        &__panel { gap: .5rem; padding: .6rem var(--con-stage-x, .8rem) .4rem .8rem; border-radius: .6rem; }
         &__head { gap: .6rem; }
         &__emblem { width: 2rem; height: 2rem; border-radius: .5rem; }
         &__emblem-icon { width: 1.2rem; height: 1.2rem; }

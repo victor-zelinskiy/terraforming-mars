@@ -5025,7 +5025,9 @@ export default defineComponent({
       return [];
     },
     quickTitle(): string {
-      return this.consoleState.quick === 'actions' ? 'Actions' : 'Basic actions';
+      // «ВЫБЕРИТЕ ДЕЙСТВИЕ», not «ДЕЙСТВИЯ»: the top node is «ДЕЙСТВИЯ КАРТ»
+      // and the old kicker duplicated its first word right above it.
+      return this.consoleState.quick === 'actions' ? 'Choose an action' : 'Basic actions';
     },
     quickTrigger(): 'triggerR' | 'triggerL' {
       return this.consoleState.quick === 'actions' ? 'triggerR' : 'triggerL';

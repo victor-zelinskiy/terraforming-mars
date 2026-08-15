@@ -4,6 +4,12 @@
        GSAP-choreographed on the panel (no own backdrop, no CSS entry). -->
   <div class="con-quick con-ws" role="dialog" :aria-label="$t(title)" data-motion-surface="quick">
     <div class="con-quick__panel" data-motion-panel>
+      <!-- THE FOCUS HALO — the wheel's own pocket of depth: a wide radial
+           concentration of light behind the cross that separates the command
+           layer from the dimmed scene without a second backdrop (the ONE dim
+           stays the shared .con-shade). Static gradients, rides the panel's
+           GSAP tween — never its own animation. -->
+      <div class="con-quick__halo" aria-hidden="true"></div>
       <div class="con-quick__kicker">
         <transition :name="swapName" mode="out-in">
           <span :key="trigger" class="con-quick__kicker-inner">
@@ -22,6 +28,7 @@
                :class="[`con-quick__slot--${entry.slot}`, {
                  'con-quick__slot--center': entry.slot === 'center',
                  'con-quick__slot--disabled': !entry.available,
+                 'con-quick__slot--soft': !entry.available && entry.soft === true,
                  'con-quick__slot--focus': focusedSlot === entry.slot && armedSlot === undefined,
                  'con-quick__slot--armed': armedSlot === entry.slot,
                  'con-quick__slot--armed-blocked': armedSlot === entry.slot && armedBlocked,
