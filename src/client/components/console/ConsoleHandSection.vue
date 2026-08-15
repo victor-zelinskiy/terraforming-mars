@@ -9,7 +9,7 @@
        picking, the last one being «the stage is claimed but a pick bridge has
        borrowed the shelf»), read by the chrome and by e2e; never inferred from
        an animation's side effects. -->
-  <div class="con-hand con-hand--grid"
+  <div class="con-hand con-hand--album"
        :class="{'con-ws': !embedded, 'con-hand--embedded': embedded, 'con-hand--transit': transitHold, 'con-hand--under-scene': underScene, 'con-hand--discard': discard !== undefined, 'con-hand--discarding': discarding, 'con-hand--staged': stageOpen, 'con-hand--stagepaused': stagePaused}"
        :data-flow="stageOpen ? (stagePaused ? 'picking' : 'configure') : 'browse'"
        :style="rootStyle">
@@ -150,68 +150,98 @@
           <b class="con-hand__salebar-num con-hand__salebar-num--after">{{ selectPayout.current + pickGain }}</b>
         </span>
       </div>
+      <!-- PAGE INDICATOR — the album's one piece of chrome: the visible card
+           range, the total, and the page position. Right-aligned in the
+           header (margin-left: auto), fixed single line — the header height
+           never moves when pages come and go. Arrows light only toward a
+           page that exists (the direction language of the edges). -->
+      <div v-if="plan.pageCount > 1" class="con-hand__pageind" aria-hidden="true">
+        <span class="con-hand__pageind-arrow" :class="{'con-hand__pageind-arrow--on': activePage > 0}">‹</span>
+        <span class="con-hand__pageind-range">{{ pageRangeText }}</span>
+        <span class="con-hand__pageind-sep">·</span>
+        <span class="con-hand__pageind-pages"><b>{{ activePage + 1 }}</b>/{{ plan.pageCount }}</span>
+        <span class="con-hand__pageind-arrow" :class="{'con-hand__pageind-arrow--on': activePage < plan.pageCount - 1}">›</span>
+      </div>
     </component>
 
-    <!-- ── The STAGE WRAP: the BROWSE layer (shelf + status rail) and the
+    <!-- ── The STAGE WRAP: the BROWSE layer (album + status rail) and the
          embedded stage occupy the same region. Descending recomposes the frame
-         IN PLACE — the browse DOM is only parked, so the selection, the scroll
-         position and the filter survive by construction; nothing is
-         unmounted, nothing remounts on the way back. ── -->
+         IN PLACE — the browse DOM is only parked, so the selection, the page
+         and the filter survive by construction; nothing is unmounted, nothing
+         remounts on the way back. ── -->
     <div class="con-hand__stagewrap">
     <div class="con-hand__browse" ref="browseEl" :class="{'con-hand__browse--parked': stageOpen}">
-    <!-- Premium hand SHELF: a smart, virtualized grid. Only the visible rows +
-         overscan are rendered, so a big hand pages at 60fps. -->
-    <div class="con-hand__shelf">
-      <div class="con-hand__grid"
-           ref="grid"
-           :class="{'con-hand__grid--centered': !plan.scrolls, 'con-hand__grid--scroll': plan.scrolls}"
-           @scroll.passive="onScroll">
-        <div class="con-hand__pad" :style="padStyle">
-          <div class="con-hand__spacer" :style="{height: topSpacerPx + 'px'}" aria-hidden="true"></div>
-          <div v-for="row in renderRows"
-               :key="row"
+    <!-- Premium hand ALBUM: a strict page of profile-fixed shape (5×2 on the
+         couch, 4×1 on the Deck) — never a scrolling canvas. The strip carries
+         one page per stride; the viewport clips everything else; the pages
+         beyond the edges are the physical PACKETS the reveal transition
+         parks there. Only the active page ± its neighbours mount. -->
+    <!-- @scroll pin: an `overflow: hidden` box is still PROGRAMMATICALLY
+         scrollable, and the mounted neighbour page's transformed bounds are
+         scrollable overflow by spec — a stray `scrollIntoView`/`focus()`
+         from anywhere in the tree could silently shift the whole strip.
+         A scroll event here can only ever be programmatic (wheel is taken,
+         there is no scrollbar), so it is always reset. -->
+    <div class="con-hand__album" ref="album" @wheel.prevent="onWheel" @scroll.passive="pinScroll">
+      <div class="con-hand__pagestrip"
+           :class="{'con-hand__pagestrip--live': pageMotionLive && !transitHold, 'con-hand__pagestrip--turning': turning}"
+           :style="stripStyle"
+           @transitionend.self="onStripSettled">
+        <div v-for="p in renderPages"
+             :key="'page' + p"
+             class="con-hand__page"
+             :style="pageStyle(p)">
+          <div v-for="(row, ri) in pageRows(p)"
+               :key="ri"
                class="con-hand__row"
                :style="rowStyle">
-            <div v-for="(entry, ci) in rowEntries(row)"
-                 :key="entry.card.name"
+            <div v-for="cell in row"
+                 :key="cell.e.card.name"
                  class="con-hand__slot"
-                 :data-zoom-slot="entry.card.name"
+                 :data-zoom-slot="cell.e.card.name"
                  :class="{
-                   'con-hand__slot--selected': row * plan.cols + ci === index,
-                   'con-hand__slot--playable': !saleActive && !selectActive && entry.playable,
+                   'con-hand__slot--selected': cell.gi === index,
+                   'con-hand__slot--playable': !saleActive && !selectActive && cell.e.playable,
                    // DIM only what the RULES refuse. A card whose only blocker
                    // is the turn keeps its bright pose — dimming it says «this
                    // card is wrong», which is false and unlearns itself the
                    // moment the turn comes back.
-                   'con-hand__slot--unplayable': !saleActive && !selectActive && !entry.potential,
-                   'con-hand__slot--notnow': !saleActive && !selectActive && entry.potential && !entry.playable,
-                   'con-hand__slot--sale-picked': saleActive && isSaleSelected(entry.card.name),
-                   'con-hand__slot--select-picked': selectActive && isSelectPicked(entry.card.name),
-                   'con-hand__slot--select-disabled': selectActive && !isSelectable(entry.card.name),
-                   'con-deal-hold': entry.card.name === stagedCard,
+                   'con-hand__slot--unplayable': !saleActive && !selectActive && !cell.e.potential,
+                   'con-hand__slot--notnow': !saleActive && !selectActive && cell.e.potential && !cell.e.playable,
+                   'con-hand__slot--sale-picked': saleActive && isSaleSelected(cell.e.card.name),
+                   'con-hand__slot--select-picked': selectActive && isSelectPicked(cell.e.card.name),
+                   'con-hand__slot--select-disabled': selectActive && !isSelectable(cell.e.card.name),
+                   'con-deal-hold': cell.e.card.name === stagedCard,
                  }">
-              <Card :card="entry.card" :key="entry.card.name" lightweight />
-              <span v-if="entry.robot" class="con-hand__robot" v-i18n>Robots</span>
+              <Card :card="cell.e.card" :key="cell.e.card.name" lightweight />
+              <span v-if="cell.e.robot" class="con-hand__robot" v-i18n>Robots</span>
               <!-- State band: sale pick / select pick (✓), a "can't select"
                    marker on a non-candidate, else a COMPACT play blocker chip
                    (the full reason is in the info panel below). -->
-              <span v-if="saleActive && isSaleSelected(entry.card.name)" class="con-cards__pickband con-cards__pickband--sale" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
-              <span v-else-if="selectActive && isSelectPicked(entry.card.name)"
+              <span v-if="saleActive && isSaleSelected(cell.e.card.name)" class="con-cards__pickband con-cards__pickband--sale" aria-hidden="true">✓ {{ $t('Card selected') }}</span>
+              <span v-else-if="selectActive && isSelectPicked(cell.e.card.name)"
                     class="con-cards__pickband"
                     :class="discard !== undefined ? 'con-cards__pickband--discard' : 'con-cards__pickband--select'"
                     aria-hidden="true">{{ discard !== undefined ? '⌫ ' + $t('Discarded') : '✓ ' + $t('Card selected') }}</span>
-              <span v-else-if="selectActive && !isSelectable(entry.card.name)" class="con-hand__chip" aria-hidden="true">{{ $t('Unavailable') }}</span>
-              <span v-else-if="!saleActive && !selectActive && !entry.playable && chipLabel(entry)" class="con-hand__chip" aria-hidden="true">{{ $t(chipLabel(entry) || '') }}</span>
+              <span v-else-if="selectActive && !isSelectable(cell.e.card.name)" class="con-hand__chip" aria-hidden="true">{{ $t('Unavailable') }}</span>
+              <span v-else-if="!saleActive && !selectActive && !cell.e.playable && chipLabel(cell.e)" class="con-hand__chip" aria-hidden="true">{{ $t(chipLabel(cell.e) || '') }}</span>
             </div>
           </div>
-          <div class="con-hand__spacer" :style="{height: bottomSpacerPx + 'px'}" aria-hidden="true"></div>
         </div>
       </div>
 
-      <!-- Thin premium scrollbar / progress (only when the grid scrolls). -->
-      <div v-if="plan.scrolls && entries.length > 0" class="con-hand__scrollbar" aria-hidden="true">
-        <div class="con-hand__scrollthumb" :style="thumbStyle"></div>
-      </div>
+      <!-- PAGE EDGES — the thin layered hint that neighbouring pages exist
+           (never a decorative book, never a peek of real cards). Clickable
+           for mouse users; the pad turns pages by walking across the edge
+           or flicking the right stick. -->
+      <button v-if="activePage > 0"
+              type="button" tabindex="-1" aria-hidden="true"
+              class="con-hand__pgedge con-hand__pgedge--left"
+              @click="turnPage(-1)"></button>
+      <button v-if="activePage < plan.pageCount - 1"
+              type="button" tabindex="-1" aria-hidden="true"
+              class="con-hand__pgedge con-hand__pgedge--right"
+              @click="turnPage(1)"></button>
 
       <!-- Empty state, centred in the glass frame (filter vs truly-empty).
            Held back while a reveal/filter episode owns the cards — the
@@ -275,9 +305,9 @@
     <!-- The gliding selection frame — THE primary focus indicator of card
          navigation (shared with the start scene / draft / reveal). Self-
          resolving: tracks the cursored card inside this section itself,
-         following grid scroll and the focus scale transition live.
-         Suppressed while the reveal transition owns the cards (the frame
-         would aim at a held-invisible slot). -->
+         following the focus scale transition live. Suppressed while the
+         reveal transition owns the cards (the frame would aim at a
+         held-invisible slot). -->
     </div><!-- /__browse -->
 
     <!-- ── THE EMBEDDED STAGE — the TELEPORT TARGET the shell's ONE
@@ -330,22 +360,30 @@
 
 <script lang="ts">
 /**
- * Console Hand section — a PREMIUM, VIRTUALIZED SMART GRID (the rework of the
- * legacy horizontal carousel). The pure layout/nav math lives in
- * `consoleHandGrid.ts` (unit-tested); this component owns the DOM concerns:
- * measuring the box (ResizeObserver), WINDOWING the rows (only the visible
- * rows + overscan render, so a big hand stays 60fps), keeping the selected card
- * visible on navigation, and the right-stick free-scroll + lazy edge-nudge.
+ * Console Hand section — the PREMIUM ALBUM (the rework of the vertically-
+ * scrolling smart grid). The pure page/layout/navigation math lives in
+ * `consoleHandAlbum.ts` (unit-tested); this component owns the DOM concerns:
+ * measuring the box (ResizeObserver), rendering the active page ± its
+ * neighbours, the page-turn transition (a transform slide of the strip —
+ * naturally interruptible, so rapid turns retarget instead of queueing), the
+ * page-edge affordances, and the right-stick / wheel page flicks.
  *
  * Selection index lives in the router (`consoleState.handIndex`) and is passed
  * back as the `index` prop for rendering; the section MUTATES it directly from
- * `move()` (mirrors `ConsoleBoardSection.move()`), and the shell just delegates.
+ * `move()` (mirrors `ConsoleBoardSection.move()`), and the shell just
+ * delegates. THE ACTIVE PAGE IS DERIVED FROM THE FOCUS — they can never
+ * disagree, so restoring the focus restores the page, and navigation across a
+ * page edge IS the page turn.
+ *
+ * FOCUS IS ANCHORED TO CARD IDENTITY: when the entries re-sort or shrink the
+ * cursor follows the card it was on (`focusName`), and only falls back to the
+ * nearest logical slot when that card is gone — never to a random first page.
  *
  * A premium HEADER hosts the title + live counts + the console-native tag
  * filter (LB/RB cycle, R3 reset — the shell owns those inputs; the panel is
- * pure state). PLAYABLE-FIRST sort is applied by the shell; the info panel
- * under the grid carries the play state + the SERVER's structured unplayable
- * reasons (unit-suffixed "Сейчас: …"). Button hints live ONLY in the footer.
+ * pure state) + the page indicator. PLAYABLE-FIRST sort is applied by the
+ * shell; the info panel under the album carries the play state + the SERVER's
+ * structured unplayable reasons. Button hints live ONLY in the footer.
  */
 import {defineComponent, PropType, markRaw} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
@@ -366,8 +404,12 @@ import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
 import {consoleState} from '@/client/console/consoleRouter';
-import {planHandGrid, stepHandGrid, shortBlockerLabel, HandGridPlan, HandNavDir} from '@/client/components/console/consoleHandGrid';
-import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {shortBlockerLabel, HandNavDir} from '@/client/components/console/consoleHandGrid';
+import {
+  albumSpecFor, planHandAlbum, pageOfIndex, pageSlotOfIndex, stepHandAlbum, pageJumpIndex,
+  packetRect, HandAlbumPlan, PacketSide,
+} from '@/client/components/console/consoleHandAlbum';
+import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {ConsoleTagFilterOption, HandTagFilter} from '@/client/components/console/consoleHandFilter';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {saleSummary} from '@/client/console/patentSale/patentSaleModel';
@@ -431,24 +473,19 @@ export type ConsoleHandSelectMode = {
   discard?: DiscardIntent,
 };
 
-/** Rows kept mounted above/below the viewport so a fast page never blanks. */
-const OVERSCAN = 2;
-/** Top/bottom content inset (px): a card's cost badge + focus glow poke ABOVE
- *  the card box, so the scroll content starts this far below the clip edge
- *  (and rows keep this margin from the viewport top when scrolled to). */
-const EDGE_INSET_BASE = 20;
-/** Edge reserve around the grid (badge overhang + focus glow clearance).
- *  Scales with the TV profile: the fill-pass grows cards ~2.5×, so the
- *  cost badge's overhang grows past the 1080-tuned 20px and the top row
- *  clipped (the «карты обрезаются сверху» defect). */
-function edgeInset(): number {
-  return Math.round(EDGE_INSET_BASE * conUiScale());
-}
-/** Right-stick free-scroll px per intent frame (rows are tall). */
-const STICK_SCROLL_STEP = 44;
 /** Fallback box before the first measure / under JSDOM (rects are 0). */
 const FALLBACK_W = 1280;
 const FALLBACK_H = 560;
+/** Right-stick page flick: the axis magnitude that fires a turn, and the
+ *  hold-repeat interval (a held stick pages at a controlled cadence — the
+ *  CSS slide retargets, so rapid turns never queue). */
+const FLICK_THRESHOLD = 0.5;
+const FLICK_REPEAT_MS = 280;
+/** Mouse wheel: accumulated delta per page turn + the accumulator's decay. */
+const WHEEL_STEP = 60;
+const WHEEL_DECAY_MS = 260;
+/** Safety release of the `--turning` will-change class. */
+const TURN_SAFETY_MS = 420;
 
 function clampNum(lo: number, hi: number, v: number): number {
   return Math.max(lo, Math.min(hi, v));
@@ -469,6 +506,9 @@ export type ConsoleHandStage = {
   committed: boolean,
 };
 
+/** One rendered cell: the entry + its flat hand index. */
+type AlbumCell = {e: ConsoleHandEntry, gi: number};
+
 export default defineComponent({
   name: 'ConsoleHandSection',
   components: {Card, ConsoleWsHead},
@@ -484,7 +524,15 @@ export default defineComponent({
      *  the section is the normal play/browse hand. */
     select: {type: Object as PropType<ConsoleHandSelectMode | undefined>, default: undefined},
     /**
-     * The discard cinematic is holding the chosen cards ABOVE this grid (they
+     * Cards of the hand's UNIVERSE that are outside the current view (tag
+     * filter / «only suitable») — they are NOT on any page, but they are
+     * physically in the album: the reveal transition parks them with the
+     * far-side page packets, so the dock genuinely empties when the hand
+     * opens and every card has exactly one home.
+     */
+    packetExtras: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
+    /**
+     * The discard cinematic is holding the chosen cards ABOVE this album (they
      * are proxies on the discard layer; their real slots are held empty). The
      * rest of the hand recedes so the eye stays on what is leaving — a pure
      * CSS beat (`.con-hand--discarding`), no timeline, transform/opacity only.
@@ -508,7 +556,9 @@ export default defineComponent({
      * The dock ↔ overlay REVEAL transition owns the cards right now: every
      * slot renders held (the flying proxies are the single visible
      * representation of each card — handRevealDirector.ts). Vue-managed so
-     * a mid-episode patch can't wash the hold off.
+     * a mid-episode patch can't wash the hold off. Also pins the page strip
+     * (no slide mid-episode — the flight targets were measured against the
+     * current layout).
      */
     transitHold: {type: Boolean, default: false},
     /**
@@ -522,15 +572,14 @@ export default defineComponent({
      * A bottom-reaching scene is up (the shell's `footerUnderScene` — play
      * composer etc. — or the reveal modal): the status rail DROPS back
      * under the overlay band. In the calm open hand it rides ABOVE the
-     * footer/dock (z 11711) so the non-filtered backs staying in the tray
-     * (per-card lift) and the reveal flights pass BEHIND it, never over
-     * its text.
+     * footer/dock (z 11711) so the reveal flights pass BEHIND it, never
+     * over its text.
      */
     underScene: {type: Boolean, default: false},
     /**
      * THE OPEN DESCENT (undefined = the browse layer owns the screen). Present
      * ⇔ the workspace has been entered one level deeper: the header grows its
-     * tail, the shelf parks, and the stage zone renders as the teleport target
+     * tail, the album parks, and the stage zone renders as the teleport target
      * for the shell's play composer.
      */
     stage: {type: Object as PropType<ConsoleHandStage | undefined>, default: undefined},
@@ -538,7 +587,7 @@ export default defineComponent({
      * THIS SCREEN IS A STEP OF ANOTHER WORKSPACE (the Game Start Workspace's
      * play-from-hand prelude). The SHELL comes off — the shared header, the
      * frame plate, the `con-ws` rail marker — and the host draws all three;
-     * the CONTENT (the shelf, the filters, the status rail, the playability
+     * the CONTENT (the album, the filters, the status rail, the playability
      * presentation, the stage zone the composer descends into) is untouched,
      * which is the whole point: the player gets their real hand, not a picker.
      *
@@ -552,7 +601,7 @@ export default defineComponent({
      * configuring). The stage stays CLAIMED (the zone keeps its slot and the
      * composer keeps every capture — retracting it here would unmount the
      * composer and lose the whole configuration), but the shelf must come back
-     * to full strength: it is the picker now, and a parked 7 %-opacity grid is
+     * to full strength: it is the picker now, and a parked 7 %-opacity album is
      * one the player cannot choose from.
      */
     stagePaused: {type: Boolean, default: false},
@@ -563,13 +612,26 @@ export default defineComponent({
       /** The workspace OUTCOME claim (module reactive — a path watcher needs
        *  the mirror here, or it never fires). */
       outcome: workspaceOutcomeState,
-      /** Row-gated scroll position that drives the render window. */
-      scrollTopPx: 0,
-      /** Smooth 0..1 scroll fraction for the scrollbar thumb. */
-      scrollFrac: 0,
-      lastFirstRow: -1,
+      /** The layout profile (module reactive — the album's page shape). */
+      layout: consoleLayoutState,
+      /** A page slide is airborne — `will-change` scoped to the turn only. */
+      turning: false,
+      turnSafety: undefined as number | undefined,
+      /** The strip transition arms only after the mount has settled — the
+       *  first paint (and every fresh open) must land on its page with no
+       *  slide from x=0. */
+      pageMotionLive: false,
+      /** The page the strip last SETTLED on — the render window keeps both
+       *  the settled and the target page mounted, so a mid-slide page never
+       *  unmounts under the player (a pop). */
+      settledPage: 0,
+      /** The IDENTITY the cursor is anchored to — when entries re-sort or
+       *  shrink, focus follows the card, not the number. */
+      focusName: undefined as string | undefined,
+      lastFlickAt: 0,
+      wheelAcc: 0,
+      wheelAt: 0,
       ro: undefined as ResizeObserver | undefined,
-      rafScroll: undefined as number | undefined,
       rafMeasure: undefined as number | undefined,
     };
   },
@@ -737,58 +799,63 @@ export default defineComponent({
     emptyMessage(): string {
       return this.activeTag !== 'all' ? translateText('No cards with this tag') : translateText('No cards in hand');
     },
-    plan(): HandGridPlan {
-      // Reserve the edge inset on every side so cards' badges + focus glow have
-      // room and never clip against the shelf edge (the fit/scroll decision
-      // and the centred content width both fall inside that inset box).
-      const w = (this.box.w > 0 ? this.box.w : FALLBACK_W) - edgeInset() * 2;
-      const h = (this.box.h > 0 ? this.box.h : FALLBACK_H) - edgeInset() * 2;
-      return planHandGrid({availW: w, availH: h, count: this.entries.length, uiScale: conUiScale()});
+    /**
+     * THE ALBUM PLAN — page shape from the PROFILE, card size from the BOX.
+     * Never from the hand size: one card and a full page are the same
+     * geometry, and a growing hand only ever adds pages.
+     */
+    plan(): HandAlbumPlan {
+      return planHandAlbum({
+        availW: this.box.w > 0 ? this.box.w : FALLBACK_W,
+        availH: this.box.h > 0 ? this.box.h : FALLBACK_H,
+        count: this.entries.length,
+        spec: albumSpecFor(this.layout.profile),
+        uiScale: conUiScale(),
+      });
     },
-    /** Row indices to render (all when it fits; windowed when it scrolls). The
-     *  window is derived even before the first measure (from the fallback box),
-     *  so a large hand never mounts every card in one frame on first paint. */
-    renderRows(): Array<number> {
-      const p = this.plan;
-      if (p.rows <= 0) {
+    /** The page the cursor lives on — the album's viewport, BY DERIVATION.
+     *  Focus and page can never disagree; restoring one restores the other. */
+    activePage(): number {
+      const clamped = clampNum(0, Math.max(0, this.entries.length - 1), this.index);
+      return Math.min(this.plan.pageCount - 1, pageOfIndex(clamped, this.plan.perPage));
+    },
+    /** Pages kept mounted: the active page ± 1, plus the last SETTLED page's
+     *  neighbourhood — a page mid-slide never unmounts under the player. */
+    renderPages(): Array<number> {
+      if (this.entries.length === 0) {
         return [];
       }
-      if (!p.scrolls) {
-        return this.range(0, p.rows - 1);
+      const last = this.plan.pageCount - 1;
+      const keep = new Set<number>();
+      for (const centre of [this.activePage, Math.min(last, this.settledPage)]) {
+        for (let p = Math.max(0, centre - 1); p <= Math.min(last, centre + 1); p++) {
+          keep.add(p);
+        }
       }
-      const availH = this.box.h > 0 ? this.box.h : FALLBACK_H;
-      const contentY = this.scrollTopPx - edgeInset();
-      const first = Math.max(0, Math.floor(contentY / p.rowStride) - OVERSCAN);
-      const last = Math.min(p.rows - 1, Math.ceil((contentY + availH) / p.rowStride) + OVERSCAN);
-      return this.range(first, last);
+      return [...keep].sort((a, b) => a - b);
     },
     rootStyle(): Record<string, string> {
       return {'--con-hand-zoom': String(this.plan.cardZoom)};
     },
-    padStyle(): Record<string, string> {
-      return this.plan.contentW > 0 ? {width: Math.round(this.plan.contentW) + 'px'} : {};
+    /** The strip slides one stride per page — transform only (interruptible,
+     *  retargetable, zero layout, zero scroll geometry). */
+    stripStyle(): Record<string, string> {
+      return {transform: `translateX(${-this.activePage * this.plan.stride}px)`};
     },
     rowStyle(): Record<string, string> {
-      return {height: this.plan.rowStride + 'px', columnGap: this.plan.gapX + 'px'};
+      return {height: this.plan.slotH + 'px', columnGap: this.plan.gapX + 'px'};
     },
-    topSpacerPx(): number {
-      const rows = this.renderRows;
-      return rows.length === 0 ? 0 : edgeInset() + rows[0] * this.plan.rowStride;
+    /** «1–10 из 19» — the active page's card range over the visible total. */
+    pageRangeText(): string {
+      const start = this.activePage * this.plan.perPage;
+      const end = Math.min(this.entries.length, start + this.plan.perPage);
+      return translateTextWithParams('${0} of ${1}', [`${start + 1}–${end}`, String(this.entries.length)]);
     },
-    bottomSpacerPx(): number {
-      const rows = this.renderRows;
-      if (rows.length === 0) {
-        return 0;
-      }
-      return (this.plan.rows - 1 - rows[rows.length - 1]) * this.plan.rowStride + edgeInset();
-    },
-    thumbStyle(): Record<string, string> {
-      const p = this.plan;
-      const content = p.rows * p.rowStride + edgeInset() * 2;
-      const visible = this.box.h > 0 ? this.box.h : FALLBACK_H;
-      const hPct = clampNum(8, 100, (visible / Math.max(1, content)) * 100);
-      const topPct = (100 - hPct) * this.scrollFrac;
-      return {height: hPct + '%', top: topPct + '%'};
+    /** The cursor SEMANTICS epoch — a mode flip (browse ↔ sale ↔ select/pick)
+     *  re-seats the cursor on the shell's side, so the identity anchor must
+     *  adopt the new position even when the index number did not change. */
+    modeKey(): string {
+      return `${this.saleActive}|${this.selectActive}`;
     },
   },
   watch: {
@@ -828,18 +895,65 @@ export default defineComponent({
         }
       },
     },
+    /* ── FOCUS IDENTITY + PAGE DERIVATION ─────────────────────────────────
+       Declared in this order ON PURPOSE — watchers fire in declaration order
+       within one flush, so an explicit index write (the shell seating a pick)
+       refreshes the anchor BEFORE the entries watcher could «follow» a card
+       the player is no longer on. */
     index() {
-      void this.$nextTick(() => this.ensureSelectedVisible());
+      this.focusName = this.entries[clampNum(0, Math.max(0, this.entries.length - 1), this.index)]?.card.name;
     },
-    'entries.length'() {
-      // A shrinking hand may leave the index past the end — clamp it.
-      if (this.index > this.entries.length - 1) {
-        consoleState.handIndex = Math.max(0, this.entries.length - 1);
+    /** A MODE flip re-seats the cursor semantics (select/sale enter and leave
+     *  set their own index) — adopt the current position as the new anchor
+     *  even when the number itself did not change. */
+    modeKey() {
+      this.focusName = this.entries[clampNum(0, Math.max(0, this.entries.length - 1), this.index)]?.card.name;
+    },
+    /**
+     * FOCUS FOLLOWS THE CARD, NOT THE NUMBER. When the entries re-sort (a card
+     * became unplayable and sank in the playable-first order) or shrink, the
+     * cursor stays on the card it was on; only when that card is GONE does it
+     * fall back to the nearest logical slot (same index, clamped) — never to a
+     * random first page. The active page follows by derivation.
+     */
+    entries(list: ReadonlyArray<ConsoleHandEntry>) {
+      const len = list.length;
+      if (len === 0) {
+        if (consoleState.handIndex !== 0) {
+          consoleState.handIndex = 0;
+        }
+        this.focusName = undefined;
+        return;
       }
-      void this.$nextTick(() => {
-        this.applyScroll();
-        this.ensureSelectedVisible();
-      });
+      const cur = clampNum(0, len - 1, this.index);
+      const curName = list[cur]?.card.name;
+      if (this.focusName !== undefined && curName !== this.focusName) {
+        const at = list.findIndex((e) => e.card.name === this.focusName);
+        if (at >= 0) {
+          consoleState.handIndex = at;
+          return;
+        }
+      }
+      if (this.index > len - 1) {
+        consoleState.handIndex = len - 1;
+      }
+      this.focusName = list[clampNum(0, len - 1, consoleState.handIndex)]?.card.name;
+    },
+    /** The page turn's will-change window + the settled-page render anchor. */
+    activePage(now: number) {
+      if (!this.pageMotionLive || this.transitHold) {
+        this.settledPage = now;
+        return;
+      }
+      this.turning = true;
+      if (this.turnSafety !== undefined) {
+        clearTimeout(this.turnSafety);
+      }
+      this.turnSafety = window.setTimeout(() => {
+        this.turning = false;
+        this.settledPage = this.activePage;
+        this.turnSafety = undefined;
+      }, TURN_SAFETY_MS);
     },
   },
   methods: {
@@ -850,16 +964,36 @@ export default defineComponent({
     handStageLeaveHook,
     handStageEnterCancelledHook,
     handStageLeaveCancelledHook,
-    range(a: number, b: number): Array<number> {
-      const out: Array<number> = [];
-      for (let i = a; i <= b; i++) {
-        out.push(i);
+    /** The rows of one page, each cell carrying its FLAT hand index. */
+    pageRows(page: number): Array<Array<AlbumCell>> {
+      const p = this.plan;
+      const start = page * p.perPage;
+      const slice = this.entries.slice(start, start + p.perPage);
+      const rows: Array<Array<AlbumCell>> = [];
+      for (let r = 0; r * p.cols < slice.length; r++) {
+        rows.push(slice.slice(r * p.cols, (r + 1) * p.cols).map((e, ci) => ({e, gi: start + r * p.cols + ci})));
       }
-      return out;
+      return rows;
     },
-    rowEntries(row: number): ReadonlyArray<ConsoleHandEntry> {
-      const start = row * this.plan.cols;
-      return this.entries.slice(start, start + this.plan.cols);
+    /** One page's berth on the strip: its stride slot + the centring pads. */
+    pageStyle(page: number): Record<string, string> {
+      const p = this.plan;
+      return {
+        transform: `translate(${page * p.stride + p.padX}px, ${p.padTop}px)`,
+        width: p.pageW + 'px',
+        rowGap: p.gapY + 'px',
+      };
+    },
+    onStripSettled(e: TransitionEvent): void {
+      if (e.propertyName !== 'transform') {
+        return;
+      }
+      this.turning = false;
+      this.settledPage = this.activePage;
+      if (this.turnSafety !== undefined) {
+        clearTimeout(this.turnSafety);
+        this.turnSafety = undefined;
+      }
     },
     isSaleSelected(name: string): boolean {
       return this.saleSelected.includes(name);
@@ -885,217 +1019,167 @@ export default defineComponent({
       return shortBlockerLabel(entry.card.unplayableReasons ?? []);
     },
     // ── navigation (called by the shell, mirrors ConsoleBoardSection) ──────
-    /** D-pad / left-stick: move the selection across the grid, keep it visible. */
-    move(dir: HandNavDir): void {
-      consoleState.handIndex = stepHandGrid(this.index, dir, this.entries.length, this.plan.cols);
-      void this.$nextTick(() => this.ensureSelectedVisible());
-    },
-    /** Right stick: free vertical scroll; the scroll handler nudges selection. */
-    stickScroll(dy: number): void {
-      const grid = this.$refs.grid as HTMLElement | undefined;
-      if (grid === undefined || !this.plan.scrolls) {
-        return;
-      }
-      grid.scrollBy({top: dy * STICK_SCROLL_STEP, behavior: 'auto'});
-    },
-    // ── scroll / windowing / measure ──────────────────────────────────────
-    onScroll(): void {
-      if (this.rafScroll !== undefined) {
-        return;
-      }
-      this.rafScroll = requestAnimationFrame(() => {
-        this.rafScroll = undefined;
-        this.applyScroll();
-      });
-    },
-    applyScroll(): void {
-      const grid = this.$refs.grid as HTMLElement | undefined;
-      if (grid === undefined) {
-        return;
-      }
-      const p = this.plan;
-      const st = grid.scrollTop;
-      // Row-gated: only re-render the window when the first visible row changes.
-      const firstRow = p.rowStride > 0 ? Math.floor((st - edgeInset()) / p.rowStride) : 0;
-      if (firstRow !== this.lastFirstRow) {
-        this.lastFirstRow = firstRow;
-        this.scrollTopPx = st;
-      }
-      // Smooth indicators (cheap — one style + one text node).
-      const maxScroll = Math.max(1, grid.scrollHeight - grid.clientHeight);
-      this.scrollFrac = clampNum(0, 1, st / maxScroll);
-      // Keep the selection visible while free-scrolling (lazy edge nudge).
-      this.reconcileSelection(st);
-    },
-    reconcileSelection(st: number): void {
-      const p = this.plan;
-      if (!p.scrolls || p.cols <= 0 || this.box.h <= 0) {
-        return;
-      }
-      const firstFull = Math.ceil((st - edgeInset()) / p.rowStride);
-      const lastFull = Math.floor((st - edgeInset() + this.box.h) / p.rowStride) - 1;
-      if (lastFull < firstFull) {
-        return;
-      }
-      const selRow = Math.floor(this.index / p.cols);
-      if (selRow < firstFull) {
-        this.clampSelectionToRow(firstFull);
-      } else if (selRow > lastFull) {
-        this.clampSelectionToRow(lastFull);
-      }
-    },
-    clampSelectionToRow(row: number): void {
-      const p = this.plan;
-      const r = clampNum(0, p.rows - 1, row);
-      const col = this.index % p.cols;
-      const idx = Math.min(this.entries.length - 1, r * p.cols + col);
-      if (idx !== consoleState.handIndex && idx >= 0) {
-        consoleState.handIndex = idx;
-      }
-    },
-    ensureSelectedVisible(): void {
-      const grid = this.$refs.grid as HTMLElement | undefined;
-      const p = this.plan;
-      if (grid === undefined || !p.scrolls || p.cols <= 0) {
-        return;
-      }
-      const inset = edgeInset();
-      const clientH = grid.clientHeight;
-      const viewTop = grid.scrollTop;
-      // Reveal the focused card from its ACTUAL rendered rect when it's in the
-      // virtual window: the DOM rect folds in the selected-card scale pop
-      // (`--selected` transform) AND the real premium-face height, so the
-      // reveal never stops a few px short of the bottom row (the «карта не
-      // видна полностью, приходится доскроллить правым стиком» defect — the
-      // pure `slotH` math missed the pop). Fall back to the plan math only
-      // when the row is outside the window (a jump beyond overscan), where no
-      // slot element exists yet.
-      const name = this.entries[this.index]?.card.name;
-      const slot = name !== undefined ?
-        grid.querySelector<HTMLElement>(`[data-zoom-slot="${CSS.escape(name)}"]`) : null;
-      let relTop: number;
-      let relBottom: number;
-      if (slot !== null) {
-        const sr = slot.getBoundingClientRect();
-        const gr = grid.getBoundingClientRect();
-        relTop = sr.top - gr.top; // 0 = grid viewport top
-        relBottom = sr.bottom - gr.top;
-      } else {
-        const row = Math.floor(this.index / p.cols);
-        relTop = inset + row * p.rowStride - viewTop;
-        relBottom = relTop + p.slotH;
-      }
-      // Leave an edge-inset buffer on the revealed edge so the card's top badge
-      // / focus glow clear the shelf edge (and never sit behind the status rail).
-      let delta = 0;
-      if (relTop - inset < 0) {
-        delta = relTop - inset; // reveal the top (scroll up)
-      } else if (relBottom + inset > clientH) {
-        delta = relBottom + inset - clientH; // reveal the bottom (scroll down)
-      }
-      if (delta === 0) {
-        return;
-      }
-      const maxScroll = Math.max(0, grid.scrollHeight - clientH);
-      const next = clampNum(0, maxScroll, viewTop + delta);
-      if (Math.abs(next - viewTop) > 0.5) {
-        grid.scrollTop = next; // fires @scroll → applyScroll re-windows
-      }
-    },
-    // ── the dock ↔ overlay reveal transition (handRevealDirector) ─────────
     /**
-     * Every hand card's OVERLAY home, in entries order: the real card rect
-     * for rendered slots, a PLAN-derived rect for slots beyond the virtual
-     * window (grid math is pure — a reference rendered card anchors the
-     * row/column strides, so even a 30-card tail has an honest position).
-     * `visible` = the rect intersects the grid viewport (off-window proxies
-     * fade at the boundary — "into the scroll"); a visible rect that CROSSES
-     * the viewport edge also carries `clip` — the screen-px overflow the
-     * grid's overflow cuts off the real slot — so the flying proxy can land
-     * exactly as clipped (never a whole card that "sinks" at the handoff).
-     * One read batch; no writes.
+     * D-pad / left-stick: deterministic album stepping. Horizontal walks the
+     * flat hand order — crossing a page edge IS the page turn (the strip
+     * follows the derived active page); vertical moves by a row within the
+     * page, column preserved. Nothing wraps; every edge is felt.
      */
-    transitionTargets(): {pairs: Array<{name: CardName, rect: {left: number, top: number, width: number, height: number}, visible: boolean, clip?: {top: number, bottom: number}}>, scrollTop: number} {
-      const grid = this.$refs.grid as HTMLElement | undefined;
-      if (grid === undefined || this.entries.length === 0) {
+    move(dir: HandNavDir): void {
+      consoleState.handIndex = stepHandAlbum(this.index, dir, this.entries.length, this.plan);
+    },
+    /** The explicit page turn (edge click / stick flick / wheel): same
+     *  relative slot on the neighbouring page. */
+    turnPage(dir: 1 | -1): void {
+      if (this.transitHold) {
+        return;
+      }
+      consoleState.handIndex = pageJumpIndex(this.index, dir, this.entries.length, this.plan.perPage);
+    },
+    /**
+     * Right stick — the PAGE FLICK (replaces the old free vertical scroll):
+     * a firm push turns one page toward the push; holding it pages at a
+     * controlled cadence. The CSS slide retargets mid-flight, so rapid
+     * flicks redirect the same motion instead of queueing five animations.
+     */
+    stickScroll(dy: number, dx = 0): void {
+      const v = Math.abs(dx) >= Math.abs(dy) ? dx : dy;
+      if (Math.abs(v) < FLICK_THRESHOLD) {
+        return;
+      }
+      const now = Date.now();
+      if (now - this.lastFlickAt < FLICK_REPEAT_MS) {
+        return;
+      }
+      this.lastFlickAt = now;
+      this.turnPage(v > 0 ? 1 : -1);
+    },
+    /** A scroll on the album is always programmatic (see the template note) —
+     *  pin it back so a stray `scrollIntoView` can never shift the strip. */
+    pinScroll(): void {
+      const album = this.$refs.album as HTMLElement | undefined;
+      if (album !== undefined && (album.scrollLeft !== 0 || album.scrollTop !== 0)) {
+        album.scrollLeft = 0;
+        album.scrollTop = 0;
+      }
+    },
+    /** Mouse wheel: accumulate into one page turn per firm notch group. */
+    onWheel(e: WheelEvent): void {
+      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      const now = Date.now();
+      if (now - this.wheelAt > WHEEL_DECAY_MS) {
+        this.wheelAcc = 0;
+      }
+      this.wheelAt = now;
+      this.wheelAcc += d;
+      if (Math.abs(this.wheelAcc) >= WHEEL_STEP) {
+        this.turnPage(this.wheelAcc > 0 ? 1 : -1);
+        this.wheelAcc = 0;
+      }
+    },
+    /** The album derives its viewport from the focus — nothing to scroll.
+     *  Kept (as a no-op) because the filter episode's measure path and the
+     *  shell's refocus call it; the page follows `handIndex` reactively. */
+    ensureSelectedVisible(): void {
+      // Intentionally empty: activePage is derived from the focus index.
+    },
+    /** Scroll restoration is gone with the scroll itself — the page derives
+     *  from the restored focus index. Kept for the director's hook shape. */
+    restoreScroll(_px: number): void {
+      // Intentionally empty.
+    },
+    // ── the dock ↔ album reveal transition (handRevealDirector) ───────────
+    /**
+     * Every hand card's ALBUM home, in entries order + the out-of-view
+     * UNIVERSE extras:
+     *  - active-page cards → their real slot rects (`visible: true`);
+     *  - cards of other pages → their page PACKET anchor beyond the stage
+     *    edge (left for earlier pages, right for later — `visible: false`,
+     *    the proxies dissolve at the boundary while flying toward it);
+     *  - `packetExtras` (outside the current filter) → the far right packet.
+     * One read batch; no writes; no clipping (a page never crosses the
+     * viewport edge — partially visible rows are gone with the scroll).
+     */
+    transitionTargets(): {pairs: Array<{name: CardName, rect: {left: number, top: number, width: number, height: number}, visible: boolean, clip?: {top: number, bottom: number, left?: number, right?: number}}>, scrollTop: number} {
+      const album = this.$refs.album as HTMLElement | undefined;
+      if (album === undefined || (this.entries.length === 0 && this.packetExtras.length === 0)) {
         return {pairs: [], scrollTop: 0};
       }
-      const gr = grid.getBoundingClientRect();
-      // The grid clips its scroll content at its own border box — the honest
-      // boundary the real slots render against.
-      const clipFor = (rect: {top: number, height: number}): {top: number, bottom: number} | undefined => {
-        const top = Math.max(0, gr.top - rect.top);
-        const bottom = Math.max(0, rect.top + rect.height - gr.bottom);
-        return top > 0.5 || bottom > 0.5 ? {top, bottom} : undefined;
-      };
+      const box = album.getBoundingClientRect();
       const p = this.plan;
-      // The anchor: the FIRST rendered slot's card (its entries index is
-      // known via the render window), backing out the per-card strides.
-      const firstRow = this.renderRows[0] ?? 0;
-      const refIndex = firstRow * p.cols;
-      const refName = this.entries[refIndex]?.card.name;
-      const refSlot = refName !== undefined ?
-        grid.querySelector<HTMLElement>(`[data-zoom-slot="${CSS.escape(refName)}"]`) : null;
-      const refCard = refSlot?.querySelector<HTMLElement>(':is(.card-container, .pcard)');
-      const ref = refCard?.getBoundingClientRect();
-      // Column stride: measured off two adjacent rendered cards when
-      // possible (slot padding/zoom folded in), else plan-derived.
-      let colStride = ref !== undefined ? ref.width + p.gapX : 0;
-      const secondName = this.entries[refIndex + 1]?.card.name;
-      const secondCard = secondName !== undefined && p.cols > 1 ?
-        grid.querySelector<HTMLElement>(`[data-zoom-slot="${CSS.escape(secondName)}"] :is(.card-container, .pcard)`) : null;
-      if (ref !== undefined && secondCard !== null && secondCard !== undefined) {
-        const r2 = secondCard.getBoundingClientRect();
-        if (r2.left > ref.left) {
-          colStride = r2.left - ref.left;
-        }
-      }
-      const refRow = Math.floor(refIndex / p.cols);
-      const refCol = refIndex % p.cols;
+      const s = conUiScale();
+      const active = this.activePage;
+      const packetOf = (side: PacketSide, depth: number, seq: number) =>
+        packetRect(side, depth, seq, {left: box.left, top: box.top, width: box.width, height: box.height}, p.slotW, p.slotH, s);
+      // A packet-bound card WIPES behind the stage edge (a side clip in the
+      // director's language) instead of sliding whole over the HUD beside
+      // the album — the leading side of the card hides first.
+      const packetClip = (side: PacketSide) =>
+        side === 'left' ? {top: 0, bottom: 0, left: p.slotW} : {top: 0, bottom: 0, right: p.slotW};
       const pairs = this.entries.map((e, i) => {
-        const slotCard = grid.querySelector<HTMLElement>(`[data-zoom-slot="${CSS.escape(e.card.name)}"] :is(.card-container, .pcard)`);
-        let rect: {left: number, top: number, width: number, height: number};
+        const page = pageOfIndex(i, p.perPage);
+        if (page !== active) {
+          const side: PacketSide = page < active ? 'left' : 'right';
+          return {name: e.card.name as CardName, rect: packetOf(side, Math.abs(page - active), pageSlotOfIndex(i, p.perPage)), visible: false, clip: packetClip(side)};
+        }
+        const slotCard = album.querySelector<HTMLElement>(`[data-zoom-slot="${CSS.escape(e.card.name)}"] :is(.card-container, .pcard)`);
         if (slotCard !== null) {
           const r = slotCard.getBoundingClientRect();
-          rect = {left: r.left, top: r.top, width: r.width, height: r.height};
-        } else if (ref !== undefined) {
-          const row = Math.floor(i / p.cols);
-          const col = i % p.cols;
-          rect = {
-            left: ref.left + (col - refCol) * colStride,
-            top: ref.top + (row - refRow) * p.rowStride,
-            width: ref.width,
-            height: ref.height,
-          };
-        } else {
-          rect = {left: gr.left + gr.width / 2, top: gr.bottom, width: 60, height: 84};
+          return {name: e.card.name as CardName, rect: {left: r.left, top: r.top, width: r.width, height: r.height}, visible: true};
         }
-        const visible = rect.top < gr.bottom - 4 && rect.top + rect.height > gr.top + 4;
-        return {name: e.card.name as CardName, rect, visible, clip: visible ? clipFor(rect) : undefined};
+        // Plan-derived fallback (pre-paint measure): mirror the rendered
+        // geometry — the page block at its pads, rows individually centred.
+        const slot = pageSlotOfIndex(i, p.perPage);
+        const row = Math.floor(slot / p.cols);
+        const col = slot % p.cols;
+        const pageStart = page * p.perPage;
+        const inRow = Math.min(p.cols, this.entries.length - (pageStart + row * p.cols));
+        const rowW = inRow * p.slotW + (inRow - 1) * p.gapX;
+        const rect = {
+          left: box.left + p.padX + (p.pageW - rowW) / 2 + col * (p.slotW + p.gapX),
+          top: box.top + p.padTop + row * (p.slotH + p.gapY),
+          width: p.slotW,
+          height: p.slotH,
+        };
+        return {name: e.card.name as CardName, rect, visible: true};
       });
-      return {pairs, scrollTop: grid.scrollTop};
+      // The out-of-view universe (tag-filtered / non-suitable): parked past
+      // the LAST page's packets on the right — physically in the album, so
+      // the dock genuinely empties and the close gathers every card home.
+      const farDepth = Math.max(1, p.pageCount - active);
+      this.packetExtras.forEach((name, k) => {
+        pairs.push({name: name as CardName, rect: packetOf('right', farDepth + 1, k % p.perPage), visible: false, clip: packetClip('right')});
+      });
+      return {pairs, scrollTop: 0};
     },
-    /** Re-seat the grid scroll after a mid-close reopen remount — the
-     *  returning proxies land on rects measured at THIS scroll. */
-    restoreScroll(px: number): void {
-      const grid = this.$refs.grid as HTMLElement | undefined;
-      if (grid !== undefined) {
-        grid.scrollTop = px;
+    /**
+     * Packet flight anchors for a set of names (the filter episode's leaver
+     * landings / enterer origins): cards leaving the current view gather into
+     * the right-edge packet; cards entering it fan out of the same place.
+     */
+    packetHomeRects(names: ReadonlyArray<string>, side: PacketSide = 'right'): Map<string, {left: number, top: number, width: number, height: number}> {
+      const out = new Map<string, {left: number, top: number, width: number, height: number}>();
+      const album = this.$refs.album as HTMLElement | undefined;
+      if (album === undefined) {
+        return out;
       }
+      const box = album.getBoundingClientRect();
+      const p = this.plan;
+      const s = conUiScale();
+      names.forEach((name, k) => {
+        out.set(name, packetRect(side, 1, k % p.perPage, {left: box.left, top: box.top, width: box.width, height: box.height}, p.slotW, p.slotH, s));
+      });
+      return out;
     },
     measure(): void {
-      const grid = this.$refs.grid as HTMLElement | undefined;
-      if (grid === undefined) {
+      const album = this.$refs.album as HTMLElement | undefined;
+      if (album === undefined) {
         return;
       }
-      const w = grid.clientWidth;
-      const h = grid.clientHeight;
+      const w = album.clientWidth;
+      const h = album.clientHeight;
       if (w !== this.box.w || h !== this.box.h) {
         this.box = {w, h};
-        void this.$nextTick(() => {
-          this.applyScroll();
-          this.ensureSelectedVisible();
-        });
       }
     },
     scheduleMeasure(): void {
@@ -1109,13 +1193,22 @@ export default defineComponent({
     },
   },
   mounted() {
-    const grid = this.$refs.grid as HTMLElement | undefined;
-    if (grid !== undefined && typeof ResizeObserver !== 'undefined') {
+    const album = this.$refs.album as HTMLElement | undefined;
+    if (album !== undefined && typeof ResizeObserver !== 'undefined') {
       this.ro = markRaw(new ResizeObserver(() => this.scheduleMeasure()));
-      this.ro.observe(grid);
+      this.ro.observe(album);
     }
     this.measure();
-    void this.$nextTick(() => this.ensureSelectedVisible());
+    this.focusName = this.entries[clampNum(0, Math.max(0, this.entries.length - 1), this.index)]?.card.name;
+    this.settledPage = this.activePage;
+    // Arm the page-slide transition only after the first paint has settled:
+    // a fresh open (possibly restored onto page 3) must LAND on its page,
+    // never slide to it from x = 0.
+    void this.$nextTick(() => {
+      requestAnimationFrame(() => {
+        this.pageMotionLive = true;
+      });
+    });
   },
   beforeUnmount() {
     // Retract the target HERE, never from the flow side: a stale selector
@@ -1133,11 +1226,11 @@ export default defineComponent({
       releaseWorkspaceOutcome('hand-unmount');
     }
     this.ro?.disconnect();
-    if (this.rafScroll !== undefined) {
-      cancelAnimationFrame(this.rafScroll);
-    }
     if (this.rafMeasure !== undefined) {
       cancelAnimationFrame(this.rafMeasure);
+    }
+    if (this.turnSafety !== undefined) {
+      clearTimeout(this.turnSafety);
     }
   },
 });

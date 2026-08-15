@@ -133,7 +133,7 @@ function browseOf(el: Element): HTMLElement | null {
  *  chrome that describes a decision already made. */
 function isolationTargets(browse: HTMLElement): Array<HTMLElement> {
   return Array.from(browse.querySelectorAll<HTMLElement>(
-    '.con-hand__slot:not(.con-hand__slot--selected), .con-hand__scrollbar, .con-hand__verdictbar, .con-hand__empty'));
+    '.con-hand__slot:not(.con-hand__slot--selected), .con-hand__pgedge, .con-hand__verdictbar, .con-hand__empty'));
 }
 
 /** The work-surface groups that materialize behind the flying hero. */

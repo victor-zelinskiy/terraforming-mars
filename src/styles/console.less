@@ -6020,57 +6020,102 @@ html.console-mode {
         animation-delay: calc(140ms * var(--motion-scale, 1));
     }
 
-    /* ── the hand SHELF: the region the grid lives in.
-       It carries NO plate and NO texture of its own. The workspace `__frame`
-       is the screen's one plane — a second bordered box read as "content
-       pasted into an old modal", and the etched control-panel grid that
-       replaced it competed with the cards and made the surface technical
-       where it should be deep and calm. The cards are the only thing on this
-       screen that holds the eye; the plane under them stays clean. ── */
-    &__shelf {
-        position: relative;
-        flex: 1;
-        min-height: 0;
-        display: flex;
-        align-items: stretch;
-        gap: .5rem;
-        padding: .4rem .3rem;
-        overflow: hidden;
-    }
-
-    /* ── the scrolling grid viewport (windowed by the section) ─────────── *
-       FOUNDATION documented exception (CONSOLE_FOUNDATION.md §3.3): the hand
-       has its OWN fit + scroll engine (ConsoleHandSection: `--con-hand-zoom`
-       sizing + manual `scrollTop`/`scrollHeight` math for right-stick paging)
-       that a ConsoleScrollArea would CONFLICT with — its `$refs.grid` scroll
-       measurements read this element directly. Already chrome-less
-       (scrollbar-width:none + overflow-x:clip). Do NOT wrap. */
-    &__grid {
+    /* ── the ALBUM viewport (a strict page — NEVER a scroll container) ── *
+       The hand is a horizontal ribbon of pages; this box is the clip that
+       shows exactly one. Deliberately `overflow: hidden` with every child
+       positioned by TRANSFORM only — off-stage pages therefore contribute
+       nothing to scrollWidth/scrollHeight, so the overflow guard stays
+       quiet and a scrollbar is unexpressible. */
+    &__album {
         position: relative;
         flex: 1;
         min-width: 0;
         min-height: 0;
+        overflow: hidden;
+    }
+    /* The PAGE STRIP — one stride per page, moved by transform alone. The
+       transition arms only on a LIVE, settled album (`--live`): a fresh
+       mount (possibly restored onto page 3) lands on its page, it never
+       slides there from x = 0 — and a reveal/filter episode pins it via
+       `.con-hand--transit` (the flight targets were measured against the
+       current layout). Interruptible by nature: retargeting the transform
+       mid-flight redirects the same motion, so rapid page turns can never
+       queue. */
+    &__pagestrip {
+        position: absolute;
+        inset: 0;
+
+        &--live {
+            transition: transform calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.33, 0, 0.2, 1);
+        }
+        &--turning {
+            will-change: transform;
+        }
+    }
+    &--transit &__pagestrip {
+        transition: none !important;
+    }
+    /* One PAGE — an absolute block at its stride berth (inline transform),
+       rows stacked inside. Width/row-gap come from the plan. */
+    &__page {
+        position: absolute;
+        left: 0;
+        top: 0;
         display: flex;
         flex-direction: column;
-        align-items: center;      /* centre the content pad horizontally */
-        overflow-y: auto;
-        overflow-x: clip;         /* kill any sub-pixel horizontal scrollbar */
-        scrollbar-width: none;
-        &::-webkit-scrollbar { display: none; }
-
-        &--centered { justify-content: center; }  /* few cards → centred cluster */
-        &--scroll { justify-content: flex-start; } /* many cards → top-aligned scroll */
     }
-    &__pad {
-        margin: 0 auto;
-        max-width: 100%;
-    }
-    &__spacer { flex-shrink: 0; }
     &__row {
         display: flex;
         align-items: flex-start;
         justify-content: center;
-        /* height + column-gap are set inline from the plan (rowStride / gapX). */
+        /* height + column-gap are set inline from the plan (slotH / gapX). */
+    }
+    /* PAGE EDGES — the thin layered hint that a neighbouring page exists
+       (and the mouse door to it). Three hairline «sheets» with a slight
+       fan — a stack of pages waiting past the boundary, not a button and
+       not a book. Box-shadow based, so `con-perf-lite` keeps it. */
+    &__pgedge {
+        position: absolute;
+        top: 14%;
+        bottom: 14%;
+        width: 1.05rem;
+        padding: 0;
+        border: 0;
+        background: none;
+        cursor: pointer;
+        z-index: 4;
+
+        &::before,
+        &::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: .12rem;
+            border-radius: 49.95rem;
+            background: fade(@con-cyan, 26%);
+            box-shadow: 0 0 .35rem fade(@con-cyan, 18%);
+        }
+        &::after {
+            top: 5%;
+            bottom: 5%;
+            background: fade(@con-cyan, 13%);
+            box-shadow: none;
+        }
+        &--left {
+            left: .1rem;
+            &::before { left: .3rem; }
+            &::after { left: .62rem; }
+        }
+        &--right {
+            right: .1rem;
+            &::before { right: .3rem; }
+            &::after { right: .62rem; }
+        }
+        &:hover::before {
+            background: fade(@con-cyan, 55%);
+            box-shadow: 0 0 .55rem fade(@con-cyan, 32%);
+        }
     }
 
     /* ── one card slot ─────────────────────────────────────────────────── */
@@ -6193,24 +6238,39 @@ html.console-mode {
         zoom: 1.5;
     }
 
-    /* ── thin premium scrollbar / progress (only when the grid scrolls) ── */
-    &__scrollbar {
-        position: relative;
+    /* ── PAGE INDICATOR — the album's one chrome chip (header, right).
+       `1–10 из 19 · 1/2` with direction arrows that light only toward an
+       existing page. Fixed single line, right-aligned by margin — the
+       header's height can never move when pages come and go. ── */
+    &__pageind {
+        margin-left: auto;
         flex-shrink: 0;
-        align-self: stretch;
-        width: .3rem;
+        display: inline-flex;
+        align-items: baseline;
+        gap: .35rem;
+        padding: .15rem .55rem;
         border-radius: 49.95rem;
-        background: rgba(120, 150, 185, 0.12);
-    }
-    &__scrollthumb {
-        position: absolute;
-        left: 0;
-        right: 0;
-        min-height: 1.3rem;
-        border-radius: 49.95rem;
-        background: linear-gradient(180deg, fade(@con-cyan, 85%), fade(@con-cyan, 52%));
-        box-shadow: 0 0 .5rem fade(@con-cyan, 34%);
-        transition: top calc(90ms * var(--motion-scale, 1)) linear, height calc(90ms * var(--motion-scale, 1)) linear;
+        background: rgba(14, 22, 33, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 185, 0.18);
+        color: @con-text-dim;
+        font-size: .75rem;
+        letter-spacing: .02rem;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+
+        b { color: #cfe6ff; font-weight: 700; }
+        &-sep { opacity: .45; }
+        &-pages b { color: fade(@con-cyan, 92%); }
+        &-arrow {
+            font-weight: 700;
+            opacity: .28;
+            transition: opacity calc(140ms * var(--motion-scale, 1)) ease, color calc(140ms * var(--motion-scale, 1)) ease;
+
+            &--on {
+                opacity: .95;
+                color: fade(@con-cyan, 92%);
+            }
+        }
     }
 
     /* ── selected-card INFO PANEL (the verdict bar, premium state framing) ─ */
@@ -21140,7 +21200,7 @@ html.console-mode {
         transition: none;
     }
     .con-hand__slot,
-    .con-hand__scrollthumb,
+    .con-hand__pagestrip,
     .con-hand__verdictbar {
         transition: none;
     }
@@ -24747,7 +24807,6 @@ html.con-profile-handheld {
     .con-hand {
         &__frame { padding: .5rem var(--con-hud-pad-x, .7rem) .45rem .7rem; gap: .45rem; }
         &__browse { gap: .45rem; }
-        &__shelf { padding: .3rem .2rem; }
         &__reason { font-size: .65rem; padding: .3rem .55rem; }
         &__chip { font-size: .65rem; }
         &__count, &__playable { font-size: .65rem; }
