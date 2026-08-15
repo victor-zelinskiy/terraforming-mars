@@ -24,7 +24,11 @@
     `cardsResponse` the legacy UI sends. No rule is re-implemented here.
   -->
   <section class="con-draftws con-ws" data-motion-surface="draftws" ref="rootEl">
-    <ConsoleWsHead root="Draft" class="con-draftws__head"
+    <!-- The identity EMBLEM is load-bearing here, not decoration: the flow
+         connector's origin diamond rises out of the ROOT GLYPH's slot
+         (--con-wsflow-axis), and without an emblem that axis falls under
+         the title's first letter — the trace drew straight through «Д». -->
+    <ConsoleWsHead root="Draft" emblem="cards" class="con-draftws__head"
                    :subject="crumb.subject" :stage="crumb.stage" :committed="crumb.committed">
       <template #flow>
         <ConsoleJourneyRail :phases="journeyPhases"

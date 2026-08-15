@@ -1009,6 +1009,15 @@ html.console-native {
             0 0 .28rem fade(@con-cyan, 8%);
         animation: con-wsflow-stem-in calc(150ms * var(--motion-scale, 1)) ease-out backwards;
     }
+    /* STRUCTURAL GUARD: the connector's rise into the first row is licensed
+       by the ROOT GLYPH's reserved slot. A flow header WITHOUT an emblem or
+       mark has title glyphs there instead — the origin hides and the stem
+       starts at the flow row's own top, so the trace can never cross a
+       letter of a localized title (the «ДРАФТ» overlap). */
+    &:not(:has(.con-wshead__emblem)):not(:has(.con-wshead__mark)) {
+        .con-wshead__flow-origin { display: none; }
+        .con-wshead__flow-stem { top: .05rem; height: .25rem; }
+    }
     &__flow-turn {
         left: var(--con-wsflow-axis);
         top: .245rem;
@@ -1746,6 +1755,19 @@ html.console-native {
 .con-status .metric-feedback-host--misc {
     top: auto;
     bottom: -1.35rem;
+}
+
+/* THE DELTA-CHIP OWNERSHIP CONTRACT, deck instance: the chip belongs to
+   the DECK COUNTER (the number that changed), centred directly beneath it —
+   never hung off the strip's generic right-anchor, where it floated in the
+   void between the deck and the generation readout. The host lives inside
+   `.con-deckstack__count` (position: relative), so this resolves against
+   the counter cell itself. */
+.con-status .con-deckstack .metric-feedback-host--misc {
+    bottom: -1.5rem;
+    right: auto;
+    left: 50%;
+    transform: translateX(-50%);
 }
 
 /* Delta-chip feedback in the top HUD — the SAME number-transition the
@@ -3111,7 +3133,13 @@ each(@players, {
        beams; state accents (ws-lift / info) still re-draw this edge at
        full strength via box-shadow. */
     border-radius: 0;
-    background: linear-gradient(90deg, rgba(4, 8, 13, 0.6), transparent calc(var(--con-pad-x, 1.6vw) + 1.2rem)) @con-glass-soft;
+    /* ONE continuous engineered panel from the physical edge in — the old
+       darken-to-transparent hull gradient read as a separate stripe of
+       empty background between the bezel and the instruments. The plate IS
+       the rail now; the instruments sit ON it, slightly raised. */
+    background:
+        linear-gradient(90deg, rgba(5, 9, 15, 0.9), rgba(11, 18, 28, 0.35) calc(var(--con-pad-x, 1.6vw) + 1.4rem), rgba(11, 18, 28, 0) 78%),
+        @con-glass-soft;
     /* Member caps: the TOP receives the beam's falling shadow (the post
        stands UNDER the beam — that overlap is the junction), the bottom
        keeps its dark cap toward the lower beam. */
@@ -3122,7 +3150,12 @@ each(@players, {
     /* The Information-Workspace accent ring (.con-main--info) recolors per
        inspected player — a short ride keeps the seam change composed. */
     transition: box-shadow calc(200ms * var(--motion-scale, 1)) ease;
-    overflow-y: auto;
+    /* THE VERTICAL BUDGET CONTRACT: the rail's content FITS between the two
+       beams by construction — the tag matrix below flexes and its medallions
+       shrink before anything can overflow. A permanent HUD may never hide
+       content behind an invisible scroll (the 13-tag matrix shipped with its
+       last row half-buried under the bottom beam). */
+    overflow: hidden;
 
     &__rows {
         display: flex;
@@ -3158,7 +3191,12 @@ each(@players, {
         font-size: 1.25rem;
         font-weight: 700;
         letter-spacing: .02rem;
-        min-width: 1.9rem;
+        /* THE ROW CONTRACT: one shared value AXIS — the column is reserved
+           for four digits and right-aligned, so «2» and «1003» end on the
+           same optical line and the delta-chip anchor (the stockwrap's
+           right corner) never wanders with the digit count. */
+        min-width: 3.1rem;
+        text-align: right;
         font-variant-numeric: tabular-nums;
     }
     /* Production chip — the classic brown TM production tile read. */
@@ -3204,6 +3242,11 @@ each(@players, {
     padding-left: var(--con-pad-x, 0vw);
     border-top: .05rem solid fade(@con-cyan, 20%);
     padding-top: .55rem;
+    /* Budget contract: the matrix yields before the rail can overflow —
+       the ladder above sizes it to fit; this is the structural net. */
+    flex: 0 1 auto;
+    min-height: 0;
+    overflow: hidden;
 
     &__head {
         display: flex;
@@ -3233,6 +3276,22 @@ each(@players, {
         align-items: start;
         row-gap: var(--ct-gap-y);
         column-gap: var(--ct-gap-x);
+
+        /* ── THE VERTICAL-BUDGET LADDER ──
+           The matrix must SIT between the beams whatever this game's tag
+           set is: five medal rows (13-15 cells — Venus/underworld sets) and
+           six (16+, extreme mods) step the medallion token and the rhythm
+           down a notch INSTEAD of sliding under the bottom beam behind an
+           invisible scroll. Deterministic (`:has` on the cell count), so
+           the grid never re-fits mid-game — a game's tag set is fixed. */
+        &:has(> :nth-child(13)) {
+            --ct-icon: 1.9rem;
+            --ct-gap-y: .3rem;
+        }
+        &:has(> :nth-child(16)) {
+            --ct-icon: 1.7rem;
+            --ct-gap-y: .25rem;
+        }
     }
 
     /* One cell = medallion over its count on a recessed micro-surface —
@@ -4384,6 +4443,58 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
         padding: .8rem 1rem;
         will-change: opacity, transform;
     }
+    /* ═══ THE HERO RECOMPOSITION (plan mode) — «hero | flow | action» ═══
+       The selected stage stops being the first thin row of a stack and
+       becomes the dossier's HERO COLUMN (big stage glyph, name, position,
+       state, route); the middle column reads the decision flow top-down
+       (requirements → notes → reward → choice); the right column is the
+       ACTION (CTA + its honest reasons), bottom-seated. The track above and
+       this panel now share one subject — the stem lands on the hero's own
+       column. CSS-only over the existing DOM: the details/choice/commit/
+       result layers keep their stacked composition. */
+    &__panel:not(&__panel--details) .con-hydro__panelbody {
+        display: grid;
+        grid-template-columns: minmax(12rem, 15rem) minmax(0, 1fr) minmax(14rem, 17rem);
+        grid-template-rows: auto auto auto minmax(0, 1fr);
+        grid-template-areas:
+            "hero req     act"
+            "hero notes   act"
+            "hero gains   act"
+            "hero summary act";
+        column-gap: 1.2rem;
+        row-gap: .55rem;
+    }
+    &__panel:not(&__panel--details) {
+        .con-hydro__ident {
+            grid-area: hero;
+            flex-direction: column;
+            flex-wrap: nowrap;
+            align-items: flex-start;
+            justify-content: flex-start;
+            gap: .55rem;
+            min-height: 0;
+            padding-right: 1rem;
+            border-right: .05rem solid rgba(120, 155, 190, 0.14);
+
+            .con-hydro__route { margin-left: 0; }
+        }
+        .con-hydro__stage-tag { width: 3.1rem; height: 3.1rem; }
+        .con-hydro__stage-name { font-size: 1.3rem; line-height: 1.15; }
+        .con-hydro__reqline { grid-area: req; }
+        .con-hydro__routenotes { grid-area: notes; }
+        .con-hydro__gains { grid-area: gains; }
+        .con-hydro__summary { grid-area: summary; align-self: start; }
+        .con-hydro__ctazone {
+            grid-area: act;
+            margin-top: 0;
+            align-self: stretch;
+            justify-content: flex-end;
+            padding-left: 1rem;
+            border-left: .05rem solid rgba(120, 155, 190, 0.14);
+
+            .con-hydro__cta { width: 100%; justify-content: center; text-align: center; }
+        }
+    }
     /* Row RESERVES (the settings-model layout-shift contract): every row
        keeps its line whether this stop fills it or not — the next row down
        never re-seats because the content above changed its mind. */
@@ -5187,6 +5298,20 @@ html.console-mode body.placement-pending .board-outer-spaces > .board-space.boar
    target): the SAME composition, recomposed tighter, never scaled down. */
 html.con-profile-handheld .con-hydro {
     gap: .35rem;
+
+    /* The Deck's narrow band cannot afford three columns — the dossier
+       keeps its stacked composition there (the hero grid is a big-screen
+       recomposition). */
+    .con-hydro__panel:not(.con-hydro__panel--details) .con-hydro__panelbody {
+        display: flex;
+        flex-direction: column;
+    }
+    .con-hydro__panel:not(.con-hydro__panel--details) {
+        .con-hydro__ident { flex-direction: row; align-items: center; border-right: 0; padding-right: 0; }
+        .con-hydro__ident .con-hydro__route { margin-left: auto; }
+        .con-hydro__stage-tag { width: 2.1rem; height: 2.1rem; }
+        .con-hydro__ctazone { border-left: 0; padding-left: 0; justify-content: flex-start; }
+    }
 
     .con-hydro__chip { padding: .25rem .55rem; font-size: .7rem; b { font-size: .8rem; } }
     .con-hydro__chip-ico { width: .9rem; height: .9rem; }
@@ -8550,70 +8675,82 @@ html.con-profile-handheld .con-mafocus {
         line-height: 1.3;
         color: @con-text-dim;
     }
+    /* ═══ THE PRICE MODULE — decision-critical, second voice of the tile ═══
+       The cost is what the player weighs right after the name, so it stops
+       being a small trailing figure and becomes a machined PRICE PLATE: a
+       recessed socket carrying a large gold value + the M€ coin. One
+       reserved column, one optical axis (the plate right-aligns, the coin
+       is always its rightmost element — every row's price ends on the same
+       line), zero geometry change on focus. */
     &__status {
         display: flex;
         flex-direction: column;
         align-items: flex-end;
         justify-content: center;
         align-self: stretch;
-        width: 4.7rem;
+        width: 5.9rem;
         min-width: 0;
         box-sizing: border-box;
-        padding-left: .7rem;
+        padding-left: .6rem;
         border-left: .05rem solid rgba(120, 150, 180, 0.16);
         flex-shrink: 0;
     }
-    &__cost {
+    &__cost,
+    &__gain {
         position: relative;
         display: inline-flex;
         align-items: center;
-        gap: .25rem;
+        justify-content: flex-end;
+        flex-wrap: wrap;
+        gap: .1rem .3rem;
+        padding: .3rem .5rem .3rem .55rem;
+        border-radius: .55rem;
+        background:
+            linear-gradient(90deg, transparent 6%, rgba(230, 195, 120, 0.14) 50%, transparent 94%) no-repeat top center / 100% .06rem,
+            linear-gradient(168deg, rgba(26, 24, 16, 0.72), rgba(12, 14, 12, 0.85));
+        box-shadow:
+            inset 0 0 0 .05rem rgba(226, 190, 116, 0.28),
+            inset 0 .1rem .3rem rgba(0, 0, 0, 0.4);
         font-size: 1.05rem;
-        b { font-size: 1.2rem; }
-        .resource_icon { width: 1.3rem; height: 1.3rem; display: inline-block; background-size: contain; background-repeat: no-repeat; }
+
+        b {
+            font-size: 1.5rem;
+            font-weight: 800;
+            line-height: 1.05;
+            font-variant-numeric: tabular-nums;
+            color: #ffe2ad;
+        }
+        .resource_icon { width: 1.6rem; height: 1.6rem; display: inline-block; background-size: contain; background-repeat: no-repeat; }
         &--short b { color: @con-red; }
     }
-    /* The saving already folded into the price — the SAME compact `−N`
-       capsule the premium card face docks on its cost badge
-       (`.pcard__cost-delta`: mint on a dark plate, one radius flattened where
-       it meets the value it belongs to).
-
-       DOCKED TO THE COIN, not floating under the row: the chip's flat edge
-       butts against the M€ icon's lower-left and it extends LEFTWARD, so the
-       eye reads «15 🪙» first and finds the −1 attached to it rather than
-       hanging somewhere below. `position: absolute` keeps the row's height and
-       the price column's width untouched; at zero discount the element is not
-       rendered at all, so there is no empty plate and no geometry change. */
+    /* The saving — a LEGIBLE second line of the same plate (never a
+       microscopic corner badge): «−N» in mint, right-aligned under the
+       value it modified. In-flow, so nothing overlaps; per-project static,
+       so focus navigation never moves a price. */
     &__cost-delta {
-        position: absolute;
-        /* Docked to the coin's lower-right CORNER: it touches the value it
-           belongs to without covering the glyph itself (the price stays the
-           main read, the saving is its attached footnote). */
-        right: -.1rem;
-        bottom: -.5rem;
-        padding: 0 .22rem 0 .3rem;
-        border-radius: .38rem .38rem .38rem 0;
-        background: rgba(8, 20, 15, 0.94);
-        box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%), 0 .1rem .25rem rgba(0, 0, 0, 0.5);
+        flex-basis: 100%;
+        text-align: right;
         color: @con-mint;
-        font-size: .66rem;
-        font-weight: 700;
-        line-height: .92rem;
-        letter-spacing: .01rem;
+        font-size: .8rem;
+        font-weight: 800;
+        line-height: 1;
+        letter-spacing: .02rem;
         white-space: nowrap;
     }
     /* A discounted price is the CHEAPER number, and it should read like one:
        the value keeps its size and position (rule: the final price stays the
-       main value) and only gains the mint tint the chip beside it carries. */
+       main value) and only gains the mint tint of the saving beneath it. */
     &__cost--discounted b { color: fade(@con-mint, 92%); }
     &__gain {
-        display: inline-flex;
-        align-items: center;
-        gap: .25rem;
-        font-size: 1.05rem;
+        background:
+            linear-gradient(90deg, transparent 6%, fade(@con-mint, 16%) 50%, transparent 94%) no-repeat top center / 100% .06rem,
+            linear-gradient(168deg, rgba(14, 26, 20, 0.72), rgba(9, 16, 13, 0.85));
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-mint, 32%),
+            inset 0 .1rem .3rem rgba(0, 0, 0, 0.4);
         color: @con-mint;
-        b { font-size: 1.2rem; }
-        .resource_icon { width: 1.3rem; height: 1.3rem; display: inline-block; background-size: contain; background-repeat: no-repeat; }
+
+        b { color: #c9f5de; }
     }
     &__gain-note {
         display: inline-flex;
@@ -8859,7 +8996,12 @@ html.con-profile-handheld .con-mafocus {
     position: relative; /* the faded-end accent below anchors to the member */
     padding: .5rem calc(.5rem + var(--con-pad-x, 1.6vw)) .55rem .5rem;
     border-radius: 0;
-    background: linear-gradient(270deg, rgba(4, 8, 13, 0.6), transparent calc(var(--con-pad-x, 1.6vw) + 1.2rem)) @con-glass-soft;
+    /* One continuous engineered panel from the physical edge in (the left
+       rail's material, mirrored) — no separate stripe of empty background
+       between the bezel and the instruments. */
+    background:
+        linear-gradient(270deg, rgba(5, 9, 15, 0.9), rgba(11, 18, 28, 0.35) calc(var(--con-pad-x, 1.6vw) + 1.4rem), rgba(11, 18, 28, 0) 78%),
+        @con-glass-soft;
     /* Member caps — the left rail's grammar, mirrored: the top receives
        the beam's falling shadow, the accent hairline fades at both ends
        (see .con-res-host::after — one junction grammar for both posts). */
@@ -9028,17 +9170,25 @@ html.con-profile-handheld .con-mafocus {
         justify-content: space-evenly;
         overflow: hidden;
     }
+    /* ═══ THE ROW CONTRACT: `medal | flexible | value` ═══
+       Every row is a GRID with a RESERVED value column: the medal track is
+       fixed, the middle may shrink to nothing, the value track is content-
+       sized and can therefore never be clipped or pushed past the rail —
+       whatever the number («14/16», «1006» + owner cubes) or the pose
+       (dense/ultra/done). All value blocks right-align on ONE optical axis
+       (the grid's third track edge), which a flex row with two different
+       inner wrappers never guaranteed (milestone cells and award duels
+       drifted 23 logical px apart).
+       THE INSTRUMENT PLATE (the left rail's row grammar, mirrored): the
+       plate bleeds through the hull zone to the physical edge — medal and
+       values stay on the safe content line via the compensating padding.
+       Clipping is safe: the bleed stays inside .con-strat's padding box. */
     &__item {
         position: relative;
-        display: flex;
+        display: grid;
+        grid-template-columns: var(--strat-medal) minmax(0, 1fr) auto;
         align-items: center;
-        gap: .4rem;
-        /* THE INSTRUMENT PLATE (the left rail's row grammar, mirrored):
-           the plate bleeds through the hull zone to the physical edge —
-           medal and values stay on the safe content line via the
-           compensating padding. The rail reads as one bank of instruments,
-           not a floating column on a wide background. Clipping is safe:
-           the bleed stays inside .con-strat's own padding box. */
+        column-gap: .4rem;
         margin-right: calc(-1 * (.5rem + var(--con-pad-x, 0vw)));
         padding: .12rem calc(.4rem + var(--con-pad-x, 0vw)) .12rem .25rem;
         border-radius: .4rem 0 0 .4rem;
@@ -9112,9 +9262,12 @@ html.con-profile-handheld .con-mafocus {
     /* An unsponsored award is a quieter object than a sponsored one. */
     &__item--quiet .con-strat__art { opacity: 0.74; }
 
-    /* ── the value cell (milestones: MY count toward the threshold) ── */
+    /* ── the value cell (milestones: MY count toward the threshold) ──
+       Lives in the row grid's RESERVED third track: content-sized, right-
+       aligned on the shared optical axis, unclippable by construction. */
     &__cell {
-        margin-left: auto;
+        grid-column: 3;
+        justify-self: end;
         display: inline-flex;
         align-items: baseline;
         gap: .08rem;
@@ -9140,9 +9293,11 @@ html.con-profile-handheld .con-mafocus {
         color: @con-text-dim;
     }
 
-    /* ── the award duel: leader above, chaser below ── */
+    /* ── the award duel: leader above, chaser below ──
+       Same reserved third track as the milestone cell — one value axis. */
     &__race-wrap {
-        margin-left: auto;
+        grid-column: 3;
+        justify-self: end;
         min-width: 0;
     }
     &__race {
@@ -9208,7 +9363,9 @@ html.con-profile-handheld .con-mafocus {
     &__zone--milestones&__zone--done {
         --strat-medal: 4.4rem;
 
-        .con-strat__item { justify-content: center; }
+        /* The trophy pose leaves the row contract: no value column exists
+           any more, so the item recomposes as a centred flex exhibit. */
+        .con-strat__item { display: flex; justify-content: center; }
         .con-strat__cell { display: none; }
         .con-strat__gem { width: .78rem; height: .78rem; }
     }
@@ -9222,6 +9379,14 @@ html.con-profile-handheld .con-mafocus {
         .con-strat__gem { width: .74rem; height: .74rem; }
         .con-strat__race { gap: .18rem; }
     }
+    /* A COMPLETED zone is a celebration, not a table: the service noise is
+       gone (values / price already leave with the pose) and the plates
+       warm toward the trophy gold — the sealed objects carry the read. */
+    &__zone--done .con-strat__item {
+        background: linear-gradient(90deg, rgba(40, 32, 15, 0.35), rgba(16, 26, 38, 0.6) 58%);
+        box-shadow: inset 0 0 0 .05rem rgba(232, 194, 104, 0.2);
+    }
+
     /* The pose ARRIVAL (a transient class while the recomposition plays):
        survivors settle into the new scale — transform-only, one shot. */
     &__zone--arriving .con-strat__art { animation: strat-pose-in calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both; }
