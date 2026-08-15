@@ -220,11 +220,21 @@ async function watchLanding(page: Page, ticks: number): Promise<Array<LandingSam
   // Merge the recorder's sightings as one synthetic sample, so every caller's
   // `timeline.some(...)` reads them without a signature change. The sample
   // count rides `cls` — a dead recorder is visible in the printed timeline.
+  //
+  // ⚠️ The sample must stay INERT FOR POSITIONAL READS. It is appended LAST,
+  // and the «Колонии door» test derives ORDER from the timeline —
+  // `lastStanding = lastIndexOf(cardland && !leaving)` gates «the closing
+  // glide never runs under the STANDING scene». A tail sample posing as a
+  // standing scene moved lastStanding to the very end and failed every
+  // marker sighting retroactively (this shipped and broke that test on CI).
+  // So: `leaving: true` — the existence reads (`some(cardland)`) still see
+  // the scene, the order reads see a receding one, which a glide may
+  // legitimately overlap; `marker`/`chip` stay false for the same reason.
   const rec = await page.evaluate(() =>
     (window as unknown as {__landRec?: {cardland: number, landed: number, samples: number}}).__landRec);
   if (rec !== undefined && (rec.cardland > 0 || rec.landed > 0)) {
     out.push({
-      t: -1, cardland: rec.cardland > 0, leaving: false, landed: rec.landed > 0,
+      t: -1, cardland: rec.cardland > 0, leaving: true, landed: rec.landed > 0,
       counter: '', chip: false, flash: false, marker: false,
       cls: `[recorder] samples=${rec.samples} cardland=${rec.cardland} landed=${rec.landed}`,
     });
