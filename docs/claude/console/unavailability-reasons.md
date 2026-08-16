@@ -56,6 +56,35 @@ shows (`ConsoleHandSection.playAvailability` / `ConsoleShell.zoomAvailabilityVie
 Guards: `tests/client/components/console/cardAvailability.spec.ts`,
 `consoleCardAvailabilityPanel.spec.ts`.
 
+### A requirement is printed ONCE (the fullscreen de-duplication)
+
+The same oxygen requirement used to appear three times: as the card's own printed bar, as the
+availability reason («Требуется кислород 9% · Сейчас: 0%») and as a rules block («Требуется
+уровень кислорода не менее 9%»). The reason strictly dominates the rule — it adds the current
+value — so the rules panel hides THAT block. The link is structural:
+
+- `UnplayableReason.requirementKey` is the `CardInfoBlock.id` of the block the reason restates —
+  the same `req:<RequirementType>[:<tag|resource>][~<n>]` address
+  `buildCardInformation.requirementBlock` produces, rebuilt in `unplayableReasons.requirementBlockId`
+  from the same descriptor (per-TYPE ordinal counted over ALL requirements, met ones included).
+  **Never a text comparison.**
+- It is an **allow-list** (`FULLY_RESTATED_REQUIREMENTS`) and fails CLOSED: a requirement whose
+  printed rule says more than the reason — `all` («any player»), `nextTo` (adjacency), a political
+  situation, a consolidated block like «city adjacent to an ocean», any Moon/Underworld type with
+  no templated reason — carries no key, and its rule stays.
+- **A blocked EFFECT is not a duplicated requirement.** «Невозможно уменьшить производство» is
+  situational (no `requirement` flag, no key), so «ПРИ РОЗЫГРЫШЕ: уменьшите производство растений
+  на 1» keeps its rule. Only the requirement family can ever suppress anything.
+- The client side is pure (`components/console/consoleCardRules.ts`): the view collects
+  `coveredRequirementIds` from the reasons it ACTUALLY renders (a reason filtered out of the draft
+  voice can never silence a rule), `visibleAnnotations` drops those rows and any group left empty
+  — no orphan chip, no reserved height, no gap — and `cardHasRules` is asked WITH the suppression,
+  so a card whose only block was that requirement mounts no empty panel.
+
+Guards: the `requirementKey` cases in `tests/models/unplayableReasons.spec.ts`,
+`tests/client/components/console/consoleCardRulesSuppress.spec.ts`, and the e2e chip/text
+assertions.
+
 ### The fullscreen RIGHT COLUMN is ONE adaptive stack (`.con-zoom-sidecol`)
 
 Two independently positioned boxes is what pushed «ДОСТУПНОСТЬ» under the command bar on a
@@ -68,13 +97,20 @@ container with three properties, all layout — no magic coordinates, no per-car
    `.card-zoom-actions` bar IS the available height — measured by the layout, tracking any
    profile's chrome for free. The former `76/82/86vh` caps are gone (a vh guess cannot know the
    footer); the inspect dossier rides the same rule.
-2. **Top-anchored, so nothing jumps.** `justify-content: flex-start` — the column's upper edge is
-   identical for every card, with and without the availability panel (asserted in e2e).
+2. **The stack is CENTRED ON THE CARD, and that needs no JS.** The card is itself centred inside
+   this very band, so the band's middle IS the card's middle: `justify-content: center` places
+   `desiredTop = cardCenterY − stackHeight / 2` exactly, for the WHOLE group (availability + gap +
+   rules) rather than per panel — and the clamp into the safe area is free, because a group that
+   would overflow simply fills the band instead. Measured in e2e at both resolutions: «Комета»
+   691–1379 vs card centre 1035, «Домашний скот» 169–1901 vs the same 1035.
 3. **Priority is expressed in flex, and it is the reverse of the first iteration.** Availability
-   leads and never shrinks (`flex: 0 0 auto`, with a 62% ceiling as the safety valve for a
-   pathological reason list); the rules box is the one that yields (`flex: 0 1 auto; min-height: 0`,
-   `max-height: 100%`) and only its BODY scrolls — the `§ ПРАВИЛА` head sits outside that scroll
-   and always stands. The scroll is the LAST resort: `ConsoleScrollArea` draws its continuation
+   leads and never shrinks (`flex: 0 0 auto`; its ceiling is `calc(100% - 7.8rem)` — stated as the
+   thing it must leave behind, the rules head plus a line of body, not an arbitrary fraction);
+   the rules box is the one that yields (`flex: 0 1 auto; min-height: 0`, `max-height: 100%`) and
+   only its BODY scrolls — the `§ ПРАВИЛА` head sits outside that scroll and always stands.
+   The panel header itself is ONE compact status line (`✕ НЕЛЬЗЯ РАЗЫГРАТЬ` / «ТРЕБОВАНИЕ ПОКА НЕ
+   ВЫПОЛНЕНО» / …): the state names the panel better than a generic «ДОСТУПНОСТЬ» kicker above it,
+   and the second level was exactly the vertical space a rules-heavy card lacked. The scroll is the LAST resort: `ConsoleScrollArea` draws its continuation
    rail, and the right stick pages it (`ConsoleCardRulesPanel.scrollBody`, routed from
    `ConsoleShell.handleZoomIntent`, which still swallows the stick when nothing overflows — no new
    binding, no advertised verb for a journey that does not exist).
@@ -83,6 +119,11 @@ container with three properties, all layout — no magic coordinates, no per-car
 availability verdict outranks the card's permanent text. `tv-reading-matrix.spec.ts` still passes
 (its cards are playable, so no panel joins them) — but a future matrix card that IS blocked will
 legitimately scroll its rules.
+
+⚠️ **A fit that misses by single pixels is a PADDING bug, not a «too much text» one.** The dense
+card missed by exactly **5 px** and scrolled; the fix was the column gap (`.8rem → .6rem`) and the
+TV rules body's asymmetric bottom overhang (`1.35rem → 1.1rem`), never a smaller type size. The
+e2e reports `rulesShortfall` for exactly this reason — read the number before theorising.
 
 Guard: `tests/e2e/console-card-availability.spec.ts` — parameterised over `tv-4k` + `fhd`,
 measuring the real boxes: availability above rules, both above the command bar and below the

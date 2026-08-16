@@ -47,10 +47,13 @@ describe('ConsoleCardAvailabilityPanel — one view, two densities', () => {
     expect(w.classes()).to.contain('con-cardavail--missed');
   });
 
-  it('PANEL: kicker + big verdict + the FULL reason list with per-reason voices', () => {
+  it('PANEL: ONE compact status line is the header — no second kicker level', () => {
     const w = panel({view: view([TEMP_MAX_MISSED, TAGS])});
-    expect(w.find('.con-cardavail__kickertitle').text()).to.eq('Availability');
-    expect(w.find('.con-cardavail__verdict').text()).to.contain('Requirement can no longer be met');
+    expect(w.find('.con-cardavail__kickertitle').exists(), 'the generic «Availability» level is gone').to.eq(false);
+    const verdict = w.find('.con-cardavail__verdict');
+    expect(verdict.text()).to.contain('Requirement can no longer be met');
+    expect(verdict.text()).to.contain('✕'); // the marker rides the same line
+    expect(w.findAll('.con-cardavail__verdict'), 'exactly one header').to.have.length(1);
     const rows = w.findAll('.con-cardavail__reason');
     expect(rows).to.have.length(2);
     expect(rows[0].classes()).to.contain('con-cardavail__reason--danger');

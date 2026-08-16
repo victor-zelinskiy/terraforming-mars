@@ -132,6 +132,16 @@ async function sideColumnGeometry(page: Page) {
     const counter = document.querySelector<HTMLElement>('.con-zoom .card-zoom-topbar');
     const body = document.querySelector<HTMLElement>('.con-zoom-rules__scroll .con-scroll-area__viewport');
     const head = document.querySelector<HTMLElement>('.con-zoom-rules__head');
+    const card = document.querySelector<HTMLElement>('.con-zoom .card-zoom-stage .pcard') ??
+      document.querySelector<HTMLElement>('.con-zoom .card-zoom-stage');
+    const cardRect = card === null ? undefined : card.getBoundingClientRect();
+    // The STACK: the union of the panels actually rendered — what must be
+    // centred on the card, as one group.
+    const boxes = [avail, rules].filter((el): el is HTMLElement => el !== null).map((el) => el.getBoundingClientRect());
+    const stack = boxes.length === 0 ? undefined : {
+      top: Math.round(Math.min(...boxes.map((b) => b.top))),
+      bottom: Math.round(Math.max(...boxes.map((b) => b.bottom))),
+    };
     const box = (el: HTMLElement | null) => el === null ? undefined : (() => {
       const r = el.getBoundingClientRect();
       return {top: Math.round(r.top), bottom: Math.round(r.bottom), height: Math.round(r.height), width: Math.round(r.width)};
@@ -141,12 +151,24 @@ async function sideColumnGeometry(page: Page) {
       avail: box(avail),
       rules: box(rules),
       head: box(head),
+      stack,
+      cardCenterY: cardRect === undefined ? undefined : Math.round(cardRect.top + cardRect.height / 2),
       footerTop: footer === null ? undefined : Math.round(footer.getBoundingClientRect().top),
       counterBottom: counter === null ? undefined : Math.round(counter.getBoundingClientRect().bottom),
       viewportH: window.innerHeight,
       // The availability panel must never need a scroll of its own.
       availClipped: avail === null ? false : avail.scrollHeight > avail.clientHeight + 1,
       rulesBodyScrolls: body !== null && body.scrollHeight > body.clientHeight + 1,
+      // How far the rules body is from fitting (diagnostic — a fit that only
+      // just fails is a padding problem, not a «too much text» one).
+      rulesShortfall: body === null ? 0 : Math.max(0, body.scrollHeight - body.clientHeight),
+      // Every rule text the panel currently prints (de-duplication evidence).
+      ruleTexts: Array.from(document.querySelectorAll<HTMLElement>('.con-zoom-rules__text'))
+        .map((el) => el.innerText.replace(/\s+/g, ' ').trim()),
+      ruleChips: Array.from(document.querySelectorAll<HTMLElement>('.con-zoom-rules__kind'))
+        .map((el) => el.innerText.replace(/\s+/g, ' ').trim()),
+      emptyGroups: Array.from(document.querySelectorAll<HTMLElement>('.con-zoom-rules__group'))
+        .filter((g) => g.querySelectorAll('.con-zoom-rules__text').length === 0).length,
     };
   });
 }
@@ -176,6 +198,21 @@ function assertColumnFits(g: Geometry, label: string): void {
     expect(g.head.height, `${label}: the «ПРАВИЛА» head never collapses`).toBeGreaterThan(0);
     expect(g.head.bottom, `${label}: the head is inside the rules box`).toBeLessThanOrEqual(g.rules.bottom + 1);
   }
+  expect(g.emptyGroups, `${label}: no rules group is left empty`).toBe(0);
+}
+
+/**
+ * THE STACK IS CENTRED ON THE CARD — as one group, not per panel. When the
+ * stack fits the band, its centre must sit on the card's centre; when it does
+ * not, it fills the band instead (the clamp), which is still centred by
+ * construction. `tolerance` absorbs sub-pixel rounding of the two boxes.
+ */
+function assertCentredOnCard(g: Geometry, label: string, tolerance = 3): void {
+  expect(g.stack, `${label}: the stack is measurable`).toBeTruthy();
+  expect(g.cardCenterY, `${label}: the card is measurable`).toBeTruthy();
+  const stackCentre = Math.round(((g.stack?.top ?? 0) + (g.stack?.bottom ?? 0)) / 2);
+  expect(Math.abs(stackCentre - (g.cardCenterY ?? 0)),
+    `${label}: stack centre ${stackCentre} vs card centre ${g.cardCenterY}`).toBeLessThanOrEqual(tolerance);
 }
 
 for (const preset of PRESETS) {
@@ -216,6 +253,13 @@ for (const preset of PRESETS) {
       expect(panel?.severity).toBe('blocked');
       expect(panel?.reasons[0], 'the SAME primary reason in both densities').toBe(blocked.reasons[0]);
       assertColumnFits(g1, 'blocked card');
+      assertCentredOnCard(g1, 'blocked card');
+      // DE-DUPLICATION: the unmet temperature requirement is stated by the
+      // availability panel, so the rules panel no longer prints it — while
+      // the card's on-play rule (place 2 oceans) stays.
+      expect(g1.ruleChips, 'the requirement section is gone from the rules').not.toContain('ТРЕБОВАНИЕ');
+      expect(g1.ruleTexts.join(' | '), 'no temperature rule remains').not.toContain('температур');
+      expect(g1.ruleTexts.join(' | '), 'the on-play rule is untouched').toContain('океан');
       await shoot(page, preset.tag, '02-fullscreen-availability');
 
       // ── 2 · THE LAYOUT CASE — «Домашний скот»: four rule sections AND
@@ -234,9 +278,17 @@ for (const preset of PRESETS) {
       // Reason PARITY: the bar shows the first rows of the same ordered list.
       expect(stockPanel?.reasons.slice(0, stock.reasons.length)).toEqual(stock.reasons);
       assertColumnFits(g2, 'dense card');
-      // The rules body may take an internal scroll here — that is the LAST
-      // resort and is allowed; the availability panel above it may not.
-      console.log(`[${preset.tag}] rules body scrolls: ${g2.rulesBodyScrolls}`);
+      assertCentredOnCard(g2, 'dense card');
+      // DE-DUPLICATION on the dense card: the oxygen REQUIREMENT is gone from
+      // the rules (the panel states it with the current value), while the
+      // blocked on-play production effect keeps its own rule — a blocked
+      // effect is not a duplicated requirement.
+      expect(g2.ruleChips, 'the requirement section is gone').not.toContain('ТРЕБОВАНИЕ');
+      expect(g2.ruleTexts.join(' | '), 'no oxygen rule remains').not.toContain('кислород');
+      expect(g2.ruleChips, 'the on-play section stays').toContain('ПРИ РОЗЫГРЫШЕ');
+      expect(g2.ruleTexts.join(' | '), 'the production effect is still described').toContain('производство');
+      // …and with the duplicate gone the dense card now FITS: no scroll.
+      expect(g2.rulesBodyScrolls, 'the dense card no longer needs an internal scroll').toBeFalsy();
       await shoot(page, preset.tag, '03-dense-card-column');
 
       // ── 3 · A STABLE TOP EDGE across cards with and without a panel: the
@@ -252,7 +304,11 @@ for (const preset of PRESETS) {
       console.log(`[${preset.tag}] playable fullscreen`, JSON.stringify({noPanel, g3}));
       expect(noPanel, 'a playable card shows NO availability panel').toBeUndefined();
       assertColumnFits(g3, 'playable card');
-      expect(g3.col?.top, 'the column top edge is identical with and without the panel').toBe(topBefore);
+      // A single panel is centred on the card too — never pinned to the top.
+      assertCentredOnCard(g3, 'playable card');
+      expect(g3.rulesBodyScrolls, 'a short rules set never scrolls').toBeFalsy();
+      // The COLUMN still spans the whole band (the stack moves inside it).
+      expect(g3.col?.top, 'the column band is the same for every card').toBe(topBefore);
       await shoot(page, preset.tag, '04-playable-no-panel');
       await closeZoomForced(page);
     });

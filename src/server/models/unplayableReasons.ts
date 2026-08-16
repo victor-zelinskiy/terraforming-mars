@@ -61,7 +61,13 @@ function collectRequirementReasons(player: IPlayer, card: IProjectCard, out: Arr
   // yields requirement objects whose `satisfies` is byte-for-byte the same
   // check Card.canPlay runs — so the reasons we surface are authoritative.
   const compiled = CardRequirements.compile([...card.requirements]);
+  // Per-TYPE ordinal, counted over EVERY requirement (met ones included) —
+  // the card-information generator numbers its blocks the same way, so the
+  // two addresses line up (see `requirementBlockId`).
+  const seen = new Map<string, number>();
   for (const req of compiled.requirements) {
+    const ordinal = (seen.get(req.type) ?? 0) + 1;
+    seen.set(req.type, ordinal);
     if (req.satisfies(player, card)) {
       continue;
     }
@@ -78,8 +84,50 @@ function collectRequirementReasons(player: IPlayer, card: IProjectCard, out: Arr
         reason.unattainable = true;
       }
     }
+    const key = requirementBlockId(req, ordinal);
+    if (key !== undefined) {
+      reason.requirementKey = key;
+    }
     out.push(reason);
   }
+}
+
+/**
+ * The requirement TYPES whose reason above is a COMPLETE restatement of the
+ * printed rule, so a surface showing the reason may hide that rule.
+ *
+ * Deliberately an allow-list, not «everything except the odd ones»: the rules
+ * text is generated independently (`buildCardInformation.requirementBlock`),
+ * and a type whose generated sentence one day says MORE than the reason must
+ * fail CLOSED — showing a rule twice is a blemish, hiding half of one is a
+ * lie. Excluded on purpose: CHAIRMAN / PARTY (the reason only says "a
+ * specific political situation"), REMOVED_PLANTS and every Moon / Underworld
+ * type (no templated reason of their own), and anything reaching the generic
+ * fallback.
+ */
+const FULLY_RESTATED_REQUIREMENTS: ReadonlySet<RequirementType> = new Set([
+  RequirementType.OXYGEN, RequirementType.TEMPERATURE, RequirementType.VENUS, RequirementType.OCEANS,
+  RequirementType.TR, RequirementType.TAG, RequirementType.PRODUCTION,
+  RequirementType.CITIES, RequirementType.GREENERIES, RequirementType.COLONIES,
+  RequirementType.FLOATERS, RequirementType.RESOURCE_TYPES,
+]);
+
+/**
+ * The address of the RULES block this requirement generated, mirroring
+ * `buildCardInformation.requirementBlock`: `req:<type>[:<tag|resource>]`
+ * plus `~<n>` for the second and later requirements of the same TYPE.
+ * `undefined` = do not suppress anything (see the allow-list above, plus the
+ * two qualifiers the reason text does not carry: `all` («any player») and
+ * `nextTo` (adjacency), and any card whose rule block was consolidated —
+ * those simply never match an address we produce).
+ */
+function requirementBlockId(req: CardRequirement, ordinal: number): string | undefined {
+  if (req.all || req.nextTo || !FULLY_RESTATED_REQUIREMENTS.has(req.type)) {
+    return undefined;
+  }
+  const qualifier = req instanceof TagCardRequirement ? `:${req.tag}` :
+    req instanceof ProductionRequirement ? `:${req.resource}` : '';
+  return `req:${req.type}${qualifier}${ordinal > 1 ? `~${ordinal}` : ''}`;
 }
 
 /**

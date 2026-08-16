@@ -48,20 +48,15 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
-import {getCard} from '@/client/cards/ClientCardManifest';
-import {buildCardAnnotations, CardAnnotation, CardAnnotationRow} from '@/client/components/cardAnnotations/annotationModel';
+import {CardAnnotation, CardAnnotationRow} from '@/client/components/cardAnnotations/annotationModel';
+import {cardRuleAnnotations} from '@/client/components/console/consoleCardRules';
 import {actionRuleText} from '@/client/components/actions/actionDescription';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 
-/** Does this card carry any structured rules to show? (The shell gates the
- *  side slot — and the viewer's width reservation — on this.) */
-export function cardHasRules(cardName: string | undefined): boolean {
-  if (cardName === undefined) {
-    return false;
-  }
-  const card = getCard(cardName as CardName);
-  return card !== undefined && buildCardAnnotations(card).length > 0;
-}
+// The visibility logic (which blocks the availability panel already covers)
+// is PURE and lives in `consoleCardRules.ts`; `cardHasRules` is re-exported
+// here for the hosts that have always imported it from this component.
+export {cardHasRules} from '@/client/components/console/consoleCardRules';
 
 /** The reading order used when blocks carry no measurable graphic anchors
  *  (corporations): requirements bar → action frames → effect frames → the
@@ -90,6 +85,13 @@ export default defineComponent({
      *  chrome + head — the dossier box + tab bar own them. Default false keeps
      *  the standalone rules panel (journal / source-chip inspect) unchanged. */
     embedded: {type: Boolean, default: false},
+    /**
+     * Rules blocks the AVAILABILITY panel beside this one already states in
+     * full (`CardAvailabilityView.coveredRequirementIds`) — hidden here so a
+     * requirement is never printed twice. Default empty: every other host
+     * (journal, dossier, draft) shows the complete rules.
+     */
+    suppressIds: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
   },
   data() {
     return {
@@ -106,8 +108,7 @@ export default defineComponent({
   },
   computed: {
     annotations(): Array<CardAnnotation> {
-      const card = getCard(this.cardName);
-      return card === undefined ? [] : buildCardAnnotations(card);
+      return cardRuleAnnotations(this.cardName, this.suppressIds);
     },
     /** Physical-order fallback (stable within a kind: model order). */
     fallbackOrdered(): Array<CardAnnotation> {

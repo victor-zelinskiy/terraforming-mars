@@ -818,6 +818,7 @@
           <ConsoleCardRulesPanel v-else-if="zoomRulesCardName !== undefined && zoomHasRules"
                                  ref="zoomRulesPanel"
                                  :cardName="zoomRulesCardName"
+                                 :suppressIds="zoomCoveredRequirements"
                                  :nonce="side.nonce"
                                  :closing="side.closing" />
         </div>
@@ -1447,7 +1448,8 @@ import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
-import ConsoleCardRulesPanel, {cardHasRules} from '@/client/components/console/ConsoleCardRulesPanel.vue';
+import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesPanel.vue';
+import {cardHasRules} from '@/client/components/console/consoleCardRules';
 import ConsoleInspectSide from '@/client/components/console/ConsoleInspectSide.vue';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
@@ -6205,7 +6207,14 @@ export default defineComponent({
      *  and suppresses the floating callouts (one place for details). */
     zoomHasRules(): boolean {
       const name = this.consoleCardZoom.card?.name;
-      return name !== undefined && cardHasRules(name);
+      // Asked with the suppression already applied: a card whose only rules
+      // block is the requirement the availability panel states in full has
+      // nothing left for this panel, and an empty box must not mount.
+      return name !== undefined && cardHasRules(name, this.zoomCoveredRequirements);
+    },
+    /** Rules blocks the availability panel restates in full (server keys). */
+    zoomCoveredRequirements(): ReadonlyArray<string> {
+      return this.zoomAvailabilityView?.coveredRequirementIds ?? [];
     },
     /** The right SIDE panel shows for a card with structured rules OR whenever
      *  the viewer is an inspect DOSSIER (which always offers СТАТИСТИКА, even if a
