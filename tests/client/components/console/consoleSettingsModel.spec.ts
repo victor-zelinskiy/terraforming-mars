@@ -3,6 +3,7 @@ import {buildConsoleSettings} from '@/client/console/settings/consoleSettingsMod
 import {PROFILE_CHOICES, currentProfileOverride, setConsoleProfileOverride} from '@/client/console/consoleLayoutProfile';
 import {buttonLayoutState, setButtonLayout} from '@/client/gamepad/buttonLayout';
 import {privateScoreState, setPrivateScore} from '@/client/components/overview/privateScoreState';
+import {readingScaleState, setConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {DesktopAppModeInfo, DesktopLanState} from '@/client/components/desktop/desktopUpdateState';
 
 /**
@@ -17,6 +18,7 @@ describe('consoleSettingsModel', () => {
     setButtonLayout('standard');
     setPrivateScore(false);
     setConsoleProfileOverride('auto');
+    setConsoleReadingScale(100);
   });
 
   function ids(context: 'menu' | 'game'): Array<string> {
@@ -103,6 +105,19 @@ describe('consoleSettingsModel', () => {
     expect(privateScoreState.enabled).to.eq(true);
     row()?.step(-1);
     expect(privateScoreState.enabled).to.eq(false);
+  });
+
+  it('the reading-text scale is a 100/115/130 ring that drives --con-read-scale', () => {
+    const row = () => buildConsoleSettings({context: 'menu'}).flatMap((c) => c.rows).find((r) => r.id === 'textScale');
+    expect(row()?.count).to.eq(3);
+    expect(readingScaleState.scale).to.eq(100);
+    row()?.step(1);
+    expect(readingScaleState.scale).to.eq(115);
+    expect(row()?.value).to.eq('115%');
+    row()?.step(1);
+    expect(readingScaleState.scale).to.eq(130);
+    row()?.step(1); // wraps back to the default
+    expect(readingScaleState.scale).to.eq(100);
   });
 
   it('a launch-time network value that differs from this session carries a pending note', () => {

@@ -1,6 +1,6 @@
 <template>
   <div class="con-zoom-rules-host" :class="{'con-zoom-rules-host--closing': closing, 'con-zoom-rules-host--embedded': embedded}">
-    <aside class="con-zoom-rules" aria-label="Rules">
+    <aside class="con-zoom-rules" :class="'con-zoom-rules--' + lengthTier" aria-label="Rules">
       <!-- The head is HIDDEN when embedded in the inspect dossier — the
            dossier's own ПРАВИЛА/СТАТИСТИКА tab bar replaces it. -->
       <div v-if="!embedded" class="con-zoom-rules__head">
@@ -116,6 +116,20 @@ export default defineComponent({
       const rank = new Map(this.measuredOrder.map((id, i) => [id, i]));
       return [...this.annotations].sort((a, b) =>
         (rank.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.id) ?? Number.MAX_SAFE_INTEGER));
+    },
+    /** READING TIER from the LOCALIZED text volume (the couch-typography
+     *  length modes — console.less § READING SURFACE): a one-liner reads
+     *  roomier, the longest RU rules step down to the reading floor and
+     *  gain hyphenation. Measured on what actually renders (post-i18n),
+     *  because RU runs ~15–20% longer than the English keys. */
+    lengthTier(): 'brief' | 'regular' | 'dense' {
+      let total = 0;
+      for (const group of this.annotations) {
+        for (const row of group.rows) {
+          total += actionRuleText(row.text).length;
+        }
+      }
+      return total <= 90 ? 'brief' : total <= 240 ? 'regular' : 'dense';
     },
   },
   watch: {

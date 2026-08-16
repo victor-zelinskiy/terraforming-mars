@@ -186,13 +186,27 @@ for (const profile of PROFILES) {
           borders: [qs.borderLeftWidth, qs.borderRightWidth, qs.borderTopWidth, qs.borderBottomWidth],
           marks: el.querySelectorAll('.card-zoom-lore__mark').length,
           markTags: [...el.querySelectorAll('.card-zoom-lore__mark')].map((m) => m.tagName.toLowerCase()),
+          extended: el.classList.contains('card-zoom-lore--extended'),
+          regular: el.classList.contains('card-zoom-lore--regular'),
         };
       });
       expect(inert.focusable, 'the entry holds nothing focusable').toBe(0);
       expect(inert.pointerEvents).toBe('none');
       expect(inert.fontFamily, 'the Cyrillic literary face').toContain('Literata');
-      expect(inert.fontStyle).toBe('italic');
-      expect(inert.fontWeight, 'a real 500, never a synthesized bold').toBe('500');
+      // TIER-AWARE voice (the couch-typography iteration): the aphorism and
+      // regular tiers stay ITALIC (500 / 510 — the regular notch keeps the
+      // strokes solid on the dark ground); the EXTENDED corporate paragraph
+      // reads UPRIGHT at 470 — sustained italic at 200+ characters is
+      // decoration working against the reader. All are REAL faces (both
+      // upright and italic subsets ship), never synthesized.
+      if (inert.extended) {
+        expect(inert.fontStyle, 'the extended tier reads upright').toBe('normal');
+        expect(inert.fontWeight, 'the extended editorial weight').toBe('470');
+      } else {
+        expect(inert.fontStyle).toBe('italic');
+        expect(inert.fontWeight, 'a real italic weight, never a synthesized bold')
+          .toBe(inert.regular ? '510' : '500');
+      }
       expect(inert.fontSynthesis, 'no faux italic / faux bold').toBe('none');
       expect(inert.borders, 'NO vertical rule — the Spectre blockquote border stays killed')
         .toEqual(['0px', '0px', '0px', '0px']);

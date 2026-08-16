@@ -87,7 +87,10 @@
  *  viewer applied to the 320x460 card face), so it is identical for every card
  *  and the block never bounces while browsing. */
 .card-zoom-lore {
-    --zlore-text: rgba(241, 234, 215, 0.88);
+    /* Couch-contrast pass: the ivory sits a step brighter (.88→.93) — the
+       serif's thin strokes lose more to the dark ground than a sans would,
+       and the deeper scrim below now carries the separation work. */
+    --zlore-text: rgba(243, 237, 220, 0.93);
     --zlore-heading: rgba(216, 190, 133, 0.74);
     --zlore-accent: rgba(216, 177, 91, 0.68);
     --zlore-line: rgba(216, 177, 91, 0.24);
@@ -99,19 +102,30 @@
     --zlore-lift: calc(32px * var(--card-zoom-fit, 1));
 
     box-sizing: border-box;
-    width: ~"clamp(17rem, 22vw, 23.5rem)";
+    /* The column rides the console token (--con-lore-w). Like the lore
+       font-size tokens, the token carries the WHOLE width expression: the
+       base profiles keep the shipped vw-responsive clamp, the TV sets a
+       fixed logical width (its rem base already tracks the viewport, and
+       the 22vw midpoint would strangle the couch measure to ~20 chars).
+       Desktop keeps the shipped clamp through the fallback. */
+    width: ~"var(--con-lore-w, clamp(17rem, 22vw, 23.5rem))";
     min-width: 0;
     padding: 1.5rem 1.1rem 2.2rem;
     transform: translateY(calc(-1 * var(--zlore-lift)));
 
     /* The ONLY backdrop: a soft darkening that fades to nothing before the
        box edges, so there is no perceivable panel. No backdrop-filter — a
-       full-area blur here would be a permanent GPU cost for decoration. */
-    background: radial-gradient(ellipse 118% 88% at 46% 48%,
-        rgba(5, 8, 13, 0.60) 0%,
-        rgba(5, 8, 13, 0.46) 44%,
-        rgba(5, 8, 13, 0.14) 70%,
-        rgba(5, 8, 13, 0) 87%);
+       full-area blur here would be a permanent GPU cost for decoration.
+       Deliberately deeper at the centre than the first iteration (.60→.72):
+       the couch pass judged the letters against the art's brightest spots —
+       the CALM ZONE under the words is what buys contrast, never glow or a
+       heavier letterform. It still dissolves inside the box: dimmed space,
+       not a panel. */
+    background: radial-gradient(ellipse 124% 94% at 46% 48%,
+        rgba(5, 8, 13, 0.72) 0%,
+        rgba(5, 8, 13, 0.58) 44%,
+        rgba(5, 8, 13, 0.2) 70%,
+        rgba(5, 8, 13, 0) 88%);
 
     /* Purely presentational: never a pointer target, never in the controller
        or tab order (it also has no focusable descendant). */
@@ -125,7 +139,10 @@
     align-items: center;
     margin: 0 0 1.25rem;
     font-family: Prototype, Ubuntu, sans-serif;
-    font-size: 0.55rem;
+    /* Rides the console service floor (16 logical px on the TV) — the old
+       fixed 0.55rem read as a speck from the couch. Desktop viewers keep
+       the shipped size through the fallback. */
+    font-size: var(--con-t-floor, 0.55rem);
     font-weight: 700;
     line-height: 1;
     letter-spacing: 0.19em;
@@ -224,22 +241,38 @@
 
 /* Optical compensation by length. Never a size STEP the eye can name — the
    short pull-quote simply reads as an intentional line, the corporate
-   paragraph as a calm block. Nothing scrolls, nothing truncates. */
+   paragraph as a calm block. Nothing scrolls, nothing truncates.
+   Sizes ride the console LORE tokens (--con-t-lore-* — the TV profile
+   raises them to the couch measure; desktop viewers keep the shipped
+   look through the fallbacks), multiplied by the player's reading scale. */
 .card-zoom-lore--short .card-zoom-lore__quote {
-    font-size: ~"clamp(1.2rem, 1.42vw, 1.4rem)";
-    line-height: 1.36;
+    font-size: ~"calc(var(--con-lore-fs-lg, clamp(1.2rem, 1.42vw, 1.4rem)) * var(--con-read-scale, 1))";
+    line-height: 1.38;
     /* A short entry keeps a tighter measure so it reads as a quotation rather
        than one lost line across the full column — and so the closing mark
        stays part of the composition instead of drifting off to the right. */
     max-width: ~"calc(var(--zlore-indent) + 15rem)";
 }
 .card-zoom-lore--regular .card-zoom-lore__quote {
-    font-size: ~"clamp(1.06rem, 1.24vw, 1.22rem)";
-    line-height: 1.47;
+    font-size: ~"calc(var(--con-lore-fs, clamp(1.06rem, 1.24vw, 1.22rem)) * var(--con-read-scale, 1))";
+    line-height: 1.5;
+    /* At the regular tier the italic thins: a notch of weight keeps the
+       strokes solid on the dark ground without reading as bold. */
+    font-weight: 510;
 }
 .card-zoom-lore--extended .card-zoom-lore__quote {
-    font-size: ~"clamp(0.96rem, 1.1vw, 1.1rem)";
-    line-height: 1.51;
+    font-size: ~"calc(var(--con-lore-fs-sm, clamp(0.98rem, 1.1vw, 1.1rem)) * var(--con-read-scale, 1))";
+    line-height: 1.56;
+    /* THE EDITORIAL SHIFT: a 200+ character paragraph is prose, not an
+       aphorism — sustained italic at that length is decoration working
+       against the reader. The extended tier reads UPRIGHT (the Literata /
+       Newsreader upright subsets ship for exactly this), a touch lighter
+       than the italic tiers, with Russian hyphenation so 15-letter words
+       break instead of tearing the right edge (dictionary via html[lang]). */
+    font-style: normal;
+    font-weight: 470;
+    hyphens: auto;
+    hyphenate-limit-chars: 7 4 3;
 }
 
 .card-zoom-lore__text {
@@ -360,7 +393,11 @@
             filter calc(250ms * var(--motion-scale, 1)) ease;
     }
     .card-zoom-lore__quote {
-        filter: blur(0);
+        /* `none`, not `blur(0)`: a resting zero-blur still routes the text
+           through the filter raster path (its own layer, softer glyphs).
+           The transition still animates — `none` interpolates from its
+           neutral value by spec. */
+        filter: none;
         transition-delay: calc(55ms * var(--motion-scale, 1));
     }
     .card-zoom-lore__mark--open {

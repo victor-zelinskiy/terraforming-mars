@@ -108,7 +108,7 @@ describe('ConsoleStrategyRail', () => {
     g.cancelAnimationFrame = cafPrev;
   });
 
-  it('renders both zones: medal per item, LB/RB door caps, slot pips, price', () => {
+  it('renders both zones: medal per item, LB/RB door caps, slot pips in the head, NO price', () => {
     const wrapper = mountRail();
     const zones = wrapper.findAll('.con-strat__zone');
     expect(zones).to.have.lengthOf(2);
@@ -123,9 +123,11 @@ describe('ConsoleStrategyRail', () => {
     expect(heads).to.have.lengthOf(2);
     expect(heads[0].findComponent({name: 'GamepadGlyph'}).props('control')).to.eq('bumperL');
     expect(heads[1].findComponent({name: 'GamepadGlyph'}).props('control')).to.eq('bumperR');
-    // The system line: 3 pips per zone + the live price.
-    expect(zones[0].findAll('.con-strat__pip')).to.have.lengthOf(3);
-    expect(zones[0].find('.con-strat__price b').text()).to.eq('8');
+    // ONE compact head line: the 3-slot tray lives INSIDE the door button.
+    expect(heads[0].findAll('.con-strat__pip')).to.have.lengthOf(3);
+    // The PRICE is deliberately absent from the standing HUD — it belongs to
+    // the workspace where the claim/fund decision (and payment) is made.
+    expect(wrapper.find('.con-strat__price').exists()).to.be.false;
   });
 
   it('milestone rows carry MY progress; ready vs offered-now stay distinct states', () => {
@@ -210,11 +212,10 @@ describe('ConsoleStrategyRail', () => {
     // Only the sealed three stand; the open row left the composition.
     expect(mz.findAll('.con-strat__item')).to.have.lengthOf(3);
     expect(mz.find('.con-strat__item--sealing').exists()).to.be.false;
-    // The system line traded the price for the sealed mark.
-    expect(mz.find('.con-strat__price').exists()).to.be.false;
-    expect(mz.find('.con-strat__done').exists()).to.be.true;
-    // The door survives the completed state.
+    // The completed pose keeps the one-line head: door glyph + full tray.
     expect(mz.find('.con-strat__head').findComponent({name: 'GamepadGlyph'}).exists()).to.be.true;
+    expect(mz.find('.con-strat__head').findAll('.con-strat__pip')).to.have.lengthOf(3);
+    expect(mz.find('.con-strat__pip--empty').exists()).to.be.false;
   });
 
   it('a live claim seals: covered → held pre-state; uncovered → seal beat → enamel', async () => {
@@ -316,10 +317,13 @@ describe('ConsoleStrategyRail', () => {
     expect(wrapper.find('.con-strat__gem').exists()).to.be.true;
   });
 
-  it('a free price (0) renders the mint-rimmed chip, never a struck-through zero', () => {
-    const wrapper = mountRail({milestones: zone('milestones', OPEN_MILESTONES, {cost: 0})});
-    const price = wrapper.find('.con-strat__zone--milestones .con-strat__price');
-    expect(price.classes()).to.include('con-strat__price--free');
-    expect(price.find('b').text()).to.eq('0');
+  it('the medal art rides the optical-fit map (normalised size, never bare contain)', () => {
+    const wrapper = mountRail();
+    const style = wrapper.find('.con-strat__zone--milestones .con-strat__art').attributes('style') ?? '';
+    // mayor.png is a measured 512 premium asset — the fit map must resolve
+    // to an explicit percentage pair, not the contain fallback.
+    expect(style).to.contain('background-size:');
+    expect(style).to.contain('%');
+    expect(style).to.not.contain('contain');
   });
 });

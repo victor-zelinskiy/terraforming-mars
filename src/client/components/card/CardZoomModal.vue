@@ -208,6 +208,7 @@ import {showModal, windowHasHTMLDialogElement} from '@/client/components/HTMLDia
 import {prefersReducedMotion} from '@/client/components/feedback/changeFeedbackManager';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
+import {cssLengthPx} from '@/client/console/cssUnits';
 import {CardName} from '@/common/cards/CardName';
 import {ZoomCard, isBonusZoom} from './cardZoomTypes';
 import CardZoomCard from './CardZoomCard.vue';
@@ -966,9 +967,20 @@ export default defineComponent({
       // panel = 20rem + gap). Reserving only one side would let the wider
       // gutter overrun the card.
       const s = this.consoleMotion ? conUiScale() : 1;
-      const sideReserve = this.hasSide ? 440 : 0;
-      const loreReserve = this.loreVisible ? 540 : 0;
-      const flankReserve = 2 * Math.max(sideReserve, loreReserve) * s;
+      // Flank widths resolve from the SAME tokens the CSS consumes
+      // (--con-rules-w / --con-lore-w) plus their breathing margins — the
+      // TV profile widens the reading columns with the couch type, and a
+      // stale 1080-era px constant here would let the widened panel overrun
+      // the card. The root font-size already carries the TV scale, so the
+      // resolved values are DEVICE px — never multiplied by `s` again.
+      // (Desktop instances render no flanks: both stay 0, byte-identical.)
+      const rootVars = (this.hasSide || this.loreVisible) ? getComputedStyle(document.documentElement) : undefined;
+      const remPx = cssLengthPx('1rem', 20);
+      const sideReserve = this.hasSide && rootVars !== undefined ?
+        cssLengthPx(rootVars.getPropertyValue('--con-rules-w'), 420 * s) + 1.6 * remPx : 0;
+      const loreReserve = this.loreVisible && rootVars !== undefined ?
+        cssLengthPx(rootVars.getPropertyValue('--con-lore-w'), 470 * s) + 3.4 * remPx : 0;
+      const flankReserve = 2 * Math.max(sideReserve, loreReserve);
       const chromeVertical = (48 + 20 + 96 + 8 + (this.navEnabled ? 64 : 0)) * s;
       const chromeHorizontal = (32 + 8 + (this.navEnabled ? 200 : 0)) * s + flankReserve;
       const availHeight = window.innerHeight - chromeVertical;

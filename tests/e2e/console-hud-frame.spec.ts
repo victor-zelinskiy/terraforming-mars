@@ -281,10 +281,11 @@ for (const preset of PRESETS) {
       });
       expect(strat.title, 'the top zone is the MILESTONES competition, never actions')
         .toMatch(/^(ДОСТИЖЕНИЯ|MILESTONES)$/i);
-      // The couch floor sits just under the TV token (3.7rem — the measured
-      // five-rows-in-half-the-rail budget; 4rem overflowed the zone).
+      // The couch floor sits just under the profile token (tv 4.15rem /
+      // base 3.9 — the polish pass folded the system line into the head
+      // and gave its height to the medals).
       expect(strat.medalH, `the milestone medal is couch-first — ${strat.medalH}px`)
-        .toBeGreaterThanOrEqual((preset.id === 'tv-4k' ? 3.6 : 3.1) * g.remPx);
+        .toBeGreaterThanOrEqual((preset.id === 'tv-4k' ? 4.0 : 3.8) * g.remPx);
 
       // The LEFT RAIL: the instrument plates own the hull zone the welded
       // chassis gained, while the icons stay on the safe content line.

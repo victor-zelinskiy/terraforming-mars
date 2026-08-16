@@ -5,6 +5,16 @@
             href="https://fonts.googleapis.com/css?family=Ubuntu&display=swap"
             rel="stylesheet"
         />
+        <!-- Reading faces, preloaded so the first fullscreen card / rules
+             panel paints with final metrics (no fallback flash, no reflow).
+             `crossorigin` is required even same-origin: fonts always fetch
+             in anonymous CORS mode, and a mismatch double-downloads. -->
+        <link rel="preload" href="assets/GolosText-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
+        <link rel="preload" href="assets/GolosText-latin.woff2" as="font" type="font/woff2" crossorigin />
+        <link rel="preload" href="assets/Literata-Italic-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
+        <link rel="preload" href="assets/Literata-Italic-latin.woff2" as="font" type="font/woff2" crossorigin />
+        <link rel="preload" href="assets/Literata-Regular-cyrillic.woff2" as="font" type="font/woff2" crossorigin />
+        <link rel="preload" href="assets/Literata-Regular-latin.woff2" as="font" type="font/woff2" crossorigin />
         <link rel="stylesheet" type="text/css" media="all" href="styles.css" />
         <link rel="shortcut icon" href="favicon.ico" type="image/x-icon" />
         <meta name="viewport" content='width=1260, user-scalable=1' />

@@ -54,9 +54,17 @@ test.describe('console strategy rail — FHD', () => {
     expect(await page.locator('.con-strat__zone--milestones .con-strat__item').count()).toBeGreaterThan(0);
     expect(await page.locator('.con-strat__zone--awards .con-strat__item').count()).toBeGreaterThan(0);
     await expect(page.locator('.con-strat__head .gp-glyph').first()).toBeVisible();
-    // The system line: slot pips + the live price on each zone.
-    expect(await page.locator('.con-strat__zone--milestones .con-strat__pip').count()).toBe(3);
-    await expect(page.locator('.con-strat__zone--milestones .con-strat__price')).toBeVisible();
+    // ONE compact head line: the slot tray lives inside the door button;
+    // the PRICE is deliberately absent from the standing HUD (it belongs to
+    // the workspace where the claim/fund decision is made) — and the NAME
+    // never ellipsizes to make room for the tray.
+    expect(await page.locator('.con-strat__head .con-strat__pip').count()).toBe(6);
+    expect(await page.locator('.con-strat__price').count()).toBe(0);
+    const titleDeficits = await page.evaluate(() =>
+      [...document.querySelectorAll('.con-strat__title')].map((t) => t.scrollWidth - t.clientWidth));
+    for (const d of titleDeficits) {
+      expect(d, 'zone title fully visible (no ellipsis)').toBeLessThanOrEqual(1);
+    }
 
     await page.screenshot({path: 'screenshots/strategy-rail/fhd-home.png', fullPage: false});
   });

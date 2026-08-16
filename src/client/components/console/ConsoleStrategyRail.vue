@@ -13,31 +13,24 @@
              }]">
       <!-- The zone head IS the workspace door: the LB/RB cap the shell already
            answers to, made clickable for the mouse. The glyph must survive
-           every state (open / completed) — it is the door, not a status. -->
+           every state (open / completed) — it is the door, not a status.
+           ONE compact line: glyph · title · the 3-slot diamond tray (the SAME
+           grammar as the workspace header's tally — filled with each taker's
+           colour). The old separate system line (tray + live price) is gone:
+           the PRICE belongs to the workspace where the decision is made; the
+           HUD keeps only the standing facts, and the freed row went to the
+           medals below. -->
       <button type="button" class="con-strat__head"
               :aria-label="$t(z.title)"
               @click="$emit('open', z.kind)">
         <span class="con-strat__key" aria-hidden="true"><GamepadGlyph :control="z.glyph" /></span>
         <span class="con-strat__title">{{ $t(z.title) }}</span>
-      </button>
-      <!-- The system line: the 3-slot diamond tray (the SAME grammar as the
-           workspace header's tally — filled with each taker's colour) and the
-           live price of the next claim/fund. The completed pose trades the
-           price for the sealed gold mark: nothing here is buyable any more. -->
-      <div class="con-strat__meta">
         <span class="con-strat__slots" aria-hidden="true">
           <i v-for="(c, i) in z.zone.slots" :key="i"
              class="con-strat__pip"
              :class="c !== undefined ? 'player_bg_color_' + c : 'con-strat__pip--empty'"></i>
         </span>
-        <transition :name="motion ? 'con-strat-meta' : ''" mode="out-in">
-          <span v-if="z.composed" key="done" class="con-strat__done" aria-hidden="true">✓</span>
-          <span v-else key="price" class="con-strat__price" :class="{'con-strat__price--free': z.zone.cost === 0}">
-            <b>{{ z.zone.cost }}</b>
-            <i class="resource_icon resource_icon--megacredits" aria-hidden="true"></i>
-          </span>
-        </transition>
-      </div>
+      </button>
 
       <!-- The medal stack. Keys are the item NAMES: a poll that changes
            nothing moves nothing; the 3/3 recomposition is a keyed leave
@@ -136,7 +129,7 @@ import {defineComponent, PropType} from 'vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {Color} from '@/common/Color';
 import {MaHudItem, MaHudZone} from '@/client/console/consoleMaHudModel';
-import {maArtUrl, maDisplayName} from '@/client/components/ma/maArt';
+import {maArtFitStyle, maDisplayName} from '@/client/components/ma/maArt';
 import {consoleReducedMotionActive, consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
 import {translateText} from '@/client/directives/i18n';
 
@@ -276,7 +269,9 @@ export default defineComponent({
   },
   methods: {
     artStyle(name: string): Record<string, string> {
-      return {backgroundImage: `url(${maArtUrl(name)})`};
+      // Optical-fit: equal VISUAL mass across assets (measured alpha bboxes),
+      // not equal CSS boxes — see maArtFitStyle.
+      return maArtFitStyle(name);
     },
     /** The row's accessible one-liner: name + the one relevant number.
      *  (Deliberately NOT a hover tooltip: the rail clips its list against

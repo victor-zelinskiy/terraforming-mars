@@ -211,14 +211,20 @@ describe('ServeAsset', () => {
     expect(res.statusCode).eq(statusCode.ok);
   });
 
-  // The fullscreen card's archive entry (card_lore.less) is set in these two
-  // literary faces. Unlike art, a font is NOT covered by the generic extension
+  // The fullscreen card's archive entry (card_lore.less) is set in the
+  // literary faces (italic + upright), and the console reading surfaces in
+  // Golos Text. Unlike art, a font is NOT covered by the generic extension
   // branch — it needs an explicit entry in toFile()'s allowlist, and the right
   // content type (a wrong one makes Chromium refuse the face silently).
   const LORE_FONTS = [
     'Literata-Italic-latin.woff2',
     'Literata-Italic-cyrillic.woff2',
     'Newsreader-Italic-latin.woff2',
+    'Literata-Regular-latin.woff2',
+    'Literata-Regular-cyrillic.woff2',
+    'Newsreader-Regular-latin.woff2',
+    'GolosText-latin.woff2',
+    'GolosText-cyrillic.woff2',
   ];
   for (const font of LORE_FONTS) {
     it(`serves ${font} as font/woff2`, async () => {

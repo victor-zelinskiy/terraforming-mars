@@ -72,6 +72,27 @@ html.con-profile-tv {
     --con-t-secondary: 1rem;   /* 20 — chips, rows, meta */
     --con-t-caption: 0.85rem;  /* 17 — captions, legends */
     --con-t-floor: 0.8rem;     /* 16 — the absolute service-text floor */
+    /* READING roles (long-form sentences, @con-font-read). The 10-foot
+       floor for RUNNING text is higher than the service floor: 26 logical
+       px is where a Cyrillic sentence stops costing effort at 2.5–3 m on
+       a 42" panel (industry couch floors: 24–28 @1080 logical). read-sm
+       is therefore the READING floor — the dense tier for the longest
+       rules, never an ellipsis and never below 26. */
+    --con-t-read-lg: 1.55rem;  /* 31 — short rules breathe */
+    --con-t-read: 1.4rem;      /* 28 — standard reading body */
+    --con-t-read-sm: 1.3rem;   /* 26 — dense tier = the reading floor */
+    --con-read-lh: 1.52;
+    /* The fullscreen rules/dossier column widens with the type so the
+       measure keeps ~30+ characters per line (a 21rem column at 28px
+       breaks Russian sentences every 3–4 words). */
+    --con-rules-w: 26.5rem;
+    /* The archive entry keeps a narrower editorial measure, widened a step
+       for the couch; its serif sizes sit above the sans read tokens (fixed
+       logical values — the TV rem base already tracks the viewport). */
+    --con-lore-w: 25.5rem;
+    --con-lore-fs-lg: 1.7rem;   /* 34 — aphorisms */
+    --con-lore-fs: 1.5rem;      /* 30 — regular quotations */
+    --con-lore-fs-sm: 1.35rem;  /* 27 — extended upright paragraphs */
     /* Focus & interaction */
     --con-focus-ring: 0.18rem; /* ~3.5 logical px ring */
     --con-glow-r: 1.3rem;      /* couch-visible focus glow radius */
@@ -175,17 +196,9 @@ html.con-profile-tv {
     .con-tagmx {
         --ct-icon: 2.6rem;
         --ct-num: 1.15rem;
-        --ct-gap-y: 0.5rem;
-        /* The couch steps of the vertical-budget ladder (base declares the
-           same selectors — these keep five/six-row sets couch-readable). */
-        .con-tagmx__grid:has(> :nth-child(13)) {
-            --ct-icon: 2.3rem;
-            --ct-gap-y: 0.38rem;
-        }
-        .con-tagmx__grid:has(> :nth-child(16)) {
-            --ct-icon: 2rem;
-            --ct-gap-y: 0.3rem;
-        }
+        --ct-gap-y: 0.4rem;
+        /* (The count ladder is gone — the grid SOLVES its rows into the
+           section's real height; the token above is the cap.) */
         /* MarsBot track rows (couch): bigger medals + a thicker gauge. */
         --ct-track-icon: 1.6rem;
         --ct-track-gap: 0.35rem;
@@ -245,16 +258,21 @@ html.con-profile-tv {
        plate's own padding joined the bill); 3.8rem + the thinner plate
        padding brings the five-row column back inside with margin. Only the
        VALUES keep the pass-2 bump. */
-    .con-strat__zone { --strat-medal: 3.7rem; --strat-num: 1.4rem; --strat-num2: 1.1rem; }
-    .con-strat__zone--dense { --strat-medal: 3.1rem; }
-    .con-strat__zone--ultra { --strat-medal: 2.35rem; }
-    .con-strat__zone--milestones.con-strat__zone--done { --strat-medal: 5.4rem; }
-    .con-strat__zone--awards.con-strat__zone--done { --strat-medal: 4.5rem; --strat-num: 1.5rem; --strat-num2: 1.2rem; }
-    .con-strat__title { font-size: var(--con-t-caption); }
-    .con-strat__key .gp-glyph { min-width: 1.7rem; height: 1.3rem; font-size: var(--con-t-floor); }
-    .con-strat__pip { width: 0.72rem; height: 0.72rem; }
-    .con-strat__price b { font-size: 1.1rem; }
-    .con-strat__price .resource_icon { width: 1.15rem; height: 1.15rem; }
+    /* Polish pass: the system line folded into the head — its height (and
+       the optical-fit normalisation) went into the medal tokens. Sizes are
+       the SOLVED per-pose maxima: N items × (medal + row padding) must fit
+       the zone list between the beams (runtime-measured at 2160). */
+    .con-strat__zone { --strat-medal: 4.15rem; --strat-num: 1.4rem; --strat-num2: 1.1rem; }
+    .con-strat__zone--dense { --strat-medal: 3.45rem; }
+    .con-strat__zone--ultra { --strat-medal: 2.05rem; }
+    .con-strat__zone--milestones.con-strat__zone--done { --strat-medal: 5.6rem; }
+    .con-strat__zone--awards.con-strat__zone--done { --strat-medal: 4.9rem; --strat-num: 1.5rem; --strat-num2: 1.2rem; }
+    /* Couch title, calmer tracking: at the TV rem the base .045rem tracking
+       alone costs ~18px on «ДОСТИЖЕНИЯ» — the exact 7px that ellipsized it. */
+    .con-strat__title { font-size: var(--con-t-caption); letter-spacing: .028rem; }
+    .con-strat__head { gap: .26rem; }
+    .con-strat__key .gp-glyph { min-width: 1.5rem; height: 1.3rem; font-size: var(--con-t-floor); }
+    .con-strat__pip { width: 0.55rem; height: 0.55rem; }
     .con-strat__gem { width: 0.82rem; height: 0.82rem; }
     .con-strat__cube { width: 0.8rem; height: 0.8rem; }
     .con-strat__req { font-size: 0.9rem; }
@@ -439,11 +457,17 @@ html.con-profile-tv {
     /* The TV rules panel beside the hero card (Этап 1-R2): a full reading
        column — body text at couch size, capped to the card's height band. */
     .con-zoom-rules {
-        width: 21.5rem;
-        max-height: 80vh;
+        /* Width + text sizes ride the READING tokens now (--con-rules-w /
+           --con-t-read*, set in the token block above) — no per-surface
+           font-size here, or the tier system in console.less is defeated. */
+        max-height: 82vh;
 
-        &__text { font-size: var(--con-t-body); line-height: 1.5; }
-        &__kind { font-size: var(--con-t-floor); }
+        &__head { padding: .9rem 1.3rem .7rem; }
+        &__body { gap: 1.15rem; padding: 1.1rem 1.3rem 1.35rem; }
+        &__kind { font-size: var(--con-t-caption); padding: .18rem .7rem; }
+    }
+    .con-inspect-side__box {
+        max-height: 82vh;
     }
     /* Viewer chrome: the counter is a first-class HUD readout; the action
        strip speaks at command-bar size. */

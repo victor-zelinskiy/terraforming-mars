@@ -157,9 +157,15 @@ export class ServeAsset extends Handler {
     case 'assets/Literata-Italic-latin.woff2':
     case 'assets/Literata-Italic-cyrillic.woff2':
     case 'assets/Newsreader-Italic-latin.woff2':
-      // The three .woff2 are the literary faces of the fullscreen card's
-      // archive entry (card_lore.less) — Literata (Cyrillic locales) and
-      // Newsreader (everything else), italic weight-variable subsets.
+    case 'assets/Literata-Regular-latin.woff2':
+    case 'assets/Literata-Regular-cyrillic.woff2':
+    case 'assets/Newsreader-Regular-latin.woff2':
+    case 'assets/GolosText-latin.woff2':
+    case 'assets/GolosText-cyrillic.woff2':
+      // The .woff2 set: Literata / Newsreader are the literary faces of the
+      // fullscreen card's archive entry (card_lore.less) — italic + upright
+      // weight-variable subsets; Golos Text is the console READING face
+      // (rule texts and other long-form sentences — common.less §reading).
       return {file: urlPath};
 
     case 'styles.css':

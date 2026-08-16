@@ -34,11 +34,30 @@ workspaces (LB/RB, also click) hold the detail; rows carry `aria-label`
 one-liners (deliberately no hover tooltip: the rail clips its list against
 extreme-mod overflow, and a clipped bubble is worse than none).
 
-- Zone head = the DOOR: the LB/RB `GamepadGlyph` cap + title (a `<button>`,
-  mouse-clickable). Below it the SYSTEM line: the 3-diamond slot tray (the MA
-  workspace header's tally grammar — filled with each taker's colour) + the
-  compact live price (`maCosts` via the shell — `--free` mint rim at 0).
-  Completed → the price yields to the sealed gold ✓ mark.
+- Zone head = the DOOR, ONE compact line (2026-08-16 polish): the LB/RB
+  `GamepadGlyph` cap + title + the 3-diamond slot tray flocked to the line's
+  end (the MA workspace header's tally grammar — filled with each taker's
+  colour), all inside the `<button>`. The head carries an instrument-plate
+  BLEED into the hull zone (`margin-right: -(pad-x + .2rem)`) so the longest
+  RU title genuinely fits beside the tray — the title never ellipsizes
+  (guarded in `console-strategy-rail.spec.ts`). **The PRICE is deliberately
+  absent from the standing HUD** — it lives in the workspace where the
+  claim/fund decision (and payment) is made; the old separate system line
+  (tray + price / sealed ✓) is gone and its height went to the medals.
+- CAPSULE GEOMETRY: the owner plate fills the medal box (`inset: 0`,
+  radius 26%) and the art sits a hair inside (`inset: 2%`) — the glass can
+  never be amputated by the list clip or a neighbouring row's opaque plate
+  (it used to overhang the box by 7% and lose its corners). Only LIGHT
+  (halo −10%, kiss −8%) may softly cross the box; the list's own padding
+  (`.35rem 0 .25rem .2rem`) is the reserved zone that keeps the first row's
+  gem/halo whole.
+- OPTICAL-FIT: `maArtFitStyle` (maArt.ts + generated `maArtFit.json`;
+  regenerate `pwsh scripts/measure-ma-art.ps1`) sizes each art by its
+  measured alpha bbox — equal VISUAL mass across assets (premium 512s carry
+  ~10% transparent margin; legacy 140×83 letterbox with a capped upscale).
+- Medal tokens are the SOLVED per-pose maxima (N items × (medal + row pads)
+  ≤ the zone list between the beams, runtime-measured): base 3.9 / dense
+  3.2 / ultra 2.0; TV 4.15 / 3.45 / 2.05 (done poses larger).
 - Milestone row = medal + MY count (`7/16`; conditional milestones render
   ✓/—; a zero count recedes via `--zero`). `my.ready` (server `claimable`) =
   steady mint halo — «yours, waiting», NOT an error; `availableNow` (offered

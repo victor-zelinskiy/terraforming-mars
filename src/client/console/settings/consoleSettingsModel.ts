@@ -60,6 +60,7 @@ import {
   setMotionSpeedPreset,
 } from '@/client/components/motion/motionTokens';
 import {consolePerfState, setConsolePerfLite} from '@/client/console/consolePerfMode';
+import {READING_SCALE_CHOICES, readingScaleState, setConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {desktopBridge, DesktopAppModeInfo, DesktopLanState} from '@/client/components/desktop/desktopUpdateState';
 import {realtimeState, realtimeHealthy, realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
 import {buildVersionLabel} from '@/common/utils/buildVersion';
@@ -73,7 +74,7 @@ export type ConsoleSettingsCategoryId =
   'interface' | 'controls' | 'graphics' | 'game' | 'network' | 'diagnostics';
 
 export type ConsoleSettingId =
-  'shell' | 'display' | 'controller' | 'buttons' | 'wheelControl' |
+  'shell' | 'display' | 'textScale' | 'controller' | 'buttons' | 'wheelControl' |
   'motionSpeed' | 'motionRate' | 'perfMode' | 'privateScore' | 'gameServer' | 'lanVisible';
 
 /** One dialable preference: a ring of options plus where we are in it. */
@@ -239,6 +240,15 @@ function interfaceCategory(input: ConsoleSettingsInput): ConsoleSettingsCategory
       `${translateText(PROFILE_LABELS.auto)} (${translateText(PROFILE_LABELS[consoleLayoutState.profile] ?? consoleLayoutState.profile)})` :
       translateText(PROFILE_LABELS[v] ?? v)),
     (v) => setConsoleProfileOverride(v),
+  ));
+  // Reading-text scale — long-form text only (card rules / archive entry /
+  // prompt bodies on the reading tokens); chrome never rides it. 100% must
+  // already be couch-comfortable — this is personal comfort, not a fix.
+  rows.push(ringRow(
+    'textScale', 'Reading text size', 'Card rules and archive text',
+    READING_SCALE_CHOICES, readingScaleState.scale,
+    (v) => (v === 100 ? translateText('Standard') : `${v}%`),
+    (v) => setConsoleReadingScale(v),
   ));
   return {id: 'interface', label: 'Interface', glyph: '◫', minor: false, rows, readout: []};
 }

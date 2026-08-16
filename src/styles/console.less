@@ -29,6 +29,20 @@
 @con-text: #e8f1fb;
 @con-text-dim: rgba(196, 216, 236, 0.72);
 @con-font: Prototype, Ubuntu, sans-serif;
+/* ── THE TYPE ROLES (couch-reading iteration) ─────────────────────────
+   DISPLAY (@con-font) — Prototype: headers, chips, labels, numeric
+   readouts, controller hints. Short, loud, tracked caps. It ships ONE
+   real weight (400): every `font-weight: 700` on it is synthesized by
+   the browser, which smears Cyrillic strokes — acceptable on a 5-letter
+   chip, destructive on a sentence.
+   READING (@con-font-read) — Golos Text: long-form SENTENCES the player
+   actually reads (card rule texts, prompt bodies, reasons, lore-adjacent
+   prose). Real variable weight 400–900 (font-synthesis is off via the
+   .con-read-text() mixin), tall x-height, open Cyrillic apertures.
+   LORE (card_lore.less) — Literata/Newsreader: the archive entry only.
+   Rule of thumb: if the string is a SENTENCE with a verb, it reads in
+   @con-font-read; if it is a LABEL, a NAME or a NUMBER, it stays display. */
+@con-font-read: 'Golos Text', Ubuntu, sans-serif;
 
 /* ── SEMANTIC accents (TV design system) ──────────────────────────────
    ONE meaning → ONE colour, console-wide. Screen-local palettes (hydro
@@ -63,6 +77,41 @@ html.console-native {
     --con-t-secondary: 0.9rem;
     --con-t-caption: 0.8rem;
     --con-t-floor: 0.7rem;
+    /* ── READING roles (long-form sentences set in @con-font-read; the TV
+       profile re-tunes to the couch floor — see console_tv.less). Three
+       steps by CONTENT LENGTH, never a free-form per-surface size:
+         read-lg — a short rule breathes (one-two lines, roomier);
+         read    — the standard reading body;
+         read-sm — the dense tier for the longest texts. It is a floor,
+                   not a compressor: nothing readable ever drops below it.
+       --con-read-scale is the player-tunable magnifier (100/115/130%);
+       reading font-sizes multiply by it, chrome does not. */
+    --con-t-read-lg: 1.15rem;
+    --con-t-read: 1.05rem;
+    --con-t-read-sm: 0.95rem;
+    --con-read-lh: 1.5;
+    --con-read-scale: 1;
+    /* The rules panel / inspect dossier share ONE width token so the two
+       right-hand boxes of the fullscreen viewer can never drift apart. */
+    --con-rules-w: 21rem;
+    /* The archive entry's COLUMN — card_lore.less consumes it as the whole
+       width expression (the base keeps the shipped vw-responsive clamp; the
+       TV overrides with a fixed logical width). The viewer's JS flank
+       reserve resolves the same token — an unresolvable clamp() there falls
+       back to the shipped 470px reservation, which matches this clamp's cap. */
+    --con-lore-w: ~"clamp(17rem, 22vw, 23.5rem)";
+    /* LORE reading sizes (Literata/Newsreader in the archive entry; serif
+       x-height runs smaller than the sans, so the lore steps sit a touch
+       above the matching read tokens). lg = the aphorism tier, base = the
+       regular quotation, sm = the extended upright paragraph.
+       These tokens carry the WHOLE font-size expression: sub-TV profiles
+       keep the shipped vw-responsive clamp (rem is fixed there, vw does
+       the viewport work); the TV overrides them with fixed logical sizes,
+       because its rem base already scales with the viewport and the vw
+       midpoint would undercut the couch measure. */
+    --con-lore-fs-lg: ~"clamp(1.2rem, 1.42vw, 1.4rem)";
+    --con-lore-fs: ~"clamp(1.06rem, 1.24vw, 1.22rem)";
+    --con-lore-fs-sm: ~"clamp(0.98rem, 1.1vw, 1.1rem)";
     --con-hit-min: 2.6rem;
     --con-cta-h: 3.2rem;
     --con-focus-ring: 0.1rem;
@@ -92,6 +141,55 @@ html.console-native {
     --con-chip-c-note: 0.62rem;
     --con-chip-c-gap: 0.22rem;
     --con-chip-c-radius: 0.5rem;
+}
+
+/* ── THE reading-text mixin — ONE voice for every long-form sentence.
+   Family + weight + rendering discipline only; SIZE stays the caller's
+   (--con-t-read* × --con-read-scale). Golos ships real 400–900, so
+   font-synthesis is disabled outright: a `bold` on this family uses the
+   real bold, and a slanted style can never be faked. 450 is deliberate —
+   light-on-dark polarity visually thins strokes by about half a weight
+   step; 450 restores body without reading as semibold. */
+.con-read-text(@weight: 450) {
+    font-family: @con-font-read;
+    font-weight: @weight;
+    font-synthesis: none;
+    font-kerning: normal;
+    font-variant-numeric: lining-nums;
+    letter-spacing: 0.005em;
+    text-wrap: pretty;
+}
+
+/* ── READING-VOICE ADOPTION (couch-typography iteration) ─────────────
+   Every console surface whose content is a SENTENCE the player reads —
+   rule/effect descriptions, prompt bodies, reasons, notices — speaks in
+   the reading face. ONLY the family + rendering discipline change here:
+   each surface keeps its own size/weight tokens, so no fit engine or
+   line-clamp budget moves. (Real 400–900 weights exist, so an existing
+   `font-weight: 600` on any of these renders a REAL semibold now instead
+   of Chromium smearing the single display weight.)
+   Labels, names, chips and numeric readouts deliberately stay display —
+   see the type-roles note beside @con-font-read. */
+.con-cardactions__desc,
+.con-cardactions__verdict-reason,
+.con-cardactions__usage-note,
+.con-cardactions__empty-body,
+.con-stdp__desc,
+.con-stdp__context,
+.con-task__sub,
+.con-task__opt-sub,
+.con-notif__body,
+.con-reveal__subtitle,
+.con-confirm__body,
+.con-sysconfirm__body,
+.con-quit__body,
+.con-stranded__body,
+.con-govsupport__rule,
+.con-colfocus__desc,
+.con-set__detail-desc {
+    font-family: @con-font-read;
+    font-synthesis-weight: none;
+    letter-spacing: 0.004em;
 }
 
 /* ── THE focus mixin — one ring language for every focused/selected state.
@@ -3291,8 +3389,12 @@ each(@players, {
     padding-left: var(--con-pad-x, 0vw);
     border-top: .05rem solid fade(@con-cyan, 20%);
     padding-top: .55rem;
-    /* Budget contract: the matrix yields before the rail can overflow —
-       the ladder above sizes it to fit; this is the structural net. */
+    /* Budget contract: the matrix yields before the rail can overflow.
+       A flex COLUMN so the grid below can SOLVE its rows into whatever
+       height this section was actually given (the head stays fixed) —
+       the last row's count sits above the bottom beam by construction. */
+    display: flex;
+    flex-direction: column;
     flex: 0 1 auto;
     min-height: 0;
     overflow: hidden;
@@ -3322,25 +3424,23 @@ each(@players, {
         display: grid;
         grid-template-columns: repeat(3, 1fr);
         justify-items: center;
-        align-items: start;
+        align-items: stretch;
         row-gap: var(--ct-gap-y);
         column-gap: var(--ct-gap-x);
 
-        /* ── THE VERTICAL-BUDGET LADDER ──
-           The matrix must SIT between the beams whatever this game's tag
-           set is: five medal rows (13-15 cells — Venus/underworld sets) and
-           six (16+, extreme mods) step the medallion token and the rhythm
-           down a notch INSTEAD of sliding under the bottom beam behind an
-           invisible scroll. Deterministic (`:has` on the cell count), so
-           the grid never re-fits mid-game — a game's tag set is fixed. */
-        &:has(> :nth-child(13)) {
-            --ct-icon: 1.9rem;
-            --ct-gap-y: .3rem;
-        }
-        &:has(> :nth-child(16)) {
-            --ct-icon: 1.7rem;
-            --ct-gap-y: .25rem;
-        }
+        /* ── THE VERTICAL FIT — solved, not guessed ──
+           The grid FILLS the height this section actually has (flex child
+           of the matrix column) and its rows SHARE it (minmax(0, 1fr));
+           inside a cell the MEDALLION is the flexing part, capped at the
+           token size, while the count line is fixed — so a 13-cell Venus
+           set and a 16-cell extreme set both end with a WHOLE last row
+           (icon AND count) above the bottom beam, and a small set keeps
+           today's token-sized medallions exactly. The old cell-count
+           :has() ladder stepped the token from the count alone and still
+           clipped the last count on shorter-than-16:9 viewports. */
+        flex: 1 1 auto;
+        min-height: 0;
+        grid-auto-rows: minmax(0, 1fr);
     }
 
     /* One cell = medallion over its count on a recessed micro-surface —
@@ -3350,8 +3450,12 @@ each(@players, {
         display: flex;
         flex-direction: column;
         align-items: center;
+        justify-content: center;
         width: 100%;
         min-width: 0;
+        /* Fit participant: adopts its row track and lets the medallion
+           inside flex — the count line below never leaves the cell. */
+        min-height: 0;
         padding: .2rem 0 .15rem;
         border-radius: .35rem;
         background: rgba(10, 18, 28, 0.35);
@@ -3365,8 +3469,15 @@ each(@players, {
        box edge. The transition carries the 0 → collected reveal: the cell is
        already in place, it only brightens and settles to full size. */
     &__medal.tag-count {
-        width: var(--ct-icon);
+        /* The flexing part of the vertical fit: token-sized while the room
+           allows, compressing (square, via aspect-ratio) when the row
+           tracks get short — the COUNT under it is the fixed line. */
+        flex: 0 1 auto;
+        min-height: 0;
         height: var(--ct-icon);
+        max-height: var(--ct-icon);
+        aspect-ratio: 1 / 1;
+        width: auto;
         margin: 0;
         box-sizing: border-box;
         border: none;
@@ -9149,29 +9260,38 @@ html.con-profile-handheld .con-mafocus {
         display: flex;
         flex-direction: column;
         /* The zone's medal scale — poses and profiles override the TOKEN.
-           ADAPTIVE-SURFACE pass: the rail owns a full hull member now — the
-           medal is the carrier and takes the width the chassis gained. */
-        --strat-medal: 3.3rem;
+           POLISH pass: the medal is the row's HERO — the old system line
+           (slot tray + price) folded into the head, and its height plus the
+           optical-fit normalisation (maArtFitStyle) went into the medal. */
+        --strat-medal: 3.9rem;
         --strat-num: 1.05rem;
         --strat-num2: .88rem;
 
-        &--dense { --strat-medal: 2.55rem; }
+        &--dense { --strat-medal: 3.2rem; }
         &--ultra { --strat-medal: 2rem; }
     }
     /* The seam between the two systems — one hairline, no second panel. */
     &__zone--awards {
-        margin-top: .45rem;
-        padding-top: .4rem;
+        margin-top: .3rem;
+        padding-top: .3rem;
         border-top: .05rem solid rgba(120, 150, 180, 0.16);
     }
 
-    /* ── zone head — the workspace DOOR (LB/RB cap + title, clickable) ── */
+    /* ── zone head — the workspace DOOR (LB/RB cap + title + slot tray,
+       ONE compact line, clickable). The PRICE is deliberately absent: it
+       lives in the workspace where the decision (and the payment) is made —
+       the HUD line carries only the standing facts. ── */
     &__head {
         display: flex;
         align-items: center;
-        gap: .35rem;
+        gap: .3rem;
         margin: 0;
-        padding: .05rem .1rem;
+        /* Instrument-plate bleed (the rows' grammar, one register up): the
+           head line runs into the hull zone so the LONGEST RU title plus
+           the slot tray genuinely fit on one line — the tray flocks to the
+           line's end, on the same axis the row values right-align to. */
+        margin-right: calc(-1 * (var(--con-pad-x, 0rem) + .2rem));
+        padding: .05rem .15rem .05rem .1rem;
         border: 0;
         background: none;
         color: inherit;
@@ -9191,14 +9311,17 @@ html.con-profile-handheld .con-mafocus {
         display: inline-flex;
         flex-shrink: 0;
         opacity: 0.92;
-        .gp-glyph { min-width: 1.4rem; height: 1rem; font-size: .55rem; }
+        .gp-glyph { min-width: 1.25rem; height: 1rem; font-size: .55rem; }
     }
     &__title {
-        flex: 1;
+        /* The NAME is the line's voice — it never ellipsizes; the tray and
+           the glyph are compact enough that the longest RU title fits the
+           rail (runtime-measured). */
+        flex: 0 1 auto;
         min-width: 0;
         font-size: .66rem;
         font-weight: 700;
-        letter-spacing: .07rem;
+        letter-spacing: .045rem;
         text-transform: uppercase;
         color: @con-text;
         white-space: nowrap;
@@ -9206,23 +9329,21 @@ html.con-profile-handheld .con-mafocus {
         text-overflow: ellipsis;
     }
 
-    /* ── the system line: slot tray + live price / the sealed mark ── */
-    &__meta {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: .4rem;
-        padding: .1rem .2rem .2rem .25rem;
-    }
-    /* The 3-slot diamond tray — the SAME grammar as the MA workspace
-       header's tally (filled with each taker's colour, hollow while open). */
+    /* The 3-slot diamond tray beside the name — the SAME grammar as the MA
+       workspace header's tally (filled with each taker's colour, hollow
+       while open). Compact: present, readable, never the line's voice. */
     &__slots {
         display: inline-flex;
-        gap: .4rem;
+        flex-shrink: 0;
+        gap: .26rem;
+        /* Flocks to the line's END — the same right axis the row values
+           align to below; the title keeps every middle pixel. */
+        margin-left: auto;
+        padding: 0 .08rem 0 .3rem;
     }
     &__pip {
-        width: .56rem;
-        height: .56rem;
+        width: .44rem;
+        height: .44rem;
         border-radius: .12rem;
         transform: rotate(45deg);
         box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5);
@@ -9234,48 +9355,6 @@ html.con-profile-handheld .con-mafocus {
             box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 35%);
         }
     }
-    /* The compact live price — the workspace price chip one register down
-       (value gold, M€ icon, no label). Free (Van Allen / Vitor) = mint rim. */
-    &__price {
-        display: inline-flex;
-        align-items: center;
-        gap: .22rem;
-        padding: .08rem .38rem;
-        border-radius: 49.95rem;
-        background: rgba(9, 15, 23, 0.75);
-        box-shadow: inset 0 0 0 .06rem fade(@con-cyan, 36%);
-        white-space: nowrap;
-
-        b {
-            font-size: .78rem;
-            font-weight: 800;
-            font-variant-numeric: tabular-nums;
-            color: #ffe2ad;
-        }
-        .resource_icon {
-            display: inline-block;
-            width: .85rem;
-            height: .85rem;
-            background-repeat: no-repeat;
-            background-position: center;
-            background-size: contain !important;
-        }
-        &--free { box-shadow: inset 0 0 0 .06rem fade(@con-mint, 48%); }
-    }
-    /* 3/3 — nothing here is buyable any more: the sealed gold mark. */
-    &__done {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 1.05rem;
-        height: 1.05rem;
-        border-radius: 50%;
-        background: fade(#e8c268, 14%);
-        box-shadow: inset 0 0 0 .07rem fade(#e8c268, 80%);
-        color: #ffe9b8;
-        font-size: .62rem;
-        font-weight: 800;
-    }
 
     /* ── the medal stack ── */
     &__list {
@@ -9286,6 +9365,12 @@ html.con-profile-handheld .con-mafocus {
         flex-direction: column;
         justify-content: space-evenly;
         overflow: hidden;
+        /* Effect breathing: the capsule sits INSIDE the medal box now, but
+           the shoulder gem (top −4%) and the availability halo (−10%) still
+           overhang it — this padding is the reserved zone that keeps them
+           WHOLE against the list's own clip (the first row's plate used to
+           lose its top/left corners exactly here). */
+        padding: .35rem 0 .25rem .2rem;
     }
     /* ═══ THE ROW CONTRACT: `medal | flexible | value` ═══
        Every row is a GRID with a RESERVED value column: the medal track is
@@ -9319,7 +9404,13 @@ html.con-profile-handheld .con-mafocus {
     }
 
     /* The medal: a layered physical object — owner under-plate, state halo,
-       the art itself, the corner gem, and the one-shot seal kiss. */
+       the art itself, the corner gem, and the one-shot seal kiss.
+       CAPSULE GEOMETRY (polish pass): the glass PLATE fills the medal box
+       (inset 0) and the ART sits slightly inside it — the capsule is part
+       of the row's own layout, so neighbouring rows' opaque plates and the
+       list clip can never amputate its corners (they used to: the plate
+       overhung the box by 7% and the first row's top/left rounded corners
+       were cut flat). Only LIGHT (halo/kiss) may softly cross the box. */
     &__medal {
         position: relative;
         flex-shrink: 0;
@@ -9328,14 +9419,14 @@ html.con-profile-handheld .con-mafocus {
     }
     &__plate {
         position: absolute;
-        inset: -7%;
-        border-radius: 30%;
-        opacity: 0.32;
+        inset: 0;
+        border-radius: 26%;
+        opacity: 0.34;
         box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.4);
     }
     &__halo {
         position: absolute;
-        inset: -16%;
+        inset: -10%;
         border-radius: 50%;
         background: radial-gradient(circle, fade(@con-mint, 30%) 30%, fade(@con-mint, 12%) 58%, transparent 72%);
         opacity: 0;
@@ -9343,7 +9434,12 @@ html.con-profile-handheld .con-mafocus {
     }
     &__art {
         position: absolute;
-        inset: 0;
+        /* Inside the capsule — the optical-fit map (maArtFitStyle) sizes the
+           TRIMMED art against THIS box, so every medal carries equal visual
+           mass whatever its asset's transparent margins. The inset is a
+           hair, not a frame: the glass reads in the corners the (hexagonal)
+           medal art leaves open. */
+        inset: 2%;
         background-repeat: no-repeat;
         background-position: center;
         background-size: contain;
@@ -9364,7 +9460,7 @@ html.con-profile-handheld .con-mafocus {
     &__gem--me { box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5), 0 0 0 .08rem rgba(255, 255, 255, 0.8); }
     &__kiss {
         position: absolute;
-        inset: -12%;
+        inset: -8%;
         border-radius: 50%;
         background: radial-gradient(circle, rgba(255, 255, 255, 0.85) 18%, rgba(255, 255, 255, 0.25) 48%, transparent 70%);
         opacity: 0;
@@ -9482,7 +9578,7 @@ html.con-profile-handheld .con-mafocus {
        larger, centred, owner enamel carrying the whole read. The race is
        OVER, so no values return. */
     &__zone--milestones&__zone--done {
-        --strat-medal: 4.4rem;
+        --strat-medal: 4.9rem;
 
         /* The trophy pose leaves the row contract: no value column exists
            any more, so the item recomposes as a centred flex exhibit. */
@@ -9493,7 +9589,7 @@ html.con-profile-handheld .con-mafocus {
     /* Awards 3/3: a LIVE scoreboard of three races — bigger medals AND
        bigger numbers (the race runs to game end; first and second stay). */
     &__zone--awards&__zone--done {
-        --strat-medal: 3.7rem;
+        --strat-medal: 4.1rem;
         --strat-num: 1.18rem;
         --strat-num2: .95rem;
 
@@ -9517,7 +9613,7 @@ html.con-profile-handheld .con-mafocus {
 @keyframes strat-seal-plate {
     0% { opacity: 0; transform: scale(1.28); }
     45% { opacity: 0.44; transform: scale(0.985); }
-    100% { opacity: 0.32; transform: none; }
+    100% { opacity: 0.34; transform: none; }
 }
 @keyframes strat-seal-gem {
     0% { opacity: 0; transform: rotate(45deg) scale(2.3); }
@@ -9583,15 +9679,6 @@ html.con-profile-handheld .con-mafocus {
 }
 .con-strat-race-enter-from { opacity: 0; transform: translateY(.3rem); }
 .con-strat-race-leave-to { opacity: 0; }
-
-/* The meta swap (price ⇄ sealed mark). */
-.con-strat-meta-enter-active,
-.con-strat-meta-leave-active {
-    transition: opacity calc(220ms * var(--motion-scale, 1)) ease,
-        transform calc(220ms * var(--motion-scale, 1)) ease;
-}
-.con-strat-meta-enter-from { opacity: 0; transform: scale(0.85); }
-.con-strat-meta-leave-to { opacity: 0; transform: scale(0.85); }
 
 /* ── The console-native JOURNAL (View — the P28 flagship) ──────────
    REPLACES the right info panel while open: an ABSOLUTE overlay pinned
@@ -25390,21 +25477,44 @@ html.con-profile-large {
 /* The «ПРИ РОЗЫГРЫШЕ» play-rail is MINT at the source (premium_card.less
    --pcard-onplay — the unified premium-wide colour of on-play), so it
    already matches its mint rules chip everywhere. */
+/* ═══ READING SURFACE (couch-typography iteration) ═══════════════════
+   The rules panel is a surface DESIGNED FOR READING, not a decorated
+   frame with text inside. Four decisions carry it:
+   1. The sentences are set in @con-font-read (Golos Text — real weights,
+      open Cyrillic), sized by the READING tokens; chrome (head, chips)
+      stays in the display face. Nothing here ever truncates, ellipsizes
+      or drops below the reading floor (--con-t-read-sm).
+   2. LENGTH ADAPTS THE TIER, never per-card ad-hoc sizes: the host gets
+      `--brief` (a one-liner breathes at read-lg) or `--dense` (the
+      longest RU rules step down to the floor tier and gain hyphenation);
+      the default is the standard reading body.
+   3. The material is a near-opaque layered slab with a top edge-light —
+      contrast comes from the SURFACE, never from glow around glyphs
+      (no text-shadow on the body text, ever).
+   4. Width rides --con-rules-w (TV widens it with the type so the
+      measure keeps 30+ characters per line). */
 .con-zoom-rules {
     display: flex;
     flex-direction: column;
-    width: 20rem;
+    width: var(--con-rules-w, 20rem);
     max-height: 76vh;
-    border-radius: .7rem;
-    background: @con-glass;
-    box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%), 0 .9rem 2.4rem rgba(0, 0, 0, 0.5);
+    border-radius: .8rem;
+    background:
+        linear-gradient(180deg,
+            rgba(15, 24, 36, 0.97) 0%,
+            rgba(9, 15, 24, 0.965) 30%,
+            rgba(6, 11, 19, 0.96) 100%);
+    box-shadow:
+        inset 0 0 0 .05rem fade(@con-cyan, 24%),
+        inset 0 .05rem 0 rgba(214, 236, 255, 0.09),
+        0 1.1rem 2.8rem rgba(0, 0, 0, 0.55);
     overflow: hidden;
 
     &__head {
         display: flex;
         align-items: center;
         gap: .55rem;
-        padding: .7rem .95rem .55rem;
+        padding: .75rem 1.1rem .6rem;
         border-bottom: .05rem solid fade(@con-cyan, 20%);
     }
     &__mark {
@@ -25426,20 +25536,20 @@ html.con-profile-large {
     &__body {
         display: flex;
         flex-direction: column;
-        gap: .85rem;
-        padding: .8rem .95rem .95rem;
+        gap: 1rem;
+        padding: .95rem 1.1rem 1.15rem;
     }
     &__group {
         display: flex;
         flex-direction: column;
-        gap: .3rem;
+        gap: .4rem;
     }
     &__kind {
         display: inline-flex;
         align-items: center;
         gap: .35rem;
         align-self: flex-start;
-        padding: .12rem .55rem;
+        padding: .14rem .6rem;
         border-radius: .35rem;
         background: fade(@con-cyan, 12%);
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 30%);
@@ -25484,10 +25594,27 @@ html.con-profile-large {
     }
     &__spark { color: @sem-warn; }
     &__text {
+        .con-read-text(450);
         margin: 0;
-        font-size: var(--con-t-secondary);
-        line-height: 1.42;
-        color: fade(@con-text, 94%);
+        font-size: calc(var(--con-t-read) * var(--con-read-scale, 1));
+        line-height: var(--con-read-lh, 1.5);
+        color: fade(@con-text, 96%);
+    }
+
+    /* ── LENGTH TIERS (host-computed from the localized text) ──
+       brief: the whole card says one short thing — let it breathe.
+       dense: the longest RU rules — the floor tier + hyphenation, so a
+       15-letter Russian word can break instead of leaving a ragged hole
+       (the dictionary resolves via the html[lang] the bootstrap stamps). */
+    &--brief &__text {
+        font-size: calc(var(--con-t-read-lg) * var(--con-read-scale, 1));
+        line-height: calc(var(--con-read-lh, 1.5) - 0.06);
+    }
+    &--dense &__text {
+        font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
+        line-height: calc(var(--con-read-lh, 1.5) + 0.03);
+        hyphens: auto;
+        hyphenate-limit-chars: 7 4 3;
     }
 }
 
@@ -25496,15 +25623,24 @@ html.con-profile-large {
    and a body that crossfades between the embedded rules panel and the history
    panel. The box + card geometry never move (a page swap, not a new modal). */
 .con-inspect-side {
-    /* Shares the .con-zoom-rules-host opacity/closing chrome (the class above). */
+    /* Shares the .con-zoom-rules-host opacity/closing chrome (the class above).
+       The box mirrors the rules panel's READING-SURFACE material + the shared
+       width token — the two right-hand boxes of the viewer never drift. */
     &__box {
         display: flex;
         flex-direction: column;
-        width: 20rem;
+        width: var(--con-rules-w, 20rem);
         max-height: 76vh;
-        border-radius: .7rem;
-        background: @con-glass;
-        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 26%), 0 .9rem 2.4rem rgba(0, 0, 0, 0.5);
+        border-radius: .8rem;
+        background:
+            linear-gradient(180deg,
+                rgba(15, 24, 36, 0.97) 0%,
+                rgba(9, 15, 24, 0.965) 30%,
+                rgba(6, 11, 19, 0.96) 100%);
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-cyan, 24%),
+            inset 0 .05rem 0 rgba(214, 236, 255, 0.09),
+            0 1.1rem 2.8rem rgba(0, 0, 0, 0.55);
         overflow: hidden;
     }
     /* The ONE tab bar — carries the LB/RB glyphs so the switch is READ on the
