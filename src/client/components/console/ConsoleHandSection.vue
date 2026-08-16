@@ -186,7 +186,7 @@
           <div v-for="(row, ri) in pageRows(p)"
                :key="ri"
                class="con-hand__row"
-               :style="rowStyle">
+               :style="pageRowStyle(p)">
             <div v-for="cell in row"
                  :key="cell.e.card.name"
                  class="con-hand__slot"
@@ -398,9 +398,10 @@ import {unplayableReasonLine} from '@/client/components/handCards/unplayableReas
 import {consoleState} from '@/client/console/consoleRouter';
 import {shortBlockerLabel, HandNavDir} from '@/client/components/console/consoleHandGrid';
 import {
-  albumSpecFor, planHandAlbum, pageOfIndex, pageSlotOfIndex, stepHandAlbum, pageJumpIndex,
-  packetRect, HandAlbumPlan, PacketSide,
+  albumSpecFor, planHandAlbum, planAlbumPage, pageRowsFor, pageOfIndex, pageSlotOfIndex,
+  stepHandAlbum, pageJumpIndex, packetRect, HandAlbumPlan, AlbumPagePlan, PacketSide,
 } from '@/client/components/console/consoleHandAlbum';
+import {albumLayoutState} from '@/client/console/consoleAlbumLayout';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {ConsoleTagFilterOption, HandTagFilter} from '@/client/components/console/consoleHandFilter';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
@@ -606,6 +607,8 @@ export default defineComponent({
       outcome: workspaceOutcomeState,
       /** The layout profile (module reactive — the album's page shape). */
       layout: consoleLayoutState,
+      /** The «Компоновка альбома» preference (module reactive). */
+      albumLayout: albumLayoutState,
       /** A page slide is airborne — `will-change` scoped to the turn only. */
       turning: false,
       turnSafety: undefined as number | undefined,
@@ -792,18 +795,28 @@ export default defineComponent({
       return this.activeTag !== 'all' ? translateText('No cards with this tag') : translateText('No cards in hand');
     },
     /**
-     * THE ALBUM PLAN — page shape from the PROFILE, card size from the BOX.
-     * Never from the hand size: one card and a full page are the same
-     * geometry, and a growing hand only ever adds pages.
+     * THE ALBUM BACKBONE PLAN — page CAPACITY from the profile + the player's
+     * «Компоновка альбома» preference (read synchronously at module import,
+     * so the very first measure — and the HandDock flight aiming at it — is
+     * already in the chosen composition), the STANDARD two-row card size
+     * from the box. Pagination facts only: stride, page count, the standard
+     * zoom every full two-row page shares. The per-page DENSITY geometry
+     * (Showcase Pages) lives in `pagePlanFor`.
      */
     plan(): HandAlbumPlan {
       return planHandAlbum({
         availW: this.box.w > 0 ? this.box.w : FALLBACK_W,
         availH: this.box.h > 0 ? this.box.h : FALLBACK_H,
         count: this.entries.length,
-        spec: albumSpecFor(this.layout.profile),
+        spec: albumSpecFor(this.layout.profile, this.albumLayout.layout),
         uiScale: conUiScale(),
       });
+    },
+    /** The ACTIVE page's row composition — navigation's vertical map. */
+    activePageRows(): ReadonlyArray<number> {
+      const start = this.activePage * this.plan.perPage;
+      const n = Math.min(this.entries.length - start, this.plan.perPage);
+      return pageRowsFor(Math.max(0, n), albumSpecFor(this.layout.profile, this.albumLayout.layout));
     },
     /** The page the cursor lives on — the album's viewport, BY DERIVATION.
      *  Focus and page can never disagree; restoring one restores the other. */
@@ -833,9 +846,6 @@ export default defineComponent({
      *  retargetable, zero layout, zero scroll geometry). */
     stripStyle(): Record<string, string> {
       return {transform: `translateX(${-this.activePage * this.plan.stride}px)`};
-    },
-    rowStyle(): Record<string, string> {
-      return {height: this.plan.slotH + 'px', columnGap: this.plan.gapX + 'px'};
     },
     /** The cursor SEMANTICS epoch — a mode flip (browse ↔ sale ↔ select/pick)
      *  re-seats the cursor on the shell's side, so the identity anchor must
@@ -950,25 +960,52 @@ export default defineComponent({
     handStageLeaveHook,
     handStageEnterCancelledHook,
     handStageLeaveCancelledHook,
-    /** The rows of one page, each cell carrying its FLAT hand index. */
+    /**
+     * ONE PAGE'S DENSITY SOLVE (Showcase Pages): the composition + the card
+     * size for exactly the cards standing on it. Pure math over the same
+     * measured box — cheap enough to call from the render path.
+     */
+    pagePlanFor(page: number): AlbumPagePlan {
+      const start = page * this.plan.perPage;
+      const n = Math.max(0, Math.min(this.entries.length - start, this.plan.perPage));
+      return planAlbumPage({
+        availW: this.box.w > 0 ? this.box.w : FALLBACK_W,
+        availH: this.box.h > 0 ? this.box.h : FALLBACK_H,
+        count: n,
+        spec: albumSpecFor(this.layout.profile, this.albumLayout.layout),
+        uiScale: conUiScale(),
+      }, n, this.plan);
+    },
+    /** The rows of one page per its COMPOSED density (e.g. [5,4] / [3]),
+     *  each cell carrying its FLAT hand index. */
     pageRows(page: number): Array<Array<AlbumCell>> {
-      const p = this.plan;
-      const start = page * p.perPage;
-      const slice = this.entries.slice(start, start + p.perPage);
+      const start = page * this.plan.perPage;
+      const slice = this.entries.slice(start, start + this.plan.perPage);
+      const composition = this.pagePlanFor(page).rows;
       const rows: Array<Array<AlbumCell>> = [];
-      for (let r = 0; r * p.cols < slice.length; r++) {
-        rows.push(slice.slice(r * p.cols, (r + 1) * p.cols).map((e, ci) => ({e, gi: start + r * p.cols + ci})));
+      let at = 0;
+      for (const len of composition) {
+        rows.push(slice.slice(at, at + len).map((e, ci) => ({e, gi: start + at + ci})));
+        at += len;
       }
       return rows;
     },
-    /** One page's berth on the strip: its stride slot + the centring pads. */
+    /** One page's berth on the strip: its stride slot + its OWN centring
+     *  pads and card scale (`--con-hand-zoom` rides the page, so a showcase
+     *  page's chips/bands counter-zoom against ITS size, not the base). */
     pageStyle(page: number): Record<string, string> {
-      const p = this.plan;
+      const pp = this.pagePlanFor(page);
       return {
-        transform: `translate(${page * p.stride + p.padX}px, ${p.padTop}px)`,
-        width: p.pageW + 'px',
-        rowGap: p.gapY + 'px',
+        'transform': `translate(${page * this.plan.stride + pp.padX}px, ${pp.padTop}px)`,
+        'width': pp.pageW + 'px',
+        'rowGap': pp.gapY + 'px',
+        '--con-hand-zoom': String(pp.zoom),
       };
+    },
+    /** The row line style of one page (slot height + column gap). */
+    pageRowStyle(page: number): Record<string, string> {
+      const pp = this.pagePlanFor(page);
+      return {height: pp.slotH + 'px', columnGap: pp.gapX + 'px'};
     },
     onStripSettled(e: TransitionEvent): void {
       if (e.propertyName !== 'transform') {
@@ -1008,11 +1045,15 @@ export default defineComponent({
     /**
      * D-pad / left-stick: deterministic album stepping. Horizontal walks the
      * flat hand order — crossing a page edge IS the page turn (the strip
-     * follows the derived active page); vertical moves by a row within the
-     * page, column preserved. Nothing wraps; every edge is felt.
+     * follows the derived active page); vertical moves between the ACTIVE
+     * page's COMPOSED rows ([5,4] / [4,3] / a single showcase row), column
+     * preserved. Nothing wraps; every edge is felt.
      */
     move(dir: HandNavDir): void {
-      consoleState.handIndex = stepHandAlbum(this.index, dir, this.entries.length, this.plan);
+      consoleState.handIndex = stepHandAlbum(this.index, dir, this.entries.length, {
+        perPage: this.plan.perPage,
+        rows: this.activePageRows,
+      });
     },
     /** The explicit page turn (edge click / stick flick / wheel): same
      *  relative slot on the neighbouring page. */
@@ -1114,18 +1155,24 @@ export default defineComponent({
           return {name: e.card.name as CardName, rect: {left: r.left, top: r.top, width: r.width, height: r.height}, visible: true};
         }
         // Plan-derived fallback (pre-paint measure): mirror the rendered
-        // geometry — the page block at its pads, rows individually centred.
+        // DENSITY geometry — the page block at its own pads, the composed
+        // rows individually centred, this page's own card size.
+        const pp = this.pagePlanFor(page);
         const slot = pageSlotOfIndex(i, p.perPage);
-        const row = Math.floor(slot / p.cols);
-        const col = slot % p.cols;
-        const pageStart = page * p.perPage;
-        const inRow = Math.min(p.cols, this.entries.length - (pageStart + row * p.cols));
-        const rowW = inRow * p.slotW + (inRow - 1) * p.gapX;
+        let row = 0;
+        let rowStart = 0;
+        while (row < pp.rows.length - 1 && slot >= rowStart + pp.rows[row]) {
+          rowStart += pp.rows[row];
+          row++;
+        }
+        const col = slot - rowStart;
+        const inRow = pp.rows[row] ?? 1;
+        const rowW = inRow * pp.slotW + (inRow - 1) * pp.gapX;
         const rect = {
-          left: box.left + p.padX + (p.pageW - rowW) / 2 + col * (p.slotW + p.gapX),
-          top: box.top + p.padTop + row * (p.slotH + p.gapY),
-          width: p.slotW,
-          height: p.slotH,
+          left: box.left + pp.padX + (pp.pageW - rowW) / 2 + col * (pp.slotW + pp.gapX),
+          top: box.top + pp.padTop + row * (pp.slotH + pp.gapY),
+          width: pp.slotW,
+          height: pp.slotH,
         };
         return {name: e.card.name as CardName, rect, visible: true};
       });

@@ -2,6 +2,8 @@ import {expect} from 'chai';
 import {
   albumSpecFor,
   planHandAlbum,
+  planAlbumPage,
+  pageRowsFor,
   pageOfIndex,
   pageSlotOfIndex,
   stepHandAlbum,
@@ -20,6 +22,11 @@ function plan(count: number, spec = TV, availW = 1600, availH = 780, uiScale?: n
   return planHandAlbum({availW, availH, count, spec, uiScale});
 }
 
+function pagePlan(n: number, spec = TV, availW = 1600, availH = 780, uiScale?: number) {
+  const base = planHandAlbum({availW, availH, count: n, spec, uiScale});
+  return planAlbumPage({availW, availH, count: n, spec, uiScale}, n, base);
+}
+
 describe('consoleHandAlbum', () => {
   describe('albumSpecFor', () => {
     it('handheld is a single generous row of four', () => {
@@ -29,6 +36,79 @@ describe('consoleHandAlbum', () => {
       expect(albumSpecFor('tv')).to.deep.eq({cols: 5, rows: 2});
       expect(albumSpecFor('standard')).to.deep.eq({cols: 5, rows: 2});
       expect(albumSpecFor('large')).to.deep.eq({cols: 5, rows: 2});
+    });
+    it('«Крупные карты» is one row of four on EVERY profile (the handheld coincides)', () => {
+      expect(albumSpecFor('tv', 'large')).to.deep.eq({cols: 4, rows: 1});
+      expect(albumSpecFor('standard', 'large')).to.deep.eq({cols: 4, rows: 1});
+      expect(albumSpecFor('handheld', 'large')).to.deep.eq({cols: 4, rows: 1});
+      expect(albumSpecFor('handheld', 'adaptive')).to.deep.eq(albumSpecFor('handheld', 'large'));
+    });
+  });
+
+  describe('pageRowsFor — the adaptive composition table', () => {
+    it('two-row capacity balances 6..10 and showcases 1..5', () => {
+      const cases: Array<[number, ReadonlyArray<number>]> = [
+        [10, [5, 5]], [9, [5, 4]], [8, [4, 4]], [7, [4, 3]], [6, [3, 3]],
+        [5, [5]], [4, [4]], [3, [3]], [2, [2]], [1, [1]], [0, []],
+      ];
+      for (const [n, rows] of cases) {
+        expect(pageRowsFor(n, TV), `n=${n}`).to.deep.eq(rows);
+      }
+    });
+    it('weak 5+1 / 5+2 splits are unexpressible', () => {
+      for (let n = 6; n <= 10; n++) {
+        const rows = pageRowsFor(n, TV);
+        expect(rows.length).to.eq(2);
+        expect(rows[0] - rows[1], `n=${n} balanced`).to.be.at.most(1);
+      }
+    });
+    it('a single-row capacity always composes one row', () => {
+      for (let n = 1; n <= 4; n++) {
+        expect(pageRowsFor(n, DECK)).to.deep.eq([n]);
+      }
+    });
+  });
+
+  describe('planAlbumPage — Showcase Pages', () => {
+    it('a two-row page keeps the STANDARD card size (never «bigger because six»)', () => {
+      const base = plan(20);
+      for (const n of [6, 7, 8, 9, 10]) {
+        expect(pagePlan(n).zoom, `n=${n}`).to.eq(base.cardZoom);
+      }
+    });
+    it('showcase size is MONOTONE: fewer cards never render smaller', () => {
+      let prev = 0;
+      for (const n of [5, 4, 3, 2, 1]) {
+        const z = pagePlan(n).zoom;
+        expect(z, `n=${n} vs n=${n + 1}`).to.be.at.least(prev - 1e-9);
+        prev = z;
+      }
+    });
+    it('every showcase page renders LARGER than the standard two-row card', () => {
+      const base = plan(20);
+      for (const n of [5, 4, 3, 2, 1]) {
+        expect(pagePlan(n).zoom, `n=${n}`).to.be.greaterThan(base.cardZoom);
+      }
+    });
+    it('a showcase page stays inside the box (air included) and centres vertically', () => {
+      for (const n of [5, 3, 1]) {
+        const pp = pagePlan(n);
+        expect(pp.rows).to.deep.eq([n]);
+        expect(pp.padX + pp.pageW).to.be.at.most(1600 + 0.5);
+        expect(pp.padTop + pp.pageH).to.be.at.most(780 + 0.5);
+        expect(pp.padTop, `n=${n} vertical centring`).to.be.greaterThan(26);
+      }
+    });
+    it('the deck full single row IS the standard size (width-bound either way)', () => {
+      const base = plan(9, DECK, 1000, 520);
+      expect(pagePlan(4, DECK, 1000, 520).zoom).to.eq(base.cardZoom);
+      expect(pagePlan(3, DECK, 1000, 520).zoom).to.be.greaterThan(base.cardZoom);
+    });
+    it('«Крупные карты» full page of four is far larger than the adaptive standard', () => {
+      const adaptive = plan(15, TV, 1600, 780);
+      const LARGE = {cols: 4, rows: 1};
+      const large = pagePlan(4, LARGE, 1600, 780);
+      expect(large.zoom).to.be.greaterThan(adaptive.cardZoom * 1.3);
     });
   });
 
@@ -110,44 +190,54 @@ describe('consoleHandAlbum', () => {
     });
   });
 
-  describe('stepHandAlbum — deterministic album navigation', () => {
-    const p = {cols: 5, perPage: 10};
+  describe('stepHandAlbum — deterministic album navigation over COMPOSED rows', () => {
+    const full = {perPage: 10, rows: [5, 5] as ReadonlyArray<number>};
 
     it('left/right walk the flat order and cross page edges (the order continues)', () => {
-      expect(stepHandAlbum(9, 'right', 19, p)).to.eq(10); // page 0 → page 1
-      expect(stepHandAlbum(10, 'left', 19, p)).to.eq(9); // page 1 → page 0
-      expect(stepHandAlbum(0, 'left', 19, p)).to.eq(0); // the first edge is felt
-      expect(stepHandAlbum(18, 'right', 19, p)).to.eq(18); // the last edge is felt
+      expect(stepHandAlbum(9, 'right', 19, full)).to.eq(10); // page 0 → page 1
+      expect(stepHandAlbum(10, 'left', 19, full)).to.eq(9); // page 1 → page 0
+      expect(stepHandAlbum(0, 'left', 19, full)).to.eq(0); // the first edge is felt
+      expect(stepHandAlbum(18, 'right', 19, full)).to.eq(18); // the last edge is felt
     });
 
-    it('up/down move by a row WITHIN the page, preserving the column', () => {
-      expect(stepHandAlbum(2, 'down', 19, p)).to.eq(7);
-      expect(stepHandAlbum(7, 'up', 19, p)).to.eq(2);
-      expect(stepHandAlbum(2, 'up', 19, p)).to.eq(2); // top row stays
-      expect(stepHandAlbum(7, 'down', 19, p)).to.eq(7); // bottom row stays
-      // Second page: same law, offset by the page base.
-      expect(stepHandAlbum(12, 'down', 30, p)).to.eq(17);
+    it('up/down move between the composed rows, preserving the column', () => {
+      expect(stepHandAlbum(2, 'down', 19, full)).to.eq(7);
+      expect(stepHandAlbum(7, 'up', 19, full)).to.eq(2);
+      expect(stepHandAlbum(2, 'up', 19, full)).to.eq(2); // top row stays
+      expect(stepHandAlbum(7, 'down', 19, full)).to.eq(7); // bottom row stays
     });
 
-    it('down into a partial last row clamps to its final card (nearest existing)', () => {
-      // 13 cards: page 1 holds 10..12 (a 3-card top row is also its last row).
-      // On page 0 (full), plain row stepping applies; on a partial page the
-      // clamp keeps the cursor on existing cards.
-      expect(stepHandAlbum(14, 'down', 17, p)).to.eq(16); // 17 cards: page 1 = 10..16, col 4 → last card
+    it('a [5,4] page clamps the down-step into the shorter row', () => {
+      const nine = {perPage: 10, rows: [5, 4] as ReadonlyArray<number>};
+      // Page 1 of 19 (indices 10..18, 9 cards → 5+4): col 4 of the top row
+      // has no col 4 below — clamp to the last card of the 4-row.
+      expect(stepHandAlbum(14, 'down', 19, nine)).to.eq(18);
+      expect(stepHandAlbum(18, 'up', 19, nine)).to.eq(13); // col preserved back up
+      expect(stepHandAlbum(12, 'down', 19, nine)).to.eq(17); // col 2 exists below
+    });
+
+    it('a [4,3] seven-card page keeps the column law', () => {
+      const seven = {perPage: 10, rows: [4, 3] as ReadonlyArray<number>};
+      expect(stepHandAlbum(3, 'down', 7, seven)).to.eq(6); // col 3 → clamp to col 2
+      expect(stepHandAlbum(6, 'up', 7, seven)).to.eq(2);
+      expect(stepHandAlbum(4, 'up', 7, seven)).to.eq(0);
     });
 
     it('vertical motion never turns a page', () => {
-      expect(stepHandAlbum(7, 'down', 30, p)).to.eq(7); // bottom row of page 0, page 1 exists below in flat order
+      expect(stepHandAlbum(7, 'down', 30, full)).to.eq(7); // bottom row of page 0
     });
 
-    it('a single-row profile keeps up/down inert', () => {
-      const deck = {cols: 4, perPage: 4};
+    it('a showcase (single-row) page keeps up/down inert', () => {
+      const showcase = {perPage: 10, rows: [3] as ReadonlyArray<number>};
+      expect(stepHandAlbum(11, 'up', 13, showcase)).to.eq(11);
+      expect(stepHandAlbum(11, 'down', 13, showcase)).to.eq(11);
+      const deck = {perPage: 4, rows: [4] as ReadonlyArray<number>};
       expect(stepHandAlbum(1, 'up', 9, deck)).to.eq(1);
       expect(stepHandAlbum(1, 'down', 9, deck)).to.eq(1);
     });
 
     it('an empty hand pins the cursor at zero', () => {
-      expect(stepHandAlbum(3, 'right', 0, p)).to.eq(0);
+      expect(stepHandAlbum(3, 'right', 0, full)).to.eq(0);
     });
   });
 
@@ -164,6 +254,36 @@ describe('consoleHandAlbum', () => {
     it('refuses past the first/last page', () => {
       expect(pageJumpIndex(3, -1, 30, 10)).to.eq(3);
       expect(pageJumpIndex(25, 1, 30, 10)).to.eq(25);
+    });
+  });
+
+  describe('«Крупные карты» pagination facts (capacity 4)', () => {
+    const per = 4;
+    it('page counts: 5→2, 9→3, 15→4', () => {
+      for (const [n, pages] of [[5, 2], [9, 3], [15, 4]] as Array<[number, number]>) {
+        expect(Math.ceil(n / per), `n=${n}`).to.eq(pages);
+      }
+    });
+    it('the last page composes by its actual remainder (15→3, 9→1, 5→1)', () => {
+      const LARGE = {cols: 4, rows: 1};
+      expect(pageRowsFor(15 - 12, LARGE)).to.deep.eq([3]);
+      expect(pageRowsFor(9 - 8, LARGE)).to.deep.eq([1]);
+      expect(pageRowsFor(5 - 4, LARGE)).to.deep.eq([1]);
+    });
+    it('pager ranges cover 15 as 1–4 / 5–8 / 9–12 / 13–15', () => {
+      const ranges = [0, 1, 2, 3].map((p) => {
+        const start = p * per;
+        return `${start + 1}–${Math.min(15, start + per)}`;
+      });
+      expect(ranges).to.deep.eq(['1–4', '5–8', '9–12', '13–15']);
+    });
+    it('a smaller remainder renders LARGER (the density ladder of the last page)', () => {
+      const LARGE = {cols: 4, rows: 1};
+      const z4 = pagePlan(4, LARGE).zoom;
+      const z3 = pagePlan(3, LARGE).zoom;
+      const z1 = pagePlan(1, LARGE).zoom;
+      expect(z3).to.be.greaterThan(z4);
+      expect(z1).to.be.at.least(z3 - 1e-9);
     });
   });
 
@@ -189,5 +309,34 @@ describe('consoleHandAlbum', () => {
       const far = packetRect('right', 3, 0, box, 240, 345);
       expect(far.left).to.be.greaterThan(near.left);
     });
+  });
+});
+
+// ── the «Компоновка альбома» preference module ─────────────────────────────
+import {albumLayoutState, setConsoleAlbumLayout} from '@/client/console/consoleAlbumLayout';
+
+describe('consoleAlbumLayout preference', () => {
+  after(() => {
+    // Module state is bundle-shared — never leak a non-default layout.
+    setConsoleAlbumLayout('adaptive');
+  });
+
+  it('defaults to adaptive and persists the choice', () => {
+    expect(albumLayoutState.layout).to.eq('adaptive');
+    setConsoleAlbumLayout('large');
+    expect(albumLayoutState.layout).to.eq('large');
+    // Storage is optional in the test env (setup.ts exposes constructors,
+    // not imperative APIs) — the persistence write is asserted where it
+    // exists and gracefully absent where it does not (the module's own
+    // private-mode behaviour).
+    const store = (globalThis as {localStorage?: Storage}).localStorage;
+    if (store !== undefined) {
+      expect(store.getItem('tm_console_album')).to.eq('large');
+    }
+    setConsoleAlbumLayout('adaptive');
+    expect(albumLayoutState.layout).to.eq('adaptive');
+    if (store !== undefined) {
+      expect(store.getItem('tm_console_album')).to.eq('adaptive');
+    }
   });
 });

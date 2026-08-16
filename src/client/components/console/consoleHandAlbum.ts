@@ -37,10 +37,11 @@
 
 import {CARD_NATURAL_W, CARD_NATURAL_H} from '@/client/components/console/consoleHandGrid';
 import type {ConsoleLayoutProfile} from '@/client/console/consoleLayoutProfile';
+import type {ConsoleAlbumLayout} from '@/client/console/consoleAlbumLayout';
 
 export type HandNavDir = 'left' | 'right' | 'up' | 'down';
 
-/** The page grid of a layout profile (columns × rows). */
+/** The page grid of a layout profile (columns × rows = the page CAPACITY). */
 export type AlbumSpec = {
   cols: number,
   rows: number,
@@ -52,9 +53,17 @@ export type AlbumSpec = {
  * couch/desk profile shares the 5 × 2 spread — the tv profile's uiScale
  * already maps the same logical composition onto the physical panel, so the
  * page shape must not fork per resolution.
+ *
+ * The «Крупные карты» preference (`layout: 'large'`) trades capacity for
+ * couch readability: ONE row of at most four, everywhere — which on the
+ * handheld coincides with its own baseline (no artificial difference just
+ * to make the settings ring feel like it did something).
  */
-export function albumSpecFor(profile: ConsoleLayoutProfile): AlbumSpec {
-  return profile === 'handheld' ? {cols: 4, rows: 1} : {cols: 5, rows: 2};
+export function albumSpecFor(profile: ConsoleLayoutProfile, layout: ConsoleAlbumLayout = 'adaptive'): AlbumSpec {
+  if (layout === 'large' || profile === 'handheld') {
+    return {cols: 4, rows: 1};
+  }
+  return {cols: 5, rows: 2};
 }
 
 /* ── layout constants (1080-logical px — × uiScale inside the planner) ────
@@ -176,6 +185,104 @@ export function planHandAlbum(input: HandAlbumInput): HandAlbumPlan {
   return {cols, rows, perPage, pageCount, cardZoom: zoom, slotW, slotH, gapX, gapY, pageW, pageH, stride, padX, padTop};
 }
 
+/* ── ADAPTIVE PAGE DENSITY (Showcase Pages) ─────────────────────────────
+   The page CAPACITY is a pagination fact (profile + preference — stable, so
+   pages and the pager never re-deal under a density change); the page
+   COMPOSITION and card size are a fact of HOW MANY cards actually stand on
+   that page. A thin page must not keep ten-card-sized cards over an empty
+   stage — on a TV the card's readability IS the product. */
+
+/**
+ * The row composition of a page holding `n` cards.
+ *  - single-row capacity (handheld / «Крупные карты»): always one row;
+ *  - two-row capacity (5×2): 6..10 split into BALANCED rows
+ *    (10→5+5, 9→5+4, 8→4+4, 7→4+3, 6→3+3 — a weak 5+1/5+2 is
+ *    unexpressible by construction), 1..5 → ONE showcase row.
+ */
+export function pageRowsFor(n: number, spec: AlbumSpec): ReadonlyArray<number> {
+  const count = Math.min(Math.max(0, Math.floor(n)), spec.cols * spec.rows);
+  if (count === 0) {
+    return [];
+  }
+  if (spec.rows <= 1 || count <= 5) {
+    return [count];
+  }
+  const top = Math.ceil(count / 2);
+  return [top, count - top];
+}
+
+/**
+ * The SHOWCASE height budget: one-row pages centre vertically and may grow
+ * far past the two-row card, but a hero must not stand wall-to-wall — a
+ * fixed share of the stage stays air on each side (fraction of the box, so
+ * the Deck is not over-taxed by a TV-tuned pixel constant). A single
+ * SHARED budget for every showcase count keeps the size MONOTONE: fewer
+ * cards can never render smaller than more (width shrinks with n, the
+ * height cap is constant).
+ */
+export const SHOWCASE_AIR_FRAC = 0.045;
+
+/** One page's solved composition + geometry. */
+export interface AlbumPagePlan {
+  /** Cards per row, top to bottom (e.g. [5,4] / [3] / [1]). */
+  rows: ReadonlyArray<number>;
+  /** Applied card scale for THIS page (`--con-hand-zoom` on the page). */
+  zoom: number;
+  slotW: number;
+  slotH: number;
+  gapX: number;
+  gapY: number;
+  pageW: number;
+  pageH: number;
+  /** Page block offset inside the album box (centring + headroom). */
+  padX: number;
+  padTop: number;
+}
+
+/**
+ * Solve ONE page's layout for the `n` cards standing on it.
+ *  - a TWO-ROW page (6..capacity) keeps the STANDARD size (the base plan's
+ *    5×2 solve — stable between pages, never «bigger because this page has
+ *    six»), only its rows re-balance;
+ *  - a SHOWCASE page (1..5, or any page of a single-row capacity) solves
+ *    its OWN zoom: the width fit for exactly `n` slots vs the one-row
+ *    height budget (with the showcase air), capped by the art ceiling.
+ *    Fewer cards ⇒ a wider per-card share ⇒ a genuinely larger CardFace,
+ *    until the height (or art) cap — the first REAL constraint — binds.
+ */
+export function planAlbumPage(input: HandAlbumInput, n: number, base: HandAlbumPlan): AlbumPagePlan {
+  const s = input.uiScale !== undefined && input.uiScale > 0 ? input.uiScale : 1;
+  const rows = pageRowsFor(n, input.spec);
+  const gapX = ALBUM_GAP_X * s;
+  const gapY = ALBUM_GAP_Y * s;
+  const gutterX = ALBUM_GUTTER_X * s;
+  const gutterTop = ALBUM_GUTTER_TOP * s;
+  const gutterBottom = ALBUM_GUTTER_BOTTOM * s;
+  const availW = Math.max(1, input.availW);
+  const availH = Math.max(1, input.availH);
+
+  let zoom = base.cardZoom;
+  if (rows.length === 1 && rows[0] > 0) {
+    const cols = rows[0];
+    const widthZoom = (availW - 2 * gutterX - (cols - 1) * gapX) / (cols * CARD_NATURAL_W);
+    const heightZoom =
+      (availH - gutterTop - gutterBottom - 2 * availH * SHOWCASE_AIR_FRAC) / CARD_NATURAL_H;
+    zoom = clamp(ALBUM_MIN_ZOOM * s, ALBUM_MAX_ZOOM * s, Math.min(widthZoom, heightZoom));
+    // A showcase never renders SMALLER than the standard card (a width-bound
+    // full single row IS the standard on that capacity).
+    zoom = Math.max(zoom, base.cardZoom);
+  }
+
+  const slotW = CARD_NATURAL_W * zoom;
+  const slotH = CARD_NATURAL_H * zoom;
+  const widest = rows.length === 0 ? 0 : Math.max(...rows);
+  const pageW = widest > 0 ? widest * slotW + (widest - 1) * gapX : 0;
+  const pageH = rows.length > 0 ? rows.length * slotH + (rows.length - 1) * gapY : 0;
+  const padX = Math.max(gutterX, (availW - pageW) / 2);
+  const padTop = gutterTop + Math.max(0, (availH - gutterTop - gutterBottom - pageH) / 2);
+  return {rows, zoom, slotW, slotH, gapX, gapY, pageW, pageH, padX, padTop};
+}
+
 /** The page a flat hand index lives on. */
 export function pageOfIndex(index: number, perPage: number): number {
   return Math.floor(Math.max(0, index) / Math.max(1, perPage));
@@ -190,34 +297,56 @@ export function pageSlotOfIndex(index: number, perPage: number): number {
  * Step the flat selection index across the album.
  *  - left/right: ±1 in hand order, clamped (crossing a page edge IS the page
  *    turn — the order continues, nothing wraps);
- *  - up/down: ±cols WITHIN the page, column preserved, clamped into a
- *    partial last row (nearest existing card); the page's top/bottom edges
- *    stay put — vertical motion never turns a page.
+ *  - up/down: between the ACTIVE page's COMPOSED rows (`rows` — e.g. [5,4]
+ *    or [4,3]), column preserved and clamped into a shorter row (nearest
+ *    existing card); a single-row (showcase) page keeps them inert; the
+ *    page's top/bottom edges stay put — vertical motion never turns a page.
  */
-export function stepHandAlbum(index: number, dir: HandNavDir, count: number, plan: {cols: number, perPage: number}): number {
+export function stepHandAlbum(
+  index: number,
+  dir: HandNavDir,
+  count: number,
+  plan: {perPage: number, rows: ReadonlyArray<number>},
+): number {
   if (count <= 0) {
     return 0;
   }
   const i = clamp(0, count - 1, index);
-  const cols = Math.max(1, plan.cols);
-  const perPage = Math.max(1, plan.perPage);
-  const slot = i % perPage;
-  const page = Math.floor(i / perPage);
   switch (dir) {
   case 'left':
     return Math.max(0, i - 1);
   case 'right':
     return Math.min(count - 1, i + 1);
   case 'up':
-    return slot >= cols ? i - cols : i;
   case 'down': {
-    if (slot >= perPage - cols) {
-      return i; // bottom row of the page — the edge is felt
+    const perPage = Math.max(1, plan.perPage);
+    const rows = plan.rows;
+    if (rows.length <= 1) {
+      return i; // a showcase page — vertical motion has nowhere to go
     }
-    const target = i + cols;
-    // A partial last row clamps to its final card; never off this page.
-    const pageLast = Math.min(count - 1, (page + 1) * perPage - 1);
-    return Math.min(pageLast, target);
+    const pageStart = Math.floor(i / perPage) * perPage;
+    const s = i - pageStart;
+    // Locate the row + column in the composed layout.
+    let r = 0;
+    let rowStart = 0;
+    while (r < rows.length - 1 && s >= rowStart + rows[r]) {
+      rowStart += rows[r];
+      r++;
+    }
+    const col = s - rowStart;
+    if (dir === 'up') {
+      if (r === 0) {
+        return i;
+      }
+      const prevStart = rowStart - rows[r - 1];
+      return pageStart + prevStart + Math.min(col, rows[r - 1] - 1);
+    }
+    if (r >= rows.length - 1) {
+      return i; // bottom row — the edge is felt
+    }
+    const nextStart = rowStart + rows[r];
+    const target = pageStart + nextStart + Math.min(col, rows[r + 1] - 1);
+    return Math.min(count - 1, target);
   }
   default:
     return i;

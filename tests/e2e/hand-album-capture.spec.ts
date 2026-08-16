@@ -73,7 +73,9 @@ async function key(page: Page, code: string, settleMs = 300): Promise<void> {
 
 test('capture: open → walk → jump → close', async ({page, request}) => {
   test.setTimeout(480_000);
-  await bootIntoGame(page, request, {config: newGameConfig(), buy: 20, query: ''});
+  // 13 cards: the walk crosses from the full 5×2 page onto the 3-card
+  // SHOWCASE page — the density transition is the tape's subject now.
+  await bootIntoGame(page, request, {config: newGameConfig(), buy: 13, query: ''});
   await page.waitForTimeout(1200);
 
   // Open (RT wheel → A) with NO settle around the press — the open episode

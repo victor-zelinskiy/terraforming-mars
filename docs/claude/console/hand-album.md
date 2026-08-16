@@ -14,10 +14,47 @@ section; `consoleHandGrid.ts` is NOT dead — it remains the engine of the
 
 ## The page is a PROFILE fact, the size is a BOX fact
 
-- `albumSpecFor(profile)`: **handheld → 4×1** (four generous cards, one row);
-  **every other profile → 5×2** (ten per page). The tv profile maps the same
-  logical composition through `--con-ui-scale`; the page shape never forks per
-  resolution.
+- `albumSpecFor(profile, layout)`: **handheld → 4×1** (four generous cards,
+  one row); **every other profile → 5×2** (ten per page); the player's
+  **«Компоновка альбома»** preference (`consoleAlbumLayout.ts`, localStorage
+  `tm_console_album`, read AT IMPORT so the first measure — and the HandDock
+  flight aiming at it — is already in the chosen composition) can force
+  **`large` → 4×1 everywhere** («Крупные карты»: capacity traded for couch
+  readability; on the handheld it coincides with the baseline — no
+  artificial difference). The tv profile maps the same logical composition
+  through `--con-ui-scale`; the page shape never forks per resolution.
+
+## ADAPTIVE DENSITY — Showcase Pages (`planAlbumPage` / `pageRowsFor`)
+
+Capacity is a PAGINATION fact (stable — pages and the pager never re-deal
+under a density change); the page COMPOSITION and card size are a fact of
+how many cards actually stand on that page:
+
+- two-row capacity: **10→5+5 · 9→5+4 · 8→4+4 · 7→4+3 · 6→3+3** (balanced by
+  construction — a weak 5+1/5+2 is unexpressible), **1–5 → ONE showcase
+  row**; single-row capacities always compose one row.
+- a TWO-ROW page keeps the STANDARD size (the base 5×2 solve — never
+  «bigger because this page has six»); a SHOWCASE page solves its OWN zoom:
+  width-fit for exactly `n` slots vs the one-row height budget with the
+  `SHOWCASE_AIR_FRAC` hero air (a fraction of the box on each side — one
+  SHARED budget for every showcase count, which is what keeps the size
+  MONOTONE: fewer cards never render smaller), capped by the art ceiling
+  and floored at the standard (a showcase never shrinks below it).
+- the solved size is REAL layout (own `--con-hand-zoom` on the page, slots
+  at final dims) — never a `transform: scale` over a small card: hitbox,
+  focus ring, art sharpness and FLIP bounds are all the final geometry.
+- each page berths on the strip in its own pads (a showcase row centres
+  vertically), so a `10 → 3` turn slides two FINISHED surfaces past each
+  other — nothing resizes mid-flight, nothing snaps after landing.
+- vertical navigation walks the COMPOSED rows (`stepHandAlbum` takes the
+  active page's `rows` — [5,4] clamps a col-4 down-step into the shorter
+  row); a showcase page keeps up/down inert.
+- a filter (or preference) change across a density boundary is the SAME
+  measured FLIP episode as any filter change — movers glide AND SCALE
+  between the compositions; the preference flip while the album is open
+  routes through `setAlbumLayoutRecomposer` → `applyHandFilterChange`, and
+  focus keeps its CARD (its new page opens by derivation — index 8 lands
+  on page 3 of a capacity-4 album, never back on page 1).
 - `planHandAlbum` solves the card zoom from the measured album box + the
   profile grid + the 320×460 premium aspect — **never from the hand size**.
   One card, four cards and ten cards are the same geometry; a growing hand

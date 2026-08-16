@@ -61,6 +61,7 @@ import {
 } from '@/client/components/motion/motionTokens';
 import {consolePerfState, setConsolePerfLite} from '@/client/console/consolePerfMode';
 import {READING_SCALE_CHOICES, readingScaleState, setConsoleReadingScale} from '@/client/console/consoleReadingScale';
+import {ALBUM_LAYOUT_CHOICES, ALBUM_LAYOUT_LABELS, albumLayoutState, setConsoleAlbumLayout} from '@/client/console/consoleAlbumLayout';
 import {desktopBridge, DesktopAppModeInfo, DesktopLanState} from '@/client/components/desktop/desktopUpdateState';
 import {realtimeState, realtimeHealthy, realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
 import {buildVersionLabel} from '@/common/utils/buildVersion';
@@ -74,7 +75,7 @@ export type ConsoleSettingsCategoryId =
   'interface' | 'controls' | 'graphics' | 'game' | 'network' | 'diagnostics';
 
 export type ConsoleSettingId =
-  'shell' | 'display' | 'textScale' | 'controller' | 'buttons' | 'wheelControl' |
+  'shell' | 'display' | 'textScale' | 'albumLayout' | 'controller' | 'buttons' | 'wheelControl' |
   'motionSpeed' | 'motionRate' | 'perfMode' | 'privateScore' | 'gameServer' | 'lanVisible';
 
 /** One dialable preference: a ring of options plus where we are in it. */
@@ -249,6 +250,20 @@ function interfaceCategory(input: ConsoleSettingsInput): ConsoleSettingsCategory
     READING_SCALE_CHOICES, readingScaleState.scale,
     (v) => (v === 100 ? translateText('Standard') : `${v}%`),
     (v) => setConsoleReadingScale(v),
+  ));
+  // The hand ALBUM composition: adaptive density pages (up to ten on a
+  // desk/couch profile, thin pages showcase larger) vs «Крупные карты» —
+  // always one big row of at most four. Pure presentation, applied through
+  // the album's own recompose when the hand is open. The description
+  // explains the CURRENT choice (the model rebuilds reactively).
+  rows.push(ringRow(
+    'albumLayout', 'Album layout',
+    albumLayoutState.layout === 'large' ?
+      'Up to 4 cards per page in a single row' :
+      'Up to 10 cards per page, few cards grow larger',
+    ALBUM_LAYOUT_CHOICES, albumLayoutState.layout,
+    (v) => translateText(ALBUM_LAYOUT_LABELS[v]),
+    (v) => setConsoleAlbumLayout(v),
   ));
   return {id: 'interface', label: 'Interface', glyph: '◫', minor: false, rows, readout: []};
 }

@@ -1509,6 +1509,7 @@ import {hydroAdvanceResponses} from '@/client/console/consoleHydroAdvance';
 import {consoleRepeatPickUi, resetConsoleRepeatPickUi} from '@/client/console/consoleRepeatPickUi';
 import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProfile';
 import {albumSpecFor} from '@/client/components/console/consoleHandAlbum';
+import {albumLayoutState, setAlbumLayoutRecomposer} from '@/client/console/consoleAlbumLayout';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
 import {useWorkspaceBandGeometry} from '@/client/console/composables/useWorkspaceBandGeometry';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -4310,7 +4311,7 @@ export default defineComponent({
         return undefined;
       }
       const count = this.handEntries.length;
-      const spec = albumSpecFor(consoleLayoutState.profile);
+      const spec = albumSpecFor(consoleLayoutState.profile, albumLayoutState.layout);
       const perPage = spec.cols * spec.rows;
       const pages = Math.max(1, Math.ceil(count / perPage));
       const idx = Math.min(Math.max(0, count - 1), Math.max(0, this.consoleState.handIndex));
@@ -13325,6 +13326,19 @@ export default defineComponent({
     // Phase D of the discard cinematic reuses the ORDINARY hand-close episode;
     // the transaction awaits this instead of the shell watching a phase.
     registerDiscardOverlayHandoff((discarded) => this.handOffHandForDiscard(discarded));
+    // An «Компоновка альбома» flip while the hand album is OPEN rides the
+    // same measured FLIP episode a filter change uses: cards glide and scale
+    // into the new composition, the out-of-capacity ones exit to the page
+    // packets, and focus keeps its CARD (the page holding it opens by
+    // derivation). Anywhere else the preference applies directly — the next
+    // open lands in the chosen composition from its first frame.
+    setAlbumLayoutRecomposer((apply) => {
+      if (this.consoleState.section === 'hand' && handRevealState.phase === 'open') {
+        this.applyHandFilterChange(apply);
+      } else {
+        apply();
+      }
+    });
     this.offIntent = registerConsoleIntentHandler((intent) => this.handleIntent(intent));
     // The console-mode <html> class is owned by GamepadLayer (it spans every
     // lifecycle screen); the shell only reports its own presence.
@@ -13402,6 +13416,7 @@ export default defineComponent({
     // its animation hold) across a game switch.
     resetCardDiscard();
     registerDiscardOverlayHandoff(undefined);
+    setAlbumLayoutRecomposer(undefined);
     // The colony-bonus entry is module state as well: a live wait (and its net)
     // must never carry a stale «a payout is owed here» into the next game.
     clearColonyBonusEntry();
