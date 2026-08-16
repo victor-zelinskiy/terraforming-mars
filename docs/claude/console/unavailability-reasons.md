@@ -36,7 +36,7 @@ Guards: the `requirement attainability` block in `tests/models/unplayableReasons
 Every console surface that talks about a card's availability builds a `CardAvailabilityView`
 through `buildCardAvailability(input, context)` and renders it with
 `ConsoleCardAvailabilityPanel` (`variant="compact"` — the draft workspace's two-row status block;
-`variant="panel"` — the fullscreen viewer's «ДОСТУПНОСТЬ» aside below «ПРАВИЛА»). Contexts:
+`variant="panel"` — the fullscreen viewer's «ДОСТУПНОСТЬ» aside ABOVE «ПРАВИЛА»). Contexts:
 
 - **`'draft'`** (evaluation for later): only `requirement: true` reasons speak; `unattainable` →
   the red «Требование уже не выполнить», otherwise the amber «Требование пока не выполнено»;
@@ -55,6 +55,39 @@ shows (`ConsoleHandSection.playAvailability` / `ConsoleShell.zoomAvailabilityVie
 
 Guards: `tests/client/components/console/cardAvailability.spec.ts`,
 `consoleCardAvailabilityPanel.spec.ts`.
+
+### The fullscreen RIGHT COLUMN is ONE adaptive stack (`.con-zoom-sidecol`)
+
+Two independently positioned boxes is what pushed «ДОСТУПНОСТЬ» under the command bar on a
+rules-heavy card (Домашний скот) while free space sat unused above. The column is now one
+container with three properties, all layout — no magic coordinates, no per-card cases, no
+`z-index` making content merely *appear* above the footer:
+
+1. **The budget is the modal's own midrow.** `.con-zoom .card-zoom-side` is `align-self: stretch`
+   and the column is `height: 100%`, so the band between the page counter and the fixed
+   `.card-zoom-actions` bar IS the available height — measured by the layout, tracking any
+   profile's chrome for free. The former `76/82/86vh` caps are gone (a vh guess cannot know the
+   footer); the inspect dossier rides the same rule.
+2. **Top-anchored, so nothing jumps.** `justify-content: flex-start` — the column's upper edge is
+   identical for every card, with and without the availability panel (asserted in e2e).
+3. **Priority is expressed in flex, and it is the reverse of the first iteration.** Availability
+   leads and never shrinks (`flex: 0 0 auto`, with a 62% ceiling as the safety valve for a
+   pathological reason list); the rules box is the one that yields (`flex: 0 1 auto; min-height: 0`,
+   `max-height: 100%`) and only its BODY scrolls — the `§ ПРАВИЛА` head sits outside that scroll
+   and always stands. The scroll is the LAST resort: `ConsoleScrollArea` draws its continuation
+   rail, and the right stick pages it (`ConsoleCardRulesPanel.scrollBody`, routed from
+   `ConsoleShell.handleZoomIntent`, which still swallows the stick when nothing overflows — no new
+   binding, no advertised verb for a journey that does not exist).
+
+⚠️ The rules panel can therefore be SHORTER than it is standalone. That is deliberate: the
+availability verdict outranks the card's permanent text. `tv-reading-matrix.spec.ts` still passes
+(its cards are playable, so no panel joins them) — but a future matrix card that IS blocked will
+legitimately scroll its rules.
+
+Guard: `tests/e2e/console-card-availability.spec.ts` — parameterised over `tv-4k` + `fhd`,
+measuring the real boxes: availability above rules, both above the command bar and below the
+counter, availability never clipped, the head never collapsing, one shared width, and a stable
+column top across a card with a panel and one without.
 
 The failure this file exists to prevent: a player holding **510 M€** opened «СТАНДАРТНЫЕ ПРОЕКТЫ»,
 found «КОЛОНИЯ» greyed out, and was told «Сейчас недоступно». The real cause — every colony tile was

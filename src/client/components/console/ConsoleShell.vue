@@ -790,13 +790,25 @@
            panel becomes a two-tab ПРАВИЛА/СТАТИСТИКА box (LB/RB switch, handled
            in handleZoomIntent); every other inspect keeps the plain rules. -->
       <template v-if="zoomSideVisible" #side="side">
-        <!-- ONE right COLUMN: the rules panel (or the inspect dossier) on
-             top, and — only in an explicit availability context (draft
-             evaluation / play-now, an opener opt-in on consoleCardZoom) —
-             the CURRENT-GAME availability panel stacked beneath it. Two
-             separate meanings on purpose: «ПРАВИЛА» are the card's permanent
-             properties, «ДОСТУПНОСТЬ» is this game's state; they never mix. -->
+        <!-- ONE right COLUMN, ONE layout container — never two independently
+             positioned boxes. It spans the WHOLE band the modal's midrow
+             already measures (counter above, command bar below), so nothing
+             here can reach under the footer, and it is TOP-ANCHORED: the
+             column's upper edge is the same for every card, so browsing
+             LB/RB never makes it jump.
+
+             ORDER IS MEANING: «ДОСТУПНОСТЬ» leads, because the requirement
+             bar sits at the TOP of the card — the player first reads whether
+             it holds right now, then the full rules below. The two stay
+             SEPARATE panels: availability is this game's state, rules are the
+             card's permanent content. Priority under pressure: availability
+             is never squeezed, the «§ ПРАВИЛА» head always stands, and only
+             the rules BODY takes an internal scroll. -->
         <div class="con-zoom-sidecol">
+          <ConsoleCardAvailabilityPanel v-if="zoomAvailabilityView !== undefined && consoleCardZoom.inspect === undefined"
+                                        variant="panel"
+                                        :view="zoomAvailabilityView"
+                                        :closing="side.closing" />
           <ConsoleInspectSide v-if="consoleCardZoom.inspect !== undefined && zoomRulesCardName !== undefined"
                               :cardName="zoomRulesCardName"
                               :history="consoleCardZoom.inspect.history"
@@ -804,13 +816,10 @@
                               :nonce="side.nonce"
                               :closing="side.closing" />
           <ConsoleCardRulesPanel v-else-if="zoomRulesCardName !== undefined && zoomHasRules"
+                                 ref="zoomRulesPanel"
                                  :cardName="zoomRulesCardName"
                                  :nonce="side.nonce"
                                  :closing="side.closing" />
-          <ConsoleCardAvailabilityPanel v-if="zoomAvailabilityView !== undefined && consoleCardZoom.inspect === undefined"
-                                        variant="panel"
-                                        :view="zoomAvailabilityView"
-                                        :closing="side.closing" />
         </div>
       </template>
       <template #actions>
@@ -12501,9 +12510,15 @@ export default defineComponent({
         return true;
       }
       if (intent.kind === 'scroll') {
-        // Right-stick does nothing in the fullscreen viewer — the rule-overlay
-        // traversal was removed (it overloaded the controls for little value).
-        // Swallow it so it can't leak to a surface underneath.
+        // Right-stick pages the RULES BODY, but ONLY when it genuinely
+        // overflows (a very long rules set standing beside the availability
+        // panel — the one case the side column cannot fit outright). The
+        // panel answers false when there is nothing to scroll, and the stick
+        // keeps its old meaning: swallowed, so it can never leak to a surface
+        // underneath. No new binding, no advertised verb for a journey the
+        // player cannot make.
+        const rules = this.$refs.zoomRulesPanel as {scrollBody?: (dy: number) => boolean} | undefined;
+        rules?.scrollBody?.(intent.dy);
         return true;
       }
       if (intent.kind !== 'press') {

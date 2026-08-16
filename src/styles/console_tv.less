@@ -492,9 +492,8 @@ html.con-profile-tv {
     .con-inspect-side__box {
         max-height: 82vh;
     }
-    /* The stacked right column: the rules panel keeps its own 82vh contract
-       and never shrinks; the availability panel yields past this budget. */
-    .con-zoom-sidecol { max-height: 86vh; }
+    /* (The stacked right column takes its budget from the modal's midrow —
+       no profile cap here, or the measured band is silently overruled.) */
     /* CARD AVAILABILITY at couch distance: the chrome (name / status /
        verdict) speaks at HUD size; the detail lines already ride the reading
        tokens. The draft status zone grows with them. */

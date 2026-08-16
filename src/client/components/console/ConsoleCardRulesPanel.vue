@@ -7,7 +7,8 @@
         <span class="con-zoom-rules__mark" aria-hidden="true">§</span>
         <span class="con-zoom-rules__title">{{ $t('Rules') }}</span>
       </div>
-      <ConsoleScrollArea class="con-zoom-rules__scroll" axis="y">
+      <ConsoleScrollArea ref="scroll" class="con-zoom-rules__scroll" axis="y"
+                         @overflow-change="overflowing = $event">
         <div class="con-zoom-rules__body">
           <section v-for="group in orderedAnnotations" :key="group.id"
                    class="con-zoom-rules__group"
@@ -94,6 +95,13 @@ export default defineComponent({
     return {
       /** Anchor-measured order (annotation ids); undefined until measured. */
       measuredOrder: undefined as ReadonlyArray<string> | undefined,
+      /**
+       * The BODY needs a scroll right now — true only when the side column
+       * genuinely could not give this panel its full height (a very long
+       * rules set beside an availability panel). The scroll area draws its
+       * own progress rail; the host reads this to route the right stick.
+       */
+      overflowing: false,
     };
   },
   computed: {
@@ -152,6 +160,20 @@ export default defineComponent({
      *  components/actions/actionDescription.ts. */
     rowText(key: CardAnnotationRow['text']): string {
       return actionRuleText(key);
+    },
+    /**
+     * Right-stick paging of the rules BODY, routed by the shell's zoom intent
+     * handler. Returns false when there is nothing to scroll, so the caller
+     * can keep swallowing the stick as it always did instead of pretending a
+     * journey the player cannot make.
+     */
+    scrollBody(delta: number): boolean {
+      if (!this.overflowing) {
+        return false;
+      }
+      const area = this.$refs.scroll as {scrollByPx?: (dy: number) => void} | undefined;
+      area?.scrollByPx?.(delta);
+      return true;
     },
     /** Resolve an annotation's ROW element (mirrors CardAnnotationsLayer.rowEl
      *  incl. the documented special-id fallbacks). */
