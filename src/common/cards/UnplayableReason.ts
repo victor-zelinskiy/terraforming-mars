@@ -90,4 +90,22 @@ export interface UnplayableReason {
    * to N" without re-deriving game rules client-side.
    */
   effectiveCount?: number;
+  /**
+   * The `CardInfoBlock.id` of the RULES block this reason fully restates —
+   * the same `req:<RequirementType>[:<tag|resource>][~<n>]` address the
+   * build-time card-information generator produces for that very requirement
+   * (`buildCardInformation.requirementBlock`). A surface showing both the
+   * availability verdict AND the rules panel suppresses that one block, so a
+   * requirement is never printed twice — once as a rule and once as the
+   * reason it is unmet (the reason strictly dominates: it adds the CURRENT
+   * value).
+   *
+   * Set ONLY when the reason is a complete restatement. A requirement whose
+   * printed rule says more than the reason does — «(any player)» (`all`), an
+   * adjacency (`nextTo`), a political situation, a consolidated block like
+   * «city adjacent to an ocean» — deliberately carries no key, and its rule
+   * stays visible. Never a text comparison: both sides derive the address
+   * from the same structured descriptor.
+   */
+  requirementKey?: string;
 }

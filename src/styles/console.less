@@ -26513,9 +26513,16 @@ html.con-profile-large {
    viewport centre line no matter how wide the archive entry (left) or this
    rules panel (right) turn out. The no-nav default is display:contents, which
    would drop a flank out of the row — the grid replaces it. */
+/* The right gutter is a FULL-HEIGHT cell, not a centred box. The modal's
+   midrow (`flex: 1; min-height: 0`) is already the exact band between the
+   page counter and the command bar, so stretching into it — instead of
+   centring a content-sized box that could grow past it — is what keeps every
+   panel geometrically above the footer (never a z-index that lets content
+   shine through it). The column inside decides its own vertical rhythm. */
 .con-zoom .card-zoom-side {
     flex-shrink: 0;
-    align-self: center;
+    align-self: stretch;
+    min-height: 0;
     display: flex;
 }
 /* The panel HOST. `--closing` hides the whole rules surface in ~90ms the
@@ -26808,7 +26815,7 @@ html.con-profile-large {
             inset 0 .05rem 0 rgba(214, 236, 255, 0.09),
             0 1.1rem 2.8rem rgba(0, 0, 0, 0.55);
         overflow: hidden;
-        padding-bottom: .95rem;
+        padding-bottom: .7rem;
 
         /* The SIDE MARKER — the state's colour as a thin physical edge. */
         &::before {
@@ -26836,42 +26843,37 @@ html.con-profile-large {
     &--blocked &__box { --cardavail-accent: fade(@con-red, 80%); --cardavail-tint: fade(@con-red, 10%); }
     &--waiting &__box { --cardavail-accent: fade(#ffe6b0, 75%); --cardavail-tint: fade(#ffe6b0, 8%); }
 
-    &__kicker {
-        display: flex;
-        align-items: center;
-        gap: .55rem;
-        padding: .75rem 1.1rem .6rem;
-        border-bottom: .05rem solid fade(@con-cyan, 20%);
-    }
-    &__mark {
-        color: fade(@con-cyan, 85%);
-        font-size: var(--con-t-section);
-        line-height: 1;
-    }
-    &__kickertitle {
-        font-size: var(--con-t-caption);
-        letter-spacing: .12rem;
-        text-transform: uppercase;
-        color: @con-text-dim;
-        font-weight: 700;
-    }
+    /* ONE compact status LINE is the whole header — no second level, no
+       generic kicker above it. It must never be the thing that widens the
+       panel or wraps on TV: `min-width: 0` + a modest tracking keep
+       «НЕЛЬЗЯ РАЗЫГРАТЬ» on one line inside --con-rules-w, and the label may
+       still wrap gracefully on a genuinely narrow profile. */
     &--panel &__verdict {
         display: flex;
-        align-items: center;
-        gap: .55rem;
-        padding: .85rem 1.1rem .1rem;
+        align-items: baseline;
+        gap: .5rem;
+        min-width: 0;
+        max-width: 100%;
+        padding: .62rem .95rem .5rem;
+        border-bottom: .05rem solid fade(@con-cyan, 16%);
         font-weight: 800;
-        letter-spacing: .07rem;
+        letter-spacing: .04rem;
         text-transform: uppercase;
         font-size: 1.02rem;
+        line-height: 1.15;
+    }
+    &--panel &__icon { flex: 0 0 auto; }
+    &--panel &__title {
+        min-width: 0;
+        overflow-wrap: anywhere;
     }
     &--panel &__list {
         list-style: none;
         margin: 0;
-        padding: .6rem 1.1rem 0;
+        padding: .55rem .95rem 0;
         display: flex;
         flex-direction: column;
-        gap: .55rem;
+        gap: .45rem;
     }
     &__reason {
         position: relative;
@@ -26909,26 +26911,62 @@ html.con-profile-large {
     }
 }
 
-/* The right COLUMN of the fullscreen viewer when the availability panel joins
-   the rules panel: ONE flex column inside .card-zoom-side (whose row layout
-   and single --con-rules-w width reserve are untouched — stacking vertically
-   costs no reserve). Budget priority is a CONTRACT: the rules panel keeps its
-   OWN standalone cap and NEVER shrinks (the tv-reading matrix guarantees its
-   cards read without scroll — a sibling may not take that away); when the two
-   together would overflow the viewport budget, the AVAILABILITY panel is the
-   one that yields, scrolling its own reason list internally. */
+/* ── THE RIGHT INFORMATION COLUMN — one adaptive stack ────────────────
+   «ДОСТУПНОСТЬ» (this game's state) sits ABOVE «ПРАВИЛА» (the card's
+   permanent content) in ONE layout container. Three properties carry it:
+
+   1. THE BUDGET IS THE MIDROW, not a vh guess. `.card-zoom-side` stretches
+      into the modal's own middle band (counter above, command bar below),
+      so `height: 100%` here IS «between the safe area and the footer» —
+      measured by the layout, and it tracks any profile's chrome for free.
+      No panel can reach under the footer, at any card length.
+   2. THE STACK IS CENTRED ON THE CARD, and that needs no JS: the card is
+      itself centred inside this very band (`.card-zoom-stage` fills the
+      midrow and centres its card), so the band's middle IS the card's
+      middle. `justify-content: center` therefore puts
+      `desiredTop = cardCenterY − stackHeight / 2` on screen exactly, for
+      the WHOLE group (availability + gap + rules) rather than per panel —
+      and the clamp into the safe area comes for free, because a group that
+      would overflow simply fills the band instead (its rules body is what
+      yields). One card and the next re-solve in the same layout pass: no
+      stale coordinate, no flash.
+   3. PRIORITY UNDER PRESSURE, expressed as flex rules rather than magic
+      numbers: availability never shrinks (`flex: 0 0 auto`) up to a hard
+      ceiling that still leaves the rules head + body room; the rules panel
+      is the one that yields, and only its BODY scrolls (its own
+      ConsoleScrollArea, which draws the continuation rail — the head
+      «§ ПРАВИЛА» is outside that scroll and never leaves). A card whose
+      column fits shows both panels whole, at full type size. */
 .con-zoom-sidecol {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: .9rem;
-    /* The viewer's vertical budget between the topbar and the actions bar. */
-    max-height: 80vh;
+    justify-content: center;
+    /* Panel separation only — every rem here is a rem the rules body loses,
+       and «Домашний скот» misses fitting by single pixels. */
+    gap: .6rem;
+    height: 100%;
     min-height: 0;
 
-    > .con-zoom-rules-host { flex: 0 0 auto; }
+    /* Availability leads and is NEVER squeezed — the ceiling states the one
+       thing it must leave behind rather than an arbitrary fraction: the
+       rules head plus a line of body (and the gap between the two panels).
+       Only a pathological reason list can reach it, and only then does the
+       panel scroll its own list. */
     > .con-cardavail {
+        flex: 0 0 auto;
+        max-height: calc(100% - 7.8rem);
+        min-height: 0;
+    }
+    /* The rules / dossier box takes what is left and scrolls its body. */
+    > .con-zoom-rules-host,
+    > .con-inspect-side {
         flex: 0 1 auto;
+        min-height: 0;
+    }
+    > .con-zoom-rules-host .con-zoom-rules,
+    > .con-inspect-side .con-inspect-side__box {
+        max-height: 100%;
         min-height: 0;
     }
 }

@@ -24,10 +24,10 @@
          card's permanent properties. Never mounted when there is nothing to
          say (the parent gates on the view's existence). -->
     <aside v-else class="con-cardavail__box" :aria-label="$t('Availability')">
-      <div class="con-cardavail__kicker">
-        <span class="con-cardavail__mark" aria-hidden="true">◈</span>
-        <span class="con-cardavail__kickertitle">{{ $t('Availability') }}</span>
-      </div>
+      <!-- ONE compact status line IS the panel's header: the state names the
+           panel better than a generic «ДОСТУПНОСТЬ» kicker above it ever did,
+           and the second level cost vertical space that a rules-heavy card
+           does not have. -->
       <div class="con-cardavail__verdict">
         <span class="con-cardavail__icon" aria-hidden="true">{{ view.icon }}</span>
         <span class="con-cardavail__title">{{ view.title }}</span>

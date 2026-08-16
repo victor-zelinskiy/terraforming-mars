@@ -790,13 +790,25 @@
            panel becomes a two-tab ПРАВИЛА/СТАТИСТИКА box (LB/RB switch, handled
            in handleZoomIntent); every other inspect keeps the plain rules. -->
       <template v-if="zoomSideVisible" #side="side">
-        <!-- ONE right COLUMN: the rules panel (or the inspect dossier) on
-             top, and — only in an explicit availability context (draft
-             evaluation / play-now, an opener opt-in on consoleCardZoom) —
-             the CURRENT-GAME availability panel stacked beneath it. Two
-             separate meanings on purpose: «ПРАВИЛА» are the card's permanent
-             properties, «ДОСТУПНОСТЬ» is this game's state; they never mix. -->
+        <!-- ONE right COLUMN, ONE layout container — never two independently
+             positioned boxes. It spans the WHOLE band the modal's midrow
+             already measures (counter above, command bar below), so nothing
+             here can reach under the footer, and it is TOP-ANCHORED: the
+             column's upper edge is the same for every card, so browsing
+             LB/RB never makes it jump.
+
+             ORDER IS MEANING: «ДОСТУПНОСТЬ» leads, because the requirement
+             bar sits at the TOP of the card — the player first reads whether
+             it holds right now, then the full rules below. The two stay
+             SEPARATE panels: availability is this game's state, rules are the
+             card's permanent content. Priority under pressure: availability
+             is never squeezed, the «§ ПРАВИЛА» head always stands, and only
+             the rules BODY takes an internal scroll. -->
         <div class="con-zoom-sidecol">
+          <ConsoleCardAvailabilityPanel v-if="zoomAvailabilityView !== undefined && consoleCardZoom.inspect === undefined"
+                                        variant="panel"
+                                        :view="zoomAvailabilityView"
+                                        :closing="side.closing" />
           <ConsoleInspectSide v-if="consoleCardZoom.inspect !== undefined && zoomRulesCardName !== undefined"
                               :cardName="zoomRulesCardName"
                               :history="consoleCardZoom.inspect.history"
@@ -804,13 +816,11 @@
                               :nonce="side.nonce"
                               :closing="side.closing" />
           <ConsoleCardRulesPanel v-else-if="zoomRulesCardName !== undefined && zoomHasRules"
+                                 ref="zoomRulesPanel"
                                  :cardName="zoomRulesCardName"
+                                 :suppressIds="zoomCoveredRequirements"
                                  :nonce="side.nonce"
                                  :closing="side.closing" />
-          <ConsoleCardAvailabilityPanel v-if="zoomAvailabilityView !== undefined && consoleCardZoom.inspect === undefined"
-                                        variant="panel"
-                                        :view="zoomAvailabilityView"
-                                        :closing="side.closing" />
         </div>
       </template>
       <template #actions>
@@ -1438,7 +1448,8 @@ import {colonyTradeReason} from '@/client/console/colonyTradeReason';
 import {buildPlayCardBatch} from '@/client/console/consolePlayCardComposer';
 import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
-import ConsoleCardRulesPanel, {cardHasRules} from '@/client/components/console/ConsoleCardRulesPanel.vue';
+import ConsoleCardRulesPanel from '@/client/components/console/ConsoleCardRulesPanel.vue';
+import {cardHasRules} from '@/client/components/console/consoleCardRules';
 import ConsoleInspectSide from '@/client/components/console/ConsoleInspectSide.vue';
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
@@ -6193,7 +6204,14 @@ export default defineComponent({
      *  and suppresses the floating callouts (one place for details). */
     zoomHasRules(): boolean {
       const name = this.consoleCardZoom.card?.name;
-      return name !== undefined && cardHasRules(name);
+      // Asked with the suppression already applied: a card whose only rules
+      // block is the requirement the availability panel states in full has
+      // nothing left for this panel, and an empty box must not mount.
+      return name !== undefined && cardHasRules(name, this.zoomCoveredRequirements);
+    },
+    /** Rules blocks the availability panel restates in full (server keys). */
+    zoomCoveredRequirements(): ReadonlyArray<string> {
+      return this.zoomAvailabilityView?.coveredRequirementIds ?? [];
     },
     /** The right SIDE panel shows for a card with structured rules OR whenever
      *  the viewer is an inspect DOSSIER (which always offers СТАТИСТИКА, even if a
@@ -12498,9 +12516,15 @@ export default defineComponent({
         return true;
       }
       if (intent.kind === 'scroll') {
-        // Right-stick does nothing in the fullscreen viewer — the rule-overlay
-        // traversal was removed (it overloaded the controls for little value).
-        // Swallow it so it can't leak to a surface underneath.
+        // Right-stick pages the RULES BODY, but ONLY when it genuinely
+        // overflows (a very long rules set standing beside the availability
+        // panel — the one case the side column cannot fit outright). The
+        // panel answers false when there is nothing to scroll, and the stick
+        // keeps its old meaning: swallowed, so it can never leak to a surface
+        // underneath. No new binding, no advertised verb for a journey the
+        // player cannot make.
+        const rules = this.$refs.zoomRulesPanel as {scrollBody?: (dy: number) => boolean} | undefined;
+        rules?.scrollBody?.(intent.dy);
         return true;
       }
       if (intent.kind !== 'press') {

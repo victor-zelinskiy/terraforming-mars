@@ -64,6 +64,11 @@ export interface CardAvailabilityReasonView {
    * the printed bound but still fall short («С учётом ваших модификаторов: N»).
    */
   modifiers?: string;
+  /**
+   * The rules block this reason fully restates (`UnplayableReason.requirementKey`),
+   * when it does. Collected into the view's `coveredRequirementIds`.
+   */
+  requirementKey?: string;
 }
 
 export interface CardAvailabilityView {
@@ -80,6 +85,16 @@ export interface CardAvailabilityView {
   primary: CardAvailabilityReasonView | undefined;
   /** How many more reasons the compact surface is not showing. */
   extraCount: number;
+  /**
+   * `CardInfoBlock.id`s of the RULES blocks these reasons fully restate (the
+   * server's `requirementKey`s — see UnplayableReason). A surface that shows
+   * this view NEXT TO the rules panel passes them on, and that panel hides
+   * exactly those blocks: the requirement then appears once, in the richer
+   * voice that also carries the current value. Empty for every reason that
+   * is situational, partial, or not a printed requirement at all — a blocked
+   * EFFECT never hides the effect's own rule.
+   */
+  coveredRequirementIds: ReadonlyArray<string>;
 }
 
 const ICONS: Readonly<Record<CardAvailabilitySeverity, string>> = {
@@ -133,6 +148,9 @@ function reasonView(r: UnplayableReason, severity: CardAvailabilitySeverity): Ca
   if (modifiers !== undefined) {
     view.modifiers = modifiers;
   }
+  if (r.requirementKey !== undefined) {
+    view.requirementKey = r.requirementKey;
+  }
   return view;
 }
 
@@ -165,6 +183,12 @@ function assemble(
     reasons,
     primary: reasons[0],
     extraCount: Math.max(0, reasons.length - 1),
+    // Only the reasons that ARE rendered can license hiding their rule — a
+    // reason filtered out of this view (a situational block in the draft
+    // voice) must never silence anything.
+    coveredRequirementIds: reasons
+      .map((r) => r.requirementKey)
+      .filter((id): id is string => id !== undefined),
   };
 }
 

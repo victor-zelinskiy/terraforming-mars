@@ -15,6 +15,8 @@ import {EcologyExperts} from '../../src/server/cards/prelude/EcologyExperts';
 import {Inventrix} from '../../src/server/cards/corporation/Inventrix';
 import {MorningStarInc} from '../../src/server/cards/venusNext/MorningStarInc';
 import {ThinkTank} from '../../src/server/cards/pathfinders/ThinkTank';
+import {Livestock} from '../../src/server/cards/base/Livestock';
+import {StarVegas} from '../../src/server/cards/underworld/StarVegas';
 import {CloudSeeding} from '../../src/server/cards/base/CloudSeeding';
 import {RoboticWorkforce} from '../../src/server/cards/base/RoboticWorkforce';
 import {AerosportTournament} from '../../src/server/cards/venusNext/AerosportTournament';
@@ -271,6 +273,44 @@ describe('unplayableReasons', () => {
       const r = reasons.find((x) => x.type === 'globalParameter');
       expect(r, 'the requirement is still unmet today').is.not.undefined;
       expect(r?.unattainable, 'but never final while Think Tank is on the table').is.undefined;
+    });
+
+    /**
+     * The address links a reason to the RULES block that states the same
+     * requirement, so the fullscreen can print it once. It must equal the id
+     * `buildCardInformation.requirementBlock` produces — `req:<type>` plus a
+     * tag / resource qualifier — and must be ABSENT whenever the printed rule
+     * says more than the reason does.
+     */
+    it('carries the RULES-BLOCK address of the requirement it restates', () => {
+      const [game, player] = testGame(2);
+      player.megaCredits = 100;
+      setTemperature(game, -22);
+      const temp = unplayableReasons(player, new LakeMarineris()).find((r) => r.type === 'globalParameter');
+      expect(temp?.requirementKey).eq('req:C'); // RequirementType.TEMPERATURE
+      const tag = unplayableReasons(player, new GeneRepair()).find((r) => r.type === 'tag');
+      expect(tag?.requirementKey).eq('req:tag:science'); // qualified by the tag
+    });
+
+    it('a SITUATIONAL reason carries no address — a blocked effect never hides its own rule', () => {
+      const [/* game */, player] = testGame(2);
+      player.megaCredits = 100;
+      const reasons = unplayableReasons(player, new Livestock());
+      const production = reasons.find((r) => r.message === 'Cannot reduce production');
+      expect(production, 'the blocked on-play effect is reported').is.not.undefined;
+      expect(production?.requirementKey, 'but it addresses no rules block').is.undefined;
+      // …while the oxygen REQUIREMENT beside it does address one.
+      expect(reasons.find((r) => r.type === 'globalParameter')?.requirementKey).eq('req:O2');
+    });
+
+    it('an ALL-players requirement keeps its rule (the reason omits «any player»)', () => {
+      const [/* game */, player] = testGame(2, {underworldExpansion: true});
+      player.megaCredits = 100;
+      // Star Vegas: «Requires 3 city tiles (any player)» — the reason says only
+      // «Requires 3 city tile(s)», so the printed rule must stay visible.
+      const cities = unplayableReasons(player, new StarVegas()).find((r) => r.type === 'count');
+      expect(cities, 'the city requirement is reported').is.not.undefined;
+      expect(cities?.requirementKey, 'an «any player» requirement is not fully restated').is.undefined;
     });
 
     it('a tag shortfall is a requirement reason but never unattainable', () => {

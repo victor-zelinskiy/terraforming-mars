@@ -16,6 +16,11 @@ const TEMP_MAX_MISSED: UnplayableReason = {
 const TAGS: UnplayableReason = {
   type: 'tag', requirement: true, message: 'Requires ${0} tag(s)', params: ['3'], current: 1,
 };
+const OXYGEN_KEYED: UnplayableReason = {
+  type: 'globalParameter', globalParameter: 'oxygen', requirement: true, requirementKey: 'req:O2',
+  message: 'Requires ${0}% oxygen', params: ['9'], current: 0,
+};
+const PRODUCTION_BLOCKED: UnplayableReason = {type: 'production', message: 'Cannot reduce production'};
 const MONEY: UnplayableReason = {type: 'megacredits', message: 'Need ${0} more M€', params: ['4']};
 const TARGET: UnplayableReason = {type: 'target', message: 'No valid target available'};
 const NOT_YOUR_TURN = 'Not your turn to take any actions';
@@ -107,6 +112,32 @@ describe('cardAvailability — the ONE availability presentation model', () => {
 
   it('play: nothing blocks → no view', () => {
     expect(buildCardAvailability({reasons: []}, 'play')).to.eq(undefined);
+  });
+
+  // ── rules de-duplication ────────────────────────────────────────────────
+  it('collects the RULES-BLOCK addresses of the requirements it restates', () => {
+    const v = buildCardAvailability({reasons: [OXYGEN_KEYED, PRODUCTION_BLOCKED]}, 'play')!;
+    // Only the printed requirement addresses a rules block; the blocked
+    // EFFECT does not, so «ПРИ РОЗЫГРЫШЕ» keeps its own rule.
+    expect(v.coveredRequirementIds).to.deep.eq(['req:O2']);
+    expect(v.reasons).to.have.length(2);
+  });
+
+  it('a reason the view does NOT render can never hide a rule', () => {
+    // In the draft voice the situational reason is filtered out entirely; a
+    // keyed requirement still covers its block.
+    const draft = buildCardAvailability({reasons: [OXYGEN_KEYED, PRODUCTION_BLOCKED]}, 'draft')!;
+    expect(draft.reasons).to.have.length(1);
+    expect(draft.coveredRequirementIds).to.deep.eq(['req:O2']);
+    // …and a view built ONLY from situational reasons covers nothing.
+    const play = buildCardAvailability({reasons: [PRODUCTION_BLOCKED, MONEY]}, 'play')!;
+    expect(play.coveredRequirementIds).to.deep.eq([]);
+  });
+
+  it('a keyless requirement (partial restatement) leaves its rule alone', () => {
+    const v = buildCardAvailability({reasons: [TAGS]}, 'draft')!;
+    expect(v.reasons).to.have.length(1);
+    expect(v.coveredRequirementIds).to.deep.eq([]);
   });
 
   // ── parity ──────────────────────────────────────────────────────────────

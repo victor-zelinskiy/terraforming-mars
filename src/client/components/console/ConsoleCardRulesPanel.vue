@@ -7,7 +7,8 @@
         <span class="con-zoom-rules__mark" aria-hidden="true">§</span>
         <span class="con-zoom-rules__title">{{ $t('Rules') }}</span>
       </div>
-      <ConsoleScrollArea class="con-zoom-rules__scroll" axis="y">
+      <ConsoleScrollArea ref="scroll" class="con-zoom-rules__scroll" axis="y"
+                         @overflow-change="overflowing = $event">
         <div class="con-zoom-rules__body">
           <section v-for="group in orderedAnnotations" :key="group.id"
                    class="con-zoom-rules__group"
@@ -47,20 +48,15 @@
  */
 import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
-import {getCard} from '@/client/cards/ClientCardManifest';
-import {buildCardAnnotations, CardAnnotation, CardAnnotationRow} from '@/client/components/cardAnnotations/annotationModel';
+import {CardAnnotation, CardAnnotationRow} from '@/client/components/cardAnnotations/annotationModel';
+import {cardRuleAnnotations} from '@/client/components/console/consoleCardRules';
 import {actionRuleText} from '@/client/components/actions/actionDescription';
 import ConsoleScrollArea from '@/client/components/console/foundation/ConsoleScrollArea.vue';
 
-/** Does this card carry any structured rules to show? (The shell gates the
- *  side slot — and the viewer's width reservation — on this.) */
-export function cardHasRules(cardName: string | undefined): boolean {
-  if (cardName === undefined) {
-    return false;
-  }
-  const card = getCard(cardName as CardName);
-  return card !== undefined && buildCardAnnotations(card).length > 0;
-}
+// The visibility logic (which blocks the availability panel already covers)
+// is PURE and lives in `consoleCardRules.ts`; `cardHasRules` is re-exported
+// here for the hosts that have always imported it from this component.
+export {cardHasRules} from '@/client/components/console/consoleCardRules';
 
 /** The reading order used when blocks carry no measurable graphic anchors
  *  (corporations): requirements bar → action frames → effect frames → the
@@ -89,17 +85,30 @@ export default defineComponent({
      *  chrome + head — the dossier box + tab bar own them. Default false keeps
      *  the standalone rules panel (journal / source-chip inspect) unchanged. */
     embedded: {type: Boolean, default: false},
+    /**
+     * Rules blocks the AVAILABILITY panel beside this one already states in
+     * full (`CardAvailabilityView.coveredRequirementIds`) — hidden here so a
+     * requirement is never printed twice. Default empty: every other host
+     * (journal, dossier, draft) shows the complete rules.
+     */
+    suppressIds: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
   },
   data() {
     return {
       /** Anchor-measured order (annotation ids); undefined until measured. */
       measuredOrder: undefined as ReadonlyArray<string> | undefined,
+      /**
+       * The BODY needs a scroll right now — true only when the side column
+       * genuinely could not give this panel its full height (a very long
+       * rules set beside an availability panel). The scroll area draws its
+       * own progress rail; the host reads this to route the right stick.
+       */
+      overflowing: false,
     };
   },
   computed: {
     annotations(): Array<CardAnnotation> {
-      const card = getCard(this.cardName);
-      return card === undefined ? [] : buildCardAnnotations(card);
+      return cardRuleAnnotations(this.cardName, this.suppressIds);
     },
     /** Physical-order fallback (stable within a kind: model order). */
     fallbackOrdered(): Array<CardAnnotation> {
@@ -152,6 +161,20 @@ export default defineComponent({
      *  components/actions/actionDescription.ts. */
     rowText(key: CardAnnotationRow['text']): string {
       return actionRuleText(key);
+    },
+    /**
+     * Right-stick paging of the rules BODY, routed by the shell's zoom intent
+     * handler. Returns false when there is nothing to scroll, so the caller
+     * can keep swallowing the stick as it always did instead of pretending a
+     * journey the player cannot make.
+     */
+    scrollBody(delta: number): boolean {
+      if (!this.overflowing) {
+        return false;
+      }
+      const area = this.$refs.scroll as {scrollByPx?: (dy: number) => void} | undefined;
+      area?.scrollByPx?.(delta);
+      return true;
     },
     /** Resolve an annotation's ROW element (mirrors CardAnnotationsLayer.rowEl
      *  incl. the documented special-id fallbacks). */
