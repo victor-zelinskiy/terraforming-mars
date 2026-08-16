@@ -48,7 +48,40 @@
          its tile icon into THIS plate as the hand rises out of it. -->
     <div class="con-handdock__plate" data-wheel-anchor="hand-dock" aria-hidden="true">
       <span class="con-handdock__plate-face"></span>
-      <span class="con-handdock__status">
+      <!-- THE ALBUM SPINE. While the hand album owns the cards, the bay's
+           centre line IS the album's page navigation — the one stable place
+           the player reads their position and the page verbs from:
+           «LB  1–10 из 15 · 1/2  RB». It replaces the «КАРТЫ n/m» counter
+           for the album's lifetime (playable/total already live in the
+           album's own header), and swaps back the moment the hand docks.
+           Same absolutely-centred group as the status line — the range
+           digits are tabular and the page part is fixed-width-ish, so the
+           centre never walks between pages. The glyphs are GamepadGlyph
+           (never a literal button name) and each is its own click target —
+           the mouse turns pages right here. A direction that has no page
+           that way renders muted (never hidden — the shape is constant). -->
+      <span v-if="album !== undefined" class="con-handdock__pager">
+        <button type="button" tabindex="-1"
+                class="con-handdock__pager-side con-handdock__pager-side--prev"
+                :class="{'con-handdock__pager-side--off': !album.canPrev}"
+                @click.stop="onPage(-1)">
+          <GamepadGlyph control="bumperL" />
+        </button>
+        <span class="con-handdock__pager-pos">
+          <span class="con-handdock__pager-range">{{ album.range }}</span>
+          <template v-if="album.pageText !== ''">
+            <span class="con-handdock__pager-sep">·</span>
+            <span class="con-handdock__pager-pages">{{ album.pageText }}</span>
+          </template>
+        </span>
+        <button type="button" tabindex="-1"
+                class="con-handdock__pager-side con-handdock__pager-side--next"
+                :class="{'con-handdock__pager-side--off': !album.canNext}"
+                @click.stop="onPage(1)">
+          <GamepadGlyph control="bumperR" />
+        </button>
+      </span>
+      <span v-else class="con-handdock__status">
         <span class="con-handdock__status-label">{{ $t('Cards') }}</span>
         <span class="con-handdock__ratio">
           <span :key="'a' + playableCount"
@@ -100,6 +133,17 @@ import {handDockPlan, HandDockPlan} from '@/client/console/consoleHandDock';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
+import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
+
+/** The album spine's live state (undefined → the plain «КАРТЫ n/m» line). */
+export type HandDockAlbum = {
+  /** «1–10 из 15» (pre-translated by the shell). */
+  range: string,
+  /** «1/2» ('' on a single page — the range alone is the whole truth). */
+  pageText: string,
+  canPrev: boolean,
+  canNext: boolean,
+};
 
 type PackSlot = {
   key: string,
@@ -117,8 +161,15 @@ type PackSlot = {
 
 export default defineComponent({
   name: 'ConsoleHandDock',
-  components: {AnimatedMetricValue},
+  components: {AnimatedMetricValue, GamepadGlyph},
   props: {
+    /**
+     * THE ALBUM SPINE: while the hand album owns the cards, the bay centre
+     * shows the page position + the LB/RB page verbs instead of the
+     * «КАРТЫ n/m» counter (whose numbers already live in the album header).
+     * Shell-computed; undefined restores the plain status line.
+     */
+    album: {type: Object as PropType<HandDockAlbum | undefined>, default: undefined},
     /** The viewer's hand in SERVER order (cardsInHand + SRR-hosted) — the
      *  dock renders backs only, so append-order beats playable-sorting:
      *  a new card joins on the right, nothing reshuffles on re-sorts. */
@@ -165,7 +216,7 @@ export default defineComponent({
      */
     deliveryHeld: {type: Array as PropType<ReadonlyArray<string>>, default: () => []},
   },
-  emits: ['open'],
+  emits: ['open', 'page'],
   data() {
     return {
       /** A card just landed — the short "the pack accepts it" pulse. */
@@ -262,6 +313,13 @@ export default defineComponent({
     onClick(): void {
       if (this.interactive) {
         this.$emit('open');
+      }
+    },
+    /** A pager side clicked — the shell turns the album page. A muted side
+     *  still swallows the click (the edge is felt, nothing else happens). */
+    onPage(dir: 1 | -1): void {
+      if (this.album !== undefined && (dir === 1 ? this.album.canNext : this.album.canPrev)) {
+        this.$emit('page', dir);
       }
     },
     /**

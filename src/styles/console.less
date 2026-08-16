@@ -6003,7 +6003,10 @@ html.console-mode {
         inset: 0;
         display: flex;
         flex-direction: column;
-        gap: .6rem;
+        /* Trimmed with the album's constraint pass — on the height-bound TV
+           page every chrome px between the album and the status rail is
+           card size (the handheld ladder already sat at .45). */
+        gap: .45rem;
 
         /* PARKED is the layer's RESTING truth while a stage is open: GONE, not
            dimmed. A hand grid still legible behind the play surface is the
@@ -6349,40 +6352,10 @@ html.console-mode {
         zoom: 1.5;
     }
 
-    /* ── PAGE INDICATOR — the album's one chrome chip (header, right).
-       `1–10 из 19 · 1/2` with direction arrows that light only toward an
-       existing page. Fixed single line, right-aligned by margin — the
-       header's height can never move when pages come and go. ── */
-    &__pageind {
-        margin-left: auto;
-        flex-shrink: 0;
-        display: inline-flex;
-        align-items: baseline;
-        gap: .35rem;
-        padding: .15rem .55rem;
-        border-radius: 49.95rem;
-        background: rgba(14, 22, 33, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 185, 0.18);
-        color: @con-text-dim;
-        font-size: .75rem;
-        letter-spacing: .02rem;
-        white-space: nowrap;
-        font-variant-numeric: tabular-nums;
-
-        b { color: #cfe6ff; font-weight: 700; }
-        &-sep { opacity: .45; }
-        &-pages b { color: fade(@con-cyan, 92%); }
-        &-arrow {
-            font-weight: 700;
-            opacity: .28;
-            transition: opacity calc(140ms * var(--motion-scale, 1)) ease, color calc(140ms * var(--motion-scale, 1)) ease;
-
-            &--on {
-                opacity: .95;
-                color: fade(@con-cyan, 92%);
-            }
-        }
-    }
+    /* (The page position moved to the ALBUM SPINE — `.con-handdock__pager`
+       in the footer bay, beside the LB/RB verbs that drive it. One place,
+       one hint; a header pager split the navigation from its controls and
+       handed the top-right corner a competing centre of attention.) */
 
     /* ── selected-card INFO PANEL (the verdict bar, premium state framing) ─ */
     &__verdictbar {
@@ -10825,6 +10798,69 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         font-weight: 700;
         margin: 0 .08rem;
         color: fade(#8aa0b8, 66%);
+    }
+
+    /* ── the ALBUM SPINE — the bay centre while the hand album is open ──
+       «LB  1–10 из 15 · 1/2  RB» in place of the «КАРТЫ n/m» line: the ONE
+       stable place the player reads their album position and the page verbs
+       from. Same absolutely-centred group as the status line (digit growth
+       is symmetric — the centre never walks); tabular digits keep the width
+       steady between pages. The glyph chips are the REAL page controls for
+       the mouse; a direction with no page that way mutes (never hides — the
+       shape is constant). Reads like the plate's own engraving, not a
+       button: no plate of its own, quiet rim only on hover. */
+    &__pager {
+        position: absolute;
+        left: 50%;
+        bottom: .32rem;
+        transform: translateX(-50%);
+        z-index: 201; /* on the plate, never under a card */
+        display: inline-flex;
+        align-items: center;
+        gap: .55rem;
+        white-space: nowrap;
+        text-shadow: 0 .05rem .1rem rgba(0, 0, 0, 0.8);
+    }
+    &__pager-side {
+        display: inline-flex;
+        align-items: center;
+        padding: .08rem .12rem;
+        margin: 0;
+        border: 0;
+        border-radius: .3rem;
+        background: none;
+        cursor: pointer;
+        transition: opacity calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
+
+        &:hover { transform: translateY(-.05rem); }
+        &--off {
+            opacity: .3;
+            cursor: default;
+            &:hover { transform: none; }
+        }
+    }
+    &__pager-pos {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .4rem;
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+    }
+    &__pager-range {
+        font-size: .72rem;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: fade(#cfe3f4, 88%);
+    }
+    &__pager-sep {
+        font-size: .62rem;
+        color: fade(#8aa0b8, 60%);
+    }
+    &__pager-pages {
+        font-size: .74rem;
+        letter-spacing: .04rem;
+        color: fade(@con-cyan, 92%);
+        text-shadow: 0 0 .35rem fade(@con-cyan, 28%);
     }
 
     /* ── states (pack-only — the dock chassis itself NEVER moves) ── */

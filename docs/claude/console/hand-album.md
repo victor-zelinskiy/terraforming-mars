@@ -21,10 +21,15 @@ section; `consoleHandGrid.ts` is NOT dead — it remains the engine of the
 - `planHandAlbum` solves the card zoom from the measured album box + the
   profile grid + the 320×460 premium aspect — **never from the hand size**.
   One card, four cards and ten cards are the same geometry; a growing hand
-  only ever adds pages. Constants: `ALBUM_GAP_X/Y`, `ALBUM_GUTTER_*` (the top
-  gutter reserves the pick-band overhang + the focus pop — the old TV
-  `__pad { padding-top }` override is gone), `ALBUM_MAX_ZOOM` (art ceiling,
-  × uiScale), `PAGE_STRIDE_EXTRA`.
+  only ever adds pages. Constants: `ALBUM_GAP_X/Y`, `ALBUM_GUTTER_*`,
+  `ALBUM_MAX_ZOOM` (art ceiling, × uiScale), `PAGE_STRIDE_EXTRA`.
+  **Every reserve is CONSTRAINT-DERIVED, not taste** (iteration 2): the TV
+  page is height-bound, so each vertical px is card size — the gutters/gaps
+  are the measured worst-case stack per boundary (focus pop ≈6px logical
+  toward an edge + the 3px ring + the ~11px pick-band overhang where a band
+  can stand), the additive GLOW may cross a gap, the hard ring may not.
+  Shrinking one further must re-derive that stack, never eyeball it. The
+  old TV `__pad { padding-top }` override is gone.
 - An incomplete last row centres ITS GROUP; size, pitch and order never move.
   The focus lift is a transform — it can never reflow neighbours.
 
@@ -38,9 +43,15 @@ navigation across a page edge IS the page turn.
 - `stepHandAlbum`: left/right walk the FLAT hand order (crossing the edge
   turns the page — the order continues); up/down move by a row WITHIN the
   page, column preserved, clamped into a partial row; nothing wraps.
-- `pageJumpIndex`: the explicit page turn (right-stick flick — either axis,
-  hold-to-repeat at `FLICK_REPEAT_MS`; mouse wheel; page-edge click) — same
-  relative slot on the neighbouring page.
+- `pageJumpIndex`: the explicit page turn — **LB / RB, in EVERY album mode**
+  (browse, sale, select, pick, embedded; the first/last page swallows the
+  press), plus the unadvertised gestures: right-stick flick (either axis,
+  hold-to-repeat at `FLICK_REPEAT_MS`), mouse wheel, spine-chip click. Same
+  relative slot on the neighbouring page. **The TAG FILTER rides the
+  TRIGGERS**: LT/RT cycle it in browse (LT stays the «only suitable» toggle
+  in select modes, RT stays the sale/multi CONFIRM — those modes have no tag
+  filters), R3 resets. One action — one hint: the pages hint lives ONLY on
+  the spine, the filter hint ONLY in the command bar (`LT ◀ ФИЛЬТР ▶ RT`).
 - **Focus is anchored to CARD IDENTITY** (`focusName` in the section): a
   re-sort follows the card, a removal falls back to the same slot (never to a
   random first page). A MODE flip (browse ↔ sale ↔ select/pick) adopts the
@@ -70,11 +81,19 @@ can only ever be programmatic there.
 - The render window keeps the active page ± 1 AND the last SETTLED page's
   neighbourhood mounted (`settledPage`) — a page mid-slide never unmounts
   under the player.
-- Chrome: the header hosts the PAGE INDICATOR (`1–10 из 19 · 1/2`, arrows lit
-  only toward existing pages; `margin-left: auto`, fixed height); the album
-  edges show `.con-hand__pgedge` — thin layered hints, clickable, never a
-  book. The `Pages` foot hint (`stickScroll` glyph) is shared by all four
-  hand command bars via `handPagesHint`.
+- Chrome: the page position lives in ONE place — **the ALBUM SPINE**
+  (`.con-handdock__pager`, `ConsoleHandDock`'s `album` prop): the footer
+  bay's centre line becomes `LB  1–10 из 15 · 1/2  RB` for the album's
+  lifetime, replacing the «КАРТЫ n/m» counter (playable/total already live
+  in the album header) and swapping back at the dock. Shell-computed
+  (`handDockAlbum`), absolutely centred, tabular digits — the centre never
+  walks; a direction with no page mutes, never hides; the glyph chips are
+  the mouse's page controls. The spine yields to the plain counter PAST THE
+  DESCENT (the composer owns LB/RB for its payment dial) but not during a
+  pick bridge. The album edges still show `.con-hand__pgedge` — thin layered
+  hints, clickable, never a book. A header pager is deliberately GONE: it
+  split the navigation from its own controls and gave the top-right corner
+  a competing centre of attention.
 
 ## THE WHOLE HAND LEAVES THE DOCK (the physical model)
 
