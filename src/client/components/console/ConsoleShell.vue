@@ -4318,10 +4318,12 @@ export default defineComponent({
       const page = Math.min(pages - 1, Math.floor(idx / perPage));
       const start = page * perPage;
       const end = Math.min(count, start + perPage);
+      // A one-card page reads «13 из 13», never the odd «13–13».
+      const span = start + 1 === end ? String(end) : `${start + 1}–${end}`;
       return {
         range: count === 0 ?
           translateTextWithParams('${0} of ${1}', ['0', '0']) :
-          translateTextWithParams('${0} of ${1}', [`${start + 1}–${end}`, String(count)]),
+          translateTextWithParams('${0} of ${1}', [span, String(count)]),
         pageText: pages > 1 ? `${page + 1}/${pages}` : '',
         canPrev: page > 0,
         canNext: page < pages - 1,

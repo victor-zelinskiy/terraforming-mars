@@ -73,7 +73,7 @@ describe('ConsoleOptionsPanel (the settings console)', () => {
     const vm = mountWith('game').vm as unknown as PanelVm;
     expect(vm.current.id).to.eq('interface');
     // The flat eleven-row list is gone: a category shows a handful of rows.
-    expect(vm.current.rows.map((r) => r.id)).to.deep.eq(['display', 'textScale']);
+    expect(vm.current.rows.map((r) => r.id)).to.deep.eq(['display', 'textScale', 'albumLayout']);
   });
 
   it('LB / RB step the category and reset the row cursor', () => {
