@@ -1,0 +1,333 @@
+/* ═══════════════════════════════════════════════════════════════════
+   CONSOLE MARSBOT ATTACK — the compact modal for a hostile bot effect
+   (ConsoleBotAttack.vue / botAttack/botAttackModel.ts).
+
+   THREE DELIBERATE DEPARTURES from the full-screen card browser it
+   replaces:
+
+   1. The panel sizes to its CONTENT and stands in the workspace band, so
+      the board stays readable behind it. It is a decision, not a screen —
+      and it must never read as a second workspace.
+   2. The bot's own card is CONTEXT (a compact source dock), never the
+      hero: the subject of the decision is the player's tableau.
+   3. The danger accent is a THIN, structural signal — an eyebrow, a rail,
+      a loss chip — not a red screen. This is part of the game's premium
+      language; an attack that shouts is an attack the player stops
+      reading.
+
+   Authored in rem (the console logical space). Functional state — focus,
+   readiness, the pending loss — rides box-shadow/colour so con-perf-lite
+   (which strips filters) cannot take a navigation cue away.
+   ═══════════════════════════════════════════════════════════════════ */
+
+.con-botattack {
+    /* THE MODAL BAND is only the FRAME BOX (fixed, exactly between the top HUD
+       strip and the command bar) — it centres nothing, so the panel does its
+       own centring. Same three lines as `.con-decision`, which this surface is
+       a sibling of (one of them on screen at a time). */
+    .con-ws-band();
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: .3rem 0;
+    box-sizing: border-box;
+    z-index: 11480;
+    contain: layout style;
+}
+
+.con-botattack__panel {
+    position: relative;
+    /* CONTENT-SIZED, and capped well under the band: a one-or-two-target
+       attack must not occupy a 4K screen. The cap is a `max-width`, so a
+       three-target set simply uses more of the room it is given. */
+    width: min(56rem, 100%);
+    height: auto;
+    max-height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: .8rem;
+    padding: 1.05rem 1.25rem 1.1rem;
+    border-radius: .75rem;
+    box-sizing: border-box;
+    /* A NATIVE SCROLLBAR IS A BUG (the console overflow rule): the only
+       scrollable zone in this modal is the shared step's own viewport, which
+       shrinks with the zone above. */
+    overflow: hidden;
+    /* The panel's own plane. The danger register lives in the top hairline
+       and the left rail below — the body stays the console's ordinary
+       graphite, so the modal belongs to the same world as every other
+       surface. */
+    background:
+        linear-gradient(180deg, rgba(26, 18, 20, 0.96), rgba(10, 16, 25, 0.97));
+    box-shadow:
+        inset 0 .12rem 0 0 fade(@con-red, 60%),
+        inset 0 0 0 .05rem rgba(150, 120, 130, 0.24),
+        0 1.4rem 3.2rem rgba(0, 0, 0, 0.62);
+    /* NO CSS ENTRANCE HERE. This surface is registered with the SURFACE-MOTION
+       director (`data-motion-surface="bot-attack"`), which owns the whole band
+       family's arrival — the shared `.con-shade` dim included, which is the
+       moderate darkening this modal is supposed to focus against. A second,
+       CSS-authored entrance on the same element is not a nicety but a
+       CONFLICT: a filling animation overrides inline styles, so the two fight
+       over `opacity`/`transform` for the whole overlap and the panel can end
+       the beat on whichever set last. One entrance, one owner. */
+}
+
+/* ── header: who / with what / what now ──────────────────────────────── */
+.con-botattack__head {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: .28rem;
+    min-width: 0;
+}
+
+.con-botattack__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+    align-self: flex-start;
+    padding: .16rem .5rem .18rem;
+    border-radius: 49.95rem;
+    font-size: .62rem;
+    font-weight: 700;
+    letter-spacing: .12rem;
+    text-transform: uppercase;
+    color: fade(@con-red, 96%);
+    background: fade(@con-red, 12%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-red, 52%);
+}
+/* The attacker's SEAT, in its own colour — the same dot every other surface
+   uses to name a player, so «кто» is answered in the shell's own vocabulary
+   rather than by the word «бот» alone. */
+.con-botattack__eyebrow-dot {
+    width: .42rem;
+    height: .42rem;
+    border-radius: 50%;
+    box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.45);
+}
+.con-botattack__eyebrow-mark { opacity: .85; }
+
+.con-botattack__title {
+    margin: 0;
+    font-size: 1.3rem;
+    font-weight: 700;
+    line-height: 1.15;
+    color: @con-text;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.con-botattack__explain {
+    margin: 0;
+    font-size: .9rem;
+    line-height: 1.35;
+    color: fade(@con-text, 88%);
+}
+/* WHY ONLY THESE CARDS — quieter than the instruction, never absent when the
+   server sent a rule. */
+.con-botattack__restriction {
+    margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: .3rem;
+    font-size: .76rem;
+    line-height: 1.3;
+    color: fade(@con-text-dim, 92%);
+}
+.con-botattack__restriction-mark { color: fade(@con-cyan, 82%); }
+
+/* ── body: source | targets + commit ─────────────────────────────────── */
+.con-botattack__main {
+    display: grid;
+    /* The bot's card is recognisable and never dominant. A FIXED column, not a
+       percentage: the source is a px-authored text face integrated through
+       `zoom × --con-ui-scale`, so its box is a constant in rem space and a
+       fluid column would either crop it or leave a gap beside it. */
+    grid-template-columns: 15rem 1fr;
+    gap: 1rem;
+    align-items: stretch;
+    min-height: 0;
+}
+.con-botattack__source { align-self: start; }
+
+.con-botattack__body {
+    display: flex;
+    flex-direction: column;
+    gap: .6rem;
+    min-width: 0;
+    min-height: 0;
+}
+
+/* The selector's own zone — a FIXED budget, and that is the load-bearing
+   part. The shared step sizes its cards against the box it is given
+   (`data-ws-band`), so a zone whose height grew with its own content would
+   feed the fit engine its own output (bigger cards → taller zone → bigger
+   cards): the one loop that engine documents as forbidden. It may SHRINK
+   under a short viewport (`flex-shrink: 1`), which is honest degradation —
+   the step re-fits smaller — but it never grows.
+
+   19rem is deliberately modest: one row of candidates reads clearly at TV
+   distance and a LONE target comes out about a seventh of the screen wide,
+   never the hero the full-screen picker made of it. */
+.con-botattack__targets {
+    flex: 0 1 auto;
+    height: 19rem;
+    min-width: 0;
+    min-height: 8rem;
+    display: flex;
+}
+.con-botattack__targets > * { flex: 1; min-width: 0; min-height: 0; }
+
+.con-botattack__empty {
+    padding: 1.2rem 1rem;
+    border-radius: .5rem;
+    background: rgba(14, 18, 24, 0.7);
+    box-shadow: inset 0 0 0 .05rem rgba(120, 140, 165, 0.18);
+    font-size: .9rem;
+    line-height: 1.35;
+    color: fade(@con-text-dim, 92%);
+    text-align: center;
+}
+
+/* ── the COMMIT ROW ──────────────────────────────────────────────────── */
+.con-botattack__commit {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    /* FIXED height: focus, readiness and the loss chip may change WEIGHT and
+       COLOUR, never the row's box — a commit that grows under the cursor
+       re-lays out the cards above it. */
+    flex: none;
+    height: 2.5rem;
+    padding: 0 .8rem;
+    border-radius: .5rem;
+    box-sizing: border-box;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(28, 33, 40, 0.9), rgba(18, 22, 28, 0.92));
+    box-shadow: inset 0 0 0 .05rem rgba(150, 160, 175, 0.22);
+    transition:
+        transform calc(140ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        box-shadow calc(140ms * var(--motion-scale, 1)) ease-out;
+
+    /* The state rail — the same grammar the task host and the decision
+       screen use. */
+    &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: .45rem;
+        bottom: .45rem;
+        width: .12rem;
+        border-radius: 49.95rem;
+        background: rgba(160, 172, 188, 0.4);
+    }
+}
+/* NOT READY — a legitimate, readable state, never a disabled control: it says
+   what is missing instead of greying out. */
+.con-botattack__commit-verb {
+    font-size: .95rem;
+    font-weight: 700;
+    color: fade(@con-text, 62%);
+    white-space: nowrap;
+}
+.con-botattack__commit-target {
+    font-size: .86rem;
+    color: fade(@con-text-dim, 94%);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.con-botattack__commit-hint {
+    font-size: .8rem;
+    color: fade(@con-text-dim, 76%);
+    white-space: nowrap;
+}
+/* THE LOSS — the one place the modal is allowed to be loud, because it is the
+   one number the player is about to pay. */
+.con-botattack__commit-loss {
+    margin-left: auto;
+    padding: .1rem .45rem .14rem;
+    border-radius: .32rem;
+    font-size: .8rem;
+    font-weight: 700;
+    color: fade(@con-red, 98%);
+    background: fade(@con-red, 12%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-red, 48%);
+    white-space: nowrap;
+}
+.con-botattack__commit-a { margin-left: auto; }
+.con-botattack__commit-loss + .con-botattack__commit-a { margin-left: .4rem; }
+
+.con-botattack__commit--ready {
+    .con-botattack__commit-verb { color: @con-text; }
+
+    &::before { background: fade(@con-red, 70%); }
+}
+.con-botattack__commit--focused {
+    transform: translateX(.18rem);
+    box-shadow:
+        inset 0 0 0 .075rem fade(@con-cyan, 88%),
+        0 0 1.1rem fade(@con-cyan, 18%),
+        0 .4rem 1.1rem rgba(0, 0, 0, 0.45);
+
+    &::before { background: @con-cyan; }
+}
+/* THE COMMIT BEAT — the row seals in the danger register while the chosen
+   cube leaves, and the surface stops taking input by phase. One short pulse,
+   never a loop. */
+.con-botattack__commit--armed {
+    box-shadow:
+        inset 0 0 0 .075rem fade(@con-red, 92%),
+        0 0 1.2rem fade(@con-red, 22%);
+
+    &::before { background: @con-red; }
+
+    .con-botattack__commit-verb { color: fade(@con-red, 98%); }
+}
+
+/* ── the pending-removal pose ────────────────────────────────────────── */
+/* The chosen card carries the loss BEFORE the answer leaves: the shared
+   selector's locked slot is repainted in the danger register (it means «this
+   is what you are giving up», not «this is what you gained»), and during the
+   commit beat the card's own resource capsule dims and shrinks a hair — the
+   cube visibly letting go. Nothing here changes a NUMBER: the counters keep
+   reading the server's values until the server has answered. */
+/* ⚠ The shared step paints its rings on the CARD FACE, not on the slot
+   (`&--locked > :is(.card-container, .pcard)`), and the focused+locked pair has
+   its own rule — so BOTH must be answered here, and both selectors must
+   out-specify theirs. A `box-shadow` on the slot itself would simply draw a
+   second, offset ring behind the mint one. */
+.con-botattack .con-ptsel[data-direction='remove'] {
+    .con-ptsel__slot--locked > :is(.card-container, .pcard),
+    .con-ptsel__slot--focused.con-ptsel__slot--locked > :is(.card-container, .pcard) {
+        box-shadow:
+            0 0 0 .18rem fade(@con-red, 92%),
+            0 0 1.2rem fade(@con-red, 34%);
+    }
+    .con-ptsel__lock {
+        background: fade(@con-red, 88%);
+        color: #1b0f10;
+    }
+}
+.con-botattack--committing {
+    .con-ptsel__slot--locked .pcard__res,
+    .con-ptsel__slot--locked .con-cardres {
+        transition:
+            opacity calc(300ms * var(--motion-scale, 1)) ease-out,
+            transform calc(300ms * var(--motion-scale, 1)) cubic-bezier(0.4, 0, 0.6, 1);
+        opacity: .15;
+        transform: scale(0.82) translateY(-.3rem);
+    }
+}
+
+/* ── reduced motion: the ORDER survives, the movement does not ───────── */
+@media (prefers-reduced-motion: reduce) {
+    .con-botattack__panel { animation: none; }
+
+    .con-botattack--committing {
+        .con-ptsel__slot--locked .pcard__res,
+        .con-ptsel__slot--locked .con-cardres { transform: none; }
+    }
+}

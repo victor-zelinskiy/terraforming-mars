@@ -43,6 +43,22 @@
 
     &--compact &__card { zoom: calc(0.56 * var(--con-ui-scale, 1)); }
 
+    /* A MARSBOT BONUS CARD is TEXT, not art — so it does not take the card's
+       zoom ladder. `BonusCardFace` is px-authored (12px lines), which the
+       console scale model integrates through `zoom × --con-ui-scale`; shrinking
+       it further for the COMPACT dress (as a picture legitimately is) would
+       only make it unreadable, and an unreadable answer to «кто это сделал» is
+       the same as no answer. One readable size in both dresses; the fixed width
+       keeps it inside a 15rem dock column at every profile (1rem = 20px × scale). */
+    &__bonus {
+        zoom: var(--con-ui-scale, 1);
+
+        .mb-face {
+            width: 300px; /* keep-px: inside the zoom's own px space */
+            box-sizing: border-box;
+        }
+    }
+
     /* CHIP — one line, for a host with no room for a card face (the board's
        placement-context panel). It reuses the PLATE, so a source named without
        its picture is still the same sentence in the same shape, not a fifth

@@ -88,6 +88,20 @@ export type ConsoleTask =
   | {kind: 'venusBonus', mode: 'standard' | 'final'}
   /** Stormcraft: cover N heat with stock heat (1 each) and floaters (2 each). */
   | {kind: 'spendHeat'}
+  /**
+   * A MARSBOT ATTACK the player must answer — «выберите свою карту и снимите с
+   * неё ресурс». On the wire it is an ordinary `SelectCard` over the victim's
+   * own tableau, which the router used to classify as `cardSelect: 'target'`
+   * and serve through the generic full-screen card browser: one card blown up
+   * to half a 4K screen, under a raw English title whose only mention of the
+   * attacker was the source card's English name in brackets.
+   *
+   * Its own family, because it is a different EVENT: nothing is being gained,
+   * the player did not ask for it, and the three questions it owes — who did
+   * this, with what, and what does it cost me — are answered by nothing in the
+   * generic browser. Routed off the SERVER's `botAttackPrompt` marker.
+   */
+  | {kind: 'botAttack'}
   | {kind: 'composite'}
   | {kind: 'initialDraft'}
   | {kind: 'startSequence', prompt: 'corporationPlay' | 'corporationPay' | 'corporationSelection' | 'preludeSelection'}
@@ -122,6 +136,9 @@ export const NATIVE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
   // The three that used to fall through to the DESKTOP modal inside the
   // console shell — each now has its own console-native surface.
   'venusBonus', 'spendHeat', 'aresGlobal',
+  // …and the MarsBot attack, which used to be served by the generic card
+  // browser with none of its context.
+  'botAttack',
 ]);
 
 /** Kinds handled by shell surfaces that need NO task host (detector base). */
@@ -282,7 +299,7 @@ export const SCENE_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>(['initialDra
  * enumerate three families and miss the fourth — see `taskMinimizable`.
  */
 export const NATIVE_COMPOSITE_KINDS: ReadonlySet<TaskKind> =
-  new Set<TaskKind>(['venusBonus', 'spendHeat', 'aresGlobal', 'deckSelect']);
+  new Set<TaskKind>(['venusBonus', 'spendHeat', 'aresGlobal', 'deckSelect', 'botAttack']);
 
 /**
  * CAN THE PLAYER MINIMIZE THIS PROMPT — and therefore, must the shell offer a
@@ -340,6 +357,7 @@ export function taskMinimizable(kind: TaskKind): boolean {
   case 'spendHeat':
   case 'aresGlobal':
   case 'deckSelect':
+  case 'botAttack':
     return true;
   case 'actionMenu':
   case 'space':
@@ -414,6 +432,13 @@ export function taskFor(view: PlayerViewModel): ConsoleTask | undefined {
   }
   if (wf.spendHeatPrompt !== undefined) {
     return {kind: 'spendHeat'};
+  }
+  // A MARSBOT ATTACK — an ordinary `SelectCard` on the wire, and the marker is
+  // the ONLY thing that says the player is being attacked rather than choosing
+  // where to put something. Classified by type it lands in the generic card
+  // browser (which is exactly where it used to land).
+  if (wf.botAttackPrompt !== undefined) {
+    return {kind: 'botAttack'};
   }
   // A colony bonus another player's trade owes the viewer: a bare
   // `SelectOption` on the wire, and its whole meaning is the MARKER (which

@@ -386,6 +386,20 @@ export function consoleTaskSummary(
       returnKey: 'Return to payment',
     };
 
+  case 'botAttack':
+    // The kicker names the EVENT — «АТАКА MARSBOT» — because that is the fact
+    // the player is owed before anything else, and the A-verb names the ACT
+    // rather than a neutral «Открыть»: what waits behind this press is a loss,
+    // and the announcement must not read like an offer. The ask deliberately
+    // ignores the server title (a bare instruction) in favour of the sentence
+    // that says what is happening TO the player.
+    return {
+      kickerKey: 'MarsBot attack',
+      ask: 'MarsBot is taking a resource from one of your cards',
+      returnKey: 'Return to the attack',
+      openKey: 'Choose what to lose',
+    };
+
   case 'composite':
     return {kickerKey: compositeKicker(wf), ask: ask(wf, 'Choose an option'), sourceCard: source, returnKey: 'Return to the decision'};
 

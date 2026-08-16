@@ -126,6 +126,50 @@ describe('consolePlayedTargetModel — the embedded played-card target step', ()
   });
 
   /**
+   * THE DIRECTION AXIS — `add` vs `remove`, published on the contract so every
+   * host (and the paint under it) can say which way the resource moves.
+   *
+   * The old boolean `takesFromTarget` is the same fact under a narrower name,
+   * so it must keep working byte-for-byte: both existing hosts derive it from
+   * the sign of a step's amount, and a regression there would silently un-warn
+   * every «выберите чужую карту» pick in the game.
+   */
+  describe('direction', () => {
+    const players = [
+      {color: 'blue', name: 'Me', tableau: [{name: 'Birds'}]},
+      {color: 'red', name: 'Red', tableau: [{name: 'Ants'}]},
+    ] as never;
+    const cards = [{name: 'Birds'}, {name: 'Ants'}] as never;
+
+    const build = (extra: Record<string, unknown>) => buildPlayedTargetModel({
+      candidates: cards, players, viewerColor: 'blue', ask: '',
+      typeOf: () => undefined, preview: () => [], ...extra,
+    } as never);
+
+    it('defaults to `add` — a host that says nothing is giving, not taking', () => {
+      expect(build({}).contract.direction).to.eq('add');
+      expect(build({}).owners.find((o) => o.self)?.selfHarm).to.eq(false);
+    });
+
+    it('the legacy boolean still means `remove` (no regression for the two composers)', () => {
+      const model = build({takesFromTarget: true});
+      expect(model.contract.direction).to.eq('remove');
+      expect(model.owners.find((o) => o.self)?.selfHarm).to.eq(true);
+    });
+
+    it('an explicit direction drives the same self-harm rule', () => {
+      const model = build({direction: 'remove'});
+      expect(model.contract.direction).to.eq('remove');
+      expect(model.owners.find((o) => o.self)?.selfHarm).to.eq(true);
+      expect(build({direction: 'add'}).owners.find((o) => o.self)?.selfHarm).to.eq(false);
+    });
+
+    it('the explicit direction WINS over the legacy boolean', () => {
+      expect(build({direction: 'add', takesFromTarget: true}).contract.direction).to.eq('add');
+    });
+  });
+
+  /**
    * THE CARD BEING PLAYED HAS NO TABLEAU ROW YET — and is still a candidate.
    *
    * Titan Floating Launch-pad puts its own two floaters on any Jovian card and

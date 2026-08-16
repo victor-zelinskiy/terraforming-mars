@@ -121,6 +121,14 @@ export class SelectCard<T extends ICard> extends BasePlayerInput<ReadonlyArray<T
     if (this.draftPrompt !== undefined) {
       model.draftPrompt = this.draftPrompt;
     }
+    // Same reasoning for the MARSBOT ATTACK context: a hostile bot effect can
+    // legitimately wrap its target pick in an OrOptions (a "do not remove"
+    // branch, a MarsBot-storage branch), and stripped of the marker the console
+    // falls back to the generic card-target browser — no attacker, no source
+    // card, no preview of what the pick costs.
+    if (this.botAttackPrompt !== undefined) {
+      model.botAttackPrompt = this.botAttackPrompt;
+    }
     // THE ORDER-AWARE PRELUDE VERDICT rides this input's own toModel, and is
     // recomputed on EVERY serialization on purpose.
     //

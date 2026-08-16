@@ -38,6 +38,11 @@ describe('consoleMandatoryGate (the mandatory announcement gate)', () => {
       // door whatever the viewer's status happens to say.
       expect(isInterruptiveMandatoryTask({kind: 'colonyBonus'}, true)).to.be.true;
       expect(isInterruptiveMandatoryTask({kind: 'colonyBonus'}, false)).to.be.true;
+      // A MARSBOT ATTACK is raised during the BOT's turn on a player who did
+      // not ask for it — interruptive whatever the viewer's own status says,
+      // so it is ANNOUNCED and never opened over whatever they were doing.
+      expect(isInterruptiveMandatoryTask({kind: 'botAttack'}, true)).to.be.true;
+      expect(isInterruptiveMandatoryTask({kind: 'botAttack'}, false)).to.be.true;
     });
 
     it('triggered sub-prompts are gated ONLY off the viewer\'s own turn', () => {

@@ -237,6 +237,7 @@ import {
 import {stageRemotePlacements} from '@/client/console/tilePlacement/consoleRemotePlacement';
 import {abortBoardCardBonus} from '@/client/console/boardCardBonus/consoleBoardCardBonus';
 import {abortConsoleActionCommit} from '@/client/console/consoleActionCommit';
+import {abortBotAttackCommit} from '@/client/console/botAttack/botAttackState';
 import {isConsolePlacementHeld} from '@/client/console/consolePromptAdmission';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
 // The GAME START WORKSPACE holds the deployment across prompt gaps. While it
@@ -1362,6 +1363,7 @@ export default defineComponent({
           // beat tears down, the composer's CTA unlocks (abortNonce), the
           // captures stay; the card never sits in a false activated state.
           abortConsoleActionCommit();
+          abortBotAttackCommit(); // …and the MarsBot attack — the commit row re-opens
           const showAlert = vueRoot(this).showAlert;
           if (response.status === statusCode.badRequest) {
             const resp = await response.json() as AppErrorResponse;
@@ -1396,6 +1398,7 @@ export default defineComponent({
           this.holdingForColonyBuild = false;
           abortColonyBuild(); // …and the colony-build hero — no ghost cube, ever
           abortConsoleActionCommit(); // …and the blue-action commit — the CTA unlocks
+          abortBotAttackCommit(); // …and the MarsBot attack — the commit row re-opens
           root.showAlert('Error sending input,', CANNOT_CONTACT_SERVER);
           console.error(e);
         })

@@ -24,14 +24,25 @@
  * run under the fast server runner.
  */
 
+import {BonusCardId} from '@/common/automa/AutomaTypes';
+import {BonusCardContext, bonusCardInfo} from '@/common/automa/BonusCardData';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
+import {BotAttackSource} from '@/common/models/BotAttackPromptModel';
 import {ChoiceContextSource, PlayerInputModel, SelectProductionToLoseModel} from '@/common/models/PlayerInputModel';
 import {ProductionLossSource} from '@/common/models/ProductionLossSource';
 
 export interface PromptSourceView {
   /** The premium card face to render — set exactly when the source IS a card. */
   card?: CardName;
+  /**
+   * A MARSBOT BONUS CARD to render, with the context that resolves its printed
+   * "with Venus or Colonies…" branches for THIS game. Mutually exclusive with
+   * `card`: the bot's own deck has its own visual identity (`BonusCardFace`),
+   * and drawing it as a fake project card is exactly the "second, visually
+   * incompatible copy" this dock exists to prevent.
+   */
+  bonusCard?: {id: BonusCardId, ctx: BonusCardContext};
   /** WHAT KIND of source it is — an English i18n KEY, always present. */
   kindKey: string;
   /**
@@ -95,6 +106,29 @@ export function choiceSourceView(source: ChoiceContextSource | undefined): Promp
   }
 }
 
+/**
+ * `BotAttackSource` — the object of MarsBot's that produced a forced choice.
+ *
+ * `ctx` resolves the bonus card's printed expansion branches for THIS game, so
+ * the face reads as the player will experience it («Бот получает 2 M€ и
+ * аэростат») rather than as the printed either/or. The caller supplies it from
+ * the live game options — the dock is presentation only.
+ */
+export function botAttackSourceView(source: BotAttackSource, ctx: BonusCardContext): PromptSourceView {
+  if (source.kind === 'bonusCard') {
+    return {
+      bonusCard: {id: source.bonusCard, ctx},
+      kindKey: 'MarsBot card',
+      // The face draws its own name; `name` exists for the CHIP dress and for
+      // the deferred band, which have no room for a face and would otherwise
+      // say a bare «КАРТА БОТА».
+      name: bonusCardInfo(source.bonusCard).name,
+      inspectable: true,
+    };
+  }
+  return {card: source.card, kindKey: 'MarsBot card', inspectable: true};
+}
+
 /** `ProductionLossSource` — the parallel typed field on `SelectProductionToLose`. */
 export function productionLossSourceView(source: ProductionLossSource | undefined): PromptSourceView | undefined {
   switch (source?.type) {
@@ -121,9 +155,21 @@ export function productionLossSourceView(source: ProductionLossSource | undefine
  * typed field is strictly richer than a generic context would be (it can say
  * "a hazard zone", which `ChoiceContextSource` has no vocabulary for).
  */
-export function promptSourceView(wf: PlayerInputModel | undefined): PromptSourceView | undefined {
+export function promptSourceView(
+  wf: PlayerInputModel | undefined,
+  /** Resolves a MarsBot bonus card's expansion branches — supplied by hosts
+   *  that have the live game options. Without it a bot attack still names its
+   *  source, it simply does not draw the face. */
+  bonusCtx?: BonusCardContext,
+): PromptSourceView | undefined {
   if (wf === undefined) {
     return undefined;
+  }
+  const attack = wf.botAttackPrompt;
+  if (attack !== undefined) {
+    return bonusCtx !== undefined ?
+      botAttackSourceView(attack.source, bonusCtx) :
+      {kindKey: 'MarsBot card', inspectable: false};
   }
   if (wf.type === 'productionToLose') {
     const view = productionLossSourceView((wf as SelectProductionToLoseModel).source);

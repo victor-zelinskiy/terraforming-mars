@@ -307,5 +307,7 @@
   "${0} gained ${1} M€ for the Ares adjacency bonus": "${0} получает ${1} M€ за бонус соседства",
   "${0} placed next to an Ares hazard — its ${1} track regressed from ${2} to ${3}": "${0} размещается рядом с опасной зоной — его трек (${1}) отступает с ${2} до ${3}",
   "${0} placed next to an Ares hazard, but its tracks are all at the start": "${0} размещается рядом с опасной зоной, но все его треки в начале — откатывать нечего",
-  "Ares hazard": "Опасная зона"
+  "Ares hazard": "Опасная зона",
+  "Remove 1 resource from one of your cards": "Снимите 1 ресурс с одной из своих карт",
+  "Only your highest-scoring animal or microbe cards can be chosen.": "Выбрать можно только карты животных или микробов с наибольшей стоимостью ПО."
 }

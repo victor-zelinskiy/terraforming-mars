@@ -107,6 +107,9 @@ const SERVING_SURFACES: ReadonlyArray<string> = [
   // The EFFECT DECISION screen — it stands in for the task host on a marked
   // optional decision, so it is that prompt's serving surface.
   '.con-decision',
+  // The MARSBOT ATTACK modal — it stands in for the generic card browser on a
+  // marked hostile-effect prompt, so it is that prompt's serving surface.
+  '.con-botattack',
   // The FINAL GREENERY finale screen — the endgame conversion beat, which
   // stands in for the host on that one (marked) prompt.
   '.con-finale',

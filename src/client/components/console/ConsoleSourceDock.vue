@@ -32,6 +32,15 @@
       <Card :card="{name: cardName}" :key="cardName" />
     </div>
 
+    <!-- A MARSBOT BONUS CARD is not a project card and must never be drawn as
+         one: it has its own printed identity, and the SHARED `BonusCardFace` is
+         the one that already draws it (bot board, turn theater, fullscreen
+         inspect). It sits in the very same dock slot as a card face, so the
+         grammar and the position never move. -->
+    <div v-else-if="bonusCard !== undefined" class="con-src__bonus">
+      <BonusCardFace :id="bonusCard.id" :ctx="bonusCard.ctx" :key="bonusCard.id" />
+    </div>
+
     <!-- A non-card source keeps the dock's shape: same label, same slot, a
          plate instead of a card. Never an empty column and never silence.
          The CHIP layout renders this same plate for a CARD source too — one
@@ -58,6 +67,9 @@
  */
 import {defineComponent, PropType} from 'vue';
 import Card from '@/client/components/card/CardFace.vue';
+import BonusCardFace from '@/client/components/marsbot/BonusCardFace.vue';
+import {BonusCardId} from '@/common/automa/AutomaTypes';
+import {BonusCardContext} from '@/common/automa/BonusCardData';
 import {CardName} from '@/common/cards/CardName';
 import {Message} from '@/common/logs/Message';
 import {translateMessage, translateText} from '@/client/directives/i18n';
@@ -65,7 +77,7 @@ import {PromptSourceView} from '@/client/console/promptSource';
 
 export default defineComponent({
   name: 'ConsoleSourceDock',
-  components: {Card},
+  components: {Card, BonusCardFace},
   props: {
     view: {type: Object as PropType<PromptSourceView>, required: true},
     /** The card is CONTEXT, not the subject (a dial / a list / a distribution). */
@@ -81,11 +93,15 @@ export default defineComponent({
   computed: {
     /** The plate is the CHIP's only body, and a non-card source's always. */
     plateOnly(): boolean {
-      return this.cardName === undefined;
+      return this.cardName === undefined && this.bonusCard === undefined;
     },
     /** The card face to draw — none in chip mode (it names, never draws). */
     cardName(): CardName | undefined {
       return this.chip ? undefined : this.view.card;
+    },
+    /** The MarsBot bonus card face to draw — same rule as `cardName`. */
+    bonusCard(): {id: BonusCardId, ctx: BonusCardContext} | undefined {
+      return this.chip ? undefined : this.view.bonusCard;
     },
     nameText(): string {
       // The chip is ONE line, so its value must always say something: the card

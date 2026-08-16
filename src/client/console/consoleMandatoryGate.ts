@@ -164,6 +164,12 @@ const ALWAYS_INTERRUPTIVE: ReadonlySet<TaskKind> = new Set<TaskKind>([
   // interruption by construction — and the whole point of the prompt is that
   // the card waits until its owner goes and takes it.
   'colonyBonus',
+  // A MARSBOT ATTACK is an interruption by construction too: it is raised
+  // during the BOT's turn, on a player who did not ask for it. Announcing it
+  // (rather than opening it) is what keeps a hostile effect from tearing the
+  // player out of whatever workspace they were working in — the chip carries
+  // the demand until they choose to answer it.
+  'botAttack',
 ]);
 
 /**

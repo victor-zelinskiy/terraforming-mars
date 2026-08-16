@@ -8,7 +8,7 @@ import {RandomMAOptionType} from '../../common/ma/RandomMAOptionType';
 import {AgendaStyle} from '../../common/turmoil/Types';
 import {Expansion} from '../../common/cards/GameModule';
 import {EscapeVelocityOptions} from '../../common/game/NewGameConfig';
-import {AutomaOptions} from '../../common/automa/AutomaTypes';
+import {AutomaOptions, BonusCardId} from '../../common/automa/AutomaTypes';
 
 export type GameOptions = {
   boardName: BoardName;
@@ -79,6 +79,9 @@ export type GameOptions = {
    * project-deck twin of `customCorporationsList` / `customPreludes`.
    */
   customProjectCards: ReadonlyArray<CardName>;
+  /** DEV: MarsBot bonus cards lifted to the top of its bonus deck (see
+   *  `NewGameConfig.customBonusCards`). */
+  customBonusCards: ReadonlyArray<BonusCardId>;
   customCeos: ReadonlyArray<CardName>;
   startingCeos: number;
   startingPreludes: number;
@@ -121,6 +124,7 @@ export const DEFAULT_GAME_OPTIONS: GameOptions = {
   customCorporationsList: [],
   customPreludes: [],
   customProjectCards: [],
+  customBonusCards: [],
   draftVariant: false,
   escapeVelocity: undefined,
   expansions: {

@@ -7,7 +7,7 @@ import {RandomMAOptionType} from '../ma/RandomMAOptionType';
 import {AgendaStyle} from '../turmoil/Types';
 import {GameId} from '../Types';
 import {Expansion} from '../cards/GameModule';
-import {AutomaOptions} from '../automa/AutomaTypes';
+import {AutomaOptions, BonusCardId} from '../automa/AutomaTypes';
 
 export type BoardNameType = BoardName | RandomBoardOption;
 
@@ -78,6 +78,12 @@ export interface NewGameConfig {
    * Optional: the legacy create form never sends it.
    */
   customProjectCards?: Array<CardName>;
+  /**
+   * DEV: MarsBot bonus cards lifted to the top of its bonus deck, so a
+   * specific bot effect can be reached deterministically (the automa twin of
+   * `customProjectCards`). Optional; the create form never sends it.
+   */
+  customBonusCards?: Array<BonusCardId>;
   requiresMoonTrackCompletion: boolean; // Moon must be completed to end the game
   requiresVenusTrackCompletion: boolean; // Venus must be completed to end the game
   moonStandardProjectVariant: boolean;
