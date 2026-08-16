@@ -85,9 +85,24 @@
               <i class="con-strat__actring" aria-hidden="true"></i>
               <i class="con-strat__spark" aria-hidden="true"></i>
             </template>
-            <i v-if="z.kind === 'awards' && row.showTaken" class="con-strat__gem"
-               :class="['player_bg_color_' + row.takenColor, {'con-strat__gem--me': row.takenColor === viewerColor}]"
-               aria-hidden="true"></i>
+            <!-- The PROVENANCE SOCKET — one language for both zones: a
+                 player cube physically mounted at the emblem's ribbon
+                 corner says who FIXED this object. Awards wear it always
+                 once funded (the sponsor); a milestone wears it only in
+                 the COMPACT pose (the collapsed form of the full owner
+                 seal — the cube keeps the colour, the tiny engraved check
+                 keeps the «done», the gold socket keeps the fixation). -->
+            <i v-if="(z.kind === 'awards' && row.showTaken) || (z.kind === 'milestones' && row.showTaken && z.composed)"
+               class="con-strat__gem"
+               :class="['player_bg_color_' + row.takenColor, {
+                 'con-strat__gem--me': row.takenColor === viewerColor,
+                 'con-strat__gem--own': z.kind === 'milestones',
+               }]"
+               aria-hidden="true">
+              <svg v-if="z.kind === 'milestones'" class="con-strat__gem-check" viewBox="0 0 12 10">
+                <path d="M1.6 5.4 L4.6 8.3 L10.4 1.7" />
+              </svg>
+            </i>
             <i class="con-strat__kiss" aria-hidden="true"></i>
           </span>
 

@@ -9758,6 +9758,22 @@ html.con-profile-handheld .con-mafocus {
             0 0 0 .15rem rgba(255, 255, 255, 0.6),
             0 .1rem .3rem rgba(0, 0, 0, 0.55);
     }
+    /* The engraved CHECK on a milestone's provenance socket — «done» cut
+       into the enamel (a stroke SVG: crisp at any scale, no type-floor
+       entanglement), never a second word. */
+    &__gem-check {
+        position: absolute;
+        inset: 12%;
+        display: block;
+
+        path {
+            fill: none;
+            stroke: rgba(16, 22, 28, 0.82);
+            stroke-width: 2.6;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+    }
     /* ── the milestone ACTIVATION optics — three light layers on the medal:
        the gold-white RIM (persistent «can act now»), the bottom-crystal
        SPARK, and the one-shot contour SWEEP. All transform/opacity — no
@@ -10361,9 +10377,25 @@ html.con-profile-handheld .con-mafocus {
         --strat-medal: 4.9rem;
 
         /* The trophy pose leaves the row contract: no value column exists
-           any more, so the item recomposes as a centred flex exhibit (the
-           owner reads from the tray — the emblem itself stays clean). */
+           any more, so the item recomposes as a centred flex exhibit. */
         .con-strat__item { display: flex; justify-content: center; }
+        /* The PROVENANCE SOCKET is the owner voice now (compact §5-6): the
+           big colour ring decays to a faint bottom-bowl reflection — a
+           local contact light, never a halo that reads as focus/hover. */
+        .con-strat__plate {
+            opacity: 0.26;
+            -webkit-mask: radial-gradient(88% 60% at 50% 92%, #000 0%, rgba(0, 0, 0, 0.55) 42%, transparent 72%);
+            mask: radial-gradient(88% 60% at 50% 92%, #000 0%, rgba(0, 0, 0, 0.55) 42%, transparent 72%);
+        }
+        .con-strat__gem { width: .72rem; height: .72rem; }
+    }
+    /* The socket ARRIVES as the seal's collapsed form: while the compact
+       recomposition plays, the cube glides down-left from where the seal
+       stood and clicks into its mount (never on a seeded mount/reload —
+       the arriving class exists only for the live pose change). */
+    &__zone--milestones&__zone--arriving .con-strat__gem {
+        animation: strat-socket-in calc(520ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both;
+        animation-delay: calc(200ms * var(--motion-scale, 1));
     }
     /* Awards 3/3: a LIVE scoreboard of three races — bigger medals AND
        bigger numbers (the race runs to game end; first and second stay). */
@@ -10378,7 +10410,16 @@ html.con-profile-handheld .con-mafocus {
         .con-strat__cassette {
             --strat-sz: 2.25rem;
             --strat-cas-row: 1.24rem;
+            --strat-crown-lift: .08rem;
         }
+        /* COMPACT is the couch's standing endgame view — the ranking's own
+           physical voices step UP (~18%): fuller cubes, a taller crown, a
+           clearer breath under the cap. The score axis never moves. */
+        .con-strat__cube { width: .58rem; height: .58rem; }
+        .con-strat__chips--n3 .con-strat__cube { width: .5rem; height: .5rem; }
+        .con-strat__chips--n4 .con-strat__cube { width: .42rem; height: .42rem; }
+        .con-strat__chips--n5 .con-strat__cube { width: .36rem; height: .36rem; }
+        .con-strat__crown { width: .7rem; }
     }
     /* A COMPLETED zone is a celebration, not a table: the pucks warm toward
        the trophy gold — the sealed objects carry the read; no plate returns. */
@@ -10485,6 +10526,13 @@ html.con-profile-handheld .con-mafocus {
     0% { opacity: 0.35; }
     40% { opacity: 1; }
     100% { opacity: 0.8; }
+}
+/* The provenance socket clicks in — the owner seal's cube collapsing
+   down-left onto the emblem's mount (the compact morph's last voice). */
+@keyframes strat-socket-in {
+    0% { opacity: 0; transform: translate(85%, -60%) scale(1.55); }
+    62% { opacity: 1; transform: translate(-4%, 3%) scale(0.96); }
+    100% { opacity: 1; transform: none; }
 }
 @keyframes strat-pose-in {
     0% { transform: scale(0.82); }
@@ -25708,7 +25756,11 @@ html.con-profile-handheld {
     .con-strat__zone--dense { --strat-medal: 2rem; }
     .con-strat__zone--ultra { --strat-medal: 1.55rem; }
     .con-strat__zone--milestones.con-strat__zone--done { --strat-medal: 3.2rem; }
+    .con-strat__zone--milestones.con-strat__zone--done .con-strat__gem { width: .54rem; height: .54rem; }
     .con-strat__zone--awards.con-strat__zone--done { --strat-medal: 2.7rem; --strat-num: .95rem; --strat-num2: .8rem; }
+    .con-strat__zone--awards.con-strat__zone--done .con-strat__cube { width: .48rem; height: .48rem; }
+    .con-strat__zone--awards.con-strat__zone--done .con-strat__crown { width: .5rem; }
+    .con-strat__zone--awards.con-strat__zone--done .con-strat__gem { width: .52rem; height: .52rem; }
     .con-strat__title { font-size: .52rem; letter-spacing: .05rem; }
     .con-strat__key .gp-glyph { min-width: 1.15rem; height: .82rem; font-size: .45rem; }
     .con-strat__pip { width: .42rem; height: .42rem; }
@@ -26384,6 +26436,9 @@ html.con-profile-large {
     /* P30 · the strategy rail — a gentle readability boost only. */
     .con-strat__zone { --strat-num: 1.12rem; --strat-num2: .92rem; }
     .con-strat__zone--awards.con-strat__zone--done { --strat-num: 1.22rem; --strat-num2: 1rem; }
+    .con-strat__zone--awards.con-strat__zone--done .con-strat__cube { width: .64rem; height: .64rem; }
+    .con-strat__zone--awards.con-strat__zone--done .con-strat__crown { width: .76rem; }
+    .con-strat__zone--milestones.con-strat__zone--done .con-strat__gem { width: .8rem; height: .8rem; }
     .con-strat__title { font-size: .72rem; }
     .con-strat__cube { width: .56rem; height: .56rem; }
     .con-strat__req { font-size: .68rem; }

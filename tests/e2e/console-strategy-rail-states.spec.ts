@@ -676,4 +676,59 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     await shoot(page, 'tv4k-states-05-tie');
     await page.locator('.con-strat').screenshot({path: path.join(OUT, 'tv4k-states-05-rail.png')});
   });
+
+  test('rewards COMPACT: the third sponsorship morphs the zone live; reload lands straight in compact', async ({page, request}) => {
+    test.setTimeout(420_000);
+
+    // A fresh 3-seat table; red funds TWO awards in its first turn
+    // (8 + 14 = 22 — inside ANY calm corp's start), blue finishes the
+    // limit later (20 ≤ the poorest calm corp's 23) — the ladder is the
+    // server's own (8 → 14 → 20). Same pregame shape as the matrix test.
+    const {p1, p2, p3} = await createStagedGame(request);
+    await answerInitialCards(request, p2);
+    await answerInitialCards(request, p3);
+    await answerInitialCards(request, p1);
+    await answerCorpPlay(request, p2);
+    await answerCorpPlay(request, p3);
+    await seedGameOverApi(request, p1, {buy: 0});
+    await nestedOption(request, p1, 'Fund an award', '"Landlord"');
+    await nestedOption(request, p1, 'Fund an award', '"Banker"');
+
+    // The page opens on RED while it is BLUE's turn: the zone stands FULL
+    // with two sponsor pips — and the page polls freely (it holds no menu),
+    // so the third seal will arrive WATCHED.
+    await openConsole(page, p1, '&consoleProfile=tv');
+    await waitForBoardHome(page, 25);
+    await expect(page.locator('.con-strat__zone--awards .con-strat__pip--set')).toHaveCount(2, {timeout: 20_000});
+    expect(await page.locator('.con-strat__zone--awards.con-strat__zone--done').count(),
+      'two sponsorships keep the zone FULL').toBe(0);
+
+    // BLUE funds the third award over the API — the live third seal, the
+    // read beat, then the FLIP into the compact pose, all on screen.
+    await nestedOption(request, p2, 'Fund an award', '"Thermalist"');
+    await expect(page.locator('.con-strat__zone--awards.con-strat__zone--done'),
+      'the third seal composes the compact pose').toHaveCount(1, {timeout: 30_000});
+    await expect(page.locator('.con-strat__zone--awards .con-strat__item')).toHaveCount(3, {timeout: 10_000});
+    // INDEPENDENT triggers: the milestones zone stays FULL.
+    expect(await page.locator('.con-strat__zone--milestones.con-strat__zone--done').count(),
+      'the milestones zone must not follow the awards compose').toBe(0);
+    // Every sponsored emblem carries its PROVENANCE socket (red, red, blue
+    // — «спонсированы разными игроками»), and a fresh sponsorship's empty
+    // rank rail dissolves to the calm centred dash.
+    await expect(page.locator('.con-strat__zone--awards .con-strat__medal .con-strat__gem')).toHaveCount(3);
+    await expect(page.locator('.con-strat__zone--awards .con-strat__pip--set')).toHaveCount(3);
+    await waitToastQuiet(page);
+    await shoot(page, 'tv4k-compact-awards');
+    await page.locator('.con-strat').screenshot({path: path.join(OUT, 'tv4k-compact-awards-rail.png')});
+
+    // RELOAD lands STRAIGHT in compact — no morph replay, no seal beat,
+    // the same sockets (the seed-then-diff contract).
+    await page.reload();
+    await page.waitForSelector('.con-strat', {timeout: 45_000});
+    await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 90_000});
+    await expect(page.locator('.con-strat__zone--awards.con-strat__zone--done')).toHaveCount(1, {timeout: 20_000});
+    await expect(page.locator('.con-strat__zone--awards .con-strat__medal .con-strat__gem')).toHaveCount(3);
+    expect(await page.locator('.con-strat__item--sealing').count(), 'no seal beat replays on reload').toBe(0);
+    expect(await page.locator('.con-strat__zone--arriving').count(), 'no pose arrival replays on reload').toBe(0);
+  });
 });

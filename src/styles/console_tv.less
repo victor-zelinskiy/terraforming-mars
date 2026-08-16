@@ -269,7 +269,16 @@ html.con-profile-tv {
     .con-strat__zone--dense { --strat-medal: 3.5rem; }
     .con-strat__zone--ultra { --strat-medal: 2.05rem; }
     .con-strat__zone--milestones.con-strat__zone--done { --strat-medal: 5.6rem; }
+    .con-strat__zone--milestones.con-strat__zone--done .con-strat__gem { width: .92rem; height: .92rem; }
     .con-strat__zone--awards.con-strat__zone--done { --strat-medal: 4.9rem; --strat-num: 1.5rem; --strat-num2: 1.2rem; }
+    /* Compact steps its ranking voices UP for the couch (§11): fuller
+       cubes, a taller crown, more air under the cap. */
+    .con-strat__zone--awards.con-strat__zone--done .con-strat__cube { width: .8rem; height: .8rem; }
+    .con-strat__zone--awards.con-strat__zone--done .con-strat__chips--n3 .con-strat__cube { width: .68rem; height: .68rem; }
+    .con-strat__zone--awards.con-strat__zone--done .con-strat__chips--n4 .con-strat__cube { width: .58rem; height: .58rem; }
+    .con-strat__zone--awards.con-strat__zone--done .con-strat__chips--n5 .con-strat__cube { width: .5rem; height: .5rem; }
+    .con-strat__zone--awards.con-strat__zone--done .con-strat__crown { width: .96rem; }
+    .con-strat__zone--awards.con-strat__zone--done .con-strat__gem { width: .82rem; height: .82rem; }
     /* Couch title, calmer tracking: at the TV rem the base .045rem tracking
        alone costs ~18px on «ДОСТИЖЕНИЯ» — the exact 7px that ellipsized it.
        The head's negative margin tucks the tray into the case's inner right
@@ -294,6 +303,7 @@ html.con-profile-tv {
     .con-strat__zone--awards.con-strat__zone--done .con-strat__cassette {
         --strat-sz: 2.95rem;
         --strat-cas-row: 1.78rem;
+        --strat-crown-lift: .1rem;
     }
     .con-strat__chips--n3 .con-strat__cube { width: .58rem; height: .58rem; }
     .con-strat__chips--n4 .con-strat__cube { width: .5rem; height: .5rem; }

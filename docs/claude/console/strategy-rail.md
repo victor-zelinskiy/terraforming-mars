@@ -131,7 +131,28 @@ not player language). These never mix. No names, no cost — the workspaces
 - **Completed poses** differ on purpose: milestones 3/3 = a TROPHY column
   (bigger medals, seals gone with the values — the race is settled); awards
   3/3 = a LIVE scoreboard (bigger medals AND numbers). Both warm the pucks
-  with a gold rim.
+  with a gold rim. The triggers are INDEPENDENT per zone (`composed.<kind>`).
+- **COMPACT provenance (P31.5).** In the compact pose the owner/sponsor
+  reads from ONE physically-mounted language, the PROVENANCE SOCKET
+  (`__gem`): a player cube in the gold socket at the emblem's ribbon
+  corner. Awards wear it from the funding on (the sponsor); a milestone
+  wears it ONLY in compact (`--own`, with a tiny ENGRAVED CHECK — an SVG
+  stroke, deliberately not text: crisp at any scale and outside the TV
+  type-floor's jurisdiction) as the collapsed form of the full owner seal
+  — cube keeps the colour, check keeps the «done», gold keeps the
+  fixation; no «ВЗЯТО» returns. The old owner read via the big colour
+  ring is demoted: the compact milestone plate decays to the same faint
+  bottom-bowl reflection the awards use (a halo reads as focus/hover —
+  never an ownership marker). On the LIVE pose change the socket CLICKS IN
+  (`strat-socket-in`, gliding down-left from where the seal stood, on the
+  `--arriving` window only — a seeded mount/reload renders it static).
+  Compact also steps the ranking voices UP for the couch (~18% cubes, a
+  taller crown, more crown-lift air) — the score axis never moves and the
+  emblems never shrink. Guard: the states e2e funds three awards live
+  (blue finishes the limit while red's page watches — a page holding its
+  own menu does not poll), asserts the watched morph, the three sockets,
+  zone independence, and that a reload lands straight in compact with no
+  replay.
 
 ## The motion machine (all in the component)
 

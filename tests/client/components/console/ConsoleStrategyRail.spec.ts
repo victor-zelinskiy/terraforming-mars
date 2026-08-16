@@ -468,6 +468,44 @@ describe('ConsoleStrategyRail', () => {
     expect(wrapper.emitted('open')).to.deep.eq([['milestones'], ['awards'], ['awards']]);
   });
 
+  it('the COMPACT milestones wear the provenance socket — cube + engraved check, no seal', () => {
+    const wrapper = mountRail({
+      milestones: zone('milestones', [
+        source({name: 'Mayor', playerName: 'A', color: me}),
+        source({name: 'Gardener', playerName: 'B', color: rival}),
+        source({name: 'Builder', playerName: 'C', color: third}),
+        source({name: 'Terraformer'}),
+      ]),
+    });
+    const mz = wrapper.find('.con-strat__zone--milestones');
+    const gems = mz.findAll('.con-strat__gem');
+    expect(gems).to.have.lengthOf(3);
+    expect(gems[0].classes()).to.include('con-strat__gem--own');
+    expect(gems[0].classes()).to.include('player_bg_color_red');
+    expect(gems[1].classes()).to.include('player_bg_color_blue');
+    // The engraved check answers «done» — no word returns in compact.
+    expect(gems[0].find('.con-strat__gem-check').exists()).to.be.true;
+    expect(mz.find('.con-strat__ownseal').exists()).to.be.false;
+    // The FULL pose keeps a claimed emblem clean (the socket is the SEAL's
+    // collapsed compact form, never a duplicate owner marker)…
+    const full = mountRail({
+      milestones: zone('milestones', [
+        source({name: 'Mayor', playerName: 'A', color: me}),
+        ...OPEN_MILESTONES.slice(1),
+      ]),
+    });
+    expect(full.find('.con-strat__zone--milestones .con-strat__gem').exists()).to.be.false;
+    // …and an awards sponsor socket carries NO check (a sponsorship is a
+    // provenance, not a completion).
+    const awards = mountRail({
+      awards: zone('awards', [
+        source({name: 'Banker', playerName: 'V', color: rival, scores: []}),
+      ]),
+    });
+    expect(awards.find('.con-strat__zone--awards .con-strat__gem').exists()).to.be.true;
+    expect(awards.find('.con-strat__zone--awards .con-strat__gem-check').exists()).to.be.false;
+  });
+
   it('mounting over a completed zone seats the 3/3 pose instantly — no ceremony replay', () => {
     const wrapper = mountRail({
       milestones: zone('milestones', [
