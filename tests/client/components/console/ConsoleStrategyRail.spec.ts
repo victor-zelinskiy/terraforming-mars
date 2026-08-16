@@ -112,11 +112,17 @@ describe('ConsoleStrategyRail', () => {
     const wrapper = mountRail();
     const zones = wrapper.findAll('.con-strat__zone');
     expect(zones).to.have.lengthOf(2);
+    // The finished body: ONE display case + ONE spine (the right border and
+    // terminators live inside the viewport — never a cropped glass plane).
+    expect(wrapper.findAll('.con-strat__case')).to.have.lengthOf(1);
+    expect(wrapper.findAll('.con-strat__spine')).to.have.lengthOf(1);
     // One medal row per item, art bound to the shared assets/ma slug.
     expect(zones[0].findAll('.con-strat__item')).to.have.lengthOf(3);
     expect(zones[1].findAll('.con-strat__item')).to.have.lengthOf(2);
     const art = zones[0].find('.con-strat__art');
     expect(art.attributes('style')).to.contain('assets/ma/mayor.png');
+    // Every medallion stands on its display puck (the state's rim carrier).
+    expect(zones[0].findAll('.con-strat__pedestal')).to.have.lengthOf(3);
     // The doors: one glyph cap per zone head (LB / RB semantics live in the
     // control prop; the stub renders for both states).
     const heads = wrapper.findAll('.con-strat__head');
@@ -128,6 +134,19 @@ describe('ConsoleStrategyRail', () => {
     // The PRICE is deliberately absent from the standing HUD — it belongs to
     // the workspace where the claim/fund decision (and payment) is made.
     expect(wrapper.find('.con-strat__price').exists()).to.be.false;
+  });
+
+  it('an open milestone prints the CURRENT value with a hairline meter (never a bare pair)', () => {
+    const wrapper = mountRail();
+    const row = wrapper.findAll('.con-strat__zone--milestones .con-strat__item')[0];
+    expect(row.find('.con-strat__cell').text()).to.eq('2/3');
+    const fill = row.find('.con-strat__meter-fill');
+    expect(fill.exists()).to.be.true;
+    expect(fill.attributes('style')).to.contain('width: 67%');
+    // Ready adds the mark beside the value (readability without colour).
+    const ready = wrapper.findAll('.con-strat__zone--milestones .con-strat__item')[2];
+    expect(ready.find('.con-strat__readymark').exists()).to.be.true;
+    expect(row.find('.con-strat__readymark').exists()).to.be.false;
   });
 
   it('milestone rows carry MY progress; ready vs offered-now stay distinct states', () => {
@@ -146,7 +165,7 @@ describe('ConsoleStrategyRail', () => {
     expect(builder.classes()).to.not.include('con-strat__item--now');
   });
 
-  it('a taken item shows the owner enamel (plate + gem) and no numbers', () => {
+  it('a taken milestone keeps the enamel accents AND installs the OWNER SEAL (never an empty right zone)', () => {
     const wrapper = mountRail({
       milestones: zone('milestones', [
         source({name: 'Mayor', playerName: 'Vika', color: rival, scores: []}),
@@ -158,20 +177,45 @@ describe('ConsoleStrategyRail', () => {
     expect(row.find('.con-strat__plate').classes()).to.include('player_bg_color_blue');
     expect(row.find('.con-strat__gem').classes()).to.include('player_bg_color_blue');
     expect(row.find('.con-strat__cell').exists()).to.be.false;
+    // The right zone carries the seal: the owner's crystal, the check and
+    // the word — state reads by shape and word, never by colour alone.
+    const seal = row.find('.con-strat__ownseal');
+    expect(seal.exists()).to.be.true;
+    expect(seal.find('.con-strat__ownseal-gem').classes()).to.include('player_bg_color_blue');
+    expect(seal.find('.con-strat__ownseal-check').text()).to.eq('✓');
+    expect(seal.find('.con-strat__ownseal-word').text()).to.not.eq('');
+    expect(seal.classes()).to.not.include('con-strat__ownseal--mine');
     // The tray's first pip took the owner colour.
     expect(wrapper.find('.con-strat__zone--milestones .con-strat__pip').classes()).to.include('player_bg_color_blue');
   });
 
-  it('award rows read as a duel: leader unit above, chaser smaller below; my cube rimmed', () => {
+  it('my own claimed milestone marks the seal as mine (white-rimmed crystal)', () => {
+    const wrapper = mountRail({
+      milestones: zone('milestones', [
+        source({name: 'Mayor', playerName: 'Me', color: me, scores: []}),
+        ...OPEN_MILESTONES.slice(1),
+      ]),
+    });
+    const row = wrapper.find('.con-strat__zone--milestones .con-strat__item');
+    expect(row.classes()).to.include('con-strat__item--mine');
+    expect(row.find('.con-strat__ownseal').classes()).to.include('con-strat__ownseal--mine');
+  });
+
+  it('award rows read as a micro-podium: gold I for the leader; a DUEL chaser is unranked', () => {
     const wrapper = mountRail();
     const banker = wrapper.find('.con-strat__zone--awards .con-strat__item');
     const units = banker.findAll('.con-strat__unitbody');
     expect(units).to.have.lengthOf(2);
     expect(units[0].classes()).to.include('con-strat__unitbody--lead');
+    expect(units[0].find('.con-strat__rank--i').text()).to.eq('I');
     expect(units[0].find('.con-strat__num').text()).to.eq('4');
     expect(units[0].find('.con-strat__cube').classes()).to.include('con-strat__cube--me');
     expect(units[1].classes()).to.not.include('con-strat__unitbody--lead');
     expect(units[1].find('.con-strat__num').text()).to.eq('2');
+    // Two players: only 1st place scores — the chaser stays visible but may
+    // NOT wear a silver «II» the rules would never pay.
+    expect(units[1].classes()).to.include('con-strat__unitbody--chase');
+    expect(units[1].find('.con-strat__rank').exists()).to.be.false;
     // The zero race renders the quiet «—», not a fake leader.
     const thermalist = wrapper.findAll('.con-strat__zone--awards .con-strat__item')[1];
     expect(thermalist.find('.con-strat__none').exists()).to.be.true;
@@ -179,15 +223,55 @@ describe('ConsoleStrategyRail', () => {
     expect(banker.classes()).to.include('con-strat__item--quiet');
   });
 
-  it('a 3+-way tie collapses to one cube and «+N» (bounded width, honest count)', () => {
+  it('a REAL second place (single leader, 3+ players) wears the silver II plaque', () => {
+    const wrapper = mountRail({
+      awards: zone('awards', [
+        source({name: 'Banker', scores: [{color: me, score: 7}, {color: rival, score: 3}, {color: third, score: 1}]}),
+      ]),
+    });
+    const units = wrapper.findAll('.con-strat__unitbody');
+    expect(units[0].find('.con-strat__rank--i').text()).to.eq('I');
+    expect(units[1].classes()).to.include('con-strat__unitbody--ii');
+    expect(units[1].find('.con-strat__rank--ii').text()).to.eq('II');
+  });
+
+  it('a 3+-way tie keeps two chips and an honest «+N» beside ONE shared value', () => {
     const wrapper = mountRail({
       awards: zone('awards', [
         source({name: 'Banker', scores: [{color: me, score: 3}, {color: rival, score: 3}, {color: third, score: 3}]}),
       ]),
     });
     const lead = wrapper.find('.con-strat__unitbody--lead');
-    expect(lead.findAll('.con-strat__cube')).to.have.lengthOf(1);
-    expect(lead.find('.con-strat__morecnt').text()).to.eq('+2');
+    expect(lead.findAll('.con-strat__cube')).to.have.lengthOf(2);
+    expect(lead.find('.con-strat__morecnt').text()).to.eq('+1');
+    expect(lead.findAll('.con-strat__num')).to.have.lengthOf(1);
+  });
+
+  it('award availability is DOOR-level: the head arms, the next slot pip golds, rows stay calm', () => {
+    const wrapper = mountRail({
+      awards: zone('awards', OPEN_AWARDS, {availableNow: new Set(['Banker', 'Thermalist'])}),
+    });
+    const az = wrapper.find('.con-strat__zone--awards');
+    expect(az.find('.con-strat__head').classes()).to.include('con-strat__head--armed');
+    // The FIRST open slot names where the next seal lands…
+    expect(az.find('.con-strat__pip').classes()).to.include('con-strat__pip--next');
+    // …and NO award row glows (a fundable column would all be lit — noise).
+    expect(az.findAll('.con-strat__item--now')).to.have.lengthOf(0);
+    expect(az.findAll('.con-strat__item--ready')).to.have.lengthOf(0);
+    // Milestones keep the row-level language and never arm their head.
+    const wrapper2 = mountRail({
+      milestones: zone('milestones', OPEN_MILESTONES, {availableNow: new Set(['Builder'])}),
+    });
+    const mz = wrapper2.find('.con-strat__zone--milestones');
+    expect(mz.find('.con-strat__head').classes()).to.not.include('con-strat__head--armed');
+    expect(mz.find('.con-strat__pip').classes()).to.include('con-strat__pip--next');
+    expect(mz.findAll('.con-strat__item--now')).to.have.lengthOf(1);
+  });
+
+  it('no offer → no gold: the tray reads neutral when nothing is actionable', () => {
+    const wrapper = mountRail();
+    expect(wrapper.find('.con-strat__pip--next').exists()).to.be.false;
+    expect(wrapper.find('.con-strat__head--armed').exists()).to.be.false;
   });
 
   it('zone heads and rows are doors: clicks emit open with the zone kind', async () => {
@@ -241,10 +325,15 @@ describe('ConsoleStrategyRail', () => {
     await wrapper.vm.$nextTick();
     expect(row().classes()).to.include('con-strat__item--sealing');
     expect(row().find('.con-strat__gem').classes()).to.include('player_bg_color_blue');
+    // The beat's two layers share the value zone: the held numbers dissolve
+    // while the owner seal stamps in over them.
+    expect(row().find('.con-strat__cell').exists()).to.be.true;
+    expect(row().find('.con-strat__ownseal').exists()).to.be.true;
     queue.shift()?.fn(); // the seal end
     await wrapper.vm.$nextTick();
     expect(row().classes()).to.include('con-strat__item--taken');
     expect(row().find('.con-strat__cell').exists()).to.be.false;
+    expect(row().find('.con-strat__ownseal-gem').classes()).to.include('player_bg_color_blue');
   });
 
   it('the THIRD seal recomposes only after the read beat (result first, then the pose)', async () => {

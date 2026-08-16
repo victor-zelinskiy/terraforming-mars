@@ -99,6 +99,9 @@ describe('consoleMaHudModel (P30)', () => {
       ], opts());
       expect(zone.items[0].leader).to.deep.eq({colors: [me, rival], score: 4});
       expect(zone.items[0].second).to.deep.eq({colors: [third], score: 2});
+      // A tie for FIRST awards no 2nd place at all (giveAwards): the chaser
+      // group stays visible but must never wear the silver rank.
+      expect(zone.items[0].secondRanked).to.eq(false);
     });
 
     it('a tie for SECOND keeps every chaser in one group', () => {
@@ -106,6 +109,16 @@ describe('consoleMaHudModel (P30)', () => {
         source({name: 'Banker', scores: [{color: me, score: 7}, {color: rival, score: 3}, {color: third, score: 3}]}),
       ], opts());
       expect(zone.items[0].second).to.deep.eq({colors: [rival, third], score: 3});
+      // Single leader + 3 players → the 2nd-place VP is real.
+      expect(zone.items[0].secondRanked).to.eq(true);
+    });
+
+    it('a DUEL has no ranked second place (only 1st scores in a 2-player game)', () => {
+      const zone = buildMaHudZone('awards', [
+        source({name: 'Banker', scores: [{color: me, score: 7}, {color: rival, score: 3}]}),
+      ], opts());
+      expect(zone.items[0].second).to.deep.eq({colors: [rival], score: 3});
+      expect(zone.items[0].secondRanked).to.eq(false);
     });
 
     it('a single non-zero participant leads with no second place', () => {

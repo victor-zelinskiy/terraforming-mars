@@ -43,6 +43,16 @@ export type MaHudItem = {
   leader?: MaHudGroup,
   /** Awards only: the next distinct non-zero score group below the leader. */
   second?: MaHudGroup,
+  /**
+   * Awards only: the `second` group is a REAL second place — it would score
+   * the 2nd-place VP at game end. Mirrors `giveAwards`
+   * (calculateVictoryPoints.ts): a 2nd place exists only when the 1st is
+   * held by a SINGLE player (a tie for 1st awards no 2nd at all) and the
+   * game has MORE than two players (in a duel only 1st place scores).
+   * A `second` with `secondRanked: false` is presented as a plain chaser —
+   * never a silver «II» the rules would not pay.
+   */
+  secondRanked?: boolean,
   /** The claim/fund is OFFERED right now (present in the waitingFor tree). */
   availableNow: boolean,
 };
@@ -118,6 +128,11 @@ export function buildMaHudZone(
       item.leader = leaders.length > 0 ?
         {colors: leaders.map((l) => l.color), score: leaders[0].score} : undefined;
       item.second = groups.length > 1 ? groups[1] : undefined;
+      // The rules' own 2nd-place gate (giveAwards): single leader AND >2
+      // players. `m.scores` carries every seat, so its length IS the player
+      // count for this award.
+      item.secondRanked = item.second !== undefined &&
+        leaders.length === 1 && m.scores.length > 2;
     } else if (taken === undefined && m.scores.length > 0) {
       // Milestones lock in on claim — progress matters only while open.
       const mine = m.scores.find((s) => s.color === opts.myColor);

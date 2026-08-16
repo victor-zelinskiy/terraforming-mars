@@ -9184,23 +9184,42 @@ html.con-profile-handheld .con-mafocus {
    detail. Each zone owns a FIXED share of the rail (flex: 1 1 0), so the
    3/3 recomposition redistributes INSIDE its box and the rail's outer
    geometry can never jump. */
+/* The rail's TROPHY metals — rank gold and the slot-availability gold are
+   one warm family, deliberately apart from mint (readiness) and the player
+   enamel palette. */
+@strat-gold: #d9b46a;
+/* The display puck's resting relief — restated by every state rim, so it
+   lives in ONE list. */
+@strat-puck-shadow: inset 0 .07rem .14rem rgba(190, 220, 250, 0.12),
+    inset 0 -.14rem .22rem rgba(0, 0, 0, 0.42),
+    0 .14rem .3rem rgba(0, 0, 0, 0.5);
+
 .con-strat {
     flex-shrink: 0;
-    /* THE RIGHT HULL MEMBER — the left rail's mirror: chassis to the
-       physical right edge, content at the safe inset, --con-rail-w wide. */
+    /* THE RIGHT HULL MEMBER — the left rail's FOOTPRINT twin (same seam
+       token), with its OWN interior: not a bank of plated instrument rows
+       but a TROPHY GALLERY — one glass display case (`__case`) mounted on a
+       metallic support post (`__spine`) standing just inside the physical
+       edge. The chassis still bleeds to the viewport edge (hull grammar),
+       but the VISIBLE composition is finished on screen: a right border,
+       both terminators and a controlled shadow — the glass can no longer
+       read as cropped by the viewport. */
     width: var(--con-rail-outer-w, 10.7rem); /* seam token — the left rail's twin */
+
+    /* The finished-body geometry — one token family, profile-tunable. */
+    --strat-spine-w: .15rem;
+    --strat-spine-r: calc(var(--con-pad-x, .6rem) * 0.4);
+    --strat-edge: calc(var(--strat-spine-r) + var(--strat-spine-w));
+
     align-self: stretch;
     display: flex;
     flex-direction: column;
-    position: relative; /* the faded-end accent below anchors to the member */
-    padding: .5rem calc(.5rem + var(--con-pad-x, .6rem)) .55rem .5rem;
+    position: relative; /* the case / spine / accent layers anchor here */
+    padding: .5rem calc(var(--strat-edge) + .42rem) .55rem .5rem;
     border-radius: 0;
-    /* One continuous engineered panel from the physical edge in (the left
-       rail's material, mirrored) — no separate stripe of empty background
-       between the bezel and the instruments. */
+    /* The hull strip behind the spine keeps the member welded to the edge —
+       everything readable lives on the case, in front of it. */
     background:
-        /* Same thin-hull darkening as the left rail (mirrored): the value
-           column must sit on the LIT plate, never inside the edge shade. */
         linear-gradient(270deg, rgba(5, 9, 15, 0.9), rgba(11, 18, 28, 0.35) calc(var(--con-pad-x, .6rem) + .55rem), rgba(11, 18, 28, 0) 78%),
         @con-glass-soft;
     /* Member caps — the left rail's grammar, mirrored: the top receives
@@ -9227,27 +9246,96 @@ html.con-profile-handheld .con-mafocus {
         pointer-events: none;
     }
 
+    /* ── THE DISPLAY CASE — the glass plane every exhibit sits on: a thin
+       metallic cant, an inner top highlight, a controlled outer shadow. Its
+       right edge is deliberately SQUARE and seats into the spine — a
+       mounted joint, never a crop; the rounded corners face the stage. ── */
+    &__case {
+        position: absolute;
+        top: .3rem;
+        bottom: .3rem;
+        left: .28rem;
+        right: var(--strat-edge);
+        border-radius: .55rem 0 0 .55rem;
+        border: .05rem solid rgba(140, 170, 205, 0.24);
+        border-right: none;
+        background: linear-gradient(168deg,
+            rgba(27, 39, 55, 0.5),
+            rgba(14, 22, 33, 0.56) 42%,
+            rgba(9, 15, 24, 0.62) 80%);
+        box-shadow:
+            inset 0 .07rem 0 rgba(195, 220, 245, 0.09),
+            inset .06rem 0 0 rgba(165, 195, 225, 0.06),
+            inset -.06rem 0 .12rem rgba(0, 0, 0, 0.4),
+            0 .3rem 1rem rgba(0, 0, 0, 0.45);
+        pointer-events: none;
+    }
+    /* ── THE SPINE — the metallic support post at the right edge: brushed
+       vertical gradient, a left sheen, weld feet at both ends (the panel's
+       top/bottom TERMINATORS) and a shadow cast onto the case seam. ── */
+    &__spine {
+        position: absolute;
+        top: .3rem;
+        bottom: .3rem;
+        right: var(--strat-spine-r);
+        width: var(--strat-spine-w);
+        border-radius: .08rem;
+        background:
+            linear-gradient(90deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 55%),
+            linear-gradient(180deg, #59708a, #35455a 10%, #4a5f78 50%, #303f52 90%, #59708a);
+        box-shadow:
+            -.12rem 0 .4rem rgba(0, 0, 0, 0.5),
+            inset 0 0 0 .04rem rgba(10, 16, 24, 0.6);
+        pointer-events: none;
+
+        &::before,
+        &::after {
+            content: '';
+            position: absolute;
+            left: -.11rem;
+            right: -.11rem;
+            height: .34rem;
+            border-radius: .1rem;
+            background: linear-gradient(180deg, #6a8098, #3c4c60);
+            box-shadow:
+                0 .08rem .25rem rgba(0, 0, 0, 0.5),
+                inset 0 .05rem 0 rgba(255, 255, 255, 0.28);
+        }
+        &::before { top: -.06rem; }
+        &::after { bottom: -.06rem; }
+    }
+
     &__zone {
+        position: relative; /* stands above the case plane */
         flex: 1 1 0;
         min-height: 0;
         display: flex;
         flex-direction: column;
         /* The zone's medal scale — poses and profiles override the TOKEN.
-           POLISH pass: the medal is the row's HERO — the old system line
-           (slot tray + price) folded into the head, and its height plus the
-           optical-fit normalisation (maArtFitStyle) went into the medal. */
-        --strat-medal: 3.9rem;
-        --strat-num: 1.05rem;
+           TROPHY pass: the row plates and their inner frames are GONE and
+           their room went to the medallions — plus a ~5% optical overhang
+           on the art (safe now: no opaque neighbour plate can amputate it,
+           only light crosses row bounds). */
+        --strat-medal: 4rem;
+        --strat-num: 1.08rem;
         --strat-num2: .88rem;
 
-        &--dense { --strat-medal: 3.2rem; }
-        &--ultra { --strat-medal: 2rem; }
+        &--dense { --strat-medal: 3.3rem; }
+        &--ultra { --strat-medal: 2.05rem; }
     }
-    /* The seam between the two systems — one hairline, no second panel. */
+    /* The seam between the two exhibits — one fading shelf line inside the
+       shared case, never a second panel. */
     &__zone--awards {
         margin-top: .3rem;
-        padding-top: .3rem;
-        border-top: .05rem solid rgba(120, 150, 180, 0.16);
+        padding-top: .32rem;
+        background-image: linear-gradient(90deg,
+            transparent,
+            rgba(150, 180, 210, 0.2) 16%,
+            rgba(150, 180, 210, 0.2) 84%,
+            transparent);
+        background-repeat: no-repeat;
+        background-position: top;
+        background-size: 100% .05rem;
     }
 
     /* ── zone head — the workspace DOOR (LB/RB cap + title + slot tray,
@@ -9259,11 +9347,9 @@ html.con-profile-handheld .con-mafocus {
         align-items: center;
         gap: .3rem;
         margin: 0;
-        /* Instrument-plate bleed (the rows' grammar, one register up): the
-           head line runs into the hull zone so the LONGEST RU title plus
-           the slot tray genuinely fit on one line — the tray flocks to the
-           line's end, on the same axis the row values right-align to. */
-        margin-right: calc(-1 * (var(--con-pad-x, 0rem) + .2rem));
+        /* The tray flocks to the case's inner right line so the LONGEST RU
+           title genuinely fits beside it (runtime-measured, e2e-guarded). */
+        margin-right: -.1rem;
         padding: .05rem .15rem .05rem .1rem;
         border: 0;
         background: none;
@@ -9272,6 +9358,7 @@ html.con-profile-handheld .con-mafocus {
         text-align: left;
         cursor: pointer;
         border-radius: .3rem;
+        transition: box-shadow calc(260ms * var(--motion-scale, 1)) ease;
 
         &:hover .con-strat__title,
         &:focus-visible .con-strat__title { color: #fff; }
@@ -9279,6 +9366,22 @@ html.con-profile-handheld .con-mafocus {
             outline: none;
             box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 60%);
         }
+    }
+    /* ARMED — the zone's action (award funding) is genuinely offered right
+       now: ONE door-level accent (a warm keyline under the head) plus the
+       next free slot's gold rim below. Never a per-row glow: with money and
+       an open slot nearly every unsponsored award is fundable, and a column
+       of pulsing rows carries no information. The accent dies with the
+       offer (no money / no slot / not your window) because `actionable` is
+       server-filtered. */
+    &__head--armed {
+        box-shadow: inset 0 -.08rem 0 -.01rem fade(@strat-gold, 52%);
+
+        .con-strat__title { color: #fff; }
+    }
+    &__head--armed:focus-visible {
+        box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 60%),
+            inset 0 -.08rem 0 -.01rem fade(@strat-gold, 52%);
     }
     &__key {
         display: inline-flex;
@@ -9303,8 +9406,10 @@ html.con-profile-handheld .con-mafocus {
     }
 
     /* The 3-slot diamond tray beside the name — the SAME grammar as the MA
-       workspace header's tally (filled with each taker's colour, hollow
-       while open). Compact: present, readable, never the line's voice. */
+       workspace header's tally. Three states, three materials: a taken slot
+       is the owner's ENAMEL (colour + gloss), an open slot is a neutral
+       METAL contour, and the NEXT open slot takes a soft gold rim while the
+       zone's action is offered — «this is where the next seal lands». */
     &__slots {
         display: inline-flex;
         flex-shrink: 0;
@@ -9323,13 +9428,21 @@ html.con-profile-handheld .con-mafocus {
         transition: background-color calc(260ms * var(--motion-scale, 1)) ease,
             box-shadow calc(260ms * var(--motion-scale, 1)) ease;
 
+        &--set {
+            /* Enamel gloss over the owner colour (the class supplies it). */
+            background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.38), rgba(255, 255, 255, 0) 60%);
+        }
         &--empty {
-            background: rgba(15, 24, 36, 0.9);
-            box-shadow: inset 0 0 0 .07rem fade(@con-cyan, 35%);
+            background: rgba(15, 24, 36, 0.88);
+            box-shadow: inset 0 0 0 .06rem rgba(152, 178, 206, 0.42);
+        }
+        &--next {
+            box-shadow: inset 0 0 0 .06rem fade(@strat-gold, 80%),
+                0 0 .32rem fade(@strat-gold, 45%);
         }
     }
 
-    /* ── the medal stack ── */
+    /* ── the medal stack — OPEN SHELVES, not plated cards ── */
     &__list {
         position: relative; /* the FLIP leave pins against this box */
         flex: 1;
@@ -9338,99 +9451,143 @@ html.con-profile-handheld .con-mafocus {
         flex-direction: column;
         justify-content: space-evenly;
         overflow: hidden;
-        /* Effect breathing: the capsule sits INSIDE the medal box now, but
-           the shoulder gem (top −4%) and the availability halo (−10%) still
-           overhang it — this padding is the reserved zone that keeps them
-           WHOLE against the list's own clip (the first row's plate used to
-           lose its top/left corners exactly here). */
-        padding: .35rem 0 .25rem .2rem;
+        /* Breathing room for what may softly cross a row's bounds: the art's
+           ~5% optical overhang, the shoulder jewel and the state bloom —
+           this padding is the reserved zone that keeps the FIRST and LAST
+           rows' light whole against the list's own clip. */
+        padding: .4rem .05rem .3rem .1rem;
     }
     /* ═══ THE ROW CONTRACT: `medal | flexible | value` ═══
        Every row is a GRID with a RESERVED value column: the medal track is
        fixed, the middle may shrink to nothing, the value track is content-
        sized and can therefore never be clipped or pushed past the rail —
-       whatever the number («14/16», «1006» + owner cubes) or the pose
+       whatever the number («14/16», «1006» + owner chips) or the pose
        (dense/ultra/done). All value blocks right-align on ONE optical axis
-       (the grid's third track edge), which a flex row with two different
-       inner wrappers never guaranteed (milestone cells and award duels
-       drifted 23 logical px apart).
-       THE INSTRUMENT PLATE (the left rail's row grammar, mirrored): the
-       plate bleeds through the hull zone to the physical edge — medal and
-       values stay on the safe content line via the compensating padding.
-       Clipping is safe: the bleed stays inside .con-strat's padding box. */
+       (the grid's third track edge).
+       THE SHELF: rows carry NO plate and NO frame — the shared case is the
+       material, a fading hairline under each row is the shelf, and the
+       medallion's own display puck is the only local surface. The freed
+       chrome went into the medallion's size. */
     &__item {
         position: relative;
         display: grid;
         grid-template-columns: var(--strat-medal) minmax(0, 1fr) auto;
         align-items: center;
-        column-gap: .4rem;
-        margin-right: calc(-1 * (.5rem + var(--con-pad-x, 0vw)));
-        /* Thin vertical padding: five plated rows + head + meta must fit
-           HALF the rail between the beams — the plate may not tax the
-           zone's height budget (the .12rem pair overflowed the fifth row
-           under the bottom beam at 2160). */
-        padding: .08rem calc(.5rem + var(--con-pad-x, 0vw)) .08rem .25rem;
-        border-radius: .4rem 0 0 .4rem;
-        background: rgba(16, 26, 38, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.14);
+        column-gap: .35rem;
+        padding: .04rem .12rem;
         cursor: pointer;
+
+        /* The shelf line — light, fading toward both ends; the last row
+           stands on the case's own bottom edge instead. */
+        &::after {
+            content: '';
+            position: absolute;
+            left: 10%;
+            right: 3%;
+            bottom: -.02rem;
+            height: .05rem;
+            background: linear-gradient(90deg,
+                transparent,
+                rgba(160, 190, 220, 0.14) 22%,
+                rgba(160, 190, 220, 0.14) 72%,
+                transparent);
+            pointer-events: none;
+        }
+        &:last-child::after { display: none; }
+
+        &:hover .con-strat__art { opacity: 1; }
     }
 
-    /* The medal: a layered physical object — owner under-plate, state halo,
-       the art itself, the corner gem, and the one-shot seal kiss.
-       CAPSULE GEOMETRY (polish pass): the glass PLATE fills the medal box
-       (inset 0) and the ART sits slightly inside it — the capsule is part
-       of the row's own layout, so neighbouring rows' opaque plates and the
-       list clip can never amputate its corners (they used to: the plate
-       overhung the box by 7% and the first row's top/left rounded corners
-       were cut flat). Only LIGHT (halo/kiss) may softly cross the box. */
+    /* The medallion: a physical exhibit in layers — state bloom (light),
+       the DISPLAY PUCK (a recessed glass pedestal whose box-shadow rim is
+       the state's functional cue — perf-lite safe), the owner enamel RING,
+       the art itself OVERSIZED past the puck (the emblem is the hero; only
+       light and silhouette may cross the row, never an opaque plate), the
+       shoulder jewel, and the one-shot seal kiss. */
     &__medal {
         position: relative;
         flex-shrink: 0;
         width: var(--strat-medal);
         height: var(--strat-medal);
     }
-    &__plate {
+    &__pedestal {
         position: absolute;
-        inset: 0;
-        border-radius: 26%;
-        opacity: 0.34;
-        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.4);
-    }
-    &__halo {
-        position: absolute;
-        inset: -10%;
+        inset: 4%;
         border-radius: 50%;
-        background: radial-gradient(circle, fade(@con-mint, 30%) 30%, fade(@con-mint, 12%) 58%, transparent 72%);
+        background: radial-gradient(circle at 50% 32%,
+            rgba(44, 62, 84, 0.6),
+            rgba(16, 26, 38, 0.72) 62%,
+            rgba(10, 17, 26, 0.78));
+        box-shadow: @strat-puck-shadow;
+        transition: box-shadow calc(300ms * var(--motion-scale, 1)) ease;
+    }
+    &__bloom {
+        position: absolute;
+        inset: -9%;
+        border-radius: 50%;
+        background: radial-gradient(circle, fade(@con-mint, 26%) 32%, fade(@con-mint, 10%) 58%, transparent 72%);
         opacity: 0;
         transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
     }
+    /* The owner ENAMEL — a thin ring of the player's colour around the puck
+       (the colour class supplies the fill; the mask turns it into a rim).
+       An accent, never a wash: the medal keeps its dark premium material. */
+    &__plate {
+        position: absolute;
+        inset: 2%;
+        border-radius: 50%;
+        opacity: 0.8;
+        -webkit-mask: radial-gradient(closest-side, transparent 70%, #000 76%, #000 94%, transparent 100%);
+        mask: radial-gradient(closest-side, transparent 70%, #000 76%, #000 94%, transparent 100%);
+    }
     &__art {
         position: absolute;
-        /* Inside the capsule — the optical-fit map (maArtFitStyle) sizes the
-           TRIMMED art against THIS box, so every medal carries equal visual
-           mass whatever its asset's transparent margins. The inset is a
-           hair, not a frame: the glass reads in the corners the (hexagonal)
-           medal art leaves open. */
-        inset: 2%;
+        /* OVERSIZED past the puck: the optical-fit map (maArtFitStyle) sizes
+           the TRIMMED art against THIS box, so every medal carries equal
+           visual mass whatever its asset's transparent margins — and the box
+           itself outgrows the medal track by ~5% a side, letting the
+           silhouette breathe over the shelf line. */
+        inset: -5.5%;
         background-repeat: no-repeat;
         background-position: center;
         background-size: contain;
-        transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
+        filter: drop-shadow(0 .12rem .22rem rgba(0, 0, 0, 0.55));
+        transition: opacity calc(300ms * var(--motion-scale, 1)) ease,
+            transform calc(300ms * var(--motion-scale, 1)) ease;
     }
-    /* The owner gem — the tray's diamond at full strength, seated on the
-       medal's shoulder: the enamel proof of WHO sealed it. */
+    /* The shoulder jewel — the tray's diamond at full strength, pinned on
+       the medal's shoulder: the enamel proof of WHO sealed it. On awards it
+       is the SPONSOR's seal and takes a metal mount (zone rule below). */
     &__gem {
         position: absolute;
-        top: -4%;
-        right: -7%;
-        width: .58rem;
-        height: .58rem;
+        top: -2%;
+        right: -3%;
+        width: .54rem;
+        height: .54rem;
         border-radius: .12rem;
         transform: rotate(45deg);
+        background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0) 58%);
         box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5), 0 .1rem .3rem rgba(0, 0, 0, 0.5);
     }
-    &__gem--me { box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5), 0 0 0 .08rem rgba(255, 255, 255, 0.8); }
+    &__gem--me { box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5), 0 0 0 .08rem rgba(255, 255, 255, 0.8), 0 .1rem .3rem rgba(0, 0, 0, 0.5); }
+    /* The sponsor's seal sits at the ribbon corner with a warm metal mount —
+       pinned to the emblem's periphery, never over its centre. */
+    &__zone--awards .con-strat__gem {
+        top: auto;
+        bottom: 0;
+        right: -2%;
+        width: .6rem;
+        height: .6rem;
+        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5),
+            0 0 0 .09rem fade(@strat-gold, 42%),
+            0 .1rem .3rem rgba(0, 0, 0, 0.55);
+    }
+    &__zone--awards .con-strat__gem--me {
+        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5),
+            0 0 0 .09rem fade(@strat-gold, 42%),
+            0 0 0 .16rem rgba(255, 255, 255, 0.75),
+            0 .1rem .3rem rgba(0, 0, 0, 0.55);
+    }
     &__kiss {
         position: absolute;
         inset: -8%;
@@ -9440,28 +9597,63 @@ html.con-profile-handheld .con-mafocus {
         pointer-events: none;
     }
 
-    /* ── item states ── */
-    /* Available RIGHT NOW (server-offered): the mint halo breathes. */
-    &__item--now .con-strat__halo {
-        opacity: 1;
-        animation: strat-now-pulse calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
+    /* ── item states — a RIM plus a bloom, never a blurry wash ── */
+    /* Available RIGHT NOW (server-offered): a clean emerald rim on the puck,
+       a soft inner bloom, and a slow breath on the bloom's light only. The
+       rim survives prefers-reduced-motion AND perf-lite (box-shadow). */
+    &__item--now {
+        .con-strat__pedestal {
+            box-shadow: @strat-puck-shadow,
+                0 0 0 .07rem fade(@con-mint, 82%),
+                inset 0 0 .5rem fade(@con-mint, 22%);
+        }
+        .con-strat__bloom {
+            opacity: 0.6;
+            animation: strat-now-pulse calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
+        }
     }
     /* Condition met but not offered on this frame (opponent's turn, mid-
-       action): the SAME mint presence, steady — yours, waiting; not an error. */
-    &__item--ready .con-strat__halo { opacity: 0.5; }
+       action): the SAME emerald presence, steady and quieter — yours,
+       waiting; never an error. */
+    &__item--ready {
+        .con-strat__pedestal {
+            box-shadow: @strat-puck-shadow,
+                0 0 0 .06rem fade(@con-mint, 48%),
+                inset 0 0 .4rem fade(@con-mint, 14%);
+        }
+        .con-strat__bloom { opacity: 0.3; }
+    }
     /* An unsponsored award is a quieter object than a sponsored one. */
-    &__item--quiet .con-strat__art { opacity: 0.74; }
+    &__item--quiet .con-strat__art { opacity: 0.76; }
 
-    /* ── the value cell (milestones: MY count toward the threshold) ──
+    /* ── the value cell (milestones, open: MY count toward the threshold) ──
        Lives in the row grid's RESERVED third track: content-sized, right-
-       aligned on the shared optical axis, unclippable by construction. */
+       aligned on the shared optical axis, unclippable by construction. The
+       CURRENT value is the voice; the requirement recedes; a hairline METER
+       under the numbers carries the same fact non-verbally — integrated
+       into the value block, never a standalone progress bar. */
     &__cell {
         grid-column: 3;
+        grid-row: 1;
         justify-self: end;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: .14rem;
+        white-space: nowrap;
+    }
+    &__val {
         display: inline-flex;
         align-items: baseline;
         gap: .08rem;
-        white-space: nowrap;
+    }
+    &__readymark {
+        font-style: normal;
+        font-size: .56rem;
+        font-weight: 900;
+        color: @con-mint;
+        margin-right: .06rem;
+        align-self: center;
     }
     &__num {
         display: inline-block;
@@ -9480,13 +9672,90 @@ html.con-profile-handheld .con-mafocus {
         font-style: normal;
         font-size: .62rem;
         font-weight: 400;
-        color: @con-text-dim;
+        color: fade(@con-text-dim, 88%);
+    }
+    &__meter {
+        display: block;
+        width: 2.35rem;
+        height: .09rem;
+        border-radius: .05rem;
+        background: rgba(190, 215, 240, 0.13);
+        overflow: hidden;
+    }
+    &__meter-fill {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: linear-gradient(90deg, fade(@con-cyan, 50%), fade(@con-cyan, 85%));
+        transition: width calc(400ms * var(--motion-scale, 1)) ease;
+    }
+    &__item--ready .con-strat__meter-fill,
+    &__item--now .con-strat__meter-fill {
+        background: linear-gradient(90deg, fade(@con-mint, 55%), fade(@con-mint, 90%));
     }
 
-    /* ── the award duel: leader above, chaser below ──
-       Same reserved third track as the milestone cell — one value axis. */
+    /* ── the OWNER SEAL (milestones, taken): the enamel crystal + the check
+       + the word, in the SAME reserved third track the numbers held — the
+       right zone is never left empty, and the state reads by shape and
+       word, never by colour alone. A thin gold fixation frames it: a
+       completed, mounted trophy — not a disabled row. ── */
+    &__ownseal {
+        grid-column: 3;
+        grid-row: 1;
+        justify-self: end;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .1rem;
+        padding: .12rem .28rem .1rem;
+        border-radius: .35rem;
+        background: rgba(10, 17, 27, 0.55);
+        box-shadow: inset 0 0 0 .05rem fade(@strat-gold, 30%), 0 .1rem .3rem rgba(0, 0, 0, 0.4);
+    }
+    &__ownseal-gem {
+        position: relative;
+        width: .92rem;
+        height: .92rem;
+        margin: .1rem;
+        border-radius: .2rem;
+        transform: rotate(45deg);
+        background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0) 56%);
+        box-shadow: inset 0 0 0 .06rem rgba(0, 0, 0, 0.5), 0 .1rem .3rem rgba(0, 0, 0, 0.5);
+    }
+    &__ownseal--mine .con-strat__ownseal-gem {
+        box-shadow: inset 0 0 0 .06rem rgba(0, 0, 0, 0.5),
+            0 0 0 .08rem rgba(255, 255, 255, 0.82),
+            0 .1rem .3rem rgba(0, 0, 0, 0.5);
+    }
+    &__ownseal-check {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transform: rotate(-45deg);
+        font-size: .56rem;
+        font-weight: 900;
+        color: rgba(255, 255, 255, 0.94);
+    }
+    &__ownseal-word {
+        font-size: .5rem;
+        font-weight: 700;
+        letter-spacing: .09rem;
+        text-transform: uppercase;
+        color: fade(#e7d6ac, 90%);
+        /* The tracked caps keep their tail inside the block. */
+        margin-right: -.09rem;
+    }
+
+    /* ── the award MICRO-PODIUM: two steps in the reserved third track ──
+       Rank is a metallic plaque (gold «I» / silver «II»), the player is an
+       enamel chip, the value is the number — three voices, never mixed.
+       Hierarchy by typography and material, NOT by a transform (the FLIP
+       move animates the unit's transform, so scaling here would fight it). */
     &__race-wrap {
         grid-column: 3;
+        grid-row: 1;
         justify-self: end;
         min-width: 0;
     }
@@ -9495,38 +9764,80 @@ html.con-profile-handheld .con-mafocus {
         display: flex;
         flex-direction: column;
         align-items: flex-end;
-        gap: .12rem;
+        justify-content: center;
+        gap: .14rem;
+        /* Two steps stay RESERVED: a chaser arriving/leaving must never
+           reflow the row (and a lone leader centres in the same box). */
+        min-height: calc(var(--strat-num) * 1.2 + var(--strat-num2) * 1.2 + .14rem);
     }
     &__unit { display: inline-flex; }
     &__unitbody {
         display: inline-flex;
         align-items: center;
         gap: .18rem;
-        transform: scale(0.8);
-        transform-origin: right center;
-        opacity: 0.66;
-        transition: transform calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
-            opacity calc(340ms * var(--motion-scale, 1)) ease;
 
-        &--lead {
-            transform: none;
-            opacity: 1;
-        }
         .con-strat__num { font-size: var(--strat-num2); }
-        &--lead .con-strat__num { font-size: var(--strat-num); }
+        &--i .con-strat__num { font-size: var(--strat-num); }
+        &--ii { opacity: 0.94; }
+        /* A group the rules would NOT pay (tie for 1st / a duel): a plain
+           chaser — visible pursuit, no rank plaque, quieter voice. */
+        &--chase { opacity: 0.66; }
     }
+    &__rank {
+        flex-shrink: 0;
+        width: .92rem;
+        height: .76rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: .16rem;
+        font-style: normal;
+        font-size: .5rem;
+        font-weight: 800;
+        letter-spacing: .02rem;
+        line-height: 1;
+    }
+    &__rank--i {
+        background: linear-gradient(180deg, #93713a, #5d451f 85%);
+        box-shadow: inset 0 .05rem 0 rgba(255, 230, 170, 0.45),
+            inset 0 -.05rem 0 rgba(0, 0, 0, 0.35),
+            0 .08rem .2rem rgba(0, 0, 0, 0.4);
+        color: #ffe8b8;
+    }
+    &__rank--ii {
+        background: linear-gradient(180deg, #5b6b7c, #38444f 85%);
+        box-shadow: inset 0 .05rem 0 rgba(225, 240, 255, 0.4),
+            inset 0 -.05rem 0 rgba(0, 0, 0, 0.35),
+            0 .08rem .2rem rgba(0, 0, 0, 0.4);
+        color: #e3edf7;
+        font-size: .46rem; /* «II» — two glyphs in the same fixed box */
+    }
+    &__chips {
+        display: inline-flex;
+        align-items: center;
+        gap: .1rem;
+    }
+    /* The player chip — the project's enamel-crystal language (the rotated
+       diamond of the tray and the seals), never a bare square. */
     &__cube {
         flex-shrink: 0;
-        width: .55rem;
-        height: .55rem;
-        border-radius: .14rem;
-        box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.45);
+        width: .5rem;
+        height: .5rem;
+        margin: .07rem;
+        border-radius: .13rem;
+        transform: rotate(45deg);
+        background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 60%);
+        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.45), 0 .06rem .18rem rgba(0, 0, 0, 0.4);
 
-        &--me { box-shadow: 0 0 0 .08rem rgba(255, 255, 255, 0.75); }
+        &--me {
+            box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.45),
+                0 0 0 .07rem rgba(255, 255, 255, 0.8),
+                0 .06rem .18rem rgba(0, 0, 0, 0.4);
+        }
     }
     &__morecnt {
-        font-size: .58rem;
-        font-weight: 700;
+        font-size: .56rem;
+        font-weight: 800;
         color: @con-text-dim;
     }
     &__none {
@@ -9535,28 +9846,41 @@ html.con-profile-handheld .con-mafocus {
     }
 
     /* ── the SEAL — the claim/fund landing on the rail (one beat, both
-       kinds): the owner plate stamps in from above the surface, the gem
-       sets with an overshoot, one kiss of light crosses the medal, and a
-       milestone's value line hands its job to the enamel. ── */
+       kinds): the art takes a short metallic impulse, the active emerald
+       light COLLECTS inward, the owner's enamel ring stamps in, the jewel
+       sets with an overshoot, one kiss of light crosses the medal — and a
+       milestone's numbers hand their place to the OWNER SEAL, which lands
+       into the value zone as the beat's final fixation. ── */
     &__item--sealing {
+        .con-strat__art { animation: strat-seal-art calc(950ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both; }
         .con-strat__plate { animation: strat-seal-plate calc(950ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both; }
         .con-strat__gem { animation: strat-seal-gem calc(950ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.56, 0.64, 1) both; }
         .con-strat__kiss { animation: strat-seal-kiss calc(950ms * var(--motion-scale, 1)) ease-out both; }
-        .con-strat__cell { animation: strat-seal-cell calc(520ms * var(--motion-scale, 1)) ease both; }
-        .con-strat__halo { opacity: 0; animation: none; }
+        .con-strat__cell { animation: strat-seal-cell calc(460ms * var(--motion-scale, 1)) ease both; }
+        .con-strat__ownseal {
+            animation: strat-seal-stamp calc(680ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both;
+            animation-delay: calc(240ms * var(--motion-scale, 1));
+        }
+        .con-strat__bloom { opacity: 0; animation: none; }
+        .con-strat__pedestal { box-shadow: @strat-puck-shadow; }
+    }
+    /* Only MY claim had the emerald light on this screen — the collect-
+       inward beat therefore plays only for it (a rival's seal on a row
+       that never glowed must not flash mint). */
+    &__item--sealing&__item--mine .con-strat__bloom {
+        animation: strat-seal-bloomout calc(480ms * var(--motion-scale, 1)) ease both;
     }
 
     /* ── the COMPLETED poses — same box, a different composition ── */
     /* Milestones 3/3: a fixed TROPHY column — the three sealed medals,
        larger, centred, owner enamel carrying the whole read. The race is
-       OVER, so no values return. */
+       OVER, so no values return (the template already drops the seals). */
     &__zone--milestones&__zone--done {
         --strat-medal: 4.9rem;
 
         /* The trophy pose leaves the row contract: no value column exists
            any more, so the item recomposes as a centred flex exhibit. */
         .con-strat__item { display: flex; justify-content: center; }
-        .con-strat__cell { display: none; }
         .con-strat__gem { width: .78rem; height: .78rem; }
     }
     /* Awards 3/3: a LIVE scoreboard of three races — bigger medals AND
@@ -9566,15 +9890,13 @@ html.con-profile-handheld .con-mafocus {
         --strat-num: 1.18rem;
         --strat-num2: .95rem;
 
-        .con-strat__gem { width: .74rem; height: .74rem; }
+        .con-strat__gem { width: .68rem; height: .68rem; }
         .con-strat__race { gap: .18rem; }
     }
-    /* A COMPLETED zone is a celebration, not a table: the service noise is
-       gone (values / price already leave with the pose) and the plates
-       warm toward the trophy gold — the sealed objects carry the read. */
-    &__zone--done .con-strat__item {
-        background: linear-gradient(90deg, rgba(40, 32, 15, 0.35), rgba(16, 26, 38, 0.6) 58%);
-        box-shadow: inset 0 0 0 .05rem rgba(232, 194, 104, 0.2);
+    /* A COMPLETED zone is a celebration, not a table: the pucks warm toward
+       the trophy gold — the sealed objects carry the read; no plate returns. */
+    &__zone--done .con-strat__pedestal {
+        box-shadow: @strat-puck-shadow, 0 0 0 .05rem rgba(232, 194, 104, 0.3);
     }
 
     /* The pose ARRIVAL (a transient class while the recomposition plays):
@@ -9583,10 +9905,15 @@ html.con-profile-handheld .con-mafocus {
 }
 
 /* The seal keyframes (transform/opacity only — perf-lite safe). */
+@keyframes strat-seal-art {
+    0% { transform: none; }
+    30% { transform: scale(1.05); }
+    100% { transform: none; }
+}
 @keyframes strat-seal-plate {
     0% { opacity: 0; transform: scale(1.28); }
-    45% { opacity: 0.44; transform: scale(0.985); }
-    100% { opacity: 0.34; transform: none; }
+    55% { opacity: 0.9; transform: scale(0.985); }
+    100% { opacity: 0.8; transform: none; }
 }
 @keyframes strat-seal-gem {
     0% { opacity: 0; transform: rotate(45deg) scale(2.3); }
@@ -9603,9 +9930,20 @@ html.con-profile-handheld .con-mafocus {
     0% { opacity: 1; }
     100% { opacity: 0; }
 }
+/* The owner seal STAMPS into the value zone (scale-settle, one shot). */
+@keyframes strat-seal-stamp {
+    0% { opacity: 0; transform: scale(1.4); }
+    60% { opacity: 1; transform: scale(0.96); }
+    100% { opacity: 1; transform: none; }
+}
+/* The active emerald light collects INWARD as the seal takes over. */
+@keyframes strat-seal-bloomout {
+    0% { opacity: 0.5; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0.82); }
+}
 @keyframes strat-now-pulse {
-    0%, 100% { opacity: 0.55; }
-    50% { opacity: 1; }
+    0%, 100% { opacity: 0.32; }
+    50% { opacity: 0.7; }
 }
 @keyframes strat-tick {
     0% { transform: scale(1.26); }
@@ -9616,7 +9954,9 @@ html.con-profile-handheld .con-mafocus {
     100% { transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-    .con-strat__item--now .con-strat__halo { animation: none; }
+    /* The breath stops; the rim, the mark and the contrast keep carrying
+       the availability read on their own. */
+    .con-strat__item--now .con-strat__bloom { animation: none; }
 }
 
 /* The recomposition's TransitionGroup classes: survivors FLIP (move),
@@ -24717,21 +25057,35 @@ html.con-profile-handheld {
     }
 
     /* P30: the right STRATEGY RAIL packs to the Deck rail width — the
-       medal stacks compress a step; nothing scrolls. */
-    .con-strat { padding: .35rem .35rem .4rem; }
-    .con-strat__zone { --strat-medal: 2.25rem; --strat-num: .85rem; --strat-num2: .72rem; }
-    .con-strat__zone--dense { --strat-medal: 1.85rem; }
-    .con-strat__zone--ultra { --strat-medal: 1.5rem; }
-    .con-strat__zone--milestones.con-strat__zone--done { --strat-medal: 3.1rem; }
-    .con-strat__zone--awards.con-strat__zone--done { --strat-medal: 2.6rem; --strat-num: .95rem; --strat-num2: .8rem; }
+       medal stacks compress a step; nothing scrolls. The shorthand REPEATS
+       the case-edge compensation (a bare padding here would strip it). */
+    .con-strat {
+        padding: .35rem calc(var(--strat-edge) + .32rem) .4rem .35rem;
+        --strat-spine-w: .12rem;
+    }
+    .con-strat__case { top: .22rem; bottom: .22rem; left: .2rem; border-radius: .45rem 0 0 .45rem; }
+    .con-strat__spine { top: .22rem; bottom: .22rem; }
+    .con-strat__list { padding: .3rem .04rem .24rem .08rem; }
+    .con-strat__zone { --strat-medal: 2.45rem; --strat-num: .85rem; --strat-num2: .72rem; }
+    .con-strat__zone--dense { --strat-medal: 2rem; }
+    .con-strat__zone--ultra { --strat-medal: 1.55rem; }
+    .con-strat__zone--milestones.con-strat__zone--done { --strat-medal: 3.2rem; }
+    .con-strat__zone--awards.con-strat__zone--done { --strat-medal: 2.7rem; --strat-num: .95rem; --strat-num2: .8rem; }
     .con-strat__title { font-size: .52rem; letter-spacing: .05rem; }
     .con-strat__key .gp-glyph { min-width: 1.15rem; height: .82rem; font-size: .45rem; }
     .con-strat__pip { width: .42rem; height: .42rem; }
-    .con-strat__price b { font-size: .68rem; }
-    .con-strat__price .resource_icon { width: .72rem; height: .72rem; }
-    .con-strat__gem { width: .5rem; height: .5rem; }
-    .con-strat__cube { width: .46rem; height: .46rem; }
+    .con-strat__gem { width: .46rem; height: .46rem; }
+    .con-strat__zone--awards .con-strat__gem { width: .5rem; height: .5rem; }
+    .con-strat__cube { width: .42rem; height: .42rem; margin: .06rem; }
     .con-strat__req { font-size: .52rem; }
+    .con-strat__rank { width: .78rem; height: .64rem; font-size: .42rem; }
+    .con-strat__rank--ii { font-size: .4rem; }
+    .con-strat__readymark { font-size: .48rem; }
+    .con-strat__meter { width: 1.9rem; height: .08rem; }
+    .con-strat__ownseal { padding: .1rem .22rem .08rem; gap: .08rem; }
+    .con-strat__ownseal-gem { width: .74rem; height: .74rem; margin: .08rem; }
+    .con-strat__ownseal-check { font-size: .46rem; }
+    .con-strat__ownseal-word { font-size: .42rem; letter-spacing: .07rem; margin-right: -.07rem; }
     .con-banner { font-size: .75rem; padding: .25rem .6rem; }
     /* (The terraforming ceremony's handheld sizes live next to its own
        block — see `html.con-profile-handheld .con-terracere`.) */
@@ -25376,11 +25730,17 @@ html.con-profile-large {
     .con-journal__gen-label b { font-size: 1rem; }
     .con-journal__filterpop-row { font-size: .85rem; }
     /* P30 · the strategy rail — a gentle readability boost only. */
-    .con-strat__zone { --strat-num: 1.05rem; --strat-num2: .88rem; }
-    .con-strat__zone--awards.con-strat__zone--done { --strat-num: 1.18rem; --strat-num2: .98rem; }
+    .con-strat__zone { --strat-num: 1.12rem; --strat-num2: .92rem; }
+    .con-strat__zone--awards.con-strat__zone--done { --strat-num: 1.22rem; --strat-num2: 1rem; }
     .con-strat__title { font-size: .72rem; }
-    .con-strat__cube { width: .62rem; height: .62rem; }
+    .con-strat__cube { width: .56rem; height: .56rem; }
     .con-strat__req { font-size: .68rem; }
+    .con-strat__rank { width: 1rem; height: .82rem; font-size: .54rem; }
+    .con-strat__rank--ii { font-size: .5rem; }
+    .con-strat__meter { width: 2.55rem; }
+    .con-strat__ownseal-gem { width: 1rem; height: 1rem; }
+    .con-strat__ownseal-check { font-size: .6rem; }
+    .con-strat__ownseal-word { font-size: .56rem; }
     .con-task__title { font-size: 1.5rem; }
     /* THE EMBEDDED STAGE LADDER — ONE set of numbers for BOTH stages (buy and
        drawn reveal carry the same chassis classes). Declared after the task /

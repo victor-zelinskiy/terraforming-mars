@@ -262,21 +262,39 @@ html.con-profile-tv {
        the optical-fit normalisation) went into the medal tokens. Sizes are
        the SOLVED per-pose maxima: N items × (medal + row padding) must fit
        the zone list between the beams (runtime-measured at 2160). */
-    .con-strat__zone { --strat-medal: 4.15rem; --strat-num: 1.4rem; --strat-num2: 1.1rem; }
-    .con-strat__zone--dense { --strat-medal: 3.45rem; }
+    /* TROPHY-GALLERY pass: the row plates are gone (open shelves on one
+       case), so the freed padding went back into the medals — sizes stay
+       the SOLVED per-pose maxima against the zone list at 2160. */
+    .con-strat__zone { --strat-medal: 4.2rem; --strat-num: 1.4rem; --strat-num2: 1.1rem; }
+    .con-strat__zone--dense { --strat-medal: 3.5rem; }
     .con-strat__zone--ultra { --strat-medal: 2.05rem; }
     .con-strat__zone--milestones.con-strat__zone--done { --strat-medal: 5.6rem; }
     .con-strat__zone--awards.con-strat__zone--done { --strat-medal: 4.9rem; --strat-num: 1.5rem; --strat-num2: 1.2rem; }
     /* Couch title, calmer tracking: at the TV rem the base .045rem tracking
-       alone costs ~18px on «ДОСТИЖЕНИЯ» — the exact 7px that ellipsized it. */
+       alone costs ~18px on «ДОСТИЖЕНИЯ» — the exact 7px that ellipsized it.
+       The head's negative margin tucks the tray into the case's inner right
+       zone so the longest RU title keeps clear of the ellipsis (e2e-guarded). */
     .con-strat__title { font-size: var(--con-t-caption); letter-spacing: .028rem; }
-    .con-strat__head { gap: .26rem; }
+    .con-strat__head { gap: .22rem; margin-right: -.26rem; }
     .con-strat__key .gp-glyph { min-width: 1.5rem; height: 1.3rem; font-size: var(--con-t-floor); }
-    .con-strat__pip { width: 0.55rem; height: 0.55rem; }
-    .con-strat__gem { width: 0.82rem; height: 0.82rem; }
-    .con-strat__cube { width: 0.8rem; height: 0.8rem; }
+    .con-strat__slots { gap: .22rem; padding-left: .22rem; }
+    .con-strat__pip { width: 0.5rem; height: 0.5rem; }
+    .con-strat__gem { width: 0.78rem; height: 0.78rem; }
+    .con-strat__zone--awards .con-strat__gem { width: 0.88rem; height: 0.88rem; }
+    .con-strat__cube { width: 0.72rem; height: 0.72rem; margin: .1rem; }
     .con-strat__req { font-size: 0.9rem; }
     .con-strat__none { font-size: 0.95rem; }
+    /* The couch-readable seal, podium and meter — every label at or above
+       the §3.4 type floor (guarded by consoleTvTypeFloor.spec.ts): «ВЗЯТО»
+       is a WORD and the ranks are plaques, never microtext at 4K. */
+    .con-strat__ownseal { padding: .16rem .38rem .14rem; gap: .12rem; }
+    .con-strat__ownseal-gem { width: 1.28rem; height: 1.28rem; margin: .14rem; }
+    .con-strat__ownseal-check { font-size: .8rem; }
+    .con-strat__ownseal-word { font-size: .8rem; letter-spacing: .09rem; margin-right: -.09rem; }
+    .con-strat__rank { width: 1.38rem; height: 1.08rem; font-size: .8rem; border-radius: .2rem; }
+    .con-strat__readymark { font-size: .8rem; }
+    .con-strat__meter { width: 3rem; height: .12rem; }
+    .con-strat__morecnt { font-size: .8rem; }
     /* The journal header controls — real key caps, not specks (their base
        compact sizes out-specify the global §0b floor). */
     .con-journal__controls .gp-glyph { min-width: 1.55rem; height: 1.25rem; font-size: var(--con-t-floor); }

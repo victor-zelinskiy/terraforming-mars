@@ -149,6 +149,14 @@ test.describe('console strategy rail — 4K TV profile', () => {
       expect(box!.x).toBeGreaterThanOrEqual(right.x - 1);
       expect(box!.x + box!.width).toBeLessThanOrEqual(right.x + right.width + 1);
     }
+    // The couch title never ellipsizes — a claim asserted at ONE resolution
+    // is a claim about one resolution, and the TV rem is where «ДОСТИЖЕНИЯ»
+    // actually ran out of line once.
+    const titleDeficits = await page.evaluate(() =>
+      [...document.querySelectorAll('.con-strat__title')].map((t) => t.scrollWidth - t.clientWidth));
+    for (const d of titleDeficits) {
+      expect(d, 'zone title fully visible at 4K (no ellipsis)').toBeLessThanOrEqual(1);
+    }
     await page.screenshot({path: 'screenshots/strategy-rail/tv4k-home.png'});
   });
 });

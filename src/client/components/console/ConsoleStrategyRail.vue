@@ -1,5 +1,15 @@
 <template>
   <aside class="con-strat" :aria-label="$t('Milestones') + ' · ' + $t('Awards')">
+    <!-- THE DISPLAY CASE + THE SPINE — the rail's own finished body. The
+         chassis still runs full-bleed to the physical edge (the hull member),
+         but the VISIBLE composition ends inside the viewport: one glass
+         display plane (the case) mounted onto a metallic support (the spine)
+         that stands just off the screen edge. The right border, both
+         terminators and the case shadow are all inside the frame — the glass
+         no longer reads as cropped by the viewport. -->
+    <i class="con-strat__case" aria-hidden="true"></i>
+    <i class="con-strat__spine" aria-hidden="true"></i>
+
     <!-- ADAPTIVE POSES: the medal scale follows the item count. The dense
          step starts at SIX items (not seven) — the enlarged base medal is
          sized so the standard five fill the zone's height; a sixth would
@@ -16,11 +26,16 @@
            every state (open / completed) — it is the door, not a status.
            ONE compact line: glyph · title · the 3-slot diamond tray (the SAME
            grammar as the workspace header's tally — filled with each taker's
-           colour). The old separate system line (tray + live price) is gone:
-           the PRICE belongs to the workspace where the decision is made; the
-           HUD keeps only the standing facts, and the freed row went to the
-           medals below. -->
+           colour). The PRICE stays deliberately absent: it belongs to the
+           workspace where the decision is made.
+           ARMED (awards): funding is offered RIGHT NOW — the accent lives at
+           the ACTION level (a gold keyline under the door + the next free
+           slot's gold rim), never as a per-row glow: with money and a slot,
+           nearly every unsponsored award is fundable, and a column of glowing
+           rows says nothing. Milestones keep their per-row emerald language
+           (the server offers only the ones actually met). -->
       <button type="button" class="con-strat__head"
+              :class="{'con-strat__head--armed': z.armed}"
               :aria-label="$t(z.title)"
               @click="$emit('open', z.kind)">
         <span class="con-strat__key" aria-hidden="true"><GamepadGlyph :control="z.glyph" /></span>
@@ -28,7 +43,7 @@
         <span class="con-strat__slots" aria-hidden="true">
           <i v-for="(c, i) in z.zone.slots" :key="i"
              class="con-strat__pip"
-             :class="c !== undefined ? 'player_bg_color_' + c : 'con-strat__pip--empty'"></i>
+             :class="pipClass(z, c, i)"></i>
         </span>
       </button>
 
@@ -47,13 +62,17 @@
              :aria-label="rowHint(z, row)"
              role="button" tabindex="-1"
              @click="$emit('open', z.kind)">
+          <!-- The medallion: a physical exhibit on its own display puck.
+               Layers, bottom-up: state bloom (light) → pedestal (the puck,
+               whose box-shadow rim is the state's functional cue) → owner
+               enamel ring (taken) → the art, oversized past the puck — the
+               emblem is the hero and may softly overlap the shelf line —
+               → the shoulder jewel (owner/sponsor) → the seal's light kiss. -->
           <span class="con-strat__medal">
-            <!-- Owner enamel: an under-plate washed in the owner's colour +
-                 the corner gem (the tray's diamond, full strength). Present
-                 only once taken — the seal animation brings both in. -->
+            <i class="con-strat__bloom" aria-hidden="true"></i>
+            <i class="con-strat__pedestal" aria-hidden="true"></i>
             <i v-if="row.showTaken" class="con-strat__plate"
                :class="'player_bg_color_' + row.takenColor" aria-hidden="true"></i>
-            <i class="con-strat__halo" aria-hidden="true"></i>
             <i class="con-strat__art" :style="artStyle(row.name)" aria-hidden="true"></i>
             <i v-if="row.showTaken" class="con-strat__gem"
                :class="['player_bg_color_' + row.takenColor, {'con-strat__gem--me': row.takenColor === viewerColor}]"
@@ -61,31 +80,62 @@
             <i class="con-strat__kiss" aria-hidden="true"></i>
           </span>
 
-          <!-- MILESTONES: my own count toward the threshold — the one number
-               that matters here; everything richer lives in the workspace. -->
+          <!-- MILESTONES, open: my own count toward the threshold — the
+               CURRENT value is the line's voice, the requirement recedes, and
+               a hairline meter under the numbers carries the same fact
+               non-verbally (integrated into the value block, never a bar). -->
           <span v-if="z.kind === 'milestones' && row.my !== undefined" class="con-strat__cell">
             <template v-if="row.my.conditional">
               <b class="con-strat__num" :class="numClasses(z, row, 'my')">{{ row.my.ready ? '✓' : '—' }}</b>
             </template>
             <template v-else>
-              <b class="con-strat__num" :class="numClasses(z, row, 'my')">{{ row.my.score }}</b>
-              <i v-if="row.my.threshold !== undefined" class="con-strat__req">/{{ row.my.threshold }}</i>
+              <span class="con-strat__val">
+                <i v-if="row.ready" class="con-strat__readymark" aria-hidden="true">✓</i>
+                <b class="con-strat__num" :class="numClasses(z, row, 'my')">{{ row.my.score }}</b>
+                <i v-if="row.my.threshold !== undefined" class="con-strat__req">/{{ row.my.threshold }}</i>
+              </span>
+              <i v-if="row.my.threshold !== undefined" class="con-strat__meter" aria-hidden="true">
+                <i class="con-strat__meter-fill" :style="meterStyle(row)"></i>
+              </i>
             </template>
           </span>
 
-          <!-- AWARDS: the live duel — leader above, chaser below. Hierarchy is
-               position + size + weight, never a per-row crown. A tie shows up
-               to two cubes, then «+N»; the viewer's cube is rimmed white. -->
-          <span v-else-if="z.kind === 'awards'" class="con-strat__race-wrap">
+          <!-- MILESTONES, taken: the OWNER SEAL — the enamel crystal, the
+               check and the word, carrying the visual weight the number block
+               held before the claim. The right zone is never left empty; the
+               row never becomes a colour wash. During the seal beat it shares
+               the grid cell with the fading held numbers (a stamp landing
+               over a dissolving count — one motion, two layers). -->
+          <span v-if="z.kind === 'milestones' && row.showTaken && !z.composed"
+                class="con-strat__ownseal"
+                :class="{'con-strat__ownseal--mine': row.takenColor === viewerColor}">
+            <i class="con-strat__ownseal-gem"
+               :class="'player_bg_color_' + row.takenColor" aria-hidden="true"><b
+                 class="con-strat__ownseal-check">✓</b></i>
+            <span class="con-strat__ownseal-word">{{ $t('Taken') }}</span>
+          </span>
+
+          <!-- AWARDS: the two-step MICRO-PODIUM. Rank is a metallic plaque
+               (gold «I» / silver «II»), the player is an enamel chip, the
+               value is the number — three separate voices, never mixed. A
+               group that would NOT score (a tie for 1st kills the 2nd place;
+               a duel only pays 1st) renders as a plain CHASER: no plaque, no
+               silver — the pursuit stays visible, the rank stays honest. -->
+          <span v-if="z.kind === 'awards'" class="con-strat__race-wrap">
             <TransitionGroup tag="span" class="con-strat__race"
                              :name="motion ? 'con-strat-race' : ''"
                              :css="motion"
                              @before-leave="pinLeaving">
               <span v-for="u in row.units" :key="u.key" class="con-strat__unit">
-                <span class="con-strat__unitbody" :class="{'con-strat__unitbody--lead': u.lead}">
-                  <i v-for="c in u.cubes" :key="c" class="con-strat__cube"
-                     :class="['player_bg_color_' + c, {'con-strat__cube--me': c === viewerColor}]"></i>
-                  <span v-if="u.more > 0" class="con-strat__morecnt">+{{ u.more }}</span>
+                <span class="con-strat__unitbody"
+                      :class="['con-strat__unitbody--' + u.rank, {'con-strat__unitbody--lead': u.lead}]">
+                  <i v-if="u.rank !== 'chase'" class="con-strat__rank"
+                     :class="'con-strat__rank--' + u.rank" aria-hidden="true">{{ u.lead ? 'I' : 'II' }}</i>
+                  <span class="con-strat__chips">
+                    <i v-for="c in u.cubes" :key="c" class="con-strat__cube"
+                       :class="['player_bg_color_' + c, {'con-strat__cube--me': c === viewerColor}]"></i>
+                    <span v-if="u.more > 0" class="con-strat__morecnt">+{{ u.more }}</span>
+                  </span>
                   <b class="con-strat__num" :class="numClasses(z, row, u.key)">{{ u.score }}</b>
                 </span>
               </span>
@@ -109,11 +159,14 @@
  * richer — conditions, rival progress, funding — lives in the workspaces the
  * LB/RB caps (and any click here) open.
  *
- * GEOMETRY: the rail is the LEFT resource rail's twin — same width token
- * (`--con-rail-w`), same glass, so the board reads as centred between two
- * equal instruments. Each zone owns a FIXED half of the rail (flex: 1 1 0):
- * the 3/3 recomposition redistributes INSIDE that box (keyed leave + FLIP
- * move + the trophy pose), so the rail's outer geometry can never jump.
+ * GEOMETRY: the rail is the LEFT resource rail's twin in FOOTPRINT — same
+ * width token (`--con-rail-w`), same hull chassis — but not in interior: the
+ * left rail is an instrument bank of plated rows; this one is a TROPHY
+ * GALLERY — one glass display case on a metallic spine, open shelf rows,
+ * oversized medallions on display pucks. Equal weight, different composition.
+ * Each zone owns a FIXED half of the case (flex: 1 1 0): the 3/3
+ * recomposition redistributes INSIDE that box (keyed leave + FLIP move + the
+ * trophy pose), so the rail's outer geometry can never jump.
  *
  * MOTION: seed-then-diff (the maCeremonyState idiom) — the first observation
  * per epoch seeds silently, so mount / reload / reconnect never replay a
@@ -146,11 +199,16 @@ const TICK_MS = 460;
 
 type ZoneKind = 'milestones' | 'awards';
 
+/** How a podium unit is ranked: gold 1st, silver REAL 2nd, or a plain
+ *  chaser (a group the scoring rules would not pay — see `secondRanked`). */
+type RaceRank = 'i' | 'ii' | 'chase';
+
 type RaceUnit = {
   /** The GROUP's identity (colours) — a leader⇄chaser swap keeps both keys,
    *  so the TransitionGroup animates an exchange, not a replace. */
   key: string,
   lead: boolean,
+  rank: RaceRank,
   cubes: ReadonlyArray<Color>,
   more: number,
   score: number,
@@ -173,6 +231,10 @@ type ZoneView = {
   title: string,
   zone: MaHudZone,
   composed: boolean,
+  /** The zone's ACTION is offered right now (awards: the door-level accent). */
+  armed: boolean,
+  /** The tray slot the next seal would fill (−1 = none / not actionable). */
+  nextFreeIdx: number,
   rows: ReadonlyArray<RowView>,
 };
 
@@ -186,7 +248,7 @@ function groupKey(colors: ReadonlyArray<Color>): string {
   return colors.join('.');
 }
 
-/** Cubes shown per race unit before the rest collapse to «+N». */
+/** Chips shown per podium unit before the rest collapse to «+N». */
 const MAX_UNIT_CUBES = 2;
 
 export default defineComponent({
@@ -273,6 +335,23 @@ export default defineComponent({
       // not equal CSS boxes — see maArtFitStyle.
       return maArtFitStyle(name);
     },
+    /** The milestone meter's fill — the same score/threshold fact the numbers
+     *  print, drawn as a hairline (never a full progress bar). */
+    meterStyle(row: RowView): Record<string, string> {
+      const score = row.my?.score ?? 0;
+      const threshold = row.my?.threshold ?? 0;
+      const pct = threshold > 0 ? Math.min(100, Math.round((score / threshold) * 100)) : 0;
+      return {width: `${pct}%`};
+    },
+    /** The slot tray's per-pip presentation: taken = the owner's enamel;
+     *  open = a metal contour; the NEXT open slot takes a gold rim while the
+     *  zone's action is genuinely offered (the door-level availability cue). */
+    pipClass(z: ZoneView, c: Color | undefined, i: number): Array<string | Record<string, boolean>> {
+      if (c !== undefined) {
+        return ['con-strat__pip--set', 'player_bg_color_' + c];
+      }
+      return ['con-strat__pip--empty', {'con-strat__pip--next': i === z.nextFreeIdx}];
+    },
     /** The row's accessible one-liner: name + the one relevant number.
      *  (Deliberately NOT a hover tooltip: the rail clips its list against
      *  extreme-mod overflow, and a clipped bubble is worse than none — the
@@ -295,6 +374,9 @@ export default defineComponent({
       return {
         'con-strat__item--taken': row.showTaken && !row.sealing,
         'con-strat__item--sealing': row.sealing,
+        // ready/now are the MILESTONE row states (the server offers only the
+        // ones actually met). Award availability is door-level (`--armed`) —
+        // a whole column of pulsing fundable rows carries no information.
         'con-strat__item--now': !row.showTaken && row.availableNow,
         'con-strat__item--ready': !row.showTaken && row.ready && !row.availableNow,
         'con-strat__item--quiet': z.kind === 'awards' && !row.showTaken,
@@ -333,30 +415,38 @@ export default defineComponent({
           takenColor: it.taken?.color,
           sealing,
           my: taken && !sealing ? undefined : src.my,
-          availableNow: !taken && src.availableNow,
-          ready: !taken && src.my?.ready === true,
+          availableNow: kind === 'milestones' && !taken && src.availableNow,
+          ready: kind === 'milestones' && !taken && src.my?.ready === true,
           units: kind === 'awards' ? this.raceUnits(src) : [],
         });
       }
-      return {kind, glyph, title, zone, composed, rows};
+      return {
+        kind, glyph, title, zone, composed, rows,
+        armed: kind === 'awards' && !composed && zone.actionable > 0,
+        // The gold «this is where the next seal lands» pip — only while the
+        // action is genuinely offered (money, slot and turn all say yes).
+        nextFreeIdx: zone.actionable > 0 ? zone.slots.findIndex((c) => c === undefined) : -1,
+      };
     },
     raceUnits(it: MaHudItem): Array<RaceUnit> {
       const units: Array<RaceUnit> = [];
-      const push = (group: {colors: ReadonlyArray<Color>, score: number} | undefined, lead: boolean) => {
+      const push = (group: {colors: ReadonlyArray<Color>, score: number} | undefined, rank: RaceRank) => {
         if (group === undefined) {
           return;
         }
-        const capped = group.colors.length > MAX_UNIT_CUBES ? group.colors.slice(0, 1) : group.colors;
+        // A 3+-way tie keeps TWO chips + an honest «+N» (bounded width).
+        const over = group.colors.length > MAX_UNIT_CUBES;
         units.push({
           key: groupKey(group.colors),
-          lead,
-          cubes: capped,
-          more: group.colors.length > MAX_UNIT_CUBES ? group.colors.length - 1 : 0,
+          lead: rank === 'i',
+          rank,
+          cubes: over ? group.colors.slice(0, MAX_UNIT_CUBES) : group.colors,
+          more: over ? group.colors.length - MAX_UNIT_CUBES : 0,
           score: group.score,
         });
       };
-      push(it.leader, true);
-      push(it.second, false);
+      push(it.leader, 'i');
+      push(it.second, it.secondRanked === true ? 'ii' : 'chase');
       return units;
     },
     // ── seed-then-diff ─────────────────────────────────────────────────────
