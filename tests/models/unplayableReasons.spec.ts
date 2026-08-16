@@ -3,9 +3,18 @@ import {testGame} from '../TestGame';
 import {setTemperature, addOcean} from '../TestingUtils';
 import {Resource} from '../../src/common/Resource';
 import {Tag} from '../../src/common/cards/Tag';
+import {CardName} from '../../src/common/cards/CardName';
+import {MAX_TEMPERATURE} from '../../src/common/constants';
 import {unplayableReasons} from '../../src/server/models/unplayableReasons';
 import {GeneRepair} from '../../src/server/cards/base/GeneRepair';
 import {ArchaeBacteria} from '../../src/server/cards/base/ArchaeBacteria';
+import {LakeMarineris} from '../../src/server/cards/base/LakeMarineris';
+import {AdaptationTechnology} from '../../src/server/cards/base/AdaptationTechnology';
+import {SpecialDesign} from '../../src/server/cards/base/SpecialDesign';
+import {EcologyExperts} from '../../src/server/cards/prelude/EcologyExperts';
+import {Inventrix} from '../../src/server/cards/corporation/Inventrix';
+import {MorningStarInc} from '../../src/server/cards/venusNext/MorningStarInc';
+import {ThinkTank} from '../../src/server/cards/pathfinders/ThinkTank';
 import {CloudSeeding} from '../../src/server/cards/base/CloudSeeding';
 import {RoboticWorkforce} from '../../src/server/cards/base/RoboticWorkforce';
 import {AerosportTournament} from '../../src/server/cards/venusNext/AerosportTournament';
@@ -136,6 +145,142 @@ describe('unplayableReasons', () => {
     const reasons = unplayableReasons(player, new IndustrialCenter());
     expect(reasons.some((r) => r.type === 'placement' && r.message === 'No space adjacent to a city'),
       'expected the city-adjacency placement reason').is.true;
+  });
+
+  describe('requirement attainability', () => {
+    it('an unmet MINIMUM stays open (no unattainable flag) and reports the raw scale value', () => {
+      const [game, player] = testGame(2);
+      player.megaCredits = 50;
+      setTemperature(game, -22); // Lake Marineris requires 0°C
+      const reasons = unplayableReasons(player, new LakeMarineris());
+      const r = reasons.find((x) => x.type === 'globalParameter');
+      expect(r, 'expected the temperature requirement reason').is.not.undefined;
+      expect(r?.requirement).is.true;
+      expect(r?.unattainable).is.undefined;
+      expect(r?.current).eq(-22); // the HUD number, not the bonus-adjusted score
+      expect(r?.params?.[0]).eq('0');
+    });
+
+    it('a passed MAXIMUM with no way back down is unattainable (no Turmoil in the game)', () => {
+      const [game, player] = testGame(2);
+      player.megaCredits = 50;
+      setTemperature(game, -14); // ArchaeBacteria allows -18°C or colder
+      const reasons = unplayableReasons(player, new ArchaeBacteria());
+      const r = reasons.find((x) => x.type === 'globalParameter');
+      expect(r, 'expected the temperature requirement reason').is.not.undefined;
+      expect(r?.unattainable).is.true;
+      expect(r?.current).eq(-14);
+    });
+
+    it('a value exactly on the bound satisfies the requirement (no reason at all)', () => {
+      const [game, player] = testGame(2);
+      player.megaCredits = 50;
+      setTemperature(game, -18);
+      expect(unplayableReasons(player, new ArchaeBacteria())).has.length(0);
+    });
+
+    it('Adaptation Technology stretches the max bound: one step over is NOT even reported', () => {
+      const [game, player] = testGame(2);
+      player.megaCredits = 50;
+      player.playedCards.push(new AdaptationTechnology());
+      setTemperature(game, -16); // raw -16 > -18, but the +2-step bonus makes -16-4 = -20 ≤ -18
+      expect(unplayableReasons(player, new ArchaeBacteria())).has.length(0);
+    });
+
+    it('modifiers stack: Adaptation Technology + Inventrix together cover a 4-step gap', () => {
+      const [game, player] = testGame(2);
+      player.megaCredits = 50;
+      player.playedCards.push(new AdaptationTechnology());
+      player.playedCards.push(new Inventrix());
+      setTemperature(game, -10); // -10 - (2+2 steps × 2°C) = -18 ≤ -18 → satisfied
+      expect(unplayableReasons(player, new ArchaeBacteria())).has.length(0);
+    });
+
+    it('an insufficient modifier keeps the unattainable verdict and reports the effective bound', () => {
+      const [game, player] = testGame(2);
+      player.megaCredits = 50;
+      player.playedCards.push(new AdaptationTechnology());
+      setTemperature(game, -10); // -10 - 4 = -14 > -18 → still short even with the bonus
+      const reasons = unplayableReasons(player, new ArchaeBacteria());
+      const r = reasons.find((x) => x.type === 'globalParameter');
+      expect(r?.unattainable).is.true;
+      expect(r?.effectiveCount).eq(-14); // -18 stretched up by the +2-step bonus
+      expect(r?.current).eq(-10);
+    });
+
+    it('a requirement the player can IGNORE (Ecology Experts armed) is not reported at all', () => {
+      const [game, player] = testGame(2);
+      player.megaCredits = 5; // cost still blocks → the card stays unplayable
+      const experts = new EcologyExperts();
+      player.playedCards.push(experts);
+      player.lastCardPlayed = CardName.ECOLOGY_EXPERTS;
+      setTemperature(game, -22);
+      const reasons = unplayableReasons(player, new LakeMarineris());
+      expect(reasons.some((r) => r.requirement === true), 'no requirement reason while ignorable').is.false;
+      expect(reasons.some((r) => r.type === 'megacredits'), 'the money gap still reported').is.true;
+    });
+
+    it('an ARMED Special Design counts for the check and is not consumed by it', () => {
+      const [game, player] = testGame(2);
+      player.megaCredits = 50;
+      player.playedCards.push(new SpecialDesign());
+      player.lastCardPlayed = CardName.SPECIAL_DESIGN;
+      setTemperature(game, -16); // -16 - 4 = -20 ≤ -18 → the armed bonus satisfies the max bound
+      expect(unplayableReasons(player, new ArchaeBacteria())).has.length(0);
+      // Read-only with respect to the armed state: still armed, same verdict twice.
+      expect(player.lastCardPlayed).eq(CardName.SPECIAL_DESIGN);
+      expect(unplayableReasons(player, new ArchaeBacteria())).has.length(0);
+    });
+
+    it('a modifier scoped to another parameter does not soften the verdict (Morning Star vs temperature)', () => {
+      const [game, player] = testGame(2);
+      player.megaCredits = 50;
+      player.playedCards.push(new MorningStarInc()); // ±2 steps, VENUS only
+      setTemperature(game, -14);
+      const reasons = unplayableReasons(player, new ArchaeBacteria());
+      const r = reasons.find((x) => x.type === 'globalParameter');
+      expect(r?.unattainable).is.true;
+      expect(r?.effectiveCount, 'venus-scoped bonus contributes nothing to temperature').is.undefined;
+    });
+
+    it('with Turmoil in the game the parameter can come back down → stays "not met yet"', () => {
+      const [game, player] = testGame(2, {turmoilExtension: true});
+      player.megaCredits = 50;
+      setTemperature(game, -14);
+      const reasons = unplayableReasons(player, new ArchaeBacteria());
+      const r = reasons.find((x) => x.type === 'globalParameter');
+      expect(r, 'expected the temperature requirement reason').is.not.undefined;
+      expect(r?.unattainable).is.undefined;
+    });
+
+    it('a maxed-out scale is frozen even in a Turmoil game → unattainable again', () => {
+      const [game, player] = testGame(2, {turmoilExtension: true});
+      player.megaCredits = 50;
+      setTemperature(game, MAX_TEMPERATURE); // Game.increaseTemperature ignores decreases at MAX
+      const reasons = unplayableReasons(player, new ArchaeBacteria());
+      const r = reasons.find((x) => x.type === 'globalParameter');
+      expect(r?.unattainable).is.true;
+    });
+
+    it('an in-play Think Tank keeps the door open (its data stock can still grow)', () => {
+      const [game, player] = testGame(2);
+      player.megaCredits = 50;
+      player.playedCards.push(new ThinkTank()); // 0 data right now — not enough to bridge
+      setTemperature(game, -14);
+      const reasons = unplayableReasons(player, new ArchaeBacteria());
+      const r = reasons.find((x) => x.type === 'globalParameter');
+      expect(r, 'the requirement is still unmet today').is.not.undefined;
+      expect(r?.unattainable, 'but never final while Think Tank is on the table').is.undefined;
+    });
+
+    it('a tag shortfall is a requirement reason but never unattainable', () => {
+      const [/* game */, player] = testGame(2);
+      player.megaCredits = 100;
+      const reasons = unplayableReasons(player, new GeneRepair());
+      const tag = reasons.find((r) => r.type === 'tag');
+      expect(tag?.requirement).is.true;
+      expect(tag?.unattainable).is.undefined;
+    });
   });
 
   it('explains Mining Rights has no steel/titanium-bonus space (bespoke placement hook)', () => {

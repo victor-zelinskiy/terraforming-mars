@@ -209,23 +209,26 @@
         </transition>
       </div>
 
-      <!-- ── STATUS RAIL: the focused card's verdict (name + the soft
-           requirements heads-up — amber, never blocking language).
-           IN FLOW, directly under the stage and ABOVE the shelf overlay: it
-           explains the card the player is looking at, so it may never be
-           covered by the collection, nor float over the cards. ─────────── -->
+      <!-- ── STATUS RAIL: the focused card's availability block (the shared
+           ConsoleCardAvailabilityPanel, compact density): the card's name +
+           a loud TV-readable status on the first row, the requirement-vs-now
+           comparison in the reading voice on the second. Amber = «пока не
+           выполнено» (evaluative), red = the server PROVED «уже не
+           выполнить» — informational either way, never blocking language
+           (the pick/buy stays fully available). IN FLOW, directly under the
+           stage and ABOVE the shelf overlay: it explains the card the player
+           is looking at, so it may never be covered by the collection, nor
+           float over the cards. ─────────── -->
       <div class="con-draftws__statusbar" :class="{'con-draftws__statusbar--held': beatActive}">
-        <!-- The card's NAME, and — only when the card's own printed
-             requirements are not met yet — one amber heads-up. A met
-             requirement is the DEFAULT and says nothing: a line that fires
-             on every card is noise, and the positive state has no reader. -->
+        <!-- A met requirement set is the DEFAULT and says nothing beyond the
+             card's name: a status that fires on every card is noise, and the
+             positive state has no reader. -->
         <template v-if="statusEntry !== undefined">
-          <span class="con-draftws__status-name" :key="statusEntry.name">{{ $t(statusEntry.name) }}</span>
-          <span v-if="statusHeadsUp !== undefined" class="con-draftws__status-warn">
-            <span aria-hidden="true">◈</span>
-            <span>{{ $t('Requirements not met yet') }}</span>
-            <span class="con-draftws__status-why">{{ statusHeadsUpText }}</span>
-          </span>
+          <ConsoleCardAvailabilityPanel v-if="statusAvailability !== undefined"
+                                        variant="compact"
+                                        :view="statusAvailability"
+                                        :cardTitle="$t(statusEntry.name)"/>
+          <span v-else class="con-draftws__status-name" :key="statusEntry.name">{{ $t(statusEntry.name) }}</span>
         </template>
         <span v-else-if="zone === 'wait'" class="con-draftws__status-idle">{{ $t('Waiting for the other players') }}</span>
       </div>
@@ -295,7 +298,6 @@ import {consoleMotionMs, consoleReducedMotionActive} from '@/client/console/comp
 import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {wsStageLayout, wsStageLayoutStyle} from '@/client/console/consoleWsStageLayout';
 import {openConsoleCardZoom, slotZoomOrigin} from '@/client/console/consoleCardZoom';
-import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
 import {createCardDealSequence, RiseLaunchExtras} from '@/client/console/cardDeal/cardDealSequence';
 import {DealTargetRect} from '@/client/console/cardDeal/cardDealDirector';
 import {shouldRunDealOnce} from '@/client/console/cardDeal/cardDealMemory';
@@ -310,14 +312,15 @@ import {runHandIntake} from '@/client/console/handDock/handDeliveryDirector';
 import {
   draftWorkspaceState, draftStageOf, draftPickInput, draftBuyInput,
   draftPacketKey, draftJourneyPhases, draftFlowPresentation, draftCompactContext,
-  draftCrumb, draftNeighbor, requirementHeadsUp, draftCollectedNames,
+  draftCrumb, draftNeighbor, draftCollectedNames,
   beginDraftCompletion, markDraftCompletionFlightsDone, finishDraftCompletion,
   draftPicksKey, rememberDraftPicks, recallDraftPicks,
   DraftStage, DraftJourneyInput,
 } from '@/client/console/draft/consoleDraftFlow';
 import {draftCommands, setConsoleDraftCommands, resetConsoleDraftUi, DraftCommandState} from '@/client/console/draft/consoleDraftUi';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
-import {UnplayableReason} from '@/common/cards/UnplayableReason';
+import {buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
+import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {Phase} from '@/common/Phase';
 
 type CardEntry = {name: CardName, key: string, card: CardModel};
@@ -327,7 +330,7 @@ type DraftZone = 'pick' | 'wait' | 'buy' | 'pay' | 'inspect' | 'done';
 
 export default defineComponent({
   name: 'ConsoleDraftWorkspace',
-  components: {Card, GamepadGlyph, ConsoleWsHead, ConsoleJourneyRail, ConsoleCardDealLayer},
+  components: {Card, GamepadGlyph, ConsoleWsHead, ConsoleJourneyRail, ConsoleCardDealLayer, ConsoleCardAvailabilityPanel},
   props: {
     playerView: {type: Object as PropType<PlayerViewModel>, required: true},
   },
@@ -604,12 +607,12 @@ export default defineComponent({
         .filter((e): e is {name: CardName, card: CardModel} => (e.card as CardModel).name !== undefined)
         .map((e, i) => ({name: e.name, key: e.name + '#' + i, card: e.card as CardModel}));
     },
-    statusHeadsUp(): UnplayableReason | undefined {
-      return requirementHeadsUp(this.statusEntry?.card);
-    },
-    statusHeadsUpText(): string {
-      const r = this.statusHeadsUp;
-      return r === undefined ? '' : unplayableReasonLine(r);
+    /** The focused card's availability view (draft voice: printed
+     *  requirements only; `undefined` = nothing to say beyond the name).
+     *  Built by the SHARED cardAvailability model — the fullscreen panel
+     *  renders the same view, so the two can never disagree. */
+    statusAvailability(): CardAvailabilityView | undefined {
+      return buildCardAvailability({reasons: this.statusEntry?.card?.unplayableReasons}, 'draft');
     },
     /** The bar contract facts (published to `consoleDraftUi` by a watcher). */
     commandState(): DraftCommandState {
@@ -1344,7 +1347,7 @@ export default defineComponent({
           labelFor: () => 'Take',
           reasonsFor: () => [],
           execute: (name) => this.commitSinglePick(name as CardName),
-        }, {origin});
+        }, {origin, availability: 'draft'});
         return;
       }
       if (this.zone === 'pick' || this.zone === 'buy') {
@@ -1352,11 +1355,11 @@ export default defineComponent({
         openConsoleCardZoom(cards, this.focusIdx, {
           isSelected: (name) => this.isPicked(name as CardName),
           toggle: (name) => this.togglePick(name as CardName, max),
-        }, undefined, {origin});
+        }, undefined, {origin, availability: 'draft'});
         return;
       }
       // INSPECT: read-only — no bridge, nothing here may mutate anything.
-      openConsoleCardZoom(cards, this.focusIdx, undefined, undefined, {origin});
+      openConsoleCardZoom(cards, this.focusIdx, undefined, undefined, {origin, availability: 'draft'});
     },
     // ── geometry ────────────────────────────────────────────────────────
     /** ONE fit for the active zone's row: the shared workspace stage solver

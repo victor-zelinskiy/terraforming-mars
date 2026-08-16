@@ -1940,6 +1940,12 @@ export default defineComponent({
           void this.$nextTick(() => this.scrollFocusedIntoView());
         },
       );
+      // A card-EVALUATION context (a draft pick / the research or reveal BUY —
+      // both structural: the router's mode / the game phase) opts the viewer
+      // into the availability panel in the DRAFT voice («пока не выполнено» /
+      // «уже не выполнить»). A plain select/discard/target pick passes nothing:
+      // current playability is irrelevant to that decision.
+      const availability = this.isBuyMode || this.isDraftPick ? 'draft' as const : undefined;
       if (this.singlePick) {
         // PICK phase: A in the viewer COMMITS the card (the ACTION bridge —
         // executes AFTER the viewer closes, never a toggle) — parity with the
@@ -1951,14 +1957,14 @@ export default defineComponent({
             return e !== undefined && e.disabled && e.reason !== '' ? [e.reason] : [];
           },
           execute: (name) => this.commitSingleCard(name),
-        }, {origin});
+        }, {origin, availability});
         return;
       }
       // BUY / multi: A toggles the pick and the viewer STAYS open to browse.
       openConsoleCardZoom(cards, this.focusIdx, {
         isSelected: (name) => this.isPicked(name),
         toggle: (name) => this.toggleCardPickByName(name),
-      }, undefined, {origin});
+      }, undefined, {origin, availability});
     },
     /** Read-only browse of the already-drafted cards (LB/RB page, B closes) —
      *  no select/action bridge, so it can never re-submit a drafted card.

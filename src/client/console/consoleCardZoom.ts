@@ -203,6 +203,24 @@ export type ConsoleZoomProvenance = {
   ordinal?: {n: number, total: number},
 };
 
+/**
+ * The AVAILABILITY viewing context — an EXPLICIT opt-in from the opener,
+ * never derived from DOM shape or route. It decides the VOICE of the
+ * fullscreen availability panel (cardAvailability.ts):
+ *
+ *  'draft' — the card is being evaluated FOR LATER (draft pick / research
+ *      buy / the drafted-shelf browse): printed requirements only, the
+ *      «пока не выполнено» / «уже не выполнить» split, never blocking.
+ *  'play'  — the player is deciding about an IMMEDIATE play (the hand):
+ *      every real blocker is red under «Нельзя разыграть»; the turn window
+ *      stays a separate amber note.
+ *
+ * Absent → the viewer shows NO availability panel: a discard pick, the
+ * patent sale, a played card, a resource-target browse — contexts where the
+ * card's playability is irrelevant to the decision — pass nothing.
+ */
+export type ConsoleZoomAvailabilityContext = 'draft' | 'play';
+
 /** Optional extras attached at open time (receive bridge + a caption). */
 export type ConsoleZoomExtra = {
   /** Present ⇔ A takes the focused card / RT takes all (reveal flow). */
@@ -257,6 +275,8 @@ export type ConsoleZoomExtra = {
   discards?: () => void,
   /** Open/close choreography source — see ZoomOrigin. Default: 'none'. */
   origin?: ZoomOrigin,
+  /** Present ⇔ the viewer shows the availability panel in this VOICE. */
+  availability?: ConsoleZoomAvailabilityContext,
   /** Present ⇔ the viewer is an INSPECT DOSSIER (ПРАВИЛА / СТАТИСТИКА tabs). */
   inspect?: ConsoleZoomInspect,
   /**
@@ -299,6 +319,8 @@ export const consoleCardZoom = reactive({
   discards: undefined as (() => void) | undefined,
   /** Open/close choreography source (see ZoomOrigin). */
   origin: {kind: 'none'} as ZoomOrigin,
+  /** The availability panel's viewing context (explicit opener opt-in). */
+  availability: undefined as ConsoleZoomAvailabilityContext | undefined,
   /** Present ⇔ the viewer is an INSPECT DOSSIER (ПРАВИЛА / СТАТИСТИКА tabs). */
   inspect: undefined as ConsoleZoomInspect | undefined,
   /** The active dossier tab (default ПРАВИЛА — X keeps its familiar meaning). */
@@ -333,6 +355,7 @@ export function openConsoleCardZoom(cards: ReadonlyArray<ZoomCard>, index: numbe
   consoleCardZoom.sourceInfo = extra?.sourceInfo;
   consoleCardZoom.discards = extra?.discards;
   consoleCardZoom.origin = extra?.origin ?? {kind: 'none'};
+  consoleCardZoom.availability = extra?.availability;
   consoleCardZoom.inspect = extra?.inspect;
   consoleCardZoom.inspectTab = 'rules'; // every open starts on ПРАВИЛА
   const provenance = extra?.provenance;
@@ -387,6 +410,7 @@ export function closeConsoleCardZoom(): void {
   consoleCardZoom.sourceInfo = undefined;
   consoleCardZoom.discards = undefined;
   consoleCardZoom.origin = {kind: 'none'};
+  consoleCardZoom.availability = undefined;
   consoleCardZoom.inspect = undefined;
   consoleCardZoom.inspectTab = 'rules';
   consoleCardZoom.provenanceAt = undefined;

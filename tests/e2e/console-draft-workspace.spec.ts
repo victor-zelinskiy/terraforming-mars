@@ -218,6 +218,20 @@ async function surface(page: Page) {
       dock: painted('.con-handdock'),
       passReadout: (document.querySelector('.con-draftws__pass') as HTMLElement | null)?.innerText?.replace(/\s+/g, ' ') ?? '',
       statusLine: (document.querySelector('.con-draftws__statusbar') as HTMLElement | null)?.innerText?.replace(/\s+/g, ' ') ?? '',
+      // The availability block must FIT its reserved two-row zone — a clipped
+      // RU line (the zone is overflow:hidden) would be invisible to a text
+      // probe, so measure the box against its content.
+      statusClipped: (() => {
+        const bar = document.querySelector<HTMLElement>('.con-draftws__statusbar');
+        const block = document.querySelector<HTMLElement>('.con-draftws__statusbar .con-cardavail');
+        if (bar === null || block === null) {
+          return false;
+        }
+        const inner = block.getBoundingClientRect();
+        const outer = bar.getBoundingClientRect();
+        return inner.height - outer.height > 1 || inner.width - outer.width > 1 ||
+          block.scrollHeight - block.clientHeight > 1 || block.scrollWidth - block.clientWidth > 1;
+      })(),
       crumb: (document.querySelector('.con-draftws .con-wshead') as HTMLElement | null)?.innerText?.replace(/\s+/g, ' ').slice(0, 120) ?? '',
       taskHostBands: document.querySelectorAll('.con-task-host:not(.con-task-host--embedded)').length,
       trayPopover: document.querySelectorAll('.con-drafttray').length,
@@ -304,6 +318,43 @@ test.describe('draft workspace · the between-generations flow', () => {
     expect(s.taskHostBands, 'no standalone modal rises over the workspace').toBe(0);
     expect(s.trayPopover, 'the old tray popover never mounts here').toBe(0);
     expect(s.passReadout.length, 'the pass readout names the neighbor').toBeGreaterThan(0);
+
+    // ── 1b · AVAILABILITY PARITY (compact ⇄ fullscreen). When the focused
+    //    card carries an availability status (the shared CardAvailabilityPanel
+    //    under the spread — «пока не выполнено» amber / «уже не выполнить»
+    //    red), X-fullscreen must show the SAME severity and the SAME primary
+    //    reason in its «ДОСТУПНОСТЬ» panel; a card with nothing to say shows
+    //    NO panel at all (never an empty container). One view-model feeds
+    //    both, so a mismatch here is a wiring regression, not a copy drift.
+    const compactAvail = await page.evaluate(() => {
+      const el = document.querySelector('.con-draftws__statusbar .con-cardavail');
+      return el === null ? undefined : {
+        severity: el.getAttribute('data-severity') ?? '',
+        line: (el.querySelector('.con-cardavail__line .con-cardavail__text') as HTMLElement | null)?.innerText?.replace(/\s+/g, ' ') ?? '',
+      };
+    });
+    await press(page, 'KeyX', 2600); // X — fullscreen (the open flight settles)
+    await page.waitForSelector('dialog.con-zoom[open]', {timeout: 20_000});
+    await page.waitForTimeout(1200);
+    const panelAvail = await page.evaluate(() => {
+      const el = document.querySelector('.con-zoom-sidecol .con-cardavail--panel');
+      return el === null ? undefined : {
+        severity: el.getAttribute('data-severity') ?? '',
+        first: (el.querySelector('.con-cardavail__reason .con-cardavail__text') as HTMLElement | null)?.innerText?.replace(/\s+/g, ' ') ?? '',
+      };
+    });
+    console.log('[availability parity]', JSON.stringify({compactAvail, panelAvail}));
+    if (compactAvail !== undefined) {
+      expect(panelAvail, 'the fullscreen shows the availability panel for a flagged card').toBeTruthy();
+      expect(panelAvail?.severity, 'same severity in both densities').toBe(compactAvail.severity);
+      expect(panelAvail?.first, 'same primary reason in both densities').toBe(compactAvail.line);
+    } else {
+      expect(panelAvail, 'no status → no panel (never an empty container)').toBeUndefined();
+    }
+    await shoot(page, '01b-availability-fullscreen');
+    await press(page, 'Escape', 1800); // B — back to the pick, selection intact
+    await expect.poll(async () =>
+      await page.locator('dialog.con-zoom[open]').count(), {timeout: 15_000}).toBe(0);
 
     // ── 2 · THE FIRST PICK: A commits, the hero lands on the shelf, the rest
     //    passes on; P2 has not picked yet → the calm waiting state.
@@ -430,6 +481,7 @@ test.describe('draft workspace · the between-generations flow', () => {
     expect(await pickedCount(), 'two cards selected for purchase').toBe(2);
     s = await surface(page);
     expect(s.statusLine.length, 'the status rail explains the focused card').toBeGreaterThan(0);
+    expect(s.statusClipped, 'the RU availability block fits its reserved zone (never clipped)').toBeFalsy();
     await shoot(page, '07-purchase-picked');
 
     // ── 7a · «СВЕРНУТЬ» KEEPS THE DECISION LIVE. Parking unmounts the

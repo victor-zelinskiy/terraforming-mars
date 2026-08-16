@@ -186,6 +186,7 @@
                           :packetExtras="handPacketExtras"
                           :discarding="discardInOverlay"
                           :softReason="handSoftReason"
+                          :turnWindowClosed="handTurnWindowClosed"
                           :tagFilters="handTagFilterOptions"
                           :activeTag="consoleState.handTagFilter"
                           :stagedCard="stagedHandCard"
@@ -789,16 +790,28 @@
            panel becomes a two-tab ПРАВИЛА/СТАТИСТИКА box (LB/RB switch, handled
            in handleZoomIntent); every other inspect keeps the plain rules. -->
       <template v-if="zoomSideVisible" #side="side">
-        <ConsoleInspectSide v-if="consoleCardZoom.inspect !== undefined && zoomRulesCardName !== undefined"
-                            :cardName="zoomRulesCardName"
-                            :history="consoleCardZoom.inspect.history"
-                            :tab="consoleCardZoom.inspectTab"
-                            :nonce="side.nonce"
-                            :closing="side.closing" />
-        <ConsoleCardRulesPanel v-else-if="zoomRulesCardName !== undefined"
-                               :cardName="zoomRulesCardName"
-                               :nonce="side.nonce"
-                               :closing="side.closing" />
+        <!-- ONE right COLUMN: the rules panel (or the inspect dossier) on
+             top, and — only in an explicit availability context (draft
+             evaluation / play-now, an opener opt-in on consoleCardZoom) —
+             the CURRENT-GAME availability panel stacked beneath it. Two
+             separate meanings on purpose: «ПРАВИЛА» are the card's permanent
+             properties, «ДОСТУПНОСТЬ» is this game's state; they never mix. -->
+        <div class="con-zoom-sidecol">
+          <ConsoleInspectSide v-if="consoleCardZoom.inspect !== undefined && zoomRulesCardName !== undefined"
+                              :cardName="zoomRulesCardName"
+                              :history="consoleCardZoom.inspect.history"
+                              :tab="consoleCardZoom.inspectTab"
+                              :nonce="side.nonce"
+                              :closing="side.closing" />
+          <ConsoleCardRulesPanel v-else-if="zoomRulesCardName !== undefined && zoomHasRules"
+                                 :cardName="zoomRulesCardName"
+                                 :nonce="side.nonce"
+                                 :closing="side.closing" />
+          <ConsoleCardAvailabilityPanel v-if="zoomAvailabilityView !== undefined && consoleCardZoom.inspect === undefined"
+                                        variant="panel"
+                                        :view="zoomAvailabilityView"
+                                        :closing="side.closing" />
+        </div>
       </template>
       <template #actions>
         <!-- A read-only inspector (bot-turn / card-actions, opened from a chip)
@@ -808,8 +821,10 @@
           <span>{{ $t(consoleCardZoom.contextLabel) }}</span>
         </div>
         <!-- P17: an UNPLAYABLE card is never mute — the same structured
-             server reasons the hand verdict shows (desktop parity). -->
-        <div v-if="zoomReasons.length > 0" class="con-zoom__reasons">
+             server reasons the hand verdict shows (desktop parity). When the
+             AVAILABILITY PANEL is up it carries these very reasons in the
+             side column, so the bar copy yields (never two voices at once). -->
+        <div v-if="zoomReasons.length > 0 && zoomAvailabilityView === undefined" class="con-zoom__reasons">
           <span class="con-zoom__reasons-head"><span aria-hidden="true">✕</span> {{ $t('Unplayable now') }}</span>
           <div class="con-zoom__reason-list">
             <span v-for="(r, i) in zoomReasons" :key="i" class="con-zoom__reason">{{ r }}</span>
@@ -1425,6 +1440,8 @@ import CardZoomModal from '@/client/components/card/CardZoomModal.vue';
 import CardZoomCard from '@/client/components/card/CardZoomCard.vue';
 import ConsoleCardRulesPanel, {cardHasRules} from '@/client/components/console/ConsoleCardRulesPanel.vue';
 import ConsoleInspectSide from '@/client/components/console/ConsoleInspectSide.vue';
+import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
+import {buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import Card from '@/client/components/card/CardFace.vue';
 import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
@@ -1648,6 +1665,7 @@ export default defineComponent({
     ConsoleInfoMode,
     ConsoleCardRulesPanel,
     ConsoleInspectSide,
+    ConsoleCardAvailabilityPanel,
     ConsoleStrandedPrompt,
     ConsoleTaskHost,
     ConsoleGovernmentSupport,
@@ -4585,6 +4603,13 @@ export default defineComponent({
       return this.actionBlockedReason !== '' || this.awaitingInput ?
         'Finish your current action first' : 'Not your turn to take any actions';
     },
+    /** The play WINDOW is closed — no live play offer, or a decision is
+     *  already owed. THE discriminator for whether the turn note joins a
+     *  card's availability view (hand verdict bar + fullscreen panel read
+     *  the same flag, so their reason lists match row for row). */
+    handTurnWindowClosed(): boolean {
+      return this.playAction === undefined || this.actionBlockedReason !== '';
+    },
     /** True when the hand grid is the surface the right stick should scroll —
      *  in the hand section with nothing layered on top (a play-confirm / task /
      *  reveal / fullscreen zoom would otherwise get scrolled through blindly). */
@@ -6175,9 +6200,47 @@ export default defineComponent({
     },
     /** The right SIDE panel shows for a card with structured rules OR whenever
      *  the viewer is an inspect DOSSIER (which always offers СТАТИСТИКА, even if a
-     *  card had no rules). Gates the panel AND the viewer's width reservation. */
+     *  card had no rules) OR when the availability panel has something to say.
+     *  Gates the panel AND the viewer's width reservation. */
     zoomSideVisible(): boolean {
-      return this.zoomHasRules || this.consoleCardZoom.inspect !== undefined;
+      return this.zoomHasRules || this.consoleCardZoom.inspect !== undefined || this.zoomAvailabilityView !== undefined;
+    },
+    /**
+     * The CURRENT-GAME availability view for the zoomed card — only in an
+     * explicit context the OPENER opted into (`consoleCardZoom.availability`:
+     * the draft workspace's zones pass 'draft', the hand's play browse passes
+     * 'play'; a discard pick / patent sale / played-table browse pass nothing
+     * and the panel cannot appear there). Built by the SHARED cardAvailability
+     * model — the same view the draft's compact block and the hand verdict
+     * derive from, so the fullscreen can never disagree with them. Recomputed
+     * per browsed card (`consoleCardZoom.card` follows LB/RB), so a previous
+     * card's reasons can never linger.
+     */
+    zoomAvailabilityView(): CardAvailabilityView | undefined {
+      const z = this.consoleCardZoom;
+      if (z.availability === undefined || z.card === undefined) {
+        return undefined;
+      }
+      const card = z.card as CardModel;
+      if (z.availability === 'play') {
+        const entry = this.handEntries.find((e) => e.card.name === card.name);
+        // The live offer already accepts it — simply playable, nothing to say.
+        // (The offer can be WIDER than `unplayableReasons` — a prompt-carried
+        // discount — so the offer wins, mirroring the hand grid.)
+        if (entry?.playable === true) {
+          return undefined;
+        }
+        // The turn note joins ONLY when the WINDOW is closed (opponent's turn
+        // or an owed decision) — on the player's own open window a blocked
+        // card is purely a card problem. Never re-derived: the shell's one
+        // soft reason, the same string (and the same window flag) the hand
+        // verdict bar reads, so the two lists match row for row.
+        return buildCardAvailability({
+          reasons: card.unplayableReasons,
+          turnReason: this.handTurnWindowClosed ? this.handSoftReason : undefined,
+        }, 'play');
+      }
+      return buildCardAvailability({reasons: card.unplayableReasons}, 'draft');
     },
     /** The zoomed card's name typed as a CardName for the rules panel — only
      *  read behind `zoomHasRules`, which is true solely for real project cards
@@ -12813,7 +12876,7 @@ export default defineComponent({
         // «Разыграть» opens the play-confirm composer, which shows THIS card
         // — the fullscreen card flies INTO its slot there, not back to the hand.
         handoffTarget: () => '.con-composer--play [data-zoom-handoff="play-card"]',
-      }, {origin});
+      }, {origin, availability: 'play'});
     },
     /** Translated «why not» lines for a hand card (mirrors the hand
      *  section's info panel — same server-structured reasons, same shared
