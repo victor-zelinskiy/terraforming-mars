@@ -16,17 +16,22 @@ import {isActionMenuTitle} from '../../src/common/inputs/actionMenuTitles';
  * a milestone reaches its threshold, and the viewer claims it through the
  * real MA workspace so the rail's SEAL beat plays as the ceremony's
  * continuation. THREE seats on purpose: a duel has no ranked second place
- * (only 1st scores in a 2-player game), so the silver «II» plaque is only
+ * (only 1st scores in a 2-player game), so the silver second line is only
  * honest — and only testable — with a third seat in the race.
  *
- * States pinned here (screenshots + structural asserts):
- *  1. progress rows (current/required + meter), a READY+OFFERED milestone
- *     (mint rim, breathing), a funded award (sponsor seal + tray enamel),
- *     the I/II micro-podium, an unsponsored quiet award, the armed door;
- *  2. the claim seal riding the workspace's fold (owner seal «ВЗЯТО»);
- *  3. the claimed pose: owner seal in the value zone, never an empty right;
- *  4. a tie for FIRST: two chips at one value, the silver II gone (no
- *     false second place).
+ * States pinned here (P31.2 — screenshots + structural asserts):
+ *  1. STATE B — met but NOT actionable (a rival's turn): green ✓ + full
+ *     meter + mint rim, NO «ДОСТУПНО», NO gold, and NO activation ceremony
+ *     on a plain page load; the funded award (sponsor cube in the socket,
+ *     no colour disc) with the crown / silver-second podium;
+ *  2. the LIVE B→C flip — the rival passes while the page watches the
+ *     board, the turn arrives, and the ACTIVATION phrase plays exactly
+ *     once (frame sequence captured);
+ *  3. STATE C — green facts + the gold-white rim + «ДОСТУПНО» replacing
+ *     the meter in the fixed foot line;
+ *  4. the claim seal riding the workspace's fold: the calm horizontal
+ *     owner line (cube · ВЗЯТО · ✓) and a CLEAN emblem (no floating cube);
+ *  5. a tie for FIRST: ONE crown, two cubes, ONE value, no silver second.
  *
  * And the FINISHED BODY (§ the case/spine geometry): the display case and
  * its spine terminate INSIDE the viewport — the glass never reads as
@@ -139,7 +144,7 @@ async function createStagedGame(request: APIRequestContext): Promise<{p1: string
 async function driveTable(
   request: APIRequestContext,
   seats: ReadonlyArray<string>,
-  onMenu: (pid: string, money: number, actionsTaken: number) => Promise<boolean>,
+  onMenu: (pid: string, money: number, actionsTaken: number, generation: number) => Promise<boolean>,
   maxRounds = 240,
 ): Promise<void> {
   for (let round = 0; round < maxRounds; round++) {
@@ -162,7 +167,8 @@ async function driveTable(
         continue;
       }
       if (await onMenu(pid, (m as Wire).thisPlayer?.megacredits ?? 0,
-        (m as Wire).thisPlayer?.actionsTakenThisRound ?? 0)) {
+        (m as Wire).thisPlayer?.actionsTakenThisRound ?? 0,
+        (m as Wire).game?.generation ?? 1)) {
         return;
       }
       acted = true;
@@ -303,7 +309,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     screen: {width: 3840, height: 2160},
   });
 
-  test('progress → ready/offered → funded podium → workspace claim seal → tie', async ({page, request}) => {
+  test('B (met, waiting) → LIVE activation → C (claim now) → workspace claim seal → tie', async ({page, request}) => {
     test.setTimeout(600_000);
 
     const t0 = Date.now();
@@ -328,26 +334,31 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     // ── 3 · stage the matrix over the API (page not open — nothing races),
     //   paced by REAL income across generations (a calm corp starts at
     //   23–60 M€, so the driver builds when it can afford to and passes
-    //   otherwise): red → 3 cities (Mayor 3/3) then fund Landlord;
-    //   blue → city + greenery (podium II = 2); green idles.
-    //   The drive STOPS on red's menu right after the funding — red then
-    //   holds its second action, which the page will spend on the CLAIM.
-    const built = {redCities: 0, blueCity: 0, blueGreen: 0};
-    await driveTable(request, [p1, p2, p3], async (pid, money, actionsTaken) => {
+    //   otherwise): red → 2 cities early, then — in ONE turn — the third
+    //   city (Mayor 3/3) plus the Landlord funding; blue → city + greenery
+    //   (podium second = 2); green idles.
+    //   THE STOP IS BLUE'S MENU: the pair is only played in a generation
+    //   whose turn order puts blue AFTER red (gen%3 ≠ 2 — blue-first gens
+    //   defer it), so the funding hands the turn to a LIVE blue seat while
+    //   red is met-but-not-offered (STATE B) and still unpassed. The page
+    //   then watches blue pass — and red's arriving turn is the LIVE
+    //   activation flip.
+    const built = {redCities: 0, blueCity: 0, blueGreen: 0, funded: false};
+    await driveTable(request, [p1, p2, p3], async (pid, money, actionsTaken, generation) => {
       if (pid === p1) {
         const blueDone = built.blueCity === 1 && built.blueGreen === 1;
-        // The FUND must land as the turn's FIRST action, so that red still
-        // HOLDS action 2 when the page takes over (the claim is that press).
-        // Funding as action 2 ends the turn and hands it to blue — the state
-        // the whole stop exists for is then gone before the page opens.
-        if (built.redCities === 3 && blueDone && money >= 16 && actionsTaken === 0) {
-          await nestedOption(request, p1, 'Fund an award', '"Landlord"');
-          return true; // red's menu holds action 2 — the page takes over
+        const blueActsBeforeRed = generation % 3 === 2; // blue-first generation
+        // ≥41: the pair costs 25+8 and the CLAIM (8) must still be payable
+        // on red's NEXT turn — same generation, no income in between.
+        if (!built.funded && built.redCities === 2 && blueDone && money >= 41 &&
+            actionsTaken === 0 && !blueActsBeforeRed) {
+          await stdProject(request, p1, 'City'); // city #3 — Mayor met (action 1)
+          built.redCities++;
+          await nestedOption(request, p1, 'Fund an award', '"Landlord"'); // action 2 — the turn leaves red
+          built.funded = true;
+          return false; // the stop lands on BLUE's menu below
         }
-        if (built.redCities < 3 && money >= 25 && !(built.redCities === 2 && blueDone && actionsTaken === 1)) {
-          // (The guarded case: never spend action 2 on the LAST city when the
-          // fund would then have to open the next turn as action 1 anyway —
-          // keeps city #3 and the fund in one deterministic order.)
+        if (built.redCities < 2 && money >= 25) {
           await stdProject(request, p1, 'City');
           built.redCities++;
           return false;
@@ -356,6 +367,9 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
         return false;
       }
       if (pid === p2) {
+        if (built.funded) {
+          return true; // STOP: blue holds a live menu; red waits in STATE B
+        }
         if (built.blueCity < 1 && money >= 25) {
           await stdProject(request, p2, 'City');
           built.blueCity++;
@@ -370,7 +384,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
       await passGeneration(request, p3);
       return false;
     });
-    mark('matrix staged (red holds action 2 after the funding)');
+    mark('matrix staged (blue holds the turn; red is met-but-not-offered)');
 
     // ── 4 · open the console on the RED seat: the standing matrix ─────────
     await openConsole(page, p1, '&consoleProfile=tv');
@@ -398,30 +412,177 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     const rightRail = await page.locator('.con-strat').boundingBox();
     expect(Math.abs(leftRail!.width - rightRail!.width), 'twin footprints').toBeLessThanOrEqual(2);
 
-    // Mayor: READY + OFFERED (the viewer's turn) — the emerald rim state.
+    // STATE B — Mayor is MET (green ✓, full meter, mint rim) but NOT
+    // actionable (blue's turn): no gold light, no «ДОСТУПНО», the awards
+    // door NOT armed — and NO activation ceremony on a plain page load.
     const mayor = page.locator('[data-ma-hud="milestones:Mayor"]');
-    await expect(mayor, 'Mayor must be offered right now').toHaveClass(/con-strat__item--now/, {timeout: 20_000});
+    await expect(mayor, 'Mayor must be met-but-waiting').toHaveClass(/con-strat__item--ready/, {timeout: 20_000});
     await expect(mayor.locator('.con-strat__readymark')).toHaveCount(1);
-    // Landlord: funded (sponsor seal + tray enamel) with a live I/II podium.
+    expect(await mayor.locator('.con-strat__avail').count(), 'no «ДОСТУПНО» while not actionable').toBe(0);
+    const fillW = await mayor.locator('.con-strat__meter-fill').evaluate((el) => (el as HTMLElement).style.width);
+    expect(fillW, 'State B keeps the FULL meter').toBe('100%');
+    expect(await page.locator('.con-strat__item--activating').count(),
+      'a page LOAD must never replay the activation ceremony').toBe(0);
+    expect(await page.locator('.con-strat__zone--awards .con-strat__head--armed').count(),
+      'the awards door must not look action-ready off-turn').toBe(0);
+    expect(await page.locator('.con-strat__pip--next').count(),
+      'no gold slot outline off-turn').toBe(0);
+    // Landlord: funded — the sponsor CUBE in the emblem socket (no colour
+    // disc), the crown + silver-second podium (3 players, single leader),
+    // no roman numerals anywhere.
     const landlord = page.locator('[data-ma-hud="awards:Landlord"]');
-    await expect(landlord.locator('.con-strat__gem'), 'the sponsor seal').toHaveCount(1);
-    await expect(landlord.locator('.con-strat__rank--i')).toHaveText('I');
-    await expect(landlord.locator('.con-strat__rank--ii')).toHaveText('II');
+    await expect(landlord.locator('.con-strat__medal .con-strat__gem'), 'the sponsor cube').toHaveCount(1);
+    await expect(landlord.locator('.con-strat__unitbody--lead .con-strat__crown')).toHaveCount(1);
     await expect(landlord.locator('.con-strat__unitbody--lead .con-strat__num')).toHaveText('3');
-    // The door-level availability: the awards head arms, its next slot pip
-    // golds — and no award row pulses.
-    await expect(page.locator('.con-strat__zone--awards .con-strat__head--armed')).toHaveCount(1);
+    await expect(landlord.locator('.con-strat__unitbody--ii')).toHaveCount(1);
+    expect(await page.locator('.con-strat__rank').count(), 'no roman numerals anywhere').toBe(0);
     await expect(page.locator('.con-strat__zone--awards .con-strat__pip--set')).toHaveCount(1);
-    await expect(page.locator('.con-strat__zone--awards .con-strat__pip--next')).toHaveCount(1);
     await expect(page.locator('.con-strat__zone--awards .con-strat__item--now')).toHaveCount(0);
+    // THE CASSETTE AXES (±1 rendered px): both levels' cubes share one
+    // horizontal centre; both scores share one right edge — the crown-cap
+    // is an overlay and may not push the leader cube into a ladder.
+    const axes = await landlord.evaluate((row) => {
+      const units = Array.from(row.querySelectorAll('.con-strat__unitbody'));
+      const cubes = units.map((u) => u.querySelector('.con-strat__cube')!.getBoundingClientRect());
+      const nums = units.map((u) => u.querySelector('.con-strat__num')!.getBoundingClientRect());
+      return {
+        cubeCenters: cubes.map((r) => r.left + r.width / 2),
+        numRights: nums.map((r) => r.right),
+        medalW: (row.querySelector('.con-strat__medal') as HTMLElement).getBoundingClientRect().width,
+      };
+    });
+    expect(axes.cubeCenters.length, 'two ranked levels stand').toBe(2);
+    expect(Math.abs(axes.cubeCenters[0] - axes.cubeCenters[1]),
+      'both levels\' cubes share ONE horizontal centre').toBeLessThanOrEqual(1);
+    expect(Math.abs(axes.numRights[0] - axes.numRights[1]),
+      'both scores share ONE right edge').toBeLessThanOrEqual(1);
+    // The emblem kept its size: the dense TV medal token is 3.5rem = 140px
+    // at the 4K UI scale — the cassette may never shrink it.
+    expect(axes.medalW, 'the award emblem did not shrink').toBeGreaterThanOrEqual(135);
     // The foreground watchdog's one self-heal toast can arrive DURING the
     // asserts above — wait out a QUIET window before the reference frame.
     await waitToastQuiet(page);
-    await shoot(page, 'tv4k-states-01-home');
+    await shoot(page, 'tv4k-states-01-met-waiting');
     await page.locator('.con-strat').screenshot({path: path.join(OUT, 'tv4k-states-01-rail.png')});
-    mark('state 01 shot (ready/offered + funded podium)');
+    mark('state 01 shot (STATE B + funded podium)');
 
-    // ── 5 · CLAIM through the real workspace: the rail seals on the fold ──
+    // ── 5 · the LIVE B→C flip: blue (and green, if the order holds it)
+    //   passes over the API while the page watches the board — red's turn
+    //   arrives and the ACTIVATION phrase must play exactly once. ──────────
+    // The PROBE is page-side (MutationObserver + interval — NEVER rAF: a
+    // quiet headless screen starves rAF exactly when this fires): a 1.1s
+    // one-shot class is far above its 60ms tick, while a CDP round-trip
+    // loop at 4K can genuinely be too slow to promise a catch.
+    await page.evaluate(() => {
+      const w = window as unknown as Record<string, unknown>;
+      const log: Array<Record<string, unknown>> = [];
+      w.__actLog = log;
+      const snap = (why: string) => {
+        const vis = (sel: string) => {
+          const el = document.querySelector(sel) as HTMLElement | null;
+          return el !== null && el.checkVisibility({opacityProperty: true, visibilityProperty: true});
+        };
+        const diag = (w as {__stratDiag?: () => unknown}).__stratDiag;
+        log.push({
+          why, t: Date.now(),
+          activating: document.querySelectorAll('.con-strat__item--activating').length,
+          repulse: document.querySelectorAll('.con-strat__item--repulse').length,
+          now: document.querySelectorAll('.con-strat__item--now').length,
+          start: vis('.con-start'), reveal: vis('.con-reveal'), notice: vis('.con-notice'),
+          diag: diag !== undefined ? diag() : null,
+        });
+      };
+      snap('install');
+      const probe = () => {
+        if (document.querySelector('.con-strat__item--activating, .con-strat__item--repulse') !== null) {
+          snap('hit');
+        }
+      };
+      const root = document.querySelector('.con-strat');
+      if (root !== null) {
+        new MutationObserver(probe).observe(root, {attributes: true, subtree: true, attributeFilter: ['class']});
+      }
+      w.__actInt = setInterval(() => {
+        probe();
+        const nowUp = document.querySelector('.con-strat__item--now') !== null;
+        if (nowUp && log.every((e) => e.why !== 'now-first-seen')) {
+          snap('now-first-seen');
+        }
+      }, 60);
+    });
+    await passGeneration(request, p2);
+    for (let i = 0; i < 12; i++) {
+      const g = await fetchPlayerModel(request, p3);
+      const wf: Wire = g.waitingFor;
+      if (wf !== undefined && isActionMenuTitle(typeof wf.title === 'string' ? wf.title : undefined)) {
+        await passGeneration(request, p3);
+        break;
+      }
+      const r = await fetchPlayerModel(request, p1);
+      const rwf: Wire = r.waitingFor;
+      if (rwf !== undefined) {
+        break; // red's turn is already up — nothing stands between
+      }
+      await new Promise((res) => setTimeout(res, 250));
+    }
+    mark('rivals passed — waiting for the live flip');
+    const flipDeadline = Date.now() + 30_000;
+    let sawPhrase = false;
+    let reachedNow = false;
+    while (Date.now() < flipDeadline) {
+      const {hits, now} = await page.evaluate(() => {
+        const w = window as unknown as {__actLog?: Array<{why: string}>};
+        const log = w.__actLog ?? [];
+        return {
+          hits: log.filter((e) => e.why === 'hit').length,
+          now: log.some((e) => e.why === 'now-first-seen'),
+        };
+      });
+      if (hits > 0) {
+        sawPhrase = true;
+        break;
+      }
+      if (now) {
+        reachedNow = true;
+        // C arrived — give the phrase one more beat to register, then stop.
+        await page.waitForTimeout(1400);
+        const late = await page.evaluate(() =>
+          ((window as unknown as {__actLog?: Array<{why: string}>}).__actLog ?? [])
+            .some((e) => e.why === 'hit'));
+        sawPhrase = late;
+        break;
+      }
+      await page.waitForTimeout(150);
+    }
+    // The animation record: a burst of rail frames across the phrase
+    // (element shots also force compositor frames — headless rAF stays fed).
+    for (let f = 0; f < 6; f++) {
+      await page.locator('.con-strat').screenshot({path: path.join(OUT, `tv4k-activation-f${f}.png`)});
+      await page.waitForTimeout(150);
+    }
+    const actLog = await page.evaluate(() => {
+      const w = window as unknown as {__actLog?: Array<unknown>, __stratDiag?: () => unknown};
+      (w.__actLog ?? []).push({why: 'final', diag: w.__stratDiag !== undefined ? w.__stratDiag() : null});
+      return JSON.stringify(w.__actLog ?? []);
+    });
+    expect(sawPhrase,
+      `the live rising edge must play the activation phrase (reachedNow=${reachedNow}) — probe log: ${actLog}`)
+      .toBe(true);
+    mark('activation phrase caught');
+
+    // STATE C — the section's loudest live object: green facts + the
+    // gold-white rim + «ДОСТУПНО» replacing the meter in the fixed foot.
+    await expect(mayor).toHaveClass(/con-strat__item--now/, {timeout: 10_000});
+    await expect(mayor.locator('.con-strat__avail')).toHaveCount(1);
+    expect((await mayor.locator('.con-strat__avail').innerText()).trim().length).toBeGreaterThan(0);
+    expect(await mayor.locator('.con-strat__meter').count(), 'the word replaces the meter in C').toBe(0);
+    await expect(page.locator('.con-strat__zone--milestones .con-strat__pip--next')).toHaveCount(1);
+    await waitToastQuiet(page);
+    await shoot(page, 'tv4k-states-02-claim-now');
+    await page.locator('.con-strat').screenshot({path: path.join(OUT, 'tv4k-states-02-rail.png')});
+    mark('state 02 shot (STATE C — claim now)');
+
+    // ── 6 · CLAIM through the real workspace: the rail seals on the fold ──
     await clearTransientChrome(page); // a toast would swallow the Q press
     await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}); // wake the compositor (headless rAF)
     await press(page, 'KeyQ', 1400);
@@ -437,22 +598,40 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     await page.waitForTimeout(700); // past the commit arm
     await page.keyboard.press('Enter');
     await page.waitForSelector('.con-mafocus__cere', {timeout: 20_000});
-    await page.waitForSelector('.con-ma', {state: 'detached', timeout: 30_000});
+    // The ceremony timeline and the auto-close ride GSAP/rAF — and a quiet
+    // headless screen STARVES rAF exactly here ([[e2e-forceframe-wakes-raf]]):
+    // a passive waitForSelector never sends a frame, so the timeline freezes
+    // mid-ceremony and the close never comes. PUMP BeginFrames while waiting.
+    const maGone = async () => (await page.locator('.con-ma').count()) === 0;
+    const closeDeadline = Date.now() + 45_000;
+    while (Date.now() < closeDeadline && !(await maGone())) {
+      await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
+      await page.waitForTimeout(280);
+    }
+    expect(await maGone(), 'the MA workspace must auto-close after its ceremony').toBe(true);
     await page.waitForTimeout(500); // the uncover flush + the seal's first beat
-    await shoot(page, 'tv4k-states-02-sealing');
+    await shoot(page, 'tv4k-states-03-sealing');
     await page.waitForTimeout(1600); // the seal settles
     await waitToastQuiet(page);
     await expect(mayor).toHaveClass(/con-strat__item--taken/, {timeout: 12_000});
+    // The calm horizontal owner line: cube (who) · ВЗЯТО · ✓ (done) — and
+    // the emblem stays CLEAN (no floating owner cube), the word gone.
     const seal = mayor.locator('.con-strat__ownseal');
     await expect(seal, 'the owner seal fills the value zone').toHaveCount(1);
     await expect(mayor.locator('.con-strat__ownseal--mine'), 'my claim is white-rimmed').toHaveCount(1);
+    await expect(mayor.locator('.con-strat__ownseal-cube')).toHaveCount(1);
+    await expect(mayor.locator('.con-strat__ownseal-tick')).toHaveText('✓');
     expect((await seal.locator('.con-strat__ownseal-word').innerText()).trim().length,
       'the seal carries its word').toBeGreaterThan(0);
+    expect(await mayor.locator('.con-strat__medal .con-strat__gem').count(),
+      'the claimed emblem carries no floating cube').toBe(0);
+    expect(await mayor.locator('.con-strat__avail').count(),
+      'no availability word survives the claim').toBe(0);
     await expect(mayor.locator('.con-strat__cell'), 'no numbers return after the claim').toHaveCount(0);
     await expect(page.locator('.con-strat__zone--milestones .con-strat__pip--set')).toHaveCount(1);
-    await shoot(page, 'tv4k-states-03-claimed');
-    await page.locator('.con-strat').screenshot({path: path.join(OUT, 'tv4k-states-03-rail.png')});
-    mark('state 03 shot (owner seal)');
+    await shoot(page, 'tv4k-states-04-claimed');
+    await page.locator('.con-strat').screenshot({path: path.join(OUT, 'tv4k-states-04-rail.png')});
+    mark('state 04 shot (owner seal)');
 
     // ── 6 · a TIE for first: two chips at one value, the silver II gone ───
     // Drive the table (over the API — the open page just reloads after)
@@ -471,10 +650,30 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     await waitToastQuiet(page);
     const tied = page.locator('[data-ma-hud="awards:Landlord"] .con-strat__unitbody--lead');
     await expect(tied.locator('.con-strat__cube'), 'both co-leaders chip in').toHaveCount(2, {timeout: 20_000});
+    await expect(tied.locator('.con-strat__crown'), 'ONE crown for the tied group').toHaveCount(1);
+    await expect(tied.locator('.con-strat__arch'), 'the gold arch spans the tied group').toHaveCount(1);
     await expect(tied.locator('.con-strat__num'), 'one shared value').toHaveCount(1);
-    await expect(page.locator('[data-ma-hud="awards:Landlord"] .con-strat__rank--ii'),
-      'a tie for 1st awards no 2nd place — the silver plaque must go').toHaveCount(0);
-    await shoot(page, 'tv4k-states-04-tie');
-    await page.locator('.con-strat').screenshot({path: path.join(OUT, 'tv4k-states-04-rail.png')});
+    await expect(page.locator('[data-ma-hud="awards:Landlord"] .con-strat__unitbody--ii'),
+      'a tie for 1st awards no 2nd place — no silver second line').toHaveCount(0);
+    // ZERO OVERLAP: the tied cubes' content boxes may not intersect (equals
+    // stand whole, side by side) — and the crown centres over the GROUP.
+    const tie = await tied.evaluate((unit) => {
+      const boxes = Array.from(unit.querySelectorAll('.con-strat__cube'))
+        .map((c) => c.getBoundingClientRect())
+        .sort((a, b) => a.left - b.left);
+      const crown = unit.querySelector('.con-strat__crown')!.getBoundingClientRect();
+      return {
+        gap: boxes[1].left - boxes[0].right,
+        widths: boxes.map((b) => b.width),
+        clusterCenter: (boxes[0].left + boxes[boxes.length - 1].right) / 2,
+        crownCenter: crown.left + crown.width / 2,
+      };
+    });
+    expect(tie.gap, 'tied cubes never overlap (content boxes apart)').toBeGreaterThan(0);
+    expect(Math.abs(tie.widths[0] - tie.widths[1]), 'tied cubes stay equal').toBeLessThanOrEqual(0.5);
+    expect(Math.abs(tie.crownCenter - tie.clusterCenter),
+      'the shared crown centres over the whole group').toBeLessThanOrEqual(1.5);
+    await shoot(page, 'tv4k-states-05-tie');
+    await page.locator('.con-strat').screenshot({path: path.join(OUT, 'tv4k-states-05-rail.png')});
   });
 });

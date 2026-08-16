@@ -141,10 +141,21 @@ function readAlbum(page: Page) {
       selOnScreen: selRect !== undefined && selRect.left >= -2 &&
         selRect.right <= window.innerWidth + 2,
       indicator: ind?.innerText.replace(/\s+/g, ' ').trim() ?? '',
+      // BOTH edges always render (the composition must not shift when a
+      // side goes away) — availability is the `--off` modifier.
       edges: {
-        left: document.querySelector('.con-hand__pgedge--left') !== null,
-        right: document.querySelector('.con-hand__pgedge--right') !== null,
+        left: document.querySelector('.con-hand__pgedge--left:not(.con-hand__pgedge--off)') !== null,
+        right: document.querySelector('.con-hand__pgedge--right:not(.con-hand__pgedge--off)') !== null,
       },
+      edgesRendered: document.querySelectorAll('.con-hand__pgedge').length,
+      // The old full-height hairlines are gone: the affordance is a short
+      // centred stack, never a rail.
+      edgeHeightFrac: (() => {
+        const el = document.querySelector<HTMLElement>('.con-hand__pgedge');
+        const box = document.querySelector<HTMLElement>('.con-hand__album');
+        return el === null || box === null ? -1 :
+          el.getBoundingClientRect().height / box.getBoundingClientRect().height;
+      })(),
     };
   });
 }
@@ -183,7 +194,10 @@ for (const profile of PROFILES) {
       expect(a1.scrollPos, 'the album scroll position is pinned at zero').toBe(0);
       expect(a1.edges.right, 'a next page is hinted at the right edge').toBe(true);
       expect(a1.edges.left, 'no previous page on page 1').toBe(false);
-      expect(a1.indicator, 'the page indicator names page 1').toContain('1/');
+      expect(a1.edgesRendered, 'both edges keep their reserved gutter').toBe(2);
+      expect(a1.edgeHeightFrac, 'the edge is a SHORT centred stack, not a rail')
+        .toBeLessThan(0.55);
+      expect(a1.indicator.replace(/\s/g, ''), 'the spine shows a clean position').toContain('1/');
       const sizeOnFull = {w: a1.selW, h: a1.selH};
       await shoot(page, `${profile.tag}-1-first-page`);
 
@@ -193,14 +207,22 @@ for (const profile of PROFILES) {
         await key(page, 'ArrowRight', 140);
         const now = await readAlbum(page);
         expect(now.selName, `a card holds focus at every step (step ${i})`).not.toBe('');
-        if (now.indicator.includes('2/')) {
+        if (now.indicator.replace(/\s/g, '').includes('2/')) {
           crossed = true;
           break;
         }
       }
       expect(crossed, 'walking right crossed onto page 2').toBe(true);
-      await page.waitForTimeout(450); // the slide settles
-      const a2 = await readAlbum(page);
+      // POLL for the settled page instead of sampling once: the slide is
+      // 180ms but a 4K profile needs a few more frames to paint the new
+      // page's cards, and a single post-timeout read can land inside that
+      // window (the measured card is then not yet in its final box). The
+      // CONTRACT is «it settles», not «it settles within one timeout».
+      let a2 = await readAlbum(page);
+      for (let i = 0; i < 20 && !(a2.selOnScreen && a2.selW > 0); i++) {
+        await page.waitForTimeout(120);
+        a2 = await readAlbum(page);
+      }
       expect(a2.selOnScreen, 'the focused card sits on the ACTIVE (visible) page').toBe(true);
       expect(a2.edges.left, 'page 2 hints the way back').toBe(true);
       if (profile.page2 === 'showcase') {
@@ -226,17 +248,17 @@ for (const profile of PROFILES) {
         await page.waitForTimeout(500);
       }
       const after = await readAlbum(page);
-      expect(after.indicator, 'the wheel turned one page back').toContain('1/');
+      expect(after.indicator.replace(/\s/g, ''), 'the wheel turned one page back').toContain('1/');
       expect(after.selName, 'focus moved with the page, not reset').not.toBe('');
       expect(after.selName, 'a DIFFERENT card holds focus after the jump').not.toBe(before.selName);
       await shoot(page, `${profile.tag}-3-wheel-back`);
 
       // ── LB/RB are the album's PAGE VERBS (the bay spine's own controls) ──
       await key(page, 'KeyE', 550); // RB → next page
-      expect((await readAlbum(page)).indicator, 'RB turned to page 2').toContain('2/');
+      expect((await readAlbum(page)).indicator.replace(/\s/g, ''), 'RB turned to page 2').toContain('2/');
       await key(page, 'KeyQ', 550); // LB → previous page
       const backHome = await readAlbum(page);
-      expect(backHome.indicator, 'LB turned back to page 1').toContain('1/');
+      expect(backHome.indicator.replace(/\s/g, ''), 'LB turned back to page 1').toContain('1/');
       expect(backHome.edges.left, 'page 1 mutes the way back').toBe(false);
 
       if (profile.tag === 'tv4k') {
@@ -258,7 +280,7 @@ for (const profile of PROFILES) {
         await key(page, 'KeyV', 900); // R3 → reset to all
         // The focused card is FOLLOWED through the reset — its page opens,
         // whichever it is; the full universe is back in the range text.
-        expect((await readAlbum(page)).indicator, 'reset restored the full hand').toContain('13');
+        expect((await readAlbum(page)).indicator.replace(/\s/g, ''), 'reset restored the full hand (2 pages again)').toContain('/2');
       }
 
       // ── close: every card gathers home, nothing stays lifted ─────────
@@ -296,7 +318,7 @@ test.describe('hand album · «Крупные карты» (tv4k)', () => {
 
     // 13 cards at capacity 4 → 4+4+4+1: four pages, page 1 full.
     const a1 = await readAlbum(page);
-    expect(a1.indicator, 'the pager paginates by FOUR').toContain('1/4');
+    expect(a1.indicator.replace(/\s/g, ''), 'the pager paginates by FOUR').toContain('1/4');
     expect(a1.maxPageSlots, 'no page exceeds the large capacity').toBeLessThanOrEqual(4);
     expect(a1.scrollExcessY, 'no vertical scroll in large mode').toBeLessThanOrEqual(1);
     const fullW = a1.selW;
@@ -307,7 +329,7 @@ test.describe('hand album · «Крупные карты» (tv4k)', () => {
       await key(page, 'KeyE', 550);
     }
     const a4 = await readAlbum(page);
-    expect(a4.indicator, 'the hero tail page').toContain('4/4');
+    expect(a4.indicator.replace(/\s/g, ''), 'the hero tail page').toContain('4/4');
     expect(a4.pageSlotCounts.some((n) => n === 1), 'the last page holds ONE card').toBe(true);
     expect(a4.selW, 'the hero renders larger than the full-row card').toBeGreaterThan(fullW * 1.1);
     await shoot(page, 'tv4k-large-2-hero-tail');
@@ -316,7 +338,7 @@ test.describe('hand album · «Крупные карты» (tv4k)', () => {
     for (let i = 0; i < 3; i++) {
       await key(page, 'KeyQ', 400);
     }
-    expect((await readAlbum(page)).indicator).toContain('1/4');
+    expect((await readAlbum(page)).indicator.replace(/\s/g, '')).toContain('1/4');
     await key(page, 'Escape', 2400);
     await expect(page.locator('.con-hand')).toHaveCount(0);
     await expect(page.locator('.con-handdock__card--lifted')).toHaveCount(0);

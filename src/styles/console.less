@@ -6181,52 +6181,133 @@ html.console-mode {
         justify-content: center;
         /* height + column-gap are set inline from the plan (slotH / gapX). */
     }
-    /* PAGE EDGES — the thin layered hint that a neighbouring page exists
-       (and the mouse door to it). Three hairline «sheets» with a slight
-       fan — a stack of pages waiting past the boundary, not a button and
-       not a book. Box-shadow based, so `con-perf-lite` keeps it. */
+    /* ── ALBUM EDGE AFFORDANCE — «there is a page that way» ───────────────
+       NOT a rail and NOT a scrollbar: a SHORT stack of sheet EDGES at the
+       vertical centre of the page boundary (three leaves, each one shorter,
+       dimmer and further out — the depth of a closed album seen edge-on),
+       with a compact chevron riding the innermost one. It stands in its own
+       reserved gutter (`ALBUM_EDGE_GUTTER` in consoleHandAlbum.ts), so an
+       edge card's ring and glow never meet it — the previous complaint was
+       as much about the graphic as about the position: a full-height
+       hairline reads as the physical boundary of the stage, and a card
+       beside it reads as cropped.
+
+       Both sides always render — an unavailable direction is `--off` (all
+       but gone) so the composition can never shift when the last page drops
+       its next-edge. Everything is transform/opacity + box-shadow, so
+       `con-perf-lite` keeps every cue. */
     &__pgedge {
         position: absolute;
-        top: 14%;
-        bottom: 14%;
-        width: 1.05rem;
+        top: 50%;
+        width: 1.7rem;
+        /* SHORT on purpose — a tall stack is the rail this replaced. It must
+           read as a few sheets at the boundary, not as a track. */
+        height: 20%;
+        min-height: 3.4rem;
+        max-height: 7.2rem;
         padding: 0;
         border: 0;
         background: none;
         cursor: pointer;
         z-index: 4;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transform: translateY(-50%);
+        transition:
+            opacity calc(180ms * var(--motion-scale, 1)) ease,
+            transform calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
 
-        &::before,
-        &::after {
+        &--left { left: 0; }
+        &--right { right: 0; }
+
+        /* THE LEAVES — sheet edges: solid in the middle, DISSOLVING at both
+           ends (a mask, so nothing terminates in a hard cap the eye reads
+           as a rail's end-stop). The innermost is the brightest «page»;
+           the two behind recede. */
+        &-leaf {
+            position: absolute;
+            top: 50%;
+            border-radius: .2rem;
+            background: linear-gradient(180deg, fade(@con-cyan, 62%), fade(@con-cyan, 34%));
+            -webkit-mask-image: linear-gradient(180deg, transparent, #000 26%, #000 74%, transparent);
+            mask-image: linear-gradient(180deg, transparent, #000 26%, #000 74%, transparent);
+            transform: translateY(-50%);
+            transition:
+                transform calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+                opacity calc(180ms * var(--motion-scale, 1)) ease;
+
+            &--1 { width: .26rem; height: 100%; opacity: 1; }
+            &--2 { width: .19rem; height: 74%; opacity: .6; }
+            &--3 { width: .13rem; height: 50%; opacity: .32; }
+        }
+        /* The fan: each further leaf steps OUTWARD (toward its own edge), so
+           the stack recedes past the clip instead of stacking inward over
+           the cards. Tight spacing — one object, not three marks. */
+        &--left &-leaf--1 { left: .62rem; }
+        &--left &-leaf--2 { left: .38rem; }
+        &--left &-leaf--3 { left: .18rem; }
+        &--right &-leaf--1 { right: .62rem; }
+        &--right &-leaf--2 { right: .38rem; }
+        &--right &-leaf--3 { right: .18rem; }
+        /* A soft wash bleeding IN from the clip line: the sheets look like
+           they come from beyond the stage rather than being drawn on it. */
+        &::before {
             content: '';
             position: absolute;
-            top: 0;
-            bottom: 0;
-            width: .12rem;
-            border-radius: 49.95rem;
-            background: fade(@con-cyan, 26%);
-            box-shadow: 0 0 .35rem fade(@con-cyan, 18%);
+            top: -18%;
+            bottom: -18%;
+            width: 3.2rem;
+            pointer-events: none;
+            opacity: .55;
         }
-        &::after {
-            top: 5%;
-            bottom: 5%;
-            background: fade(@con-cyan, 13%);
-            box-shadow: none;
+        &--left::before {
+            left: 0;
+            background: linear-gradient(90deg, fade(@con-cyan, 13%), transparent 78%);
         }
-        &--left {
-            left: .1rem;
-            &::before { left: .3rem; }
-            &::after { left: .62rem; }
+        &--right::before {
+            right: 0;
+            background: linear-gradient(270deg, fade(@con-cyan, 13%), transparent 78%);
         }
-        &--right {
-            right: .1rem;
-            &::before { right: .3rem; }
-            &::after { right: .62rem; }
+
+        /* The chevron — the only literal «direction» mark, quiet and small
+           (the bay spine already carries the LB/RB verbs; this must not
+           become a second command surface). */
+        &-chev {
+            position: absolute;
+            top: 50%;
+            z-index: 1;
+            font-size: 1.15rem;
+            font-weight: 700;
+            line-height: 1;
+            color: #dff1ff;
+            text-shadow: 0 0 .6rem fade(@con-cyan, 55%), 0 .1rem .3rem rgba(0, 0, 0, 0.7);
+            transition: transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
         }
-        &:hover::before {
-            background: fade(@con-cyan, 55%);
-            box-shadow: 0 0 .55rem fade(@con-cyan, 32%);
+        /* The chevron rides the STACK (over the leading leaf), so the whole
+           thing reads as ONE object rather than a mark beside some lines. */
+        &--left &-chev { left: .5rem; transform: translate(-50%, -50%); }
+        &--right &-chev { right: .5rem; transform: translate(50%, -50%); }
+
+        /* HOVER (mouse door) — the stack leans toward its own side. */
+        &--left:hover:not(&--off) &-chev { transform: translate(-50%, -50%) translateX(-.22rem); }
+        &--right:hover:not(&--off) &-chev { transform: translate(50%, -50%) translateX(.22rem); }
+
+        /* NO PAGE THAT WAY — present in layout, all but gone visually. */
+        &--off {
+            opacity: .12;
+            cursor: default;
         }
+
+        /* THE PRESS IMPULSE (LB/RB): the leaves fan out and the chevron
+           throws toward its own edge for one short beat, on the press
+           frame — the page slide then carries the movement on. */
+        &--pulse &-leaf {
+            animation: con-pgedge-pulse calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
+        &--left&--pulse &-chev { transform: translate(-50%, -50%) translateX(-.38rem); }
+        &--right&--pulse &-chev { transform: translate(50%, -50%) translateX(.38rem); }
+        &--pulse &-leaf--1 { box-shadow: 0 0 .8rem fade(@con-cyan, 45%); }
     }
 
     /* ── one card slot ─────────────────────────────────────────────────── */
@@ -6234,6 +6315,19 @@ html.console-mode {
         position: relative;
         flex-shrink: 0;
         zoom: var(--con-hand-zoom, 0.66);
+        /* ── FOCUS DECORATION IS SCREEN-SPACE, THE CARD IS NOT ────────────
+           The slot's `zoom` multiplies EVERY length inside it, including the
+           ring and glow of the focus/state shadows. At the standard card
+           that is what we tuned; on a showcase card (zoom up to ~3×) the
+           same rule painted a ring three times as thick and a halo that
+           reached its neighbour — the reported «слишком толстый ореол».
+           `--con-hand-fx` divides the growth back out ABOVE a soft knee, so
+           the decoration grows a little with the card and then stops:
+           at the standard zoom it is 1 (today's look, byte-identical), and
+           past the knee the SCREEN thickness is capped at knee×base.
+           Every state shadow below multiplies its lengths by it — the
+           colour, the opacity and the semantics are untouched. */
+        --con-hand-fx: calc(1.6 / max(1.6, var(--con-hand-zoom, 0.66)));
         /* NO opacity transition ON PURPOSE: the reveal handoff releases the
            held slots as an instant snap UNDER the still-opaque proxies (see
            the `--transit` note above) — a transition here re-creates the
@@ -6246,7 +6340,7 @@ html.console-mode {
 
         /* PLAYABLE: a clean mint hairline so it reads as actionable. */
         &--playable > :is(.card-container, .pcard) {
-            box-shadow: 0 0 0 .05rem fade(@con-mint, 26%);
+            box-shadow: 0 0 0 calc(.05rem * var(--con-hand-fx, 1)) fade(@con-mint, 26%);
         }
         /* UNAVAILABLE: dimmed but still READABLE — never a dead grey card.
            During the reveal the flying proxy carries the SAME dim
@@ -6268,14 +6362,14 @@ html.console-mode {
             z-index: 3;
         }
         &--selected > :is(.card-container, .pcard) {
-            box-shadow: 0 0 0 .15rem fade(@con-cyan, 80%), 0 0 .9rem fade(@con-cyan, 34%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
+            box-shadow: 0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-cyan, 80%), 0 0 calc(.9rem * var(--con-hand-fx, 1)) fade(@con-cyan, 34%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
         }
         &--selected&--playable > :is(.card-container, .pcard) {
-            box-shadow: 0 0 0 .15rem fade(@con-mint, 84%), 0 0 1rem fade(@con-mint, 40%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
+            box-shadow: 0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-mint, 84%), 0 0 calc(1rem * var(--con-hand-fx, 1)) fade(@con-mint, 40%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
         }
         &--selected&--unplayable > :is(.card-container, .pcard) {
             filter: grayscale(0.16) brightness(0.94);
-            box-shadow: 0 0 0 .15rem fade(@con-red, 72%), 0 0 .9rem fade(@con-red, 30%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
+            box-shadow: 0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-red, 72%), 0 0 calc(.9rem * var(--con-hand-fx, 1)) fade(@con-red, 30%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
         }
         /* «НЕ СЕЙЧАС»: legal by the rules, merely outside the player's window.
            NO dim at all — the card is exactly as good as it will be a moment
@@ -6283,26 +6377,32 @@ html.console-mode {
            without colour alone (it is a box-shadow, so `con-perf-lite` keeps
            it; see the performance-mode contract). */
         &--selected&--notnow > :is(.card-container, .pcard) {
-            box-shadow: 0 0 0 .15rem fade(@con-amber, 78%), 0 0 .9rem fade(@con-amber, 30%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
+            box-shadow: 0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-amber, 78%), 0 0 calc(.9rem * var(--con-hand-fx, 1)) fade(@con-amber, 30%), 0 .6rem 1.2rem -.6rem rgba(0, 0, 0, 0.7);
         }
         /* SALE mode: picked cards get the amber sale frame + state band. */
         &--sale-picked > :is(.card-container, .pcard) {
             filter: none;
-            box-shadow: 0 0 0 .15rem fade(@con-amber, 82%), 0 0 1rem fade(@con-amber, 36%);
+            box-shadow: 0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-amber, 82%), 0 0 calc(1rem * var(--con-hand-fx, 1)) fade(@con-amber, 36%);
         }
         /* SELECT mode (discard / reveal / place): a picked card gets the cyan
            select frame + ✓ band; a non-candidate is dimmed (its «why not»
            reason rides the compact chip + the info panel). */
         &--select-picked > :is(.card-container, .pcard) {
             filter: none;
-            box-shadow: 0 0 0 .15rem fade(@con-cyan, 84%), 0 0 1rem fade(@con-cyan, 40%);
+            box-shadow: 0 0 0 calc(.15rem * var(--con-hand-fx, 1)) fade(@con-cyan, 84%), 0 0 calc(1rem * var(--con-hand-fx, 1)) fade(@con-cyan, 40%);
         }
         &--select-disabled > :is(.card-container, .pcard) {
             filter: grayscale(0.5) brightness(0.64);
         }
-        /* Small-zoom slot: bump the band back to readable. Keeps the base
-           rule's TV double-scale guard (same property → this would drop it). */
-        .con-cards__pickband { zoom: calc(1.15 / var(--con-ui-scale, 1)); }
+        /* ⚠️ COUNTER-ZOOM, NEVER A FIXED MULTIPLIER (the «Роботы» class of
+           bug). This band lives INSIDE the slot, so the slot's own
+           `zoom: var(--con-hand-zoom)` already multiplies it; a constant
+           factor here only looks right at ONE card size — it was tuned at
+           the old 0.66 and rendered ~5× on a showcase page. Dividing the
+           card zoom back out gives the band a CONSTANT screen size at every
+           density (the `__chip` precedent, same 0.99 base × the band's own
+           1.35 emphasis). */
+        .con-cards__pickband { zoom: ~"calc(1.35 / var(--con-hand-zoom, 0.66))"; }
     }
     /* Compact blocker chip on an unavailable card (short reason). Placed
        over the CARD ART (vertical centre), NEVER over the bottom mechanics
@@ -6335,18 +6435,33 @@ html.console-mode {
         zoom: ~"calc(0.99 / var(--con-hand-zoom, 0.66))";
         pointer-events: none;
     }
+    /* The «Роботы» badge (a card hosted on Self-Replicating Robots).
+       ⚠️ ROOT CAUSE OF THE OVERSIZED PLATE, and the reason this comment
+       exists: it carried `zoom: 1.5` — a CONSTANT multiplier inside a slot
+       that is itself `zoom: var(--con-hand-zoom)`. At the old fixed card
+       zoom (0.66) the product happened to be ≈1, so it looked correct; the
+       moment a showcase page raised the card zoom to ~3 the badge rendered
+       ~4.5× and covered the card's own title. A badge must never inherit
+       the CARD's density: counter-zoom (the `__chip` law) makes its screen
+       size constant at every composition. Its box is also bounded so a
+       longer label can never grow past the card's corner. */
     &__robot {
         position: absolute;
         top: -.4rem;
         right: -.3rem;
+        max-width: 90%;
         padding: .15rem .5rem;
         border-radius: .3rem;
         background: fade(#2ec4b6, 18%);
         box-shadow: inset 0 0 0 .05rem fade(#2ec4b6, 60%);
         color: #7fe3d8;
         font-size: .75rem;
+        line-height: 1.25;
         letter-spacing: .03rem;
-        zoom: 1.5;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        zoom: ~"calc(0.99 / var(--con-hand-zoom, 0.66))";
     }
 
     /* (The page position moved to the ALBUM SPINE — `.con-handdock__pager`
@@ -6761,6 +6876,26 @@ html.console-mode {
 @keyframes con-hand-dim-in {
     from { filter: grayscale(0) brightness(1); }
     to { filter: grayscale(0.42) brightness(0.78); }
+}
+/* The edge affordance's press impulse: the sheet stack breathes once as the
+   page slide takes over (scaleY only — no layout, no reflow). */
+@keyframes con-pgedge-pulse {
+    0% { transform: translateY(-50%) scaleY(1); }
+    40% { transform: translateY(-50%) scaleY(1.22); }
+    100% { transform: translateY(-50%) scaleY(1); }
+}
+/* The spine's page number entering from the direction the album turned. */
+@keyframes con-pager-in {
+    from { opacity: 0; transform: translateX(.42rem); }
+    to { opacity: 1; transform: translateX(0); }
+}
+@keyframes con-pager-in-prev {
+    from { opacity: 0; transform: translateX(-.42rem); }
+    to { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .con-handdock__pager-now b { animation: none; }
+    .con-hand__pgedge--pulse .con-hand__pgedge-leaf { animation: none; }
 }
 @media (prefers-reduced-motion: reduce) {
     .con-hand__slot--unplayable > :is(.card-container, .pcard) { animation: none; }
@@ -9276,7 +9411,7 @@ html.con-profile-handheld .con-mafocus {
         bottom: .3rem;
         right: var(--strat-spine-r);
         width: var(--strat-spine-w);
-        border-radius: .08rem;
+        border-radius: .12rem;
         background:
             linear-gradient(90deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 55%),
             linear-gradient(180deg, #59708a, #35455a 10%, #4a5f78 50%, #303f52 90%, #59708a);
@@ -9285,21 +9420,22 @@ html.con-profile-handheld .con-mafocus {
             inset 0 0 0 .04rem rgba(10, 16, 24, 0.6);
         pointer-events: none;
 
+        /* The end TIE-INS — thin horizontal gussets welding the post to the
+           case's corners (polish 2: the old wider end CAPS on the post read
+           as a scrollbar's draggable handles; a structural joint does not). */
         &::before,
         &::after {
             content: '';
             position: absolute;
-            left: -.11rem;
-            right: -.11rem;
-            height: .34rem;
-            border-radius: .1rem;
-            background: linear-gradient(180deg, #6a8098, #3c4c60);
-            box-shadow:
-                0 .08rem .25rem rgba(0, 0, 0, 0.5),
-                inset 0 .05rem 0 rgba(255, 255, 255, 0.28);
+            right: 100%;
+            width: .36rem;
+            height: .07rem;
+            border-radius: .05rem 0 0 .05rem;
+            background: linear-gradient(270deg, #6a8098, rgba(60, 76, 92, 0));
+            box-shadow: 0 .05rem .12rem rgba(0, 0, 0, 0.4);
         }
-        &::before { top: -.06rem; }
-        &::after { bottom: -.06rem; }
+        &::before { top: .05rem; }
+        &::after { bottom: .05rem; }
     }
 
     &__zone {
@@ -9316,9 +9452,22 @@ html.con-profile-handheld .con-mafocus {
         --strat-medal: 4rem;
         --strat-num: 1.08rem;
         --strat-num2: .88rem;
+        /* ONE motion language, two amplitudes: the COMPACT (completed)
+           pose replays the same phrases at ~80% distance and time. */
+        --strat-mo: 1;
 
         &--dense { --strat-medal: 3.3rem; }
-        &--ultra { --strat-medal: 2.05rem; }
+        &--ultra {
+            --strat-medal: 2.05rem;
+
+            /* The extreme pose: the cassette compresses with the medals —
+               its two levels may not out-grow the row pitch. */
+            .con-strat__cassette {
+                --strat-pz: 1.15rem;
+                --strat-sz: 1.6rem;
+                --strat-cas-row: .84rem;
+            }
+        }
     }
     /* The seam between the two exhibits — one fading shelf line inside the
        shared case, never a second panel. */
@@ -9526,16 +9675,23 @@ html.con-profile-handheld .con-mafocus {
         opacity: 0;
         transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
     }
-    /* The owner ENAMEL — a thin ring of the player's colour around the puck
-       (the colour class supplies the fill; the mask turns it into a rim).
-       An accent, never a wash: the medal keeps its dark premium material. */
+    /* The owner ENAMEL — a QUIET accent, never a wash and never a disc
+       (polish 2: the .8 ring read as a big player-colour circle and
+       out-shouted the emblem). Milestones keep a thin low ring; on AWARDS
+       the sponsor is the socket cube, so the plate decays to a very faint
+       enamel REFLECTION inside the pedestal's lower bowl. */
     &__plate {
         position: absolute;
         inset: 2%;
         border-radius: 50%;
-        opacity: 0.8;
-        -webkit-mask: radial-gradient(closest-side, transparent 70%, #000 76%, #000 94%, transparent 100%);
-        mask: radial-gradient(closest-side, transparent 70%, #000 76%, #000 94%, transparent 100%);
+        opacity: 0.42;
+        -webkit-mask: radial-gradient(closest-side, transparent 74%, #000 80%, #000 93%, transparent 100%);
+        mask: radial-gradient(closest-side, transparent 74%, #000 80%, #000 93%, transparent 100%);
+    }
+    &__zone--awards .con-strat__plate {
+        opacity: 0.2;
+        -webkit-mask: radial-gradient(90% 62% at 50% 92%, #000 0%, rgba(0, 0, 0, 0.55) 42%, transparent 72%);
+        mask: radial-gradient(90% 62% at 50% 92%, #000 0%, rgba(0, 0, 0, 0.55) 42%, transparent 72%);
     }
     &__art {
         position: absolute;
@@ -9552,38 +9708,99 @@ html.con-profile-handheld .con-mafocus {
         transition: opacity calc(300ms * var(--motion-scale, 1)) ease,
             transform calc(300ms * var(--motion-scale, 1)) ease;
     }
-    /* The shoulder jewel — the tray's diamond at full strength, pinned on
-       the medal's shoulder: the enamel proof of WHO sealed it. On awards it
-       is the SPONSOR's seal and takes a metal mount (zone rule below). */
+    /* The SPONSOR CUBE (awards only — a milestone's owner lives in the seal
+       and the tray, never doubled on the emblem): a small player cube in a
+       warm metal SOCKET at the ribbon corner — pinned to the periphery,
+       never over the art's centre, and clearly apart from the leader cubes
+       in the value zone. */
     &__gem {
         position: absolute;
-        top: -2%;
-        right: -3%;
-        width: .54rem;
-        height: .54rem;
-        border-radius: .12rem;
-        transform: rotate(45deg);
-        background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0) 58%);
-        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5), 0 .1rem .3rem rgba(0, 0, 0, 0.5);
-    }
-    &__gem--me { box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5), 0 0 0 .08rem rgba(255, 255, 255, 0.8), 0 .1rem .3rem rgba(0, 0, 0, 0.5); }
-    /* The sponsor's seal sits at the ribbon corner with a warm metal mount —
-       pinned to the emblem's periphery, never over its centre. */
-    &__zone--awards .con-strat__gem {
-        top: auto;
-        bottom: 0;
+        bottom: 1%;
         right: -2%;
-        width: .6rem;
-        height: .6rem;
-        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5),
+        width: .5rem;
+        height: .5rem;
+        border-radius: .11rem;
+        /* The same ENAMEL family as the ranking cubes — one player-cube
+           material everywhere; only the gold SOCKET marks the sponsor. */
+        background-image: linear-gradient(180deg,
+            rgba(255, 255, 255, 0.42),
+            rgba(255, 255, 255, 0.08) 36%,
+            rgba(0, 0, 0, 0.1) 62%,
+            rgba(0, 0, 0, 0.32));
+        box-shadow:
+            inset 0 .05rem .06rem rgba(255, 255, 255, 0.34),
+            inset 0 -.06rem .08rem rgba(0, 0, 0, 0.42),
+            inset 0 0 0 .045rem rgba(16, 22, 30, 0.8),
             0 0 0 .09rem fade(@strat-gold, 42%),
+            0 .1rem .3rem rgba(0, 0, 0, 0.55);
+
+        /* The MOUNT: a soft contact shadow under the socket — the cube
+           reads as fastened to the emblem, never floating beside it. */
+        &::before {
+            content: '';
+            position: absolute;
+            left: -30%;
+            right: -30%;
+            bottom: -34%;
+            height: 55%;
+            border-radius: 50%;
+            background: radial-gradient(ellipse at 50% 45%, rgba(0, 0, 0, 0.5), transparent 68%);
+            z-index: -1;
+            pointer-events: none;
+        }
+    }
+    &__gem--me {
+        box-shadow:
+            inset 0 .05rem .06rem rgba(255, 255, 255, 0.34),
+            inset 0 -.06rem .08rem rgba(0, 0, 0, 0.42),
+            inset 0 0 0 .045rem rgba(16, 22, 30, 0.8),
+            0 0 0 .09rem fade(@strat-gold, 42%),
+            0 0 0 .15rem rgba(255, 255, 255, 0.6),
             0 .1rem .3rem rgba(0, 0, 0, 0.55);
     }
-    &__zone--awards .con-strat__gem--me {
-        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5),
-            0 0 0 .09rem fade(@strat-gold, 42%),
-            0 0 0 .16rem rgba(255, 255, 255, 0.75),
-            0 .1rem .3rem rgba(0, 0, 0, 0.55);
+    /* ── the milestone ACTIVATION optics — three light layers on the medal:
+       the gold-white RIM (persistent «can act now»), the bottom-crystal
+       SPARK, and the one-shot contour SWEEP. All transform/opacity — no
+       blur, no filters; the rim survives reduced motion as a static light. */
+    &__actring {
+        position: absolute;
+        inset: -6.5%;
+        border-radius: 50%;
+        box-shadow: 0 0 0 .07rem rgba(246, 232, 198, 0.72),
+            0 0 .5rem fade(@strat-gold, 42%),
+            inset 0 0 .4rem fade(@strat-gold, 16%);
+        opacity: 0;
+        transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
+        pointer-events: none;
+    }
+    &__spark {
+        position: absolute;
+        left: 50%;
+        bottom: -5%;
+        width: 36%;
+        height: 24%;
+        transform: translateX(-50%);
+        background: radial-gradient(ellipse at 50% 58%,
+            rgba(255, 246, 218, 0.95) 8%,
+            rgba(240, 205, 130, 0.5) 40%,
+            transparent 72%);
+        opacity: 0;
+        transition: opacity calc(300ms * var(--motion-scale, 1)) ease;
+        pointer-events: none;
+    }
+    &__sweep {
+        position: absolute;
+        inset: -5%;
+        border-radius: 50%;
+        background: conic-gradient(from 180deg,
+            transparent 0 76%,
+            rgba(255, 242, 208, 0.05) 80%,
+            rgba(255, 242, 208, 0.9) 89%,
+            transparent 97%);
+        -webkit-mask: radial-gradient(closest-side, transparent 76%, #000 82%, #000 96%, transparent 100%);
+        mask: radial-gradient(closest-side, transparent 76%, #000 82%, #000 96%, transparent 100%);
+        opacity: 0;
+        pointer-events: none;
     }
     &__kiss {
         position: absolute;
@@ -9594,34 +9811,96 @@ html.con-profile-handheld .con-mafocus {
         pointer-events: none;
     }
 
-    /* ── item states — a RIM plus a bloom, never a blurry wash ── */
-    /* Available RIGHT NOW (server-offered): a clean emerald rim on the puck,
-       a soft inner bloom, and a slow breath on the bloom's light only. The
-       rim survives prefers-reduced-motion AND perf-lite (box-shadow). */
-    &__item--now {
-        .con-strat__pedestal {
-            box-shadow: @strat-puck-shadow,
-                0 0 0 .07rem fade(@con-mint, 82%),
-                inset 0 0 .5rem fade(@con-mint, 22%);
-        }
-        .con-strat__bloom {
-            opacity: 0.6;
-            animation: strat-now-pulse calc(2600ms * var(--motion-scale, 1)) ease-in-out infinite;
-        }
-    }
-    /* Condition met but not offered on this frame (opponent's turn, mid-
-       action): the SAME emerald presence, steady and quieter — yours,
-       waiting; never an error. */
+    /* ── item states — the ATTENTION HIERARCHY (polish 2) ──
+       1. claimable NOW — the loudest live object (green facts + the
+          gold-white activation light);
+       2. open progress — calm;
+       3. taken — prestigious but QUIET (the seal, no glow).
+       Colour semantics never mix: GREEN = the requirement is met (check,
+       value, meter, mint rim), GOLD-WHITE = the action is genuinely
+       available this frame (rim, spark, word), PLAYER COLOUR = owner /
+       sponsor only. */
+    /* State B — met, but NOT actionable now (turn / money / slots): the
+       green facts and a moderate mint rim. No activation light, no word. */
     &__item--ready {
         .con-strat__pedestal {
             box-shadow: @strat-puck-shadow,
-                0 0 0 .06rem fade(@con-mint, 48%),
+                0 0 0 .06rem fade(@con-mint, 50%),
                 inset 0 0 .4rem fade(@con-mint, 14%);
         }
+        .con-strat__bloom { opacity: 0.28; }
+    }
+    /* State C — the claim is OFFERED right now (the server's own option,
+       never a client re-derivation): keep the green requirement language
+       AND add the gold-white activation light — the rim, the lit bottom
+       crystal, a thin row bracket. Only the RIM breathes, slowly. */
+    &__item--now {
+        .con-strat__pedestal {
+            box-shadow: @strat-puck-shadow,
+                0 0 0 .06rem fade(@con-mint, 62%),
+                inset 0 0 .45rem fade(@con-mint, 16%);
+        }
         .con-strat__bloom { opacity: 0.3; }
+        .con-strat__actring {
+            opacity: 1;
+            animation: strat-avail-breathe calc(5600ms * var(--motion-scale, 1)) ease-in-out infinite;
+        }
+        .con-strat__spark { opacity: 0.85; }
+
+        /* The row's own light accent — a soft gold bracket on the shelf
+           edge, tying medal and value into one live line. */
+        &::before {
+            content: '';
+            position: absolute;
+            left: -.02rem;
+            top: 16%;
+            bottom: 16%;
+            width: .09rem;
+            border-radius: .05rem;
+            background: linear-gradient(180deg,
+                transparent,
+                rgba(242, 219, 158, 0.6) 30%,
+                rgba(242, 219, 158, 0.6) 70%,
+                transparent);
+            pointer-events: none;
+        }
     }
     /* An unsponsored award is a quieter object than a sponsored one. */
     &__item--quiet .con-strat__art { opacity: 0.76; }
+
+    /* ── the ACTIVATION ceremony — the one-shot «it just opened» phrase
+       (~1s, played ONLY on a live watched rising edge; a re-gained offer
+       gets the short repulse instead — the machine in the component owns
+       when, this block owns what): the meter has just filled → the value
+       fixes green → the check DRAWS → the bottom crystal flashes → a light
+       impulse runs the emblem's contour → the emblem takes a 3% physical
+       nudge → the rim assembles from outside → «ДОСТУПНО» surfaces. ── */
+    &__item--activating {
+        .con-strat__art { animation: strat-activate-art calc(880ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.2, 0.5, 1) both; }
+        .con-strat__spark { animation: strat-activate-spark calc(760ms * var(--motion-scale, 1)) ease-out both; }
+        .con-strat__sweep { animation: strat-activate-sweep calc(640ms * var(--motion-scale, 1)) cubic-bezier(0.3, 0.2, 0.3, 1) both calc(160ms * var(--motion-scale, 1)); }
+        .con-strat__actring { animation: strat-activate-rim calc(520ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1) both calc(430ms * var(--motion-scale, 1)); }
+        .con-strat__avail { animation: strat-activate-avail calc(380ms * var(--motion-scale, 1)) ease-out both calc(640ms * var(--motion-scale, 1)); }
+        .con-strat__readymark svg path { animation: strat-activate-check calc(360ms * var(--motion-scale, 1)) ease-out both calc(120ms * var(--motion-scale, 1)); }
+    }
+    /* The short READY-PULSE — the offer came BACK (a new turn, a blocker
+       cleared): one calm swell of the standing light, never the ceremony. */
+    &__item--repulse {
+        .con-strat__actring { animation: strat-repulse calc(540ms * var(--motion-scale, 1)) ease-out both; }
+        .con-strat__spark { animation: strat-repulse calc(540ms * var(--motion-scale, 1)) ease-out both; }
+    }
+    /* The CROWN HAND-OVER (a live leader change): the FLIP walks the cubes
+       along the cassette's own axes, the cap fades across, and the
+       receiving GOLD STEP flares once in confirmation — the same phrase in
+       the compact pose, ~80% of the distance and time (--strat-mo). */
+    &__item--crownmove {
+        .con-strat__unitbody--i::after {
+            animation: strat-notch-pulse calc(560ms * var(--motion-scale, 1) * var(--strat-mo, 1)) ease-out both;
+        }
+        .con-strat__unitbody--i .con-strat__pz::before {
+            animation: strat-repulse calc(560ms * var(--motion-scale, 1) * var(--strat-mo, 1)) ease-out both;
+        }
+    }
 
     /* ── the value cell (milestones, open: MY count toward the threshold) ──
        Lives in the row grid's RESERVED third track: content-sized, right-
@@ -9644,13 +9923,46 @@ html.con-profile-handheld .con-mafocus {
         align-items: baseline;
         gap: .08rem;
     }
+    /* The requirement check — a real STROKE (the activation draws it live;
+       standing state renders it complete). */
     &__readymark {
-        font-style: normal;
-        font-size: .56rem;
-        font-weight: 900;
-        color: @con-mint;
-        margin-right: .06rem;
         align-self: center;
+        width: .6rem;
+        margin-right: .06rem;
+
+        svg {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+        svg path {
+            fill: none;
+            stroke: @con-mint;
+            stroke-width: 2.4;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 14;
+            stroke-dashoffset: 0;
+        }
+    }
+    /* The value block's FOOT — one fixed-height line that swaps content:
+       the hairline meter (not actionable) ⇄ the «ДОСТУПНО» word (offered
+       now). Fixed height: the swap never moves the numbers. */
+    &__cellfoot {
+        display: inline-flex;
+        align-items: center;
+        justify-content: flex-end;
+        height: .52rem;
+    }
+    &__avail {
+        font-size: .5rem;
+        font-weight: 800;
+        letter-spacing: .085rem;
+        text-transform: uppercase;
+        color: #f2e3bd;
+        white-space: nowrap;
+        /* The tracked caps keep their tail on the value axis. */
+        margin-right: -.085rem;
     }
     &__num {
         display: inline-block;
@@ -9663,7 +9975,10 @@ html.con-profile-handheld .con-mafocus {
         /* A column of zeros is noise, not signal — untouched races recede. */
         &--zero { color: fade(@con-text-dim, 75%); font-weight: 600; }
         &--ready { color: @con-mint; }
-        &--tick { animation: strat-tick calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.34, 1.56, 0.64, 1); }
+        /* A live value change ROLLS the digits in along the change's own
+           direction (up on a gain) — short, local, the column never moves. */
+        &--tick-up { animation: strat-roll-up calc(240ms * var(--motion-scale, 1) * var(--strat-mo, 1)) cubic-bezier(0.2, 0.7, 0.3, 1) both; }
+        &--tick-down { animation: strat-roll-down calc(240ms * var(--motion-scale, 1) * var(--strat-mo, 1)) cubic-bezier(0.2, 0.7, 0.3, 1) both; }
     }
     &__req {
         font-style: normal;
@@ -9691,155 +10006,325 @@ html.con-profile-handheld .con-mafocus {
         background: linear-gradient(90deg, fade(@con-mint, 55%), fade(@con-mint, 90%));
     }
 
-    /* ── the OWNER SEAL (milestones, taken): the enamel crystal + the check
-       + the word, in the SAME reserved third track the numbers held — the
-       right zone is never left empty, and the state reads by shape and
-       word, never by colour alone. A thin gold fixation frames it: a
-       completed, mounted trophy — not a disabled row. ── */
+    /* ── the OWNER SEAL (milestones, taken): ONE calm horizontal line —
+       `cube · ВЗЯТО · ✓` — in the reserved third track. The CUBE says who
+       (the only owner marker on the row), the neutral tick says done, the
+       thin gold hairline fixes it. Deliberately smaller and quieter than a
+       claimable row and than the old plaque: a settled trophy, never the
+       section's biggest button (polish 2 — the vertical crystal block read
+       as a CTA and out-shouted the live 3/3 rows). ── */
     &__ownseal {
         grid-column: 3;
         grid-row: 1;
         justify-self: end;
         display: inline-flex;
-        flex-direction: column;
         align-items: center;
-        gap: .1rem;
-        padding: .12rem .28rem .1rem;
-        border-radius: .35rem;
-        background: rgba(10, 17, 27, 0.55);
-        box-shadow: inset 0 0 0 .05rem fade(@strat-gold, 30%), 0 .1rem .3rem rgba(0, 0, 0, 0.4);
+        gap: .2rem;
+        padding: .09rem .24rem .09rem .18rem;
+        border-radius: .3rem;
+        background: rgba(10, 17, 27, 0.46);
+        box-shadow: inset 0 0 0 .04rem fade(@strat-gold, 24%);
     }
-    &__ownseal-gem {
-        position: relative;
-        width: .92rem;
-        height: .92rem;
-        margin: .1rem;
-        border-radius: .2rem;
-        transform: rotate(45deg);
-        background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0) 56%);
-        box-shadow: inset 0 0 0 .06rem rgba(0, 0, 0, 0.5), 0 .1rem .3rem rgba(0, 0, 0, 0.5);
+    &__ownseal-cube {
+        flex-shrink: 0;
+        width: .46rem;
+        height: .46rem;
+        border-radius: .1rem;
+        background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0) 58%);
+        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5);
     }
-    &__ownseal--mine .con-strat__ownseal-gem {
-        box-shadow: inset 0 0 0 .06rem rgba(0, 0, 0, 0.5),
-            0 0 0 .08rem rgba(255, 255, 255, 0.82),
-            0 .1rem .3rem rgba(0, 0, 0, 0.5);
-    }
-    &__ownseal-check {
-        position: absolute;
-        inset: 0;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transform: rotate(-45deg);
-        font-size: .56rem;
-        font-weight: 900;
-        color: rgba(255, 255, 255, 0.94);
+    &__ownseal--mine .con-strat__ownseal-cube {
+        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.5),
+            0 0 0 .07rem rgba(255, 255, 255, 0.78);
     }
     &__ownseal-word {
         font-size: .5rem;
         font-weight: 700;
-        letter-spacing: .09rem;
+        letter-spacing: .07rem;
         text-transform: uppercase;
-        color: fade(#e7d6ac, 90%);
-        /* The tracked caps keep their tail inside the block. */
-        margin-right: -.09rem;
+        color: fade(#dfd2ae, 92%);
+    }
+    &__ownseal-tick {
+        font-style: normal;
+        font-size: .5rem;
+        font-weight: 800;
+        line-height: 1;
+        color: rgba(214, 228, 236, 0.85);
     }
 
-    /* ── the award MICRO-PODIUM: two steps in the reserved third track ──
-       Rank is a metallic plaque (gold «I» / silver «II»), the player is an
-       enamel chip, the value is the number — three voices, never mixed.
-       Hierarchy by typography and material, NOT by a transform (the FLIP
-       move animates the unit's transform, so scaling here would fight it). */
+    /* ── the award RANKING CASSETTE — ONE physical display module ──
+       Two FIXED levels (leader above, second below) on two FIXED axes:
+       the PLAYER ZONE (`__pz`, a constant track with the cubes CENTRED —
+       both levels' cubes share one horizontal centre by construction) and
+       the SCORE ZONE (a constant track with right-aligned tabular values
+       on one shared right edge). The crown is an overlay CAP on the
+       leader's cube — never a flow member, so it can never push a cube or
+       a number (the in-flow crown shifted the leader cube into a diagonal
+       ladder); ties cluster under ONE crown; a lone leader keeps the top
+       level with the bottom calmly empty; an empty race is one centred
+       «—» in the same-size cassette. Material: ONE thin glass plate, warm
+       light above, cool silver below, a hairline shelf between — never
+       two separate cards. */
     &__race-wrap {
         grid-column: 3;
         grid-row: 1;
         justify-self: end;
         min-width: 0;
     }
+    &__cassette {
+        --strat-pz: 1.5rem;       /* the player zone (max cluster width) */
+        --strat-sz: 2.05rem;      /* the score zone (three digits at --strat-num) */
+        --strat-cas-row: 1.12rem; /* one level's height */
+        position: relative;
+        display: block;
+        padding: .12rem .16rem .1rem .14rem;
+        border-radius: .25rem;
+        /* OPEN RANK RAIL (polish 4): no card. A faint material wash that
+           dissolves toward the score side, a thin vertical GUIDE on the
+           left (gold above fading to silver below — the two steps' spine),
+           and the per-level STEP notches below — never a four-side contour,
+           never a widget plate over the trophy row. */
+        background: linear-gradient(90deg,
+            rgba(14, 21, 32, 0.36),
+            rgba(14, 21, 32, 0.16) 55%,
+            rgba(14, 21, 32, 0));
+
+        &::before {
+            content: '';
+            position: absolute;
+            left: .02rem;
+            top: 13%;
+            bottom: 13%;
+            width: .05rem;
+            border-radius: .05rem;
+            background: linear-gradient(180deg,
+                fade(@strat-gold, 42%),
+                rgba(175, 195, 215, 0.3) 62%,
+                rgba(175, 195, 215, 0.12));
+            pointer-events: none;
+        }
+        /* A lone leader keeps the bottom SILVER step as a calm empty notch
+           (never a dash, never a hole); an empty race dissolves the rail. */
+        &:has(.con-strat__unit:only-of-type):not(:has(.con-strat__none))::after {
+            content: '';
+            position: absolute;
+            left: 26%;
+            right: 10%;
+            bottom: .2rem;
+            height: .05rem;
+            border-radius: .04rem;
+            background: linear-gradient(90deg,
+                transparent,
+                rgba(185, 205, 225, 0.16) 30%,
+                rgba(185, 205, 225, 0.16) 88%,
+                transparent);
+            pointer-events: none;
+        }
+        &:has(.con-strat__none) {
+            background: linear-gradient(90deg, rgba(14, 21, 32, 0.14), rgba(14, 21, 32, 0));
+
+            &::before { opacity: 0.35; }
+        }
+    }
     &__race {
         position: relative; /* the FLIP leave pins against this box */
-        display: flex;
-        flex-direction: column;
-        align-items: flex-end;
-        justify-content: center;
-        gap: .14rem;
-        /* Two steps stay RESERVED: a chaser arriving/leaving must never
-           reflow the row (and a lone leader centres in the same box). */
-        min-height: calc(var(--strat-num) * 1.2 + var(--strat-num2) * 1.2 + .14rem);
+        display: grid;
+        /* BOTH levels stay RESERVED — in BOTH axes: a lone leader keeps
+           the standard top level, a chaser arriving or leaving never
+           resizes the module, and an EMPTY race keeps the full plate (a
+           unit-less grid otherwise collapses to a zero-width sliver and
+           the «—» hangs at the panel edge). The cassette's geometry is
+           identical across awards by construction. */
+        grid-template-rows: repeat(2, var(--strat-cas-row));
+        min-width: calc(var(--strat-pz) + var(--strat-sz));
+        align-items: center;
     }
-    &__unit { display: inline-flex; }
+    &__unit {
+        display: block;
+        height: 100%;
+        min-width: 0;
+    }
     &__unitbody {
-        display: inline-flex;
+        position: relative; /* the level's own STEP notch anchors here */
+        display: grid;
+        grid-template-columns: var(--strat-pz) var(--strat-sz);
         align-items: center;
-        gap: .18rem;
+        height: 100%;
 
-        .con-strat__num { font-size: var(--strat-num2); }
+        /* The STEP — the level's material: a gold tread under the leader,
+           a cool silver tread under the second; the rank reads from the
+           metal, never from a numeral. */
+        &::after {
+            content: '';
+            position: absolute;
+            left: 10%;
+            right: 3%;
+            bottom: .07rem;
+            height: .05rem;
+            border-radius: .04rem;
+            pointer-events: none;
+        }
+        &--i::after {
+            background: linear-gradient(90deg,
+                transparent,
+                fade(@strat-gold, 52%) 26%,
+                fade(@strat-gold, 52%) 88%,
+                transparent);
+        }
+        &--ii::after {
+            background: linear-gradient(90deg,
+                transparent,
+                rgba(190, 210, 230, 0.32) 26%,
+                rgba(190, 210, 230, 0.32) 88%,
+                transparent);
+        }
+        &--chase::after {
+            background: linear-gradient(90deg,
+                transparent,
+                rgba(160, 180, 200, 0.18) 26%,
+                rgba(160, 180, 200, 0.18) 88%,
+                transparent);
+        }
+
+        .con-strat__num {
+            font-size: var(--strat-num2);
+            justify-self: end;
+            text-align: right;
+        }
         &--i .con-strat__num { font-size: var(--strat-num); }
-        &--ii { opacity: 0.94; }
+        /* The REAL second place: a cool silver value under the leader. */
+        &--ii .con-strat__num { color: #cbd9e6; }
         /* A group the rules would NOT pay (tie for 1st / a duel): a plain
-           chaser — visible pursuit, no rank plaque, quieter voice. */
-        &--chase { opacity: 0.66; }
+           chaser — visible pursuit, no rank language, quieter voice. */
+        &--chase { opacity: 0.62; }
     }
-    &__rank {
-        flex-shrink: 0;
-        width: .92rem;
-        height: .76rem;
-        display: inline-flex;
+    /* The player zone: a constant CENTRED track — the levels' cubes share
+       one horizontal centre whatever the cluster; the crown anchors here. */
+    &__pz {
+        position: relative;
+        height: 100%;
+        display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: .16rem;
-        font-style: normal;
-        font-size: .5rem;
-        font-weight: 800;
-        letter-spacing: .02rem;
-        line-height: 1;
     }
-    &__rank--i {
-        background: linear-gradient(180deg, #93713a, #5d451f 85%);
-        box-shadow: inset 0 .05rem 0 rgba(255, 230, 170, 0.45),
-            inset 0 -.05rem 0 rgba(0, 0, 0, 0.35),
-            0 .08rem .2rem rgba(0, 0, 0, 0.4);
-        color: #ffe8b8;
+    /* The crowned cluster's faint local gold halo — light, never a plate. */
+    &__unitbody--i .con-strat__pz::before {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 1.2rem;
+        height: 1.2rem;
+        transform: translate(-50%, -50%);
+        border-radius: 50%;
+        background: radial-gradient(circle, fade(@strat-gold, 20%) 15%, transparent 68%);
+        pointer-events: none;
     }
-    &__rank--ii {
-        background: linear-gradient(180deg, #5b6b7c, #38444f 85%);
-        box-shadow: inset 0 .05rem 0 rgba(225, 240, 255, 0.4),
-            inset 0 -.05rem 0 rgba(0, 0, 0, 0.35),
-            0 .08rem .2rem rgba(0, 0, 0, 0.4);
-        color: #e3edf7;
-        font-size: .46rem; /* «II» — two glyphs in the same fixed box */
+    /* The CROWN-CAP: floats a hair ABOVE the leader — anchored to the
+       CLUSTER's own box (a tie's shared crown centres over the whole
+       group), an absolute overlay out of the flow: it can never push a
+       cube or a score. One confident central prong, clean gold, a small
+       inner light, a breath of air below (never glued to the enamel). */
+    &__crown {
+        position: absolute;
+        left: 50%;
+        bottom: calc(100% + var(--strat-crown-lift, .05rem));
+        width: .6rem;
+        transform: translateX(-50%);
+        color: #eed08b;
+        z-index: 2;
+        pointer-events: none;
+
+        svg {
+            display: block;
+            width: 100%;
+            height: auto;
+            fill: currentColor;
+            filter: drop-shadow(0 .05rem .1rem rgba(0, 0, 0, 0.55));
+        }
+    }
+    &__crown-base { fill: #c9a75e; }
+    &__crown-light { fill: rgba(255, 250, 230, 0.5); }
+    /* The gold ARCH — a tied leading GROUP's shared span: it embraces the
+       whole cluster (width follows the cluster's own box), and the crown
+       caps its centre — the crown belongs to the POSITION, never to the
+       leftmost cube. */
+    &__arch {
+        position: absolute;
+        left: -.08rem;
+        right: -.08rem;
+        bottom: calc(100% - .09rem);
+        height: .3rem;
+        border: .045rem solid fade(@strat-gold, 48%);
+        border-bottom: none;
+        border-radius: .4rem .4rem 0 0;
+        pointer-events: none;
     }
     &__chips {
+        position: relative; /* the crown / arch anchor to the CLUSTER */
         display: inline-flex;
         align-items: center;
-        gap: .1rem;
+        gap: .09rem;
     }
-    /* The player chip — the project's enamel-crystal language (the rotated
-       diamond of the tray and the seals), never a bare square. */
+    /* The tie ladder: EVERY tied player keeps a full, equal, UNCUT cube —
+       a bigger tie steps the size down (never below the TV-readable floor,
+       never an overlap, never a «+N»). */
+    &__chips--n3 {
+        gap: .07rem;
+
+        .con-strat__cube { width: .42rem; height: .42rem; }
+    }
+    &__chips--n4 {
+        gap: .06rem;
+
+        .con-strat__cube { width: .36rem; height: .36rem; }
+    }
+    &__chips--n5 {
+        gap: .05rem;
+
+        .con-strat__cube { width: .31rem; height: .31rem; }
+    }
+    /* The player cube — ENAMEL, not a flat swatch (polish 4): a coloured
+       face under a bevelled top light, a darker lower facet, a controlled
+       metal edging and a contact shadow — the same material family as the
+       gold emblems beside it. One base material for every place; rank
+       reads from the crown and the steps, never from a dimmed player. */
     &__cube {
         flex-shrink: 0;
         width: .5rem;
         height: .5rem;
-        margin: .07rem;
-        border-radius: .13rem;
-        transform: rotate(45deg);
-        background-image: linear-gradient(135deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 60%);
-        box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.45), 0 .06rem .18rem rgba(0, 0, 0, 0.4);
+        border-radius: .12rem;
+        background-image: linear-gradient(180deg,
+            rgba(255, 255, 255, 0.42),
+            rgba(255, 255, 255, 0.08) 36%,
+            rgba(0, 0, 0, 0.1) 62%,
+            rgba(0, 0, 0, 0.32));
+        box-shadow:
+            inset 0 .05rem .06rem rgba(255, 255, 255, 0.34),
+            inset 0 -.06rem .08rem rgba(0, 0, 0, 0.42),
+            inset 0 0 0 .045rem rgba(16, 22, 30, 0.8),
+            0 .07rem .12rem rgba(0, 0, 0, 0.5);
 
         &--me {
-            box-shadow: inset 0 0 0 .05rem rgba(0, 0, 0, 0.45),
-                0 0 0 .07rem rgba(255, 255, 255, 0.8),
-                0 .06rem .18rem rgba(0, 0, 0, 0.4);
+            box-shadow:
+                inset 0 .05rem .06rem rgba(255, 255, 255, 0.34),
+                inset 0 -.06rem .08rem rgba(0, 0, 0, 0.42),
+                inset 0 0 0 .045rem rgba(16, 22, 30, 0.8),
+                0 0 0 .055rem rgba(255, 255, 255, 0.62),
+                0 .07rem .12rem rgba(0, 0, 0, 0.5);
         }
     }
-    &__morecnt {
-        font-size: .56rem;
-        font-weight: 800;
-        color: @con-text-dim;
-    }
+    /* The empty race: the rail dissolves to ONE calm centred dash — never
+       a disabled-button plate, never a stray glyph at the panel's edge. */
     &__none {
-        color: fade(@con-text-dim, 60%);
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: fade(@con-text-dim, 55%);
         font-size: .8rem;
+        pointer-events: none;
     }
 
     /* ── the SEAL — the claim/fund landing on the rail (one beat, both
@@ -9876,9 +10361,9 @@ html.con-profile-handheld .con-mafocus {
         --strat-medal: 4.9rem;
 
         /* The trophy pose leaves the row contract: no value column exists
-           any more, so the item recomposes as a centred flex exhibit. */
+           any more, so the item recomposes as a centred flex exhibit (the
+           owner reads from the tray — the emblem itself stays clean). */
         .con-strat__item { display: flex; justify-content: center; }
-        .con-strat__gem { width: .78rem; height: .78rem; }
     }
     /* Awards 3/3: a LIVE scoreboard of three races — bigger medals AND
        bigger numbers (the race runs to game end; first and second stay). */
@@ -9886,9 +10371,14 @@ html.con-profile-handheld .con-mafocus {
         --strat-medal: 4.1rem;
         --strat-num: 1.18rem;
         --strat-num2: .95rem;
+        /* The compact pose: the SAME motion phrases, ~80% amplitude. */
+        --strat-mo: .8;
 
         .con-strat__gem { width: .68rem; height: .68rem; }
-        .con-strat__race { gap: .18rem; }
+        .con-strat__cassette {
+            --strat-sz: 2.25rem;
+            --strat-cas-row: 1.24rem;
+        }
     }
     /* A COMPLETED zone is a celebration, not a table: the pucks warm toward
        the trophy gold — the sealed objects carry the read; no plate returns. */
@@ -9913,9 +10403,9 @@ html.con-profile-handheld .con-mafocus {
     100% { opacity: 0.8; transform: none; }
 }
 @keyframes strat-seal-gem {
-    0% { opacity: 0; transform: rotate(45deg) scale(2.3); }
-    55% { opacity: 1; transform: rotate(45deg) scale(0.9); }
-    100% { opacity: 1; transform: rotate(45deg) scale(1); }
+    0% { opacity: 0; transform: scale(2.2); }
+    55% { opacity: 1; transform: scale(0.9); }
+    100% { opacity: 1; transform: none; }
 }
 @keyframes strat-seal-kiss {
     0% { opacity: 0; }
@@ -9938,22 +10428,80 @@ html.con-profile-handheld .con-mafocus {
     0% { opacity: 0.5; transform: scale(1); }
     100% { opacity: 0; transform: scale(0.82); }
 }
-@keyframes strat-now-pulse {
-    0%, 100% { opacity: 0.32; }
-    50% { opacity: 0.7; }
-}
-@keyframes strat-tick {
-    0% { transform: scale(1.26); }
+/* The ACTIVATION phrase (all transform/opacity/stroke — perf-lite safe). */
+@keyframes strat-activate-art {
+    0% { transform: none; }
+    32% { transform: scale(1.03); }
+    58% { transform: scale(0.997); }
     100% { transform: none; }
+}
+@keyframes strat-activate-spark {
+    0% { opacity: 0; transform: translateX(-50%) scale(0.4); }
+    18% { opacity: 1; transform: translateX(-50%) scale(1.55); }
+    60% { opacity: 0.9; transform: translateX(-50%) scale(1); }
+    100% { opacity: 0.85; transform: translateX(-50%) scale(1); }
+}
+@keyframes strat-activate-sweep {
+    0% { opacity: 0; transform: rotate(0deg); }
+    14% { opacity: 1; }
+    86% { opacity: 0.85; }
+    100% { opacity: 0; transform: rotate(360deg); }
+}
+@keyframes strat-activate-rim {
+    0% { opacity: 0; transform: scale(1.16); }
+    62% { opacity: 1; transform: scale(0.99); }
+    100% { opacity: 1; transform: none; }
+}
+@keyframes strat-activate-avail {
+    0% { opacity: 0; transform: translateY(.28rem); }
+    100% { opacity: 1; transform: none; }
+}
+@keyframes strat-activate-check {
+    0% { stroke-dashoffset: 14; }
+    100% { stroke-dashoffset: 0; }
+}
+/* The re-gained offer: one calm swell of the standing light. */
+@keyframes strat-repulse {
+    0% { opacity: 0.45; transform: scale(1.05); }
+    55% { opacity: 1; }
+    100% { opacity: 1; transform: none; }
+}
+/* The persistent availability rim breathes — ONE layer, slow and shallow. */
+@keyframes strat-avail-breathe {
+    0%, 100% { opacity: 0.78; }
+    50% { opacity: 1; }
+}
+/* The score ROLL — the digits arrive along the change's direction. */
+@keyframes strat-roll-up {
+    0% { opacity: 0.1; transform: translateY(34%); }
+    100% { opacity: 1; transform: none; }
+}
+@keyframes strat-roll-down {
+    0% { opacity: 0.1; transform: translateY(-34%); }
+    100% { opacity: 1; transform: none; }
+}
+/* The crown hand-over's confirmation: the receiving gold step flares once. */
+@keyframes strat-notch-pulse {
+    0% { opacity: 0.35; }
+    40% { opacity: 1; }
+    100% { opacity: 0.8; }
 }
 @keyframes strat-pose-in {
     0% { transform: scale(0.82); }
     100% { transform: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-    /* The breath stops; the rim, the mark and the contrast keep carrying
-       the availability read on their own. */
-    .con-strat__item--now .con-strat__bloom { animation: none; }
+    /* Motion stops; the rim, the spark, the word and the contrast keep
+       carrying the availability read statically. */
+    .con-strat__item--now .con-strat__actring { animation: none; }
+    .con-strat__item--activating .con-strat__art,
+    .con-strat__item--activating .con-strat__spark,
+    .con-strat__item--activating .con-strat__sweep,
+    .con-strat__item--activating .con-strat__actring,
+    .con-strat__item--activating .con-strat__avail,
+    .con-strat__item--activating .con-strat__readymark svg path,
+    .con-strat__item--repulse .con-strat__actring,
+    .con-strat__item--repulse .con-strat__spark { animation: none; }
 }
 
 /* The recomposition's TransitionGroup classes: survivors FLIP (move),
@@ -9975,20 +10523,36 @@ html.con-profile-handheld .con-mafocus {
 .con-strat-row-enter-from { opacity: 0; transform: scale(0.92); }
 .con-strat-row-leave-to { opacity: 0; transform: scale(0.86); }
 
-/* The duel's swap: units exchange places (FLIP), a changed group crossfades. */
+/* The cassette's swap: units exchange LEVELS strictly along the module's
+   vertical axis (FLIP — the two structural axes hold x by construction);
+   a changed group crossfades. Plays only on a LIVE change: the groups are
+   keyed by colour signature, so a poll re-render moves nothing. */
 .con-strat-race-move {
-    transition: transform calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    transition: transform calc(360ms * var(--motion-scale, 1) * var(--strat-mo, 1)) cubic-bezier(0.16, 1, 0.3, 1);
 }
 .con-strat-race-enter-active {
-    transition: opacity calc(300ms * var(--motion-scale, 1)) ease,
-        transform calc(300ms * var(--motion-scale, 1)) ease;
+    transition: opacity calc(280ms * var(--motion-scale, 1) * var(--strat-mo, 1)) ease,
+        transform calc(280ms * var(--motion-scale, 1) * var(--strat-mo, 1)) ease;
 }
 .con-strat-race-leave-active {
     position: absolute;
-    transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
+    transition: opacity calc(240ms * var(--motion-scale, 1) * var(--strat-mo, 1)) ease;
 }
-.con-strat-race-enter-from { opacity: 0; transform: translateY(.3rem); }
+.con-strat-race-enter-from { opacity: 0; transform: translateY(calc(.3rem * var(--strat-mo, 1))); }
 .con-strat-race-leave-to { opacity: 0; }
+
+/* The crown-cap hand-over: the old cap lets go, the new one seats on the
+   next leader (the FLIP above carries the cubes; the cap only fades and
+   settles — never a permanent animation). Same phrase in compact, ~80%. */
+.con-strat-crowncap-enter-active {
+    transition: opacity calc(240ms * var(--motion-scale, 1) * var(--strat-mo, 1)) ease,
+        transform calc(240ms * var(--motion-scale, 1) * var(--strat-mo, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.con-strat-crowncap-leave-active {
+    transition: opacity calc(180ms * var(--motion-scale, 1) * var(--strat-mo, 1)) ease;
+}
+.con-strat-crowncap-enter-from { opacity: 0; transform: translateX(-50%) translateY(calc(.16rem * var(--strat-mo, 1))); }
+.con-strat-crowncap-leave-to { opacity: 0; }
 
 /* ── The console-native JOURNAL (View — the P28 flagship) ──────────
    REPLACES the right info panel while open: an ABSOLUTE overlay pinned
@@ -11161,6 +11725,7 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     &__pager-side {
         display: inline-flex;
         align-items: center;
+        gap: .18rem;
         padding: .08rem .12rem;
         margin: 0;
         border: 0;
@@ -11171,33 +11736,109 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
         &:hover { transform: translateY(-.05rem); }
         &--off {
-            opacity: .3;
+            opacity: .26;
             cursor: default;
             &:hover { transform: none; }
         }
     }
+    /* The direction marks that bind each glyph to its side. */
+    &__pager-arrow {
+        font-size: .78rem;
+        font-weight: 700;
+        line-height: 1;
+        color: fade(@con-cyan, 72%);
+    }
+    /* THE POSITION — the bay's brightest line. Both numeric cells reserve
+       their width (tabular + 2ch), so 1/4 → 10/12 never moves the centre. */
     &__pager-pos {
+        position: relative;
         display: inline-flex;
         align-items: baseline;
-        gap: .4rem;
+        gap: .22rem;
         font-variant-numeric: tabular-nums;
         font-weight: 700;
     }
-    &__pager-range {
+    &__pager-now {
+        display: inline-block;
+        min-width: 1.2ch;
+        text-align: right;
+        overflow: hidden;
+
+        b {
+            display: inline-block;
+            font-size: 1.02rem;
+            letter-spacing: .02rem;
+            color: #eaf4ff;
+            text-shadow: 0 0 .5rem fade(@con-cyan, 42%);
+            /* The DIRECTIONAL swap: the new number enters from the side the
+               album came from (keyed on the page — Vue re-creates the node,
+               so the animation runs once per turn). Short enough to finish
+               inside the page slide; never an odometer roll. */
+            animation: con-pager-in calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
+        &--prev b { animation-name: con-pager-in-prev; }
+    }
+    &__pager-slash {
         font-size: .72rem;
-        letter-spacing: .06rem;
-        text-transform: uppercase;
-        color: fade(#cfe3f4, 88%);
+        font-weight: 600;
+        color: fade(#8aa0b8, 48%);
     }
-    &__pager-sep {
-        font-size: .62rem;
-        color: fade(#8aa0b8, 60%);
+    &__pager-total {
+        min-width: 1.2ch;
+        font-size: .76rem;
+        letter-spacing: .02rem;
+        color: fade(#cfe3f4, 62%);
     }
-    &__pager-pages {
-        font-size: .74rem;
-        letter-spacing: .04rem;
-        color: fade(@con-cyan, 92%);
-        text-shadow: 0 0 .35rem fade(@con-cyan, 28%);
+    /* THE PROGRESS HAIRLINE — absolutely positioned under the numbers, so
+       it can never grow the bay. Segments while they stay legible, one
+       continuous fill past that. */
+    &__pager-track {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -.34rem;
+        display: flex;
+        align-items: center;
+        gap: .12rem;
+        height: .1rem;
+    }
+    &__pager-seg {
+        flex: 1;
+        height: .08rem;
+        border-radius: 49.95rem;
+        background: fade(#8aa0b8, 22%);
+        transition: background calc(180ms * var(--motion-scale, 1)) ease, height calc(180ms * var(--motion-scale, 1)) ease;
+
+        &--past { background: fade(@con-cyan, 34%); }
+        &--on {
+            height: .14rem;
+            background: fade(@con-cyan, 95%);
+            box-shadow: 0 0 .4rem fade(@con-cyan, 40%);
+        }
+    }
+    &__pager-bar {
+        position: relative;
+        flex: 1;
+        height: .08rem;
+        border-radius: 49.95rem;
+        background: fade(#8aa0b8, 22%);
+        overflow: hidden;
+    }
+    &__pager-bar-fill {
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        border-radius: 49.95rem;
+        background: fade(@con-cyan, 88%);
+        transition: width calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    }
+    /* ONE PAGE — no navigation exists, so nothing advertises it: the sides
+       fade to a whisper and the position reads as a calm «1 / 1». The
+       geometry is untouched (the rail must not jump). */
+    &__pager--single {
+        .con-handdock__pager-side { opacity: .12; cursor: default; }
+        .con-handdock__pager-now b { color: fade(#cfe3f4, 66%); text-shadow: none; }
     }
 
     /* ── states (pack-only — the dock chassis itself NEVER moves) ── */
@@ -25071,18 +25712,32 @@ html.con-profile-handheld {
     .con-strat__title { font-size: .52rem; letter-spacing: .05rem; }
     .con-strat__key .gp-glyph { min-width: 1.15rem; height: .82rem; font-size: .45rem; }
     .con-strat__pip { width: .42rem; height: .42rem; }
-    .con-strat__gem { width: .46rem; height: .46rem; }
-    .con-strat__zone--awards .con-strat__gem { width: .5rem; height: .5rem; }
-    .con-strat__cube { width: .42rem; height: .42rem; margin: .06rem; }
+    .con-strat__gem { width: .44rem; height: .44rem; }
+    .con-strat__cube { width: .42rem; height: .42rem; }
     .con-strat__req { font-size: .52rem; }
-    .con-strat__rank { width: .78rem; height: .64rem; font-size: .42rem; }
-    .con-strat__rank--ii { font-size: .4rem; }
-    .con-strat__readymark { font-size: .48rem; }
+    .con-strat__cassette {
+        --strat-pz: 1.15rem;
+        --strat-sz: 1.5rem;
+        --strat-cas-row: .88rem;
+        padding: .08rem .12rem .07rem .1rem;
+    }
+    .con-strat__zone--awards.con-strat__zone--done .con-strat__cassette {
+        --strat-sz: 1.7rem;
+        --strat-cas-row: 1rem;
+    }
+    .con-strat__chips--n3 .con-strat__cube { width: .34rem; height: .34rem; }
+    .con-strat__chips--n4 .con-strat__cube { width: .3rem; height: .3rem; }
+    .con-strat__chips--n5 .con-strat__cube { width: .26rem; height: .26rem; }
+    .con-strat__crown { width: .44rem; }
+    .con-strat__none { font-size: .6rem; }
+    .con-strat__readymark { width: .5rem; }
     .con-strat__meter { width: 1.9rem; height: .08rem; }
-    .con-strat__ownseal { padding: .1rem .22rem .08rem; gap: .08rem; }
-    .con-strat__ownseal-gem { width: .74rem; height: .74rem; margin: .08rem; }
-    .con-strat__ownseal-check { font-size: .46rem; }
-    .con-strat__ownseal-word { font-size: .42rem; letter-spacing: .07rem; margin-right: -.07rem; }
+    .con-strat__cellfoot { height: .44rem; }
+    .con-strat__avail { font-size: .42rem; letter-spacing: .06rem; margin-right: -.06rem; }
+    .con-strat__ownseal { padding: .06rem .18rem .06rem .14rem; gap: .14rem; }
+    .con-strat__ownseal-cube { width: .4rem; height: .4rem; }
+    .con-strat__ownseal-word { font-size: .44rem; letter-spacing: .05rem; }
+    .con-strat__ownseal-tick { font-size: .44rem; }
     .con-banner { font-size: .75rem; padding: .25rem .6rem; }
     /* (The terraforming ceremony's handheld sizes live next to its own
        block — see `html.con-profile-handheld .con-terracere`.) */
@@ -25732,12 +26387,22 @@ html.con-profile-large {
     .con-strat__title { font-size: .72rem; }
     .con-strat__cube { width: .56rem; height: .56rem; }
     .con-strat__req { font-size: .68rem; }
-    .con-strat__rank { width: 1rem; height: .82rem; font-size: .54rem; }
-    .con-strat__rank--ii { font-size: .5rem; }
+    .con-strat__cassette {
+        --strat-pz: 1.65rem;
+        --strat-sz: 2.2rem;
+        --strat-cas-row: 1.2rem;
+    }
+    .con-strat__chips--n3 .con-strat__cube { width: .48rem; height: .48rem; }
+    .con-strat__chips--n4 .con-strat__cube { width: .4rem; height: .4rem; }
+    .con-strat__chips--n5 .con-strat__cube { width: .35rem; height: .35rem; }
+    .con-strat__crown { width: .64rem; }
+    .con-strat__readymark { width: .66rem; }
     .con-strat__meter { width: 2.55rem; }
-    .con-strat__ownseal-gem { width: 1rem; height: 1rem; }
-    .con-strat__ownseal-check { font-size: .6rem; }
+    .con-strat__cellfoot { height: .58rem; }
+    .con-strat__avail { font-size: .56rem; }
+    .con-strat__ownseal-cube { width: .5rem; height: .5rem; }
     .con-strat__ownseal-word { font-size: .56rem; }
+    .con-strat__ownseal-tick { font-size: .56rem; }
     .con-task__title { font-size: 1.5rem; }
     /* THE EMBEDDED STAGE LADDER — ONE set of numbers for BOTH stages (buy and
        drawn reveal carry the same chassis classes). Declared after the task /

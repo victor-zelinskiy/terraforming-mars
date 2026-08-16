@@ -4334,15 +4334,12 @@ export default defineComponent({
       const pages = Math.max(1, Math.ceil(count / perPage));
       const idx = Math.min(Math.max(0, count - 1), Math.max(0, this.consoleState.handIndex));
       const page = Math.min(pages - 1, Math.floor(idx / perPage));
-      const start = page * perPage;
-      const end = Math.min(count, start + perPage);
-      // A one-card page reads «13 из 13», never the odd «13–13».
-      const span = start + 1 === end ? String(end) : `${start + 1}–${end}`;
+      // POSITION ONLY — no card-index range: the total lives in the header
+      // chip and the page's cards are on screen, so a «9–12 из 14» spent the
+      // bay's brightest line on an admin paginator's arithmetic.
       return {
-        range: count === 0 ?
-          translateTextWithParams('${0} of ${1}', ['0', '0']) :
-          translateTextWithParams('${0} of ${1}', [span, String(count)]),
-        pageText: pages > 1 ? `${page + 1}/${pages}` : '',
+        page: page + 1,
+        pages,
         canPrev: page > 0,
         canNext: page < pages - 1,
       };

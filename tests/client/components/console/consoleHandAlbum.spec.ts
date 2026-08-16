@@ -11,6 +11,9 @@ import {
   packetRect,
   ALBUM_MAX_ZOOM,
   ALBUM_MIN_ZOOM,
+  ALBUM_EDGE_GUTTER,
+  SHOWCASE_GAP_MIN,
+  SHOWCASE_GAP_MAX,
   HandAlbumPlan,
 } from '@/client/components/console/consoleHandAlbum';
 import {CARD_NATURAL_W, CARD_NATURAL_H} from '@/client/components/console/consoleHandGrid';
@@ -99,6 +102,48 @@ describe('consoleHandAlbum', () => {
         expect(pp.padTop, `n=${n} vertical centring`).to.be.greaterThan(26);
       }
     });
+    it('gaps are DENSITY-AWARE: a 2×1 hero pair gets far more air than a 5×1 row', () => {
+      const g5 = pagePlan(5).gapX;
+      const g4 = pagePlan(4).gapX;
+      const g3 = pagePlan(3).gapX;
+      const g2 = pagePlan(2).gapX;
+      expect(g4).to.be.greaterThan(g5);
+      expect(g3).to.be.greaterThan(g4);
+      expect(g2).to.be.greaterThan(g3);
+      // …and bounded — air serves the cards, it never eats the stage.
+      expect(g2).to.be.at.most(SHOWCASE_GAP_MAX);
+      expect(g5).to.be.at.least(SHOWCASE_GAP_MIN);
+    });
+
+    it('the two hero cards cannot touch: the gap clears both halos', () => {
+      const pp = pagePlan(2);
+      // The ring+glow reach of one card at the capped screen thickness
+      // (`--con-hand-fx`: the ring stops growing past the 1.6 knee).
+      const halo = (0.15 + 0.9) * 16 * Math.min(pp.zoom, 1.6);
+      expect(pp.gapX, 'gap clears two facing halos').to.be.greaterThan(halo);
+    });
+
+    it('a showcase page sits OPTICALLY higher than the mathematical centre', () => {
+      const pp = pagePlan(3);
+      const centred = pagePlan(9); // a two-row page keeps plain centring
+      expect(pp.padTop).to.be.greaterThan(0);
+      // The lift is a bounded share of the free space, never a jump.
+      const free = 780 - 26 - 11 - pp.pageH;
+      expect(pp.padTop).to.be.lessThan(26 + free / 2);
+      expect(pp.padTop).to.be.greaterThan(26 + free / 2 - free * 0.2);
+      expect(centred.padTop).to.be.greaterThan(0);
+    });
+
+    it('the page-edge gutter is reserved on BOTH sides (composition never shifts)', () => {
+      for (const n of [10, 5, 4, 2, 1]) {
+        const pp = pagePlan(n);
+        const leftGap = pp.padX;
+        const rightGap = 1600 - (pp.padX + pp.pageW);
+        expect(Math.abs(leftGap - rightGap), `n=${n} symmetric`).to.be.at.most(1);
+        expect(leftGap, `n=${n} clears the edge gutter`).to.be.at.least(ALBUM_EDGE_GUTTER);
+      }
+    });
+
     it('the deck full single row IS the standard size (width-bound either way)', () => {
       const base = plan(9, DECK, 1000, 520);
       expect(pagePlan(4, DECK, 1000, 520).zoom).to.eq(base.cardZoom);

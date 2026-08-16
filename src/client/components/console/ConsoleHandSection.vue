@@ -222,18 +222,34 @@
         </div>
       </div>
 
-      <!-- PAGE EDGES — the thin layered hint that neighbouring pages exist
-           (never a decorative book, never a peek of real cards). Clickable
-           for mouse users; the pad turns pages by walking across the edge
-           or flicking the right stick. -->
-      <button v-if="activePage > 0"
+      <!-- ALBUM EDGE AFFORDANCE — «there is a page that way», in the album's
+           own language. NOT a rail: a SHORT stack of sheet edges at the
+           vertical centre of the page edge (three offset leaves, each dimmer
+           and slightly inset — the depth of a closed album), with a compact
+           chevron riding it. It lives in its OWN reserved side gutter
+           (`ALBUM_EDGE_GUTTER`), so an edge card's ring/glow never meets it,
+           and it reads as sheets waiting past the clip rather than a
+           scrollbar or a cropped boundary. Both sides always RENDER (the
+           composition must not shift when the last page drops its next
+           edge) — an unavailable side is `--off`: nearly gone, never a lie
+           about where the album continues. `--pulse` is the LB/RB impulse:
+           the pressed side answers on the press frame (see `turnPage`),
+           then the ordinary page slide runs. -->
+      <button v-for="side in ['left', 'right']"
+              :key="side"
               type="button" tabindex="-1" aria-hidden="true"
-              class="con-hand__pgedge con-hand__pgedge--left"
-              @click="turnPage(-1)"></button>
-      <button v-if="activePage < plan.pageCount - 1"
-              type="button" tabindex="-1" aria-hidden="true"
-              class="con-hand__pgedge con-hand__pgedge--right"
-              @click="turnPage(1)"></button>
+              class="con-hand__pgedge"
+              :class="[
+                `con-hand__pgedge--${side}`,
+                {'con-hand__pgedge--off': side === 'left' ? activePage === 0 : activePage >= plan.pageCount - 1},
+                {'con-hand__pgedge--pulse': edgePulse === side},
+              ]"
+              @click="turnPage(side === 'left' ? -1 : 1)">
+        <span class="con-hand__pgedge-leaf con-hand__pgedge-leaf--3" aria-hidden="true"></span>
+        <span class="con-hand__pgedge-leaf con-hand__pgedge-leaf--2" aria-hidden="true"></span>
+        <span class="con-hand__pgedge-leaf con-hand__pgedge-leaf--1" aria-hidden="true"></span>
+        <span class="con-hand__pgedge-chev" aria-hidden="true">{{ side === 'left' ? '‹' : '›' }}</span>
+      </button>
 
       <!-- Empty state, centred in the glass frame (filter vs truly-empty).
            Held back while a reveal/filter episode owns the cards — the
@@ -482,6 +498,8 @@ const WHEEL_STEP = 60;
 const WHEEL_DECAY_MS = 260;
 /** Safety release of the `--turning` will-change class. */
 const TURN_SAFETY_MS = 420;
+/** The edge affordance's press impulse (one shot, shorter than the slide). */
+const EDGE_PULSE_MS = 260;
 
 function clampNum(lo: number, hi: number, v: number): number {
   return Math.max(lo, Math.min(hi, v));
@@ -619,6 +637,9 @@ export default defineComponent({
       /** A page slide is airborne — `will-change` scoped to the turn only. */
       turning: false,
       turnSafety: undefined as number | undefined,
+      /** The edge that answered the last page press (one-shot impulse). */
+      edgePulse: undefined as 'left' | 'right' | undefined,
+      pulseTimer: undefined as number | undefined,
       /** The strip transition arms only after the mount has settled — the
        *  first paint (and every fresh open) must land on its page with no
        *  slide from x=0. */
@@ -1075,13 +1096,30 @@ export default defineComponent({
         rows: this.activePageRows,
       });
     },
-    /** The explicit page turn (edge click / stick flick / wheel): same
-     *  relative slot on the neighbouring page. */
+    /** The explicit page turn (LB/RB, edge click, stick flick, wheel): same
+     *  relative slot on the neighbouring page. The pressed EDGE answers on
+     *  the press frame — a short impulse, never a ceremony in front of the
+     *  slide (the transform retarget still redirects a repeat press). */
     turnPage(dir: 1 | -1): void {
       if (this.transitHold) {
         return;
       }
-      consoleState.handIndex = pageJumpIndex(this.index, dir, this.entries.length, this.plan.perPage);
+      const next = pageJumpIndex(this.index, dir, this.entries.length, this.plan.perPage);
+      if (next !== this.index) {
+        this.pulseEdge(dir === 1 ? 'right' : 'left');
+      }
+      consoleState.handIndex = next;
+    },
+    /** The edge's press response (CSS `--pulse`, one shot). */
+    pulseEdge(side: 'left' | 'right'): void {
+      this.edgePulse = side;
+      if (this.pulseTimer !== undefined) {
+        clearTimeout(this.pulseTimer);
+      }
+      this.pulseTimer = window.setTimeout(() => {
+        this.edgePulse = undefined;
+        this.pulseTimer = undefined;
+      }, EDGE_PULSE_MS);
     },
     /**
      * Right stick — the PAGE FLICK (replaces the old free vertical scroll):
@@ -1284,6 +1322,9 @@ export default defineComponent({
     }
     if (this.turnSafety !== undefined) {
       clearTimeout(this.turnSafety);
+    }
+    if (this.pulseTimer !== undefined) {
+      clearTimeout(this.pulseTimer);
     }
   },
 });

@@ -60,26 +60,53 @@
            (never a literal button name) and each is its own click target —
            the mouse turns pages right here. A direction that has no page
            that way renders muted (never hidden — the shape is constant). -->
-      <span v-if="album !== undefined" class="con-handdock__pager">
+      <span v-if="album !== undefined"
+            class="con-handdock__pager"
+            :class="{'con-handdock__pager--single': album.pages <= 1}">
         <button type="button" tabindex="-1"
                 class="con-handdock__pager-side con-handdock__pager-side--prev"
                 :class="{'con-handdock__pager-side--off': !album.canPrev}"
                 @click.stop="onPage(-1)">
           <GamepadGlyph control="bumperL" />
+          <span class="con-handdock__pager-arrow" aria-hidden="true">‹</span>
         </button>
         <span class="con-handdock__pager-pos">
-          <span class="con-handdock__pager-range">{{ album.range }}</span>
-          <template v-if="album.pageText !== ''">
-            <span class="con-handdock__pager-sep">·</span>
-            <span class="con-handdock__pager-pages">{{ album.pageText }}</span>
-          </template>
+          <!-- The POSITION: the current page is the line's loudest voice,
+               the total a calm companion. Both cells are fixed-width
+               (tabular digits + a reserved 2ch box), so 1/4 → 10/12 never
+               moves the centre. The current number swaps DIRECTIONALLY —
+               keyed on the page so Vue re-creates it, with the turn's own
+               direction driving which way it enters. -->
+          <span class="con-handdock__pager-now" :class="`con-handdock__pager-now--${turnDir}`">
+            <b :key="album.page">{{ album.page }}</b>
+          </span>
+          <span class="con-handdock__pager-slash" aria-hidden="true">/</span>
+          <span class="con-handdock__pager-total">{{ album.pages }}</span>
         </span>
         <button type="button" tabindex="-1"
                 class="con-handdock__pager-side con-handdock__pager-side--next"
                 :class="{'con-handdock__pager-side--off': !album.canNext}"
                 @click.stop="onPage(1)">
+          <span class="con-handdock__pager-arrow" aria-hidden="true">›</span>
           <GamepadGlyph control="bumperR" />
         </button>
+        <!-- The PROGRESS hairline under the numbers: segmented while the
+             segments stay legible, one continuous filled line past that
+             (never a dust of micro-dots, never a loading bar). Absolutely
+             positioned — it can never grow the bay's height. -->
+        <span v-if="album.pages > 1" class="con-handdock__pager-track" aria-hidden="true">
+          <template v-if="album.pages <= 8">
+            <span v-for="p in album.pages" :key="p"
+                  class="con-handdock__pager-seg"
+                  :class="{
+                    'con-handdock__pager-seg--on': p === album.page,
+                    'con-handdock__pager-seg--past': p < album.page,
+                  }"></span>
+          </template>
+          <span v-else class="con-handdock__pager-bar">
+            <span class="con-handdock__pager-bar-fill" :style="progressStyle"></span>
+          </span>
+        </span>
       </span>
       <span v-else class="con-handdock__status">
         <span class="con-handdock__status-label">{{ $t('Cards') }}</span>
@@ -135,12 +162,18 @@ import {translateText} from '@/client/directives/i18n';
 import AnimatedMetricValue from '@/client/components/feedback/AnimatedMetricValue.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 
-/** The album spine's live state (undefined → the plain «КАРТЫ n/m» line). */
+/**
+ * The album spine's live state (undefined → the plain «КАРТЫ n/m» line).
+ *
+ * POSITION ONLY, deliberately: a card-index range («9–12 из 14») is an
+ * admin-paginator fact the player never needs — the total already stands in
+ * the header's «ВСЕ 14» chip and the page's own cards are on screen. What
+ * they need is where they are and how far the album goes.
+ */
 export type HandDockAlbum = {
-  /** «1–10 из 15» (pre-translated by the shell). */
-  range: string,
-  /** «1/2» ('' on a single page — the range alone is the whole truth). */
-  pageText: string,
+  /** 1-based current page and the page count. */
+  page: number,
+  pages: number,
   canPrev: boolean,
   canNext: boolean,
 };
@@ -222,6 +255,9 @@ export default defineComponent({
       /** A card just landed — the short "the pack accepts it" pulse. */
       receiving: false,
       receiveTimer: undefined as ReturnType<typeof setTimeout> | undefined,
+      /** Which way the last page turn went — the number enters from the
+       *  opposite side, so the swap reads as the album moving. */
+      turnDir: 'next' as 'next' | 'prev',
     };
   },
   computed: {
@@ -287,8 +323,22 @@ export default defineComponent({
     ariaLabel(): string {
       return `${translateText('Cards in hand')}: ${this.count}`;
     },
+    /** The continuous progress fill (many-page albums). */
+    progressStyle(): Record<string, string> {
+      const a = this.album;
+      if (a === undefined || a.pages <= 1) {
+        return {width: '0%'};
+      }
+      return {width: `${(a.page / a.pages) * 100}%`};
+    },
   },
   watch: {
+    /** Remember the DIRECTION of a page change for the number's swap. */
+    album(now: HandDockAlbum | undefined, was: HandDockAlbum | undefined) {
+      if (now !== undefined && was !== undefined && now.page !== was.page) {
+        this.turnDir = now.page > was.page ? 'next' : 'prev';
+      }
+    },
     /** A landing (or any growth) — the pack "accepts" the card: a short
      *  spread-breathe + plate glow, riding the cards' own transitions. */
     count(now: number, was: number) {

@@ -52,6 +52,11 @@ type RailVm = {
   pending: Array<{key: string}>,
   sealingKeys: Array<string>,
   composed: {milestones: boolean, awards: boolean},
+  activatingKeys: Array<string>,
+  repulseKeys: Array<string>,
+  pendingActivations: Array<{key: string}>,
+  crownMoveKeys: Array<string>,
+  tickKeys: Array<string>,
   later: (fn: () => void, ms: number) => void,
 };
 
@@ -165,7 +170,7 @@ describe('ConsoleStrategyRail', () => {
     expect(builder.classes()).to.not.include('con-strat__item--now');
   });
 
-  it('a taken milestone keeps the enamel accents AND installs the OWNER SEAL (never an empty right zone)', () => {
+  it('a taken milestone installs the calm OWNER SEAL and keeps the emblem CLEAN (no cube on it)', () => {
     const wrapper = mountRail({
       milestones: zone('milestones', [
         source({name: 'Mayor', playerName: 'Vika', color: rival, scores: []}),
@@ -175,15 +180,18 @@ describe('ConsoleStrategyRail', () => {
     const row = wrapper.find('.con-strat__zone--milestones .con-strat__item');
     expect(row.classes()).to.include('con-strat__item--taken');
     expect(row.find('.con-strat__plate').classes()).to.include('player_bg_color_blue');
-    expect(row.find('.con-strat__gem').classes()).to.include('player_bg_color_blue');
     expect(row.find('.con-strat__cell').exists()).to.be.false;
-    // The right zone carries the seal: the owner's crystal, the check and
-    // the word — state reads by shape and word, never by colour alone.
+    // POLISH 2: the owner is NOT doubled on the emblem — no floating cube;
+    // the seal and the tray slot carry it.
+    expect(row.find('.con-strat__gem').exists()).to.be.false;
+    // The right zone carries the seal: one horizontal line — the owner's
+    // CUBE (who), the word, the neutral tick (done) — never colour alone,
+    // and never a big CTA-looking plaque.
     const seal = row.find('.con-strat__ownseal');
     expect(seal.exists()).to.be.true;
-    expect(seal.find('.con-strat__ownseal-gem').classes()).to.include('player_bg_color_blue');
-    expect(seal.find('.con-strat__ownseal-check').text()).to.eq('✓');
+    expect(seal.find('.con-strat__ownseal-cube').classes()).to.include('player_bg_color_blue');
     expect(seal.find('.con-strat__ownseal-word').text()).to.not.eq('');
+    expect(seal.find('.con-strat__ownseal-tick').text()).to.eq('✓');
     expect(seal.classes()).to.not.include('con-strat__ownseal--mine');
     // The tray's first pip took the owner colour.
     expect(wrapper.find('.con-strat__zone--milestones .con-strat__pip').classes()).to.include('player_bg_color_blue');
@@ -201,50 +209,136 @@ describe('ConsoleStrategyRail', () => {
     expect(row.find('.con-strat__ownseal').classes()).to.include('con-strat__ownseal--mine');
   });
 
-  it('award rows read as a micro-podium: gold I for the leader; a DUEL chaser is unranked', () => {
+  it('award rows read as a RANKING CASSETTE: crown-cap over the leader cube; a DUEL chaser is unranked', () => {
     const wrapper = mountRail();
     const banker = wrapper.find('.con-strat__zone--awards .con-strat__item');
+    // ONE physical module — the cassette — never two floating rows.
+    expect(banker.findAll('.con-strat__cassette')).to.have.lengthOf(1);
     const units = banker.findAll('.con-strat__unitbody');
     expect(units).to.have.lengthOf(2);
     expect(units[0].classes()).to.include('con-strat__unitbody--lead');
-    expect(units[0].find('.con-strat__rank--i').text()).to.eq('I');
+    // The crown is a CAP inside the PLAYER ZONE (an overlay over the cube),
+    // never a flow member beside it — and no roman numerals anywhere.
+    expect(units[0].find('.con-strat__pz .con-strat__crown').exists()).to.be.true;
+    expect(banker.find('.con-strat__rank').exists()).to.be.false;
+    // Both levels' cubes live in the SAME fixed player zone; the values in
+    // the same fixed score zone (the axes are structural).
+    expect(units[0].find('.con-strat__pz .con-strat__cube').exists()).to.be.true;
+    expect(units[1].find('.con-strat__pz .con-strat__cube').exists()).to.be.true;
     expect(units[0].find('.con-strat__num').text()).to.eq('4');
     expect(units[0].find('.con-strat__cube').classes()).to.include('con-strat__cube--me');
     expect(units[1].classes()).to.not.include('con-strat__unitbody--lead');
     expect(units[1].find('.con-strat__num').text()).to.eq('2');
-    // Two players: only 1st place scores — the chaser stays visible but may
-    // NOT wear a silver «II» the rules would never pay.
+    // Two players: only 1st place scores — the chaser stays visible but
+    // wears NO rank language at all (no crown, no silver).
     expect(units[1].classes()).to.include('con-strat__unitbody--chase');
-    expect(units[1].find('.con-strat__rank').exists()).to.be.false;
-    // The zero race renders the quiet «—», not a fake leader.
+    expect(units[1].find('.con-strat__crown').exists()).to.be.false;
+    // The zero race renders ONE calm centred «—» inside a same-size
+    // cassette — no empty player slots, no stray edge dash.
     const thermalist = wrapper.findAll('.con-strat__zone--awards .con-strat__item')[1];
-    expect(thermalist.find('.con-strat__none').exists()).to.be.true;
+    expect(thermalist.find('.con-strat__cassette .con-strat__none').exists()).to.be.true;
+    expect(thermalist.findAll('.con-strat__unit')).to.have.lengthOf(0);
     // Unsponsored awards are the quieter objects.
     expect(banker.classes()).to.include('con-strat__item--quiet');
   });
 
-  it('a REAL second place (single leader, 3+ players) wears the silver II plaque', () => {
+  it('a funded award pins the SPONSOR cube to the emblem socket (apart from the leader cubes)', () => {
+    const wrapper = mountRail({
+      awards: zone('awards', [
+        source({name: 'Banker', playerName: 'Vika', color: rival,
+          scores: [{color: me, score: 5}, {color: rival, score: 2}]}),
+      ]),
+    });
+    const row = wrapper.find('.con-strat__zone--awards .con-strat__item');
+    // The sponsor cube lives ON the medal (the value zone belongs to the
+    // race), in the metal socket — and it is the only place the funder
+    // shows on the row.
+    const gem = row.find('.con-strat__medal .con-strat__gem');
+    expect(gem.exists()).to.be.true;
+    expect(gem.classes()).to.include('player_bg_color_blue');
+    // The race keeps running: leader cubes stay in the podium untouched.
+    expect(row.find('.con-strat__unitbody--lead .con-strat__cube').classes()).to.include('player_bg_color_red');
+  });
+
+  it('a REAL second place (single leader, 3+ players) is the quiet silver second line', () => {
     const wrapper = mountRail({
       awards: zone('awards', [
         source({name: 'Banker', scores: [{color: me, score: 7}, {color: rival, score: 3}, {color: third, score: 1}]}),
       ]),
     });
     const units = wrapper.findAll('.con-strat__unitbody');
-    expect(units[0].find('.con-strat__rank--i').text()).to.eq('I');
+    expect(units[0].find('.con-strat__crown').exists()).to.be.true;
     expect(units[1].classes()).to.include('con-strat__unitbody--ii');
-    expect(units[1].find('.con-strat__rank--ii').text()).to.eq('II');
+    expect(units[1].find('.con-strat__crown').exists()).to.be.false;
+    expect(wrapper.find('.con-strat__rank').exists()).to.be.false;
   });
 
-  it('a 3+-way tie keeps two chips and an honest «+N» beside ONE shared value', () => {
+  it('a tie shows EVERY player: full equal cubes under ONE crown + arch, one value, no «+N»', () => {
     const wrapper = mountRail({
       awards: zone('awards', [
         source({name: 'Banker', scores: [{color: me, score: 3}, {color: rival, score: 3}, {color: third, score: 3}]}),
       ]),
     });
     const lead = wrapper.find('.con-strat__unitbody--lead');
-    expect(lead.findAll('.con-strat__cube')).to.have.lengthOf(2);
-    expect(lead.find('.con-strat__morecnt').text()).to.eq('+1');
+    // ALL tied players stand as full cubes — never a cut, never a «+N»;
+    // the cluster-count class steps the size down instead.
+    expect(lead.findAll('.con-strat__cube')).to.have.lengthOf(3);
+    expect(lead.find('.con-strat__morecnt').exists()).to.be.false;
+    expect(lead.find('.con-strat__chips').classes()).to.include('con-strat__chips--n3');
+    // ONE crown for the whole group, capping the gold ARCH that spans it.
+    expect(lead.findAll('.con-strat__crown')).to.have.lengthOf(1);
+    expect(lead.findAll('.con-strat__arch')).to.have.lengthOf(1);
     expect(lead.findAll('.con-strat__num')).to.have.lengthOf(1);
+    // A SINGLE leader carries the cap alone — no group arch.
+    const solo = mountRail().find('.con-strat__unitbody--lead');
+    expect(solo.find('.con-strat__crown').exists()).to.be.true;
+    expect(solo.find('.con-strat__arch').exists()).to.be.false;
+  });
+
+  it('a LIVE leader change plays the crown hand-over once — never on mount or a plain re-render', async () => {
+    const wrapper = mountRail();
+    const queue = captureTimers(wrapper);
+    const vm = wrapper.vm as unknown as RailVm;
+    expect(vm.crownMoveKeys).to.have.lengthOf(0);
+    // The rival overtakes: red 4 → blue 6 (a real hand-over).
+    await wrapper.setProps({
+      awards: zone('awards', [
+        source({name: 'Banker', scores: [{color: me, score: 4}, {color: rival, score: 6}]}),
+        OPEN_AWARDS[1],
+      ]),
+    });
+    expect(vm.crownMoveKeys).to.deep.eq(['a:Banker']);
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.con-strat__zone--awards .con-strat__item').classes())
+      .to.include('con-strat__item--crownmove');
+    // A poll re-render with the SAME leader adds nothing.
+    await wrapper.setProps({
+      awards: zone('awards', [
+        source({name: 'Banker', scores: [{color: me, score: 4}, {color: rival, score: 6}]}),
+        OPEN_AWARDS[1],
+      ]),
+    });
+    expect(vm.crownMoveKeys).to.deep.eq(['a:Banker']);
+    // Drain every queued beat (the value roll's clear rides the same queue).
+    while (queue.length > 0) {
+      queue.shift()?.fn();
+    }
+    expect(vm.crownMoveKeys).to.have.lengthOf(0);
+  });
+
+  it('a value change ROLLS along its direction (up on a gain, down on a loss)', async () => {
+    const wrapper = mountRail();
+    captureTimers(wrapper);
+    const vm = wrapper.vm as unknown as RailVm;
+    await wrapper.setProps({
+      awards: zone('awards', [
+        source({name: 'Banker', scores: [{color: me, score: 7}, {color: rival, score: 2}]}),
+        OPEN_AWARDS[1],
+      ]),
+    });
+    expect(vm.tickKeys.some((k) => k.endsWith('#up'))).to.be.true;
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find('.con-strat__num--tick-up').exists()).to.be.true;
   });
 
   it('award availability is DOOR-level: the head arms, the next slot pip golds, rows stay calm', () => {
@@ -272,6 +366,98 @@ describe('ConsoleStrategyRail', () => {
     const wrapper = mountRail();
     expect(wrapper.find('.con-strat__pip--next').exists()).to.be.false;
     expect(wrapper.find('.con-strat__head--armed').exists()).to.be.false;
+  });
+
+  it('the value FOOT swaps honestly: «ДОСТУПНО» only while offered, the meter otherwise', () => {
+    // Builder is met AND offered → the word replaces the meter.
+    const wrapper = mountRail({
+      milestones: zone('milestones', OPEN_MILESTONES, {availableNow: new Set(['Builder'])}),
+    });
+    const rows = wrapper.findAll('.con-strat__zone--milestones .con-strat__item');
+    expect(rows[2].find('.con-strat__avail').text()).to.not.eq('');
+    expect(rows[2].find('.con-strat__meter').exists()).to.be.false;
+    // Met but NOT offered (State B): the full meter, and NO availability word.
+    const wrapper2 = mountRail({milestones: zone('milestones', OPEN_MILESTONES)});
+    const builder = wrapper2.findAll('.con-strat__zone--milestones .con-strat__item')[2];
+    expect(builder.find('.con-strat__avail').exists()).to.be.false;
+    expect(builder.find('.con-strat__meter-fill').attributes('style')).to.contain('width: 100%');
+    // …and an ordinary open row keeps its calm meter.
+    expect(rows[0].find('.con-strat__meter').exists()).to.be.true;
+    expect(rows[0].find('.con-strat__avail').exists()).to.be.false;
+  });
+
+  describe('the ACTIVATION machine (became claimable NOW)', () => {
+    const withOffer = (names: Array<string>) =>
+      zone('milestones', OPEN_MILESTONES, {availableNow: new Set(names)});
+
+    it('an already-offered claim on MOUNT seeds silently — final state, no ceremony', () => {
+      const wrapper = mountRail({milestones: withOffer(['Builder'])});
+      const vm = wrapper.vm as unknown as RailVm;
+      expect(vm.activatingKeys).to.have.lengthOf(0);
+      expect(vm.repulseKeys).to.have.lengthOf(0);
+      expect(wrapper.find('.con-strat__item--activating').exists()).to.be.false;
+      expect(wrapper.find('.con-strat__item--now .con-strat__avail').exists()).to.be.true;
+    });
+
+    it('the FIRST live rising edge plays the full ceremony, once', async () => {
+      const wrapper = mountRail();
+      const queue = captureTimers(wrapper);
+      const vm = wrapper.vm as unknown as RailVm;
+      await wrapper.setProps({milestones: withOffer(['Builder'])});
+      expect(vm.activatingKeys).to.deep.eq(['m:Builder']);
+      await wrapper.vm.$nextTick();
+      const builder = wrapper.findAll('.con-strat__zone--milestones .con-strat__item')[2];
+      expect(builder.classes()).to.include('con-strat__item--activating');
+      // A poll re-render with the SAME offer must not restart the phrase.
+      await wrapper.setProps({milestones: withOffer(['Builder'])});
+      expect(vm.activatingKeys).to.deep.eq(['m:Builder']);
+      queue.shift()?.fn(); // the ceremony's own end
+      expect(vm.activatingKeys).to.have.lengthOf(0);
+    });
+
+    it('a RE-gained offer (the turn came back) pulses — never the full ceremony again', async () => {
+      const wrapper = mountRail();
+      const queue = captureTimers(wrapper);
+      const vm = wrapper.vm as unknown as RailVm;
+      await wrapper.setProps({milestones: withOffer(['Builder'])});
+      queue.shift()?.fn(); // ceremony ends
+      await wrapper.setProps({milestones: withOffer([])}); // the turn moved on
+      await wrapper.setProps({milestones: withOffer(['Builder'])}); // …and returned
+      expect(vm.activatingKeys).to.have.lengthOf(0);
+      expect(vm.repulseKeys).to.deep.eq(['m:Builder']);
+      queue.shift()?.fn();
+      expect(vm.repulseKeys).to.have.lengthOf(0);
+    });
+
+    it('a flip under COVER queues and plays on the uncover (the watched moment)', async () => {
+      const wrapper = mountRail({covered: true});
+      const queue = captureTimers(wrapper);
+      const vm = wrapper.vm as unknown as RailVm;
+      await wrapper.setProps({milestones: withOffer(['Builder'])});
+      expect(vm.activatingKeys).to.have.lengthOf(0);
+      expect(vm.pendingActivations).to.have.lengthOf(1);
+      await wrapper.setProps({covered: false});
+      expect(vm.activatingKeys).to.deep.eq(['m:Builder']);
+      expect(vm.pendingActivations).to.have.lengthOf(0);
+      queue.shift()?.fn();
+      expect(vm.activatingKeys).to.have.lengthOf(0);
+    });
+
+    it('a claim consumes any live or queued activation for the row', async () => {
+      const wrapper = mountRail();
+      captureTimers(wrapper);
+      const vm = wrapper.vm as unknown as RailVm;
+      await wrapper.setProps({milestones: withOffer(['Builder'])});
+      expect(vm.activatingKeys).to.deep.eq(['m:Builder']);
+      await wrapper.setProps({
+        milestones: zone('milestones', [
+          OPEN_MILESTONES[0], OPEN_MILESTONES[1],
+          source({name: 'Builder', playerName: 'Me', color: me, scores: []}),
+        ]),
+      });
+      expect(vm.activatingKeys).to.have.lengthOf(0);
+      expect(vm.pendingActivations).to.have.lengthOf(0);
+    });
   });
 
   it('zone heads and rows are doors: clicks emit open with the zone kind', async () => {
@@ -324,16 +510,17 @@ describe('ConsoleStrategyRail', () => {
     queue.shift()?.fn(); // the seal start
     await wrapper.vm.$nextTick();
     expect(row().classes()).to.include('con-strat__item--sealing');
-    expect(row().find('.con-strat__gem').classes()).to.include('player_bg_color_blue');
     // The beat's two layers share the value zone: the held numbers dissolve
-    // while the owner seal stamps in over them.
+    // while the owner seal stamps in over them. The emblem stays clean —
+    // the seal's CUBE is the owner marker.
     expect(row().find('.con-strat__cell').exists()).to.be.true;
-    expect(row().find('.con-strat__ownseal').exists()).to.be.true;
+    expect(row().find('.con-strat__ownseal-cube').classes()).to.include('player_bg_color_blue');
+    expect(row().find('.con-strat__gem').exists()).to.be.false;
     queue.shift()?.fn(); // the seal end
     await wrapper.vm.$nextTick();
     expect(row().classes()).to.include('con-strat__item--taken');
     expect(row().find('.con-strat__cell').exists()).to.be.false;
-    expect(row().find('.con-strat__ownseal-gem').classes()).to.include('player_bg_color_blue');
+    expect(row().find('.con-strat__ownseal-cube').classes()).to.include('player_bg_color_blue');
   });
 
   it('the THIRD seal recomposes only after the read beat (result first, then the pose)', async () => {
@@ -403,7 +590,7 @@ describe('ConsoleStrategyRail', () => {
     await wrapper.setProps({epoch: 'run-2'});
     expect(vm.pending).to.have.lengthOf(0);
     // The reseeded view renders the truth directly (no held pre-state).
-    expect(wrapper.find('.con-strat__gem').exists()).to.be.true;
+    expect(wrapper.find('.con-strat__ownseal').exists()).to.be.true;
   });
 
   it('the medal art rides the optical-fit map (normalised size, never bare contain)', () => {

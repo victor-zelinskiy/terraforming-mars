@@ -1565,9 +1565,18 @@ export async function waitForTurn(page: Page, timeout = 20_000): Promise<void> {
  * been built yet (pregame).
  */
 export async function handCount(page: Page): Promise<number> {
-  const text = await page.locator('.con-handdock__num--total').first().innerText().catch(() => '');
+  // BOUNDED, and album-aware: while the hand album is open the dock swaps the
+  // «КАРТЫ n/m» counter for the album spine, whose range («1–10 из 15») ends
+  // with the same total. An unbounded read against the unmounted counter
+  // waits until the test's own timeout (actionTimeout is 0 in this config).
+  const text = await page.locator('.con-handdock__num--total').first().innerText({timeout: 1500}).catch(() => '');
   const n = Number.parseInt(text.trim(), 10);
-  return Number.isNaN(n) ? -1 : n;
+  if (!Number.isNaN(n)) {
+    return n;
+  }
+  const range = (await page.locator('.con-handdock__pager-range').first().innerText({timeout: 1500}).catch(() => '')) ?? '';
+  const tail = range.match(/(\d+)\s*$/);
+  return tail !== null ? Number(tail[1]) : -1;
 }
 
 /**

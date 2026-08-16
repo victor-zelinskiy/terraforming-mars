@@ -1,4 +1,4 @@
-# The right STRATEGY RAIL — Milestones/Awards premium HUD (P30 → P31 trophy gallery)
+# The right STRATEGY RAIL — Milestones/Awards premium HUD (P30 → P31 trophy gallery → P31.2 activation polish)
 
 The console board home's right edge is `ConsoleStrategyRail.vue` (`.con-strat`)
 — a narrow icon-first HUD of the two 3-slot races. It replaced the wide P27
@@ -20,9 +20,11 @@ resource rail's **footprint** twin, deliberately NOT its interior twin.
   the physical edge (hull-frame grammar), but the VISIBLE composition ends
   inside the viewport: the display case (thin metallic cant, inner top
   highlight, controlled outer shadow, rounded stage-facing corners) seats
-  its square right edge INTO the spine — a brushed metal post with weld feet
-  at both ends (the top/bottom terminators). The old read of «glass cropped
-  by the screen edge» is gone by construction. Geometry rides one token
+  its square right edge INTO the spine — a brushed metal post whose ends
+  carry thin horizontal TIE-INS welding it to the case's corners (P31.2:
+  the earlier wider end caps read as a scrollbar's draggable handles; a
+  structural joint does not). The old read of «glass cropped by the screen
+  edge» is gone by construction. Geometry rides one token
   family (`--strat-spine-w/-r`, `--strat-edge` — derived from
   `--con-pad-x`), so every profile keeps the joint. ⚠️ A profile ladder that
   re-states the rail's `padding` as a bare shorthand strips the
@@ -36,10 +38,15 @@ resource rail's **footprint** twin, deliberately NOT its interior twin.
 
 ## The information grammar
 
-Icon-first: the medal art (`assets/ma/<slug>.png`) is the identity; COLOUR is
-the player; SHAPE + WORD carry state (never colour alone); POSITION + the
-rank plaque is race hierarchy. No names, no cost — the workspaces (LB/RB,
-also click) hold the detail; rows carry `aria-label` one-liners.
+Icon-first: the medal art (`assets/ma/<slug>.png`) is the identity; SHAPE +
+WORD carry state (never colour alone); POSITION + the crown is race
+hierarchy. COLOUR SEMANTICS ARE FIXED (P31.2): GREEN = the requirement is
+met; GOLD-WHITE light = the action is genuinely available THIS frame;
+PLAYER COLOUR = owner / sponsor / scorer, and player cubes appear in
+exactly three places — the milestone owner seal, the award sponsor socket,
+the award podium (plus the tray slots, which stay DIAMONDS: slot language,
+not player language). These never mix. No names, no cost — the workspaces
+(LB/RB, also click) hold the detail; rows carry `aria-label` one-liners.
 
 - **Zone head = the DOOR**, one compact line: LB/RB glyph cap + title + the
   3-slot diamond tray. The title never ellipsizes (e2e-guarded). The tray's
@@ -55,41 +62,72 @@ also click) hold the detail; rows carry `aria-label` one-liners.
   row-level states because the server offers only the ones actually met.
 - **The medallion is a physical exhibit**: state bloom → the DISPLAY PUCK
   (`__pedestal`, a recessed glass disc whose `box-shadow` rim is the
-  functional state cue — perf-lite safe) → the owner enamel RING
-  (`__plate`, the player-colour class masked to a rim — an accent, never a
-  wash) → the ART, oversized past the puck (`inset: -5.5%` — only light and
-  silhouette may cross a row; no opaque plate can amputate it any more) →
-  the shoulder jewel (`__gem`) → the seal kiss. OPTICAL-FIT: `maArtFitStyle`
-  (generated `maArtFit.json`; regenerate `pwsh scripts/measure-ma-art.ps1`)
-  keeps equal visual mass across assets.
-- **Milestone states** (the three-state system):
-  1. *In progress*: CURRENT value is the voice, `/threshold` recedes, and a
-     hairline METER under the numbers repeats the fact non-verbally
-     (integrated into the value block — never a progress bar).
-  2. *Ready / offered*: a clean emerald RIM on the puck + a soft inner
-     bloom + the `✓` readymark beside the value; `--now` (offered this
-     frame) breathes the bloom's light only, `--ready` (met, not your
-     window) is the same presence steady. Reduced motion: the breath stops,
-     rim + mark + contrast still carry it. Never a blurry green wash.
-  3. *Taken*: the row keeps its dark premium material; the OWNER SEAL
-     (`__ownseal`: the player-colour crystal + `✓` + «ВЗЯТО» in a thin gold
-     fixation) takes the value zone — the right side is never left empty,
-     and the state reads by shape and word, never by a colour fill. The
-     enamel ring + shoulder jewel stay secondary accents on the medal.
-- **Award row = medal + sponsor seal + MICRO-PODIUM.** The sponsor's jewel
-  sits at the ribbon corner with a warm metal mount (funder ≠ scorer stays
-  readable; it never covers the art's centre). The podium is two steps in
-  the reserved value track: a metallic rank plaque (gold «I» / silver «II»),
-  enamel diamond CHIPS for the players (the tray's crystal language — never
-  bare squares; the viewer's chip is white-rimmed), and the tabular number.
-  A 3+-way tie keeps two chips + an honest «+N» beside ONE shared value.
-- **The silver «II» is RULES-HONEST** (`MaHudItem.secondRanked`, mirroring
-  `giveAwards`): a 2nd place exists only with a SINGLE leader and MORE than
-  two players — a tie for 1st awards no 2nd at all, and in a duel only 1st
-  scores. A `second` group that would not score renders as a plain CHASER
-  (no plaque, quieter voice): the pursuit stays visible, the rank stays
-  honest. The two-step height is reserved (`min-height` on `__race`), so a
-  chaser arriving or leaving never reflows the row.
+  requirement-met cue — perf-lite safe) → the owner/sponsor enamel accent
+  (`__plate`: a QUIET thin ring on milestones, a faint bottom-bowl
+  reflection on awards — P31.2 killed the loud colour disc that read as
+  focus/winner) → the ART, oversized past the puck (`inset: -5.5%`) → the
+  milestone ACTIVATION optics (`__actring` gold-white rim, `__spark` bottom
+  crystal, `__sweep` one-shot contour pass) → the sponsor cube (`__gem`,
+  AWARDS ONLY — a claimed milestone's emblem stays CLEAN; the seal and the
+  tray already answer «who») → the seal kiss. OPTICAL-FIT: `maArtFitStyle`
+  (generated `maArtFit.json`; regenerate `pwsh scripts/measure-ma-art.ps1`).
+- **Milestone states — the ATTENTION HIERARCHY (P31.2)**: claimable-now is
+  the section's loudest LIVE object; open progress is calm; taken is
+  prestigious but QUIET. All server-authoritative — `ready` is the rules'
+  own `canClaim` (turn-independent requirement), `availableNow` is the
+  claim option's PRESENCE in the waitingFor tree (turn + money + slots) —
+  never a client `score >= threshold` guess:
+  1. *A — in progress*: CURRENT value is the voice, `/threshold` recedes,
+     a hairline METER under the numbers (the fixed-height `__cellfoot`).
+  2. *B — met, not actionable*: green drawn ✓ + green value + FULL meter +
+     a moderate mint rim. No gold, no word — «yours, waiting».
+  3. *C — claimable NOW*: everything from B, PLUS the gold-white
+     `__actring` (slow single-layer breath), the lit bottom crystal, a thin
+     row bracket, and «ДОСТУПНО» (`Available now`) replacing the meter in
+     the same fixed foot — no layout shift on a turn flip. Reduced motion:
+     all static, same reads.
+  4. *Taken*: the OWNER SEAL — ONE calm horizontal line `cube · ВЗЯТО · ✓`
+     (cube = who, neutral tick = done, thin gold hairline = fixed) in the
+     value zone; smaller and quieter than a live row, never a CTA-looking
+     plaque, and NO owner cube on the emblem.
+- **Award row = medal + sponsor SOCKET + OPEN RANK RAIL (P31.3 cassette →
+  P31.4 de-carded).** The sponsor's CUBE sits in a warm metal socket at the
+  ribbon corner with a contact-shadow MOUNT (funder ≠ scorer; never over
+  the art's centre, never near the rail). The ranking is ONE module with
+  two FIXED levels (`__race { grid-template-rows: repeat(2,
+  --strat-cas-row); min-width: pz+sz }`) on two FIXED axes — the PLAYER
+  ZONE (`__pz`, constant track, cubes centred: both levels share one
+  horizontal centre) and the SCORE ZONE (constant track, right-aligned
+  tabular values on one right edge). P31.4 killed the CARD read: no
+  four-side plate — a faint wash dissolving toward the score, a thin left
+  vertical GUIDE (gold→silver), and per-level STEP notches (gold tread
+  under the leader, cool silver under the second; the rank reads from the
+  metal). Cubes are ENAMEL (bevel + top light + dark facet + metal edging
+  + contact shadow — one material for every place incl. the sponsor;
+  `--me` is a slimmer white ring). The CROWN is a CAP anchored to the
+  CLUSTER's box (`bottom: 100% + --strat-crown-lift` — a breath of air,
+  never glued), and a tied group takes the gold ARCH (`__arch`, width
+  follows the cluster) with the cap on its centre. TIES SHOW EVERYONE:
+  full equal cubes, ZERO overlap, never a «+N» — the cluster-count class
+  (`__chips--n3/4/5`) steps the size down instead (TV floor respected). A
+  lone leader keeps the top level with the bottom silver notch calmly
+  empty (`:has(only-of-type)`); an empty race dissolves the rail to one
+  centred «—». MOTION is one language at two amplitudes: `--strat-mo` (1 /
+  .8 in the completed pose) scales the FLIP, the crown-cap fade, the
+  score ROLL (`--tick-up/-down` — digits arrive along the change's
+  direction) and the crown hand-over's gold-step flare
+  (`--crownmove`, driven by the `leadPrev` ledger — live changes only,
+  never mount/reseed/covered). Guard: the states e2e asserts both axes at
+  ±1 rendered px, ZERO tie overlap by bounding boxes, the group-centred
+  crown, the arch, and that the emblem kept its size.
+- **The silver second is RULES-HONEST** (`MaHudItem.secondRanked`,
+  mirroring `giveAwards`): a 2nd place exists only with a SINGLE leader and
+  MORE than two players — a tie for 1st awards no 2nd at all, and in a duel
+  only 1st scores. A REAL second is the quieter silver-valued second line
+  (position + weight carry the rank — no «II»); a group that would not
+  score is a plain dim chaser. The two-step height is reserved
+  (`min-height` on `__race`), so a chaser arriving or leaving never reflows
+  the row.
 - **Completed poses** differ on purpose: milestones 3/3 = a TROPHY column
   (bigger medals, seals gone with the values — the race is settled); awards
   3/3 = a LIVE scoreboard (bigger medals AND numbers). Both warm the pucks
@@ -122,14 +160,36 @@ claim/fund queues a SEAL:
 - Reduced motion: everything applies instantly; the availability breath
   stops (rim/mark/contrast carry it).
 
+### The ACTIVATION machine (P31.2 — «it just became claimable»)
+
+The same seed-then-diff idiom, over the SERVER's own offer (`availableNow`'s
+rising edge per row). The FULL ceremony (~1.1s: value fixes green → the ✓
+draws → the bottom crystal flashes → a light impulse runs the contour → a
+3% physical nudge → the gold rim assembles → «ДОСТУПНО» surfaces) plays
+ONCE per row per epoch, and ONLY on a live watched transition:
+
+- mount / reload / reconnect / epoch reseed → the ledger seeds silently and
+  an already-offered row renders straight in its final C state;
+- a poll re-render with the same offer → nothing (the ledger sees no edge);
+- the offer RE-gained (a new turn, a blocker cleared) → the short
+  `--repulse` swell of the standing light, never the ceremony again;
+- a flip under `covered` → queued and played on the uncover (TTL 20s —
+  stale activations apply silently);
+- a claim consumes any live or queued activation for its row;
+- reduced motion → no phrase at all, final state instantly.
+
 ## Guards
 
 - Model: `consoleMaHudModel.spec.ts` (ready/offered, leader/second/ties,
   `secondRanked` vs giveAwards, funder≠scorer, completed facts, price
   pass-through).
 - Component: `ConsoleStrategyRail.spec.ts` (case+spine, pedestal, meter,
-  readymark, owner seal + `--mine`, podium ranks I/II/chase, tie chips+N,
-  door-level arming + gold pip, calm award rows, doors, poses, the seal
+  drawn readymark, the horizontal owner seal + `--mine` + the clean emblem,
+  crown/silver/chase podium, tie crown+chips+N, the sponsor socket cube,
+  the «ДОСТУПНО»⇄meter foot swap, the ACTIVATION machine matrix
+  (mount-silent / first-live / re-gain pulse / covered queue / claim
+  consumes), door-level arming + gold pip, calm award rows, doors, poses,
+  the seal
   pipeline through a captured-timer queue, undo, epoch reseed). ⚠️ Its rAF
   polyfill is SUITE-scoped (a top-level `before` is a mocha ROOT hook of the
   whole bundle).

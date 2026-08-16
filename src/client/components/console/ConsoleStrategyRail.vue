@@ -64,83 +64,126 @@
              @click="$emit('open', z.kind)">
           <!-- The medallion: a physical exhibit on its own display puck.
                Layers, bottom-up: state bloom (light) → pedestal (the puck,
-               whose box-shadow rim is the state's functional cue) → owner
-               enamel ring (taken) → the art, oversized past the puck — the
-               emblem is the hero and may softly overlap the shelf line —
-               → the shoulder jewel (owner/sponsor) → the seal's light kiss. -->
+               whose box-shadow rim is the requirement-met cue) → owner/
+               sponsor enamel accent → the art, oversized past the puck —
+               the emblem is the hero and may softly overlap the shelf line
+               — → the milestone ACTIVATION optics (bottom-crystal spark,
+               contour sweep, the gold-white rim — «can act NOW» light,
+               never mixed with the green «requirement met» or a player
+               colour) → the sponsor cube (awards only: the value zone
+               belongs to the LEADERS, so the funder pins to the emblem's
+               ribbon corner — a milestone's owner never doubles here, the
+               seal and the tray already say it) → the seal's light kiss. -->
           <span class="con-strat__medal">
             <i class="con-strat__bloom" aria-hidden="true"></i>
             <i class="con-strat__pedestal" aria-hidden="true"></i>
             <i v-if="row.showTaken" class="con-strat__plate"
                :class="'player_bg_color_' + row.takenColor" aria-hidden="true"></i>
             <i class="con-strat__art" :style="artStyle(row.name)" aria-hidden="true"></i>
-            <i v-if="row.showTaken" class="con-strat__gem"
+            <template v-if="z.kind === 'milestones'">
+              <i class="con-strat__sweep" aria-hidden="true"></i>
+              <i class="con-strat__actring" aria-hidden="true"></i>
+              <i class="con-strat__spark" aria-hidden="true"></i>
+            </template>
+            <i v-if="z.kind === 'awards' && row.showTaken" class="con-strat__gem"
                :class="['player_bg_color_' + row.takenColor, {'con-strat__gem--me': row.takenColor === viewerColor}]"
                aria-hidden="true"></i>
             <i class="con-strat__kiss" aria-hidden="true"></i>
           </span>
 
           <!-- MILESTONES, open: my own count toward the threshold — the
-               CURRENT value is the line's voice, the requirement recedes, and
-               a hairline meter under the numbers carries the same fact
-               non-verbally (integrated into the value block, never a bar). -->
+               CURRENT value is the line's voice, the requirement recedes.
+               The ✓ is a drawn SVG stroke (the activation draws it live);
+               the FOOT line is a fixed-height box that swaps its content:
+               the hairline meter while the row is not actionable, the
+               «ДОСТУПНО» word while the claim is genuinely offered — the
+               swap never moves the numbers (no layout shift on a turn
+               change). -->
           <span v-if="z.kind === 'milestones' && row.my !== undefined" class="con-strat__cell">
-            <template v-if="row.my.conditional">
-              <b class="con-strat__num" :class="numClasses(z, row, 'my')">{{ row.my.ready ? '✓' : '—' }}</b>
-            </template>
-            <template v-else>
-              <span class="con-strat__val">
-                <i v-if="row.ready" class="con-strat__readymark" aria-hidden="true">✓</i>
+            <span class="con-strat__val">
+              <i v-if="row.ready" class="con-strat__readymark" aria-hidden="true">
+                <svg viewBox="0 0 12 10"><path d="M1.6 5.4 L4.6 8.3 L10.4 1.7" /></svg>
+              </i>
+              <template v-if="!row.my.conditional">
                 <b class="con-strat__num" :class="numClasses(z, row, 'my')">{{ row.my.score }}</b>
                 <i v-if="row.my.threshold !== undefined" class="con-strat__req">/{{ row.my.threshold }}</i>
-              </span>
-              <i v-if="row.my.threshold !== undefined" class="con-strat__meter" aria-hidden="true">
+              </template>
+              <b v-else-if="!row.ready" class="con-strat__num con-strat__num--zero">—</b>
+            </span>
+            <span class="con-strat__cellfoot">
+              <span v-if="row.availableNow" class="con-strat__avail">{{ $t('Available now') }}</span>
+              <i v-else-if="!row.my.conditional && row.my.threshold !== undefined" class="con-strat__meter" aria-hidden="true">
                 <i class="con-strat__meter-fill" :style="meterStyle(row)"></i>
               </i>
-            </template>
+            </span>
           </span>
 
-          <!-- MILESTONES, taken: the OWNER SEAL — the enamel crystal, the
-               check and the word, carrying the visual weight the number block
-               held before the claim. The right zone is never left empty; the
-               row never becomes a colour wash. During the seal beat it shares
-               the grid cell with the fading held numbers (a stamp landing
-               over a dissolving count — one motion, two layers). -->
+          <!-- MILESTONES, taken: the OWNER SEAL — one calm horizontal line
+               «cube · ВЗЯТО · ✓»: the CUBE answers who (the only owner
+               marker on the row — the emblem stays clean), the neutral tick
+               answers done, the thin gold hairline fixes it. Deliberately
+               QUIETER than a live claimable row: a settled trophy, never
+               the section's loudest button. During the seal beat it shares
+               the grid cell with the fading held numbers. -->
           <span v-if="z.kind === 'milestones' && row.showTaken && !z.composed"
                 class="con-strat__ownseal"
                 :class="{'con-strat__ownseal--mine': row.takenColor === viewerColor}">
-            <i class="con-strat__ownseal-gem"
-               :class="'player_bg_color_' + row.takenColor" aria-hidden="true"><b
-                 class="con-strat__ownseal-check">✓</b></i>
+            <i class="con-strat__ownseal-cube"
+               :class="'player_bg_color_' + row.takenColor" aria-hidden="true"></i>
             <span class="con-strat__ownseal-word">{{ $t('Taken') }}</span>
+            <i class="con-strat__ownseal-tick" aria-hidden="true">✓</i>
           </span>
 
-          <!-- AWARDS: the two-step MICRO-PODIUM. Rank is a metallic plaque
-               (gold «I» / silver «II»), the player is an enamel chip, the
-               value is the number — three separate voices, never mixed. A
-               group that would NOT score (a tie for 1st kills the 2nd place;
-               a duel only pays 1st) renders as a plain CHASER: no plaque, no
-               silver — the pursuit stays visible, the rank stays honest. -->
+          <!-- AWARDS: the RANKING CASSETTE — one compact physical display
+               module of TWO FIXED LEVELS (leader above, second below), never
+               two floating rows. Two structural axes hold whatever the race
+               does: the PLAYER ZONE (`__pz`, fixed width, cubes centred —
+               row 1 and row 2 cubes share one horizontal centre) and the
+               SCORE ZONE (fixed width, right-aligned tabular values share
+               one right edge). The CROWN is a CAP on the leader's cube —
+               an absolute overlay above the cluster, out of the flow: it
+               can never push the cube or the number. A tie shares one
+               crown over the whole cluster; an empty race is one calm
+               centred «—» in the same-size cassette; a lone leader keeps
+               the standard top level with the bottom level calmly empty. -->
           <span v-if="z.kind === 'awards'" class="con-strat__race-wrap">
-            <TransitionGroup tag="span" class="con-strat__race"
-                             :name="motion ? 'con-strat-race' : ''"
-                             :css="motion"
-                             @before-leave="pinLeaving">
-              <span v-for="u in row.units" :key="u.key" class="con-strat__unit">
-                <span class="con-strat__unitbody"
-                      :class="['con-strat__unitbody--' + u.rank, {'con-strat__unitbody--lead': u.lead}]">
-                  <i v-if="u.rank !== 'chase'" class="con-strat__rank"
-                     :class="'con-strat__rank--' + u.rank" aria-hidden="true">{{ u.lead ? 'I' : 'II' }}</i>
-                  <span class="con-strat__chips">
-                    <i v-for="c in u.cubes" :key="c" class="con-strat__cube"
-                       :class="['player_bg_color_' + c, {'con-strat__cube--me': c === viewerColor}]"></i>
-                    <span v-if="u.more > 0" class="con-strat__morecnt">+{{ u.more }}</span>
+            <span class="con-strat__cassette">
+              <TransitionGroup tag="span" class="con-strat__race"
+                               :name="motion ? 'con-strat-race' : ''"
+                               :css="motion"
+                               @before-leave="pinLeaving">
+                <span v-for="u in row.units" :key="u.key" class="con-strat__unit">
+                  <span class="con-strat__unitbody"
+                        :class="['con-strat__unitbody--' + u.rank, {'con-strat__unitbody--lead': u.lead}]">
+                    <span class="con-strat__pz">
+                      <!-- The cluster: EVERY tied player, full cubes, zero
+                           overlap (a tie steps the cube size down instead —
+                           equals stay equals, nobody hides behind anybody,
+                           never a «+N»). The crown and the gold ARCH anchor
+                           to the CLUSTER's own box, so a shared crown sits
+                           over the whole group's centre, and the arch
+                           follows the group's width. -->
+                      <span class="con-strat__chips" :class="'con-strat__chips--n' + Math.min(u.cubes.length, 5)">
+                        <i v-if="u.lead && u.cubes.length > 1" class="con-strat__arch" aria-hidden="true"></i>
+                        <transition name="con-strat-crowncap" :css="motion">
+                          <i v-if="u.lead" class="con-strat__crown" aria-hidden="true">
+                            <svg viewBox="0 0 18 15">
+                              <path d="M2.4 12.2 L3 5.6 L6.5 8.1 L9 1 L11.5 8.1 L15 5.6 L15.6 12.2 Z" />
+                              <path class="con-strat__crown-base" d="M2.9 13 H15.1 A0.62 0.62 0 0 1 15.1 14.24 H2.9 A0.62 0.62 0 0 1 2.9 13 Z" />
+                              <path class="con-strat__crown-light" d="M9 3.5 L10.2 7.6 L9 8.8 L7.8 7.6 Z" />
+                            </svg>
+                          </i>
+                        </transition>
+                        <i v-for="c in u.cubes" :key="c" class="con-strat__cube"
+                           :class="['player_bg_color_' + c, {'con-strat__cube--me': c === viewerColor}]"></i>
+                      </span>
+                    </span>
+                    <b class="con-strat__num" :class="numClasses(z, row, u.key)">{{ u.score }}</b>
                   </span>
-                  <b class="con-strat__num" :class="numClasses(z, row, u.key)">{{ u.score }}</b>
                 </span>
-              </span>
-              <span v-if="row.units.length === 0" key="none" class="con-strat__none" aria-hidden="true">—</span>
-            </TransitionGroup>
+              </TransitionGroup>
+              <span v-if="row.units.length === 0" class="con-strat__none" aria-hidden="true">—</span>
+            </span>
           </span>
         </div>
       </TransitionGroup>
@@ -194,8 +237,17 @@ const SEAL_MS = 950;
 const SEAL_STAGGER_MS = 340;
 /** The read beat between the LAST seal and the 3/3 recomposition. */
 const READ_BEAT_MS = 1050;
-/** The value tick's lifetime (matches `strat-tick`). */
-const TICK_MS = 460;
+/** The value roll's lifetime (matches `strat-roll-up/-down`). */
+const TICK_MS = 260;
+/** The crown hand-over accent's lifetime (the FLIP + notch impulse). */
+const CROWN_MOVE_MS = 650;
+/** The milestone ACTIVATION ceremony's lifetime (matches `strat-activate-*`). */
+const ACTIVATE_MS = 1100;
+/** The short ready-pulse for a RE-gained offer (matches `strat-repulse`). */
+const REPULSE_MS = 540;
+/** An activation queued under cover older than this applies silently — a
+ *  stale «it lit up» must never replay minutes later. */
+const ACTIVATION_TTL_MS = 20_000;
 
 type ZoneKind = 'milestones' | 'awards';
 
@@ -209,8 +261,9 @@ type RaceUnit = {
   key: string,
   lead: boolean,
   rank: RaceRank,
+  /** EVERY tied player — full cubes, zero overlap, never a «+N» (a tie
+   *  steps the cube size down via the cluster-count class instead). */
   cubes: ReadonlyArray<Color>,
-  more: number,
   score: number,
 };
 
@@ -248,9 +301,6 @@ function groupKey(colors: ReadonlyArray<Color>): string {
   return colors.join('.');
 }
 
-/** Chips shown per podium unit before the rest collapse to «+N». */
-const MAX_UNIT_CUBES = 2;
-
 export default defineComponent({
   name: 'ConsoleStrategyRail',
   components: {GamepadGlyph},
@@ -279,8 +329,16 @@ export default defineComponent({
       heldByKey: {} as Record<string, MaHudItem>,
       /** The 3/3 pose is APPLIED (rows filtered to the taken three). */
       composed: {milestones: false, awards: false} as Record<ZoneKind, boolean>,
-      /** Number-tick accents (value keys), short-lived. */
+      /** Number-roll accents (value keys + a #up/#down direction), short-lived. */
       tickKeys: [] as Array<string>,
+      /** Rows whose CROWN is being handed over (a live leader change). */
+      crownMoveKeys: [] as Array<string>,
+      /** Rows playing the FULL activation ceremony (first live «now»). */
+      activatingKeys: [] as Array<string>,
+      /** Rows playing the short ready-pulse (a RE-gained offer). */
+      repulseKeys: [] as Array<string>,
+      /** Activations observed while covered — played on the uncover (TTL). */
+      pendingActivations: [] as Array<{key: string, at: number, first: boolean}>,
       /** Live timers — cleared on unmount (no orphan state flips). */
       timers: [] as Array<ReturnType<typeof setTimeout>>,
       flushing: false,
@@ -311,6 +369,7 @@ export default defineComponent({
     covered(now: boolean) {
       if (!now) {
         this.flushSeals();
+        this.flushActivations();
       }
     },
     epoch() {
@@ -322,6 +381,22 @@ export default defineComponent({
     // must paint the 3/3 pose on its first frame (reconnect / reload never
     // replays a ceremony, not even for one frame).
     this.reseed();
+  },
+  mounted() {
+    // Live diagnostics (the shell's __conColonyDiag idiom): a probe reads
+    // the motion machines' ACTUAL state instead of guessing from paint.
+    // Read-only snapshot; no gameplay surface.
+    (window as unknown as Record<string, unknown>).__stratDiag = () => ({
+      covered: this.covered,
+      motion: this.motion,
+      activating: [...this.activatingKeys],
+      repulse: [...this.repulseKeys],
+      pendingActivations: this.pendingActivations.map((p) => p.key),
+      pendingSeals: this.pending.map((p) => p.key),
+      sealing: [...this.sealingKeys],
+      nowPrev: [...this.ledgers().nowPrev.entries()],
+      everNow: [...this.ledgers().everNow],
+    });
   },
   beforeUnmount() {
     for (const t of this.timers) {
@@ -371,6 +446,7 @@ export default defineComponent({
       return name;
     },
     rowClasses(z: ZoneView, row: RowView): Record<string, boolean> {
+      const key = itemKey(z.kind, row.name);
       return {
         'con-strat__item--taken': row.showTaken && !row.sealing,
         'con-strat__item--sealing': row.sealing,
@@ -379,13 +455,20 @@ export default defineComponent({
         // a whole column of pulsing fundable rows carries no information.
         'con-strat__item--now': !row.showTaken && row.availableNow,
         'con-strat__item--ready': !row.showTaken && row.ready && !row.availableNow,
+        // The one-shot activation optics (the ceremony / the ready-pulse).
+        'con-strat__item--activating': this.activatingKeys.includes(key),
+        'con-strat__item--repulse': this.repulseKeys.includes(key),
+        // The crown hand-over accent (a live leader change on this award).
+        'con-strat__item--crownmove': this.crownMoveKeys.includes(key),
         'con-strat__item--quiet': z.kind === 'awards' && !row.showTaken,
         'con-strat__item--mine': row.showTaken && row.takenColor === this.viewerColor,
       };
     },
     numClasses(z: ZoneView, row: RowView, slot: string): Record<string, boolean> {
+      const vkey = `${itemKey(z.kind, row.name)}|${slot}`;
       return {
-        'con-strat__num--tick': this.tickKeys.includes(`${itemKey(z.kind, row.name)}|${slot}`),
+        'con-strat__num--tick-up': this.tickKeys.includes(`${vkey}#up`),
+        'con-strat__num--tick-down': this.tickKeys.includes(`${vkey}#down`),
         'con-strat__num--ready': z.kind === 'milestones' && row.ready,
         // An untouched milestone count recedes (a column of zeros is noise).
         'con-strat__num--zero': z.kind === 'milestones' && !row.ready &&
@@ -434,14 +517,11 @@ export default defineComponent({
         if (group === undefined) {
           return;
         }
-        // A 3+-way tie keeps TWO chips + an honest «+N» (bounded width).
-        const over = group.colors.length > MAX_UNIT_CUBES;
         units.push({
           key: groupKey(group.colors),
           lead: rank === 'i',
           rank,
-          cubes: over ? group.colors.slice(0, MAX_UNIT_CUBES) : group.colors,
-          more: over ? group.colors.length - MAX_UNIT_CUBES : 0,
+          cubes: group.colors,
           score: group.score,
         });
       };
@@ -460,33 +540,74 @@ export default defineComponent({
       this.sealingKeys = [];
       this.heldByKey = {};
       this.tickKeys = [];
+      this.activatingKeys = [];
+      this.repulseKeys = [];
+      this.pendingActivations = [];
+      this.crownMoveKeys = [];
       this.flushing = false;
-      const {values, prevOpen} = this.ledgers();
+      const {values, prevOpen, nowPrev, everNow, leadPrev} = this.ledgers();
       values.clear();
       prevOpen.clear();
+      nowPrev.clear();
+      everNow.clear();
+      leadPrev.clear();
       this.seedZone('milestones', this.milestones);
       this.seedZone('awards', this.awards);
       this.composed = {milestones: this.milestones.completed, awards: this.awards.completed};
       this.seeded = true;
     },
     seedZone(kind: ZoneKind, zone: MaHudZone): void {
+      const {nowPrev, everNow} = this.ledgers();
       for (const it of zone.items) {
-        this.seen[itemKey(kind, it.name)] = it.taken?.color ?? '';
+        const key = itemKey(kind, it.name);
+        this.seen[key] = it.taken?.color ?? '';
         this.rememberValues(kind, it);
+        // The activation ledger seeds SILENTLY: an already-offered claim on
+        // mount / reload / reconnect renders straight in its final ready
+        // state — the ceremony belongs to the LIVE moment only.
+        if (kind === 'milestones') {
+          const now = it.taken === undefined && it.availableNow;
+          nowPrev.set(key, now);
+          if (now) {
+            everNow.add(key);
+          }
+        }
+        // The crown ledger seeds silently too — a hand-over accent belongs
+        // to a LIVE leader change, never to a mount.
+        if (kind === 'awards') {
+          this.ledgers().leadPrev.set(key, it.leader !== undefined ? groupKey(it.leader.colors) : '');
+        }
       }
     },
-    /** The per-value ledger behind the tick accents + the last OPEN face per
-     *  item (what a seal renders from) — non-reactive on purpose (a Map in
-     *  data() would deep-proxy every write), initialized lazily. */
-    ledgers(): {values: Map<string, number>, prevOpen: Map<string, MaHudItem>} {
-      const self = this as unknown as {_stratValues?: Map<string, number>, _stratPrevOpen?: Map<string, MaHudItem>};
+    /** The per-value ledger behind the tick accents, the last OPEN face per
+     *  item (what a seal renders from), and the ACTIVATION memory (the last
+     *  observed «offered now» + «has it ever lit up this epoch») — all
+     *  non-reactive on purpose (a Map in data() would deep-proxy every
+     *  write), initialized lazily. */
+    ledgers(): {values: Map<string, number>, prevOpen: Map<string, MaHudItem>, nowPrev: Map<string, boolean>, everNow: Set<string>, leadPrev: Map<string, string>} {
+      const self = this as unknown as {
+        _stratValues?: Map<string, number>,
+        _stratPrevOpen?: Map<string, MaHudItem>,
+        _stratNowPrev?: Map<string, boolean>,
+        _stratEverNow?: Set<string>,
+        _stratLeadPrev?: Map<string, string>,
+      };
       if (self._stratValues === undefined) {
         self._stratValues = new Map();
       }
       if (self._stratPrevOpen === undefined) {
         self._stratPrevOpen = new Map();
       }
-      return {values: self._stratValues, prevOpen: self._stratPrevOpen};
+      if (self._stratNowPrev === undefined) {
+        self._stratNowPrev = new Map();
+      }
+      if (self._stratEverNow === undefined) {
+        self._stratEverNow = new Set();
+      }
+      if (self._stratLeadPrev === undefined) {
+        self._stratLeadPrev = new Map();
+      }
+      return {values: self._stratValues, prevOpen: self._stratPrevOpen, nowPrev: self._stratNowPrev, everNow: self._stratEverNow, leadPrev: self._stratLeadPrev};
     },
     rememberValues(kind: ZoneKind, it: MaHudItem): void {
       const {values, prevOpen} = this.ledgers();
@@ -522,6 +643,11 @@ export default defineComponent({
         if (prev === '' && cur !== '') {
           // CLAIMED / FUNDED — queue the seal; hold the pre-claim face.
           this.seen[key] = cur;
+          // The claim consumes any live/queued activation optics for the row.
+          this.activatingKeys = this.activatingKeys.filter((k) => k !== key);
+          this.repulseKeys = this.repulseKeys.filter((k) => k !== key);
+          this.pendingActivations = this.pendingActivations.filter((p) => p.key !== key);
+          this.ledgers().nowPrev.set(key, false);
           if (this.motion) {
             this.heldByKey[key] = this.lastOpenSnapshot(kind, it);
             this.pending.push({key, kind, name: it.name, at: now});
@@ -537,6 +663,12 @@ export default defineComponent({
           this.composed[kind] = zone.completed;
         } else if (cur === '') {
           this.tickChangedValues(kind, it);
+          if (kind === 'milestones') {
+            this.observeAvailability(key, it.availableNow);
+          }
+        }
+        if (kind === 'awards') {
+          this.observeLeadShift(key, it);
         }
         this.rememberValues(kind, it);
       }
@@ -561,6 +693,85 @@ export default defineComponent({
         {...held, availableNow: false} :
         {...it, taken: undefined, availableNow: false};
     },
+    // ── the ACTIVATION machine (milestones: «became claimable NOW») ───────
+    /**
+     * The rising edge of the SERVER's own offer (the claim option's presence
+     * in the waitingFor tree — the same authority every claim surface obeys;
+     * never a client-side `score >= threshold` approximation). The FULL
+     * ceremony plays once per row per epoch, on a LIVE watched transition;
+     * a RE-gained offer (the blocker cleared again — a new turn) gets the
+     * short ready-pulse; a flip under cover queues for the uncover (TTL —
+     * a stale «it lit up» never replays late); reduced motion applies the
+     * final state instantly (the rim/word/contrast carry it).
+     */
+    observeAvailability(key: string, availableNow: boolean): void {
+      const {nowPrev, everNow} = this.ledgers();
+      const prev = nowPrev.get(key) ?? false;
+      nowPrev.set(key, availableNow);
+      if (prev || !availableNow) {
+        return;
+      }
+      const first = !everNow.has(key);
+      everNow.add(key);
+      if (!this.motion) {
+        return;
+      }
+      if (this.covered) {
+        this.pendingActivations.push({key, at: Date.now(), first});
+        return;
+      }
+      this.playActivation(key, first);
+    },
+    playActivation(key: string, first: boolean): void {
+      if (first) {
+        this.activatingKeys = [...this.activatingKeys, key];
+        this.later(() => {
+          this.activatingKeys = this.activatingKeys.filter((k) => k !== key);
+        }, consoleMotionMs(ACTIVATE_MS));
+      } else {
+        this.repulseKeys = [...this.repulseKeys, key];
+        this.later(() => {
+          this.repulseKeys = this.repulseKeys.filter((k) => k !== key);
+        }, consoleMotionMs(REPULSE_MS));
+      }
+    },
+    flushActivations(): void {
+      const due = this.pendingActivations;
+      if (due.length === 0) {
+        return;
+      }
+      this.pendingActivations = [];
+      const now = Date.now();
+      for (const p of due) {
+        // Silently apply when stale OR when the offer has meanwhile gone.
+        if (now - p.at > ACTIVATION_TTL_MS || this.ledgers().nowPrev.get(p.key) !== true) {
+          continue;
+        }
+        this.playActivation(p.key, p.first);
+      }
+    },
+    /** A LIVE leader change hands the crown over: the FLIP already moves
+     *  the cubes along the cassette's axes — this adds the short gold-notch
+     *  confirmation impulse on the receiving level (never on mount/reseed,
+     *  never when the leading group is unchanged, never while covered). */
+    observeLeadShift(key: string, it: MaHudItem): void {
+      const {leadPrev} = this.ledgers();
+      const cur = it.leader !== undefined ? groupKey(it.leader.colors) : '';
+      const prev = leadPrev.get(key);
+      leadPrev.set(key, cur);
+      if (prev === undefined || prev === cur || !this.motion || this.covered) {
+        return;
+      }
+      // A hand-over needs a live crown on BOTH sides (empty → ranked is the
+      // rail's own ignition, not a transfer).
+      if (prev === '' || cur === '' || this.crownMoveKeys.includes(key)) {
+        return;
+      }
+      this.crownMoveKeys = [...this.crownMoveKeys, key];
+      this.later(() => {
+        this.crownMoveKeys = this.crownMoveKeys.filter((k) => k !== key);
+      }, consoleMotionMs(CROWN_MOVE_MS));
+    },
     tickChangedValues(kind: ZoneKind, it: MaHudItem): void {
       if (this.covered || !this.motion) {
         return;
@@ -579,11 +790,14 @@ export default defineComponent({
       }
       for (const [vkey, value] of candidates) {
         const prev = ledger.get(vkey);
-        if (prev !== undefined && value !== undefined && prev !== value && !this.tickKeys.includes(vkey)) {
-          this.tickKeys.push(vkey);
+        if (prev !== undefined && value !== undefined && prev !== value &&
+            !this.tickKeys.some((k) => k.startsWith(`${vkey}#`))) {
+          // The roll carries the change's DIRECTION (digits rise on a gain).
+          const entry = `${vkey}#${value > prev ? 'up' : 'down'}`;
+          this.tickKeys.push(entry);
           this.later(() => {
-            this.tickKeys = this.tickKeys.filter((k) => k !== vkey);
-          }, TICK_MS);
+            this.tickKeys = this.tickKeys.filter((k) => k !== entry);
+          }, consoleMotionMs(TICK_MS));
         }
       }
     },

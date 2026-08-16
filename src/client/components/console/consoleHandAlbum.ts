@@ -80,8 +80,36 @@ export const ALBUM_GAP_X = 18;
 /** Row gap — upper row's pop-down (≈6) + lower row's band overhang (≈11)
  *  never meet: 6 + 3(ring) + air on each side. */
 export const ALBUM_GAP_Y = 19;
+/**
+ * DENSITY-AWARE column gap (single-row showcase pages). The base gap is
+ * tuned for the STANDARD card; a showcase card is up to ~3× that, and a
+ * constant gap then reads as «frames almost touching» while the halos
+ * overlap (the reported 2×1 defect). The gap therefore grows with the
+ * composition — but as a BOUNDED share of the card's own width, never
+ * proportionally with it: air must serve the cards, not eat the stage.
+ * Values are a fraction of the slot width, clamped in px below.
+ */
+export const SHOWCASE_GAP_FRAC: Readonly<Record<number, number>> = {
+  5: 0.05,
+  4: 0.06,
+  3: 0.08,
+  2: 0.11,
+  1: 0,
+};
+/** Bounds of that fraction (1080-logical px — × uiScale inside). */
+export const SHOWCASE_GAP_MIN = 18;
+export const SHOWCASE_GAP_MAX = 64;
 /** Lateral stage gutter (page inset inside the album box). */
 export const ALBUM_GUTTER_X = 20;
+/**
+ * The PAGE-EDGE gutter: the side band the Album Edge Affordance lives in,
+ * reserved on BOTH sides so the composition is symmetric whichever edges
+ * are live (a card group must not shift when the last page drops its
+ * next-edge). The cards' own focus ring/glow clearance is `ALBUM_GUTTER_X`
+ * INSIDE this — the two never share room, which is what stops an edge
+ * card from reading as «cut off by the boundary».
+ */
+export const ALBUM_EDGE_GUTTER = 34;
 /** Top gutter — the top row's pick-band overhang (≈11) + pop (≈6) + ring. */
 export const ALBUM_GUTTER_TOP = 26;
 /** Bottom gutter — pop-down (≈6) + ring (3) + shadow air. */
@@ -160,7 +188,9 @@ export function planHandAlbum(input: HandAlbumInput): HandAlbumPlan {
 
   const gapX = ALBUM_GAP_X * s;
   const gapY = ALBUM_GAP_Y * s;
-  const gutterX = ALBUM_GUTTER_X * s;
+  // The card band excludes BOTH the edge-affordance gutters and the cards'
+  // own clearance — solved against the room the cards actually get.
+  const gutterX = (ALBUM_GUTTER_X + ALBUM_EDGE_GUTTER) * s;
   const gutterTop = ALBUM_GUTTER_TOP * s;
   const gutterBottom = ALBUM_GUTTER_BOTTOM * s;
 
@@ -222,6 +252,16 @@ export function pageRowsFor(n: number, spec: AlbumSpec): ReadonlyArray<number> {
  */
 export const SHOWCASE_AIR_FRAC = 0.045;
 
+/**
+ * OPTICAL LIFT of a single-row page: the share of the leftover vertical
+ * space taken off the bottom half. Two heavy bands (status rail +
+ * controller rail) sit under the album, so a mathematically centred row
+ * reads low; a small share fixes the perception without moving the row far
+ * enough to crowd the header (and it is the SAME share for every showcase
+ * count — never a per-mode arbitrary offset).
+ */
+export const SHOWCASE_OPTICAL_LIFT_FRAC = 0.18;
+
 /** One page's solved composition + geometry. */
 export interface AlbumPagePlan {
   /** Cards per row, top to bottom (e.g. [5,4] / [3] / [1]). */
@@ -253,21 +293,37 @@ export interface AlbumPagePlan {
 export function planAlbumPage(input: HandAlbumInput, n: number, base: HandAlbumPlan): AlbumPagePlan {
   const s = input.uiScale !== undefined && input.uiScale > 0 ? input.uiScale : 1;
   const rows = pageRowsFor(n, input.spec);
-  const gapX = ALBUM_GAP_X * s;
   const gapY = ALBUM_GAP_Y * s;
-  const gutterX = ALBUM_GUTTER_X * s;
+  const gutterX = (ALBUM_GUTTER_X + ALBUM_EDGE_GUTTER) * s;
   const gutterTop = ALBUM_GUTTER_TOP * s;
   const gutterBottom = ALBUM_GUTTER_BOTTOM * s;
   const availW = Math.max(1, input.availW);
   const availH = Math.max(1, input.availH);
 
   let zoom = base.cardZoom;
-  if (rows.length === 1 && rows[0] > 0) {
+  let gapX = ALBUM_GAP_X * s;
+  const showcase = rows.length === 1 && rows[0] > 0;
+  if (showcase) {
     const cols = rows[0];
-    const widthZoom = (availW - 2 * gutterX - (cols - 1) * gapX) / (cols * CARD_NATURAL_W);
+    // The gap is DENSITY-AWARE and solved TOGETHER with the zoom: the gap
+    // is a bounded share of the card width, and the card width is what is
+    // left after the gaps — so solve the fraction form directly instead of
+    // iterating (cols·W·z + (cols−1)·f·W·z = band ⇒ z = band / (W·(cols + (cols−1)·f))).
+    const frac = SHOWCASE_GAP_FRAC[cols] ?? 0.06;
+    const band = availW - 2 * gutterX;
     const heightZoom =
       (availH - gutterTop - gutterBottom - 2 * availH * SHOWCASE_AIR_FRAC) / CARD_NATURAL_H;
-    zoom = clamp(ALBUM_MIN_ZOOM * s, ALBUM_MAX_ZOOM * s, Math.min(widthZoom, heightZoom));
+    const zoomAt = (gap: number) =>
+      clamp(ALBUM_MIN_ZOOM * s, ALBUM_MAX_ZOOM * s,
+        Math.min((band - (cols - 1) * gap) / (cols * CARD_NATURAL_W), heightZoom));
+    // Solve the fraction form (cols·W·z + (cols−1)·f·W·z = band), then BACK-
+    // SOLVE against the gap that will actually render: the fraction is
+    // BOUNDED, and a clamped gap the zoom never saw would either crowd the
+    // row or overflow it (the same law the ws-stage fit pays — the gap you
+    // solve must be the gap the browser lays out).
+    const wish = band / (CARD_NATURAL_W * (cols + (cols - 1) * frac));
+    gapX = clamp(SHOWCASE_GAP_MIN * s, SHOWCASE_GAP_MAX * s, CARD_NATURAL_W * Math.min(wish, heightZoom) * frac);
+    zoom = zoomAt(gapX);
     // A showcase never renders SMALLER than the standard card (a width-bound
     // full single row IS the standard on that capacity).
     zoom = Math.max(zoom, base.cardZoom);
@@ -279,7 +335,14 @@ export function planAlbumPage(input: HandAlbumInput, n: number, base: HandAlbumP
   const pageW = widest > 0 ? widest * slotW + (widest - 1) * gapX : 0;
   const pageH = rows.length > 0 ? rows.length * slotH + (rows.length - 1) * gapY : 0;
   const padX = Math.max(gutterX, (availW - pageW) / 2);
-  const padTop = gutterTop + Math.max(0, (availH - gutterTop - gutterBottom - pageH) / 2);
+  // OPTICAL CENTRING. Below the album sit TWO visually heavy bands (the
+  // status rail and the controller rail), so a mathematically centred
+  // single row reads as sitting low. A showcase page therefore lifts by a
+  // small share of its free space — bounded, never a jump, and never past
+  // the top clearance the ring/band need.
+  const free = Math.max(0, availH - gutterTop - gutterBottom - pageH);
+  const lift = showcase ? Math.min(free / 2, free * SHOWCASE_OPTICAL_LIFT_FRAC) : 0;
+  const padTop = gutterTop + Math.max(0, free / 2 - lift);
   return {rows, zoom, slotW, slotH, gapX, gapY, pageW, pageH, padX, padTop};
 }
 

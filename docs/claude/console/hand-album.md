@@ -118,6 +118,35 @@ can only ever be programmatic there.
 - The render window keeps the active page ± 1 AND the last SETTLED page's
   neighbourhood mounted (`settledPage`) — a page mid-slide never unmounts
   under the player.
+## The EDGE AFFORDANCE and the SPINE (iteration 4 — the polish pass)
+
+- **`.con-hand__pgedge` is a sheet STACK, never a rail.** Three leaves at the
+  vertical centre of the boundary (each shorter, dimmer, further out) plus a
+  compact chevron: «there is a page that way», in the album's own material.
+  The previous full-height hairline read as the physical edge of the stage,
+  which is what made the last card look cropped — the graphic was as wrong
+  as the position. Both sides ALWAYS render (an unavailable one is `--off`),
+  so the composition never shifts when the last page drops its next-edge,
+  and a press answers on its own side (`--pulse`, one shot) before the
+  ordinary slide carries on.
+- **The edges have their OWN gutter** (`ALBUM_EDGE_GUTTER`, reserved on both
+  sides and subtracted from the card band in BOTH solvers): the card's ring
+  and glow clearance (`ALBUM_GUTTER_X`) sits inside it, so the two can never
+  share room.
+- **Gaps are density-aware** (`SHOWCASE_GAP_FRAC` — a bounded share of the
+  card width: 5×1 tight … 2×1 generous, clamped `SHOWCASE_GAP_MIN/MAX`) and
+  **BACK-SOLVED**: the fraction picks a gap, the gap is clamped, then the
+  zoom is re-solved against the clamped gap — the gap you solve must be the
+  gap the browser lays out (the ws-stage law).
+- **A showcase page lifts optically** (`SHOWCASE_OPTICAL_LIFT_FRAC`, a share
+  of the free space): two heavy bands sit below the album, so a
+  mathematically centred single row reads low. Same share for every count —
+  never a per-mode offset.
+- ⚠️ **FOCUS DECORATION IS SCREEN-SPACE.** The slot's `zoom` multiplies its
+  shadows too, so the ring/halo tripled on a showcase card. `--con-hand-fx`
+  (`1.6 / max(1.6, zoom)`) divides that growth back out past a soft knee:
+  1 at the standard card (byte-identical), capped screen thickness beyond.
+  Every state shadow multiplies its lengths by it.
 - Chrome: the page position lives in ONE place — **the ALBUM SPINE**
   (`.con-handdock__pager`, `ConsoleHandDock`'s `album` prop): the footer
   bay's centre line becomes `LB  1–10 из 15 · 1/2  RB` for the album's
@@ -185,6 +214,17 @@ art preload at arm time, `revealVisualFor` (the state flies with the card).
   scroll-engine CSS (`__grid/__pad/__spacer/__scrollbar/__scrollthumb`) died
   with it — `consoleHandStageMotion`'s isolation query and the discarding
   recede rule now name `__pgedge`/`__pageind` instead.
+- ⚠️⚠️ **A CONSTANT MULTIPLIER INSIDE A ZOOMED SLOT IS A LATENT BUG — it
+  is only right at ONE card size.** The «Роботы» badge carried `zoom: 1.5`
+  inside a slot that is itself `zoom: var(--con-hand-zoom)`; at the old fixed
+  0.66 the product was ≈1 and it looked correct, so nothing flagged it — the
+  first showcase page (zoom ~3) rendered it ~4.5× and it covered the card's
+  own title. Same class, same file: the pick band compensated the WRONG
+  variable (`1.15 / var(--con-ui-scale)`). Both now counter-zoom the card's
+  density (`calc(k / var(--con-hand-zoom, 0.66))` — the `__chip` law), which is
+  the only correct form for a badge inside a card slot. **When a density
+  system raises a container's zoom, audit every descendant carrying a
+  hard-coded `zoom`/size — the query is «what did this constant assume?».**
 - **The teardown HANDOFF fade needs a WALL-CLOCK backstop.** GSAP ticks on
   rAF, and a quiet headless/backgrounded compositor stops delivering frames
   exactly when the fade runs (the screen has just gone still) — the fade's

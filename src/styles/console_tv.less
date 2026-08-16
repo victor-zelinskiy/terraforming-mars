@@ -279,21 +279,38 @@ html.con-profile-tv {
     .con-strat__key .gp-glyph { min-width: 1.5rem; height: 1.3rem; font-size: var(--con-t-floor); }
     .con-strat__slots { gap: .22rem; padding-left: .22rem; }
     .con-strat__pip { width: 0.5rem; height: 0.5rem; }
-    .con-strat__gem { width: 0.78rem; height: 0.78rem; }
-    .con-strat__zone--awards .con-strat__gem { width: 0.88rem; height: 0.88rem; }
-    .con-strat__cube { width: 0.72rem; height: 0.72rem; margin: .1rem; }
+    .con-strat__gem { width: 0.74rem; height: 0.74rem; }
+    .con-strat__cube { width: 0.68rem; height: 0.68rem; }
     .con-strat__req { font-size: 0.9rem; }
     .con-strat__none { font-size: 0.95rem; }
+    /* The ranking cassette at couch scale — the same two fixed axes; the
+       tie ladder keeps every cube whole, equal and above the TV floor. */
+    .con-strat__cassette {
+        --strat-pz: 2.05rem;
+        --strat-sz: 2.6rem;
+        --strat-cas-row: 1.52rem;
+        padding: .16rem .2rem .14rem .18rem;
+    }
+    .con-strat__zone--awards.con-strat__zone--done .con-strat__cassette {
+        --strat-sz: 2.95rem;
+        --strat-cas-row: 1.78rem;
+    }
+    .con-strat__chips--n3 .con-strat__cube { width: .58rem; height: .58rem; }
+    .con-strat__chips--n4 .con-strat__cube { width: .5rem; height: .5rem; }
+    .con-strat__chips--n5 .con-strat__cube { width: .44rem; height: .44rem; }
     /* The couch-readable seal, podium and meter — every label at or above
-       the §3.4 type floor (guarded by consoleTvTypeFloor.spec.ts): «ВЗЯТО»
-       is a WORD and the ranks are plaques, never microtext at 4K. */
-    .con-strat__ownseal { padding: .16rem .38rem .14rem; gap: .12rem; }
-    .con-strat__ownseal-gem { width: 1.28rem; height: 1.28rem; margin: .14rem; }
-    .con-strat__ownseal-check { font-size: .8rem; }
-    .con-strat__ownseal-word { font-size: .8rem; letter-spacing: .09rem; margin-right: -.09rem; }
-    .con-strat__rank { width: 1.38rem; height: 1.08rem; font-size: .8rem; border-radius: .2rem; }
-    .con-strat__readymark { font-size: .8rem; }
+       the §3.4 type floor: «ВЗЯТО» and «ДОСТУПНО» are WORDS, never
+       microtext at 4K. The owner seal stays a QUIET one-liner (hierarchy:
+       a live claimable row must out-voice a settled trophy). */
+    .con-strat__ownseal { padding: .12rem .3rem .12rem .24rem; gap: .18rem; }
+    .con-strat__ownseal-cube { width: .62rem; height: .62rem; }
+    .con-strat__ownseal-word { font-size: .8rem; letter-spacing: .07rem; }
+    .con-strat__ownseal-tick { font-size: .8rem; }
+    .con-strat__crown { width: .84rem; }
+    .con-strat__readymark { width: .82rem; }
     .con-strat__meter { width: 3rem; height: .12rem; }
+    .con-strat__cellfoot { height: .92rem; }
+    .con-strat__avail { font-size: .8rem; letter-spacing: .07rem; margin-right: -.07rem; }
     .con-strat__morecnt { font-size: .8rem; }
     /* The journal header controls — real key caps, not specks (their base
        compact sizes out-specify the global §0b floor). */
@@ -321,11 +338,12 @@ html.con-profile-tv {
     .con-handdock__status-label { font-size: var(--con-t-floor); }
     .con-handdock__num { font-size: .95rem; }
     .con-handdock__sep { font-size: var(--con-t-floor); }
-    /* The ALBUM SPINE reads from the couch: position digits a notch above
-       the counter's own TV size, page part brightest (it IS the navigation). */
-    .con-handdock__pager-range { font-size: .92rem; }
-    .con-handdock__pager-pages { font-size: .98rem; }
-    .con-handdock__pager-sep { font-size: var(--con-t-floor); }
+    /* The ALBUM SPINE reads from the couch: the CURRENT page is the loudest
+       thing in the bay, the total a calm companion beside it. */
+    .con-handdock__pager-now b { font-size: 1.25rem; }
+    .con-handdock__pager-total { font-size: .92rem; }
+    .con-handdock__pager-slash { font-size: .82rem; }
+    .con-handdock__pager-arrow { font-size: .95rem; }
     /* Bay mode compacts the hint run a notch under the couch sizes too —
        the richest (board home) set must clear the two zones. Still ≥ the
        service-text floor (1rem = 20 logical px). */
