@@ -117,7 +117,9 @@ function readAlbum(page: Page) {
     const selRect = selCard?.getBoundingClientRect();
     const slots = Array.from(document.querySelectorAll<HTMLElement>('.con-hand__page'))
       .map((p) => p.querySelectorAll('.con-hand__slot').length);
-    const ind = document.querySelector<HTMLElement>('.con-hand__pageind');
+    // The page position lives in the ALBUM SPINE (the footer bay), beside
+    // the LB/RB verbs that drive it — never in the header any more.
+    const ind = document.querySelector<HTMLElement>('.con-handdock__pager');
     const albumStyle = album === null ? undefined : getComputedStyle(album);
     return {
       hasAlbum: album !== null,
@@ -214,6 +216,36 @@ for (const profile of PROFILES) {
       expect(after.selName, 'focus moved with the page, not reset').not.toBe('');
       expect(after.selName, 'a DIFFERENT card holds focus after the jump').not.toBe(before.selName);
       await shoot(page, `${profile.tag}-3-wheel-back`);
+
+      // ── LB/RB are the album's PAGE VERBS (the bay spine's own controls) ──
+      await key(page, 'KeyE', 550); // RB → next page
+      expect((await readAlbum(page)).indicator, 'RB turned to page 2').toContain('2/');
+      await key(page, 'KeyQ', 550); // LB → previous page
+      const backHome = await readAlbum(page);
+      expect(backHome.indicator, 'LB turned back to page 1').toContain('1/');
+      expect(backHome.edges.left, 'page 1 mutes the way back').toBe(false);
+
+      if (profile.tag === 'tv4k') {
+        // Focus at each horizontal edge of the page (the ring + band must
+        // clear the stage — the plan's gutters are exactly this reserve).
+        for (let i = 0; i < profile.perPage + 2; i++) {
+          await key(page, 'ArrowLeft', 80);
+        }
+        await shoot(page, 'tv4k-5-focus-left-edge');
+        for (let i = 0; i < 4; i++) {
+          await key(page, 'ArrowRight', 80);
+        }
+        await page.waitForTimeout(300);
+        await shoot(page, 'tv4k-6-focus-right-edge');
+        // The tag filter rides the TRIGGERS now: RT → next filter (a
+        // re-pagination through the edge packets), R3 resets to «ВСЕ».
+        await key(page, 'Period', 900); // RT → first tag
+        await shoot(page, 'tv4k-7-filter-active');
+        await key(page, 'KeyV', 900); // R3 → reset to all
+        // The focused card is FOLLOWED through the reset — its page opens,
+        // whichever it is; the full universe is back in the range text.
+        expect((await readAlbum(page)).indicator, 'reset restored the full hand').toContain('20');
+      }
 
       // ── close: every card gathers home, nothing stays lifted ─────────
       await key(page, 'Escape', 2400);

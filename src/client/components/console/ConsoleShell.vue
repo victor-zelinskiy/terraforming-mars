@@ -1044,7 +1044,9 @@
                        :compact="handDockCompact"
                        :liftedNames="dockLiftedNames"
                        :deliveryHeld="dockHeld"
-                       @open="onHandDockOpen" />
+                       :album="handDockAlbum"
+                       @open="onHandDockOpen"
+                       @page="onDockPage" />
       <!-- The command bar keeps its BAY (centre track) for the whole in-game
            lifecycle — the bay-mode fit (planCommandRun drops/splits commands
            to the width) is what keeps the setup's 5-command run from clipping
@@ -1204,7 +1206,7 @@ import {beginNotifHold, cancelNotifHold, consumeNotifHoldRelease, resetNotifHold
 import {LiveNotification} from '@/client/components/notifications/notificationTypes';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import ConsoleCommandBar, {ConsoleCommand} from '@/client/components/console/ConsoleCommandBar.vue';
-import ConsoleHandDock from '@/client/components/console/ConsoleHandDock.vue';
+import ConsoleHandDock, {HandDockAlbum} from '@/client/components/console/ConsoleHandDock.vue';
 import {handDockBayRem} from '@/client/console/consoleHandDock';
 import ConsoleSheet, {ConsoleSheetRow} from '@/client/components/console/ConsoleSheet.vue';
 import ConsoleMaScreen from '@/client/components/console/ConsoleMaScreen.vue';
@@ -4289,17 +4291,40 @@ export default defineComponent({
       }
       return out;
     },
-    /** The album's page count for the VISIBLE hand — mirrors the section's
-     *  own plan (page shape is a profile fact, so no measure is needed). */
-    handPageCount(): number {
+    /**
+     * THE ALBUM SPINE — the footer bay's centre line while the hand album
+     * owns the screen: «1–10 из 15 · 1/2» between the LB/RB page verbs
+     * (ConsoleHandDock renders it in place of the «КАРТЫ n/m» counter,
+     * whose numbers already live in the album header). Undefined everywhere
+     * else — including PAST THE DESCENT (the play composer owns LB/RB for
+     * its payment dial there, so the spine must not advertise pages), but
+     * NOT during a pick bridge (the browse shelf is the picker again).
+     * Mirrors the section's own derivation: page shape is a profile fact,
+     * the page is derived from the focus index — no measure, no drift.
+     */
+    handDockAlbum(): HandDockAlbum | undefined {
+      if (this.consoleState.section !== 'hand') {
+        return undefined;
+      }
+      if (workspaceFrameDescended('hand') && !this.handPickActive) {
+        return undefined;
+      }
+      const count = this.handEntries.length;
       const spec = albumSpecFor(consoleLayoutState.profile);
-      return Math.max(1, Math.ceil(this.handEntries.length / (spec.cols * spec.rows)));
-    },
-    /** The PAGES hint every hand mode shares (right-stick flick; d-pad across
-     *  the page edge does the same walking) — advertised only when a second
-     *  page exists. */
-    handPagesHint(): ReadonlyArray<ConsoleCommand> {
-      return this.handPageCount > 1 ? [{control: 'stickScroll', label: 'Pages'}] : [];
+      const perPage = spec.cols * spec.rows;
+      const pages = Math.max(1, Math.ceil(count / perPage));
+      const idx = Math.min(Math.max(0, count - 1), Math.max(0, this.consoleState.handIndex));
+      const page = Math.min(pages - 1, Math.floor(idx / perPage));
+      const start = page * perPage;
+      const end = Math.min(count, start + perPage);
+      return {
+        range: count === 0 ?
+          translateTextWithParams('${0} of ${1}', ['0', '0']) :
+          translateTextWithParams('${0} of ${1}', [`${start + 1}–${end}`, String(count)]),
+        pageText: pages > 1 ? `${page + 1}/${pages}` : '',
+        canPrev: page > 0,
+        canNext: page < pages - 1,
+      };
     },
     // ── mandatory hand SELECT (server `handSelect` task) ──────────────────
     /** The active mandatory hand-select prompt (all candidates in hand), or
@@ -5719,7 +5744,6 @@ export default defineComponent({
         if (this.handSelectFiltered) {
           cmds.push({control: 'triggerL', label: this.handSelectSuitableOnly ? 'All cards' : 'Only suitable'});
         }
-        cmds.push(...this.handPagesHint);
         cmds.push({control: 'back', label: 'Back'});
         return cmds;
       }
@@ -5992,7 +6016,6 @@ export default defineComponent({
           {control: 'stickL', label: this.saleAllSelected ? 'Unselect all' : 'Select all'},
           {control: 'secondary', label: 'Inspect'},
           {control: 'triggerR', label: 'Sell', enabled: n > 0, badge: n, highlight: n > 0, priority: 1},
-          ...this.handPagesHint,
           {control: 'back', label: 'Cancel'},
         ];
       }
@@ -6017,7 +6040,6 @@ export default defineComponent({
         if (this.handSelectFiltered) {
           cmds.push({control: 'triggerL', label: this.consoleState.select.suitableOnly ? 'All cards' : 'Only suitable'});
         }
-        cmds.push(...this.handPagesHint);
         cmds.push({control: 'back', label: 'Minimize'});
         return cmds;
       }
@@ -6033,15 +6055,16 @@ export default defineComponent({
           {control: 'confirm', label: 'Play now', enabled: playable},
           {control: 'secondary', label: 'Inspect'},
         ];
-        // The tag filter owns LB/RB (+ R3 reset) — shown only when there's a
+        // The tag filter owns LT/RT (+ R3 reset) — shown only when there's a
         // real tag to filter by (more options than just "All"). This is the
         // ONE place these controls are advertised (no inline duplication).
-        // Rendered as a spread prev/next hint: LB ◀ ФИЛЬТР ▶ RB.
+        // Rendered as a spread prev/next hint: LT ◀ ФИЛЬТР ▶ RT. The PAGE
+        // verbs (LB/RB) are deliberately NOT here: the bay spine carries
+        // them beside the position it navigates — one action, one hint.
         if (this.handTagFilterOptions.length > 1) {
-          cmds.push({control: 'bumperL', control2: 'bumperR', label: 'Tag filter', spread: true});
+          cmds.push({control: 'triggerL', control2: 'triggerR', label: 'Tag filter', spread: true});
           cmds.push({control: 'stickR', label: 'Reset filter', enabled: this.consoleState.handTagFilter !== 'all'});
         }
-        cmds.push(...this.handPagesHint);
         cmds.push({control: 'back', label: this.shellTaskActive ? 'Minimize' : 'To the board'});
         return cmds;
       }
@@ -9487,19 +9510,22 @@ export default defineComponent({
         // Stable board semantics: LB = Milestones (viewable any time).
         // (P29c: the temporary board-scale tuner is gone — ×1.05 shipped
         // as the compiled default in ConsoleBoardSection.)
-        // In the browse hand LB cycles the tag filter to the PREVIOUS tag.
+        // In the hand ALBUM — every mode of it — LB is the PREVIOUS PAGE:
+        // leafing is the album's primary horizontal verb and the shoulder
+        // pair is its natural instrument (the bay spine shows the same
+        // LB/RB beside the position). The first page swallows the press.
         if (onBoard) {
           this.openSheet('milestones');
-        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectUiActive) {
-          this.cycleHandFilter(-1);
+        } else if (this.consoleState.section === 'hand') {
+          this.turnHandPage(-1);
         }
         return true;
       case 'nextSection':
-        // In the browse hand RB cycles the tag filter to the NEXT tag.
+        // In the hand ALBUM RB is the NEXT PAGE (see prevSection).
         if (onBoard) {
           this.openSheet('awards');
-        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active && !this.handSelectUiActive) {
-          this.cycleHandFilter(1);
+        } else if (this.consoleState.section === 'hand') {
+          this.turnHandPage(1);
         }
         return true;
       case 'reset':
@@ -9507,8 +9533,11 @@ export default defineComponent({
         return true;
       case 'nextTab':
         // P27: RT = the action-category QUICK SELECTOR from the board home
-        // (P20: including during placement — inspection is always allowed). In
-        // the hand: sale mode CONFIRMS the sale; the tag filter moved to LB/RB.
+        // (P20: including during placement — inspection is always allowed).
+        // In the hand: sale mode CONFIRMS the sale, multi-select CONFIRMS the
+        // picked set (established commit verbs — those modes have no tag
+        // filters to cycle); the BROWSE hand cycles the tag filter FORWARD
+        // (the filter is the album's secondary axis, on the triggers).
         if (onBoard) {
           this.openQuick('actions');
           return true;
@@ -9522,17 +9551,21 @@ export default defineComponent({
             if (!this.handSelectSingle) {
               this.confirmHandSelect();
             }
+          } else {
+            this.cycleHandFilter(1);
           }
         }
         return true;
       case 'prevTab':
         // P27: LT = the basic-actions QUICK SELECTOR (board home only). In the
-        // hand: SELECT mode toggles the "suitable only" filter; the tag filter
-        // moved to LB/RB.
+        // hand: SELECT mode toggles the "suitable only" filter (that IS its
+        // one filter axis); the BROWSE hand cycles the tag filter BACK.
         if (onBoard) {
           this.openQuick('basics');
         } else if (this.consoleState.section === 'hand' && this.handSelectUiActive) {
           this.toggleSuitableOnly();
+        } else if (this.consoleState.section === 'hand' && !this.consoleState.sale.active) {
+          this.cycleHandFilter(-1);
         }
         return true;
       case 'primary':
@@ -12801,9 +12834,24 @@ export default defineComponent({
       }
       return translateTextWithParams('Cannot play: ${0}', [unplayableReasonLine(first)]);
     },
+    /**
+     * LB/RB — the ALBUM PAGE TURN, one verb for every hand mode (browse,
+     * sale, select, pick, embedded): the section owns the motion (a
+     * retargetable transform slide — rapid presses redirect, never queue)
+     * and the page derives from the focus index, so selection and picks
+     * survive by construction. The first/last page swallows the press.
+     */
+    turnHandPage(dir: 1 | -1): void {
+      const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
+      hand?.turnPage(dir);
+    },
+    /** The bay spine's own LB/RB chips clicked (mouse door). */
+    onDockPage(dir: 1 | -1): void {
+      this.turnHandPage(dir);
+    },
     /** LT/RT: cycle the hand tag filter; R3: reset it to "All". Both preserve
-     *  the selected card when it survives the new filter, else focus the first
-     *  card of the filtered set (never a lost / dangling selection). */
+     *  the selected card when it survives the new filter, else keep the
+     *  nearest logical slot (never a jump to a random first page). */
     cycleHandFilter(dir: 1 | -1): void {
       this.applyHandFilterChange(() => {
         this.consoleState.handTagFilter = cycleTagFilter(this.handTagFilterOptions, this.consoleState.handTagFilter, dir);
@@ -12925,7 +12973,11 @@ export default defineComponent({
     refocusAfterFilter(selectedName: CardName | undefined): void {
       const list = this.handEntries; // recomputed for the new filter
       const at = selectedName !== undefined ? list.findIndex((e) => e.card.name === selectedName) : -1;
-      this.consoleState.handIndex = at >= 0 ? at : 0;
+      // The focused card survives the filter → follow it (its page opens by
+      // derivation). Gone → the NEAREST LOGICAL slot: the same index clamped,
+      // never a reset to the first page (the player keeps their place).
+      this.consoleState.handIndex = at >= 0 ? at :
+        Math.min(Math.max(0, this.consoleState.handIndex), Math.max(0, list.length - 1));
       const hand = this.$refs.handSection as InstanceType<typeof ConsoleHandSection> | undefined;
       void this.$nextTick(() => hand?.ensureSelectedVisible());
     },

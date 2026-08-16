@@ -126,6 +126,15 @@ for (const profile of PROFILES) {
        * Three consecutive agreements (~360 ms) clear the pause and stay well
        * inside the same budget.
        */
+      // …and STILLNESS ALONE IS NOT READINESS. The composer renders before its
+      // preview lands (SWR), and that intermediate composition is itself
+      // perfectly still — on a slow 4K frame the three-agreeing-frames poll
+      // below happily baselined it (setup.x=800) and the commit then measured
+      // the COMPLETE composition (buy.x=530): a 270px «move» by a card that
+      // never moved. Wait for the flow's own structural ready signal first —
+      // the armed CTA exists only once the preview is in (the same gate the
+      // landing probe waits on before driving the descent).
+      await expect(page.locator('.con-composer__cta--ready')).toBeVisible({timeout: 15_000});
       const settledHeroBox = async () => {
         const box = page.locator('.con-composer__actcardwrap');
         let prev = await box.boundingBox();

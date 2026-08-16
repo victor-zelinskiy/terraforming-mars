@@ -150,18 +150,10 @@
           <b class="con-hand__salebar-num con-hand__salebar-num--after">{{ selectPayout.current + pickGain }}</b>
         </span>
       </div>
-      <!-- PAGE INDICATOR — the album's one piece of chrome: the visible card
-           range, the total, and the page position. Right-aligned in the
-           header (margin-left: auto), fixed single line — the header height
-           never moves when pages come and go. Arrows light only toward a
-           page that exists (the direction language of the edges). -->
-      <div v-if="plan.pageCount > 1" class="con-hand__pageind" aria-hidden="true">
-        <span class="con-hand__pageind-arrow" :class="{'con-hand__pageind-arrow--on': activePage > 0}">‹</span>
-        <span class="con-hand__pageind-range">{{ pageRangeText }}</span>
-        <span class="con-hand__pageind-sep">·</span>
-        <span class="con-hand__pageind-pages"><b>{{ activePage + 1 }}</b>/{{ plan.pageCount }}</span>
-        <span class="con-hand__pageind-arrow" :class="{'con-hand__pageind-arrow--on': activePage < plan.pageCount - 1}">›</span>
-      </div>
+      <!-- (The page position lives in ONE place — the ALBUM SPINE in the
+           footer bay (ConsoleHandDock `album` prop), beside the LB/RB verbs
+           that drive it. A second pager up here would split the navigation
+           from its own controls and hand the header a competing corner.) -->
     </component>
 
     <!-- ── The STAGE WRAP: the BROWSE layer (album + status rail) and the
@@ -844,12 +836,6 @@ export default defineComponent({
     },
     rowStyle(): Record<string, string> {
       return {height: this.plan.slotH + 'px', columnGap: this.plan.gapX + 'px'};
-    },
-    /** «1–10 из 19» — the active page's card range over the visible total. */
-    pageRangeText(): string {
-      const start = this.activePage * this.plan.perPage;
-      const end = Math.min(this.entries.length, start + this.plan.perPage);
-      return translateTextWithParams('${0} of ${1}', [`${start + 1}–${end}`, String(this.entries.length)]);
     },
     /** The cursor SEMANTICS epoch — a mode flip (browse ↔ sale ↔ select/pick)
      *  re-seats the cursor on the shell's side, so the identity anchor must

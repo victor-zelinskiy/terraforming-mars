@@ -59,9 +59,14 @@ export type StageBox = {
  * vertical budget gained a sub-pixel guard.)
  */
 export const WS_STAGE_BOX: Record<string, StageBox> = {
+  // 2026-08-16 — the MIRRORED EDGE SYSTEM landed (`--con-pad-x` became
+  // `var(--con-edge-x)`, `--con-rail-w` 9.1→10rem): a WIDTH-only re-sync.
+  // fhd nets out unchanged (the freed edge went to the rail), tv4k +6px,
+  // deck −17px; every height and zoom held, and the parity was verified
+  // before pasting (purchase == receive byte-identical per profile).
   fhd: {headH: 36, rowH: 768, rowW: 1065, statusH: 48, zoom: '1.581', hostW: 1113, zoneW: 1113},
-  tv4k: {headH: 94, rowH: 1492, rowW: 2380, statusH: 96, zoom: '3.032', hostW: 2476, zoneW: 2476},
-  deck: {headH: 36, rowH: 512, rowW: 840, statusH: 44, zoom: '1.033', hostW: 876, zoneW: 876},
+  tv4k: {headH: 94, rowH: 1492, rowW: 2386, statusH: 96, zoom: '3.032', hostW: 2482, zoneW: 2482},
+  deck: {headH: 36, rowH: 512, rowW: 823, statusH: 44, zoom: '1.033', hostW: 859, zoneW: 859},
 };
 
 /**

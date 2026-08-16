@@ -57,18 +57,26 @@ export function albumSpecFor(profile: ConsoleLayoutProfile): AlbumSpec {
   return profile === 'handheld' ? {cols: 4, rows: 1} : {cols: 5, rows: 2};
 }
 
-/* ── layout constants (1080-logical px — × uiScale inside the planner) ──── */
+/* ── layout constants (1080-logical px — × uiScale inside the planner) ────
+   Iteration 2 («ещё крупнее на TV»): every reserve below is CONSTRAINT-DERIVED,
+   not taste — the height budget is what binds the 5×2 page on TV, so each
+   vertical px here is card size. Worst-case stack per boundary, measured:
+   focus pop (scale 1.035 → ~6px logical toward each edge at TV card size)
+   + the focus ring (3px logical) + the pick-band overhang on a top-row card
+   (~11px logical above the card box, select modes only) + breathing air.
+   The glow is additive light and MAY cross a gap — the hard ring may not. */
 
-/** Column gap between slots — slightly airier than the old scroll grid. */
-export const ALBUM_GAP_X = 20;
-/** Row gap — clears the focus ring of the row above. */
-export const ALBUM_GAP_Y = 26;
+/** Column gap between slots — pop (≈4px lateral) + ring (3px) + air. */
+export const ALBUM_GAP_X = 18;
+/** Row gap — upper row's pop-down (≈6) + lower row's band overhang (≈11)
+ *  never meet: 6 + 3(ring) + air on each side. */
+export const ALBUM_GAP_Y = 19;
 /** Lateral stage gutter (page inset inside the album box). */
-export const ALBUM_GUTTER_X = 24;
-/** Top gutter — reserves the pick-band overhang + the focus pop headroom. */
-export const ALBUM_GUTTER_TOP = 34;
-/** Bottom gutter — focus pop + shadow clearance. */
-export const ALBUM_GUTTER_BOTTOM = 16;
+export const ALBUM_GUTTER_X = 20;
+/** Top gutter — the top row's pick-band overhang (≈11) + pop (≈6) + ring. */
+export const ALBUM_GUTTER_TOP = 26;
+/** Bottom gutter — pop-down (≈6) + ring (3) + shadow air. */
+export const ALBUM_GUTTER_BOTTOM = 11;
 /**
  * Art-quality ceiling on the applied zoom (logical — × uiScale). The premium
  * face is rastered for ~1.6× its 320×460 design box before the art softens;
