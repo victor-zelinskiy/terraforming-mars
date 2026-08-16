@@ -4,6 +4,58 @@
 control carries a CONCRETE reason. A reason names ONE blocker; it never makes the player guess
 between "X or Y", and it never states something the code did not verify.
 
+## Requirement ATTAINABILITY — «пока не выполнено» vs «уже не выполнить» (2026-08-16)
+
+A card-evaluation surface (the draft pick, the research buy) needs a second axis the play-now
+surfaces don't: is an unmet printed requirement still REACHABLE, or provably lost for the rest of
+the game? The server answers on the same reason objects:
+
+- **`UnplayableReason.unattainable?: boolean`** — set by `requirementUnattainable` in
+  `models/unplayableReasons.ts`, only ever beside `requirement: true`. The verdict is conservative
+  by construction: it is `true` ONLY for a **max** bound on a planetary parameter
+  (temperature / oxygen / Venus / oceans) when (a) the parameter can never go back down under the
+  ACTIVE expansions' real rules — every decrease mechanic in the codebase is Turmoil-gated (Reds
+  rp03, Snow Cover, Dry Deserts, Magnetic Field Stimulation Delays), and a scale at its MAX is
+  frozen even in Turmoil games (`Game.increase*` early-returns before the negative branches; ocean
+  tiles are physically removed and never freeze); (b) no in-play bridging engine can still close
+  the gap (Think Tank data for any card, Aeron Genomics for animal-resource cards — their stock can
+  grow, so their PRESENCE keeps the door open); and (c) the real `satisfies` already failed with
+  every requirement bonus the player currently holds folded in (Adaptation Technology, Inventrix,
+  Morning Star, an ARMED Special Design, Scientists sp02, Underworld tokens — all summed by
+  `getGlobalParameterRequirementBonus`, read without consuming anything). Future ACQUISITIONS are
+  deliberately out of scope: the verdict describes the current state and recomputes as it changes.
+  Moon rates, TR, tags, production: never classified — the honest default is the soft voice.
+- **`UnplayableReason.current`** for a global parameter is the RAW scale value (the HUD number),
+  never the bonus-adjusted score; the player's bonus is reported on the threshold side instead as
+  **`effectiveCount`** (the stretched bound, present only when it differs from the printed one).
+
+Guards: the `requirement attainability` block in `tests/models/unplayableReasons.spec.ts`.
+
+### The ONE presentation model — `client/console/cardAvailability.ts`
+
+Every console surface that talks about a card's availability builds a `CardAvailabilityView`
+through `buildCardAvailability(input, context)` and renders it with
+`ConsoleCardAvailabilityPanel` (`variant="compact"` — the draft workspace's two-row status block;
+`variant="panel"` — the fullscreen viewer's «ДОСТУПНОСТЬ» aside below «ПРАВИЛА»). Contexts:
+
+- **`'draft'`** (evaluation for later): only `requirement: true` reasons speak; `unattainable` →
+  the red «Требование уже не выполнить», otherwise the amber «Требование пока не выполнено»;
+  informational always — the pick/buy is never blocked, disabled or auto-deselected.
+- **`'play'`** (immediate decision): every real blocker is red under «Нельзя разыграть»; the
+  turn/phase window is NOT a card defect (`AvailabilityBlocker` semantics) — it stays a separate
+  amber note at the END of the list, and becomes the amber headline only when it is the ONLY thing
+  in the way. The window flag is the SHELL's (`handTurnWindowClosed`), never re-derived.
+
+The fullscreen viewer receives the context as an EXPLICIT opt-in
+(`consoleCardZoom.availability`, set at open time by the draft workspace zones, the task host's
+buy/draft picks and the hand's play browse) — a discard pick, the patent sale, a played-table
+browse or a resource-target viewer passes nothing and the panel cannot appear there. Parity is
+structural: the hand verdict bar renders the first rows of the SAME view the fullscreen panel
+shows (`ConsoleHandSection.playAvailability` / `ConsoleShell.zoomAvailabilityView`).
+
+Guards: `tests/client/components/console/cardAvailability.spec.ts`,
+`consoleCardAvailabilityPanel.spec.ts`.
+
 The failure this file exists to prevent: a player holding **510 M€** opened «СТАНДАРТНЫЕ ПРОЕКТЫ»,
 found «КОЛОНИЯ» greyed out, and was told «Сейчас недоступно». The real cause — every colony tile was
 full — was invisible to the client, and the client's own fallback ("cost > my M€ → not enough money")

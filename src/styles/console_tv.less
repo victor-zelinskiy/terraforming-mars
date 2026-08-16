@@ -492,6 +492,20 @@ html.con-profile-tv {
     .con-inspect-side__box {
         max-height: 82vh;
     }
+    /* The stacked right column: the rules panel keeps its own 82vh contract
+       and never shrinks; the availability panel yields past this budget. */
+    .con-zoom-sidecol { max-height: 86vh; }
+    /* CARD AVAILABILITY at couch distance: the chrome (name / status /
+       verdict) speaks at HUD size; the detail lines already ride the reading
+       tokens. The draft status zone grows with them. */
+    .con-cardavail {
+        &__name { font-size: 1.18rem; }
+        &__status { font-size: 1.05rem; }
+        &__more { font-size: .95rem; }
+        &--panel .con-cardavail__verdict { font-size: 1.2rem; }
+        &__kicker { padding: .9rem 1.3rem .7rem; }
+    }
+    .con-draftws { --con-draftws-status-h: 5.6rem; }
     /* Viewer chrome: the counter is a first-class HUD readout; the action
        strip speaks at command-bar size. */
     .card-zoom-counter {

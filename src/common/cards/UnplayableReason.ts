@@ -69,4 +69,25 @@ export interface UnplayableReason {
   globalParameter?: 'temperature' | 'oxygen' | 'oceans' | 'venus';
   /** The player's current value, shown as a muted "now: N" badge. */
   current?: number;
+  /**
+   * Only ever set together with `requirement: true`: this printed requirement
+   * is PROVABLY no longer satisfiable in this game — the parameter is past a
+   * maximum bound, cannot decrease under the active expansions' real rules,
+   * and every requirement modifier the player currently has (Inventrix,
+   * Adaptation Technology, an armed Special Design, policies, tokens — they
+   * are all folded into the real `satisfies` check) still leaves the card
+   * short. Computed by `requirementUnattainable` in
+   * `src/server/models/unplayableReasons.ts`; absent = the requirement may
+   * still be met later, so a card-evaluation surface (draft, research buy)
+   * shows the softer "not met YET" voice.
+   */
+  unattainable?: boolean;
+  /**
+   * For a global-parameter requirement whose player currently holds a
+   * requirement-bonus (±2-step effects and friends): the EFFECTIVE bound in
+   * the parameter's own units after those modifiers, when it differs from the
+   * printed `params` value. Lets the UI explain "your modifiers stretch this
+   * to N" without re-deriving game rules client-side.
+   */
+  effectiveCount?: number;
 }

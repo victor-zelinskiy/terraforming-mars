@@ -17,6 +17,25 @@ export abstract class GlobalParameterRequirement extends InequalityRequirement {
   protected scale: number = 1;
   protected abstract parameter: GlobalParameter;
 
+  /** The parameter this requirement compares against, for structural consumers (reason engines). */
+  public get globalParameter(): GlobalParameter {
+    return this.parameter;
+  }
+
+  /**
+   * The printed bound adjusted by the player's CURRENT requirement bonus
+   * (Adaptation Technology, Inventrix, an armed Special Design, policies,
+   * Underworld tokens — everything `getGlobalParameterRequirementBonus` sums),
+   * in the parameter's own units. A max bound stretches UP, a min bound
+   * relaxes DOWN — the same directions `getScore` folds the bonus in, just
+   * expressed on the threshold side so a UI can print it next to the raw
+   * parameter value.
+   */
+  public effectiveThreshold(player: IPlayer): number {
+    const bonusUnits = player.getGlobalParameterRequirementBonus(this.parameter) * this.scale;
+    return this.max ? this.count + bonusUnits : this.count - bonusUnits;
+  }
+
   public abstract getGlobalValue(player: IPlayer): number;
 
   public override satisfies(player: IPlayer, card: IProjectCard): boolean {

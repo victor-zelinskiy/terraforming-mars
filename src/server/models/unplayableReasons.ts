@@ -1,12 +1,18 @@
 import {IPlayer} from '../IPlayer';
+import {IGame} from '../IGame';
 import {IProjectCard} from '../cards/IProjectCard';
 import {CardRequirements} from '../cards/requirements/CardRequirements';
 import {CardRequirement} from '../cards/requirements/CardRequirement';
 import {InequalityRequirement} from '../cards/requirements/InequalityRequirement';
+import {GlobalParameterRequirement} from '../cards/requirements/GlobalParameterRequirement';
 import {TagCardRequirement} from '../cards/requirements/TagCardRequirement';
 import {ProductionRequirement} from '../cards/requirements/ProductionRequirement';
 import {RequirementType} from '../../common/cards/RequirementType';
 import {UnplayableReason} from '../../common/cards/UnplayableReason';
+import {GlobalParameter} from '../../common/GlobalParameter';
+import {CardName} from '../../common/cards/CardName';
+import {CardResource} from '../../common/CardResource';
+import {MAX_TEMPERATURE, MAX_OXYGEN_LEVEL, MAX_VENUS_SCALE} from '../../common/constants';
 import {Counter} from '../behavior/Counter';
 import {AddResourcesToCard} from '../deferredActions/AddResourcesToCard';
 import {MoonExpansion} from '../moon/MoonExpansion';
@@ -62,14 +68,102 @@ function collectRequirementReasons(player: IPlayer, card: IProjectCard, out: Arr
     // MARKED HERE, once, rather than in each of the twenty branches below:
     // everything this loop emits IS a printed card requirement by
     // construction, and a per-branch flag is a flag somebody forgets.
-    out.push({...requirementReason(req, player, card), requirement: true});
+    const reason: UnplayableReason = {...requirementReason(req, player, card), requirement: true};
+    if (req instanceof GlobalParameterRequirement) {
+      const effective = req.effectiveThreshold(player);
+      if (effective !== req.count) {
+        reason.effectiveCount = effective;
+      }
+      if (requirementUnattainable(player, card, req)) {
+        reason.unattainable = true;
+      }
+    }
+    out.push(reason);
+  }
+}
+
+/**
+ * Is this UNMET printed requirement provably beyond reach for the rest of the
+ * game? Only a MAX bound on a planetary parameter can be: the parameter must
+ * be unable to ever go back down, and no mechanism the player currently has
+ * may still bridge the gap. The verdict is about the CURRENT game state — the
+ * caller already ran the real `satisfies`, which folds in every requirement
+ * bonus the player holds right now (Adaptation Technology, Inventrix, Morning
+ * Star, an ARMED Special Design via `lastCardPlayed`, the Scientists sp02
+ * policy, Underworld requirement tokens, `temporaryGlobalParameterRequirementBonus`)
+ * without consuming any of them. Future ACQUISITIONS (drawing Adaptation
+ * Technology two generations from now) are deliberately out of scope; when
+ * such a modifier does arrive, this recomputes and the verdict softens on its
+ * own. When permanence cannot be PROVEN, the answer is `false` and the UI
+ * keeps the conservative "not met yet" voice.
+ */
+function requirementUnattainable(player: IPlayer, card: IProjectCard, req: GlobalParameterRequirement): boolean {
+  if (!req.max) {
+    // A minimum stays reachable for as long as the parameter can rise; a
+    // maxed-out scale trivially satisfies any printed minimum on it.
+    return false;
+  }
+  const parameter = req.globalParameter;
+  if (parameter !== GlobalParameter.TEMPERATURE && parameter !== GlobalParameter.OXYGEN &&
+      parameter !== GlobalParameter.VENUS && parameter !== GlobalParameter.OCEANS) {
+    // Moon rates: the Reds rp03 political action can lower them and their
+    // interplay is untested here — stay conservative, never claim "forever".
+    return false;
+  }
+  if (parameterCanStillDecrease(player.game, parameter)) {
+    return false;
+  }
+  // In-play bridging engines close the gap by SPENDING card resources, and
+  // their stock can still grow — Think Tank data (any card), Aeron Genomics
+  // animals (animal-resource cards only). `satisfies` consulted their CURRENT
+  // resources; while the card itself is on the table the door stays open.
+  if (player.tableau.get(CardName.THINK_TANK) !== undefined) {
+    return false;
+  }
+  if (card.resourceType === CardResource.ANIMAL && player.tableau.get(CardName.AERON_GENOMICS) !== undefined) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Whether this planetary parameter can still go DOWN in this specific game.
+ * Every decrease mechanic in the codebase is Turmoil-gated: the Reds rp03
+ * political action (temperature / oxygen / Venus down, or an ocean tile
+ * removed), the Snow Cover and Dry Deserts global events, and Pathfinders'
+ * Magnetic Field Stimulation Delays global event (global events only exist
+ * with Turmoil). One exception inside Turmoil games: once a scale reaches its
+ * maximum, `Game.increaseTemperature` / `increaseOxygenLevel` /
+ * `increaseVenusScaleLevel` early-return before their negative branches, so a
+ * maxed scale is frozen forever. Oceans are physically removed from the board
+ * instead and never freeze.
+ */
+function parameterCanStillDecrease(game: IGame, parameter: GlobalParameter): boolean {
+  if (!game.gameOptions.turmoilExtension) {
+    return false;
+  }
+  switch (parameter) {
+  case GlobalParameter.TEMPERATURE:
+    return game.getTemperature() < MAX_TEMPERATURE;
+  case GlobalParameter.OXYGEN:
+    return game.getOxygenLevel() < MAX_OXYGEN_LEVEL;
+  case GlobalParameter.VENUS:
+    return game.getVenusScaleLevel() < MAX_VENUS_SCALE;
+  default:
+    return true;
   }
 }
 
 function requirementReason(req: CardRequirement, player: IPlayer, card: IProjectCard): UnplayableReason {
   const required = req.count;
   const max = req.max;
-  const current = req instanceof InequalityRequirement ? req.getScore(player, card) : undefined;
+  // For a global parameter the "now" badge shows the RAW scale value — the
+  // same number the HUD readout shows. `getScore` folds the player's
+  // requirement bonus into the level, which would make the badge disagree
+  // with the header; the bonus is reported on the threshold side instead
+  // (`effectiveCount`, set by the caller).
+  const current = req instanceof GlobalParameterRequirement ? req.getGlobalValue(player) :
+    req instanceof InequalityRequirement ? req.getScore(player, card) : undefined;
   switch (req.type) {
   case RequirementType.OXYGEN:
     return {type: 'globalParameter', globalParameter: 'oxygen', message: max ? 'Requires ${0}% oxygen or less' : 'Requires ${0}% oxygen', params: [String(required)], current};

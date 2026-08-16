@@ -285,9 +285,13 @@
         <span class="con-cards__verdict con-cards__verdict--notnow"><span aria-hidden="true">⏳</span> {{ $t('Not now') }}</span>
         <span class="con-hand__reason con-hand__reason--bar con-hand__reason--turn">{{ $t(softReason) }}</span>
       </template>
+      <!-- Real rule blockers: the SHARED cardAvailability view (the same one
+           the fullscreen panel renders) — its ordered, de-duped rows, first
+           two here, the full list in the fullscreen. A turn note that joins
+           them keeps its own amber voice under the red verdict. -->
       <template v-else>
         <span class="con-cards__verdict con-cards__verdict--blocked"><span aria-hidden="true">✕</span> {{ $t('Unplayable now') }}</span>
-        <span v-for="(r, i) in reasons.slice(0, 2)" :key="i" class="con-hand__reason con-hand__reason--bar" :class="'con-hand__reason--' + r.type">{{ reasonLine(r) }}</span>
+        <span v-for="r in playReasonRows" :key="r.key" class="con-hand__reason con-hand__reason--bar" :class="'con-hand__reason--' + r.type">{{ r.text }}</span>
       </template>
       <!-- Filtered count lives HERE (compact, right-aligned) — never in the
            header, so the header height can't jump when the filter changes. -->
@@ -392,9 +396,8 @@ import {
 } from '@/client/console/consoleHandStageMotion';
 import {CardModel} from '@/common/models/CardModel';
 import {CardName} from '@/common/cards/CardName';
-import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
-import {unplayableReasonLine} from '@/client/components/handCards/unplayableReasonFormat';
+import {buildCardAvailability, CardAvailabilityView, CardAvailabilityReasonView} from '@/client/console/cardAvailability';
 import {consoleState} from '@/client/console/consoleRouter';
 import {shortBlockerLabel, HandNavDir} from '@/client/components/console/consoleHandGrid';
 import {
@@ -534,6 +537,10 @@ export default defineComponent({
     /** The turn/phase reason (i18n key) for a card that is rules-OK but not
      *  playable right now (opponent's turn / mid-action). Set by the shell. */
     softReason: {type: String, default: 'Not your turn to take any actions'},
+    /** The play WINDOW is closed (opponent's turn or an owed decision) — set
+     *  by the shell from its one blocked-reason source. Decides whether the
+     *  turn note joins a blocked card's reason list (never re-derived here). */
+    turnWindowClosed: {type: Boolean, default: false},
     /** Tag-filter options (All + tags present in the hand) built by the shell. */
     tagFilters: {type: Array as PropType<ReadonlyArray<ConsoleTagFilterOption>>, default: () => []},
     /** The active tag filter (`'all'` or one tag) — drives the chip highlight. */
@@ -650,9 +657,6 @@ export default defineComponent({
     selectedPlayable(): boolean {
       return this.entries[this.index]?.playable === true;
     },
-    reasons(): ReadonlyArray<UnplayableReason> {
-      return this.selected?.unplayableReasons ?? [];
-    },
     /**
      * The selected card is blocked ONLY by the execution window — legal by the
      * rules (`potential`), just not submittable this moment (`!playable`). Read
@@ -662,6 +666,26 @@ export default defineComponent({
     softBlocked(): boolean {
       return !this.saleActive && !this.selectActive && this.selected !== undefined &&
         !this.selectedPlayable && this.entries[this.index]?.potential === true;
+    },
+    /**
+     * The selected card's availability in the PLAY voice — the SHARED
+     * cardAvailability model, the very view the fullscreen panel renders for
+     * this card, so the verdict bar's lines and the fullscreen list can never
+     * drift (ordering, de-dupe and the turn note's place included). The bar
+     * shows the first two rows; the rest wait in the fullscreen.
+     */
+    playAvailability(): CardAvailabilityView | undefined {
+      if (this.selected === undefined || this.saleActive || this.selectActive || this.selectedPlayable) {
+        return undefined;
+      }
+      return buildCardAvailability({
+        reasons: this.selected.unplayableReasons,
+        turnReason: this.turnWindowClosed ? this.softReason : undefined,
+      }, 'play');
+    },
+    /** The verdict bar's visible rows (compact: the top of the shared list). */
+    playReasonRows(): ReadonlyArray<CardAvailabilityReasonView> {
+      return (this.playAvailability?.reasons ?? []).slice(0, 2);
     },
     // ── mandatory hand SELECT (discard / reveal / place) ──────────────────
     selectActive(): boolean {
@@ -1032,10 +1056,6 @@ export default defineComponent({
     /** Select mode: the pre-translated «why not» reason for a non-candidate. */
     selectReason(name: string): string {
       return this.select?.reasons[name] ?? '';
-    },
-    /** "Требуется X · Сейчас: Y°C" — shared formatter (unit included). */
-    reasonLine(r: UnplayableReason): string {
-      return unplayableReasonLine(r);
     },
     /** Compact blocker chip label for an unavailable card (english i18n key). */
     chipLabel(entry: ConsoleHandEntry): string | undefined {

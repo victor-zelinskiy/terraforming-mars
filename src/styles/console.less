@@ -2363,6 +2363,12 @@ html.console-native {
     z-index: 11480;
     display: flex;
     flex-direction: column;
+    /* The status block's reserved height — head row + a two-line reading
+       body for the longest RU requirement comparison (never clipped, never
+       reflowing the stage). The SHELF's absolute bottom rides the same token,
+       so the collection and the verdict can never drift apart. TV bumps it
+       with the reading tokens (console_tv.less). */
+    --con-draftws-status-h: 4.3rem;
     /* THE STAGE SURFACE (perimeter shell) — see .con-stage-surface().
        VISUAL-STAGE inset right: the gallery is the largest visual object of
        the whole flow — the freed width goes straight into the card fit.
@@ -2717,23 +2723,33 @@ html.console-native {
         font-weight: 700;
     }
 
-    /* ── STATUS RAIL: the focused card's verdict line (reserved row — the
-       stage above never reflows when the verdict changes). ── */
+    /* ── STATUS RAIL: the focused card's availability block (reserved TWO-ROW
+       zone — the stage above never reflows when the verdict changes; sized by
+       --con-draftws-status-h, declared on the root beside the shelf coupling,
+       so the shelf's absolute bottom and this row can never drift apart).
+       The block itself is the shared ConsoleCardAvailabilityPanel (compact):
+       name + loud status on the first row, the requirement-vs-now comparison
+       in the reading voice on the second — a TV-readable body, never the old
+       one micro-caption line. ── */
     &__statusbar {
         flex-shrink: 0;
         position: relative;
         /* ABOVE the shelf overlay: the verdict belongs to the card on stage,
            so nothing the collection draws may sit over it. */
         z-index: 4;
-        height: 2.1rem;
+        height: var(--con-draftws-status-h);
         display: flex;
         align-items: center;
         justify-content: center;
         gap: 1rem;
-        font-size: .85rem;
+        overflow: hidden;
 
         &--held > * { opacity: 0; }
         > * { transition: opacity calc(150ms * var(--motion-scale, 1)) ease; }
+    }
+    /* The focused card's name re-announces itself on every focus move. */
+    .con-cardavail__name {
+        animation: con-draftws-num calc(180ms * var(--motion-scale, 1)) ease-out;
     }
     &__status-name {
         font-weight: 800;
@@ -2741,25 +2757,6 @@ html.console-native {
         text-transform: uppercase;
         color: @con-text;
         animation: con-draftws-num calc(180ms * var(--motion-scale, 1)) ease-out;
-    }
-    &__status-ok {
-        display: inline-flex;
-        align-items: center;
-        gap: .4rem;
-        color: fade(@con-mint, 85%);
-    }
-    /* The requirements HEADS-UP: amber, a warning — never blocking language. */
-    &__status-warn {
-        display: inline-flex;
-        align-items: center;
-        gap: .45rem;
-        color: @con-amber;
-
-        span:first-child { font-size: .9rem; }
-    }
-    &__status-why {
-        color: fade(@con-amber, 75%);
-        font-size: .8rem;
     }
     &__status-idle {
         color: @con-text-dim;
@@ -2777,8 +2774,8 @@ html.console-native {
         right: 0;
         /* Sits UNDER the status rail's row (which is in flow at the body's
            bottom) — the collection never covers the verdict of the card the
-           player is looking at. */
-        bottom: 2.1rem;
+           player is looking at. The offset IS the status row's height. */
+        bottom: var(--con-draftws-status-h);
         z-index: 3;
         display: flex;
         flex-direction: column;
@@ -26011,6 +26008,263 @@ html.con-profile-large {
         line-height: calc(var(--con-read-lh, 1.5) + 0.03);
         hyphens: auto;
         hyphenate-limit-chars: 7 4 3;
+    }
+}
+
+/* ═══ CARD AVAILABILITY (ConsoleCardAvailabilityPanel) ═══════════════════
+   ONE voice for «насколько эта карта доступна в ТЕКУЩЕЙ партии», in two
+   densities: `--compact` (the draft workspace's status block) and `--panel`
+   (the fullscreen aside below «ПРАВИЛА» — this game's state, deliberately a
+   SEPARATE box from the card's permanent rules). Semantics come from
+   console/cardAvailability.ts; this file only paints the four states:
+     --pending  draft: not met YET (amber — evaluative, calm)
+     --missed   draft: provably lost forever (red — decisive)
+     --blocked  play: real rule blockers (red)
+     --waiting  play: only the action window (amber)
+   Colour is never the only signal (each state carries its icon + words), and
+   the accents are box-shadow/colour only — perf mode keeps them. */
+.con-cardavail {
+    min-width: 0;
+
+    /* ── COMPACT: two readable rows under the card spread. ── */
+    &--compact {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: .3rem;
+        /* A readable MEASURE, never a line across the whole screen. */
+        max-width: min(64rem, 94%);
+    }
+    &--compact &__head {
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: 1rem;
+        min-width: 0;
+        max-width: 100%;
+    }
+    &__name {
+        font-weight: 800;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: @con-text;
+        font-size: 1rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    &__status {
+        display: inline-flex;
+        align-items: center;
+        gap: .5rem;
+        font-weight: 800;
+        letter-spacing: .08rem;
+        text-transform: uppercase;
+        font-size: .92rem;
+        white-space: nowrap;
+    }
+    &__icon { line-height: 1; }
+    &--compact &__line {
+        display: flex;
+        align-items: baseline;
+        justify-content: center;
+        gap: .7rem;
+        min-width: 0;
+        max-width: 100%;
+    }
+    &--compact &__text {
+        .con-read-text(470);
+        font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
+        line-height: 1.4;
+        text-align: center;
+        text-wrap: balance;
+    }
+    &__more {
+        flex-shrink: 0;
+        align-self: center;
+        padding: .1rem .5rem;
+        border-radius: .35rem;
+        font-size: .8rem;
+        font-weight: 700;
+        letter-spacing: .05rem;
+        color: fade(@con-text, 88%);
+        background: rgba(122, 168, 214, 0.12);
+        box-shadow: inset 0 0 0 .05rem rgba(122, 168, 214, 0.28);
+        white-space: nowrap;
+    }
+
+    /* ── State palettes: the status/verdict carries the loud colour, the
+       detail line a calmer tint of the same family. ── */
+    &--pending &__status,
+    &--pending &__verdict { color: @con-amber; }
+    &--pending&--compact &__text { color: fade(@con-amber, 88%); }
+    &--missed &__status,
+    &--missed &__verdict,
+    &--blocked &__status,
+    &--blocked &__verdict { color: #ffc9c4; }
+    &--missed&--compact &__text,
+    &--blocked&--compact &__text { color: fade(#ffc9c4, 90%); }
+    &--waiting &__status,
+    &--waiting &__verdict { color: #ffe6b0; }
+    &--waiting&--compact &__text { color: fade(#ffe6b0, 88%); }
+
+    /* ── PANEL: the fullscreen aside — the SAME reading-surface material as
+       .con-zoom-rules; the only chromatic additions are the thin side marker
+       and a controlled inner tint. State, never a solid colour fill. ── */
+    &--panel {
+        display: flex;
+        min-height: 0;
+        transition: opacity calc(90ms * var(--motion-scale, 1)) ease;
+    }
+    &--closing {
+        opacity: 0;
+        transition-duration: 60ms;
+    }
+    &__scroll {
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+    &__box {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        max-height: 100%;
+        width: var(--con-rules-w, 20rem);
+        border-radius: .8rem;
+        background:
+            linear-gradient(180deg,
+                rgba(15, 24, 36, 0.97) 0%,
+                rgba(9, 15, 24, 0.965) 30%,
+                rgba(6, 11, 19, 0.96) 100%);
+        box-shadow:
+            inset 0 0 0 .05rem fade(@con-cyan, 24%),
+            inset 0 .05rem 0 rgba(214, 236, 255, 0.09),
+            0 1.1rem 2.8rem rgba(0, 0, 0, 0.55);
+        overflow: hidden;
+        padding-bottom: .95rem;
+
+        /* The SIDE MARKER — the state's colour as a thin physical edge. */
+        &::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: .7rem;
+            bottom: .7rem;
+            width: .18rem;
+            border-radius: 0 .18rem .18rem 0;
+            background: var(--cardavail-accent, fade(@con-cyan, 60%));
+        }
+        /* The controlled inner tint — a breath of the state's colour. */
+        &::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            border-radius: inherit;
+            box-shadow: inset 0 0 2.6rem var(--cardavail-tint, transparent);
+        }
+    }
+    &--pending &__box { --cardavail-accent: fade(@con-amber, 85%); --cardavail-tint: fade(@con-amber, 9%); }
+    &--missed &__box,
+    &--blocked &__box { --cardavail-accent: fade(@con-red, 80%); --cardavail-tint: fade(@con-red, 10%); }
+    &--waiting &__box { --cardavail-accent: fade(#ffe6b0, 75%); --cardavail-tint: fade(#ffe6b0, 8%); }
+
+    &__kicker {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        padding: .75rem 1.1rem .6rem;
+        border-bottom: .05rem solid fade(@con-cyan, 20%);
+    }
+    &__mark {
+        color: fade(@con-cyan, 85%);
+        font-size: var(--con-t-section);
+        line-height: 1;
+    }
+    &__kickertitle {
+        font-size: var(--con-t-caption);
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        font-weight: 700;
+    }
+    &--panel &__verdict {
+        display: flex;
+        align-items: center;
+        gap: .55rem;
+        padding: .85rem 1.1rem .1rem;
+        font-weight: 800;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        font-size: 1.02rem;
+    }
+    &--panel &__list {
+        list-style: none;
+        margin: 0;
+        padding: .6rem 1.1rem 0;
+        display: flex;
+        flex-direction: column;
+        gap: .55rem;
+    }
+    &__reason {
+        position: relative;
+        padding-left: .85rem;
+        display: flex;
+        flex-direction: column;
+        gap: .15rem;
+
+        /* Per-reason marker keeps its OWN semantics under any headline
+           (a turn note stays amber inside a red «Нельзя разыграть» list). */
+        &::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: .52em;
+            width: .3rem;
+            height: .3rem;
+            border-radius: 50%;
+            background: fade(@con-text, 50%);
+        }
+        &--warning::before { background: fade(@con-amber, 85%); }
+        &--danger::before { background: fade(@con-red, 85%); }
+    }
+    &--panel &__text {
+        .con-read-text(450);
+        font-size: calc(var(--con-t-read) * var(--con-read-scale, 1));
+        line-height: var(--con-read-lh, 1.5);
+        color: fade(@con-text, 96%);
+    }
+    &__mods {
+        .con-read-text(430);
+        font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
+        line-height: var(--con-read-lh, 1.5);
+        color: fade(@con-text, 62%);
+    }
+}
+
+/* The right COLUMN of the fullscreen viewer when the availability panel joins
+   the rules panel: ONE flex column inside .card-zoom-side (whose row layout
+   and single --con-rules-w width reserve are untouched — stacking vertically
+   costs no reserve). Budget priority is a CONTRACT: the rules panel keeps its
+   OWN standalone cap and NEVER shrinks (the tv-reading matrix guarantees its
+   cards read without scroll — a sibling may not take that away); when the two
+   together would overflow the viewport budget, the AVAILABILITY panel is the
+   one that yields, scrolling its own reason list internally. */
+.con-zoom-sidecol {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: .9rem;
+    /* The viewer's vertical budget between the topbar and the actions bar. */
+    max-height: 80vh;
+    min-height: 0;
+
+    > .con-zoom-rules-host { flex: 0 0 auto; }
+    > .con-cardavail {
+        flex: 0 1 auto;
+        min-height: 0;
     }
 }
 
