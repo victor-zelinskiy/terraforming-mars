@@ -6,6 +6,7 @@ import ConsolePlacementFactRow from '@/client/components/console/ConsolePlacemen
 import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
 import {BoardCellInfo, BoardFact, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
+import {DossierRow} from '@/client/console/placementDossier';
 import {TileType} from '@/common/TileType';
 
 const hazardPenalty: BoardFact = {
@@ -72,7 +73,7 @@ describe('ConsoleContextPanel', () => {
   it('placement mode renders the dossier sections from the preview', () => {
     const wrapper = mountPanel({preview, info, selectedLegal: true});
     const rows = wrapper.findAllComponents(ConsolePlacementFactRow);
-    expect(rows.map((r) => (r.props('fact') as BoardFact).id))
+    expect(rows.map((r) => (r.props('row') as DossierRow).key))
       .to.deep.eq(['cost-production', 'effect-oxygen']);
     // The cell's own toll is the FIRST section; the reused desktop groups
     // never render in placement mode.
@@ -86,7 +87,7 @@ describe('ConsoleContextPanel', () => {
     const wrapper = mountPanel({info});
     const rows = wrapper.findAllComponents(ConsolePlacementFactRow);
     expect(rows).to.have.lengthOf(1);
-    expect((rows[0].props('fact') as BoardFact).id).to.eq('f');
+    expect((rows[0].props('row') as DossierRow).key).to.eq('f');
     expect(wrapper.find('.con-context__sec--cellinfo').exists()).to.be.true;
   });
 
@@ -185,6 +186,50 @@ describe('ConsoleContextPanel', () => {
       const well = wrapper.find('.con-context__reason-well');
       expect(well.classes()).to.include('con-context__reason-well--open');
       expect(well.text()).to.contain('Occupied');
+    });
+  });
+
+  /**
+   * THE PANEL IS A HUD, AND THE PLAYER IS POINTING WITH THE D-PAD. A section
+   * that grows, collapses or slides on every cursor step makes the panel the
+   * moving object on screen and pulls the eye off the hex being chosen — so
+   * per-cell navigation may change VALUES and nothing else.
+   */
+  describe('per-cell navigation is motion-free', () => {
+    it('renders sections plainly — no transition group, no height animation', () => {
+      const wrapper = mountPanel({preview, info, selectedLegal: true});
+      // A `<TransitionGroup>` would leave its own wrapper/classes in the tree.
+      expect(wrapper.html()).to.not.match(/con-dsec-/);
+      expect(wrapper.findAll('.con-context__zone > .con-context__sec').length).to.be.greaterThan(0);
+    });
+
+    it('splits the body into the two anchored zones', () => {
+      const wrapper = mountPanel({preview, info, selectedLegal: true});
+      // The frame: what this cell costs and gives grows down from the top,
+      // the standing read is pinned to the bottom — so neither travels as the
+      // cursor walks (the e2e measures the real pixels).
+      expect(wrapper.findAll('.con-context__zone--consequences')).to.have.lengthOf(1);
+      expect(wrapper.findAll('.con-context__zone--standing')).to.have.lengthOf(1);
+      // …and the CELL EFFECT block is always present, answering «this cell
+      // costs nothing extra» rather than vanishing and moving everything.
+      const noEffect = mountPanel({
+        preview: {...preview, costFacts: [], warningFacts: []}, info, selectedLegal: true,
+      });
+      expect(noEffect.find('.con-context__sec--effect').exists()).to.be.true;
+      expect(noEffect.find('.con-context__sec-none').exists()).to.be.true;
+    });
+
+    it('keeps the value node of a row whose value did NOT change', async () => {
+      const wrapper = mountPanel({preview, info, selectedLegal: true});
+      const before = wrapper.findAllComponents(ConsolePlacementFactRow)
+        .map((r) => (r.props('row') as DossierRow).key + ':' + JSON.stringify((r.props('row') as DossierRow).delta));
+      // A NEW cell whose oxygen gain is identical: the row model — and with
+      // it the value node's key — must come out byte-identical, so nothing
+      // re-mounts and nothing animates.
+      await wrapper.setProps({preview: {...preview, space: '06'}});
+      const after = wrapper.findAllComponents(ConsolePlacementFactRow)
+        .map((r) => (r.props('row') as DossierRow).key + ':' + JSON.stringify((r.props('row') as DossierRow).delta));
+      expect(after).to.deep.equal(before);
     });
   });
 

@@ -1,23 +1,36 @@
 <template>
   <!--
-    ONE row of the console placement dossier — a BoardFact as an icon/value
-    composition: the statement reads left (reading face), the change reads
-    right (display face, tabular), and the row carries NO capsule of its own —
-    the panel is one shell, severity speaks through colour and the value.
+    ONE line of the placement dossier — a STABLE two-column composition: the
+    statement reads left in the reading face, the change reads right in the
+    display face on a fixed-width numeric column, so values never shift
+    horizontally as the cursor walks the board. The row carries no capsule of
+    its own: severity speaks through colour, and the panel is one shell.
   -->
-  <div class="con-dossier-row" :class="'con-dossier-row--' + fact.severity">
+  <div class="con-dossier-row" :class="'con-dossier-row--' + row.severity">
     <div class="con-dossier-row__main">
-      <div class="con-dossier-row__title" v-i18n="fact.params">{{ fact.title }}</div>
-      <div v-if="fact.description !== undefined" class="con-dossier-row__desc" v-i18n="fact.params">{{ fact.description }}</div>
-      <div v-if="sourceLabel !== undefined" class="con-dossier-row__src" v-i18n>{{ sourceLabel }}</div>
+      <div class="con-dossier-row__title">
+        <span v-i18n="row.params">{{ row.label }}</span
+        ><span v-if="row.count > 1" class="con-dossier-row__count">×{{ row.count }}</span>
+      </div>
+      <!-- The compact breakdown of an AGGREGATED value: what made it up. One
+           line, middle dots between terms — never a stack of full rows. -->
+      <div v-if="row.reasons.length > 0" class="con-dossier-row__why">
+        <span v-for="reason in row.reasons" :key="reason.key" class="con-dossier-row__why-term">
+          <span v-i18n>{{ reason.label }}</span>
+          <b>{{ reason.amount }}</b>
+        </span>
+      </div>
+      <div v-else-if="row.note !== undefined" class="con-dossier-row__note" v-i18n="row.note.params">{{ row.note.text }}</div>
+      <div v-if="row.source !== undefined" class="con-dossier-row__src" v-i18n>{{ row.source }}</div>
     </div>
 
+    <!-- THE VALUE COLUMN. Its inner node is keyed on the rendered text, so a
+         value that CHANGED re-mounts and plays the 90 ms update flick while an
+         unchanged one keeps its node and stays perfectly still — «only what
+         changed animates», with no timeline to queue up during fast
+         navigation. -->
     <div class="con-dossier-row__val">
-      <!-- Resource / parameter delta: icon + `N → M` (or ±N). A PRODUCTION
-           change wears the game's own brown production frame — including the
-           Ares «production of your choice» penalty, whose honest sprite is the
-           EMPTY frame (there is no single resource to draw). -->
-      <span v-if="delta !== undefined" class="con-dossier-row__delta" :class="deltaToneClass">
+      <span v-if="delta !== undefined" :key="deltaText" class="con-dossier-row__delta" :class="deltaToneClass">
         <span v-if="delta.production === true" class="con-dossier-row__prod" aria-hidden="true">
           <span v-if="deltaIconClass !== ''" class="con-dossier-row__ico" :class="deltaIconClass"></span>
         </span>
@@ -32,55 +45,52 @@
         </span>
       </span>
 
-      <!-- Endgame VP — the gold badge (identity as TYPE: there is no VP sprite). -->
-      <span v-if="vpAmount !== undefined && vpAmount !== 0"
-            class="con-dossier-row__vp" :class="{'con-dossier-row__vp--neg': vpAmount < 0}">
-        {{ vpAmount < 0 ? '−' : '+' }}{{ Math.abs(vpAmount) }} <i>{{ $t('VP') }}</i>
+      <!-- Endgame VP — the gold badge (identity as TYPE: there is no sprite). -->
+      <span v-if="row.vp !== undefined && row.vp !== 0" :key="'vp' + row.vp"
+            class="con-dossier-row__vp" :class="{'con-dossier-row__vp--neg': row.vp < 0}">
+        {{ row.vp < 0 ? '−' : '+' }}{{ Math.abs(row.vp) }} <i>{{ $t('VP') }}</i>
       </span>
 
-      <!-- Milestone / award standing: `from → to (/target)` + the micro track
-           when the threshold reads as one. -->
-      <span v-if="fact.progress !== undefined" class="con-dossier-row__prog"
-            :class="{'con-dossier-row__prog--reached': progressReached}">
+      <!-- Milestone / award standing + the micro track. -->
+      <span v-if="row.progress !== undefined" :key="'p' + row.progress.from + '-' + row.progress.to"
+            class="con-dossier-row__prog" :class="{'con-dossier-row__prog--reached': progressReached}">
         <span class="con-dossier-row__prog-nums">
-          <span class="con-dossier-row__cur">{{ fact.progress.from }}</span>
+          <span class="con-dossier-row__cur">{{ row.progress.from }}</span>
           <span class="con-dossier-row__arrow" aria-hidden="true">→</span>
-          <span class="con-dossier-row__res">{{ fact.progress.to }}</span>
-          <span v-if="fact.progress.target !== undefined" class="con-dossier-row__prog-tgt">/{{ fact.progress.target }}</span>
+          <span class="con-dossier-row__res">{{ row.progress.to }}</span>
+          <span v-if="row.progress.target !== undefined" class="con-dossier-row__prog-tgt">/{{ row.progress.target }}</span>
         </span>
         <span v-if="track !== undefined" class="con-dossier-row__track" aria-hidden="true">
           <i v-for="(cell, i) in track" :key="i" :class="'con-dossier-row__seg con-dossier-row__seg--' + cell"></i>
         </span>
       </span>
 
-      <span v-if="timingKey !== undefined" class="con-dossier-row__when">{{ $t(timingKey) }}</span>
+      <span v-if="row.timingKey !== undefined" class="con-dossier-row__when">{{ $t(row.timingKey) }}</span>
     </div>
   </div>
 </template>
 
 <script lang="ts">
 /**
- * Presentation only — every copy/visibility decision lives in the pure
- * `placementDossier` model, so the row template makes none of its own.
+ * Presentation only — WHAT a line says (its compact label, whether several
+ * facts aggregate into one change-vector, which breakdown it carries) is
+ * decided by the pure `placementDossier` model.
  */
 import {defineComponent, PropType} from 'vue';
-import {BoardFact, BoardFactTiming} from '@/common/boards/BoardInformationFacts';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
-import {progressTrack, rowSourceLabel, rowTimingKey} from '@/client/console/placementDossier';
+import {DossierRow, progressTrack} from '@/client/console/placementDossier';
 
 export default defineComponent({
   name: 'ConsolePlacementFactRow',
   props: {
-    fact: {type: Object as PropType<BoardFact>, required: true},
-    /** Timings the hosting section head already states (tag suppression). */
-    stated: {type: Array as PropType<ReadonlyArray<BoardFactTiming>>, default: () => []},
+    row: {type: Object as PropType<DossierRow>, required: true},
   },
   computed: {
     Math() {
       return Math;
     },
     delta() {
-      return this.fact.delta;
+      return this.row.delta;
     },
     deltaIconClass(): string {
       return this.delta !== undefined ? iconClassFor(this.delta.icon) : '';
@@ -94,27 +104,26 @@ export default defineComponent({
     sign(): string {
       return this.delta?.direction === 'cost' ? '−' : '+';
     },
+    /** The rendered value — the update key (see the template note). */
+    deltaText(): string {
+      const d = this.delta;
+      if (d === undefined) {
+        return '';
+      }
+      return this.hasRange ? `${d.current}>${d.resulting}${this.unit}` : `${this.sign}${d.amount}${this.unit}`;
+    },
     deltaToneClass(): string {
-      if (this.fact.severity === 'danger') {
+      if (this.row.severity === 'danger') {
         return 'con-dossier-row__delta--danger';
       }
       return this.delta?.direction === 'cost' ? 'con-dossier-row__delta--cost' : 'con-dossier-row__delta--gain';
     },
-    vpAmount(): number | undefined {
-      return this.fact.vp !== undefined ? this.fact.vp.to - this.fact.vp.from : undefined;
-    },
     progressReached(): boolean {
-      const p = this.fact.progress;
+      const p = this.row.progress;
       return p !== undefined && p.target !== undefined && p.to >= p.target;
     },
     track() {
-      return progressTrack(this.fact.progress);
-    },
-    timingKey(): string | undefined {
-      return rowTimingKey(this.fact, this.stated);
-    },
-    sourceLabel(): string | undefined {
-      return rowSourceLabel(this.fact);
+      return progressTrack(this.row.progress);
     },
   },
 });

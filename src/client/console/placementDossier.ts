@@ -23,8 +23,9 @@
  * `translateText` family; specs pass a dictionary) so RU output is assertable.
  */
 
-import {BoardFact, BoardFactGroup, BoardFactTiming, BoardPlacementKind, BoardPlacementPreview,
-  groupFactsByRecipient} from '@/common/boards/BoardInformationFacts';
+import {BoardFact, BoardFactDelta, BoardFactGroup, BoardFactSeverity, BoardFactTiming,
+  BoardPlacementKind, BoardPlacementPreview, groupFactsByRecipient} from '@/common/boards/BoardInformationFacts';
+import {Message} from '@/common/logs/Message';
 import {CardName} from '@/common/cards/CardName';
 import {Color} from '@/common/Color';
 import {PlacementEffect} from '@/common/models/PlayerInputModel';
@@ -227,13 +228,21 @@ function actionLineOf(opts: {
 
 export type DossierSectionKey = 'effect' | 'gain' | 'others' | 'progress' | 'endgame' | 'rules';
 
+/** One recipient's block inside «Получат другие игроки». */
+export type DossierRecipientGroup = {
+  key: string;
+  recipient: BoardFactGroup['recipient'];
+  rows: ReadonlyArray<DossierRow>;
+};
+
 export type DossierSection = {
   key: DossierSectionKey;
   /** English i18n key of the section head. */
   titleKey: string;
-  facts: ReadonlyArray<BoardFact>;
+  /** The RENDERED lines (aggregated + compacted) — what the panel draws. */
+  rows: ReadonlyArray<DossierRow>;
   /** Only the `others` section groups by recipient (player dot + name). */
-  groups?: ReadonlyArray<BoardFactGroup>;
+  groups?: ReadonlyArray<DossierRecipientGroup>;
   /** Timings the section head already states — rows drop the matching tag. */
   stated: ReadonlyArray<BoardFactTiming>;
   /**
@@ -242,7 +251,54 @@ export type DossierSection = {
    * THIS cell worth», which is a sum the rows already contain but never state.
    */
   total?: number;
+  /**
+   * What this section says when it has NO rows. Only a section that is always
+   * present has one — see `dossierZones`.
+   */
+  emptyKey?: string;
 };
+
+/** The panel's two stable zones (see {@link dossierZones}). */
+export type DossierZoneKey = 'consequences' | 'standing';
+
+export type DossierZone = {
+  key: DossierZoneKey;
+  sections: ReadonlyArray<DossierSection>;
+};
+
+/**
+ * THE STABLE FRAME. The panel is a HUD of the cell under the cursor, so its
+ * anchors may not travel as the player walks the board — a section that
+ * appears, grows or vanishes per cell shifts everything below it and turns the
+ * panel into the moving object on screen (measured: 272 px of drift between
+ * two neighbouring cells).
+ *
+ * Two answers, both structural rather than animated:
+ *  ① the sections are grouped into TWO ZONES — what this cell COSTS AND GIVES
+ *    (the volatile half, which carries a reserved height in CSS) and the
+ *    STANDING read (progress · endgame · rules), whose top edge therefore
+ *    stays put;
+ *  ② the CELL EFFECT block is always present, because «this cell costs
+ *    nothing extra» is an answer the walking player wants anyway — and a
+ *    block that comes and goes is exactly what moved everything below it.
+ */
+export function dossierZones(sections: ReadonlyArray<DossierSection>): Array<DossierZone> {
+  const has = (key: DossierSectionKey) => sections.find((s) => s.key === key);
+  const effect: DossierSection = has('effect') ?? {
+    key: 'effect', titleKey: 'Cell effect', rows: [], stated: ['cost', 'warning'],
+    emptyKey: 'No extra cost',
+  };
+  const inZone = (keys: ReadonlyArray<DossierSectionKey>) =>
+    sections.filter((s) => keys.includes(s.key));
+  // «ПРАВИЛА ПОЛЯ» belongs with the CELL, not with the standing read: it
+  // describes what this square IS. Keeping it in the bottom zone also made
+  // the two blocks the player actually tracks travel 231 px whenever a
+  // neighbouring cell happened to carry a rule.
+  return [
+    {key: 'consequences', sections: [effect, ...inZone(['gain', 'others', 'rules'])]},
+    {key: 'standing', sections: inZone(['progress', 'endgame'])},
+  ];
+}
 
 /**
  * The viewer's endgame VP from this placement — the sum of the rows in the
@@ -263,6 +319,256 @@ export function endgameVpTotal(facts: ReadonlyArray<BoardFact>): number | undefi
   return sum === 0 ? undefined : sum;
 }
 
+// ── the compact vocabulary ───────────────────────────────────────────
+//
+// A placement panel states CONSEQUENCES; the full rule is one press away
+// (`L3 Источник`), and the desktop hover popover keeps the server's own long
+// wording. So the console shortens a known fact to a label a couch player
+// reads in one glance — «Рейтинг терраформирования» → «РТ», «Озеленение
+// приносит очки в конце игры» → «Сам тайл».
+//
+// KEYED ON THE FACT'S ENGLISH TITLE, deliberately. A `BoardFact` arrives as
+// plain JSON off `/board-cell-preview` and its `title` is a STRING key — the
+// i18n directive translates DOM text nodes, never the object — so unlike a
+// `waitingFor` prompt title (a `Message` mutated in place, cross-cutting
+// invariant 1) this key is stable for the payload's whole life. A `Message`
+// title (a card-driven fact) never matches and keeps the server's text, which
+// is also the fallback for anything this table has not met.
+
+/**
+ * A POOL's own name («Производство M€», «Растения»). Used for an aggregated
+ * row AND as the fallback label of any single fact that moves a known pool:
+ * the icon says which pool, the production frame says which of the two, so
+ * the label must not repeat either — and must never be a cut-off sentence.
+ */
+const POOL_LABELS: Readonly<Record<string, string>> = {
+  megacredits: 'M€',
+  steel: 'Steel',
+  titanium: 'Titanium',
+  plants: 'Plants',
+  energy: 'Energy',
+  heat: 'Heat',
+  tr: 'TR',
+  cards: 'Cards',
+  oxygen: 'Oxygen',
+  temperature: 'Temperature',
+  oceans: 'Oceans',
+};
+
+const COMPACT_TITLES: Readonly<Record<string, string>> = {
+  // The terraforming rating is the console's most repeated row.
+  'Terraform rating': 'TR',
+  'Raises oxygen': 'Oxygen',
+  'Raises temperature': 'Temperature',
+  'Raises the ocean parameter': 'Oceans',
+  'Adjacent to ocean': 'Next to an ocean',
+  'Clears the hazard': 'Hazard cleared',
+  'Build here to clear it': 'Hazard cleared',
+  // Endgame scoring — the FACT for the chosen cell, not the rule behind it.
+  'Greenery scores at game end': 'The tile itself',
+  'Adjacent city scores at game end': 'Adjacent cities',
+  'City will score for adjacent greeneries': 'Adjacent greeneries',
+  'City scores for adjacent greeneries': 'Adjacent greeneries',
+  'Capital will score for adjacent oceans': 'Adjacent oceans',
+  'Capital scores for adjacent oceans': 'Adjacent oceans',
+  'Commercial District will score for adjacent cities': 'Adjacent cities',
+  'Commercial District scores for adjacent cities': 'Adjacent cities',
+};
+
+/** The compact i18n key for a fact's label — the server's own when unknown. */
+export function compactTitleKey(fact: BoardFact): string | Message {
+  if (typeof fact.title !== 'string') {
+    return poolFallback(fact) ?? fact.title;
+  }
+  return COMPACT_TITLES[fact.title] ?? poolFallback(fact) ?? fact.title;
+}
+
+/**
+ * A fact the table has not met, whose delta moves a KNOWN POOL from a known
+ * value, is named by the POOL — «Производство M€ 47 → 48», not «Производство
+ * M€ за стандартный проект „Город"» cut off mid-word. Nothing is lost: the
+ * icon (and the production frame) says which pool, the row's source chip or
+ * the panel's own «ИСТОЧНИК» line says whose rule it is, and the full
+ * sentence is one press away on L3.
+ *
+ * A pool-LESS delta (a card resource, a one-off cell bonus) keeps its title:
+ * there the title is the only thing naming what happens.
+ */
+function poolFallback(fact: BoardFact): string | undefined {
+  const d = fact.delta;
+  if (d === undefined || d.current === undefined) {
+    return undefined;
+  }
+  return POOL_LABELS[d.icon];
+}
+
+// ── rows ─────────────────────────────────────────────────────────────
+
+/** One reason behind an aggregated value — «Город иммигрантов +1». */
+export type DossierReason = {
+  key: string;
+  /** i18n key (or a Message) naming the source / the effect. */
+  label: string | Message;
+  /** The signed contribution, already formatted («+1», «−2»). */
+  amount: string;
+};
+
+/**
+ * ONE rendered line of the dossier. The component makes no decisions: label
+ * left, value right, an optional compact breakdown under it.
+ */
+export type DossierRow = {
+  key: string;
+  label: string | Message;
+  /** i18n params for the label (a server title may carry `${0}`). */
+  params?: ReadonlyArray<string>;
+  severity: BoardFactSeverity;
+  /** How many facts this row stands for — rendered as «×N» past 1. */
+  count: number;
+  delta?: BoardFactDelta;
+  vp?: number;
+  progress?: {from: number, to: number, target?: number};
+  /** The compact breakdown of an aggregated value. */
+  reasons: ReadonlyArray<DossierReason>;
+  /** The ONE secondary line (a forced loss explains itself). */
+  note?: {text: string | Message, params?: ReadonlyArray<string>};
+  /** A source chip, when it adds information the label does not carry. */
+  source?: string;
+  timingKey?: string;
+};
+
+function signed(n: number): string {
+  return n < 0 ? `−${Math.abs(n)}` : `+${n}`;
+}
+
+/** The signed contribution of a delta (a `cost` counts against the pool). */
+function deltaAmount(delta: BoardFactDelta): number {
+  return delta.direction === 'cost' ? -delta.amount : delta.amount;
+}
+
+/**
+ * The aggregation key. Two facts merge only when they move the SAME pool from
+ * the SAME starting value in the same direction — then, and only then, is
+ * `current + Σ` the number the commit will produce. A row whose `current` the
+ * server did not send (a pool-less gain) never merges: there is nothing to add
+ * up honestly.
+ */
+function aggregationKey(fact: BoardFact, labelKey: string): string | undefined {
+  const d = fact.delta;
+  if (d !== undefined && d.current !== undefined) {
+    return `d|${d.icon}|${d.production === true}|${d.direction}|${d.current}|${d.unit ?? ''}`;
+  }
+  if (fact.vp !== undefined) {
+    // Several adjacent cities are ONE statement about this cell: «Соседние
+    // города ×2 · +2 ПО», never two identical lines.
+    return `v|${labelKey}`;
+  }
+  return undefined;
+}
+
+/** A reason's own name: the SOURCE card when there is one, else its label. */
+function reasonLabel(fact: BoardFact): string | Message {
+  const label = fact.source?.label;
+  if (label !== undefined && fact.source?.type !== 'board-cell' && fact.source?.type !== 'map-rule') {
+    return label;
+  }
+  return compactTitleKey(fact);
+}
+
+/**
+ * The section's facts as RENDERED ROWS: identical parameters collapse into one
+ * change-vector with a compact breakdown, repeated statements collapse into a
+ * counted one, and every label passes through the compact vocabulary.
+ *
+ * The panel used to print «Производство M€ за стандартный проект „Город"
+ * 47 → 48» and «Город размещён где угодно 47 → 48» — two four-line rows for
+ * one parameter, and BOTH readings were wrong, because the commit lands on 49.
+ */
+export function buildDossierRows(facts: ReadonlyArray<BoardFact>,
+  stated: ReadonlyArray<BoardFactTiming> = []): Array<DossierRow> {
+  const order: Array<string> = [];
+  const groups = new Map<string, Array<BoardFact>>();
+  facts.forEach((fact, i) => {
+    const labelKey = typeof compactTitleKey(fact) === 'string' ? String(compactTitleKey(fact)) : `m${i}`;
+    const key = aggregationKey(fact, labelKey) ?? `s|${i}`;
+    const bucket = groups.get(key);
+    if (bucket === undefined) {
+      groups.set(key, [fact]);
+      order.push(key);
+    } else {
+      bucket.push(fact);
+    }
+  });
+
+  return order.map((key) => {
+    const members = groups.get(key) ?? [];
+    const head = members[0];
+    return members.length > 1 ? mergedRow(key, members, stated) : singleRow(head, stated);
+  });
+}
+
+function singleRow(fact: BoardFact, stated: ReadonlyArray<BoardFactTiming>): DossierRow {
+  return {
+    key: fact.id,
+    label: compactTitleKey(fact),
+    params: fact.params,
+    severity: fact.severity,
+    count: 1,
+    delta: fact.delta,
+    vp: fact.vp !== undefined ? fact.vp.to - fact.vp.from : undefined,
+    progress: fact.progress,
+    reasons: [],
+    note: fact.description !== undefined ? {text: fact.description, params: fact.params} : undefined,
+    source: rowSourceLabel(fact),
+    timingKey: rowTimingKey(fact, stated),
+  };
+}
+
+function mergedRow(key: string, members: ReadonlyArray<BoardFact>, stated: ReadonlyArray<BoardFactTiming>): DossierRow {
+  const head = members[0];
+  const worst = members.find((f) => f.severity === 'danger') ??
+    members.find((f) => f.severity === 'warning') ?? head;
+  const reasons: Array<DossierReason> = members.map((f, i) => ({
+    key: `${f.id}:${i}`,
+    label: reasonLabel(f),
+    amount: signed(f.delta !== undefined ? deltaAmount(f.delta) : (f.vp !== undefined ? f.vp.to - f.vp.from : 0)),
+  }));
+
+  if (key.startsWith('v|')) {
+    // A repeated STATEMENT: one line, a count, and the summed points.
+    return {
+      key: `agg:${key}`,
+      label: compactTitleKey(head),
+      severity: head.severity,
+      count: members.length,
+      vp: members.reduce((acc, f) => acc + ((f.vp?.to ?? 0) - (f.vp?.from ?? 0)), 0),
+      reasons: [],
+      timingKey: rowTimingKey(head, stated),
+    };
+  }
+
+  // A shared POOL: one honest change-vector plus what makes it up.
+  const d = head.delta as BoardFactDelta;
+  const total = members.reduce((acc, f) => acc + (f.delta !== undefined ? deltaAmount(f.delta) : 0), 0);
+  const current = d.current ?? 0;
+  return {
+    key: `agg:${key}`,
+    label: POOL_LABELS[d.icon] ?? compactTitleKey(head),
+    severity: worst.severity,
+    count: 1,
+    delta: {
+      icon: d.icon,
+      amount: Math.abs(total),
+      direction: total < 0 ? 'cost' : 'gain',
+      current,
+      resulting: current + total,
+      unit: d.unit,
+      production: d.production,
+    },
+    reasons,
+  };
+}
+
 /**
  * The panel's reading order. THE CELL'S OWN TOLL comes first (a forced loss
  * must never sit below the fold), then the player's result, others' cuts,
@@ -272,31 +578,39 @@ export function dossierSections(
   preview: BoardPlacementPreview,
   viewerColor?: Color): Array<DossierSection> {
   const out: Array<DossierSection> = [];
+  const section = (key: DossierSectionKey, titleKey: string,
+    facts: ReadonlyArray<BoardFact>, stated: ReadonlyArray<BoardFactTiming>): DossierSection =>
+    ({key, titleKey, rows: buildDossierRows(facts, stated), stated});
+
   const effect = [...preview.costFacts, ...preview.warningFacts];
   if (effect.length > 0) {
-    out.push({key: 'effect', titleKey: 'Cell effect', facts: effect, stated: ['cost', 'warning']});
+    out.push(section('effect', 'Cell effect', effect, ['cost', 'warning']));
   }
   if (preview.immediateFacts.length > 0) {
-    out.push({key: 'gain', titleKey: 'You receive', facts: preview.immediateFacts, stated: ['immediate', 'on-confirm']});
+    out.push(section('gain', 'You receive', preview.immediateFacts, ['immediate', 'on-confirm']));
   }
   if (preview.recipientFacts.length > 0) {
+    // Aggregation is PER RECIPIENT: two players' identical gains are two
+    // different statements and may never be summed into one.
+    const groups = groupFactsByRecipient(preview.recipientFacts, viewerColor)
+      .map((g) => ({key: g.key, recipient: g.recipient, rows: buildDossierRows(g.facts, [])}));
     out.push({
-      key: 'others', titleKey: 'Other players receive', facts: preview.recipientFacts,
-      groups: groupFactsByRecipient(preview.recipientFacts, viewerColor), stated: [],
+      key: 'others', titleKey: 'Other players receive',
+      rows: groups.flatMap((g) => g.rows), groups, stated: [],
     });
   }
   const progress = preview.progressFacts ?? [];
   if (progress.length > 0) {
-    out.push({key: 'progress', titleKey: 'Milestones and awards', facts: progress, stated: []});
+    out.push(section('progress', 'Milestones and awards', progress, []));
   }
   if (preview.futureScoringFacts.length > 0) {
     out.push({
-      key: 'endgame', titleKey: 'At game end', facts: preview.futureScoringFacts,
-      stated: ['endgame'], total: endgameVpTotal(preview.futureScoringFacts),
+      ...section('endgame', 'At game end', preview.futureScoringFacts, ['endgame']),
+      total: endgameVpTotal(preview.futureScoringFacts),
     });
   }
   if (preview.ruleFacts.length > 0) {
-    out.push({key: 'rules', titleKey: 'Field rules', facts: preview.ruleFacts, stated: ['rule']});
+    out.push(section('rules', 'Field rules', preview.ruleFacts, ['rule']));
   }
   return out;
 }

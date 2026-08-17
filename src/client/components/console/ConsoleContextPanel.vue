@@ -65,50 +65,66 @@
         </div>
       </div>
 
-      <!-- ── THE DOSSIER BODY — the same server facts, grouped by intent
-           (placementDossier). Sections enter/leave/reflow on a soft
-           transition as the cursor walks the board. -->
+      <!-- ── THE DOSSIER BODY — the same server facts, grouped by intent and
+           COMPACTED into rows (placementDossier).
+           ⚠️ NO transition group, and no height/enter/leave animation of any
+           kind: this is a HUD of the cell the player is pointing at, and the
+           player is pointing with the d-pad. A section that grows, collapses
+           or slides on every cursor step turns the panel into the moving
+           object on screen — the board stops being where the eye is. Only
+           VALUES update (each is keyed on its own rendered text, so the ones
+           that did not change do not even re-mount). -->
       <div class="con-context__body">
-        <TransitionGroup name="con-dsec">
-          <section v-for="section in sections" :key="section.key"
-                   class="con-context__sec" :class="'con-context__sec--' + section.key">
-            <h3 class="con-context__sec-head">
-              <span>{{ $t(section.titleKey) }}</span>
-              <!-- THE CELL'S OWN FORECAST — the sum of the rows below, which
-                   is the number the player is actually after («сколько ПО
-                   стоит ЭТА клетка»); shown only when the block has more than
-                   one scoring row, so it can never just repeat it. -->
-              <span v-if="section.total !== undefined" class="con-context__sec-total">
-                {{ section.total < 0 ? '−' : '+' }}{{ Math.abs(section.total) }} <i>{{ $t('VP') }}</i>
-              </span>
-            </h3>
-            <template v-if="section.groups !== undefined">
-              <div v-for="group in section.groups" :key="group.key" class="con-context__grp">
-                <div class="con-context__grp-head">
-                  <span v-if="groupDot(group) !== undefined" class="con-context__grp-dot"
-                        :class="'player_bg_color_' + groupDot(group)"></span>
-                  <span v-i18n>{{ groupLabel(group) }}</span>
-                </div>
-                <console-placement-fact-row v-for="fact in group.facts" :key="fact.id"
-                                            :fact="fact" :stated="section.stated" />
+        <!-- TWO ZONES, and the split is what keeps the frame still. The upper
+             one is what THIS cell costs and gives (it is the part that
+             genuinely differs between neighbours, and it holds a RESERVED
+             height); the lower one is the standing read — progress, endgame,
+             field rules — whose top edge therefore does not move as the
+             cursor walks. -->
+        <div v-for="zone in zones" :key="zone.key"
+             class="con-context__zone" :class="'con-context__zone--' + zone.key">
+        <section v-for="section in zone.sections" :key="section.key"
+                 class="con-context__sec" :class="'con-context__sec--' + section.key">
+          <h3 class="con-context__sec-head">
+            <span>{{ $t(section.titleKey) }}</span>
+            <!-- THE CELL'S OWN FORECAST — the sum of the rows below, which is
+                 the number the player is actually after («сколько ПО стоит ЭТА
+                 клетка»); shown only when the block has more than one scoring
+                 row, so it can never just repeat it. -->
+            <span v-if="section.total !== undefined" :key="section.total" class="con-context__sec-total">
+              {{ section.total < 0 ? '−' : '+' }}{{ Math.abs(section.total) }} <i>{{ $t('VP') }}</i>
+            </span>
+          </h3>
+          <template v-if="section.groups !== undefined">
+            <div v-for="group in section.groups" :key="group.key" class="con-context__grp">
+              <div class="con-context__grp-head">
+                <span v-if="groupDot(group) !== undefined" class="con-context__grp-dot"
+                      :class="'player_bg_color_' + groupDot(group)"></span>
+                <span v-i18n>{{ groupLabel(group) }}</span>
               </div>
-            </template>
-            <template v-else>
-              <console-placement-fact-row v-for="fact in section.facts" :key="fact.id"
-                                          :fact="fact" :stated="section.stated" />
-            </template>
-          </section>
-          <!-- «Ничего сверх размещения» — names WHAT lands (tile vs marker). -->
-          <div v-if="emptyKey !== undefined" key="empty" class="con-context__none">{{ $t(emptyKey) }}</div>
-          <!-- An illegal cell has no preview — the hover facts still explain
-               what stands on it (hazard identity, cleanup reward, …). They get
-               a head of their own: without one they read as consequences of a
-               placement that cannot happen. -->
-          <section v-if="fallbackFacts.length > 0" key="fallback" class="con-context__sec con-context__sec--cellinfo">
-            <h3 class="con-context__sec-head"><span>{{ $t('Board cell') }}</span></h3>
-            <console-placement-fact-row v-for="fact in fallbackFacts" :key="fact.id" :fact="fact" />
-          </section>
-        </TransitionGroup>
+              <console-placement-fact-row v-for="row in group.rows" :key="row.key" :row="row" />
+            </div>
+          </template>
+          <template v-else>
+            <console-placement-fact-row v-for="row in section.rows" :key="row.key" :row="row" />
+            <!-- A zone the player asked about answers even when the answer is
+                 «nothing»: an empty CELL EFFECT block says this cell costs no
+                 extra, and — being always present — it stops the whole read
+                 below it from jumping by its own height between neighbours. -->
+            <div v-if="section.rows.length === 0" class="con-context__sec-none">{{ $t(section.emptyKey ?? '') }}</div>
+          </template>
+        </section>
+        </div>
+        <!-- «Ничего сверх размещения» — names WHAT lands (tile vs marker). -->
+        <div v-if="emptyKey !== undefined" class="con-context__none">{{ $t(emptyKey) }}</div>
+        <!-- An illegal cell has no preview — the hover facts still explain
+             what stands on it (hazard identity, cleanup reward, …). They get
+             a head of their own: without one they read as consequences of a
+             placement that cannot happen. -->
+        <section v-if="fallbackRows.length > 0" class="con-context__sec con-context__sec--cellinfo">
+          <h3 class="con-context__sec-head"><span>{{ $t('Board cell') }}</span></h3>
+          <console-placement-fact-row v-for="row in fallbackRows" :key="row.key" :row="row" />
+        </section>
       </div>
     </template>
 
@@ -198,7 +214,7 @@ import {defineComponent, PropType} from 'vue';
 import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
 import ConsolePlacementFactRow from '@/client/components/console/ConsolePlacementFactRow.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import {BoardCellInfo, BoardFact, BoardFactGroup, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
+import {BoardCellInfo, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
 import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
@@ -210,12 +226,17 @@ import {PromptSourceView} from '@/client/console/promptSource';
 import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
 import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {
+  DossierRecipientGroup,
+  DossierRow,
   DossierSection,
+  DossierZone,
   PlacementConversion,
   PlacementIdentity,
   PlacementShape,
+  buildDossierRows,
   dossierEmptyKey,
   dossierSections,
+  dossierZones,
   placementIdentity,
 } from '@/client/console/placementDossier';
 
@@ -331,15 +352,19 @@ export default defineComponent({
     sections(): ReadonlyArray<DossierSection> {
       return this.preview !== undefined ? dossierSections(this.preview, this.viewerColor) : [];
     },
+    /** …and grouped into the two zones that keep the frame still. */
+    zones(): ReadonlyArray<DossierZone> {
+      return this.preview !== undefined ? dossierZones(this.sections) : [];
+    },
     emptyKey(): string | undefined {
       return this.preview !== undefined ? dossierEmptyKey(this.preview) : undefined;
     },
     /** An illegal cell has no preview — the hover facts still explain it. */
-    fallbackFacts(): ReadonlyArray<BoardFact> {
+    fallbackRows(): ReadonlyArray<DossierRow> {
       if (this.mode !== 'placement' || this.preview !== undefined) {
         return [];
       }
-      return this.info?.facts ?? [];
+      return buildDossierRows(this.info?.facts ?? []);
     },
     cellHeader(): string {
       return textOf(this.info?.status.header);
@@ -372,7 +397,7 @@ export default defineComponent({
     },
   },
   methods: {
-    groupDot(group: BoardFactGroup): Color | undefined {
+    groupDot(group: DossierRecipientGroup): Color | undefined {
       const r = group.recipient;
       if (r.kind === 'current-player') {
         return this.viewerColor;
@@ -382,7 +407,7 @@ export default defineComponent({
       }
       return undefined;
     },
-    groupLabel(group: BoardFactGroup): string {
+    groupLabel(group: DossierRecipientGroup): string {
       const r = group.recipient;
       switch (r.kind) {
       case 'current-player': return 'You';

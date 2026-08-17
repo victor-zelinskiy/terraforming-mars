@@ -252,8 +252,12 @@ html.con-profile-tv {
            step NARROWER than the old 27rem wall — the planet cannot move,
            so the optical gap between its disc and the panel's hairline edge
            is bought here. The dossier's rem-native rows are sized for this
-           measure (long RU labels wrap, never ellipsize). */
-        max-width: 21.5rem;
+           measure (long RU labels wrap, never ellipsize).
+           ITERATION 2: +7% (21.5 → 23rem). The couch read wanted a touch
+           more confidence AND the compacted rows need the label column, but
+           the disc still must not be touched — measured against the planet's
+           right limb, not eyeballed. */
+        max-width: 23rem;
 
         &__name { font-size: 1.3rem; }
         &__desc { font-size: 0.95rem; }
@@ -274,22 +278,44 @@ html.con-profile-tv {
        hierarchy is then carried by tracking, colour and weight rather than
        by shrinking. Values keep display weight; reading rows ride the
        --con-t-read tokens re-tuned above. */
+    /* THE COUCH TYPE SYSTEM of the dossier — FOUR tokens, nothing else. Every
+       tracked-caps label is one size (`chrome`), every row label one size
+       (`label`), every value one size (`value`), every secondary line one
+       (`sub`). The service floor is 0.8rem (§3.4, guarded), and the ladder
+       above it stays narrow on purpose: the old panel had five near-identical
+       sizes, which is what made it read as a web page rather than a HUD. */
     .con-context {
-        &__task-kicker { font-size: .82rem; letter-spacing: .16rem; }
-        &__mode-chip { font-size: .8rem; }
-        &__qualifier { font-size: .8rem; }
-        &__sec-head { font-size: .82rem; letter-spacing: .15rem; }
-        &__sec-total { font-size: 1.05rem; }
-        &__grp-head { font-size: .82rem; }
-        &__cellbar { font-size: .88rem; min-height: 1.95rem; }
+        --ctx-t-chrome: .82rem;
+        --ctx-track-chrome: .16rem;
+        --ctx-t-label: 1.02rem;
+        --ctx-t-value: 1.2rem;
+        --ctx-t-sub: .84rem;
+        /* The value column is as wide as the widest reading it must hold
+           («47 → 49» + the production frame) and not a millimetre more — the
+           rest belongs to the label, which is what keeps «Снизить
+           производство» on one line. */
+        --ctx-val-w: 7.6rem;
+        /* THE VERTICAL RHYTHM IS CALIBRATED, not chosen: the e2e probe
+           reports the panel's overflow in px, and these three numbers were
+           tightened until the BUSIEST standard placement (a city on a
+           hazard-taxed cell: toll + result + standing + endgame) fits between
+           the two bars with margin. Scrolling a placement panel is the defect
+           this iteration removes — it cut the endgame block off screen. */
+        --ctx-row-py: .18rem;
+
+        &__sec-total { font-size: 1.15rem; }
+        &__cellbar { min-height: 1.9rem; }
+        &__sec-head { height: 1.2rem; }
+        &__body { gap: .58rem; }
+        &__id { gap: .34rem; }
     }
     .con-dossier-row {
-        &__desc { font-size: calc(.92rem * var(--con-read-scale, 1)); }
-        &__src { font-size: .8rem; }
-        &__when { font-size: .8rem; }
-        &__cur { font-size: .95rem; }
-        &__res, &__amt, &__vp { font-size: 1.15rem; }
         &__ico { width: 1.5rem; height: 1.5rem; }
+        &__prod {
+            width: 1.7rem;
+            height: 1.7rem;
+            .con-dossier-row__ico { width: 1.24rem; height: 1.24rem; }
+        }
     }
     /* ── P30 · the right STRATEGY RAIL from the couch: the medal is the
        carrier, so it takes the bump; numbers ride the zone tokens and hold

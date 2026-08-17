@@ -3924,10 +3924,10 @@ each(@players, {
     right: 0;
     bottom: 0;
     z-index: 50;
-    width: 21.5%;
+    width: 23%;
     min-width: calc(15.5rem + var(--con-pad-x, .6rem));
-    max-width: calc(19rem + var(--con-pad-x, .6rem));
-    padding: .85rem calc(.85rem + var(--con-pad-x, .6rem)) .85rem .95rem;
+    max-width: calc(20.5rem + var(--con-pad-x, .6rem));
+    padding: .7rem calc(.85rem + var(--con-pad-x, .6rem)) .7rem .95rem;
     border-radius: .7rem 0 0 .7rem;
     /* Layer order: corner ticks → fading left hairline → edge shade →
        interior sheen → glass. Pure gradients (perf-lite safe). */
@@ -7450,12 +7450,31 @@ html.console-mode {
     display: flex;
     flex-direction: column;
     gap: .6rem;
+    /* Fill the panel, so the body below can pin its tail to the bottom edge
+       (see `&__zone--standing`). */
+    min-height: 100%;
 
     /* Tile-art swatch zoom factors (the art is the board's own px sprite —
        46×51 hex — integrated via the documented zoom×ui-scale pattern).
        Profiles override the FACTORS, never the markup. */
     --ctx-tile-zoom: 1.06;
     --ctx-ftile-zoom: .58;
+    /* ONE TYPE SYSTEM for the whole dossier — every size below is one of
+       these four, never a per-block constant. `label` is the reading voice
+       of a row, `value` the display voice beside it, `chrome` every tracked
+       caps label (section heads, kicker, group heads — a SINGLE size and a
+       SINGLE tracking, which is what makes them read as one family), and
+       `sub` the one secondary line. Profiles re-tune the TOKENS. */
+    --ctx-t-chrome: .66rem;
+    --ctx-track-chrome: .15rem;
+    --ctx-t-label: .82rem;
+    --ctx-t-value: 1.05rem;
+    --ctx-t-sub: .7rem;
+    /* The value COLUMN's reserved width: the numbers align down the panel
+       and never shift horizontally as the cursor walks the board. */
+    --ctx-val-w: 7.4rem;
+    /* The one vertical rhythm unit (row padding + section gap derive). */
+    --ctx-row-py: .2rem;
 
     /* ── 1 · IDENTITY — what lands ──────────────────────────────────── */
     &__id {
@@ -7476,8 +7495,8 @@ html.console-mode {
         min-height: 1rem;
     }
     &__task-kicker {
-        font-size: .66rem;
-        letter-spacing: .15rem;
+        font-size: var(--ctx-t-chrome);
+        letter-spacing: var(--ctx-track-chrome);
         text-transform: uppercase;
         color: fade(@con-amber, 78%);
         white-space: nowrap;
@@ -7493,7 +7512,7 @@ html.console-mode {
         background: fade(@con-cyan, 10%);
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%);
         color: #dff3ff;
-        font-size: .58rem;
+        font-size: var(--ctx-t-chrome);
         letter-spacing: .06rem;
         text-transform: uppercase;
         white-space: nowrap;
@@ -7502,7 +7521,9 @@ html.console-mode {
         display: flex;
         align-items: center;
         gap: .6rem;
-        min-height: 2.75rem;
+        /* A FIXED head box: the identity is the panel's anchor, so its height
+           must not depend on which tier the name landed in. */
+        height: 2.6rem;
     }
     /* The REAL board tile art as the identity swatch — the same sprite the
        hex will draw, so «what lands» is physical, not typographic. */
@@ -7556,8 +7577,8 @@ html.console-mode {
     }
     &__qualifier {
         margin-top: -.3rem;
-        font-size: .6rem;
-        letter-spacing: .12rem;
+        font-size: var(--ctx-t-chrome);
+        letter-spacing: var(--ctx-track-chrome);
         text-transform: uppercase;
         color: fade(@con-text-dim, 85%);
     }
@@ -7622,14 +7643,16 @@ html.console-mode {
         border-radius: .45rem;
         background: rgba(15, 25, 37, 0.6);
         box-shadow: inset 0 0 0 .05rem rgba(125, 165, 205, 0.15);
-        font-size: .8rem;
+        font-size: var(--ctx-t-chrome);
         letter-spacing: .06rem;
         text-transform: uppercase;
         color: @con-text-dim;
+        /* PAINT ONLY (colour / rim) — never geometry. 90 ms so the flip
+           registers as an update without becoming motion in its own right. */
         transition:
-            background-color calc(180ms * var(--motion-scale, 1)) ease,
-            box-shadow calc(180ms * var(--motion-scale, 1)) ease,
-            color calc(180ms * var(--motion-scale, 1)) ease;
+            background-color calc(90ms * var(--motion-scale, 1)) linear,
+            box-shadow calc(90ms * var(--motion-scale, 1)) linear,
+            color calc(90ms * var(--motion-scale, 1)) linear;
 
         &--ok .con-context__cell-mark { color: @con-mint; }
         &--no {
@@ -7642,7 +7665,7 @@ html.console-mode {
     }
     &__cell-mark {
         font-size: .68rem;
-        transition: color calc(180ms * var(--motion-scale, 1)) ease;
+        transition: color calc(90ms * var(--motion-scale, 1)) linear;
     }
     &__cell-name {
         min-width: 0;
@@ -7650,12 +7673,14 @@ html.console-mode {
         text-overflow: ellipsis;
         white-space: nowrap;
     }
-    /* The refusal expands under the bar on a grid-rows well (0fr→1fr) —
-       legal ↔ illegal never jumps the identity block above it. */
+    /* The refusal opens under the bar on a grid-rows well (0fr→1fr).
+       ⚠️ NOT ANIMATED — per-cell navigation may not move the panel's
+       geometry at all (that is what turns the HUD into the moving object on
+       screen); the well is here for the STABLE anchor it gives the sections
+       below, not for the reveal. */
     &__reason-well {
         display: grid;
         grid-template-rows: 0fr;
-        transition: grid-template-rows calc(220ms * var(--motion-scale, 1)) ease;
 
         &--open { grid-template-rows: 1fr; }
     }
@@ -7676,7 +7701,39 @@ html.console-mode {
         position: relative;
         display: flex;
         flex-direction: column;
-        gap: .85rem;
+        gap: .7rem;
+        /* Takes the panel's remaining height — the room the tail is pinned
+           inside. `min-height: 0` keeps a dense cell from stretching the
+           column past the panel (the scroll fallback owns that case). */
+        flex: 1 1 auto;
+        min-height: 0;
+    }
+    /* THE TWO STABLE ZONES (`dossierZones`), anchored to OPPOSITE EDGES —
+       which is what finally holds the frame still. What this cell costs and
+       gives grows DOWN from the top; the standing read (progress · endgame ·
+       rules) is pinned to the BOTTOM, so it keeps its y whatever the upper
+       zone does. Measured on a fast walk: the standing zone used to travel
+       277 px the moment a neighbouring cell added «ПОЛУЧАТ ДРУГИЕ ИГРОКИ»,
+       and a reserved height could only have bought that back as a permanent
+       hole. What varies between cells is now the EMPTY SPACE between the two
+       zones — the one thing the eye does not track. */
+    &__zone {
+        display: flex;
+        flex-direction: column;
+        gap: .7rem;
+
+        /* `auto` collapses by itself once the content genuinely fills the
+           panel, so a dense cell degrades to ordinary flow (and then to the
+           scroll fallback) instead of colliding. */
+        &--standing { margin-top: auto; }
+    }
+    /* An always-present section with nothing to report says so, quietly. */
+    &__sec-none {
+        .con-read-text();
+        padding: var(--ctx-row-py) 0;
+        font-size: calc(var(--ctx-t-sub) * var(--con-read-scale, 1));
+        line-height: 1.25;
+        color: rgba(190, 214, 232, 0.5);
     }
     &__sec {
         display: flex;
@@ -7698,10 +7755,14 @@ html.console-mode {
         display: flex;
         align-items: center;
         gap: .5rem;
-        margin: 0 0 .18rem;
-        font-size: .64rem;
+        /* A FIXED head line — one size, one tracking, one height for every
+           section (that is what makes six different blocks read as one
+           system, and it is also what keeps the anchors from drifting). */
+        height: 1.15rem;
+        margin: 0 0 .1rem;
+        font-size: var(--ctx-t-chrome);
         font-weight: 400;
-        letter-spacing: .14rem;
+        letter-spacing: var(--ctx-track-chrome);
         text-transform: uppercase;
         color: var(--dsec-accent);
 
@@ -7739,7 +7800,7 @@ html.console-mode {
         align-items: center;
         gap: .4rem;
         margin-bottom: .08rem;
-        font-size: .68rem;
+        font-size: var(--ctx-t-chrome);
         letter-spacing: .07rem;
         text-transform: uppercase;
         color: fade(@con-amber, 80%);
@@ -7772,62 +7833,97 @@ html.console-mode {
     }
 }
 
-/* Section enter/leave/reflow as the cursor walks the board — additions rise
-   in, the remaining sections glide (FLIP move); a leaver detaches so the
-   glide is what the eye follows. No v-if blink anywhere in the body. */
-.con-dsec-enter-active {
-    transition:
-        opacity calc(200ms * var(--motion-scale, 1)) ease,
-        transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-.con-dsec-leave-active {
-    position: absolute;
-    width: 100%;
-    transition: opacity calc(140ms * var(--motion-scale, 1)) ease;
-}
-.con-dsec-enter-from {
-    opacity: 0;
-    transform: translateY(.4rem);
-}
-.con-dsec-leave-to {
-    opacity: 0;
-}
-.con-dsec-move {
-    transition: transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+/* (No section enter/leave/move transitions exist any more — see the body's
+   own note. A HUD that re-composes itself on every d-pad step is the moving
+   object on screen, and the board stops being where the eye is. The ONLY
+   motion left in the dossier is the 90 ms value flick below, which never
+   touches geometry.) */
+
+/* THE VALUE UPDATE — the one animation of a per-cell change. It is applied by
+   the value node's own `:key` (the rendered text): a value that CHANGED
+   re-mounts and plays this once, an unchanged one keeps its node and stays
+   perfectly still. No transition component, so nothing can queue up while the
+   player holds a direction. Opacity + colour only — zero layout. */
+@keyframes con-dossier-val-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 /* ── ONE dossier row: statement left (reading voice), change right
-   (display voice, tabular). Severity is colour, never a capsule; the only
+   (display voice, tabular, on a RESERVED column so nothing shifts
+   horizontally between cells). Severity is colour, never a capsule; the only
    boxed object is the game's own brown PRODUCTION frame. ─────────────── */
 .con-dossier-row {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: .6rem;
-    padding: .22rem 0;
+    display: grid;
+    /* The value column is a FIXED track, not a shrink-to-fit flex item: the
+       numbers line up down the whole panel and hold their x-position as the
+       cursor walks the board. */
+    grid-template-columns: minmax(0, 1fr) var(--ctx-val-w);
+    align-items: start;
+    gap: .5rem;
+    padding: var(--ctx-row-py) 0;
 
     & + & {
         border-top: .05rem solid rgba(140, 175, 210, 0.09);
     }
 
     &__main {
-        flex: 1 1 auto;
         min-width: 0;
     }
     &__title {
         .con-read-text(500);
-        font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
-        line-height: 1.3;
+        font-size: calc(var(--ctx-t-label) * var(--con-read-scale, 1));
+        line-height: 1.25;
         color: #e9f3fc;
+        /* The compact vocabulary keeps a label to one line; a long unknown
+           server title takes two and is cut there — a fact never grows into
+           the four-line paragraph that pushed the endgame off screen. */
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+    }
+    /* «×2» — the count of the statements this line stands for. */
+    &__count {
+        margin-left: .3rem;
+        font-family: @con-font;
+        font-size: var(--ctx-t-sub);
+        color: rgba(190, 214, 232, 0.66);
     }
     &--danger &__title { color: #ff9f96; }
     &--warning &__title { color: #ffce92; }
-    &__desc {
+    /* THE BREAKDOWN of an aggregated value — one line, terms separated by
+       middle dots: «Стандартный проект +1 · Город иммигрантов +1». */
+    &__why {
         .con-read-text();
-        margin-top: .06rem;
-        font-size: calc(.78rem * var(--con-read-scale, 1));
-        line-height: 1.32;
-        color: rgba(190, 214, 232, 0.62);
+        margin-top: .04rem;
+        font-size: calc(var(--ctx-t-sub) * var(--con-read-scale, 1));
+        line-height: 1.25;
+        color: rgba(196, 219, 238, 0.72);
+
+        b {
+            margin-left: .18rem;
+            font-family: @con-font;
+            font-weight: 400;
+            color: rgba(226, 240, 252, 0.9);
+        }
+    }
+    &__why-term + &__why-term::before {
+        content: '·';
+        margin: 0 .3rem;
+        opacity: .55;
+    }
+    &__note {
+        .con-read-text();
+        margin-top: .04rem;
+        font-size: calc(var(--ctx-t-sub) * var(--con-read-scale, 1));
+        line-height: 1.25;
+        /* Secondary, never low-contrast: this is where the couch loses text. */
+        color: rgba(196, 219, 238, 0.72);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
     }
     &__src {
         display: inline-block;
@@ -7843,19 +7939,23 @@ html.console-mode {
     }
 
     &__val {
-        flex: 0 0 auto;
         display: flex;
         flex-direction: column;
         align-items: flex-end;
         gap: .18rem;
-        padding-top: .04rem;
+        padding-top: .02rem;
         font-family: @con-font;
+        /* The reserved column may not be pushed by a wide value. */
+        min-width: 0;
     }
     &__delta {
         display: inline-flex;
         align-items: center;
         gap: .32rem;
         --drow-accent: @con-text;
+        /* THE UPDATE FLICK — see the keyframes note. Runs only on a value
+           whose text changed (the node is keyed on it), never on the row. */
+        animation: con-dossier-val-in calc(100ms * var(--motion-scale, 1)) linear;
 
         &--gain { --drow-accent: @con-mint; }
         &--cost { --drow-accent: @con-amber; }
@@ -7895,31 +7995,32 @@ html.console-mode {
         white-space: nowrap;
     }
     &__cur {
-        font-size: .85rem;
+        font-size: calc(var(--ctx-t-value) * .8);
         color: rgba(220, 236, 247, 0.55);
     }
     &__arrow {
-        font-size: .78rem;
+        font-size: calc(var(--ctx-t-value) * .74);
         color: var(--drow-accent, @con-text-dim);
         opacity: .8;
     }
     &__res,
     &__amt {
-        font-size: 1.05rem;
+        font-size: var(--ctx-t-value);
         color: var(--drow-accent, @con-text);
     }
     &__vp {
         display: inline-flex;
         align-items: baseline;
         gap: .22rem;
-        font-size: 1.05rem;
+        font-size: var(--ctx-t-value);
         font-variant-numeric: tabular-nums;
         color: @sem-prestige;
         white-space: nowrap;
+        animation: con-dossier-val-in calc(100ms * var(--motion-scale, 1)) linear;
 
         i {
             font-style: normal;
-            font-size: .62rem;
+            font-size: var(--ctx-t-sub);
             letter-spacing: .06rem;
             opacity: .85;
         }
@@ -7931,6 +8032,7 @@ html.console-mode {
         align-items: flex-end;
         gap: .2rem;
         --drow-accent: #cfc8ff;
+        animation: con-dossier-val-in calc(100ms * var(--motion-scale, 1)) linear;
     }
     &__prog-nums {
         display: inline-flex;
@@ -7967,11 +8069,14 @@ html.console-mode {
         }
     }
     &__when {
-        font-size: .58rem;
+        font-size: var(--ctx-t-sub);
         letter-spacing: .08rem;
         text-transform: uppercase;
         color: rgba(190, 224, 245, 0.6);
         white-space: nowrap;
+    }
+    &__src {
+        font-size: var(--ctx-t-sub);
     }
 }
 
@@ -26507,9 +26612,16 @@ html.con-profile-handheld {
         gap: .45rem;
         --ctx-tile-zoom: .8;
         --ctx-ftile-zoom: .46;
+        /* The handheld end of the SAME four-token system (see console_tv). */
+        --ctx-t-chrome: .55rem;
+        --ctx-track-chrome: .1rem;
+        --ctx-t-label: .72rem;
+        --ctx-t-value: .85rem;
+        --ctx-t-sub: .62rem;
+        --ctx-val-w: 5.4rem;
+        --ctx-row-py: .16rem;
 
-        &__task-kicker { font-size: .55rem; letter-spacing: .1rem; }
-        &__head { min-height: 2.1rem; gap: .45rem; }
+        &__head { height: 2.1rem; gap: .45rem; }
         &__tile { width: 1.85rem; height: 2.05rem; }
         &__title {
             font-size: 1.1rem;
@@ -26520,24 +26632,21 @@ html.con-profile-handheld {
         &__f-ico { width: 1.05rem; height: 1.05rem; }
         &__f-tile { width: 1.1rem; height: 1.2rem; }
         &__action-line { font-size: .72rem; }
-        &__cellbar { min-height: 1.45rem; padding: .18rem .45rem; font-size: .66rem; }
+        &__cellbar { min-height: 1.45rem; padding: .18rem .45rem; }
         &__reason { font-size: .7rem; }
-        &__body { gap: .6rem; }
-        &__sec-head { font-size: .55rem; letter-spacing: .1rem; }
+        &__body { gap: .5rem; }
+        &__sec-head { height: 1rem; }
+        &__sec-total { font-size: .85rem; }
     }
     .con-dossier-row {
-        gap: .45rem;
+        gap: .4rem;
 
-        &__title { font-size: .72rem; }
-        &__desc { font-size: .62rem; }
         &__ico { width: 1.05rem; height: 1.05rem; }
         &__prod {
             width: 1.2rem;
             height: 1.2rem;
             .con-dossier-row__ico { width: .85rem; height: .85rem; }
         }
-        &__cur { font-size: .68rem; }
-        &__res, &__amt, &__vp { font-size: .85rem; }
     }
     .con-info__stat-line { font-size: .7rem; }
 

@@ -1,5 +1,7 @@
 import {expect} from 'chai';
 import {
+  buildDossierRows,
+  compactTitleKey,
   dossierEmptyKey,
   dossierSections,
   endgameVpTotal,
@@ -19,6 +21,11 @@ import ruUiCards from '@/locales/ru/UI_cards.json';
 import ruColonies from '@/locales/ru/colonies.json';
 import ruBoardInfo from '@/locales/ru/board_info.json';
 import ruCards from '@/locales/ru/cards.json';
+// The runtime unions EVERY file in the language directory, so the compact
+// vocabulary may legitimately reuse a key that lives in another one («TR» →
+// «РТ» is `game_end.json`'s). The spec has to union the same way or it
+// reports a missing translation that ships perfectly well.
+import ruGameEnd from '@/locales/ru/game_end.json';
 
 /**
  * The console placement panel's IDENTITY: the big title names the OBJECT that
@@ -38,6 +45,7 @@ describe('placementDossier', () => {
     ...(ruUiCards as Record<string, string>),
     ...(ruColonies as Record<string, string>),
     ...(ruBoardInfo as Record<string, string>),
+    ...(ruGameEnd as Record<string, string>),
     ...(ruConsole as Record<string, string>),
   };
   const ru = (key: string, params?: ReadonlyArray<string>) => interpolate(RU[key] ?? key, params);
@@ -174,7 +182,7 @@ describe('placementDossier', () => {
       });
       const sections = dossierSections(p);
       expect(sections.map((s) => s.key)).to.deep.equal(['effect', 'gain']);
-      expect(sections[0].facts.map((f) => f.id)).to.deep.equal(['c', 'w']);
+      expect(sections[0].rows.map((r) => r.key)).to.deep.equal(['c', 'w']);
       expect(RU['Cell effect'], 'missing RU translation for "Cell effect"').to.be.a('string');
     });
 
@@ -207,6 +215,106 @@ describe('placementDossier', () => {
       expect(dossierEmptyKey(preview({}))).to.equal('Nothing happens beyond placing the tile.');
       expect(dossierEmptyKey(preview({placesTile: false}))).to.equal('Nothing happens beyond placing the marker.');
       expect(dossierEmptyKey(preview({immediateFacts: [fact({})]}))).to.be.undefined;
+    });
+  });
+
+  /**
+   * THE COMPACTION — the panel states consequences, not rules. Two failures
+   * this replaces, both from a real 4K game: «Производство M€ за стандартный
+   * проект „Город"» and «Город размещён где угодно» printed FOUR lines and
+   * TWO `47 → 48` vectors for one parameter — and both readings were wrong,
+   * because the commit lands on 49.
+   */
+  describe('rows: compaction and aggregation', () => {
+    const prodFact = (id: string, source: string, amount = 1): BoardFact => ({
+      id, category: 'card-trigger', timing: 'immediate', severity: 'positive',
+      recipient: {kind: 'current-player'}, title: `${id} long server sentence`,
+      source: {type: 'card', label: source},
+      delta: {icon: 'megacredits', amount, direction: 'gain', current: 47, resulting: 47 + amount, production: true},
+    });
+
+    it('one parameter is ONE change-vector plus the reasons behind it', () => {
+      const rows = buildDossierRows([prodFact('a', 'Standard project'), prodFact('b', 'Immigrant City')]);
+      expect(rows).to.have.lengthOf(1);
+      const row = rows[0];
+      expect(row.label, 'the pool names itself; the icon says which').to.equal('M€');
+      expect(row.delta).to.include({current: 47, resulting: 49, amount: 2, direction: 'gain', production: true});
+      expect(row.reasons.map((r) => `${String(r.label)} ${r.amount}`))
+        .to.deep.equal(['Standard project +1', 'Immigrant City +1']);
+    });
+
+    it('never sums what does not share a starting value', () => {
+      const other = {...prodFact('c', 'Other'), delta: {icon: 'megacredits' as const, amount: 1, direction: 'gain' as const, current: 12, resulting: 13, production: true}};
+      const rows = buildDossierRows([prodFact('a', 'Standard project'), other]);
+      expect(rows, 'two different starting values are two statements').to.have.lengthOf(2);
+      // …and a pool-less gain (no `current`) never merges either.
+      const poolless = (id: string): BoardFact => ({
+        id, category: 'placement-effect', timing: 'immediate', severity: 'positive',
+        recipient: {kind: 'current-player'}, title: 'Add to a card',
+        delta: {icon: 'microbe', amount: 1, direction: 'gain'},
+      });
+      expect(buildDossierRows([poolless('m1'), poolless('m2')])).to.have.lengthOf(2);
+    });
+
+    it('repeated endgame statements collapse into one counted row', () => {
+      const city = (id: string): BoardFact => ({
+        id, category: 'city-greenery-scoring', timing: 'endgame', severity: 'premium',
+        recipient: {kind: 'current-player'}, title: 'Adjacent city scores at game end',
+        vp: {from: 0, to: 1},
+      });
+      const rows = buildDossierRows([
+        {id: 'self', category: 'city-greenery-scoring', timing: 'endgame', severity: 'premium',
+          recipient: {kind: 'current-player'}, title: 'Greenery scores at game end', vp: {from: 0, to: 1}},
+        city('c1'), city('c2'),
+      ], ['endgame']);
+      expect(rows.map((r) => [r.label, r.count, r.vp]))
+        .to.deep.equal([['The tile itself', 1, 1], ['Adjacent cities', 2, 2]]);
+      for (const key of ['The tile itself', 'Adjacent cities']) {
+        expect(RU[key], `missing RU translation for "${key}"`).to.be.a('string');
+      }
+    });
+
+    it('names a fact by its compact label, else by its POOL, else by the server text', () => {
+      const tr: BoardFact = {
+        id: 'tr', category: 'placement-effect', timing: 'immediate', severity: 'positive',
+        recipient: {kind: 'current-player'}, title: 'Terraform rating',
+        delta: {icon: 'tr', amount: 1, direction: 'gain', current: 25, resulting: 26},
+      };
+      expect(compactTitleKey(tr), 'a title the table knows').to.equal('TR');
+      expect(ru('TR')).to.equal('РТ');
+
+      // An unknown sentence about a KNOWN POOL is named by the pool — this is
+      // «Производство M€ за стандартный проект „Город"», which the panel used
+      // to print over four lines and then cut off mid-word.
+      const projectProduction: BoardFact = {
+        id: 'p', category: 'card-trigger', timing: 'immediate', severity: 'positive',
+        recipient: {kind: 'current-player'}, title: 'M€ production from the city project',
+        delta: {icon: 'megacredits', amount: 1, direction: 'gain', current: 47, resulting: 48, production: true},
+      };
+      expect(compactTitleKey(projectProduction)).to.equal('M€');
+
+      // …but a POOL-LESS effect keeps its own words: there the title is the
+      // only thing that says what happens.
+      const bespoke: BoardFact = {
+        id: 'x', category: 'card-trigger', timing: 'immediate', severity: 'positive',
+        recipient: {kind: 'current-player'}, title: 'Some card-specific sentence the table has never met',
+        delta: {icon: 'animal', amount: 1, direction: 'gain'},
+      };
+      expect(compactTitleKey(bespoke)).to.equal('Some card-specific sentence the table has never met');
+    });
+
+    it('a single fact keeps its own note, its source chip and its timing tag', () => {
+      const hazard: BoardFact = {
+        id: 'cost-production', category: 'placement-penalty', timing: 'cost', severity: 'danger',
+        recipient: {kind: 'current-player'}, title: 'Reduce production',
+        description: 'Your choice · hazards nearby: ${0}', params: ['2'],
+        delta: {icon: 'megacredits', amount: 2, direction: 'cost'},
+      };
+      const [row] = buildDossierRows([hazard], ['cost']);
+      expect(row.note?.text).to.equal('Your choice · hazards nearby: ${0}');
+      expect(row.note?.params).to.deep.equal(['2']);
+      expect(row.reasons, 'a lone fact has nothing to break down').to.be.empty;
+      expect(row.timingKey, 'the section head already states «cost»').to.be.undefined;
     });
   });
 

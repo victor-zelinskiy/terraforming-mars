@@ -147,6 +147,27 @@ async function placementLive(page: Page): Promise<boolean> {
   return text.includes('РАЗМЕЩЕНИЕ');
 }
 
+/**
+ * THE PANEL MUST FIT. A standard placement that overflows is the defect this
+ * iteration exists to remove: the scroll cut the endgame block off, and the
+ * `R3 ПРОКРУТКА` badge then sat ON the text it was hiding.
+ */
+async function panelFit(page: Page): Promise<{overflow: number, scrollHint: number}> {
+  return page.evaluate(() => {
+    const el = document.querySelector('.con-inspector') as HTMLElement | null;
+    return {
+      overflow: el === null ? -1 : el.scrollHeight - el.clientHeight,
+      scrollHint: document.querySelectorAll('.con-inspector__more').length,
+    };
+  });
+}
+
+async function expectFits(page: Page, what: string): Promise<void> {
+  const fit = await panelFit(page);
+  expect(fit.overflow, `${what}: the panel overflows by ${fit.overflow}px`).toBeLessThanOrEqual(2);
+  expect(fit.scrollHint, `${what}: the scroll affordance is showing`).toBe(0);
+}
+
 test.describe.configure({mode: 'serial'});
 
 test.describe('console placement dossier · 4K TV', () => {
@@ -175,6 +196,7 @@ test.describe('console placement dossier · 4K TV', () => {
     await page.waitForTimeout(700); // the per-cell preview is fetched
     await pump(page);
     await shoot(page, '01-greenery-plain-cell');
+    await expectFits(page, 'a plain greenery cell');
 
     // ── 2 · A TAXED cell: the Ares hazard-adjacency production penalty. The
     //        match is the PENALTY, never any «производство» line (a greenery
@@ -185,6 +207,7 @@ test.describe('console placement dossier · 4K TV', () => {
     await page.waitForTimeout(700);
     await pump(page);
     await shoot(page, '02-greenery-hazard-penalty');
+    await expectFits(page, 'a hazard-taxed greenery cell');
 
     // ── 3 · An ILLEGAL cell: R3 opens the whole board («ВСЕ КЛЕТКИ»), so the
     //        cursor can reach a cell the placement refuses.
@@ -194,6 +217,64 @@ test.describe('console placement dossier · 4K TV', () => {
     await page.waitForTimeout(700);
     await pump(page);
     await shoot(page, '03-greenery-illegal-cell');
+    await expectFits(page, 'an illegal cell');
+  });
+
+  /**
+   * THE CITY — the shape the report was filed against. A city placement
+   * carries the project's own production, the cell's toll, the standing and
+   * the endgame forecast at once, which is precisely the density that used to
+   * overflow the panel and push «В КОНЦЕ ИГРЫ» under the command bar.
+   *
+   * (That the ENGINE emits two separate facts about ONE parameter, and that
+   * the console collapses them into a single honest vector, is pinned where
+   * it is deterministic — `tests/boards/placementAggregation.spec.ts` — not
+   * by driving a keyboard for four minutes.)
+   */
+  test('a city from the standard project fits, on a plain and on a taxed cell', async ({page, request}) => {
+    test.setTimeout(420_000);
+    page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+
+    const playerId = await createGameWithCards(request, [], {config: aresConfig({seed: 0.42})});
+    await bootSeededGame(page, request, playerId, {query: '&consoleProfile=tv'});
+    await page.waitForTimeout(1200);
+
+    // LT wheel → «СТАНДАРТНЫЕ ПРОЕКТЫ» (the centre slot) → the projects sheet.
+    await key(page, 'Comma', 1500);
+    await key(page, 'Enter', 1900);
+    const focusedProject = () =>
+      page.locator('.con-stdp__card--focused .con-stdp__name').innerText().catch(() => '');
+    const walk = ['ArrowDown', 'ArrowDown', 'ArrowRight', 'ArrowDown', 'ArrowLeft',
+      'ArrowUp', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'ArrowDown'];
+    for (let i = 0; i <= walk.length && !/город/i.test(await focusedProject()); i++) {
+      await key(page, walk[i % walk.length], 430);
+    }
+    expect(await focusedProject(), 'never focused «Город»').toMatch(/город/i);
+    await key(page, 'Enter', 2000);
+    if (/ОПЛАТА/.test(await page.locator('.con-root').innerText())) {
+      await key(page, 'KeyX', 2800);
+    }
+    for (let i = 0; i < 10 && !(await placementLive(page)); i++) {
+      await pump(page);
+      await page.waitForTimeout(700);
+    }
+    expect(await placementLive(page), 'the city project never reached the board').toBeTruthy();
+
+    const plain = await walkUntil(page, (text, cell) =>
+      cell.legal && !text.includes('Снизить производство'));
+    expect(plain, 'no plain legal cell surfaced').not.toBe('');
+    await page.waitForTimeout(800);
+    await pump(page);
+    await shoot(page, '05-city-plain-cell');
+    await expectFits(page, 'a plain city cell');
+
+    const taxed = await walkUntil(page, (text, cell) =>
+      cell.legal && text.includes('Снизить производство'));
+    expect(taxed, 'no hazard-adjacent cell surfaced a production penalty').not.toBe('');
+    await page.waitForTimeout(800);
+    await pump(page);
+    await shoot(page, '06-city-hazard-penalty');
+    await expectFits(page, 'a hazard-taxed city cell');
   });
 
   test('a named SPECIAL tile names itself', async ({page, request}) => {
