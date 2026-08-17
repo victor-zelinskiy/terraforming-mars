@@ -28,6 +28,7 @@ import {ViewModel, PlayerViewModel} from '@/common/models/PlayerModel';
 import {MarsBotImpact, MarsBotTurnVisual} from '@/common/automa/MarsBotTurn';
 import {LogMessage} from '@/common/logs/LogMessage';
 import {NotificationModel} from '@/client/components/notifications/notificationTypes';
+import {affectedPlayersOfBotTurn} from '@/client/components/notifications/notificationFeedPolicy';
 import {notificationState, pushTransient, dismiss, notificationKnownId} from '@/client/components/notifications/notificationState';
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {botTurnReviewState, flashBotReviewEdge, openBotTurnReview} from './botTurnReviewState';
@@ -255,6 +256,11 @@ export function buildBotTurnNotification(entry: ArchivedBotTurn, opts: {viewerCo
     priority: BOT_TURN_PRIORITY,
     typeLabelKey: 'MarsBot finished its turn',
     actor: entry.botColor === '' ? undefined : entry.botColor,
+    // Structured feed-filter metadata from the turn's own typed script: the
+    // players its attacks / snapshot-diffed impacts touch. A turn that only
+    // advanced the bot itself carries an empty list — «бот походил» is exactly
+    // the noise the personal feed mode exists to hide.
+    affects: affectedPlayersOfBotTurn(entry.turn),
     ...(header !== undefined ? {header} : {}),
     ...(summary.lines.length > 0 ? {summaryLines: summary.lines} : {}),
     ...(summary.overflow > 0 ? {summaryOverflow: summary.overflow} : {}),
@@ -337,6 +343,15 @@ export function presentFreshBotTurns(prev: ViewModel | undefined, next: ViewMode
     noteBotTurnStage(entry.key, 'response', sequence ? 'sequenced' : 'single');
     pushTransient(buildBotTurnNotification(entry, {viewerColor, createdAt: now, autoExpand, paramChips}));
   }
+  // A turn whose card could NOT enter the presentation (master switch off /
+  // filtered by the feed mode) has no toast whose finish would ever ack it —
+  // ack NOW, so the server needn't extend the next paced bot turn waiting on
+  // a card that will never show. Admitted cards keep their three finish paths.
+  for (const entry of fresh) {
+    if (!notificationKnownId(botTurnNotificationId(entry.key))) {
+      ackBotTurn(entry.key);
+    }
+  }
   if (opts?.commitLatest === undefined) {
     return false;
   }
@@ -351,27 +366,43 @@ export function presentFreshBotTurns(prev: ViewModel | undefined, next: ViewMode
     return false;
   }
   beginBotStaging(prev, fresh.map((e) => ({key: e.key, turn: e.turn})), next, opts.commitLatest);
-  // Self-heal: if NONE of the cards could enter the presentation (master
-  // notification switch off / kind filtered), the sequence can never drain —
-  // fall back to the immediate authoritative commit.
-  if (!fresh.some((e) => notificationKnownId(botTurnNotificationId(e.key)))) {
-    commitBotStagingNow();
-  }
+  // Self-heal + immediate advance: turns whose cards could not enter the
+  // presentation (master switch off / kind filtered / filtered by the personal
+  // feed mode) owe the toast timeline nothing — the liveness pass walks the
+  // window from the FRONT, applying each unpresented leader's visuals in order
+  // (a fully-filtered batch walks to the end, which IS the authoritative
+  // commit). A pending turn whose card is still queued stops the walk, so a
+  // later turn can never commit ahead of an earlier card's presentation.
+  ensureBotPresentationLiveness();
   return true;
 }
 
 /**
- * Liveness self-heal (called from NotificationLayer's poll): a staging window
- * whose pending cards are ALL gone from the presentation (dismissed from the
- * queue without ever showing) would never drain — commit the buffered latest.
+ * Liveness self-heal (called from NotificationLayer's poll, the staging open,
+ * and the reactive card-set watcher below): advance the staged timeline past
+ * every LEADING pending turn that has no card in the presentation — filtered
+ * by the feed mode, dropped by the master switch, or dismissed from the queue
+ * without ever showing. Such a turn owes the toast timeline nothing, so its
+ * visual footprint applies the moment the timeline's FRONT reaches it; when
+ * the walk reaches the last pending turn that is the full authoritative
+ * commit (the old "no pending card known → commit the buffer" self-heal is
+ * the degenerate case of this walk).
+ *
+ * The walk STOPS at the first pending turn whose card IS still present
+ * (visible or queued): everything behind it keeps waiting, so a later turn's
+ * consequences can never appear ahead of an earlier card's presentation —
+ * strict FIFO whatever mix of shown and filtered cards a batch carries.
  */
 export function ensureBotPresentationLiveness(): void {
   if (!isBotStagingActive()) {
     return;
   }
-  const pending = botStagingPendingKeys();
-  if (!pending.some((key) => notificationKnownId(botTurnNotificationId(key)))) {
-    commitBotStagingNow();
+  let head = botStagingPendingKeys()[0];
+  while (head !== undefined && !notificationKnownId(botTurnNotificationId(head))) {
+    if (deliverBotTurnVisual(head) === 'none') {
+      break; // defensive: the window changed under us — never spin
+    }
+    head = botStagingPendingKeys()[0];
   }
 }
 

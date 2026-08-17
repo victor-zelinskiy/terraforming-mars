@@ -214,6 +214,49 @@ describe('notificationModel (pure)', () => {
       expect(out[0].groupCount).to.eq(4);
       expect(out[0].typeLabelKey).to.eq('Multiple events');
     });
+
+    it('a summary card carries the UNION of its members affects lists', () => {
+      // One member of the burst personally touched BLUE — the merged card must
+      // keep saying so, or the personal feed mode would drop the whole burst.
+      const withViewerGain = diffRootNotifications({
+        messages: [rootHeader(RED, 5)],
+        events: [
+          event({id: 50, type: 'resource-changed', player: RED, correlationId: 5, impact: {stock: {energy: 1}}}),
+          event({id: 51, type: 'cards-drawn', player: BLUE, correlationId: 5, impact: {cardsDrawn: 1}}),
+        ],
+        seen: new Set(), viewerColor: BLUE, generation: 1, createdAt: 1000,
+      }).models[0];
+      const out = coalesceBurst([normalModel(1), normalModel(2), normalModel(3), withViewerGain]);
+      expect(out).to.have.length(1);
+      expect(out[0].affects).to.deep.eq([RED, BLUE]);
+    });
+  });
+
+  describe('affects (structured feed-filter metadata)', () => {
+    it('a root model names every player the chain personally touches — never from text', () => {
+      const header = rootHeader(RED, 21);
+      const chain = [
+        event({id: 210, type: 'action', player: RED, correlationId: 21, impact: {}}),
+        event({id: 211, type: 'resource-changed', player: RED, correlationId: 21, impact: {stock: {energy: 1}}}),
+        event({id: 212, type: 'cards-drawn', player: BLUE, correlationId: 21, impact: {cardsDrawn: 2}}),
+      ];
+      const {models} = diffRootNotifications({
+        messages: [header], events: chain, seen: new Set(), viewerColor: BLUE, generation: 1, createdAt: 1,
+      });
+      expect(models[0].affects).to.deep.eq([RED, BLUE]);
+    });
+
+    it('a purely board-level action affects nobody (strategic ≠ direct)', () => {
+      const header = rootHeader(RED, 22);
+      const chain = [
+        event({id: 220, type: 'action', player: RED, correlationId: 22, impact: {}}),
+        event({id: 221, type: 'tile-placed', player: RED, correlationId: 22, impact: {tilesPlaced: 1}}),
+      ];
+      const {models} = diffRootNotifications({
+        messages: [header], events: chain, seen: new Set(), viewerColor: BLUE, generation: 1, createdAt: 1,
+      });
+      expect(models[0].affects).to.deep.eq([]);
+    });
   });
 
   describe('Vermin variants (via rootVariant)', () => {

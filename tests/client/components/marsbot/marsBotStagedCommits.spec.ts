@@ -17,7 +17,9 @@ import {
 } from '@/client/components/marsbot/marsBotStagedCommits';
 import {resetMarsBotArchive} from '@/client/components/marsbot/marsBotTurnArchive';
 import {closeBotTurnReview, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
-import {notificationState, resetNotifications, dismiss} from '@/client/components/notifications/notificationState';
+import {notificationState, resetNotifications, setNotificationViewer, dismiss} from '@/client/components/notifications/notificationState';
+import {setNotificationFeedMode} from '@/client/components/notifications/notificationFeedMode';
+import {setBotAckViewer, resetBotTurnAckForTesting} from '@/client/components/marsbot/botTurnAck';
 import {resetPresentationLeases} from '@/client/components/presentation/presentationFlow';
 import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
 import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
@@ -29,7 +31,7 @@ import {drawnCardsState} from '@/client/components/drawnCards/drawnCardsState';
  * the latest authoritative state.
  */
 
-function turnWithVisual(id: number, opts: {spaceId?: string, temperature?: [number, number], mc?: [number, number]} = {}): MarsBotTurn {
+function turnWithVisual(id: number, opts: {spaceId?: string, temperature?: [number, number], mc?: [number, number], attackBlue?: boolean} = {}): MarsBotTurn {
   return {
     id,
     generation: 1,
@@ -44,6 +46,12 @@ function turnWithVisual(id: number, opts: {spaceId?: string, temperature?: [numb
         impact: {target: 'red' as Color, targetIsBot: true, changes: [
           {resource: 'megacredits' as never, scope: 'stock' as const, before: opts.mc[0], after: opts.mc[1]},
         ]},
+      }] : []),
+      // A direct attack on the viewer — the structured involvement signal the
+      // personal feed mode reads (a zero-outcome attack still involves them).
+      ...(opts.attackBlue === true ? [{
+        kind: 'attack' as const,
+        attack: {target: 'blue' as Color, resource: 'plants' as never, demanded: 2, removed: 0, outcome: 'protected' as const},
       }] : []),
     ],
   };
@@ -274,5 +282,105 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
     ensureBotPresentationLiveness(); // NotificationLayer's poll self-heal
     expect(committed).eq(1);
     expect(isBotStagingActive()).eq(false);
+  });
+
+  describe('personal feed mode («Только связанные со мной»)', () => {
+    let originalFetch: typeof global.fetch;
+    let ackUrls: Array<string>;
+
+    beforeEach(() => {
+      setNotificationViewer('blue' as Color);
+      setNotificationFeedMode('personal');
+      originalFetch = global.fetch;
+      ackUrls = [];
+      global.fetch = ((url: string) => {
+        ackUrls.push(String(url));
+        return Promise.resolve({ok: true} as Response);
+      }) as typeof fetch;
+      setBotAckViewer('viewer-1');
+    });
+
+    afterEach(() => {
+      global.fetch = originalFetch;
+      resetBotTurnAckForTesting();
+      setNotificationFeedMode('all');
+      setNotificationViewer(undefined);
+    });
+
+    it('a fully-ambient batch cannot present → immediate commit, applied exactly once, every turn acked', () => {
+      const presented = makeView({waitingFor: {type: 'or'}});
+      const latest = makeView({
+        turns: [turnWithVisual(1, {spaceId: '03'}), turnWithVisual(2, {spaceId: '05'})],
+        tiles: {'03': TileType.CITY, '05': TileType.CITY},
+        waitingFor: {type: 'card'},
+      });
+      expect(presentFreshBotTurns(presented, latest, {commitLatest})).eq(true);
+      // Nothing to show and nothing to animate → the queue continues at once:
+      // the full authoritative commit lands synchronously, exactly once, and
+      // no toast exists to start a five-second auto-close wait.
+      expect(committed).eq(1);
+      expect(isBotStagingActive()).eq(false);
+      expect(notificationState.transient.length + notificationState.queue.length).eq(0);
+      // The turns are soft-acked (no card will ever finish to ack them).
+      expect(ackUrls.filter((u) => u.includes('key=red%3A1%3A1'))).to.have.length(1);
+      expect(ackUrls.filter((u) => u.includes('key=red%3A1%3A2'))).to.have.length(1);
+    });
+
+    it('a partial batch keeps strict FIFO: filtered leaders apply at the front, the tail waits for the shown card', async () => {
+      const presented = makeView();
+      const t1 = turnWithVisual(1, {spaceId: '03', temperature: [-30, -28]});
+      const t2 = turnWithVisual(2, {spaceId: '05', temperature: [-28, -26], attackBlue: true});
+      const t3 = turnWithVisual(3, {spaceId: '08', temperature: [-26, -24]});
+      const latest = makeView({
+        turns: [t1, t2, t3], temperature: -24,
+        tiles: {'03': TileType.CITY, '05': TileType.CITY, '08': TileType.CITY},
+      });
+      presentFreshBotTurns(presented, latest, {commitLatest});
+      // Turn 1 (ambient, no card) sits at the FRONT — its footprint applies
+      // immediately; turn 2 (the attack on the viewer) HAS a card, so the walk
+      // stops there: nothing later may appear yet.
+      expect(spaceOf(presented, '03').tileType).eq(TileType.CITY);
+      expect(presented.game.temperature).eq(-28);
+      expect(spaceOf(presented, '05').tileType).is.undefined;
+      expect(spaceOf(presented, '08').tileType).is.undefined;
+      expect(committed).eq(0);
+
+      await nextTick(); // the viewer-involving card is DELIVERED (visible)
+      expect(notificationState.transient.map((n) => n.id)).deep.eq(['bot:red:1:2']);
+      expect(spaceOf(presented, '05').tileType).eq(TileType.CITY);
+      expect(presented.game.temperature).eq(-26);
+      expect(spaceOf(presented, '08').tileType, 'turn 3 must wait behind the shown card').is.undefined;
+      expect(committed).eq(0);
+
+      dismiss('bot:red:1:2'); // the player closed the attack card
+      await nextTick();
+      // The filtered tail commits exactly once, in its own position.
+      expect(committed).eq(1);
+      expect(isBotStagingActive()).eq(false);
+    });
+
+    it('switching to personal mid-queue acks the dropped bot cards and drains the timeline in order', async () => {
+      setNotificationFeedMode('all');
+      const presented = makeView();
+      const t1 = turnWithVisual(1, {spaceId: '03'});
+      const t2 = turnWithVisual(2, {spaceId: '05'});
+      presentFreshBotTurns(presented, makeView({
+        turns: [t1, t2], tiles: {'03': TileType.CITY, '05': TileType.CITY},
+      }), {commitLatest});
+      await nextTick(); // card 1 visible + delivered; card 2 queued
+      expect(spaceOf(presented, '03').tileType).eq(TileType.CITY);
+      expect(committed).eq(0);
+
+      setNotificationFeedMode('personal');
+      await nextTick();
+      await nextTick(); // mode reconcile → queue change → liveness walk
+      // The queued ambient card is gone, acked, and its turn committed the
+      // buffer; the visible card finishes its own lifecycle untouched.
+      expect(notificationState.queue).to.have.length(0);
+      expect(notificationState.transient.map((n) => n.id)).deep.eq(['bot:red:1:1']);
+      expect(committed).eq(1);
+      expect(isBotStagingActive()).eq(false);
+      expect(ackUrls.filter((u) => u.includes('key=red%3A1%3A2'))).to.have.length(1);
+    });
   });
 });

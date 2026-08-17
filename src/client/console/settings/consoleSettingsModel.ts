@@ -62,6 +62,12 @@ import {
 import {consolePerfState, setConsolePerfLite} from '@/client/console/consolePerfMode';
 import {READING_SCALE_CHOICES, readingScaleState, setConsoleReadingScale} from '@/client/console/consoleReadingScale';
 import {ALBUM_LAYOUT_CHOICES, ALBUM_LAYOUT_LABELS, albumLayoutState, setConsoleAlbumLayout} from '@/client/console/consoleAlbumLayout';
+import {
+  FEED_MODE_CHOICES,
+  FEED_MODE_LABELS,
+  notificationFeedModeState,
+  setNotificationFeedMode,
+} from '@/client/components/notifications/notificationFeedMode';
 import {desktopBridge, DesktopAppModeInfo, DesktopLanState} from '@/client/components/desktop/desktopUpdateState';
 import {realtimeState, realtimeHealthy, realtimePollIntervalMs} from '@/client/components/realtime/realtimeService';
 import {buildVersionLabel} from '@/common/utils/buildVersion';
@@ -75,7 +81,7 @@ export type ConsoleSettingsCategoryId =
   'interface' | 'controls' | 'graphics' | 'game' | 'network' | 'diagnostics';
 
 export type ConsoleSettingId =
-  'shell' | 'display' | 'textScale' | 'albumLayout' | 'controller' | 'buttons' | 'wheelControl' |
+  'shell' | 'display' | 'textScale' | 'albumLayout' | 'notifications' | 'controller' | 'buttons' | 'wheelControl' |
   'motionSpeed' | 'motionRate' | 'perfMode' | 'privateScore' | 'gameServer' | 'lanVisible';
 
 /** One dialable preference: a ring of options plus where we are in it. */
@@ -264,6 +270,17 @@ function interfaceCategory(input: ConsoleSettingsInput): ConsoleSettingsCategory
     ALBUM_LAYOUT_CHOICES, albumLayoutState.layout,
     (v) => translateText(ALBUM_LAYOUT_LABELS[v]),
     (v) => setConsoleAlbumLayout(v),
+  ));
+  // Which top-right quick toasts present: everything (the default — identical
+  // to the pre-setting behaviour) or only events that directly involve the
+  // player. Filters PRESENTATION only — mandatory prompts, warnings, hostile
+  // losses and the journal are never touched (notificationFeedPolicy.ts).
+  rows.push(ringRow(
+    'notifications', 'Quick notifications',
+    'Hide events about other players unless they affect you directly; mandatory prompts and system alerts always show',
+    FEED_MODE_CHOICES, notificationFeedModeState.mode,
+    (v) => translateText(FEED_MODE_LABELS[v]),
+    (v) => setNotificationFeedMode(v),
   ));
   return {id: 'interface', label: 'Interface', glyph: '◫', minor: false, rows, readout: []};
 }

@@ -1,10 +1,13 @@
 import {expect} from 'chai';
+import {nextTick} from 'vue';
+import {Color} from '@/common/Color';
 import {NotificationModel, NotificationKind, NOTIFICATION_PRIORITY, MAX_VISIBLE_TRANSIENT} from '@/client/components/notifications/notificationTypes';
 import {
   notificationState,
   pushTransient,
   pushMany,
   setTurn,
+  setNotificationViewer,
   dismiss,
   toggleExpanded,
   clearTransient,
@@ -17,6 +20,7 @@ import {
   noteNotificationLeaveStart,
   noteNotificationLeaveEnd,
 } from '@/client/components/notifications/notificationState';
+import {setNotificationFeedMode} from '@/client/components/notifications/notificationFeedMode';
 import {resetPresentationLeases, acquireForegroundLease} from '@/client/components/presentation/presentationFlow';
 import {revealResultState, dismissReveal} from '@/client/components/actions/revealResultState';
 import {botTurnReviewState, resetBotTurnReview} from '@/client/components/marsbot/botTurnReviewState';
@@ -205,6 +209,82 @@ describe('notificationState (lifecycle)', () => {
       drainQueueToJournal();
       expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['loss', 'bot']);
       dismissReveal();
+    });
+  });
+
+  describe('quick-toast feed mode («Только связанные со мной»)', () => {
+    const RED = 'red' as Color;
+    const BLUE = 'blue' as Color;
+
+    beforeEach(() => {
+      setNotificationViewer(BLUE);
+      setNotificationFeedMode('personal');
+    });
+
+    afterEach(() => {
+      // Module state is bundle-shared — restore the default mode for the rest
+      // of the suite (the outer beforeEach's resetNotifications clears viewer).
+      setNotificationFeedMode('all');
+    });
+
+    it('an ambient event never enters the feed — no toast, no queue, no auto-close wait', () => {
+      pushTransient(model('amb', 'normal', {actor: RED, affects: [RED]}));
+      expect(notificationState.transient).to.have.length(0);
+      expect(notificationState.queue).to.have.length(0);
+      // A hidden toast owns NO lifetime: the feed reads settled immediately,
+      // so a following mandatory prompt never waits a phantom five seconds.
+      expect(notificationsSettled()).to.eq(true);
+    });
+
+    it('an event that involves the viewer presents normally', () => {
+      pushTransient(model('mine', 'normal', {actor: RED, affects: [RED, BLUE]}));
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['mine']);
+    });
+
+    it('hostile losses and warnings are exempt from the mode', () => {
+      pushTransient(model('loss', 'negative', {variant: 'steal', actor: RED}));
+      pushTransient(model('warn', 'warning', {variant: 'warning'}));
+      expect([...notificationState.transient, ...notificationState.queue].map((n) => n.id))
+        .to.have.members(['loss', 'warn']);
+    });
+
+    it('filters by the LOCAL viewer identity — re-pointing the viewer flips the decision', () => {
+      const forYellow = model('y', 'normal', {actor: RED, affects: ['yellow' as Color]});
+      pushTransient(forYellow);
+      expect(notificationState.transient, 'blue is a bystander').to.have.length(0);
+      setNotificationViewer('yellow' as Color);
+      pushTransient({...forYellow, id: 'y2'});
+      expect(notificationState.transient.map((n) => n.id), 'yellow is the target').to.deep.eq(['y2']);
+    });
+
+    it('the singleton turn card ignores the feed mode (mandatory signals never filter)', () => {
+      setTurn(model('turn:action-required', 'action-required'));
+      expect(notificationState.turn?.id).to.eq('turn:action-required');
+    });
+
+    it('switching to personal re-checks the QUEUE; the visible card finishes its own lifecycle', async () => {
+      setNotificationFeedMode('all');
+      pushMany([
+        model('amb-visible', 'normal', {actor: RED, affects: [RED]}),
+        model('amb-queued', 'normal', {actor: RED, affects: [RED]}),
+        model('mine-queued', 'normal', {actor: RED, affects: [BLUE]}),
+      ]);
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['amb-visible']);
+      setNotificationFeedMode('personal');
+      await nextTick(); // the mode watcher reconciles the queue
+      // The on-screen card is NOT yanked; the queued ambient card is dropped.
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['amb-visible']);
+      expect(notificationState.queue.map((n) => n.id)).to.deep.eq(['mine-queued']);
+      dismiss('amb-visible');
+      expect(notificationState.transient.map((n) => n.id)).to.deep.eq(['mine-queued']);
+    });
+
+    it('switching back to «Все события» replays nothing', async () => {
+      pushTransient(model('amb', 'normal', {actor: RED, affects: [RED]})); // filtered, never stored
+      setNotificationFeedMode('all');
+      await nextTick();
+      expect(notificationState.transient).to.have.length(0);
+      expect(notificationState.queue).to.have.length(0);
     });
   });
 

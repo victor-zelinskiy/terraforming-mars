@@ -1114,7 +1114,9 @@ html.con-profile-tv {
     .con-set__tab-glyph { font-size: 1.1rem; }
     .con-set__tab--minor .con-set__tab-glyph { font-size: .9rem; }
     .con-set {
-        height: 24rem;
+        /* Re-calibrated with the base profile for the five-row Interface
+           category (quick-notification mode row) — no category may scroll. */
+        height: 25.4rem;
         &__row { min-height: var(--con-hit-min); }
         &__row-label { font-size: var(--con-t-body); }
         &__stepper { width: 22rem; }

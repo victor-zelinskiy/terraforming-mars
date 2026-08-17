@@ -3,8 +3,11 @@
  * by the desktop-UI deprecation. Full quality bar applies (tests, guards, i18n).
  * Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDIT.md.
  */
-import {reactive} from 'vue';
+import {reactive, watch} from 'vue';
+import {Color} from '@/common/Color';
 import {NotificationModel, LiveNotification, NotificationKind, MAX_VISIBLE_TRANSIENT, NOTIFICATION_PRIORITY, NOTIFICATION_TTL} from './notificationTypes';
+import {notificationFeedModeState} from './notificationFeedMode';
+import {quickToastAllowed} from './notificationFeedPolicy';
 import {
   currentBlockReason,
   isNotificationDeliveryBlocked,
@@ -79,6 +82,14 @@ type NotificationStore = {
    */
   leaving: number;
   settings: NotificationSettings;
+  /**
+   * The LOCAL (viewing) player's colour — what the feed-mode policy compares
+   * `affects` against. Set by the layer from `playerView.thisPlayer` on every
+   * update; NEVER the active player (during a bot's or an opponent's turn the
+   * two differ, and filtering by the active player is exactly the bug the
+   * policy forbids). `undefined` (pre-first-update) fails open.
+   */
+  viewerColor: Color | undefined;
 };
 
 export const notificationState = reactive<NotificationStore>({
@@ -101,7 +112,13 @@ export const notificationState = reactive<NotificationStore>({
     showTurn: true,
     showNegative: true,
   },
+  viewerColor: undefined,
 });
+
+/** Keep the feed-mode policy pointed at the LOCAL viewer (layer update path). */
+export function setNotificationViewer(color: Color | undefined): void {
+  notificationState.viewerColor = color;
+}
 
 let warningSeq = 0;
 
@@ -124,6 +141,16 @@ function settingAllows(kind: NotificationKind): boolean {
   default:
     return s.showNormal;
   }
+}
+
+/**
+ * The feed-MODE gate — the ONE call site of the central filter policy
+ * (`notificationFeedPolicy.quickToastAllowed`). Only the transient toast feed
+ * asks it; the singleton turn card (`setTurn`) deliberately never does — a
+ * mandatory prompt is not noise, whatever the mode.
+ */
+function feedModeAllows(model: NotificationModel): boolean {
+  return quickToastAllowed(model, notificationFeedModeState.mode, notificationState.viewerColor);
 }
 
 function knownId(id: string): boolean {
@@ -268,7 +295,7 @@ export function drainQueueToJournal(): void {
  * rather than waiting behind it.
  */
 export function pushTransient(model: NotificationModel): void {
-  if (!settingAllows(model.kind) || knownId(model.id)) {
+  if (!settingAllows(model.kind) || !feedModeAllows(model) || knownId(model.id)) {
     return;
   }
   if (isNotificationDeliveryBlocked()) {
@@ -457,8 +484,42 @@ registerFlowHoldSupplier(notificationFlowHoldSupplier);
 onForegroundBlocked(() => holdVisibleTransient());
 onForegroundFreed(() => promoteFromQueue());
 
+/**
+ * The feed mode CHANGED — re-check the QUEUED (not-yet-shown) models against
+ * the new mode, so a card waiting behind a blocker never presents under a
+ * setting the player has already left. VISIBLE cards are deliberately kept:
+ * an on-screen toast finishes its own lifecycle instead of vanishing under
+ * the player's eyes (the setting change usually happens from the settings
+ * surface anyway). Switching back to 'all' replays nothing — a filtered
+ * model never entered the presentation and its root id is already in the
+ * seen-set, so it cannot re-pop.
+ *
+ * A DROPPED bot-turn card is soft-ACKED (there is no toast left whose finish
+ * would ever ack it — mirrors the player's own skip gesture). Its half of the
+ * staged-commit timeline is NOT delivered here: the queue mutation wakes the
+ * staging module's own liveness watcher, which advances the timeline from the
+ * FRONT only — delivering a dropped turn out of order from here could commit
+ * a whole buffered batch ahead of a still-queued card's presentation.
+ */
+export function reconcileQueueWithFeedMode(): void {
+  const kept: Array<NotificationModel> = [];
+  for (const model of notificationState.queue) {
+    if (feedModeAllows(model)) {
+      kept.push(model);
+      continue;
+    }
+    ackBotTurn(model.botTurnKey);
+  }
+  if (kept.length !== notificationState.queue.length) {
+    notificationState.queue = kept;
+  }
+}
+
+watch(() => notificationFeedModeState.mode, () => reconcileQueueWithFeedMode());
+
 /** Full reset (game end / layer teardown for a different game). */
 export function resetNotifications(): void {
+  notificationState.viewerColor = undefined; // the next game's layer re-sets it
   notificationState.turn = undefined;
   notificationState.dismissedTurnId = undefined;
   notificationState.transient = [];

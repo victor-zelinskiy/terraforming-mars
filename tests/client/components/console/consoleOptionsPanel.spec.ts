@@ -6,6 +6,7 @@ import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {privateScoreState, setPrivateScore} from '@/client/components/overview/privateScoreState';
 import {buttonLayoutState, setButtonLayout} from '@/client/gamepad/buttonLayout';
 import {currentProfileOverride, setConsoleProfileOverride} from '@/client/console/consoleLayoutProfile';
+import {notificationFeedModeState, setNotificationFeedMode} from '@/client/components/notifications/notificationFeedMode';
 
 const A: GamepadIntent = {kind: 'press', button: 'confirm'};
 const B: GamepadIntent = {kind: 'press', button: 'back'};
@@ -67,13 +68,31 @@ describe('ConsoleOptionsPanel (the settings console)', () => {
     setPrivateScore(false);
     setButtonLayout('standard');
     setConsoleProfileOverride('auto');
+    setNotificationFeedMode('all');
   });
 
   it('opens on the first category and shows only that category’s rows', () => {
     const vm = mountWith('game').vm as unknown as PanelVm;
     expect(vm.current.id).to.eq('interface');
     // The flat eleven-row list is gone: a category shows a handful of rows.
-    expect(vm.current.rows.map((r) => r.id)).to.deep.eq(['display', 'textScale', 'albumLayout']);
+    expect(vm.current.rows.map((r) => r.id)).to.deep.eq(['display', 'textScale', 'albumLayout', 'notifications']);
+  });
+
+  it('the quick-notification feed mode is a dialable interface row (both directions, wrapping)', () => {
+    const vm = mountWith('game').vm as unknown as PanelVm;
+    cursorTo(vm, 'notifications');
+    expect(notificationFeedModeState.mode).to.eq('all');
+    expect(vm.detail.title).to.eq('Quick notifications');
+    expect(vm.detail.value).to.eq('All events');
+    vm.handleIntent(RIGHT);
+    expect(notificationFeedModeState.mode).to.eq('personal');
+    expect(vm.detail.value).to.eq('Only involving me');
+    vm.handleIntent(LEFT);
+    expect(notificationFeedModeState.mode).to.eq('all');
+    // Available from the MAIN MENU too (the interface category exists in both
+    // hosts), so the preference can be set before a game starts.
+    const menu = mountWith('menu').vm as unknown as PanelVm;
+    expect(menu.current.rows.some((r) => r.id === 'notifications')).to.eq(true);
   });
 
   it('LB / RB step the category and reset the row cursor', () => {

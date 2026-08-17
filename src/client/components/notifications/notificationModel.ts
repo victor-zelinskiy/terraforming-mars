@@ -8,6 +8,7 @@ import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {ACTION_MENU_TITLES} from '@/common/inputs/actionMenuTitles';
 import {buildJournalView} from '@/client/components/journal/journalView';
 import {buildEventChildren, impactChips, JournalChildVM, JournalImpactChip} from '@/client/components/journal/journalEventChild';
+import {affectedPlayersOfChain} from './notificationFeedPolicy';
 import {NotificationKind, NotificationVariant, NotificationModel, NegativeScope, NOTIFICATION_PRIORITY, NOTIFICATION_TTL, COALESCE_THRESHOLD} from './notificationTypes';
 
 /**
@@ -287,6 +288,8 @@ function buildRootNotification(input: RootBuildInput): NotificationModel | undef
     typeLabelKey: variantTypeLabel(variant, header.category),
     category: header.category,
     actor,
+    // Structured feed-filter metadata: who the chain's typed deltas touch.
+    affects: affectedPlayersOfChain(chain),
     header,
     childVMs: vms,
     pills,
@@ -391,6 +394,17 @@ export function coalesceBurst(models: ReadonlyArray<NotificationModel>): Array<N
     }
     const last = group[group.length - 1];
     const pills = mergeChips(group.flatMap((m) => m.pills)).sort((a, b) => chipRank(a) - chipRank(b)).slice(0, 3);
+    // The summary stands for its members — its `affects` is their UNION, so a
+    // burst containing one viewer-involving event stays visible in the
+    // personal feed mode (the filter sees the merged card, not the members).
+    const affects: Array<Color> = [];
+    for (const m of group) {
+      for (const color of m.affects ?? []) {
+        if (!affects.includes(color)) {
+          affects.push(color);
+        }
+      }
+    }
     summaries.push({
       ...last,
       id: `gsum:${last.generation}:${key}:${last.correlationId}`,
@@ -398,6 +412,7 @@ export function coalesceBurst(models: ReadonlyArray<NotificationModel>): Array<N
       typeLabelKey: 'Multiple events',
       header: undefined,
       childVMs: undefined,
+      affects,
       pills,
       detailCount: 0,
       correlationId: last.correlationId,
@@ -606,6 +621,8 @@ function buildNegativeNotification(correlationId: number, negs: ReadonlyArray<Ga
     priority: NOTIFICATION_PRIORITY['negative'],
     typeLabelKey: variantTypeLabel(variant, undefined),
     actor: attacker,
+    // Exempt by kind (the viewer IS the victim); the list states it anyway.
+    affects: [viewer],
     pills: loss,
     detailCount: 0,
     correlationId,

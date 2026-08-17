@@ -112,6 +112,7 @@ import {
   pushMany,
   pushTransient,
   setTurn,
+  setNotificationViewer,
   dismiss,
   toggleExpanded,
   resetNotifications,
@@ -231,6 +232,9 @@ export default defineComponent({
       // Keep the bot-turn ack helper pointed at the current viewer (it POSTs the
       // soft ack when a bot-turn notification finishes — see onDismiss).
       setBotAckViewer(this.playerView.id);
+      // …and the feed-mode filter at the LOCAL viewer's colour (thisPlayer —
+      // never the active player, which differs during opponents'/bot turns).
+      setNotificationViewer(this.viewerColor);
       // Game over: the endgame experience owns the screen — silence everything.
       if (this.playerView.game.phase === Phase.END) {
         setTurn(undefined);

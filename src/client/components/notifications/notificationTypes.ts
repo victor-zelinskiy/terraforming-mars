@@ -155,6 +155,14 @@ export type NotificationModel = {
   category?: JournalActionCategory;
   /** The acting / benefiting player (colour accent + actor chip). */
   actor?: Color;
+  /**
+   * The players this event DIRECTLY involves — presentation metadata for the
+   * quick-notification feed filter (`notificationFeedPolicy.ts`), derived by
+   * the producers from STRUCTURED data (the typed event chain / the bot-turn
+   * script), never from text. One shared event carries one list — never a
+   * per-player copy of the notification. Absent ⇒ nobody beyond `actor`.
+   */
+  affects?: ReadonlyArray<Color>;
 
   // ── Journal-derived content (normal / important) ──────────────────────────
   /** The root `LogMessage` — rendered via `JournalTokenRenderer` (the headline). */
