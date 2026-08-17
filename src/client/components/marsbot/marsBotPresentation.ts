@@ -32,6 +32,7 @@ import {notificationState, pushTransient, dismiss, notificationKnownId} from '@/
 import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {botTurnReviewState, flashBotReviewEdge, openBotTurnReview} from './botTurnReviewState';
 import {ackBotTurn} from './botTurnAck';
+import {noteBotTurnStage} from './marsBotTurnTiming';
 import {
   beginBotStaging,
   botStagingPendingKeys,
@@ -307,7 +308,33 @@ export function presentFreshBotTurns(prev: ViewModel | undefined, next: ViewMode
   // attributable only when exactly one fresh turn rides the response.
   const paramChips = fresh.length === 1 ? globalParamChips(prev, next) : [];
   const now = Date.now();
+  /*
+   * SEQUENCING IS FOR A RUN OF TURNS, AND IT MAY NEVER COST THE PLAYER THEIR
+   * OWN MOVE.
+   *
+   * Staging buffers the authoritative view so the bot's turns are revealed one
+   * card at a time instead of landing as one jump. That is worth doing while
+   * the bot is still playing — the player has nothing to do meanwhile — and it
+   * is worth doing for a response that carries several turns at once (the
+   * player passed and the server resolved the whole round before answering).
+   *
+   * It is NOT worth doing for the ordinary case: ONE turn, after which control
+   * comes straight back. There is no order to keep — the turn's footprint IS
+   * the authoritative view — and buffering withheld the player's own prompt
+   * until the card had been DELIVERED, which waits behind the feed's silencing
+   * gates (their own action cinematic, a reveal, a ceremony) and behind
+   * whatever card is already on screen. THAT is the «MarsBot иногда думает
+   * ~5 секунд» report: the server had answered in under a millisecond and the
+   * client was sitting on the answer.
+   *
+   * So the test is structural, never a title: does this view hand the player a
+   * prompt? If it does and it carries a single turn, commit NOW. Otherwise
+   * sequence — and an open window always keeps its order.
+   */
+  const handsControlBack = (next as PlayerViewModel).waitingFor !== undefined;
+  const sequence = isBotStagingActive() || fresh.length > 1 || !handsControlBack;
   for (const entry of fresh) {
+    noteBotTurnStage(entry.key, 'response', sequence ? 'sequenced' : 'single');
     pushTransient(buildBotTurnNotification(entry, {viewerColor, createdAt: now, autoExpand, paramChips}));
   }
   if (opts?.commitLatest === undefined) {
@@ -315,6 +342,12 @@ export function presentFreshBotTurns(prev: ViewModel | undefined, next: ViewMode
   }
   if (prev === undefined) {
     // Fresh session seed — nothing was enqueued; commit normally.
+    return false;
+  }
+  if (!sequence) {
+    // The caller commits on this same tick — stamp it here so the diagnostic
+    // measures the path the player actually experienced.
+    noteBotTurnStage(fresh[0].key, 'commit');
     return false;
   }
   beginBotStaging(prev, fresh.map((e) => ({key: e.key, turn: e.turn})), next, opts.commitLatest);
@@ -380,6 +413,39 @@ export function openBotTurnReviewByKey(key: string | undefined): boolean {
   return true;
 }
 
+/**
+ * The player CLOSED a bot-turn card themselves (console B). That press means
+ * «I have seen what the bot did, move on» — not «now show me the next one, and
+ * hold my game for its five seconds too». So the whole AI-turn backlog
+ * collapses in one gesture:
+ *
+ *  - the closed turn and every bot turn still QUEUED behind it are acked (the
+ *    server stops pacing the next turn on this client — the console's B used to
+ *    call a bare `dismiss`, so this ack was never sent at all);
+ *  - each queued turn's visual footprint is DELIVERED before its card goes, so
+ *    the board still advances through every turn — nothing is lost, and the
+ *    journal keeps all of them replayable;
+ *  - the staged buffer commits, which is what hands the player back their own
+ *    prompt.
+ *
+ * Ordinary notifications are untouched — this is the AI-turn feed only.
+ */
+export function skipBotTurnPresentation(key: string): void {
+  const queued = notificationState.queue
+    .map((n) => n.botTurnKey)
+    .filter((k): k is string => k !== undefined);
+  ackBotTurn(key);
+  dismiss(botTurnNotificationId(key));
+  for (const other of queued) {
+    ackBotTurn(other);
+    deliverBotTurnVisual(other);
+    dismiss(botTurnNotificationId(other));
+  }
+  // A window whose cards have all gone still owes its authoritative commit
+  // (idempotent — `deliverBotTurnVisual` of the last turn already did it).
+  commitBotStagingNow();
+}
+
 /** Journal path: open the review of the turn whose journal group is `correlationId`. */
 export function openBotTurnReviewByCorrelation(correlationId: number): boolean {
   return openBotTurnReviewByKey(archivedTurnByCorrelation(correlationId)?.key);
@@ -428,11 +494,19 @@ export function stepBotTurnReview(dir: -1 | 1): 'ok' | 'no-prev' | 'no-next' {
 // render, before paint.
 watch(
   () => notificationState.transient.find((n) => n.botTurnKey !== undefined),
-  (card) => {
+  (card, prevCard) => {
+    // The PREVIOUS holder let go — from here nothing of that turn holds a
+    // prompt surface, which is the diagnostic's terminal stage.
+    if (prevCard?.botTurnKey !== undefined && prevCard.botTurnKey !== card?.botTurnKey) {
+      noteBotTurnStage(prevCard.botTurnKey, 'released');
+    }
     if (card?.botTurnKey === undefined) {
       return;
     }
-    deliverBotTurnVisual(card.botTurnKey);
+    noteBotTurnStage(card.botTurnKey, 'visible');
+    if (deliverBotTurnVisual(card.botTurnKey) === 'committed') {
+      noteBotTurnStage(card.botTurnKey, 'commit', 'on delivery');
+    }
     if (card.autoExpand === true) {
       openBotTurnReviewByKey(card.botTurnKey);
     }

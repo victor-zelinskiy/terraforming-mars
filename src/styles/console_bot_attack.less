@@ -1,30 +1,35 @@
 /* ═══════════════════════════════════════════════════════════════════
-   CONSOLE MARSBOT ATTACK — the compact modal for a hostile bot effect
+   CONSOLE BOT ATTACK — the compact modal for a hostile bot effect
    (ConsoleBotAttack.vue / botAttack/botAttackModel.ts).
 
-   THREE DELIBERATE DEPARTURES from the full-screen card browser it
-   replaces:
+   IT INHERITS, IT DOES NOT INVENT. Every surface value here is the one
+   `.con-decision__panel` already uses (the console's cold graphite-blue
+   glass, its cool inset hairline, its radius, its drop shadow, its type
+   scale); the focus ring is `@sem-focus`, the ready plate is the
+   composer CTA's mint, the pending target ring is the shared step's own.
+   The FIRST iteration painted a bordeaux surface with a red frame, a
+   green source box, a red card ring and a cyan button — four design
+   systems on one panel — which is what made it read as a combat UI from
+   another game.
 
-   1. The panel sizes to its CONTENT and stands in the workspace band, so
-      the board stays readable behind it. It is a decision, not a screen —
-      and it must never read as a second workspace.
-   2. The bot's own card is CONTEXT (a compact source dock), never the
-      hero: the subject of the decision is the player's tableau.
-   3. The danger accent is a THIN, structural signal — an eyebrow, a rail,
-      a loss chip — not a red screen. This is part of the game's premium
-      language; an attack that shouts is an attack the player stops
-      reading.
+   RED IS SEMANTIC ONLY, and it appears in exactly four places: the
+   attack kicker, the bridge chip (what leaves, which way), the chosen
+   target's pending-removal ring, and a negative delta. It never tints
+   the plate.
 
-   Authored in rem (the console logical space). Functional state — focus,
-   readiness, the pending loss — rides box-shadow/colour so con-perf-lite
-   (which strips filters) cannot take a navigation cue away.
+   THE COMPOSITION IS A SENTENCE: source → bridge → target, content-
+   sized, so one candidate centres the row instead of leaving half a
+   modal empty.
+
+   Authored in rem (the console logical space). Functional state rides
+   box-shadow/colour so con-perf-lite (which strips filters) cannot take
+   a navigation cue away.
    ═══════════════════════════════════════════════════════════════════ */
 
 .con-botattack {
-    /* THE MODAL BAND is only the FRAME BOX (fixed, exactly between the top HUD
-       strip and the command bar) — it centres nothing, so the panel does its
-       own centring. Same three lines as `.con-decision`, which this surface is
-       a sibling of (one of them on screen at a time). */
+    /* THE MODAL BAND is only the FRAME BOX — it centres nothing, so the panel
+       does its own centring. Same three lines as `.con-decision`, the sibling
+       surface this one stands beside (one of them on screen at a time). */
     .con-ws-band();
     display: flex;
     align-items: center;
@@ -37,280 +42,285 @@
 
 .con-botattack__panel {
     position: relative;
-    /* CONTENT-SIZED, and capped well under the band: a one-or-two-target
-       attack must not occupy a 4K screen. The cap is a `max-width`, so a
-       three-target set simply uses more of the room it is given. */
-    width: min(56rem, 100%);
+    /* CONTENT-SIZED. `width: auto` inside the centred band means the panel
+       shrink-wraps its widest row, and the header block caps its own reading
+       measure — so a one-target attack is a narrow card and a three-target one
+       grows only as far as it needs. A fixed width is what left the first
+       iteration with an empty right half. */
+    width: auto;
+    max-width: min(56rem, 100%);
     height: auto;
     max-height: 100%;
     display: flex;
     flex-direction: column;
-    gap: .8rem;
-    padding: 1.05rem 1.25rem 1.1rem;
+    gap: .85rem;
+    padding: 1.1rem 1.25rem 1.2rem;
     border-radius: .75rem;
     box-sizing: border-box;
-    /* A NATIVE SCROLLBAR IS A BUG (the console overflow rule): the only
-       scrollable zone in this modal is the shared step's own viewport, which
-       shrinks with the zone above. */
     overflow: hidden;
-    /* The panel's own plane. The danger register lives in the top hairline
-       and the left rail below — the body stays the console's ordinary
-       graphite, so the modal belongs to the same world as every other
-       surface. */
-    background:
-        linear-gradient(180deg, rgba(26, 18, 20, 0.96), rgba(10, 16, 25, 0.97));
+    /* THE PROJECT'S GLASS — byte-for-byte `.con-decision__panel`. */
+    background: linear-gradient(180deg, rgba(16, 26, 38, 0.96), rgba(10, 16, 25, 0.97));
     box-shadow:
-        inset 0 .12rem 0 0 fade(@con-red, 60%),
-        inset 0 0 0 .05rem rgba(150, 120, 130, 0.24),
+        inset 0 0 0 .05rem rgba(120, 160, 200, 0.22),
         0 1.4rem 3.2rem rgba(0, 0, 0, 0.62);
-    /* NO CSS ENTRANCE HERE. This surface is registered with the SURFACE-MOTION
-       director (`data-motion-surface="bot-attack"`), which owns the whole band
-       family's arrival — the shared `.con-shade` dim included, which is the
-       moderate darkening this modal is supposed to focus against. A second,
-       CSS-authored entrance on the same element is not a nicety but a
-       CONFLICT: a filling animation overrides inline styles, so the two fight
-       over `opacity`/`transform` for the whole overlap and the panel can end
-       the beat on whichever set last. One entrance, one owner. */
 }
 
-/* ── header: who / with what / what now ──────────────────────────────── */
+/* ── header: who / what / what now ───────────────────────────────────── */
 .con-botattack__head {
     flex: none;
     display: flex;
     flex-direction: column;
-    gap: .28rem;
+    gap: .3rem;
+    /* THE READING MEASURE. It caps the panel's width from the text side, so a
+       long Russian sentence sets a comfortable column instead of stretching the
+       modal to the band. */
+    max-width: 34rem;
     min-width: 0;
 }
 
-.con-botattack__eyebrow {
+/* THE ONE RED ACCENT OF THE HEADER — the kicker, in the project's own kicker
+   geometry (`.con-decision__kicker`), recoloured and nothing more. */
+.con-botattack__kicker {
     display: inline-flex;
     align-items: center;
-    gap: .35rem;
-    align-self: flex-start;
-    padding: .16rem .5rem .18rem;
-    border-radius: 49.95rem;
-    font-size: .62rem;
-    font-weight: 700;
-    letter-spacing: .12rem;
+    gap: .3rem;
+    font-size: .68rem;
+    letter-spacing: .11rem;
     text-transform: uppercase;
-    color: fade(@con-red, 96%);
-    background: fade(@con-red, 12%);
-    box-shadow: inset 0 0 0 .05rem fade(@con-red, 52%);
+    color: fade(@con-red, 94%);
 }
-/* The attacker's SEAT, in its own colour — the same dot every other surface
-   uses to name a player, so «кто» is answered in the shell's own vocabulary
-   rather than by the word «бот» alone. */
-.con-botattack__eyebrow-dot {
+.con-botattack__kicker-mark { color: @con-red; }
+.con-botattack__kicker-word { font-weight: 700; }
+.con-botattack__kicker-sep { color: fade(@con-text-dim, 60%); }
+/* …and the ACTOR, in the shell's own «dot + name» vocabulary. The seat colour
+   comes from the shared `player_color_*` classes, so the bot reads here exactly
+   as it does on its own chip. */
+.con-botattack__actor {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    font-weight: 700;
+}
+.con-botattack__actor-dot {
     width: .42rem;
     height: .42rem;
     border-radius: 50%;
     box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.45);
 }
-.con-botattack__eyebrow-mark { opacity: .85; }
 
 .con-botattack__title {
     margin: 0;
-    font-size: 1.3rem;
+    font-size: 1.35rem;
     font-weight: 700;
-    line-height: 1.15;
+    line-height: 1.2;
     color: @con-text;
     min-width: 0;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
 }
-.con-botattack__explain {
+/* THE ASK — the console's READING voice at its standard body size (the same
+   `--con-t-read × --con-read-scale` every long-form sentence in the shell uses,
+   with the couch floor the TV profile sets). It is the instruction the player
+   must act on, so it is never a caption. */
+.con-botattack__ask {
+    .con-read-text(500);
     margin: 0;
-    font-size: .9rem;
-    line-height: 1.35;
-    color: fade(@con-text, 88%);
+    font-size: calc(var(--con-t-read) * var(--con-read-scale, 1));
+    line-height: var(--con-read-lh, 1.45);
+    color: fade(@con-text, 94%);
 }
-/* WHY ONLY THESE CARDS — quieter than the instruction, never absent when the
-   server sent a rule. */
-.con-botattack__restriction {
+/* …and the RULE that narrowed the set: one step down and quieter in CONTRAST,
+   never microscopic — a disclaimer nobody can read is the same as no
+   explanation. */
+.con-botattack__limit {
+    .con-read-text(450);
     margin: 0;
-    display: flex;
-    align-items: baseline;
-    gap: .3rem;
-    font-size: .76rem;
-    line-height: 1.3;
+    font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
+    line-height: var(--con-read-lh, 1.45);
     color: fade(@con-text-dim, 92%);
 }
-.con-botattack__restriction-mark { color: fade(@con-cyan, 82%); }
-
-/* ── body: source | targets + commit ─────────────────────────────────── */
-.con-botattack__main {
-    display: grid;
-    /* The bot's card is recognisable and never dominant. A FIXED column, not a
-       percentage: the source is a px-authored text face integrated through
-       `zoom × --con-ui-scale`, so its box is a constant in rem space and a
-       fluid column would either crop it or leave a gap beside it. */
-    grid-template-columns: 15rem 1fr;
-    gap: 1rem;
-    align-items: stretch;
-    min-height: 0;
-}
-.con-botattack__source { align-self: start; }
-
-.con-botattack__body {
-    display: flex;
-    flex-direction: column;
-    gap: .6rem;
-    min-width: 0;
-    min-height: 0;
-}
-
-/* The selector's own zone — a FIXED budget, and that is the load-bearing
-   part. The shared step sizes its cards against the box it is given
-   (`data-ws-band`), so a zone whose height grew with its own content would
-   feed the fit engine its own output (bigger cards → taller zone → bigger
-   cards): the one loop that engine documents as forbidden. It may SHRINK
-   under a short viewport (`flex-shrink: 1`), which is honest degradation —
-   the step re-fits smaller — but it never grows.
-
-   19rem is deliberately modest: one row of candidates reads clearly at TV
-   distance and a LONE target comes out about a seventh of the screen wide,
-   never the hero the full-screen picker made of it. */
-.con-botattack__targets {
-    flex: 0 1 auto;
-    height: 19rem;
-    min-width: 0;
-    min-height: 8rem;
-    display: flex;
-}
-.con-botattack__targets > * { flex: 1; min-width: 0; min-height: 0; }
 
 .con-botattack__empty {
     padding: 1.2rem 1rem;
     border-radius: .5rem;
-    background: rgba(14, 18, 24, 0.7);
-    box-shadow: inset 0 0 0 .05rem rgba(120, 140, 165, 0.18);
-    font-size: .9rem;
-    line-height: 1.35;
+    background: rgba(14, 21, 30, 0.55);
+    box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+    .con-read-text(450);
+    font-size: calc(var(--con-t-read) * var(--con-read-scale, 1));
+    line-height: var(--con-read-lh, 1.45);
     color: fade(@con-text-dim, 92%);
     text-align: center;
 }
 
-/* ── the COMMIT ROW ──────────────────────────────────────────────────── */
-.con-botattack__commit {
-    position: relative;
+/* ── the SCENE: source → bridge → target ─────────────────────────────── */
+.con-botattack__scene {
     display: flex;
     align-items: center;
-    gap: .5rem;
-    /* FIXED height: focus, readiness and the loss chip may change WEIGHT and
-       COLOUR, never the row's box — a commit that grows under the cursor
-       re-lays out the cards above it. */
+    justify-content: center;
+    gap: .9rem;
+    min-width: 0;
+    min-height: 0;
+}
+/* The bot's own card. `flex: none` — a physical object does not stretch. */
+.con-botattack__source {
     flex: none;
-    height: 2.5rem;
-    padding: 0 .8rem;
-    border-radius: .5rem;
+    align-self: center;
+}
+
+/* THE BRIDGE — the causality, in one small unit. A hairline that brightens
+   toward the target, with the removed resource on it. Deliberately small: it
+   explains the direction, it is not a decoration competing with two cards. */
+.con-botattack__bridge {
+    flex: none;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: .3rem;
+    padding: 0 .1rem;
+}
+.con-botattack__bridge-line {
+    width: 1.3rem;
+    height: .1rem;
+    border-radius: 49.95rem;
+    background: linear-gradient(90deg, fade(@con-text-dim, 10%), fade(@con-red, 55%));
+}
+.con-botattack__bridge-line--to {
+    /* The second half carries the arrowhead's job: it ends ON the target. */
+    background: linear-gradient(90deg, fade(@con-red, 55%), fade(@con-red, 14%));
+    position: relative;
+
+    &::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        right: -.02rem;
+        width: .32rem;
+        height: .32rem;
+        transform: translateY(-50%) rotate(-45deg);
+        border-top: .06rem solid fade(@con-red, 72%);
+        border-right: .06rem solid fade(@con-red, 72%);
+    }
+}
+.con-botattack__bridge-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .22rem;
+    padding: .16rem .4rem .18rem;
+    border-radius: .36rem;
+    background: fade(@con-red, 12%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-red, 48%);
+    color: fade(@con-red, 98%);
+    font-size: .8rem;
+    font-weight: 800;
+    white-space: nowrap;
+}
+.con-botattack__bridge-icon {
+    width: 1rem;
+    height: 1rem;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+}
+
+/* The selector's zone — a FIXED budget, and that is the load-bearing part. The
+   shared step sizes its cards against the box it is given (`data-ws-band`), so
+   a zone whose height grew with its own content would feed the fit engine its
+   own output: the one loop that engine documents as forbidden. It may SHRINK
+   under a short viewport (honest degradation — the step re-fits smaller) but it
+   never grows. */
+.con-botattack__stage {
+    flex: 0 1 auto;
+    height: 15.5rem;
+    min-width: 0;
+    min-height: 8rem;
+    display: flex;
+}
+.con-botattack__stage > .con-ptsel { flex: 1; min-width: 0; min-height: 0; }
+
+/* The commit is the PANEL's foot, aligned to the target side. */
+.con-botattack__foot {
+    flex: none;
+    display: flex;
+    justify-content: flex-end;
+    min-width: 0;
+}
+
+/* ── the COMMIT — the composer CTA's language, content-sized ──────────── */
+.con-botattack__cta {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .5rem;
+    /* FIXED height: readiness and focus may change WEIGHT and COLOUR, never the
+       box — a control that grows under the cursor re-lays out the cards above. */
+    height: 2.15rem;
+    padding: 0 .85rem;
+    border-radius: .55rem;
     box-sizing: border-box;
-    overflow: hidden;
-    background: linear-gradient(180deg, rgba(28, 33, 40, 0.9), rgba(18, 22, 28, 0.92));
-    box-shadow: inset 0 0 0 .05rem rgba(150, 160, 175, 0.22);
+    white-space: nowrap;
     transition:
         transform calc(140ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
         box-shadow calc(140ms * var(--motion-scale, 1)) ease-out;
+}
+.con-botattack__cta-label {
+    font-size: .9rem;
+    font-weight: 700;
+}
+.con-botattack__cta-mark { opacity: .6; }
 
-    /* The state rail — the same grammar the task host and the decision
-       screen use. */
-    &::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: .45rem;
-        bottom: .45rem;
-        width: .12rem;
-        border-radius: 49.95rem;
-        background: rgba(160, 172, 188, 0.4);
-    }
+/* HELD — readable, clearly not pressable, never mistakable for «selected».
+   The composer's own third state. */
+.con-botattack__cta--held {
+    background: rgba(14, 21, 30, 0.55);
+    box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
+    color: fade(@con-text-dim, 82%);
 }
-/* NOT READY — a legitimate, readable state, never a disabled control: it says
-   what is missing instead of greying out. */
-.con-botattack__commit-verb {
-    font-size: .95rem;
-    font-weight: 700;
-    color: fade(@con-text, 62%);
-    white-space: nowrap;
+/* READY — the project's commit plate. */
+.con-botattack__cta--ready {
+    background: fade(@con-mint, 8%);
+    box-shadow: inset 0 0 0 .05rem fade(@con-mint, 40%);
+    color: #eafff5;
 }
-.con-botattack__commit-target {
-    font-size: .86rem;
-    color: fade(@con-text-dim, 94%);
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+/* …and under the CURSOR it takes the ONE focus colour, exactly like every other
+   focusable control in the shell. */
+.con-botattack__cta--focused {
+    transform: translateY(-.06rem);
+    box-shadow:
+        inset 0 0 0 .1rem fade(@sem-focus, 92%),
+        0 0 .9rem fade(@sem-focus, 22%);
 }
-.con-botattack__commit-hint {
-    font-size: .8rem;
-    color: fade(@con-text-dim, 76%);
-    white-space: nowrap;
-}
-/* THE LOSS — the one place the modal is allowed to be loud, because it is the
-   one number the player is about to pay. */
-.con-botattack__commit-loss {
-    margin-left: auto;
-    padding: .1rem .45rem .14rem;
-    border-radius: .32rem;
-    font-size: .8rem;
-    font-weight: 700;
+/* THE COMMIT BEAT — the row seals in the danger register while the chosen cube
+   leaves, and input is absorbed by phase. One short pulse, never a loop. */
+.con-botattack__cta--armed {
+    background: fade(@con-red, 10%);
+    box-shadow:
+        inset 0 0 0 .1rem fade(@con-red, 88%),
+        0 0 1rem fade(@con-red, 22%);
     color: fade(@con-red, 98%);
-    background: fade(@con-red, 12%);
-    box-shadow: inset 0 0 0 .05rem fade(@con-red, 48%);
-    white-space: nowrap;
-}
-.con-botattack__commit-a { margin-left: auto; }
-.con-botattack__commit-loss + .con-botattack__commit-a { margin-left: .4rem; }
-
-.con-botattack__commit--ready {
-    .con-botattack__commit-verb { color: @con-text; }
-
-    &::before { background: fade(@con-red, 70%); }
-}
-.con-botattack__commit--focused {
-    transform: translateX(.18rem);
-    box-shadow:
-        inset 0 0 0 .075rem fade(@con-cyan, 88%),
-        0 0 1.1rem fade(@con-cyan, 18%),
-        0 .4rem 1.1rem rgba(0, 0, 0, 0.45);
-
-    &::before { background: @con-cyan; }
-}
-/* THE COMMIT BEAT — the row seals in the danger register while the chosen
-   cube leaves, and the surface stops taking input by phase. One short pulse,
-   never a loop. */
-.con-botattack__commit--armed {
-    box-shadow:
-        inset 0 0 0 .075rem fade(@con-red, 92%),
-        0 0 1.2rem fade(@con-red, 22%);
-
-    &::before { background: @con-red; }
-
-    .con-botattack__commit-verb { color: fade(@con-red, 98%); }
 }
 
 /* ── the pending-removal pose ────────────────────────────────────────── */
-/* The chosen card carries the loss BEFORE the answer leaves: the shared
-   selector's locked slot is repainted in the danger register (it means «this
-   is what you are giving up», not «this is what you gained»), and during the
-   commit beat the card's own resource capsule dims and shrinks a hair — the
-   cube visibly letting go. Nothing here changes a NUMBER: the counters keep
-   reading the server's values until the server has answered. */
-/* ⚠ The shared step paints its rings on the CARD FACE, not on the slot
-   (`&--locked > :is(.card-container, .pcard)`), and the focused+locked pair has
-   its own rule — so BOTH must be answered here, and both selectors must
-   out-specify theirs. A `box-shadow` on the slot itself would simply draw a
-   second, offset ring behind the mint one. */
+/* The chosen card carries the loss BEFORE the answer leaves. ⚠ The shared step
+   paints its rings on the CARD FACE (`&--locked > :is(.card-container, .pcard)`)
+   and the focused+locked pair has its own rule, so BOTH must be answered here
+   and both selectors must out-specify theirs. Nothing here changes a NUMBER:
+   the counters keep reading the server's values until the server has answered. */
 .con-botattack .con-ptsel[data-direction='remove'] {
     .con-ptsel__slot--locked > :is(.card-container, .pcard),
     .con-ptsel__slot--focused.con-ptsel__slot--locked > :is(.card-container, .pcard) {
         box-shadow:
-            0 0 0 .18rem fade(@con-red, 92%),
-            0 0 1.2rem fade(@con-red, 34%);
+            0 0 0 .16rem fade(@con-red, 90%),
+            0 0 1.1rem fade(@con-red, 30%);
     }
     .con-ptsel__lock {
         background: fade(@con-red, 88%);
         color: #1b0f10;
     }
+    /* The result rail's NEGATIVE readings — the delta is the one number that
+       earns the accent, and only on this surface. */
+    .con-ptsel__imp-delta { color: fade(@con-red, 96%); }
+    .con-ptsel__imp--static .con-ptsel__imp-delta { color: fade(@con-text-dim, 80%); }
 }
+/* …and during the beat the card's own capsule lets the cube go. */
 .con-botattack--committing {
     .con-ptsel__slot--locked .pcard__res,
     .con-ptsel__slot--locked .con-cardres {
@@ -322,9 +332,17 @@
     }
 }
 
+/* ── HANDHELD (Steam Deck): the scene stacks rather than shrinks ──────── */
+html.con-profile-handheld {
+    .con-botattack__head { max-width: 26rem; }
+    .con-botattack__stage { height: 12.5rem; }
+    .con-botattack__title { font-size: 1.15rem; }
+}
+
 /* ── reduced motion: the ORDER survives, the movement does not ───────── */
 @media (prefers-reduced-motion: reduce) {
-    .con-botattack__panel { animation: none; }
+    .con-botattack__cta { transition: none; }
+    .con-botattack__cta--focused { transform: none; }
 
     .con-botattack--committing {
         .con-ptsel__slot--locked .pcard__res,

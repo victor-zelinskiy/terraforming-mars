@@ -7,12 +7,16 @@
 
 ## Механика
 
-**Одна рамка на всех — по факту, не по приближению.** Вертикаль полосы больше
+**Одна рамка на всех — по факту, не по приближению.** Геометрия полосы больше
 не выводится из токенов-приближений: `useWorkspaceBandGeometry` (composable,
-ResizeObserver на `.con-main`) публикует ЖИВОЙ бокс колонки как
-`--con-ws-top`/`--con-ws-bottom`, а `.con-ws-band()` читает их с токенами как
-pre-mount fallback. Правый край полосы = `--con-pad-x` (инсет шелла), не край
-вьюпорта. Экраны-workspace несут `.con-ws-fill()` (ширина 100%, `max-width:
+ResizeObserver на `.con-main` И на ОБОИХ rail'ах) публикует ЖИВОЙ
+**ЦЕНТРАЛЬНЫЙ ПРОЁМ** четырьмя инсетами — `--con-stage-t/-b/-l/-r` (до
+2026-08-17 это была только вертикаль, `--con-ws-top`/`--con-ws-bottom`), а
+`.con-modal-band()` читает их с токенами как pre-mount fallback. Правый край
+зависит от семьи: компактный ДИАЛОГ останавливается у rail'а достижений
+(`--con-stage-r-eff`), workspace-ЭКРАН доходит до физического края и rail
+скрывается (`.con-root--rail-replaced`) — см. `hud-frame.md` § THE CENTRAL
+OPENING. Экраны-workspace несут `.con-ws-fill()` (ширина 100%, `max-width:
 none`) — их рамка начинается на шве рельсы, как у `.con-info`; НИКАКИХ
 собственных padding'ов на корне поверхности (у `.con-ma` их было три штуки,
 включая профильные — экран стоял на 6–22px иначе всех). Замер (fhd/TV/Deck):
@@ -26,11 +30,21 @@ x/y. Направленный толчок wheel-handoff'а и «подъём» 
 (FLIP одной поверхности в другую — в нём весь смысл) и колесо `quick` (его
 крест собирается из своего хаба, рамка не двигается).
 
-- **`.con-ws-band()`** (console.less, рядом с `.con-modal-band()`): modal-band
-  + `left: var(--con-ws-left)`. Токен считается один раз на `.con-root`:
-  `--con-ws-left = --con-pad-x + --con-rail-w + --con-main-gap`. Профили
-  переопределяют ТОКЕНЫ на `.con-root` (handheld 0.7vw/7.3rem/.4rem, tv
-  safe-x/9.8rem), никогда — per-surface константы.
+- **`.con-ws-band()`** (console.less) — с 2026-08-17 это РОВНО `.con-modal-band()`,
+  который сам и есть **ЦЕНТРАЛЬНЫЙ ПРОЁМ** по всем четырём сторонам:
+  `--con-stage-t/-b/-l/-r` (живой замер `useWorkspaceBandGeometry`), с токенами
+  (`--con-band-top`, `--con-ws-left = --con-pad-x + --con-rail-w + --con-main-gap`,
+  `--con-ws-right`) как pre-mount fallback. Профили переопределяют ТОКЕНЫ на
+  `.con-root` (handheld 0.7vw/7.3rem/.4rem, tv safe-x/9.8rem), никогда —
+  per-surface константы. Правый край проёма тратится через
+  `--con-stage-r-eff`, который обнуляет ПОЛИТИКА шелла
+  (`.con-root--rail-replaced`): workspace-ЭКРАН и два правых ящика забирают зону
+  правого rail'а и он перестаёт рисоваться, компактный ДИАЛОГ стоит внутри
+  проёма рядом с горящим rail'ом. Полный контракт (включая «затемнение = тот же
+  проём» и `absolute; inset: 0` для собственных `__backdrop`):
+  `docs/claude/console/hud-frame.md` § THE CENTRAL OPENING.
+  `.con-ws-sides()` — те же два боковых края для поверхностей со своим
+  top/bottom (`.con-cardactions`, `.con-info`, `.con-played`).
 - **Маркер `con-ws`** на корневом элементе поверхности (обязателен вместе с
   миксином): `.con-root:has(.con-ws)` снимает z-ловушку `.con-main`, поднимает
   рельсу (`.con-res` → z11520 — выше шейда 11460 и всей band-семьи
@@ -1274,8 +1288,9 @@ state machine `flow` + `startFlowBusy()` input-lock) и MOTION CORE
 и рельса скрыты: игрового состояния ещё нет), workspace-плита `__frame` несёт
 видимую границу на опак-фоне `__bg`. Deployment — `.con-start--bounded` +
 маркер `con-ws` на ТОМ ЖЕ корне: паддинги корня переезжают ОДНИМ transition
-на семейные токены (`--con-ws-left` / `--con-ws-top/bottom` / `--con-pad-x`;
-НИКАКОГО ручного замера рельсы — старый `--con-start-rail-inset` УДАЛЁН),
+на семейные токены (`--con-stage-l` / `--con-stage-t/-b` с `--con-ws-left` /
+`--con-band-top/bottom` как fallback; НИКАКОГО ручного замера рельсы — старый
+`--con-start-rail-inset` УДАЛЁН),
 `:has(.con-ws)` поднимает и подсвечивает рельсу штатно, `__bg` тончает до
 band-шейда (opacity .6). GAME FRAME MATERIALIZATION = resolved-бит превью →
 prep-хром гаснет НА МЕСТЕ → class-swap (bounded + edge-проявления

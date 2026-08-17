@@ -198,7 +198,13 @@
          cursor cannot move the cards. ── -->
     <footer class="con-ptsel__rail" data-unfold-item ref="rail">
       <template v-if="focused !== undefined">
-        <span class="con-ptsel__railcard">{{ $t(focused.cardName) }}</span>
+        <!-- The card's NAME leads the rail only when it is not already obvious:
+             with several candidates it says WHICH one is being read. With ONE
+             candidate under a host that states the ask itself, «ТИХОХОДКИ →
+             Ресурсы на этой карте 1 → 0» is the card's own name, an arrow and a
+             qualifier for a card that is the only thing on screen — it reads as
+             debug output rather than a result. -->
+        <span v-if="showsRailCard" class="con-ptsel__railcard">{{ $t(focused.cardName) }}</span>
         <!-- The owner marker is dropped when there is only one group: it would
              repeat the header two lines above it. -->
         <template v-if="showsOwnerTargets">
@@ -210,7 +216,10 @@
              adds the judgement, not the fact. -->
         <span v-if="focusedSelfHarm" class="con-ptsel__railwarn">⚠ {{ $t('This is your own card') }}</span>
         <template v-if="railImpacts.length > 0">
-          <span class="con-ptsel__railarrow" aria-hidden="true">→</span>
+          <!-- The arrow SEPARATES the identity from its consequences; with the
+               identity suppressed (see `showsRailCard`) it would open the line
+               with a bare glyph. -->
+          <span v-if="showsRailCard" class="con-ptsel__railarrow" aria-hidden="true">→</span>
           <span class="con-ptsel__railimpacts">
             <span v-for="imp in railImpacts" :key="imp.key" class="con-ptsel__imp"
                   :class="['con-ptsel__imp--' + imp.entity, {'con-ptsel__imp--static': imp.static}]">
@@ -376,6 +385,10 @@ export default defineComponent({
      */
     showsOwnerBar(): boolean {
       return !(this.hostStatesAsk && this.model.owners.length === 1);
+    },
+    /** …and the same rule for the rail's leading card name (see the template). */
+    showsRailCard(): boolean {
+      return !(this.hostStatesAsk && this.model.contract.targetCount === 1);
     },
     /** Several owners → the per-owner and per-focus markers earn their place. */
     showsOwnerTargets(): boolean {

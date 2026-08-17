@@ -7,12 +7,16 @@ import {BonusCardId} from '@/common/automa/AutomaTypes';
 import ruConsole from '@/locales/ru/console.json';
 import ruUi from '@/locales/ru/ui.json';
 import ruAutoma from '@/locales/ru/automa.json';
+// …and the two shared dictionaries this flow REUSES keys from rather than
+// coining its own (invariant 9): the resource label and the VP abbreviation.
+import ruIcons from '@/locales/ru/help_iconography.json';
+import ruEnd from '@/locales/ru/game_end.json';
 import {
   botAttackCommandKeys, botAttackPreviewFor, botAttackPressIntent, botAttackResourceFor,
   botAttackVpLoss, buildBotAttackView, BotAttackViewModel,
-  COMMIT_VERB_ONE, EMPTY_NO_TARGETS, EYEBROW_BOT_ATTACK, HEADLINE_SOURCE_TRIGGERS,
+  COMMIT_VERB_KEY, EMPTY_NO_TARGETS, EYEBROW_ATTACK, HEADLINE_PLAYS_CARD,
   EXPLAIN_REMOVE_ONE, EXPLAIN_REMOVE_MANY, LABEL_CARD_VP, LABEL_RESOURCES, LABEL_SCORE,
-  SECTION_TARGET, VERB_CHOOSE_TARGET, VERB_INSPECT_CARD, VERB_INSPECT_SOURCE, VERB_MINIMIZE,
+  SECTION_TARGET, VERB_CHOOSE_TARGET, VERB_INSPECT_CARD, VERB_MINIMIZE,
   VERB_NAVIGATE,
 } from '@/client/console/botAttack/botAttackModel';
 
@@ -86,7 +90,7 @@ describe('botAttackModel', () => {
   describe('the header', () => {
     it('names the ATTACK, the bot\'s own card face and the seat that attacked', () => {
       const vm = view();
-      expect(vm.eyebrowKey).eq(EYEBROW_BOT_ATTACK);
+      expect(vm.eyebrowKey).eq(EYEBROW_ATTACK);
       expect(vm.attacker).eq('neutral');
       expect(vm.victim).eq('blue');
       // The SHARED source dock draws MarsBot's own face — never a fake project
@@ -96,13 +100,28 @@ describe('botAttackModel', () => {
       expect(vm.source.inspectable).eq(true);
     });
 
-    it('the headline names the card through its i18n KEY, marked for translation', () => {
+    it('the headline names the CARD, never the ACTOR (the surface resolves that)', () => {
       const vm = view();
-      expect(vm.headline.key).eq(HEADLINE_SOURCE_TRIGGERS);
-      expect(vm.headline.params).deep.eq(['Invasive Species']);
-      // …and the parameter is itself a key, so the surface must translate it
-      // before interpolating — else a Russian sentence prints an English name.
-      expect(vm.headline.translateParams).eq(true);
+      expect(vm.headlineKey).eq(HEADLINE_PLAYS_CARD);
+      // Parameter 0 is the actor's DISPLAY NAME, which only the surface can
+      // resolve (`displayNameForColor` needs the live players list); the model
+      // supplies parameter 1, the card's own i18n key. A literal «MarsBot» — or
+      // a literal «Бот» — anywhere in here would be the bug this replaces.
+      expect(vm.sourceNameKey).eq('Invasive Species');
+      // NOTHING the surface RENDERS carries the bot's name: the headline key
+      // has a slot for it, the kicker is one word, and the source's kind label
+      // is a card TYPE. The name itself arrives only from the helper.
+      expect(vm.headlineKey).contain('${0}');
+      expect(vm.eyebrowKey).not.contain('MarsBot');
+      expect(vm.source.kindKey).not.contain('MarsBot');
+    });
+
+    it('carries the BRIDGE facts: how many leave, and what', () => {
+      expect(view().amountLabel).eq('1');
+      expect(view().resourceIcon).eq('animal');
+      // A MIXED candidate set has no single glyph to show — the row's own
+      // per-card capsules carry it instead of one that would be a lie.
+      expect(view({}, meta({cardResource: undefined})).resourceIcon).to.be.undefined;
     });
 
     it('the explanation counts, and the restriction is the SERVER\'s rule key', () => {
@@ -225,26 +244,31 @@ describe('botAttackModel', () => {
       })).deep.eq({kind: 'defer'});
     });
 
-    it('X inspects the CURRENT object, L3 the SOURCE that produced it', () => {
+    it('X inspects the focused candidate — and nothing else competes with it', () => {
       const vm = view();
       expect(botAttackPressIntent({
         vm, zone: 'targets', focused: CardName.BIRDS, selected: undefined,
         action: 'inspect', submitting: false,
       })).deep.eq({kind: 'inspectTarget', card: CardName.BIRDS});
+      // The retired L3 source verb resolves to nothing at all.
       expect(botAttackPressIntent({
         vm, zone: 'targets', focused: CardName.BIRDS, selected: undefined,
         action: 'source', submitting: false,
-      })).deep.eq({kind: 'inspectSource'});
+      })).to.be.undefined;
     });
   });
 
   describe('the pad contract', () => {
     it('the A-verb tells «choose» apart from «remove»', () => {
       const vm = view();
+      // NO `L3 Источник`: the bot's real card is drawn inline, so a second
+      // inspect verb would open a viewer onto what the player already sees.
       expect(botAttackCommandKeys(vm, 'targets', undefined)).deep.eq([
-        VERB_NAVIGATE, VERB_CHOOSE_TARGET, VERB_INSPECT_CARD, VERB_INSPECT_SOURCE, VERB_MINIMIZE,
+        VERB_NAVIGATE, VERB_CHOOSE_TARGET, VERB_INSPECT_CARD, VERB_MINIMIZE,
       ]);
-      expect(botAttackCommandKeys(vm, 'commit', CardName.BIRDS)[1]).eq(COMMIT_VERB_ONE);
+      // …and the BAR gets the project's GENERIC confirm verb, never a second
+      // copy of the commit row's own words.
+      expect(botAttackCommandKeys(vm, 'commit', CardName.BIRDS)[1]).eq(COMMIT_VERB_KEY);
     });
   });
 
@@ -276,13 +300,18 @@ describe('botAttackModel', () => {
       ...(ruConsole as unknown as Record<string, string>),
       ...(ruUi as unknown as Record<string, string>),
       ...(ruAutoma as unknown as Record<string, string>),
+      ...(ruIcons as unknown as Record<string, string>),
+      ...(ruEnd as unknown as Record<string, string>),
     };
     const keys = [
-      EYEBROW_BOT_ATTACK, HEADLINE_SOURCE_TRIGGERS, EXPLAIN_REMOVE_ONE, EXPLAIN_REMOVE_MANY,
-      COMMIT_VERB_ONE, VERB_CHOOSE_TARGET, VERB_INSPECT_CARD, VERB_INSPECT_SOURCE, VERB_MINIMIZE,
+      EYEBROW_ATTACK, HEADLINE_PLAYS_CARD, EXPLAIN_REMOVE_ONE, EXPLAIN_REMOVE_MANY,
+      COMMIT_VERB_KEY, VERB_CHOOSE_TARGET, VERB_INSPECT_CARD, VERB_MINIMIZE,
       VERB_NAVIGATE, SECTION_TARGET, LABEL_RESOURCES, LABEL_CARD_VP, LABEL_SCORE,
-      EMPTY_NO_TARGETS, 'MarsBot card', 'Choose a card first', '${0} VP',
-      // …and the two strings the SERVER ships for this flow.
+      EMPTY_NO_TARGETS, 'Bot card', 'Choose a card first', '${0} VP',
+      // The ACTOR's own label — the ONE key the display-name helper resolves.
+      'MarsBot',
+      // …the announcement's sentence, and the two strings the SERVER ships.
+      '${0} is taking a resource from one of your cards',
       'Remove 1 resource from one of your cards',
       'Only your highest-scoring animal or microbe cards can be chosen.',
     ];

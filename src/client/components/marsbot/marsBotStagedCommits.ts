@@ -35,6 +35,16 @@
  * immediately (unless a staging window is already open — then it only
  * refreshes the buffered latest, keeping order). The server is never held:
  * this is purely the client presentation layer.
+ *
+ * ⚠️ AND NEITHER DOES A LONE TURN. Staging is a SEQUENCER; with one turn there
+ * is no order to keep — its footprint IS the authoritative view — so buffering
+ * bought nothing and cost the player their own next prompt for as long as the
+ * card took to be delivered (behind the feed's silencing gates, i.e. behind
+ * their own action cinematic, on every single turn). That is the whole
+ * «MarsBot иногда думает 5 секунд» report: the server answered in 200 ms and
+ * the client sat on the answer. The window opens for a BURST only (several
+ * turns in one response, or a window already open) — see
+ * `presentFreshBotTurns`.
  */
 import {reactive} from 'vue';
 import {PlayerViewModel, PublicPlayerModel, ViewModel} from '@/common/models/PlayerModel';
@@ -42,6 +52,7 @@ import {MarsBotAttack, MarsBotImpact, MarsBotTurn} from '@/common/automa/MarsBot
 import {HAZARD_TILES} from '@/common/TileType';
 import {armPlacementAnimations} from '@/client/components/board/tilePlacementAnimation';
 import {stageRemoteTileEvents} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {noteBotTurnStage} from './marsBotTurnTiming';
 
 type StagedBatch = {
   /** The view the player is LOOKING at (the committed object — mutated in place). */
@@ -277,6 +288,12 @@ export function commitBotStagingNow(): void {
     return;
   }
   const commit = batch.commitLatest;
+  // The window's commit IS the commit of every turn still waiting inside it —
+  // a turn dropped from the queue (the player's B, the liveness backstop) never
+  // becomes visible, so nothing else would ever close its record.
+  for (const key of batch.pendingKeys) {
+    noteBotTurnStage(key, 'commit', 'with the batch');
+  }
   batch = undefined;
   syncState();
   commit();

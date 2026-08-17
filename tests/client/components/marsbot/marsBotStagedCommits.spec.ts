@@ -165,13 +165,26 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
     expect(isBotStagingActive()).eq(false);
   });
 
-  it('a SINGLE fresh turn commits on its own card delivery (human latency unchanged)', async () => {
+  it('a SINGLE fresh turn does NOT stage — the caller commits on the spot', async () => {
+    /*
+     * This spec used to assert the opposite («commits on its own card
+     * delivery, human latency unchanged») and that assumption was the bug: the
+     * delivery it waited for sits behind the feed's silencing gates, so the
+     * player's own next prompt was withheld for as long as their action
+     * cinematic ran — the reported «MarsBot думает ~5 секунд». One turn has
+     * nothing to sequence, so nothing is buffered.
+     */
     const presented = makeView();
-    const latest = makeView({turns: [turnWithVisual(1, {spaceId: '03'})], tiles: {'03': TileType.CITY}});
-    expect(presentFreshBotTurns(presented, latest, {commitLatest})).eq(true);
-    expect(committed).eq(0);
+    const latest = makeView({
+      turns: [turnWithVisual(1, {spaceId: '03'})],
+      tiles: {'03': TileType.CITY},
+      waitingFor: {type: 'or'}, // control is back with the player
+    });
+    expect(presentFreshBotTurns(presented, latest, {commitLatest})).eq(false);
+    expect(isBotStagingActive()).eq(false);
+    // The card is still enqueued — the toast waits its turn, the GAME does not.
+    expect([...notificationState.transient, ...notificationState.queue].map((n) => n.id)).deep.eq(['bot:red:1:1']);
     await nextTick();
-    expect(committed).eq(1);
     expect(isBotStagingActive()).eq(false);
   });
 
@@ -235,7 +248,11 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
     notificationState.settings.enabled = false;
     try {
       const presented = makeView();
-      const latest = makeView({turns: [turnWithVisual(1, {spaceId: '03'})], tiles: {'03': TileType.CITY}});
+      // A BURST (the only shape that still stages) with no way to present it.
+      const latest = makeView({
+        turns: [turnWithVisual(1, {spaceId: '03'}), turnWithVisual(2, {spaceId: '05'})],
+        tiles: {'03': TileType.CITY, '05': TileType.CITY},
+      });
       expect(presentFreshBotTurns(presented, latest, {commitLatest})).eq(true);
       expect(committed).eq(1);
       expect(isBotStagingActive()).eq(false);

@@ -41,11 +41,25 @@ import {
 
 // ── copy keys (English text IS the i18n key) ────────────────────────────────
 
-export const EYEBROW_BOT_ATTACK = 'MarsBot attack';
-/** The headline: «"Инвазивные виды" активирует эффект». */
-export const HEADLINE_SOURCE_TRIGGERS = '${0} triggers its effect';
+/**
+ * THE ACTOR IS NEVER SPELLED OUT HERE.
+ *
+ * The bot's visible name is resolved by the ONE existing helper
+ * (`marsBotDisplay.displayNameForColor` → the `'MarsBot'` i18n key → «Бот»), so
+ * every string below either omits it or takes it as a PARAMETER. A literal
+ * «MarsBot» in a Russian sentence is a bug, and so is a literal «Бот»: the label
+ * must follow the locale, never a second hardcode.
+ *
+ * The kicker is therefore ONE word plus the seat chip beside it («АТАКА ·
+ * ● БОТ») rather than «АТАКА БОТА»: a Russian genitive cannot be produced
+ * from an interpolated nominative, and inventing a second, case-inflected name
+ * source is exactly what the one-helper rule forbids.
+ */
+export const EYEBROW_ATTACK = 'Attack';
+/** The headline: «Бот применяет карту «Инвазивные виды»». */
+export const HEADLINE_PLAYS_CARD = '${0} plays ${1}';
 /** …and the honest fallback when the bot's card cannot be named. */
-export const HEADLINE_BOT_ATTACKS = 'MarsBot triggers a hostile effect';
+export const HEADLINE_HOSTILE_EFFECT = '${0} triggers a hostile effect';
 
 /** WHAT the player must do — one plain sentence, singular and counted forms. */
 export const EXPLAIN_REMOVE_ONE = 'Choose one of your cards and remove 1 resource from it.';
@@ -62,23 +76,40 @@ export const EXPLAIN_REMOVE_MANY = 'Choose one of your cards and remove ${0} res
  */
 export const COMMIT_REMOVE_ONE = 'Remove 1 resource';
 export const COMMIT_REMOVE_MANY = 'Remove ${0} resources';
-export const COMMIT_VERB_ONE = 'Remove 1 resource';
-export const COMMIT_VERB_MANY = 'Remove the resources';
+/**
+ * …and the ONE command bar publishes the project's GENERIC confirm verb, never a
+ * second copy of the row's own words. That split is the composer's own
+ * (`commitFocusVerb`): the ROW names the act, the BAR names the press. Both
+ * saying «Удалить 1 ресурс» is the duplication this replaces.
+ */
+export const COMMIT_VERB_KEY = 'Confirm action';
 
-/** The pre-select verb (A on a candidate). `Inspect` / `Inspect the source` are
- *  the console-wide X / L3 verbs — reused, never re-coined (invariant 9). */
+/**
+ * The pre-select verb (A on a candidate). `Inspect` is the console-wide X verb —
+ * reused, never re-coined (invariant 9).
+ *
+ * There is deliberately NO `L3 Источник`. That verb exists for a source the
+ * player cannot see; this modal draws the bot's real card face inline, so a
+ * second inspect would open a viewer onto what they are already looking at — a
+ * competing affordance with nothing of its own.
+ */
 export const VERB_CHOOSE_TARGET = 'Choose the target';
 export const VERB_INSPECT_CARD = 'Inspect';
-export const VERB_INSPECT_SOURCE = 'Inspect the source';
 export const VERB_MINIMIZE = 'Minimize';
 export const VERB_NAVIGATE = 'Navigate';
 export const VERB_CONTINUE = 'Continue';
 
-/** Section + impact labels of the `было → станет` preview. */
+/**
+ * Impact labels of the `было → станет` reading — SHORT, because they sit on a
+ * one-line rail beside the card they describe («РЕСУРСЫ 1 → 0 · ПО 2 → 1»). The
+ * long forms («Ресурсы на этой карте») belong to the composer's rail, where
+ * the card is one of many and needs qualifying; here it is the only card on
+ * screen and names itself.
+ */
 export const SECTION_TARGET = 'Attack target';
-export const LABEL_RESOURCES = 'Resources on this card';
-export const LABEL_CARD_VP = 'VP on this card';
-export const LABEL_SCORE = 'Your total score';
+export const LABEL_RESOURCES = 'Resources';
+export const LABEL_CARD_VP = 'VP';
+export const LABEL_SCORE = 'Score';
 
 /** The honest state when the rules left nothing to choose. */
 export const EMPTY_NO_TARGETS = 'MarsBot found nothing to take from you.';
@@ -112,13 +143,29 @@ export type BotAttackViewModel = {
   victim: Color;
   /** WHO/WHAT asked — rendered by the SHARED source dock (`BonusCardFace`). */
   source: PromptSourceView;
-  headline: BotAttackPhrase;
+  /**
+   * The headline's i18n KEY. Its parameters are the ACTOR's display name and
+   * the card's name, both resolved by the SURFACE: the actor through the one
+   * existing helper (which needs the live players list) and the card through
+   * the dictionary. A pure model can do neither, and must fake neither.
+   */
+  headlineKey: string;
+  /** The source card's own name KEY, when it has one (headline parameter 1). */
+  sourceNameKey?: string;
   explanation: BotAttackPhrase;
   /** WHY only these cards — the server's own rule key, when it sent one. */
   restrictionKey?: string;
+  /**
+   * THE BRIDGE's two facts: how many leave, and what. The count is a plain
+   * numeral (the chip reads «−1», so no plural form is involved) and the icon
+   * is absent only when the candidates mix resource types — there the row's
+   * own per-card capsules carry it and a single glyph would be a lie.
+   */
+  amountLabel: string;
+  resourceIcon?: string;
   /** The commit verb for the ROW, already counted. */
   commit: BotAttackPhrase;
-  /** …and the parameter-free key the ONE command bar publishes on A. */
+  /** …and the GENERIC key the ONE command bar publishes on A. */
   commitVerbKey: string;
   targets: ReadonlyArray<BotAttackTargetView>;
   /**
@@ -177,23 +224,27 @@ export function buildBotAttackView(
   const amount = Math.max(1, meta.amount);
   const source = botAttackSourceView(meta.source, bonusCtx);
   const sourceName = source.name;
+  const named = typeof sourceName === 'string' && sourceName !== '';
 
   return {
-    eyebrowKey: EYEBROW_BOT_ATTACK,
+    eyebrowKey: EYEBROW_ATTACK,
     attacker: meta.attacker,
     victim: meta.victim,
     source,
-    headline: typeof sourceName === 'string' && sourceName !== '' ?
-      {key: HEADLINE_SOURCE_TRIGGERS, params: [sourceName], translateParams: true} :
-      {key: HEADLINE_BOT_ATTACKS, params: []},
+    headlineKey: named ? HEADLINE_PLAYS_CARD : HEADLINE_HOSTILE_EFFECT,
+    sourceNameKey: named ? (sourceName as string) : undefined,
     explanation: amount === 1 ?
       {key: EXPLAIN_REMOVE_ONE, params: []} :
       {key: EXPLAIN_REMOVE_MANY, params: [String(amount)]},
     restrictionKey: meta.restrictionKey,
+    amountLabel: String(amount),
+    resourceIcon: meta.cardResource === undefined ?
+      undefined :
+      botAttackResourceIcon(meta.cardResource),
     commit: amount === 1 ?
       {key: COMMIT_REMOVE_ONE, params: []} :
       {key: COMMIT_REMOVE_MANY, params: [String(amount)]},
-    commitVerbKey: amount === 1 ? COMMIT_VERB_ONE : COMMIT_VERB_MANY,
+    commitVerbKey: COMMIT_VERB_KEY,
     targets,
     empty: model.cards.length === 0,
     skippable: model.min === 0,
@@ -285,8 +336,6 @@ export type BotAttackPress =
   | {kind: 'commit', card: CardName}
   /** X — the focused candidate, fullscreen. */
   | {kind: 'inspectTarget', card: CardName}
-  /** L3 — the SOURCE that produced this (console-wide inspection grammar). */
-  | {kind: 'inspectSource'}
   /** The degenerate no-targets prompt the protocol lets us answer empty. */
   | {kind: 'skip'}
   /** B — set aside; the prompt stays pending and the chip carries it. */
@@ -299,12 +348,7 @@ export type BotAttackPressInput = {
   focused: CardName | undefined;
   /** The candidate the player has already CHOSEN (undefined = none yet). */
   selected: CardName | undefined;
-  /**
-   * The console action the press resolved to, plus the ONE pseudo-action the
-   * surface adds: `'source'` for L3, which is a raw stick press and therefore
-   * has no entry in the shared button→action map (the same way the action
-   * composer's verdict reads it).
-   */
+  /** The console action the press resolved to. */
   action: string | undefined;
   /** An answer is already on its way — a second press must not send another. */
   submitting: boolean;
@@ -322,9 +366,6 @@ export type BotAttackPressInput = {
 export function botAttackPressIntent(o: BotAttackPressInput): BotAttackPress | undefined {
   if (o.action === 'back') {
     return {kind: 'defer'};
-  }
-  if (o.action === 'source') {
-    return o.vm.source.inspectable ? {kind: 'inspectSource'} : undefined;
   }
   if (o.action === 'inspect') {
     return o.focused === undefined ? undefined : {kind: 'inspectTarget', card: o.focused};
@@ -358,9 +399,6 @@ export function botAttackCommandKeys(
   const keys: Array<string> = [VERB_NAVIGATE];
   keys.push(zone === 'commit' && selected !== undefined ? vm.commitVerbKey : VERB_CHOOSE_TARGET);
   keys.push(VERB_INSPECT_CARD);
-  if (vm.source.inspectable) {
-    keys.push(VERB_INSPECT_SOURCE);
-  }
   keys.push(VERB_MINIMIZE);
   return keys;
 }

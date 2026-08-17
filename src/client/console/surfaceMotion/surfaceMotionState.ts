@@ -71,6 +71,30 @@ export const surfaceMotionState = reactive({
 });
 
 /** The ONE shade predicate the shell binds (`.con-shade--on`). */
+/**
+ * The owners whose dim is the WHOLE SHELL rather than the central opening.
+ *
+ * The shade normally covers exactly the stage between the four hull members —
+ * the rails are chrome the player reads THROUGH a decision. A cinematic is the
+ * other case: it paints over the whole shell by design, so a dim that stopped at
+ * the rails would leave a lit strip beside a surface that is covering them, and
+ * the seam would read as a rendering fault rather than as chrome.
+ *
+ * A CLOSED SET, deliberately small: everything not named here is a decision
+ * surface, and a decision surface never darkens a bar. `reveal` is the only
+ * shade-owning cinematic today — the other full-bleed moments (ceremonies, the
+ * mandatory announce, fullscreen inspect, the system menu, the start scene,
+ * endgame) carry their own veil and never take this one.
+ */
+const FULL_BLEED_SHADE_OWNERS: ReadonlySet<SurfaceMotionId> = new Set<SurfaceMotionId>([
+  'reveal',
+]);
+
+/** Does the live shade belong to a FULL-BLEED owner (see the set above)? */
+export function surfaceShadeFullBleed(): boolean {
+  return surfaceMotionState.shadeOwners.some((id) => FULL_BLEED_SHADE_OWNERS.has(id));
+}
+
 export function surfaceShadeOn(): boolean {
   if (surfaceMotionState.pickSuppressed || surfaceMotionState.revealVeilSuppressed) {
     return false;

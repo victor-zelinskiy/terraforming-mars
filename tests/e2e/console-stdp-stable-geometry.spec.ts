@@ -36,6 +36,15 @@ type StdpGeometry = {
   gridRight: number,
   cards: ReadonlyArray<Box>,
   stages: ReadonlyArray<Box>,
+  /**
+   * The SETTLE probe: the same positions UNROUNDED. A layout that has stopped
+   * moving reproduces its floats exactly; an ease still running practically
+   * never does. Comparing the rounded boxes (what the walk asserts) is too weak
+   * for the baseline — the entry's tail eases sub-pixel-per-frame near the end,
+   * so two reads 250ms apart can round equal while the grid is still travelling
+   * several px, and the baseline is then captured mid-ease.
+   */
+  raw: ReadonlyArray<number>,
 };
 
 /** One evaluate → one geometry object (never N boundingBox round-trips). */
@@ -51,17 +60,38 @@ async function readGeometry(page: Page): Promise<StdpGeometry> {
     if (body === null || foot === null || grid === null) {
       throw new Error('stdp chrome not mounted');
     }
+    const cards = [...document.querySelectorAll('.con-stdp__card')];
     return {
       body: r(body),
       foot: r(foot),
       gridRight: r(grid).x + r(grid).w,
-      cards: [...document.querySelectorAll('.con-stdp__card')].map(r),
+      cards: cards.map(r),
       stages: [...document.querySelectorAll('.con-stdp__stage')].map(r),
+      raw: [
+        body.getBoundingClientRect().top,
+        ...cards.flatMap((c) => {
+          const b = c.getBoundingClientRect();
+          return [b.top, b.left];
+        }),
+      ],
     };
   });
 }
 
 const EPS = 1; // sub-pixel rounding only
+
+/**
+ * Headless Chromium drives rAF off the COMPOSITOR, so an idle page does not
+ * FINISH the entrance tween — it FREEZES it mid-flight, which is
+ * indistinguishable from «settled» to any sampler. The first keypress is a
+ * BeginFrame, the tween then lands its remaining px, and the focus walk gets
+ * indicted for the entrance's last frames (measured: 4px on the first step at
+ * 4K, 0px on every step after it). A tiny screenshot IS a BeginFrame — pumping
+ * them is what actually ends the entrance.
+ */
+async function forceFrame(page: Page): Promise<void> {
+  await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
+}
 
 function expectStable(now: StdpGeometry, base: StdpGeometry, step: string): void {
   const boxEq = (a: Box, b: Box, what: string) => {
@@ -102,41 +132,47 @@ for (const profile of PROFILES) {
       // The entry motion's TAIL can outlive any fixed pause on a loaded 4K
       // run (measured: the grid still eases ~3px between 2.1s and 2.4s after
       // the open — with old and new edge tokens alike), and a baseline
-      // captured mid-ease indicts the focus walk for the entry's last
-      // easing frame. Capture it only once two consecutive reads agree.
+      // captured mid-ease indicts the focus walk for the entry's last easing
+      // frame. So the baseline waits for the SUB-PIXEL positions to repeat
+      // TWICE — and the wait then asserts its own success, because a settle
+      // probe that gave up looks exactly like one that succeeded.
       await page.waitForTimeout(600);
+      await forceFrame(page);
       let base = await readGeometry(page);
-      for (let i = 0; i < 12; i++) {
-        await page.waitForTimeout(250);
+      let agreed = 0;
+      for (let i = 0; i < 24 && agreed < 2; i++) {
+        await page.waitForTimeout(120);
+        await forceFrame(page);
+        await page.waitForTimeout(120);
         const now = await readGeometry(page);
-        const settled = now.cards.length === base.cards.length &&
-          Math.abs(now.body.y - base.body.y) === 0 &&
-          now.cards.every((c, j) => Math.abs(c.y - base.cards[j].y) === 0 &&
-            Math.abs(c.x - base.cards[j].x) === 0);
+        const same = now.raw.length === base.raw.length &&
+          now.raw.every((v, j) => v === base.raw[j]);
+        agreed = same ? agreed + 1 : 0;
         base = now;
-        if (settled) {
-          break;
-        }
       }
+      expect(agreed, 'the entry motion never settled — the baseline would be mid-ease')
+        .toBeGreaterThanOrEqual(2);
       expect(base.cards.length, 'the whole family renders').toBeGreaterThanOrEqual(6);
       // The stable-foot token in action: the rail is a fixed-height box.
       expect(base.foot.h).toBeGreaterThan(0);
 
       // Walk DOWN the grid (covers «Продажа патентов» → projects with chip
       // rows → back): every step re-reads the full geometry.
+      const step = async (code: string, label: string): Promise<void> => {
+        await press(page, code, 250);
+        await forceFrame(page);
+        await page.waitForTimeout(150);
+        expectStable(await readGeometry(page), base, label);
+      };
       const steps = base.cards.length + 2;
       for (let i = 0; i < steps; i++) {
-        await press(page, 'ArrowDown', 350);
-        expectStable(await readGeometry(page), base, `down#${i + 1}`);
+        await step('ArrowDown', `down#${i + 1}`);
       }
       for (let i = 0; i < 3; i++) {
-        await press(page, 'ArrowUp', 350);
-        expectStable(await readGeometry(page), base, `up#${i + 1}`);
+        await step('ArrowUp', `up#${i + 1}`);
       }
-      await press(page, 'ArrowRight', 350);
-      expectStable(await readGeometry(page), base, 'right');
-      await press(page, 'ArrowLeft', 350);
-      expectStable(await readGeometry(page), base, 'left');
+      await step('ArrowRight', 'right');
+      await step('ArrowLeft', 'left');
 
       // TWO-LEVEL SAFE AREA: the grid (visual matter) reaches past the old
       // content-safe line — its right edge must clear viewport − content

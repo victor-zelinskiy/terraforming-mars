@@ -107,6 +107,14 @@ export function choiceSourceView(source: ChoiceContextSource | undefined): Promp
 }
 
 /**
+ * The kind chip of a bot source. A card TYPE, deliberately WITHOUT the actor's
+ * name in it: the visible name of the seat comes from the one display-name
+ * helper (`marsBotDisplay`), and baking «MarsBot» into a label is exactly the
+ * defect that made a Russian session read «КАРТА MARSBOT».
+ */
+export const BOT_CARD_KIND = 'Bot card';
+
+/**
  * `BotAttackSource` — the object of MarsBot's that produced a forced choice.
  *
  * `ctx` resolves the bonus card's printed expansion branches for THIS game, so
@@ -118,7 +126,7 @@ export function botAttackSourceView(source: BotAttackSource, ctx: BonusCardConte
   if (source.kind === 'bonusCard') {
     return {
       bonusCard: {id: source.bonusCard, ctx},
-      kindKey: 'MarsBot card',
+      kindKey: BOT_CARD_KIND,
       // The face draws its own name; `name` exists for the CHIP dress and for
       // the deferred band, which have no room for a face and would otherwise
       // say a bare «КАРТА БОТА».
@@ -126,7 +134,7 @@ export function botAttackSourceView(source: BotAttackSource, ctx: BonusCardConte
       inspectable: true,
     };
   }
-  return {card: source.card, kindKey: 'MarsBot card', inspectable: true};
+  return {card: source.card, kindKey: BOT_CARD_KIND, inspectable: true};
 }
 
 /** `ProductionLossSource` — the parallel typed field on `SelectProductionToLose`. */
@@ -169,7 +177,7 @@ export function promptSourceView(
   if (attack !== undefined) {
     return bonusCtx !== undefined ?
       botAttackSourceView(attack.source, bonusCtx) :
-      {kindKey: 'MarsBot card', inspectable: false};
+      {kindKey: BOT_CARD_KIND, inspectable: false};
   }
   if (wf.type === 'productionToLose') {
     const view = productionLossSourceView((wf as SelectProductionToLoseModel).source);

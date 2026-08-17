@@ -890,18 +890,21 @@ export default defineComponent({
           };
 
           /*
-           * MarsBot turns (poll path) — NOTIFICATION-FIRST with STAGED visual
-           * commits. A response carrying fresh bot turns is NOT committed
-           * here: it is buffered by the staging window, and each turn's
-           * visual footprint (tiles / parameters / resource deltas) applies
-           * to the PRESENTED view exactly when that turn's compact card is
-           * DELIVERED; the LAST pending turn's delivery performs this full
-           * `commit`. Consequences never precede their explanation, and the
-           * queued turns' changes are never visible ahead of their card.
-           * While a window is open, later polls only refresh the buffered
-           * latest (also handled inside — returns true). A response with no
-           * fresh turns and no open window falls through to the normal
-           * immediate commit (human actions are never delayed).
+           * MarsBot turns (poll path) — NOTIFICATION-FIRST, and STAGED only
+           * when there is something to SEQUENCE. A response carrying SEVERAL
+           * fresh turns is not committed here: it is buffered by the staging
+           * window, and each turn's visual footprint (tiles / parameters /
+           * resource deltas) applies to the PRESENTED view exactly when that
+           * turn's compact card is DELIVERED; the LAST pending turn's delivery
+           * performs this full `commit`. Consequences never precede their
+           * explanation, and the queued turns' changes are never visible ahead
+           * of their card. While a window is open, later polls only refresh the
+           * buffered latest (also handled inside — returns true).
+           *
+           * A response carrying ONE fresh turn falls through to the immediate
+           * commit like any other: there is no order to keep, and buffering it
+           * only made the player wait out the card's own delivery for their own
+           * next prompt. So does a response with no fresh turns and no window.
            */
           if (path === paths.PLAYER &&
               presentFreshBotTurns(prevView, model as PlayerViewModel, {commitLatest: commit})) {

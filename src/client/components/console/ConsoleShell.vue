@@ -1,5 +1,5 @@
 <template>
-  <div class="con-root">
+  <div class="con-root" :class="conRootClasses">
     <!-- P27: the strip is player IDENTITY + live turn STATUS only — the
          cards/actions counters live in the right home panel now, and the
          viewer's "your turn" reads from their own chip (no central pill). -->
@@ -106,7 +106,8 @@
            simply keeps its board-level z and is covered where a panel reaches
            it; only the rail panel itself is lifted above the shade. The prop
            gates the section/info states it always did.) -->
-      <ConsoleResourcePanel :player="railPlayer" :epoch="playerView.runId"
+      <ConsoleResourcePanel ref="conRailEl"
+                            :player="railPlayer" :epoch="playerView.runId"
                             :gameTags="playerView.game.tags"
                             :convertPlants="convertPlantsReady && railShowsSelf" :convertHeat="convertHeatReady && railShowsSelf"
                             :boardVisible="consoleState.section === 'board' && !infoModeState.open && !startSceneVisible"
@@ -123,7 +124,8 @@
       <!-- The right STRATEGY RAIL — the Milestones/Awards premium HUD, the
            LEFT rail's geometric twin (same width token). Always the board
            home's right edge; task overlays and workspaces stand OVER it. -->
-      <ConsoleStrategyRail v-show="consoleState.section === 'board'"
+      <ConsoleStrategyRail ref="conStratEl"
+                           v-show="consoleState.section === 'board'"
                            :milestones="hudMilestoneZone"
                            :awards="hudAwardZone"
                            :viewerColor="thisPlayer.color"
@@ -401,7 +403,17 @@
          dimming is a transition instrument, not a static backdrop: open
          wheel → focused hold → (commit) the shade hands its darkness to the
          incoming surface, or releases toward a workspace. Opacity-only. -->
-    <div class="con-shade" :class="{'con-shade--on': surfaceShadeVisible, 'con-shade--veil': surfaceShadeVeil, 'con-shade--focus': wheelInput.arm !== undefined}" aria-hidden="true"></div>
+    <!-- THE SHARED DIM. Its BOX is the central opening (the four hull members
+         stay lit — see `.con-shade` in console.less); `--fullbleed` is the one
+         exception, declared by the OWNER when a cinematic is covering the whole
+         shell and its dim must follow. -->
+    <div class="con-shade"
+         :class="{
+           'con-shade--on': surfaceShadeVisible,
+           'con-shade--veil': surfaceShadeVeil,
+           'con-shade--focus': wheelInput.arm !== undefined,
+           'con-shade--fullbleed': surfaceShadeFullBleed,
+         }" aria-hidden="true"></div>
 
     <!-- P27: the RT / LT QUICK SELECTORS — the direct-input command layers
          (RT = action categories, LT = basic actions). Surface-motion:
@@ -1240,7 +1252,7 @@ import ConsoleStatusStrip from '@/client/components/console/ConsoleStatusStrip.v
 import ConsoleTerraformingCeremony from '@/client/components/console/ConsoleTerraformingCeremony.vue';
 import ConsoleBotTurnReview from '@/client/components/console/ConsoleBotTurnReview.vue';
 import {botTurnReviewState, closeBotTurnReview, setBotReviewPeek} from '@/client/components/marsbot/botTurnReviewState';
-import {openBotTurnReviewByKey, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
+import {openBotTurnReviewByKey, skipBotTurnPresentation, stepBotTurnReview} from '@/client/components/marsbot/marsBotPresentation';
 import {acquireForegroundLease, isMandatoryPromptsHeld} from '@/client/components/presentation/presentationFlow';
 import {isAnimationHoldActive} from '@/client/components/presentation/animationHold';
 import {PendingQueueSummary} from '@/client/components/presentation/presentationPolicy';
@@ -1543,7 +1555,7 @@ import {GamepadIntent, NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {GlyphControl, activeGlyphSet} from '@/client/gamepad/glyphSets';
 import {resolveScope} from '@/client/gamepad/focusScopes';
 import {consoleState, closeConsoleLayers, stepIndex, stepSelectable, registerConsoleIntentHandler, ConsoleQuickId} from '@/client/console/consoleRouter';
-import {surfaceShadeOn, setPickSuppressed, beginAwaitingHandoff, clearAwaitingHandoff, isSurfaceAwaitingHandoff, captureSurfaceDeparture, markWheelHandoff, retargetWheelEcho, resetSurfaceMotion, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
+import {surfaceShadeOn, surfaceShadeFullBleed, setPickSuppressed, beginAwaitingHandoff, clearAwaitingHandoff, isSurfaceAwaitingHandoff, captureSurfaceDeparture, markWheelHandoff, retargetWheelEcho, resetSurfaceMotion, surfaceMotionState} from '@/client/console/surfaceMotion/surfaceMotionState';
 import {WheelArmEvent, WheelInputState, initialWheelInput, reduceWheel} from '@/client/console/quickWheel/wheelArmModel';
 import {wheelControlState} from '@/client/console/quickWheel/wheelControlMode';
 import {wheelHandoffSpecFor, CONFIRM_HANDOFF} from '@/client/console/quickWheel/wheelHandoffModel';
@@ -1560,7 +1572,7 @@ import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProf
 import {albumSpecFor} from '@/client/components/console/consoleHandAlbum';
 import {albumLayoutState, setAlbumLayoutRecomposer} from '@/client/console/consoleAlbumLayout';
 import {useConsoleNativeSurface} from '@/client/console/composables/consoleNativeSurface';
-import {useWorkspaceBandGeometry} from '@/client/console/composables/useWorkspaceBandGeometry';
+import {StageHost, useWorkspaceBandGeometry} from '@/client/console/composables/useWorkspaceBandGeometry';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
 import {awaitingViewerInput, offTurnReason} from '@/client/console/offTurnReason';
 // Only as the DEGRADE default for a player model that predates `maCosts` (an
@@ -1760,12 +1772,20 @@ export default defineComponent({
     // (html.console-native + body scroll lock); anything that overflows must
     // live inside a ConsoleScrollArea, never scroll the page.
     useConsoleNativeSurface();
-    // The workspace band's ONE geometry: the fixed band surfaces read the
-    // LIVE main-column box instead of approximating it from tokens, so every
-    // workspace opens in a pixel-identical frame.
+    // THE CENTRAL STAGE'S ONE GEOMETRY. Every fixed band surface and the shared
+    // dim read the LIVE opening between the four hull members instead of
+    // approximating it from tokens — so a modal can never reach under a bar and
+    // the shade can never grey one out. The two RAILS are measured too: the
+    // right one is board-home only, and a `v-show` flip that hides it moves the
+    // opening's edge without resizing the column.
     const conMainEl = ref<HTMLElement>();
-    useWorkspaceBandGeometry(conMainEl);
-    return {conMainEl};
+    // Component instances, not elements — the mirror resolves `$el` itself.
+    const conRailEl = ref<StageHost>();
+    const conStratEl = ref<StageHost>();
+    useWorkspaceBandGeometry(
+      {main: conMainEl, left: conRailEl, right: conStratEl},
+      () => `${consoleState.section}|${consoleState.sheet ?? ''}`);
+    return {conMainEl, conRailEl, conStratEl};
   },
   data() {
     return {
@@ -2320,6 +2340,16 @@ export default defineComponent({
      *  the trade-fleet flight keeps its thin veil over the colony grid. */
     surfaceShadeVisible(): boolean {
       return surfaceShadeOn() || isTradeFleetActive();
+    },
+    /**
+     * The live shade belongs to a FULL-BLEED owner (the card-reveal cinematic),
+     * so its dim covers the whole shell rather than the opening. The set lives
+     * with the shade state (`surfaceShadeFullBleed`) — the shell only forwards
+     * the verdict, and the trade-fleet veil is a decision-surface dim like every
+     * other one.
+     */
+    surfaceShadeFullBleed(): boolean {
+      return surfaceShadeFullBleed();
     },
     /** The shade thins to a light veil: the task host's table beat (draft
      *  tray owns the screen) and the trade-fleet launch (ship focal, grid
@@ -5120,6 +5150,34 @@ export default defineComponent({
      *  template note and infoModeState.closing. */
     infoWorkspaceUp(): boolean {
       return this.infoModeState.open || this.infoModeState.closing;
+    },
+    /**
+     * A WORKSPACE SCREEN (or a right-edge drawer) is up, so the RIGHT RAIL is
+     * being REPLACED rather than covered: it stops being drawn and the opening
+     * extends over its zone (`.con-root--rail-replaced` in console.less).
+     *
+     * A compact DIALOG is deliberately NOT here — it stands inside the opening
+     * and the trophy gallery stays lit beside it. That is the whole distinction
+     * this class carries: «I am the stage now» versus «I am a decision on it».
+     *
+     * DERIVED FROM THE STACK, never from a list of surface names: the workspace
+     * registry already owns «which surfaces are screens», and a second list is
+     * exactly what rots the day a tenth workspace lands. The two additions are
+     * the workspace-shaped surfaces that are NOT stack frames — the Information
+     * Workspace and the «РАЗЫГРАНО» table — plus the two right-edge drawers,
+     * which replace that one member by design.
+     */
+    workspaceScreenUp(): boolean {
+      return workspaceStackState.frames.length > 0 ||
+        this.infoWorkspaceUp ||
+        this.playedOpen;
+    },
+    conRootClasses(): Record<string, boolean> {
+      return {
+        'con-root--rail-replaced': this.workspaceScreenUp ||
+          this.journalPanelVisible ||
+          this.contextOverlayMode !== undefined,
+      };
     },
     conMainClasses(): Record<string, boolean> {
       const classes: Record<string, boolean> = {
@@ -8602,7 +8660,16 @@ export default defineComponent({
         // handoff / heroes / review), so a cinematic's own swallow still wins.
         if (action === 'back') {
           cancelNotifHold();
-          dismissNotification(topCard.id);
+          // A bot-turn card closed BY THE PLAYER collapses the whole AI-turn
+          // backlog (ack + deliver + commit) instead of merely uncovering the
+          // next one — «я посмотрел» is about the bot's turns, not about this
+          // one card. A bare dismiss here also never acked, so the server kept
+          // pacing the next turn on a client that had already caught up.
+          if (topCard.botTurnKey !== undefined) {
+            skipBotTurnPresentation(topCard.botTurnKey);
+          } else {
+            dismissNotification(topCard.id);
+          }
           return true;
         }
         const detailKey = topCard.holdsFlow === true ? topCard.botTurnKey : undefined;

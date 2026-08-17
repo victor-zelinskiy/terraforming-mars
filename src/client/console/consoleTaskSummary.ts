@@ -386,19 +386,27 @@ export function consoleTaskSummary(
       returnKey: 'Return to payment',
     };
 
-  case 'botAttack':
-    // The kicker names the EVENT — «АТАКА MARSBOT» — because that is the fact
-    // the player is owed before anything else, and the A-verb names the ACT
+  case 'botAttack': {
+    // The kicker names the EVENT, and the ask says what is happening TO the
+    // player (the server title is a bare instruction). The A-verb names the ACT
     // rather than a neutral «Открыть»: what waits behind this press is a loss,
-    // and the announcement must not read like an offer. The ask deliberately
-    // ignores the server title (a bare instruction) in favour of the sentence
-    // that says what is happening TO the player.
+    // and the announcement must not read like an offer.
+    //
+    // THE ACTOR RIDES A PLAYER TOKEN, never a literal. `translateMessage`
+    // resolves a MarsBot seat colour through the very same `'MarsBot'` i18n key
+    // the display-name helper uses, so this line reads «Бот …» in Russian and
+    // follows a locale change with no branch of its own.
+    const attacker = wf?.botAttackPrompt?.attacker;
     return {
-      kickerKey: 'MarsBot attack',
-      ask: 'MarsBot is taking a resource from one of your cards',
+      kickerKey: 'Attack',
+      ask: attacker === undefined ?
+        'A resource is being taken from one of your cards' :
+        {message: '${0} is taking a resource from one of your cards',
+          data: [{type: LogMessageDataType.PLAYER, value: attacker}]},
       returnKey: 'Return to the attack',
       openKey: 'Choose what to lose',
     };
+  }
 
   case 'composite':
     return {kickerKey: compositeKicker(wf), ask: ask(wf, 'Choose an option'), sourceCard: source, returnKey: 'Return to the decision'};

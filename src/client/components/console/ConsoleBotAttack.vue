@@ -1,99 +1,113 @@
 <template>
   <!--
-    THE MARSBOT ATTACK — the console's compact modal for «бот атаковал вас».
+    THE BOT ATTACK — the console's compact modal for «бот атаковал вас».
 
-    It is deliberately NOT a workspace: the player did not open anything, there
-    is no flow to descend into and nothing to come back to afterwards. So it is
-    a content-sized panel in the modal band, over a moderate shade — focused
-    enough to be answered, small enough that the board stays readable behind it.
+    It wears the project's ORDINARY cold glass (the same plate `.con-decision`
+    and `.con-task` stand on). The attack is a SEMANTIC accent — one kicker, the
+    bridge, the pending-removal ring, the negative delta — never a red surface:
+    a modal that repaints itself for one event reads as a combat UI borrowed
+    from another game.
 
-    The top half answers the three questions the old full-screen picker left
-    unanswered, in reading order: WHO did this (the attack eyebrow + the bot's
-    seat dot), WITH WHAT (the bot's own card face, drawn by the shared source
-    dock), and WHAT THE PLAYER MUST DO (one plain sentence + the rule that
-    narrowed the candidates).
+    THE COMPOSITION IS A CAUSAL SENTENCE, left to right:
 
-    The bottom half is the SHARED played-target selector — the very component
-    the card-play and blue-action composers use to point at a card on the table
-    — running in its `remove` direction, plus the COMMIT ROW that turns the
-    choice into a second, deliberate press.
+        [ the bot's real card ]  →  ⊖ resource  →  [ your card + result ]
+            SOURCE                   BRIDGE            TARGET
+
+    …so the bot's own face is the physical origin of the effect and never a text
+    rectangle behind an inspect verb. It is content-sized: with one candidate
+    the whole row centres and the panel shrinks with it.
   -->
   <div class="con-botattack con-ws"
        :class="{'con-botattack--committing': committing}"
-       role="dialog" :aria-label="$t(vm.eyebrowKey)"
+       role="dialog" :aria-label="ariaLabel"
        data-motion-surface="bot-attack">
     <div class="con-botattack__panel" data-motion-panel>
       <header class="con-botattack__head">
-        <div class="con-botattack__eyebrow">
-          <span class="con-botattack__eyebrow-dot" :class="'player_bg_color_' + vm.attacker" aria-hidden="true"></span>
-          <span class="con-botattack__eyebrow-mark" aria-hidden="true">◆</span>
-          <span>{{ $t(vm.eyebrowKey) }}</span>
+        <!-- WHO. One word plus the SEAT CHIP — the shell's own «dot + name»
+             vocabulary, with the name resolved by the ONE display-name helper
+             (`displayNameForColor` → the 'MarsBot' key → «Бот»). Never a
+             hardcoded name in either language. -->
+        <div class="con-botattack__kicker">
+          <span class="con-botattack__kicker-mark" aria-hidden="true">◈</span>
+          <span class="con-botattack__kicker-word">{{ $t(vm.eyebrowKey) }}</span>
+          <span class="con-botattack__kicker-sep" aria-hidden="true">·</span>
+          <span class="con-botattack__actor" :class="'player_color_' + vm.attacker">
+            <span class="con-botattack__actor-dot" :class="'player_bg_color_' + vm.attacker" aria-hidden="true"></span>
+            {{ actorName }}
+          </span>
         </div>
+        <!-- WHAT HAPPENED — a sentence, not a mechanism («Бот применяет карту
+             «Инвазивные виды»»). -->
         <h2 class="con-botattack__title">{{ headlineText }}</h2>
-        <p class="con-botattack__explain">{{ explanationText }}</p>
-        <!-- WHY only these cards. The server's own rule key — never a
-             re-derivation, and never silence: «почему не все мои карты» is the
-             first thing a player asks of a narrowed target set. -->
-        <p v-if="restrictionText !== ''" class="con-botattack__restriction">
-          <span class="con-botattack__restriction-mark" aria-hidden="true">◈</span>{{ restrictionText }}
-        </p>
+        <!-- WHAT IS REQUIRED, and — quieter but still readable — WHY only these
+             cards. The server's own rule key, never a re-derivation. -->
+        <p class="con-botattack__ask">{{ explanationText }}</p>
+        <p v-if="restrictionText !== ''" class="con-botattack__limit">{{ restrictionText }}</p>
       </header>
 
-      <div class="con-botattack__main">
-        <!-- THE SOURCE — the SHARED dock. For a bot bonus card it draws the
-             REAL `BonusCardFace`, the same face the bot board, the turn
-             theater and the fullscreen inspect all use. Compact: the card is
-             context here, the decision is about the player's own tableau. -->
-        <console-source-dock class="con-botattack__source" :view="vm.source" compact ref="sourceCard" />
+      <!-- NO VALID TARGET. The server normally resolves that without ever
+           asking, so this is the honest last resort rather than an expected
+           state — it says so in words and offers the only move the protocol
+           allows. -->
+      <div v-if="vm.empty" class="con-botattack__empty">{{ $t(emptyKey) }}</div>
 
-        <div class="con-botattack__body">
-          <!-- NO VALID TARGET. The server normally resolves that without ever
-               asking, so this is the honest last resort rather than an
-               expected state — it says so in words and offers the only move
-               the protocol allows. -->
-          <div v-if="vm.empty" class="con-botattack__empty">{{ $t(emptyKey) }}</div>
+      <div v-else class="con-botattack__scene">
+        <!-- SOURCE — the bot's REAL card, drawn by the shared `BonusCardFace`
+             through the shared source dock. The same face the bot board, the
+             turn theater and the fullscreen inspect all render, at its
+             TV-readable size: the player meets the card that attacked them
+             without pressing anything. -->
+        <console-source-dock class="con-botattack__source" :view="vm.source" ref="sourceCard" />
 
-          <template v-else>
-            <!-- data-ws-band: THE ZONE THE STEP SIZES AGAINST. It has a FIXED
-                 height on purpose — the panel is content-sized, so a zone that
-                 grew with its content would hand the step's fit engine its own
-                 output back (bigger cards → taller zone → bigger cards). The
-                 documented forbidden loop; the constant breaks it. -->
-            <div class="con-botattack__targets" data-ws-band ref="targets">
-              <ConsolePlayedTargetStep v-if="targetModel !== undefined && targetFocus !== undefined"
-                                       ref="targetStep"
-                                       :model="targetModel"
-                                       :layout="targetLayout"
-                                       :focus="targetFocus"
-                                       :bandHeight="targetsHeight"
-                                       :lockedCard="selected ?? ''"
-                                       hostStatesAsk />
-            </div>
-
-            <!-- THE COMMIT ROW — a cursor stop of its own, and the ONLY place
-                 the removal can be triggered from. Selecting a card moves the
-                 cursor here; walking back UP changes the choice. That is the
-                 console's pre-select → commit grammar (`consoleCommitGate`),
-                 and it is what makes an accidental removal unexpressible
-                 rather than merely unlikely. -->
-            <div class="con-botattack__commit"
-                 :class="{
-                   'con-botattack__commit--ready': commitReady,
-                   'con-botattack__commit--focused': zone === 'commit',
-                   'con-botattack__commit--armed': committing,
-                 }">
-              <span class="con-botattack__commit-verb">{{ commitText }}</span>
-              <span v-if="selected !== undefined" class="con-botattack__commit-target">{{ $t(selected) }}</span>
-              <span v-else class="con-botattack__commit-hint">{{ $t('Choose a card first') }}</span>
-              <!-- The LOSS, stated once and only when it is real. It is a
-                   different figure from the card's own points (which the
-                   selector's status rail states beside the resource count), so
-                   it never repeats a number under a second label. -->
-              <span v-if="vpLoss !== 0" class="con-botattack__commit-loss">{{ vpLossText }}</span>
-              <GamepadGlyph v-if="zone === 'commit' && commitReady" control="confirm" class="con-botattack__commit-a" />
-            </div>
-          </template>
+        <!-- BRIDGE — the causality, in one small directed unit: what leaves,
+             which way it goes. Not a decorative arrow; it is the only thing on
+             screen that says the effect travels FROM the bot's card TO yours. -->
+        <div class="con-botattack__bridge" aria-hidden="true">
+          <span class="con-botattack__bridge-line"></span>
+          <span class="con-botattack__bridge-chip">
+            <span class="con-botattack__bridge-sign">−{{ vm.amountLabel }}</span>
+            <i v-if="resourceIcon !== ''" class="con-botattack__bridge-icon" :class="resourceIcon"></i>
+          </span>
+          <span class="con-botattack__bridge-line con-botattack__bridge-line--to"></span>
         </div>
+
+        <!-- TARGET — the SHARED played-target selector in its `remove`
+             direction, plus its own one-line result rail right under the cards.
+             data-ws-band: the zone the step sizes against, with a FIXED height
+             on purpose (the panel is content-sized, so a zone that grew with
+             its content would hand the fit engine its own output back). -->
+        <div class="con-botattack__stage" data-ws-band ref="targets">
+          <ConsolePlayedTargetStep v-if="targetModel !== undefined && targetFocus !== undefined"
+                                   ref="targetStep"
+                                   :model="targetModel"
+                                   :layout="targetLayout"
+                                   :focus="targetFocus"
+                                   :bandHeight="targetsHeight"
+                                   :lockedCard="selected ?? ''"
+                                   hostStatesAsk />
+        </div>
+      </div>
+
+      <!-- THE COMMIT — the composer's own compact rail (`.con-composer__cta`
+           language: graphite while it cannot run, mint when it can, cyan ring
+           under the cursor), content-sized and never a full-width web button.
+           It is the PANEL's foot rather than a member of the scene, so the
+           source card and the target card centre on each other instead of on a
+           column that also holds a rail and a button. The ROW names the act;
+           the ONE command bar names the press — never the same string twice. -->
+      <div v-if="!vm.empty" class="con-botattack__foot">
+          <div class="con-botattack__cta"
+               :class="{
+                 'con-botattack__cta--held': !commitReady && !committing,
+                 'con-botattack__cta--ready': commitReady,
+                 'con-botattack__cta--focused': zone === 'commit' && commitReady,
+                 'con-botattack__cta--armed': committing,
+               }"
+               :aria-disabled="commitReady ? 'false' : 'true'">
+            <GamepadGlyph v-if="commitReady && !committing" control="confirm" class="con-botattack__cta-glyph" />
+            <span v-else class="con-botattack__cta-mark" aria-hidden="true">◈</span>
+            <span class="con-botattack__cta-label">{{ commitReady || committing ? commitText : $t('Choose a card first') }}</span>
+          </div>
       </div>
     </div>
   </div>
@@ -108,15 +122,16 @@
  * heuristics.
  *
  * WHAT IT REUSES, and why that matters more than what it adds:
+ *  · `displayNameForColor` (`marsBotDisplay.ts`) — the ONE display-name
+ *    resolver. «MarsBot» never reaches the UI, and neither does a second
+ *    hardcoded «Бот»: the label follows the locale.
+ *  · `ConsoleSourceDock` → `BonusCardFace` — the bot's real card, the same
+ *    renderer every other surface uses.
  *  · `ConsolePlayedTargetStep` — the same "point at a card on the table"
  *    selector the card-play and blue-action composers use, in its `remove`
- *    direction. No second card grid, no second navigation model, no second
- *    idea of what a candidate looks like.
- *  · `ConsoleSourceDock` — the console's one answer to «кто это сделал», here
- *    drawing MarsBot's own `BonusCardFace`.
+ *    direction. No second card grid, no second navigation model.
  *  · `consoleCommitGate` — the one authority on «may this be confirmed yet»,
- *    which is what keeps the commit row from ever showing a live Ⓐ it would
- *    refuse to run.
+ *    which is what keeps the CTA from ever showing a live Ⓐ it would refuse.
  */
 import {defineComponent, PropType} from 'vue';
 import {useResizeObserver} from '@vueuse/core';
@@ -126,6 +141,8 @@ import {CardName} from '@/common/cards/CardName';
 import {PlayerViewModel} from '@/common/models/PlayerModel';
 import {SelectCardModel} from '@/common/models/PlayerInputModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
+import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
 import {translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {consoleActionOf} from '@/client/console/composables/consoleActionModel';
@@ -134,7 +151,6 @@ import {conUiScale, consoleLayoutState} from '@/client/console/consoleLayoutProf
 import {ConsoleCommand} from '@/client/console/consoleCommandModel';
 import {clearPanelCommands, setPanelCommands} from '@/client/console/consolePanelUi';
 import {openConsoleCardZoom} from '@/client/console/consoleCardZoom';
-import {openBonusCardZoom} from '@/client/components/marsbot/bonusCardZoomState';
 import {commitAllowed, computeCommitGate} from '@/client/console/consoleCommitGate';
 import {botAttackState} from '@/client/console/botAttack/botAttackState';
 import {
@@ -144,8 +160,7 @@ import {
 } from '@/client/console/played/consolePlayedTargetModel';
 import {
   botAttackCommandKeys, botAttackPreviewFor, botAttackPressIntent, botAttackResourceFor,
-  botAttackVpLoss, BotAttackPhrase, BotAttackViewModel, BotAttackZone, EMPTY_NO_TARGETS,
-  VERB_CHOOSE_TARGET,
+  BotAttackPhrase, BotAttackViewModel, BotAttackZone, EMPTY_NO_TARGETS, VERB_CHOOSE_TARGET,
 } from '@/client/console/botAttack/botAttackModel';
 
 /** The commit BEAT: the chosen cube visibly leaves before the answer is sent —
@@ -156,8 +171,8 @@ function phraseText(phrase: BotAttackPhrase): string {
   if (phrase.params.length === 0) {
     return translateText(phrase.key);
   }
-  // A parameter that is itself an i18n key (the bot card's name) is translated
-  // BEFORE interpolation — `translateTextWithParams` substitutes verbatim.
+  // A parameter that is itself an i18n key (a card's name) is translated BEFORE
+  // interpolation — `translateTextWithParams` substitutes verbatim.
   const params = phrase.translateParams === true ?
     phrase.params.map((p) => translateText(p)) :
     [...phrase.params];
@@ -199,8 +214,20 @@ export default defineComponent({
       const wf = this.playerView.waitingFor;
       return wf?.type === 'card' ? (wf as SelectCardModel) : undefined;
     },
+    /**
+     * THE ACTOR'S VISIBLE NAME — the one existing resolver, never a literal.
+     * `displayNameForColor` routes the bot seat through the `'MarsBot'` i18n
+     * key («Бот» in Russian) and any other seat through its own name, so a
+     * locale change re-labels this surface with no code path of its own.
+     */
+    actorName(): string {
+      return displayNameForColor(this.playerView.players, this.vm.attacker);
+    },
     headlineText(): string {
-      return phraseText(this.vm.headline);
+      const card = this.vm.sourceNameKey;
+      return card === undefined ?
+        translateTextWithParams(this.vm.headlineKey, [this.actorName]) :
+        translateTextWithParams(this.vm.headlineKey, [this.actorName, translateText(card)]);
     },
     explanationText(): string {
       return phraseText(this.vm.explanation);
@@ -211,15 +238,12 @@ export default defineComponent({
     commitText(): string {
       return phraseText(this.vm.commit);
     },
-    /** The VP this choice actually costs — 0 means «no chip», never «−0». */
-    vpLoss(): number {
-      return botAttackVpLoss(this.vm, this.selected);
+    ariaLabel(): string {
+      return `${translateText(this.vm.eyebrowKey)}: ${this.actorName}`;
     },
-    vpLossText(): string {
-      // A typographic minus, not a hyphen — the chip is a number the player
-      // reads at TV distance.
-      const n = this.vpLoss;
-      return translateTextWithParams('${0} VP', [n < 0 ? `−${Math.abs(n)}` : `+${n}`]);
+    /** The removed resource's sprite, for the bridge chip. */
+    resourceIcon(): string {
+      return this.vm.resourceIcon === undefined ? '' : iconClassFor(this.vm.resourceIcon);
     },
     /**
      * THE TARGET MODEL — the shared builder, in its `remove` direction. The
@@ -263,7 +287,7 @@ export default defineComponent({
     },
     /**
      * The ONE authority on «may this be confirmed». A single requirement — a
-     * chosen target — so the commit row cannot take the cursor before there is
+     * chosen target — so the CTA cannot take the cursor before there is
      * something to commit, and cannot run when the choice went stale.
      */
     gate() {
@@ -283,7 +307,7 @@ export default defineComponent({
       return commitAllowed(this.gate);
     },
     footCommands(): Array<ConsoleCommand> {
-      const controls = ['dpad', 'confirm', 'secondary', 'stickL', 'back'] as const;
+      const controls = ['dpad', 'confirm', 'secondary', 'back'] as const;
       return botAttackCommandKeys(this.vm, this.zone, this.selected).map((label, i) => ({
         control: label === 'Minimize' ? 'back' : controls[Math.min(i, controls.length - 1)],
         label,
@@ -301,9 +325,9 @@ export default defineComponent({
     /**
      * A SELECTION THAT STOPPED BEING LEGAL is dropped, and the cursor goes
      * back to the targets. The realtime path can move the table under the
-     * player (an effect removed the last cube), and a commit row still offering
-     * to remove from a card the server would refuse is the one state this
-     * screen must never be in.
+     * player (an effect removed the last cube), and a CTA still offering to
+     * remove from a card the server would refuse is the one state this screen
+     * must never be in.
      */
     gate: {
       handler(): void {
@@ -316,8 +340,8 @@ export default defineComponent({
     /**
      * THE SERVER REFUSED the answer (a stale target, a dropped connection).
      * The removal did not happen, so the beat is undone and the choice becomes
-     * editable again — a sealed commit row over a prompt the server is still
-     * asking is the one state this screen must never be left in.
+     * editable again — a sealed CTA over a prompt the server is still asking is
+     * the one state this screen must never be left in.
      */
     'botAttackState.abortNonce'(): void {
       this.resetSubmitting();
@@ -325,8 +349,8 @@ export default defineComponent({
   },
   mounted() {
     // NOTHING IS SELECTED ON OPEN. The cursor rests on the first candidate so
-    // the pad has somewhere to start; a cursor is not a choice, and the commit
-    // row stays refused until the player makes one.
+    // the pad has somewhere to start; a cursor is not a choice, and the CTA
+    // stays refused until the player makes one.
     this.focus = reseatPlayedTargetFocus(undefined, this.targetModel?.owners ?? []);
     const el = this.$refs.targets as HTMLElement | undefined;
     if (el !== undefined) {
@@ -365,16 +389,12 @@ export default defineComponent({
         this.navigate(intent.dir);
         return;
       }
-      // L3 is a raw stick press with no entry in the shared button→action map.
-      const action = intent.kind === 'press' && intent.button === 'stickL' ?
-        'source' :
-        consoleActionOf(intent);
       const press = botAttackPressIntent({
         vm: this.vm,
         zone: this.zone,
         focused: this.focusedCard,
         selected: this.selected,
-        action,
+        action: consoleActionOf(intent),
         submitting: this.submitting,
       });
       if (press === undefined) {
@@ -383,9 +403,6 @@ export default defineComponent({
       switch (press.kind) {
       case 'defer':
         this.$emit('defer');
-        return;
-      case 'inspectSource':
-        this.inspectSource();
         return;
       case 'inspectTarget':
         openConsoleCardZoom([{name: press.card}], 0);
@@ -407,8 +424,8 @@ export default defineComponent({
     },
     navigate(dir: 'up' | 'down' | 'left' | 'right'): void {
       if (this.zone === 'commit') {
-        // UP re-opens the choice; every other direction stays put (the commit
-        // row is one control, not a grid).
+        // UP re-opens the choice; every other direction stays put (the CTA is
+        // one control, not a grid).
         if (dir === 'up') {
           this.zone = 'targets';
         }
@@ -422,8 +439,8 @@ export default defineComponent({
         this.focus = next;
         return;
       }
-      // An EDGE HOLDS inside the grid — except downwards, where the commit row
-      // is the next thing on screen and must be reachable by the same d-pad.
+      // An EDGE HOLDS inside the grid — except downwards, where the CTA is the
+      // next thing on screen and must be reachable by the same d-pad.
       if (dir === 'down' && this.commitReady) {
         this.zone = 'commit';
       }
@@ -447,21 +464,8 @@ export default defineComponent({
         this.$emit('submit', {type: 'card', cards: [card]});
       }, Math.max(1, consoleMotionMs(COMMIT_BEAT_MS)));
     },
-    /** L3 — MarsBot's own card, in ITS own fullscreen viewer (never a fake
-     *  project-card face). A project-card source opens the ordinary viewer. */
-    inspectSource(): void {
-      const bonus = this.vm.source.bonusCard;
-      if (bonus !== undefined) {
-        openBonusCardZoom(bonus.id, bonus.ctx);
-        return;
-      }
-      const card = this.vm.source.card;
-      if (card !== undefined) {
-        openConsoleCardZoom([{name: card}], 0, undefined, undefined, {statusLabel: 'Source'});
-      }
-    },
-    /** A rollback the shell calls when the server REFUSES the answer: the beat
-     *  is undone and the choice becomes editable again, never a sealed row. */
+    /** A rollback the abort signal triggers when the server REFUSES the answer:
+     *  the beat is undone and the choice becomes editable again. */
     resetSubmitting(): void {
       this.submitting = false;
       this.committing = false;

@@ -16,8 +16,15 @@ import {
   openBotTurnReviewByCorrelation,
   presentFreshBotTurns,
   setMarsBotPresentationMode,
+  skipBotTurnPresentation,
   stepBotTurnReview,
 } from '@/client/components/marsbot/marsBotPresentation';
+import {
+  SLOW_TURN_WARN_MS,
+  botTurnCommitLag,
+  resetBotTurnTiming,
+} from '@/client/components/marsbot/marsBotTurnTiming';
+import {beginAnimationHold} from '@/client/components/presentation/animationHold';
 import {
   adjacentArchivedTurn,
   archivedTurnByKey,
@@ -57,9 +64,15 @@ function turn(id: number, opts: {correlationId?: number, generation?: number, ex
 
 type GameParams = {temperature?: number, oxygenLevel?: number, oceans?: number, venusScaleLevel?: number};
 
-function botView(opts: {lastTurn?: MarsBotTurn, turnHistory?: ReadonlyArray<MarsBotTurn>, params?: GameParams} = {}): PlayerViewModel {
+/**
+ * `waitingFor` is load-bearing, not decoration: it is how the presentation
+ * tells «the bot handed control back» (commit now) from «the bot is still
+ * playing» (sequence). The default is the ordinary case — the player's turn.
+ */
+function botView(opts: {lastTurn?: MarsBotTurn, turnHistory?: ReadonlyArray<MarsBotTurn>, params?: GameParams, waitingFor?: unknown} = {}): PlayerViewModel {
   return {
     thisPlayer: {color: 'blue'},
+    waitingFor: 'waitingFor' in opts ? opts.waitingFor : {type: 'or'},
     players: [
       {color: 'red', name: 'ИИ', isMarsBot: true},
       {color: 'blue', name: 'Вы'},
@@ -295,6 +308,110 @@ describe('marsBotPresentation (notification-first turns)', () => {
       await nextTick(); // the card-set change fires the liveness watch
       expect(committed).eq(true);
       expect(isBotStagingActive()).eq(false);
+    });
+  });
+
+  describe('a LONE turn never waits on its own card («бот думает 5 секунд»)', () => {
+    /*
+     * THE REPORT: on a LOCAL server MarsBot's turn regularly took ~5 s. The
+     * server was measured resolving a turn in under a millisecond — the wait was
+     * here. Every response with a fresh turn opened a staging window, which
+     * BUFFERS the authoritative view (the player's own next prompt with it) until
+     * the turn's compact card is DELIVERED. Delivery waits behind the feed's
+     * silencing gates — and the player's own action cinematic is running at
+     * exactly that moment, every single turn.
+     *
+     * Sequencing is for a BURST. One turn has nothing to sequence.
+     */
+    it('commits IMMEDIATELY while the feed is silenced by a live cinematic', () => {
+      const hold = beginAnimationHold('probe-cinematic');
+      try {
+        let committed = false;
+        const staged = presentFreshBotTurns(PREV, botView({lastTurn: turn(1)}), {
+          commitLatest: () => {
+            committed = true;
+          },
+        });
+        // The CALLER commits (that is what `false` means) — nothing is buffered.
+        expect(staged).eq(false);
+        expect(isBotStagingActive()).eq(false);
+        expect(committed).eq(false); // ...the caller does it, not us
+        // The card still rides the ordinary feed and waits its turn there. That
+        // is a TOAST waiting, not the game.
+        expect(notificationState.queue.map((n) => n.botTurnKey)).deep.eq(['red:1:1']);
+      } finally {
+        hold.release();
+      }
+    });
+
+    it('the diagnostic reports the single-turn path with a ~0 ms commit', () => {
+      resetBotTurnTiming();
+      presentFreshBotTurns(PREV, botView({lastTurn: turn(1)}), {commitLatest: () => {}});
+      expect(botTurnCommitLag('red:1:1')).to.be.lessThan(SLOW_TURN_WARN_MS);
+    });
+
+    it('SEVERAL turns in ONE response still sequence (the pass-through burst)', async () => {
+      let committed = false;
+      const next = botView({turnHistory: [turn(1), turn(2)], lastTurn: turn(2)});
+      expect(presentFreshBotTurns(PREV, next, {commitLatest: () => {
+        committed = true;
+      }})).eq(true);
+      expect(isBotStagingActive()).eq(true);
+      await nextTick();
+      expect(committed).eq(false); // the second turn's card has not been read yet
+    });
+
+    it('a turn that does NOT hand control back sequences — the run has more coming', () => {
+      // The bot is mid-run (the player passed): no prompt in this view, so
+      // buffering costs the player nothing and keeps the run in order.
+      const next = botView({lastTurn: turn(1), waitingFor: undefined});
+      expect(presentFreshBotTurns(PREV, next, {commitLatest: () => {}})).eq(true);
+      expect(isBotStagingActive()).eq(true);
+    });
+
+    it('a turn arriving while a window is OPEN joins it — order is never broken', () => {
+      presentFreshBotTurns(PREV, botView({turnHistory: [turn(1), turn(2)], lastTurn: turn(2)}), {commitLatest: () => {}});
+      expect(isBotStagingActive()).eq(true);
+      const joined = presentFreshBotTurns(PREV, botView({turnHistory: [turn(1), turn(2), turn(3)], lastTurn: turn(3)}), {
+        commitLatest: () => {},
+      });
+      expect(joined).eq(true);
+      expect(isBotStagingActive()).eq(true);
+    });
+  });
+
+  describe('B on a bot-turn card collapses the whole AI-turn backlog', () => {
+    it('acks, delivers every queued turn and commits — the player gets their prompt back', async () => {
+      let committed = false;
+      const next = botView({turnHistory: [turn(1), turn(2), turn(3)], lastTurn: turn(3)});
+      presentFreshBotTurns(PREV, next, {commitLatest: () => {
+        committed = true;
+      }});
+      await nextTick();
+      expect(notificationState.transient.map((n) => n.botTurnKey)).deep.eq(['red:1:1']);
+      expect(notificationState.queue.map((n) => n.botTurnKey)).deep.eq(['red:1:2', 'red:1:3']);
+
+      skipBotTurnPresentation('red:1:1'); // ← the player's B
+
+      expect(committed).eq(true);
+      expect(isBotStagingActive()).eq(false);
+      expect(notificationState.transient.filter((n) => n.botTurnKey !== undefined)).lengthOf(0);
+      expect(notificationState.queue.filter((n) => n.botTurnKey !== undefined)).lengthOf(0);
+      // Nothing is lost: every turn stays replayable from the journal.
+      expect(archivedTurnByKey('red:1:3')).is.not.undefined;
+    });
+
+    it('leaves ORDINARY queued notifications alone — it is the AI-turn feed only', async () => {
+      presentFreshBotTurns(PREV, botView({turnHistory: [turn(1), turn(2)], lastTurn: turn(2)}), {commitLatest: () => {}});
+      await nextTick();
+      notificationState.queue.push({
+        id: 'plain', kind: 'normal', variant: 'event', priority: 5, typeLabelKey: 'x',
+        pills: [], detailCount: 0, generation: 1, ttl: 6800, persistent: false, createdAt: Date.now(),
+      } as never);
+      skipBotTurnPresentation('red:1:1');
+      // It survives — the freed slot simply promotes it, which is the ordinary
+      // feed doing its job. What must never happen is it being dropped.
+      expect([...notificationState.transient, ...notificationState.queue].map((n) => n.id)).deep.eq(['plain']);
     });
   });
 

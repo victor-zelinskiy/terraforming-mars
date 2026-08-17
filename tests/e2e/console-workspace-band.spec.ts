@@ -14,7 +14,17 @@ import * as path from 'node:path';
  *     (`.con-root:has(.con-ws)`), so the resources stay readable context and
  *     the future resource-flight has a live landing zone;
  *  4. nothing overflows the viewport horizontally (the `min(Xrem, 100%)`
- *     width rule — a `vw` cap used to overrun the narrowed band).
+ *     width rule — a `vw` cap used to overrun the narrowed band);
+ *  5. THE OPENING IS THE WHOLE CONTRACT, with ONE distinction inside it:
+ *     · a compact DIALOG (a confirm, a task card, the attack modal) clears ALL
+ *       FOUR hull members and the shared dim covers exactly that opening — no
+ *       bar is ever greyed out;
+ *     · a WORKSPACE SCREEN (card actions / standard projects / MA / hand / …)
+ *       IS the stage: it takes the right rail's zone too, and the rail stops
+ *       being DRAWN rather than sitting dimmed underneath.
+ *     Which one a surface is, is read from the shell's own policy class
+ *     (`.con-root--rail-replaced`, computed from the workspace stack) — never
+ *     guessed from the surface's name here.
  *
  * Driven on a REAL solo game: the surfaces are opened the way a player opens
  * them (wheels + A), never by injecting DOM.
@@ -108,10 +118,37 @@ async function probe(page: Page, selector: string): Promise<BandProbe> {
         overflow = Math.max(overflow, b.right - window.innerWidth);
       }
     }
+    const boxOf = (sel: string): {l: number, r: number, t: number, b: number} | null => {
+      const el = document.querySelector<HTMLElement>(sel);
+      if (el === null) {
+        return null;
+      }
+      const bb = el.getBoundingClientRect();
+      // `display: none` measures 0×0 — the member is not on screen at all.
+      return bb.width <= 0 || bb.height <= 0 ? null : {l: bb.left, r: bb.right, t: bb.top, b: bb.bottom};
+    };
+    const shadeEl = document.querySelector<HTMLElement>('.con-shade');
+    const shade = shadeEl === null ? null : shadeEl.getBoundingClientRect();
     return {
       hasMarker: root.classList.contains('con-ws'),
       bandLeft: rootBox.left,
       bandRight: rootBox.right,
+      bandTop: rootBox.top,
+      bandBottom: rootBox.bottom,
+      strat: boxOf('.con-strat'),
+      // Is the right rail DRAWN? A workspace screen replaces it (visibility),
+      // a dialog leaves it lit. `boxOf` deliberately keeps reporting the box —
+      // it must survive, or the board reflows for a mode change.
+      stratDrawn: (() => {
+        const el = document.querySelector<HTMLElement>('.con-strat');
+        return el !== null && getComputedStyle(el).visibility !== 'hidden';
+      })(),
+      railReplaced: document.querySelector('.con-root')?.classList.contains('con-root--rail-replaced') === true,
+      strip: boxOf('.con-status'),
+      cmdbar: boxOf('.con-footer .con-cmdbar'),
+      shade: shade === null ? null : {l: shade.left, r: shade.right, t: shade.top, b: shade.bottom},
+      shadeOn: shadeEl !== null && shadeEl.classList.contains('con-shade--on'),
+      shadeFullBleed: shadeEl !== null && shadeEl.classList.contains('con-shade--fullbleed'),
       railRight: railBox.right,
       railZ: getComputedStyle(rail).zIndex,
       railHostZ: getComputedStyle(host).zIndex,
@@ -153,6 +190,56 @@ async function assertBand(page: Page, selector: string, label: string): Promise<
   }
   // Nothing sticks out past the viewport (the min(Xrem, 100%) width rule).
   expect(p.panelOverflow, `${label}: content overflows the viewport by ${p.panelOverflow}px`).toBeLessThan(2);
+
+  // ── THE OPENING, ON ALL FOUR SIDES ────────────────────────────────────────
+  // A decision surface may not reach under any hull member. Tolerance is 2px
+  // for the TV profile's sub-pixel scale model (same as the left edge above).
+  if (p.strip !== null) {
+    expect(p.bandTop, `${label}: band top ${p.bandTop} must clear the status strip ${p.strip.b}`)
+      .toBeGreaterThanOrEqual(p.strip.b - 2);
+  }
+  if (p.cmdbar !== null) {
+    expect(p.bandBottom, `${label}: band bottom ${p.bandBottom} must clear the command bar ${p.cmdbar.t}`)
+      .toBeLessThanOrEqual(p.cmdbar.t + 2);
+  }
+  // THE RIGHT EDGE — the one place the two families differ.
+  if (p.railReplaced) {
+    // A WORKSPACE SCREEN is the stage: it takes the rail's zone, and the rail
+    // is not drawn. (Its BOX still exists — asserted below — so the board never
+    // reflows for a mode change.)
+    expect(p.stratDrawn, `${label}: a workspace screen must REPLACE the rail, not dim it`).toBeFalsy();
+    expect(p.bandRight, `${label}: a workspace screen must reach the physical edge`)
+      .toBeGreaterThanOrEqual(p.viewportW - 2);
+    if (p.strat !== null) {
+      expect(p.strat.r - p.strat.l, `${label}: the rail's box must survive the replacement`)
+        .toBeGreaterThan(0);
+    }
+  } else if (p.strat !== null) {
+    // A DIALOG stands inside the opening, beside a LIT rail.
+    expect(p.stratDrawn, `${label}: the rail must stay drawn beside a dialog`).toBeTruthy();
+    expect(p.bandRight, `${label}: band right ${p.bandRight} must clear the strategy rail ${p.strat.l}`)
+      .toBeLessThanOrEqual(p.strat.l + 2);
+  }
+
+  // ── AND THE DIM COVERS THE SAME OPENING ──────────────────────────────────
+  // Bounding the shade by GEOMETRY is what makes «no bar is ever dimmed» true
+  // for all four at once — the old `inset: 0` relied on the two horizontal bars
+  // out-stacking it and had no answer for the side rails. A full-bleed owner
+  // (the card-reveal cinematic) is the one sanctioned exception.
+  if (p.shadeOn && p.shade !== null && !p.shadeFullBleed) {
+    expect(p.shade.l, `${label}: the dim reaches the player rail (${p.shade.l} < ${p.railRight})`)
+      .toBeGreaterThanOrEqual(p.railRight - 2);
+    if (p.strat !== null && !p.railReplaced) {
+      expect(p.shade.r, `${label}: the dim reaches the strategy rail (${p.shade.r} > ${p.strat.l})`)
+        .toBeLessThanOrEqual(p.strat.l + 2);
+    }
+    if (p.strip !== null) {
+      expect(p.shade.t, `${label}: the dim reaches the status strip`).toBeGreaterThanOrEqual(p.strip.b - 2);
+    }
+    if (p.cmdbar !== null) {
+      expect(p.shade.b, `${label}: the dim reaches the command bar`).toBeLessThanOrEqual(p.cmdbar.t + 2);
+    }
+  }
 }
 
 const PROFILES = [
@@ -252,6 +339,41 @@ for (const profile of PROFILES) {
       await toBoard(page);
 
       expect(checked, 'no workspace surface was reachable in this walk').toBeGreaterThanOrEqual(4);
+    });
+
+    test('the opening FOLLOWS a window resize', async ({page, request}) => {
+      test.setTimeout(300_000);
+
+      // The opening is MEASURED, so a resize is the one event that can leave a
+      // band standing on stale numbers — and a shrink is the dangerous
+      // direction: a band still sized for the old viewport reaches under the
+      // bars rather than merely leaving a gap. The rails are content-sized in
+      // rem, so their boxes move too; nothing here may be re-derived from the
+      // size the surface opened at.
+      const playerId = await createGameWithCards(request, [], {config: cfg()});
+      await bootSeededGame(page, request, playerId, {buy: 2, query: profile.query});
+      await toBoard(page);
+
+      // The cheapest band surface with the family marker: the LT wheel (a
+      // DIALOG — it must clear the strategy rail before AND after).
+      for (let tries = 0; tries < 4 && await page.locator('.con-quick').count() === 0; tries++) {
+        await key(page, 'Comma', 900);
+      }
+      expect(await page.locator('.con-quick').count(), 'the LT wheel never opened').toBeGreaterThan(0);
+      await assertBand(page, '.con-quick', 'wheel @ open size');
+
+      // …shrink INSIDE the same profile band (a profile flip is a different
+      // test — it re-mounts surfaces and would hide a stale-geometry bug).
+      const shrunk = {width: Math.round(profile.width * 0.875), height: Math.round(profile.height * 0.9)};
+      await page.setViewportSize(shrunk);
+      await page.waitForTimeout(700);
+      await assertBand(page, '.con-quick', `wheel @ ${shrunk.width}x${shrunk.height}`);
+      await shoot(page, profile.tag, '06-resized');
+
+      // …and back: the opening is a state, not a one-way narrowing.
+      await page.setViewportSize({width: profile.width, height: profile.height});
+      await page.waitForTimeout(700);
+      await assertBand(page, '.con-quick', 'wheel @ restored size');
     });
   });
 }

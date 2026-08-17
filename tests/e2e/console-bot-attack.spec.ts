@@ -4,10 +4,10 @@ import * as path from 'node:path';
 import {fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, soloGameConfig} from './consoleStart';
 
 /**
- * THE MARSBOT ATTACK, END TO END — the bot plays Invasive Species, the player
- * is ANNOUNCED (never interrupted), opens the demand with A, sees who attacked
- * them and with what, compares the two candidates by what each costs, chooses,
- * and confirms with a second, deliberate press.
+ * THE BOT ATTACK, END TO END — the bot plays Invasive Species, the player is
+ * ANNOUNCED (never interrupted), opens the demand with A, sees who attacked them
+ * and with what, reads what the choice costs, and confirms with a second,
+ * deliberate press.
  *
  * WHY AN E2E AT ALL (the repo default is a unit spec): three of this feature's
  * claims are claims about PIXELS, and nothing cheaper can settle them —
@@ -29,15 +29,23 @@ import {fetchPlayerModel, openConsole, seedGameOverApi, sendPlayerInput, soloGam
 /** The visual record of the two states a reviewer actually looks at. */
 const SHOTS = path.resolve('screenshots', 'bot-attack');
 
-/** A cheap microbe card with an action that stocks it — 4 M€, no requirement. */
+/**
+ * A cheap microbe card with an action that stocks ITSELF — 4 M€, no requirement.
+ *
+ * ONE candidate on purpose. The attack offers only the HIGHEST-scoring holders,
+ * so a genuine two-card choice needs two cards of the SAME cube rate, both
+ * stocked — and the cheap self-stocking cards do not pair up that way (Ants'
+ * action takes a microbe OFF another card, i.e. it would eat the very cube this
+ * scenario is built on). The tie case is covered deterministically by the server
+ * spec («EVERY tied leader is offered»); what only a live run can settle is the
+ * single-target COMPOSITION, which is also the reported one.
+ */
 const TARDIGRADES = 'Tardigrades';
-/** …and a second holder, so the pick is a genuine CHOICE between two cards. */
-const ANTS = 'Ants';
 
 const CONFIG = soloGameConfig({
   automa: {difficulty: 'normal'},
   customBonusCards: ['B02'],
-  customProjectCards: [TARDIGRADES, ANTS],
+  customProjectCards: [TARDIGRADES],
 });
 
 type Wire = {type: string, title?: unknown, options?: Array<Wire>, cards?: Array<{name: string, calculatedCost?: number}>,
@@ -77,10 +85,16 @@ async function awaitPrompt(request: APIRequestContext, id: string, maxMs = 60_00
 async function playUntilAttack(request: APIRequestContext, id: string): Promise<Model> {
   const played = new Set<string>();
   const stocked = new Set<string>();
+  const trace: Array<string> = [];
+  /** Is this `or` the per-turn ACTION MENU, or an effect asking something? */
+  const isActionMenu = (menu: Wire): boolean =>
+    (menu.options ?? []).some((o) => o.type === 'projectCard' || (o.type === 'option' && o.buttonLabel === 'Pass'));
   for (let round = 0; round < 90; round++) {
     const model = await awaitPrompt(request, id);
     const wf = model.waitingFor;
-    expect(wf, `the table never came back (phase ${model.game?.phase})`).toBeDefined();
+    trace.push(`g${model.game?.generation}/${model.game?.phase}:${wf?.type ?? 'none'}` +
+      (wf?.type === 'or' ? `[${(wf.options ?? []).map((o) => o.type).join(',')}]` : ''));
+    expect(wf, `the table never came back (phase ${model.game?.phase}) — ${trace.join(' ')}`).toBeDefined();
     if (wf === undefined) {
       return model;
     }
@@ -90,6 +104,21 @@ async function playUntilAttack(request: APIRequestContext, id: string): Promise<
     // The research buy — take nothing, the hand is already stocked.
     if (wf.type === 'card' && (wf.min ?? 1) === 0) {
       await sendPlayerInput(request, id, {type: 'card', cards: []});
+      continue;
+    }
+    if (wf.type === 'or' && !isActionMenu(wf)) {
+      // An EFFECT asking something mid-turn (a card action's own target pick).
+      // Take a SKIP branch when one exists — a stray card pick could remove the
+      // very cube this scenario is built on.
+      const opts = wf.options ?? [];
+      const skip = opts.map((o, i) => ({o, i})).reverse().find((e) => e.o.type === 'option');
+      const at = skip?.i ?? 0;
+      await sendPlayerInput(request, id, {
+        type: 'or', index: at,
+        response: opts[at]?.type === 'card' ?
+          {type: 'card', cards: (opts[at].cards ?? []).slice(0, opts[at].min ?? 1).map((c) => c.name)} :
+          {type: 'option'},
+      });
       continue;
     }
     if (wf.type !== 'or') {
@@ -104,7 +133,7 @@ async function playUntilAttack(request: APIRequestContext, id: string): Promise<
     // ── the ACTION MENU ────────────────────────────────────────────────
     const playIdx = branchIndex(wf, (o) => o.type === 'projectCard');
     const playable = (wf.options?.[playIdx]?.cards ?? []).filter((c) => !played.has(c.name));
-    const wanted = playable.find((c) => c.name === TARDIGRADES || c.name === ANTS);
+    const wanted = playable.find((c) => c.name === TARDIGRADES);
     if (playIdx >= 0 && wanted !== undefined) {
       played.add(wanted.name);
       await sendPlayerInput(request, id, {
@@ -114,7 +143,9 @@ async function playUntilAttack(request: APIRequestContext, id: string): Promise<
       continue;
     }
     const actionIdx = branchIndex(wf, (o) => o.type === 'card' && (o as {selectBlueCardAction?: boolean}).selectBlueCardAction === true);
-    const action = (wf.options?.[actionIdx]?.cards ?? []).find((c) => !stocked.has(c.name));
+    // ONLY the self-stocking card's action — see the note on TARDIGRADES.
+    const action = (wf.options?.[actionIdx]?.cards ?? [])
+      .find((c) => c.name === TARDIGRADES && !stocked.has(c.name));
     if (actionIdx >= 0 && action !== undefined) {
       stocked.add(action.name);
       await sendPlayerInput(request, id, {
@@ -131,7 +162,7 @@ async function playUntilAttack(request: APIRequestContext, id: string): Promise<
     stocked.clear(); // a new generation re-arms every card action
     await sendPlayerInput(request, id, {type: 'or', index: passIdx, response: {type: 'option'}});
   }
-  expect(false, 'MarsBot never played Invasive Species within the budget').toBeTruthy();
+  expect(false, `the bot never played Invasive Species — ${trace.join(' ')}`).toBeTruthy();
   return await fetchPlayerModel(request, id) as unknown as Model;
 }
 
@@ -193,7 +224,7 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
     const {players} = await created.json();
     const id = players[0].id;
 
-    await seedGameOverApi(request, id, {cards: [TARDIGRADES, ANTS], buy: 2});
+    await seedGameOverApi(request, id, {cards: [TARDIGRADES], buy: 1});
     const attacked = await playUntilAttack(request, id);
     expect(attacked.waitingFor?.botAttackPrompt, 'the attack context reached the wire').toBeDefined();
 
@@ -211,23 +242,48 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
     await settle(page);
 
     // ── (2) WHO, WITH WHAT, AND WHAT NOW ───────────────────────────────
-    const head = await page.evaluate(() => ({
-      eyebrow: (document.querySelector('.con-botattack__eyebrow')?.textContent ?? '').trim(),
-      title: (document.querySelector('.con-botattack__title')?.textContent ?? '').trim(),
-      explain: (document.querySelector('.con-botattack__explain')?.textContent ?? '').trim(),
-      restriction: (document.querySelector('.con-botattack__restriction')?.textContent ?? '').trim(),
-      // The bot's OWN card face, not a fake project card.
-      botFace: document.querySelectorAll('.con-botattack__source .mb-face').length,
-      botFaceName: (document.querySelector('.con-botattack__source .mb-face__name')?.textContent ?? '').trim(),
-    }));
-    // The eyebrow is uppercased by CSS, so the DOM text keeps its own case.
+    const head = await page.evaluate(() => {
+      const px = (sel: string): number => {
+        const el = document.querySelector(sel);
+        return el === null ? 0 : Number(getComputedStyle(el).fontSize.replace('px', ''));
+      };
+      const text = (sel: string): string => (document.querySelector(sel)?.textContent ?? '').trim();
+      return {
+        kicker: text('.con-botattack__kicker-word'),
+        actor: text('.con-botattack__actor'),
+        title: text('.con-botattack__title'),
+        ask: text('.con-botattack__ask'),
+        limit: text('.con-botattack__limit'),
+        askPx: px('.con-botattack__ask'),
+        limitPx: px('.con-botattack__limit'),
+        // The bot's OWN card face — not a fake project card, and not a text
+        // block hidden behind an inspect verb.
+        botFace: document.querySelectorAll('.con-botattack__source .mb-face').length,
+        botFaceName: text('.con-botattack__source .mb-face__name'),
+        botFaceW: document.querySelector('.con-botattack__source .mb-face')?.getBoundingClientRect().width ?? 0,
+        // …and the BRIDGE that makes source → target read as one sentence.
+        bridge: document.querySelectorAll('.con-botattack__bridge-chip').length,
+      };
+    });
     await shoot(page, '01-opened');
-    expect(head.eyebrow.toUpperCase(), 'the attack names itself').toContain('MARSBOT');
-    expect(head.botFace, 'the SOURCE is MarsBot\'s own card face').toBe(1);
+    // THE ACTOR'S NAME comes from the ONE display-name helper: «Бот» in Russian,
+    // never a hardcoded «MarsBot» and never a second hardcoded «Бот».
+    expect(head.kicker.toUpperCase(), 'the attack names itself').toContain('АТАКА');
+    expect(head.actor, 'the actor wears the helper\'s own label').toContain('Бот');
+    expect(head.title, 'the headline names the actor').toContain('Бот');
+    expect(head.title, '…and the card it played').toContain('Инвазивные виды');
+    expect(head.botFace, 'the SOURCE is the bot\'s own card face').toBe(1);
     expect(head.botFaceName, '…with its localized name').toBe('Инвазивные виды');
-    expect(head.title).toContain('Инвазивные виды');
-    expect(head.explain.length, 'the effect is explained in words').toBeGreaterThan(10);
-    expect(head.restriction.length, 'and so is the rule that narrowed the targets').toBeGreaterThan(10);
+    // …and it is REALLY on screen: a face this narrow would be the unreadable
+    // text rectangle of the first iteration.
+    expect(head.botFaceW, 'the bot card is drawn at a readable size').toBeGreaterThan(240);
+    expect(head.bridge, 'the effect visibly travels from it').toBe(1);
+    expect(head.ask.length, 'the effect is explained in words').toBeGreaterThan(10);
+    expect(head.limit.length, 'and so is the rule that narrowed the targets').toBeGreaterThan(10);
+    // TV READABILITY: the instruction is body text and the constraint under it
+    // is one step down — never a microscopic disclaimer.
+    expect(head.askPx, 'the instruction reads from a couch').toBeGreaterThanOrEqual(38);
+    expect(head.limitPx, 'and so does the constraint').toBeGreaterThanOrEqual(34);
 
     // ── (3) NO RAW ENGLISH in a Russian session ────────────────────────
     const text = await page.locator('.con-botattack').innerText();
@@ -241,26 +297,44 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
     const latin = text.replace(/marsbot|m€|consoletester/gi, '').match(/[A-Za-z]{3,}/g) ?? [];
     expect(latin, `untranslated text: ${latin.join(', ')}`).toEqual([]);
 
+    // ── (3b) ONE canonical hint per press ──────────────────────────────
+    // The verb the bar publishes on A must not be the commit row's own words,
+    // and the retired `L3 Источник` must be gone (the card is on screen).
+    const bar = await page.locator('.con-cmdbar').innerText();
+    expect(bar).not.toContain('ИСТОЧНИК');
+    const barVerbs = bar.split('\n').map((l) => l.trim()).filter((l) => l !== '');
+    expect(new Set(barVerbs).size, `the bar repeats a verb: ${barVerbs.join(' | ')}`).toBe(barVerbs.length);
+
     // ── (4) COMPACT, and no overflow at 4K ─────────────────────────────
     const box = await panelBox(page);
     expect(box, 'the panel is on screen').toBeDefined();
     expect(box!.opacity, 'the panel actually PAINTS').toBeGreaterThan(0.9);
     expect(box!.visibility, '…and is not left hidden by a killed tween').toBe('visible');
-    expect(box!.w / box!.vw, 'the modal does not compete with a workspace').toBeLessThan(0.62);
+    expect(box!.w / box!.vw, 'the modal does not compete with a workspace').toBeLessThan(0.55);
     expect(box!.h / box!.vh, '…nor claim the height of one').toBeLessThan(0.85);
     expect(box!.overflowing, `content sticking out of the panel: ${box!.overflowing.join(' | ')}`).toEqual([]);
     expect(box!.scrollers, `a horizontal scroller appeared: ${box!.scrollers.join(' | ')}`).toEqual([]);
     expect(box!.rootScrollW, 'the page itself never scrolls').toBeLessThanOrEqual(box!.vw);
 
     // ── (5) NOTHING IS CHOSEN ON OPEN ──────────────────────────────────
-    const opened = await page.evaluate(() => ({
-      locked: document.querySelectorAll('.con-botattack .con-ptsel__slot--locked').length,
-      ready: document.querySelectorAll('.con-botattack__commit--ready').length,
-      hint: (document.querySelector('.con-botattack__commit-hint')?.textContent ?? '').trim(),
-    }));
+    const opened = await page.evaluate(() => {
+      const cta = document.querySelector<HTMLElement>('.con-botattack__cta');
+      const panel = document.querySelector<HTMLElement>('.con-botattack__panel');
+      return {
+        locked: document.querySelectorAll('.con-botattack .con-ptsel__slot--locked').length,
+        ready: document.querySelectorAll('.con-botattack__cta--ready').length,
+        held: document.querySelectorAll('.con-botattack__cta--held').length,
+        label: (cta?.textContent ?? '').trim(),
+        // The CTA is CONTENT-SIZED — a full-bleed row is the web-form look this
+        // iteration removes.
+        ctaShare: (cta?.getBoundingClientRect().width ?? 0) / (panel?.getBoundingClientRect().width ?? 1),
+      };
+    });
     expect(opened.locked, 'the cursor is not a choice').toBe(0);
     expect(opened.ready, 'the commit refuses to arm itself').toBe(0);
-    expect(opened.hint.length, 'and says what is missing').toBeGreaterThan(0);
+    expect(opened.held, 'and says so in the project\'s held state').toBe(1);
+    expect(opened.label.length, 'naming what is missing').toBeGreaterThan(0);
+    expect(opened.ctaShare, 'the commit is a compact rail, not a form button').toBeLessThan(0.55);
 
     // ── (6) A SELECTS — and the preview reads было → станет ────────────
     const targets = await page.locator('.con-botattack [data-ptsel-cell]').count();
@@ -270,16 +344,20 @@ test.describe('MarsBot attack — the compact mandatory modal', () => {
     await page.waitForSelector('.con-botattack .con-ptsel__slot--locked', {timeout: 10_000});
 
     const chosen = await page.evaluate(() => ({
-      ready: document.querySelectorAll('.con-botattack__commit--ready').length,
-      verb: (document.querySelector('.con-botattack__commit-verb')?.textContent ?? '').trim(),
-      target: (document.querySelector('.con-botattack__commit-target')?.textContent ?? '').trim(),
+      ready: document.querySelectorAll('.con-botattack__cta--ready').length,
+      focused: document.querySelectorAll('.con-botattack__cta--focused').length,
+      label: (document.querySelector('.con-botattack__cta-label')?.textContent ?? '').trim(),
       rail: (document.querySelector('.con-botattack .con-ptsel__railimpacts')?.textContent ?? '')
         .replace(/\s+/g, ' ').trim(),
+      // …and the rail no longer opens with the card's own name + an arrow (the
+      // «ТИХОХОДКИ → Ресурсы на этой карте 1 → 0» debug reading).
+      railCards: document.querySelectorAll('.con-botattack .con-ptsel__railcard').length,
     }));
     expect(chosen.ready, 'the commit is now live').toBe(1);
-    expect(chosen.verb, 'the confirm names the ACT, never «выбрать»').toContain('Удалить');
-    expect(chosen.target.length, 'and names the card it will take from').toBeGreaterThan(0);
+    expect(chosen.focused, 'and the cursor moved onto it').toBe(1);
+    expect(chosen.label, 'the confirm names the ACT, never «выбрать»').toContain('Удалить');
     expect(chosen.rail, 'the current → resulting reading is on screen').toContain('→');
+    expect(chosen.railCards, 'the single target does not restate its own name').toBe(0);
 
     await shoot(page, '02-target-chosen');
     // The box did not move when the choice was made (a commit row that grows

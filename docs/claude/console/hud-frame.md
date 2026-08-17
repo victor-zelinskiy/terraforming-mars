@@ -113,7 +113,10 @@ gutters. The shell is now ONE cockpit hull:
   joint is the same narrow void «expansion joint» (top/bottom/left/right of
   the stage opening).
 - **A workspace SCREEN is a state of the central scene, not a modal.**
-  `.con-ws-band()` right edge is `0` (the viewport); the shared
+  `.con-ws-band()` right edge is `0` (the viewport) — ⚠️ **superseded
+  2026-08-17**: only SCREENS still weld right (`.con-ws-stage-band()`); a
+  DIALOG's band stops at the strategy rail. See § THE CENTRAL OPENING at the end
+  of this file. The shared
   `.con-stage-surface()` mixin re-dresses every full-screen workspace plate
   (hand / colonies / card-actions / info / MA / std-projects / draft /
   bounded start): square, welded right, machined top seam + quiet left/
@@ -264,3 +267,115 @@ later in the same file).
   dock card tops. Screenshots → `screenshots/hud-frame/<preset>/`.
 - `tests/client/components/console/consoleStatusStrip.spec.ts` § generation
   label — ordinary vs final: same `GEN.` text, `--final` class only.
+
+---
+
+# THE CENTRAL OPENING — what a modal may cover, and who may replace a bar
+*(2026-08-17 — supersedes «`.con-ws-band()` right edge is `0` (the viewport)» above)*
+
+The frame is **four hull members and an OPENING**: the status strip (top), the
+command bar (bottom), the player rail (left) and the strategy rail (right) are
+permanent chrome; the box they enclose is the CENTRAL STAGE. Two rules and the
+carve-out:
+
+1. **A modal — and its dim — live strictly inside the opening.** No decision
+   surface reaches under a bar, and no bar is ever greyed out. The rails are
+   chrome the player reads THROUGH a decision (stocks and production are the
+   landing zone of every resource flight; the trophy gallery is *why* they are
+   choosing at all), so dimming them costs information for no focus.
+2. **A surface that IS the stage takes the right rail's zone** — and then the
+   rail stops being **drawn**, rather than sitting dimmed underneath. That is
+   every WORKSPACE SCREEN (card actions · standard projects · MA · hand ·
+   colonies · hydro · draft · info · «РАЗЫГРАНО» · the start workspace's bounded
+   deployment), plus the two right-edge DRAWERS that were always its
+   replacement: «Журнал» and the board dossier (all three of its modes —
+   `placement` · `cell` · `track`). A SECTION workspace (hand / colonies / hydro
+   / draft) additionally has the rail `v-show`n away, which is why its geometry
+   was already correct before this pass and a SHEET workspace's (card actions /
+   std projects / MA) was not: there `section` stays `'board'`, the rail is still
+   laid out, and only the policy frees its zone.
+3. Full-bleed **cinematics** (reveal · ceremonies · the mandatory gate ·
+   fullscreen inspect · the system menu · the start scene · the endgame) and
+   **flight layers** are not in this family at all — they own the whole screen
+   and position themselves. Two SYSTEM failure surfaces stay full-bleed for the
+   same reason: `.con-stranded` (the leak guard) and `.con-alert`
+   (`ConsoleSystemAlert`) must be unmissable.
+
+## GEOMETRY is measured; REPLACEMENT is policy
+
+The two halves are answered in two different places ON PURPOSE, because they are
+different questions:
+
+- **Where is the opening** — geometry, measured live by
+  `useWorkspaceBandGeometry` (`src/client/console/composables/`) and published as
+  four px insets on `<html>`: `--con-stage-t / -b / -l / -r`. It reads
+  `.con-main`'s rect, the column's own `columnGap` (so a profile override needs
+  no second constant) and BOTH rails' rects. The tokens
+  (`--con-band-top`, `--con-ws-left`, …) remain the pre-mount fallback and are
+  exact at every shipped profile — the mirror exists for the cases a token cannot
+  express: a content-sized strip, a rail that is `v-show`n away, a resize.
+  ⚠️ It observes the RAILS as well as the column: a rail flip changes no box
+  inside `.con-main`, so the column's own observer never fires for the one event
+  that moves the opening's edge most.
+- **Is the rail being replaced** — policy, and a policy is a state of the SHELL,
+  not a rect. `ConsoleShell.conRootClasses` raises
+  **`.con-root--rail-replaced`**, which sets `--con-stage-r-eff: 0px` and hides
+  `.con-strat`. It is derived from the WORKSPACE STACK (`frames.length > 0`) plus
+  the two workspace-shaped overlays that are not stack frames (`playedOpen`,
+  `infoWorkspaceUp`) and the two drawers (`journalPanelVisible`,
+  `contextOverlayMode`) — never a second list of surface names to rot.
+  Hiding the rail is not belt-and-braces: `.con-root:has(.con-ws)` LIFTS it to
+  z11520, i.e. **above** every band surface (11480–11515), so an unhidden rail
+  paints on top of the very screen that took its zone.
+
+**A SCREEN's own edge is not this policy.** The token has exactly two consumers —
+the shared dim and the compact dialogs, both of which are asking «is the rail
+visible right now». A screen welds itself (`right: 0`), because the policy flips
+on the frame the stack empties, which is the frame the surface starts FADING: a
+screen that spent the token would re-fit its content inside a 468px-narrower box
+(at 4K) while dissolving. Same law as the rail's own lift, which deliberately
+rides DOM presence (`:has(.con-ws)`) so it holds through the leave for free.
+
+**`visibility`, never `display`.** The rail's BOX must survive the replacement,
+or `.con-main`'s flex re-lays out and the board rescales for a mode change —
+which is the one thing every overlay in this family exists to avoid. (It also
+keeps the rail measurable as a flight anchor.)
+
+## Who spends what
+
+| Consumer | Spends | Note |
+| --- | --- | --- |
+| `.con-modal-band()` | all four stage insets | **THE** band (dialogs). `.con-ws-band()` is now literally this plus the `con-ws` marker contract. |
+| `.con-ws-sides()` | `--con-stage-l` + `--con-stage-r-eff` | The two sides for a DIALOG that owns its own top/bottom. |
+| `.con-ws-stage-band()` / `.con-ws-stage-sides()` | `--con-stage-l` + **`right: 0`** | The SCREEN variants: `.con-draftws` · `.con-ma` · `.con-stdp` (fixed) and `.con-cardactions` · `.con-info` · `.con-played` · `.con-start--bounded` (own top/bottom). **A screen declares its edge, never the policy token** — `right: 0` cannot disagree with «am I on screen», while the token flips the frame the stack empties, i.e. the frame the surface starts FADING: the grid would re-fit inside a 468px-narrower box (at 4K) mid-dissolve. |
+| `.con-shade` | all four | The ONE shared dim. `--fullbleed` (`FULL_BLEED_SHADE_OWNERS`, `surfaceMotionState.ts`) is the cinematic carve-out. |
+| own `__backdrop` | `position: absolute; inset: 0` | `.con-sheet` · `.con-ma` · `.con-info` · `.con-played-cat` — bounded by their own band. A `fixed; inset: 0` dim greys all four members and only *looked* right because two of them out-stacked it; the side rails never did. |
+
+**One definition, because the defect was never per-surface.** «A modal must not
+cover a bar» is a property of the FAMILY: the category view over «РАЗЫГРАНО»
+inherited `left: 0` from the old full-width band and reached clean across the
+player rail — no per-surface fix would have found it. So the band mixin itself
+carries the opening, and a member that legitimately takes the rail's zone does
+not opt out either: the shell raises one class and every band surface follows.
+
+## Guards
+
+- `tests/e2e/console-workspace-band.spec.ts` — per reachable surface: the band
+  clears all four members; the shared dim covers exactly the same opening; and
+  the right edge splits the two families by the shell's own policy class (a
+  workspace screen reaches the physical edge with the rail NOT drawn but its box
+  intact; a dialog clears a LIT rail). Plus **«the opening FOLLOWS a window
+  resize»**: a measured box is exactly what can be left standing on stale
+  numbers, and SHRINKING is the dangerous direction — a band still sized for the
+  old viewport reaches *under* the bars rather than leaving a gap. It resizes
+  inside the same profile band on purpose (a profile flip re-mounts surfaces and
+  would mask a stale-geometry bug), and it goes back: the opening is a state, not
+  a one-way narrowing.
+- `tests/e2e/console-right-drawer.spec.ts` — «Журнал» + the board dossier: the
+  drawer covers the rail's box, the rail is not drawn, its box survives, and it
+  comes BACK when the drawer closes.
+- `tests/e2e/console-stdp-stable-geometry.spec.ts` — the walk that proves the
+  measured band does not jitter with focus. ⚠️ It pumps BeginFrames
+  (`forceFrame`): headless Chromium does not FINISH an idle entrance tween, it
+  FREEZES it — which reads as «settled» to any sampler, and the first keypress
+  then lands the remaining px on the guard's head.

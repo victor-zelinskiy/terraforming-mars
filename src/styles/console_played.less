@@ -23,8 +23,11 @@
        while the tableau is browsed. PERIMETER SHELL: the band runs to the
        viewport's right edge; the tableau itself keeps the safe-inset content
        line through the root padding below. */
-    left: var(--con-ws-left, 11.3rem);
-    right: 0;
+    /* THE SCREEN'S SIDES (`.con-ws-stage-sides()` — console.less): the table
+       starts at the player rail's seam and welds to the physical right edge —
+       it IS the stage, so it takes the strategy rail's zone (the shell hides
+       the rail) and its own edge never depends on that policy. */
+    .con-ws-stage-sides();
     padding-right: var(--con-hud-pad-x, 1.1rem);
     /* The MODAL-BAND bottom, floored at the historical 4.3rem dock-plate
        clearance (the table sits a touch higher than the bare bar band). */

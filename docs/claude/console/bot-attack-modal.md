@@ -76,7 +76,71 @@ Three rules the shape enforces:
 Nothing is mutated to produce any of it (guarded: the cube is still on the card
 after the whole prompt has been built and serialized).
 
-## The surface
+## The surface (iteration 2 — the visual repair)
+
+Iteration 1 got the DATA right and the DRESS wrong: a bordeaux plate with a red
+frame, a green-framed source box, a red-ringed target card and a cyan full-width
+button — four design systems on one panel, which read as a combat UI borrowed
+from another game. Iteration 2 changed no architecture and rebuilt the surface
+out of what the project already owns.
+
+**It inherits, it does not invent.** The plate is `.con-decision__panel`'s glass
+byte-for-byte (cold graphite-blue, its cool inset hairline, its radius, its drop
+shadow, its type scale); the focus ring is `@sem-focus`; the commit is the
+composer CTA's three-state language (`--held` graphite / `--ready` mint /
+`--focused` cyan); the pending target ring is the shared step's own, recoloured.
+
+**Red is SEMANTIC and appears in exactly four places** — the attack kicker, the
+bridge chip, the chosen target's pending-removal ring, and a negative delta. It
+never tints the plate.
+
+**The composition is a causal sentence**, and the panel is content-sized
+(`width: auto` + a 34rem reading measure on the header), so one candidate
+centres the row instead of leaving half a modal empty:
+
+```
+◈ АТАКА · ● БОТ
+Бот применяет карту «Инвазивные виды»
+Выберите свою карту и удалите с неё 1 ресурс.
+Доступны карты животных и микробов с наибольшей стоимостью ПО.
+
+ИСТОЧНИК                                    [ ТИХОХОДКИ ]
+[ the bot's real card ] ──  −1 🦠  ──▸           Ресурсы 1 → 0
+                                                  Ⓐ Удалить 1 ресурс
+```
+
+### The bot's name — ONE resolver, never a literal
+
+`displayNameForColor` (`marsBotDisplay.ts`) → the `'MarsBot'` i18n key → «Бот».
+Nothing in the flow spells the name out: the kicker is one word plus the shell's
+own seat chip, the headline takes the name as **parameter 0**
+(`'${0} plays ${1}'`), and the mandatory ANNOUNCEMENT carries it as a
+`LogMessageDataType.PLAYER` token — which `translateMessage` resolves through
+that very same key, so `consoleTaskSummary` stays pure. A locale change
+re-labels every one of them with no code path of its own.
+
+⚠️ The kicker is «АТАКА · БОТ», not «АТАКА БОТА»: a Russian genitive cannot be
+produced from an interpolated nominative, and a second, case-inflected name
+source is exactly what the one-helper rule forbids. The source dock's kind chip
+was renamed `'Bot card'` for the same reason — `'MarsBot card'` put the raw name
+into a Russian label.
+
+### The source is the REAL card, on screen, unprompted
+
+The dock draws `BonusCardFace` (the same renderer the bot board, the turn
+theater and the fullscreen inspect use) at its readable size: `zoom:
+var(--con-ui-scale)` over a fixed 300 px box, so a px-authored text face
+integrates into the rem space at every profile. `L3 Источник` is **gone** — with
+the card inline it would open a viewer onto what the player is already looking
+at, and a competing inspect verb with nothing of its own is noise.
+
+### One canonical hint per press
+
+The ROW names the act («Удалить 1 ресурс»); the ONE command bar names the press
+(the project's generic `'Confirm action'`). That split is the composer's own
+(`commitFocusVerb`) — before it, both places said «Удалить 1 ресурс».
+
+## The surface — routing
 
 `botAttack` is a **native COMPOSITE kind** (`NATIVE_COMPOSITE_KINDS`): its own
 band surface, not host-served, not a shell section, not a scene — and therefore
@@ -171,10 +235,17 @@ branches of `WaitingFor.fetchPlayerInput`).
 
 **A fit engine may never read its own output.** The panel is content-sized, so
 the selector's zone must NOT grow with its content — otherwise the step sizes
-its cards against a box its own cards produced. `.con-botattack__targets` is a
-**fixed** `19rem` (`flex: 0 1 auto`, shrink-only) and carries `data-ws-band`, so
-the step's budget is a constant. It also keeps a lone target modest: about a
-seventh of the screen wide, never the hero the full-screen picker made of it.
+its cards against a box its own cards produced. `.con-botattack__stage` is a
+**fixed** `15.5rem` (`flex: 0 1 auto`, shrink-only) and carries `data-ws-band`,
+so the step's budget is a constant. It also keeps a lone target modest — never
+the hero the full-screen picker made of it.
+
+⚠️ **And the `data-ws-band` box must contain ONLY the step.** With the commit row
+inside it the step measured `band.bottom − root.top` — a budget that included
+the button's own space — overflowed by exactly that much, and the step's scroll
+area grew a rail. The commit is the PANEL's foot instead, which also makes the
+source card and the target card centre on each other rather than on a column
+that holds a rail and a button too.
 
 **One entrance, one owner.** The surface is registered with the surface-motion
 director (`data-motion-surface="bot-attack"`), which owns the band family's
@@ -199,6 +270,17 @@ future bot effect reachable for its own probe.
    the rule that raises it**.
 2. `markBotAttackPrompt(...)` on the input.
 3. Add the effect's explanation keys to `botAttackModel.ts` + `ru/console.json`.
+
+## Two things that are NOT this surface
+
+* **«КАРТЫ 0/1» in the footer** is the HAND DOCK's own readout —
+  `playableCount / count`, i.e. «0 of the 1 card in your hand can be played
+  right now». It is not a target-picker page indicator and not a zero-index
+  bug; this modal renders no pager at all (with one candidate the shared step
+  shows neither an owner bar nor a count).
+* **`L3 Источник`** was retired here only. Every other post-commit stage keeps
+  it — the console-wide grammar (`X` = the current object, `L3` = the source)
+  applies wherever the source is off screen.
 
 Nothing in the router, the shell, the gate, the leak detector or the styles
 needs to change: the whole shell is driven by `effect`, `amount` and the

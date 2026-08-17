@@ -248,7 +248,20 @@ html.console-native {
    (11400). Flat paint, pointer-events none, no blur (Steam Deck rule). */
 .con-shade {
     position: fixed;
-    inset: 0;
+    /* THE DIM IS THE OPENING'S, NOT THE VIEWPORT'S. The four hull members are
+       permanent chrome — the player reads the rails THROUGH a decision (stocks
+       and production are the landing zone of every resource flight; the trophy
+       gallery is why they are choosing at all) — so greying them out costs
+       information for no focus. Bounding the shade by GEOMETRY rather than by
+       z-order is also what makes it true for all four bars at once: the old
+       `inset: 0` relied on the two horizontal bars out-stacking it (11700 over
+       11460) and simply had no answer for the side rails, which is why the left
+       one needed a per-family lift and the right one was dimmed always.
+       Falls back to the tokens before the mirror's first measurement. */
+    top: var(--con-stage-t, var(--con-band-top, 4.5rem));
+    bottom: var(--con-stage-b, var(--con-band-bottom, 4.5rem));
+    left: var(--con-stage-l, var(--con-ws-left, 11.3rem));
+    right: var(--con-stage-r-eff, var(--con-ws-right, 11.3rem));
     z-index: 11460;
     pointer-events: none;
     .con-backdrop-dim();
@@ -265,6 +278,15 @@ html.console-native {
     }
     &--on&--veil {
         opacity: 0.28; /* the table beat: tray focal, board readable */
+    }
+
+    /* THE ONE EXCEPTION — a FULL-BLEED owner (the card-reveal cinematic) covers
+       the whole shell by design, so its dim must too: a cinematic painting over
+       a rail while the rail's own strip stayed lit reads as a seam, not as
+       chrome. Declared by the OWNER (`surfaceShadeFullBleed`), never by this
+       stylesheet guessing which surface is up. */
+    &--fullbleed {
+        inset: 0;
     }
 
     /* FOCUS VIGNETTE — the dimming as a transition instrument: while a
@@ -461,18 +483,94 @@ html.console-native {
     --con-rail-w: 10rem;
     --con-rail-outer-w: calc(var(--con-pad-x) + var(--con-rail-w));
     --con-main-gap: var(--con-hud-gap);
+    /* THE OPENING'S TWO HORIZONTAL EDGES, as tokens. They are the PRE-MOUNT
+       FALLBACK only: the live values are measured by `useWorkspaceBandGeometry`
+       and published as `--con-stage-l` / `--con-stage-r`, because the RIGHT edge
+       is not a constant — the strategy rail is `v-show`n on the board home, so a
+       SECTION workspace (hand / colonies / hydro / draft) takes it off screen
+       entirely and the measured inset collapses to 0 by itself. A SHEET
+       workspace (card actions / std projects / MA) keeps `section === 'board'`,
+       so there the rail is still laid out and only the POLICY below frees its
+       zone. Symmetric by construction: both derive from the one rail width. */
     --con-ws-left: calc(var(--con-rail-outer-w) + var(--con-main-gap));
+    --con-ws-right: calc(var(--con-rail-outer-w) + var(--con-main-gap));
+    /* ═══ THE OPENING'S EFFECTIVE RIGHT EDGE ═══
+       Two different questions, answered in two different places on purpose:
+         · WHERE IS THE RAIL — geometry, measured by the mirror
+           (`--con-stage-r`, 0 when the rail is `v-show`n away);
+         · IS THE RAIL BEING REPLACED — policy, and a policy is a state of the
+           SHELL, not a rect. A WORKSPACE SCREEN (`.con-root--rail-replaced`)
+           takes the whole central stage INCLUDING the rail's zone and hides it;
+           a right-edge DRAWER («Журнал», the board dossier) does the same at
+           that one edge. A compact DIALOG does neither — it stands inside the
+           opening and the rail stays lit beside it.
+       Everything that must respect the opening spends THIS token, so the two
+       halves of the answer can never be combined differently twice. */
+    --con-stage-r-eff: var(--con-stage-r, var(--con-ws-right, 11.3rem));
 }
 
-/* A fixed overlay spanning EXACTLY the space between the two bars. The
-   overlay's own `__backdrop` child stays `position: fixed; inset: 0` when a
-   full-viewport dim is wanted — the bars (higher z) paint crisp above it. */
+/* A WORKSPACE SCREEN (or a right-edge drawer) REPLACES the right rail: the rail
+   stops being drawn and the opening extends over its zone. `visibility`, never
+   `display` — the rail's BOX must survive, or `.con-main`'s flex re-lays out and
+   the board rescales for a mode change, which is the one thing every overlay in
+   this family exists to avoid. The class is computed from the WORKSPACE STACK
+   (plus the two workspace-shaped overlays that are not stack frames), so there
+   is no second list of surface names to rot. */
+.con-root--rail-replaced {
+    --con-stage-r-eff: 0px;
+
+    .con-strat {
+        visibility: hidden;
+    }
+}
+
+/* THE OPENING'S HORIZONTAL EDGES — declared ONCE, spent by two families.
+   FIXED band surfaces reach them through `.con-modal-band()` / `.con-ws-band()`;
+   the workspaces that live as ABSOLUTE children of `.con-main`
+   (`.con-cardactions`, `.con-info`) and the fixed `.con-played` table spend them
+   directly. `.con-main` spans the full viewport, so the same viewport insets are
+   correct for both.
+   The measured pair wins; the tokens are the pre-mount fallback, and the right
+   edge collapses to 0 by itself wherever the strategy rail is being REPLACED. */
+.con-ws-sides() {
+    left: var(--con-stage-l, var(--con-ws-left, 11.3rem));
+    right: var(--con-stage-r-eff, var(--con-ws-right, 11.3rem));
+}
+
+/* …and the SCREEN variant: a workspace screen IS the central stage, so it takes
+   the strategy rail's zone and welds to the physical edge (the shell hides the
+   rail — `.con-root--rail-replaced`; content keeps its safe line through the
+   screen's own `--con-hud-pad-x` padding).
+   IT IS DECLARED BY THE SURFACE, NOT BY THE POLICY TOKEN, and that is the whole
+   point: `right: 0` cannot disagree with «am I on screen». Spending
+   `--con-stage-r-eff` here instead would re-lay the screen out on every frame
+   where the flag and the surface's presence differ — a LEAVE most of all (the
+   stack empties as the surface starts fading, so a 4K screen would re-fit its
+   grid inside a 468px-narrower box while dissolving). The token stays for the
+   two consumers that genuinely ask «is the rail visible right now»: the shared
+   dim and the compact dialogs. */
+.con-ws-stage-sides() {
+    left: var(--con-stage-l, var(--con-ws-left, 11.3rem));
+    right: 0;
+}
+
+/* A fixed overlay spanning EXACTLY THE CENTRAL OPENING — the box the four hull
+   members (status strip · command bar · player rail · strategy rail) enclose.
+   ONE definition, because «a modal must not cover a bar» is a property of the
+   FAMILY and not of each member: the category view over «РАЗЫГРАНО» inherited
+   `left: 0` from the old full-width band and reached across the player rail,
+   which no per-surface fix would have caught. A member that legitimately takes
+   the strategy rail's zone does not opt out here either — the shell raises
+   `.con-root--rail-replaced` and the right inset collapses for every band
+   surface at once.
+   Cinematics (reveal / ceremony / the mandatory gate / fullscreen inspect / the
+   system menu / the start scene / the endgame) are deliberately NOT in this
+   family: they own the whole screen and position themselves. */
 .con-modal-band() {
     position: fixed;
-    top: var(--con-band-top, 4.5rem);
-    bottom: var(--con-band-bottom, 4.5rem);
-    left: 0;
-    right: 0;
+    top: var(--con-stage-t, var(--con-band-top, 4.5rem));
+    bottom: var(--con-stage-b, var(--con-band-bottom, 4.5rem));
+    .con-ws-sides();
 }
 
 /* ═══ THE WORKSPACE BAND — the modal band, DOCKED RIGHT OF THE PLAYER RAIL ═══
@@ -483,23 +581,44 @@ html.console-native {
    its root: `.con-root:has(.con-ws)` below lifts the rail above the shade /
    the surface's own backdrop for exactly as long as the surface lives in the
    DOM (leave transitions included — the hold-through-dismiss is free).
-   Deliberately NOT for cinematics (reveal / ceremonies / mandatory gate),
-   the command wheels, fullscreen inspect, or the system menu. */
+   Deliberately NOT for what owns the WHOLE screen: cinematics (reveal /
+   ceremonies / the mandatory gate / the start scene's preparation phase /
+   endgame), fullscreen inspect, the system menu, and the app-level flight
+   layers. The command WHEELS are in the family (a wheel is a dialog on the
+   stage — `.con-quick` centres in the opening between both rails). */
 .con-ws-band() {
+    /* THE OPENING, ON ALL FOUR SIDES — inherited whole from `.con-modal-band()`
+       (above), because a workspace band and a compact dialog want the SAME box;
+       what makes this the WORKSPACE band is the `con-ws` marker class beside it.
+       The LIVE box (measured by `useWorkspaceBandGeometry`) wins over the token
+       approximation: a fixed surface and an in-`.con-main` one must open in the
+       SAME box to the pixel, or switching between two workspaces nudges the
+       frame. The tokens stay as the pre-mount fallback.
+
+       ⚠️ THE RIGHT EDGE IS THE STRATEGY RAIL'S FOR A DIALOG, THE VIEWPORT'S FOR
+       A SCREEN — and that difference is the POLICY class, not this mixin. An
+       earlier cut welded every band to the physical edge «exactly like the HUD
+       rails»: a rail is chrome the player reads THROUGH a decision, and a modal
+       that covered it (while the shade greyed it out from underneath) took the
+       Milestones/Awards HUD off screen for the whole life of every prompt. The
+       opposite cut — bounding EVERYTHING at the rail — left a workspace screen
+       ending on an invisible line with the rail's zone unused beside it. So:
+       `--con-stage-r-eff` is the rail's inset by default and 0 under
+       `.con-root--rail-replaced`, which the shell raises for a screen (and for
+       the two right-edge drawers). A SCREEN does not spend that token at all —
+       it declares `.con-ws-stage-sides()` and owns its edge outright. CONTENT
+       keeps its safe inset through each screen's own stage padding
+       (--con-hud-pad-x). */
     .con-modal-band();
-    /* The LIVE main-column band (published by useWorkspaceBandGeometry) wins
-       over the token approximation: a fixed surface and an in-`.con-main` one
-       must open in the SAME box to the pixel, or switching between two
-       workspaces nudges the frame. The tokens stay as the pre-mount fallback. */
-    top: var(--con-ws-top, var(--con-band-top, 4.5rem));
-    bottom: var(--con-ws-bottom, var(--con-band-bottom, 4.5rem));
-    left: var(--con-ws-left, 11.3rem);
-    /* PERIMETER SHELL: the band's right edge is the VIEWPORT edge — a
-       workspace surface welds to it exactly like the HUD rails (`.con-main`
-       spans full width, so fixed and in-main surfaces stay one geometry).
-       CONTENT keeps the safe inset through each screen's stage padding
-       (--con-hud-pad-x) — full-bleed chrome, safe-inset content. */
-    right: 0;
+}
+
+/* The SCREEN band: the workspace band's box, welded to the physical right edge.
+   `.con-draftws` / `.con-ma` / `.con-stdp` (the fixed screens) — the ones that
+   live inside `.con-main` take `.con-ws-stage-sides()` beside their own
+   top/bottom. */
+.con-ws-stage-band() {
+    .con-ws-band();
+    .con-ws-stage-sides();
 }
 
 /* The workspace SCREEN's frame: it FILLS the band exactly like the
@@ -2355,11 +2474,11 @@ html.console-native {
 
 /* ── THE DRAFT WORKSPACE («ДРАФТ») — the between-generations draft +
    research buy as ONE workspace flow (ConsoleDraftWorkspace).
-   Band-family surface: `.con-ws-band()` + the `con-ws` marker on the root
+   Band-family surface: `.con-ws-stage-band()` + the `con-ws` marker on the root
    (the rail rises, the HUD stays); the frame is a strict flex column whose
    STAGE is the only flexing part, so the card fit reads honest budgets. */
 .con-draftws {
-    .con-ws-band();
+    .con-ws-stage-band();
     z-index: 11480;
     display: flex;
     flex-direction: column;
@@ -6910,10 +7029,11 @@ html.console-mode {
    the moving part. All state cues ride box-shadow / transform / opacity —
    perf-lite (con-perf-lite cuts filter/text-shadow) keeps every one. */
 .con-quick {
-    /* THE WORKSPACE BAND: the command cross centres between the bars AND
-       right of the player rail — the wheel is where a turn is CHOSEN, so the
-       resources it spends must stay lit next to it (the cross only shifts by
-       half the rail; its flights are rect-measured and follow). */
+    /* THE WORKSPACE BAND: the command cross centres in the CENTRAL OPENING —
+       between the bars and between BOTH side rails. The wheel is where a turn
+       is chosen, so everything it spends (resources left, the trophies it aims
+       at right) must stay lit next to it; the cross shifts by half a rail and
+       its flights are rect-measured, so they follow. */
     .con-ws-band();
     z-index: 11500;
     display: flex;
@@ -7469,7 +7589,11 @@ html.console-mode {
     justify-content: center;
 
     &__backdrop {
-        position: fixed; /* full-viewport dim under the bars */
+        /* THE DIM IS THE OPENING'S — bounded by the band above, never the
+           viewport. A `fixed; inset: 0` dim greys out all four hull members and
+           relied on their z-order to look right, which was never true for the
+           side rails (see `.con-shade`). */
+        position: absolute;
         inset: 0;
         background: rgba(4, 8, 14, 0.6);
     }
@@ -7624,9 +7748,9 @@ html.console-mode {
    Availability reads from card state + the CTA — the only textual
    explanation lives in the footer context strip for the FOCUSED card. */
 .con-ma {
-    /* THE MODAL BAND: was top-reserved only — the panel stretched under the
-       command bar. */
-    .con-ws-band();
+    /* THE SCREEN BAND: was top-reserved only — the panel stretched under the
+       command bar. Welded right (it takes the strategy rail's zone). */
+    .con-ws-stage-band();
     z-index: 11500;
     display: flex;
     align-items: stretch;
@@ -7637,7 +7761,8 @@ html.console-mode {
     padding: 0;
 
     &__backdrop {
-        position: fixed; /* full-viewport dim under the bars */
+        /* THE OPENING'S dim (bounded by the band above) — see `.con-shade`. */
+        position: absolute;
         inset: 0;
         /* The workspace visually separates from the planet: the environment
            survives only as DEPTH (darker toward the panel, a breath lighter
@@ -8747,8 +8872,8 @@ html.con-profile-handheld .con-mafocus {
 
 /* -- P27: Standard Projects -- the premium basic-actions screen ---- */
 .con-stdp {
-    /* THE MODAL BAND: centres between the bars. */
-    .con-ws-band();
+    /* THE SCREEN BAND: between the bars, welded to the physical right edge. */
+    .con-ws-stage-band();
     z-index: 11500;
     display: flex;
     align-items: center;
@@ -10750,6 +10875,7 @@ html.con-profile-handheld .con-mafocus {
 .con-main--journal > .con-context {
     visibility: hidden;
 }
+
 .con-journal__header {
     flex-shrink: 0;
     padding: .6rem .7rem .5rem;
@@ -12172,17 +12298,17 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 .con-info {
     position: absolute;
     top: 0;
-    right: 0;
     bottom: 0;
-    /* PERIMETER SHELL: `.con-main` spans the full viewport — the seam
-       coordinate is the shared token. */
-    left: var(--con-ws-left, 11.3rem);
+    /* THE SCREEN'S SIDES — see `.con-ws-stage-sides()`. */
+    .con-ws-stage-sides();
     z-index: 11560;
     display: flex;
     align-items: stretch;
 
     &__backdrop {
-        position: fixed; /* full-viewport dim under the bars + the rail */
+        /* THE OPENING'S dim: bounded by `.con-info`'s own box (the two side
+           rails + the bars stay lit) — see `.con-shade`. */
+        position: absolute;
         inset: 0;
         .con-backdrop-dim(); // no blur (Steam Deck)
     }
@@ -17251,10 +17377,10 @@ body.con-start-ceremony {
        SHELL: welded to the viewport's right edge like every stage; the
        frame below carries the safe-inset content line). */
     &--bounded {
-        padding-top: var(--con-ws-top, var(--con-band-top, 3.4rem));
-        padding-right: 0;
-        padding-bottom: var(--con-ws-bottom, var(--con-band-bottom, 3rem));
-        padding-left: var(--con-ws-left, 11.3rem);
+        padding-top: var(--con-stage-t, var(--con-band-top, 3.4rem));
+        padding-right: 0; /* the SCREEN edge — see `.con-ws-stage-sides()` */
+        padding-bottom: var(--con-stage-b, var(--con-band-bottom, 3rem));
+        padding-left: var(--con-stage-l, var(--con-ws-left, 11.3rem));
     }
 
     &__bg {
@@ -22468,11 +22594,12 @@ html.console-mode {
        per-resolution constant. */
     position: absolute;
     top: 0;
-    right: 0;
     bottom: 0;
-    /* PERIMETER SHELL: `.con-main` spans the full viewport now — the seam
-       coordinate is the shared token (rail chassis + the uniform joint). */
-    left: var(--con-ws-left, 11.3rem);
+    /* THE OPENING, both sides (shared with every fixed band surface —
+       `.con-ws-stage-sides()`): the seam coordinate is the measured rail edge, so
+       this screen never reaches under either side rail. The right inset
+       collapses to 0 by itself where the strategy rail is off screen. */
+    .con-ws-stage-sides();
     z-index: 11480;
     display: flex;
     flex-direction: column;
