@@ -276,9 +276,26 @@ export type PlayedTargetSelection =
   | {mode: 'single'}
   | {mode: 'multi', min: number, max: number, picked: ReadonlyArray<string>};
 
+/**
+ * WHICH WAY the resource moves. It is the axis that decides whether this
+ * screen is a gift or a loss, and every host of the selector must be able to
+ * state it: `add` puts something ON the chosen card (the ordinary play /
+ * blue-action target), `remove` TAKES something off it (Predators eating an
+ * animal, and every hostile MarsBot effect).
+ *
+ * It exists as its own field rather than as a sign on an amount because the
+ * DIRECTION is what the presentation keys on — the accent of the focus ring,
+ * whether targeting your own tableau is a warning, and whether the pre-commit
+ * state reads as «сюда ляжет» or «это исчезнет». A number can be absent (a
+ * copy-production pick has no delta at all) while the direction still matters.
+ */
+export type PlayedTargetDirection = 'add' | 'remove';
+
 export type PlayedTargetContract = {
   /** The server's own ask, already resolved to the player's language. */
   ask: string;
+  /** Which way the resource moves — `add` unless the host says otherwise. */
+  direction: PlayedTargetDirection;
   targetCount: number;
   ownerCount: number;
   /** At least one candidate belongs to the viewer. */
@@ -354,8 +371,15 @@ export type BuildPlayedTargetInput = {
    * Adding a resource to your own card is the normal, good move — marking it
    * would train the player to ignore the marker long before they ever meet a
    * removal, and a warning nobody reads is worse than none.
+   *
+   * @deprecated The boolean shorthand for `direction: 'remove'`. Kept because
+   * both existing hosts derive it straight from the sign of a step's amount;
+   * `direction` wins when both are given.
    */
   takesFromTarget?: boolean;
+  /** Which way the resource moves — see {@link PlayedTargetDirection}. Falls
+   *  back to `takesFromTarget`, and to `add` when neither is given. */
+  direction?: PlayedTargetDirection;
   /** Card type resolver (`ClientCardManifest.getCard`), injected for purity. */
   typeOf: (name: CardName) => CardType | undefined;
   /** The contextual preview for one candidate — the caller's game knowledge. */
@@ -436,13 +460,15 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
   }
   const grouped = [...byColor.values()];
   const opponentsInvolved = grouped.some((g) => !g.self);
+  const direction: PlayedTargetDirection =
+    input.direction ?? (input.takesFromTarget === true ? 'remove' : 'add');
   const carriesSource = (g: {candidates: ReadonlyArray<PlayedTargetCandidate>}) =>
     g.candidates.some((c) => c.relation === 'source-card');
   const owners = grouped
     .map((g) => ({
       ...g,
       candidates: sortByCategory(g.candidates),
-      selfHarm: g.self && input.takesFromTarget === true && opponentsInvolved,
+      selfHarm: g.self && direction === 'remove' && opponentsInvolved,
     }))
     .sort((a, b) => {
       // The source+«ЭТА КАРТА» pair wins the front (see the builder's doc).
@@ -454,6 +480,7 @@ export function buildPlayedTargetModel(input: BuildPlayedTargetInput): PlayedTar
     owners,
     contract: {
       ask: input.ask,
+      direction,
       targetCount,
       ownerCount: owners.length,
       selfAllowed: owners.some((o) => o.self),

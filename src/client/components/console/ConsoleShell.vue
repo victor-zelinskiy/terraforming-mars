@@ -669,6 +669,24 @@
                           @defer="onTaskDefer" />
     </transition>
 
+    <!-- THE MARSBOT ATTACK — a hostile bot effect the player must answer.
+         A compact modal, deliberately NOT a workspace: the player opened
+         nothing, so there is no flow to descend into and nothing to come back
+         to. It is announced first like every interruptive mandatory prompt
+         (consoleMandatoryGate), so it can never appear over a workspace the
+         player is working in — the chip carries the demand until they press A
+         on the board home. -->
+    <transition :css="false" appear
+                @enter="surfaceEnterHook" @leave="surfaceLeaveHook"
+                @enter-cancelled="surfaceEnterCancelledHook" @leave-cancelled="surfaceLeaveCancelledHook">
+      <ConsoleBotAttack v-if="botAttackActive && botAttackVm !== undefined"
+                        ref="botAttack"
+                        :playerView="playerView"
+                        :vm="botAttackVm"
+                        @submit="onTaskSubmit"
+                        @defer="onTaskDefer" />
+    </transition>
+
     <!-- CTS T5: the game-opening START SCENE (initialCards wizard /
          start-sequence ceremony) — the console-native replacement for
          both desktop start surfaces. B defers to the amber chip. -->
@@ -1464,6 +1482,9 @@ import {revealViewerState} from '@/client/components/notifications/revealViewerS
 import {ConsoleTask, TaskKind, taskFor, taskMinimizable, taskServedByHost, shellTaskOnSurface, followUpStepStage, NATIVE_COMPOSITE_KINDS, SCENE_KINDS, SECTION_SERVED_KINDS, SHELL_SECTION_KINDS, corpFirstActionInStartFlow} from '@/client/console/consoleTaskRouter';
 import ConsoleSpendHeat from '@/client/components/console/ConsoleSpendHeat.vue';
 import ConsoleVenusBonus from '@/client/components/console/ConsoleVenusBonus.vue';
+import ConsoleBotAttack from '@/client/components/console/ConsoleBotAttack.vue';
+import {BonusCardContext} from '@/common/automa/BonusCardData';
+import {buildBotAttackView, BotAttackViewModel} from '@/client/console/botAttack/botAttackModel';
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
 
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
@@ -1687,6 +1708,7 @@ export default defineComponent({
     ConsoleDeckPickLayer,
     ConsoleSpendHeat,
     ConsoleVenusBonus,
+    ConsoleBotAttack,
     ConsoleAresGlobals,
     ConsoleStartScene,
     ConsoleRevealOverlay,
@@ -2832,6 +2854,24 @@ export default defineComponent({
     aresGlobalsActive(): boolean {
       return this.nativeCompositeTask?.kind === 'aresGlobal' && !this.consoleState.task.deferred;
     },
+    botAttackActive(): boolean {
+      return this.nativeCompositeTask?.kind === 'botAttack' && !this.consoleState.task.deferred;
+    },
+    /**
+     * The bot card's printed rules resolve differently per expansion set, and
+     * the FACE must read as the player will experience it in THIS game — the
+     * same context every other host of `BonusCardFace` passes.
+     */
+    botCardContext(): BonusCardContext {
+      const expansions = this.playerView.game.gameOptions.expansions;
+      return {venus: expansions.venus === true, colonies: expansions.colonies === true};
+    },
+    /** The attack's whole meaning, derived from the SERVER's own marker. */
+    botAttackVm(): BotAttackViewModel | undefined {
+      return this.botAttackActive ?
+        buildBotAttackView(this.playerView.waitingFor, this.botCardContext) :
+        undefined;
+    },
     /**
      * ONE of the four DEDICATED COMPOSITE surfaces is on screen — the family's
      * own `v-if`s, collected in one place so the shell's cross-cutting
@@ -2843,7 +2883,7 @@ export default defineComponent({
      */
     compositeSurfaceActive(): boolean {
       return this.venusBonusActive || this.spendHeatActive ||
-        this.aresGlobalsActive || this.deckPickActive;
+        this.aresGlobalsActive || this.deckPickActive || this.botAttackActive;
     },
     /** What the ConsoleTaskHost renders: a server task OR the client payment. */
     hostTask(): ConsoleTask | undefined {
@@ -5724,6 +5764,9 @@ export default defineComponent({
       // fallbacks below only ever show for the frame before the watcher runs.
       if (this.spendHeatActive) {
         return [...(panelCommands('spendHeat') ?? [{control: 'secondary', label: 'Pay'}, {control: 'back', label: 'Minimize'}])];
+      }
+      if (this.botAttackActive) {
+        return [...(panelCommands('botAttack') ?? [{control: 'confirm', label: 'Choose the target'}, {control: 'back', label: 'Minimize'}])];
       }
       if (this.venusBonusActive) {
         return [...(panelCommands('venusBonus') ?? [{control: 'secondary', label: 'Collect'}, {control: 'back', label: 'Minimize'}])];
@@ -8779,6 +8822,10 @@ export default defineComponent({
       }
       if (this.aresGlobalsActive) {
         (this.$refs.aresGlobals as InstanceType<typeof ConsoleAresGlobals> | undefined)?.handleIntent(intent);
+        return true;
+      }
+      if (this.botAttackActive) {
+        (this.$refs.botAttack as InstanceType<typeof ConsoleBotAttack> | undefined)?.handleIntent(intent);
         return true;
       }
       // The EFFECT DECISION screen owns input while it stands in for the host

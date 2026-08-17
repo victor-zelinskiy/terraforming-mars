@@ -6,13 +6,20 @@
   <div class="con-ptsel"
        :data-mode="layout.mode"
        :data-flow="sizing.sectionFlow"
+       :data-direction="model.contract.direction"
        :data-overflow="sizing.overflows ? '1' : undefined"
        :style="sizeVars">
     <!-- ── THE SELECTION CONTRACT — one question, answered once. The count
          rides the SAME line as the title: it is a property of the ask, not a
          third statement of it (the owner bar and the category rails used to
-         repeat the very same number twice more). ── -->
-    <header class="con-ptsel__contract" data-unfold-item ref="contract">
+         repeat the very same number twice more).
+
+         A host that has ALREADY stated the ask in its own header (the MarsBot
+         attack modal, whose whole top half is «кто, чем и что вы потеряете»)
+         passes `hostStatesAsk` and this line does not render — a second, more
+         generic instruction under a specific one is how a screen teaches the
+         player to stop reading its headers. ── -->
+    <header v-if="!hostStatesAsk" class="con-ptsel__contract" data-unfold-item ref="contract">
       <div class="con-ptsel__contract-head">
         <span class="con-ptsel__contract-mark" aria-hidden="true">◈</span>
         <span class="con-ptsel__contract-title">{{ $t('Choose a played card') }}</span>
@@ -69,7 +76,7 @@
                class="con-ptsel__owner"
                :class="{'con-ptsel__owner--self': owner.self, 'con-ptsel__owner--focused': owner.id === focus.ownerId}"
                data-unfold-item>
-        <header class="con-ptsel__ownerbar">
+        <header v-if="showsOwnerBar" class="con-ptsel__ownerbar">
           <span class="con-ptsel__ownerdot" :class="'player_bg_color_' + owner.color" aria-hidden="true"></span>
           <span class="con-ptsel__ownername" :class="'player_color_' + owner.color">{{ owner.name }}</span>
           <!-- SELF-HARM, once per GROUP. The rules allow taking from your own
@@ -321,6 +328,12 @@ export default defineComponent({
     /** The already-confirmed target of a SINGLE step (a re-entry from «Изменить
      *  выбор»); in multi the picks live in `selection.picked`. */
     lockedCard: {type: String, default: ''},
+    /**
+     * The HOST's own header already states the ask, so this step must not
+     * restate it (see the contract header in the template). Additive and
+     * default-false: the two composer hosts keep their contract line untouched.
+     */
+    hostStatesAsk: {type: Boolean, default: false},
   },
   data() {
     return {
@@ -353,6 +366,16 @@ export default defineComponent({
     },
     focusedOwnerColor(): string {
       return this.focusedOwner?.color ?? 'neutral';
+    },
+    /**
+     * WHOSE cards these are — a real question with two tableaux on screen, and
+     * pure noise with one when the HOST has already said it («выберите одну из
+     * СВОИХ карт»). Scoped to `hostStatesAsk` on purpose: in the composers the
+     * bar earns its line even for a lone owner, because nothing above it says
+     * whose table is being pointed at.
+     */
+    showsOwnerBar(): boolean {
+      return !(this.hostStatesAsk && this.model.owners.length === 1);
     },
     /** Several owners → the per-owner and per-focus markers earn their place. */
     showsOwnerTargets(): boolean {

@@ -69,6 +69,10 @@ const FIXTURES: Array<{row: string, wf: any, hand?: Array<string>, srr?: Array<s
   {row: '24a venus bonus (base)', wf: {type: 'and', title: 'Gain 2', options: [], venusBonusPrompt: {kind: 'standard', baseCount: 2}}, expect: {kind: 'venusBonus', mode: 'standard'}},
   {row: '24b venus bonus (final)', wf: {type: 'or', title: 'Gain 3', options: [], venusBonusPrompt: {kind: 'final', baseCount: 2}}, expect: {kind: 'venusBonus', mode: 'final'}},
   {row: '24c spend heat', wf: {type: 'and', title: 'Spend 6 heat', options: [], spendHeatPrompt: {amount: 6}}, expect: {kind: 'spendHeat'}},
+  // A MARSBOT ATTACK — byte-identical to row 13 on the wire apart from
+  // `botAttackPrompt`, which is exactly why the marker had to exist: without
+  // it the prompt is a nameless target pick in the generic card browser.
+  {row: '24d MarsBot attack (remove a card resource)', wf: {type: 'card', title: 'Remove 1 resource from one of your cards', buttonLabel: 'Remove resource', cards: [{name: 'Birds'}], botAttackPrompt: {attacker: 'neutral', victim: 'red', source: {kind: 'bonusCard', bonusCard: 'B02'}, effect: 'removeCardResource', cardResource: 'Animal', amount: 1, targets: []}}, expect: {kind: 'botAttack'}},
   {row: 'native placement', wf: {type: 'space', title: 'Select space', spaces: []}, expect: {kind: 'space'}},
   {row: '30 out-of-scope: delegate', wf: {type: 'delegate', title: 'Select delegate'}, expect: {kind: 'unknown', inputType: 'delegate'}},
   {row: '30b out-of-scope: party', wf: {type: 'party', title: 'Select party'}, expect: {kind: 'unknown', inputType: 'party'}},
@@ -88,8 +92,8 @@ const ALL_INPUT_TYPES = [
 const ALL_TASK_KINDS: ReadonlyArray<TaskKind> = [
   'actionMenu', 'space', 'choice', 'awardFunding', 'player', 'amount', 'resource',
   'distribute', 'payment', 'draftWait', 'cardSelect', 'deckSelect', 'handSelect',
-  'projectCard', 'colony', 'colonyBonus', 'venusBonus', 'spendHeat', 'composite',
-  'initialDraft', 'startSequence', 'corpFirstAction', 'aresGlobal', 'unknown',
+  'projectCard', 'colony', 'colonyBonus', 'venusBonus', 'spendHeat', 'botAttack',
+  'composite', 'initialDraft', 'startSequence', 'corpFirstAction', 'aresGlobal', 'unknown',
 ];
 
 /** The CURRENT red list — shrink it phase by phase (CTS-6). */

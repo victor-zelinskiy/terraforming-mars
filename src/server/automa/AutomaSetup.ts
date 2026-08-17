@@ -120,6 +120,18 @@ export class AutomaSetup {
 
     state.bonusDeck = AutomaSetup.bonusDeckContents(options);
     inplaceShuffle(state.bonusDeck, game.rng);
+    // DEV "custom bonus cards": lift them to the TOP of the bonus deck, AFTER
+    // the shuffle — the automa twin of `customProjectCards`, and the only way
+    // to reach one specific bot effect deterministically (its own test, a
+    // rules question, a UI probe). Ignored for an id the option set does not
+    // actually include, so a stale request can never seat a card the game has
+    // no rules for.
+    // (`?? []` — an old save deserialized before this option existed.)
+    const custom = options.customBonusCards ?? [];
+    if (custom.length > 0) {
+      const usable = custom.filter((id) => state.bonusDeck.includes(id));
+      state.bonusDeck = [...usable, ...state.bonusDeck.filter((id) => !usable.includes(id))];
+    }
 
     if (options.venusNextExtension) {
       state.recurringBonusCards.push(BonusCardId.B16_GOVERNMENT_INTERVENTION);

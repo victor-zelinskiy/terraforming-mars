@@ -20,7 +20,9 @@ type PanelOwner = 'taskHost' | 'govSupport' | 'productionLoss' | 'infoMode' | 'c
   // spend-heat, the planetary-event thresholds).
   'spendHeat' | 'venusBonus' | 'aresGlobals' |
   // «Посмотри N карт колоды, оставь K» — the draw & select surface.
-  'deckPick';
+  'deckPick' |
+  // A hostile MarsBot effect the player must answer («выберите, что потеряете»).
+  'botAttack';
 
 export const consolePanelUi = reactive({
   owner: undefined as PanelOwner | undefined,

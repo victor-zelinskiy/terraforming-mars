@@ -1,6 +1,7 @@
 import {CardModel} from './CardModel';
 import {ColonyModel} from './ColonyModel';
 import type {ActionEffect} from './ActionPreviewModel';
+import type {BotAttackPromptMeta} from './BotAttackPromptModel';
 import type {TargetImpact, TargetImpactChange} from './TargetImpactModel';
 import {CardName} from '../cards/CardName';
 import {ColonyName} from '../colonies/ColonyName';
@@ -358,6 +359,11 @@ export type BaseInputModel = {
    *  marker (see ColonyBonusCollectMeta). Serialized on `SelectOption.toModel`
    *  (nesting-safe), not centrally. */
   colonyBonusPrompt?: ColonyBonusCollectMeta;
+  /** Explicit "a MarsBot effect is forcing this choice on you" context — who
+   *  attacks, which of the bot's cards, what leaves and what each candidate
+   *  costs (see {@link BotAttackPromptMeta}). Serialized on the input's own
+   *  `toModel` (nesting-safe), not centrally. */
+  botAttackPrompt?: BotAttackPromptMeta;
 }
 
 export type AndOptionsModel = BaseInputModel & {

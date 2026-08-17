@@ -17,6 +17,7 @@ import {SelectCard} from '../inputs/SelectCard';
 import {SimpleDeferredAction} from '../deferredActions/DeferredAction';
 import {AwardScorer} from '../awards/AwardScorer';
 import {AutomaAres} from './AutomaAres';
+import {cardResourceAttackPrompt} from './AutomaAttackPrompt';
 import {AutomaColonies} from './AutomaColonies';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {AutomaResearch} from './AutomaResearch';
@@ -245,9 +246,25 @@ function invasiveSpecies(game: IGame): BonusCardOutcome {
     }});
     // The pick is shown even for a single candidate (the fork's no-auto-select
     // rule): the victim confirms WHICH cube leaves.
+    //
+    // The prompt carries its whole meaning STRUCTURALLY (`markBotAttackPrompt`):
+    // who attacked, which of the bot's cards did it, what leaves and what each
+    // candidate costs. The title is a translatable key that no longer has to
+    // smuggle the source card's name in brackets — the client reads the marker.
+    // Built INSIDE the deferred callback so the preview is derived from the
+    // state the player will actually be looking at (the queue may run other
+    // effects between this turn's resolution and the victim's answer).
     game.defer(new SimpleDeferredAction(victim, () => new SelectCard(
-      'Select the highest-scoring animal/microbe card to remove 1 resource from (Invasive Species)',
+      'Remove 1 resource from one of your cards',
       'Remove resource', targets, {min: 1, max: 1})
+      .markBotAttackPrompt(cardResourceAttackPrompt({
+        attacker: bot,
+        victim,
+        source: {kind: 'bonusCard', bonusCard: BonusCardId.B02_INVASIVE_SPECIES},
+        targets,
+        amount: 1,
+        restrictionKey: 'Only your highest-scoring animal or microbe cards can be chosen.',
+      }))
       .andThen(([card]) => {
         // `removingPlayer` attributes the cube loss to the bot (LawSuit hook).
         victim.removeResourceFrom(card, 1, {log: true, removingPlayer: bot});

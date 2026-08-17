@@ -4,6 +4,7 @@ import {PlayerInputType} from '../common/input/PlayerInputType';
 import {InputResponse} from '../common/inputs/InputResponse';
 import {IPlayer} from './IPlayer';
 import {PlayerInputModel, StartGamePromptMeta, AwardFundingPromptMeta, ChoiceContext, ColonyBonusCollectMeta, DeckPickPromptMeta, DiscardPromptMeta, DraftPromptMeta, FinalGreeneryPromptMeta, PlacementContext, VenusBonusPromptMeta, SpendHeatPromptMeta} from '../common/models/PlayerInputModel';
+import {BotAttackPromptMeta} from '../common/models/BotAttackPromptModel';
 
 export interface PlayerInput {
     type: PlayerInputType;
@@ -49,6 +50,11 @@ export interface PlayerInput {
     // marker (see ColonyBonusCollectMeta). Serialized on SelectOption.toModel
     // (nesting-safe), not centrally.
     colonyBonusPrompt?: ColonyBonusCollectMeta;
+    // Explicit "a MarsBot effect forces this choice on you" context (see
+    // BotAttackPromptMeta) — attacker, source card, what leaves and the exact
+    // per-candidate consequence. Serialized on the input's own toModel
+    // (nesting-safe), not centrally.
+    botAttackPrompt?: BotAttackPromptMeta;
 
     // Contextual annotation identifying this PlayerInput.
     annotation: string | undefined;
@@ -106,6 +112,7 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
   public draftPrompt: DraftPromptMeta | undefined;
   public finalGreeneryPrompt: FinalGreeneryPromptMeta | undefined;
   public colonyBonusPrompt: ColonyBonusCollectMeta | undefined;
+  public botAttackPrompt: BotAttackPromptMeta | undefined;
 
   public abstract toModel(player: IPlayer): PlayerInputModel;
   public abstract process(response: InputResponse, player: IPlayer): PlayerInput | undefined;
@@ -233,6 +240,18 @@ export abstract class BasePlayerInput<T> implements PlayerInput {
    *  to tell those apart by reading their titles. */
   public markFinalGreeneryPrompt(meta: FinalGreeneryPromptMeta): this {
     this.finalGreeneryPrompt = meta;
+    return this;
+  }
+
+  /** Mark this prompt as a MANDATORY choice a MarsBot effect forces on its
+   *  victim (chainable): who attacks, which of the bot's cards did it, what
+   *  leaves, and the exact per-candidate consequence. Built by
+   *  `automa/AutomaAttackPrompt.ts` — every hostile bot effect that makes a
+   *  human point at one of their own objects goes through it, so the console
+   *  never has to recover any of that from an English sentence.
+   *  See {@link BotAttackPromptMeta}. */
+  public markBotAttackPrompt(meta: BotAttackPromptMeta): this {
+    this.botAttackPrompt = meta;
     return this;
   }
 }
