@@ -69,6 +69,14 @@ function walk(dir: string, match: RegExp, out: Array<string>): void {
  * Blank out comments so PROSE about buttons stays legal (the console source
  * documents its own mapping heavily — ~310 such lines). Block comments and
  * HTML comments are stripped across lines; `//` only when it isn't a URL's.
+ *
+ * …AND SVG PATH GEOMETRY, which is not text at all. `d="M2.4 12.2 L3 5.6 …"`
+ * is a lineto command plus a coordinate, and `\bL3\b` cannot tell it from the
+ * left-stick click: the strategy rail's crown tripped this guard the moment it
+ * was drawn. The alternative — nudging the artwork to «L 3» — teaches nothing
+ * and the next SVG author writes the natural form again, so the exclusion
+ * belongs HERE. A `d` attribute carries no user-facing string by construction,
+ * so nothing a player can read is lost from the scan.
  */
 function stripComments(text: string, json: boolean): string {
   if (json) {
@@ -77,7 +85,8 @@ function stripComments(text: string, json: boolean): string {
   return text
     .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
     .replace(/<!--[\s\S]*?-->/g, (m) => m.replace(/[^\n]/g, ' '))
-    .replace(/(^|[^:])\/\/.*$/gm, '$1');
+    .replace(/(^|[^:])\/\/.*$/gm, '$1')
+    .replace(/\sd=("|')[\s\S]*?\1/g, (m) => m.replace(/[^\n]/g, ' '));
 }
 
 describe('gamepad glyph literals', () => {
