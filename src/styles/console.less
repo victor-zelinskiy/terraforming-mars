@@ -9642,6 +9642,21 @@ html.con-profile-handheld .con-mafocus {
         &:last-child::after { display: none; }
 
         &:hover .con-strat__art { opacity: 1; }
+
+        /* PAINT ORDER RUNS UP THE COLUMN. Every art is drawn LARGER than
+           its medal box (the optical overhang) and carries a drop shadow,
+           so a lower row's art — later in the DOM — used to paint over the
+           row above it, and the dark edge landed exactly on that row's
+           provenance socket (read as a stray glass contour on the cube).
+           Reversing the rows' z-order makes each exhibit sit on top of the
+           one below: shadows fall away from the sockets, and the stack
+           still reads bottom-lit. */
+        &:nth-child(1) { z-index: 6; }
+        &:nth-child(2) { z-index: 5; }
+        &:nth-child(3) { z-index: 4; }
+        &:nth-child(4) { z-index: 3; }
+        &:nth-child(5) { z-index: 2; }
+        &:nth-child(6) { z-index: 1; }
     }
 
     /* The medallion: a physical exhibit in layers — state bloom (light),
@@ -9652,6 +9667,10 @@ html.con-profile-handheld .con-mafocus {
        shoulder jewel, and the one-shot seal kiss. */
     &__medal {
         position: relative;
+        /* The exhibit (and the provenance socket pinned to its corner)
+           stands ABOVE the ranking zone: the zone is later in the DOM, so
+           without this any material of its own paints over the socket. */
+        z-index: 1;
         flex-shrink: 0;
         width: var(--strat-medal);
         height: var(--strat-medal);
@@ -9715,8 +9734,15 @@ html.con-profile-handheld .con-mafocus {
        in the value zone. */
     &__gem {
         position: absolute;
-        bottom: 1%;
-        right: -2%;
+        /* Seated ON the emblem's lower-right shoulder, deliberately CLEAR
+           of the box's very edge: the art is drawn larger than its medal
+           box (the optical overhang), so the NEXT row's art — and its drop
+           shadow — reaches up over the previous row's bottom edge. A socket
+           pinned to that edge was painted over by the neighbour and read as
+           a faint dark contour lying on the cube. */
+        bottom: 9%;
+        right: 0;
+        z-index: 2;
         width: .5rem;
         height: .5rem;
         border-radius: .11rem;
@@ -9731,7 +9757,7 @@ html.con-profile-handheld .con-mafocus {
             inset 0 .05rem .06rem rgba(255, 255, 255, 0.34),
             inset 0 -.06rem .08rem rgba(0, 0, 0, 0.42),
             inset 0 0 0 .045rem rgba(16, 22, 30, 0.8),
-            0 0 0 .09rem fade(@strat-gold, 42%),
+            0 0 0 .06rem fade(@strat-gold, 38%),
             0 .1rem .3rem rgba(0, 0, 0, 0.55);
 
         /* The MOUNT: a soft contact shadow under the socket — the cube
@@ -9749,13 +9775,17 @@ html.con-profile-handheld .con-mafocus {
             pointer-events: none;
         }
     }
+    /* MY OWN provenance: the marker goes INSIDE the enamel — a bright inner
+       bevel plus a warmer socket. The old second OUTER ring (a .15rem white
+       halo over the gold one) painted a pale square frame around the cube
+       and read as a leftover glass contour / unfinished element at TV
+       scale; a socket may never wear two outer rings. */
     &__gem--me {
         box-shadow:
+            inset 0 0 0 .07rem rgba(255, 255, 255, 0.5),
             inset 0 .05rem .06rem rgba(255, 255, 255, 0.34),
             inset 0 -.06rem .08rem rgba(0, 0, 0, 0.42),
-            inset 0 0 0 .045rem rgba(16, 22, 30, 0.8),
-            0 0 0 .09rem fade(@strat-gold, 42%),
-            0 0 0 .15rem rgba(255, 255, 255, 0.6),
+            0 0 0 .06rem fade(@strat-gold, 62%),
             0 .1rem .3rem rgba(0, 0, 0, 0.55);
     }
     /* The engraved CHECK on a milestone's provenance socket — «done» cut
@@ -10412,6 +10442,47 @@ html.con-profile-handheld .con-mafocus {
             --strat-cas-row: 1.24rem;
             --strat-crown-lift: .08rem;
         }
+        /* ── COMPACT RANKING: ONE horizontal divider, no vertical rail ──
+           The cassette's vertical GUIDE is a full-pose device: at compact
+           density it runs right beside the emblem, crosses its wing and
+           the sponsor socket, and reads as a coordinate grid. Compact
+           therefore drops EVERY vertical decoration (the guide and the
+           lone-leader notch) and keeps exactly ONE structural line — the
+           divider BETWEEN the two places, living strictly inside the
+           ranking zone: it starts past the player zone's left edge, ends
+           on the score column's right edge, sits on the levels' boundary,
+           and is a calm warm→cool metal hairline, never a gold underline.
+           (The second level's own tread goes with it — one divider, not a
+           tread per level.) */
+        /* …and the zone's own MATERIAL goes with them. The wash starts at
+           full strength on its left edge, so at compact density it drew a
+           faint dark glass EDGE beside the emblem and — being later in the
+           DOM than the medal — washed over the sponsor socket that sits at
+           the emblem's corner. Compact keeps the ranking OPEN: only the
+           divider, the crown, the cubes and the numbers. */
+        .con-strat__cassette { background: none; }
+        .con-strat__cassette::before { content: none; }
+        /* ⚠️ The lone-leader notch is declared through `:has(...)`, and a
+           `:has()` argument COUNTS toward specificity — the plain
+           `.zone--awards.zone--done .cassette::after` reset (0,3,1) loses
+           to it (0,4,1). Mirror the `:has()` here so the compact reset
+           actually wins (0,5,1). */
+        .con-strat__cassette:has(.con-strat__unit:only-of-type)::after { content: none; }
+        .con-strat__cassette::after { content: none; }
+        .con-strat__unitbody--ii::after,
+        .con-strat__unitbody--chase::after { content: none; }
+        .con-strat__unitbody--i::after {
+            left: 15%;
+            right: 0;
+            bottom: 0;
+            height: .04rem;
+            background: linear-gradient(90deg,
+                transparent,
+                fade(@strat-gold, 34%) 22%,
+                rgba(196, 214, 232, 0.26) 72%,
+                transparent);
+        }
+
         /* COMPACT is the couch's standing endgame view — the ranking's own
            physical voices step UP (~18%): fuller cubes, a taller crown, a
            clearer breath under the cap. The score axis never moves. */

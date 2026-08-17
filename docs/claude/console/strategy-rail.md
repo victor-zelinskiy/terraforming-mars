@@ -148,10 +148,36 @@ not player language). These never mix. No names, no cost — the workspaces
   `--arriving` window only — a seeded mount/reload renders it static).
   Compact also steps the ranking voices UP for the couch (~18% cubes, a
   taller crown, more crown-lift air) — the score axis never moves and the
-  emblems never shrink. Guard: the states e2e funds three awards live
+  emblems never shrink. **And compact carries ONE line (P31.6):** the
+  cassette's vertical guide is a FULL-pose device — at compact density it
+  ran against the emblem, crossed its wing and the sponsor socket and read
+  as a coordinate grid, so the compact pose drops it, drops the
+  lone-leader notch and the second level's tread, and keeps exactly one
+  DIVIDER between the two places (on the levels' boundary, starting inside
+  the player zone, ending on the score axis, a warm→cool hairline — never
+  a gold underline). ⚠️ A `:has()` ARGUMENT COUNTS toward specificity: the
+  lone-leader notch's own `:has()` rule (0,4,1) out-ranked a plain
+  compact reset (0,3,1), so the reset mirrors the `:has()` tail.
+  **PAINT ORDER RUNS UP THE COLUMN** (`item:nth-child(1..6)` → `z-index:
+  6..1`): every art is drawn larger than its medal box and carries a drop
+  shadow, so the row BELOW — later in the DOM — painted over the row above
+  and that dark edge landed on its provenance socket (reported as a
+  leftover glass contour on the cube). The socket also sits off the very
+  edge (`bottom: 9%`), and compact drops the zone's wash entirely — its
+  left edge was the same contour from the other side. ⚠️ Never judge such
+  overlaps with `document.elementFromPoint`: a held, fully transparent app
+  overlay (`con-cards__verdictbar--held`) tops every point on the page —
+  measure the rail's own boxes and compare the rows' z-index. ⚠️ And a
+  CLIENT LEARNS OF A RIVAL'S MOVE WHEN THE TURN REACHES IT (measured: the
+  server held three sponsors while the page still rendered two), so a
+  driver that passes the viewer's turn to hurry the table strands it
+  forever. Guard: the states e2e funds three awards live
   (blue finishes the limit while red's page watches — a page holding its
   own menu does not poll), asserts the watched morph, the three sockets,
-  zone independence, and that a reload lands straight in compact with no
+  zone independence, and — on a RELOADED page, where the ranking is live
+  and no beats replay — the compact geometry: no vertical decoration, one
+  divider clear of emblem and socket, no neighbour art over a socket. It
+  also proves a reload lands straight in compact with no
   replay.
 
 ## The motion machine (all in the component)

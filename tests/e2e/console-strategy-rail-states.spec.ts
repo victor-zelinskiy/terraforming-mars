@@ -180,6 +180,72 @@ async function driveTable(
   throw new Error('the table drive never reached its goal');
 }
 
+/**
+ * Answer everything that is NOT an action menu, on every seat, until the
+ * table is quiet. A generation turnover hands each seat a research buy,
+ * and any driver that walks straight up to `awaitMyMenu` stalls on it
+ * («action menu never arrived — last: "Select card(s) to buy"»).
+ */
+async function drainNonMenu(request: APIRequestContext, seats: ReadonlyArray<string>, maxRounds = 30): Promise<void> {
+  for (let round = 0; round < maxRounds; round++) {
+    let acted = false;
+    for (const pid of seats) {
+      const m = await fetchPlayerModel(request, pid);
+      const wf: Wire = m.waitingFor;
+      if (wf === undefined || isActionMenuTitle(typeof wf.title === 'string' ? wf.title : undefined)) {
+        continue;
+      }
+      await settleFollowUps(request, pid);
+      acted = true;
+    }
+    if (!acted) {
+      return;
+    }
+  }
+}
+
+/**
+ * Bring the turn round to `pid` WITH at least `money`: drain research,
+ * pass every other seat that holds a menu, and let the generations turn
+ * until the seat is both on the clock and able to pay. Waiting passively
+ * cannot work — a table where everyone has passed only moves when its
+ * prompts are answered.
+ */
+async function driveTurnTo(
+  request: APIRequestContext,
+  seats: ReadonlyArray<string>,
+  pid: string,
+  money = 0,
+  maxRounds = 80,
+): Promise<void> {
+  for (let round = 0; round < maxRounds; round++) {
+    await drainNonMenu(request, seats);
+    const mine = await fetchPlayerModel(request, pid);
+    const wf: Wire = mine.waitingFor;
+    if (wf !== undefined && isActionMenuTitle(typeof wf.title === 'string' ? wf.title : undefined) &&
+        ((mine as Wire).thisPlayer?.megacredits ?? 0) >= money) {
+      return;
+    }
+    for (const other of seats) {
+      if (other === pid) {
+        continue;
+      }
+      const m = await fetchPlayerModel(request, other);
+      const owf: Wire = m.waitingFor;
+      if (owf !== undefined && isActionMenuTitle(typeof owf.title === 'string' ? owf.title : undefined)) {
+        await passGeneration(request, other);
+      }
+    }
+    // The seat itself may hold the clock but still be too poor — pass and
+    // let the next generation's income arrive.
+    if (wf !== undefined && isActionMenuTitle(typeof wf.title === 'string' ? wf.title : undefined)) {
+      await passGeneration(request, pid);
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  throw new Error(`the turn never came round to ${pid} with ${money} M€`);
+}
+
 /** Wait until THIS seat's action menu is live and return it. */
 async function awaitMyMenu(request: APIRequestContext, pid: string, maxMs = 60_000): Promise<Wire> {
   const started = Date.now();
@@ -694,6 +760,7 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     await nestedOption(request, p1, 'Fund an award', '"Landlord"');
     await nestedOption(request, p1, 'Fund an award', '"Banker"');
 
+
     // The page opens on RED while it is BLUE's turn: the zone stands FULL
     // with two sponsor pips — and the page polls freely (it holds no menu),
     // so the third seal will arrive WATCHED.
@@ -704,10 +771,14 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
       'two sponsorships keep the zone FULL').toBe(0);
 
     // BLUE funds the third award over the API — the live third seal, the
-    // read beat, then the FLIP into the compact pose, all on screen.
+    // read beat, then the FLIP into the compact pose, all on screen. Blue
+    // is on the clock right after red's turn with its full start money, so
+    // the funding needs no table driving (and driving it is HARMFUL: the
+    // viewer's own turn is what delivers a fresh model to the page, and a
+    // driver that passes red for it never lets that turn arrive).
     await nestedOption(request, p2, 'Fund an award', '"Thermalist"');
     await expect(page.locator('.con-strat__zone--awards.con-strat__zone--done'),
-      'the third seal composes the compact pose').toHaveCount(1, {timeout: 30_000});
+      'the third seal composes the compact pose').toHaveCount(1, {timeout: 45_000});
     await expect(page.locator('.con-strat__zone--awards .con-strat__item')).toHaveCount(3, {timeout: 10_000});
     // INDEPENDENT triggers: the milestones zone stays FULL.
     expect(await page.locator('.con-strat__zone--milestones.con-strat__zone--done').count(),
@@ -717,18 +788,123 @@ test.describe('console strategy rail · state matrix (4K TV)', () => {
     // rank rail dissolves to the calm centred dash.
     await expect(page.locator('.con-strat__zone--awards .con-strat__medal .con-strat__gem')).toHaveCount(3);
     await expect(page.locator('.con-strat__zone--awards .con-strat__pip--set')).toHaveCount(3);
+
     await waitToastQuiet(page);
     await shoot(page, 'tv4k-compact-awards');
     await page.locator('.con-strat').screenshot({path: path.join(OUT, 'tv4k-compact-awards-rail.png')});
 
-    // RELOAD lands STRAIGHT in compact — no morph replay, no seal beat,
-    // the same sockets (the seed-then-diff contract).
+    // ── the compact GEOMETRY is measured on a RELOADED page ───────────────
+    // A rail with real levels is needed (a freshly funded award's race is
+    // empty), so a city is built over the API first — and the page is then
+    // reloaded rather than waited on: a viewer only receives a fresh model
+    // when the turn reaches it, and the reload is also the contract check
+    // that compact seats itself with no beats.
+    await driveTable(request, [p1, p2, p3], async (pid, money) => {
+      if (pid === p1 && money >= 25) {
+        await stdProject(request, p1, 'City');
+        return true;
+      }
+      await passGeneration(request, pid);
+      return false;
+    });
+    await drainNonMenu(request, [p1, p2, p3]);
     await page.reload();
     await page.waitForSelector('.con-strat', {timeout: 45_000});
     await page.waitForSelector('.boot-loader', {state: 'detached', timeout: 90_000});
+    // RELOAD lands STRAIGHT in compact — no morph replay, no seal beat,
+    // the same sockets (the seed-then-diff contract).
     await expect(page.locator('.con-strat__zone--awards.con-strat__zone--done')).toHaveCount(1, {timeout: 20_000});
     await expect(page.locator('.con-strat__zone--awards .con-strat__medal .con-strat__gem')).toHaveCount(3);
     expect(await page.locator('.con-strat__item--sealing').count(), 'no seal beat replays on reload').toBe(0);
     expect(await page.locator('.con-strat__zone--arriving').count(), 'no pose arrival replays on reload').toBe(0);
+
+    // COMPACT CLEANLINESS: no vertical decoration inside the ranking zone
+    // (the full pose's guide crossed the emblem's wing and the sponsor
+    // socket at this density), exactly ONE horizontal divider between the
+    // two places, and it lives strictly inside the ranking zone — while
+    // the sponsor socket stays anchored to the EMBLEM wrapper.
+    const rankedRow = page.locator('.con-strat__zone--awards .con-strat__item:has(.con-strat__unitbody--i)').first();
+    await expect(rankedRow, 'the built city gives compact a live rank rail').toHaveCount(1, {timeout: 30_000});
+    const clean = await rankedRow.evaluate((row) => {
+      const px = (v: string) => (v.endsWith('px') ? Number.parseFloat(v) : Number.NaN);
+      const cassette = row.querySelector('.con-strat__cassette') as HTMLElement;
+      const medal = (row.querySelector('.con-strat__medal') as HTMLElement).getBoundingClientRect();
+      const gem = (row.querySelector('.con-strat__gem') as HTMLElement).getBoundingClientRect();
+      const lead = row.querySelector('.con-strat__unitbody--i') as HTMLElement | null;
+      const second = row.querySelector('.con-strat__unitbody--ii, .con-strat__unitbody--chase') as HTMLElement | null;
+      const leadBox = lead?.getBoundingClientRect();
+      const dividerStyle = lead === null ? null : getComputedStyle(lead, '::after');
+      return {
+        guide: getComputedStyle(cassette, '::before').content,
+        loneNotch: getComputedStyle(cassette, '::after').content,
+        secondTread: second === null ? 'none' : getComputedStyle(second, '::after').content,
+        dividerContent: dividerStyle?.content ?? 'none',
+        // The divider's own left edge, derived from the level box + its
+        // computed inset (a pseudo-element has no box of its own).
+        dividerLeft: leadBox === undefined ? Number.NaN :
+          leadBox.left + (px(dividerStyle?.left ?? '') || 0),
+        rankLeft: leadBox?.left ?? Number.NaN,
+        medalRight: medal.right,
+        gemRight: gem.right,
+        gemInsideMedalBand: gem.left >= medal.left && gem.left <= medal.right,
+      };
+    });
+    // The socket is the TOP layer at its own centre: the ranking zone's
+    // material may never wash over it (a translucent dark plate lying on
+    // the cube reads as an unfinished glass contour).
+    // NOTHING OF THE RAIL LIES ON A SOCKET. Measured on the rail's own
+    // boxes — never `elementFromPoint`, which answers about the whole
+    // page (a held, fully transparent app overlay tops every point and
+    // says nothing about this defect). Two real overlaps are possible:
+    // the ranking zone's material reaching left onto a socket, and a
+    // NEIGHBOUR row's art — drawn larger than its medal box — reaching up
+    // over the row above it.
+    const socketClear = await page.locator('.con-strat__zone--awards').evaluate((zone) => {
+      const rows = [...zone.querySelectorAll('.con-strat__item')];
+      const boxes = rows.map((row) => ({
+        gem: row.querySelector('.con-strat__gem')?.getBoundingClientRect(),
+        art: row.querySelector('.con-strat__art')!.getBoundingClientRect(),
+        cassette: row.querySelector('.con-strat__cassette')?.getBoundingClientRect(),
+        // The rows' own paint order: an overhanging neighbour is harmless
+        // as long as it is painted BELOW the row carrying the socket.
+        z: Number.parseInt(getComputedStyle(row).zIndex, 10),
+      }));
+      const hits = (a: DOMRect, b: DOMRect) =>
+        a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+      let foreignArt = 0;
+      boxes.forEach((self, i) => {
+        if (self.gem === undefined) {
+          return;
+        }
+        boxes.forEach((other, j) => {
+          // A neighbour's art may only reach a socket from UNDERNEATH.
+          if (i !== j && hits(self.gem!, other.art) && other.z > self.z) {
+            foreignArt++;
+          }
+        });
+      });
+      const cassette = rows[0].querySelector('.con-strat__cassette') as HTMLElement;
+      return {foreignArt, plate: getComputedStyle(cassette).backgroundImage};
+    });
+    expect(socketClear.foreignArt, 'no neighbour row\'s art reaches over a sponsor socket').toBe(0);
+    // (The zone's BOX may span past a socket — it paints nothing there:
+    // the plate is gone and the divider starts well to its right, both
+    // asserted below. Geometry alone would be a false positive.)
+    expect(socketClear.plate, 'the compact ranking zone carries no plate/wash').toBe('none');
+    expect(clean.guide, 'the vertical guide is gone in compact').toBe('none');
+    expect(clean.loneNotch, 'the lone-leader vertical notch is gone in compact').toBe('none');
+    expect(clean.secondTread, 'only ONE divider survives (no per-level tread)').toBe('none');
+    expect(clean.dividerContent, 'the single divider between the places renders').not.toBe('none');
+    expect(clean.dividerLeft, 'the divider starts inside the ranking zone, past the emblem')
+      .toBeGreaterThan(clean.medalRight);
+    expect(clean.dividerLeft, 'the divider never reaches the sponsor socket').toBeGreaterThan(clean.gemRight);
+    // (The zone's own BOX may start left of the emblem's right edge — it
+    // is transparent there; what must clear the emblem is the only thing
+    // it PAINTS, the divider, asserted above.)
+    expect(clean.gemInsideMedalBand, 'the sponsor socket is anchored to the EMBLEM wrapper').toBe(true);
+
+    await waitToastQuiet(page);
+    await shoot(page, 'tv4k-compact-ranked');
+    await page.locator('.con-strat').screenshot({path: path.join(OUT, 'tv4k-compact-ranked-rail.png')});
   });
 });
