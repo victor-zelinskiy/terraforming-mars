@@ -1565,18 +1565,16 @@ export async function waitForTurn(page: Page, timeout = 20_000): Promise<void> {
  * been built yet (pregame).
  */
 export async function handCount(page: Page): Promise<number> {
-  // BOUNDED, and album-aware: while the hand album is open the dock swaps the
-  // «КАРТЫ n/m» counter for the album spine, whose range («1–10 из 15») ends
-  // with the same total. An unbounded read against the unmounted counter
-  // waits until the test's own timeout (actionTimeout is 0 in this config).
-  const text = await page.locator('.con-handdock__num--total').first().innerText({timeout: 1500}).catch(() => '');
-  const n = Number.parseInt(text.trim(), 10);
-  if (!Number.isNaN(n)) {
-    return n;
-  }
-  const range = (await page.locator('.con-handdock__pager-range').first().innerText({timeout: 1500}).catch(() => '')) ?? '';
-  const tail = range.match(/(\d+)\s*$/);
-  return tail !== null ? Number(tail[1]) : -1;
+  // The DOCK ROOT's own `data-hand-total` — the one carrier of this number in
+  // EVERY dock mode. The visible «КАРТЫ n/m» counter is swapped for the album
+  // SPINE while the hand album owns the cards, and the spine states PAGES, not
+  // cards; keying on whichever of those happens to be painted broke the
+  // discard specs twice (an unbounded read against the unmounted counter, then
+  // a spine range a later rework dropped). Returns -1 before the dock is built.
+  const raw = await page.locator('.con-handdock').first()
+    .getAttribute('data-hand-total').catch(() => null);
+  const n = Number.parseInt(raw ?? '', 10);
+  return Number.isNaN(n) ? -1 : n;
 }
 
 /**

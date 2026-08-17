@@ -11,6 +11,7 @@
        role="button"
        tabindex="-1"
        :aria-label="ariaLabel"
+       :data-hand-total="count"
        @click="onClick">
     <!-- Shoulder rails — the bar's top rim flowing outward around the bay,
          so the footer reads as machined FOR the dock, not patched by it. -->

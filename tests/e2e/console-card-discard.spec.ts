@@ -244,21 +244,15 @@ async function runDiscardFlow(
   await expect(header).toContainText('+1');
 
   // The dock's TOTAL — the honest "cards you hold" figure; it must really drop.
-  // While the hand ALBUM owns the cards the dock swaps this counter for the
-  // album SPINE («LB 1–10 из 15 · 1/2 RB» — the hand total is its last
-  // number), so the read accepts EITHER form — and stays BOUNDED: with the
-  // counter unmounted an unlimited textContent waits until the TEST timeout
-  // kills it (actionTimeout is 0 here; all three of these tests died exactly
-  // there the moment the album landed).
-  const handCount = async (): Promise<number> => {
-    const total = await page.locator('.con-handdock__num--total').textContent({timeout: 1500}).catch(() => null);
-    if (total !== null) {
-      return Number(total.trim());
-    }
-    const range = (await page.locator('.con-handdock__pager-range').textContent({timeout: 1500}).catch(() => '')) ?? '';
-    const tail = range.match(/(\d+)\s*$/);
-    return tail !== null ? Number(tail[1]) : 0;
-  };
+  // Read the DOCK ROOT's own `data-hand-total`, never the visible counter:
+  // while the hand ALBUM owns the cards the dock swaps that counter for the
+  // album spine, and the spine states PAGES, not cards. Keying on what happens
+  // to be painted made these three tests fail twice for two different reasons
+  // (an unbounded read against the unmounted counter, then a spine whose
+  // «1–10 из 15» range the next rework dropped). The root attribute is the one
+  // carrier that exists in every dock mode and survives the next re-layout.
+  const handCount = async (): Promise<number> =>
+    Number(await page.locator('.con-handdock').first().getAttribute('data-hand-total').catch(() => null) ?? 0);
   const before = await handCount();
   expect(before, 'the probe needs a non-empty hand').toBeGreaterThan(0);
 
