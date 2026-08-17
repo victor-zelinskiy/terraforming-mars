@@ -95,23 +95,28 @@ html.console-native {
        right-hand boxes of the fullscreen viewer can never drift apart. */
     --con-rules-w: 21rem;
     /* The archive entry's COLUMN — card_lore.less consumes it as the whole
-       width expression (the base keeps the shipped vw-responsive clamp; the
-       TV overrides with a fixed logical width). The viewer's JS flank
-       reserve resolves the same token — an unresolvable clamp() there falls
-       back to the shipped 470px reservation, which matches this clamp's cap. */
-    --con-lore-w: ~"clamp(17rem, 22vw, 23.5rem)";
+       width expression (the base keeps a vw-responsive clamp; the TV
+       overrides with a fixed logical width). Widened by the same ~18 % as
+       the TV token, for the same reason: at the old measure a Russian
+       sentence broke into two-word fragments. ⚠️ The viewer's JS flank
+       reserve resolves this same token, and `cssLengthPx` cannot evaluate a
+       clamp() — it falls back to a constant that must stay equal to THIS
+       CLAMP'S CAP (26rem = 520px). Move one, move the other. */
+    --con-lore-w: ~"clamp(18rem, 24vw, 26rem)";
     /* LORE reading sizes (Literata/Newsreader in the archive entry; serif
        x-height runs smaller than the sans, so the lore steps sit a touch
        above the matching read tokens). lg = the aphorism tier, base = the
-       regular quotation, sm = the extended upright paragraph.
+       regular quotation, sm = the extended paragraph — ONE upright voice at
+       all three, the tier only compensates size (see card_lore.less), and
+       the ladder is compressed to ~6 % per step so browsing shows no jump.
        These tokens carry the WHOLE font-size expression: sub-TV profiles
-       keep the shipped vw-responsive clamp (rem is fixed there, vw does
-       the viewport work); the TV overrides them with fixed logical sizes,
-       because its rem base already scales with the viewport and the vw
-       midpoint would undercut the couch measure. */
-    --con-lore-fs-lg: ~"clamp(1.2rem, 1.42vw, 1.4rem)";
-    --con-lore-fs: ~"clamp(1.06rem, 1.24vw, 1.22rem)";
-    --con-lore-fs-sm: ~"clamp(0.98rem, 1.1vw, 1.1rem)";
+       keep a vw-responsive clamp (rem is fixed there, vw does the viewport
+       work); the TV overrides them with fixed logical sizes, because its rem
+       base already scales with the viewport and the vw midpoint would
+       undercut the couch measure. */
+    --con-lore-fs-lg: ~"clamp(1.1rem, 1.26vw, 1.24rem)";
+    --con-lore-fs: ~"clamp(1.04rem, 1.19vw, 1.17rem)";
+    --con-lore-fs-sm: ~"clamp(0.98rem, 1.11vw, 1.09rem)";
     --con-hit-min: 2.6rem;
     --con-cta-h: 3.2rem;
     --con-focus-ring: 0.1rem;

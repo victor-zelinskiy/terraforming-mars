@@ -186,13 +186,18 @@ a:active {
  * game: the rest of the UI is technical (Prototype) or display (Anton / Russo
  * One); the archive entry is editorial prose and reads as a book, not a HUD.
  *
- * Both are the OFL weight-variable ITALIC subsets from @fontsource-variable
- * (Literata 5.3.0 / Newsreader 5.3.0), self-hosted like every other font here —
- * NO Google Fonts or any other runtime URL. Only the italic axis we actually
- * render is shipped (no upright, no extra optical-size axis, no latin-ext /
- * greek / vietnamese subsets), so the three files total ~147 KB and, thanks to
- * `unicode-range`, are fetched ONLY when a fullscreen archive entry first
- * paints — never at startup.
+ * Both are OFL weight-variable subsets from @fontsource-variable (Literata
+ * 5.3.0 / Newsreader 5.3.0), self-hosted like every other font here — NO
+ * Google Fonts or any other runtime URL. Only the axes we can actually render
+ * are shipped (no extra optical-size axis, no latin-ext / greek / vietnamese
+ * subsets) and, thanks to `unicode-range` + `font-display: swap`, a file is
+ * fetched only when a glyph it owns first paints — never at startup.
+ *
+ * The UPRIGHT block below is what the archive entry renders in — all of it,
+ * every tier (card_lore.less § ONE VOICE). The ITALIC declarations that come
+ * first are kept deliberately: `font-synthesis: none` means a real file is the
+ * only way word-level `<em>` emphasis inside an entry could ever slant, and
+ * with no italic text on screen those files are simply never fetched.
  *
  *   Literata   → Cyrillic locales (ru / ua / bg). Latin face included too, so
  *                punctuation («», …, —) and Latin words inside a Russian entry
@@ -225,12 +230,11 @@ a:active {
 }
 
 /*
- * UPRIGHT companions of the two literary faces — the archive entry's
- * EXTENDED tier (a 250+ character corporate paragraph) reads upright with
- * italic reserved for the aphorisms; without a real upright file the
- * browser would keep rendering the italic face for `font-style: normal`
- * (font matching never un-slants). Same @fontsource-variable 5.3.0 wght
- * subsets as the italics above.
+ * UPRIGHT companions of the two literary faces — THE archive-entry voice at
+ * every length tier. Without a real upright file the browser would keep
+ * rendering the italic face for `font-style: normal` (font matching never
+ * un-slants), which is precisely the regression this block prevents. Same
+ * @fontsource-variable 5.3.0 wght subsets as the italics above.
  */
 @font-face {
     font-family: "Literata";

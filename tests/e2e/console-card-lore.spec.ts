@@ -182,6 +182,8 @@ for (const profile of PROFILES) {
           fontFamily: qs.fontFamily,
           fontStyle: qs.fontStyle,
           fontWeight: qs.fontWeight,
+          fontSize: parseFloat(qs.fontSize),
+          lineHeight: parseFloat(qs.lineHeight),
           fontSynthesis: qs.fontSynthesis,
           borders: [qs.borderLeftWidth, qs.borderRightWidth, qs.borderTopWidth, qs.borderBottomWidth],
           marks: el.querySelectorAll('.card-zoom-lore__mark').length,
@@ -193,20 +195,16 @@ for (const profile of PROFILES) {
       expect(inert.focusable, 'the entry holds nothing focusable').toBe(0);
       expect(inert.pointerEvents).toBe('none');
       expect(inert.fontFamily, 'the Cyrillic literary face').toContain('Literata');
-      // TIER-AWARE voice (the couch-typography iteration): the aphorism and
-      // regular tiers stay ITALIC (500 / 510 — the regular notch keeps the
-      // strokes solid on the dark ground); the EXTENDED corporate paragraph
-      // reads UPRIGHT at 470 — sustained italic at 200+ characters is
-      // decoration working against the reader. All are REAL faces (both
-      // upright and italic subsets ship), never synthesized.
-      if (inert.extended) {
-        expect(inert.fontStyle, 'the extended tier reads upright').toBe('normal');
-        expect(inert.fontWeight, 'the extended editorial weight').toBe('470');
-      } else {
-        expect(inert.fontStyle).toBe('italic');
-        expect(inert.fontWeight, 'a real italic weight, never a synthesized bold')
-          .toBe(inert.regular ? '510' : '500');
-      }
+      // ONE VOICE, WHATEVER THE TIER. The length tier is a pure character
+      // count, so letting it pick the LETTERFORM (the shipped state: italic,
+      // with `extended` opting out into upright) made two neighbouring cards
+      // render in two different faces for no reason the player could see.
+      // Upright / 470 / one leading, for every tier — the tier compensates
+      // size and measure only. Real faces, never synthesized.
+      expect(inert.fontStyle, `every tier reads upright (tier: ${inert.extended ? 'extended' : inert.regular ? 'regular' : 'short'})`).toBe('normal');
+      expect(inert.fontWeight, 'the one editorial weight').toBe('470');
+      expect(inert.lineHeight / inert.fontSize, 'one leading for every tier')
+        .toBeCloseTo(1.5, 2);
       expect(inert.fontSynthesis, 'no faux italic / faux bold').toBe('none');
       expect(inert.borders, 'NO vertical rule — the Spectre blockquote border stays killed')
         .toEqual(['0px', '0px', '0px', '0px']);
@@ -230,15 +228,53 @@ for (const profile of PROFILES) {
       expect(frame.close.left, 'the closing mark stays on the text side, never adrift')
         .toBeGreaterThan(frame.open.right);
 
-      // 4. LB / RB browsing swaps the entry with the card.
+      // 3c. The entry never reaches the card, and never rides the screen edge.
+      //     (The widened measure spends the gutter the hidden touch chevrons
+      //     used to reserve — it must not spend the safe inset as well.)
+      expect(card!.left - lore!.right, 'air between the entry and the card frame')
+        .toBeGreaterThanOrEqual(2 * profile.width / 1920);
+      // …and the words stay well clear of the panel edge. The bar is a
+      // «nowhere near it» check (the TV safe inset is 28 px at 4K and the real
+      // measured value is ~204), not a re-statement of the design value.
+      const textLeft = (await boxOf(page, '.card-zoom-lore__text'))!.left;
+      expect(textLeft, 'the words keep a real inset from the panel edge')
+        .toBeGreaterThanOrEqual(64 * profile.width / 1920);
+
+      // 4. LB / RB browsing swaps the entry with the card — and moves NOTHING
+      //    else. The heading is the tell: the block used to hug its text and
+      //    centre on the card, so a 145-character entry and a 224-character
+      //    one put «ЗАПИСЬ ИЗ АРХИВА» ~100 px apart at 4K and every browse step
+      //    visibly re-laid the left gutter out. The constant frame pins it.
+      // ⚠️ The reveal choreography slides the heading in from `translateX(7px)`,
+      // so its LEFT is only meaningful once the transition has run. The block's
+      // own box carries no transform — so the horizontal half of «the base
+      // position is stable» is asserted on the ASIDE, and the heading is judged
+      // on its TOP, which the slide cannot touch. (Racing the transition on the
+      // heading's left is a measured flake, not a theoretical one.)
+      const settled = page.locator('.card-zoom-lore--in');
+      await expect(settled, 'the entry finished its reveal').toHaveCount(1, {timeout: 5_000});
+      const headingBefore = await boxOf(page, '.card-zoom-lore__label');
+      const asideBefore = await boxOf(page, '.con-zoom .card-zoom-lore');
       await key(page, 'KeyE', 1500); // RB → next card
       await page.waitForTimeout(700);
+      await expect(settled, 'the next entry finished its reveal').toHaveCount(1, {timeout: 5_000});
       const secondText = (await page.locator('.card-zoom-lore__text').innerText()).trim();
       expect(secondText.length).toBeGreaterThan(0);
       expect(secondText, 'the entry follows the browsed card').not.toBe(firstText);
       const cardAfter = await boxOf(page, '.con-zoom .card-zoom-stage .pcard, .con-zoom .card-zoom-stage .card-container');
       expect(Math.abs((cardAfter!.left + cardAfter!.right) / 2 - viewportCentre),
         'the card stays centred while browsing').toBeLessThanOrEqual(2);
+      const headingAfter = await boxOf(page, '.card-zoom-lore__label');
+      const asideAfter = await boxOf(page, '.con-zoom .card-zoom-lore');
+      expect(Math.abs(headingAfter!.top - headingBefore!.top),
+        `the heading holds its line across a browse step (${firstText.length} → ${secondText.length} chars)`)
+        .toBeLessThanOrEqual(1);
+      expect([
+        Math.abs(asideAfter!.left - asideBefore!.left),
+        Math.abs(asideAfter!.top - asideBefore!.top),
+        Math.abs(asideAfter!.right - asideBefore!.right),
+      ].every((d) => d <= 1), `the block keeps its base box (${JSON.stringify(asideBefore)} → ${JSON.stringify(asideAfter)})`)
+        .toBe(true);
       await shoot(page, `${profile.tag}-02-browsed`);
 
       await key(page, 'KeyQ', 1500); // LB → back

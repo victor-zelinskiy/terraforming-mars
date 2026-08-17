@@ -86,13 +86,32 @@ html.con-profile-tv {
        measure keeps ~30+ characters per line (a 21rem column at 28px
        breaks Russian sentences every 3–4 words). */
     --con-rules-w: 26.5rem;
-    /* The archive entry keeps a narrower editorial measure, widened a step
-       for the couch; its serif sizes sit above the sans read tokens (fixed
-       logical values — the TV rem base already tracks the viewport). */
-    --con-lore-w: 25.5rem;
-    --con-lore-fs-lg: 1.7rem;   /* 34 — aphorisms */
-    --con-lore-fs: 1.5rem;      /* 30 — regular quotations */
-    --con-lore-fs-sm: 1.35rem;  /* 27 — extended upright paragraphs */
+    /* THE ARCHIVE ENTRY's column and its type ladder (fixed logical values —
+       the TV rem base already tracks the viewport).
+
+       WIDTH: 25.5 → 30rem. At 25.5 the Russian measure ran ~26 characters,
+       which is where a Cyrillic sentence starts falling apart into two- and
+       three-word fragments («мировые / лидеры», «первой / предлагает») —
+       ten lines for a corporation's paragraph. 30rem lands ~33, i.e. the
+       same paragraph in eight even lines. It costs the card NOTHING: the
+       viewer stopped reserving width for the touch chevrons it hides in
+       console (CardZoomModal `fitCardToViewport`), and the freed 200·scale px
+       is exactly what the wider column plus its bigger safe inset take back —
+       the card's fit is byte-identical at every TV scale. Keep the three
+       numbers (this width, the reserve's +3.9rem, and the 200 the fit no
+       longer spends) in step if any of them moves.
+
+       SIZES: one compressed ladder for ONE upright voice — the tier is
+       optical compensation, never a different face (see card_lore.less).
+       The extended tier is the anchor and barely moves (1.35 → 1.32); the
+       two shorter tiers come down to meet it so browsing never shows a
+       nameable size step. All three stay above the 26-logical-px reading
+       floor, and Literata's large x-height reads a notch bigger than the
+       sans at the same size. */
+    --con-lore-w: 30rem;
+    --con-lore-fs-lg: 1.5rem;   /* 30 — aphorisms */
+    --con-lore-fs: 1.42rem;     /* 28.4 — regular quotations */
+    --con-lore-fs-sm: 1.32rem;  /* 26.4 — extended paragraphs */
     /* Focus & interaction */
     --con-focus-ring: 0.18rem; /* ~3.5 logical px ring */
     --con-glow-r: 1.3rem;      /* couch-visible focus glow radius */

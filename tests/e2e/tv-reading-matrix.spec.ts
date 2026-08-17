@@ -146,7 +146,8 @@ for (const preset of PRESETS) {
       expect(fonts.literataUpright, 'Literata upright loaded (extended lore tier)').toBe(true);
       expect(fonts.lang, 'html[lang] stamped (hyphenation dictionary)').not.toBe('');
 
-      // The extended tier reads UPRIGHT (the editorial shift) in the serif.
+      // The archive entry reads UPRIGHT in the serif — at EVERY tier (the
+      // tier compensates size and measure only; see card_lore.less § ONE VOICE).
       const loreStyle = await page.locator('.card-zoom-lore__quote').first().evaluate((el) => {
         const cs = getComputedStyle(el);
         return {family: cs.fontFamily, style: cs.fontStyle, sizePx: parseFloat(cs.fontSize)};

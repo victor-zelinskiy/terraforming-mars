@@ -963,9 +963,9 @@ export default defineComponent({
       // symmetric grid whose MIDDLE column holds the card, so the card stays on
       // the viewport centre line whatever the flanks measure. That means the
       // reservation must be symmetric too — BOTH gutters get the width of the
-      // WIDER flank (archive entry ≈ 22.5rem + its breathing margin; rules
-      // panel = 20rem + gap). Reserving only one side would let the wider
-      // gutter overrun the card.
+      // WIDER flank (archive entry = --con-lore-w + its margin + safe inset;
+      // rules panel = --con-rules-w + gap). Reserving only one side would let
+      // the wider gutter overrun the card.
       const s = this.consoleMotion ? conUiScale() : 1;
       // Flank widths resolve from the SAME tokens the CSS consumes
       // (--con-rules-w / --con-lore-w) plus their breathing margins — the
@@ -978,11 +978,26 @@ export default defineComponent({
       const remPx = cssLengthPx('1rem', 20);
       const sideReserve = this.hasSide && rootVars !== undefined ?
         cssLengthPx(rootVars.getPropertyValue('--con-rules-w'), 420 * s) + 1.6 * remPx : 0;
+      // Column + its 3rem breathing margin + 0.9rem, which is the archive
+      // entry's OUTER safe inset: the entry is the wider flank, so whatever is
+      // not reserved here is the only thing standing between it and the panel
+      // edge. ⚠️ The `520` fallback is `--con-lore-w`'s clamp CAP in px (the
+      // base profiles declare a clamp(), which cssLengthPx cannot evaluate) —
+      // it must move with that token (console.less).
       const loreReserve = this.loreVisible && rootVars !== undefined ?
-        cssLengthPx(rootVars.getPropertyValue('--con-lore-w'), 470 * s) + 3.4 * remPx : 0;
+        cssLengthPx(rootVars.getPropertyValue('--con-lore-w'), 520 * s) + 3.9 * remPx : 0;
       const flankReserve = 2 * Math.max(sideReserve, loreReserve);
       const chromeVertical = (48 + 20 + 96 + 8 + (this.navEnabled ? 64 : 0)) * s;
-      const chromeHorizontal = (32 + 8 + (this.navEnabled ? 200 : 0)) * s + flankReserve;
+      // The 200 is the two TOUCH CHEVRONS' gutters. The console instance hides
+      // them outright (`dialog.con-zoom .card-zoom-nav-slot {display: none}` —
+      // LB/RB browse instead), so reserving their width there was reserving
+      // space for nothing: a fifth of the horizontal budget at 4K, standing
+      // empty either side of the composition. Spending it on the archive
+      // entry's measure instead is exactly what the widened `--con-lore-w`
+      // does, which is why the card's fit is unchanged by that widening.
+      // Desktop still renders real chevrons and still reserves for them.
+      const navGutters = this.navEnabled && !this.consoleMotion ? 200 : 0;
+      const chromeHorizontal = (32 + 8 + navGutters) * s + flankReserve;
       const availHeight = window.innerHeight - chromeVertical;
       const availWidth = window.innerWidth - chromeHorizontal;
 

@@ -7,38 +7,47 @@
             'card-zoom-lore--closing': closing},
          ]"
          data-test="card-zoom-lore">
-    <h2 class="card-zoom-lore__label">
-      <span class="card-zoom-lore__spark" aria-hidden="true"></span>
-      <span class="card-zoom-lore__label-text">{{ heading }}</span>
-      <span class="card-zoom-lore__rule" aria-hidden="true"></span>
-      <span class="card-zoom-lore__tip" aria-hidden="true"></span>
-    </h2>
     <!--
-      The quotation marks are DECORATION, never punctuation: the lore strings
-      already carry «», ‘’, dashes and, in one case, a full quotation. They are
-      aria-hidden inline SVG, so the accessible text stays exactly the
-      localized sentence — and the silhouette is identical on every platform
-      and in both literary faces.
+      THE BODY hugs the content; the ASIDE around it is a CONSTANT-height frame
+      (card_lore.less). That split is what keeps «ЗАПИСЬ ИЗ АРХИВА» on the same
+      line of the screen for every card while the radial scrim still wraps the
+      words themselves — a scrim sized to the constant frame would sit under a
+      one-line aphorism as a large dark blob with the text stranded at its top.
     -->
-    <blockquote class="card-zoom-lore__quote" :lang="textLang">
-      <svg v-if="!model.fallback"
-           class="card-zoom-lore__mark card-zoom-lore__mark--open"
-           :viewBox="MARK_VIEWBOX" aria-hidden="true" focusable="false">
-        <g v-for="dx in MARK_OFFSETS" :key="dx" :transform="`translate(${dx} 0)`">
-          <circle :cx="MARK_BOWL.cx" :cy="MARK_BOWL.cy" :r="MARK_BOWL.r" />
-          <path :d="MARK_TAIL" />
-        </g>
-      </svg>
-      <span class="card-zoom-lore__text">{{ model.text }}</span>
-      <svg v-if="!model.fallback"
-           class="card-zoom-lore__mark card-zoom-lore__mark--close"
-           :viewBox="MARK_VIEWBOX" aria-hidden="true" focusable="false">
-        <g v-for="dx in MARK_OFFSETS" :key="dx" :transform="`translate(${dx} 0)`">
-          <circle :cx="MARK_BOWL.cx" :cy="MARK_BOWL.cy" :r="MARK_BOWL.r" />
-          <path :d="MARK_TAIL" />
-        </g>
-      </svg>
-    </blockquote>
+    <div class="card-zoom-lore__body">
+      <h2 class="card-zoom-lore__label">
+        <span class="card-zoom-lore__spark" aria-hidden="true"></span>
+        <span class="card-zoom-lore__label-text">{{ heading }}</span>
+        <span class="card-zoom-lore__rule" aria-hidden="true"></span>
+        <span class="card-zoom-lore__tip" aria-hidden="true"></span>
+      </h2>
+      <!--
+        The quotation marks are DECORATION, never punctuation: the lore strings
+        already carry «», ‘’, dashes and, in one case, a full quotation. They are
+        aria-hidden inline SVG, so the accessible text stays exactly the
+        localized sentence — and the silhouette is identical on every platform
+        and in both literary faces.
+      -->
+      <blockquote class="card-zoom-lore__quote" :lang="textLang">
+        <svg v-if="!model.fallback"
+             class="card-zoom-lore__mark card-zoom-lore__mark--open"
+             :viewBox="MARK_VIEWBOX" aria-hidden="true" focusable="false">
+          <g v-for="dx in MARK_OFFSETS" :key="dx" :transform="`translate(${dx} 0)`">
+            <circle :cx="MARK_BOWL.cx" :cy="MARK_BOWL.cy" :r="MARK_BOWL.r" />
+            <path :d="MARK_TAIL" />
+          </g>
+        </svg>
+        <span class="card-zoom-lore__text">{{ model.text }}</span>
+        <svg v-if="!model.fallback"
+             class="card-zoom-lore__mark card-zoom-lore__mark--close"
+             :viewBox="MARK_VIEWBOX" aria-hidden="true" focusable="false">
+          <g v-for="dx in MARK_OFFSETS" :key="dx" :transform="`translate(${dx} 0)`">
+            <circle :cx="MARK_BOWL.cx" :cy="MARK_BOWL.cy" :r="MARK_BOWL.r" />
+            <path :d="MARK_TAIL" />
+          </g>
+        </svg>
+      </blockquote>
+    </div>
   </aside>
 </template>
 

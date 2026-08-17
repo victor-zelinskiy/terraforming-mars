@@ -9,6 +9,20 @@
  *  a radial darkening that dissolves well inside the element box, so the
  *  player perceives dimmed space behind the words, not a panel.
  *
+ *  ⚠️ ONE VOICE FOR EVERY ENTRY — the length tier may NEVER change the
+ *  LETTERFORM. The first iteration set the block italic and let the EXTENDED
+ *  tier opt out into upright; since the tier is a pure character count, two
+ *  neighbouring cards browsed with LB/RB rendered in two different faces
+ *  (Recyclon's 145-character Russian entry in calligraphic italic, ThorGate's
+ *  224-character one in an upright serif) with nothing in the game to explain
+ *  the difference — and 455 of the corpus's 479 entries fell on the decorative
+ *  side of that accident. The archive entry is a RECORD: it reads
+ *  upright, at one weight, in one colour, at one leading, always. The tier is
+ *  optical compensation of SIZE and MEASURE only, and the ladder is deliberately
+ *  compressed (≈±6 % per step) so the eye cannot name a step between two cards.
+ *  Emphasis, if the corpus ever grows any, is a WORD-level `<em>` inside the
+ *  quotation — never the block.
+ *
  *  ⚠️ NO VERTICAL RULE, EVER. Spectre.css styles every `blockquote` with
  *  `border-left: .1rem solid #dadee4` — at the console rem base that is a 2–4px
  *  light-grey bar, and it made the block read as a Markdown quote / a text
@@ -28,9 +42,9 @@
  *
  *  Units: authored in rem, like every console-native surface (1rem = 20px
  *  logical, scaled by --con-ui-scale on the TV profile). The one exception is
- *  marked `keep-px`: the vertical lift is tied to the CARD's physical pixels
- *  via --card-zoom-fit (the zoom CardZoomModal applies to the card face), not
- *  to the UI scale.
+ *  marked `keep-px`: the block's constant FRAME height is tied to the CARD's
+ *  physical pixels via --card-zoom-fit (the zoom CardZoomModal applies to the
+ *  card face), not to the UI scale.
  *
  *  Palette: warm ivory / muted gold — the RULES side is cold cyan. The lore
  *  is never tinted by card type: a green/blue/red literary text would read as
@@ -81,16 +95,27 @@
 }
 
 /* ── the block ───────────────────────────────────────────────────────────
- *  Vertically it hangs off the CARD's centre, lifted a touch so its optical
- *  centre lands against the card's artwork rather than its lower chrome. The
- *  lift is expressed in the card's own pixels (--card-zoom-fit is the zoom the
- *  viewer applied to the 320x460 card face), so it is identical for every card
- *  and the block never bounces while browsing. */
+ *  A CONSTANT FRAME, vertically centred in the viewer's fixed card band, with
+ *  the content pinned to its TOP. That is what makes «ЗАПИСЬ ИЗ АРХИВА» land on
+ *  the same line of the screen for every card: the old block hugged its text
+ *  and was centred, so a 145-character entry and a 224-character one placed
+ *  their heading ~100 px apart at 4K and LB/RB visibly re-laid the whole left
+ *  gutter out. The frame is expressed in the CARD's own pixels (--card-zoom-fit
+ *  is the zoom the viewer applied to the 320×460 face), so the heading keeps a
+ *  constant optical relationship to the card — level with the top of its
+ *  artwork — at every resolution and profile:
+ *
+ *      heading↓card = 230 − (frame / 2) + (padding-top / fit)  ≈ 66 card px
+ *
+ *  A longer-than-planned entry simply flows past the frame's bottom edge
+ *  (nothing clips, nothing scrolls, the heading still does not move) — the
+ *  frame is a baseline, never a budget. */
 .card-zoom-lore {
-    /* Couch-contrast pass: the ivory sits a step brighter (.88→.93) — the
-       serif's thin strokes lose more to the dark ground than a sans would,
-       and the deeper scrim below now carries the separation work. */
-    --zlore-text: rgba(243, 237, 220, 0.93);
+    /* Couch-contrast pass, upright iteration: the ivory sits another step
+       brighter (.93→.95). The upright serif carries a hair less ink than the
+       italic 510 it replaced, and the separation work is shared by the scrim
+       below plus the quotation's own soft shadow. */
+    --zlore-text: rgba(245, 240, 225, 0.95);
     --zlore-heading: rgba(216, 190, 133, 0.74);
     --zlore-accent: rgba(216, 177, 91, 0.68);
     --zlore-line: rgba(216, 177, 91, 0.24);
@@ -98,20 +123,45 @@
     /* The text steps in from the block's left edge; the opening mark lives in
        the space this opens up. One token so mark and text can never drift. */
     --zlore-indent: 2.5rem;
+    /* ONE leading for every tier — an archive note reads as one even block,
+       and a per-tier line-height is exactly the kind of step the eye names
+       when two cards are browsed back to back. */
+    --zlore-lh: 1.5;
+    /* Upright serif at couch distance takes a touch more air between letters
+       than the italic did; it costs ~0.5 % of the measure and buys stroke
+       separation on the dark ground. */
+    --zlore-track: 0.005em;
     /* keep-px: card pixels, not UI-scale pixels (see the header). */
-    --zlore-lift: calc(32px * var(--card-zoom-fit, 1));
+    --zlore-frame: calc(364px * var(--card-zoom-fit, 1));
 
     box-sizing: border-box;
     /* The column rides the console token (--con-lore-w). Like the lore
        font-size tokens, the token carries the WHOLE width expression: the
-       base profiles keep the shipped vw-responsive clamp, the TV sets a
-       fixed logical width (its rem base already tracks the viewport, and
-       the 22vw midpoint would strangle the couch measure to ~20 chars).
-       Desktop keeps the shipped clamp through the fallback. */
-    width: ~"var(--con-lore-w, clamp(17rem, 22vw, 23.5rem))";
+       base profiles keep a vw-responsive clamp, the TV sets a fixed logical
+       width (its rem base already tracks the viewport, and a vw midpoint
+       would strangle the couch measure). Desktop keeps the clamp through the
+       fallback. ⚠️ The cap here and CardZoomModal's `loreReserve` fallback
+       are ONE number — see the note there. */
+    width: ~"var(--con-lore-w, clamp(18rem, 24vw, 26rem))";
     min-width: 0;
-    padding: 1.5rem 1.1rem 2.2rem;
-    transform: translateY(calc(-1 * var(--zlore-lift)));
+    height: var(--zlore-frame);
+
+    /* Purely presentational: never a pointer target, never in the controller
+       or tab order (it also has no focusable descendant). */
+    pointer-events: none;
+}
+
+/* The content, hugging its own height inside the constant frame. It carries
+   the padding and the scrim, so the darkening still wraps the WORDS rather
+   than the frame — a one-line aphorism must not sit at the top of a large
+   dark ellipse. */
+.card-zoom-lore__body {
+    box-sizing: border-box;
+    width: 100%;
+    /* Trimmed laterally (1.1rem → .7rem) as part of the measure pass: this
+       padding sits INSIDE the scrim's soft edge, so it bought nothing but a
+       narrower line. */
+    padding: 1.5rem 0.7rem 2.2rem;
 
     /* The ONLY backdrop: a soft darkening that fades to nothing before the
        box edges, so there is no perceivable panel. No backdrop-filter — a
@@ -126,10 +176,6 @@
         rgba(5, 8, 13, 0.58) 44%,
         rgba(5, 8, 13, 0.2) 70%,
         rgba(5, 8, 13, 0) 88%);
-
-    /* Purely presentational: never a pointer target, never in the controller
-       or tab order (it also has no focusable descendant). */
-    pointer-events: none;
 }
 
 /* ── heading + the hairline that points at the card ──────────────────── */
@@ -208,25 +254,61 @@
     border: 0;
     quotes: none;
     color: var(--zlore-text);
-    font-style: italic;
-    font-weight: 500;
+    /* ── THE ONE VOICE (see the header) ──────────────────────────────────
+       Upright, one weight, one leading, one tracking — for EVERY tier, every
+       card and every locale. 470 is the editorial weight the upright faces
+       want on a dark ground: light-on-dark visually thins strokes, and 470
+       restores body without reading as a semibold headline. */
+    font-style: normal;
+    font-weight: 470;
+    line-height: var(--zlore-lh);
     text-align: left;
     /* Keep any paragraph breaks the source text carries; never justify. */
     white-space: pre-line;
     text-wrap: pretty;
-    /* Real italic + real weight only — never a browser-synthesized slant or
-       faux bold (both faces ship an italic weight-variable file). */
+    /* Long Russian compounds are what tear the right edge of a narrow
+       editorial measure. Applied to EVERY tier (it used to be extended-only,
+       which was one more per-length divergence); `hyphenate-limit-chars`
+       keeps it off short words, and the dictionary rides the blockquote's
+       own `lang`. NOTE: Electron ships no hyphenation dictionaries, so this
+       is a no-op there — the MEASURE below is what has to do the work, and
+       the tuning is calibrated for the un-hyphenated case. */
+    hyphens: auto;
+    hyphenate-limit-chars: 7 4 3;
+    /* The LAST RESORT under that no-op: a 17-letter compound
+       («фотосинтезирующие») is wider than the handheld measure on its own, and
+       with nothing to break it the word simply paints out of the column toward
+       the card. `break-word` (never `anywhere`) fires ONLY for a word that
+       cannot fit a line by itself and does not touch intrinsic sizing, so the
+       `fit-content` box above is unaffected. */
+    overflow-wrap: break-word;
+    /* Real faces only — never a browser-synthesized slant or faux bold (both
+       families ship upright AND italic weight-variable files). */
     font-synthesis: none;
     font-kerning: normal;
     font-optical-sizing: auto;
     font-variant-numeric: lining-nums;
-    /* Italic letters lean out of their line box; a hair of tracking keeps the
-       measure even at TV distance without reading as letter-spaced. */
-    letter-spacing: 0.004em;
+    letter-spacing: var(--zlore-track);
+    /* Separation from the dimmed board WITHOUT a panel: a tight, low-opacity
+       shadow in em (so it scales with the tier), on top of the scrim. It is
+       decoration — `con-perf-lite` strips text-shadow globally and the scrim
+       alone still carries the contrast. */
+    text-shadow: 0 0.04em 0.12em rgba(2, 5, 10, 0.62);
 
     &::before,
     &::after {
         content: none;
+    }
+
+    /* CONTROLLED emphasis. The corpus carries no markup today (a scan of both
+       lore files finds zero tags, Markdown or entities, and the component
+       renders the string as TEXT) — this exists so that if a word ever needs
+       stressing it is a word-level italic inside an upright record, never the
+       block flipping face. */
+    em,
+    i {
+        font-style: italic;
+        font-weight: inherit;
     }
 }
 
@@ -239,40 +321,29 @@
     font-family: "Literata", "Source Serif 4", Georgia, serif;
 }
 
-/* Optical compensation by length. Never a size STEP the eye can name — the
-   short pull-quote simply reads as an intentional line, the corporate
-   paragraph as a calm block. Nothing scrolls, nothing truncates.
-   Sizes ride the console LORE tokens (--con-t-lore-* — the TV profile
-   raises them to the couch measure; desktop viewers keep the shipped
-   look through the fallbacks), multiplied by the player's reading scale. */
+/* ── the ONLY thing a tier may touch: SIZE and MEASURE ───────────────────
+   Optical compensation, never a step the eye can name. The ladder is
+   compressed to ≈6 % per step (it used to span 26 % AND swap the letterform),
+   so two cards browsed back to back read as the same archive, one written a
+   little longer than the other. Nothing scrolls, nothing truncates.
+   Sizes ride the console LORE tokens (--con-lore-fs-* — the TV profile raises
+   them to the couch measure; other viewers keep a vw-responsive clamp through
+   the fallbacks), multiplied by the player's reading scale. */
 .card-zoom-lore--short .card-zoom-lore__quote {
-    font-size: ~"calc(var(--con-lore-fs-lg, clamp(1.2rem, 1.42vw, 1.4rem)) * var(--con-read-scale, 1))";
-    line-height: 1.38;
-    /* A short entry keeps a tighter measure so it reads as a quotation rather
-       than one lost line across the full column — and so the closing mark
-       stays part of the composition instead of drifting off to the right. */
-    max-width: ~"calc(var(--zlore-indent) + 15rem)";
+    font-size: ~"calc(var(--con-lore-fs-lg, clamp(1.1rem, 1.26vw, 1.24rem)) * var(--con-read-scale, 1))";
+    /* A short entry keeps a slightly tighter measure so it breaks on its own
+       sentences («Крайне неэтично. / Совершенно незаконно. / Баснословно
+       выгодно.») instead of running two of them together, and so the closing
+       mark stays part of the composition instead of drifting off to the
+       right. A PROPORTION, not a fixed rem: the fixed 15rem cap predated the
+       wider column and would now strand a short entry at ~17 characters. */
+    max-width: 88%;
 }
 .card-zoom-lore--regular .card-zoom-lore__quote {
-    font-size: ~"calc(var(--con-lore-fs, clamp(1.06rem, 1.24vw, 1.22rem)) * var(--con-read-scale, 1))";
-    line-height: 1.5;
-    /* At the regular tier the italic thins: a notch of weight keeps the
-       strokes solid on the dark ground without reading as bold. */
-    font-weight: 510;
+    font-size: ~"calc(var(--con-lore-fs, clamp(1.04rem, 1.19vw, 1.17rem)) * var(--con-read-scale, 1))";
 }
 .card-zoom-lore--extended .card-zoom-lore__quote {
-    font-size: ~"calc(var(--con-lore-fs-sm, clamp(0.98rem, 1.1vw, 1.1rem)) * var(--con-read-scale, 1))";
-    line-height: 1.56;
-    /* THE EDITORIAL SHIFT: a 200+ character paragraph is prose, not an
-       aphorism — sustained italic at that length is decoration working
-       against the reader. The extended tier reads UPRIGHT (the Literata /
-       Newsreader upright subsets ship for exactly this), a touch lighter
-       than the italic tiers, with Russian hyphenation so 15-letter words
-       break instead of tearing the right edge (dictionary via html[lang]). */
-    font-style: normal;
-    font-weight: 470;
-    hyphens: auto;
-    hyphenate-limit-chars: 7 4 3;
+    font-size: ~"calc(var(--con-lore-fs-sm, clamp(0.98rem, 1.11vw, 1.09rem)) * var(--con-read-scale, 1))";
 }
 
 .card-zoom-lore__text {
@@ -323,8 +394,9 @@
 .card-zoom-lore--fallback {
     .card-zoom-lore__quote {
         color: rgba(226, 221, 208, 0.42);
-        font-style: italic;
-        /* nothing to quote → no indent to step away from */
+        /* Upright like everything else in this block — the notice is told
+           apart by its muted colour, its missing quotation marks and its
+           missing indent, never by a second letterform. */
         padding-left: 0;
     }
     .card-zoom-lore__label {
@@ -416,7 +488,9 @@
  *  data, so every text shape (aphorism / technical / ironic / inner quotes /
  *  formulae / the longest corporate paragraph / fallback) can be judged in RU
  *  and EN at once. `--card-zoom-fit` mirrors a typical fullscreen zoom so the
- *  vertical lift is representative. */
+ *  constant frame — and therefore the heading's fixed line — is representative;
+ *  the cells are frame-tall by construction, which is the point (a short entry
+ *  and a corporate paragraph must start on the SAME line). */
 .lore-playground {
     position: fixed;
     inset: 0;
@@ -474,8 +548,11 @@
         padding: 1.4rem 0 0;
     }
     &__cell {
+        /* Close to the console's real 1080p fit (1.835), so the cells are
+           FRAME-TALL — which is the thing to judge: every entry, one line long
+           or ten, must start its heading on the same line of its cell. */
         --card-zoom-fit: 2;
-        min-height: 17rem;
+        min-height: 38rem;
     }
     &__caption {
         display: flex;
