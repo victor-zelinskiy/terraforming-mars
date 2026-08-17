@@ -66,19 +66,19 @@ import {handleDesktopCors} from './cors';
 import * as responses from './responses';
 
 const metrics = {
-  count: new prometheus.Counter({
-    name: 'http_request_count',
-    help: 'Request count',
-    registers: [prometheus.register],
-    labelNames: ['path', 'method'],
-  }),
-  latency: new prometheus.Histogram({
-    name: 'http_request_latency',
-    help: 'Request latency',
-    registers: [prometheus.register],
-    labelNames: ['path'],
-    buckets: [0.1, 0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1000],
-  }),
+    count: new prometheus.Counter({
+        name: 'http_request_count',
+        help: 'Request count',
+        registers: [prometheus.register],
+        labelNames: ['path', 'method'],
+    }),
+    latency: new prometheus.Histogram({
+        name: 'http_request_latency',
+        help: 'Request latency',
+        registers: [prometheus.register],
+        labelNames: ['path'],
+        buckets: [0.1, 0.25, 0.5, 1, 2.5, 5, 10, 25, 50, 100, 250, 500, 1000],
+    }),
 };
 
 const clock = new Clock();
@@ -88,177 +88,177 @@ const ipBlocklist = newIpBlocklist(ips);
 const ipTracker = newIpTracker();
 
 const handlers: Map<string, IHandler> = new Map(
-  [
-    ['', ServeApp.INSTANCE],
-    [paths.ADMIN, ServeApp.INSTANCE],
-    [paths.API_CLONEABLEGAME, ApiCloneableGame.INSTANCE],
-    [paths.API_CREATEGAME, ApiCreateGame.INSTANCE],
-    [paths.API_GAME, ApiGame.INSTANCE],
-    [paths.API_GAME_DELETE, ApiGameDelete.INSTANCE],
-    [paths.API_GAME_HISTORY, ApiGameHistory.INSTANCE],
-    [paths.API_GAME_LOGS, ApiGameLogs.INSTANCE],
-    [paths.API_GAME_JOURNAL_EVENTS, ApiGameJournalEvents.INSTANCE],
-    [paths.API_GAME_EFFECT_STATS, ApiGameEffectStats.INSTANCE],
-    [paths.API_GAME_ACTION_STATS, ApiGameActionStats.INSTANCE],
-    [paths.API_GAME_ENDGAME_FACTS, ApiGameEndgameFacts.INSTANCE],
-    [paths.API_GAME_DELTA_PREVIEW, ApiGameDeltaPreview.INSTANCE],
-    [paths.API_GAME_BOARD_CELL_PREVIEW, ApiGameBoardCellPreview.INSTANCE],
-    [paths.API_GAME_COLONY_TRADE_PREVIEW, ApiGameColonyTradePreview.INSTANCE],
-    [paths.API_GAME_REMATCH, ApiGameRematch.INSTANCE],
-    [paths.API_GAME_BOT_TURN_ACK, ApiBotTurnAck.INSTANCE],
-    [paths.API_GAMES, ApiGames.INSTANCE],
-    [paths.API_ADMIN_ROLLBACK_GAMES, ApiAdminRollbackGames.INSTANCE],
-    [paths.API_ADMIN_ROLLBACK_HISTORY, ApiAdminRollbackHistory.INSTANCE],
-    [paths.API_ADMIN_ROLLBACK, ApiAdminRollback.INSTANCE],
-    [paths.API_GAMES_JOINABLE, ApiGamesJoinable.INSTANCE],
-    [paths.API_GAME_PLAYER_COLOR, ApiGamePlayerColor.INSTANCE],
-    [paths.API_LOCAL_GAME_DELETE, ApiLocalGameDelete.INSTANCE],
-    [paths.API_HEAP_SNAPSHOT, ApiHeapSnapshot.INSTANCE],
-    [paths.API_IPS, ApiIPs.INSTANCE],
-    [paths.API_METRICS, ApiMetrics.INSTANCE],
-    [paths.API_PLAYER, ApiPlayer.INSTANCE],
-    [paths.API_STATS, ApiStats.INSTANCE],
-    [paths.API_SPECTATOR, ApiSpectator.INSTANCE],
-    [paths.API_WAITING_FOR, ApiWaitingFor.INSTANCE],
-    [paths.API_ACTION_PREVIEW, ActionPreview.INSTANCE],
-    [paths.API_CARD_PLAY_PREVIEW, CardPlayPreview.INSTANCE],
-    [paths.API_CORP_FIRST_ACTION_PREVIEW, CorpFirstActionPreview.INSTANCE],
-    [paths.API_DESKTOP_VERSION, ApiDesktopVersion.INSTANCE],
-    [paths.AUTOPASS, Autopass.INSTANCE],
-    [paths.CARDS, ServeApp.INSTANCE],
-    ['favicon.ico', ServeAsset.INSTANCE],
-    [paths.GAME, GameHandler.INSTANCE],
-    [paths.GAMES_OVERVIEW, GamesOverview.INSTANCE],
-    [paths.HELP, ServeApp.INSTANCE],
-    // The legacy landing page is preserved at /legacy (the premium main menu is
-    // the new default at '/'). Both serve the same SPA shell; App.vue picks the
-    // screen from the path segment.
-    [paths.LEGACY, ServeApp.INSTANCE],
-    [paths.LOAD, Load.INSTANCE],
-    [paths.LOAD_GAME, LoadGame.INSTANCE],
-    [paths.LOGIN, Login.INSTANCE],
-    [paths.API_LOGOUT, ApiLogout.INSTANCE],
-    ['main.js', ServeAsset.INSTANCE],
-    ['main.js.map', ServeAsset.INSTANCE],
-    ['sw.js', ServeAsset.INSTANCE],
-    ['vendors.js', ServeAsset.INSTANCE],
-    ['vendors.js.map', ServeAsset.INSTANCE],
-    [paths.AUTH_DISCORD_CALLBACK, DiscordAuth.INSTANCE],
-    [paths.NEW_GAME, ServeApp.INSTANCE],
-    [paths.NEW_GAME_PREMIUM, ServeApp.INSTANCE],
-    [paths.PLAYER, ServeApp.INSTANCE],
-    [paths.PLAYER_INPUT, PlayerInput.INSTANCE],
-    [paths.PLAYER_INPUT_BATCH, PlayerInputBatch.INSTANCE],
-    [paths.ACKNOWLEDGE_DRAW, AcknowledgeDraw.INSTANCE],
-    [paths.API_PROFILE, ApiProfile.INSTANCE],
-    [paths.RESET, Reset.INSTANCE],
-    [paths.SPECTATOR, ServeApp.INSTANCE],
-    ['styles.css', ServeAsset.INSTANCE],
-    [paths.THE_END, ServeApp.INSTANCE],
-  ],
+    [
+        ['', ServeApp.INSTANCE],
+        [paths.ADMIN, ServeApp.INSTANCE],
+        [paths.API_CLONEABLEGAME, ApiCloneableGame.INSTANCE],
+        [paths.API_CREATEGAME, ApiCreateGame.INSTANCE],
+        [paths.API_GAME, ApiGame.INSTANCE],
+        [paths.API_GAME_DELETE, ApiGameDelete.INSTANCE],
+        [paths.API_GAME_HISTORY, ApiGameHistory.INSTANCE],
+        [paths.API_GAME_LOGS, ApiGameLogs.INSTANCE],
+        [paths.API_GAME_JOURNAL_EVENTS, ApiGameJournalEvents.INSTANCE],
+        [paths.API_GAME_EFFECT_STATS, ApiGameEffectStats.INSTANCE],
+        [paths.API_GAME_ACTION_STATS, ApiGameActionStats.INSTANCE],
+        [paths.API_GAME_ENDGAME_FACTS, ApiGameEndgameFacts.INSTANCE],
+        [paths.API_GAME_DELTA_PREVIEW, ApiGameDeltaPreview.INSTANCE],
+        [paths.API_GAME_BOARD_CELL_PREVIEW, ApiGameBoardCellPreview.INSTANCE],
+        [paths.API_GAME_COLONY_TRADE_PREVIEW, ApiGameColonyTradePreview.INSTANCE],
+        [paths.API_GAME_REMATCH, ApiGameRematch.INSTANCE],
+        [paths.API_GAME_BOT_TURN_ACK, ApiBotTurnAck.INSTANCE],
+        [paths.API_GAMES, ApiGames.INSTANCE],
+        [paths.API_ADMIN_ROLLBACK_GAMES, ApiAdminRollbackGames.INSTANCE],
+        [paths.API_ADMIN_ROLLBACK_HISTORY, ApiAdminRollbackHistory.INSTANCE],
+        [paths.API_ADMIN_ROLLBACK, ApiAdminRollback.INSTANCE],
+        [paths.API_GAMES_JOINABLE, ApiGamesJoinable.INSTANCE],
+        [paths.API_GAME_PLAYER_COLOR, ApiGamePlayerColor.INSTANCE],
+        [paths.API_LOCAL_GAME_DELETE, ApiLocalGameDelete.INSTANCE],
+        [paths.API_HEAP_SNAPSHOT, ApiHeapSnapshot.INSTANCE],
+        [paths.API_IPS, ApiIPs.INSTANCE],
+        [paths.API_METRICS, ApiMetrics.INSTANCE],
+        [paths.API_PLAYER, ApiPlayer.INSTANCE],
+        [paths.API_STATS, ApiStats.INSTANCE],
+        [paths.API_SPECTATOR, ApiSpectator.INSTANCE],
+        [paths.API_WAITING_FOR, ApiWaitingFor.INSTANCE],
+        [paths.API_ACTION_PREVIEW, ActionPreview.INSTANCE],
+        [paths.API_CARD_PLAY_PREVIEW, CardPlayPreview.INSTANCE],
+        [paths.API_CORP_FIRST_ACTION_PREVIEW, CorpFirstActionPreview.INSTANCE],
+        [paths.API_DESKTOP_VERSION, ApiDesktopVersion.INSTANCE],
+        [paths.AUTOPASS, Autopass.INSTANCE],
+        [paths.CARDS, ServeApp.INSTANCE],
+        ['favicon.ico', ServeAsset.INSTANCE],
+        [paths.GAME, GameHandler.INSTANCE],
+        [paths.GAMES_OVERVIEW, GamesOverview.INSTANCE],
+        [paths.HELP, ServeApp.INSTANCE],
+        // The legacy landing page is preserved at /legacy (the premium main menu is
+        // the new default at '/'). Both serve the same SPA shell; App.vue picks the
+        // screen from the path segment.
+        [paths.LEGACY, ServeApp.INSTANCE],
+        [paths.LOAD, Load.INSTANCE],
+        [paths.LOAD_GAME, LoadGame.INSTANCE],
+        [paths.LOGIN, Login.INSTANCE],
+        [paths.API_LOGOUT, ApiLogout.INSTANCE],
+        ['main.js', ServeAsset.INSTANCE],
+        ['main.js.map', ServeAsset.INSTANCE],
+        ['sw.js', ServeAsset.INSTANCE],
+        ['vendors.js', ServeAsset.INSTANCE],
+        ['vendors.js.map', ServeAsset.INSTANCE],
+        [paths.AUTH_DISCORD_CALLBACK, DiscordAuth.INSTANCE],
+        [paths.NEW_GAME, ServeApp.INSTANCE],
+        [paths.NEW_GAME_PREMIUM, ServeApp.INSTANCE],
+        [paths.PLAYER, ServeApp.INSTANCE],
+        [paths.PLAYER_INPUT, PlayerInput.INSTANCE],
+        [paths.PLAYER_INPUT_BATCH, PlayerInputBatch.INSTANCE],
+        [paths.ACKNOWLEDGE_DRAW, AcknowledgeDraw.INSTANCE],
+        [paths.API_PROFILE, ApiProfile.INSTANCE],
+        [paths.RESET, Reset.INSTANCE],
+        [paths.SPECTATOR, ServeApp.INSTANCE],
+        ['styles.css', ServeAsset.INSTANCE],
+        [paths.THE_END, ServeApp.INSTANCE],
+    ],
 );
 
 function getIPAddress(req: Request): string {
-  const herokuIpAddress = getHerokuIpAddress(req);
-  if (herokuIpAddress !== undefined) {
-    return herokuIpAddress;
-  }
-  const socketIpAddress = req.socket.address();
-  if (typeof socketIpAddress === 'object' && 'address' in socketIpAddress) {
-    return '!' + socketIpAddress.address + '!';
-  }
-  if (typeof socketIpAddress === 'string') {
-    return socketIpAddress;
-  }
-  return '';
+    const herokuIpAddress = getHerokuIpAddress(req);
+    if (herokuIpAddress !== undefined) {
+        return herokuIpAddress;
+    }
+    const socketIpAddress = req.socket.address();
+    if (typeof socketIpAddress === 'object' && 'address' in socketIpAddress) {
+        return '!' + socketIpAddress.address + '!';
+    }
+    if (typeof socketIpAddress === 'string') {
+        return socketIpAddress;
+    }
+    return '';
 }
 
 function getHandler(pathname: string): IHandler | undefined {
-  const handler: IHandler | undefined = handlers.get(pathname);
-  if (handler !== undefined) {
-    return handler;
-  }
-  if (pathname.startsWith('assets/')) {
-    return ServeAsset.INSTANCE;
-  }
-  if (pathname.startsWith('chunks/')) {
-    return ServeAsset.INSTANCE;
-  }
-  // Velopack update-feed proxy (prefix): /api/desktop/feed/<file> (see ApiDesktopFeed).
-  if (pathname.startsWith(paths.API_DESKTOP_FEED + '/')) {
-    return ApiDesktopFeed.INSTANCE;
-  }
-  return undefined;
+    const handler: IHandler | undefined = handlers.get(pathname);
+    if (handler !== undefined) {
+        return handler;
+    }
+    if (pathname.startsWith('assets/')) {
+        return ServeAsset.INSTANCE;
+    }
+    if (pathname.startsWith('chunks/')) {
+        return ServeAsset.INSTANCE;
+    }
+    // Velopack update-feed proxy (prefix): /api/desktop/feed/<file> (see ApiDesktopFeed).
+    if (pathname.startsWith(paths.API_DESKTOP_FEED + '/')) {
+        return ApiDesktopFeed.INSTANCE;
+    }
+    return undefined;
 }
 
 export function processRequest(req: Request, res: Response): void {
-  const start = process.hrtime.bigint();
-  let pathnameForLatency: string | undefined = undefined;
-  try {
-    const ipAddress = getIPAddress(req);
-    ipTracker.add(ipAddress);
-    if (ipBlocklist.isBlocked(ipAddress)) {
-      responses.notFound(req, res);
-      return;
-    }
-
-    if (req.method === 'HEAD') {
-      res.end();
-      return;
-    }
-    if (req.url === undefined) {
-      responses.notFound(req, res);
-      return;
-    }
-
-    const sessionManager = SessionManager.getInstance();
-    let user: DiscordUser | undefined = undefined;
-    let sessionid: SessionId | undefined = undefined;
+    const start = process.hrtime.bigint();
+    let pathnameForLatency: string | undefined = undefined;
     try {
-      sessionid = authcookies.extract(req);
-      if (sessionid !== undefined) {
-        user = sessionManager.get(sessionid);
-      }
-    } catch (e) {
-      console.error('While extracting cookies', e);
+        const ipAddress = getIPAddress(req);
+        ipTracker.add(ipAddress);
+        if (ipBlocklist.isBlocked(ipAddress)) {
+            responses.notFound(req, res);
+            return;
+        }
+
+        if (req.method === 'HEAD') {
+            res.end();
+            return;
+        }
+        if (req.url === undefined) {
+            responses.notFound(req, res);
+            return;
+        }
+
+        const sessionManager = SessionManager.getInstance();
+        let user: DiscordUser | undefined = undefined;
+        let sessionid: SessionId | undefined = undefined;
+        try {
+            sessionid = authcookies.extract(req);
+            if (sessionid !== undefined) {
+                user = sessionManager.get(sessionid);
+            }
+        } catch (e) {
+            console.error('While extracting cookies', e);
+        }
+
+        const url = new URL(req.url, `http://${req.headers.host}`);
+        const ctx: Context = {
+            url: url,
+            clock,
+            gameLoader: GameLoader.getInstance(),
+            sessionManager: sessionManager,
+            ip: getIPAddress(req),
+            ipTracker: ipTracker,
+            ids: {
+                serverId,
+                statsId,
+            },
+            sessionid,
+            user: user,
+        };
+
+        const pathname = url.pathname.substring(1); // Remove leading '/'
+        pathnameForLatency = pathname;
+
+        // Desktop (Electron app://) cross-origin support. Additive + allowlist-only;
+        // no-op for same-origin browser requests. Handles the OPTIONS preflight and
+        // sets CORS headers on eligible game-runtime responses before dispatch.
+        if (handleDesktopCors(req, res, pathname)) {
+            return;
+        }
+
+        const handler = getHandler(pathname);
+        if (handler !== undefined) {
+            metrics.count.inc({path: pathname, method: req.method});
+            handler.processRequest(req, res, ctx);
+        } else {
+            pathnameForLatency = undefined;
+            responses.notFound(req, res);
+        }
+    } finally {
+        const duration = Number(process.hrtime.bigint() - start) / 1_000_000;
+        metrics.latency.observe({path: pathnameForLatency}, Number(duration));
     }
-
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    const ctx: Context = {
-      url: url,
-      clock,
-      gameLoader: GameLoader.getInstance(),
-      sessionManager: sessionManager,
-      ip: getIPAddress(req),
-      ipTracker: ipTracker,
-      ids: {
-        serverId,
-        statsId,
-      },
-      sessionid,
-      user: user,
-    };
-
-    const pathname = url.pathname.substring(1); // Remove leading '/'
-    pathnameForLatency = pathname;
-
-    // Desktop (Electron app://) cross-origin support. Additive + allowlist-only;
-    // no-op for same-origin browser requests. Handles the OPTIONS preflight and
-    // sets CORS headers on eligible game-runtime responses before dispatch.
-    if (handleDesktopCors(req, res, pathname)) {
-      return;
-    }
-
-    const handler = getHandler(pathname);
-    if (handler !== undefined) {
-      metrics.count.inc({path: pathname, method: req.method});
-      handler.processRequest(req, res, ctx);
-    } else {
-      pathnameForLatency = undefined;
-      responses.notFound(req, res);
-    }
-  } finally {
-    const duration = Number(process.hrtime.bigint() - start) / 1_000_000;
-    metrics.latency.observe({path: pathnameForLatency}, Number(duration));
-  }
 }
