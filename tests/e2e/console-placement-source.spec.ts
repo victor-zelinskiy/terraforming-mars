@@ -164,8 +164,17 @@ test.describe('console placement panel · the source', () => {
     // The facts the panel exists for are still there, below it.
     await expect(panel).toContainText(/ВЫ ПОЛУЧИТЕ|Клетка поля/i);
 
-    // 3 · L3 reads the card — and the jump it replaced is GONE from the bar.
-    await expect(panel.locator('.con-context__source-hint')).toHaveCount(1);
+    // 3 · L3 reads the card — the verb lives in the COMMAND BAR ONLY (the
+    //     panel renders zero controller prompts; its old L3 hint line and the
+    //     «A Разместить здесь» CTA are gone with the dossier rework), and the
+    //     jump the verb replaced is GONE from the bar too.
+    //     ⚠️ STRUCTURAL, never a text match: «Нельзя разместить здесь» lives
+    //     in the panel's always-mounted (collapsed) refusal well — that is
+    //     what keeps legal ↔ illegal free of layout shift — so a
+    //     `not.toContainText(/Разместить здесь/)` matches the refusal and
+    //     fails on a panel that carries no CTA at all.
+    await expect(panel.locator('.con-context__source-hint')).toHaveCount(0);
+    await expect(panel.locator('.con-inspector__placement')).toHaveCount(0);
     const bar = page.locator('.con-cmdbar, .con-commands').first();
     await expect(bar).toContainText(/ИСТОЧНИК/i);
     await expect(bar).not.toContainText(/СЛЕДУЮЩАЯ/i);

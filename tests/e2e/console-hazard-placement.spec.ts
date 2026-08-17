@@ -161,9 +161,11 @@ test.describe('console placement panel · Ares hazard adjacency', () => {
 
     await shoot(page, '06-hazard-adjacent-panel');
     expect(found, 'no hazard-adjacent cell surfaced a production penalty').not.toBe('');
-    // The penalty reads as a COST, and names WHY (the adjacent hazard).
+    // The penalty reads as the CELL'S OWN EFFECT (the dossier's first
+    // section — a forced loss never sits below the fold), and names WHY
+    // (the adjacent hazard).
     expect(found).toContain('Снизить производство');
-    expect(found).toContain('ЦЕНА');
+    expect(found).toContain('ЭФФЕКТ КЛЕТКИ');
     expect(found).toContain('опасных зон рядом');
   });
 });

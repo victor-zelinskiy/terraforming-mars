@@ -146,6 +146,9 @@
                              :players="playerView.players"
                              :placementKickerKey="placementKickerKey"
                              :placementTitle="placementTitle"
+                             :placementShape="placementShape"
+                             :conversion="plantConversion"
+                             :aresTiles="game.gameOptions.expansions.ares === true"
                              :selectedLegal="selectedCellLegal"
                              :illegalReason="selectedCellIllegalReason"
                              :inspectAll="consoleState.freeRoam"
@@ -1500,6 +1503,7 @@ import {buildBotAttackView, BotAttackViewModel} from '@/client/console/botAttack
 import ConsoleAresGlobals from '@/client/components/console/ConsoleAresGlobals.vue';
 
 import {promptSourceView, PromptSourceView} from '@/client/console/promptSource';
+import {PlacementConversion, PlacementShape} from '@/client/console/placementDossier';
 
 import {ConsoleTaskSummary, consoleTaskSummary, placementKicker} from '@/client/console/consoleTaskSummary';
 import {setStartSetupRevealSuspended} from '@/client/components/startGameFlow/startSetupRevealState';
@@ -3990,6 +3994,34 @@ export default defineComponent({
     placementKickerKey(): string {
       return placementKicker(this.placementSpaceModel);
     },
+    /**
+     * WHAT this placement puts down — the dossier's identity input, read off
+     * the one prompt resolver so all three placement sources (server prompt,
+     * convert plants, a task's nested space) resolve the same way.
+     */
+    placementShape(): PlacementShape | undefined {
+      const prompt = this.placementSpaceModel;
+      if (prompt === undefined) {
+        return undefined;
+      }
+      return {
+        tileType: prompt.tileType,
+        placementType: prompt.placementType,
+        placementEffect: prompt.placementEffect,
+        sourceCard: prompt.sourceCard,
+      };
+    },
+    /**
+     * The convert-plants exchange — the ONE placement whose price is an action
+     * cost rather than a cell fact. Structural (the pending client pick), and
+     * the amount is the live, Ecoline-adjusted price the server exposes.
+     */
+    plantConversion(): PlacementConversion | undefined {
+      if (this.convertPlantsPending === undefined) {
+        return undefined;
+      }
+      return {amount: this.thisPlayer.plantsNeededForGreenery, icon: 'plants'};
+    },
     placementTitle(): string {
       const t = this.placementSpaceModel?.title;
       if (t === undefined) {
@@ -6130,16 +6162,25 @@ export default defineComponent({
         // contract — LT/RT keep working globally (Info / Actions) but
         // never occupy this bar; a NON-cancellable B is not an action, so
         // it is not a hint (the panel + the B-toast explain mandatory).
-        const cmds: Array<{control: GlyphControl, label: string, enabled?: boolean}> = [
+        //
+        // The bar is the ONE home of every placement verb (the panel renders
+        // no controller prompts at all), so the four verbs must SURVIVE the
+        // TV fit model: the L3/R3 hints carry explicit priorities below the
+        // droppable default — under pressure the generic d-pad hint (the
+        // board's highlighted cells already teach navigation) drops first,
+        // never a verb with no other home. «Источник» is deliberately the
+        // short label here: «Осмотреть источник» was what the 4K fit dropped.
+        const cmds: Array<ConsoleCommand> = [
           {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Place here', enabled: this.selectedCellLegal},
+          {control: 'confirm', label: 'Place here', enabled: this.selectedCellLegal,
+            highlight: this.selectedCellLegal},
           // L3 — the SOURCE card fullscreen, the same verb it carries on every
           // other surface in the shell. It replaced «next available cell», a
           // jump that duplicated what the d-pad already does over a board whose
           // legal cells are highlighted.
           ...(this.placementSourceCard !== undefined ?
-            [{control: 'stickL' as GlyphControl, label: 'Inspect the source'}] : []),
-          {control: 'stickR', label: this.consoleState.freeRoam ? 'Available only' : 'All cells'},
+            [{control: 'stickL' as GlyphControl, label: 'Source', priority: 1}] : []),
+          {control: 'stickR', label: this.consoleState.freeRoam ? 'Available only' : 'All cells', priority: 2},
         ];
         if (this.placementCancellable) {
           cmds.push({control: 'back', label: 'Cancel placement'});

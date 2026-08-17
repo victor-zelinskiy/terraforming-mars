@@ -77,7 +77,18 @@ test.describe('console placement panel · convert plants', () => {
     // for the same action («Потратить растения») — the chip names the object
     // L3 will open, so the two must agree with the card, not with the menu.
     await expect(chip.locator('.con-src__plate-name')).toContainText(/Конвертировать растения|Convert Plants/i);
-    await expect(panel.locator('.con-context__source-hint')).toHaveCount(1);
+    // The dossier IDENTITY: the object title («ОЗЕЛЕНЕНИЕ») + the structural
+    // conversion formula (8 🌱 → 1 tile) instead of the old sentence headline.
+    await expect(panel.locator('.con-context__title')).toContainText(/Озеленение|Greenery/i);
+    await expect(panel.locator('.con-context__formula')).toHaveCount(1);
+    await expect(panel.locator('.con-context__formula .con-context__f-num').first()).toHaveText(/^\d+$/);
+    // The L3 verb lives in the COMMAND BAR ONLY — the panel's old hint line
+    // is gone with the CTA (zero controller prompts inside the panel).
+    // ⚠️ STRUCTURAL: «Нельзя разместить здесь» sits in the always-mounted
+    // (collapsed) refusal well, so a text match for the CTA phrase hits the
+    // REFUSAL and fails on a panel that has no CTA at all.
+    await expect(panel.locator('.con-context__source-hint')).toHaveCount(0);
+    await expect(panel.locator('.con-inspector__placement')).toHaveCount(0);
     await expect(page.locator('.con-cmdbar, .con-commands').first()).toContainText(/ИСТОЧНИК/i);
 
     // …and the marker's OTHER half arrives with it: this placement is genuinely

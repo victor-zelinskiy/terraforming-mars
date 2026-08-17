@@ -3906,19 +3906,34 @@ each(@players, {
        rail/board flow, below the journal (60).
        PERIMETER SHELL: `.con-main` reaches the viewport edge now, so the
        dossier is a WELDED DRAWER — chassis to the physical edge, content at
-       the safe inset, radius on the inner (stage-facing) corners only. */
+       the safe inset.
+       GEOMETRY (placement-dossier iteration): deliberately NARROWER than the
+       old 26% wall — the planet's disc is untouchable (fit + focus keep one
+       constant geometry), so the optical gap between the two is bought
+       entirely on this side. The left edge is not a wall either: a fading
+       vertical hairline + two L-corner ticks (the console's own language)
+       instead of a full-height solid seam, so the panel reads as instruments
+       floating at the frame's edge, not a slab against the planet. */
     position: absolute;
     top: 0;
     right: 0;
     bottom: 0;
     z-index: 50;
-    width: 26%;
-    min-width: calc(17rem + var(--con-pad-x, .6rem));
-    max-width: calc(22rem + var(--con-pad-x, .6rem));
-    padding: .8rem calc(.9rem + var(--con-pad-x, .6rem)) .8rem .9rem;
-    border-radius: .6rem 0 0 .6rem;
-    background: linear-gradient(270deg, rgba(4, 8, 13, 0.5), transparent calc(var(--con-pad-x, .6rem) + 1.2rem)) @con-glass;
-    box-shadow: inset .06rem 0 0 fade(@con-cyan, 28%), inset 0 .05rem 0 rgba(190, 225, 255, 0.05), -.6rem 0 1.8rem rgba(0, 0, 0, 0.45);
+    width: 21.5%;
+    min-width: calc(15.5rem + var(--con-pad-x, .6rem));
+    max-width: calc(19rem + var(--con-pad-x, .6rem));
+    padding: .85rem calc(.85rem + var(--con-pad-x, .6rem)) .85rem .95rem;
+    border-radius: .7rem 0 0 .7rem;
+    /* Layer order: corner ticks → fading left hairline → edge shade →
+       interior sheen → glass. Pure gradients (perf-lite safe). */
+    background:
+        linear-gradient(to right, fade(@con-cyan, 50%), transparent) left top / 1.1rem .07rem no-repeat,
+        linear-gradient(to right, fade(@con-cyan, 50%), transparent) left bottom / 1.1rem .07rem no-repeat,
+        linear-gradient(to bottom, fade(@con-cyan, 52%), fade(@con-cyan, 22%) 42%, fade(@con-cyan, 4%) 82%, transparent) left top / .07rem 100% no-repeat,
+        linear-gradient(270deg, rgba(4, 8, 13, 0.5), transparent calc(var(--con-pad-x, .6rem) + 1.2rem)),
+        linear-gradient(205deg, rgba(126, 178, 230, 0.06), transparent 30%),
+        @con-glass;
+    box-shadow: inset 0 .05rem 0 rgba(190, 225, 255, 0.05), -.9rem 0 2.4rem rgba(0, 0, 0, 0.5);
     overflow-y: auto;
     scrollbar-width: thin;
     /* (The overflow-affordance pseudos anchor to the panel through the
@@ -4003,38 +4018,16 @@ each(@players, {
         color: @con-text-dim;
         margin-bottom: .7rem;
     }
-    &__placement {
-        display: inline-flex;
-        align-items: center;
-        gap: .5rem;
-        padding: .4rem .8rem;
-        margin-bottom: .7rem;
-        border-radius: .4rem;
-        font-size: 1.05rem;
-        font-weight: 700;
-        letter-spacing: .03rem;
-
-        &--legal {
-            background: fade(@con-mint, 12%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 60%);
-            color: @con-mint;
-        }
-        &--illegal {
-            background: fade(@con-red, 10%);
-            box-shadow: inset 0 0 0 .05rem fade(@con-red, 55%);
-            color: @con-red;
-        }
-    }
-    &__illegal-mark {
-        font-size: 1rem;
-    }
+    /* (The old `__placement` legal/illegal CTA block is gone: the panel
+       renders NO controller prompts — «A Разместить здесь» lives in the ONE
+       command bar, and the cell's own state is the `.con-context__cellbar`.) */
     &__facts {
-        /* TV-scale the reused BoardFactGroups rows. */
+        /* TV-scale the reused BoardFactGroups rows (CELL-inspection mode —
+           the placement dossier renders its own rem-native rows). */
         font-size: calc(.95rem / var(--con-ui-scale, 1));
         zoom: calc(1.25 * var(--con-ui-scale, 1));
     }
-    &__loading,
-    &__empty {
+    &__loading {
         color: @con-text-dim;
         font-size: 1rem;
         line-height: 1.5;
@@ -7451,87 +7444,319 @@ html.console-mode {
 .con-context {
     display: flex;
     flex-direction: column;
-    gap: .5rem;
+    gap: .6rem;
 
+    /* Tile-art swatch zoom factors (the art is the board's own px sprite —
+       46×51 hex — integrated via the documented zoom×ui-scale pattern).
+       Profiles override the FACTORS, never the markup. */
+    --ctx-tile-zoom: 1.06;
+    --ctx-ftile-zoom: .58;
+
+    /* ── 1 · IDENTITY — what lands ──────────────────────────────────── */
+    &__id {
+        display: flex;
+        flex-direction: column;
+        gap: .42rem;
+    }
+    &__eyebrow {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        /* WRAPS, never clips: at the couch type floor the free-roam chip no
+           longer fits beside the kicker, and a `nowrap` row silently cut it
+           to «ОСМОТР ВСЕХ КЛЕ…» against the panel edge. A mode the player
+           turned on may cost a line; it may not be half-said. */
+        flex-wrap: wrap;
+        gap: .3rem .5rem;
+        min-height: 1rem;
+    }
     &__task-kicker {
-        font-size: .8rem;
-        letter-spacing: .11rem;
+        font-size: .66rem;
+        letter-spacing: .15rem;
         text-transform: uppercase;
-        color: fade(@con-amber, 90%);
+        color: fade(@con-amber, 78%);
+        white-space: nowrap;
     }
-    &__task-title {
-        font-size: 1.2rem;
-        font-weight: 700;
-        line-height: 1.3;
-    }
-    &__reason {
-        padding: .4rem .6rem;
-        border-radius: .4rem;
-        background: fade(@con-red, 8%);
-        box-shadow: inset 0 0 0 .05rem fade(@con-red, 35%);
-        border-left: .15rem solid fade(@con-red, 70%);
-        color: #f0c9c5;
-        font-size: .95rem;
-        line-height: 1.4;
-    }
-    &__cell-brief {
-        font-size: .9rem;
-        color: @con-text;
-    }
-    &__cell-brief-label {
-        color: @con-text-dim;
-    }
-    /* P20: the inspect-all mode chip + honest state notes. */
+    /* P20: the inspect-all mode chip. */
     &__mode-chip {
-        align-self: flex-start;
         display: inline-flex;
         align-items: center;
-        gap: .35rem;
-        padding: .15rem .6rem;
+        max-width: 100%;
+        gap: .3rem;
+        padding: .08rem .5rem;
         border-radius: 49.95rem;
         background: fade(@con-cyan, 10%);
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 55%);
         color: #dff3ff;
-        font-size: .7rem;
-        font-weight: 700;
+        font-size: .58rem;
         letter-spacing: .06rem;
         text-transform: uppercase;
+        white-space: nowrap;
     }
-    &__cell-brief-note {
-        color: #ffc9c4;
-        font-size: .775rem;
+    &__head {
+        display: flex;
+        align-items: center;
+        gap: .6rem;
+        min-height: 2.75rem;
     }
-    /* The placement SOURCE — one line, because this panel is ~17rem wide and
-       its consequences preview is variable-height: the source may cost a line
-       and no more. The chip is the shared `.con-src` in chip layout, so it
-       still speaks the one source vocabulary; only the affordance hint below
-       it is local (the command bar owns the verb, this is its echo where the
-       player is actually looking). */
-    &__source-hint {
-        align-self: flex-start;
+    /* The REAL board tile art as the identity swatch — the same sprite the
+       hex will draw, so «what lands» is physical, not typographic. */
+    &__tile {
+        flex: 0 0 auto;
+        width: 2.45rem;
+        height: 2.7rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        /* Decorative depth only (perf mode may strip it — the art survives). */
+        filter: drop-shadow(0 .18rem .32rem rgba(0, 0, 0, 0.5));
+    }
+    &__tile-art {
+        /* The board sprite's NATIVE hex box (46×51 px) + the zoom integration
+           (embedded px content rides zoom×ui-scale). The native box is the
+           point: sprite-sheet specials keep their authored background-size
+           crop, hi-res tiles fill 100% — both render correctly untouched. */
+        width: 46px;
+        height: 51px;
+        zoom: calc(var(--ctx-tile-zoom, 1.06) * var(--con-ui-scale, 1));
+    }
+    &__title {
+        margin: 0;
+        min-width: 0;
+        font-size: 1.5rem;
+        line-height: 1.08;
+        /* Prototype ships ONE weight — a synthetic bold smears Cyrillic, so
+           presence comes from size + tracking, never from faux weight. */
+        font-weight: 400;
+        letter-spacing: .09rem;
+        text-transform: uppercase;
+        color: #f3f9ff;
+        text-shadow: 0 0 1.1rem fade(@con-cyan, 26%);
+        overflow-wrap: anywhere;
+
+        /* The LENGTH LADDER (`placementTitleTier`, calibrated by the corpus
+           probe): a long name steps down, a very long one steps down again —
+           never below the couch floor, because the alternative is three lines
+           of hero type pushing the whole dossier off the fold. */
+        &--long {
+            font-size: 1.02rem;
+            letter-spacing: .05rem;
+            line-height: 1.16;
+        }
+        &--dense {
+            font-size: .86rem;
+            letter-spacing: .04rem;
+            line-height: 1.2;
+        }
+    }
+    &__qualifier {
+        margin-top: -.3rem;
+        font-size: .6rem;
+        letter-spacing: .12rem;
+        text-transform: uppercase;
+        color: fade(@con-text-dim, 85%);
+    }
+    /* The conversion formula — `8 [🌱] → 1 [tile]`: the price of the ACTION,
+       stated as an exchange instead of a sentence. */
+    &__formula {
         display: inline-flex;
         align-items: center;
-        gap: .3rem;
-        margin-top: -.25rem;
-        font-size: .66rem;
-        letter-spacing: .05rem;
-        text-transform: uppercase;
-        color: fade(@con-text-dim, 88%);
+        gap: .34rem;
+        font-family: @con-font;
+        font-variant-numeric: tabular-nums;
     }
-    /* P21: secondary lore/rule facts go one notch down — the primary
-       placement status / reason / bonus keeps its full size. */
+    &__f-num {
+        font-size: 1.1rem;
+        color: @con-text;
+
+        &--res { color: @con-mint; }
+    }
+    &__f-ico {
+        width: 1.35rem;
+        height: 1.35rem;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+    &__f-arrow {
+        margin: 0 .1rem;
+        color: fade(@con-mint, 80%);
+        font-size: .95rem;
+    }
+    &__f-tile {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.4rem;
+        height: 1.55rem;
+
+        .con-context__tile-art {
+            zoom: calc(var(--ctx-ftile-zoom, .58) * var(--con-ui-scale, 1));
+        }
+    }
+    /* The demoted server sentence — a QUIET reading line (a real constraint
+       like «рядом с вашим тайлом»), never the panel's voice. */
+    &__action-line {
+        .con-read-text();
+        font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
+        line-height: 1.35;
+        color: @con-text-dim;
+    }
+
+    /* ── 2 · THE FOCUSED CELL — one fixed line + the expanding refusal ── */
+    &__cell {
+        display: flex;
+        flex-direction: column;
+    }
+    &__cellbar {
+        display: flex;
+        align-items: center;
+        gap: .45rem;
+        min-height: 1.75rem;
+        padding: .26rem .6rem;
+        border-radius: .45rem;
+        background: rgba(15, 25, 37, 0.6);
+        box-shadow: inset 0 0 0 .05rem rgba(125, 165, 205, 0.15);
+        font-size: .8rem;
+        letter-spacing: .06rem;
+        text-transform: uppercase;
+        color: @con-text-dim;
+        transition:
+            background-color calc(180ms * var(--motion-scale, 1)) ease,
+            box-shadow calc(180ms * var(--motion-scale, 1)) ease,
+            color calc(180ms * var(--motion-scale, 1)) ease;
+
+        &--ok .con-context__cell-mark { color: @con-mint; }
+        &--no {
+            background: fade(@con-red, 8%);
+            box-shadow: inset 0 0 0 .05rem fade(@con-red, 45%);
+            color: #f4cdc9;
+
+            .con-context__cell-mark { color: @con-red; }
+        }
+    }
+    &__cell-mark {
+        font-size: .68rem;
+        transition: color calc(180ms * var(--motion-scale, 1)) ease;
+    }
+    &__cell-name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    /* The refusal expands under the bar on a grid-rows well (0fr→1fr) —
+       legal ↔ illegal never jumps the identity block above it. */
+    &__reason-well {
+        display: grid;
+        grid-template-rows: 0fr;
+        transition: grid-template-rows calc(220ms * var(--motion-scale, 1)) ease;
+
+        &--open { grid-template-rows: 1fr; }
+    }
+    &__reason {
+        overflow: hidden;
+        min-height: 0;
+        margin: 0 .15rem;
+        padding: .3rem .45rem 0;
+        border-left: .15rem solid fade(@con-red, 65%);
+        .con-read-text();
+        font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
+        line-height: 1.35;
+        color: #f0c9c5;
+    }
+
+    /* ── 3 · THE DOSSIER BODY — sections by intent ──────────────────── */
+    &__body {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: .85rem;
+    }
+    &__sec {
+        display: flex;
+        flex-direction: column;
+        /* Section accent: ONE hue per intent, carried by the head + the
+           hairline; rows stay on the shared shell (no per-row capsules). */
+        --dsec-accent: fade(@con-cyan, 78%);
+        --dsec-line: fade(@con-cyan, 22%);
+
+        &--effect { --dsec-accent: #ff9d94; --dsec-line: fade(@con-red, 32%); }
+        &--gain { --dsec-accent: fade(@con-mint, 90%); --dsec-line: fade(@con-mint, 26%); }
+        &--others { --dsec-accent: fade(@con-amber, 85%); --dsec-line: fade(@con-amber, 25%); }
+        &--progress { --dsec-accent: #b9b0f4; --dsec-line: rgba(185, 176, 244, 0.28); }
+        &--endgame { --dsec-accent: @sem-prestige; --dsec-line: rgba(255, 216, 122, 0.28); }
+        &--rules,
+        &--cellinfo { --dsec-accent: rgba(155, 190, 220, 0.62); --dsec-line: rgba(155, 190, 220, 0.16); }
+    }
+    &__sec-head {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        margin: 0 0 .18rem;
+        font-size: .64rem;
+        font-weight: 400;
+        letter-spacing: .14rem;
+        text-transform: uppercase;
+        color: var(--dsec-accent);
+
+        /* The technological divider: a hairline running out of the head. */
+        &::after {
+            content: '';
+            flex: 1;
+            height: .05rem;
+            background: linear-gradient(to right, var(--dsec-line), transparent);
+        }
+    }
+    /* THE SECTION TOTAL — sits at the far end of its own head rule, so the
+       block states its bottom line before the player reads the rows. */
+    &__sec-total {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: baseline;
+        gap: .18rem;
+        font-size: .95rem;
+        font-variant-numeric: tabular-nums;
+        color: var(--dsec-accent);
+
+        i {
+            font-style: normal;
+            font-size: .58rem;
+            letter-spacing: .06rem;
+            opacity: .85;
+        }
+    }
+    &__grp {
+        & + & { margin-top: .4rem; }
+    }
+    &__grp-head {
+        display: flex;
+        align-items: center;
+        gap: .4rem;
+        margin-bottom: .08rem;
+        font-size: .68rem;
+        letter-spacing: .07rem;
+        text-transform: uppercase;
+        color: fade(@con-amber, 80%);
+    }
+    &__grp-dot {
+        flex: 0 0 auto;
+        width: .45rem;
+        height: .45rem;
+        border-radius: 50%;
+        box-shadow: 0 0 0 .05rem rgba(0, 0, 0, 0.4);
+    }
+    &__none {
+        .con-read-text();
+        font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
+        line-height: 1.4;
+        color: fade(@con-text-dim, 75%);
+    }
+
+    /* P21: secondary facts in CELL-INSPECTION mode go one notch down — the
+       primary identity keeps its full size. (Placement renders its own rows.) */
     & .con-inspector__facts {
         zoom: calc(0.86 * var(--con-ui-scale, 1));
-    }
-    &__mandatory-note {
-        padding: .35rem .55rem;
-        border-radius: .4rem;
-        background: rgba(14, 22, 33, 0.6);
-        box-shadow: inset 0 0 0 .05rem fade(@con-amber, 35%);
-        border-left: .15rem solid fade(@con-amber, 60%);
-        color: #ffe9c4;
-        font-size: .775rem;
-        line-height: 1.4;
     }
     &__owner {
         display: inline-flex;
@@ -7540,42 +7765,209 @@ html.console-mode {
         font-size: .95rem;
         color: @con-text-dim;
     }
-    &__summary {
+}
+
+/* Section enter/leave/reflow as the cursor walks the board — additions rise
+   in, the remaining sections glide (FLIP move); a leaver detaches so the
+   glide is what the eye follows. No v-if blink anywhere in the body. */
+.con-dsec-enter-active {
+    transition:
+        opacity calc(200ms * var(--motion-scale, 1)) ease,
+        transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.con-dsec-leave-active {
+    position: absolute;
+    width: 100%;
+    transition: opacity calc(140ms * var(--motion-scale, 1)) ease;
+}
+.con-dsec-enter-from {
+    opacity: 0;
+    transform: translateY(.4rem);
+}
+.con-dsec-leave-to {
+    opacity: 0;
+}
+.con-dsec-move {
+    transition: transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+/* ── ONE dossier row: statement left (reading voice), change right
+   (display voice, tabular). Severity is colour, never a capsule; the only
+   boxed object is the game's own brown PRODUCTION frame. ─────────────── */
+.con-dossier-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: .6rem;
+    padding: .22rem 0;
+
+    & + & {
+        border-top: .05rem solid rgba(140, 175, 210, 0.09);
+    }
+
+    &__main {
+        flex: 1 1 auto;
+        min-width: 0;
+    }
+    &__title {
+        .con-read-text(500);
+        font-size: calc(var(--con-t-read-sm) * var(--con-read-scale, 1));
+        line-height: 1.3;
+        color: #e9f3fc;
+    }
+    &--danger &__title { color: #ff9f96; }
+    &--warning &__title { color: #ffce92; }
+    &__desc {
+        .con-read-text();
+        margin-top: .06rem;
+        font-size: calc(.78rem * var(--con-read-scale, 1));
+        line-height: 1.32;
+        color: rgba(190, 214, 232, 0.62);
+    }
+    &__src {
+        display: inline-block;
+        margin-top: .18rem;
+        padding: .04rem .42rem;
+        border-radius: 49.95rem;
+        background: rgba(24, 40, 58, 0.55);
+        box-shadow: inset 0 0 0 .05rem rgba(150, 192, 224, 0.22);
+        color: rgba(180, 210, 234, 0.8);
+        font-size: .62rem;
+        letter-spacing: .02rem;
+        line-height: 1.35;
+    }
+
+    &__val {
+        flex: 0 0 auto;
         display: flex;
         flex-direction: column;
-        gap: .4rem;
-        margin-top: .2rem;
+        align-items: flex-end;
+        gap: .18rem;
+        padding-top: .04rem;
+        font-family: @con-font;
     }
-    &__stat {
-        display: flex;
+    &__delta {
+        display: inline-flex;
         align-items: center;
-        gap: .5rem;
-        padding: .4rem .6rem;
-        border-radius: .4rem;
-        background: rgba(16, 26, 38, 0.6);
-        box-shadow: inset 0 0 0 .05rem rgba(120, 150, 180, 0.16);
-        color: @con-text-dim;
+        gap: .32rem;
+        --drow-accent: @con-text;
 
-        .bar-btn-icon { width: 1.2rem; height: 1.2rem; flex-shrink: 0; color: @con-text; }
+        &--gain { --drow-accent: @con-mint; }
+        &--cost { --drow-accent: @con-amber; }
+        &--danger { --drow-accent: #ff9f96; }
+    }
+    &__ico {
+        flex: 0 0 auto;
+        width: 1.35rem;
+        height: 1.35rem;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+    /* The game's own PRODUCTION frame — the one boxed value on the panel
+       (an EMPTY frame is the honest sprite of «производство на ваш выбор»). */
+    &__prod {
+        flex: 0 0 auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.5rem;
+        height: 1.5rem;
+        border-radius: .18rem;
+        background: linear-gradient(180deg, #8d6136, #6a4325);
+        box-shadow: inset 0 0 0 .06rem rgba(255, 220, 170, 0.35), inset 0 -.16rem .22rem rgba(0, 0, 0, 0.35);
 
-        &--hot {
-            box-shadow: inset 0 0 0 .05rem fade(@con-mint, 50%), 0 0 .5rem fade(@con-mint, 10%);
+        .con-dossier-row__ico {
+            width: 1.08rem;
+            height: 1.08rem;
         }
     }
-    &__stat-label {
-        font-size: .9rem;
-        letter-spacing: .03rem;
+    &__nums {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .26rem;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    &__cur {
+        font-size: .85rem;
+        color: rgba(220, 236, 247, 0.55);
+    }
+    &__arrow {
+        font-size: .78rem;
+        color: var(--drow-accent, @con-text-dim);
+        opacity: .8;
+    }
+    &__res,
+    &__amt {
+        font-size: 1.05rem;
+        color: var(--drow-accent, @con-text);
+    }
+    &__vp {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .22rem;
+        font-size: 1.05rem;
+        font-variant-numeric: tabular-nums;
+        color: @sem-prestige;
+        white-space: nowrap;
+
+        i {
+            font-style: normal;
+            font-size: .62rem;
+            letter-spacing: .06rem;
+            opacity: .85;
+        }
+        &--neg { color: #ff9f96; }
+    }
+    &__prog {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: .2rem;
+        --drow-accent: #cfc8ff;
+    }
+    &__prog-nums {
+        display: inline-flex;
+        align-items: baseline;
+        gap: .26rem;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    &__prog-tgt {
+        font-size: .72rem;
+        color: rgba(207, 200, 255, 0.6);
+    }
+    &__prog--reached {
+        --drow-accent: @sem-prestige;
+
+        .con-dossier-row__prog-tgt { color: rgba(255, 216, 122, 0.75); }
+    }
+    /* The micro standing track: filled = already there, the lit cell(s) =
+       what THIS placement adds, empty = still to go. */
+    &__track {
+        display: inline-flex;
+        gap: .16rem;
+    }
+    &__seg {
+        width: .52rem;
+        height: .28rem;
+        border-radius: .09rem;
+        background: rgba(140, 175, 210, 0.18);
+
+        &--filled { background: rgba(185, 176, 244, 0.55); }
+        &--gained {
+            background: @con-mint;
+            box-shadow: 0 0 .3rem fade(@con-mint, 40%);
+        }
+    }
+    &__when {
+        font-size: .58rem;
+        letter-spacing: .08rem;
         text-transform: uppercase;
+        color: rgba(190, 224, 245, 0.6);
+        white-space: nowrap;
     }
-    &__stat-value {
-        margin-left: auto;
-        font-size: 1rem;
-        color: @con-text;
-        b { color: @con-mint; font-size: 1.15rem; }
-    }
-    /* (No `&__commands` / `&__cmd` block: the panel carries no command rows of
-       its own — every verb it used to legend is registered in the command bar,
-       and a second copy only ate panel height.) */
 }
 
 /* ── Sheets (standard projects / milestones / awards) ────────────── */
@@ -26105,13 +26497,42 @@ html.con-profile-handheld {
         &__kicker { font-size: .6rem; letter-spacing: .08rem; }
         &__name { font-size: .95rem; }
         &__desc { font-size: .7rem; }
-        &__placement { font-size: .75rem; }
     }
     .con-context {
-        &__task-kicker { font-size: .6rem; letter-spacing: .08rem; }
-        &__task-title { font-size: .9rem; }
-        &__reason { font-size: .7rem; padding: .3rem .5rem; }
-        &__cell-brief { font-size: .7rem; }
+        gap: .45rem;
+        --ctx-tile-zoom: .8;
+        --ctx-ftile-zoom: .46;
+
+        &__task-kicker { font-size: .55rem; letter-spacing: .1rem; }
+        &__head { min-height: 2.1rem; gap: .45rem; }
+        &__tile { width: 1.85rem; height: 2.05rem; }
+        &__title {
+            font-size: 1.1rem;
+            &--long { font-size: .82rem; }
+            &--dense { font-size: .72rem; }
+        }
+        &__f-num { font-size: .9rem; }
+        &__f-ico { width: 1.05rem; height: 1.05rem; }
+        &__f-tile { width: 1.1rem; height: 1.2rem; }
+        &__action-line { font-size: .72rem; }
+        &__cellbar { min-height: 1.45rem; padding: .18rem .45rem; font-size: .66rem; }
+        &__reason { font-size: .7rem; }
+        &__body { gap: .6rem; }
+        &__sec-head { font-size: .55rem; letter-spacing: .1rem; }
+    }
+    .con-dossier-row {
+        gap: .45rem;
+
+        &__title { font-size: .72rem; }
+        &__desc { font-size: .62rem; }
+        &__ico { width: 1.05rem; height: 1.05rem; }
+        &__prod {
+            width: 1.2rem;
+            height: 1.2rem;
+            .con-dossier-row__ico { width: .85rem; height: .85rem; }
+        }
+        &__cur { font-size: .68rem; }
+        &__res, &__amt, &__vp { font-size: .85rem; }
     }
     .con-info__stat-line { font-size: .7rem; }
 
@@ -26660,7 +27081,7 @@ html.con-profile-large {
     .con-status__player { font-size: 1.15rem; }
     .con-cmdbar__context { font-size: 1.15rem; }
     .con-cmdbar__cmd span { font-size: 1.05rem; }
-    .con-inspector { max-width: 26rem; }
+    .con-inspector { max-width: 20.5rem; }
     .con-journal {
         width: min(34rem, 38%);
 

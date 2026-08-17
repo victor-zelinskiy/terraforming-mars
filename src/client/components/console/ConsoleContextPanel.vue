@@ -4,62 +4,112 @@
          :class="{'con-inspector--more': moreBelow, 'con-inspector--scrolled': scrolledDown}"
          :aria-label="$t('Cell details')"
          @scroll.passive="measureScroll">
-    <!-- ── TASK MODE: active placement ─────────────────────────────── -->
+    <!-- ── TASK MODE: active placement — the tactical dossier ─────────
+         Reading order is the architecture: WHAT lands (identity) → the
+         focused CELL's state → the cell's own toll → the immediate result →
+         standing progress → endgame → field rules. The panel carries NO
+         command rows and no controller prompts — every verb lives in the ONE
+         bottom command bar (P21; the old in-panel «A Разместить здесь» CTA
+         and the L3 hint duplicated it and are gone). -->
     <template v-if="mode === 'placement'">
-      <!-- The kicker names WHAT LANDS, and the host supplies it — a cell pick
-           is not always a tile pick (a claim / a camp move puts a MARKER
-           down). Hardcoding «Размещение тайла» here announced a tile over a
-           prompt reading «выберите место для выкладывания своего маркера». -->
-      <div class="con-context__task-kicker">{{ $t(placementKickerKey) }}</div>
-      <div class="con-context__task-title">{{ placementTitle }}</div>
-      <!-- WHO is placing. The server has named the card on every card-driven
-           placement all along (`placementContext.source`) and nothing showed
-           it — so a tile that arrives from a triggered effect had no
-           attribution on screen at all. A CHIP, not the dock: this panel is
-           ~17rem wide and its consequences preview is variable-height, so the
-           source may cost one line and no more. X opens the real card. -->
-      <console-source-dock v-if="sourceView !== undefined" :view="sourceView" chip ref="sourceChip" />
-      <div v-if="sourceCard !== undefined" class="con-context__source-hint">
-        <GamepadGlyph control="stickL" /><span>{{ $t('Inspect the source') }}</span>
-      </div>
-      <!-- P20: the inspect-all toggle announces itself as a distinct mode. -->
-      <div v-if="inspectAll" class="con-context__mode-chip">{{ $t('Inspecting all cells') }}</div>
-
-      <div v-if="selectedLegal" class="con-inspector__placement con-inspector__placement--legal">
-        <GamepadGlyph control="confirm" />
-        <span>{{ $t('Place here') }}</span>
-      </div>
-      <template v-else>
-        <div class="con-inspector__placement con-inspector__placement--illegal">
-          <span class="con-inspector__illegal-mark" aria-hidden="true">✕</span>
-          <span>{{ $t('Cannot place here') }}</span>
+      <header class="con-context__id">
+        <!-- The kicker names the TASK, and the host supplies it — a cell pick
+             is not always a tile pick (a claim / a camp move puts a MARKER
+             down). Kept small: it is context, the OBJECT below is the voice. -->
+        <div class="con-context__eyebrow">
+          <div class="con-context__task-kicker">{{ $t(placementKickerKey) }}</div>
+          <!-- P20: the inspect-all toggle announces itself as a distinct mode. -->
+          <div v-if="inspectAll" class="con-context__mode-chip">{{ $t('Inspecting all cells') }}</div>
         </div>
-        <div v-if="illegalReason !== ''" class="con-context__reason">{{ illegalReason }}</div>
-      </template>
+        <!-- WHAT LANDS — the real tile art + its name, never the server's
+             whole sentence (placementDossier owns the naming law). -->
+        <div class="con-context__head">
+          <span v-if="swatchClass !== undefined" class="con-context__tile" aria-hidden="true">
+            <span class="con-context__tile-art" :class="swatchClass"></span>
+          </span>
+          <h2 class="con-context__title"
+              :class="identity.tier === 'base' ? undefined : 'con-context__title--' + identity.tier">{{ identity.title }}</h2>
+        </div>
+        <div v-if="identity.special" class="con-context__qualifier">{{ $t('Special tile') }}</div>
+        <!-- The exchange behind a conversion placement — `8 🌱 → 1 [tile]` —
+             structural (convert plants), never parsed from the title. -->
+        <div v-if="conversion !== undefined" class="con-context__formula">
+          <span class="con-context__f-num">{{ conversion.amount }}</span>
+          <span class="con-context__f-ico" :class="conversionIconClass" aria-hidden="true"></span>
+          <span class="con-context__f-arrow" aria-hidden="true">→</span>
+          <span class="con-context__f-num con-context__f-num--res">1</span>
+          <span v-if="swatchClass !== undefined" class="con-context__f-tile" aria-hidden="true">
+            <span class="con-context__tile-art" :class="swatchClass"></span>
+          </span>
+        </div>
+        <!-- The demoted server sentence — only when it adds a real constraint. -->
+        <div v-else-if="identity.actionLine !== ''" class="con-context__action-line">{{ identity.actionLine }}</div>
+        <!-- WHO asked — one quiet line of metadata (`.con-src` chip). The
+             inspect verb lives in the command bar (L3), not here. -->
+        <console-source-dock v-if="sourceView !== undefined" :view="sourceView" chip ref="sourceChip" />
+      </header>
 
-      <div class="con-context__cell-brief" v-if="cellHeader !== ''">
-        <span class="con-context__cell-brief-label">{{ $t('Board cell') }}:</span> {{ cellHeader }}
-        <span v-if="!selectedLegal" class="con-context__cell-brief-note">— {{ $t('this tile cannot go here') }}</span>
-      </div>
-      <!-- The CONSEQUENCES of placing here — cost (incl. the Ares
-           hazard-adjacency production penalty) / gains / who else receives /
-           endgame VP. The SAME component the desktop hover popover + confirm
-           dialog render, so the three can never diverge. The hover facts are
-           the fallback: an illegal cell (no preview) still explains itself. -->
-      <div v-if="preview !== undefined" class="con-inspector__facts">
-        <BoardPlacementPreviewContent :preview="preview" :viewerColor="viewerColor" :players="players" />
-      </div>
-      <div v-else-if="info !== undefined && info.facts.length > 0" class="con-inspector__facts">
-        <BoardFactGroups :facts="info.facts" :viewerColor="viewerColor" :players="players" />
+      <!-- ── THE FOCUSED CELL: one fixed line; the refusal expands below
+           without a jump (grid-rows well), so legal ↔ illegal never shifts
+           the identity above it. -->
+      <div class="con-context__cell">
+        <div class="con-context__cellbar"
+             :class="selectedLegal ? 'con-context__cellbar--ok' : 'con-context__cellbar--no'">
+          <span class="con-context__cell-mark" aria-hidden="true">{{ selectedLegal ? '◆' : '✕' }}</span>
+          <span class="con-context__cell-name">{{ cellHeader !== '' ? cellHeader : $t('Board cell') }}</span>
+        </div>
+        <div class="con-context__reason-well"
+             :class="{'con-context__reason-well--open': !selectedLegal}"
+             aria-live="polite">
+          <div class="con-context__reason">{{ illegalReason !== '' ? illegalReason : $t('Cannot place here') }}</div>
+        </div>
       </div>
 
-      <!-- P21: the panel carries NO command rows of its own. The confirm CTA
-           sits at the TOP, and the cancel is registered in the command bar
-           (ConsoleShell's placementActive branch) — repeating it here only ate
-           height in a panel that now carries several fact blocks, and a second
-           copy of a bar verb reads as a second, differently-scoped control.
-           The "cancelling is not available" note is gone for the same reason:
-           it stated a non-event on EVERY placement. -->
+      <!-- ── THE DOSSIER BODY — the same server facts, grouped by intent
+           (placementDossier). Sections enter/leave/reflow on a soft
+           transition as the cursor walks the board. -->
+      <div class="con-context__body">
+        <TransitionGroup name="con-dsec">
+          <section v-for="section in sections" :key="section.key"
+                   class="con-context__sec" :class="'con-context__sec--' + section.key">
+            <h3 class="con-context__sec-head">
+              <span>{{ $t(section.titleKey) }}</span>
+              <!-- THE CELL'S OWN FORECAST — the sum of the rows below, which
+                   is the number the player is actually after («сколько ПО
+                   стоит ЭТА клетка»); shown only when the block has more than
+                   one scoring row, so it can never just repeat it. -->
+              <span v-if="section.total !== undefined" class="con-context__sec-total">
+                {{ section.total < 0 ? '−' : '+' }}{{ Math.abs(section.total) }} <i>{{ $t('VP') }}</i>
+              </span>
+            </h3>
+            <template v-if="section.groups !== undefined">
+              <div v-for="group in section.groups" :key="group.key" class="con-context__grp">
+                <div class="con-context__grp-head">
+                  <span v-if="groupDot(group) !== undefined" class="con-context__grp-dot"
+                        :class="'player_bg_color_' + groupDot(group)"></span>
+                  <span v-i18n>{{ groupLabel(group) }}</span>
+                </div>
+                <console-placement-fact-row v-for="fact in group.facts" :key="fact.id"
+                                            :fact="fact" :stated="section.stated" />
+              </div>
+            </template>
+            <template v-else>
+              <console-placement-fact-row v-for="fact in section.facts" :key="fact.id"
+                                          :fact="fact" :stated="section.stated" />
+            </template>
+          </section>
+          <!-- «Ничего сверх размещения» — names WHAT lands (tile vs marker). -->
+          <div v-if="emptyKey !== undefined" key="empty" class="con-context__none">{{ $t(emptyKey) }}</div>
+          <!-- An illegal cell has no preview — the hover facts still explain
+               what stands on it (hazard identity, cleanup reward, …). They get
+               a head of their own: without one they read as consequences of a
+               placement that cannot happen. -->
+          <section v-if="fallbackFacts.length > 0" key="fallback" class="con-context__sec con-context__sec--cellinfo">
+            <h3 class="con-context__sec-head"><span>{{ $t('Board cell') }}</span></h3>
+            <console-placement-fact-row v-for="fact in fallbackFacts" :key="fact.id" :fact="fact" />
+          </section>
+        </TransitionGroup>
+      </div>
     </template>
 
     <!-- ── TRACK MODE (P27b): a focused global-parameter track bonus ── -->
@@ -133,29 +183,41 @@
  * strategic idle summary moved OUT into the dedicated STRATEGY RAIL, and
  * this panel became a task-time OVERLAY — the board never reflows for it).
  * Three modes:
- *  - placement: the TASK state (legal/illegal + the SERVER's illegal
- *    reason + cell facts + the minimal command set incl. honest B);
+ *  - placement: the TACTICAL PLACEMENT DOSSIER — identity (what lands) +
+ *    cell state + the server preview regrouped by intent (placementDossier);
  *  - track (P27): a focused global-parameter TRACK bonus — the SAME
  *    already-translated rows the premium ScaleTooltip shows;
  *  - cell: inspection identity (header/name/owner) + facts from the
  *    shared BoardInformation pipeline.
- * Deliberately NOT a duplicate of the bottom command bar.
+ * Deliberately NOT a duplicate of the bottom command bar: the panel renders
+ * ZERO controller prompts — A/L3/R3/B live in the bar and only there.
  * Pure presentation: every value is a prop computed in ConsoleShell from
  * the same sources the desktop buttons use.
  */
 import {defineComponent, PropType} from 'vue';
 import BoardFactGroups from '@/client/components/board/BoardFactGroups.vue';
-import BoardPlacementPreviewContent from '@/client/components/board/BoardPlacementPreviewContent.vue';
+import ConsolePlacementFactRow from '@/client/components/console/ConsolePlacementFactRow.vue';
 import GamepadGlyph from '@/client/components/gamepad/GamepadGlyph.vue';
-import {BoardCellInfo, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
-import {participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
+import {BoardCellInfo, BoardFact, BoardFactGroup, BoardPlacementPreview} from '@/common/boards/BoardInformationFacts';
+import {displayNameForColor, participantDisplayName} from '@/client/components/marsbot/marsBotDisplay';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 import {Color} from '@/common/Color';
 import {Message} from '@/common/logs/Message';
-import {translateMessage, translateText} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateTextWithParams} from '@/client/directives/i18n';
 import {ScaleTooltipContent} from '@/client/components/board/scaleTooltipState';
 import {CardName} from '@/common/cards/CardName';
 import {PromptSourceView} from '@/client/console/promptSource';
+import {tileCssClassOf} from '@/client/components/board/BoardSpaceTile.vue';
+import {iconClassFor} from '@/client/components/modalInputs/optionIcons';
+import {
+  DossierSection,
+  PlacementConversion,
+  PlacementIdentity,
+  PlacementShape,
+  dossierEmptyKey,
+  dossierSections,
+  placementIdentity,
+} from '@/client/console/placementDossier';
 
 function textOf(v: string | Message | undefined): string {
   if (v === undefined) {
@@ -166,7 +228,7 @@ function textOf(v: string | Message | undefined): string {
 
 export default defineComponent({
   name: 'ConsoleContextPanel',
-  components: {BoardFactGroups, BoardPlacementPreviewContent, GamepadGlyph},
+  components: {BoardFactGroups, ConsolePlacementFactRow, GamepadGlyph},
   data() {
     return {
       /** Content continues below the fold — drives the fade + the stick hint. */
@@ -216,6 +278,12 @@ export default defineComponent({
      *  never composed here (that module is the ONE source of prompt copy). */
     placementKickerKey: {type: String, default: 'Tile placement'},
     placementTitle: {type: String, default: ''},
+    /** What lands (tileType / kind / effect / source) — the identity's input. */
+    placementShape: {type: Object as PropType<PlacementShape | undefined>, default: undefined},
+    /** The structurally-known exchange (convert plants) — the formula line. */
+    conversion: {type: Object as PropType<PlacementConversion | undefined>, default: undefined},
+    /** Ares tile-art variants are active (tileCssClassOf needs the flag). */
+    aresTiles: {type: Boolean, default: false},
     selectedLegal: {type: Boolean, default: false},
     illegalReason: {type: String, default: ''},
     /** P20: the R3 inspect-all toggle is on (labels + the mode chip). */
@@ -230,9 +298,48 @@ export default defineComponent({
     lore: {type: Object as PropType<{title: string, description: string} | undefined>, default: undefined},
   },
   computed: {
-    /** The source CARD, when there is one — what X opens fullscreen. */
+    /** The source CARD, when there is one — what L3 opens fullscreen. */
     sourceCard(): CardName | undefined {
       return this.sourceView?.inspectable === true ? this.sourceView.card : undefined;
+    },
+    /** WHAT LANDS — the pure identity (title / swatch / demoted sentence). */
+    identity(): PlacementIdentity {
+      return placementIdentity({
+        translatedTitle: this.placementTitle,
+        tileType: this.placementShape?.tileType,
+        placementType: this.placementShape?.placementType,
+        placementEffect: this.placementShape?.placementEffect,
+        sourceCard: this.placementShape?.sourceCard,
+        hasConversion: this.conversion !== undefined,
+        translate: (key, params) =>
+          (params !== undefined ? translateTextWithParams(key, [...params]) : translateText(key)),
+      });
+    },
+    /** The real board tile art class for the identity / formula swatch. */
+    swatchClass(): string | undefined {
+      const tt = this.identity.tileType;
+      if (tt === undefined) {
+        return undefined;
+      }
+      const suffix = tileCssClassOf(tt, this.aresTiles);
+      return suffix === '' ? undefined : 'board-space-tile--' + suffix;
+    },
+    conversionIconClass(): string {
+      return this.conversion !== undefined ? iconClassFor(this.conversion.icon) : '';
+    },
+    /** The dossier body — the preview's facts regrouped by intent. */
+    sections(): ReadonlyArray<DossierSection> {
+      return this.preview !== undefined ? dossierSections(this.preview, this.viewerColor) : [];
+    },
+    emptyKey(): string | undefined {
+      return this.preview !== undefined ? dossierEmptyKey(this.preview) : undefined;
+    },
+    /** An illegal cell has no preview — the hover facts still explain it. */
+    fallbackFacts(): ReadonlyArray<BoardFact> {
+      if (this.mode !== 'placement' || this.preview !== undefined) {
+        return [];
+      }
+      return this.info?.facts ?? [];
     },
     cellHeader(): string {
       return textOf(this.info?.status.header);
@@ -265,6 +372,26 @@ export default defineComponent({
     },
   },
   methods: {
+    groupDot(group: BoardFactGroup): Color | undefined {
+      const r = group.recipient;
+      if (r.kind === 'current-player') {
+        return this.viewerColor;
+      }
+      if (r.kind === 'player' || r.kind === 'tile-owner') {
+        return r.color;
+      }
+      return undefined;
+    },
+    groupLabel(group: BoardFactGroup): string {
+      const r = group.recipient;
+      switch (r.kind) {
+      case 'current-player': return 'You';
+      case 'player':
+      case 'tile-owner': return displayNameForColor(this.players, r.color);
+      case 'neutral': return 'Field rule';
+      case 'nobody': return 'Reserved';
+      }
+    },
     /**
      * Recompute the two overflow affordances. Kept cheap (three reads, no
      * layout write) and driven by the passive scroll event, a ResizeObserver and

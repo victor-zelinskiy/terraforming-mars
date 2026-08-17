@@ -229,20 +229,48 @@ html.con-profile-tv {
        overflowed the milestone/award lists on modular-MA games (player
        feedback) — only the hero value and the smallest legend move. */
     .con-inspector {
-        max-width: 27rem;
+        /* Placement-dossier iteration: the couch panel is deliberately a
+           step NARROWER than the old 27rem wall — the planet cannot move,
+           so the optical gap between its disc and the panel's hairline edge
+           is bought here. The dossier's rem-native rows are sized for this
+           measure (long RU labels wrap, never ellipsize). */
+        max-width: 21.5rem;
 
         &__name { font-size: 1.3rem; }
         &__desc { font-size: 0.95rem; }
     }
-    /* The placement / cell FACTS (Cost · You receive · Other players · At
-       game end · Field rules) are px-authored desktop content — the base
-       rule (console.less) rides them at 0.86× the ui-scale for handheld
-       density. From the couch that lands them at ~half the panel's own rem
-       body text (the "many letters too small" read). Bump the multiplier so
-       the facts land near the couch caption size, still a notch below the
-       panel's primary status/reason/bonus. */
+    /* The CELL-INSPECTION facts (hover dossier) are px-authored desktop
+       content — the base rule (console.less) rides them at 0.86× the
+       ui-scale for handheld density. From the couch that lands them at
+       ~half the panel's own rem body text (the "many letters too small"
+       read). Bump the multiplier so the facts land near the couch caption
+       size, still a notch below the panel's primary status/reason/bonus.
+       (The PLACEMENT dossier renders rem-native rows — no zoom involved.) */
     .con-context .con-inspector__facts {
         zoom: calc(1.35 * var(--con-ui-scale, 1));
+    }
+    /* Placement dossier from the couch: EVERY chrome label steps up to the
+       service floor (§3.4 — 0.8rem, guarded by `consoleTvTypeFloor`), which
+       is exactly the «мелкие подписи» the couch read cannot afford; the
+       hierarchy is then carried by tracking, colour and weight rather than
+       by shrinking. Values keep display weight; reading rows ride the
+       --con-t-read tokens re-tuned above. */
+    .con-context {
+        &__task-kicker { font-size: .82rem; letter-spacing: .16rem; }
+        &__mode-chip { font-size: .8rem; }
+        &__qualifier { font-size: .8rem; }
+        &__sec-head { font-size: .82rem; letter-spacing: .15rem; }
+        &__sec-total { font-size: 1.05rem; }
+        &__grp-head { font-size: .82rem; }
+        &__cellbar { font-size: .88rem; min-height: 1.95rem; }
+    }
+    .con-dossier-row {
+        &__desc { font-size: calc(.92rem * var(--con-read-scale, 1)); }
+        &__src { font-size: .8rem; }
+        &__when { font-size: .8rem; }
+        &__cur { font-size: .95rem; }
+        &__res, &__amt, &__vp { font-size: 1.15rem; }
+        &__ico { width: 1.5rem; height: 1.5rem; }
     }
     /* ── P30 · the right STRATEGY RAIL from the couch: the medal is the
        carrier, so it takes the bump; numbers ride the zone tokens and hold
