@@ -314,6 +314,61 @@ export function stepActionRows(
   return rows[r][c];
 }
 
+/**
+ * The slot caption's READING TIER — which of the profile's three (size,
+ * lines) pairs a rule gets (console.less § the caption's length ladder).
+ *
+ * Same principle as the fullscreen rules panel's `lengthTier`, applied to a
+ * box that is a LAYOUT CONSTANT: the action body row is fixed at the canvas
+ * height (the «или» joint anchors to it), so every pair fits that row and the
+ * only thing length decides is which pair — a short rule buys a bigger face,
+ * a long one buys the third line. One size for every length is the size the
+ * LONGEST rule needs, which is what left the whole grid whispering at the
+ * caption step (17 logical px, well under the couch profile's 26px reading
+ * floor) on a 4K TV.
+ *
+ * TWO facts decide a tier, because a line is broken at WORDS, not at
+ * characters:
+ *  · the total LENGTH — how much text there is;
+ *  · the LONGEST WORD — how much of a line one unbreakable run claims. A word
+ *    wider than about half the column forces an early break and wastes the
+ *    rest of that line, so «Повысьте производство энергии» (29 chars) needs
+ *    THREE lines at the brief size while a 40-char sentence of short words
+ *    fits in two. Length alone shipped exactly that clip.
+ * Both caps are ~55% of the couch column (~292 logical px measured beside the
+ * 4K canvas) at their own size: 11 chars × 28px and 13 × 23px.
+ *
+ * Measured POST-i18n (RU runs 15–20% longer than the English keys) and
+ * calibrated against the SHIPPED RU corpus rendered in the real font at the
+ * real box: 135 action summaries, 36% brief · 33% regular · 30% dense, ZERO
+ * avoidable clips (the two that still clip are over-long at every size and
+ * clipped before this too — their answer is an authored `short`, per
+ * `actionDescription.ts`). The couch profile is the tightest of the three
+ * columns, so a tier that fits there fits everywhere.
+ */
+export type ActionDescTier = 'brief' | 'regular' | 'dense';
+
+const DESC_BRIEF_MAX = 33;
+const DESC_BRIEF_WORD_MAX = 11;
+const DESC_REGULAR_MAX = 40;
+const DESC_REGULAR_WORD_MAX = 13;
+
+function longestWord(text: string): number {
+  let longest = 0;
+  for (const word of text.split(/\s+/)) {
+    longest = Math.max(longest, word.length);
+  }
+  return longest;
+}
+
+export function actionDescTier(text: string): ActionDescTier {
+  const word = longestWord(text);
+  if (text.length <= DESC_BRIEF_MAX && word <= DESC_BRIEF_WORD_MAX) {
+    return 'brief';
+  }
+  return text.length <= DESC_REGULAR_MAX && word <= DESC_REGULAR_WORD_MAX ? 'regular' : 'dense';
+}
+
 /** The default filter — show everything, hide already-activated (they don't
  *  clutter the actions the player can still take; switch to see them). */
 export function defaultCardActionsFilter(): ActionFilterState {

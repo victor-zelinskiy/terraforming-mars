@@ -220,16 +220,19 @@
            is looking at, so it may never be covered by the collection, nor
            float over the cards. ─────────── -->
       <div class="con-draftws__statusbar" :class="{'con-draftws__statusbar--held': beatActive}">
-        <!-- A met requirement set is the DEFAULT and says nothing beyond the
-             card's name: a status that fires on every card is noise, and the
-             positive state has no reader. -->
-        <template v-if="statusEntry !== undefined">
-          <ConsoleCardAvailabilityPanel v-if="statusAvailability !== undefined"
-                                        variant="compact"
-                                        :view="statusAvailability"
-                                        :cardTitle="$t(statusEntry.name)"/>
-          <span v-else class="con-draftws__status-name" :key="statusEntry.name">{{ $t(statusEntry.name) }}</span>
-        </template>
+        <!-- ONE block in BOTH states. A met requirement set is the DEFAULT and
+             says nothing beyond the card's name (a status that fires on every
+             card is noise, and the positive state has no reader) — but the
+             NAME is the same element, at the same size, whether or not a
+             verdict stands beside it. The second, hand-rolled span this
+             replaced inherited the document's px size and read tiny on a TV
+             next to the block's own 1.18rem name. The key re-announces the
+             name on every focus move. -->
+        <ConsoleCardAvailabilityPanel v-if="statusEntry !== undefined"
+                                      :key="statusEntry.name"
+                                      variant="compact"
+                                      :view="statusAvailability"
+                                      :cardTitle="$t(statusEntry.name)"/>
         <span v-else-if="zone === 'wait'" class="con-draftws__status-idle">{{ $t('Waiting for the other players') }}</span>
       </div>
 
@@ -239,12 +242,18 @@
       <!-- Present through the SELECTION chapter — and through the RISE, whose
            physical SOURCE it is (its slots are the measured launch rects);
            its fade-out IS the handoff's closing beat. An absolute overlay:
-           leaving never reflows the stage above. -->
+           leaving never reflows the stage above.
+           THE RACK IS A CONSTANT: the draft takes a KNOWN number of cards, so
+           its seats are laid out from the first frame — at 0/4 the player sees
+           how far the draft runs, and the zone never materializes or resizes
+           under the stage. Only `--pending` (the total not yet stated by the
+           server) has no rack to draw and falls back to the bare caption. -->
       <transition name="con-draftws-shelf">
       <div class="con-draftws__shelf" v-show="shelfVisible"
            :class="{
              'con-draftws__shelf--muted': inspecting,
              'con-draftws__shelf--empty': collectedEntries.length === 0,
+             'con-draftws__shelf--pending': !rackKnown,
              'con-draftws__shelf--pulse': shelfPulsing,
            }">
         <div class="con-draftws__shelf-head">
@@ -263,7 +272,8 @@
             <Card :card="entry.card" :key="entry.name" lightweight />
           </div>
           <!-- Prepared empty seats up to the known total: the shelf states how
-               far the draft runs before a single card has landed. -->
+               far the draft runs before a single card has landed — including
+               at zero, which is exactly when that statement is worth most. -->
           <span v-for="n in emptySeats" :key="'seat-' + n" class="con-draftws__shelf-seat" aria-hidden="true"></span>
         </div>
       </div>
@@ -485,6 +495,12 @@ export default defineComponent({
     },
     emptySeats(): number {
       return Math.max(0, this.pickTotal - this.collectedEntries.length);
+    },
+    /** The rack can only be DRAWN once its size is known — the server states
+     *  it with the first draft marker, so this is false for at most the gap
+     *  before the opening prompt lands (a reload into an empty wait state). */
+    rackKnown(): boolean {
+      return this.pickTotal > 0 || this.collectedEntries.length > 0;
     },
     pickTotal(): number {
       return draftWorkspaceState.total;

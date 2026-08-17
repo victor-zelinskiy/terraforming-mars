@@ -2849,7 +2849,9 @@ html.console-native {
        The block itself is the shared ConsoleCardAvailabilityPanel (compact):
        name + loud status on the first row, the requirement-vs-now comparison
        in the reading voice on the second — a TV-readable body, never the old
-       one micro-caption line. ── */
+       one micro-caption line. It stands for EVERY focused card; with nothing
+       to say it is the name alone (`--clear`), never a second element with a
+       typography of its own. ── */
     &__statusbar {
         flex-shrink: 0;
         position: relative;
@@ -2866,15 +2868,11 @@ html.console-native {
         &--held > * { opacity: 0; }
         > * { transition: opacity calc(150ms * var(--motion-scale, 1)) ease; }
     }
-    /* The focused card's name re-announces itself on every focus move. */
+    /* The focused card's name re-announces itself on every focus move. It is
+       the availability block's OWN name element in every state (a card with
+       nothing to say renders the same block, `--clear`), so the name's size
+       can no longer depend on whether a verdict stands beside it. */
     .con-cardavail__name {
-        animation: con-draftws-num calc(180ms * var(--motion-scale, 1)) ease-out;
-    }
-    &__status-name {
-        font-weight: 800;
-        letter-spacing: .06rem;
-        text-transform: uppercase;
-        color: @con-text;
         animation: con-draftws-num calc(180ms * var(--motion-scale, 1)) ease-out;
     }
     &__status-idle {
@@ -2906,24 +2904,26 @@ html.console-native {
         transition: opacity calc(200ms * var(--motion-scale, 1)) ease;
 
         &--muted { opacity: .4; }
-        &--empty:not(.con-draftws__shelf--pulse) { opacity: .8; }
-        /* IDLE DOCK — a CAPTION, not a container: with nothing collected
-           the plate, ring and seat boxes all go — what remains is one quiet
-           «ОТОБРАННЫЕ 0/4» line over the open stage (an empty bordered box
-           the height of a card row is exactly the «huge empty area» read).
-           The pose switches INSTANTLY with the first pick — no size
-           transition — so the real slot (which only renders once a card is
-           collected) is at its final rect before the pick flight measures
-           it. Gallery geometry is untouched either way: the shelf is an
-           absolute overlay over a constant stage reserve, so the dock's
-           materialization never moves a card above it. */
-        &--empty {
+        /* NOTHING COLLECTED YET is a PAINT state, never a layout one: the
+           draft always takes the same known number of cards, so the rack
+           stands at its full, final size from the first frame — 0/4 states
+           how far the draft runs, and every later state has the exact same
+           geometry (the pick flight therefore always measures a seat that
+           was already there). Empty reads quieter; it never reads smaller. */
+        &--empty:not(.con-draftws__shelf--pulse) { opacity: .86; }
+        /* SHAPE UNKNOWN — the only state with no rack to draw: the server has
+           not stated the pick total yet (the gap before the opening prompt).
+           A caption over the open stage, never an empty bordered box the
+           height of a card row. Gallery geometry is untouched either way: the
+           shelf is an absolute overlay over a constant stage reserve, so the
+           rack's materialization never moves a card above it. */
+        &--pending {
             background: none;
             box-shadow: none;
             padding-top: .2rem;
             padding-bottom: .2rem;
         }
-        &--empty .con-draftws__shelf-row { display: none; }
+        &--pending .con-draftws__shelf-row { display: none; }
         &--pulse .con-draftws__shelf-row {
             animation: con-tray-pulse calc(260ms * var(--motion-scale, 1)) ease-out;
         }
@@ -22760,12 +22760,26 @@ html.console-mode {
     --act-head-h: .95rem;    /* the service row (variant way-finder / verdict) */
     --act-canvas-h: 3rem;    /* the action graphic's fixed stage — HEIGHT */
     --act-canvas-w: 9.2rem;  /* …and WIDTH: one stage for every formula */
-    /* The caption's line budget. THREE is free everywhere: the body row is
-       fixed at the canvas height, and three lines of caption type still fit
-       inside it on every profile (fhd 54 ≤ 60, Deck 51 ≤ 60, TV 127 ≤ 156).
-       Spending that room is what lets a full rule stay a full sentence
-       instead of being rewritten shorter. */
-    --act-desc-lines: 3;
+    /* ── THE CAPTION'S LENGTH LADDER — three (SIZE, LINES) pairs, picked by
+       the LOCALIZED text volume (`ConsoleCardActions.descTier` — the same
+       principle as the rules panel's reading tiers, and for the same reason:
+       one size for every length is the size the LONGEST text needs, and on the
+       couch profile that left seven in ten actions whispering).
+       The body row is a layout constant (--act-canvas-h) the «или» joint
+       anchors to, so a tier may spend the room but may never ask for more:
+       EVERY pair must satisfy `lines × size × --act-desc-lh ≤ --act-canvas-h`
+       (checked beside each declaration). A shorter rule buys a bigger face,
+       a longer one buys the third line — the box never moves either way.
+       Profiles own the VALUES; the tier classes only resolve which pair. */
+    --act-desc-lh: 1.25;
+    --act-desc-fs-brief: .95rem;  --act-desc-lines-brief: 2;  /* 2×19  ×1.25 = 47.5 ≤ 60 */
+    --act-desc-fs-reg: .82rem;    --act-desc-lines-reg: 2;    /* 2×16.4×1.25 = 41.0 ≤ 60 */
+    --act-desc-fs-dense: .72rem;  --act-desc-lines-dense: 3;  /* 3×14.4×1.25 = 54.0 ≤ 60 */
+    /* The resolved pair. Defaults to the DENSEST tier, so a caption that ever
+       renders without its tier class degrades to the safe rendering (the full
+       three lines) instead of to a one-line clamp. */
+    --act-desc-fs: var(--act-desc-fs-dense);
+    --act-desc-lines: var(--act-desc-lines-dense);
     --act-meta-h: .95rem;    /* the diagnostics strip (validation / next step) */
     --act-pad-t: .3rem;      /* the slot's top padding */
     --act-gap: .22rem;       /* the slot's inner zone gap */
@@ -23049,8 +23063,8 @@ html.console-mode {
         /* Clearance for the «или» badge: it is centred ON the seam, so half
            of it reaches into this tile. Text must never run under it. */
         padding-right: .35rem;
-        font-size: .72rem;
-        line-height: 1.25;
+        font-size: var(--act-desc-fs);
+        line-height: var(--act-desc-lh);
         color: fade(@con-text-dim, 84%);
         overflow: hidden;
         display: -webkit-box;
@@ -23058,6 +23072,24 @@ html.console-mode {
         -webkit-line-clamp: var(--act-desc-lines, 1);
         /* The focused slot reads a step brighter — the cursor's payoff. */
         transition: color calc(140ms * var(--motion-scale, 1)) ease;
+    }
+    /* The tier RESOLVES the pair on the element itself (an own declaration
+       beats the inherited default) — the profile above owns the values, so
+       one ladder serves every screen and no surface re-invents a size. */
+    &__desc--brief {
+        --act-desc-fs: var(--act-desc-fs-brief);
+        --act-desc-lines: var(--act-desc-lines-brief);
+    }
+    &__desc--regular {
+        --act-desc-fs: var(--act-desc-fs-reg);
+        --act-desc-lines: var(--act-desc-lines-reg);
+    }
+    &__desc--dense {
+        --act-desc-fs: var(--act-desc-fs-dense);
+        --act-desc-lines: var(--act-desc-lines-dense);
+        /* The dense tier is where a long RU compound would otherwise strand
+           a line — the same hyphenation the rules panel's dense tier uses. */
+        hyphens: auto;
     }
     &__tile--focused &__desc { color: fade(@con-text, 92%); }
     @media (prefers-reduced-motion: reduce) {
@@ -25817,14 +25849,22 @@ html.con-profile-handheld .con-cardactions {
         b { font-size: .62rem; }
     }
     .con-cardactions__fgroup-keys .gp-glyph { transform: scale(0.66); }
-    /* THE DECK CALL on the slot's description: KEEP it, one line. The profile
-       protects VERTICAL room and calm — and the horizontal composition costs
-       neither: the sentence sits beside the stage, inside the row the canvas
-       already defines. The Deck's single column also gives it the WIDEST
-       slots of any profile, so hiding the text here would leave the largest
-       empty area in the whole product. (The line budget is one; two would
-       start competing with the graphic at arm's length.) */
-    .con-cardactions__desc { font-size: .68rem; }
+    /* THE DECK CALL on the slot's description: KEEP it. The profile protects
+       VERTICAL room and calm — and the horizontal composition costs neither:
+       the sentence sits beside the stage, inside the row the canvas already
+       defines. The Deck's single column also gives it the WIDEST slots of any
+       profile, so hiding the text here would leave the largest empty area in
+       the whole product.
+       The Deck deliberately declines the length ladder: at arm's length on a
+       7" panel the caption is already at a comfortable size, and a bigger
+       face for short rules would start competing with the graphic. All three
+       tiers therefore resolve to ONE pair — the ladder exists everywhere, it
+       just has a single rung here. */
+    .con-cardactions__desc {
+        --act-desc-fs-brief: .68rem;  --act-desc-lines-brief: 3;
+        --act-desc-fs-reg: .68rem;    --act-desc-lines-reg: 3;
+        --act-desc-fs-dense: .68rem;  --act-desc-lines-dense: 3;
+    }
 }
 /* The setup stage's rule block on the Deck — the semantic lead stays, one
    step tighter (vertical room is what the profile protects). */

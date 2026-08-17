@@ -357,16 +357,21 @@
 
                   <!-- ACTION DESCRIPTION — what the action does, in the
                        card's own words, in the width the wide button already
-                       has. Clamped to the profile's line budget and reserving
-                       its own column, so no wording can move the canvas or
-                       the diagnostics under it. A text-drawn action is
-                       already its own sentence on the canvas — never doubled.
-                       The profile decides the line budget (0 on the Deck). -->
+                       has. It reserves its own column, so no wording can move
+                       the canvas or the diagnostics under it. A text-drawn
+                       action is already its own sentence on the canvas —
+                       never doubled.
+                       SIZE FOLLOWS LENGTH (`descTier`): the profile declares
+                       three (size, lines) pairs, all of which fit the fixed
+                       body row, and a short rule — most of them — gets to
+                       speak at reading size instead of at the size the
+                       longest rule needs. -->
                   <!-- The clamp lives on the INNER block: a flex item is
                        blockified by the engine, which quietly disables the
                        line clamp on it. The slot around it owns the width. -->
                   <div v-if="slotRuleText(tile) !== ''" class="con-cardactions__desc-slot">
-                    <p class="con-cardactions__desc">{{ slotRuleText(tile) }}</p>
+                    <p class="con-cardactions__desc"
+                       :class="'con-cardactions__desc--' + descTier(slotRuleText(tile))">{{ slotRuleText(tile) }}</p>
                   </div>
                 </div>
 
@@ -488,6 +493,7 @@ import {buildActionEntries, ActionEntry, ActionFilterState} from '@/client/compo
 import {ActionStatus} from '@/client/components/actions/actionPlayability';
 import {buildActionInspectHistory} from '@/client/components/actions/actionInspectHistory';
 import {
+  actionDescTier,
   actionWorkspaceRestorePlan,
   buildConsoleActionsModel,
   branchScopeForNode,
@@ -497,6 +503,7 @@ import {
   defaultCardActionsFilter,
   defaultRepeatFilter,
   stepActionRows,
+  ActionDescTier,
   ConsoleActionsModel,
   ConsoleActionTile,
   ConsoleActionGroup,
@@ -1311,6 +1318,10 @@ export default defineComponent({
         return '';
       }
       return actionRuleText(tile.rules.summary);
+    },
+    /** The caption's reading tier — pure + spec'd in `consoleCardActions`. */
+    descTier(text: string): ActionDescTier {
+      return actionDescTier(text);
     },
     /**
      * The slot's STATE line — one of two semantic kinds, resolved from two

@@ -38,6 +38,24 @@ describe('ConsoleCardAvailabilityPanel — one view, two densities', () => {
     expect(w.attributes('data-severity')).to.eq('pending');
   });
 
+  it('COMPACT: with NOTHING to say the block still stands and still carries the name', () => {
+    // The status zone always names the focused card; only the verdict is
+    // conditional. It must be the SAME element in both states — the draft's
+    // old bare-name span carried no console typography and read tiny beside
+    // it on a TV the moment a card had a requirement.
+    const w = panel({variant: 'compact', cardTitle: 'Casino'});
+    expect(w.find('.con-cardavail__name').text()).to.eq('Casino');
+    expect(w.find('.con-cardavail__status').exists(), 'no verdict, no status row').to.eq(false);
+    expect(w.find('.con-cardavail__line').exists()).to.eq(false);
+    expect(w.attributes('data-severity')).to.eq('clear');
+    expect(w.classes()).to.contain('con-cardavail--clear');
+  });
+
+  it('PANEL: no view renders nothing at all (never an empty container)', () => {
+    const w = panel({variant: 'panel'});
+    expect(w.find('.con-cardavail__box').exists()).to.eq(false);
+  });
+
   it('COMPACT: shows the PRIMARY reason and an honest «+N more» chip, never the whole list', () => {
     const w = panel({view: view([TEMP_MAX_MISSED, TAGS]), variant: 'compact', cardTitle: 'X'});
     // The decisive missed reason leads; the pending tag reason waits behind the chip.

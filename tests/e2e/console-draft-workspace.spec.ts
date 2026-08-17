@@ -318,6 +318,13 @@ test.describe('draft workspace · the between-generations flow', () => {
     expect(s.taskHostBands, 'no standalone modal rises over the workspace').toBe(0);
     expect(s.trayPopover, 'the old tray popover never mounts here').toBe(0);
     expect(s.passReadout.length, 'the pass readout names the neighbor').toBeGreaterThan(0);
+    // THE RACK IS A CONSTANT: the collection zone stands at its full, final
+    // size before a single card is taken — 0/4 states how far the draft runs,
+    // and every later state has the exact same geometry (so the pick flight
+    // always measures a seat that was already there). It used to collapse to
+    // a bare caption at zero, which is the one moment that statement matters.
+    expect(s.shelfCards, 'nothing collected yet').toBe(0);
+    expect(s.shelfSeats, 'the prepared rack shows every seat of the draft').toBe(4);
 
     // ── 1b · AVAILABILITY PARITY (compact ⇄ fullscreen). When the focused
     //    card carries an availability status (the shared CardAvailabilityPanel
@@ -326,13 +333,24 @@ test.describe('draft workspace · the between-generations flow', () => {
     //    reason in its «ДОСТУПНОСТЬ» panel; a card with nothing to say shows
     //    NO panel at all (never an empty container). One view-model feeds
     //    both, so a mismatch here is a wiring regression, not a copy drift.
+    //    The COMPACT block itself is always there — it is also the status
+    //    zone's card NAME, at one constant size whether or not a verdict
+    //    stands beside it — so `data-severity="clear"` is what says «nothing
+    //    to answer for», never the block's absence.
     const compactAvail = await page.evaluate(() => {
       const el = document.querySelector('.con-draftws__statusbar .con-cardavail');
-      return el === null ? undefined : {
-        severity: el.getAttribute('data-severity') ?? '',
+      if (el === null) {
+        return undefined;
+      }
+      const severity = el.getAttribute('data-severity') ?? '';
+      return severity === 'clear' ? undefined : {
+        severity,
         line: (el.querySelector('.con-cardavail__line .con-cardavail__text') as HTMLElement | null)?.innerText?.replace(/\s+/g, ' ') ?? '',
       };
     });
+    // The name is the one thing the zone ALWAYS states, in both states.
+    expect(await page.locator('.con-draftws__statusbar .con-cardavail__name').count(),
+      'the status zone names the focused card whatever its verdict').toBe(1);
     await press(page, 'KeyX', 2600); // X — fullscreen (the open flight settles)
     await page.waitForSelector('dialog.con-zoom[open]', {timeout: 20_000});
     await page.waitForTimeout(1200);

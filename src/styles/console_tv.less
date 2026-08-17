@@ -1298,13 +1298,26 @@ html.con-profile-tv {
            sofa, and the whole grid becomes scannable WITHOUT walking the
            cursor. The stage grows with the profile; the text stays quiet. */
         --act-canvas-w: 11.5rem;
-        /* The caption rides the profile's CAPTION step, not its secondary
-           step: it is deliberately subordinate to the formula, and the step
-           buys ~20% more characters per line — which is what keeps long
-           rules whole instead of shortening the writing. Three lines of it
-           (127px) still sit inside the 156px stage row, so the grid rhythm
-           is untouched. */
-        &__desc { font-size: var(--con-t-caption); }
+        /* ── THE COUCH LADDER for the slot caption (console.less § the
+           caption's length ladder owns the mechanism). One size for every
+           length is the size the LONGEST rule needs — the caption step, 17
+           logical px, well under this profile's own 26px reading floor — and
+           that is what the whole grid was whispering at. A SHORT rule now
+           buys the face and a long one buys the third line: measured over the
+           shipped RU corpus (135 action summaries rendered in the real font,
+           in the real column) the split is 36% / 33% / 30%.
+           The body row is UNCHANGED (--act-canvas-h 3.9rem = 78 logical px),
+           so no tile grows, the grid rhythm holds and the «или» joint keeps
+           its anchor: every pair is checked against that budget below, and
+           the text column (292 logical px beside the 4K canvas, measured) is
+           what calibrates the tier thresholds in `actionDescTier`. */
+        --act-desc-lh: 1.28;
+        --act-desc-fs-brief: var(--con-t-read);        /* 28 → 2×28×1.28 = 71.7 ≤ 78 */
+        --act-desc-lines-brief: 2;
+        --act-desc-fs-reg: var(--con-t-body);          /* 23 → 2×23×1.28 = 58.9 ≤ 78 */
+        --act-desc-lines-reg: 2;
+        --act-desc-fs-dense: var(--con-t-secondary);   /* 20 → 3×20×1.28 = 76.8 ≤ 78 */
+        --act-desc-lines-dense: 3;
         /* Per-ACTION chips on the button, card identity on the plate. */
         &__tile-variant { font-size: var(--con-t-floor); }
         &__tile-status { font-size: var(--con-t-floor); }

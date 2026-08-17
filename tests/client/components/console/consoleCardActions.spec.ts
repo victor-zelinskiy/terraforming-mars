@@ -7,6 +7,7 @@ import {PlayerInputModel} from '@/common/models/PlayerInputModel';
 import {UnplayableReason} from '@/common/cards/UnplayableReason';
 import {CardResource} from '@/common/CardResource';
 import {
+  actionDescTier,
   actionWorkspaceRestorePlan,
   ActionRestoreInput,
   buildConsoleActionsModel,
@@ -576,6 +577,43 @@ describe('consoleCardActions model', () => {
       // The draft survived but its card left the entries (server truth wins).
       expect(actionWorkspaceRestorePlan({...RESTORED_STEP, draftEntryExists: false}))
         .to.deep.eq({kind: 'fold-step'});
+    });
+  });
+
+  describe('actionDescTier (the slot caption’s length ladder)', () => {
+    it('a short rule buys the bigger face, a long one buys the third line', () => {
+      // Real shipped RU summaries, one per bucket.
+      expect(actionDescTier('Возьмите карту')).to.eq('brief');
+      expect(actionDescTier('Положите жетон бактерий на эту карту.')).to.eq('regular');
+      expect(actionDescTier('Потратьте 2 энергии, чтобы добавить 1 животное на ДРУГУЮ карту.')).to.eq('dense');
+    });
+
+    it('a LONG WORD steps down even in a short rule — a line breaks at words', () => {
+      // «Повысьте производство энергии» is 29 characters and took THREE lines
+      // at the brief size (measured, real font, real column): «производство»
+      // claims most of a line on its own. Length alone shipped that clip.
+      expect(actionDescTier('Повысьте производство энергии')).to.eq('regular');
+      // Same length, ordinary words — the brief tier is right for it.
+      expect(actionDescTier('Возьмите себе одну карту сверху')).to.eq('brief');
+    });
+
+    it('is MONOTONIC in length — a longer rule never gets a bigger face', () => {
+      const order = {brief: 0, regular: 1, dense: 2};
+      let prev = -1;
+      for (let n = 0; n <= 120; n++) {
+        // Short words only: this sweep is about the LENGTH axis.
+        const text = Array.from({length: n}, (_, i) => (i % 4 === 3 ? ' ' : 'x')).join('');
+        const rank = order[actionDescTier(text)];
+        expect(rank, `tier must not shrink back at ${n} chars`).to.be.at.least(prev);
+        prev = rank;
+      }
+      expect(prev, 'the longest texts land in the dense tier').to.eq(2);
+    });
+
+    it('the empty caption is not a tier decision — it never renders', () => {
+      // The host gates on `slotRuleText(tile) !== ''`; the tier is only ever
+      // asked about text that will be painted.
+      expect(actionDescTier('')).to.eq('brief');
     });
   });
 });
