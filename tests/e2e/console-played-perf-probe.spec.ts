@@ -281,15 +281,21 @@ function pct(sorted: Array<number>, p: number): number {
 
 // ── the probe ──────────────────────────────────────────────────────────────
 
+/** Per-scenario budget. A slow BASELINE run can exceed the default (the
+ *  n≥100 deck scenarios genuinely take minutes each there) — override with
+ *  PLAYED_PERF_TIMEOUT. Deliberately NOT `serial`: with `--workers=1` the
+ *  order is already sequential, and one over-budget scenario must not skip
+ *  the rest of the matrix. */
+const SCENARIO_TIMEOUT = Number(process.env.PLAYED_PERF_TIMEOUT ?? 420_000);
+
 test.describe('console played-tableau performance probe', () => {
   test.skip(!RUN, 'PLAYED_PERF=1 required');
-  test.describe.configure({mode: 'serial'});
-  test.setTimeout(420_000);
+  test.setTimeout(SCENARIO_TIMEOUT);
 
   for (const profile of PROFILES) {
     for (const seeded of GAMES) {
       test(`${profile.id} n=${seeded.n}`, async ({page}) => {
-        test.setTimeout(420_000);
+        test.setTimeout(SCENARIO_TIMEOUT);
         await page.setViewportSize(profile.viewport);
         const cdp = await page.context().newCDPSession(page);
         await cdp.send('Performance.enable');

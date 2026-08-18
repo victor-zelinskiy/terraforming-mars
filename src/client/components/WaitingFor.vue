@@ -1404,6 +1404,27 @@ export default defineComponent({
         })
         .finally(() => {
           root.isServerSideRequestInProgress = false;
+          /*
+           * ⚠️ RE-ASK THE SERVER THE MOMENT THIS SUBMIT IS FULLY PROCESSED.
+           *
+           * A turn-ending submit's commit is HELD through its own cinematic
+           * (`await runPlayedHero` and friends), and the world moves DURING
+           * that hold: the bot's paced turn resolves ~200 ms in and its
+           * GAME_STATE_INVALIDATED wake fires `/api/waitingfor` while
+           * `this.waitingfor` still reads the OLD prompt — so the GO is
+           * skipped as «viewer mid-input» and the one wake is consumed for
+           * nothing. With a healthy WS the next fallback poll is ~20 s away:
+           * measured 21.4 s from the play's confirm to control back, with the
+           * screen free at 3.8 s.
+           *
+           * A skipped refresh is a DEBT. The submit's processing end is the
+           * one moment the staleness is guaranteed gone (the commit either
+           * landed or was refused), so the guarded check re-runs HERE —
+           * `viewerHasPrompt` then reads fresh state and the GO is honoured.
+           * On an ordinary submit (the response carried the next prompt) the
+           * re-check costs one WAIT round trip and changes nothing.
+           */
+          this.waitForUpdate(true);
         });
     },
     updatePlayerView(playerView: PlayerViewModel | undefined) {

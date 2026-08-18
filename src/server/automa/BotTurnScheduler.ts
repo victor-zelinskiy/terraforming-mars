@@ -34,7 +34,7 @@ import {marsBotOf} from './AutomaUtil';
  * (`server.ts`); a forgotten enable degrades safely to the legacy inline turn.
  */
 
-export const BOT_TURN_INITIAL_DELAY_MS = 200;
+export const BOT_TURN_INITIAL_DELAY_MS = 1000;
 export const BOT_TURN_EXTENSION_MS = 500;
 export const BOT_TURN_MAX_EXTENSIONS = 3;
 /**

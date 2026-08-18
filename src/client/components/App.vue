@@ -398,6 +398,7 @@ import {isPatentSaleActive} from '@/client/console/patentSale/consolePatentSale'
 import {isCardDiscardActive} from '@/client/console/cardDiscard/consoleCardDiscard';
 import {isTilePlacementActive} from '@/client/console/tilePlacement/consoleTilePlacement';
 import {presentFreshBotTurns} from '@/client/components/marsbot/marsBotPresentation';
+import {armDeferredViewRefresh, disarmDeferredViewRefresh} from '@/client/components/deferredViewRefresh';
 import BotTurnReviewOverlay from '@/client/components/marsbot/BotTurnReviewOverlay.vue';
 import {
   applyHazardTileSwap,
@@ -781,15 +782,31 @@ export default defineComponent({
         })
         .then((model: ViewModel) => {
           /*
-           * Re-entrancy guard for the energy→heat conversion transition: while
-           * a conversion is animating we must NOT swap playerView (that would
-           * pop the panel to its final values mid-animation and open the
-           * next-phase modal over it). The poll loop keeps running, so the next
-           * poll after the animation finishes commits fresh state.
+           * Re-entrancy guard for live scene transitions: while one is
+           * animating we must NOT swap playerView (that would pop panels to
+           * their final values mid-animation and open the next-phase modal
+           * over a running scene).
+           *
+           * ⚠️ A REFUSED REFRESH IS A DEBT, NEVER A DROP. This response
+           * routinely carries the player's own next prompt (the bot's paced
+           * turn resolves ~200 ms after a turn-ending card play and lands
+           * exactly while that play's cinematic runs), and the WS wake that
+           * triggered this fetch is already consumed — with a healthy socket
+           * the next fallback poll is ~20 s away. Dropping the model here
+           * measured 21.4 s from «screen free» to «control back». So the
+           * refusal parks a retry that re-runs `update()` the moment the
+           * scenes release (bounded — see deferredViewRefresh.ts).
            */
-          if (isEnergyConversionActive() || isHazardCleanupActive() || isTradeFleetActive() || isHydroMarkerActive() || isPlayedHeroActive() || isPatentSaleActive() || isCardDiscardActive() || isTilePlacementActive()) {
+          const sceneBlocked = () =>
+            isEnergyConversionActive() || isHazardCleanupActive() || isTradeFleetActive() ||
+            isHydroMarkerActive() || isPlayedHeroActive() || isPatentSaleActive() ||
+            isCardDiscardActive() || isTilePlacementActive();
+          if (sceneBlocked()) {
+            armDeferredViewRefresh(sceneBlocked, () => this.update(path));
             return;
           }
+          // A refresh is committing — any parked retry is superseded by it.
+          disarmDeferredViewRefresh();
           /*
            * Same skip-remount logic as WaitingFor.updatePlayerView:
            * if we're continuing within a card-pick flow, swap
