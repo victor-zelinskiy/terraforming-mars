@@ -3274,6 +3274,38 @@ html.con-profile-handheld .con-terracere {
     z-index: auto;
 }
 
+/* ── THE ROOT COLUMN HAS EXACTLY THREE HULL MEMBERS ──────────────────────
+   `.con-root` is a flex COLUMN (status strip · `.con-main` · footer) and
+   `.con-main` is `flex: 1 1 0%` — it yields its height to any other in-flow
+   sibling. So one stray flow member does not merely add itself: it SHORTENS
+   the stage and MOVES the footer, and the hand dock is welded into that
+   footer (`position: absolute; bottom: 0`). Measured: 493px, i.e. the dock
+   standing in the middle of the screen.
+
+   That is not hypothetical geometry. An `--embed`/`--embedded` surface wears
+   IN-ZONE geometry (`position: relative; flex: 1; width: 100%`) because it
+   lives inside a host's `[data-embed-slot]`; for the one flush between a host
+   unmounting and its `<Teleport>` being re-homed, the very same node stands at
+   the teleport's fallback position — a DIRECT CHILD of `.con-root` — still
+   wearing it. The frame is never painted (it lives inside a Vue flush), but it
+   IS measured by anything that reads a rect during that flush, and a measured
+   lie becomes a painted one.
+
+   No zone is ever a direct child of `.con-root` (every `[data-embed-slot]`
+   lives inside `.con-cardactions` / `.con-colonies` / `.con-hand` /
+   `.con-hydro` / `.con-stdp` / `.con-start`), so this selector can only match
+   the fallback state — where the surface is not inside anything and its
+   in-zone geometry is simply false. Taking it out of flow costs nothing there
+   and keeps the frame's three members exactly where they were.
+
+   Attribute-matched ON PURPOSE, not a list of surface names: a central table
+   of embeddables would rot the moment someone adds the tenth one, and its
+   failure mode is silent (`con-flight-to-board` / `con-ws--dockcover` record
+   the same lesson). Every present and future `--embed*` modifier is covered. */
+.con-root > [class*="--embed"] {
+    position: absolute;
+}
+
 /* (The old `.con-main--actws` state is retired: EVERY workspace surface now
    carries the `con-ws` marker and `.con-root:has(.con-ws)` — defined next to
    the workspace-band mixin — lifts the rail for the whole family, holding
@@ -12723,6 +12755,20 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     transition:
         transform calc(340ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
         opacity calc(260ms * var(--motion-scale, 1)) ease;
+}
+/* THE PACK'S «MOVE» CLASS — deliberately a NO-OP (see ConsoleHandDock.vue's
+   `move-class`). Vue decides whether a transition-group runs its FLIP by
+   cloning a child, adding this class and asking whether the result transitions
+   `transform`; `transition: none` answers no, and `onUpdated` then returns
+   before it measures a single rect. The pack must be measured by NOBODY: its
+   cards all share one box and are placed purely by their own transform, so a
+   FLIP delta is never information — only a re-statement of an animation the
+   card already owns, or a transient layout leaking in as a painted jump.
+   TWO classes on purpose: `.con-handdock__card` declares `transition: transform`
+   at (0,1,0), so a single-class rule here would tie and lose on source order —
+   the exact silent failure mode `.con-composer__stage&__stage` records. */
+.con-handdock__pack .con-hd-still {
+    transition: none;
 }
 
 /* The hand section's chrome rise (header / verdict bar) — the panels

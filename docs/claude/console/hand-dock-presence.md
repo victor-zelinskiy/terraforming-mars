@@ -108,3 +108,67 @@ mounted throughout; **and that the compact pose still works AFTER the whole
 sponsor flow** — the regression that started this). The probe boots through the SHARED driver — never a hand-rolled
 key walk (that walk livelocked the moment the wizard's input lock landed a
 press differently).
+
+## THE PACK'S GEOMETRY IS CSS-ONLY — nothing may MEASURE a dock card
+
+The dock is welded into `.con-footer` (`position: absolute; bottom: 0`), and
+every back inside it shares ONE box (`position: absolute; left: 0; bottom: 0`).
+A card's whole on-screen placement is its own `transform` — `--hd-dx/--hd-dy/
+--hd-tilt` × the pose knobs — and a re-spread (a card joined or left the hand)
+is animated by the card's own `transition: transform`. That is the presence
+contract's other half: the pack has exactly three poses plus the one deliberate
+journey (dock ↔ «Карты в руке», flown by `handRevealDirector` on its own proxy
+layer), and **no measured value may ever be written back onto a card**, because
+a measurement is a snapshot of ONE layout and the shell legitimately passes
+through others.
+
+It did, and it shipped as a micro-jump: **the whole pack appeared in the CENTRE
+OF THE SCREEN for a beat and slid back into the tray whenever a workspace
+closed.** The chain, end to end:
+
+1. A host unmounts (the hand workspace on a card play, a blue-action workspace
+   on its fold), taking its `[data-embed-slot]` with it. For the one flush
+   between that and the `<Teleport>` being re-homed, the embedded surface
+   (`.con-composer--embed` & co.) stands at the teleport's FALLBACK position —
+   a direct child of `.con-root` — still wearing its in-zone geometry
+   (`position: relative; flex: 1; width: 100%`).
+2. `.con-root` is a flex COLUMN and `.con-main` is `flex: 1 1 0%`, so that one
+   stray flow member does not merely add itself: `.con-main` yields its height
+   (measured 980 → 487) and the footer travels with it — **the dock stood at
+   y=469 instead of y=962 on a 1080 screen**. The frame is never PAINTED (it
+   lives inside a Vue flush), which is why every end-state check passed.
+3. In that same flush `ConsoleHandDock` re-renders, and Vue's
+   `<transition-group>` records each previous child's position with
+   `getBoundingClientRect()` **inside its render function** — i.e. exactly
+   there. `onUpdated` then measures the real positions, computes a ~493px
+   delta and writes `transform: translate(0, -704px)` (the raw screen delta
+   ÷ the pack's 0.7 compact scale) onto every surviving card, handing it to a
+   340ms transition. THAT is the painted defect — and for its duration the
+   cards also lose their tilt/spread, because a FLIP translate REPLACES the
+   pack's transform grammar.
+
+Both halves are now closed, and both are pinned by
+`tests/styles/handDockAnchorContract.spec.ts` (source contract) +
+`tests/e2e/console-hand-dock-anchor.spec.ts` (frame-by-frame, fhd + tv4k):
+
+- **The pack does not run FLIP.** `<transition-group name="con-hd"
+  move-class="con-hd-still">` + `.con-handdock__pack .con-hd-still { transition:
+  none; }`. Vue decides whether to run the move by cloning a child, adding the
+  move class and asking whether the result transitions `transform`; the answer
+  is now no, so `onUpdated` returns BEFORE it measures a single rect. The class
+  needs TWO selectors — `.con-handdock__card` declares `transition: transform`
+  at the same specificity and wins on source order otherwise. Enter/leave are
+  untouched, and this is strictly CHEAPER (no 2N `getBoundingClientRect`, no
+  forced reflow per dock update).
+- **The root column keeps its three members.** `.con-root > [class*="--embed"]
+  { position: absolute; }` — no `[data-embed-slot]` is ever a direct child of
+  the root (they all live inside `.con-cardactions` / `.con-colonies` /
+  `.con-hand` / `.con-hydro` / `.con-stdp` / `.con-start`), so this can only
+  match the fallback state, where the surface is inside nothing and its in-zone
+  geometry is simply false. Attribute-matched on purpose: a list of embeddable
+  surface names would rot silently the moment someone adds the tenth one.
+
+The e2e guard is `MutationObserver` + `setInterval` and asserts its own sample
+count — a rAF sampler goes quiet exactly when the screen goes still, which is
+when this fires. Negative control: with both rules removed it reports
+`card=[960,519] dock=[816,962]` on `play-card-from-hand`.

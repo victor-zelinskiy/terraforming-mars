@@ -125,3 +125,93 @@ export function buildBranchViews(
     branch,
   }));
 }
+
+/** A branch's "why not", normalized: the raw i18n template + its params. */
+export type BranchReason = {message: string | Message, params: ReadonlyArray<string>};
+
+/**
+ * THE PER-VARIANT VERDICT — one render node judged against its WHOLE branch set.
+ *
+ * A printed action row is NOT always one server branch: «Права на астероиды»
+ * draws «астероид отсюда → производство M€ ИЛИ титан» as ONE row the server
+ * splits into TWO branches, «Атмосферные коллекторы» into three, and a
+ * single-node card (Robinson Industries) draws its whole action as one row over
+ * six. A surface that resolved such a row to a SINGLE branch got `undefined` —
+ * the mapping is ambiguous by construction — and then fell back to the CARD's
+ * availability, so a row whose every inner branch was blocked was offered as
+ * AVAILABLE: the player descended into it and found every option inside refused
+ * («Недостаточно ресурсов на этой карте» twice, nothing to press but B). The row
+ * is what the player presses, so the row itself must carry the verdict.
+ *
+ * The rule is one line: a variant is unavailable exactly when EVERY branch it
+ * offers is unavailable (one live inner branch keeps the row live). It subsumes
+ * the single-branch case (a set of one), so a consumer needs no second path.
+ *
+ * SAFE by the server invariant `canAct === true` ⇒ at least one branch available
+ * (guarded corpus-wide by tests/models/actionBranchAvailability.spec.ts): a
+ * variant can only ever be blocked here when the server agrees something in it
+ * is really blocked.
+ */
+export type NodeAvailability = {
+  /** The branches this node maps to (empty when the preview has not loaded). */
+  branches: ReadonlyArray<ActionPreviewBranch>;
+  /** The preview mapped this node to at least one branch. */
+  known: boolean;
+  /** The node offers more than one branch — activating it asks WHICH. */
+  branching: boolean;
+  /** EVERY branch this node offers is unavailable: the variant cannot be performed. */
+  allBlocked: boolean;
+  /**
+   * The blocked branches' reasons, deduped, in branch order — empty unless
+   * `allBlocked`. They are all true SIMULTANEOUSLY (each dead option's own
+   * refusal), so this is a conjunction and never a «X or Y» guess; a one-line
+   * consumer takes `[0]`.
+   */
+  reasons: ReadonlyArray<BranchReason>;
+};
+
+function reasonKey(r: BranchReason): string {
+  return (typeof r.message === 'string' ? r.message : r.message.message) + ' ' + r.params.join(' ');
+}
+
+export function nodeAvailability(
+  group: ActionGroup,
+  branches: ReadonlyArray<ActionPreviewBranch>,
+  nodeIndex: number,
+): NodeAvailability {
+  return branchSetAvailability(branchPositionsForNode(group, branches, nodeIndex)
+    .map((p) => branches[p])
+    .filter((b): b is ActionPreviewBranch => b !== undefined));
+}
+
+/**
+ * The same verdict over a branch set the caller already resolved — the composer
+ * asks it of the set it is actually RENDERING (its `positions`, which also cover
+ * the «no node, every branch» case). Two entry points, ONE rule: the browse grid
+ * that refuses the row and the screen that would host it can never disagree.
+ */
+export function branchSetAvailability(mine: ReadonlyArray<ActionPreviewBranch>): NodeAvailability {
+  const branching = mine.length > 1;
+  if (mine.length === 0) {
+    return {branches: mine, known: false, branching, allBlocked: false, reasons: []};
+  }
+  const blocked = mine.filter((b) => b.available === false);
+  if (blocked.length < mine.length) {
+    return {branches: mine, known: true, branching, allBlocked: false, reasons: []};
+  }
+  const reasons: Array<BranchReason> = [];
+  const seen = new Set<string>();
+  for (const b of blocked) {
+    if (b.unavailableReason === undefined) {
+      continue;
+    }
+    const reason: BranchReason = {message: b.unavailableReason, params: [...(b.unavailableReasonParams ?? [])]};
+    const key = reasonKey(reason);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    reasons.push(reason);
+  }
+  return {branches: mine, known: true, branching, allBlocked: true, reasons};
+}

@@ -28,8 +28,33 @@
     <!-- 0 cards: nothing here — the empty pack + the «0» counter already
          say "no cards" (no placeholder frame; a dashed ghost read as a
          broken/awaiting slot). -->
+    <!-- move-class="con-hd-still" — THE PACK IS NOT A FLOW LIST, so it must
+         never run Vue's FLIP `-move`. Every back here shares the SAME box
+         (`position: absolute; left: 0; bottom: 0`); their entire on-screen
+         placement is their OWN transform (`--hd-dx/--hd-dy/--hd-tilt` × the
+         pose knobs), and a re-spread is already animated by the card's own
+         `transition: transform` — the "single interpolation of the same
+         transform knobs" this component is built on. FLIP exists for
+         elements that move because document FLOW moved them, so here a
+         non-zero delta can only ever be (a) a duplicate of an animation CSS
+         already owns — while STOMPING the transform grammar with a bare
+         `translate()` for its whole duration (tilt, spread and pop drop out)
+         — or (b) an artifact: `TransitionGroup` records positions with
+         `getBoundingClientRect()` INSIDE its render function, i.e. in the
+         middle of the parent's patch, where the shell can be transiently
+         mid-layout. That is not theoretical: a teleported `--embed` surface
+         standing in `.con-root`'s flex column for one flush squeezed
+         `.con-main` and lifted the whole footer ~493px, the dock rode up
+         with it, and the pack inherited that delta as a real, painted
+         340 ms slide back from the CENTRE OF THE SCREEN. Pointing
+         `move-class` at a class that declares `transition: none` makes
+         Vue's `hasCSSTransform` probe answer false, so `onUpdated` returns
+         BEFORE it measures anything: the pack's geometry is CSS-only, by
+         construction, and no layout an unrelated surface passes through can
+         reach it. (It is also cheaper: no 2N `getBoundingClientRect` and no
+         forced reflow per dock update.) Enter/leave are untouched. -->
     <div class="con-handdock__pack" aria-hidden="true">
-      <transition-group name="con-hd">
+      <transition-group name="con-hd" move-class="con-hd-still">
         <span v-for="(slot, i) in packSlots"
               :key="slot.key"
               class="con-handdock__card"

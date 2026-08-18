@@ -232,6 +232,98 @@ describe('ConsoleActionComposer — premium render', () => {
     w.unmount();
   });
 
+  /*
+   * A VARIANT WHOSE EVERY OPTION IS REFUSED («Права на астероиды» with nothing
+   * stored). The browse grid now refuses the row, so this screen should not be
+   * reachable — but the state can move between the press and the mount, and when
+   * it does the screen must state the reason instead of asking for a choice the
+   * player cannot make. What shipped: «◈ Выберите вариант» over two options both
+   * marked «✕ Недостаточно ресурсов на этой карте», with a dead confirm.
+   */
+  function multiNodeEntry(cardName: string, texts: ReadonlyArray<string>) {
+    return {
+      group: {
+        key: cardName, cardName, isCorporation: false, isDisabled: false,
+        nodes: texts.map((t, i) => ({key: cardName + '#' + i, actionNode: undefined, renderRoot: undefined, text: t})),
+      },
+      cardName,
+      isCorporation: false,
+      state: {status: 'available', activatable: true, reasons: [], softReason: undefined},
+    } as any;
+  }
+
+  function deadVariant() {
+    const preview = {
+      card: 'Asteroid Rights', isCorporation: false, kind: 'bespoke',
+      branches: [
+        {index: 0, title: 'Remove 1 asteroid on this card to gain 2 titanium', available: false,
+          unavailableReason: 'Not enough resources on this card', renderKeys: [], effects: [], steps: []},
+        {index: 1, title: 'Remove 1 asteroid on this card to increase M€ production 1 step', available: false,
+          unavailableReason: 'Not enough resources on this card', renderKeys: [], effects: [], steps: []},
+        {index: 2, title: 'Add 1 asteroid to this card', available: true, renderKeys: [], effects: [], steps: []},
+      ],
+    };
+    return mount(ConsoleActionComposer, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+      props: {
+        playerView: PLAYER_VIEW,
+        entry: multiNodeEntry('Asteroid Rights', [
+          'Spend 1 M€ to add 1 asteroid to ANY card.',
+          'Spend 1 asteroid here to increase M€ production 1 step OR gain 2 titanium.',
+        ]),
+        preview,
+        // The SECOND printed row — the one that covers branches 0 and 1.
+        nodeIndex: 1,
+      },
+    });
+  }
+
+  it('a variant with no performable option is BLOCKED, not asked to choose', async () => {
+    const w = deadVariant();
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    // Both of this row's options are shown with their reason (never hidden)…
+    expect(w.findAll('.con-composer__branch')).to.have.length(2);
+    expect(w.findAll('.con-composer__branch--disabled')).to.have.length(2);
+    // …and the gate says the action itself cannot be performed — so the hint is
+    // the REASON, not an instruction the player cannot follow.
+    expect(vm.commitGate.kind).to.eq('blocked');
+    expect(vm.commitGate.reason).to.contain('Not enough resources');
+    expect(w.find('.con-composer__cta-hint').text()).to.contain('Not enough resources');
+    expect(w.find('.con-composer__cta-hint').text()).to.not.contain('Choose an option');
+    expect(vm.commitReady).to.eq(false);
+    w.unmount();
+  });
+
+  it('one performable option restores the ordinary «choose an option» ask', async () => {
+    const w = mount(ConsoleActionComposer, {
+      ...globalConfig,
+      global: {...globalConfig.global, stubs: {GamepadGlyph: GlyphStub}},
+      props: {
+        playerView: PLAYER_VIEW,
+        entry: multiNodeEntry('Atmo Collectors', [
+          'Add 1 floater to ANY card.',
+          'Spend 1 floater here to gain 2 titanium OR 3 M€.',
+        ]),
+        preview: {
+          card: 'Atmo Collectors', isCorporation: false, kind: 'bespoke',
+          branches: [
+            {index: 0, title: 'Spend 1 floater here to gain 2 titanium', available: true, renderKeys: [], effects: [], steps: []},
+            {index: 1, title: 'Spend 1 floater here to gain 3 M€', available: true, renderKeys: [], effects: [], steps: []},
+            {index: 2, title: 'Add 1 floater to ANY card', available: true, renderKeys: [], effects: [], steps: []},
+          ],
+        },
+        nodeIndex: 1,
+      },
+    });
+    await w.vm.$nextTick();
+    const vm = w.vm as any;
+    expect(vm.commitGate.kind).to.eq('incomplete');
+    expect(w.find('.con-composer__cta-hint').text()).to.contain('Choose an option');
+    w.unmount();
+  });
+
   /**
    * THE COMMIT GATE, on the screen it was reported from («Обстрел кометами»).
    *

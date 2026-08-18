@@ -637,7 +637,7 @@ import {ActionPreview, ActionPreviewBranch, ActionEffect} from '@/common/models/
 import {SelectAmountModel, SelectCardModel, SelectPaymentModel, SelectPlayerModel, OrOptionsModel} from '@/common/models/PlayerInputModel';
 import {ActionEntry} from '@/client/components/actions/actionModel';
 import {ActionGroup, playerActionGroups} from '@/client/components/actions/actionExtraction';
-import {branchPositionsForNode, branchTitleText, stripNodeOr} from '@/client/components/actions/actionBranchView';
+import {branchPositionsForNode, branchSetAvailability, branchTitleText, stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {ActionRules, ACTION_RULE_LABEL, actionRuleText, actionRules} from '@/client/components/actions/actionDescription';
 import {
   ComposerChoice,
@@ -688,7 +688,7 @@ import {playerResourceValue} from '@/client/components/modalInputs/playerResourc
 import {targetImpactRows, targetImpactText, targetImpactIsLoss} from '@/client/components/modalInputs/targetImpactRows';
 import {cardResourceKey} from '@/client/console/resourceTransfer/resourceTransferModel';
 import {skippedEffectViews} from '@/client/components/actions/skippedEffectView';
-import {translateMessage, translateText, translateCardName} from '@/client/directives/i18n';
+import {translateMessage, translateText, translateTextWithParams, translateCardName} from '@/client/directives/i18n';
 import {displayNameForColor} from '@/client/components/marsbot/marsBotDisplay';
 import {Color} from '@/common/Color';
 import {CardName} from '@/common/cards/CardName';
@@ -788,11 +788,18 @@ const CHOICE_KIND_LABEL: Record<string, string> = {
   card: 'Choose a card', player: 'Choose a player', or: 'Choose an option', payment: 'Payment',
 };
 
-function textOf(v: string | Message | undefined): string {
+function textOf(v: string | Message | undefined, params?: ReadonlyArray<string>): string {
   if (v === undefined) {
     return '';
   }
-  return typeof v === 'string' ? translateText(v) : translateMessage(v);
+  if (typeof v !== 'string') {
+    return translateMessage(v);
+  }
+  // A reason template («Need ${0} more M€») is nothing without its params — the
+  // slot renders literally, and the player is told a number-shaped non-answer.
+  return params === undefined || params.length === 0 ?
+    translateText(v) :
+    translateTextWithParams(v, [...params]);
 }
 
 /**
@@ -1072,6 +1079,24 @@ export default defineComponent({
     needBranchRow(): boolean {
       return this.positions.length > 1;
     },
+    /**
+     * EVERY option this variant offers is refused — the SAME rule the browse grid
+     * blocks the row with (`nodeAvailability`), asked again here because the state
+     * can move between the press and this screen (another action spent the
+     * resource, a server response landed). Nothing on this screen can fix it:
+     * there is no legal branch to select, so «Выберите вариант» would be an
+     * instruction the player cannot follow — the gate states the reason instead.
+     */
+    variantBlockedReason(): string | undefined {
+      const verdict = branchSetAvailability(this.positions.map((p) => this.branches[p]).filter((b) => b !== undefined));
+      if (!verdict.allBlocked) {
+        return undefined;
+      }
+      const first = verdict.reasons[0];
+      return first === undefined ?
+        translateText('Unavailable right now') :
+        textOf(first.message, first.params);
+    },
     selectedBranch(): ActionPreviewBranch | undefined {
       return this.selectedPos !== undefined ? this.branches[this.selectedPos] : undefined;
     },
@@ -1259,6 +1284,13 @@ export default defineComponent({
     ctaHint(): string {
       if (this.submitting || this.canConfirm) {
         return '';
+      }
+      // The GATE outranks every field: when it says the action itself cannot be
+      // performed, the honest line is its reason — never «Выберите вариант» over
+      // options that are all refused (the state the dimmed CTA sat above).
+      const gate = this.commitGate;
+      if (gate.kind === 'blocked') {
+        return gate.reason;
       }
       if (!this.repeatPickDisabled && this.repeatChoice !== undefined && this.repeatResult === undefined) {
         return translateText('Choose an action to repeat');
@@ -1689,8 +1721,11 @@ export default defineComponent({
         submitting: this.submitting,
         // An unavailable branch is not a requirement: filling the fields under
         // it would change nothing, so the commit row carries the reason itself.
+        // Same for a variant whose EVERY branch is refused — then there is not
+        // even a branch to select, so the unanswered pick must not speak.
         unavailable: this.selectedBranch !== undefined && !this.selectedBranch.available ?
-          this.branchReason(this.selectedBranch) : this.tradeEntryBlockedReason,
+          this.branchReason(this.selectedBranch) :
+          (this.variantBlockedReason ?? this.tradeEntryBlockedReason),
       });
     },
     /**
@@ -2083,7 +2118,9 @@ export default defineComponent({
       return raw !== '' ? translateText(raw) : '';
     },
     branchReason(b: ActionPreviewBranch): string {
-      return b.unavailableReason === undefined ? translateText('Unavailable right now') : textOf(b.unavailableReason);
+      return b.unavailableReason === undefined ?
+        translateText('Unavailable right now') :
+        textOf(b.unavailableReason, b.unavailableReasonParams);
     },
     rangeText(vc: ConsoleVariableChip): string {
       const unit = vc.unit ?? '';

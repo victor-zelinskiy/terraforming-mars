@@ -135,6 +135,80 @@ found «КОЛОНИЯ» greyed out, and was told «Сейчас недосту�
 full — was invisible to the client, and the client's own fallback ("cost > my M€ → not enough money")
 would have been a *different* lie.
 
+
+## A CONTAINER IS AVAILABLE ONLY IF SOMETHING INSIDE IT IS (2026-08-18)
+
+The player opened «ДЕЙСТВИЯ КАРТ», pressed «Права на астероиды · ВАРИАНТ 2» — offered
+green, «Можно выполнить» in the dossier — and landed on a setup stage whose BOTH options
+were refused: «✕ Недостаточно ресурсов на этой карте» twice, «◈ Выберите вариант» over a
+dead confirm, and nothing to press but B. The card holds 0 asteroids; the row spends one.
+
+**The cause is a mapping that legitimately has no answer.** A printed action row is not
+always one server branch. `Права на астероиды` draws two rows over THREE branches — its
+second row («астероид отсюда → производство M€ ИЛИ титан») stands for two of them —
+`Атмосферные коллекторы` draws its spend row over three, and `Robinson Industries` draws
+its whole action as ONE row over six. `branchPositionForNode` returns `undefined` for such
+a row **by construction** (the row maps to a SET, so no single position is the answer), and
+every reader then fell back to the CARD's verdict — which was legitimately «available»,
+because the card's OTHER row (pay 1 M€, add an asteroid) was live. The variant inherited a
+yes that was never about it.
+
+**The rule, in one line:** a variant is unavailable exactly when EVERY branch it offers is
+unavailable. One live inner branch keeps the row live; the single-branch case is a set of
+one, so there is no second code path. It lives in ONE place —
+`actionBranchView.nodeAvailability(group, branches, nodeIndex)` (and
+`branchSetAvailability(set)` for a caller that already resolved the set) — and is asked at
+both levels that offer the action:
+
+- **the browse grid** (`consoleCardActions.buildTiles`) — the tile's `status` / `reason` /
+  `blocker`, in the normal AND the repeat-mode paths, so a dead row is «НЕДОСТУПНА» with
+  the concrete reason and A on it shakes instead of descending;
+- **the composer** (`ConsoleActionComposer.variantBlockedReason` → `commitGate`) — asked
+  again because the state can move between the press and the mount. Then the gate is
+  `blocked` and its reason is the CTA hint: «Выберите вариант» is an instruction the player
+  cannot follow when no option is selectable, and `selectBranch` refuses every one of them.
+
+**Reasons are a CONJUNCTION here, never a disjunction.** When the whole set is refused,
+each branch's own reason is true simultaneously, so `NodeAvailability.reasons` keeps them
+all (deduped, in branch order) and a one-line consumer takes `[0]`. That is a fact, not a
+«X or Y» guess — the rule this file opens with holds.
+
+**What makes the client's rule SAFE is a server invariant:** `canAct === true` ⇒ at least
+one preview branch is available. If that ever broke, «all branches blocked» would refuse an
+action the engine WOULD have performed — strictly worse than the bug. It is guarded
+corpus-wide (`tests/models/actionBranchAvailability.spec.ts`, three fixtures: destitute /
+rich / rich-with-stored-resources). The CONVERSE is deliberately not asserted: a branch
+models its own DIFFERENTIATING gate and leaves the card's shared one to `canAct` (Bio
+Printing Facility's «gain 2 plants» branch says `available: true` while the card is out of
+energy — the card level covers it).
+
+Guards, in the order they bite:
+- `tests/client/components/actions/actionBranchView.spec.ts` — the rule itself, incl. the
+  templated reason keeping its params and «an unloaded preview is UNKNOWN, never blocked».
+- `tests/client/components/console/consoleCardActions.spec.ts` — the tile: the exact
+  Asteroid-Rights state, the branching row that names its «Выберите вариант» ask, and the
+  repeat-mode twin.
+- `tests/client/components/console/composerRender.spec.ts` — the gate/hint on the screen
+  the report came from.
+- `tests/models/actionBranchAvailability.spec.ts` — the CORPUS: every in-scope action card,
+  both levels, with anti-vacuous floors including «at least 3 MULTI-branch dead variants
+  exercised» (the bug's own shape). Verified to bite: reverting the browse fix reports
+  Asteroid Rights, Atmo Collectors and Robinson Industries by name.
+
+⚠️ Two smaller lies fell out of the same read and are fixed with it: a BRANCHING row now
+declares the option choice it will ask for (`choiceKinds` gains `'or'`, so the tile does not
+read as a one-press activation), and `ConsoleActionComposer.textOf` now forwards
+`unavailableReasonParams` — a templated branch reason («Need ${0} more M€») was rendering
+its slot literally, which is exactly the defect the `cardPlayPreview` fix above removed on
+the play side.
+
+The DESKTOP overlay had this right all along (`ActionGroupCard.rowStatus`:
+`branches.every((b) => b.available === false)`) — the console rewrite resolved to a single
+branch instead of the set. Sibling family, probed and clean: `canPlay === true` ⇒ some
+`cardPlayPreview` branch available holds across all 455 in-scope project/prelude cards, and
+the play surface has no printed-variant rows, so the ambiguity that caused this cannot arise
+there.
+
 ## The three reason engines (one family, one shape)
 
 All three produce `UnplayableReason[]` (`src/common/cards/UnplayableReason.ts`) and all three take

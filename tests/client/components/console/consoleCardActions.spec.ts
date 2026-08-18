@@ -111,6 +111,90 @@ describe('consoleCardActions model', () => {
   });
 
   /*
+   * «Права на астероиды», 0 asteroids stored, money in hand. ONE printed row
+   * («астероид отсюда → производство M€ ИЛИ титан») covers TWO server branches,
+   * and both are refused; the OTHER row (pay 1 M€, add an asteroid) is live, so
+   * the CARD is legitimately available. The dead row must still refuse — it used
+   * to inherit the card's verdict, let the player descend, and present two
+   * blocked options with nothing to press.
+   */
+  it('a variant over SEVERAL branches is blocked when every one of them is', () => {
+    const entries = [entry('Asteroid Rights', 'available', [
+      'Spend 1 M€ to add 1 asteroid to ANY card.',
+      'Spend 1 asteroid here to increase M€ production 1 step OR gain 2 titanium.',
+    ])];
+    const previews = new Map<CardName, ActionPreview>([
+      ['Asteroid Rights' as CardName, preview('Asteroid Rights', [
+        {index: 0, title: 'Remove 1 asteroid on this card to gain 2 titanium', available: false,
+          unavailableReason: 'Not enough resources on this card', renderKeys: [], effects: [], steps: []},
+        {index: 1, title: 'Remove 1 asteroid on this card to increase M€ production 1 step', available: false,
+          unavailableReason: 'Not enough resources on this card', renderKeys: [], effects: [], steps: []},
+        {index: 2, title: 'Add 1 asteroid to this card', available: true, renderKeys: [],
+          effects: [effect('cost', 'megacredits', 1)], steps: []},
+      ])],
+    ]);
+    const model = buildConsoleActionsModel(entries, previews, NO_RESOURCES, {availability: 'all', activation: 'all'});
+    const [addRow, spendRow] = model.groups[0].tiles;
+    expect(addRow.status, 'the paid row maps to its own live branch').to.eq('available');
+    expect(spendRow.status, 'every option inside it is refused').to.eq('rules');
+    expect(spendRow.reason?.message).to.eq('Not enough resources on this card');
+    expect(spendRow.blocker?.tone).to.eq('danger');
+    // The card stays available (the group badge reads the best of its variants),
+    // and the facets count BY VARIANT: 2 total, 1 available, 1 unavailable.
+    expect(model.groups[0].status).to.eq('available');
+    expect(model.availableTiles).to.eq(1);
+    const avail = model.availabilityChips;
+    expect(avail.find((c) => c.value === 'available')?.count).to.eq(1);
+    expect(avail.find((c) => c.value === 'unavailable')?.count).to.eq(1);
+  });
+
+  it('a BRANCHING variant names the option choice it will ask for', () => {
+    // Two live branches under one printed row: the row is available, and it says
+    // the first thing it will ask («Выберите вариант») instead of looking like a
+    // one-press activation.
+    const entries = [entry('Atmo Collectors', 'available', [
+      'Add 1 floater to ANY card.',
+      'Spend 1 floater here to gain 2 titanium OR 3 M€.',
+    ])];
+    const previews = new Map<CardName, ActionPreview>([
+      ['Atmo Collectors' as CardName, preview('Atmo Collectors', [
+        {index: 0, title: 'Spend 1 floater here to gain 2 titanium', available: true, renderKeys: [], effects: [], steps: []},
+        {index: 1, title: 'Spend 1 floater here to gain 3 M€', available: true, renderKeys: [], effects: [], steps: []},
+        {index: 2, title: 'Add 1 floater to ANY card', available: true, renderKeys: [], effects: [], steps: []},
+      ])],
+    ]);
+    const model = buildConsoleActionsModel(entries, previews, NO_RESOURCES, {availability: 'all', activation: 'all'});
+    const spendRow = model.groups[0].tiles[1];
+    expect(spendRow.status).to.eq('available');
+    expect(spendRow.hasChoices).to.eq(true);
+    expect(spendRow.choiceKinds).to.include('or');
+  });
+
+  it('in REPEAT mode a dead multi-branch variant is not a candidate either', () => {
+    const entries = [entry('Asteroid Rights', 'activated', [
+      'Spend 1 M€ to add 1 asteroid to ANY card.',
+      'Spend 1 asteroid here to increase M€ production 1 step OR gain 2 titanium.',
+    ])];
+    const previews = new Map<CardName, ActionPreview>([
+      ['Asteroid Rights' as CardName, preview('Asteroid Rights', [
+        {index: 0, title: 'Remove 1 asteroid on this card to gain 2 titanium', available: false,
+          unavailableReason: 'Not enough resources on this card', renderKeys: [], effects: [], steps: []},
+        {index: 1, title: 'Remove 1 asteroid on this card to increase M€ production 1 step', available: false,
+          unavailableReason: 'Not enough resources on this card', renderKeys: [], effects: [], steps: []},
+        {index: 2, title: 'Add 1 asteroid to this card', available: true, renderKeys: [],
+          effects: [effect('cost', 'megacredits', 1)], steps: []},
+      ])],
+    ]);
+    const model = buildConsoleActionsModel(
+      entries, previews, NO_RESOURCES, defaultRepeatFilter(),
+      {used: new Set(['Asteroid Rights' as CardName]), candidates: new Set(['Asteroid Rights' as CardName])});
+    const [addRow, spendRow] = model.groups[0].tiles;
+    expect(addRow.status, 'the live row can be repeated').to.eq('available');
+    expect(spendRow.status, 'the dead row cannot — repeating it would ask an impossible question').to.eq('rules');
+    expect(spendRow.reason?.message).to.eq('Not enough resources on this card');
+  });
+
+  /*
    * POTENTIAL vs EXECUTABLE NOW. An opponent's turn ('soft') is an EXECUTION
    * GATE, not a verdict on the action: the tile keeps the calm register, stays
    * in «можно выполнить» and matches the green number on the wheel that opened

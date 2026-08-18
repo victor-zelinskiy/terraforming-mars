@@ -20,7 +20,10 @@
  * `Perform an action from a played card` SelectCard membership); the
  * node→branch mapping is `branchPositionForNode` (the same token-overlap
  * match the desktop overlay uses — the submitted branch is always
- * `branch.index`, never the node ordinal). No Vue / DOM / i18n in the builder
+ * `branch.index`, never the node ordinal) and the per-variant VERDICT is
+ * `nodeAvailability` over that node's WHOLE branch set — one printed row can
+ * cover several server branches, and a row is dead exactly when all of them
+ * are. No Vue / DOM / i18n in the builder
  * (labels are English i18n KEYS the component translates); the reactive UI
  * store below is the ONE piece of mutable state, kept module-level so the
  * shell's command bar can read the confirm/filter state.
@@ -38,7 +41,7 @@ import {ActionGroup} from '@/client/components/actions/actionExtraction';
 import {ActionEntry, ActionFilterState, AvailabilityFilter, ActivationFilter} from '@/client/components/actions/actionModel';
 import {ActionStatus, actionStatusBlocker} from '@/client/components/actions/actionPlayability';
 import {AvailabilityBlocker} from '@/common/availability/AvailabilityBlocker';
-import {branchPositionForNode, branchPositionsForNode, branchTitleText, stripNodeOr} from '@/client/components/actions/actionBranchView';
+import {branchPositionForNode, branchPositionsForNode, branchTitleText, nodeAvailability, stripNodeOr} from '@/client/components/actions/actionBranchView';
 import {ActionRules, actionRules} from '@/client/components/actions/actionDescription';
 import {ActionBranchScope, branchMetricTokens} from '@/client/components/actions/actionUsageSummary';
 import {resourceScoring, accumulatedVp} from '@/client/components/additionalResources/additionalResources';
@@ -655,8 +658,13 @@ function branchNeedsChoices(branch: ActionPreviewBranch | undefined): boolean {
 function branchChoiceKinds(
   branch: ActionPreviewBranch | undefined,
   preview: ActionPreview | undefined,
+  branching?: boolean,
 ): Array<'card' | 'player' | 'or' | 'payment' | 'spendHeat'> {
   const kinds = new Set<'card' | 'player' | 'or' | 'payment' | 'spendHeat'>();
+  if (branching === true) {
+    // The printed row covers several server branches: the FIRST ask is which one.
+    kinds.add('or');
+  }
   const add = (input: {type: string} | undefined) => {
     if (input === undefined) {
       return;
@@ -720,13 +728,27 @@ function buildTiles(
   // used this gen AND canAct); a non-candidate stays VISIBLE with a reason.
   const repeatSelectable = repeat !== undefined ? repeat.candidates.has(entry.cardName) : false;
   return group.nodes.map((node, i): ConsoleActionTile => {
+    // THE VARIANT'S OWN VERDICT — its WHOLE branch set, not one branch. A printed
+    // row can stand for SEVERAL server branches («Права на астероиды»: «астероид
+    // отсюда → производство M€ ИЛИ титан» is one row over two branches), and a row
+    // whose every branch is dead is a dead row: it used to inherit the CARD's
+    // «available» and let the player descend into a stage where every option was
+    // refused. `allBlocked` subsumes the single-branch case, so there is one rule.
+    const avail = nodeAvailability(group, branches, i);
+    // The UNAMBIGUOUS branch — the owner of this row's formula chips / rule text.
+    // A branching row has none (its chips would be one arbitrary outcome's), which
+    // is exactly why the verdict above may never be read off it.
     const pos = branchPositionForNode(group, branches, i);
     const branch = pos !== undefined ? branches[pos] : undefined;
+    // The variant's blocker. Every reason in the set is true AT ONCE (each dead
+    // option's own refusal), so taking the first states a fact and never a
+    // «X or Y» guess — the branch order is the card's own.
+    const blocked = avail.reasons[0];
     let status: ActionStatus;
     let reason: ConsoleActionReason | undefined;
 
     if (repeat !== undefined) {
-      // REPEAT mode: candidate → selectable ('available'), unless THIS branch is
+      // REPEAT mode: candidate → selectable ('available'), unless THIS variant is
       // itself blocked; a non-candidate → 'rules' with a CONCRETE reason (full
       // informativeness — never a bare "cannot be repeated").
       if (!repeatSelectable) {
@@ -734,38 +756,39 @@ function buildTiles(
         if (!usedThisGen) {
           // Only actions USED this generation can be repeated — the concrete reason.
           reason = reasonFrom('This action was not used this generation', []);
-        } else if (branch !== undefined && branch.available === false && branch.unavailableReason !== undefined) {
+        } else if (blocked !== undefined) {
           // Used this gen, but the rules block it NOW — the SAME concrete reason a
           // normal blocked action shows (e.g. «Недостаточно стали»), from the preview
           // (declarative / bespoke hook / bespoke-dynamic `actionUnavailableReason`).
-          reason = reasonFrom(branch.unavailableReason, branch.unavailableReasonParams);
+          reason = reasonFrom(blocked.message, blocked.params);
         } else {
           // The preview hasn't loaded yet — a temporary honest line, refined on
           // load (the internal re-entrancy guard `checkLoops` never surfaces here:
           // the SelectCard is built at the top level where the counter is 0).
           reason = reasonFrom('This action cannot be repeated right now', []);
         }
-      } else if (branch !== undefined && branch.available === false) {
+      } else if (avail.allBlocked) {
         status = 'rules';
-        reason = reasonFrom(branch.unavailableReason ?? 'Unavailable right now', branch.unavailableReasonParams);
+        reason = reasonFrom(blocked?.message ?? 'Unavailable right now', blocked?.params);
       } else {
         status = 'available';
       }
     } else if (cardStatus === 'available') {
       status = cardStatus;
-      // The card is activatable (≥1 branch available) — but THIS variant's
-      // branch may itself be blocked (Rotator Impacts: "add asteroid" OK,
-      // "spend asteroid → Venus" needs a resource on the card).
-      if (branch !== undefined && branch.available === false) {
+      // The card is activatable (≥1 branch available) — but THIS variant may be
+      // blocked on its own (Rotator Impacts: "add asteroid" OK, "spend asteroid →
+      // Venus" needs a resource on the card; Asteroid Rights: the whole «spend an
+      // asteroid» row is dead while the card holds none).
+      if (avail.allBlocked) {
         status = 'rules';
-        reason = reasonFrom(branch.unavailableReason ?? 'Unavailable right now', branch.unavailableReasonParams);
+        reason = reasonFrom(blocked?.message ?? 'Unavailable right now', blocked?.params);
       }
     } else if (cardStatus === 'rules') {
       status = cardStatus;
       // The whole card is blocked — prefer this variant's own branch reason,
       // else the card-level structured reason.
-      reason = (branch !== undefined && branch.available === false && branch.unavailableReason !== undefined) ?
-        reasonFrom(branch.unavailableReason, branch.unavailableReasonParams) :
+      reason = blocked !== undefined ?
+        reasonFrom(blocked.message, blocked.params) :
         reasonFrom(entry.state.reasons[0]?.message, entry.state.reasons[0]?.params);
     } else {
       status = cardStatus;
@@ -790,8 +813,11 @@ function buildTiles(
       variableCost: variable.cost,
       variableGain: variable.gain,
       variableChoice: variable.choice,
-      hasChoices: (preview?.preSteps ?? []).length > 0 || branchNeedsChoices(branch),
-      choiceKinds: branchChoiceKinds(branch, preview),
+      // A BRANCHING row asks which outcome before anything else — the composer
+      // will raise that radiogroup, so the tile says so («Выберите вариант»)
+      // instead of looking like a one-press activation.
+      hasChoices: (preview?.preSteps ?? []).length > 0 || avail.branching || branchNeedsChoices(branch),
+      choiceKinds: branchChoiceKinds(branch, preview, avail.branching),
       reason,
       // A 'soft' variant is blocked by the WINDOW only (the card meets every
       // rule) — it keeps the calm register and stays in the potential count.
