@@ -1,0 +1,662 @@
+/* ═══════════════════════════════════════════════════════════════════
+ * CONSOLE FINAL SCORING (`.con-endgame`) — the post-game workspace.
+ *
+ * A full-bleed scene over the frame (start-scene family): only the
+ * command bar strip below stays live. Authored in rem (1rem = 20px
+ * logical @1080p; the TV profile scales the root font-size).
+ *
+ * Motion contract: every reveal is transform/opacity ONLY (segments =
+ * scaleX, chips/values = opacity+translate), durations ride
+ * `calc(<base>ms * var(--motion-scale, 1))`, focus/winner/contender
+ * states are BOX-SHADOW (perf mode cuts filter/text-shadow — nothing
+ * load-bearing lives there). No backdrop-filter anywhere.
+ *
+ * Category identity = colour + POSITION + name/value (never colour
+ * alone): the legend states the order once, every row's value strip
+ * repeats it in the same order, the bar repeats it again spatially.
+ * ═══════════════════════════════════════════════════════════════════ */
+
+/* ── The category palette — one hue per category; sub-steps are shades
+ *    of the SAME hue (a family, never seven new categories). ────────── */
+.con-eg-cat(@c) {
+    --eg-c: @c;
+}
+.con-eg-cat--tr         { .con-eg-cat(#d08050); } /* terraforming rust   */
+.con-eg-cat--milestones { .con-eg-cat(#ffd87a); } /* prestige gold       */
+.con-eg-cat--awards     { .con-eg-cat(#d9a13f); } /* deep amber laurels  */
+.con-eg-cat--greenery   { .con-eg-cat(#4cc07a); } /* greenery            */
+.con-eg-cat--city       { .con-eg-cat(#9fb4e8); } /* steel city          */
+.con-eg-cat--moon       { .con-eg-cat(#cfd8e6); } /* pale regolith       */
+.con-eg-cat--tracks     { .con-eg-cat(#b48ce8); } /* planetary violet    */
+.con-eg-cat--delta      { .con-eg-cat(#58c8d6); } /* hydro aqua          */
+.con-eg-cat--cards      { .con-eg-cat(#5f9ddc); } /* project blue        */
+.con-eg-cat--penalty    { .con-eg-cat(#e06a6a); } /* subtractive red     */
+
+.con-eg-ink--tr         { color: #e2996b; }
+.con-eg-ink--milestones { color: #ffd87a; }
+.con-eg-ink--awards     { color: #e3b45c; }
+.con-eg-ink--greenery   { color: #6fd699; }
+.con-eg-ink--city       { color: #b3c5ef; }
+.con-eg-ink--moon       { color: #d9e1ec; }
+.con-eg-ink--tracks     { color: #c6a6f0; }
+.con-eg-ink--delta      { color: #7cd6e2; }
+.con-eg-ink--cards      { color: #86b6e8; }
+.con-eg-ink--penalty    { color: #eb8f8f; }
+
+/* ── The scene ───────────────────────────────────────────────────── */
+.con-endgame {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    /* The command bar strip below stays live — skip / action verbs. */
+    bottom: calc(var(--con-hud-h) + var(--con-hud-gap));
+    z-index: 11480;
+    display: flex;
+    background:
+        radial-gradient(120% 90% at 50% 118%, rgba(150, 62, 38, 0.34) 0%, rgba(96, 42, 30, 0.16) 34%, rgba(6, 10, 17, 0) 62%),
+        radial-gradient(90% 70% at 50% -22%, rgba(52, 88, 128, 0.20) 0%, rgba(6, 10, 17, 0) 58%),
+        linear-gradient(180deg, #060a11 0%, #08101b 52%, #0b1018 100%);
+    animation: con-eg-scene-in calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+@keyframes con-eg-scene-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+/* The frozen game HUD leaves — nothing on the frame may pre-reveal a
+ * total mid-ceremony. `visibility`, never `display` (the boxes must
+ * survive so `.con-main` never re-lays out under the scene). */
+.con-root--endgame {
+    .con-status,
+    .con-res-host,
+    .con-banner {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+        transition:
+            opacity calc(360ms * var(--motion-scale, 1)) ease,
+            visibility 0s linear calc(360ms * var(--motion-scale, 1));
+    }
+}
+
+/* One atomic jump (skip / reload-settle): no transition may narrate it. */
+.con-endgame--noanim,
+.con-endgame--noanim * {
+    transition: none !important;
+    animation: none !important;
+}
+
+/* ── Frame ───────────────────────────────────────────────────────── */
+.con-eg {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-width: 88rem;
+    margin: 0 auto;
+    padding: 1.1rem var(--con-stage-x, 1.6rem) 0.6rem;
+    box-sizing: border-box;
+    min-height: 0;
+}
+
+.con-eg__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+}
+.con-eg__kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-family: @con-font;
+    font-size: var(--con-t-section, 1.25rem);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: @con-text;
+}
+.con-eg__kicker-mark {
+    color: @sem-prestige;
+    font-size: 0.9em;
+}
+.con-eg__meta {
+    font-family: @con-font;
+    font-size: var(--con-t-caption, 0.8rem);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: @con-text-dim;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Legend ──────────────────────────────────────────────────────── */
+.con-eg__legend {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 0.4rem;
+    margin-top: 0.7rem;
+}
+.con-eg__lchip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.32rem;
+    padding: 0.22rem 0.6rem;
+    border-radius: 1rem;
+    border: 0.05rem solid rgba(150, 175, 205, 0.16);
+    background: rgba(10, 17, 26, 0.55);
+    font-family: @con-font;
+    font-size: var(--con-t-caption, 0.8rem);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: rgba(196, 216, 236, 0.52);
+    transition:
+        color calc(240ms * var(--motion-scale, 1)) ease,
+        border-color calc(240ms * var(--motion-scale, 1)) ease,
+        background-color calc(240ms * var(--motion-scale, 1)) ease,
+        transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.con-eg__ldot {
+    width: 0.42rem;
+    height: 0.42rem;
+    border-radius: 50%;
+    background: var(--eg-c, #8aa4c0);
+    opacity: 0.55;
+    transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
+}
+.con-eg__lchip--done {
+    color: rgba(220, 233, 246, 0.78);
+    .con-eg__ldot { opacity: 0.95; }
+}
+.con-eg__lchip--active {
+    color: #eef6ff;
+    border-color: color-mix(in srgb, var(--eg-c, #8aa4c0) 55%, transparent);
+    background: color-mix(in srgb, var(--eg-c, #8aa4c0) 14%, rgba(10, 17, 26, 0.7));
+    transform: translateY(-0.08rem);
+    .con-eg__ldot { opacity: 1; }
+}
+
+/* ── Stage caption (what is being counted RIGHT NOW) ─────────────── */
+.con-eg__caption {
+    height: 1.5rem;
+    margin-top: 0.45rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.con-eg__caption-text {
+    font-family: @con-font;
+    font-size: var(--con-t-secondary, 0.9rem);
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+}
+.con-eg-cap-enter-active { transition: opacity calc(200ms * var(--motion-scale, 1)) ease, transform calc(200ms * var(--motion-scale, 1)) ease; }
+.con-eg-cap-leave-active { transition: opacity calc(140ms * var(--motion-scale, 1)) ease; }
+.con-eg-cap-enter-from { opacity: 0; transform: translateY(0.2rem); }
+.con-eg-cap-leave-to { opacity: 0; }
+
+/* ── Rows ────────────────────────────────────────────────────────── */
+.con-eg__rows {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 0.55rem;
+    margin-top: 0.4rem;
+}
+/* Adaptive density: few players breathe, six rows stay comfortable. */
+.con-eg__rows--n2 { gap: 1.1rem; }
+.con-eg__rows--n3 { gap: 0.9rem; }
+.con-eg__rows--n4 { gap: 0.7rem; }
+
+.con-eg__row {
+    position: relative;
+    display: grid;
+    grid-template-columns: 2.1rem 12.5rem minmax(0, 1fr) auto 7.2rem;
+    align-items: center;
+    gap: 0.9rem;
+    padding: 0.5rem 0.9rem;
+    border-radius: 0.45rem;
+    border: 0.05rem solid rgba(150, 175, 205, 0.13);
+    background: rgba(10, 17, 26, 0.62);
+    min-height: 3.3rem;
+    transition:
+        border-color calc(320ms * var(--motion-scale, 1)) ease,
+        background-color calc(320ms * var(--motion-scale, 1)) ease,
+        opacity calc(320ms * var(--motion-scale, 1)) ease,
+        box-shadow calc(320ms * var(--motion-scale, 1)) ease;
+}
+.con-endgame--entering .con-eg__row {
+    animation: con-eg-row-in calc(430ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    animation-delay: calc(var(--eg-i, 0) * 70ms * var(--motion-scale, 1));
+}
+@keyframes con-eg-row-in {
+    from { opacity: 0; transform: translateY(0.6rem); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* Winner / the rest / tie-break contenders — state is box-shadow + tone. */
+.con-eg__row--winner {
+    border-color: rgba(255, 216, 122, 0.55);
+    background: linear-gradient(180deg, rgba(255, 216, 122, 0.10) 0%, rgba(10, 17, 26, 0.66) 74%);
+    box-shadow:
+        0 0 0 0.1rem rgba(255, 216, 122, 0.28),
+        0 0.35rem 1.3rem rgba(0, 0, 0, 0.42);
+}
+.con-eg__row--rest {
+    opacity: 0.72;
+}
+.con-eg__row--contender {
+    border-color: rgba(89, 199, 240, 0.45);
+    box-shadow: 0 0 0 0.1rem rgba(89, 199, 240, 0.22);
+}
+
+.con-eg__place {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.con-eg__place-num {
+    font-family: @con-font;
+    font-size: var(--con-t-body, 1rem);
+    font-variant-numeric: tabular-nums;
+    color: rgba(220, 233, 246, 0.9);
+    animation: con-eg-fadein calc(300ms * var(--motion-scale, 1)) ease backwards;
+}
+.con-eg__row--winner .con-eg__place-num { color: @sem-prestige; }
+.con-eg__place-dot {
+    width: 0.3rem;
+    height: 0.3rem;
+    border-radius: 50%;
+    background: rgba(150, 175, 205, 0.3);
+}
+@keyframes con-eg-fadein {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.con-eg__ident {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    min-width: 0;
+}
+.con-eg__swatch {
+    flex: 0 0 auto;
+    width: 0.8rem;
+    height: 0.8rem;
+    border-radius: 50%;
+    box-shadow: inset 0 0 0 0.05rem rgba(255, 255, 255, 0.35);
+}
+.con-eg__swatch--big {
+    width: 1rem;
+    height: 1rem;
+}
+.con-eg__who {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.con-eg__name {
+    font-family: @con-font;
+    font-size: var(--con-t-body, 1rem);
+    color: @con-text;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.con-eg__corp {
+    font-family: @con-font;
+    font-size: var(--con-t-floor, 0.7rem);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: @con-text-dim;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ── The shared-scale bar ────────────────────────────────────────── */
+.con-eg__track {
+    position: relative;
+    min-width: 0;
+}
+.con-eg__bar {
+    position: relative;
+    height: 1.35rem;
+    border-radius: 0.68rem;
+    background: rgba(255, 255, 255, 0.045);
+    box-shadow: inset 0 0.05rem 0.25rem rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+.con-eg__seg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+}
+.con-eg__subseg {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background: var(--eg-c, #8aa4c0);
+    /* The seam between sub-steps — fades on merge. */
+    box-shadow: inset -0.05rem 0 0 rgba(6, 10, 16, 0.55);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition:
+        transform calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        box-shadow calc(420ms * var(--motion-scale, 1)) ease;
+}
+.con-eg__subseg--on { transform: scaleX(1); }
+.con-eg__subseg--s1 { background: color-mix(in srgb, var(--eg-c, #8aa4c0) 82%, #ffffff 18%); }
+.con-eg__subseg--s2 { background: color-mix(in srgb, var(--eg-c, #8aa4c0) 80%, #05080d 20%); }
+.con-eg__seg--merged .con-eg__subseg { box-shadow: inset 0 0 0 rgba(6, 10, 16, 0); }
+/* Penalties SUBTRACT: a hatched reclaim growing from the right edge in. */
+.con-eg__seg--penalty .con-eg__subseg {
+    transform-origin: right center;
+    background: repeating-linear-gradient(
+        135deg,
+        rgba(224, 106, 106, 0.78) 0,
+        rgba(224, 106, 106, 0.78) 0.28rem,
+        rgba(122, 42, 42, 0.82) 0.28rem,
+        rgba(122, 42, 42, 0.82) 0.56rem);
+}
+
+/* The floating «+N» chip riding the bar's growth edge (a TRACK child —
+ * the bar's overflow clip must never eat it). */
+.con-eg__chip {
+    position: absolute;
+    top: -0.92rem;
+    transform: translateX(-50%);
+    padding: 0.06rem 0.38rem;
+    border-radius: 0.3rem;
+    border: 0.05rem solid rgba(255, 255, 255, 0.22);
+    background: rgba(8, 14, 22, 0.92);
+    font-family: @con-font;
+    font-size: var(--con-t-caption, 0.8rem);
+    font-variant-numeric: tabular-nums;
+    color: #eaf4ff;
+    pointer-events: none;
+    white-space: nowrap;
+    z-index: 2;
+    /* left rides the (transitioned) edge — keep it in step with the bar. */
+    transition: left calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.con-eg__chip--minus {
+    color: #ffb3b3;
+    border-color: rgba(224, 106, 106, 0.5);
+}
+.con-eg-chip-enter-active { transition: opacity calc(220ms * var(--motion-scale, 1)) ease, margin-bottom calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1); }
+.con-eg-chip-leave-active { transition: opacity calc(180ms * var(--motion-scale, 1)) ease; }
+.con-eg-chip-enter-from { opacity: 0; margin-bottom: -0.3rem; }
+.con-eg-chip-leave-to { opacity: 0; }
+
+/* ── The exact-values strip (colour + position + number) ─────────── */
+.con-eg__vals {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    height: 0.85rem;
+    margin-top: 0.28rem;
+}
+.con-eg__val {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    opacity: 0;
+    transition: opacity calc(280ms * var(--motion-scale, 1)) ease, transform calc(280ms * var(--motion-scale, 1)) ease;
+}
+.con-eg__val--on { opacity: 1; }
+.con-eg__val--active { transform: translateY(-0.06rem); }
+.con-eg__val-dot {
+    width: 0.3rem;
+    height: 0.3rem;
+    border-radius: 50%;
+    background: var(--eg-c, #8aa4c0);
+}
+.con-eg__val-num {
+    font-family: @con-font;
+    font-size: var(--con-t-floor, 0.7rem);
+    font-variant-numeric: tabular-nums;
+    color: rgba(220, 233, 246, 0.82);
+    min-width: 1.4ch;
+}
+
+/* ── Tie-break M€ chip + the running total ───────────────────────── */
+.con-eg__mc {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-family: @con-font;
+    font-size: var(--con-t-secondary, 0.9rem);
+    font-variant-numeric: tabular-nums;
+    color: #cfe2f4;
+    animation: con-eg-fadein calc(280ms * var(--motion-scale, 1)) ease backwards;
+}
+.con-eg__mc-icon {
+    width: 1rem;
+    height: 1rem;
+    background-size: contain;
+}
+
+.con-eg__total {
+    display: flex;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 0.3rem;
+}
+.con-eg__total-num {
+    font-family: @con-font;
+    font-size: var(--con-t-hero, 1.9rem);
+    font-variant-numeric: tabular-nums;
+    color: #f2f8ff;
+    line-height: 1;
+}
+.con-eg__row--winner .con-eg__total-num { color: @sem-prestige; }
+.con-eg__total-cap {
+    font-family: @con-font;
+    font-size: var(--con-t-floor, 0.7rem);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: @con-text-dim;
+}
+
+/* ── The bottom zone: tie-break → winner plate → actions ─────────── */
+.con-eg__zone {
+    flex: 0 0 auto;
+    height: 8.4rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.con-eg-zone-enter-active { transition: opacity calc(240ms * var(--motion-scale, 1)) ease, transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1); }
+.con-eg-zone-leave-active { transition: opacity calc(160ms * var(--motion-scale, 1)) ease; }
+.con-eg-zone-enter-from { opacity: 0; transform: translateY(0.4rem); }
+.con-eg-zone-leave-to { opacity: 0; }
+.con-eg-fade-enter-active { transition: opacity calc(260ms * var(--motion-scale, 1)) ease; }
+.con-eg-fade-leave-active { transition: opacity calc(160ms * var(--motion-scale, 1)) ease; }
+.con-eg-fade-enter-from,
+.con-eg-fade-leave-to { opacity: 0; }
+
+.con-eg__zone-idle { width: 100%; }
+
+.con-eg__tb {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+}
+.con-eg__tb-title {
+    font-family: @con-font;
+    font-size: var(--con-t-body, 1rem);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: @sem-warn;
+}
+.con-eg__tb-chips {
+    display: flex;
+    gap: 0.7rem;
+}
+.con-eg__tb-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.8rem;
+    border-radius: 0.4rem;
+    border: 0.05rem solid rgba(150, 175, 205, 0.2);
+    background: rgba(10, 17, 26, 0.72);
+    font-family: @con-font;
+    font-size: var(--con-t-secondary, 0.9rem);
+    color: @con-text;
+    font-variant-numeric: tabular-nums;
+    transition: border-color calc(280ms * var(--motion-scale, 1)) ease, box-shadow calc(280ms * var(--motion-scale, 1)) ease;
+}
+.con-eg__tb-chip--won {
+    border-color: rgba(255, 216, 122, 0.6);
+    box-shadow: 0 0 0 0.1rem rgba(255, 216, 122, 0.25);
+}
+.con-eg__tb-name { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.con-eg__final {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.55rem;
+    width: 100%;
+}
+.con-eg__wplate {
+    display: flex;
+    align-items: baseline;
+    gap: 0.9rem;
+    padding: 0.4rem 1.4rem;
+    border-radius: 0.5rem;
+    border: 0.05rem solid rgba(255, 216, 122, 0.4);
+    background: linear-gradient(180deg, rgba(255, 216, 122, 0.10) 0%, rgba(10, 17, 26, 0.6) 80%);
+    box-shadow: 0 0 0 0.1rem rgba(255, 216, 122, 0.14), 0 0.4rem 1.4rem rgba(0, 0, 0, 0.45);
+    animation: con-eg-plate-in calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+@keyframes con-eg-plate-in {
+    from { opacity: 0; transform: translateY(0.45rem) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.con-eg__wplate--defeat {
+    border-color: rgba(150, 175, 205, 0.3);
+    background: rgba(10, 17, 26, 0.7);
+    box-shadow: none;
+}
+.con-eg__wkicker {
+    font-family: @con-font;
+    font-size: var(--con-t-secondary, 0.9rem);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: @sem-prestige;
+}
+.con-eg__wplate--defeat .con-eg__wkicker { color: rgba(196, 216, 236, 0.8); }
+.con-eg__wnames {
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+}
+.con-eg__wname {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+}
+.con-eg__wname-text {
+    font-family: @con-font;
+    font-size: var(--con-t-title, 1.5rem);
+    color: #f6fAFF;
+    white-space: nowrap;
+    max-width: 18rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.con-eg__wcorp {
+    font-family: @con-font;
+    font-size: var(--con-t-floor, 0.7rem);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: @con-text-dim;
+}
+.con-eg__wtotal {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25rem;
+    font-family: @con-font;
+    color: @sem-prestige;
+    b { font-size: var(--con-t-title, 1.5rem); font-variant-numeric: tabular-nums; }
+    span { font-size: var(--con-t-floor, 0.7rem); letter-spacing: 0.1em; text-transform: uppercase; }
+}
+.con-eg__wnote {
+    font-family: @con-font;
+    font-size: var(--con-t-caption, 0.8rem);
+    color: @con-text-dim;
+}
+
+/* ── The post-game action list — a horizontal command row ────────── */
+.con-eg__actions {
+    display: flex;
+    justify-content: center;
+    gap: 0.55rem;
+}
+.con-eg__action {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    border-radius: 0.4rem;
+    border: 0.05rem solid rgba(150, 175, 205, 0.2);
+    background: rgba(10, 17, 26, 0.72);
+    font-family: @con-font;
+    font-size: var(--con-t-body, 1rem);
+    color: rgba(220, 233, 246, 0.88);
+    transition:
+        border-color calc(200ms * var(--motion-scale, 1)) ease,
+        box-shadow calc(200ms * var(--motion-scale, 1)) ease,
+        background-color calc(200ms * var(--motion-scale, 1)) ease,
+        transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.con-eg__action--focused {
+    color: #ffffff;
+    border-color: rgba(89, 199, 240, 0.75);
+    background: rgba(16, 30, 44, 0.9);
+    box-shadow: 0 0 0 var(--con-focus-ring, 0.12rem) rgba(89, 199, 240, 0.55);
+    transform: translateY(-0.1rem);
+}
+.con-eg__action--disabled {
+    opacity: 0.5;
+}
+.con-eg__action--disabled.con-eg__action--focused {
+    border-color: rgba(150, 175, 205, 0.4);
+    box-shadow: 0 0 0 var(--con-focus-ring, 0.12rem) rgba(150, 175, 205, 0.3);
+}
+.con-eg__action-a { flex: 0 0 auto; }
+.con-eg__action-note {
+    font-size: var(--con-t-floor, 0.7rem);
+    color: @con-text-dim;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Density ladders ─────────────────────────────────────────────── */
+html.con-profile-handheld {
+    .con-eg { max-width: 100%; padding: 0.6rem 0.8rem 0.4rem; }
+    .con-eg__row { grid-template-columns: 1.6rem 9rem minmax(0, 1fr) auto 5.6rem; gap: 0.6rem; padding: 0.35rem 0.6rem; min-height: 2.7rem; }
+    .con-eg__zone { height: 7rem; }
+    .con-eg__wname-text { max-width: 11rem; }
+    .con-eg__action { padding: 0.4rem 0.7rem; }
+}
+
+/* Reduced motion: entrances collapse to plain fades; the segments keep a
+ * SHORT transition (the growth is information — order of reveal — but no
+ * long travel), chips arrive without the rise. */
+@media (prefers-reduced-motion: reduce) {
+    .con-endgame,
+    .con-endgame--entering .con-eg__row,
+    .con-eg__wplate {
+        animation-duration: 1ms !important;
+        animation-delay: 0ms !important;
+    }
+    .con-eg__subseg { transition-duration: 120ms; }
+    .con-eg__chip { transition-duration: 120ms; }
+}

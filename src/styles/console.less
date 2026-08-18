@@ -22984,11 +22984,14 @@ html.console-mode {
  * A MINIMIZED fallback surface would be unreachable from the pad (its
  * pill lives outside every console context), so minimize affordances are
  * hidden — a fallback prompt stays front-and-center until resolved. The
- * desktop placement pill duplicates the console banner + inspector. */
+ * desktop placement pill duplicates the console banner + inspector.
+ * ⚠ `.eg-results__ctl--min` is deliberately NOT in this list any more:
+ * the console-native scoring workspace stands UNDER the desktop results
+ * overlay («Обзор партии»), so minimize is now the pad's B-door BACK to
+ * it (focusScopes `endgame.back` clicks this very control). */
 html.console-mode {
     .mandatory-input-modal__minimize-btn,
     .start-game-flow__minimize-btn,
-    .eg-results__ctl--min,
     .placement-banner,
     /* T6 (CTS row 27): desktop awaiting-pills are unreachable from the pad —
        the console defer CHIP is the one restore affordance. */

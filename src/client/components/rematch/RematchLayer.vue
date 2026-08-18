@@ -1,8 +1,13 @@
 <template>
+  <!--
+    HEADLESS in console mode: the poller keeps rematchState fresh (the console
+    post-game action list reads it), but none of these desktop-styled surfaces
+    render — the console workspace carries the offer/accept/join verbs itself.
+  -->
   <div class="rematch-layer">
     <!-- The core "accept rematch?" prompt for players who still owe a vote. -->
     <RematchPromptModal
-      v-if="model !== undefined && model.viewerMustVote && !promptMinimized"
+      v-if="!headless && model !== undefined && model.viewerMustVote && !promptMinimized"
       :model="model"
       :submitting="submitting"
       @accept="accept"
@@ -10,7 +15,7 @@
       @minimize="promptMinimized = true" />
 
     <!-- Minimized prompt: a pill the player can re-open after inspecting results. -->
-    <teleport v-if="showPromptPill" to="body">
+    <teleport v-if="!headless && showPromptPill" to="body">
       <button type="button" class="rematch-pill rematch-pill--prompt" @click="promptMinimized = false">
         <span class="rematch-pill__dot" aria-hidden="true"></span>
         <span class="rematch-pill__label" v-i18n>Rematch offered — respond</span>
@@ -18,7 +23,7 @@
     </teleport>
 
     <!-- The new game exists: everyone is invited to join (players) / watch (spectators). -->
-    <teleport v-if="showCreated" to="body">
+    <teleport v-if="!headless && showCreated" to="body">
       <div class="rematch-modal rematch-modal--created" role="dialog" :aria-label="$t('Rematch ready')">
         <div class="rematch-modal__backdrop" aria-hidden="true"></div>
         <div class="rematch-modal__card">
@@ -44,7 +49,7 @@
     </teleport>
 
     <!-- A player declined — a brief, dismissible note for everyone. -->
-    <teleport v-if="showDeclined" to="body">
+    <teleport v-if="!headless && showDeclined" to="body">
       <div class="rematch-toast rematch-toast--declined" role="status">
         <span class="rematch-toast__dot" :class="'player_bg_color_' + declinerColor" aria-hidden="true"></span>
         <span class="rematch-toast__text">
@@ -76,6 +81,8 @@ export default defineComponent({
   components: {RematchPromptModal},
   props: {
     view: {type: Object as () => ViewModel, required: true},
+    /** Console mode: keep polling, render nothing (the workspace owns the verbs). */
+    headless: {type: Boolean, required: false, default: false},
   },
   data() {
     return {

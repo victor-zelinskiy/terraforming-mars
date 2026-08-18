@@ -22,7 +22,9 @@ type PanelOwner = 'taskHost' | 'govSupport' | 'productionLoss' | 'infoMode' | 'c
   // «Посмотри N карт колоды, оставь K» — the draw & select surface.
   'deckPick' |
   // A hostile MarsBot effect the player must answer («выберите, что потеряете»).
-  'botAttack';
+  'botAttack' |
+  // The post-game FINAL SCORING workspace (skip → action-list verbs).
+  'endgame';
 
 export const consolePanelUi = reactive({
   owner: undefined as PanelOwner | undefined,

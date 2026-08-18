@@ -684,5 +684,8 @@
     "${0} is taking a resource from one of your cards": "${0} забирает ресурс с одной из ваших карт",
     "A resource is being taken from one of your cards": "С одной из ваших карт забирают ресурс",
     "Score": "Счёт",
-    "Attack target": "Цель атаки"
+    "Attack target": "Цель атаки",
+    "Skip scoring": "Пропустить подсчёт",
+    "Game overview": "Обзор партии",
+    "Shared victory": "Совместная победа"
 }

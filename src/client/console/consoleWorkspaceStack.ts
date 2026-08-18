@@ -98,7 +98,9 @@ export type WorkspaceFrameKind =
   | 'standard-projects'
   /** «ВЕХИ» / «НАГРАДЫ» — the premium MA screen, one kind each. */
   | 'milestones'
-  | 'awards';
+  | 'awards'
+  /** «ФИНАЛЬНЫЙ ПОДСЧЁТ» — the post-game scoring ceremony + action list. */
+  | 'endgame';
 
 /**
  * THE WORKSPACE REGISTRY — one row per workspace, and the reason this file
@@ -223,6 +225,14 @@ const WORKSPACE_KINDS: Record<WorkspaceFrameKind, WorkspaceKindSpec> = {
   'awards': {
     root: 'Awards', rootSelector: '.con-ma', sheet: 'awards',
     serves: ['awardFunding'],
+  },
+  // The FINAL SCORING workspace — a PHASE-anchored root like 'start'/'draft':
+  // it IS the post-game (the ceremony, the ranking, the action list), owns the
+  // screen outright and projects onto neither navigation axis. It serves no
+  // prompt: at Phase.END the transport is down and nothing is ever owed.
+  'endgame': {
+    root: 'Final scoring', rootSelector: '.con-endgame',
+    serves: [],
   },
 };
 

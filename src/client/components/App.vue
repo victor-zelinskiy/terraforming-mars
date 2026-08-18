@@ -218,17 +218,23 @@
       -->
       <RematchLayer
         v-if="endgameView !== undefined"
-        :view="endgameView" />
+        :view="endgameView"
+        :headless="endgameConsoleNative" />
       <!--
         Premium end-of-game experience. App-level (like DraftFlowOverlay) so the
         `:key="playerkey"` remount can't tear down the reveal / results overlay.
         Gated by `endgameView` (the active player/spectator view ONLY when the
         game has reached Phase.END), so it never shows mid-game.
+
+        CONSOLE NATIVE: the console shell runs its own scoring workspace, so
+        there this component is only the detailed-overlay host («Обзор
+        партии») — no auto reveal, no pill (see EndgameExperience).
       -->
       <EndgameExperience
         v-if="endgameView !== undefined"
         :view="endgameView"
-        :viewer-color="endgameViewerColor" />
+        :viewer-color="endgameViewerColor"
+        :console-native="endgameConsoleNative" />
       <spectator-home
         v-else-if="screen === 'spectator-home' && spectator !== undefined"
         :spectator="spectator"
@@ -716,6 +722,12 @@ export default defineComponent({
         return this.spectator?.color;
       }
       return undefined;
+    },
+    // The CONSOLE SHELL owns the post-game (its own scoring workspace): the
+    // desktop endgame surfaces go headless there. Spectators have no console
+    // shell — they keep the full desktop experience even with console mode on.
+    endgameConsoleNative(): boolean {
+      return this.screen === 'player-home' && consoleModeState.enabled;
     },
   },
   methods: {

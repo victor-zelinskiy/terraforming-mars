@@ -716,6 +716,20 @@
                          @defer="collapseWorkspace()" />
     </transition>
 
+    <!-- THE FINAL SCORING WORKSPACE — the post-game phase root (Phase.END):
+         the console-native scoring ceremony, the ranking, the winner beat and
+         the post-game action list. A full-bleed scene over the frame; the
+         command bar below stays live (skip → the action-list verbs). While
+         «Обзор партии» has the DESKTOP results overlay up, the workspace
+         HIDES via v-show — the ceremony state survives the round trip — and
+         the fallback engine drives the overlay (B/minimize returns here). -->
+    <transition name="con-layer">
+      <ConsoleEndgameWorkspace v-if="endgameWorkspaceMounted"
+                               v-show="!endgameOverviewOpen"
+                               ref="endgameWs"
+                               :playerView="playerView" />
+    </transition>
+
     <!-- CTS T6: the reveal overlay (drawn cards ВЗЯТЬ / deck-check result /
          another player's public reveal) — the console-native replacement
          for the three desktop reveal modals (gated off in console). -->
@@ -1330,6 +1344,9 @@ import ConsoleDeckPick from '@/client/components/console/deckPick/ConsoleDeckPic
 import ConsoleDeckPickLayer from '@/client/components/console/deckPick/ConsoleDeckPickLayer.vue';
 import {deckPickHolding, resetDeckPick} from '@/client/console/deckPick/consoleDeckPick';
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
+import ConsoleEndgameWorkspace from '@/client/components/console/ConsoleEndgameWorkspace.vue';
+import {noteConsoleEndgameLivePhase, resetConsoleEndgame} from '@/client/console/endgame/consoleEndgameState';
+import {endgameState} from '@/client/components/endgame/endgameState';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
 import type {ConsoleHandStage} from '@/client/components/console/ConsoleHandSection.vue';
@@ -1727,6 +1744,7 @@ export default defineComponent({
     ConsoleBotAttack,
     ConsoleAresGlobals,
     ConsoleStartScene,
+    ConsoleEndgameWorkspace,
     ConsoleRevealOverlay,
     ConsolePlayCardConfirm,
     ConsoleCorpFirstActionConfirm,
@@ -3193,6 +3211,19 @@ export default defineComponent({
     /** PRESENCE IS THE STACK (invariant 1) — the workspace's ONE v-if. */
     draftWorkspaceMounted(): boolean {
       return workspaceFrameRenders('draft');
+    },
+    /** Phase.END — the post-game scoring workspace's whole anchor. */
+    endgameFrameLive(): boolean {
+      return this.playerView.game.phase === Phase.END;
+    },
+    /** PRESENCE IS THE STACK (invariant 1) — the workspace's ONE v-if. */
+    endgameWorkspaceMounted(): boolean {
+      return workspaceFrameRenders('endgame');
+    },
+    /** «Обзор партии» round trip: the DESKTOP results overlay is up — the
+     *  workspace hides under it (v-show) and the fallback engine drives. */
+    endgameOverviewOpen(): boolean {
+      return endgameState.resultsOpen && !endgameState.minimized;
     },
     /** The prompt kinds the draft workspace presents NATIVELY — the standalone
      *  host must not rise for them while the frame stands. (The embedded
@@ -5209,6 +5240,10 @@ export default defineComponent({
         'con-root--rail-replaced': this.workspaceScreenUp ||
           this.journalPanelVisible ||
           this.contextOverlayMode !== undefined,
+        // Post-game: the gameplay HUD leaves — status strip and player rail
+        // fade out (visibility, never display: the boxes must survive), so
+        // nothing on the frame can pre-reveal a total mid-ceremony.
+        'con-root--endgame': this.endgameWorkspaceMounted,
       };
     },
     conMainClasses(): Record<string, boolean> {
@@ -5546,6 +5581,9 @@ export default defineComponent({
         default: return this.activeTaskSummary?.kickerKey ?? 'Awaiting decision';
         }
       }
+      if (this.endgameWorkspaceMounted) {
+        return 'Final scoring';
+      }
       if (this.infoModeState.open) {
         return 'Information';
       }
@@ -5745,6 +5783,12 @@ export default defineComponent({
           {control: 'confirm', label: 'Select'},
           {control: 'back', label: 'Back'},
         ];
+      }
+      // THE FINAL SCORING WORKSPACE owns the whole post-game screen — its
+      // bar contract follows the ceremony phase (the one labelled skip verb
+      // while the count runs, the action-list verbs once it settles).
+      if (this.endgameWorkspaceMounted) {
+        return [...(panelCommands('endgame') ?? [])];
       }
       // LT INFORMATION MODE — the dashboard publishes its live contextual
       // contract (players / detail tabs / VP) through consolePanelUi; the
@@ -7213,6 +7257,34 @@ export default defineComponent({
           // that one deliberately protects a phase root from a step inside it,
           // so using it here would leave the scene mounted for the whole game.
           closeWorkspaceRoot('start');
+        }
+      },
+    },
+    /**
+     * THE POST-GAME IS A PHASE ROOT (the start/draft pattern): Phase.END
+     * stands the scoring workspace up; anything else marks «this load watched
+     * the live game» — the ONE fact that decides whether reaching END plays
+     * the ceremony (a finish the player was present for) or lands on the
+     * settled result (a reload into an already-ended game must never replay
+     * a reveal uninvited). The falling edge (an undo / admin rollback) tears
+     * the frame down and resets the ceremony state completely.
+     */
+    endgameFrameLive: {
+      immediate: true,
+      handler(live: boolean): void {
+        if (live) {
+          if (!workspaceFrameKnown('endgame')) {
+            enterWorkspace('endgame', {anchor: {type: 'phase', phase: 'end'}});
+          }
+        } else {
+          if (workspaceFrameKnown('endgame')) {
+            closeWorkspaceRoot('endgame');
+            resetConsoleEndgame();
+          }
+          // AFTER the reset — the falling edge fires exactly once, and a
+          // reset that wiped this note afterwards would turn the NEXT end of
+          // the game (an undo, then finishing again) into a silent settle.
+          noteConsoleEndgameLivePhase();
         }
       },
     },
@@ -8765,6 +8837,26 @@ export default defineComponent({
           return true;
         }
         this.scrollActiveConsole(intent.dy, intent.dx);
+        return true;
+      }
+      // THE FINAL SCORING WORKSPACE owns the pad for the whole post-game.
+      // (The «Обзор партии» round trip runs on the fallback engine and
+      // returned above.) It consumes EVERYTHING below deliberately: Info
+      // Mode, the journal and the wheels are live-game instruments — and
+      // during the ceremony an Info Mode peek would leak the very totals
+      // the count is about to reveal.
+      if (this.endgameWorkspaceMounted) {
+        // …except a LIVE drawn-cards reveal: a reload into an ended game can
+        // still owe undelivered draws, and that overlay stands OVER the
+        // settled result (its branch normally sits below this one, which
+        // would strand the take press). The cards must be takeable — no
+        // silent loss, even at the finish line.
+        if (this.consoleRevealMode !== undefined) {
+          const overlay = this.$refs.revealOverlay as InstanceType<typeof ConsoleRevealOverlay> | undefined;
+          overlay?.handleIntent(intent);
+          return true;
+        }
+        (this.$refs.endgameWs as InstanceType<typeof ConsoleEndgameWorkspace> | undefined)?.handleIntent(intent);
         return true;
       }
       // Information Mode owns everything while open (read-only).
