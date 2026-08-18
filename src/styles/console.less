@@ -10118,7 +10118,12 @@ html.con-profile-handheld .con-mafocus {
     &__head {
         display: flex;
         align-items: center;
-        gap: .3rem;
+        /* THE GAPS ARE THE TITLE'S LINE. Everything else on this row is fixed
+           furniture (the key cap, the 3-slot tray), so every tenth of a rem
+           spent here is taken straight out of the NAME's column — and the name
+           is the one thing that may not ellipsize. Kept just wide enough to
+           separate three objects. */
+        gap: .24rem;
         margin: 0;
         /* The tray flocks to the case's inner right line so the LONGEST RU
            title genuinely fits beside it (runtime-measured, e2e-guarded). */
@@ -10170,7 +10175,13 @@ html.con-profile-handheld .con-mafocus {
         min-width: 0;
         font-size: .66rem;
         font-weight: 700;
-        letter-spacing: .045rem;
+        /* Tracking is the couch's hierarchy tool, and it is also the single
+           most expensive thing on this line: at .045rem a ten-letter RU title
+           spent 9 px — most of the head's whole margin — on air between
+           letters. Tightened until the accent survives on WEIGHT and CAPS with
+           the name still whole (measured, not eyeballed:
+           `console-strategy-rail.spec.ts` § headFits). */
+        letter-spacing: .032rem;
         text-transform: uppercase;
         color: @con-text;
         white-space: nowrap;
@@ -10186,11 +10197,13 @@ html.con-profile-handheld .con-mafocus {
     &__slots {
         display: inline-flex;
         flex-shrink: 0;
-        gap: .26rem;
+        gap: .22rem;
         /* Flocks to the line's END — the same right axis the row values
            align to below; the title keeps every middle pixel. */
         margin-left: auto;
-        padding: 0 .08rem 0 .3rem;
+        /* The left inset separates the tray from the NAME, so it is charged to
+           the name's column; the head's own gap already does most of that job. */
+        padding: 0 .06rem 0 .2rem;
     }
     &__pip {
         width: .44rem;
@@ -26501,9 +26514,17 @@ html.con-profile-handheld {
     .con-strat__zone--awards.con-strat__zone--done .con-strat__cube { width: .48rem; height: .48rem; }
     .con-strat__zone--awards.con-strat__zone--done .con-strat__crown { width: .5rem; }
     .con-strat__zone--awards.con-strat__zone--done .con-strat__gem { width: .52rem; height: .52rem; }
-    .con-strat__title { font-size: .52rem; letter-spacing: .05rem; }
-    .con-strat__key .gp-glyph { min-width: 1.15rem; height: .82rem; font-size: .45rem; }
-    .con-strat__pip { width: .42rem; height: .42rem; }
+    /* THE HANDHELD HEAD — the profile where the furniture nearly ate the
+       name. On a 7.55rem rail the key cap + tray + gaps took 58 % of the head
+       and «ДОСТИЖЕНИЯ» rendered as «ДОСТИЖЕ…» (measured deficit: 21 px). The
+       ladder used to make it WORSE by tracking the title wider than base. So
+       every fixed object on the line compacts here and the NAME keeps its
+       size — it is the only thing on the row that carries meaning. */
+    .con-strat__head { gap: .15rem; margin-right: -.16rem; padding: .05rem .1rem .05rem .06rem; }
+    .con-strat__title { font-size: .52rem; letter-spacing: .018rem; }
+    .con-strat__key .gp-glyph { min-width: .98rem; height: .82rem; font-size: .45rem; }
+    .con-strat__slots { gap: .15rem; padding: 0 .04rem 0 .16rem; }
+    .con-strat__pip { width: .34rem; height: .34rem; }
     .con-strat__gem { width: .44rem; height: .44rem; }
     .con-strat__cube { width: .42rem; height: .42rem; }
     .con-strat__req { font-size: .52rem; }

@@ -352,14 +352,18 @@ html.con-profile-tv {
     .con-strat__zone--awards.con-strat__zone--done .con-strat__chips--n5 .con-strat__cube { width: .5rem; height: .5rem; }
     .con-strat__zone--awards.con-strat__zone--done .con-strat__crown { width: .96rem; }
     .con-strat__zone--awards.con-strat__zone--done .con-strat__gem { width: .82rem; height: .82rem; }
-    /* Couch title, calmer tracking: at the TV rem the base .045rem tracking
-       alone costs ~18px on «ДОСТИЖЕНИЯ» — the exact 7px that ellipsized it.
-       The head's negative margin tucks the tray into the case's inner right
-       zone so the longest RU title keeps clear of the ellipsis (e2e-guarded). */
-    .con-strat__title { font-size: var(--con-t-caption); letter-spacing: .028rem; }
-    .con-strat__head { gap: .22rem; margin-right: -.26rem; }
+    /* THE COUCH HEAD. The type floor makes both fixed objects on this line BIG
+       (the key cap is 1.5rem, the title rides --con-t-caption), so the couch is
+       at least as tight as FHD and the margin has to come from the tracking and
+       the gaps: at the TV rem the base .045rem tracking alone costs ~18px on
+       «ДОСТИЖЕНИЯ» — more than the whole head had spare. The head's negative
+       margin tucks the tray into the case's inner right zone.
+       Never eyeball this line: the margin is MEASURED against a platform that
+       rounds every glyph advance up (`console-strategy-rail.spec.ts` § headFits). */
+    .con-strat__title { font-size: var(--con-t-caption); letter-spacing: .02rem; }
+    .con-strat__head { gap: .18rem; margin-right: -.26rem; }
     .con-strat__key .gp-glyph { min-width: 1.5rem; height: 1.3rem; font-size: var(--con-t-floor); }
-    .con-strat__slots { gap: .22rem; padding-left: .22rem; }
+    .con-strat__slots { gap: .18rem; padding-left: .16rem; }
     .con-strat__pip { width: 0.5rem; height: 0.5rem; }
     .con-strat__gem { width: 0.74rem; height: 0.74rem; }
     .con-strat__cube { width: 0.68rem; height: 0.68rem; }
