@@ -13,13 +13,27 @@
 
     `outNames` — cards currently LIFTED into the category view: their slots
     render held geometry (invisible, layout kept) so a card never exists in
-    two places at once while its proxy is airborne.
+    two places at once.
+
+    `grounded` — cards whose category episode flies a BOUNDED proxy set:
+    these dissolve IN PLACE (opacity transition on the lift) instead of
+    flying, and fade back in place when the episode closes.
+
+    `hydrated` — the staged-mount gate of the big-table open: slot GEOMETRY
+    always renders (layout, captions and scroll size are exact from the
+    plan), the faces inside mount when the overlay's hydration wave reaches
+    this pile. Under the overlay's 180 ms entrance fade the wave is
+    invisible; it exists so a 200-card open never runs one 300 ms+ flush.
   -->
   <div class="con-played__pile" :style="{width: slotW + 'px'}">
     <div v-for="(card, i) in cards"
          :key="card.name"
          class="con-played__slot"
-         :class="{'con-played__slot--incoming': card.name === hiddenKey, 'con-played__slot--held-out': outNames.has(card.name)}"
+         :class="{
+           'con-played__slot--incoming': card.name === hiddenKey,
+           'con-played__slot--held-out': outNames.has(card.name),
+           'con-played__slot--grounded': grounded.has(card.name),
+         }"
          :style="{height: (i === cards.length - 1 ? cardH : peekH) + 'px', zIndex: i + 1}"
          :data-played-key="card.name"
          :data-zoom-slot="card.name">
@@ -29,7 +43,9 @@
            the printed table — cards, nothing pinned on top of them. -->
       <div class="con-played__lift">
         <div class="con-played__face con-played__focusbox" :style="{zoom: String(zoom)}">
-          <ConsolePlayedCardLite :name="card.name" :peek="coveredAt(i)" />
+          <!-- Pile faces are ≤ ~370 CSS px wide on every profile (zoom ≤0.58
+               × uiScale ≤2) — always the thumb art tier. -->
+          <ConsolePlayedCardLite v-if="hydrated" :name="card.name" :peek="coveredAt(i)" art-tier="thumb" />
         </div>
       </div>
     </div>
@@ -53,6 +69,10 @@ export default defineComponent({
     hiddenKey: {type: String as PropType<string | undefined>, default: undefined},
     /** Cards lifted into the category view — their slots hold (see header). */
     outNames: {type: Object as PropType<ReadonlySet<string>>, default: () => EMPTY_SET},
+    /** Cards dissolving in place for a bounded category episode (see header). */
+    grounded: {type: Object as PropType<ReadonlySet<string>>, default: () => EMPTY_SET},
+    /** The staged-mount gate — faces render only once the wave arrives. */
+    hydrated: {type: Boolean, default: true},
     /** Plan metrics (screen px / css zoom) — see consolePlayedModel. */
     zoom: {type: Number, required: true},
     slotW: {type: Number, required: true},

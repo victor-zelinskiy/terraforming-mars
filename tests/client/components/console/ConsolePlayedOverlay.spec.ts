@@ -5,7 +5,9 @@ import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePla
 import {playedCategoryState, resetPlayedCategoryView} from '@/client/console/played/playedCategoryView';
 import {consoleCardZoom, closeConsoleCardZoom, consoleZoomProvenance} from '@/client/console/consoleCardZoom';
 import {CardName} from '@/common/cards/CardName';
+import {CardType} from '@/common/cards/CardType';
 import {Color} from '@/common/Color';
+import {getCards, byType} from '@/client/cards/ClientCardManifest';
 import {GamepadIntent, SemanticButton} from '@/client/gamepad/gamepadPollModel';
 import {PublicPlayerModel} from '@/common/models/PlayerModel';
 
@@ -105,16 +107,44 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
     // (no category episode at all) — the hold contract needs a real grid.
     const wrapper = make([player('red' as Color, 'Вы', [...RED_TABLEAU, CardName.BIRDS])]);
     wrapper.vm.openCategory('active');
-    playedCategoryState.holdCards = true; // the proxy-paint turn (view stubbed)
+    // The proxy-paint turn (view stubbed): the director spawns the FLIGHTS
+    // and flips the hold in the same synchronous turn. With bounded flights
+    // the visibility hold covers exactly the FLOWN cards during a transition.
+    playedCategoryState.flights = playedCategoryState.names.map((name, i) => ({
+      id: i + 1, name, index: i, faceDown: false,
+    }));
+    playedCategoryState.holdCards = true;
     await wrapper.vm.$nextTick();
     const slot = wrapper.find(`[data-played-key="${CardName.PREDATORS}"]`);
     expect(slot.classes()).to.include('con-played__slot--held-out');
     // The settled OPEN phase keeps the table held even after the handoff
     // releases the modal grid (holdCards false — the cards live in the view).
     playedCategoryState.holdCards = false;
+    playedCategoryState.flights = [];
     playedCategoryState.phase = 'open';
     await wrapper.vm.$nextTick();
     expect(wrapper.find(`[data-played-key="${CardName.PREDATORS}"]`).classes()).to.include('con-played__slot--held-out');
+    wrapper.unmount();
+  });
+
+  it('a GROUNDED card (beyond the flight budget) dissolves in place, never a visibility hold', async () => {
+    const wrapper = make([player('red' as Color, 'Вы', [...RED_TABLEAU, CardName.BIRDS])]);
+    wrapper.vm.openCategory('active');
+    // The bounded spawn: PREDATORS flies, BIRDS is grounded.
+    playedCategoryState.flights = [{id: 1, name: CardName.PREDATORS, index: 0, faceDown: false}];
+    playedCategoryState.groundedNames = [CardName.BIRDS];
+    playedCategoryState.holdCards = true;
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find(`[data-played-key="${CardName.PREDATORS}"]`).classes()).to.include('con-played__slot--held-out');
+    const grounded = wrapper.find(`[data-played-key="${CardName.BIRDS}"]`);
+    expect(grounded.classes()).to.include('con-played__slot--grounded');
+    expect(grounded.classes()).to.not.include('con-played__slot--held-out');
+    // At the settled OPEN phase everything is away (visibility hold covers all).
+    playedCategoryState.holdCards = false;
+    playedCategoryState.flights = [];
+    playedCategoryState.phase = 'open';
+    await wrapper.vm.$nextTick();
+    expect(wrapper.find(`[data-played-key="${CardName.BIRDS}"]`).classes()).to.include('con-played__slot--held-out');
     wrapper.unmount();
   });
 
@@ -361,5 +391,80 @@ describe('ConsolePlayedOverlay (category navigation)', () => {
       expect(wrapper.find('.con-played__provenance').exists()).to.be.true;
       wrapper.unmount();
     });
+  });
+});
+
+/* ── STAGED MOUNT (hydration): the big-table open never runs one flush ──── */
+describe('ConsolePlayedOverlay (staged mount — hydration)', () => {
+  afterEach(() => {
+    resetConsolePlayedUi();
+    resetPlayedCategoryView();
+  });
+
+  // 70 automated cards — over the sync threshold (60 face-up).
+  const BIG: Array<CardName> = getCards(byType(CardType.AUTOMATED))
+    .slice(0, 70)
+    .map((c) => c.name);
+
+  function faceCount(wrapper: VueWrapper<InstanceType<typeof ConsolePlayedOverlay>>): number {
+    return wrapper.findAllComponents({name: 'ConsolePlayedCardLite'}).length;
+  }
+
+  async function waitHydrated(wrapper: VueWrapper<InstanceType<typeof ConsolePlayedOverlay>>): Promise<void> {
+    for (let i = 0; i < 40; i++) {
+      if ((wrapper.vm as unknown as {hydrationDone: boolean}).hydrationDone) {
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    await wrapper.vm.$nextTick();
+  }
+
+  it('a big tableau renders EVERY slot from frame one, faces in waves — and completes', async () => {
+    const wrapper = make([player('red' as Color, 'Вы', [CardName.CREDICOR, ...BIG])]);
+    // Geometry is complete immediately: every card has its slot (captions,
+    // scroll size and category rects are exact from the first frame).
+    expect(wrapper.findAll('.con-played__slot').length).to.eq(71);
+    // Wave 0 carries only the identity families — the big family waits.
+    expect(faceCount(wrapper)).to.be.lessThan(71);
+    expect((wrapper.vm as unknown as {hydrationDone: boolean}).hydrationDone).to.be.false;
+    await waitHydrated(wrapper);
+    expect((wrapper.vm as unknown as {hydrationDone: boolean}).hydrationDone).to.be.true;
+    expect(faceCount(wrapper)).to.eq(71);
+    wrapper.unmount();
+  });
+
+  it('a small tableau mounts synchronously (the historical behavior)', () => {
+    const wrapper = make([player('red' as Color, 'Вы', RED_TABLEAU)]);
+    expect((wrapper.vm as unknown as {hydrationDone: boolean}).hydrationDone).to.be.true;
+    // Every face-up card renders its face at once (events are the pile).
+    expect(faceCount(wrapper)).to.eq(4);
+    wrapper.unmount();
+  });
+
+  it('the hero scene mounts everything synchronously (the landing is measured)', () => {
+    const wrapper = mount(ConsolePlayedOverlay, {
+      props: {
+        players: [player('red' as Color, 'Вы', [CardName.CREDICOR, ...BIG])],
+        thisPlayerColor: 'red' as Color,
+        heroActive: true,
+      },
+      global: {
+        mocks: {$t: (s: string) => s},
+        stubs: {ConsolePlayedCardLite: true, ConsolePlayedCategoryView: true},
+      },
+    });
+    expect((wrapper.vm as unknown as {hydrationDone: boolean}).hydrationDone).to.be.true;
+    wrapper.unmount();
+  });
+
+  it('unmount cancels a mid-wave tick and resets the category modules (closed state owns nothing)', () => {
+    const wrapper = make([player('red' as Color, 'Вы', [CardName.CREDICOR, ...BIG])]);
+    expect((wrapper.vm as unknown as {hydrationDone: boolean}).hydrationDone).to.be.false;
+    wrapper.unmount();
+    expect(playedCategoryState.phase).to.eq('closed');
+    expect(playedCategoryState.flights.length).to.eq(0);
+    expect(playedCategoryState.groundedNames.length).to.eq(0);
+    expect(consolePlayedUi.focusCategory).to.eq('');
   });
 });

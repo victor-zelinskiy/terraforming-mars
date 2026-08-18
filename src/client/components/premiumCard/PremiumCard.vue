@@ -40,7 +40,7 @@ Before changing it, check the console consumers in docs/DESKTOP_DEPRECATION_AUDI
            brand wordmark identity zone (vm.art is undefined only for an
            art-less corporation). A PEEK face skips this zone entirely — the
            art row starts below the peek band, so nothing of it can show. -->
-      <PremiumCardArt v-if="!peek && vm.art !== undefined" :art="vm.art" />
+      <PremiumCardArt v-if="!peek && vm.art !== undefined" :art="vm.art" :tier="artTier" />
       <PremiumCorpIdentity v-else-if="!peek && isCorporation" :name="vm.name" />
 
       <!-- ── LOWER SECTION ────────────────────────────────────────────
@@ -93,6 +93,7 @@ import {CardType} from '@/common/cards/CardType';
 import {Color} from '@/common/Color';
 import {GameModule} from '@/common/cards/GameModule';
 import {getCardOrThrow} from '@/client/cards/ClientCardManifest';
+import {CardArtTier} from '@/client/cards/cardArt';
 import {getPreferences} from '@/client/utils/PreferencesManager';
 import {translateText, translateCardName} from '@/client/directives/i18n';
 import PlayerCube from '@/client/components/PlayerCube.vue';
@@ -119,6 +120,26 @@ const TITLE_SAFE_BASE = 14;
 const TITLE_SAFE_COST = 50;
 const TITLE_SAFE_COST_MOD = 84;
 const TITLE_SAFE_TAG_GAP = 18;
+
+/**
+ * PRINTED-FACE VM CACHE. A `name`-only face (console proxies, the tableau,
+ * category grids) is a pure function of the static manifest — the VM never
+ * changes for the lifetime of the session. Mounting 100+ static faces at once
+ * (the «Разыграно» table / category open) used to rebuild 100+ mechanics
+ * trees; now each card name pays the build exactly once. VMs are shared and
+ * read-only by contract (the render layer never mutates them). Live-model
+ * faces (`card` prop) keep the per-instance build — their VM tracks state.
+ */
+const printedVmCache = new Map<CardName, PremiumCardVM>();
+
+function printedFaceVm(name: CardName): PremiumCardVM {
+  let vm = printedVmCache.get(name);
+  if (vm === undefined) {
+    vm = buildPremiumCardViewModel(getCardOrThrow(name));
+    printedVmCache.set(name, vm);
+  }
+  return vm;
+}
 
 /**
  * PREMIUM CARD FACE — the fork's from-scratch card renderer (project cards +
@@ -210,6 +231,18 @@ export default defineComponent({
       required: false,
       default: false,
     },
+    /**
+     * ART RESOLUTION TIER (see cardArt.ts ART TIERS): dense surfaces whose
+     * card box stays ≤ ~520 CSS px wide pass 'thumb' and paint the 512-px
+     * build of the same picture (9× less decode/GPU); everything else keeps
+     * the full 1536-px file. Purely a source swap — layout, fades and the
+     * failure chain are identical.
+     */
+    artTier: {
+      type: String as () => CardArtTier,
+      required: false,
+      default: 'full',
+    },
   },
   data() {
     return {
@@ -229,6 +262,9 @@ export default defineComponent({
     },
     /** Computed (never data()) so a keyless re-pointed face re-resolves. */
     vm(): PremiumCardVM {
+      if (this.card === undefined) {
+        return printedFaceVm(this.cardName);
+      }
       return buildPremiumCardViewModel(getCardOrThrow(this.cardName), this.card);
     },
     effectiveTier(): PremiumCardTier {

@@ -19,12 +19,15 @@
 
 <script lang="ts">
 import {defineComponent} from 'vue';
-import {CARD_ART_FALLBACK_URL, PremiumCardArt} from '@/client/cards/cardArt';
+import {CARD_ART_FALLBACK_URL, CardArtTier, cardArtUrlAtTier, PremiumCardArt} from '@/client/cards/cardArt';
 
 /**
- * The art viewport. Failure chain is one-shot and can never loop:
- * per-card art → shared fallback (-1.webp) → procedural theme body
- * (`pcard__art--void`, no <img> at all).
+ * The art viewport. Failure chain is one-shot per link and can never loop:
+ * requested tier (thumb) → per-card full art → shared fallback (-1.webp) →
+ * procedural theme body (`pcard__art--void`, no <img> at all). At `tier:
+ * 'full'` the first link collapses into the second — exactly the historical
+ * chain. A missing thumb (stale checkout, art added without `make:cards`)
+ * therefore degrades to the full file, never to a lost picture.
  */
 export default defineComponent({
   name: 'PremiumCardArt',
@@ -33,17 +36,30 @@ export default defineComponent({
       type: Object as () => PremiumCardArt,
       required: true,
     },
+    /** Which resolution build to paint — see cardArt.ts ART TIERS. */
+    tier: {
+      type: String as () => CardArtTier,
+      required: false,
+      default: 'full',
+    },
   },
   data() {
     return {
       loaded: false,
+      failedThumb: false,
       failedPrimary: false,
       exhausted: false,
     };
   },
   computed: {
     src(): string {
-      return this.failedPrimary ? CARD_ART_FALLBACK_URL : this.art.url;
+      if (this.tier === 'thumb' && !this.failedThumb) {
+        return cardArtUrlAtTier(this.art.url, 'thumb');
+      }
+      if (!this.failedPrimary) {
+        return this.art.url;
+      }
+      return CARD_ART_FALLBACK_URL;
     },
     onFallback(): boolean {
       return this.art.fallback || this.failedPrimary;
@@ -52,13 +68,25 @@ export default defineComponent({
   watch: {
     // A re-pointed keyless card face re-arms the load chain for the new art.
     'art.url'() {
-      this.loaded = false;
-      this.failedPrimary = false;
-      this.exhausted = false;
+      this.resetChain();
+    },
+    'tier'() {
+      this.resetChain();
     },
   },
   methods: {
+    resetChain(): void {
+      this.loaded = false;
+      this.failedThumb = false;
+      this.failedPrimary = false;
+      this.exhausted = false;
+    },
     onError(): void {
+      if (this.tier === 'thumb' && !this.failedThumb) {
+        this.failedThumb = true; // retry with the full-res file
+        this.loaded = false;
+        return;
+      }
       if (!this.failedPrimary && !this.art.fallback) {
         this.failedPrimary = true; // retry once with the shared fallback
         this.loaded = false;

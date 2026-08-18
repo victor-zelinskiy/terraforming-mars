@@ -45,6 +45,18 @@
     position: fixed;
     top: 0;
     left: 0;
+    /* ⚠ INTRINSIC SIZE IS LOAD-BEARING FOR PERFORMANCE. A fixed element with
+       auto width and absolutely-positioned content lays out to a 0×0 box, and
+       GSAP's transform parser treats `offsetParent === null && rect.width === 0`
+       as "detached": it TEMPORARILY REPARENTS the target to <html> to measure
+       its matrix (gsap _getMatrix). That is two root-level DOM mutations PER
+       PROXY — on a 49-proxy category flight it was 98 root childList changes,
+       each invalidating style+layout for the WHOLE document (measured: ~5 s of
+       UpdateLayoutTree at 1280×800, the single biggest cost of the episode).
+       Any non-zero rect kills the branch; the director overwrites the real
+       size before the proxy is ever revealed. */
+    width: 320px;
+    height: 460px;
     opacity: 0;
     visibility: hidden; /* the director reveals via autoAlpha at launch time */
     pointer-events: none;

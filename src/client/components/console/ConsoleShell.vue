@@ -1473,6 +1473,7 @@ import ConsoleColonyInspect from '@/client/components/console/ConsoleColonyInspe
 import ConsolePlayedOverlay from '@/client/components/console/played/ConsolePlayedOverlay.vue';
 import ConsolePlayedHeroLayer from '@/client/components/console/played/ConsolePlayedHeroLayer.vue';
 import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
+import {conWsPresence, installConWsPresenceBridge} from '@/client/console/conWsPresenceBridge';
 import {resetPlayedCategoryView} from '@/client/console/played/playedCategoryView';
 import {resetPlayedCardReturns} from '@/client/console/played/playedCardReturn';
 import {resetCategoryDirector} from '@/client/console/played/playedCategoryDirector';
@@ -1833,6 +1834,11 @@ export default defineComponent({
       planetFocusState,
       /** Unregister fn of the planet-focus live-params source. */
       offPlanetFocusParams: undefined as (() => void) | undefined,
+      /** The `.con-ws` DOM-presence flags (ex-`:has()`) + their observer's
+       *  dispose — module reactive mirrored into data() so conRootClasses
+       *  tracks it (the path-watcher data-mirror rule). */
+      wsPresence: conWsPresence,
+      offWsPresence: undefined as (() => void) | undefined,
       /** Fullscreen open/close choreography: chrome held hidden mid-flight. */
       zoomFlight: false,
       /** Backdrop fade-out while the close flight plays. */
@@ -5252,6 +5258,15 @@ export default defineComponent({
         // fade out (visibility, never display: the boxes must survive), so
         // nothing on the frame can pre-reveal a total mid-ceremony.
         'con-root--endgame': this.endgameWorkspaceMounted && !this.endgameCollapsed,
+        // The DOM-presence flags that used to be `.con-root:has(...)` rules
+        // (`.con-ws` / `.con-ws--dockcover` / planet focus). Same semantics —
+        // true while a matching element exists, leave transitions included —
+        // maintained by conWsPresenceBridge, because a root-anchored `:has()`
+        // re-ran a WHOLE-DOCUMENT style recalc per animated frame (measured
+        // ~1.2 s per 100-card category flight; ~37 ms with plain classes).
+        'con-root--ws-open': this.wsPresence.wsOpen,
+        'con-root--ws-dockcover': this.wsPresence.wsDockcover,
+        'con-root--pfocus': this.wsPresence.planetFocus,
       };
     },
     conMainClasses(): Record<string, boolean> {
@@ -13685,6 +13700,9 @@ export default defineComponent({
       }
     });
     this.offIntent = registerConsoleIntentHandler((intent) => this.handleIntent(intent));
+    // The `.con-ws` / planet-focus DOM-presence flags (the ex-`:has()` rules)
+    // — one observer on the shell root, folded into conRootClasses.
+    this.offWsPresence = installConWsPresenceBridge(this.$el as HTMLElement);
     // The console-mode <html> class is owned by GamepadLayer (it spans every
     // lifecycle screen); the shell only reports its own presence.
     this.consoleState.shellMounted = true;
@@ -13736,6 +13754,7 @@ export default defineComponent({
   },
   beforeUnmount() {
     this.offIntent?.();
+    this.offWsPresence?.();
     this.offPlanetFocusParams?.();
     resetPlanetFocus(); // never carry a held HUD / mid-exit phase across games
     resetHandReveal(); // never leak a mid-episode timeline / held dock

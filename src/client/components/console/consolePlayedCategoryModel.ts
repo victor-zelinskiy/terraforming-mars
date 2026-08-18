@@ -145,6 +145,65 @@ export function planCategoryView(input: {availW: number, availH: number, count: 
   return {kind: 'grid', plan};
 }
 
+// ── the flight budget (bounded proxies) ────────────────────────────────────
+
+/** Rows kept in the flight window beyond the visible ones (mirrors the grid's
+ *  render overscan, so every card the player will see land flies for real). */
+export const FLIGHT_OVERSCAN_ROWS = 2;
+/** Off-window sweep tail: a few extra cards fly-and-fade into the scroll so
+ *  the bounded set never reads as a hard cutoff. */
+export const FLIGHT_TAIL_MAX = 10;
+/** Bounding must EARN its grounded-dissolve: when it would spare fewer than
+ *  this many proxies, everything flies (the historical full choreography). */
+const FLIGHT_BOUND_MIN_GAIN = 8;
+
+/**
+ * The card indices that FLY in one category episode (open: window at
+ * scrollTop 0; close: window at the current scroll). Everything else is
+ * GROUNDED — it dissolves in place on the table instead of flying. Pure and
+ * deterministic: the visible grid rows + overscan, plus a short sweep tail
+ * past the window's end. A non-scrolling grid (every card visible) and any
+ * category where bounding would save almost nothing fly whole.
+ */
+export function plannedFlightIndices(
+  layout: CategoryViewLayout,
+  count: number,
+  viewH: number,
+  scrollTop: number,
+): Array<number> {
+  const all = () => Array.from({length: count}, (_, i) => i);
+  if (layout.kind === 'single' || count <= 1) {
+    return all();
+  }
+  const p = layout.plan;
+  if (!p.scrolls || p.rowStride <= 0) {
+    return all();
+  }
+  const firstRow = Math.max(0, Math.floor(scrollTop / p.rowStride) - FLIGHT_OVERSCAN_ROWS);
+  const lastRow = Math.min(p.rows - 1, Math.ceil((scrollTop + Math.max(0, viewH)) / p.rowStride) + FLIGHT_OVERSCAN_ROWS);
+  const first = firstRow * p.cols;
+  const afterLast = Math.min(count, (lastRow + 1) * p.cols);
+  const out: Array<number> = [];
+  for (let i = first; i < afterLast; i++) {
+    out.push(i);
+  }
+  // The sweep tail rides past the window's end (open lands it into the
+  // scroll, close raises it out of the scroll — both fade by the existing
+  // off-window language).
+  for (let i = afterLast; i < Math.min(count, afterLast + FLIGHT_TAIL_MAX); i++) {
+    out.push(i);
+  }
+  // A window that does not start at 0 (a scrolled close) keeps a short tail
+  // on the leading side too.
+  for (let i = Math.max(0, first - FLIGHT_TAIL_MAX); i < first; i++) {
+    out.push(i);
+  }
+  if (out.length >= count - FLIGHT_BOUND_MIN_GAIN) {
+    return all();
+  }
+  return out.sort((a, b) => a - b);
+}
+
 // ── pre-computed flight geometry ───────────────────────────────────────────
 
 export type FlightRect = {x: number, y: number, w: number, h: number};

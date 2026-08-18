@@ -87,7 +87,12 @@ export class ServeAsset extends Handler {
         responses.notModified(res);
         return;
       }
-      res.setHeader('Cache-Control', 'must-revalidate');
+      // Card art is immutable in practice (keyed by card number, replaced only
+      // with a release): `must-revalidate` made a 200-card tableau pay one
+      // conditional GET per art per session. A day of `max-age` removes those
+      // round-trips; the ETag still heals a stale client after a release.
+      // (The Electron app:// protocol already ships `immutable` for these.)
+      res.setHeader('Cache-Control', ServeAsset.isCardArt(file) ? 'public, max-age=86400' : 'must-revalidate');
       res.setHeader('ETag', buffer.hash);
     } else if (this.cacheAssets === false && req.url !== '/main.js' && req.url !== '/main.js.map') {
       res.setHeader('Cache-Control', 'max-age=' + this.cacheAgeSeconds);
@@ -119,6 +124,11 @@ export class ServeAsset extends Handler {
       console.log(err);
       responses.internalServerError(req, res, 'Cannot serve ' + path);
     }
+  }
+
+  /** Card-art files (incl. the thumb tier) — the long-lived asset class. */
+  private static isCardArt(file: string): boolean {
+    return /[\\/]card-images[\\/]/.test(file) && file.endsWith('.webp');
   }
 
   private toMainFile(urlPath: string, encodings: Set<Encoding>): { file?: string, encoding?: Encoding } {

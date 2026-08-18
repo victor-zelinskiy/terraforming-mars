@@ -1,0 +1,22 @@
+[
+  {
+    "n": 20,
+    "gameId": "game-id-perf20",
+    "playerId": "p-player1-id-perf20"
+  },
+  {
+    "n": 50,
+    "gameId": "game-id-perf50",
+    "playerId": "p-player1-id-perf50"
+  },
+  {
+    "n": 100,
+    "gameId": "game-id-perf100",
+    "playerId": "p-player1-id-perf100"
+  },
+  {
+    "n": 200,
+    "gameId": "game-id-perf200",
+    "playerId": "p-player1-id-perf200"
+  }
+]

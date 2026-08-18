@@ -12,7 +12,7 @@
     read in «Информация» → «Доп. ресурсы» and on the card's own face in the
     fullscreen inspector, so a resource change never patches the table.
   -->
-  <PremiumCard v-if="premium" :name="name" :card="card" :inert="true" :lightweight="true" :peek="peek && !keepArt" aria-hidden="true" />
+  <PremiumCard v-if="premium" :name="name" :card="card" :inert="true" :lightweight="true" :peek="peek && !keepArt" :artTier="artTier" aria-hidden="true" />
   <ConsoleCardFaceLite v-else :name="name" />
 </template>
 
@@ -20,6 +20,7 @@
 import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
 import {CardModel} from '@/common/models/CardModel';
+import {CardArtTier} from '@/client/cards/cardArt';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {isPremiumFaceType} from '@/client/components/premiumCard/premiumCardTheme';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
@@ -69,6 +70,18 @@ export default defineComponent({
       type: Boolean,
       required: false,
       default: false,
+    },
+    /**
+     * ART TIER for the premium face (cardArt.ts): dense hosts (the tableau
+     * piles, big category grids, their flight proxies) pass 'thumb'; hosts
+     * that render the face large (the single-card stage) keep 'full'. The
+     * default is 'full' so every host outside the played tableau is
+     * byte-identical to before this prop existed.
+     */
+    artTier: {
+      type: String as () => CardArtTier,
+      required: false,
+      default: 'full',
     },
   },
   computed: {

@@ -274,8 +274,12 @@
         cursor: pointer;
     }
     &__lift {
-        /* THE focus transform target — transform/opacity only, never layout. */
-        transition: transform calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        /* THE focus transform target — transform/opacity only, never layout.
+           Opacity rides along for the GROUNDED dissolve (bounded category
+           flights): the fade must play in BOTH directions of the class flip. */
+        transition:
+            transform calc(160ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+            opacity calc(240ms * var(--motion-scale, 1)) ease;
     }
     &__face {
         /* zoom comes inline from the planner; kill the legacy card margin.
@@ -302,6 +306,12 @@
        (layout untouched) while the flying proxy is the only visible copy. */
     &__slot--held-out .con-played__lift {
         visibility: hidden;
+    }
+    /* A card BEYOND the bounded flight budget: it dissolves in place (the
+       off-window fade language) while its window-mates fly, and fades back
+       in place on close. Geometry untouched — opacity only. */
+    &__slot--grounded .con-played__lift {
+        opacity: 0;
     }
     /* The events stack while its cards are away — a quiet ghost footprint. */
     &__slot--events-out .con-played__backstack {
@@ -699,6 +709,11 @@
         position: fixed;
         top: 0;
         left: 0;
+        /* Intrinsic size: keeps GSAP's `_getMatrix` from reparenting the
+           proxy to <html> for measurement (a fixed 0×0 box reads as detached
+           — see .con-deal-proxy's note). The director sets the real size. */
+        width: 320px;
+        height: 460px;
         /* The director places + reveals it pre-paint — never a corner flash. */
         opacity: 0;
         perspective: 45rem;
@@ -727,6 +742,9 @@
         position: fixed;
         top: 0;
         left: 0;
+        /* Intrinsic size — the GSAP reparent guard (see .con-deal-proxy). */
+        width: 320px;
+        height: 460px;
         opacity: 0;
         visibility: hidden; /* the director reveals via autoAlpha at launch */
         pointer-events: none;

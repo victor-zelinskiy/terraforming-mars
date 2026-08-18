@@ -29,6 +29,45 @@ import artManifest from '@/genfiles/cardArtManifest.json' assert {type: 'json'};
 
 export const CARD_ART_FALLBACK_URL = 'assets/card-images/-1.webp';
 
+/**
+ * ART TIERS. Every art ships in two builds of the same picture:
+ *  - FULL  — `assets/card-images/<key>.webp`, 1536×1024 (~6 MiB decoded);
+ *  - THUMB — `assets/card-images/thumb/<key>.webp`, 512×341 (~0.7 MiB
+ *    decoded), generated 1:1 from the full set by
+ *    `scripts/make-card-art-thumbs.mjs` (chained into `make:cards`).
+ *
+ * The thumb tier exists for DENSE card surfaces — tableau piles, category
+ * grids, flight proxies — where the face paints at ≤ ~520 CSS px width and
+ * full-res art buys only decode spikes and resident GPU memory (a 200-card
+ * tableau's difference is hundreds of MiB on a Steam-Deck-class device).
+ * Large renders (fullscreen viewer, the single-card stage, hero cinematics)
+ * stay on FULL. The `<img>` failure chain heals a missing thumb by falling
+ * back to the full URL (see PremiumCardArt), so a stale checkout can never
+ * lose a picture.
+ */
+export type CardArtTier = 'full' | 'thumb';
+
+/**
+ * The widest CSS-px card box (320 × zoom, ui-scale folded in) the thumb tier
+ * may serve. 512 source px over ≤520 CSS px keeps ≥0.98 source-px per CSS px
+ * — visually indistinguishable from full-res at that size; anything wider
+ * takes the full file.
+ */
+export const ART_THUMB_MAX_CSS_WIDTH = 520;
+
+/** The tier-specific URL of an already-resolved art. */
+export function cardArtUrlAtTier(url: string, tier: CardArtTier): string {
+  if (tier === 'thumb') {
+    return url.replace('assets/card-images/', 'assets/card-images/thumb/');
+  }
+  return url;
+}
+
+/** The tier a card box of `cssWidth` px should paint (pure, deterministic). */
+export function artTierForWidth(cssWidth: number): CardArtTier {
+  return cssWidth > ART_THUMB_MAX_CSS_WIDTH ? 'full' : 'thumb';
+}
+
 const available: ReadonlySet<string> = new Set(artManifest as Array<string>);
 
 function artKey(name: CardName): string | undefined {

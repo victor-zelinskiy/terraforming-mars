@@ -62,6 +62,7 @@
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.corporations)" :key="'corp' + pi"
                                  :cards="pile" :hiddenKey="heroHiddenKey" :outNames="outNames"
+                                 :grounded="groundedNames" :hydrated="pileHydrated('corporation', pi)"
                                  :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH" />
             </div>
           </div>
@@ -78,6 +79,7 @@
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.preludes)" :key="'prel' + pi"
                                  :cards="pile" :hiddenKey="heroHiddenKey" :outNames="outNames"
+                                 :grounded="groundedNames" :hydrated="pileHydrated('prelude', pi)"
                                  :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH" />
             </div>
           </div>
@@ -94,6 +96,7 @@
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.ceos)" :key="'ceo' + pi"
                                  :cards="pile" :hiddenKey="heroHiddenKey" :outNames="outNames"
+                                 :grounded="groundedNames" :hydrated="pileHydrated('ceo', pi)"
                                  :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH" />
             </div>
           </div>
@@ -112,6 +115,7 @@
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.active)" :key="'act' + pi"
                                  :cards="pile" :hiddenKey="heroHiddenKey" :outNames="outNames"
+                                 :grounded="groundedNames" :hydrated="pileHydrated('active', pi)"
                                  :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH" />
             </div>
           </div>
@@ -128,6 +132,7 @@
             <div class="con-played__piles">
               <ConsolePlayedPile v-for="(pile, pi) in pilesOf(zones.automated)" :key="'auto' + pi"
                                  :cards="pile" :hiddenKey="heroHiddenKey" :outNames="outNames"
+                                 :grounded="groundedNames" :hydrated="pileHydrated('automated', pi)"
                                  :zoom="plan.zoom" :slotW="plan.slotW" :cardH="plan.cardH" :peekH="plan.peekH" />
             </div>
           </div>
@@ -184,13 +189,14 @@ import {conUiScale} from '@/client/console/consoleLayoutProfile';
 import {consolePlayedUi, resetConsolePlayedUi} from '@/client/console/consolePlayedUi';
 import {
   buildPlayedZones, splitPiles, planPlayedLayout,
-  pickSpatialTarget, NavRect, PlayedPlan, PlayedZones,
+  pickSpatialTarget, NavRect, PilePlan, PlayedFamily, PlayedPlan, PlayedZones,
 } from '@/client/components/console/consolePlayedModel';
 import {
   playedCategories, categoryCards, PlayedCategory, PlayedCategoryKey, PLAYED_CATEGORY_LABEL,
 } from '@/client/components/console/consolePlayedCategoryModel';
 import {
-  playedCategoryState, resetPlayedCategoryView, isCategoryViewUp, isCategoryViewBusy, categoryOutNames,
+  playedCategoryState, resetPlayedCategoryView, isCategoryViewUp, isCategoryViewBusy,
+  categoryOutNames, categoryAwayNames, categoryGroundedNames,
 } from '@/client/console/played/playedCategoryView';
 import {resetCategoryDirector} from '@/client/console/played/playedCategoryDirector';
 import {providePlayedHeroTarget} from '@/client/console/played/consolePlayedHero';
@@ -208,6 +214,16 @@ const STICK_SCROLL_STEP = 44;
 const CHROME_ALLOWANCE = 296;
 /** The pile-height budget never collapses below this (logical px). */
 const MIN_PILE_BUDGET = 280;
+/** STAGED MOUNT (hydration): a tableau up to this many face-up cards mounts
+ *  its faces synchronously (the historical behavior — one flush, no wave). */
+const HYDRATION_SYNC_MAX = 60;
+/** Faces added per hydration tick (one rAF apart). Slot geometry always
+ *  renders in full — only the faces arrive in waves, under the overlay's
+ *  180 ms entrance fade. Sized so one tick's flush stays a modest frame
+ *  even on a Steam-Deck-class main thread. */
+const HYDRATION_FACES_PER_TICK = 36;
+/** The visual order of the face-up family blocks (hydration walks it). */
+const FAMILY_ORDER: ReadonlyArray<PlayedFamily> = ['corporation', 'prelude', 'ceo', 'active', 'automated'];
 
 export default defineComponent({
   name: 'ConsolePlayedOverlay',
@@ -260,6 +276,12 @@ export default defineComponent({
       /** Hero-scene target-measurer deregistration (play-animation mode). */
       unregisterHeroTarget: undefined as (() => void) | undefined,
       catState: playedCategoryState,
+      /** STAGED MOUNT: piles (visual order) whose faces are live. Bumped by
+       *  the hydration wave; `hydrationDone` short-circuits the per-pile
+       *  check so post-wave data growth renders immediately. */
+      hydratedUnits: 0,
+      hydrationDone: false,
+      hydrationRaf: undefined as number | undefined,
     };
   },
   computed: {
@@ -322,12 +344,22 @@ export default defineComponent({
     outNames(): ReadonlySet<string> {
       return categoryOutNames();
     },
+    /** Names dissolving IN PLACE for a bounded category episode (the cards
+     *  beyond the flight budget — opacity, not a visibility hold). */
+    groundedNames(): ReadonlySet<string> {
+      return categoryGroundedNames();
+    },
+    /** Names LOGICALLY AWAY in the category view (flown AND grounded) — what
+     *  the events-pile count and its full-ghost read. */
+    awayNames(): ReadonlySet<string> {
+      return categoryAwayNames();
+    },
     /** How many EVENTS are currently away (lifted into the view / a pick). */
     heldEventsCount(): number {
-      if (this.outNames.size === 0) {
+      if (this.awayNames.size === 0) {
         return 0;
       }
-      return this.zones.events.reduce((n, c) => n + (this.outNames.has(c.name) ? 1 : 0), 0);
+      return this.zones.events.reduce((n, c) => n + (this.awayNames.has(c.name) ? 1 : 0), 0);
     },
     eventsOut(): boolean {
       // Full ghost only when EVERY event is away; a partial pick just shrinks
@@ -383,6 +415,33 @@ export default defineComponent({
       const faceUp = this.zones.corporations.length + this.zones.preludes.length +
         this.zones.ceos.length + this.zones.active.length + this.zones.automated.length;
       return planPlayedLayout({faceUpCount: faceUp, maxPileH: budget, uiScale: s});
+    },
+    faceUpCount(): number {
+      const z = this.zones;
+      return z.corporations.length + z.preludes.length + z.ceos.length + z.active.length + z.automated.length;
+    },
+    /** Pile plans per face-up family (the hydration wave's unit sizes). */
+    familyPilePlans(): Record<PlayedFamily, ReadonlyArray<PilePlan>> {
+      const z = this.zones;
+      const cap = this.plan.cap;
+      return {
+        corporation: splitPiles(z.corporations.length, cap),
+        prelude: splitPiles(z.preludes.length, cap),
+        ceo: splitPiles(z.ceos.length, cap),
+        active: splitPiles(z.active.length, cap),
+        automated: splitPiles(z.automated.length, cap),
+      };
+    },
+    /** The running pile-index base of each family (visual order). */
+    familyPileBases(): Record<PlayedFamily, number> {
+      const plans = this.familyPilePlans;
+      const bases = {} as Record<PlayedFamily, number>;
+      let base = 0;
+      for (const family of FAMILY_ORDER) {
+        bases[family] = base;
+        base += plans[family].length;
+      }
+      return bases;
     },
   },
   watch: {
@@ -453,8 +512,15 @@ export default defineComponent({
           resetCategoryDirector();
           resetPlayedCategoryView();
           this.viewColor = this.thisPlayerColor;
+          // The hero measures real slot faces — the wave yields to the scene.
+          this.completeHydration();
         }
       },
+    },
+    /** A DIFFERENT tableau on the table (LB/RB cycle / the workspace's
+     *  inspected-player switch) restarts the staged mount for the new set. */
+    'effectiveViewColor'() {
+      this.startHydration();
     },
     /** The reserved-slot measurer plugs into the transaction while an
      *  incoming card exists (registered fresh per scene). The category
@@ -478,7 +544,14 @@ export default defineComponent({
       }
     },
   },
+  created() {
+    // BEFORE the first render (computeds are live, the DOM is not needed):
+    // a small table decides «sync» here and renders its faces in the one
+    // historical pass; a big one renders geometry first and waves in.
+    this.startHydration();
+  },
   beforeUnmount() {
+    this.cancelHydrationTick();
     this.unregisterHeroTarget?.();
     this.unregisterHeroTarget = undefined;
     resetCategoryDirector();
@@ -488,6 +561,77 @@ export default defineComponent({
   methods: {
     pilesOf(cards: ReadonlyArray<CardModel>): ReadonlyArray<ReadonlyArray<CardModel>> {
       return splitPiles(cards.length, this.plan.cap).map((p) => cards.slice(p.start, p.start + p.size));
+    },
+    // ── the staged mount (hydration wave) ───────────────────────────────
+    /** Faces of pile `pi` of `family` are live (geometry always renders). */
+    pileHydrated(family: PlayedFamily, pi: number): boolean {
+      return this.hydrationDone || this.familyPileBases[family] + pi < this.hydratedUnits;
+    },
+    /**
+     * Start (or restart, on a seat switch) the staged mount. Small tables
+     * and the hero scene mount everything synchronously — the wave exists
+     * only where one flush would be a long frame (100–200-card tables).
+     * The first wave already carries the identity families (the table never
+     * paints an empty head row); the rest arrives one rAF apart under the
+     * overlay's entrance fade.
+     */
+    startHydration(): void {
+      this.cancelHydrationTick();
+      if (this.heroActive || this.heroIncoming !== undefined || this.faceUpCount <= HYDRATION_SYNC_MAX) {
+        this.completeHydration();
+        return;
+      }
+      this.hydrationDone = false;
+      // Wave 0: every pile before 'active' (the identity families).
+      this.hydratedUnits = this.familyPileBases.active;
+      this.scheduleHydrationTick();
+    },
+    completeHydration(): void {
+      this.cancelHydrationTick();
+      this.hydrationDone = true;
+    },
+    cancelHydrationTick(): void {
+      if (this.hydrationRaf !== undefined) {
+        if (typeof cancelAnimationFrame === 'function') {
+          cancelAnimationFrame(this.hydrationRaf);
+        } else {
+          clearTimeout(this.hydrationRaf);
+        }
+        this.hydrationRaf = undefined;
+      }
+    },
+    scheduleHydrationTick(): void {
+      const tick = () => {
+        this.hydrationRaf = undefined;
+        this.hydrationTick();
+      };
+      this.hydrationRaf = typeof requestAnimationFrame === 'function' ?
+        requestAnimationFrame(tick) :
+        (setTimeout(tick, 16) as unknown as number);
+    },
+    /** Advance the wave by ~HYDRATION_FACES_PER_TICK faces' worth of piles. */
+    hydrationTick(): void {
+      if (this.hydrationDone) {
+        return;
+      }
+      const sizes: Array<number> = [];
+      for (const family of FAMILY_ORDER) {
+        for (const p of this.familyPilePlans[family]) {
+          sizes.push(p.size);
+        }
+      }
+      let next = this.hydratedUnits;
+      let faces = 0;
+      while (next < sizes.length && faces < HYDRATION_FACES_PER_TICK) {
+        faces += sizes[next];
+        next++;
+      }
+      this.hydratedUnits = next;
+      if (next >= sizes.length) {
+        this.hydrationDone = true;
+        return;
+      }
+      this.scheduleHydrationTick();
     },
     familyClasses(key: PlayedCategoryKey): Record<string, boolean> {
       return {

@@ -1431,8 +1431,16 @@ html.console-native {
    panels never overlap it horizontally, so the lift only beats the dims.
    The soft cyan ring binds the rail to the active workspace across the
    seam (box-shadow — perf-lite keeps it). The Information Workspace
-   (.con-main--info, defined later) wins its own rail treatment on top. */
-.con-root:has(.con-ws) {
+   (.con-main--info, defined later) wins its own rail treatment on top.
+
+   ⚠ `.con-root--ws-open` is the ex-`:has(.con-ws)` — same semantics (true
+   while ANY `.con-ws` element exists, leave transitions included), now a
+   plain class maintained by `conWsPresenceBridge.ts`. A root-anchored
+   `:has()` made Blink re-run a WHOLE-DOCUMENT style recalc roughly per
+   animated frame (~1.2 s per 100-card «Разыграно» category flight; ~37 ms
+   once class-keyed). Never re-introduce a `:has()` anchored on `.con-root`
+   / `body` / `html`. */
+.con-root.con-root--ws-open {
     .con-main {
         z-index: auto;
 
@@ -1571,7 +1579,7 @@ html.console-native {
    rot silently). And the one exception is PHYSICAL ARRIVALS: while cards are
    flying into the dock it is FULL and on top whatever is open (`--receiving`
    — the presence contract), so the pack surfaces for exactly that span. */
-.con-root:has(.con-ws--dockcover) .con-handdock:not(.con-handdock--receiving) .con-handdock__pack {
+.con-root.con-root--ws-dockcover .con-handdock:not(.con-handdock--receiving) .con-handdock__pack {
     z-index: 11469;
 }
 
@@ -4193,8 +4201,9 @@ each(@players, {
    that taller virtual box rides `--con-board-dy`, i.e. the same transform
    that is already transitioned. Nothing about the layout moves, at either
    end of the cycle. */
-.con-root:has(.con-board--pfocus) .con-banner,
-.con-root:has(.con-board--pfocus-exit) .con-banner {
+/* `.con-root--pfocus` covers BOTH pfocus and its exit beat (the bridge's
+   one flag — ex-`:has(.con-board--pfocus/-exit)`; see the ws-open note). */
+.con-root.con-root--pfocus .con-banner {
     /* Recedes, but keeps its row: `display: none` here would move the whole
        main band and re-open the very jump described above. */
     opacity: 0;

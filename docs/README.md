@@ -32,6 +32,7 @@ files here are the deeper dives it points at.
 - [MODAL_INPUTS.md](MODAL_INPUTS.md) — modern modal-input components (ModalInputHost router, Modern* inputs, contextual-choice, option-metadata prose), extracted from CLAUDE.md. Routing invariants + the metadata CHECKLIST stay in CLAUDE.md.
 - [REMOUNT_ANIMATION_REWORK_DESIGN.md](REMOUNT_ANIMATION_REWORK_DESIGN.md) / [REMOUNT_ANIMATION_REWORK_BRIEF.md](REMOUNT_ANIMATION_REWORK_BRIEF.md) — the no-remount update model + motion system.
 - [PERFORMANCE_AUDIT.md](PERFORMANCE_AUDIT.md) / [PERF_INVESTIGATION.md](PERF_INVESTIGATION.md) — rendering/perf findings and fixes.
+- [PLAYED_TABLEAU_PERFORMANCE.md](PLAYED_TABLEAU_PERFORMANCE.md) — the full-tableau («Разыграно») performance iteration: the GSAP `<html>`-reparent + root-`:has()` whole-document-recalc root causes, bounded flights / staged mount / thumb art tier, probe + seeds.
 - [ZOOM_BUG_HANDOFF.md](ZOOM_BUG_HANDOFF.md) — zoom-rendering bug investigation notes.
 - [DIAGNOSTIC_CLEANUP.md](DIAGNOSTIC_CLEANUP.md) — diagnostics/cleanup notes.
 

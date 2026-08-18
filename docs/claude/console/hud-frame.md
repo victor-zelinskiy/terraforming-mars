@@ -324,9 +324,11 @@ different questions:
   the two workspace-shaped overlays that are not stack frames (`playedOpen`,
   `infoWorkspaceUp`) and the two drawers (`journalPanelVisible`,
   `contextOverlayMode`) — never a second list of surface names to rot.
-  Hiding the rail is not belt-and-braces: `.con-root:has(.con-ws)` LIFTS it to
-  z11520, i.e. **above** every band surface (11480–11515), so an unhidden rail
-  paints on top of the very screen that took its zone.
+  Hiding the rail is not belt-and-braces: `.con-root--ws-open` (the
+  `conWsPresenceBridge.ts` class — the ex-`:has(.con-ws)`, same DOM-presence
+  semantics) LIFTS it to z11520, i.e. **above** every band surface
+  (11480–11515), so an unhidden rail paints on top of the very screen that
+  took its zone.
 
 **A SCREEN's own edge is not this policy.** The token has exactly two consumers —
 the shared dim and the compact dialogs, both of which are asking «is the rail
@@ -334,7 +336,8 @@ visible right now». A screen welds itself (`right: 0`), because the policy flip
 on the frame the stack empties, which is the frame the surface starts FADING: a
 screen that spent the token would re-fit its content inside a 468px-narrower box
 (at 4K) while dissolving. Same law as the rail's own lift, which deliberately
-rides DOM presence (`:has(.con-ws)`) so it holds through the leave for free.
+rides DOM presence (`conWsPresenceBridge` → `.con-root--ws-open`) so it holds
+through the leave for free.
 
 **`visibility`, never `display`.** The rail's BOX must survive the replacement,
 or `.con-main`'s flex re-lays out and the board rescales for a mode change —

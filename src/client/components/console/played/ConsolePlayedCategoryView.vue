@@ -47,6 +47,7 @@
                that moved only the face left the ✓ band floating behind. -->
           <div class="con-played-cat__lift">
             <div class="con-played-cat__face" :style="{zoom: String(layout.zoom)}">
+              <!-- The near-fullscreen stage — always the full art tier. -->
               <ConsolePlayedCardLite :name="cards[0].name" />
             </div>
           </div>
@@ -73,8 +74,13 @@
                    :data-zoom-slot="card.name"
                    @click="onSlotClick(row * gridPlan.cols + ci)">
                 <div class="con-played-cat__lift">
-                  <div class="con-played-cat__face" :style="{zoom: String(gridPlan.cardZoom)}">
-                    <ConsolePlayedCardLite :name="card.name" />
+                  <!-- Faces mount DEFERRED (facesOn): during the open flight
+                       the grid is held invisible anyway — only slot geometry
+                       is needed (targets are pure plan math). The real faces
+                       mount at the frame beat, under the settled proxies, so
+                       the open flush never pays for two full card sets. -->
+                  <div v-if="facesOn" class="con-played-cat__face" :style="{zoom: String(gridPlan.cardZoom)}">
+                    <ConsolePlayedCardLite :name="card.name" :art-tier="catArtTier" />
                   </div>
                 </div>
               </div>
@@ -99,7 +105,9 @@
            :ref="(el) => registerCategoryFlightEl(f.id, el)">
         <div class="con-deal-proxy__flip">
           <div class="con-deal-proxy__face">
-            <ConsolePlayedCardLite :name="f.name" />
+            <!-- The proxy lands on a grid slot — same art tier as the grid,
+                 so the handoff crossfades over the very same decoded file. -->
+            <ConsolePlayedCardLite :name="f.name" :art-tier="catArtTier" />
           </div>
           <div class="con-deal-proxy__back">
             <div class="con-card-back con-card-back--flyer"></div>
@@ -150,8 +158,9 @@ import {motionMs} from '@/client/components/motion/motionTokens';
 import {openConsoleCardZoom, slotZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
 import {zoomProvenanceOver} from '@/client/components/console/played/playedProvenance';
 import {stepHandGrid, HandGridPlan} from '@/client/components/console/consoleHandGrid';
+import {artTierForWidth, CardArtTier, preloadPremiumCardArt} from '@/client/cards/cardArt';
 import {
-  planCategoryView, categoryTargetRect, CategoryViewLayout, FlightRect,
+  planCategoryView, categoryTargetRect, plannedFlightIndices, CategoryViewLayout, FlightRect,
   PLAYED_CATEGORY_LABEL,
 } from '@/client/components/console/consolePlayedCategoryModel';
 import {
@@ -211,6 +220,11 @@ export default defineComponent({
       ro: undefined as ResizeObserver | undefined,
       rafScroll: undefined as number | undefined,
       frameTimer: undefined as number | undefined,
+      /** Grid faces are mounted (deferred past the open flight — see the
+       *  template note). Seeded true for a view that mounts already open. */
+      facesOn: playedCategoryState.phase === 'open',
+      /** Focused-card full-art prewarm debounce (thumb-tier grids only). */
+      prewarmTimer: undefined as number | undefined,
     };
   },
   computed: {
@@ -277,6 +291,15 @@ export default defineComponent({
       const topPct = (100 - hPct) * this.scrollFrac;
       return {height: hPct + '%', top: topPct + '%'};
     },
+    /** The art tier of the grid faces AND their proxies — one decision, one
+     *  decoded file per card (see cardArt.ts ART TIERS). The single-card
+     *  stage renders near-fullscreen and stays on 'full' in the template. */
+    catArtTier(): CardArtTier {
+      if (this.layout.kind !== 'grid') {
+        return 'full';
+      }
+      return artTierForWidth(this.gridPlan.slotW);
+    },
   },
   watch: {
     /** A shrinking category (undo / seat data refresh) clamps the focus. */
@@ -284,6 +307,28 @@ export default defineComponent({
       if (this.state.focusIndex > n - 1) {
         this.state.focusIndex = Math.max(0, n - 1);
       }
+    },
+    /** Thumb-tier grids prewarm the FOCUSED card's full art (debounced) so
+     *  the fullscreen inspector opens onto an already-decoded picture. One
+     *  in-flight decode at a time by construction — the debounce collapses
+     *  a d-pad sprint into its resting card. */
+    'state.focusIndex': {
+      immediate: true,
+      handler() {
+        if (this.prewarmTimer !== undefined) {
+          window.clearTimeout(this.prewarmTimer);
+        }
+        if (this.catArtTier !== 'thumb' || this.state.phase !== 'open') {
+          return;
+        }
+        this.prewarmTimer = window.setTimeout(() => {
+          this.prewarmTimer = undefined;
+          const focused = this.cards[this.state.focusIndex];
+          if (focused !== undefined) {
+            preloadPremiumCardArt([focused.name]);
+          }
+        }, 160);
+      },
     },
   },
   mounted() {
@@ -303,6 +348,10 @@ export default defineComponent({
     this.ro?.disconnect();
     if (this.rafScroll !== undefined) {
       cancelAnimationFrame(this.rafScroll);
+    }
+    if (this.prewarmTimer !== undefined) {
+      window.clearTimeout(this.prewarmTimer);
+      this.prewarmTimer = undefined;
     }
     this.clearFrameTimer();
     resetCategoryDirector();
@@ -371,8 +420,10 @@ export default defineComponent({
     },
     settleOpenInstant(): void {
       this.state.flights = [];
+      this.state.groundedNames = [];
       this.state.holdCards = false;
       this.state.frameOn = true;
+      this.facesOn = true;
       this.state.phase = 'open';
     },
     onOpenSettled(settledAs: 'open' | 'closed'): void {
@@ -382,18 +433,32 @@ export default defineComponent({
         this.$emit('settled-closed');
         return;
       }
-      // Landed: the frame assembles around the cards, then the real grid
-      // takes over under the dissolving proxies.
+      // Landed: the frame assembles around the cards, the DEFERRED grid
+      // faces mount during the frame beat, then the real grid takes over
+      // under the dissolving proxies.
       this.state.frameOn = true;
+      this.facesOn = true;
       this.clearFrameTimer();
       this.frameTimer = window.setTimeout(() => {
         this.frameTimer = undefined;
-        dissolveCategoryProxies(() => {
-          this.state.flights = [];
-        });
-        // The real cards paint the instant the dissolve starts underneath.
-        this.state.holdCards = false;
-        this.state.phase = 'open';
+        // The dissolve GATES on the real faces being flushed + painted (two
+        // frames past the tick): on a throttled main thread the face mount
+        // can outlive the frame beat, and a dissolve over unpainted slots is
+        // a blink. Deterministic ordering, never a race.
+        void this.$nextTick()
+          .then(() => this.frame())
+          .then(() => this.frame())
+          .then(() => {
+            if (this.state.phase !== 'opening') {
+              return;
+            }
+            dissolveCategoryProxies(() => {
+              this.state.flights = [];
+            });
+            // The real cards paint the instant the dissolve starts underneath.
+            this.state.holdCards = false;
+            this.state.phase = 'open';
+          });
       }, motionMs(CATEGORY_FRAME_MS));
     },
     // ── the CLOSE flight ────────────────────────────────────────────────
@@ -418,14 +483,25 @@ export default defineComponent({
         this.$emit('settled-closed');
         return;
       }
-      // Fresh flights from the CURRENT grid geometry back to the live table.
+      // Fresh flights from the CURRENT grid geometry back to the live table —
+      // BOUNDED to the scrolled-to window (+ sweep tails): the grounded rest
+      // fades back in place on the table when the close settles.
       this.state.phase = 'closing';
       this.state.frameOn = false;
-      this.state.flights = this.cards.map((c): CategoryFlight => ({
+      const closeIndices = plannedFlightIndices(
+        this.layout, this.cards.length,
+        this.box.h > 0 ? this.box.h : FALLBACK_H,
+        this.currentScrollTop());
+      const closeFlown = new Set(closeIndices);
+      this.state.flights = closeIndices.map((index): CategoryFlight => ({
         id: nextCategoryFlightId(),
-        name: c.name,
-        faceDown: this.isFaceDown(c.name),
+        name: this.cards[index].name,
+        index,
+        faceDown: this.isFaceDown(this.cards[index].name),
       }));
+      this.state.groundedNames = this.cards
+        .filter((_, i) => !closeFlown.has(i))
+        .map((c) => c.name);
       void this.$nextTick().then(() => {
         if (this.state.phase !== 'closing') {
           return;
@@ -470,17 +546,19 @@ export default defineComponent({
       const gridClip = layout.kind === 'grid' && gridEl !== undefined && typeof gridEl.getBoundingClientRect === 'function' ?
         gridEl.getBoundingClientRect() : undefined;
       const flights = this.state.flights;
-      if (flights.length !== this.cards.length) {
+      if (flights.length === 0 || flights.length > this.cards.length) {
         return [];
       }
       const out: Array<CategoryFlightPlan> = [];
-      for (let i = 0; i < flights.length; i++) {
-        const f = flights[i];
-        const source = this.tableauRect(f.name, i);
+      for (const f of flights) {
+        if (this.cards[f.index]?.name !== f.name) {
+          continue; // the category shifted under the episode (undo)
+        }
+        const source = this.tableauRect(f.name, f.index);
         if (source === undefined) {
           continue;
         }
-        const t = categoryTargetRect(layout, i, this.cards.length, origin);
+        const t = categoryTargetRect(layout, f.index, this.cards.length, origin);
         const target: FlightRect = {x: t.x, y: t.y - scrollTop, w: t.w, h: t.h};
         const targetVisible = target.y + target.h > clip.top - 4 && target.y < clip.bottom + 4;
         let targetClip: {top: number, bottom: number} | undefined;
@@ -495,16 +573,27 @@ export default defineComponent({
       }
       return out;
     },
-    /** Spawn the open-direction flight entries (the layer mounts them). */
+    /** Spawn the open-direction flight entries (the layer mounts them) —
+     *  BOUNDED to the top window the view opens at (+ the sweep tail); the
+     *  grounded rest dissolves in place on the table. */
     spawnOpenFlights(): ReadonlyArray<CategoryFlight> {
-      if (this.state.flights.length === this.cards.length) {
+      if (this.state.flights.length > 0) {
         return this.state.flights;
       }
-      this.state.flights = this.cards.map((c): CategoryFlight => ({
+      const indices = plannedFlightIndices(
+        this.layout, this.cards.length,
+        this.box.h > 0 ? this.box.h : FALLBACK_H,
+        0 /* the view always opens at the top */);
+      const flown = new Set(indices);
+      this.state.flights = indices.map((index): CategoryFlight => ({
         id: nextCategoryFlightId(),
-        name: c.name,
-        faceDown: this.isFaceDown(c.name),
+        name: this.cards[index].name,
+        index,
+        faceDown: this.isFaceDown(this.cards[index].name),
       }));
+      this.state.groundedNames = this.cards
+        .filter((_, i) => !flown.has(i))
+        .map((c) => c.name);
       return this.state.flights;
     },
     /** The grid content origin (proxy landings are derived off it purely). */

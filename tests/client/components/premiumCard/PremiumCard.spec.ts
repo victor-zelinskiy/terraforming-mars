@@ -201,3 +201,49 @@ describe('PremiumCardArt', () => {
     expect(wrapper.find('img').exists()).to.eq(false);
   });
 });
+
+/* ── ART TIERS + the printed-face VM cache (the tableau perf contract) ──── */
+describe('PremiumCard art tiers + printed-face VM cache', () => {
+  it('artTier="thumb" points the art at the thumb build of the same picture', () => {
+    const wrapper = mount(PremiumCard, {props: {name: CardName.COMET, inert: true, artTier: 'thumb'}});
+    const img = wrapper.find('.pcard__art img');
+    expect(img.exists()).to.eq(true);
+    expect(img.attributes('src')).to.contain('assets/card-images/thumb/');
+  });
+
+  it('the default tier stays byte-identical to the historical URL (full)', () => {
+    const wrapper = mount(PremiumCard, {props: {name: CardName.COMET, inert: true}});
+    const img = wrapper.find('.pcard__art img');
+    expect(img.attributes('src')).to.eq(premiumCardArt(CardName.COMET).url);
+    expect(img.attributes('src')).to.not.contain('/thumb/');
+  });
+
+  it('a missing thumb heals to the FULL file before the shared fallback', async () => {
+    const wrapper = mount(PremiumCardArt, {
+      props: {art: {url: 'assets/card-images/042.webp', fallback: false}, tier: 'thumb'},
+    });
+    expect(wrapper.find('img').attributes('src')).to.contain('/thumb/042.webp');
+    await wrapper.find('img').trigger('error');
+    expect(wrapper.find('img').attributes('src')).to.eq('assets/card-images/042.webp');
+    await wrapper.find('img').trigger('error');
+    expect(wrapper.find('img').attributes('src')).to.eq('assets/card-images/-1.webp');
+    await wrapper.find('img').trigger('error');
+    expect(wrapper.find('img').exists()).to.eq(false); // procedural body
+  });
+
+  it('a peek face mounts NO art at any tier (the covered-pile contract)', () => {
+    const wrapper = mount(PremiumCard, {props: {name: CardName.COMET, inert: true, peek: true, artTier: 'thumb'}});
+    expect(wrapper.find('.pcard__art').exists()).to.eq(false);
+    expect(wrapper.find('img').exists()).to.eq(false);
+  });
+
+  it('printed (name-only) faces SHARE one cached VM; live-model faces never do', () => {
+    const a = mount(PremiumCard, {props: {name: CardName.COMET, inert: true}});
+    const b = mount(PremiumCard, {props: {name: CardName.COMET, inert: true, artTier: 'thumb'}});
+    const vmA = (a.vm as unknown as {vm: object}).vm;
+    const vmB = (b.vm as unknown as {vm: object}).vm;
+    expect(vmA).to.eq(vmB); // one build per card name per session
+    const live = mount(PremiumCard, {props: {card: model(CardName.COMET)}});
+    expect((live.vm as unknown as {vm: object}).vm).to.not.eq(vmA);
+  });
+});

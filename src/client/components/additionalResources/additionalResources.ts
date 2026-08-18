@@ -44,6 +44,16 @@ export interface AdditionalResourceGroup {
 }
 
 /**
+ * Memo by tableau ARRAY IDENTITY. The always-mounted resource rail re-derives
+ * groups on every server response; with view-snapshot structural sharing an
+ * unchanged tableau keeps its array ref, so a 200-card tableau costs O(1) per
+ * update instead of an O(n) walk + allocations. Safe by the update model's own
+ * contract: any in-place change to a card (its `resources` count) replaces the
+ * card object AND the tableau array identity.
+ */
+const groupsMemo = new WeakMap<ReadonlyArray<CardModel>, ReadonlyArray<AdditionalResourceGroup>>();
+
+/**
  * Build the ordered list of additional-resource groups for a player's tableau.
  *
  * @param tableau the player's played cards + corporation(s), in play order.
@@ -51,6 +61,10 @@ export interface AdditionalResourceGroup {
 export function additionalResourceGroups(
   tableau: ReadonlyArray<CardModel>,
 ): ReadonlyArray<AdditionalResourceGroup> {
+  const memoized = groupsMemo.get(tableau);
+  if (memoized !== undefined) {
+    return memoized;
+  }
   // `result` IS the first-appearance order (a group is pushed the first time
   // its resource is seen); the map only holds references INTO `result` for
   // O(1) accumulation, so no separate order list / non-null lookup is needed.
@@ -82,6 +96,7 @@ export function additionalResourceGroups(
     group.total += amount;
   }
 
+  groupsMemo.set(tableau, result);
   return result;
 }
 

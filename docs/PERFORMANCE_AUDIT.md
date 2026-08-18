@@ -293,6 +293,8 @@ Only **7** are full-bleed decorative, exactly **one** of those is paint-heavy (`
 ### SHIPPED — the pause-under-shade rule widened from the zoom inspector to the whole workspace band
 The investigation's real find: the correct instrument already existed twice, and both instances were narrowly scoped. `mandatory_input_modal.less:58-88` (desktop, frozen) and `console_card_deal.less:336-357` (console, **`body.con-zoom-open` only**) pause CSS animations beneath a scrim, the latter explicitly calling itself "the console twin of the desktop rule". Nothing covered the ~20-surface **workspace-band family** — and those stand for as long as the SERVER waits on the player (seconds to minutes) versus ~1 s for a cinematic. A composited animating layer is rasterized **even while occluded** — the boot warm-up depends on precisely that (`boot_loader.less`) — so the dim never saved them.
 
+> **2026-08-19 follow-up:** the `:has(.con-ws)` anchor itself turned out to be a first-order perf defect — Blink re-ran a whole-document style recalc per animated frame for root-anchored `:has()` (see `docs/PLAYED_TABLEAU_PERFORMANCE.md`). The canonical hook is now the class `.con-root--ws-open`, maintained by `conWsPresenceBridge.ts` with identical DOM-presence semantics; the blanket `* { paused }` form below was also later replaced by the in-code allowlist. Historical text kept as written:
+
 Added to the existing `.con-root:has(.con-ws) .con-main` block in `console.less` (no new JS, no new state: `:has(.con-ws)` is already the canonical hook and already holds through leave transitions):
 ```less
 &, * { animation-play-state: paused !important; }
