@@ -1,21 +1,27 @@
 import {Expansion, EXPANSIONS} from '../../common/cards/GameModule';
 import {Phase} from '../../common/Phase';
 import {IGame} from '../IGame';
-import {JoinableGameSummary, JoinablePlayer} from '../../common/models/JoinableGameModel';
+import {JoinableGameStatus, JoinableGameSummary, JoinablePlayer} from '../../common/models/JoinableGameModel';
 import {normalizePlayerName} from '../../common/utils/playerName';
 
 /**
  * Build a {@link JoinableGameSummary} for `game` from the perspective of a
  * player whose normalized name is `normalizedName`. Returns `undefined` when the
- * game is finished or no seat matches the name — those are simply not part of
- * the requester's join list.
+ * game is in the OTHER slice (see {@link JoinableGameStatus} — `active` is the
+ * default and excludes finished games; `finished` lists only those) or when no
+ * seat matches the name.
  *
  * Only the requester's OWN matched seat exposes a `PlayerId` (their private join
  * link). If two seats share the name the match is ambiguous: no link is handed
  * out and the client renders an ambiguity state.
  */
-export function getJoinableGameSummary(game: IGame, normalizedName: string): JoinableGameSummary | undefined {
-  if (game.phase === Phase.END) {
+export function getJoinableGameSummary(
+  game: IGame,
+  normalizedName: string,
+  status: JoinableGameStatus = 'active',
+): JoinableGameSummary | undefined {
+  const finished = game.phase === Phase.END;
+  if (finished !== (status === 'finished')) {
     return undefined;
   }
 
@@ -47,6 +53,7 @@ export function getJoinableGameSummary(game: IGame, normalizedName: string): Joi
     players: roster,
     maxPlayers: players.length,
     activePlayer: game.activePlayer.color,
+    finished,
     you: ambiguous ? undefined : {id: matches[0].id, color: matches[0].color},
     ambiguous,
   };

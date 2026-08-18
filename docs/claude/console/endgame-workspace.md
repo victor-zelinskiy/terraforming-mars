@@ -67,6 +67,38 @@ animation-hold supplier (`endgame-ceremony`) reads the reactive phase.
 phase (`sawLivePhase`) and hasn't played yet; a reload straight into an ended
 game lands SETTLED — «Повторить подсчёт» is the explicit replay.
 
+## The road BACK IN — the archive slice of «МОИ ПАРТИИ»
+
+A finished party is not a dead end: the main menu's games list has **two
+SLICES**, and L3 (`stickL`) toggles them — «АКТИВНЫЕ» (the join list) ⇄
+«ЗАВЕРШЁННЫЕ» (the archive). Opening an archive row lands exactly here, on the
+settled state above, where «Обзор партии» and «Повторить подсчёт» live. That
+toggle is the whole feature: the workspace already knew how to be re-entered,
+nothing about the ceremony changed.
+
+- **Server:** ONE route, one param. `GET /api/games/joinable?name=…&status=active|finished`
+  (`JoinableGameStatus`; default `active`, and an unknown value can never widen
+  the slice). `getJoinableGameSummary(game, name, status)` returns `undefined`
+  for the other slice and stamps `finished` on the summary. Both slices scan the
+  same ledger, so the console asks for the archive LAZILY (once per menu
+  session, for the tab-chip count) and keeps POLLING only the live slice.
+- **A finished row claims nothing that belongs to a live game.** Its stored
+  `activePlayer` is merely whoever was to move when the game ended, so
+  `yourTurn()` and the crew's «его ход» dot are both gated on `finished !== true`
+  — otherwise the archive pulses a turn that cannot be taken. And opening one
+  must NOT stamp `recordLastGameEntered`: that memory names the party CONTINUE
+  should resume, and a finished id would erase it (`openLocalGame`). The curtain
+  says «синхронизация», not «подготовка экспедиции» — nobody is leaving on an
+  expedition.
+- **LAN rows are live-only.** Hosts publish their unfinished games; the archive
+  is this device's own (`visibleLanRows` is empty on the archive tab, which also
+  keeps the cursor range honest).
+- Files: `src/server/models/joinableGames.ts`, `src/server/routes/ApiGamesJoinable.ts`,
+  `src/client/components/mainMenu/joinGamesState.ts` (`finishedGamesState` —
+  no polling, no cross-session cache, self-healing on a profile switch),
+  `src/client/components/console/menu/ConsoleMainMenu.vue`. Specs:
+  `tests/models/joinableGames.spec.ts`, `tests/routes/ApiGamesJoinable.spec.ts`.
+
 ## Input & the bottom bar
 
 The shell delegates the whole pad to the workspace while it stands

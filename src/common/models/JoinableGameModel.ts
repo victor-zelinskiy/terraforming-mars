@@ -17,10 +17,21 @@ export type JoinablePlayer = {
 };
 
 /**
- * A summary of an unfinished game in which one of the players' normalized name
- * matches the requester — the payload of the premium "join games" list. It is
- * deliberately minimal and exposes only board-public information plus the
- * requester's own seat link.
+ * Which SLICE of the requester's games a listing asks for.
+ *
+ * `active` — the games still being played (the default: the join list, the
+ * console menu's CONTINUE item and its badge all mean this).
+ * `finished` — the ARCHIVE. A finished game is still enterable: the console
+ * lands on the SETTLED final scoring, where the player can replay the count
+ * or open the game overview (see `consoleEndgameState`'s re-entry contract).
+ */
+export type JoinableGameStatus = 'active' | 'finished';
+
+/**
+ * A summary of a game in which one of the players' normalized name matches the
+ * requester — the payload of the premium "join games" list. It is deliberately
+ * minimal and exposes only board-public information plus the requester's own
+ * seat link.
  */
 export type JoinableGameSummary = {
   id: GameId;
@@ -35,6 +46,12 @@ export type JoinableGameSummary = {
   /** Always === players.length (TFM has no open seats), kept for UI occupancy. */
   maxPlayers: number;
   activePlayer: Color;
+  /**
+   * The game has ENDED (Phase.END). A finished row is opened to review the
+   * result, never to take a turn — so `activePlayer` carries no turn meaning
+   * here and no UI may read it as one.
+   */
+  finished: boolean;
   /**
    * The requester's matched seat — the only place a `PlayerId` (private join
    * link) is exposed. Undefined when no seat matches OR when the match is

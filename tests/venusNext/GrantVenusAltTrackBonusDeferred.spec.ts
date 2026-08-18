@@ -101,6 +101,28 @@ describe('GrantVenusAltTrackBonusDeferred', () => {
     expect(input.options[1]).instanceof(AndOptions);
   });
 
+  it('marks the wild with the per-candidate VP reading, and only where points respond', () => {
+    // Tardigrades: 1 VP per 4 microbes. At 3 the wild is the fourth — a REAL
+    // 0 → 1. Birds: 1 VP per animal — every animal moves it. A card whose
+    // points ignore resources never appears in the box at all.
+    const tardigrades = new Tardigrades();
+    const birds = new Birds();
+    player.playedCards.push(tardigrades, birds);
+    tardigrades.resourceCount = 3;
+    birds.resourceCount = 2;
+
+    const input = cast(new GrantVenusAltTrackBonusDeferred(player, 1, true).execute(), OrOptions);
+    expect(input.venusBonusPrompt?.wildCardVp).to.deep.eq({
+      [tardigrades.name]: {from: 0, to: 1},
+      [birds.name]: {from: 2, to: 3},
+    });
+    // The prompt itself is untouched by the preview: the eligible set and the
+    // branch shapes are exactly what they were.
+    expect(input.venusBonusPrompt?.wildCardTargets).to.have.members([tardigrades.name, birds.name]);
+    const onCard = cast(input.options[0], AndOptions);
+    expect(cast(onCard.options[0], SelectCard).cards).to.have.length(2);
+  });
+
   it('final bonus with base resources: branch shapes + grants', () => {
     const card = new Tardigrades();
     player.playedCards.push(card);
@@ -108,7 +130,18 @@ describe('GrantVenusAltTrackBonusDeferred', () => {
     // base=2, wild → option 0 (on-card) yields card+1 AND 2 base standard;
     // option 1 (standard) yields base+1 = 3 standard.
     const input = cast(new GrantVenusAltTrackBonusDeferred(player, 2, true).execute(), OrOptions);
-    expect(input.venusBonusPrompt).to.deep.eq({kind: 'final', baseCount: 2, wildCardTargets: [card.name]});
+    // …and the AUTHORITATIVE per-candidate VP reading the console's shared
+    // played-target selector renders. Tardigrades scores 1 VP per FOUR
+    // microbes, so at 0 the wild moves nothing: the entry is present and
+    // STATIC (`from === to`), which is what lets the client tell «this card's
+    // points do not respond to a resource» (absent) from «they do, just not
+    // this time» — without ever re-deriving a scoring rule.
+    expect(input.venusBonusPrompt).to.deep.eq({
+      kind: 'final',
+      baseCount: 2,
+      wildCardTargets: [card.name],
+      wildCardVp: {[card.name]: {from: 0, to: 0}},
+    });
 
     // Branch 0: AndOptions(SelectCard, GainResources(2)).
     const onCard = cast(input.options[0], AndOptions);

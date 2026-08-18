@@ -1,6 +1,6 @@
 import {CardModel} from './CardModel';
 import {ColonyModel} from './ColonyModel';
-import type {ActionEffect} from './ActionPreviewModel';
+import type {ActionEffect, VictoryPointsDelta} from './ActionPreviewModel';
 import type {BotAttackPromptMeta} from './BotAttackPromptModel';
 import type {TargetImpact, TargetImpactChange} from './TargetImpactModel';
 import {CardName} from '../cards/CardName';
@@ -143,6 +143,19 @@ export type VenusBonusPromptMeta = {
   baseCount: number;
   /** (final only) Card names eligible to receive the wild card-resource. */
   wildCardTargets?: ReadonlyArray<CardName>;
+  /**
+   * (final only) What the wild resource would do to each candidate's VICTORY
+   * POINTS — the SAME authoritative reading `ActionPreviewStep.vpBox` carries
+   * for every other target picker (`actionPreviews.targetVictoryPoints`), so
+   * the shared played-target selector explains this prompt exactly as it
+   * explains «Обстрел кометами» or Predators.
+   *
+   * READ-ONLY PREVIEW DATA. It changes nothing about what the server asks or
+   * accepts: the prompt shape, the eligible set and the bonus size are
+   * untouched, and a card whose points the resource never moves is simply
+   * ABSENT here (never a fabricated zero).
+   */
+  wildCardVp?: Partial<Record<CardName, VictoryPointsDelta>>;
 }
 
 /**

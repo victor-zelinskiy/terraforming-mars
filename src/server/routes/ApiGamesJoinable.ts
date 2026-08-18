@@ -3,15 +3,22 @@ import {Handler} from './Handler';
 import {Context} from './IHandler';
 import {Request} from '../Request';
 import {Response} from '../Response';
-import {JoinableGameSummary} from '../../common/models/JoinableGameModel';
+import {JoinableGameStatus, JoinableGameSummary} from '../../common/models/JoinableGameModel';
 import {getJoinableGameSummary} from '../models/joinableGames';
 import {normalizePlayerName} from '../../common/utils/playerName';
 
 /**
- * GET /api/games/joinable?name=<displayName>
+ * GET /api/games/joinable?name=<displayName>[&status=active|finished]
  *
- * Lists every UNFINISHED game in which a player's normalized name matches the
- * given name, newest-first. Powers the premium main-menu "join games" panel.
+ * Lists every game in which a player's normalized name matches the given name,
+ * newest-first. Powers the premium main-menu "join games" panel.
+ *
+ * `status` picks the SLICE (default `active`): `active` = the unfinished games
+ * (the join list proper), `finished` = the ARCHIVE the console menu toggles to,
+ * whose rows are opened to review the result — the console lands on the settled
+ * final scoring, where the count can be replayed. Both slices scan the same
+ * ledger, so the console asks for the archive lazily (first toggle) and keeps
+ * polling only the active one.
  *
  * No serverId gate: the result is name-scoped and exposes only board-public
  * information (game name, map, enabled expansions, player names + colours) plus
@@ -34,6 +41,9 @@ export class ApiGamesJoinable extends Handler {
       responses.writeJson(res, ctx, []);
       return;
     }
+    // Anything but the explicit 'finished' means the default (active) slice —
+    // an unknown value can never widen what a caller sees.
+    const status: JoinableGameStatus = ctx.url.searchParams.get('status') === 'finished' ? 'finished' : 'active';
 
     const ledger = await ctx.gameLoader.getIds();
     if (ledger === undefined) {
@@ -48,7 +58,7 @@ export class ApiGamesJoinable extends Handler {
         if (game === undefined) {
           continue;
         }
-        const summary = getJoinableGameSummary(game, normalized);
+        const summary = getJoinableGameSummary(game, normalized, status);
         if (summary !== undefined) {
           summaries.push(summary);
         }

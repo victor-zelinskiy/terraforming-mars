@@ -44,14 +44,39 @@
     <!-- ── My games (continue / join) ──────────────────────────────────── -->
     <div v-if="overlay === 'games'" class="cm-overlay" role="dialog" :aria-label="$t('My games')">
       <div class="cm-overlay__card cm-overlay__card--wide">
-        <div class="cm-overlay__title">{{ $t('My games') }}</div>
-        <div v-if="joinGamesState.loading && !joinGamesState.loadedOnce" class="cm-gamelist__empty">{{ $t('Loading') }}…</div>
-        <div v-else-if="joinGamesState.error && lanRows.length === 0" class="cm-gamelist__empty cm-gamelist__empty--error">{{ $t('Could not load your games') }}</div>
-        <div v-else-if="games.length === 0 && lanRows.length === 0" class="cm-gamelist__empty">{{ $t('You have no unfinished games yet.') }}</div>
+        <!-- The slice is a TAB, not another screen: «МОИ ПАРТИИ» is the stable
+             context and only the strip on its right changes (L3 toggles it; a
+             click works as the mouse fallback). The archive rows lead to the
+             settled final scoring, so the same list serves both. -->
+        <div class="cm-overlay__head">
+          <div class="cm-overlay__title">{{ $t('My games') }}</div>
+          <div class="cm-gametabs" role="tablist" :aria-label="$t('My games')">
+            <button
+              v-for="tab in gamesTabs"
+              :key="tab.id"
+              type="button"
+              class="cm-gametab"
+              :class="{'cm-gametab--on': tab.id === gamesTab}"
+              role="tab"
+              :aria-selected="tab.id === gamesTab"
+              @click="setGamesTab(tab.id)"
+            >
+              <span>{{ $t(tab.label) }}</span>
+              <span v-if="tab.count !== undefined" class="cm-gametab__count">{{ tab.count }}</span>
+            </button>
+            <span class="cm-gametabs__hint" aria-hidden="true"><GamepadGlyph control="stickL" /></span>
+          </div>
+        </div>
+        <div v-if="gamesTab === 'finished'" class="cm-overlay__body cm-overlay__body--dim">
+          {{ $t('Open a finished game to review the results or replay the final scoring.') }}
+        </div>
+        <div v-if="gamesFirstLoad" class="cm-gamelist__empty">{{ $t('Loading') }}…</div>
+        <div v-else-if="gamesLoadError" class="cm-gamelist__empty cm-gamelist__empty--error">{{ $t('Could not load your games') }}</div>
+        <div v-else-if="gamesCount === 0" class="cm-gamelist__empty">{{ $t(gamesEmptyKey) }}</div>
         <ConsoleScrollArea v-else ref="gamesScroll" class="cm-gamelist-scroll">
           <div class="cm-gamelist">
           <button
-            v-for="(g, i) in games"
+            v-for="(g, i) in localRows"
             :key="g.id"
             type="button"
             class="cm-game"
@@ -103,16 +128,16 @@
           <!-- LAN hosts (host-as-server mode): games discovered over mDNS on other
                couches. Joining pins the seat to that host's server and navigates —
                the session then talks to the host directly (docs/EMBEDDED_SERVER.md §6). -->
-          <template v-if="lanRows.length > 0">
+          <template v-if="visibleLanRows.length > 0">
             <div class="cm-gamelist__lanhead">{{ $t('On your local network') }}</div>
             <button
-              v-for="(row, k) in lanRows"
+              v-for="(row, k) in visibleLanRows"
               :key="'lan:' + row.host.id + ':' + row.game.id"
               type="button"
               class="cm-game cm-game--lan"
-              :class="{'cm-game--cursor': games.length + k === gamesCursor, 'cm-game--disabled': !joinable(row.game)}"
-              @click="enterGameAt(games.length + k)"
-              @mousemove="gamesCursor = games.length + k"
+              :class="{'cm-game--cursor': localRows.length + k === gamesCursor, 'cm-game--disabled': !joinable(row.game)}"
+              @click="enterGameAt(localRows.length + k)"
+              @mousemove="gamesCursor = localRows.length + k"
             >
               <div class="cm-game__head">
                 <span class="cm-game__name">{{ row.game.name }}</span>
@@ -259,7 +284,7 @@ import {defineComponent} from 'vue';
 import {paths} from '@/common/app/paths';
 import {vueRoot} from '@/client/components/vueRoot';
 import {setDocumentTitle} from '@/client/utils/documentTitle';
-import {JoinableGameSummary} from '@/common/models/JoinableGameModel';
+import {JoinableGameStatus, JoinableGameSummary} from '@/common/models/JoinableGameModel';
 import {GamepadIntent} from '@/client/gamepad/gamepadPollModel';
 import {installMenuPad, menuPadState} from '@/client/console/menu/consoleMenuPad';
 import {stepIndex} from '@/client/console/consoleRouter';
@@ -278,7 +303,7 @@ import {isAdminName} from '@/common/utils/adminName';
 import {identityState, ensureIdentityLoaded} from '@/client/components/mainMenu/identity/identityState';
 import {ensureProfilesLoaded} from '@/client/components/mainMenu/profilesState';
 import {prefillIdentityFromSteam} from '@/client/components/mainMenu/identity/steamIdentity';
-import {joinGamesState, hydrateJoinableGames, loadJoinableGames, startJoinPolling, stopJoinPolling} from '@/client/components/mainMenu/joinGamesState';
+import {joinGamesState, finishedGamesState, hydrateJoinableGames, loadJoinableGames, loadFinishedGames, startJoinPolling, stopJoinPolling} from '@/client/components/mainMenu/joinGamesState';
 import {lanState, LanGameRow, initLanDiscovery, publishLanName, startLanPolling, stopLanPolling} from '@/client/components/mainMenu/lanState';
 import {pinServerEndpoint} from '@/client/utils/serverEndpoints';
 import {lastGameEntered, recordLastGameEntered} from '@/client/components/mainMenu/lastGameState';
@@ -309,9 +334,12 @@ export default defineComponent({
     return {
       identityState,
       joinGamesState,
+      finishedGamesState,
       lanState,
       cursor: 0,
       gamesCursor: 0,
+      /** Which slice of «Мои партии» the list shows (L3 toggles). */
+      gamesTab: 'active' as JoinableGameStatus,
       overlay: undefined as MenuOverlay,
       offPad: undefined as (() => void) | undefined,
       desktopVersion: '',
@@ -337,17 +365,54 @@ export default defineComponent({
     games(): ReadonlyArray<JoinableGameSummary> {
       return this.joinGamesState.games;
     },
+    /** The ARCHIVE — games of this player that have already ended. */
+    finishedGames(): ReadonlyArray<JoinableGameSummary> {
+      return this.finishedGamesState.games;
+    },
     /** Games on OTHER hosts discovered over the LAN (host-as-server mode). */
     lanRows(): ReadonlyArray<LanGameRow> {
       return this.lanState.games;
     },
+    /** The rows of the SHOWN slice that live on this server. */
+    localRows(): ReadonlyArray<JoinableGameSummary> {
+      return this.gamesTab === 'finished' ? this.finishedGames : this.games;
+    },
+    /** LAN hosts publish their UNFINISHED games only — the archive is local. */
+    visibleLanRows(): ReadonlyArray<LanGameRow> {
+      return this.gamesTab === 'finished' ? [] : this.lanRows;
+    },
     /** Cursor range of the games overlay: local rows first, then LAN rows. */
     gamesCount(): number {
-      return this.games.length + this.lanRows.length;
+      return this.localRows.length + this.visibleLanRows.length;
+    },
+    /** The two slices as a segmented control (count shown once its list loaded). */
+    gamesTabs(): ReadonlyArray<{id: JoinableGameStatus, label: string, count: number | undefined}> {
+      return [
+        {id: 'active', label: 'Active games', count: this.joinGamesState.loadedOnce ? this.games.length : undefined},
+        {id: 'finished', label: 'Finished games', count: this.finishedGamesState.loadedOnce ? this.finishedGames.length : undefined},
+      ];
+    },
+    /** The FIRST load of the shown slice — later refreshes are silent. */
+    gamesFirstLoad(): boolean {
+      return this.gamesTab === 'finished' ?
+        this.finishedGamesState.loading && !this.finishedGamesState.loadedOnce :
+        this.joinGamesState.loading && !this.joinGamesState.loadedOnce;
+    },
+    /** A failed load only speaks when it left nothing to show. */
+    gamesLoadError(): boolean {
+      const failed = this.gamesTab === 'finished' ? this.finishedGamesState.error : this.joinGamesState.error;
+      return failed && this.gamesCount === 0;
+    },
+    gamesEmptyKey(): string {
+      return this.gamesTab === 'finished' ? 'You have no finished games yet.' : 'You have no unfinished games yet.';
     },
     /** Deletion is offered only for games on THIS device's embedded server. */
     canDeleteLocal(): boolean {
       return this.appModeEffective === 'host';
+    },
+    /** «Удалить все» wipes the device library — either slice proves it has one. */
+    hasLocalGames(): boolean {
+      return this.games.length > 0 || this.finishedGames.length > 0;
     },
     continueItem(): JoinableGameSummary | undefined {
       const mine = this.games.filter((g) => g.you !== undefined);
@@ -439,16 +504,20 @@ export default defineComponent({
             {control: 'back', label: 'Cancel'},
           ];
         }
-        const cursorLocal = this.gamesCursor < this.games.length ? this.games[this.gamesCursor] : undefined;
-        const row = cursorLocal ?? this.lanRows[this.gamesCursor - this.games.length]?.game;
+        const cursorLocal = this.gamesCursor < this.localRows.length ? this.localRows[this.gamesCursor] : undefined;
+        const row = cursorLocal ?? this.visibleLanRows[this.gamesCursor - this.localRows.length]?.game;
+        const archive = this.gamesTab === 'finished';
         const bar: Array<ConsoleCommand> = [
           {control: 'dpad', label: 'Navigate'},
-          {control: 'confirm', label: 'Enter game', enabled: row !== undefined && this.joinable(row), highlight: row !== undefined && this.yourTurn(row)},
+          // A finished row is opened to READ it — the verb says so, since the
+          // press leads to the settled final scoring, not into a turn.
+          {control: 'confirm', label: archive ? 'Open the results' : 'Enter game', enabled: row !== undefined && this.joinable(row), highlight: row !== undefined && this.yourTurn(row)},
+          {control: 'stickL', label: archive ? 'Active games' : 'Finished games'},
         ];
         if (this.canDeleteLocal) {
           bar.push(
             {control: 'secondary', label: 'Delete', enabled: cursorLocal !== undefined},
-            {control: 'inspect', label: 'Delete all', enabled: this.games.length > 0},
+            {control: 'inspect', label: 'Delete all', enabled: this.hasLocalGames},
           );
         }
         bar.push({control: 'back', label: 'Back'});
@@ -642,6 +711,10 @@ export default defineComponent({
           this.keepGamesCursorVisible();
           return true;
         }
+        if (intent.kind === 'press' && intent.button === 'stickL') {
+          this.setGamesTab(this.gamesTab === 'finished' ? 'active' : 'finished');
+          return true;
+        }
         if (action === 'primary') {
           this.enterGameAt(this.gamesCursor);
           return true;
@@ -722,11 +795,18 @@ export default defineComponent({
         break;
       case 'games':
         this.overlay = 'games';
+        this.gamesTab = 'active';
         this.gamesCursor = 0;
         this.gamesConfirm = undefined;
         this.gamesError = false;
         if (this.identityName !== '') {
           void loadJoinableGames(this.identityName);
+          // The archive is loaded ONCE per menu session — its count belongs on
+          // the tab chip before the player presses L3, and a finished game
+          // never changes (the toggle refreshes it silently afterwards).
+          if (!this.finishedGamesState.loadedOnce) {
+            void loadFinishedGames(this.identityName);
+          }
           // LAN hosts are re-queried while the list is open (they answer in ~ms).
           startLanPolling(this.identityName);
         }
@@ -804,37 +884,82 @@ export default defineComponent({
       return g.you !== undefined;
     },
     yourTurn(g: JoinableGameSummary): boolean {
-      return g.you !== undefined && g.activePlayer === g.you.color;
+      // A finished game keeps an `activePlayer` (whoever was to move when it
+      // ended) — it means nothing now, so the archive never claims a turn.
+      return g.finished !== true && g.you !== undefined && g.activePlayer === g.you.color;
+    },
+    /** Switch the shown slice — L3, or a click on the strip (mouse fallback). */
+    setGamesTab(tab: JoinableGameStatus): void {
+      if (this.gamesTab === tab) {
+        return;
+      }
+      this.gamesTab = tab;
+      this.gamesCursor = 0;
+      this.gamesConfirm = undefined;
+      this.gamesError = false;
+      this.keepGamesCursorVisible();
+      if (tab === 'finished' && this.identityName !== '' && !this.finishedGamesState.loading) {
+        // Silent once the archive is on screen (no loading flash over rows the
+        // player is already reading); loud on the very first load. A load
+        // already in flight is left alone — the scan is not cheap and a second
+        // one would only rewrite the same list.
+        void loadFinishedGames(this.identityName, {silent: this.finishedGamesState.loadedOnce});
+      }
     },
     boardLabel(g: JoinableGameSummary): string {
       return $t(mapLabelKey(g.boardName));
     },
-    /** Crew for the row — names visible, YOU tagged, whose-turn (active) flagged. */
+    /**
+     * Crew for the row — names visible, YOU tagged, whose-turn (active)
+     * flagged. A FINISHED game marks nobody: its stored `activePlayer` is
+     * whoever was to move when it ended, and a pulsing «его ход» dot on that
+     * seat would claim a turn that no longer exists.
+     */
     gameCrew(g: JoinableGameSummary): ReadonlyArray<{name: string, color: string, isYou: boolean, isActive: boolean}> {
+      const live = g.finished !== true;
       return g.players.map((p) => ({
         name: p.name,
         color: p.color,
         isYou: p.isYou,
-        isActive: g.activePlayer === p.color,
+        isActive: live && g.activePlayer === p.color,
       }));
     },
     /** Enabled expansions as premium icon chips (same artwork as the create screen). */
     gameExpansions(g: JoinableGameSummary): ReadonlyArray<{id: Expansion, url: string, label: string}> {
       return g.expansions.map((e) => ({id: e, url: expansionIconUrl(e), label: expansionLabel(e)}));
     },
+    /**
+     * Open a row hosted by THIS server. A FINISHED game is opened to be READ:
+     * the console lands on the settled final scoring (replay the count, open
+     * the overview), so it must not become the CONTINUE memory — that names
+     * the party still being played — and its curtain says «синхронизация»
+     * rather than «подготовка экспедиции».
+     */
+    openLocalGame(g: JoinableGameSummary): void {
+      const you = g.you;
+      if (you === undefined) {
+        return;
+      }
+      const href = paths.PLAYER + '?id=' + encodeURIComponent(you.id);
+      if (g.finished === true) {
+        navigateWithCurtain(href, 'sync');
+        return;
+      }
+      recordLastGameEntered(g.id);
+      navigateWithCurtain(href, 'expedition');
+    },
     enterGameAt(i: number): void {
       this.gamesCursor = i;
-      if (i < this.games.length) {
-        const g = this.games[i];
-        if (g?.you !== undefined) {
-          recordLastGameEntered(g.id);
-          navigateWithCurtain(paths.PLAYER + '?id=' + encodeURIComponent(g.you.id), 'expedition');
+      if (i < this.localRows.length) {
+        const g = this.localRows[i];
+        if (g !== undefined) {
+          this.openLocalGame(g);
         }
         return;
       }
       // A LAN row: pin the seat to the HOST's server first — from then on every
       // request and the WebSocket for this game go to that host (§6).
-      const row = this.lanRows[i - this.games.length];
+      const row = this.visibleLanRows[i - this.localRows.length];
       if (row?.game.you !== undefined) {
         pinServerEndpoint(row.game.you.id, row.endpoint);
         recordLastGameEntered(row.game.id);
@@ -843,10 +968,10 @@ export default defineComponent({
     },
     /** X on a LOCAL row (host mode) — ask before deleting that one game. */
     requestDeleteAt(i: number): void {
-      if (!this.canDeleteLocal || i >= this.games.length) {
+      if (!this.canDeleteLocal || i >= this.localRows.length) {
         return;
       }
-      const g = this.games[i];
+      const g = this.localRows[i];
       if (g !== undefined) {
         this.gamesCursor = i;
         this.gamesError = false;
@@ -855,7 +980,7 @@ export default defineComponent({
     },
     /** Y (host mode) — ask before wiping the whole local library. */
     requestDeleteAll(): void {
-      if (this.canDeleteLocal && this.games.length > 0) {
+      if (this.canDeleteLocal && this.hasLocalGames) {
         this.gamesError = false;
         this.gamesConfirm = {kind: 'all'};
       }
@@ -874,9 +999,13 @@ export default defineComponent({
           throw new Error(`delete failed (${res.status})`);
         }
         this.gamesConfirm = undefined;
-        // Refresh the list (also rewrites the joinable cache → CONTINUE/badge).
+        // Refresh the lists (the live one also rewrites the joinable cache →
+        // CONTINUE/badge; the archive only when it has already been loaded).
         if (this.identityName !== '') {
           await loadJoinableGames(this.identityName, {silent: true});
+          if (this.finishedGamesState.loadedOnce) {
+            await loadFinishedGames(this.identityName, {silent: true});
+          }
         }
         this.gamesCursor = Math.min(this.gamesCursor, Math.max(0, this.gamesCount - 1));
       } catch {

@@ -558,6 +558,30 @@ export default defineComponent({
   },
   methods: {
     /**
+     * THIS STEP'S ROOT ELEMENT — resolved, never cast.
+     *
+     * `$el` is the root ELEMENT only when the compiler stripped this template's
+     * leading comment: it does in a production build and does NOT in a
+     * development one, where the root becomes a fragment and `$el` is an anchor
+     * node with no `closest` / `querySelector` / `querySelectorAll` at all. All
+     * three of this file's DOM readers depended on that difference — the
+     * geometry pull THREW, and the size solver silently returned its unmeasured
+     * default, so a dev build laid every host's candidates out at the fallback
+     * zoom. The zone ref is a real element in both, and its `.con-ptsel`
+     * ancestor is this component's root by construction.
+     */
+    rootEl(): HTMLElement | undefined {
+      const zone = this.$refs.zone as HTMLElement | undefined;
+      const viaZone = typeof zone?.closest === 'function' ?
+        zone.closest<HTMLElement>('.con-ptsel') :
+        null;
+      if (viaZone !== null && viaZone !== undefined) {
+        return viaZone;
+      }
+      const el = this.$el as HTMLElement | undefined;
+      return typeof el?.querySelectorAll === 'function' ? el : undefined;
+    },
+    /**
      * THE HOST'S GEOMETRY PULL. Cached: rebuilt only after a mount, a real
      * layout change, an owner-tab switch or a candidate-set change — never per
      * input press.
@@ -566,7 +590,7 @@ export default defineComponent({
       if (this.cellCache !== undefined) {
         return this.cellCache;
       }
-      const root = this.$el as HTMLElement | undefined;
+      const root = this.rootEl();
       const out: Array<PlayedTargetCell> = [];
       for (const el of Array.from(root?.querySelectorAll<HTMLElement>('[data-ptsel-cell]') ?? [])) {
         const ownerId = el.dataset.owner;
@@ -603,7 +627,7 @@ export default defineComponent({
     ensureFocusVisible(): void {
       void this.$nextTick(() => {
         const area = this.$refs.viewport as {ensureVisible?: (el: Element | null | undefined) => void} | undefined;
-        const el = (this.$el as HTMLElement | undefined)?.querySelector('[data-ptsel-cell][data-focused]');
+        const el = this.rootEl()?.querySelector('[data-ptsel-cell][data-focused]');
         area?.ensureVisible?.(el);
       });
     },
@@ -624,8 +648,8 @@ export default defineComponent({
      */
     measureSizing(): void {
       const zone = this.$refs.zone as HTMLElement | undefined;
-      const root = this.$el as HTMLElement | undefined;
-      if (zone === undefined || root?.closest === undefined) {
+      const root = this.rootEl();
+      if (zone === undefined || root === undefined) {
         return;
       }
       const availW = zone.clientWidth;

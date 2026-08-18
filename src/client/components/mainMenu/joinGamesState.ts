@@ -1,7 +1,7 @@
 import {reactive} from 'vue';
 import {paths} from '@/common/app/paths';
 import {apiUrl} from '@/client/utils/runtimeConfig';
-import {JoinableGameSummary} from '@/common/models/JoinableGameModel';
+import {JoinableGameStatus, JoinableGameSummary} from '@/common/models/JoinableGameModel';
 
 /**
  * Live state for the premium "join games" panel. Module-level (survives any
@@ -85,18 +85,25 @@ export function hydrateJoinableGames(displayName: string): void {
   }
 }
 
+/** One GET of a name's games in one SLICE (see {@link JoinableGameStatus}). */
+async function fetchGames(displayName: string, status: JoinableGameStatus): Promise<Array<JoinableGameSummary>> {
+  const url = apiUrl(paths.API_GAMES_JOINABLE) +
+    '?name=' + encodeURIComponent(displayName) +
+    (status === 'active' ? '' : '&status=' + status);
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error('bad response');
+  }
+  return await res.json() as Array<JoinableGameSummary>;
+}
+
 export async function loadJoinableGames(displayName: string, opts: {silent?: boolean} = {}): Promise<void> {
   activeName = displayName;
   if (opts.silent !== true) {
     joinGamesState.loading = true;
   }
   try {
-    const url = apiUrl(paths.API_GAMES_JOINABLE) + '?name=' + encodeURIComponent(displayName);
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error('bad response');
-    }
-    const games = await res.json() as Array<JoinableGameSummary>;
+    const games = await fetchGames(displayName, 'active');
     // Drop a stale response if the name changed while this request was in flight.
     if (activeName !== displayName) {
       return;
@@ -170,4 +177,59 @@ export function resetJoinGames(): void {
   beginNameReload();
   joinGamesState.loading = false;
   activeName = '';
+}
+
+// ── The ARCHIVE (finished games) ────────────────────────────────────────────
+// Deliberately THINNER than the live list: a finished game never changes, so
+// there is no polling and no cross-session cache here (nothing on the first
+// painted frame depends on it — CONTINUE and the menu badge are active-only).
+// The console main menu loads it lazily, on the first toggle into the archive,
+// and re-loads it silently on every later toggle so a game that has just
+// ended appears without a restart.
+
+export const finishedGamesState = reactive<{
+  loading: boolean,
+  loadedOnce: boolean,
+  error: boolean,
+  games: ReadonlyArray<JoinableGameSummary>,
+}>({
+  loading: false,
+  loadedOnce: false,
+  error: false,
+  games: [],
+});
+
+let archiveName = '';
+
+export async function loadFinishedGames(displayName: string, opts: {silent?: boolean} = {}): Promise<void> {
+  if (archiveName !== displayName) {
+    // A different player (profile switch) — the loaded archive is not theirs.
+    // Self-healing here rather than at the call sites, so no screen can show
+    // one profile's finished games under another profile's name.
+    finishedGamesState.games = [];
+    finishedGamesState.loadedOnce = false;
+    finishedGamesState.error = false;
+  }
+  archiveName = displayName;
+  if (opts.silent !== true) {
+    finishedGamesState.loading = true;
+  }
+  try {
+    const games = await fetchGames(displayName, 'finished');
+    // Drop a stale response if the name changed while this request was in flight.
+    if (archiveName !== displayName) {
+      return;
+    }
+    finishedGamesState.games = games;
+    finishedGamesState.error = false;
+    finishedGamesState.loadedOnce = true;
+  } catch {
+    if (archiveName === displayName) {
+      finishedGamesState.error = true;
+    }
+  } finally {
+    if (archiveName === displayName) {
+      finishedGamesState.loading = false;
+    }
+  }
 }

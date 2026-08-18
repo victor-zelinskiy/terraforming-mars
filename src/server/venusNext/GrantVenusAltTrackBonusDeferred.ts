@@ -6,6 +6,7 @@ import {Priority} from '../deferredActions/Priority';
 import {IPlayer} from '../IPlayer';
 import {GainResources} from '../inputs/GainResources';
 import {message} from '../logs/MessageBuilder';
+import {targetVictoryPoints} from '../cards/actionPreviews';
 
 export class GrantVenusAltTrackBonusDeferred extends DeferredAction {
   constructor(
@@ -68,10 +69,19 @@ export class GrantVenusAltTrackBonusDeferred extends DeferredAction {
         'Choose your wild resource bonus, after which you will gain ${0} more distinct standard resources.',
         (b) => b.number(base)) :
       'Choose your wild resource bonus.';
+    // WHAT THE WILD IS WORTH, per candidate — the SAME authoritative reading
+    // every other target picker gets (`actionPreviews.targetVictoryPoints`
+    // evaluates each card's own `victoryPoints` descriptor, `per` arithmetic
+    // included). A card whose points this resource never moves is ABSENT from
+    // the box, and a prompt where NO candidate scores carries no key at all:
+    // the marker never states a zero it does not mean. The prompt the server
+    // asks — and the response it accepts — are byte-identical to before.
+    const wildCardVp = targetVictoryPoints(this.player, resourceCards, 1);
     return wild.markVenusBonusPrompt({
       kind: 'final',
       baseCount: base,
       wildCardTargets: resourceCards.map((c) => c.name),
+      ...(wildCardVp === undefined ? {} : {wildCardVp}),
     });
   }
 }

@@ -22,11 +22,43 @@ describe('getJoinableGameSummary', () => {
     expect(getJoinableGameSummary(game, normalizePlayerName('nobody'))).eq(undefined);
   });
 
-  it('returns undefined for a finished game', () => {
+  it('returns undefined for a finished game in the default (active) slice', () => {
     const [game, p1] = testGame(2);
     p1.name = 'Victor';
     game.phase = Phase.END;
     expect(getJoinableGameSummary(game, normalizePlayerName('Victor'))).eq(undefined);
+  });
+
+  it('flags a live game as not finished', () => {
+    const [game, p1] = testGame(2);
+    p1.name = 'Victor';
+    expect(getJoinableGameSummary(game, normalizePlayerName('Victor'))?.finished).eq(false);
+  });
+
+  it('the finished slice lists an ended game, with its seat link', () => {
+    const [game, p1] = testGame(2);
+    p1.name = 'Victor';
+    game.phase = Phase.END;
+    const summary = getJoinableGameSummary(game, normalizePlayerName('Victor'), 'finished');
+    expect(summary?.finished).eq(true);
+    // The seat link is what lets the console re-enter and review the result.
+    expect(summary?.you?.id).eq(p1.id);
+  });
+
+  it('the finished slice excludes a game still being played', () => {
+    const [game, p1] = testGame(2);
+    p1.name = 'Victor';
+    expect(getJoinableGameSummary(game, normalizePlayerName('Victor'), 'finished')).eq(undefined);
+  });
+
+  it('the finished slice still withholds an ambiguous seat', () => {
+    const [game, p1, p2] = testGame(2);
+    p1.name = 'Victor';
+    p2.name = 'victor';
+    game.phase = Phase.END;
+    const summary = getJoinableGameSummary(game, normalizePlayerName('Victor'), 'finished');
+    expect(summary?.ambiguous).eq(true);
+    expect(summary?.you).eq(undefined);
   });
 
   it('flags ambiguity and withholds the join id when two seats share the name', () => {
