@@ -12,7 +12,10 @@
  *    (the barcode);
  *  · B = «Свернуть» PAUSES the ceremony and opens the final board; B
  *    returns and RESUMES from the same beat (never a restart, never main
- *    menu);
+ *    menu) — and the WHOLE HUD follows the SCREEN, not the stack: the
+ *    strategy rail is replaced while the scene is up and lit again the
+ *    moment the player is looking at the board, in both directions and at
+ *    both the mid-count and the settled collapse;
  *  · the winner is the ROW ITSELF (ribbon + gold), no duplicate plate;
  *  · the default action focus is «Обзор партии» (never the replay);
  *  · a RELOAD into the ended game lands SETTLED — no uninvited replay;
@@ -116,6 +119,9 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     // The gameplay HUD has left; the command bar stays with the two verbs —
     // and NO duplicated «ФИНАЛЬНЫЙ ПОДСЧЁТ» context (the scene names itself).
     await expect(page.locator('.con-status')).toBeHidden();
+    // …and the STRATEGY rail with it: the scene is the stage, so its zone is
+    // taken (`.con-root--rail-replaced` → visibility, the box survives).
+    await expect(page.locator('.con-strat')).toBeHidden();
     expect(await page.locator('.con-handdock:visible').count()).toBe(0);
     await expect(page.locator('.con-cmdbar')).toContainText(/Пропустить подсчёт/i);
     await expect(page.locator('.con-cmdbar')).toContainText(/Свернуть/i);
@@ -134,6 +140,12 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     await page.keyboard.press('Escape');
     await waitWithFrames(page, async () => (await page.locator('.con-endgame:visible').count()) === 0, 8_000, 'the collapse');
     await expect(page.locator('.con-status')).toBeVisible();
+    // THE WHOLE HUD comes back — the trophy rail included. It is the one
+    // member whose policy read the STACK rather than the screen, so a frame
+    // that legitimately stays in the stack while its scene hides (v-show, the
+    // ceremony must resume from the same beat) kept the gallery dark for the
+    // entire post-game board inspection.
+    await expect(page.locator('.con-strat')).toBeVisible();
     await expect(page.locator('.con-cmdbar')).toContainText(/Итоги партии/i);
     const phaseWhileParked = await page.locator('.con-endgame').getAttribute('class');
     await page.waitForTimeout(1600);
@@ -147,6 +159,7 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     //     then runs NATURALLY to the settled state (no skip on this pass).
     await page.keyboard.press('Escape');
     await waitWithFrames(page, async () => (await page.locator('.con-endgame:visible').count()) > 0, 8_000, 'the return');
+    await expect(page.locator('.con-strat')).toBeHidden(); // …and the rail yields again
     await waitWithFrames(page, async () => (await page.locator('.con-eg__actions').count()) > 0, 120_000, 'the natural finish');
     await shoot(page, SHOT_DIR, '2p-settled');
 
@@ -211,9 +224,11 @@ test.describe('console endgame workspace — 2p, full journey', () => {
     await page.keyboard.press('Escape');
     await waitWithFrames(page, async () => (await page.locator('.con-endgame:visible').count()) === 0, 8_000, 'the settled collapse');
     await expect(page.locator('.con-status')).toBeVisible();
+    await expect(page.locator('.con-strat')).toBeVisible(); // the SETTLED collapse too
     expect(page.url()).toContain('/player'); // never navigated away
     await page.keyboard.press('Escape');
     await waitWithFrames(page, async () => (await page.locator('.con-endgame:visible').count()) > 0, 8_000, 'the settled return');
+    await expect(page.locator('.con-strat')).toBeHidden();
     await expect(page.locator('.con-eg__actions')).toBeVisible();
     await expect(page.locator('.con-eg__ribbon').first()).toBeVisible();
 

@@ -19,6 +19,19 @@
  * slow one holds the card face-down on the slot (an honest "being revealed"
  * beat, never a fake face).
  *
+ * THE ARRIVAL IS ONE PHYSICAL OBJECT — it may never end in a jump. Two
+ * things used to make it end in one, and both are structural rather than
+ * tunable (measured 2026-08-19 on «Поиск жизни»: the card teleported 26×9px
+ * at 1080 and 61×18px at 4K on the very last frame):
+ *   · the landing rect was measured THROUGH the slot's own entrance (the
+ *     outcome cascade's `y: descendPx(9)`) — `restingRectOf` answers the box
+ *     the card will rest in instead;
+ *   · the verdict panel's berth was a min/max RANGE, so the row re-centred
+ *     when «Вскрываем карту» yielded to the breakdown and slid the slot out
+ *     from under the landed proxy — the berth is a fixed `width` now (LESS).
+ * `finalApproach` keeps that honest by construction: whatever the surface
+ * does, the last leg is travelled, never jumped.
+ *
  * Idioms: boardCardBonusDirector's proxy convention (natural 320-wide
  * chassis, transformOrigin top-left, scale onto the measured slot rect,
  * `flip` at rotateY 180 = back showing), motionMs timings, arc via separate
@@ -30,6 +43,7 @@ import {gsap} from 'gsap';
 import {motionMs} from '@/client/components/motion/motionTokens';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {CARD_NATURAL_W} from '@/client/console/cardDeal/cardDealModel';
+import {restingRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
 
 /** The HUD project-deck pile — the physical source of every deck flight. */
 const DECK_SEL = '.con-deckstack__pile';
@@ -40,6 +54,10 @@ const TRAVEL_MS = 680;
 const FLIP_MS = 620;
 /** The settle beat after the flip before the real-card handoff. */
 const SETTLE_MS = 90;
+/** The last, corrective leg when the landing rect moved after the launch. */
+const RECLAIM_MS = 230;
+/** Below this the two rects are the same box — hand over, do not travel. */
+const RECLAIM_EPS = 0.75;
 /** Safety: force-settle even if GSAP stalls (backgrounded tab). */
 const SAFETY_MS = 9000;
 
@@ -102,7 +120,7 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
   }
 
   const reduced = consoleReducedMotionActive();
-  const slotRect = slot.getBoundingClientRect();
+  const slotRect = restingRectOf(slot);
   const usable = slotRect.width >= 10 && slotRect.height >= 10;
 
   // Reduced motion (or an unmeasurable slot): no travel, no flip — the real
@@ -187,17 +205,59 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
         }
       },
     }, 0);
-    // The physical "card snaps over" beat: a scale breath on the proxy peaking
-    // as the face passes the camera plane, landing with a springy settle (a
-    // touch of weight — the card arrives, it doesn't just stop).
-    ftl.to(proxy, {scale: scaleTo * 1.05, duration: s(FLIP_MS * 0.5), ease: 'power2.out'}, 0);
-    ftl.to(proxy, {scale: scaleTo, duration: s(FLIP_MS * 0.5), ease: 'back.out(2.2)'}, s(FLIP_MS * 0.5));
+    // The physical "card snaps over" beat: a scale breath peaking as the face
+    // passes the camera plane, landing with a springy settle (a touch of
+    // weight — the card arrives, it doesn't just stop).
+    //
+    // ⚠️ ON THE FLIP CHILD, never on the proxy. The proxy's transformOrigin is
+    // `top left` (the travel math aims its corner at the slot's corner), so a
+    // scale there is not a breath at all — it drags the card's centre 2.5% of
+    // its own size down and to the right (9×13px at 1080, 18×27px at 4K) and
+    // springs it back. The flip child fills the proxy and keeps the default
+    // centred origin, so the same tween reads as the card swelling IN PLACE.
+    ftl.to(flip, {scale: 1.05, duration: s(FLIP_MS * 0.5), ease: 'power2.out'}, 0);
+    ftl.to(flip, {scale: 1, duration: s(FLIP_MS * 0.5), ease: 'back.out(1.6)'}, s(FLIP_MS * 0.5));
     ftl.to({}, {duration: s(SETTLE_MS)});
-    ftl.call(fireSettled);
+    ftl.call(finalApproach);
     liveFlip = ftl;
   };
 
+  /**
+   * THE LAST CHECK — the handoff must be a zero-distance cross-over.
+   *
+   * The flight is aimed once, at launch, but the surface it lands on keeps
+   * composing for a while afterwards (the verdict panel replacing the
+   * «Вскрываем карту» status is the loud case). If the slot has moved since,
+   * unmounting the proxy onto the real card is a TELEPORT at the very end of a
+   * physical arrival — the one thing this beat may never do. So the last leg
+   * is travelled, not jumped; when nothing moved (the fixed-width verdict
+   * berth is what makes that the normal case) this costs one measurement and
+   * hands over on the spot.
+   */
+  function finalApproach(): void {
+    if (dead) {
+      return;
+    }
+    const rest = restingRectOf(slot);
+    if (rest.width < 10 || rest.height < 10) {
+      fireSettled();
+      return;
+    }
+    const restScale = Math.max(0.05, rest.width / CARD_NATURAL_W);
+    if (Math.abs(rest.left - slotRect.left) < RECLAIM_EPS &&
+        Math.abs(rest.top - slotRect.top) < RECLAIM_EPS &&
+        Math.abs(restScale - scaleTo) * CARD_NATURAL_W < RECLAIM_EPS) {
+      fireSettled();
+      return;
+    }
+    liveReclaim = gsap.to(proxy, {
+      x: rest.left, y: rest.top, scale: restScale,
+      duration: s(RECLAIM_MS), ease: 'power2.inOut', onComplete: fireSettled,
+    });
+  }
+
   let liveFlip: gsap.core.Timeline | undefined;
+  let liveReclaim: gsap.core.Tween | undefined;
   safety = window.setTimeout(fireSettled, SAFETY_MS);
 
   return {
@@ -210,6 +270,7 @@ export function runActionRevealFlight(args: ActionRevealFlightArgs): ActionRevea
       window.clearTimeout(safety);
       tl.kill();
       liveFlip?.kill();
+      liveReclaim?.kill();
       proxy.classList.remove('con-deal-proxy--revealing');
     },
   };

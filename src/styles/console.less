@@ -19050,7 +19050,7 @@ body.con-start-ceremony {
             .con-reveal__source { zoom: calc(0.82 * var(--con-ui-scale, 1)); }
             .con-reveal__revealed { zoom: calc(1 * var(--con-ui-scale, 1)); }
             .con-reveal__link-beam { width: 3.2rem; }
-            .con-reveal__verdict-slot { min-width: 18rem; max-width: 22rem; }
+            .con-reveal__verdict-slot { width: 22rem; }
         }
         /* The stage's own sentence, dressed EXACTLY like the buy stage's
            heading next door: BOTH read the shared `.con-ws-stage-heading()`
@@ -19520,12 +19520,14 @@ body.con-start-ceremony {
             border-right: .12rem solid fade(@con-cyan, 78%);
         }
     }
-    /* The verdict panel — a reserved-width slot so the card stays centred as the
-       «revealing» status swaps to the full breakdown. */
+    /* The verdict panel — a FIXED-width berth so the card stays centred as the
+       «revealing» status swaps to the full breakdown. (`width`, never a
+       min/max range: the breakdown is wider than any floor worth setting, so a
+       range simply moves the card by half the growth — see the composer's own
+       berth in the ACTION FOCUS block.) */
     &__verdict-slot {
         flex: 0 0 auto;
-        min-width: 20rem;
-        max-width: 24rem;
+        width: 24rem;
         display: flex;
         align-items: center;
         justify-content: flex-start;
@@ -25903,13 +25905,17 @@ body.con-zoom-open .con-ptlink { opacity: 0; }
         gap: 1.4rem;
         max-width: min(58rem, 100%);
     }
-    /* Reserved width, exactly like the overlay's: the «Вскрываем карту» status
+    /* A FIXED berth, exactly like the overlay's: the «Вскрываем карту» status
        and the full breakdown occupy the SAME box, so the landing rect the
-       flight was aimed at cannot move when the verdict lands. */
+       flight was aimed at cannot move when the verdict lands.
+       ⚠️ `width`, never `min-width` + `max-width`. A min/max pair is not a
+       reserved box — it is a RANGE, and the verdict panel's own content is
+       wider than the floor (measured: 380 → 432px at 1080, 880 → 1001px at
+       4K), so the berth GREW on the swap and the centred row slid the revealed
+       card 26px / 61px to the left — under a proxy that had already landed. */
     .con-composer__verdictslot {
         flex: 0 0 auto;
-        min-width: 19rem;
-        max-width: 23rem;
+        width: 23rem;
         display: flex;
         align-items: center;
         justify-content: flex-start;
@@ -27039,7 +27045,7 @@ html.con-profile-handheld {
            how the two readings of one verdict drifted apart. */
         &__body--result { gap: .9rem; padding: .8rem 0; }
         &__link-beam { width: 3rem; }
-        &__verdict-slot { min-width: 15rem; max-width: 18rem; }
+        &__verdict-slot { width: 18rem; }
     }
     /* The shared verdict panel at Deck density (both hosts). */
     .con-verdict {
@@ -27052,7 +27058,7 @@ html.con-profile-handheld {
         &__row { font-size: .82rem; }
         &__vp { font-size: .7rem; }
     }
-    .con-composer__verdictslot { min-width: 15rem; max-width: 18rem; }
+    .con-composer__verdictslot { width: 18rem; }
     .con-play {
         &__frame { width: min(55rem, 96vw); }
         &__cardside { zoom: 0.8; }

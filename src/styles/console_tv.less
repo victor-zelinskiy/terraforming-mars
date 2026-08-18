@@ -1218,14 +1218,14 @@ html.con-profile-tv {
         &__chip { font-size: var(--con-t-secondary); }
         /* The verdict's berth grows with the couch-sized panel it holds (the
            panel itself is tuned once, in the shared `.con-verdict` block). */
-        &__verdict-slot { min-width: 22rem; max-width: 26rem; }
+        &__verdict-slot { width: 26rem; }
         &__verdict--pending { font-size: var(--con-t-secondary); }
         /* …and the EMBEDDED stage's berth too: its own cap is tuned for the
            1080 logical column, and at couch sizes «ПРОВЕРКА · Бактерия · НЕ
            НАЙДЕНО» wrapped its chip onto a second line inside it. (Full class
            name for the descendant — a second `&` inside a profile block
            expands the WHOLE parent and matches nothing.) */
-        &--embedded .con-reveal__verdict-slot { min-width: 24rem; max-width: 29rem; }
+        &--embedded .con-reveal__verdict-slot { width: 29rem; }
         /* ⚠️ THE STANDALONE BAND ONLY. Inside a workspace the row's gap is an
            OUTPUT of the shared fit engine (`consoleWsStageLayout` publishes
            `--con-ws-stage-gap`, solved so a focused card's ring can never reach
@@ -1548,7 +1548,7 @@ html.con-profile-tv {
            below for every host — a per-host override is exactly how the two
            renderings of one verdict drifted apart.) */
         .con-composer__revealstatus { font-size: var(--con-t-secondary); }
-        .con-composer__verdictslot { min-width: 22rem; max-width: 26rem; }
+        .con-composer__verdictslot { width: 26rem; }
     }
 
     /* ═══ THE DECK-CHECK VERDICT PANEL — couch reading, both hosts ══════════

@@ -377,6 +377,45 @@ export function descendCascadeOut(
   tl.to(live, {autoAlpha: 0, duration: durationS, ease: 'power1.in', overwrite: 'auto'}, at);
 }
 
+/**
+ * THE RESTING RECT — the box an element will occupy once its own ENTRANCE has
+ * finished, measured while that entrance is still running.
+ *
+ * `descendCascade` enters every revealed item from `y: descendPx(9)`, so a
+ * plain `getBoundingClientRect()` taken during those ~200ms answers a box 9px
+ * (18px at 4K) below the resting one. That is harmless for anything that only
+ * READS the layout — and a bug for anything that AIMS at it: a card flight
+ * measured mid-cascade lands that far off its slot and teleports the remainder
+ * at the handoff (measured 2026-08-19 on the Search For Life deck check).
+ *
+ * Only a PURE translation is removed (a≈1, b≈c≈0, d≈1). A scale, a rotation or
+ * an authored centring matrix is part of where the element genuinely lives,
+ * and subtracting it would aim at a box that never exists.
+ */
+export function restingRectOf(el: HTMLElement): {left: number, top: number, width: number, height: number} {
+  const r = el.getBoundingClientRect();
+  const box = {left: r.left, top: r.top, width: r.width, height: r.height};
+  if (typeof window === 'undefined' || typeof DOMMatrixReadOnly === 'undefined') {
+    return box;
+  }
+  const raw = window.getComputedStyle(el).transform;
+  if (raw === '' || raw === 'none') {
+    return box;
+  }
+  try {
+    const m = new DOMMatrixReadOnly(raw);
+    if (m.is2D &&
+        Math.abs(m.a - 1) < 0.001 && Math.abs(m.d - 1) < 0.001 &&
+        Math.abs(m.b) < 0.001 && Math.abs(m.c) < 0.001) {
+      box.left -= m.e;
+      box.top -= m.f;
+    }
+  } catch {
+    // An unparseable transform is not worth a broken flight — aim as measured.
+  }
+  return box;
+}
+
 /** A live viewport rect, or undefined when the element is not laid out. */
 export function descendRectOf(el: Element | null | undefined): {left: number, top: number, width: number, height: number} | undefined {
   const rect = el?.getBoundingClientRect?.();

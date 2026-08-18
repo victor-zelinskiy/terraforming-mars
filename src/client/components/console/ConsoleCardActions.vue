@@ -1143,6 +1143,17 @@ export default defineComponent({
         const lr = this.playerView.lastReveal;
         if (lr !== undefined && lr.action === this.composer.cardName) {
           this.outcomeFlow = {kind: 'deck-check', payload: lr};
+          // …AND THE CLAIM IS PRESENTING NOW. The 20 s claim backstop guards
+          // exactly one failure — «claimed, and nothing ever came» — and that
+          // question is settled the moment the verdict is on screen. Left
+          // armed, it put a WALL CLOCK on the player: read the deck check for
+          // twenty seconds and the claim dropped underneath them, so the
+          // workspace concluded on its own and the LEGACY full-bleed modal
+          // rose carrying the very verdict they were reading (measured at 4K,
+          // 2026-08-19: stage gone at t=20.3 s, standalone up at t=20.3 s).
+          // The draw path marks this on its beat; the deck check had no mark
+          // at all.
+          markWorkspaceOutcomePresenting();
         }
       },
     },

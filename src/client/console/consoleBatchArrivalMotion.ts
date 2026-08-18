@@ -44,6 +44,7 @@ import {DEAL_TURN_GLINT, addPremiumTurn} from '@/client/console/cardDeal/premium
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
 import {runDeckSettleTick} from '@/client/console/deckDraw/deckDrawDirector';
 import {motionMs} from '@/client/components/motion/motionTokens';
+import {restingRectOf} from '@/client/console/surfaceMotion/workspaceDescend';
 import {
   CardArrivalMode, CardArrivalPlan, CardArrivalTimings, arrivalSourceFan,
   cardArrivalTimings, planCardArrival, reducedCardArrivalTimings,
@@ -166,7 +167,11 @@ export function runBatchArrival(args: BatchArrivalArgs): BatchArrivalHandle {
     };
   }
 
-  const slotRects = slots.slice(0, n).map((el) => el.getBoundingClientRect());
+  // The RESTING rects, never the painted ones: the prepared stage is one of the
+  // outcome cascade's revealed items, so measuring it mid-entrance aims every
+  // card `descendPx(9)` low and leaves `settleBatchProxiesOnto` to travel that
+  // offset as a visible last-moment nudge (see `restingRectOf`).
+  const slotRects = slots.slice(0, n).map((el) => restingRectOf(el));
   const usable = slotRects.every((r) => r.width >= 10 && r.height >= 10);
   if (!usable) {
     // An unmeasurable stage means the landing rect would be a guess, and a

@@ -572,6 +572,63 @@ function enterPhase(el: Element, panel: HTMLElement, dep: SurfaceDeparture, done
   });
 }
 
+// ── the wheel's COMMIT PIN ──────────────────────────────────────────────────
+
+/**
+ * PIN THE QUICK WHEEL TO THE BOX IT WAS CHOSEN IN.
+ *
+ * Called at the COMMIT, in the same pre-flush breath as `markWheelHandoff`
+ * captures the slot's centre — and for exactly the same reason: everything
+ * this reads is about to stop being true.
+ *
+ * The wheel is a BAND surface, so its four insets ARE the central opening's
+ * live geometry (`--con-stage-*`, plus the shell's `.con-root--rail-replaced`
+ * policy). And the very press that dismisses it is what opens the workspace
+ * that takes the strategy rail's zone — a SHEET screen raises the policy class
+ * (`--con-stage-r-eff: 0`), a SECTION workspace `v-show`s the rail away so the
+ * geometry mirror measures 0×0 and publishes the collapsed inset. Both land in
+ * the SAME Vue flush as the wheel's leave, so the departing cross re-solves in
+ * the now-wider opening and slides half a rail sideways on the first painted
+ * frame of its own recession: a one-frame twitch precisely where the grammar
+ * promises «the assembly hands its depth to the incoming context».
+ *
+ * The fix is the box, not the timing: the four inset properties the band mixin
+ * owns are re-declared inline at their used pixel values, so the leaving wheel
+ * cannot follow the tokens any more. Nothing else is touched — same z, same
+ * flex centring, same exit timeline; the wheel simply plays it where the player
+ * pressed it. `surfaceLeaveCancelledHook` clears the pin, so a re-opened wheel
+ * is centred by the live opening again.
+ *
+ * ⚠️ WHY NOT IN THE LEAVE HOOK. That hook runs mid-patch, and both
+ * `getBoundingClientRect` and `getComputedStyle` flush style there — by then
+ * the policy class is already on `.con-root`, so the "live" box it would read
+ * is the moved one. The honest capture point is BEFORE the state change, which
+ * is why this is a commit-time call and not another branch of the leave.
+ *
+ * ⚠️ AND NOT A CONSTANT RIGHT EDGE ON `.con-quick` EITHER (the `right: 0` trick
+ * `.con-ws-stage-sides()` uses for screens): the wheel legitimately centres in
+ * whatever opening it was OPENED in — including the wider one it gets during a
+ * placement, where the context dossier already holds the rail's zone. Welding
+ * its resting edge would move the cross in that state to fix a transition.
+ */
+export function pinQuickWheelBox(): void {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  const el = document.querySelector<HTMLElement>('.con-quick');
+  if (el === null) {
+    return;
+  }
+  const cs = getComputedStyle(el);
+  // A positioned box resolves its insets to used pixels — re-declaring them is
+  // a byte-for-byte freeze of the SAME box (no border/box-sizing arithmetic,
+  // which a width/height freeze would have to get right).
+  if (cs.left === 'auto' || cs.right === 'auto') {
+    return; // not the band geometry we know how to pin — leave it alone
+  }
+  gsap.set(el, {left: cs.left, right: cs.right, top: cs.top, bottom: cs.bottom});
+}
+
 // ── the leave hook ──────────────────────────────────────────────────────────
 
 /**
@@ -741,9 +798,12 @@ export function surfaceEnterCancelledHook(el: Element): void {
 export function surfaceLeaveCancelledHook(el: Element): void {
   const id = surfaceIdOf(el);
   killLive(el);
-  // A cancelled section leave returns to the flow — drop the freeze
-  // (harmless for every other surface: none carries these inline props).
-  gsap.set(el, {clearProps: 'position,left,top,width,height,margin,zIndex,pointerEvents'});
+  // A cancelled section leave returns to the flow — drop the freeze; a
+  // cancelled wheel leave (the player re-opened a selector mid-recession, so
+  // Vue re-uses the very same element) drops its commit PIN and is centred by
+  // the live opening again. Harmless for every other surface: none carries
+  // these inline props.
+  gsap.set(el, {clearProps: 'position,left,right,top,bottom,width,height,margin,zIndex,pointerEvents'});
   if (id !== undefined && (el as HTMLElement).dataset?.motionVariant !== 'headless' && !NON_SHADE_OWNERS.has(id)) {
     addShadeOwner(id);
   }

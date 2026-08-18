@@ -320,15 +320,46 @@ different questions:
 - **Is the rail being replaced** — policy, and a policy is a state of the SHELL,
   not a rect. `ConsoleShell.conRootClasses` raises
   **`.con-root--rail-replaced`**, which sets `--con-stage-r-eff: 0px` and hides
-  `.con-strat`. It is derived from the WORKSPACE STACK (`frames.length > 0`) plus
-  the two workspace-shaped overlays that are not stack frames (`playedOpen`,
-  `infoWorkspaceUp`) and the two drawers (`journalPanelVisible`,
+  `.con-strat`. It is derived from the WORKSPACE STACK (`workspaceStackShown`)
+  plus the two workspace-shaped overlays that are not stack frames
+  (`playedOpen`, `infoWorkspaceUp`) and the two drawers (`journalPanelVisible`,
   `contextOverlayMode`) — never a second list of surface names to rot.
   Hiding the rail is not belt-and-braces: `.con-root--ws-open` (the
   `conWsPresenceBridge.ts` class — the ex-`:has(.con-ws)`, same DOM-presence
   semantics) LIFTS it to z11520, i.e. **above** every band surface
   (11480–11515), so an unhidden rail paints on top of the very screen that
   took its zone.
+  ⚠️ **The stack term is PRESENCE, not merely standing** (`workspaceStackShown`,
+  2026-08-18). For every workspace but one those are the same fact — presence IS
+  the frame (stack invariant 1). The endgame is the exception BY CONTRACT: B =
+  «Свернуть» hides the scene with `v-show` while its frame deliberately stays in
+  the stack (the ceremony must resume from the same beat), so a policy reading
+  `frames.length > 0` kept the trophy gallery dark for the whole post-game board
+  inspection — while `con-root--endgame`, reading the SCREEN, had already given
+  the strip and the player rail back. Both now read one computed
+  (`endgameStageUp` = mounted ∧ not collapsed; the «Обзор партии» round trip
+  still counts as up — that overlay IS the stage, near-opaque and full-bleed, and
+  flashing the rail under its 240 ms fade-in would buy nothing).
+
+**…AND A SURFACE THAT IS LEAVING BELONGS TO THE PREVIOUS STATE.** The same
+frame-of-disagreement, from the other side: a band surface's insets describe the
+opening as it is NOW, but a LEAVING surface was opened in the opening as it was.
+A screen answers that by welding its own edge (below). The QUICK WHEEL cannot —
+it legitimately centres in whatever opening it was opened in, including the wider
+one it gets during a placement — and it is the one surface whose own commit is
+what moves the edge: `activateQuickSlot` dismisses the cross and opens the
+workspace that takes (sheet) or hides (section) the strategy rail in the SAME Vue
+flush, so the departing wheel re-solved half a rail to the right on the first
+painted frame of its recession (measured at FHD: `right` 1702 → 1920). So the
+commit PINS the box (`pinQuickWheelBox`, `surfaceMotionDirector.ts`) — the four
+inset properties re-declared inline at their used px, in the same pre-flush
+breath `markWheelHandoff` captures the slot's centre, and cleared by
+`surfaceLeaveCancelledHook` if the wheel is re-opened mid-recession. It cannot be
+read inside the leave hook: that runs mid-patch, where both
+`getBoundingClientRect` and `getComputedStyle` flush style and the policy class
+is already on `.con-root`. Guard: `tests/e2e/console-wheel-commit-geometry.spec.ts`
+(every wheel destination × fhd/tv4k/deck — the box sampled from the press to the
+last frame the cross paints must have exactly one value).
 
 **A SCREEN's own edge is not this policy.** The token has exactly two consumers —
 the shared dim and the compact dialogs, both of which are asking «is the rail
@@ -374,6 +405,20 @@ not opt out either: the shell raises one class and every band surface follows.
   inside the same profile band on purpose (a profile flip re-mounts surfaces and
   would mask a stale-geometry bug), and it goes back: the opening is a state, not
   a one-way narrowing.
+- `tests/e2e/console-wheel-commit-geometry.spec.ts` — the ACTION WHEEL's commit:
+  `.con-quick`'s box, sampled from the press until it leaves the DOM, has one
+  value at every profile and for every destination the cross can reach (the two
+  mechanisms differ — the policy class for a sheet, a `v-show`n rail for a
+  section — so a fix for one is not a fix for the other), with the pass
+  confirmation walked as the dialog control. ⚠️ Its sampler is `setInterval`
+  **plus a `MutationObserver`**: opening a workspace is a heavy synchronous
+  flush that starves timers across exactly the frames in question (measured: two
+  samples for a whole card-actions commit), while the observer fires as a
+  microtask ON the class flip that moves the edge.
+- `tests/e2e/console-endgame.spec.ts` — the collapse round trip asserts the
+  strategy rail with the status strip: replaced while the scene is up, LIT the
+  moment «Свернуть» hands the board back, and replaced again on the return —
+  mid-count and at the settled root.
 - `tests/e2e/console-right-drawer.spec.ts` — «Журнал» + the board dossier: the
   drawer covers the rail's box, the rail is not drawn, its box survives, and it
   comes BACK when the drawer closes.

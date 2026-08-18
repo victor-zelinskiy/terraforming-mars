@@ -1587,7 +1587,7 @@ import {pulseWheelAnchors} from '@/client/console/quickWheel/wheelPulse';
 import {actionPreviewMap, ensureActionPreviews, resetActionPreviews} from '@/client/console/actionPreviewStore';
 import BarButtonIcon from '@/client/components/overview/BarButtonIcon.vue';
 import {resolveAwaiting, AWAITING_SAFETY_MS} from '@/client/console/surfaceMotion/surfaceMotionModel';
-import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook} from '@/client/console/surfaceMotion/surfaceMotionDirector';
+import {surfaceEnterHook, surfaceLeaveHook, surfaceEnterCancelledHook, surfaceLeaveCancelledHook, pinQuickWheelBox} from '@/client/console/surfaceMotion/surfaceMotionDirector';
 import {consoleHandPickState, cancelConsoleHandPick, enterConsoleHandPick, resolveConsoleHandPick, resetConsoleHandPick} from '@/client/console/consoleHandPick';
 import {consoleRepeatPickState, cancelConsoleRepeatPick, enterConsoleRepeatPick, resetConsoleRepeatPick, ConsoleRepeatPickResult} from '@/client/console/consoleRepeatPick';
 import {hydroAdvanceResponses} from '@/client/console/consoleHydroAdvance';
@@ -3238,6 +3238,23 @@ export default defineComponent({
      *  own intent handler owns the road back. */
     endgameCollapsed(): boolean {
       return consoleEndgameUi.collapsed;
+    },
+    /**
+     * IS THE FINAL-SCORING STAGE ON SCREEN? The scene itself, or the «Обзор
+     * партии» overlay standing in its place for its own round trip — both are
+     * the post-game stage owning the frame.
+     *
+     * FALSE while «Свернуть» has it hidden: the frame stays in the stack on
+     * purpose (the ceremony resumes from the same beat, the state is intact),
+     * but the player is inspecting the final BOARD, and every HUD policy keyed
+     * on «is a workspace on the stage» has to answer no there. Written once
+     * because it was answered twice: `con-root--endgame` read this state and
+     * released the strip + player rail on the collapse, while the rail-replaced
+     * policy read the STACK and kept the trophy gallery dark for the whole
+     * post-game inspection.
+     */
+    endgameStageUp(): boolean {
+      return this.endgameWorkspaceMounted && !this.endgameCollapsed;
     },
     /** The prompt kinds the draft workspace presents NATIVELY — the standalone
      *  host must not rise for them while the frame stands. (The embedded
@@ -5245,9 +5262,25 @@ export default defineComponent({
      * which replace that one member by design.
      */
     workspaceScreenUp(): boolean {
-      return workspaceStackState.frames.length > 0 ||
+      return this.workspaceStackShown ||
         this.infoWorkspaceUp ||
         this.playedOpen;
+    },
+    /**
+     * PRESENCE, not merely STANDING. A frame earns the stage only while the
+     * surface it mounts is actually on screen — «the component is mounted» and
+     * «the mode is active» are both weaker claims, and the difference is a
+     * whole post-game: the endgame is the ONE frame that hides ITSELF (v-show,
+     * so its ceremony survives the round trip) while legitimately staying in
+     * the stack, and the right rail followed the frame instead of the surface.
+     *
+     * Every other workspace's presence IS its frame (invariant 1), so they need
+     * no entry here — a hidden-but-standing surface is a property of the
+     * endgame's collapse contract, never a general state.
+     */
+    workspaceStackShown(): boolean {
+      return workspaceStackState.frames.some(
+        (f) => f.kind !== 'endgame' || this.endgameStageUp);
     },
     conRootClasses(): Record<string, boolean> {
       return {
@@ -5257,7 +5290,7 @@ export default defineComponent({
         // Post-game: the gameplay HUD leaves — status strip and player rail
         // fade out (visibility, never display: the boxes must survive), so
         // nothing on the frame can pre-reveal a total mid-ceremony.
-        'con-root--endgame': this.endgameWorkspaceMounted && !this.endgameCollapsed,
+        'con-root--endgame': this.endgameStageUp,
         // The DOM-presence flags that used to be `.con-root:has(...)` rules
         // (`.con-ws` / `.con-ws--dockcover` / planet focus). Same semantics —
         // true while a matching element exists, leave transitions included —
@@ -9420,6 +9453,13 @@ export default defineComponent({
       // HUD element a direct action is about to change. Nothing flies.
       const handoff = wheelHandoffSpecFor(entry.id);
       markWheelHandoff(slot, document.querySelector(`.con-quick__slot--${slot}`), handoff?.echo);
+      // …and PIN the cross's own box in the same breath. The lines below open a
+      // workspace that takes (or hides) the strategy rail, and the wheel's band
+      // insets would re-solve in the wider opening while it is still playing its
+      // recession — half a rail of sideways twitch on the first frame after the
+      // press. Captured here, BEFORE the state change, because that is the last
+      // moment the geometry is still the one the player pressed in.
+      pinQuickWheelBox();
       const quick = this.consoleState.quick;
       this.consoleState.quick = undefined;
       if (quick === 'actions') {
