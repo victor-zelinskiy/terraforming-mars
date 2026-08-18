@@ -39,6 +39,37 @@ test.describe('console strategy rail — FHD', () => {
   test('the right rail is the left rail\'s twin; the dossier overlay is gone from idle', async ({page, request}) => {
     await bootHome(page, request);
 
+    // WHAT THE RUN ACTUALLY SAW, before the first assertion truncates it.
+    // Every fact below is asserted separately, so a bare `expect` failure on a
+    // remote runner names one number and hides the eight that would say WHY —
+    // and this spec's whole subject is a composition. Printed always: a green
+    // run costs one line, a red one stops costing a re-run.
+    console.log('[strategy rail FHD] ' + JSON.stringify(await page.evaluate(() => {
+      const round = (sel: string) => {
+        const el = document.querySelector(sel);
+        if (el === null) {
+          return null;
+        }
+        const r = el.getBoundingClientRect();
+        return {x: Math.round(r.x), w: Math.round(r.width)};
+      };
+      return {
+        left: round('.con-res'), right: round('.con-strat'), board: round('.con-board'),
+        inspectors: document.querySelectorAll('.con-inspector').length,
+        pips: document.querySelectorAll('.con-strat__head .con-strat__pip').length,
+        prices: document.querySelectorAll('.con-strat__price').length,
+        milestones: document.querySelectorAll('.con-strat__zone--milestones .con-strat__item').length,
+        awards: document.querySelectorAll('.con-strat__zone--awards .con-strat__item').length,
+        titles: [...document.querySelectorAll('.con-strat__title')].map((t) => ({
+          text: t.textContent, deficit: t.scrollWidth - t.clientWidth,
+          font: getComputedStyle(t).fontFamily.split(',')[0], size: getComputedStyle(t).fontSize,
+        })),
+        // A face that has not landed lays out in the FALLBACK's metrics, which
+        // is how a width claim passes on one OS and fails on another.
+        prototype: document.fonts.check('700 1rem Prototype', 'ДОСТИЖЕНИЯ'),
+      };
+    })));
+
     const {left, right} = await railBoxes(page);
     // The SAME seam token → the same rendered width, to the pixel budget.
     expect(Math.abs(left.width - right.width)).toBeLessThanOrEqual(1.5);

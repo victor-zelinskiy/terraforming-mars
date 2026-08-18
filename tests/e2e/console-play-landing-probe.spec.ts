@@ -358,6 +358,14 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
           // `data-presentation="complete"` flips at the START of the physical
           // consolidation. Wait for the real computed width, not a guessed
           // delay, so Calm/Standard/Swift all capture the terminal pose.
+          //
+          // A POSE GATE FOR A PHOTOGRAPH IS NOT AN ASSERTION: the fact this
+          // block exists for (`sawReady`) is already recorded above, and all
+          // the wait buys is a shot of the SETTLED rail rather than one taken
+          // mid-consolidation. On a loaded 4K frame that consolidation runs
+          // long, and the old bare 2 s budget failed the whole start probe
+          // over a screenshot — so the budget is generous AND the miss is
+          // caught.
           await page.waitForFunction(() => {
             const rail = document.querySelector<HTMLElement>('.con-jrail--presentation-complete');
             const terminal = rail?.querySelector<HTMLElement>('.con-jrail__view--terminal');
@@ -374,7 +382,7 @@ async function bootGame(page: Page, request: APIRequestContext, withPreludes = f
             const terminalWidth = terminal.getBoundingClientRect().width;
             return Number(getComputedStyle(terminal).opacity) > 0.98 &&
               terminalWidth > 0 && railWidth <= terminalWidth * 6;
-          }, undefined, {timeout: 2_000});
+          }, undefined, {timeout: 8_000}).catch(() => {});
           await page.waitForTimeout(50);
           await shoot(page, `${shotPrefix}-6-flow-ready`);
         }
@@ -528,30 +536,105 @@ async function runLandingScene(page: Page, card: string, isEvent: boolean, shotP
     sawStepPlayed: false, sawDocked: false, sawCardColHidden: false, maxMinis: 0, maxEvents: 0,
     handSurvivedUntilStage: false, trace: [],
   };
-  // THE CRUMB TAIL IS RECORDED IN-PAGE, NEVER ONLY POLLED (TEST_CONTOUR §5).
-  // On a loaded 4K frame the Playwright-side loop below undersamples brutally —
-  // a healthy local run measured FOUR samples across 8.6 s (one 6.7 s hole),
-  // and on the CI runner the whole «РАЗЫГРАНО» window fits inside such a hole:
-  // the product moved the tail, the sampler slept through it, and the spec
-  // reported «the breadcrumb tail read „РАЗЫГРАНО"» about a tail it never
-  // looked at. A MutationObserver + a 50 ms interval see every text the tail
-  // carries whatever the evaluate round-trip latency is.
-  await page.evaluate(() => {
-    const w = window as unknown as {__stepRec?: {texts: Array<string>, samples: number}};
-    const rec = {texts: [] as Array<string>, samples: 0};
-    w.__stepRec = rec;
+  // THE WHOLE EPISODE IS RECORDED IN-PAGE, NEVER ONLY POLLED (TEST_CONTOUR §5).
+  //
+  // On a loaded 4K frame the Playwright-side loop below undersamples brutally:
+  // a healthy local run measured THREE samples across the 16 s window, with a
+  // 6.7 s hole — an `evaluate` round-trip plus one 4K `screenshot()` costs
+  // seconds, and the landing's whole dock beat fits inside such a hole. The
+  // product docked the card, the sampler slept through it, and the spec
+  // reported «the card never took the front» about a front it never looked at
+  // (the crumb tail lost the same way first, which is why `__stepRec` exists;
+  // the fix belongs to EVERY fact the scene asserts, not just that one).
+  //
+  // A MutationObserver + a 50 ms interval run on the PAGE's own loop, so they
+  // see every state the episode passes through whatever the round-trip latency
+  // is — the same window that yielded 3 Playwright samples yielded 76 in-page
+  // ones. `attributes: true` is load-bearing: the front anchor announces the
+  // dock by rewriting `data-played-key`, which is an attribute mutation.
+  //
+  // The Playwright loop stays — it owns the SCREENSHOTS and the episode's end
+  // — but it no longer owns the observation, so a slow frame can only cost a
+  // photograph, never a fact.
+  await page.evaluate((card) => {
+    const w = window as unknown as {__sceneRec?: unknown, __sceneRecStop?: () => void};
+    // A scene may run several times on ONE page (the FHD test plays four
+    // cards): tear the previous recorder down first, or every earlier
+    // observer keeps firing on this episode's frames for nothing.
+    w.__sceneRecStop?.();
+    const rec = {
+      samples: 0,
+      standaloneFrames: 0, fullOverlayFrames: 0, sawStage: false, sawReserved: false,
+      sawProxy: false, sawDocked: false, sawCardColHidden: false,
+      handSurvivedUntilStage: false, maxMinis: 0, maxEvents: 0,
+      steps: [] as Array<string>,
+    };
+    w.__sceneRec = rec;
+    // COALESCED: the observer fires on every class/attribute the cinematic
+    // touches, and a read that costs eight `querySelector`s per mutation
+    // would slow down the very frames it is here to measure. One read per
+    // rendered frame at most; the interval guarantees the floor.
+    let last = -1;
     const read = () => {
+      const now = performance.now();
+      if (now - last < 16) {
+        return;
+      }
+      last = now;
       rec.samples++;
-      const t = (document.querySelector('.con-wshead__step')?.textContent ?? '').trim().toUpperCase();
-      if (t !== '' && rec.texts[rec.texts.length - 1] !== t) {
-        rec.texts.push(t);
+      const step = (document.querySelector('.con-wshead__step')?.textContent ?? '').trim().toUpperCase();
+      if (step !== '' && rec.steps[rec.steps.length - 1] !== step) {
+        rec.steps.push(step);
+      }
+      if (document.querySelector('.con-played:not(.con-played--embedded)') !== null) {
+        rec.standaloneFrames++;
+      }
+      if (document.querySelector('.con-composer__playstage .con-played') !== null) {
+        rec.fullOverlayFrames++;
+      }
+      if (document.querySelector('.con-played-hero__proxy') !== null) {
+        rec.sawProxy = true;
+      }
+      const recv = document.querySelector('.con-composer__playstage .con-recv');
+      if (recv !== null) {
+        const front = recv.querySelector('[data-recv-front]');
+        const key = front?.getAttribute('data-played-key') ?? '';
+        if (front !== null && key === '') {
+          rec.sawReserved = true;
+        }
+        if (key === card) {
+          rec.sawDocked = true;
+        }
+      }
+      if (document.querySelector('.con-composer__playstage--up') === null) {
+        return;
+      }
+      rec.sawStage = true;
+      if (document.querySelector('.con-hand') !== null) {
+        rec.handSurvivedUntilStage = true;
+      }
+      const playCard = document.querySelector('.con-composer__playcard');
+      if (playCard !== null && getComputedStyle(playCard).visibility === 'hidden') {
+        rec.sawCardColHidden = true;
+      }
+      if (recv !== null) {
+        rec.maxMinis = Math.max(rec.maxMinis, recv.querySelectorAll('.con-recv__mini').length);
+        const count = recv.querySelector('.con-recv__caption-count')?.textContent ?? '';
+        if (count !== '') {
+          rec.maxEvents = Math.max(rec.maxEvents, Number(count));
+        }
       }
     };
     read();
-    new MutationObserver(read).observe(document.body, {subtree: true, childList: true, characterData: true});
+    const mo = new MutationObserver(read);
+    mo.observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
     const iv = setInterval(read, 50);
-    setTimeout(() => clearInterval(iv), 20_000);
-  });
+    w.__sceneRecStop = () => {
+      mo.disconnect();
+      clearInterval(iv);
+    };
+    setTimeout(() => w.__sceneRecStop?.(), 20_000);
+  }, card);
   await key(page, 'Enter', 60); // A · Разыграть карту
   const deadline = Date.now() + 16_000;
   let shotFlight = false;
@@ -632,14 +715,39 @@ async function runLandingScene(page: Page, card: string, isEvent: boolean, shotP
     }
     await page.waitForTimeout(70);
   }
-  // Merge the in-page recorder (armed before the press): the tail's whole
-  // journey, immune to the poll holes above. Its sample count rides the trace
-  // so a dead recorder is visible in the failure it would otherwise cause.
-  const stepRec = await page.evaluate(() =>
-    (window as unknown as {__stepRec?: {texts: Array<string>, samples: number}}).__stepRec);
-  log.trace.push(`[steprec] samples=${stepRec?.samples ?? 0} texts=${(stepRec?.texts ?? []).join('›')}`);
-  if ((stepRec?.texts ?? []).includes('РАЗЫГРАНО')) {
-    log.sawStepPlayed = true;
+  // Merge the in-page recorder (armed before the press): the episode's whole
+  // journey, immune to the poll holes above. The Playwright poll above only
+  // ADDS to it (it never overrides) — every fact is the OR of the two, so the
+  // spec sees the union of what both samplers caught. The sample count rides
+  // the trace, so a dead recorder is visible in the failure it would cause.
+  const rec = await page.evaluate(() => (window as unknown as {__sceneRec?: {
+    samples: number, standaloneFrames: number, fullOverlayFrames: number,
+    sawStage: boolean, sawReserved: boolean, sawProxy: boolean, sawDocked: boolean,
+    sawCardColHidden: boolean, handSurvivedUntilStage: boolean,
+    maxMinis: number, maxEvents: number, steps: Array<string>,
+  }}).__sceneRec);
+  log.trace.push(`[scenerec] samples=${rec?.samples ?? 0} steps=${(rec?.steps ?? []).join('›')} ` +
+    `stage:${rec?.sawStage ? 1 : 0} res:${rec?.sawReserved ? 1 : 0} dock:${rec?.sawDocked ? 1 : 0} ` +
+    `prx:${rec?.sawProxy ? 1 : 0} col:${rec?.sawCardColHidden ? 1 : 0} minis:${rec?.maxMinis ?? 0} ` +
+    `n:${rec?.maxEvents ?? 0} standalone:${rec?.standaloneFrames ?? 0} full:${rec?.fullOverlayFrames ?? 0}`);
+  // A DEAD recorder must fail here, not silently downgrade the spec back to
+  // the poll it replaces. Deliberately low: the shortest episode is the
+  // reduced-motion one, where the flights resolve instantly.
+  expect(rec?.samples ?? 0, 'the in-page scene recorder ran').toBeGreaterThan(3);
+  if (rec !== undefined) {
+    // The two NEGATIVE facts stay a SUM (a leaked overlay must fail whichever
+    // sampler saw it); every positive fact is an OR.
+    log.standaloneFrames += rec.standaloneFrames;
+    log.fullOverlayFrames += rec.fullOverlayFrames;
+    log.sawStage = log.sawStage || rec.sawStage;
+    log.sawReserved = log.sawReserved || rec.sawReserved;
+    log.sawProxy = log.sawProxy || rec.sawProxy;
+    log.sawDocked = log.sawDocked || rec.sawDocked;
+    log.sawCardColHidden = log.sawCardColHidden || rec.sawCardColHidden;
+    log.handSurvivedUntilStage = log.handSurvivedUntilStage || rec.handSurvivedUntilStage;
+    log.maxMinis = Math.max(log.maxMinis, rec.maxMinis);
+    log.maxEvents = Math.max(log.maxEvents, rec.maxEvents);
+    log.sawStepPlayed = log.sawStepPlayed || rec.steps.includes('РАЗЫГРАНО');
   }
   await page.waitForTimeout(900);
   await shoot(page, `${shotPrefix}-3-after`);
