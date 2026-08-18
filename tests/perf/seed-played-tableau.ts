@@ -4,7 +4,7 @@
  * «Разыграно» performance probe (tests/e2e/console-played-perf-probe.spec.ts)
  * can open a REAL running game without playing N cards through the UI.
  *
- * Run:            npx tsx scripts/perf/seed-played-tableau.ts
+ * Run:            npx tsx tests/perf/seed-played-tableau.ts
  * Serve them:     LOCAL_FS_DB=1 PORT=8123 node build/src/server/server.js
  *                 (the GameLoader cache is built once at startup — restart the
  *                 server after re-seeding, or PUT /load_game for an existing id)
@@ -20,10 +20,10 @@
  *  - `newCard(name)` must resolve every name at deserialize time — names come
  *    from src/genfiles/cards.json, never invented.
  */
-import '../../tests/testing/setup'; // fake DB + globalInitialize — Game.save is a no-op here
+import '../testing/setup'; // fake DB + globalInitialize — Game.save is a no-op here
 import {mkdirSync, writeFileSync} from 'fs';
 import * as path from 'path';
-import {testGame} from '../../tests/TestGame';
+import {testGame} from '../TestGame';
 import {newCard} from '../../src/server/createCard';
 import {IProjectCard} from '../../src/server/cards/IProjectCard';
 import {Phase} from '../../src/common/Phase';
@@ -32,7 +32,7 @@ import {CardType} from '../../src/common/cards/CardType';
 import {GameId, PlayerId} from '../../src/common/Types';
 
 type ManifestEntry = {name: string, module: string, type: string, resourceType?: string};
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+
 const allCards: Array<ManifestEntry> = require('../../src/genfiles/cards.json');
 
 /** Modules the seeded game enables — cards outside them never enter the pool. */
@@ -134,6 +134,6 @@ for (const n of [20, 50, 100, 200]) {
   console.log(`seeded n=${n}: game=${game.id} player=${player.id} tableau=${player.playedCards.asArray().length}`);
 }
 
-const manifestPath = path.resolve(process.cwd(), 'scripts', 'perf', 'played-perf-games.json');
+const manifestPath = path.resolve(process.cwd(), 'tests', 'perf', 'played-perf-games.json');
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 console.log(`manifest → ${manifestPath}`);

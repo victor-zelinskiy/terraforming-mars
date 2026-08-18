@@ -20,7 +20,6 @@
  */
 import fs from 'fs';
 import path from 'path';
-import sharp from 'sharp';
 
 const SRC_DIR = path.resolve('assets', 'card-images');
 const OUT_DIR = path.join(SRC_DIR, 'thumb');
@@ -31,6 +30,23 @@ async function main() {
   fs.mkdirSync(OUT_DIR, {recursive: true});
   const entries = fs.readdirSync(SRC_DIR, {withFileTypes: true})
     .filter((d) => d.isFile() && d.name.endsWith('.webp'));
+
+  // sharp is loaded LAZILY, and only when a thumb is actually missing or
+  // stale. The release image runs `make:cards` with every thumb already
+  // committed, so the common path must not depend on a native module being
+  // installed in that stage at all.
+  const stale = entries.filter((entry) => {
+    const out = path.join(OUT_DIR, entry.name);
+    if (!fs.existsSync(out)) {
+      return true;
+    }
+    return fs.statSync(out).mtimeMs < fs.statSync(path.join(SRC_DIR, entry.name)).mtimeMs;
+  });
+  if (stale.length === 0) {
+    console.log(`card-art thumbs: 0 made, ${entries.length} up-to-date, 0 failed (sharp not loaded)`);
+    return;
+  }
+  const sharp = (await import('sharp')).default;
 
   let made = 0;
   let skipped = 0;

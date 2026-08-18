@@ -25,7 +25,7 @@
  *   7. THE INFOPANEL DOOR — Y → Info Mode → X → the embedded played detail:
  *      same open-latency + census read.
  *
- * Games come pre-seeded on disk (scripts/perf/seed-played-tableau.ts) and
+ * Games come pre-seeded on disk (tests/perf/seed-played-tableau.ts) and
  * served by a LOCAL_FS_DB server — the probe never plays cards.
  *
  * Results land in `screenshots/played-perf/<PLAYED_PERF_LABEL>/…` as JSON +
@@ -33,7 +33,7 @@
  * probe asserts only structural sanity, never absolute numbers.
  *
  * Run:
- *   npx tsx scripts/perf/seed-played-tableau.ts
+ *   npx tsx tests/perf/seed-played-tableau.ts
  *   LOCAL_FS_DB=1 PORT=8123 node build/src/server/server.js
  *   PLAYED_PERF=1 PLAYED_PERF_LABEL=baseline BASE_URL=http://localhost:8123 \
  *     npx playwright test tests/e2e/console-played-perf-probe.spec.ts --workers=1
@@ -47,7 +47,7 @@ const LABEL = process.env.PLAYED_PERF_LABEL ?? 'run';
 const OUT = path.join(__dirname, '..', '..', 'screenshots', 'played-perf', LABEL);
 
 type SeededGame = {n: number, gameId: string, playerId: string};
-const MANIFEST_PATH = path.join(__dirname, '..', '..', 'scripts', 'perf', 'played-perf-games.json');
+const MANIFEST_PATH = path.join(__dirname, '..', 'perf', 'played-perf-games.json');
 const GAMES: Array<SeededGame> = RUN ? JSON.parse(fs.readFileSync(MANIFEST_PATH, 'utf8')) : [];
 
 const PROFILES = [
