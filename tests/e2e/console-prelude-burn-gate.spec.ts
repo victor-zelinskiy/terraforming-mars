@@ -138,6 +138,36 @@ async function reachDeployment(page: Page): Promise<void> {
   await page.waitForSelector('.con-start__queue', {timeout: 45_000});
 }
 
+/**
+ * THE RAIL IS LIVE — the server's prelude prompt has arrived and the queue has
+ * published its verdicts.
+ *
+ * The badge is not a property of the card, it is a property of the PROMPT:
+ * `ConsoleStartScene.queueCards` computes it only while
+ * `startFlowPreludePrompt(playerView) !== undefined`, and a prelude with no
+ * live prompt renders `--awaiting` with no band at all. `waitQueueIdle` cannot
+ * see that — it asks whether anything is FLYING, and between the last setup
+ * card's response and the prelude prompt's arrival nothing is. Reading the gate
+ * in that window returned an honest, empty snapshot: `badged: []` on CI, twice
+ * the wall time of a dev box, once per blue moon locally.
+ *
+ * So the walk ends on the rail's own signal. It is a bounded WAIT, never a
+ * softened assertion: if the rail never goes live, or goes live with no badge,
+ * the reads below still run and still fail with the real state.
+ */
+async function waitPreludeRailLive(page: Page, maxMs = 20_000): Promise<void> {
+  await page.waitForFunction((names: Array<string>) => {
+    const slots = Array.from(document.querySelectorAll('.con-start__qcard'));
+    const subjects = slots.filter((el) =>
+      names.includes(el.getAttribute('data-queue-slot') ?? ''));
+    return subjects.length === names.length &&
+      // Every subject is PRESSABLE (the prompt is live) …
+      subjects.every((el) => !el.classList.contains('con-start__qcard--awaiting')) &&
+      // … and the verdict that rides the same render has been published.
+      document.querySelector('.con-start__qcard .con-cards__pickband--warn') !== null;
+  }, [WAITING, ENABLER], {timeout: maxMs}).catch(() => { /* the gate read reports what it really is */ });
+}
+
 /** Drain the deployment down to the prelude rail (the corporation lands first). */
 async function reachPreludeRail(page: Page): Promise<void> {
   for (let round = 0; round < 14; round++) {
@@ -146,6 +176,7 @@ async function reachPreludeRail(page: Page): Promise<void> {
     const setup = queue.filter((n) => n !== WAITING && n !== ENABLER);
     if (setup.length === 0) {
       if (queue.length > 0) {
+        await waitPreludeRailLive(page);
         return;
       }
       await page.waitForTimeout(700);

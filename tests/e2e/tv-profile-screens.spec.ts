@@ -112,9 +112,18 @@ for (const preset of PRESETS) {
     });
 
     test(`captures the console screens`, async ({page, request}) => {
-      // 4K-class presets render (and video-encode) far slower — animation
-      // holds stretch in wall time and full-page shots take seconds each.
-      test.setTimeout(preset.viewport.width * preset.deviceScaleFactor >= 3840 ? 420_000 : 180_000);
+      // ONE BUDGET FOR EVERY PRESET, because the assumption behind the split
+      // was measured wrong. It gave 4K-class presets 420 s and everything else
+      // 180 s, on the theory that resolution dominates the wall clock. It does
+      // not: the START WALK does. One CI run, same machine — tv-4k 155 s,
+      // tv-os200 137 s, standard-1080 112 s, tv-1080 109 s… and deck-handheld,
+      // the SMALLEST viewport, 200 s. 175 of those 200 seconds were the
+      // driver's own fixed settle waits (1533 leaf steps against 767 on the
+      // green retry): a pregame that needs twice the rounds — one more prelude
+      // that places a tile, one mandatory announce — costs twice the wall time
+      // at every resolution. This is a LOAD-and-game-state allowance, so it is
+      // sized on the walk, not on the pixels.
+      test.setTimeout(420_000);
 
       // ── 1 · The console-native pre-game shell ──────────────────────
       await page.goto(`/?console=1${preset.profileQuery}`);

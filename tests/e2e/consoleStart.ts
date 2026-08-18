@@ -144,7 +144,15 @@ export async function waitPressable(page: Page, maxMs = 20_000): Promise<void> {
     if (await ready.count() > 0) {
       return;
     }
-    if (i % 4 === 3) {
+    // THE NUDGE IS AN «A», AND ON THE SUMMARY «A» IS SUBMIT. The press exists
+    // to skip a cinematic that is holding the rail — but the summary's OWN
+    // arrival cinematic holds it too, so a nudge fired there submits the very
+    // screen the caller was waiting to see. That is not theoretical: it is the
+    // «the wizard is BEHIND us» escape in `walkToSummary`, and it is what made
+    // `console-start-summary-fit` flaky at 4K, where the arrival is slow enough
+    // for the nudge to land inside it. Callers that WANT the summary sent have
+    // `submitSummary`; nothing here may send it on their behalf.
+    if (i % 4 === 3 && !(await summaryVisible(page))) {
       await page.keyboard.press('Enter'); // skip the cinematic
     }
     await page.waitForTimeout(400);
