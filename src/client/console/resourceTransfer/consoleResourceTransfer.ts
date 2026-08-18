@@ -514,7 +514,8 @@ function targetPointFor(spec: ResourceTransferSpec): TransferPoint | undefined {
   // additional-resources satellite cell, else no flight.
   if (spec.targetCard !== undefined) {
     const esc = escapeName(spec.targetCard);
-    const r = measureRect(`.con-recv [data-played-key="${esc}"]`) ??
+    const r = measureRect(`.con-recv [data-played-key="${esc}"] .pcard__res`) ??
+      measureRect(`.con-recv [data-played-key="${esc}"]`) ??
       measureRect(`.con-colfocus [data-played-key="${esc}"] .pcard__res`) ??
       measureRect(`.con-colfocus [data-played-key="${esc}"]`) ??
       measureRect(`.con-hydro [data-played-key="${esc}"] .pcard__res`) ??

@@ -783,12 +783,19 @@
 
 /* ── THE PLAYED TABLEAU RECEIVING & EFFECT RESOLUTION STAGE ──────────────
    (ConsolePlayedReceivingStage — the Card Play Workspace's final scene.)
-   NOT the embedded overview: the DESTINATION STACK is the protagonist
-   (large, centred, top-anchored), every other family is a compact MINI on
-   the periphery, and effect targets emerge from / return into their strips.
-   Paint-only accents (box-shadow / opacity); motion is transform/opacity in
-   the component's GSAP. Authored in rem; card geometry is planner px. */
+   NOT the embedded overview: ONE SHELF ROW of piles in canonical family
+   order, bottom-anchored to one table line, captions in a fixed lane under
+   it. The DESTINATION stands promoted IN ITS OWN SLOT of that row; every
+   other family is a compact pile (the top card's real head band over
+   closed-pile depth edges — a crop, never a deformation; events show the
+   sleeve's top band the same way). Effect targets emerge from / return
+   into their bands. Paint-only accents (box-shadow / opacity); motion is
+   transform/opacity in the component's GSAP. Authored in rem; card
+   geometry is planner px. */
 .con-recv {
+    /* The caption lane height — ONE value the planner mirrors (34 logical px
+       = 1.7rem): the piles' bottom line and the shelf hairline derive from it. */
+    --con-recv-caption-h: 1.7rem;
     flex: 1;
     position: relative;
     display: flex;
@@ -816,33 +823,67 @@
         white-space: nowrap;
     }
 
-    /* ── the destination — centre stage ── */
-    &__main {
-        flex: 1 1 auto;
-        min-height: 0;
+    /* The air above the shelf — also the emergence presentation space. */
+    &__air { flex: 1 1 auto; min-height: 0; }
+
+    /* ── THE SHELF — one physical row, every pile on one table line ── */
+    &__row {
+        flex-shrink: 0;
+        position: relative;
         display: flex;
-        align-items: flex-start;
+        align-items: flex-end;
         justify-content: center;
-        padding-top: .55rem;
+        gap: 1.4rem;
+        padding: 0 .6rem;
+
+        /* The table line every pile stands on — a quiet hairline above the
+           caption lane (the lane is exactly --con-recv-caption-h tall), with
+           a whisper of surface falling away under it. Static paint only. */
+        &::after {
+            content: '';
+            position: absolute;
+            left: 2%;
+            right: 2%;
+            bottom: ~"calc(var(--con-recv-caption-h, 1.7rem) - .35rem)";
+            height: .35rem;
+            background:
+                linear-gradient(90deg,
+                    rgba(150, 185, 220, 0), rgba(150, 185, 220, 0.34) 14%,
+                    rgba(150, 185, 220, 0.34) 86%, rgba(150, 185, 220, 0))
+                    top / 100% .05rem no-repeat,
+                linear-gradient(180deg, rgba(120, 165, 210, 0.10), rgba(120, 165, 210, 0))
+                    top / 100% 100% no-repeat;
+            pointer-events: none;
+        }
     }
+
+    /* ── the destination — the promoted slot of the row ── */
     &__dest {
+        position: relative;
+        z-index: 2; /* the pile stands ON the table line, never under it */
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: .4rem;
+        margin: 0 .8rem; /* the promoted pile breathes inside the row */
     }
     &__caption {
         display: inline-flex;
         align-items: baseline;
+        justify-content: center;
         gap: .55rem;
-        font-size: .78rem;
+        height: var(--con-recv-caption-h, 1.7rem);
+        padding-top: .42rem;
+        box-sizing: border-box;
+        font-size: .85rem;
         font-weight: 700;
         letter-spacing: .14em;
         text-transform: uppercase;
+        white-space: nowrap;
         color: fade(@con-cyan, 85%);
     }
     &__caption-count {
-        font-size: .95rem;
+        font-size: 1.05rem;
+        line-height: 1;
         color: #eaf4ff;
         /* Re-keyed at the dock — the N → N+1 tick is one calm pulse. */
         animation: con-recv-tick calc(320ms * var(--motion-scale, 1)) ease;
@@ -855,8 +896,8 @@
     &__caption--events { color: fade(#f0b890, 84%); }
 
     /* The stack column: slivers → strips → the previous top → the front.
-       Top-anchored; the final silhouette is laid out from the first frame,
-       so nothing existing ever moves when the card arrives. */
+       Bottom-anchored on the shelf; the final silhouette is laid out from
+       the first frame, so nothing existing ever moves when the card arrives. */
     &__stack {
         position: relative;
         display: flex;
@@ -919,30 +960,30 @@
         inset: 0;
         border-radius: .55rem;
     }
+    /* The events front anchor rides ON TOP of the pile — no plate over a
+       real back… */
     &__front--back {
         position: absolute;
         inset: 0;
         background: none;
         box-shadow: none;
     }
-
-    /* ── the periphery — compact helper families ── */
-    &__minis {
-        flex-shrink: 0;
-        display: flex;
-        align-items: flex-start;
-        justify-content: center;
-        gap: 1.6rem;
-        padding-top: .5rem;
-        border-top: .05rem solid rgba(120, 155, 190, 0.12);
+    /* …except when the family is EMPTY: prepared room must read as room,
+       never as nothing («СОБЫТИЯ 0» over bare table). `--revealed` clears
+       it exactly like the face-up front. */
+    &__front--back&__front--seat {
+        background: linear-gradient(180deg, rgba(120, 155, 190, 0.055), rgba(120, 155, 190, 0.02));
+        box-shadow: inset 0 0 0 .05rem rgba(120, 155, 190, 0.12);
     }
+
+    /* ── a peripheral pile — head band over closed-pile depth edges ── */
     &__mini {
+        position: relative;
         display: flex;
         flex-direction: column;
-        align-items: flex-start;
-        gap: .28rem;
+        align-items: center;
         border-radius: .4rem;
-        padding: .2rem .3rem;
+        padding: .2rem .25rem 0;
         transition:
             box-shadow calc(180ms * var(--motion-scale, 1)) ease,
             background-color calc(180ms * var(--motion-scale, 1)) ease;
@@ -952,41 +993,72 @@
         background: fade(@con-cyan, 5%);
         box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 45%);
     }
+    /* A foreign owner's pile — past a seam, named by its owner line. */
+    &__mini--foreign { margin-left: 1.1rem; }
     &__mini-owner {
         display: inline-flex;
         align-items: center;
         gap: .35rem;
-        font-size: .6rem;
+        margin-bottom: .22rem;
+        font-size: .68rem;
         color: @con-text-dim;
         white-space: nowrap;
+    }
+    &__mini-pile {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+    }
+    /* The top card's HEAD BAND — a real face crop (cost + name + tags),
+       clipped to the title lane; the card silhouette's rounded shoulders
+       stay, the art never loads. */
+    &__mini-band {
+        position: relative;
+        z-index: 1;
+        overflow: hidden;
+        border-radius: .4rem .4rem .12rem .12rem;
+        /* «накрыто снизу» — the same covered-card shade the big stack uses. */
+        box-shadow: inset 0 -0.3rem .45rem -0.35rem rgba(0, 0, 0, 0.6);
+    }
+    /* The face-down family (events): the SLEEVE's own top band — an
+       aspect-true top CROP of the shared card back, never a stretch. */
+    &__mini-band--sleeve {
+        background: url('./assets/resources/card.webp') top center / 100% auto no-repeat;
+        box-shadow:
+            inset 0 0 0 .05rem rgba(150, 185, 220, 0.14),
+            inset 0 -0.3rem .45rem -0.35rem rgba(0, 0, 0, 0.6);
+    }
+    /* Closed-pile thickness: each edge is one card of the pile under the
+       top one — inset stepwise, bounded at two whatever the count. */
+    &__mini-edge {
+        border-radius: 0 0 .18rem .18rem;
+        background: linear-gradient(180deg, rgba(24, 36, 50, 0.95), rgba(14, 22, 32, 0.95));
+        box-shadow: inset 0 .05rem 0 rgba(150, 185, 220, 0.20);
     }
     &__mini-caption {
         display: inline-flex;
         align-items: baseline;
+        justify-content: center;
         gap: .4rem;
-        font-size: .6rem;
+        height: var(--con-recv-caption-h, 1.7rem);
+        padding-top: .46rem;
+        box-sizing: border-box;
+        max-width: 100%;
+        font-size: .72rem;
         font-weight: 700;
         letter-spacing: .1em;
         text-transform: uppercase;
+        white-space: nowrap;
         color: fade(@con-cyan, 78%);
     }
-    &__mini-count { font-size: .72rem; color: #dfe9f2; }
-    /* Title strips only — the stack is CLIPPED to its bands (a mini never
-       shows a randomly cropped full card). */
-    &__mini-stack {
-        position: relative;
-        display: flex;
-        flex-direction: column;
+    &__mini-label {
         overflow: hidden;
-        border-radius: .3rem;
-        box-shadow: inset 0 -0.35rem .5rem -0.4rem rgba(0, 0, 0, 0.55);
+        text-overflow: ellipsis;
     }
-    &__mini-strip { position: relative; }
-    &__mini-back {
-        position: relative;
-        height: 2.3rem;
-        overflow: hidden;
-        border-radius: .3rem;
+    &__mini-count {
+        font-size: .9rem;
+        line-height: 1;
+        color: #dfe9f2;
     }
 
     /* ── the emergence layer — the effect target physically forward ── */

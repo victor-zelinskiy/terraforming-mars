@@ -1271,6 +1271,55 @@ receivingMinis / foreignTargetMinis / splitPlayRewards / cardTargetGroups):
   overlay-хост хуки не зовёт), e2e-проба переписана на `.con-recv`
   (+fullOverlayFrames=0, cardColHidden, docked=front key).
 
+### Итерация 3 (2026-08-18) — ONE SHELF ROW + capsule-honest delivery
+
+Компактное tableau пересобрано в **одну полку**: ряд стопок в каноническом
+порядке семей (`PLAYED_CATEGORY_ORDER`), все стопки bottom-anchored к ОДНОЙ
+линии стола (hairline `__row::after`), подписи — в фиксированном лейне ПОД
+стопками (`--con-recv-caption-h` = 34 логич. px, планнер зеркалит константой
+`CAPTION_LANE_H`). **Принимающая семья стоит В СВОЁМ СЛОТЕ ряда, просто
+крупнее** — «куда легла карта» и «где остальные категории» = одна картинка, и
+front-anchor сидит на СТАБИЛЬНОЙ высоте независимо от глубины стека (полосы
+уходят вверх).
+
+- **Мини-стопка = ШАПКА верхней карты** (реальный peek-кроп: цена + имя +
+  метки, `miniZoom`-лестница 0.46→0.34 по ШИРИНЕ ряда — читаемость с дивана
+  первична) над «толщиной» закрытой стопки: ≤2 depth-ребра
+  (`miniDepthFor(count)`), НИКОГДА per-card. У СОБЫТИЙ печатной шапки нет —
+  их identity несёт **верхняя полоса рубашки** (`__mini-band--sleeve`:
+  aspect-true CROP card.webp `top center / 100% auto`, НИКОГДА растяжение —
+  прежний `__mini-back` с `inset:0`-рубашкой в боксе 96×46 и был «сплюснутой
+  панорамой»). Один язык с полосами большого стека: «накрытая карта = видна
+  её шапка».
+- **DOM-потолок закреплён спекой**: 120-карточный стол монтирует ≤12 лиц
+  (кап полос + фронт + по одной шапке на семью); `planReceivingStage(100)
+  === planReceivingStage(20)` — глубина сверх капа = число, не элементы.
+- **Капсула ресурсов честная**: emerged-цель / prevTop / фронт получают ЖИВУЮ
+  CardModel с `resources = committed − ещё-в-полёте`
+  (`playedHeroCardGainTotals()` латчится на арме; `armPlayedHero` теперь
+  зовёт `resetCardResourceLandings()` — как колониальные флоу), тик — строго
+  на КОНТАКТЕ чипа (`cardResourceLanded`, тот же реестр приземлений). Чип
+  целится в саму капсулу (`targetPointFor`: `.con-recv [data-played-key]
+  .pcard__res` раньше центра карты). Стол в покое остаётся name-only.
+- **Emergence презентует НАД ПОЛКОЙ, над своей стопкой** (x = центр анкера с
+  клампом, y = верх ряда − карта − зазор): карта физически поднимается из
+  своей стопки в свободный воздух сцены; арт целей ПРОГРЕВАЕТСЯ на арме
+  (`preloadPremiumCardArt(playedHeroCardTargets())` — decode в server round
+  trip, не в кадре старта анимации).
+- **Вход = стол выдвигается**: принимающая стопка ведёт (rise из своей полки,
+  origin bottom, scale .955 + y16), её полосы каскадно раскрываются от
+  фронта вверх, соседние стопки следуют stagger'ом ОТ слота принимающей.
+  Transform/opacity only; reduced motion = visibility flip.
+- **Перф-проба**: `tests/e2e/console-recv-perf-probe.spec.ts` (env-gated
+  `RECV_PERF=1`, label через `RECV_PERF_LABEL`) — реальный флоу на
+  prod-сборке, in-page рекордер (MutationObserver + interval; Playwright-луп
+  только скриншоты/конец — 4K-эпизод НЕ наблюдаем поллингом), CDP
+  Performance-метрики (before/dock/after), longtask + 16ms-jitter окно,
+  idle-leftover чек; большие столы набиваются сырым legacy-протоколом
+  (`POST /player/input`), интерстициалы старта дренируются
+  (`bootstrapToAction`: initialCards → corp play `type:'card'` → buy confirm
+  `type:'option'`). Результаты в `screenshots/recv-perf/<label>/`.
+
 ## THE GAME START WORKSPACE (ит.4 — СИСТЕМНЫЙ workspace, 2026-08-04)
 
 Старт партии — ОДИН корневой workspace `.con-start` от первого выбора до

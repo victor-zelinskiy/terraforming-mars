@@ -12,13 +12,14 @@
     read in «Информация» → «Доп. ресурсы» and on the card's own face in the
     fullscreen inspector, so a resource change never patches the table.
   -->
-  <PremiumCard v-if="premium" :name="name" :inert="true" :lightweight="true" :peek="peek && !keepArt" aria-hidden="true" />
+  <PremiumCard v-if="premium" :name="name" :card="card" :inert="true" :lightweight="true" :peek="peek && !keepArt" aria-hidden="true" />
   <ConsoleCardFaceLite v-else :name="name" />
 </template>
 
 <script lang="ts">
-import {defineComponent} from 'vue';
+import {defineComponent, PropType} from 'vue';
 import {CardName} from '@/common/cards/CardName';
+import {CardModel} from '@/common/models/CardModel';
 import {getCard} from '@/client/cards/ClientCardManifest';
 import {isPremiumFaceType} from '@/client/components/premiumCard/premiumCardTheme';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
@@ -31,6 +32,17 @@ export default defineComponent({
     name: {
       type: String as () => CardName,
       required: true,
+    },
+    /**
+     * OPTIONAL live model — passed ONLY where a stored-resource reading is
+     * part of the scene (the receiving stage's effect targets: the capsule is
+     * the counter that ticks at the chip's contact). The table at rest stays
+     * name-only on purpose: nothing live re-renders a resting pile.
+     */
+    card: {
+      type: Object as PropType<CardModel | undefined>,
+      required: false,
+      default: undefined,
     },
     /** COVERED in a pile: only the header band can show — the premium face
      *  renders its peek crop (no art <img>, no mechanics subtree). The legacy

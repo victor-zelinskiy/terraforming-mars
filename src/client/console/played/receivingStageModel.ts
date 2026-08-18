@@ -9,11 +9,18 @@
  * THIS card physically go, and where does its effect then arrive?». So the
  * stage composes around exactly that:
  *
- *   - the DESTINATION STACK is the protagonist: large, centred, top-anchored,
- *     with a normalized overlap (a capped strip column + the open top card)
- *     and a RESERVED FRONT ANCHOR the new card lands into;
- *   - every other family is a COMPACT MINI: caption + count + a couple of
- *     title strips — peripheral tabletop context, never content columns;
+ *   - ONE SHELF ROW in canonical family order, every pile bottom-anchored to
+ *     the same table line with its caption in a fixed lane underneath — the
+ *     DESTINATION stands IN ITS OWN SLOT of that row, simply promoted (large),
+ *     so «где лежат остальные категории» and «куда легла карта» are one
+ *     picture;
+ *   - the DESTINATION STACK is the protagonist: a capped strip column
+ *     receding upward + the open top card + a RESERVED FRONT ANCHOR the new
+ *     card lands into, at a STABLE height whatever the stack holds;
+ *   - every other family is a COMPACT PILE: the top card's real HEAD BAND
+ *     (cost + name + tags — a face crop, never a deformation) over
+ *     closed-pile depth edges; events show the sleeve's own top band the same
+ *     way — peripheral tabletop context, never content columns;
  *   - the TOP CARD HANDOFF is geometric, not animated re-layout: the final
  *     stack silhouette (strips + the previous top's future strip + the front
  *     card) is laid out from the first frame; before the dock the previous
@@ -129,18 +136,29 @@ export function receivingStackView(
 
 /** Depth sliver height (px @ uiScale 1) for cards beyond the strip cap. */
 export const RECEIVING_DEPTH_SLIVER = 5;
-/** Chrome above the stack (caption row), logical px. */
-const STACK_CAPTION_H = 40;
-/** The mini row's reserve at the stage bottom (caption + strips), logical px. */
-const MINI_ROW_H = 128;
-/** Breathing room around the stack column, logical px. */
-const STACK_AIR = 26;
+/** The caption lane UNDER every pile (family label + count), logical px. */
+const CAPTION_LANE_H = 34;
+/** Air kept above the tallest stack (the crumb needs to breathe), logical px. */
+const TOP_AIR = 36;
+/** Shelf padding below the caption lane, logical px. */
+const SHELF_PAD_B = 10;
 /** The destination zoom ladder — largest that fits wins. */
 const ZOOM_LADDER = [0.68, 0.63, 0.58, 0.53, 0.48];
 /** Visible strip cap — enough history to read the stack, never a column. */
 export const RECEIVING_MAX_STRIPS = 5;
-/** The mini strips' fixed zoom (title bands only — no art ever loads). */
-const MINI_ZOOM = 0.30;
+/**
+ * The mini piles' zoom ladder — sized for couch readability of the top
+ * card's HEAD BAND (cost + name + tags), stepping down only when the whole
+ * shelf row cannot fit the width. Never below the last rung: a pile that
+ * cannot fit at the floor overflows honestly (it cannot happen inside the
+ * band geometry this stage is given).
+ */
+const MINI_ZOOM_LADDER = [0.46, 0.42, 0.38, 0.34];
+/** Closed-pile depth edge step (thickness under the top card), logical px. */
+export const RECEIVING_MINI_DEPTH = 4;
+/** Shelf row gaps, logical px (between minis / around the destination). */
+const MINI_GAP = 28;
+const DEST_GAP = 44;
 
 export interface ReceivingPlanInput {
   /** Stage box (screen px). */
@@ -148,6 +166,8 @@ export interface ReceivingPlanInput {
   availH: number;
   /** Cards lying in the destination BEFORE the play (excl. incoming). */
   stackCount: number;
+  /** Peripheral piles standing beside the destination (incl. foreign). */
+  miniCount?: number;
   /** conUiScale() — 1 on non-tv profiles. */
   uiScale?: number;
 }
@@ -162,10 +182,13 @@ export interface ReceivingPlan {
   maxStrips: number;
   /** Depth sliver height (screen px). */
   sliverH: number;
-  /** Mini families: face zoom + box metrics (screen px). */
+  /** Mini piles: top-band face zoom + box metrics (screen px). */
   miniZoom: number;
   miniW: number;
-  miniStripH: number;
+  /** The visible head band of a mini pile (one card's title lane). */
+  miniBandH: number;
+  /** One closed-pile depth edge (screen px). */
+  miniDepthH: number;
 }
 
 function clamp(lo: number, hi: number, v: number): number {
@@ -173,14 +196,16 @@ function clamp(lo: number, hi: number, v: number): number {
 }
 
 /**
- * Plan the stage. The stack column is TOP-ANCHORED and must fit whole
- * (caption + slivers + strips + the previous top's strip + the open card)
- * inside the box above the mini row — the fit knob is first the strip count,
- * then the zoom ladder. Deterministic; unit-guarded for monotonicity.
+ * Plan the stage. Every pile stands on ONE SHELF LINE (bottom-anchored row,
+ * captions in a fixed lane under it), so the reserved front anchor sits at a
+ * STABLE height whatever the stack holds — the strips recede upward. The
+ * destination fits by HEIGHT (first the strip count, then the zoom ladder);
+ * the minis then fit by WIDTH on their own ladder. Deterministic;
+ * unit-guarded for monotonicity.
  */
 export function planReceivingStage(input: ReceivingPlanInput): ReceivingPlan {
   const s = input.uiScale !== undefined && input.uiScale > 0 ? input.uiScale : 1;
-  const budget = Math.max(220 * s, input.availH - (MINI_ROW_H + STACK_CAPTION_H + STACK_AIR) * s);
+  const budget = Math.max(220 * s, input.availH - (CAPTION_LANE_H + TOP_AIR + SHELF_PAD_B) * s);
   const wantStrips = clamp(0, RECEIVING_MAX_STRIPS, input.stackCount - 1);
   const sliverH = Math.round(RECEIVING_DEPTH_SLIVER * s);
   const slivers = input.stackCount - 1 > wantStrips ? 2 * sliverH : 0;
@@ -210,16 +235,32 @@ export function planReceivingStage(input: ReceivingPlanInput): ReceivingPlan {
     zoom = z;
     maxStrips = clamp(0, wantStrips, Math.max(0, fit));
   }
+  const slotW = PLAYED_CARD_NATURAL_W * zoom;
+
+  // Minis fit by WIDTH beside the solved destination — the ladder steps down
+  // only when the whole shelf row would not fit; the last rung stands.
+  const minis = Math.max(0, input.miniCount ?? 0);
+  let miniZoom = MINI_ZOOM_LADDER[MINI_ZOOM_LADDER.length - 1] * s;
+  for (const step of MINI_ZOOM_LADDER) {
+    const mz = step * s;
+    const rowW = slotW + (minis > 0 ? 2 * DEST_GAP * s : 0) +
+      minis * PLAYED_CARD_NATURAL_W * mz + Math.max(0, minis - 1) * MINI_GAP * s;
+    if (rowW <= input.availW - 24 * s) {
+      miniZoom = mz;
+      break;
+    }
+  }
   return {
     zoom,
-    slotW: PLAYED_CARD_NATURAL_W * zoom,
+    slotW,
     cardH: PLAYED_CARD_NATURAL_H * zoom,
     stripH: PLAYED_PEEK_NATURAL * zoom,
     maxStrips,
     sliverH,
-    miniZoom: MINI_ZOOM * s,
-    miniW: Math.round(PLAYED_CARD_NATURAL_W * MINI_ZOOM * s),
-    miniStripH: Math.round(PLAYED_PEEK_NATURAL * MINI_ZOOM * s),
+    miniZoom,
+    miniW: Math.round(PLAYED_CARD_NATURAL_W * miniZoom),
+    miniBandH: Math.round(PLAYED_PEEK_NATURAL * miniZoom),
+    miniDepthH: Math.max(2, Math.round(RECEIVING_MINI_DEPTH * s)),
   };
 }
 
@@ -230,13 +271,24 @@ export type ReceivingMini = {
   id: string;
   family: PlayedCategoryKey;
   count: number;
-  /** Newest-last title strips to draw (≤ 2; empty for events). */
-  topNames: ReadonlyArray<CardName>;
+  /**
+   * The card whose HEAD BAND identifies the pile — the TOP card of the
+   * family (undefined for events: a face-down pile is identified by the
+   * sleeve, never a printed head).
+   */
+  topName?: CardName;
   isEvents: boolean;
+  /** Closed-pile depth edges to draw under the top card (0–2, honest ≤). */
+  depth: number;
   /** Present on a FOREIGN owner's mini (an effect target's tableau). */
   ownerColor?: Color;
   ownerName?: string;
 };
+
+/** Depth edges an N-card pile shows — bounded by design, never per-card. */
+export function miniDepthFor(count: number): number {
+  return clamp(0, 2, count - 1);
+}
 
 const FAMILY_ORDER: ReadonlyArray<PlayedCategoryKey> =
   ['corporation', 'prelude', 'ceo', 'active', 'automated', 'events'];
@@ -257,8 +309,9 @@ export function receivingMinis(zones: PlayedZones, destination: PlayedCategoryKe
       id: key,
       family: key,
       count: cards.length,
-      topNames: key === 'events' ? [] : cards.slice(-2).map((c) => c.name as CardName),
+      topName: key === 'events' ? undefined : (cards[cards.length - 1].name as CardName),
       isEvents: key === 'events',
+      depth: miniDepthFor(cards.length),
     });
   }
   return out;
@@ -302,8 +355,9 @@ export function foreignTargetMinis(
         id: `${fam}:${p.color}`,
         family: fam,
         count: cards.length,
-        topNames: fam === 'events' ? [] : cards.slice(-2).map((c) => c.name as CardName),
+        topName: fam === 'events' ? undefined : (cards[cards.length - 1].name as CardName),
         isEvents: fam === 'events',
+        depth: miniDepthFor(cards.length),
         ownerColor: p.color,
         ownerName: p.name,
       });

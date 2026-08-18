@@ -2,6 +2,7 @@ import {expect} from 'chai';
 import {mount} from '@vue/test-utils';
 import ConsolePlayedReceivingStage from '@/client/components/console/played/ConsolePlayedReceivingStage.vue';
 import {armPlayedHero, abortPlayedHero, playedHeroState} from '@/client/console/played/consolePlayedHero';
+import {cardResourceLandings, resetCardResourceLandings} from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {claimPlayOutcome} from '@/client/console/played/consolePlayOutcomeClaim';
 import {resetWorkspaceOutcome} from '@/client/console/consoleWorkspaceOutcome';
 import {descendWorkspaceFrame, pushWorkspaceFrame, resetWorkspaceStack} from '@/client/console/consoleWorkspaceStack';
@@ -39,6 +40,7 @@ describe('ConsolePlayedReceivingStage (the receiving & effect resolution stage)'
     abortPlayedHero();
     resetWorkspaceOutcome();
     resetWorkspaceStack();
+    resetCardResourceLandings();
     await settle(5);
   });
 
@@ -51,6 +53,29 @@ describe('ConsolePlayedReceivingStage (the receiving & effect resolution stage)'
     descendWorkspaceFrame('hand', card, 'Playing', {type: 'cardInHand', card});
   }
 
+  /**
+   * THE COST CEILING — the user-facing budget of this whole surface: however
+   * deep the tableau grows, the scene mounts the CAP (strips + front + one
+   * head band per family), never the count. 100 cards and 20 must produce
+   * the same order of DOM.
+   */
+  it('a 100-card tableau mounts a BOUNDED scene — the cost is the cap, never the count', async () => {
+    armPlayedHero(CardName.TREES, false, {manualTableOpen: false, host: 'workspace'});
+    playedHeroState.phase = 'preparing';
+    playedHeroState.revealed = true;
+    const names = Object.values(CardName).slice(0, 120) as Array<CardName>;
+    const wrapper = make(view(names));
+    await wrapper.vm.$nextTick();
+    const faces = wrapper.findAllComponents({name: 'ConsolePlayedCardLite'});
+    // ≤ 5 strips + prev + front + ≤ 5 family head bands (+ the emergence
+    // layer would be one more) — the ceiling, independent of the 120 cards.
+    expect(faces.length, 'mounted faces stay at the cap').to.be.at.most(12);
+    expect(wrapper.findAll('[data-recv-strip]').length).to.be.at.most(6);
+    expect(wrapper.element.querySelectorAll('*').length,
+      'the scene\'s DOM is bounded by design').to.be.lessThan(420);
+    wrapper.unmount();
+  });
+
   it('is a SPECIALIZED scene — never the embedded overview layout', async () => {
     armPlayedHero(CardName.TREES, false, {manualTableOpen: false, host: 'workspace'});
     playedHeroState.phase = 'preparing';
@@ -61,10 +86,44 @@ describe('ConsolePlayedReceivingStage (the receiving & effect resolution stage)'
     // The destination (automated: BUSHES lies there) is the centre stack…
     expect(wrapper.find('.con-recv__dest').exists()).to.be.true;
     expect(wrapper.find('.con-recv__stack').exists()).to.be.true;
-    // …and the other families are compact minis, never full columns.
+    // …and the other families are compact piles, never full columns.
     const minis = wrapper.findAll('.con-recv__mini');
     expect(minis.length).to.eq(2); // corporation + active
-    expect(wrapper.find('.con-recv__mini .con-recv__mini-stack').exists()).to.be.true;
+    expect(wrapper.find('.con-recv__mini .con-recv__mini-pile').exists()).to.be.true;
+    expect(wrapper.find('.con-recv__mini .con-recv__mini-band').exists()).to.be.true;
+    wrapper.unmount();
+  });
+
+  it('the SHELF is one row in canonical family order — the destination stands INLINE in its own slot', async () => {
+    armPlayedHero(CardName.TREES, false, {manualTableOpen: false, host: 'workspace'});
+    playedHeroState.phase = 'preparing';
+    // corp + active + automated(dest) + events — the dest slot sits BETWEEN
+    // active and events, exactly where the family lives on the table.
+    const wrapper = make(view([CardName.THARSIS_REPUBLIC, CardName.PREDATORS, CardName.BUSHES, CardName.ASTEROID]));
+    await wrapper.vm.$nextTick();
+    const row = wrapper.find('.con-recv__row');
+    expect(row.exists()).to.be.true;
+    const slots = row.element.children;
+    const kinds = Array.from(slots).map((el) =>
+      el.classList.contains('con-recv__dest') ? 'dest' : el.getAttribute('data-recv-mini'));
+    expect(kinds).to.deep.eq(['corporation', 'active', 'dest', 'events']);
+    // Captions live in the fixed lane UNDER every pile — one grammar.
+    expect(wrapper.find('.con-recv__dest .con-recv__caption').exists()).to.be.true;
+    expect(wrapper.findAll('.con-recv__mini-caption').length).to.eq(3);
+    wrapper.unmount();
+  });
+
+  it('an EVENTS mini is the sleeve\'s own top band — an aspect-true crop, never a stretched back', async () => {
+    armPlayedHero(CardName.TREES, false, {manualTableOpen: false, host: 'workspace'});
+    playedHeroState.phase = 'preparing';
+    const wrapper = make(view([CardName.BUSHES, CardName.ASTEROID]));
+    await wrapper.vm.$nextTick();
+    const events = wrapper.find('[data-recv-mini="events"]');
+    expect(events.exists()).to.be.true;
+    expect(events.find('.con-recv__mini-band--sleeve').exists()).to.be.true;
+    // The face-down pile mounts NO stretched `.con-card-back` box and no face.
+    expect(events.find('.con-card-back').exists()).to.be.false;
+    expect(events.findComponent({name: 'ConsolePlayedCardLite'}).exists()).to.be.false;
     wrapper.unmount();
   });
 
@@ -181,6 +240,41 @@ describe('ConsolePlayedReceivingStage (the receiving & effect resolution stage)'
     await wrapper.vm.$nextTick();
     expect(wrapper.find('.con-recv__emerge').exists()).to.be.false;
     expect(wrapper.find('.con-recv__face--away').exists()).to.be.false;
+    wrapper.unmount();
+  });
+
+  /**
+   * «Сколько было и сколько стало» is told BY THE CARD ITSELF: the emerged
+   * target renders its real stored-resource capsule, held at `committed −
+   * still in flight` — so the count the player sees changes exactly at the
+   * chip's touchdown (`cardResourceLandings` is bumped at the contact beat),
+   * never before the flight.
+   */
+  it('the target\'s capsule counts committed − in-flight, and ticks at the contact', async () => {
+    armPlayedHero(CardName.IMPORTED_NITROGEN, true, {
+      manualTableOpen: false, host: 'workspace',
+      rewards: [{channel: 'card-resource', resource: 'microbe', amount: 2, targetCard: CardName.TARDIGRADES}],
+    });
+    playedHeroState.phase = 'showing-result';
+    playedHeroState.revealed = true;
+    // The COMMITTED view already carries the +2 (5 microbes on the target).
+    const v = view([CardName.BUSHES]);
+    (v.thisPlayer.tableau as Array<{name: CardName, resources?: number}>).push(
+      {name: CardName.TARDIGRADES, resources: 5});
+    const wrapper = make(v);
+    await wrapper.vm.$nextTick();
+    const promise = wrapper.vm.emergeTarget(CardName.TARDIGRADES);
+    await wrapper.vm.$nextTick();
+    const face = wrapper.find('.con-recv__emerge').findComponent({name: 'ConsolePlayedCardLite'});
+    expect((face.props('card') as {resources?: number}).resources,
+      'pre-contact: the capsule still reads the pre-gain count').to.eq(3);
+    // THE CONTACT — the transfer framework bumps the landing tally.
+    cardResourceLandings.by = {[CardName.TARDIGRADES]: 2};
+    await wrapper.vm.$nextTick();
+    expect((face.props('card') as {resources?: number}).resources,
+      'at the contact: the capsule ticks to the committed count').to.eq(5);
+    await promise;
+    await wrapper.vm.settleTarget(CardName.TARDIGRADES);
     wrapper.unmount();
   });
 

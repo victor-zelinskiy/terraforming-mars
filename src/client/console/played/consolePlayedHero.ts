@@ -54,6 +54,7 @@ import {
 } from '@/client/console/played/playedHeroDirector';
 import {
   runResourceTransfers, abortResourceTransfers, beginPanelRewardHold, releasePanelRewardHold, clearPanelRewardHold,
+  resetCardResourceLandings,
 } from '@/client/console/resourceTransfer/consoleResourceTransfer';
 import {
   ResourceTransferSpec, TRANSFER_READ_MS, TRANSFER_RESIDUAL_PAUSE_MS,
@@ -202,6 +203,28 @@ export function playedHeroCardTargets(): ReadonlyArray<CardName> {
   return out;
 }
 
+/**
+ * Per-card TOTALS of the armed play's card-resource gains (the played card
+ * itself included). The receiving stage latches these at the arm and renders
+ * every visible target's stored-resource capsule as `committed − still in
+ * flight`, ticking it up on each chip's own touchdown
+ * (`cardResourceLanded`) — the count changes exactly at the contact, never
+ * before the flight.
+ */
+export function playedHeroCardGainTotals(): Readonly<Record<string, number>> {
+  if (!playedHeroState.active) {
+    return {};
+  }
+  const {cardSpecs} = splitPlayRewards(pendingRewards);
+  const out: Record<string, number> = {};
+  for (const spec of cardSpecs) {
+    if (spec.targetCard !== undefined) {
+      out[spec.targetCard] = (out[spec.targetCard] ?? 0) + spec.amount;
+    }
+  }
+  return out;
+}
+
 // ── predicates ──────────────────────────────────────────────────────────────
 
 export function isPlayedHeroActive(): boolean {
@@ -272,6 +295,9 @@ export function armPlayedHero(card: CardName, isEvent: boolean, opts: {manualTab
   claimed = false;
   followUpPending = false;
   pendingRewards = opts.rewards ?? [];
+  // THIS payout's touchdown tally starts empty (the colony flows arm the same
+  // way) — a stale count would tick a fresh target before its chip ever flew.
+  resetCardResourceLandings();
   rewardHoldSeeded = false;
   sourceSelector = opts.sourceSelector ?? COMPOSER_SOURCE_SELECTOR;
   targetSelectorOverride = opts.targetSelector;

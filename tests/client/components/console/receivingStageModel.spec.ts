@@ -79,6 +79,24 @@ describe('receivingStageModel (the workspace receiving scene, pure)', () => {
       expect(short.zoom).to.be.at.most(tall.zoom);
       expect(short.zoom).to.be.greaterThan(0.4); // never microscopic
     });
+
+    it('the visible composition is BOUNDED however deep the tableau grows', () => {
+      const p100 = planReceivingStage({availW: 1400, availH: 720, stackCount: 100, miniCount: 5, uiScale: 1});
+      const p20 = planReceivingStage({availW: 1400, availH: 720, stackCount: 20, miniCount: 5, uiScale: 1});
+      expect(p100.maxStrips).to.be.at.most(RECEIVING_MAX_STRIPS);
+      // The plan (and therefore the DOM the stage mounts) is IDENTICAL past
+      // the cap — depth beyond it is a count, never more elements.
+      expect(p100).to.deep.eq(p20);
+    });
+
+    it('minis fit by WIDTH on their own ladder — readable first, stepping down only under pressure', () => {
+      const roomy = planReceivingStage({availW: 1500, availH: 720, stackCount: 4, miniCount: 4, uiScale: 1});
+      const tight = planReceivingStage({availW: 860, availH: 720, stackCount: 4, miniCount: 7, uiScale: 1});
+      expect(roomy.miniZoom).to.be.greaterThan(tight.miniZoom);
+      expect(roomy.miniZoom).to.be.at.least(0.42);
+      expect(tight.miniZoom).to.be.at.least(0.3); // the floor stands
+      expect(roomy.miniBandH).to.be.closeTo(Math.round(PLAYED_PEEK_NATURAL * roomy.miniZoom), 1);
+    });
   });
 
   describe('the compact periphery', () => {
@@ -96,14 +114,28 @@ describe('receivingStageModel (the workspace receiving scene, pure)', () => {
       expect(minis.every((m) => m.ownerColor === undefined)).to.be.true;
     });
 
-    it('a mini carries count + up to two TITLE STRIPS (events: none — the pile is face-down)', () => {
+    it('a mini is the TOP card\'s head band + bounded depth (events: the sleeve, no printed head)', () => {
       const minis = receivingMinis(zones, 'automated');
       const active = minis.find((m) => m.family === 'active');
-      expect(active?.topNames).to.deep.eq([CardName.PREDATORS]);
+      expect(active?.topName).to.eq(CardName.PREDATORS);
+      expect(active?.depth).to.eq(0); // one card — no pile thickness
       const events = minis.find((m) => m.family === 'events');
       expect(events?.isEvents).to.be.true;
-      expect(events?.topNames).to.be.empty;
+      expect(events?.topName).to.be.undefined;
       expect(events?.count).to.eq(1);
+    });
+
+    it('pile DEPTH is bounded at two edges whatever the count (never per-card)', () => {
+      const deep = buildPlayedZones(cards(
+        CardName.THARSIS_REPUBLIC,
+        ...Array<CardName>(40).fill(CardName.TREES),
+        CardName.PREDATORS,
+      ));
+      const minis = receivingMinis(deep, 'active');
+      const automated = minis.find((m) => m.family === 'automated');
+      expect(automated?.count).to.eq(40);
+      expect(automated?.depth).to.eq(2);
+      expect(automated?.topName).to.eq(CardName.TREES);
     });
 
     it('FOREIGN effect targets bring their owner in as the same compact primitive', () => {
