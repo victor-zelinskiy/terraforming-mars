@@ -52,6 +52,7 @@ import {MarsBotAttack, MarsBotImpact, MarsBotTurn} from '@/common/automa/MarsBot
 import {HAZARD_TILES} from '@/common/TileType';
 import {armPlacementAnimations} from '@/client/components/board/tilePlacementAnimation';
 import {stageRemoteTileEvents} from '@/client/console/tilePlacement/consoleRemotePlacement';
+import {motionMs} from '@/client/components/motion/motionTokens';
 import {noteBotTurnStage} from './marsBotTurnTiming';
 
 type StagedBatch = {
@@ -66,7 +67,56 @@ type StagedBatch = {
   commitLatest: () => void;
 };
 
+/**
+ * HOW FAST A RUN OF BOT TURNS WALKS THE BOARD.
+ *
+ * ⚠️ THE DRAIN USED TO BE GATED BY THE CARDS, and that is what «бот лагает по
+ * 5–10 секунд» measured: the window commits on the LAST turn's card being
+ * DELIVERED, cards present ONE AT A TIME, and each one lives its full
+ * `BOT_TURN_TTL`. So a five-turn run after a pass held the player's own next
+ * prompt for as long as it took to read five toasts — measured end to end at
+ * **92 seconds**, with the cards becoming visible at 4.4 s, 7.7 s, 31.2 s and
+ * 42.5 s.
+ *
+ * A toast's lifetime is about READING it. The BOARD's advance through the run
+ * is a different thing and owns its own tempo: one turn every {@link RUN_STEP_MS},
+ * bounded, so a run of N turns costs N steps and never N toast lifetimes. The
+ * cards keep presenting at their own pace in the feed afterwards — nothing is
+ * lost, and the journal keeps every turn replayable.
+ */
+export const RUN_STEP_MS = 900;
+
 let batch: StagedBatch | undefined;
+let drainTimer: ReturnType<typeof setTimeout> | undefined;
+
+function clearRunDrain(): void {
+  if (drainTimer !== undefined) {
+    clearTimeout(drainTimer);
+    drainTimer = undefined;
+  }
+}
+
+/** Walk one turn of the run onto the board, then commit when the last is due. */
+function stepRunDrain(): void {
+  drainTimer = undefined;
+  if (batch === undefined) {
+    return;
+  }
+  const next = batch.pendingKeys[0];
+  if (next === undefined || batch.pendingKeys.length === 1) {
+    commitBotStagingNow(); // the last turn IS the authoritative view
+    return;
+  }
+  deliverBotTurnVisual(next); // applies this turn's footprint, shifts the queue
+  armRunDrain();
+}
+
+function armRunDrain(): void {
+  if (drainTimer !== undefined || batch === undefined) {
+    return;
+  }
+  drainTimer = setTimeout(stepRunDrain, motionMs(RUN_STEP_MS));
+}
 
 /** Reactive mirror (for guards / debug displays). */
 export const botStagingState = reactive({active: false, pendingCount: 0});
@@ -226,6 +276,7 @@ export function beginBotStaging(
     }
   }
   syncState();
+  armRunDrain();
 }
 
 /**
@@ -284,6 +335,7 @@ export function deliverBotTurnVisual(key: string): 'committed' | 'applied' | 'no
  * notifications disabled). Safe to call anytime; no-op without a window.
  */
 export function commitBotStagingNow(): void {
+  clearRunDrain();
   if (batch === undefined) {
     return;
   }
@@ -301,6 +353,7 @@ export function commitBotStagingNow(): void {
 
 /** Test / game-switch reset — drops the window WITHOUT committing. */
 export function resetBotStaging(): void {
+  clearRunDrain();
   batch = undefined;
   syncState();
 }

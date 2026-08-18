@@ -7,56 +7,67 @@
  * the structure (order, what plays, what is skipped) without any DOM.
  *
  * Rhythm rules encoded here (the whole point of the ceremony):
- *  · a category is ONE beat (~0.9s), never a per-point tick — a +72 and a +3
- *    cost the same time;
- *  · TR and Cards run their sub-steps as a QUICK inner cadence (~0.43s each),
- *    then MERGE back into one calm segment;
+ *  · a MAIN category is a FOUR-PART PHRASE — focus (the rail spotlights the
+ *    coming category, nothing moves yet) → grow (the bars and the count move
+ *    together) → settle (the exact value lands under its segment) → a breath
+ *    before the next category. One reveal = one readable event.
+ *  · a category is ONE beat, never a per-point tick — a +72 and a +3 cost
+ *    the same time;
+ *  · TR and Cards run their sub-steps as a QUICK inner cadence, then MERGE
+ *    back into one calm segment (the merge is itself a visible settle);
  *  · sub-steps that are zero for everyone never exist (dropped by the VM) —
  *    absent expansions cost zero seconds;
  *  · the ranking never starts the same instant the last number lands —
- *    a breath first (preRank), then the FLIP, then the winner.
+ *    a breath first (preRank), then the FLIP, then places, then a second
+ *    quiet hold before the winner beat (the reveal must not ride the FLIP).
  */
 import type {ConsoleEndgameVm} from '@/client/console/endgame/consoleEndgameModel';
 
 /** Base durations (ms, pre-motionMs). Tuned by eye at standard speed. */
 export const CEREMONY_MS = {
   /** Rows stagger in; bars still empty. */
-  enter: 720,
-  /** A single-beat category: bar growth + count-up… */
+  enter: 640,
+  /** The four-part MAIN-category phrase. */
+  categoryFocus: 220,
   categoryGrow: 640,
-  /** …and its settle read before the focus moves on. */
-  categoryHold: 300,
+  categorySettle: 240,
+  categoryPause: 270,
   /** Caption hands over to a multi-sub category before its first sub. */
-  subIntro: 240,
+  subIntro: 300,
   /** One inner source (a TR row / a card family) — all players at once. */
-  sub: 440,
-  /** The seams fade; the category reads as one segment again. */
-  subMerge: 430,
+  sub: 390,
+  /** The seams dissolve; the category reads as ONE segment again (this is
+   *  the multi-sub category's own settle + breath). */
+  subMerge: 500,
   /** The quiet breath after the last category, before anything moves. */
-  preRank: 700,
+  preRank: 720,
   /** The FLIP into final order. */
-  rankFlip: 780,
+  rankFlip: 820,
   /** Place numerals fade in after the rows land. */
-  placesIn: 320,
+  placesIn: 340,
+  /** The hold between the settled ranking and the winner reveal — the
+   *  crowning is its own event, never the tail of the FLIP. */
+  winnerHold: 480,
   /** Tie-break: announce the tie → show the M€ values → resolve. */
-  tieAnnounce: 760,
-  tieValues: 820,
-  tieResolve: 460,
-  /** The winner beat (plate + burst) before the actions arrive. */
-  winner: 1550,
+  tieAnnounce: 880,
+  tieValues: 880,
+  tieResolve: 480,
+  /** The winner beat (row hero + burst) before the actions arrive. */
+  winner: 1500,
   /** The action list materializes. */
-  actionsIn: 300,
+  actionsIn: 360,
 } as const;
 
 export type CeremonyBeat =
   | {kind: 'enter', ms: number}
-  | {kind: 'category', idx: number, ms: number, holdMs: number}
+  | {kind: 'category', idx: number, focusMs: number, growMs: number, settleMs: number, pauseMs: number}
   | {kind: 'subIntro', idx: number, ms: number}
   | {kind: 'sub', idx: number, sub: number, ms: number}
   | {kind: 'subMerge', idx: number, ms: number}
   | {kind: 'preRank', ms: number}
   | {kind: 'ranking', ms: number, placesMs: number}
   | {kind: 'tiebreak', announceMs: number, valuesMs: number, resolveMs: number}
+  | {kind: 'winnerHold', ms: number}
   | {kind: 'winner', ms: number}
   | {kind: 'actions', ms: number};
 
@@ -71,7 +82,13 @@ export function ceremonyBeats(vm: ConsoleEndgameVm): Array<CeremonyBeat> {
       });
       beats.push({kind: 'subMerge', idx, ms: CEREMONY_MS.subMerge});
     } else {
-      beats.push({kind: 'category', idx, ms: CEREMONY_MS.categoryGrow, holdMs: CEREMONY_MS.categoryHold});
+      beats.push({
+        kind: 'category', idx,
+        focusMs: CEREMONY_MS.categoryFocus,
+        growMs: CEREMONY_MS.categoryGrow,
+        settleMs: CEREMONY_MS.categorySettle,
+        pauseMs: CEREMONY_MS.categoryPause,
+      });
     }
   });
   beats.push({kind: 'preRank', ms: CEREMONY_MS.preRank});
@@ -79,9 +96,20 @@ export function ceremonyBeats(vm: ConsoleEndgameVm): Array<CeremonyBeat> {
   if (vm.tieBreak !== undefined) {
     beats.push({kind: 'tiebreak', announceMs: CEREMONY_MS.tieAnnounce, valuesMs: CEREMONY_MS.tieValues, resolveMs: CEREMONY_MS.tieResolve});
   }
+  beats.push({kind: 'winnerHold', ms: CEREMONY_MS.winnerHold});
   beats.push({kind: 'winner', ms: CEREMONY_MS.winner});
   beats.push({kind: 'actions', ms: CEREMONY_MS.actionsIn});
   return beats;
+}
+
+/** A beat's full length on the clock (all sub-phases included). */
+export function beatLengthMs(beat: CeremonyBeat): number {
+  switch (beat.kind) {
+  case 'category': return beat.focusMs + beat.growMs + beat.settleMs + beat.pauseMs;
+  case 'ranking': return beat.ms + beat.placesMs;
+  case 'tiebreak': return beat.announceMs + beat.valuesMs + beat.resolveMs;
+  default: return beat.ms;
+  }
 }
 
 /** Total base length (pre-motionMs) — a sanity bound for tests: the ceremony
@@ -89,12 +117,7 @@ export function ceremonyBeats(vm: ConsoleEndgameVm): Array<CeremonyBeat> {
 export function ceremonyTotalMs(beats: ReadonlyArray<CeremonyBeat>): number {
   let total = 0;
   for (const b of beats) {
-    switch (b.kind) {
-    case 'category': total += b.ms + b.holdMs; break;
-    case 'ranking': total += b.ms + b.placesMs; break;
-    case 'tiebreak': total += b.announceMs + b.valuesMs + b.resolveMs; break;
-    default: total += b.ms;
-    }
+    total += beatLengthMs(b);
   }
   return total;
 }

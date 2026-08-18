@@ -722,10 +722,12 @@
          command bar below stays live (skip → the action-list verbs). While
          «Обзор партии» has the DESKTOP results overlay up, the workspace
          HIDES via v-show — the ceremony state survives the round trip — and
-         the fallback engine drives the overlay (B/minimize returns here). -->
+         the fallback engine drives the overlay (B/minimize returns here).
+         B = «Свернуть» hides it the same way (state intact, a running
+         ceremony paused) and opens the final board for inspection. -->
     <transition name="con-layer">
       <ConsoleEndgameWorkspace v-if="endgameWorkspaceMounted"
-                               v-show="!endgameOverviewOpen"
+                               v-show="!endgameOverviewOpen && !endgameCollapsed"
                                ref="endgameWs"
                                :playerView="playerView" />
     </transition>
@@ -1345,7 +1347,7 @@ import ConsoleDeckPickLayer from '@/client/components/console/deckPick/ConsoleDe
 import {deckPickHolding, resetDeckPick} from '@/client/console/deckPick/consoleDeckPick';
 import ConsoleStartScene from '@/client/components/console/ConsoleStartScene.vue';
 import ConsoleEndgameWorkspace from '@/client/components/console/ConsoleEndgameWorkspace.vue';
-import {noteConsoleEndgameLivePhase, resetConsoleEndgame} from '@/client/console/endgame/consoleEndgameState';
+import {consoleEndgameUi, noteConsoleEndgameLivePhase, resetConsoleEndgame} from '@/client/console/endgame/consoleEndgameState';
 import {endgameState} from '@/client/components/endgame/endgameState';
 import ConsoleRevealOverlay, {ConsoleRevealMode} from '@/client/components/console/ConsoleRevealOverlay.vue';
 import ConsolePlayCardConfirm from '@/client/components/console/ConsolePlayCardConfirm.vue';
@@ -3224,6 +3226,12 @@ export default defineComponent({
      *  workspace hides under it (v-show) and the fallback engine drives. */
     endgameOverviewOpen(): boolean {
       return endgameState.resultsOpen && !endgameState.minimized;
+    },
+    /** B = «Свернуть»: the scene is hidden, the final board is on show —
+     *  the HUD comes back (`con-root--endgame` drops) and the workspace's
+     *  own intent handler owns the road back. */
+    endgameCollapsed(): boolean {
+      return consoleEndgameUi.collapsed;
     },
     /** The prompt kinds the draft workspace presents NATIVELY — the standalone
      *  host must not rise for them while the frame stands. (The embedded
@@ -5243,7 +5251,7 @@ export default defineComponent({
         // Post-game: the gameplay HUD leaves — status strip and player rail
         // fade out (visibility, never display: the boxes must survive), so
         // nothing on the frame can pre-reveal a total mid-ceremony.
-        'con-root--endgame': this.endgameWorkspaceMounted,
+        'con-root--endgame': this.endgameWorkspaceMounted && !this.endgameCollapsed,
       };
     },
     conMainClasses(): Record<string, boolean> {
@@ -5582,7 +5590,11 @@ export default defineComponent({
         }
       }
       if (this.endgameWorkspaceMounted) {
-        return 'Final scoring';
+        // The scene's own header already reads «ФИНАЛЬНЫЙ ПОДСЧЁТ» /
+        // «ИТОГИ ПАРТИИ» — repeating it in the bar is noise. While the
+        // scene is COLLAPSED (the board inspection) the bar names where
+        // the B verb leads back to.
+        return this.endgameCollapsed ? 'Game results' : '';
       }
       if (this.infoModeState.open) {
         return 'Information';

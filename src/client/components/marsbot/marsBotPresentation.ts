@@ -34,6 +34,7 @@ import {JournalImpactChip} from '@/client/components/journal/journalEventChild';
 import {botTurnReviewState, flashBotReviewEdge, openBotTurnReview} from './botTurnReviewState';
 import {ackBotTurn} from './botTurnAck';
 import {noteBotTurnStage} from './marsBotTurnTiming';
+import {workspaceStackActive} from '@/client/console/consoleWorkspaceStack';
 import {
   beginBotStaging,
   botStagingPendingKeys,
@@ -338,11 +339,24 @@ export function presentFreshBotTurns(prev: ViewModel | undefined, next: ViewMode
    * sequence — and an open window always keeps its order.
    */
   const handsControlBack = (next as PlayerViewModel).waitingFor !== undefined;
-  const sequence = isBotStagingActive() || fresh.length > 1 || !handsControlBack;
+  /*
+   * ⚠️ AND PACING ONLY EXISTS TO BE WATCHED. While a WORKSPACE is standing the
+   * board is behind it (`display: none` for a section, covered for the rest),
+   * so a sequence walks a board nobody can see while holding the player's own
+   * next prompt — which is «особенно когда я нахожусь в workspace во время его
+   * хода», measured at 92 s for one five-turn run after a pass. A player who
+   * went to work gets their game committed and the cards ride the feed.
+   */
+  const watchable = !workspaceStackActive();
+  if (!watchable && isBotStagingActive()) {
+    commitBotStagingNow(); // they walked away mid-run — stop holding their game
+  }
+  const sequence = watchable && (isBotStagingActive() || fresh.length > 1 || !handsControlBack);
   for (const entry of fresh) {
     noteBotTurnStage(entry.key, 'response', sequence ? 'sequenced' : 'single');
     pushTransient(buildBotTurnNotification(entry, {viewerColor, createdAt: now, autoExpand, paramChips}));
   }
+  trimBotTurnBacklog();
   // A turn whose card could NOT enter the presentation (master switch off /
   // filtered by the feed mode) has no toast whose finish would ever ack it —
   // ack NOW, so the server needn't extend the next paced bot turn waiting on
@@ -442,6 +456,62 @@ export function openBotTurnReviewByKey(key: string | undefined): boolean {
   ackBotTurn(entry.key);
   dismiss(botTurnNotificationId(entry.key));
   return true;
+}
+
+/**
+ * HOW MANY AI-TURN CARDS MAY WAIT BEHIND THE VISIBLE ONE.
+ *
+ * ⚠️ A BACKLOG OF TOASTS IS A BACKLOG ON THE PLAYER. Only ONE transient card is
+ * visible at a time and each lives its full {@link BOT_TURN_TTL}, so a run of
+ * five bot turns is five lifetimes of «СОБЫТИЯ В ОЧЕРЕДИ» — and for all of it a
+ * flow-holding card is up, which BLOCKS every prompt surface (`presentation`)
+ * and keeps `notificationsSettled()` false, so the player's own next decision
+ * (the research buy after a pass) is not even ANNOUNCED. Measured: the bot's
+ * round ended after ~22 s of cards and the player's prompt waited behind all of
+ * it.
+ *
+ * The card is a NOTIFICATION, not a queue of records — the journal is the queue
+ * of records, and every turn stays replayable there. So the feed keeps the one
+ * being read plus the newest one still coming, and everything older is drained
+ * (visual applied, acked, dismissed) rather than stacked.
+ */
+export const MAX_QUEUED_BOT_CARDS = 1;
+
+/**
+ * Drain AI-turn cards that have piled up behind the visible one, oldest first.
+ * Never touches ordinary notifications, and never the visible card.
+ */
+function trimBotTurnBacklog(): void {
+  const queued = notificationState.queue
+    .map((n) => n.botTurnKey)
+    .filter((k): k is string => k !== undefined);
+  // The cap counts cards waiting BEHIND the one being read. With nothing
+  // visible (the feed is silenced by a cinematic) the queue is not a backlog —
+  // it is the run itself, and its first card has not had its turn yet, so one
+  // more is allowed through.
+  const showing = notificationState.transient.some((n) => n.botTurnKey !== undefined);
+  const excess = queued.length - MAX_QUEUED_BOT_CARDS - (showing ? 0 : 1);
+  if (excess <= 0) {
+    return;
+  }
+  for (let i = 0; i < excess; i++) {
+    const key = queued[i];
+    ackBotTurn(key);
+    deliverBotTurnVisual(key);
+    dismiss(botTurnNotificationId(key));
+  }
+  /*
+   * …AND TELL THE SERVER TO STOP PACING ON OUR ACCOUNT. Its bounded idle before
+   * the NEXT bot turn extends while a connected human has not acked the last
+   * one (`BotTurnScheduler`), and the visible card is acked only when it is
+   * dismissed — five turns of that is five extension budgets spent waiting for
+   * a card nobody is reading card-by-card. Dropping a turn out of the queue IS
+   * the client saying the run is arriving faster than it is being read, so the
+   * visible one stops gating too. It keeps showing; only the pacing claim goes.
+   */
+  for (const visible of notificationState.transient) {
+    ackBotTurn(visible.botTurnKey);
+  }
 }
 
 /**

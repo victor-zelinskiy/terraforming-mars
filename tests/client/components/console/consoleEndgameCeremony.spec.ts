@@ -65,6 +65,12 @@ describe('consoleEndgameScript', () => {
     expect(beats[beats.length - 2].kind).to.eq('winner');
   });
 
+  it('the winner beat never rides the ranking — a quiet hold stands between them', () => {
+    const beats = ceremonyBeats(richVm()).map((b) => b.kind);
+    const winnerAt = beats.indexOf('winner');
+    expect(beats[winnerAt - 1]).to.eq('winnerHold');
+  });
+
   it('a multi-sub category runs intro → subs → merge; a plain one is a single beat', () => {
     const vm = richVm();
     const beats = ceremonyBeats(vm);
@@ -122,12 +128,20 @@ describe('consoleEndgameScript', () => {
     const beats = ceremonyBeats(bare).map((b) => b.kind);
     // Only TR exists (base + temperature never moved → single beat), and the
     // clean 22:20 finish raises no tie-break stage.
-    expect(beats).to.deep.eq(['enter', 'category', 'preRank', 'ranking', 'winner', 'actions']);
+    expect(beats).to.deep.eq(['enter', 'category', 'preRank', 'ranking', 'winnerHold', 'winner', 'actions']);
   });
 
-  it('CEREMONY_MS keeps the category read in the 0.7–1.1s window the brief demands', () => {
-    expect(CEREMONY_MS.categoryGrow + CEREMONY_MS.categoryHold).to.be.within(700, 1100);
-    expect(CEREMONY_MS.sub).to.be.within(300, 600); // inner steps read faster
+  it('a MAIN category is a readable four-part phrase (the brief\'s windows)', () => {
+    // preparation/focus ~160–260 · movement ~550–850 · settle ~180–300 ·
+    // pause ~220–380 — the whole phrase stays a compact, readable event.
+    expect(CEREMONY_MS.categoryFocus).to.be.within(160, 260);
+    expect(CEREMONY_MS.categoryGrow).to.be.within(550, 850);
+    expect(CEREMONY_MS.categorySettle).to.be.within(180, 300);
+    expect(CEREMONY_MS.categoryPause).to.be.within(220, 380);
+    const phrase = CEREMONY_MS.categoryFocus + CEREMONY_MS.categoryGrow +
+      CEREMONY_MS.categorySettle + CEREMONY_MS.categoryPause;
+    expect(phrase).to.be.within(1100, 1800);
+    expect(CEREMONY_MS.sub).to.be.within(300, 500); // inner steps read faster
   });
 });
 
@@ -196,11 +210,38 @@ describe('consoleEndgameState', () => {
     noteConsoleEndgameLivePhase();
     finalizeCeremony(richVm());
     consoleEndgameUi.actionsFocus = 2;
+    consoleEndgameUi.collapsed = true;
     resetConsoleEndgame();
     expect(consoleEndgameUi.phase).to.eq('idle');
     expect(consoleEndgameUi.ceremonyPlayed).to.eq(false);
     expect(consoleEndgameUi.sawLivePhase).to.eq(false);
     expect(consoleEndgameUi.actionsFocus).to.eq(0);
+    expect(consoleEndgameUi.collapsed).to.eq(false);
     expect(consoleEndgameUi.displayTotals).to.deep.eq({});
+  });
+
+  it('finalize lands the action focus on the FIRST verb («Обзор партии»), never a stale cursor', () => {
+    consoleEndgameUi.actionsFocus = 3; // a previous run's navigation
+    finalizeCeremony(richVm());
+    expect(consoleEndgameUi.actionsFocus).to.eq(0);
+  });
+
+  it('COLLAPSE is orthogonal to the ceremony: finalize behind a collapsed scene keeps it collapsed', () => {
+    // B mid-count → the scene hides, the ceremony pauses. If the safety net
+    // (or a skip) finalizes meanwhile, the player must STAY on the board
+    // they chose to inspect — the results wait behind B.
+    consoleEndgameUi.phase = 'scoring';
+    consoleEndgameUi.collapsed = true;
+    finalizeCeremony(richVm());
+    expect(consoleEndgameUi.phase).to.eq('actions');
+    expect(consoleEndgameUi.collapsed).to.eq(true);
+  });
+
+  it('a fresh ceremony run resets the beat machinery (stage, focus) but not the collapse round trip', () => {
+    consoleEndgameUi.beatStage = 'grow';
+    consoleEndgameUi.actionsFocus = 2;
+    resetCeremonyProgress();
+    expect(consoleEndgameUi.beatStage).to.eq('');
+    expect(consoleEndgameUi.actionsFocus).to.eq(0);
   });
 });

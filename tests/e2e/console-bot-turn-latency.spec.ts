@@ -1,5 +1,5 @@
 import {test, expect, Page} from '@playwright/test';
-import {bootWithCards, playCardFromHand, press, soloGameConfig, waitForTurn} from './consoleStart';
+import {bootWithCards, playCardFromHand, press, soloGameConfig, turnChip, waitForTurn} from './consoleStart';
 
 /**
  * MARSBOT TURN LATENCY — the client's own numbers for «сколько бот думает».
@@ -30,13 +30,34 @@ import {bootWithCards, playCardFromHand, press, soloGameConfig, waitForTurn} fro
  * carries no harness, network or paint noise.
  */
 
-/** No requirement, 4 M€, one production step — it raises no prompt of its own. */
+/** No requirement, cheap, one production step each — neither raises a prompt. */
 const CHEAP_CARD = 'Power Plant';
+const CARD_A = CHEAP_CARD;
+const CARD_B = 'Acquired Company';
 
-const CONFIG = soloGameConfig({automa: {difficulty: 'normal'}});
+/* `customProjectCards` (the existing dev seam) puts both on top of the deck, so
+ * the seed does not have to keep re-rolling deals to find them. */
+const CONFIG = soloGameConfig({
+  automa: {difficulty: 'normal'},
+  customProjectCards: [CARD_A, CARD_B],
+});
 
 /** Commit lag past which the player perceives «бот думает». */
 const COMMIT_BUDGET_MS = 1_500;
+
+/** Wall clock from «I handed my turn over» to «my turn is live again». */
+const HANDOVER_BUDGET_MS = 4_000;
+
+/**
+ * …and for a whole RUN of bot turns watched from inside a workspace.
+ *
+ * DELIBERATELY GENEROUS: this half of the wait is the bot genuinely PLAYING —
+ * five paced turns, production, the generation change — and that is not a
+ * defect to be budgeted away. What the ceiling exists to catch is the HOLD the
+ * report was about, measured at 92 s before the fix. The per-turn `commit`
+ * assertions below are the sharp instrument.
+ */
+const RUN_BUDGET_MS = 20_000;
 
 type TurnDiag = {key: string, marks: Record<string, number>, notes: Record<string, string>};
 
@@ -141,5 +162,164 @@ test.describe('MarsBot turn latency', () => {
       const record = after.find((t) => t.key === key);
       expect(record?.marks.commit, `B left turn ${key} uncommitted: ${JSON.stringify(record)}`).toBeDefined();
     }
+  });
+});
+
+
+/**
+ * THE WORKSPACE CASE — «бот лагает по 5–10 секунд, особенно когда я в
+ * workspace во время его хода».
+ *
+ * ⚠️ THE MEASUREMENT HAS TO EXCLUDE THE HARNESS. A first attempt timed the whole
+ * gesture and reported 3.0 s vs 4.3 s — but 2.6 s of that was this file's own
+ * `press` settle pauses, and the second half had taken no action, so the wheel's
+ * «Пропустить ход» was disabled and no bot turn happened at all. Both numbers
+ * were about the test.
+ *
+ * So: the clock starts on the frame the HAND-OVER IS SUBMITTED (the Enter that
+ * confirms the wheel slot) and stops when the viewer's own turn is live again
+ * (`turnChip`). Both halves play a real card first, and both spend the SAME two
+ * extra presses afterwards — the baseline opens and closes the wheel, the
+ * subject opens the hand workspace and stays there — so the only difference
+ * between the two runs is where the player is standing while the bot plays.
+ */
+/**
+ * End the turn from the LT wheel and time the return of control. `after` runs
+ * INSIDE the measured window on purpose: it is what the player does while the
+ * bot plays.
+ */
+async function handOverAndTime(page: Page, after: (p: Page) => Promise<void>): Promise<number> {
+  await press(page, 'Comma', 900); // LT → the basic-actions wheel
+  await press(page, 'ArrowUp', 500); // «Пропустить ход»
+  const t0 = Date.now();
+  await page.keyboard.press('Enter'); // ← the hand-over itself; no settle pause
+  await after(page);
+  await expect(turnChip(page)).toHaveCount(1, {timeout: 90_000});
+  return Date.now() - t0;
+}
+
+test.describe('MarsBot turn latency · inside a workspace', () => {
+  test('handing the turn over from inside a workspace returns control just as fast', async ({page, request}) => {
+    test.setTimeout(300_000);
+
+    await bootWithCards(page, request, {cards: [CARD_A, CARD_B], config: CONFIG});
+    await waitForTurn(page);
+    await settle(page, 2_000);
+
+    // ── BASELINE: the player stays on the board home. ────────────────────
+    expect(await playCardFromHand(page, CARD_A), `${CARD_A} must have been played`).toBe(true);
+    await settle(page, 1_200);
+    const onBoard = await handOverAndTime(page, async (p) => {
+      // The same two presses the subject spends, on a surface that changes
+      // nothing: open the wheel and close it again.
+      await press(p, 'Comma', 400);
+      await press(p, 'Escape', 600);
+    });
+    const afterBoard = await diag(page);
+    console.log('[bot-turn-latency] board home:', onBoard, 'ms', JSON.stringify(afterBoard));
+
+    // ── THE REPORTED CASE: the player walks into a workspace and stays
+    //    there for the whole of the bot's turn.
+    await settle(page, 1_500);
+    expect(await playCardFromHand(page, CARD_B), `${CARD_B} must have been played`).toBe(true);
+    await settle(page, 1_200);
+    const inWorkspace = await handOverAndTime(page, async (p) => {
+      await press(p, 'Period', 400); // RT → the quick wheel
+      await press(p, 'Enter', 600); // centre slot → «КАРТЫ», the hand workspace
+    });
+    const afterWs = await diag(page);
+    console.log('[bot-turn-latency] inside a workspace:', inWorkspace, 'ms', JSON.stringify(afterWs));
+
+    // Both halves must have actually produced a bot turn, or the numbers are
+    // about nothing (the first attempt at this spec measured exactly that).
+    expect(afterWs.length, 'the second hand-over produced no bot turn').toBeGreaterThan(afterBoard.length);
+
+    expect(inWorkspace, `standing in a workspace cost ${inWorkspace - onBoard}ms extra ` +
+      `(board ${onBoard}ms, workspace ${inWorkspace}ms)`).toBeLessThan(HANDOVER_BUDGET_MS);
+  });
+});
+
+/**
+ * THE RUN, WATCHED FROM INSIDE A WORKSPACE — the shape the report describes.
+ *
+ * The player passes (so the bot plays out the whole round) and walks straight
+ * into a workspace, which is what they do while «the bot thinks». Every one of
+ * those turns is SEQUENCED, so the authoritative view — and with it the
+ * player's own next prompt — is buffered behind the compact cards, one card at
+ * a time, each with its own lifetime.
+ *
+ * The number printed here is the whole wait: pass → control back. The sampler
+ * records WHO was holding the foreground during it, so a failure names the
+ * cause instead of the symptom.
+ */
+type ForegroundDiag = {
+  reason: string, claims: Array<string>, animationHolds: Array<string>,
+  mandatoryHeld: boolean, signals: Record<string, boolean>, expired: Array<string>, queue: number,
+};
+
+async function foreground(page: Page): Promise<ForegroundDiag | undefined> {
+  return await page.evaluate(() => {
+    const probe = (window as unknown as {__foregroundDiag?: () => unknown}).__foregroundDiag;
+    return (probe?.() ?? undefined) as ForegroundDiag | undefined;
+  });
+}
+
+test.describe('MarsBot turn latency · a RUN watched from a workspace', () => {
+  test('passing and browsing does not hold the player behind the bot\'s cards', async ({page, request}) => {
+    test.setTimeout(300_000);
+
+    await bootWithCards(page, request, {cards: [CARD_A], config: CONFIG});
+    await waitForTurn(page);
+    await settle(page, 2_000);
+
+    // Pass, then walk into the hand workspace and stay there.
+    await press(page, 'Comma', 900);
+    await press(page, 'ArrowDown', 500); // «Пас»
+    const t0 = Date.now();
+    await page.keyboard.press('Enter');
+    await press(page, 'Period', 400); // RT → the quick wheel
+    await press(page, 'Enter', 600); // centre → «КАРТЫ»
+
+    // Sample who is holding the screen while we wait for control to return.
+    /*
+     * «Control is back» here is THE TABLE WAITING ON ME, not the action-phase
+     * turn chip: a pass ends the generation, so what comes back first is the
+     * research buy. Measuring the turn chip would have been measuring the
+     * player's own idleness (the first attempt did, and reported the test's own
+     * 90 s deadline as the bug).
+     */
+    const awaited = page.locator('.con-status__player--me.con-status__player--active');
+    const seen: Array<string> = [];
+    const deadline = Date.now() + 90_000;
+    while (Date.now() < deadline) {
+      if (await awaited.count() > 0) {
+        break;
+      }
+      const fg = await foreground(page);
+      if (fg !== undefined) {
+        const line = `${fg.reason || '-'} | claims=${fg.claims.join(',') || '-'} | ` +
+          `anim=${fg.animationHolds.join(',') || '-'} | sig=${Object.keys(fg.signals).join(',') || '-'} | q=${fg.queue}`;
+        if (seen[seen.length - 1] !== line) {
+          seen.push(line);
+        }
+      }
+      await settle(page, 250);
+    }
+    const elapsed = Date.now() - t0;
+    console.log('[bot-turn-latency] pass → control back, inside a workspace:', elapsed, 'ms');
+    console.log('[bot-turn-latency] foreground timeline:\n  ' + seen.join('\n  '));
+    console.log('[bot-turn-latency] turns:', JSON.stringify(await diag(page)));
+
+    // THE SHARP ASSERTION: the client never sat on the answer. Before the fix
+    // the run's turns committed at 42.5 s (the last card's delivery); the
+    // window now walks the board at its own tempo and commits on the spot.
+    const turns = await diag(page);
+    expect(turns.length, 'the bot never took an observable turn').toBeGreaterThan(1);
+    for (const t of turns) {
+      expect(t.marks.commit, `turn ${t.key} held the player's own view: ${JSON.stringify(t)}`)
+        .toBeLessThan(COMMIT_BUDGET_MS);
+    }
+    expect(elapsed, `the bot's run held the player for ${elapsed}ms while they worked`)
+      .toBeLessThan(RUN_BUDGET_MS);
   });
 });

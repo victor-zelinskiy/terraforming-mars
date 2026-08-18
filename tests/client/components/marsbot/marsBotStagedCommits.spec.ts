@@ -221,7 +221,15 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
     expect(committed).eq(0);
   });
 
-  it('a blocked foreground queues the cards — nothing applies until they present, then strict FIFO', async () => {
+  it('a blocked foreground queues the CARDS, and the run still walks the board at its own tempo', async () => {
+    /*
+     * The cards wait behind the modal (the feed is silenced) — but the RUN does
+     * not. Gating the board's advance on the cards is what held the player for
+     * a measured 92 s while the bot played out a round; a modal covers the
+     * board anyway, so pausing the walk buys nobody anything and costs the
+     * player their own next prompt. What must still hold is ORDER: turn 1's
+     * footprint before turn 2's, and the authoritative commit last.
+     */
     revealResultState.active = true; // a result modal owns the screen
     await nextTick();
     const presented = makeView();
@@ -230,7 +238,7 @@ describe('marsBotStagedCommits (the staged FIFO visual timeline)', () => {
     const latest = makeView({turns: [t1, t2], tiles: {'03': TileType.CITY, '05': TileType.CITY}});
     presentFreshBotTurns(presented, latest, {commitLatest});
     await nextTick();
-    expect(spaceOf(presented, '03').tileType, 'nothing presents behind the modal').is.undefined;
+    expect(spaceOf(presented, '03').tileType, 'no card has presented yet').is.undefined;
     expect(committed).eq(0);
 
     dismissReveal();

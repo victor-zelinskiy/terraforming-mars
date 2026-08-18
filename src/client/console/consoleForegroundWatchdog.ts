@@ -177,6 +177,27 @@ export function noteAdmissionSignals(raw: AdmissionSignals): void {
   }
 }
 
+/*
+ * READ-ONLY e2e / diagnostics probe (the `__conColonyDiag` / `__stratDiag`
+ * idiom): WHY the player cannot act right now, in one snapshot — the raised
+ * foreground reason, what is claiming it, the live animation-hold labels and
+ * the shell's own raw admission signals. «The bot lags and I do not know what
+ * is holding me» is exactly the question this answers; never used by product
+ * code.
+ */
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>).__foregroundDiag = () => ({
+    reason: currentBlockReason() ?? '',
+    claims: [...foregroundHoldLabels()],
+    animationHolds: [...activeAnimationHoldLabels()],
+    mandatoryHeld: isMandatoryPromptsHeld(),
+    signals: lastRaw === undefined ? {} :
+      Object.fromEntries(Object.entries(lastRaw).filter(([, v]) => v === true)),
+    expired: [...foregroundWatchdogState.expiredSignals],
+    queue: pendingSummary().count,
+  });
+}
+
 /**
  * The shell's admission signals with every expired claim masked off. PURE read
  * (reactive through `expiredSignals`), so the host's `v-if` re-evaluates the

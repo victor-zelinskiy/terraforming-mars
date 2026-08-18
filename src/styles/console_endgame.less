@@ -6,14 +6,26 @@
  * logical @1080p; the TV profile scales the root font-size).
  *
  * Motion contract: every reveal is transform/opacity ONLY (segments =
- * scaleX, chips/values = opacity+translate), durations ride
+ * scaleX, labels/chips = opacity+translate), durations ride
  * `calc(<base>ms * var(--motion-scale, 1))`, focus/winner/contender
  * states are BOX-SHADOW (perf mode cuts filter/text-shadow — nothing
  * load-bearing lives there). No backdrop-filter anywhere.
  *
+ * STABILITY contract (the audit's findings, kept fixed):
+ *  · the scene ROOT carries NO keyframe animation — the shell's layer
+ *    transition owns the arrival. A completed animation that gets
+ *    suppressed and re-enabled RESTARTS from opacity 0 (the measured
+ *    settled-scene flash) — so entrances live only on elements that
+ *    MOUNT at their moment, or under phase classes present only then;
+ *  · `--noanim` suppresses TRANSITIONS only, never animations;
+ *  · the row grid always has one child per column — nothing that
+ *    appears or counts may re-solve the track column;
+ *  · sub-segment shades/seams are class-gated and DISSOLVE on merge —
+ *    the settled bar is one hue per top-level category.
+ *
  * Category identity = colour + POSITION + name/value (never colour
- * alone): the legend states the order once, every row's value strip
- * repeats it in the same order, the bar repeats it again spatially.
+ * alone): the rail states the order once, every row repeats it
+ * spatially, the anchored values repeat it numerically.
  * ═══════════════════════════════════════════════════════════════════ */
 
 /* ── The category palette — one hue per category; sub-steps are shades
@@ -49,24 +61,43 @@
     top: 0;
     left: 0;
     right: 0;
-    /* The command bar strip below stays live — skip / action verbs. */
+    /* The command bar strip below stays live — skip / minimize / verbs. */
     bottom: calc(var(--con-hud-h) + var(--con-hud-gap));
     z-index: 11480;
     display: flex;
+    /* The horizon arc (::before) reaches far below the frame — clip it, or
+     * the scene reports phantom scroll overflow (the fits guard's finding). */
+    overflow: hidden;
+    /* A restrained Martian night: a warm horizon glow low, a cool zenith
+     * wash high, a barely-there surface arc — atmosphere, never a rival
+     * of the bars. Static (no animated background, no full-screen blur). */
     background:
-        radial-gradient(120% 90% at 50% 118%, rgba(150, 62, 38, 0.34) 0%, rgba(96, 42, 30, 0.16) 34%, rgba(6, 10, 17, 0) 62%),
-        radial-gradient(90% 70% at 50% -22%, rgba(52, 88, 128, 0.20) 0%, rgba(6, 10, 17, 0) 58%),
-        linear-gradient(180deg, #060a11 0%, #08101b 52%, #0b1018 100%);
-    animation: con-eg-scene-in calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+        radial-gradient(140% 46% at 50% 121%, rgba(196, 92, 54, 0.30) 0%, rgba(128, 56, 36, 0.16) 38%, rgba(6, 10, 17, 0) 68%),
+        radial-gradient(120% 34% at 50% 114%, rgba(240, 150, 96, 0.12) 0%, rgba(6, 10, 17, 0) 58%),
+        radial-gradient(90% 70% at 50% -22%, rgba(52, 88, 128, 0.22) 0%, rgba(6, 10, 17, 0) 58%),
+        linear-gradient(180deg, #05080f 0%, #071019 55%, #0a1017 100%);
 }
-@keyframes con-eg-scene-in {
-    from { opacity: 0; }
-    to { opacity: 1; }
+/* The horizon line itself — one hairline arc of dusted light, painted as
+ * a ring segment INSIDE the box (an oversized circle hanging below the
+ * frame would count into the scene's scroll overflow — the fits guard). */
+.con-endgame::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(130% 96% at 50% 142%,
+            rgba(6, 10, 17, 0) 59.2%,
+            rgba(255, 195, 150, 0.26) 59.75%,
+            rgba(235, 150, 96, 0.14) 60.3%,
+            rgba(6, 10, 17, 0) 61.8%);
 }
 
 /* The frozen game HUD leaves — nothing on the frame may pre-reveal a
  * total mid-ceremony. `visibility`, never `display` (the boxes must
- * survive so `.con-main` never re-lays out under the scene). */
+ * survive so `.con-main` never re-lays out under the scene). The shell
+ * drops `.con-root--endgame` while the scene is COLLAPSED (B) — the HUD
+ * and the final board come back for the inspection round trip. */
 .con-root--endgame {
     .con-status,
     .con-res-host,
@@ -80,175 +111,328 @@
     }
 }
 
-/* One atomic jump (skip / reload-settle): no transition may narrate it. */
+/* One atomic jump (skip / reload-settle): no TRANSITION may narrate it.
+ * Keyframe animations are deliberately left alone — suppressing and
+ * re-enabling one RESTARTS it (the measured settled-scene flash). */
 .con-endgame--noanim,
 .con-endgame--noanim * {
     transition: none !important;
-    animation: none !important;
 }
 
-/* ── Frame ───────────────────────────────────────────────────────── */
+/* ── Frame + density tokens ──────────────────────────────────────── */
 .con-eg {
+    /* Density defaults = the 4-player table; 2/3/5 override below. */
+    --eg-rail-fs: 0.9rem;
+    --eg-cap-fs: 0.95rem;
+    --eg-cap-h: 1.7rem;
+    --eg-row-h: 4.9rem;
+    --eg-row-gap: 0.8rem;
+    --eg-bar-h: 1.7rem;
+    --eg-name-fs: 1.15rem;
+    --eg-corp-fs: 0.78rem;
+    --eg-place-fs: 1.25rem;
+    --eg-place-w: 2.6rem;
+    --eg-ident-w: 14rem;
+    --eg-total-fs: 2.4rem;
+    --eg-total-w: 8rem;
+    --eg-val-fs: 0.85rem;
+    --eg-inval-fs: 0.85rem;
+    --eg-labels-h: 1.15rem;
+    --eg-chip-fs: 0.9rem;
+    --eg-zone-h: 6.2rem;
+    --eg-act-fs: 1rem;
+
     display: flex;
     flex-direction: column;
     width: 100%;
     max-width: 88rem;
     margin: 0 auto;
-    padding: 1.1rem var(--con-stage-x, 1.6rem) 0.6rem;
+    padding: 1rem var(--con-stage-x, 1.6rem) 0.5rem;
     box-sizing: border-box;
     min-height: 0;
 }
+.con-eg--n2 {
+    --eg-rail-fs: 1rem;
+    --eg-cap-fs: 1.05rem;
+    --eg-cap-h: 1.9rem;
+    --eg-row-h: 8.4rem;
+    --eg-row-gap: 1.7rem;
+    --eg-bar-h: 2.6rem;
+    --eg-name-fs: 1.6rem;
+    --eg-corp-fs: 0.95rem;
+    --eg-place-fs: 1.7rem;
+    --eg-place-w: 3.4rem;
+    --eg-ident-w: 17rem;
+    --eg-total-fs: 3.3rem;
+    --eg-total-w: 10rem;
+    --eg-val-fs: 1.05rem;
+    --eg-inval-fs: 1.05rem;
+    --eg-labels-h: 1.5rem;
+    --eg-chip-fs: 1.05rem;
+    --eg-zone-h: 6.6rem;
+    --eg-act-fs: 1.05rem;
+}
+.con-eg--n3 {
+    --eg-rail-fs: 0.95rem;
+    --eg-cap-fs: 1rem;
+    --eg-cap-h: 1.8rem;
+    --eg-row-h: 6.4rem;
+    --eg-row-gap: 1.2rem;
+    --eg-bar-h: 2.2rem;
+    --eg-name-fs: 1.35rem;
+    --eg-corp-fs: 0.85rem;
+    --eg-place-fs: 1.5rem;
+    --eg-place-w: 3rem;
+    --eg-ident-w: 15.5rem;
+    --eg-total-fs: 2.8rem;
+    --eg-total-w: 9rem;
+    --eg-val-fs: 0.95rem;
+    --eg-inval-fs: 0.95rem;
+    --eg-labels-h: 1.3rem;
+    --eg-chip-fs: 0.95rem;
+    --eg-zone-h: 6.4rem;
+}
+.con-eg--n5 {
+    --eg-row-h: 4.2rem;
+    --eg-row-gap: 0.6rem;
+    --eg-bar-h: 1.5rem;
+    --eg-name-fs: 1.05rem;
+    --eg-corp-fs: 0.72rem;
+    --eg-place-fs: 1.15rem;
+    --eg-place-w: 2.4rem;
+    --eg-ident-w: 13rem;
+    --eg-total-fs: 2.15rem;
+    --eg-total-w: 7.4rem;
+    --eg-val-fs: 0.78rem;
+    --eg-inval-fs: 0.78rem;
+    --eg-labels-h: 1.05rem;
+    --eg-zone-h: 5.6rem;
+}
 
+/* ── Header — the ceremony's title card (centred composition) ────── */
 .con-eg__head {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 1rem;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    padding-top: 0.3rem;
+}
+/* The title SLOT — fixed height, layered: the crossfading titles stack
+ * inside it, so the swap can never blank the line or move the meta. */
+.con-eg__title-slot {
+    position: relative;
+    height: 1.9rem;
+    align-self: stretch;
 }
 .con-eg__kicker {
-    display: inline-flex;
+    position: absolute;
+    inset: 0;
+    display: flex;
     align-items: center;
-    gap: 0.45rem;
+    justify-content: center;
+    gap: 0.5rem;
     font-family: @con-font;
     font-size: var(--con-t-section, 1.25rem);
-    letter-spacing: 0.14em;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
     color: @con-text;
 }
 .con-eg__kicker-mark {
     color: @sem-prestige;
-    font-size: 0.9em;
+    font-size: 0.85em;
 }
 .con-eg__meta {
     font-family: @con-font;
     font-size: var(--con-t-caption, 0.8rem);
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: @con-text-dim;
     font-variant-numeric: tabular-nums;
 }
 
-/* ── Legend ──────────────────────────────────────────────────────── */
-.con-eg__legend {
-    display: flex;
-    flex-wrap: nowrap;
-    justify-content: center;
-    gap: 0.4rem;
-    margin-top: 0.7rem;
-}
-.con-eg__lchip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.32rem;
-    padding: 0.22rem 0.6rem;
-    border-radius: 1rem;
-    border: 0.05rem solid rgba(150, 175, 205, 0.16);
-    background: rgba(10, 17, 26, 0.55);
-    font-family: @con-font;
-    font-size: var(--con-t-caption, 0.8rem);
-    letter-spacing: 0.07em;
-    text-transform: uppercase;
-    color: rgba(196, 216, 236, 0.52);
-    transition:
-        color calc(240ms * var(--motion-scale, 1)) ease,
-        border-color calc(240ms * var(--motion-scale, 1)) ease,
-        background-color calc(240ms * var(--motion-scale, 1)) ease,
-        transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-.con-eg__ldot {
-    width: 0.42rem;
-    height: 0.42rem;
-    border-radius: 50%;
-    background: var(--eg-c, #8aa4c0);
-    opacity: 0.55;
-    transition: opacity calc(240ms * var(--motion-scale, 1)) ease;
-}
-.con-eg__lchip--done {
-    color: rgba(220, 233, 246, 0.78);
-    .con-eg__ldot { opacity: 0.95; }
-}
-.con-eg__lchip--active {
-    color: #eef6ff;
-    border-color: color-mix(in srgb, var(--eg-c, #8aa4c0) 55%, transparent);
-    background: color-mix(in srgb, var(--eg-c, #8aa4c0) 14%, rgba(10, 17, 26, 0.7));
-    transform: translateY(-0.08rem);
-    .con-eg__ldot { opacity: 1; }
-}
-
-/* ── Stage caption (what is being counted RIGHT NOW) ─────────────── */
-.con-eg__caption {
-    height: 1.5rem;
-    margin-top: 0.45rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.con-eg__caption-text {
-    font-family: @con-font;
-    font-size: var(--con-t-secondary, 0.9rem);
-    letter-spacing: 0.16em;
-    text-transform: uppercase;
-}
-.con-eg-cap-enter-active { transition: opacity calc(200ms * var(--motion-scale, 1)) ease, transform calc(200ms * var(--motion-scale, 1)) ease; }
-.con-eg-cap-leave-active { transition: opacity calc(140ms * var(--motion-scale, 1)) ease; }
-.con-eg-cap-enter-from { opacity: 0; transform: translateY(0.2rem); }
-.con-eg-cap-leave-to { opacity: 0; }
-
-/* ── Rows ────────────────────────────────────────────────────────── */
-.con-eg__rows {
+/* ── The stage: rail + caption + rows travel as ONE centred group ── */
+.con-eg__stage {
     flex: 1 1 auto;
     min-height: 0;
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 0.55rem;
+}
+
+/* ── Category rail ───────────────────────────────────────────────── */
+.con-eg__rail {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: center;
+    gap: 0.45rem;
+}
+.con-eg__lchip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.26rem 0.7rem;
+    border-radius: 1.1rem;
+    border: 0.05rem solid rgba(150, 175, 205, 0.16);
+    background: rgba(10, 17, 26, 0.55);
+    font-family: @con-font;
+    font-size: var(--eg-rail-fs);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: rgba(196, 216, 236, 0.45);
+    transition:
+        color calc(260ms * var(--motion-scale, 1)) ease,
+        border-color calc(260ms * var(--motion-scale, 1)) ease,
+        background-color calc(260ms * var(--motion-scale, 1)) ease,
+        transform calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.con-endgame--entering .con-eg__lchip {
+    animation: con-eg-fadein calc(360ms * var(--motion-scale, 1)) ease backwards;
+    animation-delay: calc(120ms + var(--eg-ci, 0) * 45ms * var(--motion-scale, 1));
+}
+.con-eg__ldot {
+    width: 0.46rem;
+    height: 0.46rem;
+    border-radius: 50%;
+    background: var(--eg-c, #8aa4c0);
+    opacity: 0.5;
+    transition: opacity calc(260ms * var(--motion-scale, 1)) ease;
+}
+.con-eg__lchip--done {
+    color: rgba(222, 234, 246, 0.82);
+    .con-eg__ldot { opacity: 0.95; }
+}
+/* THE SPOTLIGHT — the active category is the one bright thing on the
+ * rail: lifted, accent-lit, white ink. It is what "prepares" the eye
+ * during the focus beat, before anything on the bars moves. */
+.con-eg__lchip--active {
+    color: #f2f8ff;
+    border-color: color-mix(in srgb, var(--eg-c, #8aa4c0) 65%, transparent);
+    background: color-mix(in srgb, var(--eg-c, #8aa4c0) 17%, rgba(10, 17, 26, 0.72));
+    box-shadow: 0 0 0 0.09rem color-mix(in srgb, var(--eg-c, #8aa4c0) 28%, transparent);
+    transform: translateY(-0.12rem) scale(1.07);
+    .con-eg__ldot { opacity: 1; }
+}
+
+/* ── Stage caption (the micro-reveal voice) ──────────────────────── */
+.con-eg__caption {
+    position: relative;
+    height: var(--eg-cap-h);
     margin-top: 0.4rem;
 }
-/* Adaptive density: few players breathe, six rows stay comfortable. */
-.con-eg__rows--n2 { gap: 1.1rem; }
-.con-eg__rows--n3 { gap: 0.9rem; }
-.con-eg__rows--n4 { gap: 0.7rem; }
+.con-eg__caption-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: @con-font;
+    font-size: var(--eg-cap-fs);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+}
+/* Layered crossfade (title slot + caption): enter and leave overlap in
+ * the same box — no empty beat, no layout shift, ever. */
+.con-eg-xfade-enter-active { transition: opacity calc(220ms * var(--motion-scale, 1)) ease; }
+.con-eg-xfade-leave-active { transition: opacity calc(160ms * var(--motion-scale, 1)) ease; }
+.con-eg-xfade-enter-from,
+.con-eg-xfade-leave-to { opacity: 0; }
+
+/* ── Rows ────────────────────────────────────────────────────────── */
+.con-eg__rows {
+    display: flex;
+    flex-direction: column;
+    gap: var(--eg-row-gap);
+    margin-top: 0.55rem;
+}
 
 .con-eg__row {
     position: relative;
     display: grid;
-    grid-template-columns: 2.1rem 12.5rem minmax(0, 1fr) auto 7.2rem;
+    /* One child per column, ALWAYS (total in its own fixed column; the
+     * tie-break M€ chip is absolute inside the track) — the audit traced
+     * the bar judder to auto-placement re-solving this grid mid-count. */
+    grid-template-columns: var(--eg-place-w) var(--eg-ident-w) minmax(0, 1fr) var(--eg-total-w);
     align-items: center;
-    gap: 0.9rem;
-    padding: 0.5rem 0.9rem;
-    border-radius: 0.45rem;
+    gap: 1rem;
+    height: var(--eg-row-h);
+    box-sizing: border-box;
+    padding: 0 1.2rem;
+    border-radius: 0.55rem;
     border: 0.05rem solid rgba(150, 175, 205, 0.13);
-    background: rgba(10, 17, 26, 0.62);
-    min-height: 3.3rem;
+    background: linear-gradient(180deg, rgba(14, 22, 33, 0.72) 0%, rgba(9, 15, 23, 0.66) 100%);
     transition:
-        border-color calc(320ms * var(--motion-scale, 1)) ease,
-        background-color calc(320ms * var(--motion-scale, 1)) ease,
-        opacity calc(320ms * var(--motion-scale, 1)) ease,
-        box-shadow calc(320ms * var(--motion-scale, 1)) ease;
+        border-color calc(340ms * var(--motion-scale, 1)) ease,
+        background-color calc(340ms * var(--motion-scale, 1)) ease,
+        opacity calc(340ms * var(--motion-scale, 1)) ease,
+        box-shadow calc(340ms * var(--motion-scale, 1)) ease;
 }
 .con-endgame--entering .con-eg__row {
     animation: con-eg-row-in calc(430ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
-    animation-delay: calc(var(--eg-i, 0) * 70ms * var(--motion-scale, 1));
+    animation-delay: calc(var(--eg-i, 0) * 80ms * var(--motion-scale, 1));
 }
 @keyframes con-eg-row-in {
     from { opacity: 0; transform: translateY(0.6rem); }
     to { opacity: 1; transform: translateY(0); }
 }
+@keyframes con-eg-fadein {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
 
-/* Winner / the rest / tie-break contenders — state is box-shadow + tone. */
+/* Winner / the rest / tie-break contenders — state is box-shadow + tone.
+ * The WINNER ROW IS the winner presentation (a hero, never a duplicate
+ * plate below): gold light, ribbon, gold numerals — same geometry. */
 .con-eg__row--winner {
-    border-color: rgba(255, 216, 122, 0.55);
-    background: linear-gradient(180deg, rgba(255, 216, 122, 0.10) 0%, rgba(10, 17, 26, 0.66) 74%);
+    border-color: rgba(255, 216, 122, 0.5);
+    background:
+        linear-gradient(90deg, rgba(255, 216, 122, 0.12) 0%, rgba(255, 216, 122, 0.03) 30%, rgba(255, 216, 122, 0) 55%),
+        linear-gradient(180deg, rgba(24, 26, 24, 0.78) 0%, rgba(12, 15, 18, 0.72) 100%);
     box-shadow:
-        0 0 0 0.1rem rgba(255, 216, 122, 0.28),
-        0 0.35rem 1.3rem rgba(0, 0, 0, 0.42);
+        0 0 0 0.1rem rgba(255, 216, 122, 0.26),
+        0 0.5rem 1.8rem rgba(0, 0, 0, 0.5),
+        0 0 2.2rem rgba(255, 200, 110, 0.10);
+}
+.con-eg__row--solo-defeat {
+    border-color: rgba(150, 175, 205, 0.22);
+    box-shadow: none;
 }
 .con-eg__row--rest {
-    opacity: 0.72;
+    opacity: 0.8;
 }
 .con-eg__row--contender {
     border-color: rgba(89, 199, 240, 0.45);
     box-shadow: 0 0 0 0.1rem rgba(89, 199, 240, 0.22);
+}
+
+/* The winner RIBBON — a small gold tab standing on the row's top edge.
+ * Absolute: zero layout impact at any density. Mounts at the winner
+ * beat, so its entrance animation can never replay later. */
+.con-eg__ribbon {
+    position: absolute;
+    top: 0;
+    left: calc(var(--eg-place-w) + 1.4rem);
+    transform: translateY(-52%);
+    padding: 0.14rem 0.7rem;
+    border-radius: 0.3rem;
+    border: 0.05rem solid rgba(255, 216, 122, 0.55);
+    background: linear-gradient(180deg, #2a2214 0%, #191307 100%);
+    font-family: @con-font;
+    font-size: 0.74rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: @sem-prestige;
+    box-shadow: 0 0.15rem 0.6rem rgba(0, 0, 0, 0.5);
+    animation: con-eg-ribbon-in calc(420ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    z-index: 3;
+}
+@keyframes con-eg-ribbon-in {
+    from { opacity: 0; transform: translateY(-20%); }
+    to { opacity: 1; transform: translateY(-52%); }
+}
+.con-eg__ribbon--defeat {
+    border-color: rgba(150, 175, 205, 0.4);
+    background: rgba(14, 20, 28, 0.92);
+    color: rgba(196, 216, 236, 0.85);
 }
 
 .con-eg__place {
@@ -258,7 +442,7 @@
 }
 .con-eg__place-num {
     font-family: @con-font;
-    font-size: var(--con-t-body, 1rem);
+    font-size: var(--eg-place-fs);
     font-variant-numeric: tabular-nums;
     color: rgba(220, 233, 246, 0.9);
     animation: con-eg-fadein calc(300ms * var(--motion-scale, 1)) ease backwards;
@@ -270,36 +454,30 @@
     border-radius: 50%;
     background: rgba(150, 175, 205, 0.3);
 }
-@keyframes con-eg-fadein {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
 
 .con-eg__ident {
     display: flex;
     align-items: center;
-    gap: 0.55rem;
+    gap: 0.65rem;
     min-width: 0;
 }
 .con-eg__swatch {
     flex: 0 0 auto;
-    width: 0.8rem;
-    height: 0.8rem;
+    width: 0.9rem;
+    height: 0.9rem;
     border-radius: 50%;
     box-shadow: inset 0 0 0 0.05rem rgba(255, 255, 255, 0.35);
-}
-.con-eg__swatch--big {
-    width: 1rem;
-    height: 1rem;
 }
 .con-eg__who {
     display: flex;
     flex-direction: column;
+    gap: 0.1rem;
     min-width: 0;
 }
 .con-eg__name {
     font-family: @con-font;
-    font-size: var(--con-t-body, 1rem);
+    font-size: var(--eg-name-fs);
+    line-height: 1.1;
     color: @con-text;
     white-space: nowrap;
     overflow: hidden;
@@ -307,26 +485,30 @@
 }
 .con-eg__corp {
     font-family: @con-font;
-    font-size: var(--con-t-floor, 0.7rem);
-    letter-spacing: 0.06em;
+    font-size: var(--eg-corp-fs);
+    letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: @con-text-dim;
+    color: rgba(170, 195, 220, 0.75);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
 }
+.con-eg__row--winner .con-eg__corp { color: rgba(232, 214, 160, 0.85); }
 
-/* ── The shared-scale bar ────────────────────────────────────────── */
+/* ── The shared-scale track ──────────────────────────────────────── */
 .con-eg__track {
     position: relative;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 .con-eg__bar {
     position: relative;
-    height: 1.35rem;
-    border-radius: 0.68rem;
+    height: var(--eg-bar-h);
+    border-radius: 0.4rem;
     background: rgba(255, 255, 255, 0.045);
-    box-shadow: inset 0 0.05rem 0.25rem rgba(0, 0, 0, 0.5);
+    box-shadow: inset 0 0.05rem 0.3rem rgba(0, 0, 0, 0.55);
     overflow: hidden;
 }
 .con-eg__seg {
@@ -334,104 +516,140 @@
     top: 0;
     bottom: 0;
 }
+/* The seam between TOP-LEVEL categories — a dark hairline that appears
+ * with the segment (so the settled bar reads as N blocks = N legend
+ * entries, and an empty track shows nothing). */
+.con-eg__seg::after {
+    content: '';
+    position: absolute;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 0.08rem;
+    background: rgba(4, 8, 14, 0.85);
+    opacity: 0;
+    /* The seam stands at the segment's FINAL right edge — delayed so it
+     * lands with the arriving fill, never a lone tick ahead of it. */
+    transition: opacity calc(260ms * var(--motion-scale, 1)) ease calc(380ms * var(--motion-scale, 1));
+}
+.con-eg__seg--on::after { opacity: 1; }
+
 .con-eg__subseg {
     position: absolute;
     top: 0;
     bottom: 0;
     background: var(--eg-c, #8aa4c0);
-    /* The seam between sub-steps — fades on merge. */
-    box-shadow: inset -0.05rem 0 0 rgba(6, 10, 16, 0.55);
     transform: scaleX(0);
     transform-origin: left center;
     transition:
-        transform calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
-        box-shadow calc(420ms * var(--motion-scale, 1)) ease;
+        transform calc(600ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+        background-color calc(480ms * var(--motion-scale, 1)) ease,
+        box-shadow calc(480ms * var(--motion-scale, 1)) ease;
 }
 .con-eg__subseg--on { transform: scaleX(1); }
+/* The micro-reveal's own voice: shades + seams — CLASS-GATED, they
+ * dissolve at the merge and the category settles into ONE hue. */
 .con-eg__subseg--s1 { background: color-mix(in srgb, var(--eg-c, #8aa4c0) 82%, #ffffff 18%); }
 .con-eg__subseg--s2 { background: color-mix(in srgb, var(--eg-c, #8aa4c0) 80%, #05080d 20%); }
-.con-eg__seg--merged .con-eg__subseg { box-shadow: inset 0 0 0 rgba(6, 10, 16, 0); }
-/* Penalties SUBTRACT: a hatched reclaim growing from the right edge in. */
-.con-eg__seg--penalty .con-eg__subseg {
+.con-eg__subseg--seamed { box-shadow: inset -0.05rem 0 0 rgba(6, 10, 16, 0.55); }
+
+/* THE SUBTRACTIVE SCAR — the penalty physically retreats the bar's tip:
+ * a curtain of track-background sweeps in from the right (origin right,
+ * scaleX 0→1), leaving a red-hatched strip as the deduction's witness. */
+.con-eg__reclaim {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    background:
+        repeating-linear-gradient(
+            135deg,
+            rgba(224, 106, 106, 0.42) 0,
+            rgba(224, 106, 106, 0.42) 0.2rem,
+            rgba(90, 34, 34, 0.30) 0.2rem,
+            rgba(90, 34, 34, 0.30) 0.44rem),
+        #0b1119;
+    box-shadow: inset 0.09rem 0 0 rgba(224, 106, 106, 0.75);
+    transform: scaleX(0);
     transform-origin: right center;
-    background: repeating-linear-gradient(
-        135deg,
-        rgba(224, 106, 106, 0.78) 0,
-        rgba(224, 106, 106, 0.78) 0.28rem,
-        rgba(122, 42, 42, 0.82) 0.28rem,
-        rgba(122, 42, 42, 0.82) 0.56rem);
+    transition: transform calc(640ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    z-index: 2;
+}
+.con-eg__reclaim--on { transform: scaleX(1); }
+
+/* Values INSIDE wide segments — dark ink on the segment's own hue,
+ * clipped by the bar, landing at the category's settle. */
+.con-eg__inlab {
+    position: absolute;
+    top: 50%;
+    transform: translate(-50%, -46%);
+    font-family: @con-font;
+    font-size: var(--eg-inval-fs);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: rgba(10, 19, 34, 0.92);
+    opacity: 0;
+    transition:
+        opacity calc(280ms * var(--motion-scale, 1)) ease,
+        transform calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+    z-index: 3;
+}
+.con-eg__inlab.con-eg__vlab--on {
+    opacity: 1;
+    transform: translate(-50%, -50%);
 }
 
 /* The floating «+N» chip riding the bar's growth edge (a TRACK child —
  * the bar's overflow clip must never eat it). */
 .con-eg__chip {
     position: absolute;
-    top: -0.92rem;
+    /* Anchored from the track centre UP past the bar's top edge — the chip
+     * is always fully ABOVE the bar at every density (a `top` offset put
+     * its box over the bar's upper half on shallow tracks). */
+    bottom: calc(50% + var(--eg-bar-h) / 2 + 0.3rem);
     transform: translateX(-50%);
-    padding: 0.06rem 0.38rem;
-    border-radius: 0.3rem;
-    border: 0.05rem solid rgba(255, 255, 255, 0.22);
-    background: rgba(8, 14, 22, 0.92);
+    padding: 0.1rem 0.48rem;
+    border-radius: 0.32rem;
+    border: 0.05rem solid rgba(255, 255, 255, 0.24);
+    background: rgba(8, 14, 22, 0.94);
     font-family: @con-font;
-    font-size: var(--con-t-caption, 0.8rem);
+    font-size: var(--eg-chip-fs);
     font-variant-numeric: tabular-nums;
     color: #eaf4ff;
     pointer-events: none;
     white-space: nowrap;
-    z-index: 2;
+    z-index: 4;
     /* left rides the (transitioned) edge — keep it in step with the bar. */
-    transition: left calc(560ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+    transition: left calc(600ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 .con-eg__chip--minus {
     color: #ffb3b3;
     border-color: rgba(224, 106, 106, 0.5);
 }
 .con-eg-chip-enter-active { transition: opacity calc(220ms * var(--motion-scale, 1)) ease, margin-bottom calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1); }
-.con-eg-chip-leave-active { transition: opacity calc(180ms * var(--motion-scale, 1)) ease; }
-.con-eg-chip-enter-from { opacity: 0; margin-bottom: -0.3rem; }
+.con-eg-chip-leave-active { transition: opacity calc(200ms * var(--motion-scale, 1)) ease; }
+.con-eg-chip-enter-from { opacity: 0; margin-bottom: -0.25rem; }
 .con-eg-chip-leave-to { opacity: 0; }
 
-/* ── The exact-values strip (colour + position + number) ─────────── */
-.con-eg__vals {
-    display: flex;
-    align-items: center;
-    gap: 0.6rem;
-    height: 0.85rem;
-    margin-top: 0.28rem;
-}
-.con-eg__val {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.2rem;
-    opacity: 0;
-    transition: opacity calc(280ms * var(--motion-scale, 1)) ease, transform calc(280ms * var(--motion-scale, 1)) ease;
-}
-.con-eg__val--on { opacity: 1; }
-.con-eg__val--active { transform: translateY(-0.06rem); }
-.con-eg__val-dot {
-    width: 0.3rem;
-    height: 0.3rem;
-    border-radius: 50%;
-    background: var(--eg-c, #8aa4c0);
-}
-.con-eg__val-num {
-    font-family: @con-font;
-    font-size: var(--con-t-floor, 0.7rem);
-    font-variant-numeric: tabular-nums;
-    color: rgba(220, 233, 246, 0.82);
-    min-width: 1.4ch;
-}
-
-/* ── Tie-break M€ chip + the running total ───────────────────────── */
-.con-eg__mc {
+/* Tie-break M€ — absolute over the track's tail (appearing evidence may
+ * never re-flow the bar it explains). Stays through the settled state. */
+.con-eg__tiechip {
+    position: absolute;
+    right: 0;
+    bottom: calc(50% + var(--eg-bar-h) / 2 + 0.3rem);
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
+    padding: 0.08rem 0.5rem;
+    border-radius: 0.32rem;
+    border: 0.05rem solid rgba(255, 216, 122, 0.35);
+    background: rgba(10, 16, 24, 0.92);
     font-family: @con-font;
-    font-size: var(--con-t-secondary, 0.9rem);
+    font-size: 0.9rem;
     font-variant-numeric: tabular-nums;
-    color: #cfe2f4;
+    color: #eee6c8;
     animation: con-eg-fadein calc(280ms * var(--motion-scale, 1)) ease backwards;
+    z-index: 4;
 }
 .con-eg__mc-icon {
     width: 1rem;
@@ -439,20 +657,65 @@
     background-size: contain;
 }
 
+/* ── The anchored value rail (below the bar) ─────────────────────── */
+.con-eg__labels {
+    position: relative;
+    height: var(--eg-labels-h);
+    margin-top: 0.28rem;
+    font-size: var(--eg-val-fs);
+}
+.con-eg__blab {
+    position: absolute;
+    top: 0;
+    transform: translateX(calc(-50% + var(--eg-nudge, 0px))) translateY(-0.15rem);
+    font-family: @con-font;
+    font-size: var(--eg-val-fs);
+    font-variant-numeric: tabular-nums;
+    opacity: 0;
+    transition:
+        opacity calc(280ms * var(--motion-scale, 1)) ease,
+        transform calc(280ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+    white-space: nowrap;
+}
+.con-eg__blab.con-eg__vlab--on {
+    opacity: 1;
+    transform: translateX(calc(-50% + var(--eg-nudge, 0px))) translateY(0);
+}
+.con-eg__vlab--zero {
+    font-size: 0.85em;
+    color: rgba(150, 175, 205, 0.45) !important;
+}
+.con-eg__vlab--minus {
+    font-weight: 600;
+}
+
+/* ── The running total ───────────────────────────────────────────── */
 .con-eg__total {
     display: flex;
     align-items: baseline;
     justify-content: flex-end;
-    gap: 0.3rem;
+    gap: 0.32rem;
 }
 .con-eg__total-num {
     font-family: @con-font;
-    font-size: var(--con-t-hero, 1.9rem);
+    font-size: var(--eg-total-fs);
     font-variant-numeric: tabular-nums;
     color: #f2f8ff;
     line-height: 1;
+    transition: color calc(400ms * var(--motion-scale, 1)) ease;
 }
-.con-eg__row--winner .con-eg__total-num { color: @sem-prestige; }
+.con-eg__row--winner .con-eg__total-num {
+    color: @sem-prestige;
+    /* One-shot crowning pulse — plays when the winner class lands
+     * (transform-only; the class persists, so it can never replay). */
+    animation: con-eg-total-crown calc(700ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+@keyframes con-eg-total-crown {
+    0% { transform: scale(1); }
+    38% { transform: scale(1.08); }
+    100% { transform: scale(1); }
+}
 .con-eg__total-cap {
     font-family: @con-font;
     font-size: var(--con-t-floor, 0.7rem);
@@ -461,30 +724,21 @@
     color: @con-text-dim;
 }
 
-/* ── The bottom zone: tie-break → winner plate → actions ─────────── */
+/* ── The bottom zone: tie-break → note → actions (LAYERED, no gap) ── */
 .con-eg__zone {
+    position: relative;
     flex: 0 0 auto;
-    height: 8.4rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    height: var(--eg-zone-h);
 }
-.con-eg-zone-enter-active { transition: opacity calc(240ms * var(--motion-scale, 1)) ease, transform calc(240ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1); }
-.con-eg-zone-leave-active { transition: opacity calc(160ms * var(--motion-scale, 1)) ease; }
-.con-eg-zone-enter-from { opacity: 0; transform: translateY(0.4rem); }
-.con-eg-zone-leave-to { opacity: 0; }
-.con-eg-fade-enter-active { transition: opacity calc(260ms * var(--motion-scale, 1)) ease; }
-.con-eg-fade-leave-active { transition: opacity calc(160ms * var(--motion-scale, 1)) ease; }
-.con-eg-fade-enter-from,
-.con-eg-fade-leave-to { opacity: 0; }
-
-.con-eg__zone-idle { width: 100%; }
-
 .con-eg__tb {
+    position: absolute;
+    inset: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     gap: 0.6rem;
+    z-index: 2;
 }
 .con-eg__tb-title {
     font-family: @con-font;
@@ -518,82 +772,26 @@
 .con-eg__tb-name { max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .con-eg__final {
+    position: absolute;
+    inset: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: flex-end;
     gap: 0.55rem;
-    width: 100%;
-}
-.con-eg__wplate {
-    display: flex;
-    align-items: baseline;
-    gap: 0.9rem;
-    padding: 0.4rem 1.4rem;
-    border-radius: 0.5rem;
-    border: 0.05rem solid rgba(255, 216, 122, 0.4);
-    background: linear-gradient(180deg, rgba(255, 216, 122, 0.10) 0%, rgba(10, 17, 26, 0.6) 80%);
-    box-shadow: 0 0 0 0.1rem rgba(255, 216, 122, 0.14), 0 0.4rem 1.4rem rgba(0, 0, 0, 0.45);
-    animation: con-eg-plate-in calc(460ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1) backwards;
-}
-@keyframes con-eg-plate-in {
-    from { opacity: 0; transform: translateY(0.45rem) scale(0.985); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-}
-.con-eg__wplate--defeat {
-    border-color: rgba(150, 175, 205, 0.3);
-    background: rgba(10, 17, 26, 0.7);
-    box-shadow: none;
-}
-.con-eg__wkicker {
-    font-family: @con-font;
-    font-size: var(--con-t-secondary, 0.9rem);
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: @sem-prestige;
-}
-.con-eg__wplate--defeat .con-eg__wkicker { color: rgba(196, 216, 236, 0.8); }
-.con-eg__wnames {
-    display: flex;
-    align-items: baseline;
-    gap: 1rem;
-}
-.con-eg__wname {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-}
-.con-eg__wname-text {
-    font-family: @con-font;
-    font-size: var(--con-t-title, 1.5rem);
-    color: #f6fAFF;
-    white-space: nowrap;
-    max-width: 18rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.con-eg__wcorp {
-    font-family: @con-font;
-    font-size: var(--con-t-floor, 0.7rem);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: @con-text-dim;
-}
-.con-eg__wtotal {
-    display: inline-flex;
-    align-items: baseline;
-    gap: 0.25rem;
-    font-family: @con-font;
-    color: @sem-prestige;
-    b { font-size: var(--con-t-title, 1.5rem); font-variant-numeric: tabular-nums; }
-    span { font-size: var(--con-t-floor, 0.7rem); letter-spacing: 0.1em; text-transform: uppercase; }
+    padding-bottom: 0.4rem;
 }
 .con-eg__wnote {
     font-family: @con-font;
     font-size: var(--con-t-caption, 0.8rem);
-    color: @con-text-dim;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(222, 210, 170, 0.8);
 }
 
-/* ── The post-game action list — a horizontal command row ────────── */
+/* The post-game action list — a horizontal command row. The focus is
+ * the console's cyan navigation language (the winner's gold lives on
+ * the ROW above — the two states must never read alike). */
 .con-eg__actions {
     display: flex;
     justify-content: center;
@@ -604,17 +802,18 @@
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
-    padding: 0.5rem 1rem;
+    padding: 0.55rem 1.15rem;
     border-radius: 0.4rem;
     border: 0.05rem solid rgba(150, 175, 205, 0.2);
     background: rgba(10, 17, 26, 0.72);
     font-family: @con-font;
-    font-size: var(--con-t-body, 1rem);
+    font-size: var(--eg-act-fs);
     color: rgba(220, 233, 246, 0.88);
     transition:
         border-color calc(200ms * var(--motion-scale, 1)) ease,
         box-shadow calc(200ms * var(--motion-scale, 1)) ease,
         background-color calc(200ms * var(--motion-scale, 1)) ease,
+        color calc(200ms * var(--motion-scale, 1)) ease,
         transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 .con-eg__action--focused {
@@ -624,26 +823,57 @@
     box-shadow: 0 0 0 var(--con-focus-ring, 0.12rem) rgba(89, 199, 240, 0.55);
     transform: translateY(-0.1rem);
 }
+/* Disabled: muted ink + border — never whole-element opacity. */
 .con-eg__action--disabled {
-    opacity: 0.5;
+    color: rgba(220, 233, 246, 0.4);
+    border-color: rgba(150, 175, 205, 0.12);
 }
 .con-eg__action--disabled.con-eg__action--focused {
     border-color: rgba(150, 175, 205, 0.4);
     box-shadow: 0 0 0 var(--con-focus-ring, 0.12rem) rgba(150, 175, 205, 0.3);
 }
-.con-eg__action-a { flex: 0 0 auto; }
 .con-eg__action-note {
     font-size: var(--con-t-floor, 0.7rem);
     color: @con-text-dim;
     font-variant-numeric: tabular-nums;
 }
 
-/* ── Density ladders ─────────────────────────────────────────────── */
+/* Zone transitions: plain fades + a rise for the action list. Layered
+ * children (absolute) — a leaver and an enterer may overlap; the screen
+ * never shows an empty hole between them. */
+.con-eg-fade-enter-active { transition: opacity calc(260ms * var(--motion-scale, 1)) ease; }
+.con-eg-fade-leave-active { transition: opacity calc(180ms * var(--motion-scale, 1)) ease; }
+.con-eg-fade-enter-from,
+.con-eg-fade-leave-to { opacity: 0; }
+.con-eg-rise-enter-active { transition: opacity calc(320ms * var(--motion-scale, 1)) ease, transform calc(320ms * var(--motion-scale, 1)) cubic-bezier(0.16, 1, 0.3, 1); }
+.con-eg-rise-leave-active { transition: opacity calc(160ms * var(--motion-scale, 1)) ease; }
+.con-eg-rise-enter-from { opacity: 0; transform: translateY(0.5rem); }
+.con-eg-rise-leave-to { opacity: 0; }
+
+/* ── Density ladders (profiles) ──────────────────────────────────── */
 html.con-profile-handheld {
     .con-eg { max-width: 100%; padding: 0.6rem 0.8rem 0.4rem; }
-    .con-eg__row { grid-template-columns: 1.6rem 9rem minmax(0, 1fr) auto 5.6rem; gap: 0.6rem; padding: 0.35rem 0.6rem; min-height: 2.7rem; }
-    .con-eg__zone { height: 7rem; }
-    .con-eg__wname-text { max-width: 11rem; }
+    .con-eg,
+    .con-eg.con-eg--n2,
+    .con-eg.con-eg--n3 {
+        --eg-row-h: 3.6rem;
+        --eg-row-gap: 0.55rem;
+        --eg-bar-h: 1.4rem;
+        --eg-name-fs: 1rem;
+        --eg-corp-fs: 0.7rem;
+        --eg-place-fs: 1.05rem;
+        --eg-place-w: 2rem;
+        --eg-ident-w: 10.5rem;
+        --eg-total-fs: 1.9rem;
+        --eg-total-w: 6.2rem;
+        --eg-val-fs: 0.74rem;
+        --eg-inval-fs: 0.74rem;
+        --eg-labels-h: 0.95rem;
+        --eg-zone-h: 5.4rem;
+        --eg-act-fs: 0.9rem;
+    }
+    .con-eg__row { padding: 0 0.7rem; gap: 0.6rem; }
+    .con-eg__tb-name { max-width: 7rem; }
     .con-eg__action { padding: 0.4rem 0.7rem; }
 }
 
@@ -651,12 +881,16 @@ html.con-profile-handheld {
  * SHORT transition (the growth is information — order of reveal — but no
  * long travel), chips arrive without the rise. */
 @media (prefers-reduced-motion: reduce) {
-    .con-endgame,
     .con-endgame--entering .con-eg__row,
-    .con-eg__wplate {
+    .con-endgame--entering .con-eg__lchip,
+    .con-eg__ribbon,
+    .con-eg__tiechip,
+    .con-eg__place-num {
         animation-duration: 1ms !important;
         animation-delay: 0ms !important;
     }
+    .con-eg__row--winner .con-eg__total-num { animation: none; }
     .con-eg__subseg { transition-duration: 120ms; }
+    .con-eg__reclaim { transition-duration: 120ms; }
     .con-eg__chip { transition-duration: 120ms; }
 }

@@ -14,6 +14,14 @@
  *  · A reload straight into an ended game (`sawLivePhase === false`) lands on
  *    the SETTLED final state; watching the count again is an explicit action
  *    («Повторить подсчёт»), never a side effect of re-opening the page.
+ *
+ * COLLAPSE CONTRACT (B = «Свернуть», the post-game board inspection):
+ *  · `collapsed` hides the scene (v-show — the workspace stays MOUNTED, its
+ *    frame stays in the stack) and shows the final board + HUD behind it.
+ *  · A collapse DURING the ceremony pauses the director's timeline; the
+ *    return resumes it from the same beat — never a restart, never a skip.
+ *  · While collapsed the ceremony's animation hold releases (the player is
+ *    deliberately elsewhere; a hidden scene may not hold the foreground).
  */
 import {reactive} from 'vue';
 import {registerAnimationHoldSupplier} from '@/client/components/presentation/animationHold';
@@ -38,6 +46,9 @@ export type CeremonyPhase =
   | 'winner'
   | 'actions';
 
+/** The inner stage of the active category's four-part phrase. */
+export type CeremonyBeatStage = '' | 'focus' | 'grow' | 'settle';
+
 type ChipState = {value: number, seq: number};
 
 export const consoleEndgameUi = reactive({
@@ -47,14 +58,20 @@ export const consoleEndgameUi = reactive({
   catIdx: -1,
   /** Active sub-step inside the active category (-1 = whole-category beat). */
   subIdx: -1,
-  /** Categories fully SETTLED (value strip entries visible, segment locked). */
+  /** Where inside the four-part category phrase the beat is right now. */
+  beatStage: '' as CeremonyBeatStage,
+  /** Categories fully SETTLED (value label visible, segment locked). */
   catsSettled: 0,
   /** Per-category count of revealed sub-segments (multi-sub categories). */
   subsOn: {} as Record<string, number>,
   /** Per-category «seams faded, reads as one segment again» flag. */
   merged: {} as Record<string, boolean>,
 
-  /** color → the running total the count-up currently shows. */
+  /**
+   * color → the running total at the LAST SETTLED boundary. Written per beat,
+   * never per frame — the live count-up goes through the component's direct
+   * DOM sink (`onCount`), so a reactive write can't re-lay the row 60×/s.
+   */
   displayTotals: {} as Record<string, number>,
   /** color → the floating «+N» chip at the bar's growth edge. */
   chips: {} as Record<string, ChipState | undefined>,
@@ -70,8 +87,13 @@ export const consoleEndgameUi = reactive({
   /** Post-game action list focus (survives the overlay round-trip). */
   actionsFocus: 0,
 
+  /** B = «Свернуть»: the scene is hidden, the final board is on show. */
+  collapsed: false,
+
   /** Bumped on every atomic jump (skip / reload-settle) — the template
-   *  suppresses CSS transitions for the jump frame. */
+   *  suppresses CSS TRANSITIONS for the jump frame (never animations: a
+   *  re-enabled keyframe animation RESTARTS, which is exactly the final
+   *  flash this workspace once shipped). */
   skipSeq: 0,
 
   /** This page load observed a LIVE (non-END) phase — see header. */
@@ -96,6 +118,7 @@ export function resetCeremonyProgress(): void {
   s.phase = 'idle';
   s.catIdx = -1;
   s.subIdx = -1;
+  s.beatStage = '';
   s.catsSettled = 0;
   s.subsOn = {};
   s.merged = {};
@@ -106,20 +129,23 @@ export function resetCeremonyProgress(): void {
   s.tieStage = 0;
   s.winnerShown = false;
   s.actionsOn = false;
+  s.actionsFocus = 0;
 }
 
 /** Full reset — the endgame workspace closed (phase left END / new game). */
 export function resetConsoleEndgame(): void {
   resetCeremonyProgress();
-  consoleEndgameUi.actionsFocus = 0;
   consoleEndgameUi.ceremonyPlayed = false;
   consoleEndgameUi.sawLivePhase = false;
+  consoleEndgameUi.collapsed = false;
 }
 
 /**
  * ATOMIC FINALIZATION — skip, reload-into-END, and the natural end of the
  * timeline all land HERE, so «the correct final state» exists exactly once.
- * Idempotent; safe to call from any phase.
+ * Idempotent; safe to call from any phase. `collapsed` is deliberately
+ * untouched: finalizing behind a collapsed scene must not yank the player
+ * off the board they chose to inspect.
  */
 export function finalizeCeremony(vm: ConsoleEndgameVm): void {
   const s = consoleEndgameUi;
@@ -127,6 +153,7 @@ export function finalizeCeremony(vm: ConsoleEndgameVm): void {
   s.phase = 'actions';
   s.catIdx = -1;
   s.subIdx = -1;
+  s.beatStage = '';
   s.catsSettled = vm.categories.length;
   const subsOn: Record<string, number> = {};
   const merged: Record<string, boolean> = {};
@@ -147,14 +174,16 @@ export function finalizeCeremony(vm: ConsoleEndgameVm): void {
   s.tieStage = vm.tieBreak !== undefined ? 2 : 0;
   s.winnerShown = true;
   s.actionsOn = true;
+  s.actionsFocus = 0;
   s.ceremonyPlayed = true;
 }
 
 // The ceremony is a first-class foreground occupant: while it runs,
 // notifications queue and nothing may stand over the count. The predicate
 // reads VUE-REACTIVE state (a plain module `let` would kill the registry).
-// `actions` is interactive (not a hold); `idle` is nothing.
+// `actions` is interactive (not a hold); `idle` is nothing; a COLLAPSED
+// scene is hidden by the player's own hand and may not hold the foreground.
 registerAnimationHoldSupplier('endgame-ceremony', () => {
   const p = consoleEndgameUi.phase;
-  return p !== 'idle' && p !== 'actions';
+  return p !== 'idle' && p !== 'actions' && !consoleEndgameUi.collapsed;
 });

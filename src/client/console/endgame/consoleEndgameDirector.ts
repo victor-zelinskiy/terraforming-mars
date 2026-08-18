@@ -5,19 +5,27 @@
  * advance the module-reactive ceremony state; the template's CSS transitions
  * (transform/opacity only) do the actual painting. The director owns:
  *
- *  · the count-up tweens (the ONLY per-frame JS work — one eased number per
- *    player per beat, snapped to integers);
+ *  · the count-up tweens — the ONLY per-frame work, and it deliberately goes
+ *    through `hooks.onCount` into a DIRECT textContent write (never a
+ *    reactive write: one number per player per frame would re-render the
+ *    whole workspace 60×/s and judder every CSS transition under it).
+ *    The REACTIVE `displayTotals` is written once per BEAT BOUNDARY with the
+ *    precomputed running sum — the canonical settle record;
  *  · the beat cadence (every duration through consoleMotionMs — speed presets
  *    scale it, reduced motion caps every beat at its short variant);
  *  · SKIP: kill everything, then `finalizeCeremony` — one atomic jump to the
  *    canonical final state; repeated skips are no-ops by construction;
+ *  · PAUSE/RESUME — the B=«Свернуть» round trip: the timeline freezes where
+ *    it stands and continues from the same beat on return;
  *  · a safety net (a stalled rAF in a hidden tab must not pin the ceremony's
- *    animation hold at its 35s ceiling — the net finalizes honestly instead).
+ *    animation hold at its 35s ceiling — the net finalizes honestly instead,
+ *    and RE-ARMS while the ceremony is deliberately paused/collapsed).
  *
- * The component contributes two DOM moments the director cannot know:
- * `onRankFlip` (measure → reorder → invert → play) and `onWinnerFx` (the
- * ceremonyFx burst on the winner row) — both register their teardown via
- * `addCleanup`, so a skip can never leave a half-played FLIP transform.
+ * The component contributes the DOM moments the director cannot know:
+ * `onRankFlip` (measure → reorder → invert → play), `onWinnerFx` (the
+ * ceremonyFx burst on the winner row) and `onCount` (the total sink) — the
+ * first two register their teardown via `addCleanup`, so a skip can never
+ * leave a half-played FLIP transform.
  */
 import {gsap} from 'gsap';
 import {consoleMotionMs} from '@/client/console/composables/useConsoleReducedMotion';
@@ -30,6 +38,8 @@ export type CeremonyHooks = {
   onRankFlip: () => void,
   /** The winner burst (ceremonyFx) — fired once at the winner beat. */
   onWinnerFx: () => void,
+  /** The live count-up sink — a DIRECT DOM write, one integer per frame. */
+  onCount: (color: string, value: number) => void,
 };
 
 export type CeremonyHandle = {
@@ -37,6 +47,10 @@ export type CeremonyHandle = {
   skip: () => void,
   /** Tear down without finalizing (unmount / workspace closed). */
   kill: () => void,
+  /** Freeze the timeline in place (B = «Свернуть» while the count runs). */
+  pause: () => void,
+  /** Continue from the paused beat. */
+  resume: () => void,
   /** Register extra teardown (the component's own tweens). */
   addCleanup: (fn: () => void) => void,
 };
@@ -50,16 +64,16 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
   let done = false;
   let chipSeq = 0;
 
-  // One proxy per player for the eased count-up; the reactive write happens in
-  // onUpdate so Vue renders exactly one integer change per frame per player.
-  // Targets are ABSOLUTE running sums (a relative `+=` on a negative penalty
-  // is exactly the kind of string-parse edge a scoring screen must not ride).
+  // One proxy per player for the eased count-up. Targets are ABSOLUTE running
+  // sums, precomputed while laying the beats (a relative `+=` on a negative
+  // penalty is exactly the string-parse edge a scoring screen must not ride).
   const counters: Record<string, {v: number}> = {};
   const runningTargets: Record<string, number> = {};
   for (const row of vm.rows) {
     counters[row.color] = {v: 0};
     runningTargets[row.color] = 0;
     s.displayTotals[row.color] = 0;
+    hooks.onCount(row.color, 0);
   }
 
   const tl = gsap.timeline({paused: true});
@@ -76,9 +90,23 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
       duration: sec(ms),
       ease: 'power1.out',
       onUpdate: () => {
-        s.displayTotals[color] = Math.round(proxy.v);
+        hooks.onCount(color, Math.round(proxy.v));
       },
     }, at);
+  };
+
+  /** The reactive settle record — ONE write per player per beat boundary. */
+  const settleTotals = (at: number) => {
+    const snapshot: Record<string, number> = {};
+    for (const row of vm.rows) {
+      snapshot[row.color] = runningTargets[row.color];
+    }
+    tl.call(() => {
+      for (const color of Object.keys(snapshot)) {
+        s.displayTotals[color] = snapshot[color];
+        hooks.onCount(color, snapshot[color]);
+      }
+    }, [], at);
   };
 
   const popChips = (at: number, values: Record<string, number>) => {
@@ -87,7 +115,7 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
       for (const row of vm.rows) {
         const v = values[row.color] ?? 0;
         // A zero is not an award — no chip, no fake celebration. The value
-        // strip still states the honest 0 at the category settle.
+        // rail still states the honest 0 at the category settle.
         next[row.color] = v !== 0 ? {value: v, seq: ++chipSeq} : undefined;
       }
       s.chips = next;
@@ -116,20 +144,32 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
 
     case 'category': {
       const cat = vm.categories[beat.idx];
+      // FOCUS — the rail spotlights the coming category; nothing moves yet.
       tl.call(() => {
         s.catIdx = beat.idx;
         s.subIdx = -1;
+        s.beatStage = 'focus';
       }, [], at);
-      popChips(at + sec(60), cat.values);
-      for (const row of vm.rows) {
-        countUp(at + sec(120), row.color, cat.values[row.color] ?? 0, beat.ms * 0.8);
-      }
-      at += sec(beat.ms);
+      at += sec(beat.focusMs);
+      // GROW — bars and counts move together, the «+N» chip rides the edge.
       tl.call(() => {
+        s.beatStage = 'grow';
+      }, [], at);
+      popChips(at, cat.values);
+      for (const row of vm.rows) {
+        countUp(at + sec(60), row.color, cat.values[row.color] ?? 0, beat.growMs * 0.85);
+      }
+      at += sec(beat.growMs);
+      // SETTLE — the segment locks, the exact value lands under it.
+      tl.call(() => {
+        s.beatStage = 'settle';
         s.catsSettled = beat.idx + 1;
       }, [], at);
-      clearChips(at + sec(beat.holdMs * 0.7));
-      at += sec(beat.holdMs);
+      settleTotals(at);
+      at += sec(beat.settleMs);
+      // PAUSE — a breath; the chip lets go mid-way.
+      clearChips(at + sec(beat.pauseMs * 0.45));
+      at += sec(beat.pauseMs);
       break;
     }
 
@@ -137,6 +177,7 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
       tl.call(() => {
         s.catIdx = beat.idx;
         s.subIdx = -1;
+        s.beatStage = 'focus';
       }, [], at);
       at += sec(beat.ms);
       break;
@@ -148,11 +189,12 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
       tl.call(() => {
         s.catIdx = beat.idx;
         s.subIdx = beat.sub;
+        s.beatStage = 'grow';
         s.subsOn = {...s.subsOn, [cat.key]: beat.sub + 1};
       }, [], at);
-      popChips(at + sec(40), sub.values);
+      popChips(at + sec(30), sub.values);
       for (const row of vm.rows) {
-        countUp(at + sec(80), row.color, sub.values[row.color] ?? 0, beat.ms * 0.75);
+        countUp(at + sec(60), row.color, sub.values[row.color] ?? 0, beat.ms * 0.8);
       }
       at += sec(beat.ms);
       break;
@@ -163,8 +205,10 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
       tl.call(() => {
         s.merged = {...s.merged, [cat.key]: true};
         s.subIdx = -1;
+        s.beatStage = 'settle';
         s.catsSettled = beat.idx + 1;
       }, [], at);
+      settleTotals(at);
       clearChips(at + sec(beat.ms * 0.5));
       at += sec(beat.ms);
       break;
@@ -174,6 +218,7 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
       tl.call(() => {
         s.phase = 'settling';
         s.catIdx = -1;
+        s.beatStage = '';
         s.chips = {};
       }, [], at);
       at += sec(beat.ms);
@@ -207,6 +252,12 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
       at += sec(beat.resolveMs);
       break;
 
+    case 'winnerHold':
+      // The quiet hold between the settled ranking and the crowning —
+      // deliberately empty: stillness is what makes the next beat an event.
+      at += sec(beat.ms);
+      break;
+
     case 'winner':
       tl.call(() => {
         s.phase = 'winner';
@@ -234,14 +285,24 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
 
   // Safety net: a hidden tab starves rAF and freezes the timeline mid-flight;
   // the ceremony's animation hold would then sit until its 35s ceiling. The
-  // net finalizes honestly instead. (The finalize IS reactive state — the
-  // hold releases through its own supplier, never through this timer.)
+  // net finalizes honestly instead — but a PAUSED (collapsed) ceremony is the
+  // player's own deliberate state, so the net re-arms and waits it out.
   const totalMs = consoleMotionMs(ceremonyTotalMs(beats));
-  const safety = window.setTimeout(() => {
-    if (!done && consoleEndgameUi.phase !== 'actions') {
+  const netDelay = totalMs * 1.6 + 2500;
+  let safety = 0;
+  const armSafety = () => {
+    safety = window.setTimeout(() => {
+      if (done || consoleEndgameUi.phase === 'actions') {
+        return;
+      }
+      if (tl.paused()) {
+        armSafety();
+        return;
+      }
       skip();
-    }
-  }, totalMs * 1.6 + 2500);
+    }, netDelay);
+  };
+  armSafety();
 
   const teardown = () => {
     if (done) {
@@ -270,6 +331,16 @@ export function runEndgameCeremony(vm: ConsoleEndgameVm, hooks: CeremonyHooks): 
   return {
     skip,
     kill: teardown,
+    pause: () => {
+      if (!done) {
+        tl.pause();
+      }
+    },
+    resume: () => {
+      if (!done && consoleEndgameUi.phase !== 'actions') {
+        tl.resume();
+      }
+    },
     addCleanup: (fn) => {
       cleanups.push(fn);
     },

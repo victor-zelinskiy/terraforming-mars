@@ -389,7 +389,10 @@ describe('marsBotPresentation (notification-first turns)', () => {
       }});
       await nextTick();
       expect(notificationState.transient.map((n) => n.botTurnKey)).deep.eq(['red:1:1']);
-      expect(notificationState.queue.map((n) => n.botTurnKey)).deep.eq(['red:1:2', 'red:1:3']);
+      // Only ONE waits behind the visible card (`MAX_QUEUED_BOT_CARDS`): a
+      // backlog of toasts is a backlog on the player, so the middle turn was
+      // already drained to the journal when the third arrived.
+      expect(notificationState.queue.map((n) => n.botTurnKey)).deep.eq(['red:1:3']);
 
       skipBotTurnPresentation('red:1:1'); // ← the player's B
 

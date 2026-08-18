@@ -103,6 +103,22 @@ const BOARD_SETTLE_MS = 320;
 export const remotePlacementState = reactive({
   /** TRUE while a remote proxy is on stage (drives the layer's remote block). */
   active: false,
+  /**
+   * TRUE while the queue is merely PARKED waiting for a watchable board.
+   *
+   * ⚠️ THE HOLD IS FOR THE FLIGHT, NEVER FOR THE WAIT. `isRemotePlacementActive`
+   * counted a queued landing as a live animation, so a bot turn that placed a
+   * tile while the player stood inside a WORKSPACE took a BLOCKING hold for the
+   * whole of `awaitWatchableBoard` — up to {@link BOARD_WAIT_MAX_MS} = 20 s. In
+   * that window every prompt surface is refused (`anyAnimation` /
+   * `presentation`), the notification feed is silenced, and
+   * `notificationsSettled()` never turns true, so the player's own next
+   * decision is not even ANNOUNCED. That is «бот лагает 5–10 секунд, особенно
+   * когда я в workspace во время его хода»: nothing was on screen and nothing
+   * was moving — the scene was politely waiting for a board the player had
+   * covered, and holding the game while it waited.
+   */
+  waitingForBoard: false,
   /** The CURRENT flight's tile art (one remote flight at a time — the
    *  queue is sequential, so one proxy set suffices). */
   tileType: undefined as TileType | undefined,
@@ -134,7 +150,11 @@ export function isRemotePlacementActive(): boolean {
   // when its first term was a non-reactive `let`). Reading `active` first keeps
   // it tracked; `active` only goes false once `queue` is already empty
   // (drain-end / abort), so the false transition is always observed.
-  return remotePlacementState.active || queue.length > 0;
+  // A PARKED queue is not an animation: nothing is on stage and nothing moves
+  // until the board comes back (see `waitingForBoard`). Both terms read before
+  // `queue` are reactive, so the watcher keeps its dependency either way.
+  return remotePlacementState.active ||
+    (!remotePlacementState.waitingForBoard && queue.length > 0);
 }
 
 // Queued/flying remote landings hold the presentation exactly like the own
@@ -233,6 +253,7 @@ export function abortRemotePlacements(): void {
   clearRemoteRevealHolds(); // belt-and-braces: nothing may stay hidden
   draining = false;
   remotePlacementState.active = false;
+  remotePlacementState.waitingForBoard = false;
   remotePlacementState.tileType = undefined;
   clearStageSafety();
 }
@@ -276,7 +297,12 @@ async function flyRemote(ev: RemoteEvent, myEpoch: number): Promise<void> {
   // BE there when the workspace folds. This is the whole reason the tile
   // stays held: the wait costs nothing (the cell reads untouched) and buys
   // the player the one moment the placement actually happens.
-  await awaitWatchableBoard(myEpoch);
+  remotePlacementState.waitingForBoard = boardCovered();
+  try {
+    await awaitWatchableBoard(myEpoch);
+  } finally {
+    remotePlacementState.waitingForBoard = false;
+  }
   if (epoch !== myEpoch) {
     return;
   }
