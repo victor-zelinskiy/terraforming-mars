@@ -34,42 +34,75 @@ async function bootHome(page: Page, request: Parameters<typeof bootIntoGame>[1],
 }
 
 /**
- * THE PLATFORM ADVANCE ALLOWANCE — why this spec measures HEADROOM, not «does
- * it fit right here».
+ * THE ROUNDING IS SIMULATED, NOT BUDGETED FOR.
  *
  * Chromium lays HUD-sized text out with SUBPIXEL glyph advances on a Windows
  * dev box, and with advances ROUNDED UP TO WHOLE PIXELS on the Linux CI runner
  * (FreeType, below the size at which subpixel positioning turns on). Measured
- * on this very line: «ДОСТИЖЕНИЯ» inks 98.0 px at 13.2 px locally and ~103.5 px
- * on the runner — about +0.55 px per glyph, +5.6 % on a ten-letter word. The
- * same string at 34 px (the TV profile) costs nothing extra, which is why the
- * rail could ship an ellipsis that ONLY the FHD runner ever saw.
+ * on this very line, same commit, same string: «ДОСТИЖЕНИЯ» inks 95.41 px
+ * locally and 100.41 px on the runner at 13.2 px — +0.5 px per glyph — while
+ * the SAME string at 34 px (the TV profile) costs nothing extra. That is how
+ * this rail shipped an ellipsis only the FHD shard ever saw: a head tuned
+ * until the longest name just fits has no margin at all where it runs.
  *
- * A head tuned until the longest name just fits therefore has no margin at all
- * where it actually runs. So the assertion is «would this still fit if every
- * glyph advance rounded up», and the guard is a MEASURED column, never
- * arithmetic mirroring the LESS.
+ * A FLAT ALLOWANCE CANNOT EXPRESS THAT, and the first version of this guard
+ * proved it: «keep one pixel per glyph spare» is right on the dev box and
+ * double-counts on the runner, where the pixel per glyph has ALREADY been
+ * spent — it failed a layout that was, by its own ellipsis check, whole.
  *
- * The allowance is the WORST CASE of that rounding, not the observed average:
- * ceiling every advance costs at most one whole pixel per glyph (the run above
- * happened to cost .55). Sizing the head to the average is how a margin gets
- * spent before it is needed — the string that rounds badly is a different
- * string, or the same one at another rem.
+ * So the guard reconstructs the worst case from the platform's OWN advances:
+ * sum ⌈advance⌉ + tracking, glyph by glyph. On Windows that predicts the
+ * runner (verified: the model computes ~100.4 px for the line the runner
+ * measured at 100.41); on Linux ⌈⌉ of an already-whole advance is the identity,
+ * so the demand degrades exactly to «it fits». The reconstruction is clamped to
+ * the LAID-OUT ink, so it cannot come out narrower than the line actually in
+ * front of it whichever convention the measuring API reports. One number, both
+ * platforms, no `process.platform` anywhere.
  */
-const ADVANCE_ROUNDING_PX = 1;
-
-type HeadFit = {text: string, chars: number, ink: number, avail: number, slack: number, need: number};
+/**
+ * On top of the reconstructed worst case, because ⌈advance⌉ is a model of ONE
+ * platform difference and rasterisation has others (the per-glyph advances the
+ * canvas reports track the laid-out line to within a pixel, not exactly). Two
+ * per cent, and never less than 2 px — at the handheld rem two per cent is
+ * 1.5 px, which is thinner than the error it is there to absorb.
+ */
+const RASTER_COMFORT = 0.02;
 
 /**
- * Per zone head: how wide the name INKS, how wide its column really is, and the
- * margin between them. The column is measured on a CLONE of the real head at
- * the real width — a string no head can hold shrinks the flex item to exactly
- * the room the key cap and the slot tray leave beside it. (The live title is a
- * `flex: 0 1 auto` item, so while it fits, its own box IS its ink and reports
- * nothing about the space it has.)
+ * How far the per-glyph model may sit from the laid-out line, per glyph. It is
+ * exactly the rounding under study: the two may disagree by a whole pixel on
+ * every glyph and still describe the same line. Anything past that is the model
+ * measuring something else.
+ */
+const MODEL_TOLERANCE = 1;
+
+type HeadFit = {
+  text: string, chars: number, font: string,
+  /** What the title inks HERE, laid out by this platform. */
+  ink: number,
+  /** The same string with every glyph advance ceiled — the widest it can ever lay out. */
+  worst: number,
+  /** The model's own reproduction of `ink`, unceiled: the fidelity check. */
+  modelled: number,
+  /** The room the key cap and the slot tray actually leave beside them. */
+  avail: number,
+  /** `worst` plus the rasterisation comfort — what `avail` has to clear. */
+  need: number,
+};
+
+/**
+ * Per zone head: what the name inks, the widest it could ever ink, and the
+ * column it has to live in.
+ *
+ * The COLUMN is measured on a CLONE of the real head at the real width — a
+ * string no head can hold shrinks the flex item to exactly the room the key cap
+ * and the slot tray leave beside it. (The live title is a `flex: 0 1 auto`
+ * item, so while it fits, its own box IS its ink and reports nothing about the
+ * space it has — measuring that box is how an earlier probe «proved» a column
+ * of 411 px.)
  */
 async function headFits(page: Page): Promise<Array<HeadFit>> {
-  return page.evaluate((penalty) => {
+  return page.evaluate((comfort) => {
     return [...document.querySelectorAll('.con-strat__head')].map((head) => {
       const rect = head.getBoundingClientRect();
       const clone = head.cloneNode(true) as HTMLElement;
@@ -85,43 +118,98 @@ async function headFits(page: Page): Promise<Array<HeadFit>> {
 
       const title = clone.querySelector('.con-strat__title') as HTMLElement;
       const text = (title.textContent ?? '').trim();
+      const cs = getComputedStyle(title);
+      // READ EVERY COMPUTED VALUE WHILE THE CLONE IS STILL IN THE DOCUMENT.
+      // `getComputedStyle` hands back a LIVE declaration: once the node is
+      // detached every property answers the empty string, and a face read after
+      // the clean-up below silently became «» — the guard then failed on its own
+      // sanity check instead of on the layout.
+      const face = cs.fontFamily.split(',')[0].trim().replace(/["']/g, '');
       // The INK, not the box: the title is a block that fills its column, so
       // its own rect can never report an overflow the ellipsis hid.
       const range = document.createRange();
       range.selectNodeContents(title);
       const rects = [...range.getClientRects()];
       const ink = rects.length === 0 ? 0 : Math.max(...rects.map((x) => x.width));
+
+      // ── the worst case, glyph by glyph ──────────────────────────────────
+      // What the line PAINTS, not what the DOM stores: this title is
+      // `text-transform: uppercase`, and «Достижения» and «ДОСТИЖЕНИЯ» are not
+      // the same width.
+      const painted = cs.textTransform === 'uppercase' ? text.toUpperCase() :
+        cs.textTransform === 'lowercase' ? text.toLowerCase() : text;
+      const tracking = parseFloat(cs.letterSpacing) || 0;
+      const ctx = (document.createElement('canvas').getContext('2d') as CanvasRenderingContext2D);
+      ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+      let modelled = 0;
+      let ceiled = 0;
+      for (const ch of painted) {
+        const advance = ctx.measureText(ch).width;
+        modelled += advance + tracking;
+        // The platform difference, reproduced: every advance snapped up to a
+        // whole pixel. Tracking is a CSS length the engine adds on top and does
+        // not round, so it stays outside the ceiling.
+        ceiled += Math.ceil(advance) + tracking;
+      }
+      // …AND NEVER NARROWER THAN THE LINE IN FRONT OF US. Whether the canvas
+      // reports this platform's advances already snapped (as the runner's
+      // layout does) or still subpixel is an implementation detail of the
+      // measuring API, not of the rail — and the guard must not depend on which
+      // convention it got. Clamping to the LAID-OUT ink makes both readings
+      // give the same budget: on a platform that already rounded, the ink IS
+      // the worst case.
+      const worst = Math.max(ceiled, ink);
+
       title.textContent = 'Ш'.repeat(200);
       const avail = title.getBoundingClientRect().width;
       clone.remove();
 
-      const chars = [...text].length;
       const r2 = (v: number) => Math.round(v * 100) / 100;
-      return {text, chars, ink: r2(ink), avail: r2(avail),
-        slack: r2(avail - ink), need: r2(chars * penalty)};
+      return {
+        text, chars: [...painted].length, font: face,
+        ink: r2(ink), worst: r2(worst), modelled: r2(modelled), avail: r2(avail),
+        need: r2(worst + Math.max(worst * comfort, 2)),
+      };
     });
-  }, ADVANCE_ROUNDING_PX);
+  }, RASTER_COMFORT);
 }
 
 /**
- * The zone titles are whole AND keep the margin that makes them whole
- * everywhere. Both halves are asserted at every profile — a fit claim proved
- * at one resolution is a claim about one resolution, and one proved on one
- * platform is a claim about one platform.
+ * The zone titles are whole AND stay whole wherever this runs. Asserted at
+ * every profile: a fit claim proved at one resolution is a claim about one
+ * resolution, and one proved on one platform is a claim about one platform.
  */
 async function expectTitlesFit(page: Page, where: string) {
   const fits = await headFits(page);
   console.log(`[strat head · ${where}] ` + fits.map((f) =>
-    `«${f.text}» ink ${f.ink} · column ${f.avail} · slack ${f.slack} (need ${f.need})`).join(' | '));
+    `«${f.text}» ${f.font} ink ${f.ink} → worst ${f.worst} · column ${f.avail} (need ${f.need})`)
+    .join(' | '));
   expect(fits.length, 'both zone heads were measured').toBe(2);
 
+  for (const f of fits) {
+    // The face has to be the panel's own, or every width below is about a
+    // typeface this rail never renders.
+    expect(f.font, `the head was measured in the console face — ${where}`).toBe('Prototype');
+    // The model reproduces the engine's own layout before it is trusted to
+    // extrapolate from it.
+    // It may legitimately differ by the rounding itself — up to a pixel per
+    // glyph — but no further: this catches the model measuring a DIFFERENT
+    // string (the uppercase transform), face or size, which is the way it
+    // would silently stop guarding anything.
+    expect(Math.abs(f.modelled - f.ink),
+      `the advance model tracks the laid-out line («${f.text}», ${where})`)
+      .toBeLessThanOrEqual(Math.max(2, f.chars * MODEL_TOLERANCE));
+  }
+
+  // ① This run's own truth: nothing is ellipsized HERE …
   const deficits = await page.evaluate(() =>
     [...document.querySelectorAll('.con-strat__title')].map((t) => t.scrollWidth - t.clientWidth));
   for (const d of deficits) {
     expect(d, `zone title fully visible (no ellipsis) — ${where}`).toBeLessThanOrEqual(1);
   }
+  // ② … and it would still be whole on a platform that snaps every advance up.
   for (const f of fits) {
-    expect(f.slack, `«${f.text}» keeps its cross-platform margin — ${where}`)
+    expect(f.avail, `«${f.text}» survives whole-pixel glyph advances — ${where}`)
       .toBeGreaterThanOrEqual(f.need);
   }
 }
