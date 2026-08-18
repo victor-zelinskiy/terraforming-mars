@@ -179,28 +179,31 @@ export async function focusCard(page: Page, card: string, maxMoves = 14): Promis
  * what was offered when the deal didn't contain it.
  */
 export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMoves = 20): Promise<Array<string>> {
-  // THE DEAL FIRST. A step's cards arrive on a STAGGERED cinematic, and only
-  // the LIVE pane carries `data-zoom-slot` (`ConsoleStartScene.vue:123`) — so a
-  // walk that starts before the pane is live reads '' from every focus probe,
-  // spends its whole move budget going nowhere, and returns a deal it never
-  // looked at. Bounded, and never an assertion: what it actually found is what
-  // gets returned and reported.
-  await page.waitForFunction(
-    () => document.querySelector('.con-cards__slot--focused[data-zoom-slot]') !== null,
-    undefined, {timeout: 15_000}).catch(() => { /* reported by the caller */ });
+  await waitStepDealSettled(page);
 
   const hit = new Set<string>();
   for (let i = 0; i < maxMoves && hit.size < cards.length; i++) {
     const focused = await focusedCard(page);
     if (cards.includes(focused) && !hit.has(focused)) {
       // ACT → VERIFY, never «pressed = picked». This is rule 4 of this very
-      // file — a press is SWALLOWED by design often enough (an arriving card
-      // under `con-deal-hold`, a commit gate, a step that has just changed) —
-      // and this function was the one place that broke it: it recorded the
-      // INTENT. A spec then asserted on a deal it never took, and the failure
-      // surfaced two screens later as «the card must still be queued», naming
-      // the wrong thing entirely.
-      for (let attempt = 0; attempt < 2 && !hit.has(focused); attempt++) {
+      // file — a press is SWALLOWED by design often enough (an arriving card,
+      // a commit gate, a step that has just changed) — and this function was
+      // the one place that broke it: it recorded the INTENT. A spec then
+      // asserted on a deal it never took, and the failure surfaced two screens
+      // later as «the card must still be queued», naming the wrong thing.
+      //
+      // ONE PRESS PER LAP, and the «already picked» test FIRST: A is a TOGGLE,
+      // so a second press inside the same lap would UNDO a pick that merely
+      // confirmed slower than the poll waited. The walk comes back round, so a
+      // swallowed press is retried on the next lap — the self-healing lives
+      // HERE, in the primitive. It used to live in the caller's luck: the old
+      // blind version returned success, the step stayed unsatisfied, and
+      // `walkToSummary`'s outer loop happened to re-enter the same step and
+      // pick the card properly. A spec asserting INSIDE its `onStep` hook does
+      // not get that second chance.
+      if ((await pickedCards(page)).includes(focused)) {
+        hit.add(focused);
+      } else {
         await press(page, 'Enter', 520);
         if (await pickRegistered(page, focused)) {
           hit.add(focused);
@@ -215,10 +218,30 @@ export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMov
 }
 
 /**
+ * The step's deal is ON SCREEN and has stopped moving.
+ *
+ * Two structural facts. Only the LIVE pane carries `data-zoom-slot`
+ * (`ConsoleStartScene.vue:123`), so before it is live every focus probe reads
+ * '' and a walk spends its whole move budget going nowhere — which is exactly
+ * how a deal that DID contain the subject card was reported as one that did
+ * not. And a card still ARRIVING wears `con-deal-hold`: it is being drawn by a
+ * flying proxy, and an A aimed at it is the press this driver documents as
+ * swallowed by design.
+ *
+ * Bounded, and never an assertion: whatever the walk then finds is what gets
+ * returned, and the caller is the one that reports it.
+ */
+async function waitStepDealSettled(page: Page, maxMs = 15_000): Promise<void> {
+  await page.waitForFunction(() =>
+    document.querySelector('.con-cards__slot--focused[data-zoom-slot]') !== null &&
+    document.querySelectorAll('.con-cards__slot[data-zoom-slot].con-deal-hold').length === 0,
+  undefined, {timeout: maxMs}).catch(() => { /* reported by the caller */ });
+}
+
+/**
  * Did the STEP register the pick? Polled, because the answer arrives with the
- * step's own render — and bounded, because a second A on a card that is
- * already picked UNPICKS it: this must not turn a slow confirmation into a
- * retry that undoes the pick.
+ * step's own render — and bounded, because the caller must be free to come
+ * round and try again rather than press twice into the same lap.
  */
 async function pickRegistered(page: Page, card: string, maxMs = 1_800): Promise<boolean> {
   const started = Date.now();
