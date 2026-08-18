@@ -4,11 +4,14 @@ import * as path from 'node:path';
 import {
   bootIntoGame,
   createGameWithCards,
+  offeredCards,
   openConsole,
   pickCalmCorporation,
   pickCards,
+  pickedCards,
   playQueueCard,
   playQueueUntil,
+  queueCards,
   soloGameConfig,
   submitSummary,
   walkToSummary,
@@ -110,7 +113,13 @@ async function prepareExperimentalForest(
         await pickCalmCorporation(stepPage);
       } else if (kind === 'prelude') {
         const picked = await pickCards(stepPage, preludes);
-        expect(picked, `the prelude deal must offer ${preludes.join(' + ')}`)
+        // NAME THE DEAL, not «not found»: «the deal never held it» and «the
+        // walk failed to take it» are different bugs with the same symptom,
+        // and only the offered list tells them apart on a runner nobody can
+        // attach a debugger to.
+        expect(picked, `the prelude deal must offer ${preludes.join(' + ')} — ` +
+          `offered [${(await offeredCards(stepPage)).join(', ')}], ` +
+          `picked [${(await pickedCards(stepPage)).join(', ')}]`)
           .toEqual(expect.arrayContaining(preludes));
       }
     },
@@ -120,8 +129,9 @@ async function prepareExperimentalForest(
   // Leave the subject card standing. The shared queue driver resolves the
   // corporation and the harmless second prelude, but Experimental Forest's
   // own response (draw + placement) remains entirely owned by this spec.
-  expect(await playQueueUntil(page, 'Experimental Forest'),
-    'Experimental Forest must still be queued for the admission assertion').toBeTruthy();
+  const leftQueued = await playQueueUntil(page, 'Experimental Forest');
+  expect(leftQueued, 'Experimental Forest must still be queued for the admission assertion — ' +
+    `queue now [${(await queueCards(page)).join(', ')}]`).toBeTruthy();
 }
 
 test.describe('console prompt admission · a draw and a placement in ONE response', () => {

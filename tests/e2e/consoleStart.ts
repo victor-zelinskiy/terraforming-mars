@@ -179,18 +179,56 @@ export async function focusCard(page: Page, card: string, maxMoves = 14): Promis
  * what was offered when the deal didn't contain it.
  */
 export async function pickCards(page: Page, cards: ReadonlyArray<string>, maxMoves = 20): Promise<Array<string>> {
+  // THE DEAL FIRST. A step's cards arrive on a STAGGERED cinematic, and only
+  // the LIVE pane carries `data-zoom-slot` (`ConsoleStartScene.vue:123`) — so a
+  // walk that starts before the pane is live reads '' from every focus probe,
+  // spends its whole move budget going nowhere, and returns a deal it never
+  // looked at. Bounded, and never an assertion: what it actually found is what
+  // gets returned and reported.
+  await page.waitForFunction(
+    () => document.querySelector('.con-cards__slot--focused[data-zoom-slot]') !== null,
+    undefined, {timeout: 15_000}).catch(() => { /* reported by the caller */ });
+
   const hit = new Set<string>();
   for (let i = 0; i < maxMoves && hit.size < cards.length; i++) {
     const focused = await focusedCard(page);
     if (cards.includes(focused) && !hit.has(focused)) {
-      await press(page, 'Enter', 520);
-      hit.add(focused);
+      // ACT → VERIFY, never «pressed = picked». This is rule 4 of this very
+      // file — a press is SWALLOWED by design often enough (an arriving card
+      // under `con-deal-hold`, a commit gate, a step that has just changed) —
+      // and this function was the one place that broke it: it recorded the
+      // INTENT. A spec then asserted on a deal it never took, and the failure
+      // surfaced two screens later as «the card must still be queued», naming
+      // the wrong thing entirely.
+      for (let attempt = 0; attempt < 2 && !hit.has(focused); attempt++) {
+        await press(page, 'Enter', 520);
+        if (await pickRegistered(page, focused)) {
+          hit.add(focused);
+        }
+      }
     }
     if (hit.size < cards.length) {
       await press(page, 'ArrowRight', 280);
     }
   }
   return [...hit];
+}
+
+/**
+ * Did the STEP register the pick? Polled, because the answer arrives with the
+ * step's own render — and bounded, because a second A on a card that is
+ * already picked UNPICKS it: this must not turn a slow confirmation into a
+ * retry that undoes the pick.
+ */
+async function pickRegistered(page: Page, card: string, maxMs = 1_800): Promise<boolean> {
+  const started = Date.now();
+  while (Date.now() - started < maxMs) {
+    if ((await pickedCards(page)).includes(card)) {
+      return true;
+    }
+    await page.waitForTimeout(150);
+  }
+  return false;
 }
 
 /** What the CURRENT step is offering (English `CardName`s) — for a failure
