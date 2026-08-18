@@ -274,13 +274,27 @@ async function sceneCensus(page: Page): Promise<Record<string, number>> {
   });
 }
 
+/**
+ * RECV_PERF_NOSHOT=1 — a PURE-VIDEO pass: every screenshot (including the
+ * 8×8 BeginFrame pump) is suppressed. The Playwright recorder muxes GRAY
+ * frames whenever captures interleave with it — the only way to a clean
+ * flow recording is a headed run where the compositor is left alone.
+ */
+const NOSHOT = process.env.RECV_PERF_NOSHOT === '1';
+
 async function shoot(page: Page, name: string): Promise<void> {
+  if (NOSHOT) {
+    return;
+  }
   fs.mkdirSync(OUT, {recursive: true});
   await page.screenshot({path: path.join(OUT, `${name}.png`)});
 }
 
 /** Headless Chromium starves rAF on a static frame — force a BeginFrame. */
 async function forceFrame(page: Page): Promise<void> {
+  if (NOSHOT) {
+    return; // headed pure-video pass: the compositor runs free
+  }
   await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}}).catch(() => {});
 }
 
@@ -477,7 +491,7 @@ async function runEpisode(page: Page, cdp: CDPSession, card: string, shotPrefix:
       shotDock = true;
       cdpDocked = await cdpMetrics(cdp);
       await shoot(page, `${shotPrefix}-docked`);
-      if (process.env.RECV_PERF_VIDEO === '1') {
+      if (process.env.RECV_PERF_VIDEO === '1' && !NOSHOT) {
         // VISUAL mode: a clipped BURST of the shelf zone through the effect-
         // resolution window (emergence → chips → settle) — a full 4K frame
         // costs more than the docked beat lasts, the clipped half costs half.
