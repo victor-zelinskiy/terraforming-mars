@@ -138,6 +138,30 @@ the LONGER of the two moves and both ride an expo-out tail.
   fix: the framing was untouched when the board returned, then re-derived
   ~800ms later and glided — 997→902px wide on one trip and back to 910 on
   the next, oscillating, never converging.
+- **…BUT A FRAMING MODE CHANGE IS ONE** (`fitMode`) — the other side of the
+  same key, and the bug it shipped is the whole mode failing to look engaged.
+  The mode ENGAGES ON THE RAW PROMPT (decision 1), which routinely arrives
+  while a workspace still owns the screen: a card played out of the HAND
+  leaves the shell on the `hand` section, so the board is `v-show`n away and
+  the placement is held behind the played-hero and the outcome's reward beats.
+  `fitBoard` bails on a 0×0 stage, so the focus fit is skipped — and when the
+  outcome outlasts the enter transition (any card with a production/reward
+  stage does), the mode's own `entering → active` re-fit lands in that same
+  hidden window and is skipped too. The board then comes back to THE SAME BOX
+  it left with, and the key alone answered "already fitted": the player got
+  receded arcs, the veil and a compact dock around a planet at OVERVIEW size.
+  Reported on «Колонисты в лавовых трубках»; traced with a rAF probe —
+  `pfocus-settled` at t=6597 with the stage still 0×0, board back at t=7414,
+  `--board-scale` never leaving 1.6876. The identity is now (frame, mode), so
+  the return is a real re-derivation and the fit it never got runs there
+  (~one frame after the board appears; the permanent transform transition
+  glides the growth). `restoreNormalFraming` sets the mode back
+  unconditionally — an exit that lands while the board is hidden cannot
+  measure a box, but the framing it replayed is a normal one all the same.
+  Guarded by `console-planet-focus.spec.ts` § «a placement handed over from
+  the HAND», which plays a card whose outcome is SLOW on purpose («Мохол»:
+  production, then the tile) and asserts both that the mode really took a
+  hidden stage and that the planet grew.
 - **…which means the convergence has to FINISH where it starts.** The old
   budget was 2 passes per "fit cycle", and any stage resize re-opened it —
   so an unfinished boot convergence was not a bug that showed, it was a bug

@@ -222,6 +222,27 @@ export default defineComponent({
        * licenses a new fit.
        */
       fitKey: undefined as string | undefined,
+      /**
+       * WHICH FRAMING that key belongs to — the second half of the same
+       * identity, and it is load-bearing.
+       *
+       * Planet Focus engages on the RAW prompt, which routinely arrives while
+       * a WORKSPACE still owns the screen (a card played from the hand: the
+       * placement is held behind the played-hero and the outcome's reward
+       * beats, the board is `v-show`n away). The stage is 0×0 there, so the
+       * focus fit is SKIPPED — and the mode's own `entering → active` re-fit
+       * lands in that same hidden window whenever the outcome outlasts the
+       * enter transition, which it routinely does. The board then comes back
+       * to THE SAME BOX it left with, so the key alone said «already fitted»
+       * and nothing ever fitted the focus: the player got the whole mode —
+       * receded arcs, veil, compact dock — around a planet at OVERVIEW size.
+       *
+       * The mode is deliberately NOT folded into `fitKey`: an exit that lands
+       * while the board is hidden cannot re-measure the box, and it must still
+       * be able to say «this geometry is now a NORMAL framing» without
+       * inventing one — see `restoreNormalFraming`.
+       */
+      fitMode: 'normal' as 'normal' | 'focus',
       /** The first fit has landed — from here every scale change GLIDES. */
       fitted: false,
       /** A board transform is in flight: measurements are meaningless until
@@ -314,7 +335,15 @@ export default defineComponent({
     // board center (predictable landing); leaving keeps the last cell.
     placementActive(now: boolean) {
       if (now) {
-        void this.$nextTick(() => this.seed(true));
+        void this.$nextTick(() => {
+          this.seed(true);
+          // The placement is what BRINGS the board back (`goBoardHome`), and
+          // a Planet Focus that engaged while the stage was hidden is still
+          // owed its fit. Deterministic here rather than only on the
+          // ResizeObserver's word; a framing that is already current is a
+          // no-op (the key matches).
+          this.scheduleFit();
+        });
       }
     },
     selectedSpaceId: {
@@ -415,6 +444,13 @@ export default defineComponent({
       const phase = this.planetFocusState.phase;
       if (phase === 'entering' || phase === 'active') {
         this.fitPlanetFocus(stage, r);
+        // The FOCUS framing belongs to this frame just as the normal one does.
+        // Stamping it is what makes a SKIPPED focus fit recoverable: while the
+        // stage was hidden nothing was stamped, so the pair still names the
+        // NORMAL framing, and the board's return is a genuine mode change that
+        // re-opens the fit (see `fitMode`).
+        this.fitKey = this.stageFrame(r);
+        this.fitMode = 'focus';
         return;
       }
       // The stage's box is CONSTANT across the whole focus cycle now (the
@@ -430,7 +466,8 @@ export default defineComponent({
       // This framing now belongs to THIS frame — a later resize back to the
       // same box is a no-op (`scheduleFit`), and the convergence below is the
       // only thing still allowed to refine it.
-      this.fitKey = `${Math.round(r.width)}x${Math.round(r.height)}@${window.innerWidth}x${window.innerHeight}`;
+      this.fitKey = this.stageFrame(r);
+      this.fitMode = 'normal';
       // P29: refine against the REAL rendered content (next frame — the new
       // scale must paint first so the union bbox reflects it).
       this.scheduleCalibrate();
@@ -569,8 +606,14 @@ export default defineComponent({
         // second correction, which is precisely the jump this replaces.
         this.calibrateLock = {w: window.innerWidth, h: window.innerHeight};
         // …and it belongs to the frame it was replayed into, so the stage's
-        // own handback (which arrives as a resize) does not re-derive it.
+        // own handback (which arrives as a resize) does not re-derive it. The
+        // MODE is restored unconditionally: an exit that lands while the board
+        // is hidden cannot measure a box, but the framing it just replayed is
+        // a normal one all the same — leaving the mode on `focus` would make
+        // the board's return a «mode change» and re-derive a framing that was
+        // deliberately replayed rather than re-fitted.
         this.fitKey = this.stageKey() ?? this.fitKey;
+        this.fitMode = 'normal';
         return;
       }
       this.restoreStageOffsets(stage);
@@ -597,10 +640,24 @@ export default defineComponent({
       this.savedBoardDy = undefined;
     },
     /**
+     * WHICH FRAMING the fit engine would derive right now — mirrors the branch
+     * in `fitBoard` exactly, and nothing else may decide it.
+     */
+    framingMode(): 'focus' | 'normal' {
+      const phase = this.planetFocusState.phase;
+      return phase === 'entering' || phase === 'active' ? 'focus' : 'normal';
+    },
+    /** A measured stage box + the viewport, as one key. Rounded, so sub-pixel
+     *  jitter is not a "change". */
+    stageFrame(r: DOMRect): string {
+      return `${Math.round(r.width)}x${Math.round(r.height)}` +
+        `@${window.innerWidth}x${window.innerHeight}`;
+    },
+    /**
      * The frame the framing is derived for: the stage box + the viewport.
      * `undefined` while the board is hidden — there is nothing to fit, and
      * nothing to remember either (the framing it will come back to is the one
-     * it left with). Rounded, so sub-pixel jitter is not a "change".
+     * it left with).
      */
     stageKey(): string | undefined {
       const stage = this.$refs.stage as HTMLElement | undefined;
@@ -611,7 +668,7 @@ export default defineComponent({
       if (r.width < 40 || r.height < 40) {
         return undefined;
       }
-      return `${Math.round(r.width)}x${Math.round(r.height)}@${window.innerWidth}x${window.innerHeight}`;
+      return this.stageFrame(r);
     },
     scheduleFit(): void {
       if (this.fitRaf !== 0) {
@@ -628,7 +685,11 @@ export default defineComponent({
         }
         // The SAME frame it was already fitted for (a v-show round trip):
         // nothing to re-derive. Re-fitting here is what moved the planet.
-        if (key === this.fitKey) {
+        // …the same frame IN THE SAME FRAMING MODE, that is: a board that
+        // comes back while Planet Focus is engaged — its focus fit skipped,
+        // because the stage was 0×0 when the mode took it (see `fitMode`) —
+        // has the same box and the WRONG framing, and gets the fit here.
+        if (key === this.fitKey && this.framingMode() === this.fitMode) {
           if (this.boardTweening) {
             this.scheduleBoardTweenCheck();
           }
