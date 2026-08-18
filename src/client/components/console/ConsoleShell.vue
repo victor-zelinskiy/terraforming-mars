@@ -283,7 +283,7 @@
            everything RIGHT of the player rail (the information-workspace
            seam geometry: left edge from --con-rail-w / --con-main-gap). The
            rail stays visible and LIT above the shared shade (the `con-ws`
-           marker + `.con-root:has(.con-ws)` lift it for as long as the
+           marker + `.con-root--ws-open` lift it for as long as the
            surface lives, leave transitions included) — the player's
            resources remain the on-screen context of every cost/gain read
            here, and the natural landing zone of the future post-confirm
@@ -5308,7 +5308,7 @@ export default defineComponent({
         'con-main--hand': this.consoleState.section === 'hand',
         'con-main--info': this.infoWorkspaceUp,
         // (No workspace entry here: every workspace surface carries the
-        // `con-ws` marker and `.con-root:has(.con-ws)` lifts the rail /
+        // `con-ws` marker and `.con-root--ws-open` lifts the rail /
         // drops the stacking trap for the whole family, holding through
         // leave transitions automatically.)
       };

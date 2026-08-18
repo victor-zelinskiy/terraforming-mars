@@ -1,5 +1,5 @@
 <template>
-  <!-- `con-ws` — the WORKSPACE-family marker: `.con-root:has(.con-ws)` lifts
+  <!-- `con-ws` — the WORKSPACE-family marker: `.con-root--ws-open` lifts
        and rings the player rail while this screen lives (leave transitions
        included), hides the ДОП.РЕСУРСЫ satellite that would paint into the
        band, and idles the board's infinite loops underneath. The hand is a

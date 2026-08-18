@@ -21,7 +21,7 @@
     `con-flight-to-board` — the DESTINATION marker. This flight lands on a
     live board hex (`.board-space[data_space_id]`), which a workspace surface
     covers with the shared shade. So while one is docked, this layer recedes
-    BENEATH the shade (`.con-root:has(.con-ws)` in console.less) instead of
+    BENEATH the shade (`.con-root--ws-open` in console.less) instead of
     flying bright over the panel the player is reading — another player's
     city used to do exactly that. Declare the marker ONLY if the flight truly
     ends on the board: a layer that lands on the rail, the «Разыграно» table,

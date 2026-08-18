@@ -2,7 +2,7 @@
   <!-- data-motion-*: rides the shared `.con-shade` dim + the surface-motion
        director (surfaceMotionDirector) — no own backdrop; the frame is the
        animated panel, the composer above is its own motion surface. -->
-  <!-- `con-ws` — the workspace-family marker: `.con-root:has(.con-ws)` lifts
+  <!-- `con-ws` — the workspace-family marker: `.con-root--ws-open` lifts
        the player rail above the dims while this surface lives (leave
        transitions included). -->
   <!-- `data-flow` — the EXPLICIT transition state (browse · entering ·

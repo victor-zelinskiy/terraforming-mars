@@ -583,9 +583,10 @@ html.console-native {
    bars AND right of the always-visible player rail (resources / production /
    tags stay on-screen context — and the physical landing zone of resource
    flights). A surface adopting it MUST also carry the `con-ws` marker class on
-   its root: `.con-root:has(.con-ws)` below lifts the rail above the shade /
-   the surface's own backdrop for exactly as long as the surface lives in the
-   DOM (leave transitions included — the hold-through-dismiss is free).
+   its root: `.con-root--ws-open` (published by `conWsPresenceBridge.ts` from
+   that marker's DOM presence) below lifts the rail above the shade / the
+   surface's own backdrop for exactly as long as the surface lives in the DOM
+   (leave transitions included — the hold-through-dismiss is free).
    Deliberately NOT for what owns the WHOLE screen: cinematics (reveal /
    ceremonies / the mandatory gate / the start scene's preparation phase /
    endgame), fullscreen inspect, the system menu, and the app-level flight
@@ -3315,11 +3316,11 @@ html.con-profile-handheld .con-terracere {
 }
 
 /* (The old `.con-main--actws` state is retired: EVERY workspace surface now
-   carries the `con-ws` marker and `.con-root:has(.con-ws)` — defined next to
-   the workspace-band mixin — lifts the rail for the whole family, holding
-   automatically through leave transitions. `--info` below stays: the
-   Information Workspace lives INSIDE .con-main and wins its own rail
-   treatment on top of the generic one.) */
+   carries the `con-ws` marker, and `.con-root--ws-open` — published from that
+   marker's DOM presence, defined next to the workspace-band mixin — lifts the
+   rail for the whole family, holding automatically through leave
+   transitions. `--info` below stays: the Information Workspace lives INSIDE
+   .con-main and wins its own rail treatment on top of the generic one.) */
 
 /* The INFORMATION WORKSPACE (Y) is open (or still dismissing): the trap
    drops so the workspace child (`.con-info`, z11560) and the ELEVATED rail
