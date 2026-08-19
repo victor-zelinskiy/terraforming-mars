@@ -29,6 +29,8 @@ export type WirePrompt = {
   options?: Array<WirePrompt>,
   cards?: Array<{name: string, calculatedCost?: number}>,
   spaces?: Array<string>,
+  coloniesModel?: Array<{name: string}>,
+  disabledColonies?: Array<{name: string, reason?: unknown}>,
   finalGreeneryPrompt?: unknown,
 };
 export type WireModel = {
@@ -89,6 +91,18 @@ export function genericAnswer(prompt: WirePrompt, pickCards?: ReadonlyArray<stri
   }
   case 'amount':
     return {type: 'amount', amount: prompt.min ?? 0};
+  case 'colony': {
+    // «Выберите колонию» arrives NESTED (a played card's effect, a standard
+    // project's target step) and the journey used to die on it — the harness
+    // had no answer, so the whole endgame walk failed before it began,
+    // whenever the random game happened to deal a colony builder.
+    // The server REFUSES a disabled colony, so answering with one would stall
+    // the journey on a prompt that never moves.
+    const blocked = new Set((prompt.disabledColonies ?? []).map((d) => d.name));
+    const open = (prompt.coloniesModel ?? []).map((c) => c.name).filter((n) => !blocked.has(n));
+    expect(open.length, `«${titleOf(prompt)}» offered no colony that is not disabled`).toBeGreaterThan(0);
+    return {type: 'colony', colonyName: open[0]};
+  }
   case 'and':
     return {type: 'and', responses: (prompt.options ?? []).map((o) => genericAnswer(o))};
   case 'or':

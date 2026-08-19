@@ -140,7 +140,16 @@ test.describe('hand dock · standard 1080', () => {
 
     // ── live on the board home, mathematically centred ──────────────
     const dock = page.locator('.con-handdock');
-    await expect(dock).toHaveClass(/con-handdock--live/);
+    // THE BOARD HOME HAS TO ARRIVE BEFORE ITS POSE CAN BE READ. `bootIntoGame`
+    // answers the pregame over the API and opens the console; the fixed 1.2 s
+    // after it is a guess, and on a loaded runner the shell is still finishing
+    // its opening when this fires. The dock then honestly reports
+    // `--compact --hot` — not-interactive-yet plus «you hold playable cards» —
+    // which is a frame of the BOOT, not the standing pose this spec is about.
+    // `--live` IS that gate (`interactive`), so waiting on it is the wait, not
+    // a softened claim.
+    await expect(dock, 'the board home settles and the dock becomes interactive')
+      .toHaveClass(/con-handdock--live/, {timeout: 60_000});
     await assertDockCentered(page);
     // Silhouettes mirror the REAL hand (server truth; preludes may draw).
     const hand = await handSize(request, playerId);

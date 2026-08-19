@@ -246,10 +246,38 @@ later in the same file).
   (`hud+1.75`), `.con-banner--events` (`hud+4.55`), the console
   `notifications-layer` (`hud+1.9`), `.con-notice`
   (`band-bottom + 1.3`). No per-profile re-anchors remain.
-- **Feedback chips flip DOWN in the top rail**: at y=0 a chip popping above
-  the readout leaves the screen, so `.con-status` overrides the
-  `--global-parameter` / `--misc` host anchors to `bottom: -1.35rem` — a
-  transient overlay over the board's top edge.
+- **Feedback chips flip DOWN in the top rail — from the BEAM's seam, on ONE
+  line** *(2026-08-19)*: at y=0 a chip popping above the readout leaves the
+  screen, so `.con-status` overrides the `--global-parameter` / `--misc` host
+  anchors to hang below — a transient overlay over the board's top edge. WHICH
+  line is the load-bearing half. A fixed under-the-cell drop (`bottom:
+  -1.35rem`) was calibrated against one cell in one profile and drifted with
+  every rail-height pass: the beam's readouts are different heights (1.8rem
+  icon row / bare percent / the deck's count) and none reaches the beam's edge,
+  so three parameters moving in one response printed three chips on three
+  lines, each several px adrift INSIDE the scene. Every cell is CENTRED in the
+  beam, so the anchor is
+  `top: calc(50% + var(--con-hud-h) * .5 + var(--con-status-chip-drop))` —
+  50% of the cell plus half the beam IS the seam, whatever the cell's height
+  and the profile's token, with no layout change to the cells. `top` and never
+  `bottom`: the TV profile ZOOMS the chip, and a bottom anchor would drop its
+  own height difference below the line. The host is `display: flex` here (an
+  inline child rides its line box's baseline, which drifted the painted line
+  from the computed one per cell's inherited font metrics), and the drop token
+  tucks the chip a hair INTO the beam so it reads as sliding out from under it.
+  ⚠️ The chip's containing block must never be the element the readout's own
+  POP runs on: `global-num-transition-*` carries a scale + translate, so the
+  percent — whose pop ran on `.con-status__terra-pct` itself — dragged its own
+  chip (arriving at 0.92 scale, off the line, drifting as the number settled).
+  Every readout now pops its DIGITS (`.con-status__value` / `> .con-flipval`).
+- **The bottom bar's count chip is NOT that mirrored**: the space above the
+  bar belongs to the HAND (the pack rises through it) and
+  `.con-handdock__plate` CLIPS its children (the kant `clip-path`), so a chip
+  pushed above the rim is cut away outright. The dock's `--misc` host therefore
+  stays on the readout's own line and steps to the RIGHT of the total it
+  reports (`top: 50%; left: 100%` + `translateY(-50%)`) — the shared desktop
+  anchor (8px above the cell) landed straight THROUGH «КАРТЫ n/m» once the bar
+  became one welded line.
 - The FINAL generation is **colour only**: the label renders the ordinary
   `GEN.` key («ПКЛ.») always; the `--final` class recolours label + value
   gold. Never an added word/badge/icon (the «ФИНАЛЬНОЕ» word is gone, the
@@ -264,7 +292,12 @@ later in the same file).
   the bottom edge full width; root padding `0px`; plate flush with the bar;
   `.con-main` == viewport − 2×(rail+gap); both side rails stretch to it;
   the generation label carries no final marker; the board stage clears the
-  dock card tops. Screenshots → `screenshots/hud-frame/<preset>/`.
+  dock card tops; **§ 9 — both beams' feedback chips**: every top-rail chip on
+  ONE line and that line IS the seam (the probe mounts the shared feedback DOM
+  into every chip-bearing cell at once — simultaneity is the failure mode, and
+  a live chip's own enter transition makes it a moving target while its anchor
+  is not), the dock chip clear of the digits, inside the clipped plate and
+  inside the bar. Screenshots → `screenshots/hud-frame/<preset>/`.
 - `tests/client/components/console/consoleStatusStrip.spec.ts` § generation
   label — ordinary vs final: same `GEN.` text, `--final` class only.
 

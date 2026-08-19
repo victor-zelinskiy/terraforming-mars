@@ -22,7 +22,11 @@ import * as path from 'node:path';
  *  5. the generation block reads the ordinary «ПКЛ. N» — the final
  *     generation may only ever recolour it (guarded at the unit level too);
  *  6. nothing overlaps: the board stage clears the dock's card tops, the
- *     rails clear the side panels.
+ *     rails clear the side panels;
+ *  7. each beam's FEEDBACK CHIPS resolve from the beam, not from whichever
+ *     readout changed: the top rail's hang from its seam on ONE shared line,
+ *     the bottom bar's stays on the counter's line beside the digits (the
+ *     plate clips, and the space above it belongs to the hand).
  *
  * Parameterised over FHD (standard profile) and 4K (forced tv profile,
  * --con-ui-scale = 2) — a geometry claim asserted at one resolution is a
@@ -210,7 +214,88 @@ for (const preset of PRESETS) {
       expect(Math.abs(seamRight - g.gapPx), `right seam ${seamRight} == gap ${g.gapPx}`).toBeLessThanOrEqual(eps);
       expect(Math.abs(seamTop - g.gapPx), `top seam ${seamTop} == gap ${g.gapPx}`).toBeLessThanOrEqual(eps);
 
-      // ── 9 · a WORKSPACE is a state of the scene: its stage welds to the
+      // ── 9 · THE BEAMS' FEEDBACK CHIPS: one line per beam, and never
+      // through the readout they report on. ──
+      // The subject is the CSS ANCHOR contract, so the probe mounts the
+      // shared feedback DOM (`metric-feedback-host--*` + `delta-chip--*` —
+      // the very classes AnimatedMetricValue renders) into EVERY chip-bearing
+      // cell at once: that simultaneity is the failure mode. Each host used
+      // to hang off its OWN cell's bottom, and the beam's readouts are
+      // different heights (a 1.8rem icon row, a bare percent, the deck's
+      // count), so three parameters moving in one response printed three
+      // chips on three lines, each several px adrift INSIDE the scene — the
+      // beam's answer read as debris over the board. A LIVE chip is a moving
+      // target (its enter transition carries a translate + scale); the anchor
+      // it settles onto is not, which is what this measures.
+      const chipGeom = await page.evaluate(() => {
+        const mount = (cell: Element, variant: string) => {
+          const host = document.createElement('span');
+          host.className = `metric-feedback-host metric-feedback-host--${variant} ` +
+            'metric-feedback-host--active-positive';
+          host.dataset.chipProbe = '1';
+          const chip = document.createElement('span');
+          chip.className = `delta-chip delta-chip--${variant} delta-chip--positive`;
+          chip.innerHTML = '<span class="delta-chip__sign">+</span><span class="delta-chip__value">2</span>';
+          host.appendChild(chip);
+          cell.appendChild(host);
+          return chip.getBoundingClientRect();
+        };
+        const box = (el: Element | null) => el === null ? undefined : (({top, bottom, left, right}) =>
+          ({top, bottom, left, right}))(el.getBoundingClientRect());
+        const beamCells: Array<Element> = [
+          ...Array.from(document.querySelectorAll('.con-status__param')),
+          ...Array.from(document.querySelectorAll('.con-status__terra-pct')),
+        ];
+        const beam = beamCells.map((c) => mount(c, 'global-parameter'));
+        const deckCell = document.querySelector('.con-deckstack__count');
+        if (deckCell !== null) {
+          beam.push(mount(deckCell, 'misc'));
+        }
+        const ratio = document.querySelector('.con-handdock__ratio');
+        const dock = ratio === null ? undefined : mount(ratio, 'misc');
+        const geom = {
+          strip: box(document.querySelector('.con-status')),
+          plate: box(document.querySelector('.con-handdock__plate')),
+          ratio: box(ratio),
+          beam: beam.map((r) => ({top: r.top, bottom: r.bottom, left: r.left, right: r.right})),
+          dock: dock === undefined ? undefined : {top: dock.top, bottom: dock.bottom, left: dock.left, right: dock.right},
+        };
+        // The probes are scaffolding — later sections photograph this screen.
+        document.querySelectorAll('[data-chip-probe]').forEach((n) => n.remove());
+        return geom;
+      });
+      expect(chipGeom.beam.length, 'every global readout carries a chip host').toBeGreaterThanOrEqual(4);
+      const beamSeam = chipGeom.strip?.bottom ?? 0;
+      const chipTops = chipGeom.beam.map((c) => c.top);
+      expect(Math.max(...chipTops) - Math.min(...chipTops),
+        `every chip in the top beam hangs from ONE line (tops: ${chipTops.map((t) => t.toFixed(1)).join(', ')})`)
+        .toBeLessThanOrEqual(eps);
+      expect(Math.abs(chipTops[0] - beamSeam),
+        `and that line IS the beam's seam (${chipTops[0].toFixed(1)} vs ${beamSeam})`)
+        .toBeLessThanOrEqual(0.35 * g.remPx);
+      for (const c of chipGeom.beam) {
+        expect(c.bottom, 'the chip hangs INTO the scene, never inside the beam').toBeGreaterThan(beamSeam);
+      }
+      // The BOTTOM beam is not the top one mirrored: the space above it
+      // belongs to the hand (the pack rises through it) and the plate clips
+      // its own children, so the count's chip stays on the readout's line and
+      // steps to the RIGHT of the total it reports — never over the digits.
+      expect(chipGeom.dock, 'the dock counter carries a chip host').not.toBe(undefined);
+      if (chipGeom.dock !== undefined && chipGeom.ratio !== undefined && chipGeom.plate !== undefined) {
+        expect(chipGeom.dock.left, 'the chip clears the «КАРТЫ n/m» digits it reports on')
+          .toBeGreaterThanOrEqual(chipGeom.ratio.right - eps);
+        expect(Math.abs((chipGeom.dock.top + chipGeom.dock.bottom) / 2 -
+          (chipGeom.ratio.top + chipGeom.ratio.bottom) / 2),
+        'and rides the same line as the digits').toBeLessThanOrEqual(2 * eps);
+        // The plate's kant clip-path cuts 1.15rem off its bottom-right — a
+        // chip past that line is not "slightly outside", it is INVISIBLE.
+        expect(chipGeom.dock.right, 'the chip stays inside the clipped plate shape')
+          .toBeLessThanOrEqual(chipGeom.plate.right - 1.15 * g.remPx);
+        expect(chipGeom.dock.top, 'and inside the bar, never behind the rising pack')
+          .toBeGreaterThanOrEqual(g.bar.top - eps);
+      }
+
+      // ── 10 · a WORKSPACE is a state of the scene: its stage welds to the
       // right edge, square (no modal card), content inside the safe inset. ──
       for (let i = 0; i < 5 && await page.locator('.con-hand').count() === 0; i++) {
         if (await page.locator('.con-zoom, .con-quick, .con-composer').count() > 0) {
@@ -266,7 +351,7 @@ for (const preset of PRESETS) {
       await page.keyboard.press('Escape');
       await page.waitForTimeout(900);
 
-      // ── 10 · ADAPTIVE SURFACES: the freed area becomes CONTENT, never
+      // ── 11 · ADAPTIVE SURFACES: the freed area becomes CONTENT, never
       // background. ──
       // The right STRATEGY RAIL: the top competition zone names itself
       // («ДОСТИЖЕНИЯ» — the actions wheel never returns to this rail), and

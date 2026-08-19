@@ -520,12 +520,24 @@ test.describe('draft workspace · the between-generations flow', () => {
     // later on the terminal-beat poll — which is not the thing that broke.
     // Assert the commit HERE, where the cause still has a name.
     let committed = false;
+    let seen = await surface(page);
     for (const deadline = Date.now() + 90_000; !committed && Date.now() < deadline;) {
+      seen = await surface(page);
+      // PRESS INTO THE STAGE THAT COMMITS, never blindly. The restore brings
+      // the workspace back through its own entry motion, and an RT that lands
+      // before the BUY stage is painted is swallowed — forty of those look
+      // exactly like a server refusing to commit, and that is the reading this
+      // loop reported.
+      if (!seen.buy) {
+        await page.waitForTimeout(500);
+        continue;
+      }
       await press(page, 'Period', 1400);
       const m = await modelOf(request, first.id) as WireModel & {thisPlayer?: {needsToResearch?: boolean}};
       committed = m.thisPlayer?.needsToResearch === false || m.game.phase === 'action';
     }
-    expect(committed, 'RT committed the research — the server cleared needsToResearch').toBeTruthy();
+    expect(committed, 'RT committed the research — the server cleared needsToResearch ' +
+      `(last surface: ${JSON.stringify(seen)})`).toBeTruthy();
     // The terminal beat is a BOUNDED window (the workspace releases itself
     // right after it) — poll for the beat OR the release, and record which
     // one the sampler caught; missing the beat under driver latency must not
