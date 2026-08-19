@@ -18,6 +18,7 @@ import {SimpleDeferredAction} from '../deferredActions/DeferredAction';
 import {AwardScorer} from '../awards/AwardScorer';
 import {AutomaAres} from './AutomaAres';
 import {AutomaCorporations} from './corps/AutomaCorporations';
+import {AutomaHumanTagReactions} from './AutomaHumanTagReactions';
 import {cardResourceAttackPrompt} from './AutomaAttackPrompt';
 import {AutomaColonies} from './AutomaColonies';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
@@ -101,6 +102,9 @@ function drawAndResolveProjectCard(game: IGame): boolean {
   // The corporation's "When resolving a card …" effect covers THIS path too
   // (R&D / the Neural Instance fallback resolve a card just like a turn flip).
   AutomaCorporations.onProjectCardResolving(game, card);
+  // …and so do the RB-B-sanctioned human reactors (Saturn Systems / Pharmacy
+  // Union / Splice) — the bot PLAYS this card, whichever door dealt it.
+  AutomaHumanTagReactions.onBotCardResolved(game, card);
   AutomaResolver.resolveProjectCard(game, card);
   automa.playedPile.push(card.name);
   return true;

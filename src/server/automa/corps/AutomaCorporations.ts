@@ -5,6 +5,7 @@ import {inplaceShuffle} from '../../utils/shuffle';
 import {IGame} from '../../IGame';
 import {IProjectCard} from '../../cards/IProjectCard';
 import {isICorporationCard} from '../../cards/corporation/ICorporationCard';
+import {AutomaHumanTagReactions} from '../AutomaHumanTagReactions';
 import {AutomaResolver} from '../AutomaResolver';
 import {bumpCorpStat, humansOf, marsBotOf} from '../AutomaUtil';
 import type {BonusCardOutcome} from '../AutomaBonusCards';
@@ -148,6 +149,10 @@ export class AutomaCorporations {
       for (const tag of corp.info.startingTags) {
         game.log('${0} resolved the starting ${1} tag of its corporation', (b) => b.player(bot).string(tag));
         AutomaResolver.resolveTag(game, tag);
+        // RB-B FAQ: a starting tag triggers the sanctioned HUMAN reactors as
+        // if a card carried it (Saturn Systems' Jovian clause; a microbe
+        // starting tag routes to Pharmacy Union / Splice).
+        AutomaHumanTagReactions.onBotNonCardTag(game, tag);
       }
     } finally {
       game.events.endScope();

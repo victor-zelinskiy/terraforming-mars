@@ -6,6 +6,7 @@ import {newProjectCard} from '../createCard';
 import {resolveBonusCard, routeBonusCard} from './AutomaBonusCards';
 import {AutomaCorporations} from './corps/AutomaCorporations';
 import {AutomaDeltaProject} from './AutomaDeltaProject';
+import {AutomaHumanTagReactions} from './AutomaHumanTagReactions';
 import {AutomaMAEvaluation} from './AutomaMAEvaluation';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {AutomaResolver} from './AutomaResolver';
@@ -103,6 +104,10 @@ export class AutomaController {
       // The corporation's "When resolving a card …" effect fires for EVERY
       // resolution, before tag processing — a Failed Action can't swallow it.
       AutomaCorporations.onProjectCardResolving(game, card);
+      // RB-B FAQ: the sanctioned HUMAN corporations (Saturn Systems, Pharmacy
+      // Union, Splice) react to the bot PLAYING this card, exactly like a
+      // human play would trigger them.
+      AutomaHumanTagReactions.onBotCardResolved(game, card);
       AutomaResolver.resolveProjectCard(game, card);
       automa.playedPile.push(entry.name);
     } else {

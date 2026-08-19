@@ -163,6 +163,14 @@ export interface ICard {
   onCardPlayed?(player: IPlayer, card: ICard): PlayerInput | undefined | void;
   onCardPlayedByAnyPlayer?(thisCardOwner: IPlayer, card: ICard, activePlayer: IPlayer): PlayerInput | undefined | void;
   onCardPlayedFromAnyPlayer?: never;
+  /**
+   * MarsBot gained a MICROBE advancement without a card — a corporation
+   * starting tag or a printed track/bonus effect (RB-B FAQ: «resolve your
+   * corporation's effect as if a card with a microbe was played»). Only the
+   * RB-B-sanctioned reactors implement it (Pharmacy Union, Splice); routed by
+   * `automa/AutomaHumanTagReactions`, never by the ordinary play dispatch.
+   */
+  onMarsBotMicrobeAdvancement?(cardOwner: IPlayer): void;
   onStandardProject?(player: IPlayer, project: IStandardProjectCard): void;
   onTilePlaced?(cardOwner: IPlayer, activePlayer: IPlayer, space: Space, boardType: BoardType): void;
   onDiscard?(player: IPlayer): void;

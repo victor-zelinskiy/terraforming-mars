@@ -39,6 +39,10 @@ Pick: приоритет корпорации; равные → случайно
 
 Растение НА карте корпорации — отдельная цель атак растений: `AutomaTargeting.corpPlantPool/removeCorpPlants` (excess is LOST, никогда не из M€-supply; вор получает ровно снятое). Опции в `RemoveAnyPlants` + `StealResources` (любой человек в мультиплеере); generic-прокси не тронут.
 
+## FAQ: human-корпорации, реагирующие на бота (RB-B)
+
+`AutomaHumanTagReactions.ts` — санкционированный **allowlist** (прецедент AutomaBans): ровно {Saturn Systems, Pharmacy Union, Splice}, как перечисляет RB-B. Диспатч из трёх точек резолва карты бота (`onBotCardResolved` — собственные `onCardPlayedByAnyPlayer` карт, атрибуция `withEffect` как у человеческого пути; возврат промпта для бота = громкий throw), из стартовых меток (`onBotNonCardTag` → `onNonCardTagAddedByAnyPlayer`, microbe → дальше) и из «microbe advancement» без карты (`onBotMicrobeAdvancement` → co-located `ICard.onMarsBotMicrobeAdvancement`; Venus-клетка 9 помечена `TrackDefinition.microbeTagCells`). Splice для бота берёт детерминированную M€-половину (микроб физически некуда класть). Исключение tracker-advance у Saturn — структурное: каскады через эти точки не проходят. Расширение санкции = новая строка в `SANCTIONED_REACTORS` + co-located хук в файле карты.
+
 ## UI
 
 - **Лицо**: `MarsBotCorpFace.vue` — семейство `mb-face` (`--corp`, `--large`); identity = `PremiumCorpIdentity` (wordmark оригинала), арт = `premiumCardArt(original)`, боксы карты с кикерами, стартовые метки только если напечатаны, счётчик ресурса.

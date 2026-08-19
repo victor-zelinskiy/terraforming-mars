@@ -33,6 +33,10 @@ export const VENUS_TRACK: TrackDefinition = {
   tags: [Tag.VENUS],
   productions: [],
   maxPosition: 12,
+  // Cell 9's printed icon is a MICROBE tag (verified vs the component) — a
+  // «microbe advancement» per RB-B FAQ: Pharmacy Union / Splice react to the
+  // bot landing here.
+  microbeTagCells: [9],
   layout: [
     undefined, // 0 — start
     'floater', // 1

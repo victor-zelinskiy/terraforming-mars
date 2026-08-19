@@ -86,12 +86,35 @@ export class Splice extends CorporationCard implements ICorporationCard {
         return undefined;
       });
 
-    if (card.resourceType === CardResource.MICROBE) {
+    if (cardPlayer.isMarsBot) {
+      // RB-B: the bot's card flip resolves this effect too, and the bot never
+      // receives a prompt. Its flipped card cannot host a microbe (the played
+      // pile keeps names, not card instances), so the M€ half is the only
+      // physically meaningful branch — taken deterministically.
+      gainMC.cb(undefined);
+    } else if (card.resourceType === CardResource.MICROBE) {
       // Card player chooses between 2 M€ and a microbe on card, if possible
       cardPlayer.defer(new OrOptions(gainResource, gainMC)
         .markChoiceContext(cardEffect(this, 'A microbe tag was played.', 'effect-choice')));
     } else {
       gainMC.cb(undefined);
     }
+  }
+
+  /**
+   * RB-B FAQ: MarsBot's corporation starting tag or a printed track/bonus
+   * effect gave it a MICROBE advancement — «resolve your corporation's effect
+   * as if a card with a microbe was played»: this card's owner gains 2 M€,
+   * and the bot (the "player" of the microbe) takes the deterministic M€ half
+   * of its own clause.
+   */
+  public onMarsBotMicrobeAdvancement(cardOwner: IPlayer): void {
+    const game = cardOwner.game;
+    const bot = game.players.find((p) => p.isMarsBot);
+    if (bot === undefined) {
+      return;
+    }
+    game.defer(new GainResourcesDeferred(cardOwner, Resource.MEGACREDITS, {count: 2, log: true, from: {card: this}}));
+    game.defer(new GainResourcesDeferred(bot, Resource.MEGACREDITS, {count: 2, log: true, from: {card: this}}));
   }
 }

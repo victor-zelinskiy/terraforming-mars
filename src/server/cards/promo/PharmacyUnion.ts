@@ -146,6 +146,23 @@ export class PharmacyUnion extends CorporationCard implements ICorporationCard {
       this.onScienceTagAdded(player, 1);
     }
   }
+
+  /**
+   * RB-B FAQ: MarsBot's corporation starting tag or a printed track/bonus
+   * effect gave it a MICROBE advancement — «resolve your corporation's effect
+   * as if a card with a microbe was played»: this card's owner adds a disease
+   * and loses up to 4 M€ (the same deferred resolution the played-card path
+   * uses; the science half is own-plays-only and stays out by rule).
+   */
+  public onMarsBotMicrobeAdvancement(cardOwner: IPlayer): void {
+    if (this.isDisabled) {
+      return;
+    }
+    cardOwner.defer(() => {
+      this.addDisease(cardOwner, 1);
+      return undefined;
+    }, Priority.PHARMACY_UNION);
+  }
   public onScienceTagAdded(player: IPlayer, count: number) {
     const game = player.game;
     for (let i = 0; i < count; i++) {

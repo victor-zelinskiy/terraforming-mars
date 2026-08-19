@@ -25,6 +25,13 @@ export type TrackDefinition = {
   readonly layout: TrackLayout;
   /** Last position of this track. Defaults to MARSBOT_MAX_TRACK_POSITION (18); the Venus track ends at 12. */
   readonly maxPosition?: number;
+  /**
+   * Cells whose printed effect is a MICROBE-tag advancement (the Venus
+   * board's cell 9). Landing on one is officially «a track effect gives
+   * MarsBot a microbe advancement» (RB-B FAQ) — Pharmacy Union / Splice react
+   * as if a card with a microbe was played.
+   */
+  readonly microbeTagCells?: ReadonlyArray<number>;
 };
 
 

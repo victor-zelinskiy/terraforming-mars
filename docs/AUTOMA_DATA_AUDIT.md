@@ -197,10 +197,17 @@ Event-карты: `Tag.EVENT` не хранится в `tags[]` (тип карт
 - FAQ Ecoline: атака растений МОЖЕТ целить растение на карте корпорации; excess is lost; «not allowed to additionally destroy/steal from MarsBot's MC supply» (`AutomaTargeting.corpPlantPool/removeCorpPlants`, опции в `RemoveAnyPlants`/`StealResources`).
 - «Most tags» = печатный ряд меток карты (`AutomaResolver.printedTags`: event-метка событий считается; wild считается — RB-B исключает wild только для СОВПАДЕНИЯ с tag-chain приоритетами). Зафиксировано тестом `MarsBotSpire.spec.ts`.
 
-**RB-B FAQ, НЕ покрытые этой итерацией (pre-existing, независимы от framework):**
-- Saturn Systems: «The Jovian tag effect is triggered when you or MarsBot play a card with a Jovian tag» — флипы бота сегодня не триггерят human `onCardPlayed`-реакторы (общее правило форка); + Jovian starting tag корпорации бота триггерит человеческую Saturn Systems. Ни одна из трёх корпораций не имеет Jovian-метки; правило станет актуальным при добавлении C08.
-- Pharmacy Union / Splice: microbe advancement бота (включая starting tag) триггерит человеческую корпорацию.
-- Special Cubes (white/black/credit на треках), Aphrodite/Lakefront/Pristar/Utopia Investments (Turmoil) — вне поддерживаемой матрицы.
+**RB-B FAQ — human-реакции на бота (реализовано 2026-08-19, `AutomaHumanTagReactions.ts`):**
+
+| Правило | Статус |
+|---|---|
+| **Saturn Systems**: «triggered when you or MarsBot play a card with a Jovian tag; an advance tracker effect does NOT trigger it; a Jovian STARTING tag of MarsBot's corporation triggers it» | ✅ санкционированный диспатч из всех трёх точек резолва карты бота (флип хода / B03 / B07-fallback) через СОБСТВЕННЫЙ `onCardPlayedByAnyPlayer` карты; starting tags → существующий `onNonCardTagAddedByAnyPlayer` (тот же хук, что у Гидросети). Исключение tracker-advance — структурное: каскады не проходят через эти точки. Тесты: `AutomaHumanTagReactions.spec.ts` |
+| **Pharmacy Union / Splice**: «MarsBot's starting corporation or any track or bonus effect gives it a microbe advancement (not a plant or animal) → resolve as if a card with a microbe was played» | ✅ флип с microbe-меткой → собственные хуки карт (science-половина PU own-plays-only по самому хуку); microbe advancement без карты (starting tag; **Venus-клетка 9** — печатная microbe-метка, `TrackDefinition.microbeTagCells`) → co-located `onMarsBotMicrobeAdvancement` (ICard). Splice: боту промпт запрещён → детерминированная M€-половина (микроб физически некуда класть — played pile хранит имена); владелец +2 M€ |
+| Санкция — ЯВНЫЙ allowlist (прецедент AutomaBans): ровно {Saturn Systems, Pharmacy Union, Splice} по перечислению RB-B. Solar Logistics и прочие anyPlayer-реакторы молчат ПО ПРАВИЛУ (негативный тест) | ✅ |
+
+**RB-B, вне поддерживаемой матрицы (задокументировано, не реализовано):**
+- Special Cubes (white/black/credit на треках) — понадобятся будущим корпорациям (C-номера с кубами).
+- Aphrodite/Lakefront Resorts/Pristar/Utopia Investments — Turmoil-часть FAQ; Turmoil вне матрицы. (Human Aphrodite от подъёмов Венеры ботом уже работает штатным engine-путём.)
 
 ### Grep-аудит promo-модуля (frame §7, выполнен 2026-07-19)
 

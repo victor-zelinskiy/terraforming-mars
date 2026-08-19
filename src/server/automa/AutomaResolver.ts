@@ -7,6 +7,7 @@ import {TrackAction} from '../../common/automa/AutomaTypes';
 import {IGame} from '../IGame';
 import {IProjectCard} from '../cards/IProjectCard';
 import {failedAction} from './AutomaFailedAction';
+import {AutomaHumanTagReactions} from './AutomaHumanTagReactions';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
 import {AutomaTurnLog} from './AutomaTurnLog';
 import {marsBotOf} from './AutomaUtil';
@@ -109,6 +110,12 @@ export class AutomaResolver {
         trackIndex === 4 /* Energy */ && track.position === 9) {
       automa.secondFleetUnlocked = true;
       game.log('${0} unlocked its second trade fleet', (b) => b.player(marsBotOf(game)));
+    }
+    // A cell whose printed icon is a MICROBE tag (Venus board, cell 9): a
+    // «microbe advancement» — the sanctioned human reactors (Pharmacy Union /
+    // Splice) resolve as if a card with a microbe was played (RB-B FAQ).
+    if (track.definition.microbeTagCells?.includes(track.position)) {
+      AutomaHumanTagReactions.onBotMicrobeAdvancement(game);
     }
     if (result.type === 'action') {
       AutomaResolver.performTrackAction(game, result.action, trackIndex, depth);
