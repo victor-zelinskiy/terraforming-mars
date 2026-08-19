@@ -1,6 +1,6 @@
 # MarsBot corporations — the production framework (RB-B «Adding Corporations»)
 
-**Status: production (2026-08-19, C04 добавлена 2026-08-20).** Реализованные корпорации: **C01 Credicor · C02 Ecoline (+B23 Rapid Sprouting) · C03 Helion (track cubes) · C04 Interplanetary Cinematics (per-advance эффект + белые маркеры) · C45 Spire**. Официальные данные и трактовки: `docs/AUTOMA_DATA_AUDIT.md` §10 (RB-B транскрибирован полностью). Дизайн-референс upstream-типов: `docs/AUTOMA_CORP_FRAMEWORK_REFERENCE.md` (историческая записка — реализация НЕ по его фасаду).
+**Status: production (2026-08-19; C04 и C05 добавлены 2026-08-20).** Реализованные корпорации: **C01 Credicor · C02 Ecoline (+B23 Rapid Sprouting) · C03 Helion (track cubes) · C04 Interplanetary Cinematics (per-advance эффект + белые маркеры) · C05 Inventrix (+B25 Do It Right, destroy-at-setup) · C45 Spire**. Официальные данные и трактовки: `docs/AUTOMA_DATA_AUDIT.md` §10 (RB-B транскрибирован полностью). Дизайн-референс upstream-типов: `docs/AUTOMA_CORP_FRAMEWORK_REFERENCE.md` (историческая записка — реализация НЕ по его фасаду).
 
 ## Модель
 
@@ -55,6 +55,14 @@ Primitive, введённый вместе с **C04 Interplanetary Cinematics**:
 - **«Including the starting tags»** не требует спец-кода: `selectCorporation` сажает корпорацию (`automa.corporation = id`) ДО резолва Setup-бокса и стартовых меток, поэтому печатные метки идут через тот же хук.
 - **Белые маркеры**: `MarsBotCorpInfo.whiteMarkerTracks` (список ТЕГОВ) + `markerLegend`. Это ЧИСТОЕ напоминание (карта так и говорит: «as a reminder»), у него нет игрового эффекта — но игрок, который смотрит планшет бота, должен видеть то же, что видит игрок за столом: `MarsBotCorpModel.whiteMarkerTracks` (индексы) → `MarsBotTracks` красит маркер текущей позиции этих треков белым кубом и добавляет строку легенды. Пара `whiteMarkerTracks`/`markerLegend` обязательна целиком — маркер без объяснения был бы украшением (гард в `MarsBotCorpData.spec.ts`).
 
+## Уничтожение карты бонусной колоды на сетапе + общая «лестница ближайшего бонуса»
+
+Primitive, введённый вместе с **C05 Inventrix**:
+
+- **Destroy-at-setup**: `setup` находит нужную бонусную карту и убирает её ИЗ ИГРЫ (`destroyedBonusCards`), вычищая из `bonusDeck` и `bonusDiscard`. Гоча порядка: наш движок строит колоду действий 1-го поколения ПРИ СОЗДАНИИ игры, до появления корпорации, поэтому уничтожаемая карта может уже занимать единственный бонусный слот этой колоды — тогда слот отдаётся следующей карте бонусной колоды (за столом сетап-бокс отработал бы раньше и слот достался бы именно ей), и размер колоды не меняется. Печать выбирается по составу игры: «Лоббисты» это B06 без Венеры и B15 с ней.
+- **Общая лестница** `AutomaNearBonusPush.pushNearestBonus(game, 'ocean' | 'venus')` — печатные варианты a/b/c карт **B06/B15 Lobbyists** и **B25 Do It Right** совпадают дословно, поэтому физика (и ключ ветки для обзора хода) живёт в ОДНОМ модуле; каждая карта владеет только своей судьбой и своим (d). Одна реализация = один ответ на правило «1–2 шага до бонуса» для обеих карт.
+- **«No effect» — печатный исход, а не Failed Action.** Компенсацию 5 M€ бот получает, когда попытался и не смог; карта, которая печатает «d. No effect», просто ничего не делает (закреплено тестом).
+
 ## FAQ Ecoline (RB-B)
 
 Растение НА карте корпорации — отдельная цель атак растений: `AutomaTargeting.corpPlantPool/removeCorpPlants` (excess is LOST, никогда не из M€-supply; вор получает ровно снятое). Опции в `RemoveAnyPlants` + `StealResources` (любой человек в мультиплеере); generic-прокси не тронут.
@@ -81,4 +89,4 @@ Primitive, введённый вместе с **C04 Interplanetary Cinematics**:
 
 ## Тесты
 
-`tests/automa/AutomaCorporations.spec.ts` (framework/selection/collision/serialization), `MarsBotCredicor.spec.ts`, `MarsBotEcoline.spec.ts` (B23 lifecycle + FAQ), `MarsBotHelion.spec.ts` (кубы: сетап/замещение/spent-once/Failed/сериализация), `MarsBotInterplanetaryCinematics.spec.ts` (per-advance: стартовые метки/каскад/чужой трек/maxed/регресс/белые маркеры), `MarsBotSpire.spec.ts`, `tests/common/automa/MarsBotCorpData.spec.ts` (данные + no-human-leak), клиентские `MarsBotCorpFace.spec.ts`, `MarsBotTracksCubes.spec.ts` / review-спеки; e2e `console-bot-corporation.spec.ts` + `console-bot-corp-cubes.spec.ts`. В automa-тестах хелпер форсит **C01 Credicor по умолчанию** (самая инертная корпорация) — corp-тесты передают свою или `'random'`.
+`tests/automa/AutomaCorporations.spec.ts` (framework/selection/collision/serialization), `MarsBotCredicor.spec.ts`, `MarsBotEcoline.spec.ts` (B23 lifecycle + FAQ), `MarsBotHelion.spec.ts` (кубы: сетап/замещение/spent-once/Failed/сериализация), `MarsBotInterplanetaryCinematics.spec.ts` (per-advance: стартовые метки/каскад/чужой трек/maxed/регресс/белые маркеры), `MarsBotInventrix.spec.ts` (destroy Lobbyists во всех трёх позициях + Венера, эффект требования, lifecycle B25, все четыре ветки лестницы), `MarsBotSpire.spec.ts`, `tests/common/automa/MarsBotCorpData.spec.ts` (данные + no-human-leak), клиентские `MarsBotCorpFace.spec.ts`, `MarsBotTracksCubes.spec.ts` / review-спеки; e2e `console-bot-corporation.spec.ts` + `console-bot-corp-cubes.spec.ts`. В automa-тестах хелпер форсит **C01 Credicor по умолчанию** (самая инертная корпорация) — corp-тесты передают свою или `'random'`.

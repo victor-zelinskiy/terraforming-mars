@@ -102,7 +102,7 @@ export const BONUS_CARD_INFO: Readonly<Record<BonusCardId, BonusCardInfo>> = {
   [BonusCardId.B22_SETTLERS]: {name: 'Settlers', text: 'A corporation-specific bonus card (outside the POC scope).'},
   [BonusCardId.B23_RAPID_SPROUTING]: {name: 'Rapid Sprouting', text: 'Ecoline: a plant grows on the corporation card, or the grown plant becomes a greenery raising oxygen 1 step. Recurs into the action deck every generation.'},
   [BonusCardId.B24_SUPPLY_AND_DEMAND]: {name: 'Supply and Demand', text: 'A corporation-specific bonus card (outside the POC scope).'},
-  [BonusCardId.B25_DO_IT_RIGHT]: {name: 'Do It Right', text: 'A corporation-specific bonus card (outside the POC scope).'},
+  [BonusCardId.B25_DO_IT_RIGHT]: {name: 'Do It Right', text: 'Inventrix: MarsBot pushes the first global parameter that is 1-2 steps from a bonus, or places an ocean next to 2 oceans — otherwise nothing. Recurs into the action deck every generation.'},
   [BonusCardId.B26_VENUSIAN_LOBBY]: {name: 'Venusian Lobby', text: 'A corporation-specific bonus card (outside the POC scope).'},
   [BonusCardId.B27_BUILD_BUILD_BUILD]: {name: 'Build Build Build', text: 'A corporation-specific bonus card (outside the POC scope).'},
   [BonusCardId.B28_DIVERSIFICATION]: {name: 'Diversification', text: 'A corporation-specific bonus card (outside the POC scope).'},
@@ -287,6 +287,20 @@ export function buildBonusCardView(id: BonusCardId, ctx: BonusCardContext): Bonu
           {text: 'Joins the deck from generation 2', muted: true},
       ],
       fate: {kind: 'recurring', text: 'Returns to the action deck every generation'},
+    };
+  case BonusCardId.B25_DO_IT_RIGHT:
+    // Inventrix's corporation-specific card (official B25): Lobbyists' own
+    // a/b/c ladder, without the self-destruction and with a dead fallback.
+    return {
+      name,
+      lines: [
+        {text: 'MarsBot performs the FIRST possible option:'},
+        {icon: 'temperature', text: 'Raise the temperature toward a bonus step (within 2 steps)'},
+        {icon: 'greenery', text: 'Place a greenery when within 2 steps of an oxygen bonus'},
+        {icon: 'ocean', text: 'Place an ocean next to at least 2 oceans'},
+        {text: 'Otherwise: no effect', muted: true},
+      ],
+      fate: {kind: 'recurring', text: 'At the beginning of every generation it is shuffled back into MarsBot\'s action deck'},
     };
   case BonusCardId.B23_RAPID_SPROUTING:
     // Ecoline's corporation-specific card (official B23).

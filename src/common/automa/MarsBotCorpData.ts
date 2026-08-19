@@ -205,6 +205,27 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C05_INVENTRIX]: {
+    id: MarsBotCorpId.C05_INVENTRIX,
+    cardNumber: 'C05',
+    original: CardName.INVENTRIX,
+    startingTags: [],
+    corpBonusCards: [BonusCardId.B25_DO_IT_RIGHT],
+    sections: [
+      // SETUP: «Destroy Lobbyists from the bonus deck» — B25 is that card
+      // without its self-destruction, so the original leaves the game.
+      {kind: 'setup', lines: [
+        {icon: 'deck', text: 'Lobbyists is destroyed — it never comes up in this game'},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'When resolving a card with a requirement, MarsBot gains ${0} M€', params: ['2']},
+      ]},
+      {kind: 'beforeActionPhase', lines: [
+        {icon: 'deck', text: 'Add Do It Right to MarsBot\'s action deck'},
+        {icon: 'temperature', text: 'Do It Right pushes the first global parameter that is 1-2 steps from a bonus, or does nothing', muted: true},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -256,6 +277,9 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           multiTagCards (cards with 2+ tags resolved).
  * Interplanetary Cinematics: icTrackAdvances (building/event advances that
  *           paid) / icMc (M€ paid by them).
+ * Inventrix: inventrixTriggers / inventrixMc (the requirement effect),
+ *           doItRightPlayed and its branch tally doItRightTemperature /
+ *           doItRightGreeneries / doItRightOceans / doItRightNoEffect.
  * Helion:   whiteCubesHit / blackCubesHit (cubes reached), helionCardsDrawn
  *           (white-cube draws), helionTemperatureSteps (black-cube raises),
  *           helionTemperatureReplaced (printed raises the white cube took over).

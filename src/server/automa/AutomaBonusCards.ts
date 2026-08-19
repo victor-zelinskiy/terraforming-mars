@@ -22,6 +22,7 @@ import {AutomaCorporations} from './corps/AutomaCorporations';
 import {cardResourceAttackPrompt} from './AutomaAttackPrompt';
 import {AutomaColonies} from './AutomaColonies';
 import {AutomaMilestonesAwards} from './AutomaMilestonesAwards';
+import {pushNearestBonus} from './AutomaNearBonusPush';
 import {AutomaResearch} from './AutomaResearch';
 import {AutomaResolver} from './AutomaResolver';
 import {AutomaTilePlacer} from './AutomaTilePlacer';
@@ -31,33 +32,6 @@ import {THARSIS_TRACK} from './boards/TharsisMarsBot';
 
 /** Where a resolved bonus card goes. Recurring cards (B16, later B19/B20) stay in their holding pool. */
 export type BonusCardOutcome = 'discard' | 'destroy';
-
-/** Steps left to the NEAREST bonus step / completion above the current value; undefined when complete. */
-function stepsToNextTarget(current: number, targets: ReadonlyArray<number>, stepSize: number): number | undefined {
-  const ahead = targets.filter((t) => t > current);
-  if (ahead.length === 0) {
-    return undefined;
-  }
-  return (Math.min(...ahead) - current) / stepSize;
-}
-
-/** Temperature bonus steps: heat at −24/−20, the ocean at 0, completion at +8. */
-function temperatureStepsToTarget(game: IGame): number | undefined {
-  return stepsToNextTarget(game.getTemperature(),
-    [constants.TEMPERATURE_BONUS_FOR_HEAT_1, constants.TEMPERATURE_BONUS_FOR_HEAT_2, constants.TEMPERATURE_FOR_OCEAN_BONUS, constants.MAX_TEMPERATURE], 2);
-}
-
-/** Oxygen bonus steps: the temperature raise at 8%, completion at 14%. */
-function oxygenStepsToTarget(game: IGame): number | undefined {
-  return stepsToNextTarget(game.getOxygenLevel(),
-    [constants.OXYGEN_LEVEL_FOR_TEMPERATURE_BONUS, constants.MAX_OXYGEN_LEVEL], 1);
-}
-
-/** Venus bonus steps: the card draw at 8%, the TR at 16%, completion at 30% (standard board). */
-function venusStepsToTarget(game: IGame): number | undefined {
-  return stepsToNextTarget(game.getVenusScaleLevel(),
-    [constants.VENUS_LEVEL_FOR_CARD_BONUS, constants.VENUS_LEVEL_FOR_TR_BONUS, constants.MAX_VENUS_SCALE], 2);
-}
 
 /**
  * "MarsBot advances the (Martian) global parameter furthest from completion.
@@ -389,45 +363,14 @@ function shippingLines(game: IGame): BonusCardOutcome {
  *     (tie: oxygen → ocean → temperature); not destroyed.
  */
 function lobbyists(game: IGame, venus: boolean): BonusCardOutcome {
-  const bot = marsBotOf(game);
-
-  // The review shows this ONE resolved branch (the "first possible effect"),
-  // never the card's whole a/b/c/d rule text.
-  const temperatureSteps = temperatureStepsToTarget(game);
-  if (temperatureSteps !== undefined && temperatureSteps <= 2) {
-    AutomaTurnLog.setBonusBranch(game, {key: 'Temperature near a bonus step'});
-    game.increaseTemperature(bot, 2); // Clamped internally at completion.
-    game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.TEMPERATURE).number(2));
-    return 'destroy';
+  // The ladder (and the ONE branch it announces to the review) is shared with
+  // Do It Right (B25) — see AutomaNearBonusPush. Only the fate is this card's.
+  const branch = pushNearestBonus(game, venus ? 'venus' : 'ocean');
+  if (branch === 'venus') {
+    return 'discard'; // The Venus branch explicitly does NOT destroy the card.
   }
-
-  const oxygenSteps = oxygenStepsToTarget(game);
-  if (oxygenSteps !== undefined && oxygenSteps <= 2 &&
-      game.board.getAvailableSpacesForGreenery(bot).length > 0) {
-    AutomaTurnLog.setBonusBranch(game, {key: 'Oxygen near a bonus step'});
-    AutomaTilePlacer.placeGreenery(game); // Raises oxygen 1 step for the greenery.
-    game.increaseOxygenLevel(bot, 1);
-    game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.OXYGEN).number(1));
+  if (branch !== undefined) {
     return 'destroy';
-  }
-
-  if (venus) {
-    const venusSteps = venusStepsToTarget(game);
-    if (game.gameOptions.venusNextExtension && venusSteps !== undefined && venusSteps <= 2) {
-      AutomaTurnLog.setBonusBranch(game, {key: 'Venus near a bonus step'});
-      game.increaseVenusScaleLevel(bot, 2); // Clamped internally.
-      game.log('${0} raised ${1} ${2} step(s)', (b) => b.player(bot).globalParameter(GlobalParameter.VENUS).number(2));
-      return 'discard'; // The Venus branch explicitly does NOT destroy the card.
-    }
-  } else {
-    const oceanTarget = game.board.getAvailableSpacesForOcean(bot).filter((space) =>
-      game.board.getAdjacentSpaces(space).filter(Board.isOceanSpace).length >= 2);
-    if (oceanTarget.length > 0) {
-      AutomaTurnLog.setBonusBranch(game, {key: 'Ocean next to two oceans'});
-      const space = AutomaTilePlacer.breakTie(game, oceanTarget);
-      game.addOcean(bot, space);
-      return 'destroy';
-    }
   }
 
   AutomaTurnLog.setBonusBranch(game, {key: 'Advanced the furthest Martian parameter'});

@@ -2495,12 +2495,26 @@ const DIFFICULTY_LABELS: Readonly<Record<string, string>> = {
   easy: 'Easy', normal: 'Normal', hard: 'Hard', brutal: 'Brutal',
 };
 
+/** One measurable thing a bot corporation did. A corporation may produce
+ *  SEVERAL (its printed boxes are independent), and each becomes its own
+ *  candidate — `key` only names it for the id. */
+type BotCorpStory = {key: string, textKey: string, params: Array<InsightParam>, measure: number, scale: number};
+
 /**
- * The MarsBot's CORPORATION (Rule Book B) — one candidate per bot seat, only
- * when the corporation was a MEASURABLE factor of the game. Facts are the
- * server's own per-corporation counters (`MarsBotCorpStats`, structured data
- * shipped with the bot model) — never display text, never invented causality:
- * every sentence states exactly what the counters measured.
+ * The MarsBot's CORPORATION (Rule Book B) — the stories its own counters
+ * support, per bot seat, and only while the corporation was a MEASURABLE
+ * factor. Facts are the server's per-corporation counters
+ * (`MarsBotCorpStats`, structured data shipped with the bot model) — never
+ * display text, never invented causality: every sentence states exactly what
+ * the counters measured.
+ *
+ * A corporation whose printed boxes measure independent things (C05: the
+ * requirement toll AND its recurring card's parameter pushes) emits ONE
+ * CANDIDATE PER STORY instead of welding unrelated numbers into a single
+ * sentence — a sentence like «1 card paid 2 M€, and the card pushed 3 times»
+ * leads with the half that did nothing. They share the `bot-corporation`
+ * cluster, so the selector keeps the strongest in the primary band and files
+ * the rest under secondary / «show more» rather than crowding the story.
  */
 const analyzeBotCorporation: Analyzer = (ctx) => {
   const out: Array<InsightCandidate> = [];
@@ -2512,7 +2526,7 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
     const stats = corp.stats ?? {};
     const stat = (key: string) => stats[key] ?? 0;
     const isWinner = p.color === ctx.winner.color;
-    let story: {textKey: string, params: Array<InsightParam>, measure: number, scale: number} | undefined;
+    const stories: Array<BotCorpStory> = [];
 
     if (corp.id === 'C01') {
       // Credicor: the ≥20 M€ effect. A handful of triggers is routine; a
@@ -2520,12 +2534,13 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
       const triggers = stat('credicorTriggers');
       const mc = stat('credicorMc');
       if (triggers >= 4) {
-        story = {
+        stories.push({
+          key: 'effect',
           textKey: '${0}\'s corporation ${1} monetized big projects: ${2} cards of 20+ M€ paid it ${3} M€ over the game.',
           params: [raw(p.name), raw(corp.name), raw(triggers), raw(mc)],
           measure: mc,
           scale: 28,
-        };
+        });
       }
     } else if (corp.id === 'C02') {
       // Ecoline: Rapid Sprouting's greeneries — board VP + oxygen the bot
@@ -2533,12 +2548,13 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
       const greeneries = stat('greeneries');
       const oxygen = stat('oxygenSteps');
       if (greeneries >= 2) {
-        story = {
+        stories.push({
+          key: 'effect',
           textKey: '${0}\'s corporation ${1} grew the planet itself: Rapid Sprouting planted ${2} greeneries and raised oxygen ${3} steps.',
           params: [raw(p.name), raw(corp.name), raw(greeneries), raw(oxygen)],
           measure: greeneries,
           scale: 4,
-        };
+        });
       }
     } else if (corp.id === 'C03') {
       // Helion: the cubes seeded on its tracks — cards drawn on white, extra
@@ -2546,12 +2562,13 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
       const cards = stat('helionCardsDrawn');
       const steps = stat('helionTemperatureSteps');
       if (cards + steps >= 3) {
-        story = {
+        stories.push({
+          key: 'effect',
           textKey: '${0}\'s corporation ${1} turned its track cubes into tempo: ${2} extra cards and ${3} temperature steps.',
           params: [raw(p.name), raw(corp.name), raw(cards), raw(steps)],
           measure: cards * 2 + steps,
           scale: 10,
-        };
+        });
       }
     } else if (corp.id === 'C04') {
       // Interplanetary Cinematics: 2 M€ per building/event advance. A few
@@ -2559,59 +2576,93 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
       const advances = stat('icTrackAdvances');
       const mc = stat('icMc');
       if (advances >= 10) {
-        story = {
+        stories.push({
+          key: 'effect',
           textKey: '${0}\'s corporation ${1} was paid for its own momentum: ${2} building and event advances earned ${3} M€.',
           params: [raw(p.name), raw(corp.name), raw(advances), raw(mc)],
           measure: mc,
           scale: 60,
-        };
+        });
+      }
+    } else if (corp.id === 'C05') {
+      // Inventrix prints TWO independent things, so it tells up to two
+      // stories: the toll its effect box charged on requirement cards, and
+      // what its recurring card actually finished on the board.
+      const triggers = stat('inventrixTriggers');
+      const mc = stat('inventrixMc');
+      if (triggers >= 5) {
+        stories.push({
+          key: 'effect',
+          textKey: '${0}\'s corporation ${1} taxed demanding projects: ${2} cards with requirements paid it ${3} M€.',
+          params: [raw(p.name), raw(corp.name), raw(triggers), raw(mc)],
+          measure: mc,
+          scale: 30,
+        });
+      }
+      const temperature = stat('doItRightTemperature');
+      const greeneries = stat('doItRightGreeneries');
+      const oceans = stat('doItRightOceans');
+      const pushes = temperature + greeneries + oceans;
+      if (pushes >= 3) {
+        stories.push({
+          key: 'do-it-right',
+          textKey: '${0}\'s corporation ${1} kept finishing what was nearly done: Do It Right pushed a global parameter ${2} time(s) — ${3} temperature, ${4} greenery, ${5} ocean.',
+          params: [raw(p.name), raw(corp.name), raw(pushes), raw(temperature), raw(greeneries), raw(oceans)],
+          measure: pushes,
+          scale: 6,
+        });
       }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');
       const science = stat('scienceAdded');
       if (cities >= 1) {
-        story = {
+        stories.push({
+          key: 'effect',
           textKey: '${0}\'s corporation ${1} banked science from multi-tag cards: ${2} science became ${3} city tile(s) and TR.',
           params: [raw(p.name), raw(corp.name), raw(stat('scienceSpent')), raw(cities)],
           measure: cities * 10 + science,
           scale: 20,
-        };
+        });
       }
     }
 
-    // The draft-protection rare case is a story of its own scale: the corp
-    // kept all four drafted cards (a 5-card action deck) more than once.
+    // The draft-protection rare case is a FALLBACK, not a parallel story: it
+    // speaks only when the printed boxes had nothing to report (the corp kept
+    // all four drafted cards — a 5-card action deck — more than once).
     const fiveCardDecks = stat('fiveCardDecks');
-    if (story === undefined && fiveCardDecks >= 2) {
-      story = {
+    if (stories.length === 0 && fiveCardDecks >= 2) {
+      stories.push({
+        key: 'draft-protection',
         textKey: '${0}\'s corporation ${1} protected all four drafted cards ${2} times — extra action cards every one of those generations.',
         params: [raw(p.name), raw(corp.name), raw(fiveCardDecks)],
         measure: fiveCardDecks,
         scale: 4,
-      };
+      });
     }
-    if (story === undefined) {
-      continue; // The corporation was not a measurable factor — say nothing.
-    }
-    out.push({
-      id: `reason.bot-corporation.${p.color}`,
-      group: 'reason',
-      priority: isWinner ? 74 : 62,
-      severity: story.measure >= story.scale ? 'major' : 'normal',
-      icon: 'cards',
-      badge: 'Bot corporation',
-      color: p.color,
-      textKey: story.textKey,
-      params: story.params,
-      family: 'cardStory',
-      storyCluster: 'bot-corporation',
-      evidenceChips: [
-        {t: 'raw', v: corp.name, tone: 'neutral'},
-        ...(p.botDifficulty !== undefined ?
-          [{t: 'i18n', v: DIFFICULTY_LABELS[p.botDifficulty], tone: 'neutral'} as EvidenceChip] : []),
-      ],
-      scores: {impact: Math.min(1, story.measure / story.scale), confidence: 1, relevance: 0.75},
+    // No story: the corporation was not a measurable factor — say nothing.
+    stories.forEach((story, index) => {
+      out.push({
+        // The first story keeps the seat's plain id; the others are suffixed,
+        // so ids stay stable and unique whichever halves fired.
+        id: index === 0 ? `reason.bot-corporation.${p.color}` : `reason.bot-corporation.${p.color}.${story.key}`,
+        group: 'reason',
+        priority: isWinner ? 74 : 62,
+        severity: story.measure >= story.scale ? 'major' : 'normal',
+        icon: 'cards',
+        badge: 'Bot corporation',
+        color: p.color,
+        textKey: story.textKey,
+        params: story.params,
+        family: 'cardStory',
+        storyCluster: 'bot-corporation',
+        evidenceChips: [
+          {t: 'raw', v: corp.name, tone: 'neutral'},
+          ...(p.botDifficulty !== undefined ?
+            [{t: 'i18n', v: DIFFICULTY_LABELS[p.botDifficulty], tone: 'neutral'} as EvidenceChip] : []),
+        ],
+        scores: {impact: Math.min(1, story.measure / story.scale), confidence: 1, relevance: 0.75},
+      });
     });
   }
   return out;

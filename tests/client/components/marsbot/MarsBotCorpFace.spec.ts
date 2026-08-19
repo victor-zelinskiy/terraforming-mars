@@ -70,6 +70,7 @@ describe('MarsBotCorpFace (.pcard template)', () => {
 
     expect(mountFace(MarsBotCorpId.C01_CREDICOR).find('.pcard__res').exists()).is.false;
     expect(mountFace(MarsBotCorpId.C03_HELION).find('.pcard__res').exists(), 'Helion stores nothing on its card').is.false;
+    expect(mountFace(MarsBotCorpId.C05_INVENTRIX).find('.pcard__res').exists(), 'Inventrix stores nothing either').is.false;
   });
 
   it('no human corporation rule leaks onto the face', () => {
@@ -109,6 +110,19 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C45_SPIRE);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Draft priority', 'Corporation effect', 'Before action phase']);
     expect(groups.every((g) => g.rows.length > 0)).is.true;
+  });
+
+  it('Inventrix prints all three boxes, and never the human draw-3 rule', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C05_INVENTRIX);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect', 'Before action phase']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('Lobbyists');
+    expect(text).contains('Do It Right');
+    expect(text).contains('requirement');
+    // The human Inventrix draws 3 cards and eases requirements by 3 — neither
+    // is a bot rule.
+    expect(text).not.match(/3 science/i);
+    expect(text).not.match(/draw 3/i);
   });
 
   it('Interplanetary Cinematics prints a SETUP reminder and its EFFECT', () => {

@@ -365,5 +365,16 @@
   "${0} gained ${1} M€ from its corporation ${2} for advancing the event track": "${0} получает ${1} М€ от корпорации ${2} за продвижение трека событий",
   "The building and event track markers become white cubes — a reminder of the effect below": "Маркеры треков строительства и событий заменяются белыми кубами — напоминание об эффекте ниже",
   "Each time MarsBot advances the building or event track — the starting tags included — it gains ${0} M€": "Каждый раз, когда Бот продвигает трек строительства или событий — включая стартовые метки — он получает ${0} М€",
-  "Advancing this track pays MarsBot 2 M€": "Продвижение этого трека приносит Боту 2 М€"
+  "Advancing this track pays MarsBot 2 M€": "Продвижение этого трека приносит Боту 2 М€",
+  "${0} gained ${1} M€ from its corporation ${2} for resolving a card with a requirement": "${0} получает ${1} М€ от корпорации ${2} за розыгрыш карты с требованием",
+  "${0} destroyed Lobbyists from its bonus deck — Do It Right replaces it": "${0} уничтожает «Лоббистов» из бонусной колоды — их заменяет «Сделай как надо»",
+  "${0} shuffled Do It Right into its action deck": "${0} замешивает «Сделай как надо» в свою колоду действий",
+  "${0} played Do It Right with no parameter close enough — no effect": "${0} разыгрывает «Сделай как надо», но ни один параметр не близок — эффекта нет",
+  "No effect": "Эффекта нет",
+  "Lobbyists is destroyed — it never comes up in this game": "«Лоббисты» уничтожены — в этой партии их не будет",
+  "When resolving a card with a requirement, MarsBot gains ${0} M€": "При розыгрыше карты с требованием Бот получает ${0} М€",
+  "Add Do It Right to MarsBot's action deck": "Добавить «Сделай как надо» в колоду действий Бота",
+  "Do It Right pushes the first global parameter that is 1-2 steps from a bonus, or does nothing": "«Сделай как надо» подталкивает первый параметр, до бонуса которого 1-2 шага, либо не делает ничего",
+  "Otherwise: no effect": "Иначе: эффекта нет",
+  "Inventrix: MarsBot pushes the first global parameter that is 1-2 steps from a bonus, or places an ocean next to 2 oceans — otherwise nothing. Recurs into the action deck every generation.": "Inventrix: Бот подталкивает первый параметр, до бонуса которого 1-2 шага, либо ставит океан рядом с 2 океанами — иначе ничего. Возвращается в колоду действий каждое поколение."
 }

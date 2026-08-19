@@ -29,14 +29,14 @@ import {standardResourceIconUrl} from '@/client/components/premiumCard/premiumCa
  *
  * Identity (title wordmark/art/lore) rides the ORIGINAL corporation's
  * CardName exactly as everywhere else. No human rule can leak: the render
- * data below is authored from the official bot cards (C01/C02/C03/C04/C45), never
+ * data below is authored from the official bot cards (C01–C05/C45), never
  * read from the human manifest card.
  *
  * PURE (no Vue/DOM/i18n) — unit-tested under the server runner. The
  * `CardRenderer` import is the shared data-DSL (common types only).
  */
 
-/** The symbolic rule rows of each official bot card (C01 / C02 / C03 / C04 / C45). */
+/** The symbolic rule rows of each official bot card (C01 / C02 / C03 / C04 / C05 / C45). */
 function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
   switch (id) {
   case MarsBotCorpId.C01_CREDICOR:
@@ -74,6 +74,19 @@ function renderDataOf(id: MarsBotCorpId): ICardRenderRoot {
     return CardRenderer.builder((b) => {
       b.effect(undefined, (eb) => {
         eb.tag(Tag.BUILDING).slash().tag(Tag.EVENT).startEffect.megacredits(2);
+      });
+    });
+  case MarsBotCorpId.C05_INVENTRIX:
+    return CardRenderer.builder((b) => {
+      // EFFECT: resolving a card that PRINTS A REQUIREMENT pays 2 M€ — the
+      // card icon plus the asterisk that sends the reader to the rules row
+      // (the same shape Credicor's cost condition uses).
+      b.effect(undefined, (eb) => {
+        eb.cards(1).asterix().startEffect.megacredits(2);
+      });
+      // BEFORE ACTION PHASE: Do It Right joins the action deck, forever.
+      b.action(undefined, (eb) => {
+        eb.plate('Do It Right').startAction.cards(1);
       });
     });
   case MarsBotCorpId.C45_SPIRE:

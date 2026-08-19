@@ -1,6 +1,6 @@
 # Добавление новой корпорации MarsBot — чеклист
 
-Пошаговая процедура. Контракт подсистемы: `docs/claude/marsbot-corporations.md`. Официальные данные и трактовки: `docs/AUTOMA_DATA_AUDIT.md` §10. Реализованные образцы: **C01 Credicor** (эффект + драфт-приоритет), **C02 Ecoline** (своя бонус-карта B23 + ресурс на карте), **C03 Helion** (кубы на треках), **C04 Interplanetary Cinematics** (эффект на каждое продвижение трека + белые маркеры-напоминания), **C45 Spire** (стартовая метка + ресурс + Before-Action-Phase).
+Пошаговая процедура. Контракт подсистемы: `docs/claude/marsbot-corporations.md`. Официальные данные и трактовки: `docs/AUTOMA_DATA_AUDIT.md` §10. Реализованные образцы: **C01 Credicor** (эффект + драфт-приоритет), **C02 Ecoline** (своя бонус-карта B23 + ресурс на карте), **C03 Helion** (кубы на треках), **C04 Interplanetary Cinematics** (эффект на каждое продвижение трека + белые маркеры-напоминания), **C05 Inventrix** (уничтожение карты бонусной колоды на сетапе + своя recurring-карта B25, чья лестница общая с B06), **C45 Spire** (стартовая метка + ресурс + Before-Action-Phase).
 
 Правило `.claude/rules/marsbot-corps.md` загружается само, когда трогаешь `src/server/automa/corps/**` — этот файл его полная версия.
 
@@ -53,7 +53,9 @@ Co-located файл, реализующий ТОЛЬКО те хуки, что �
 | Кубы на треках | `trackCubes` (адрес трека = ТЕГ) + `corpCubesTriggered` + `onTrackAdvanced` | объявить кубы + `cubeLegend`; UI и spent-once работают сами |
 | Эффект на каждое продвижение трека | `MarsBotCorp.onTrackAdvance` (образец C04) | сверить трек по ТЕГУ (`getTrackIndexForTag`), а не по индексу; стартовые метки платят сами — корпорация сажается до их резолва |
 | Маркер-напоминание на треке (SETUP «replace the tracker…») | `whiteMarkerTracks` + `markerLegend` → `MarsBotTracks` | объявить ПАРУ (гард в `MarsBotCorpData.spec.ts`); игрового эффекта нет, но на планшете это видно |
-| Своя бонус-карта (B22–B32) | `corpBonusCards` + `resolveBonusCard` + `BonusCardData` | добавить текст/`buildBonusCardView`-ветку; **recurring** — через `recurringBonusCards` (образец B23), не через discard |
+| Своя бонус-карта (B22–B32) | `corpBonusCards` + `resolveBonusCard` + `BonusCardData` | добавить текст/`buildBonusCardView`-ветку; **recurring** — через `recurringBonusCards` (образец B23/B25), не через discard |
+| Карта бонус-колоды уничтожается на сетапе | `destroyedBonusCards` + `bonusDeck`/`bonusDiscard`/`actionDeck` (образец C05) | вычистить из ВСЕХ трёх мест; если карта уже заняла бонусный слот колоды 1-го поколения — отдать слот следующей из `bonusDeck` (размер колоды не меняется) |
+| Печатная ветка, повторяющая другую карту | общий модуль (образец `AutomaNearBonusPush` для B06/B15/B25) | физику вынести в ОДИН модуль, карте оставить её судьбу и её fallback — иначе две копии правила разойдутся |
 | Ресурс на карте корпорации | `resource` + `corpResources` + капсула `.pcard__res` | объявить `resource`; для НЕ-card-resource дать `iconUrl`-override в `marsBotCorpPremiumVm` |
 | Стартовые метки | `AutomaResolver.resolveTag` при выборе корпорации | ничего: трек двигается, действия клеток срабатывают, RB-B human-реакторы уведомляются |
 | Атака человека по ресурсу корпорации | `AutomaTargeting.corpPlantPool/removeCorpPlants` | новый вид ресурса = свой pool + опции в соответствующем deferred action |
@@ -68,7 +70,7 @@ Co-located файл, реализующий ТОЛЬКО те хуки, что �
 ## 6. Статистика и endgame-инсайт
 
 - [ ] Ключи статистики бампятся в поведении и описаны в `MarsBotCorpStats`.
-- [ ] Ветка в `analyzeBotCorporation` (`src/client/components/endgame/insightEngine.ts`) с ПОРОГОМ значимости (инсайт молчит, если корпорация ничего не решила) + RU-ключ текста.
+- [ ] Ветка в `analyzeBotCorporation` (`src/client/components/endgame/insightEngine.ts`) с ПОРОГОМ значимости (инсайт молчит, если корпорация ничего не решила) + RU-ключ текста. **Историй может быть НЕСКОЛЬКО**: если печатные боксы меряют независимые вещи (образец C05 — налог на требования и толчки от B25), пушить отдельную story на каждую со своим порогом и своей фразой — склеивать их в одно предложение через `||` нельзя (предложение начнёт с половины, которая ничего не сделала). Селектор (`selectStoryInsights`) дедупит по КЛАСТЕРУ на банду, так что вторая история уходит в secondary/«показать ещё», а не теснит остальные.
 - [ ] `EndgamePlayerInput.corporations` бота остаётся пустым — туда бот-корпорацию не класть (иначе включится human `corporationImpactEngine`).
 
 ## 7. Тесты (обязательный минимум)

@@ -867,6 +867,8 @@
     "${0}'s corporation ${1} grew the planet itself: Rapid Sprouting planted ${2} greeneries and raised oxygen ${3} steps.": "Корпорация ${1} у ${0} озеленяла планету сама: «Быстрое прорастание» высадило ${2} озеленений и подняло кислород на ${3} шагов.",
     "${0}'s corporation ${1} turned its track cubes into tempo: ${2} extra cards and ${3} temperature steps.": "Корпорация ${1} у ${0} превратила кубы на треках в темп: ${2} лишних карт и ${3} шагов температуры.",
     "${0}'s corporation ${1} was paid for its own momentum: ${2} building and event advances earned ${3} M€.": "Корпорация ${1} у ${0} зарабатывала на собственном темпе: ${2} продвижений треков строительства и событий принесли ${3} М€.",
+    "${0}'s corporation ${1} taxed demanding projects: ${2} cards with requirements paid it ${3} M€.": "Корпорация ${1} у ${0} обложила налогом требовательные проекты: ${2} карт с требованиями принесли ей ${3} М€.",
+    "${0}'s corporation ${1} kept finishing what was nearly done: Do It Right pushed a global parameter ${2} time(s) — ${3} temperature, ${4} greenery, ${5} ocean.": "Корпорация ${1} у ${0} раз за разом доводила начатое до конца: «Сделай как надо» подтолкнула параметр ${2} раз — температура ${3}, озеленение ${4}, океан ${5}.",
     "${0}'s corporation ${1} banked science from multi-tag cards: ${2} science became ${3} city tile(s) and TR.": "Корпорация ${1} у ${0} копила науку с многометочных карт: ${2} науки стали ${3} городом(ами) и РТ.",
     "${0}'s corporation ${1} protected all four drafted cards ${2} times — extra action cards every one of those generations.": "Корпорация ${1} у ${0} защитила все четыре задрафченные карты ${2} раз(а) — лишняя карта действия в каждом из тех поколений."
 }

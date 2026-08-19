@@ -9,6 +9,8 @@ import {
   InsightContext,
 } from '@/client/components/endgame/insightEngine';
 import {EndgameCategory, EndgameCategoryKey, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
+import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
+import {MarsBotCorpStats} from '@/common/automa/MarsBotCorpData';
 import {VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {Color} from '@/common/Color';
 
@@ -169,6 +171,69 @@ describe('insightEngine', () => {
     it('falls back to balanced when nothing dominates', () => {
       const w = score('red', 'A', {categories: {tr: 26, cards: 18, board: 14, mca: 12}});
       expect(buildVictoryProfile(w)?.kind).to.eq('balanced');
+    });
+  });
+
+
+  describe('analyzeBotCorporation', () => {
+    /** A duel between a human and the bot seat carrying `stats`. */
+    function botInsights(stats: MarsBotCorpStats, id: MarsBotCorpId = MarsBotCorpId.C05_INVENTRIX, name = 'Inventrix') {
+      const human = score('blue', 'Human', {total: 60, vpByGeneration: [10, 20, 40, 60]});
+      const bot = score('red', 'Bot', {total: 40, vpByGeneration: [8, 16, 30, 40]});
+      bot.botCorporation = {id, name, stats};
+      return generateInsights(ctxFor([human, bot]))
+        .filter((i) => i.storyCluster === 'bot-corporation');
+    }
+
+    it('C05 tells its two printed halves as SEPARATE stories', () => {
+      const insights = botInsights({
+        inventrixTriggers: 7, inventrixMc: 14,
+        doItRightTemperature: 2, doItRightGreeneries: 1, doItRightOceans: 1,
+      });
+      // TWO cards, with stable distinct ids (the reading ORDER is the story
+      // selector's business — the stronger half may well lead).
+      expect(insights).has.length(2);
+      expect(insights.map((i) => i.id).sort()).deep.eq(
+        ['reason.bot-corporation.red', 'reason.bot-corporation.red.do-it-right']);
+      const toll = insights.find((i) => i.textKey.includes('taxed demanding projects'));
+      const pushes = insights.find((i) => i.textKey.includes('kept finishing what was nearly done'));
+      expect(toll, 'the requirement toll has its own card').is.not.undefined;
+      expect(pushes, 'Do It Right has its own card').is.not.undefined;
+      // Neither sentence carries the other half's numbers.
+      expect(toll!.textKey).not.contains('Do It Right');
+      expect(pushes!.textKey).not.contains('requirements');
+    });
+
+    it('only the half that actually fired speaks — and it keeps the plain id', () => {
+      const insights = botInsights({
+        inventrixTriggers: 1, inventrixMc: 2,
+        doItRightTemperature: 3,
+      });
+      expect(insights).has.length(1);
+      expect(insights[0].id).eq('reason.bot-corporation.red');
+      expect(insights[0].textKey).contains('kept finishing what was nearly done');
+    });
+
+    it('below both thresholds the corporation says nothing', () => {
+      expect(botInsights({inventrixTriggers: 2, inventrixMc: 4, doItRightOceans: 1})).is.empty;
+    });
+
+    it('a one-story corporation still emits exactly one candidate', () => {
+      const insights = botInsights(
+        {credicorTriggers: 6, credicorMc: 24}, MarsBotCorpId.C01_CREDICOR, 'CrediCor');
+      expect(insights).has.length(1);
+      expect(insights[0].id).eq('reason.bot-corporation.red');
+    });
+
+    it('the draft fallback speaks only when no printed effect did', () => {
+      const withEffect = botInsights({credicorTriggers: 6, credicorMc: 24, fiveCardDecks: 3},
+        MarsBotCorpId.C01_CREDICOR, 'CrediCor');
+      expect(withEffect).has.length(1);
+      expect(withEffect[0].textKey).contains('monetized big projects');
+
+      const fallbackOnly = botInsights({fiveCardDecks: 3}, MarsBotCorpId.C01_CREDICOR, 'CrediCor');
+      expect(fallbackOnly).has.length(1);
+      expect(fallbackOnly[0].textKey).contains('protected all four drafted cards');
     });
   });
 

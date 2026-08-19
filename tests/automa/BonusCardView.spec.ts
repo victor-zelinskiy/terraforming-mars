@@ -63,6 +63,20 @@ describe('buildBonusCardView — the card face resolved for THIS game', () => {
     }
   });
 
+  it('Do It Right (B25) is Lobbyists without the destruction — and it says so', () => {
+    const view = buildBonusCardView(BonusCardId.B25_DO_IT_RIGHT, BASE);
+    expect(view.name).eq('Do It Right');
+    expect(view.fate.kind, 'it recurs forever, it is never destroyed').eq('recurring');
+    const icons = view.lines.map((l) => l.icon);
+    expect(icons).contains('temperature');
+    expect(icons).contains('greenery');
+    expect(icons).contains('ocean');
+    // The last line is the printed fallback — «no effect», not Lobbyists' one.
+    expect(view.lines[view.lines.length - 1].text).to.include('no effect');
+    // Venus Next does not fork this card (unlike Lobbyists).
+    expect(buildBonusCardView(BonusCardId.B25_DO_IT_RIGHT, VENUS)).deep.eq(view);
+  });
+
   it('an out-of-scope card degrades to its printed summary', () => {
     const view = buildBonusCardView(BonusCardId.B21_PARTY_POLITICS, BASE);
     expect(view.lines).has.length(1);
