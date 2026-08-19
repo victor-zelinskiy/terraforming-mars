@@ -2002,15 +2002,47 @@ html.console-native {
     100% { filter: drop-shadow(0 0 0 rgba(242, 193, 78, 0)); }
 }
 
-/* The rail is welded to y=0 now — a feedback chip that used to pop ABOVE
-   the readout would leave the screen. In the top rail the chips anchor
-   BELOW their cell instead: a transient overlay over the board's top edge
-   (the strip has no paint containment, z11706 keeps it above the main
-   area) — never a reason to grow the rail. */
+/* ═══ THE BEAM'S CHIP LINE — the ONE line every delta chip in the top rail
+   hangs from ═══
+   The rail is welded to y=0, so a chip that pops ABOVE its readout would
+   leave the screen: in this beam the chips hang BELOW instead — a transient
+   overlay over the scene's top edge (the strip has no paint containment,
+   z11706 keeps it above the main area) — never a reason to grow the rail.
+
+   WHICH line they hang from is the load-bearing part. Anchoring each host to
+   its OWN cell's bottom scattered them: the beam's readouts are different
+   heights (a 1.8rem icon row, a bare percent, the deck's smaller count) and
+   NONE of them reaches the beam's edge, so three simultaneous changes printed
+   three chips on three lines, each several px adrift INSIDE the scene — the
+   feedback read as debris floating over the board instead of as the beam's
+   own answer. (The fixed `-1.35rem` under-cell drop was calibrated against
+   one cell in one profile and drifted with every rail-height rework.)
+
+   Every chip-bearing cell is CENTRED in the beam (`.con-status` and each
+   group inside it are `align-items: center`), so `50% of the cell + half the
+   beam` IS the beam's seam — whatever the cell's own height, on every
+   profile's rail token, with no layout change to the cells themselves. The
+   anchor is `top` and never `bottom` on purpose: the TV profile ZOOMS the
+   chip (console_tv § 5b), and a bottom-anchored chip would drop its own
+   height difference below the line. */
+.con-status {
+    /* Where the chip's TOP edge sits relative to the seam: a hair ABOVE it,
+       so the chip reads as sliding out from UNDER the beam rather than
+       floating in the scene. ONE token — profiles retune the feel, never the
+       formula. */
+    --con-status-chip-drop: -.12rem;
+}
 .con-status .metric-feedback-host--global-parameter,
 .con-status .metric-feedback-host--misc {
-    top: auto;
-    bottom: -1.35rem;
+    top: calc(50% + var(--con-hud-h, 2.2rem) * .5 + var(--con-status-chip-drop, 0rem));
+    bottom: auto;
+    /* The host is a FLEX box here, not the shared inline-block: an inline
+       child rides its line box's BASELINE, so the chip's real top drifted
+       from the host's `top` by the difference between each cell's inherited
+       font metrics — the percent readout's chip sat a px and a half below
+       the parameters'. As a flex item the chip starts at the host's content
+       edge, so the computed line IS the painted line. */
+    display: flex;
 }
 
 /* THE DELTA-CHIP OWNERSHIP CONTRACT, deck instance: the chip belongs to
@@ -2020,7 +2052,9 @@ html.console-native {
    `.con-deckstack__count` (position: relative), so this resolves against
    the counter cell itself. */
 .con-status .con-deckstack .metric-feedback-host--misc {
-    bottom: -1.5rem;
+    /* HORIZONTAL only — the vertical anchor is the shared beam line above
+       (this cell is centred in the beam like every other, so it needs no
+       drop of its own). */
     right: auto;
     left: 50%;
     transform: translateX(-50%);
@@ -2033,13 +2067,23 @@ html.console-native {
    percent — each of which ALSO plays the flip-swap below (the chip pops
    the cell, the flip turns the digits inside it; they compose because
    they animate different elements). The GENERATION carries no chip — the
-   flip-swap alone is its announcement. */
+   flip-swap alone is its announcement.
+
+   THE POP NEVER LANDS ON THE CHIP'S ANCHOR. The keyframes carry a scale +
+   translateY, so whatever element they run on drags every absolutely-
+   positioned descendant with it — and the delta chip is one. The parameters
+   were already safe (their pop runs on `.con-status__value`, INSIDE the
+   `.con-status__param` the host anchors to); the percent ran its pop on the
+   anchor cell itself, so that one chip rode the readout's 0.92→1.10 scale:
+   it arrived undersized, off the shared beam line, and drifted while the
+   number settled. It pops the DIGITS (`.con-flipval`) instead — the chip's
+   containing block never moves, exactly like every other readout's. */
 .con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .con-status__value,
-.con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) {
+.con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) > .con-flipval {
     animation: global-num-transition-positive calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
 }
 .con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .con-status__value,
-.con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) {
+.con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) > .con-flipval {
     animation: global-num-transition-negative calc(760ms * var(--motion-scale, 1)) cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -2047,9 +2091,9 @@ html.console-native {
     .con-status__terra--celebrating { animation: none; }
     .con-status__terra-fill { transition: none; }
     .con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) .con-status__value,
-    .con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive),
+    .con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-positive) > .con-flipval,
     .con-status__param:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) .con-status__value,
-    .con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) {
+    .con-status__terra-pct:has(.metric-feedback-host--global-parameter.metric-feedback-host--active-negative) > .con-flipval {
         animation: none;
     }
 }
@@ -12450,6 +12494,29 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         align-items: baseline;
         font-variant-numeric: tabular-nums;
         font-weight: 700;
+    }
+    /* THE COUNT'S DELTA CHIP — the bottom bar's answer to the top beam's
+       chip line (see «THE BEAM'S CHIP LINE»), and deliberately NOT its
+       mirror. Up there the chip hangs off the beam into the scene; down
+       here the scene above the bar belongs to the HAND (the pack rises
+       straight through it) and the plate CLIPS its own children (the kant
+       clip-path), so a chip pushed above the rim is simply cut away. It
+       therefore stays on the readout's own line and steps to the RIGHT of
+       the total it reports — the digits it announces are never covered.
+
+       The shared `misc` variant's desktop anchor (8px above the cell, 10px
+       right of it) was authored for a floating panel with room overhead; in
+       a welded one-line bar it landed straight THROUGH «КАРТЫ n/m». The
+       flex host keeps the chip's painted box equal to its computed one, so
+       the line is exact whatever the profile's digit size. */
+    .metric-feedback-host--misc {
+        top: 50%;
+        bottom: auto;
+        left: 100%;
+        right: auto;
+        margin-left: .3rem;
+        transform: translateY(-50%);
+        display: flex;
     }
     /* Digits: a stable reserved width per number so 9→10 and back never
        jiggles the line (the group still grows symmetrically from centre). */

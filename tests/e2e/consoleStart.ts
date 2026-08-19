@@ -694,7 +694,8 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
   // [".con-task",".con-board"]», a diagnosis that names the one surface it
   // never tried to drive.
   const task = page.locator('.con-task');
-  /** Consecutive rounds in which the task host was the only thing standing. */
+  const taskVisible = async () => await task.count() > 0 && await task.first().isVisible();
+  /** Consecutive rounds the task host has been up with nothing above it. */
   let taskRounds = 0;
   for (let i = 0; i < maxRounds; i++) {
     if (await live.count() > 0 && await placement.count() === 0 && await hand.count() === 0 &&
@@ -739,6 +740,36 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
       // A held / DEFERRED decision (incl. a minimized start workspace) —
       // A brings it back; leaving it parked keeps the dock non-interactive.
       await press(page, 'Enter', 1200);
+    } else if (await taskVisible()) {
+      // THE TASK HOST IS ON TOP, so it is driven BEFORE the start — the
+      // branch order's own law. Standing over a still-painted start scene it
+      // OWNS the input, so every press the start branch below makes is
+      // swallowed: the walk spun out its whole budget and reported «board
+      // home never became live — still showing [".con-start",".con-task",
+      // ".con-board"]», naming three surfaces and driving the wrong one.
+      //
+      // VISIBILITY, never count: this host is `v-show`-parked for much of a
+      // game, and a mounted-but-hidden task must not out-rank the surface the
+      // player is actually looking at.
+      //
+      // WAIT IT OUT FIRST, ANSWER ONLY A STUCK ONE. A task the shell is
+      // already driving resolves by itself, and answering it eagerly is a
+      // press into a prompt nobody asked this driver about — the eager
+      // version cost two 4K presets. So the first rounds keep the old no-op
+      // behaviour and only then does it self-heal: the same shape as the
+      // product's own stalled-foreground watchdog, which also insists on
+      // several passes before it touches anything.
+      //
+      // When it does act it uses the console's own two verbs and nothing
+      // else: A selects / confirms, RT commits a SET (the multi-pick shape,
+      // where A only toggles). Alternating covers both without guessing which
+      // prompt kind is on screen.
+      taskRounds++;
+      if (taskRounds > 3) {
+        await press(page, taskRounds % 2 === 0 ? 'Enter' : 'Period', 1400);
+      } else {
+        await page.waitForTimeout(700);
+      }
     } else if (!await startSceneGone(page)) {
       // The start workspace is still PAINTED: finish it with the SAME
       // primitives the boot uses (never a blind Enter — a swallowed press
@@ -806,25 +837,6 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
         // No live pick — the standing section itself blocks the home
         // verdict (a follow-up that has already settled): close it.
         await press(page, 'Escape', 1200);
-      }
-    } else if (await task.count() > 0) {
-      // WAIT IT OUT FIRST, ANSWER ONLY A STUCK ONE. A task that resolves by
-      // itself (a beat the shell is already driving) used to be simply waited
-      // through by the no-op below, and answering it eagerly would be a press
-      // into a prompt nobody asked this driver about. So this branch keeps the
-      // old behaviour for the first rounds and only then self-heals — the same
-      // shape as the product's own stalled-foreground watchdog, which also
-      // insists on several passes before it touches anything.
-      //
-      // When it does act, it uses the console's own two verbs and nothing
-      // else: A selects / confirms, RT commits a SET (the multi-pick shape,
-      // where A only toggles). Alternating covers both without guessing which
-      // prompt kind is on screen.
-      taskRounds++;
-      if (taskRounds > 3) {
-        await press(page, taskRounds % 2 === 0 ? 'Enter' : 'Period', 1400);
-      } else {
-        await page.waitForTimeout(700);
       }
     } else {
       taskRounds = 0;

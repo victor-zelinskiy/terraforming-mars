@@ -25,7 +25,21 @@ import {bootIntoGame, bootSeededGame, createGameWithCards, playCardFromHand, pre
 
 const OUT = path.resolve('screenshots', process.env.DOSSIER_OUT ?? 'placement-dossier');
 
-/** A deterministic solo ARES game — hazards are what taxes a placement. */
+/**
+ * A solo ARES game — hazards are what taxes a placement.
+ *
+ * ⚠️ NOT REPRODUCIBLE, whatever `seed` says. `/api/creategame` never reads the
+ * field: `ApiCreateGame.ts` calls `Math.random()` for every game it builds, so
+ * the seed below documents an intent the server does not honour. Only the
+ * EXPLICIT lists (`customPreludes`, `includedCards`, `bannedCards`) are forced;
+ * the Ares hazard layout is drawn from the shuffled deck (`discardForCost`) and
+ * therefore differs on every run — measured: three creations with this exact
+ * config produced three disjoint hazard layouts.
+ *
+ * So everything below has to hold for ANY board this config can deal: the
+ * sweep covers the whole map rather than trusting a remembered cell, and the
+ * fit assertions name the cell they failed on.
+ */
 function aresConfig(overrides: Record<string, unknown> = {}) {
   return {
     players: [{name: 'Dossier', color: 'red', beginner: false, handicap: 0, first: true}],
@@ -120,24 +134,89 @@ async function focusedCell(page: Page): Promise<{id: string, legal: boolean}> {
 }
 
 /**
- * Walk the board cursor until `hit` answers true. The walk pattern sweeps
- * rows rather than orbiting one neighbourhood (the hazard probe's lesson),
- * and every step pumps a frame.
+ * Drive the board cursor to a KNOWN corner.
+ *
+ * The sweep below has to start somewhere reproducible: the cursor is seeded
+ * wherever the placement opened it, and the previous sweep left it wherever
+ * its own target was. Both arrow axes CLAMP at the board's edge, so spamming
+ * up-left is a homing move that costs nothing and cannot overshoot.
+ */
+async function homeCursor(page: Page): Promise<void> {
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press('ArrowUp');
+    await page.waitForTimeout(90);
+  }
+  for (let i = 0; i < 12; i++) {
+    await page.keyboard.press('ArrowLeft');
+    await page.waitForTimeout(90);
+  }
+  await pump(page);
+}
+
+/**
+ * Walk the board cursor until `hit` answers true.
+ *
+ * ⭐ THE SWEEP MUST COVER THE BOARD, and the old one covered a STRIP. Its
+ * pattern was «right ×3 · down · left ×3 · down», which never crosses a
+ * 9-column map: after a dozen steps it hits the bottom, `ArrowDown` clamps,
+ * and the rest of the budget oscillates inside the same four columns. Whether
+ * a hazard-adjacent cell happened to live in that strip depended on where the
+ * PREVIOUS sweep had left the cursor — so the same seeded game found the taxed
+ * cell on one attempt and «did not exist» on the next, three times over two
+ * CI runs.
+ *
+ * So: home first (a reproducible origin), cross the WHOLE row, and stop on the
+ * board's own evidence rather than on a step count — when a full lane adds no
+ * cell the sweep has not already visited, there is nothing left to see. The
+ * failure then reports how much board it actually covered, which is the one
+ * fact that tells «the cell is not there» from «the walk never got there».
  */
 async function walkUntil(
   page: Page,
   hit: (text: string, cell: {id: string, legal: boolean}) => boolean,
-  budget = 60): Promise<string> {
+  opts: {budget?: number, home?: boolean} = {}): Promise<string> {
+  const budget = opts.budget ?? 150;
   const panel = panelOf(page);
-  const walk = ['ArrowRight', 'ArrowRight', 'ArrowRight', 'ArrowDown',
-    'ArrowLeft', 'ArrowLeft', 'ArrowLeft', 'ArrowDown'];
+  // HOMING SERVES THE SEARCH FOR A RARE CELL, and only that. A caller looking
+  // for ANY legal cell wants the one NEAR the cursor the placement seeded —
+  // sending it to the corner first is strictly worse, and turned a two-step
+  // walk into one that leaves the board's legal region behind.
+  if (opts.home !== false) {
+    await homeCursor(page);
+  }
+  // A full-width serpentine: 9 columns is the widest Tharsis row, and a
+  // clamped extra press is free.
+  const lane: Array<string> = [
+    ...Array(9).fill('ArrowRight'), 'ArrowDown',
+    ...Array(9).fill('ArrowLeft'), 'ArrowDown',
+  ];
+  const seen = new Set<string>();
+  let newThisLane = 0;
   for (let i = 0; i < budget; i++) {
+    // ⚠️ COUNT PER LANE, never «steps since something new». Most presses in a
+    // lane are CLAMPED by design (nine rights cross the widest row, so every
+    // shorter row spends the rest of them standing still), and a run-length
+    // rule reads that as «the board is exhausted» — it aborted this sweep
+    // after 20 cells of a 61-cell map. A whole lane that adds nothing is the
+    // honest end condition.
+    if (i > 0 && i % lane.length === 0) {
+      if (newThisLane === 0) {
+        break;
+      }
+      newThisLane = 0;
+    }
+    const cell = await focusedCell(page);
     const text = await panel.innerText().catch(() => '');
-    if (text !== '' && hit(text, await focusedCell(page))) {
+    if (text !== '' && hit(text, cell)) {
       return text;
     }
-    await key(page, walk[i % walk.length], 380);
+    if (cell.id !== '' && !seen.has(cell.id)) {
+      seen.add(cell.id);
+      newThisLane++;
+    }
+    await key(page, lane[i % lane.length], 300);
   }
+  console.log(`[dossier] sweep found nothing across ${seen.size} cells`);
   return '';
 }
 
@@ -164,8 +243,14 @@ async function panelFit(page: Page): Promise<{overflow: number, scrollHint: numb
 
 async function expectFits(page: Page, what: string): Promise<void> {
   const fit = await panelFit(page);
-  expect(fit.overflow, `${what}: the panel overflows by ${fit.overflow}px`).toBeLessThanOrEqual(2);
-  expect(fit.scrollHint, `${what}: the scroll affordance is showing`).toBe(0);
+  // NAME THE CELL. The board is not reproducible (see `aresConfig`), so «the
+  // panel overflowed» is only actionable together with WHICH cell was under
+  // the cursor — the density that overflows lives on some cells and not on
+  // others, and the next run will be looking at a different board.
+  const cell = await focusedCell(page);
+  const where = `${what} (cell ${cell.id})`;
+  expect(fit.overflow, `${where}: the panel overflows by ${fit.overflow}px`).toBeLessThanOrEqual(2);
+  expect(fit.scrollHint, `${where}: the scroll affordance is showing`).toBe(0);
 }
 
 test.describe.configure({mode: 'serial'});
@@ -305,7 +390,21 @@ test.describe('console placement dossier · 4K TV', () => {
       await pump(page);
     }
     expect(await placementLive(page), 'the tile never reached the board').toBeTruthy();
-    await walkUntil(page, (_t, cell) => cell.legal, 16);
+    // The sweep HOMES first, so a tiny budget no longer means «a few steps
+    // from wherever the placement seeded the cursor» — it means «a few steps
+    // from the corner», which reaches no legal cell at all. Let the sweep run:
+    // it stops at the FIRST legal cell either way, and now it is reproducible.
+    // SEARCH FOR WHAT THE TEST NEEDS, not for «any legal cell». The tile's
+    // standing mechanic is a section the SERVER emits per cell
+    // (`placementDossier.ts` → `section('tile', …)` only when that cell's
+    // preview carries standing rule facts), so a walk that stops at the first
+    // legal square is asserting on a cell that may never have been asked to
+    // show one — which is exactly how this passed for as long as the old
+    // 4-column walk happened to land well, and failed the moment it landed
+    // elsewhere. Sweep the whole board for the section itself; if no cell on
+    // this (unseeded, see `aresConfig`) board shows it, THAT is the finding.
+    expect(await walkUntil(page, (text, cell) => cell.legal && /ПРИ РАЗМЕЩЕНИИ РЯДОМ/i.test(text)),
+      "no legal cell showed the tile's own adjacency mechanic").not.toBe('');
     await page.waitForTimeout(900);
     await pump(page);
     await shoot(page, '07-natural-preserve-adjacency');
@@ -369,7 +468,8 @@ test.describe('console placement dossier · 4K TV', () => {
       await pump(page);
     }
     expect(await placementLive(page), 'the special tile never reached the board').toBeTruthy();
-    await walkUntil(page, (_text, cell) => cell.legal, 16);
+    expect(await walkUntil(page, (_text, cell) => cell.legal, {budget: 24, home: false}),
+      'no legal cell surfaced for the special tile').not.toBe('');
     // ⚠️ LET THE PLANET SETTLE BEFORE SHOOTING. Planet focus zooms the board
     // on a CSS transition, and headless Chromium drives those off the
     // compositor — on a quiet screen the zoom simply stops half-way, and the
