@@ -28,7 +28,7 @@ paths:
 
 ## Existing primitives — reuse before inventing
 
-Draft priorities (`mostExpensive` · `mostTags` · `tags` chain · `leastAdvancedTrack`) · **track cubes** (`trackCubes` addressed by the track's TAG, spent-once via `corpCubesTriggered`, dispatched by `AutomaCorporations.onTrackAdvanced`; `'replaces-action'` only where the card says «instead of») · **corp-owned bonus cards** (`corpBonusCards` + `resolveBonusCard`; recurring ones ride `recurringBonusCards`, never the discard) · **a resource on the corp card** (`resource` + the ordinary `.pcard__res` capsule).
+Draft priorities (`mostExpensive` · `mostTags` · `tags` chain · `leastAdvancedTrack`) · **a per-advance effect** (`onTrackAdvance` — every successful step, cascades pay per step, a maxed track pays nothing) · **tracker reminders** (`whiteMarkerTracks` + `markerLegend`, presentation only, declared as a PAIR) · **track cubes** (`trackCubes` addressed by the track's TAG, spent-once via `corpCubesTriggered`, dispatched by `AutomaCorporations.onTrackAdvanced`; `'replaces-action'` only where the card says «instead of») · **corp-owned bonus cards** (`corpBonusCards` + `resolveBonusCard`; recurring ones ride `recurringBonusCards`, never the discard) · **a resource on the corp card** (`resource` + the ordinary `.pcard__res` capsule).
 
 ## Tests + verification
 

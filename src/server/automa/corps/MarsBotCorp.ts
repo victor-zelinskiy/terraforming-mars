@@ -43,6 +43,15 @@ export type MarsBotCorp = {
   onProjectCardResolving?(game: IGame, card: IProjectCard): void;
 
   /**
+   * MarsBot's marker ADVANCED one space on `trackIndex` (the space it landed
+   * on is `position`). Fires for EVERY successful advance — a card's printed
+   * tag, a cascade, a corporation's own starting tag — and never for a
+   * refused one (a maxed track is a Failed Action, not an advance). Runs
+   * BEFORE the space's printed icon, like the cube hook beside it.
+   */
+  onTrackAdvance?(game: IGame, trackIndex: number, position: number): void;
+
+  /**
    * MarsBot's marker ADVANCED onto one of this corporation's cubes (RB-B
    * «Special Cubes on the MarsBot Player Mat»). Fires BEFORE the space's
    * printed icon and IN ADDITION to it — unless the hook returns

@@ -307,6 +307,7 @@ export class Server {
       ...(info.resource !== undefined ? {resource: info.resource} : {}),
       resources: automa.corpResources,
       cubes: AutomaCorporations.cubeModels(game),
+      whiteMarkerTracks: AutomaCorporations.whiteMarkerTrackIndexes(game),
       stats: {...automa.corpStats},
     };
   }

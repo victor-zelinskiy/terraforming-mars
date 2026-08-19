@@ -1,6 +1,6 @@
 <template>
   <div class="mb-tracks" :class="{'mb-tracks--large': large}" :style="{'--mb-cols': maxCells}">
-    <div v-for="(track, ti) in tracks" :key="ti" class="mb-track">
+    <div v-for="(track, ti) in tracks" :key="ti" class="mb-track" :class="{'mb-track--whitemarker': whiteMarkerTracks.has(ti)}">
       <div class="mb-track__id">
         <Tag v-for="tag in track.tags" :key="tag" :tag="tag" :size="large ? 'big' : 'med'" type="secondary" />
       </div>
@@ -16,7 +16,7 @@
             'mb-cell--start': cell.index === 0,
             'mb-cell--cube': cell.cube !== undefined && !cell.cube.spent,
           }"
-          :data-hint="hintFor(cell)"
+          :data-hint="hintFor(cell, ti)"
         >
           <!-- The current cell is marked by the bright `mb-cell--current`
                OUTLINE only — never a cube INSIDE it (a cube covered the cell's
@@ -50,6 +50,12 @@
                 class="mb-cell__cube"
                 :class="['mb-cell__cube--' + cell.cube.cubeType, {'mb-cell__cube--spent': cell.cube.spent}]"
                 aria-hidden="true"></span>
+          <!-- The corporation's SETUP replaced this track's TRACKER with a
+               white cube (C04) — so the position marker itself wears one,
+               reading exactly like the physical mat. Yields to a seeded cube
+               on the same space (they would occupy the same corner). -->
+          <span v-if="cell.current && cell.cube === undefined && whiteMarkerTracks.has(ti)"
+                class="mb-cell__marker" aria-hidden="true"></span>
         </div>
       </div>
       <div class="mb-track__pos">{{ track.position }}<span class="mb-track__pos-max">/{{ track.maxPosition }}</span></div>
@@ -57,8 +63,9 @@
     <!-- The corporation's cube legend — what each colour does, in the printed
          card's own words, so a cube on the mat explains itself. -->
     <div v-if="legendRows.length > 0" class="mb-cubelegend">
-      <div v-for="row in legendRows" :key="row.cubeType" class="mb-cubelegend__row">
-        <span class="mb-cell__cube" :class="'mb-cell__cube--' + row.cubeType" aria-hidden="true"></span>
+      <div v-for="row in legendRows" :key="row.key" class="mb-cubelegend__row">
+        <span v-if="row.marker" class="mb-cell__marker mb-cell__marker--legend" aria-hidden="true"></span>
+        <span v-else class="mb-cell__cube" :class="'mb-cell__cube--' + row.cubeType" aria-hidden="true"></span>
         <span class="mb-cubelegend__text">{{ row.text }}</span>
       </div>
     </div>
@@ -146,7 +153,7 @@ export default defineComponent({
       default: return translateText('Credit token');
       }
     },
-    hintFor(cell: TrackCell): string {
+    hintFor(cell: TrackCell, trackIndex: number): string {
       if (cell.regressed) {
         return translateText('Regressed — this action will not trigger again');
       }
@@ -164,10 +171,24 @@ export default defineComponent({
           parts.push(translateText('This cube has already been used'));
         }
       }
+      const marker = this.markerLegendText;
+      if (cell.current && marker !== undefined && this.whiteMarkerTracks.has(trackIndex)) {
+        parts.push(`${translateText('White tracker')} — ${marker}`);
+      }
       return parts.join(' · ');
     },
   },
   computed: {
+    /** Tracks whose TRACKER the corporation's setup paints white (C04). */
+    whiteMarkerTracks(): Set<number> {
+      return new Set(this.corporation?.whiteMarkerTracks ?? []);
+    },
+    /** What those white trackers remind of, in the card's own words. */
+    markerLegendText(): string | undefined {
+      const id = this.corporation?.id;
+      const key = id === undefined ? undefined : marsBotCorpInfo(id).markerLegend;
+      return key === undefined ? undefined : translateText(key);
+    },
     /** The corporation's cubes, grouped by the track they sit on. */
     cubesByTrack(): Map<number, Array<MarsBotCorpCubeModel>> {
       const map = new Map<number, Array<MarsBotCorpCubeModel>>();
@@ -181,18 +202,23 @@ export default defineComponent({
       }
       return map;
     },
-    /** One legend row per cube colour this corporation actually seeded. */
-    legendRows(): Array<{cubeType: MarsBotCubeType, text: string}> {
+    /** One legend row per cube colour this corporation actually seeded, plus
+     *  one for its white TRACKERS when it paints any. */
+    legendRows(): Array<{key: string, cubeType?: MarsBotCubeType, marker?: boolean, text: string}> {
       const seeded = new Set((this.corporation?.cubes ?? []).map((c) => c.cubeType));
-      const rows: Array<{cubeType: MarsBotCubeType, text: string}> = [];
+      const rows: Array<{key: string, cubeType?: MarsBotCubeType, marker?: boolean, text: string}> = [];
       for (const cubeType of ['white', 'black', 'credit'] as const) {
         if (!seeded.has(cubeType)) {
           continue;
         }
         const text = this.legendText(cubeType);
         if (text !== undefined) {
-          rows.push({cubeType, text});
+          rows.push({key: cubeType, cubeType, text});
         }
+      }
+      const marker = this.markerLegendText;
+      if (marker !== undefined && this.whiteMarkerTracks.size > 0) {
+        rows.push({key: 'marker', marker: true, text: marker});
       }
       return rows;
     },

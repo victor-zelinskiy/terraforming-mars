@@ -12,6 +12,7 @@ import type {BonusCardOutcome} from '../AutomaBonusCards';
 import {MarsBotCorp} from './MarsBotCorp';
 import {MarsBotCredicor} from './MarsBotCredicor';
 import {MarsBotHelion} from './MarsBotHelion';
+import {MarsBotInterplanetaryCinematics} from './MarsBotInterplanetaryCinematics';
 import {MarsBotDraftResolver} from './MarsBotDraftResolver';
 import {MarsBotEcoline} from './MarsBotEcoline';
 import {MarsBotSpire} from './MarsBotSpire';
@@ -43,6 +44,7 @@ export class AutomaCorporations {
     [MarsBotCorpId.C01_CREDICOR]: MarsBotCredicor,
     [MarsBotCorpId.C02_ECOLINE]: MarsBotEcoline,
     [MarsBotCorpId.C03_HELION]: MarsBotHelion,
+    [MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS]: MarsBotInterplanetaryCinematics,
     [MarsBotCorpId.C45_SPIRE]: MarsBotSpire,
   };
 
@@ -242,6 +244,23 @@ export class AutomaCorporations {
     return resolved;
   }
 
+  /** Track indexes whose MARKER the corporation's setup paints white (C04). */
+  public static whiteMarkerTrackIndexes(game: IGame): ReadonlyArray<number> {
+    const automa = game.automa;
+    const tags = AutomaCorporations.activeCorp(game)?.info.whiteMarkerTracks;
+    if (automa === undefined || tags === undefined) {
+      return [];
+    }
+    const out: Array<number> = [];
+    for (const tag of tags) {
+      const index = automa.board.getTrackIndexForTag(tag);
+      if (index !== undefined && !out.includes(index)) {
+        out.push(index);
+      }
+    }
+    return out;
+  }
+
   /** The public cube model (open table information — the client draws them). */
   public static cubeModels(game: IGame): ReadonlyArray<MarsBotCorpCubeModel> {
     const triggered = game.automa?.corpCubesTriggered ?? new Set<string>();
@@ -254,15 +273,22 @@ export class AutomaCorporations {
   }
 
   /**
-   * The bot's marker just ADVANCED onto `position` of `trackIndex`. Fires the
-   * corporation's cube effect when an unspent cube sits there (RB-B: before
-   * and in addition to the printed icon). Returns true when the corporation
-   * REPLACED the printed action — the caller then skips it.
+   * The bot's marker just ADVANCED onto `position` of `trackIndex`. Runs the
+   * corporation's per-advance effect, then its cube effect when an unspent
+   * cube sits there (RB-B: before and in addition to the printed icon).
+   * Returns true when the corporation REPLACED the printed action — the
+   * caller then skips it.
    */
   public static onTrackAdvanced(game: IGame, trackIndex: number, position: number, printedAction: TrackAction | undefined): boolean {
     const automa = game.automa;
     const corp = AutomaCorporations.activeCorp(game);
-    if (automa === undefined || corp?.onTrackCubeTrigger === undefined) {
+    if (automa === undefined || corp === undefined) {
+      return false;
+    }
+    // A per-advance effect (C04: «each time MarsBot advances the building or
+    // event track…») fires for every successful step, cube or not.
+    corp.onTrackAdvance?.(game, trackIndex, position);
+    if (corp.onTrackCubeTrigger === undefined) {
       return false;
     }
     const key = AutomaCorporations.cubeKey(trackIndex, position);

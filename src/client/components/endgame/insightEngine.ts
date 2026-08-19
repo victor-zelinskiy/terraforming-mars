@@ -2553,6 +2553,19 @@ const analyzeBotCorporation: Analyzer = (ctx) => {
           scale: 10,
         };
       }
+    } else if (corp.id === 'C04') {
+      // Interplanetary Cinematics: 2 M€ per building/event advance. A few
+      // advances are background noise; a stream of them financed the bot.
+      const advances = stat('icTrackAdvances');
+      const mc = stat('icMc');
+      if (advances >= 10) {
+        story = {
+          textKey: '${0}\'s corporation ${1} was paid for its own momentum: ${2} building and event advances earned ${3} M€.',
+          params: [raw(p.name), raw(corp.name), raw(advances), raw(mc)],
+          measure: mc,
+          scale: 60,
+        };
+      }
     } else if (corp.id === 'C45') {
       // Spire: the science engine — multi-tag cards banked into cities + TR.
       const cities = stat('citiesPlaced');

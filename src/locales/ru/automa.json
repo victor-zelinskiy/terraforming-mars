@@ -359,5 +359,11 @@
   "White cube": "Белый куб",
   "Black cube": "Чёрный куб",
   "Credit token": "Жетон кредита",
-  "This cube has already been used": "Этот куб уже использован"
+  "This cube has already been used": "Этот куб уже использован",
+  "White tracker": "Белый маркер",
+  "${0} gained ${1} M€ from its corporation ${2} for advancing the building track": "${0} получает ${1} М€ от корпорации ${2} за продвижение трека строительства",
+  "${0} gained ${1} M€ from its corporation ${2} for advancing the event track": "${0} получает ${1} М€ от корпорации ${2} за продвижение трека событий",
+  "The building and event track markers become white cubes — a reminder of the effect below": "Маркеры треков строительства и событий заменяются белыми кубами — напоминание об эффекте ниже",
+  "Each time MarsBot advances the building or event track — the starting tags included — it gains ${0} M€": "Каждый раз, когда Бот продвигает трек строительства или событий — включая стартовые метки — он получает ${0} М€",
+  "Advancing this track pays MarsBot 2 M€": "Продвижение этого трека приносит Боту 2 М€"
 }

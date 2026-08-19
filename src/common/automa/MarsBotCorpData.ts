@@ -93,6 +93,15 @@ export type MarsBotCorpInfo = {
    * without opening the corporation card.
    */
   cubeLegend?: Partial<Record<MarsBotCubeType, string>>;
+  /**
+   * Tracks whose MARKER the setup box replaces with a white cube «as a
+   * reminder for this corporation's effect» (C04). Pure presentation — the
+   * marker is still the bot's position; the reminder is what the track view
+   * paints, with `markerLegend` naming the effect it reminds of.
+   */
+  whiteMarkerTracks?: ReadonlyArray<Tag>;
+  /** EN i18n key explaining what the white markers remind of. */
+  markerLegend?: string;
   /** The printed rule boxes, in printed order (display data; EN i18n keys). */
   sections: ReadonlyArray<MarsBotCorpSection>;
 };
@@ -173,6 +182,29 @@ const CORP_INFO: Readonly<Record<MarsBotCorpId, MarsBotCorpInfo>> = {
       ]},
     ],
   },
+  [MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS]: {
+    id: MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS,
+    cardNumber: 'C04',
+    original: CardName.INTERPLANETARY_CINEMATICS,
+    // The printed starting tags: TWO event tags (RB-B Setup 4 resolves them
+    // like a revealed card's tags — and the effect below counts them, which
+    // is what «including the starting tags» means).
+    startingTags: [Tag.EVENT, Tag.EVENT],
+    corpBonusCards: [],
+    // SETUP: «Replace the trackers for the building track and event track
+    // with white cubes as a reminder for this corporation's effect» — a
+    // REMINDER, no game effect of its own.
+    whiteMarkerTracks: [Tag.BUILDING, Tag.EVENT],
+    markerLegend: 'Advancing this track pays MarsBot 2 M€',
+    sections: [
+      {kind: 'setup', lines: [
+        {icon: 'cube-white', text: 'The building and event track markers become white cubes — a reminder of the effect below', muted: true},
+      ]},
+      {kind: 'effect', lines: [
+        {icon: 'megacredits', text: 'Each time MarsBot advances the building or event track — the starting tags included — it gains ${0} M€', params: ['2']},
+      ]},
+    ],
+  },
   [MarsBotCorpId.C45_SPIRE]: {
     id: MarsBotCorpId.C45_SPIRE,
     cardNumber: 'C45',
@@ -222,6 +254,8 @@ export function corpOwningBonusCard(id: BonusCardId): MarsBotCorpInfo | undefine
  *           oxygenSteps / plantsLostToOpponents.
  * Spire:    scienceAdded / scienceSpent / citiesPlaced / trGained /
  *           multiTagCards (cards with 2+ tags resolved).
+ * Interplanetary Cinematics: icTrackAdvances (building/event advances that
+ *           paid) / icMc (M€ paid by them).
  * Helion:   whiteCubesHit / blackCubesHit (cubes reached), helionCardsDrawn
  *           (white-cube draws), helionTemperatureSteps (black-cube raises),
  *           helionTemperatureReplaced (printed raises the white cube took over).
@@ -248,6 +282,9 @@ export type MarsBotCorpModel = {
   resources: number;
   /** Cubes this corporation seeded on the bot's tracks (empty for most corps). */
   cubes: ReadonlyArray<MarsBotCorpCubeModel>;
+  /** Track indexes whose marker the setup box paints white (C04 reminder);
+   *  absent for every corporation that paints none. */
+  whiteMarkerTracks?: ReadonlyArray<number>;
   stats: MarsBotCorpStats;
 };
 

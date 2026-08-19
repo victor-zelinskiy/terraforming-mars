@@ -1,6 +1,6 @@
 # Добавление новой корпорации MarsBot — чеклист
 
-Пошаговая процедура. Контракт подсистемы: `docs/claude/marsbot-corporations.md`. Официальные данные и трактовки: `docs/AUTOMA_DATA_AUDIT.md` §10. Реализованные образцы: **C01 Credicor** (эффект + драфт-приоритет), **C02 Ecoline** (своя бонус-карта B23 + ресурс на карте), **C03 Helion** (кубы на треках), **C45 Spire** (стартовая метка + ресурс + Before-Action-Phase).
+Пошаговая процедура. Контракт подсистемы: `docs/claude/marsbot-corporations.md`. Официальные данные и трактовки: `docs/AUTOMA_DATA_AUDIT.md` §10. Реализованные образцы: **C01 Credicor** (эффект + драфт-приоритет), **C02 Ecoline** (своя бонус-карта B23 + ресурс на карте), **C03 Helion** (кубы на треках), **C04 Interplanetary Cinematics** (эффект на каждое продвижение трека + белые маркеры-напоминания), **C45 Spire** (стартовая метка + ресурс + Before-Action-Phase).
 
 Правило `.claude/rules/marsbot-corps.md` загружается само, когда трогаешь `src/server/automa/corps/**` — этот файл его полная версия.
 
@@ -32,6 +32,7 @@ Co-located файл, реализующий ТОЛЬКО те хуки, что �
 - [ ] `beforeActionPhase?` / (Round Start — при появлении первой такой карты добавить хук в `MarsBotCorp`).
 - [ ] `onProjectCardResolving?` — «When resolving a card …»: срабатывает ДО обработки меток, Failed Action его не гасит.
 - [ ] `onTrackCubeTrigger?` — эффект куба; вернуть `'replaces-action'` ТОЛЬКО если карта явно говорит «instead of».
+- [ ] `onTrackAdvance?` — «когда бот продвигает такой-то трек»: срабатывает на КАЖДЫЙ успешный шаг (каскад платит по шагам, maxed = Failed Action и не платит).
 - [ ] `resolveBonusCard?` — своя B-карта (см. §3).
 - [ ] Подача: эффект внутри хода — `game.events.beginEffect(bot, {kind:'corporation', card: this.info.original, owner: bot.color}, 'automa-corporation')` + `AutomaTurnLog.setCause(game, {kind:'corporation'})` с восстановлением прежней причины (`getCause`); действие ВНЕ хода — `beginAction(..., {category: 'corporation-action'})`.
 - [ ] Каждый значимый шаг — `bumpCorpStat(game, '<key>', n)`.
@@ -50,6 +51,8 @@ Co-located файл, реализующий ТОЛЬКО те хуки, что �
 | --- | --- | --- |
 | Draft Priority | `mostExpensive` · `mostTags` · `tags` (цепочка) · `leastAdvancedTrack` | взять готовый тип; НОВЫЙ тип = case в `MarsBotDraftResolver.scorerOf` + `savedFromDiscard` |
 | Кубы на треках | `trackCubes` (адрес трека = ТЕГ) + `corpCubesTriggered` + `onTrackAdvanced` | объявить кубы + `cubeLegend`; UI и spent-once работают сами |
+| Эффект на каждое продвижение трека | `MarsBotCorp.onTrackAdvance` (образец C04) | сверить трек по ТЕГУ (`getTrackIndexForTag`), а не по индексу; стартовые метки платят сами — корпорация сажается до их резолва |
+| Маркер-напоминание на треке (SETUP «replace the tracker…») | `whiteMarkerTracks` + `markerLegend` → `MarsBotTracks` | объявить ПАРУ (гард в `MarsBotCorpData.spec.ts`); игрового эффекта нет, но на планшете это видно |
 | Своя бонус-карта (B22–B32) | `corpBonusCards` + `resolveBonusCard` + `BonusCardData` | добавить текст/`buildBonusCardView`-ветку; **recurring** — через `recurringBonusCards` (образец B23), не через discard |
 | Ресурс на карте корпорации | `resource` + `corpResources` + капсула `.pcard__res` | объявить `resource`; для НЕ-card-resource дать `iconUrl`-override в `marsBotCorpPremiumVm` |
 | Стартовые метки | `AutomaResolver.resolveTag` при выборе корпорации | ничего: трек двигается, действия клеток срабатывают, RB-B human-реакторы уведомляются |

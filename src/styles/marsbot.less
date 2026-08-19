@@ -216,6 +216,32 @@
     opacity: 0.5;
 }
 
+/* ── WHITE TRACKER (C04 setup: «replace the tracker with a white cube») ───
+   The position marker itself becomes the cube: the same body as a white cube,
+   pinned in the same corner, so the mat reads exactly like the physical table.
+   The row's current-cell ring cools from the mat accent to a frosted white —
+   a reminder must be legible without becoming the loudest thing on screen. */
+.mb-cell__marker {
+    position: absolute;
+    top: -3px; left: -3px;
+    width: 11px; height: 11px;
+    border-radius: 2.5px;
+    pointer-events: none;
+    background: linear-gradient(155deg, #ffffff 0%, #eef3f1 42%, #b9c6c2 100%);
+    box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.95),
+        inset 0 -1.5px 1px rgba(30, 50, 45, 0.4),
+        0 0 0 1px rgba(6, 12, 10, 0.9),
+        0 1px 3px rgba(0, 0, 0, 0.55);
+}
+.mb-track--whitemarker .mb-cell--current {
+    background: rgba(226, 240, 236, 0.1);
+    box-shadow:
+        inset 0 0 0 2px rgba(226, 240, 236, 0.72),
+        0 0 0 1px rgba(226, 240, 236, 0.3),
+        0 0 12px rgba(226, 240, 236, 0.24);
+}
+
 /* The legend under the tracks: one quiet row per seeded colour. */
 .mb-cubelegend {
     display: flex; flex-direction: column; gap: 4px;
@@ -223,14 +249,17 @@
     border-top: 1px dashed fade(@mb-accent, 16%);
 }
 .mb-cubelegend__row { display: flex; align-items: center; gap: 8px; }
-.mb-cubelegend__row .mb-cell__cube { position: static; width: 12px; height: 12px; flex: 0 0 auto; }
+.mb-cubelegend__row .mb-cell__cube,
+.mb-cubelegend__row .mb-cell__marker { position: static; width: 12px; height: 12px; flex: 0 0 auto; }
 .mb-cubelegend__text {
     font-size: 10.5px; line-height: 1.4; color: @mb-text-dim;
 }
 .mb-tracks--large {
-    .mb-cell__cube { top: -4px; left: -4px; width: 15px; height: 15px; border-radius: 3.5px; }
+    .mb-cell__cube,
+    .mb-cell__marker { top: -4px; left: -4px; width: 15px; height: 15px; border-radius: 3.5px; }
     .mb-cubelegend { gap: 6px; padding-top: 10px; }
-    .mb-cubelegend__row .mb-cell__cube { width: 17px; height: 17px; }
+    .mb-cubelegend__row .mb-cell__cube,
+    .mb-cubelegend__row .mb-cell__marker { width: 17px; height: 17px; }
     .mb-cubelegend__text { font-size: 14px; }
 }
 

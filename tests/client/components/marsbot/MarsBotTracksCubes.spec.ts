@@ -76,3 +76,49 @@ describe('MarsBotTracks — corporation cubes', () => {
     expect(wrapper.find('.mb-tracks').exists()).is.true;
   });
 });
+
+/**
+ * C04's setup replaces the TRACKERS of two tracks with white cubes «as a
+ * reminder». The digital mat owes the player the same cue: the marked track's
+ * current position wears the cube, and the legend says what it reminds of.
+ */
+describe('MarsBotTracks — white trackers', () => {
+  const CINEMATICS: MarsBotCorpModel = {
+    id: MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS,
+    original: 'Interplanetary Cinematics' as MarsBotCorpModel['original'],
+    startingTags: [],
+    resources: 0,
+    cubes: [],
+    whiteMarkerTracks: [0],
+    stats: {},
+  };
+
+  it('paints the marked track current position — and nothing else', () => {
+    const wrapper = mountTracks(CINEMATICS);
+    const markers = wrapper.findAll('.mb-track .mb-cell__marker');
+    expect(markers, 'one marker, on the one marked track').has.length(1);
+    // TRACK.position is 2 — the marker rides the current cell, not a fixed one.
+    const cells = wrapper.findAll('.mb-track .mb-cell');
+    expect(cells[TRACK.position].find('.mb-cell__marker').exists()).is.true;
+    expect(wrapper.find('.mb-track--whitemarker').exists()).is.true;
+  });
+
+  it('the legend names what the white trackers remind of', () => {
+    const wrapper = mountTracks(CINEMATICS);
+    const legend = wrapper.find('.mb-cubelegend');
+    expect(legend.exists()).is.true;
+    expect(legend.findAll('.mb-cubelegend__row')).has.length(1);
+    expect(legend.text()).contains('Advancing this track pays MarsBot 2');
+  });
+
+  it('an UNMARKED track keeps the ordinary position outline', () => {
+    const wrapper = mountTracks({...CINEMATICS, whiteMarkerTracks: [1]});
+    expect(wrapper.findAll('.mb-track .mb-cell__marker'), 'track 1 does not exist here').is.empty;
+    expect(wrapper.find('.mb-track--whitemarker').exists()).is.false;
+  });
+
+  it('a corporation that paints no trackers draws none', () => {
+    const wrapper = mountTracks(HELION);
+    expect(wrapper.find('.mb-cell__marker').exists()).is.false;
+  });
+});

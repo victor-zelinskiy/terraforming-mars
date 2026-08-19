@@ -6,7 +6,7 @@ import {CORP_SECTION_LABEL, buildMarsBotCorpView, corpOwningBonusCard, marsBotCo
 
 /**
  * The printed MarsBot corporation data — transcribed from the official cards
- * (C01 / C02 / C45, RB-B "Adding Corporations"). These specs pin the DATA so
+ * (C01–C04 / C45, RB-B "Adding Corporations"). These specs pin the DATA so
  * a future edit that drifts from the physical cards fails loudly.
  */
 describe('MarsBotCorpData', () => {
@@ -74,6 +74,18 @@ describe('MarsBotCorpData', () => {
         }
       }
     }
+  });
+
+  it('a white-marker corporation always names what its markers remind of', () => {
+    // The pair is the contract: markers without a legend would be an
+    // unexplained decoration on the mat (C04 is the first to paint any).
+    for (const id of MARS_BOT_CORP_IDS) {
+      const info = marsBotCorpInfo(id);
+      expect(info.whiteMarkerTracks === undefined, `${id}`).eq(info.markerLegend === undefined);
+      expect((info.whiteMarkerTracks ?? []).length === 0, `${id}`).eq(info.markerLegend === undefined);
+    }
+    expect(marsBotCorpInfo(MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS).whiteMarkerTracks)
+      .deep.eq([Tag.BUILDING, Tag.EVENT]);
   });
 
   it('corpOwningBonusCard maps B23 to Ecoline and nothing else', () => {

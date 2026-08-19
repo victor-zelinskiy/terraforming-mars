@@ -1,6 +1,6 @@
 import {mount} from '@vue/test-utils';
 import {expect} from 'chai';
-import {MarsBotCorpId} from '@/common/automa/AutomaTypes';
+import {MARS_BOT_CORP_IDS, MarsBotCorpId} from '@/common/automa/AutomaTypes';
 import MarsBotCorpFace from '@/client/components/marsbot/MarsBotCorpFace.vue';
 import PremiumCard from '@/client/components/premiumCard/PremiumCard.vue';
 import {buildMarsBotCorpPremiumVm} from '@/client/components/marsbot/marsBotCorpPremiumVm';
@@ -37,7 +37,7 @@ describe('MarsBotCorpFace (.pcard template)', () => {
   });
 
   it('the medallion carries the automa stamp — never the original\'s module icon', () => {
-    for (const id of [MarsBotCorpId.C01_CREDICOR, MarsBotCorpId.C02_ECOLINE, MarsBotCorpId.C03_HELION, MarsBotCorpId.C45_SPIRE]) {
+    for (const id of MARS_BOT_CORP_IDS) {
       const wrapper = mountFace(id);
       const style = wrapper.find('.pcard__exp-medallion').attributes('style') ?? '';
       expect(style, `${id} medallion`).contains('expansion_icon_automa.svg');
@@ -48,6 +48,14 @@ describe('MarsBotCorpFace (.pcard template)', () => {
     expect(mountFace(MarsBotCorpId.C45_SPIRE).find('.pcard__tags').exists()).is.true;
     expect(mountFace(MarsBotCorpId.C01_CREDICOR).find('.pcard__tags').exists()).is.false;
     expect(mountFace(MarsBotCorpId.C02_ECOLINE).find('.pcard__tags').exists()).is.false;
+    // C04 prints TWO event tags — both sit on the rail (the bot card's tags,
+    // never the human card's single building tag).
+    const ic = mountFace(MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS);
+    expect(ic.find('.pcard__tags').exists()).is.true;
+    const medallions = ic.findAll('.pcard__tags .pcard-tag');
+    expect(medallions).has.length(2);
+    expect(medallions.every((m) => (m.attributes('style') ?? '').includes('event'))).is.true;
+    expect(ic.find('.pcard__res').exists(), 'C04 stores nothing on its card').is.false;
   });
 
   it('the resource capsule is the ordinary .pcard__res socket with the live count', () => {
@@ -65,7 +73,7 @@ describe('MarsBotCorpFace (.pcard template)', () => {
   });
 
   it('no human corporation rule leaks onto the face', () => {
-    for (const id of [MarsBotCorpId.C01_CREDICOR, MarsBotCorpId.C02_ECOLINE, MarsBotCorpId.C03_HELION, MarsBotCorpId.C45_SPIRE]) {
+    for (const id of MARS_BOT_CORP_IDS) {
       const text = mountFace(id).text();
       expect(text).not.contains('57');
       expect(text).not.match(/Start with/i);
@@ -103,6 +111,14 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
     expect(groups.every((g) => g.rows.length > 0)).is.true;
   });
 
+  it('Interplanetary Cinematics prints a SETUP reminder and its EFFECT', () => {
+    const groups = marsBotCorpAnnotations(MarsBotCorpId.C04_INTERPLANETARY_CINEMATICS);
+    expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect']);
+    const text = groups.flatMap((g) => g.rows.map((r) => r.text)).join(' ');
+    expect(text).contains('white cubes');
+    expect(text).contains('2');
+  });
+
   it('Helion prints a SETUP box and an EFFECT box (its cubes + what they do)', () => {
     const groups = marsBotCorpAnnotations(MarsBotCorpId.C03_HELION);
     expect(groups.map((g) => g.labelKey)).deep.eq(['Corporation setup', 'Corporation effect']);
@@ -112,7 +128,7 @@ describe('marsBotCorpRules — the «§ ПРАВИЛА» groups', () => {
   });
 
   it('resolves row params into the text (no raw ${0} reaches the panel)', () => {
-    for (const id of [MarsBotCorpId.C01_CREDICOR, MarsBotCorpId.C02_ECOLINE, MarsBotCorpId.C03_HELION, MarsBotCorpId.C45_SPIRE]) {
+    for (const id of MARS_BOT_CORP_IDS) {
       for (const group of marsBotCorpAnnotations(id)) {
         for (const row of group.rows) {
           expect(row.text).not.contains('${');
