@@ -137,6 +137,85 @@ describe('buildPremiumCardViewModel', () => {
     expect(predators.vp?.kind).to.eq('dynamic');
   });
 
+  /*
+   * The VP RELATION is what the badge prints as a formula — «1 / [jovian]»
+   * only reads as «1 per jovian tag» because the view-model said so. Every
+   * shape the printed render data can take is pinned here.
+   */
+  it('classifies the VP relation and its denominator', () => {
+    const rel = (name: CardName) => {
+      const vp = vmOf(name).vp;
+      if (vp?.kind !== 'dynamic') {
+        throw new Error(`${name}: expected a dynamic VP`);
+      }
+      return {relation: vp.relation, per: vp.per, points: vp.points};
+    };
+
+    // N per EACH — a tag, a card resource, a tile.
+    expect(rel(CardName.WATER_IMPORT_FROM_EUROPA)).to.deep.eq({relation: 'per', per: 1, points: 1});
+    expect(rel(CardName.BIRDS)).to.deep.eq({relation: 'per', per: 1, points: 1});
+    expect(rel(CardName.CAPITAL)).to.deep.eq({relation: 'per', per: 1, points: 1});
+    // …including a NEGATIVE rate.
+    expect(rel(CardName.ANCIENT_SHIPYARDS)).to.deep.eq({relation: 'per', per: 1, points: -1});
+
+    // N per EVERY K.
+    expect(rel(CardName.ANTS)).to.deep.eq({relation: 'per', per: 2, points: 1});
+    expect(rel(CardName.DECOMPOSERS)).to.deep.eq({relation: 'per', per: 3, points: 1});
+    expect(rel(CardName.TARDIGRADES)).to.deep.eq({relation: 'per', per: 4, points: 1});
+    expect(rel(CardName.SOLARPEDIA)).to.deep.eq({relation: 'per', per: 6, points: 1});
+
+    // «2 VP PER MINING TILE»: the per-one builders copy `points` into
+    // `target`, which must NOT be read as a denominator of 2.
+    expect(rel(CardName.LUNA_MINING_HUB)).to.deep.eq({relation: 'per', per: 1, points: 2});
+    expect(rel(CardName.LUNA_TRAIN_STATION)).to.deep.eq({relation: 'per', per: 1, points: 2});
+
+    // A flat amount behind a threshold — «3 VP if it holds ≥1 science».
+    expect(rel(CardName.SEARCH_FOR_LIFE)).to.deep.eq({relation: 'conditional', per: 1, points: 3});
+
+    // A flat amount with no subject on the badge.
+    expect(rel(CardName.LAW_SUIT)).to.deep.eq({relation: 'plain', per: 1, points: -1});
+    expect(rel(CardName.STING_OPERATION)).to.deep.eq({relation: 'plain', per: 1, points: -2});
+
+    // A bespoke count the badge can only print as «?».
+    expect(rel(CardName.AGRICOLA_INC)).to.deep.eq({relation: 'variable', per: 1, points: 0});
+    expect(rel(CardName.RED_CITY)).to.deep.eq({relation: 'variable', per: 1, points: 0});
+  });
+
+  /*
+   * WORKLIST GUARD — every dynamic VP badge in the whole corpus must resolve
+   * to a relation, and a «per» relation must expose a denominator ≥ 1. A new
+   * card (or a widened expansion scope) that invents a shape this classifier
+   * cannot read fails HERE, by name, instead of silently printing an
+   * ambiguous «N [icon]» on the face.
+   */
+  it('every dynamic-VP card in the corpus resolves to a relation', () => {
+    const unresolved: Array<string> = [];
+    for (const card of getCards(() => true)) {
+      if (!isPremiumFaceType(card.type)) {
+        continue;
+      }
+      const vp = buildPremiumCardViewModel(card).vp;
+      if (vp?.kind !== 'dynamic') {
+        continue;
+      }
+      const ok = vp.relation === 'per' ?
+        Number.isInteger(vp.per) && vp.per >= 1 :
+        ['conditional', 'variable', 'plain'].includes(vp.relation);
+      if (!ok) {
+        unresolved.push(`${card.name} (relation=${vp.relation}, per=${vp.per})`);
+      }
+      // A subject-less relation must never claim a rate, and a rate must
+      // always have a subject to divide.
+      if (vp.relation === 'per' && vp.item === undefined) {
+        unresolved.push(`${card.name}: 'per' without an item`);
+      }
+      if ((vp.relation === 'plain' || vp.relation === 'variable') && vp.item !== undefined) {
+        unresolved.push(`${card.name}: '${vp.relation}' with an item`);
+      }
+    }
+    expect(unresolved, unresolved.join(', ')).to.deep.eq([]);
+  });
+
   it('extracts mechanics with a density tier', () => {
     const comet = vmOf(CardName.COMET);
     expect(comet.mechanics.textOnly).to.eq(false);
@@ -278,14 +357,19 @@ describe('vpVariantOf (VP badge sizing / lower safe reserve)', () => {
     expect(vpVariantOf({kind: 'fixed', value: 2})).to.eq('compact');
     expect(vpVariantOf({kind: 'fixed', value: -1})).to.eq('compact');
   });
-  it('simple per-item VP is wide; ratios / one-or-more / vermin are formula', () => {
-    const base = {kind: 'dynamic' as const, points: 1, target: 1, item: undefined,
-      asterisk: false, anyPlayer: false, targetOneOrMore: false, asFraction: false};
+  it('a per-one rate is wide; ratios / one-or-more / vermin are formula', () => {
+    const base = {kind: 'dynamic' as const, relation: 'per' as const, points: 1, per: 1, target: 1,
+      item: undefined, asterisk: false, anyPlayer: false, targetOneOrMore: false, asFraction: false};
     expect(vpVariantOf(base)).to.eq('wide');
-    expect(vpVariantOf({...base, target: 2})).to.eq('formula');
-    expect(vpVariantOf({...base, targetOneOrMore: true})).to.eq('formula');
+    expect(vpVariantOf({...base, per: 2, target: 2})).to.eq('formula');
+    expect(vpVariantOf({...base, asterisk: true})).to.eq('formula');
+    expect(vpVariantOf({...base, relation: 'conditional', targetOneOrMore: true})).to.eq('formula');
     expect(vpVariantOf({kind: 'vermin'})).to.eq('formula');
     expect(vpVariantOf(vmOf(CardName.SEARCH_FOR_LIFE).vp!)).to.eq('formula');
+  });
+  it('a subject-less amount («−1», «?») is compact, like a fixed one', () => {
+    expect(vpVariantOf(vmOf(CardName.LAW_SUIT).vp!)).to.eq('compact');
+    expect(vpVariantOf(vmOf(CardName.AGRICOLA_INC).vp!)).to.eq('compact');
   });
 });
 

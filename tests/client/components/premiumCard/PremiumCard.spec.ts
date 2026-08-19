@@ -7,6 +7,7 @@ import PremiumCardArt from '@/client/components/premiumCard/PremiumCardArt.vue';
 import {byType, getCards} from '@/client/cards/ClientCardManifest';
 import {CardType} from '@/common/cards/CardType';
 import {premiumCardArt} from '@/client/cards/cardArt';
+import {isPremiumFaceType} from '@/client/components/premiumCard/premiumCardTheme';
 
 function model(name: CardName, overrides: Partial<CardModel> = {}): CardModel {
   return {name, ...overrides} as CardModel;
@@ -175,9 +176,96 @@ describe('PremiumCard', () => {
     expect(formula.classes()).to.include('pcard--vp-formula');
     const compact = mount(PremiumCard, {props: {card: model(CardName.DUST_SEALS)}});
     expect(compact.classes()).to.include('pcard--vp-compact');
+    const wide = mount(PremiumCard, {props: {card: model(CardName.WATER_IMPORT_FROM_EUROPA)}});
+    expect(wide.classes()).to.include('pcard--vp-wide');
     // no VP → no reserve class at all
     const none = mount(PremiumCard, {props: {card: model(CardName.COMET)}});
     expect(none.classes().some((c) => c.startsWith('pcard--vp-'))).to.eq(false);
+  });
+
+  /*
+   * VP BADGE GRAMMAR — the badge must SAY the relation, never leave the
+   * player to infer it from adjacency. One case per shape the corpus prints.
+   */
+  describe('VP badge formula', () => {
+    const badge = (name: CardName) => mount(PremiumCard, {props: {card: model(name)}}).find('.pcard__vp');
+
+    it('«N per each» prints the operator between the amount and its subject', () => {
+      const vp = badge(CardName.WATER_IMPORT_FROM_EUROPA);
+      expect(vp.findAll('.pcard__vp-value').map((n) => n.text())).to.deep.eq(['1']);
+      expect(vp.find('.pcard__vp-slash').text()).to.eq('/');
+      expect(vp.findAll('.pcard-ic').length).to.eq(1);
+      // «1 / [jovian]» — no stray denominator between the slash and the icon.
+      expect(vp.text().replace(/\s+/g, '')).to.eq('1/');
+    });
+
+    it('«N per every K» keeps the denominator', () => {
+      const vp = badge(CardName.ANTS);
+      expect(vp.findAll('.pcard__vp-value').map((n) => n.text())).to.deep.eq(['1', '2']);
+      expect(vp.find('.pcard__vp-slash').exists()).to.eq(true);
+    });
+
+    it('a per-one builder target copy is not read as a denominator', () => {
+      // Luna Mining Hub prints `points === target === 2` for «2 VP PER mine».
+      const vp = badge(CardName.LUNA_MINING_HUB);
+      expect(vp.findAll('.pcard__vp-value').map((n) => n.text())).to.deep.eq(['2']);
+    });
+
+    it('a fixed amount stays a bare numeral — no operator, no icon', () => {
+      const vp = badge(CardName.DUST_SEALS);
+      expect(vp.find('.pcard__vp-op').exists()).to.eq(false);
+      expect(vp.find('.pcard-ic').exists()).to.eq(false);
+      expect(vp.text()).to.eq('1');
+    });
+
+    it('a one-or-more threshold reads «[icon] : N», never as a rate', () => {
+      const vp = badge(CardName.SEARCH_FOR_LIFE);
+      expect(vp.find('.pcard__vp-slash').exists()).to.eq(false);
+      expect(vp.find('.pcard__vp-colon').text()).to.eq(':');
+      expect(vp.find('.pcard__vp-value').text()).to.eq('3');
+      // the icon leads — it is the CONDITION, not the thing being counted
+      expect(vp.find('.pcard__vp-dyn > *').classes()).to.include('pcard-ic');
+    });
+
+    it('a bespoke count prints «?», not a gold zero', () => {
+      expect(badge(CardName.AGRICOLA_INC).text()).to.eq('?');
+      expect(badge(CardName.RED_CITY).text()).to.eq('?');
+    });
+
+    it('a subject-less penalty stays a bare numeral', () => {
+      const vp = badge(CardName.LAW_SUIT);
+      expect(vp.find('.pcard__vp-op').exists()).to.eq(false);
+      expect(vp.text()).to.eq('−1');
+    });
+
+    it('vermin keeps its engraved «−1 / [city]»', () => {
+      const vp = badge(CardName.VERMIN);
+      expect(vp.find('.pcard__vp-slash').text()).to.eq('/');
+      expect(vp.find('.pcard-ic').exists()).to.eq(true);
+    });
+
+    /*
+     * NO DANGLING OPERATOR — a «/» with nothing on its right is worse than no
+     * operator at all. Moon / underworld VP subjects have no premium icon
+     * mapping yet, and those badges must degrade to the bare amount.
+     */
+    it('never prints an operator without something on both sides', () => {
+      const dynamicVpCards = getCards((c) =>
+        isPremiumFaceType(c.type) && typeof c.metadata.victoryPoints === 'object');
+      expect(dynamicVpCards.length).to.be.greaterThan(80); // the guard must actually sweep
+      const offenders: Array<string> = [];
+      for (const card of dynamicVpCards) {
+        const vp = mount(PremiumCard, {props: {name: card.name, inert: true}}).find('.pcard__vp');
+        if (!vp.exists() || !vp.find('.pcard__vp-op').exists()) {
+          continue;
+        }
+        const hasSubject = vp.find('.pcard-ic').exists() || vp.findAll('.pcard__vp-value').length > 1;
+        if (!hasSubject) {
+          offenders.push(card.name);
+        }
+      }
+      expect(offenders, offenders.join(', ')).to.deep.eq([]);
+    });
   });
 });
 

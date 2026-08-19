@@ -52,19 +52,42 @@ export type NormalizedRequirement = {
   label?: string;
 };
 
+/**
+ * How a dynamic VP badge relates its NUMBER to its SUBJECT — the one thing a
+ * player must never have to guess from adjacency alone («1 [jovian]» reads as
+ * «one jovian tag» just as easily as «1 VP per jovian tag»). Derived ONCE
+ * here from the printed render data; the badge renders the relation, it never
+ * re-derives it.
+ *
+ *   per         — `points` VP for every `per` units of `item`
+ *                 → «N / [icon]» (per one) · «N / K [icon]» (per K)
+ *   conditional — `points` VP if the card holds AT LEAST ONE `item`
+ *                 (Search for Life) → «[icon] : N» — a flat amount, NOT a rate
+ *   variable    — a bespoke rule decides the amount (Agricola Inc, Red City,
+ *                 Duncan) → «?»
+ *   plain       — a flat amount with no subject on the badge (Law Suit's −1
+ *                 taken from any player) → «N»
+ */
+export type PremiumVpRelation = 'per' | 'conditional' | 'variable' | 'plain';
+
 export type PremiumVpVM =
   | {kind: 'fixed', value: number}
-  | {kind: 'dynamic', points: number, target: number, item?: ICardRenderItem,
+  | {kind: 'dynamic', relation: PremiumVpRelation, points: number, per: number,
+     target: number, item?: ICardRenderItem,
      asterisk: boolean, anyPlayer: boolean, targetOneOrMore: boolean, asFraction: boolean}
   | {kind: 'vermin'};
 
 /**
  * The VP badge's SIZE variant — drives both the badge's own proportions and
  * the mechanics panel's bottom-right safe reserve (`pcard--vp-<variant>`).
- * Deterministic from the VM (never DOM-measured):
- *   compact — a plain number («2», «−1»);
- *   wide    — a short «N[icon]» expression;
- *   formula — «N/M[icon]», one-or-more and the Vermin special.
+ * Deterministic from the VM (never DOM-measured), and keyed to the WIDEST
+ * content each class can print:
+ *   compact — a bare number or «?» («2», «−1»);
+ *   wide    — one operator: «N / [icon]»;
+ *   formula — two operands around the operator: «N / K [icon]»,
+ *             «[icon] : N» (one-or-more) and the Vermin special.
+ * The reserve each class buys is tuned in premium_card.less — read the note
+ * there before changing these buckets.
  */
 export type PremiumVpVariant = 'compact' | 'wide' | 'formula';
 
@@ -75,10 +98,16 @@ export function vpVariantOf(vp: PremiumVpVM): PremiumVpVariant {
   if (vp.kind === 'vermin') {
     return 'formula';
   }
-  if (vp.target > 1 || vp.targetOneOrMore || vp.asterisk) {
+  switch (vp.relation) {
+  case 'plain':
+  case 'variable':
+    // Nothing but a numeral / «?» — the same footprint as a fixed amount.
+    return 'compact';
+  case 'conditional':
     return 'formula';
+  case 'per':
+    return vp.per > 1 || vp.asterisk ? 'formula' : 'wide';
   }
-  return 'wide';
 }
 
 export type PremiumCardVM = {
@@ -192,6 +221,37 @@ export function normalizeRequirement(descriptor: CardRequirementDescriptor): Nor
   };
 }
 
+/**
+ * Classify a printed dynamic-VP block into its REAL rule shape.
+ *
+ * `CardRenderDynamicVictoryPoints` is a render record, not a semantic one:
+ * `target` doubles as both «the denominator» and, for the per-one builders,
+ * a copy of `points` (`DynamicVictoryPoints.moonMiningTile` / `.any` set
+ * `target = points`). The legacy face already collapsed exactly those two
+ * shapes to «per one» (`target === points || target === 1`); this keeps the
+ * same reading and simply names it.
+ */
+function vpRelationOf(dyn: CardRenderDynamicVictoryPoints): {relation: PremiumVpRelation, per: number} {
+  // Search for Life: «3 VP if this card holds AT LEAST ONE science resource».
+  // A flat amount behind a threshold — never a rate.
+  if (dyn.targetOneOrMore === true) {
+    return {relation: 'conditional', per: 1};
+  }
+  if (dyn.item === undefined) {
+    // `DynamicVictoryPoints.questionmark()` — the amount is bespoke (counted
+    // by the card's own getVictoryPoints), so the badge can only print «?».
+    if (dyn.points === 0 && dyn.target === 0) {
+      return {relation: 'variable', per: 1};
+    }
+    // A flat amount with no subject to divide by (Law Suit's «−1 from ANY player»).
+    return {relation: 'plain', per: 1};
+  }
+  // A real denominator is a target that is BOTH greater than one AND distinct
+  // from the amount — anything else is the per-one form.
+  const per = dyn.target > 1 && dyn.target !== dyn.points ? dyn.target : 1;
+  return {relation: 'per', per};
+}
+
 function buildVp(metadata: ClientCard['metadata']): PremiumVpVM | undefined {
   const vp = metadata.victoryPoints;
   if (vp === undefined) {
@@ -204,8 +264,11 @@ function buildVp(metadata: ClientCard['metadata']): PremiumVpVM | undefined {
   if (dyn.vermin === true) {
     return {kind: 'vermin'};
   }
+  const {relation, per} = vpRelationOf(dyn);
   return {
     kind: 'dynamic',
+    relation,
+    per,
     points: dyn.points,
     target: dyn.target,
     item: dyn.item,

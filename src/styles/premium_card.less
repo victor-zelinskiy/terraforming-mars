@@ -1426,6 +1426,15 @@
 .pcard--vp-compact { --pcard-vp-safe: 40px; }
 .pcard--vp-wide    { --pcard-vp-safe: 44px; }
 .pcard--vp-formula { --pcard-vp-safe: 64px; }
+/* These are a GUARANTEE, not a measurement of the plate: they buy the row a
+   safe corner, and a row is centred, so what matters is where the row's INK
+   ends. Adding the relation operator grew the plates past their reserve (a
+   «wide» is 57–62px against 44), and raising the reserves to match cost three
+   cards (Water Import, Capital, St. Joseph) a second wrapped line for room
+   nobody was using — measured across all 163 in-scope faces, the tightest gap
+   between a row's last ink and the plate's first ink is 17.9px (Capital). So
+   the reserves stay where they were; the plate's own 9px padding is what keeps
+   the two inks apart. Re-measure here before widening the plate again. */
 .pcard--has-res    { --pcard-res-safe: 60px; }
 .pcard__lower .pcard-mech-group:last-child {
   padding-left: ~"max(var(--pcard-vp-safe, 0px), var(--pcard-res-safe, 0px))";
@@ -1460,7 +1469,13 @@
   justify-content: center;
   gap: 2px;
   min-width: 44px;
-  max-width: 70px;
+  /* The cap is about the PLATE's own rim, not the reserve above: nothing inside
+     the badge can shrink (every child sits at its min-content), so capping below
+     the content does not narrow the plate — it SPILLS the ink past the gold. The
+     widest formula the corpus prints is Vermin's «−1 / [city] *» at 75px, which
+     is therefore the floor for this value; it was 70, and the city tile hung out
+     over the rim. Re-measure the corpus before lowering it. */
+  max-width: 75px;
   height: 38px;
   padding: 0 9px;
   border-radius: 10px;
@@ -1496,14 +1511,33 @@
 .pcard__vp-dyn .pcard-ic {
   width: 17px;
   height: 17px;
+  /* the subject of the formula needs a hair more air than the 1px flex gap —
+     a numeral touching an icon's own border reads as one glued glyph */
+  margin-left: 1px;
   filter: none;
 }
-.pcard__vp-slash { font-size: 13.5px; margin: 0 1px; }
+/* ── the RELATION operator ────────────────────────────────────────────
+   «/» = per, «:» = if. This single glyph is what turns two adjacent symbols
+   into a formula, so it is INK, not a divider: full engraving colour, heavier
+   than the numerals it separates, and carrying the same top highlight so the
+   plate's specular sweep can never wash it out. Optical spacing is asymmetric
+   by design — the slash leans into its numerator and away from the icon. */
+.pcard__vp-op {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--pcard-ink);
+  text-shadow: 0 1px 0 rgba(255, 246, 214, 0.75);
+}
+.pcard__vp-slash { margin: 0 2px 0 1px; }
+/* the conditional colon stands between an ICON and a numeral, so it takes equal
+   air on both sides; the slash leans into its numerator instead. */
+.pcard__vp-colon { margin: 0 2px; }
 /* the VP footnote (conditional VP) — the same spark, ENGRAVED into the gold */
 .pcard__vp-asterisk {
   width: 8px;
   height: 8px;
-  margin-left: 2px;
+  margin-left: 1px;
   align-self: flex-start;
   margin-top: 6px;
   background: linear-gradient(180deg, #6d5124, #43300f);
