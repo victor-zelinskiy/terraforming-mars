@@ -1,0 +1,35 @@
+---
+description: MarsBot corporations (Rule Book B) — the registry contract and the add-a-corporation procedure.
+paths:
+  - "src/server/automa/corps/**"
+  - "src/common/automa/MarsBotCorpData.ts"
+  - "src/client/components/marsbot/marsBotCorpPremiumVm.ts"
+  - "src/client/components/marsbot/marsBotCorpRules.ts"
+  - "tests/automa/MarsBot*.spec.ts"
+---
+
+# MarsBot corporation rules
+
+**ADDING A CORPORATION IS A CHECKLIST, and it is `docs/claude/marsbot-corporation-checklist.md`** — read it before writing anything here. The subsystem contract is `docs/claude/marsbot-corporations.md`; official rule data is `docs/AUTOMA_DATA_AUDIT.md` §10.
+
+## The five invariants
+
+1. **A MarsBot corporation is its OWN entity.** The `original: CardName` link gives exactly four things — name/logo, art, lore, the selection-collision key (RB-B Setup 1). No human rule (starting M€, first action, human tags, discounts) ever leaks through it, and the guard specs assert that.
+2. **The printed card is the source of rules** — the scan of `Automa - C## - <Name>.png`, then RB-B (draft-priority special cases, special cubes, FAQ). An ambiguity is resolved by the sources and pinned by a comment + a test, never invented.
+3. **Adding corporation N+1 is FOUR touch points**: the id (`MarsBotCorpId` in `AutomaTypes.ts`, value = the printed card number) · the data entry (`CORP_INFO`) · the co-located behavior file (`MarsBotCorp` hooks) · one line in `AutomaCorporations.REGISTRY`. Plus `renderDataOf` in `marsBotCorpPremiumVm.ts` — its switch is exhaustive, so the compiler asks for it. **A `switch` on the corporation anywhere else is the defect this framework exists to prevent.**
+4. **Only the boxes the card prints exist.** No fake Setup/Effect/Draft-Priority sections for symmetry (RB-B: "Not all corporations use all fields").
+5. **The bot never receives a prompt.** Every fork resolves deterministically or through the seeded `game.rng`; physics goes through the shared primitives (`AutomaTilePlacer`, `AutomaTerraformer`, `AutomaCardDraw.drawAndResolveProjectCard`, `AutomaResolver.advanceTrack`) so TR, placement bonuses, human triggers, Failed Actions and the journal all behave identically.
+
+## Presentation + state
+
+- Effect INSIDE a bot turn: `events.beginEffect(bot, {kind:'corporation', card: info.original, owner}, 'automa-corporation')` + `AutomaTurnLog.setCause({kind:'corporation'})` with the previous cause restored (`getCause`). Action OUTSIDE a turn (selection, a Before-Action-Phase move): `beginAction(..., {category: 'corporation-action'})`.
+- Every meaningful step bumps a counter (`bumpCorpStat`) whose key is documented in `MarsBotCorpStats`; the endgame insight reads STRUCTURED stats, never display text.
+- New serialized state is optional and degrades on old saves; a legacy corpless save stays corpless forever (`generation === 1` guard).
+
+## Existing primitives — reuse before inventing
+
+Draft priorities (`mostExpensive` · `mostTags` · `tags` chain · `leastAdvancedTrack`) · **track cubes** (`trackCubes` addressed by the track's TAG, spent-once via `corpCubesTriggered`, dispatched by `AutomaCorporations.onTrackAdvanced`; `'replaces-action'` only where the card says «instead of») · **corp-owned bonus cards** (`corpBonusCards` + `resolveBonusCard`; recurring ones ride `recurringBonusCards`, never the discard) · **a resource on the corp card** (`resource` + the ordinary `.pcard__res` capsule).
+
+## Tests + verification
+
+A corporation is done when: its own `tests/automa/MarsBot<Name>.spec.ts` covers every printed effect (positive AND negative), the interaction with the shared rules (maxed → Failed Action, regression markers), serialization + an OLD save without the new field, and the identity/no-human-leak assertions; the client face spec has its branch; RU keys exist (grep for duplicates first, then `make:json`); and `build:server`, `build:test`, `lint:client`, `eslint`, `test:server`, `test:client` are all green. A new VISIBLE element additionally needs an e2e probe whose config forces `customCorporationsList` without that corporation's original (`seed` is ignored, so the collision rule can legitimately hand the bot a different corp).

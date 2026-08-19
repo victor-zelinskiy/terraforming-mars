@@ -20,7 +20,8 @@ Nothing was thrown away: every character of the old file is either in `CLAUDE.md
 | `journal.md` | touching the game log side panel, tokens or chips |
 | `notifications.md` | touching the floating notification layer, variants, hostile events, reveals |
 | `presentation-flow.md` | touching foreground sequencing, leases, MarsBot turn presentation |
-| `marsbot-corporations.md` | touching MarsBot corporations (RB-B): the registry/data/behavior split, the selection gate, corp-owned recurring cards (B23), the Ecoline plant-attack FAQ, corp stats — or adding corporation N+1 |
+| `marsbot-corporation-checklist.md` | **ADDING a MarsBot corporation** — the step-by-step procedure (sources → data → behavior → registry → primitives → i18n → stats/insight → tests → runs → docs), the red lines and the traps already paid for |
+| `marsbot-corporations.md` | the MarsBot corporation CONTRACT (RB-B): the registry/data/behavior split, the selection gate, track cubes, corp-owned recurring cards (B23), the Ecoline plant-attack FAQ, the `.pcard` face, corp stats |
 | `terraforming-progress-hud.md` | touching the terraforming % HUD or the completion ceremony |
 | `energy-heat-conversion.md` | touching the end-of-generation energy→heat transition |
 | `modal-inputs-and-metadata-contract.md` | routing a new modal input type or attaching per-card option metadata |

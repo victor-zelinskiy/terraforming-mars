@@ -157,6 +157,9 @@ Each has a directory under `src/server/cards/` plus a manifest: `base`, `corpora
 
 Premium-subsystem scope today: `base`, `corpera`, `promo`, `venus`, `colonies`, `prelude`, `ares`. Everything else is the frontier — widening it is the `docs/claude/expansion-adaptation-checklist.md` procedure.
 
+### MarsBot corporations
+The bot's corporations (Rule Book B) are their OWN entities — the human card behind one gives only identity, art, lore and the selection-collision key. **Adding the next corporation is a checklist, and skipping a step is how one silently ships broken: `docs/claude/marsbot-corporation-checklist.md`** (contract: `docs/claude/marsbot-corporations.md`, official data: `docs/AUTOMA_DATA_AUDIT.md` §10). The short form loads itself as `.claude/rules/marsbot-corps.md` when you touch `src/server/automa/corps/**`.
+
 ### Database
 Pluggable backends in `src/server/database/` (SQLite / PostgreSQL / LocalFilesystem) via `SerializedGame` / `SerializedPlayer`; `GameLoader` handles caching. New serialized fields must degrade gracefully on old saves.
 
@@ -186,6 +189,7 @@ Pluggable backends in `src/server/database/` (SQLite / PostgreSQL / LocalFilesys
 | `premium-card.md` | premium/legacy card face, card styles |
 | `animations.md` | motion, presentation, feedback, surface-motion, ceremony, marsbot |
 | `game-logic.md` | `src/server/cards/**`, behavior, deferred actions, `src/common/cards/**`, `tests/cards/**` |
+| `marsbot-corps.md` | `src/server/automa/corps/**`, `MarsBotCorpData.ts`, the corp face/rules view-models, `tests/automa/MarsBot*.spec.ts` |
 | `server.md` | `src/server/**`, `src/common/**`, route/event/model tests |
 | `board.md` | board engine, board facts, board components |
 | `localization.md` | `src/locales/**` |

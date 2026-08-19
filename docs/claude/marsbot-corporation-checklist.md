@@ -1,0 +1,119 @@
+# Добавление новой корпорации MarsBot — чеклист
+
+Пошаговая процедура. Контракт подсистемы: `docs/claude/marsbot-corporations.md`. Официальные данные и трактовки: `docs/AUTOMA_DATA_AUDIT.md` §10. Реализованные образцы: **C01 Credicor** (эффект + драфт-приоритет), **C02 Ecoline** (своя бонус-карта B23 + ресурс на карте), **C03 Helion** (кубы на треках), **C45 Spire** (стартовая метка + ресурс + Before-Action-Phase).
+
+Правило `.claude/rules/marsbot-corps.md` загружается само, когда трогаешь `src/server/automa/corps/**` — этот файл его полная версия.
+
+---
+
+## 0. До кода: источники и пригодность
+
+- [ ] **Скан официальной карты C##** (`C:\Users\zelin\Downloads\TerraformingMars-CardDatabase\automa\Automa - C## - <Name>.png`). Прочитать ГЛАЗАМИ: Starting Tags, Draft Priority, Setup, Effect, Round Start / Before Action Phase, Card Number. **Только эта карта — источник правил**; human-карта даёт лишь идентичность.
+- [ ] **RB-B** (`docs/AUTOMA_DATA_AUDIT.md` §10 + PDF): проверить, есть ли для корпорации Special Case в разделах «Draft Priority» / «Special Cubes» / FAQ.
+- [ ] **Оригинал существует в движке**: `CardName.<CORP>` есть; у карты есть `metadata.cardNumber`; арт `assets/card-images/<cardNumber>.webp` (+`thumb/`) и запись лора в `assets/text/lore_texts.json` (и RU в `src/locales/ru/lore_texts.json`). Нет арта/лора — это отдельная задача (см. коммит «Add Spire (PC05) corporation art and lore»), не выдумывать.
+- [ ] **Модуль оригинала не включается** от одного упоминания `CardName` (Prelude 2 остаётся выключенным — ссылка на карту это не активация модуля).
+- [ ] Если корпорация вводит механику, которой нет ни у одной реализованной (новый тип куба-эффекта, Round Start, новый вид draft priority) — сначала прочитать §«Примитивы» ниже и решить, расширяется ли примитив или пишется разовый хук.
+
+## 1. Данные (`src/common/`)
+
+- [ ] `src/common/automa/AutomaTypes.ts`: строка в `MarsBotCorpId` (**значение = официальный номер карты**, `'C##'`) и в `MARS_BOT_CORP_IDS` (в порядке номеров).
+- [ ] `src/common/automa/MarsBotCorpData.ts` → `CORP_INFO`: запись со ВСЕМИ печатными полями и **только ими** (RB-B: «Not all corporations use all fields» — не выдумывать пустые боксы):
+  - `original: CardName.<CORP>` — ключ коллизии + источник арта/лора/логотипа;
+  - `startingTags` — только то, что напечатано на БОТ-карте (не human-теги!);
+  - `draftPriority?`, `resource?` (`'plant' | 'science'`), `corpBonusCards`, `trackCubes?` + `cubeLegend?`;
+  - `sections` — печатные боксы в печатном порядке (EN-ключи + `params`, иконки из общего словаря).
+- [ ] Новые счётчики статистики — в docstring `MarsBotCorpStats` (закрытый словарь; инсайт работает со структурой, не с текстом).
+
+## 2. Поведение (`src/server/automa/corps/MarsBot<Name>.ts`)
+
+Co-located файл, реализующий ТОЛЬКО те хуки, что печатает карта:
+
+- [ ] `setup?` — бокс SETUP (кубы объявляются данными, здесь только то, что данные выразить не могут).
+- [ ] `beforeActionPhase?` / (Round Start — при появлении первой такой карты добавить хук в `MarsBotCorp`).
+- [ ] `onProjectCardResolving?` — «When resolving a card …»: срабатывает ДО обработки меток, Failed Action его не гасит.
+- [ ] `onTrackCubeTrigger?` — эффект куба; вернуть `'replaces-action'` ТОЛЬКО если карта явно говорит «instead of».
+- [ ] `resolveBonusCard?` — своя B-карта (см. §3).
+- [ ] Подача: эффект внутри хода — `game.events.beginEffect(bot, {kind:'corporation', card: this.info.original, owner: bot.color}, 'automa-corporation')` + `AutomaTurnLog.setCause(game, {kind:'corporation'})` с восстановлением прежней причины (`getCause`); действие ВНЕ хода — `beginAction(..., {category: 'corporation-action'})`.
+- [ ] Каждый значимый шаг — `bumpCorpStat(game, '<key>', n)`.
+- [ ] Физику брать из общих примитивов (`AutomaTilePlacer`, `AutomaTerraformer`, `drawAndResolveProjectCard` из `AutomaCardDraw.ts`, `AutomaResolver.advanceTrack`) — они уже несут TR, бонусы клеток, триггеры человека, Failed Action и журнал. Никогда не мутировать поля напрямую (`stock.add` / `production.add`).
+- [ ] **Боту нельзя показывать промпт.** Любая «развилка» решается детерминированно или seeded-rng (`game.rng` / `pickVictim`).
+
+## 3. Регистрация и обязательные точки
+
+- [ ] `AutomaCorporations.REGISTRY` — одна строка. **Больше ни один switch снаружи не трогается.**
+- [ ] `src/client/components/marsbot/marsBotCorpPremiumVm.ts` → `renderDataOf`: символьные боты-боксы для лица карты (switch exhaustive — без ветки не соберётся; это и есть напоминание).
+- [ ] Тест-хелпер `tests/automa/AutomaTestGame.ts` форсит **C01 по умолчанию** — свою корпорацию новый спек передаёт явно (`{corporation: MarsBotCorpId.C##_…}`).
+
+## 4. Примитивы — использовать существующие, расширять только по факту
+
+| Механика карты | Что уже есть | Что делать |
+| --- | --- | --- |
+| Draft Priority | `mostExpensive` · `mostTags` · `tags` (цепочка) · `leastAdvancedTrack` | взять готовый тип; НОВЫЙ тип = case в `MarsBotDraftResolver.scorerOf` + `savedFromDiscard` |
+| Кубы на треках | `trackCubes` (адрес трека = ТЕГ) + `corpCubesTriggered` + `onTrackAdvanced` | объявить кубы + `cubeLegend`; UI и spent-once работают сами |
+| Своя бонус-карта (B22–B32) | `corpBonusCards` + `resolveBonusCard` + `BonusCardData` | добавить текст/`buildBonusCardView`-ветку; **recurring** — через `recurringBonusCards` (образец B23), не через discard |
+| Ресурс на карте корпорации | `resource` + `corpResources` + капсула `.pcard__res` | объявить `resource`; для НЕ-card-resource дать `iconUrl`-override в `marsBotCorpPremiumVm` |
+| Стартовые метки | `AutomaResolver.resolveTag` при выборе корпорации | ничего: трек двигается, действия клеток срабатывают, RB-B human-реакторы уведомляются |
+| Атака человека по ресурсу корпорации | `AutomaTargeting.corpPlantPool/removeCorpPlants` | новый вид ресурса = свой pool + опции в соответствующем deferred action |
+
+## 5. Локализация
+
+- [ ] Все новые EN-ключи (лог-шаблоны, строки секций, легенда кубов, тексты инсайта) → RU: `src/locales/ru/automa.json` (игровые/боты) и `src/locales/ru/endgame.json` (инсайт).
+- [ ] **Грепнуть точный ключ по всем `src/locales/ru/*.json`** до добавления — дубликат роняет сборку; не переписывать чужой перевод.
+- [ ] `npm run make:json` — зелёный.
+- [ ] Термины: РТ / ПО / метка; бот в RU-интерфейсе — «Бот».
+
+## 6. Статистика и endgame-инсайт
+
+- [ ] Ключи статистики бампятся в поведении и описаны в `MarsBotCorpStats`.
+- [ ] Ветка в `analyzeBotCorporation` (`src/client/components/endgame/insightEngine.ts`) с ПОРОГОМ значимости (инсайт молчит, если корпорация ничего не решила) + RU-ключ текста.
+- [ ] `EndgamePlayerInput.corporations` бота остаётся пустым — туда бот-корпорацию не класть (иначе включится human `corporationImpactEngine`).
+
+## 7. Тесты (обязательный минимум)
+
+- [ ] `tests/automa/MarsBot<Name>.spec.ts`:
+  - печатные данные (метки/приоритет/кубы/бонус-карты) соответствуют скану;
+  - каждый печатный эффект — позитивный и негативный кейс;
+  - взаимодействие с общими правилами (Failed Action при maxed, regress-маркеры, каскады);
+  - сериализация нового состояния + **старый сейв без поля** десериализуется;
+  - идентичность: `original`, отсутствие human-полей.
+- [ ] Клиентские: ветка корпорации в `tests/client/components/marsbot/MarsBotCorpFace.spec.ts` (медальон automa, отсутствие human-правил, капсула ресурса, группы «§ ПРАВИЛА»); для новой визуальной сущности — свой спек (образец `MarsBotTracksCubes.spec.ts`).
+- [ ] e2e — **только если появилась новая видимая сущность** (образцы `console-bot-corporation.spec.ts`, `console-bot-corp-cubes.spec.ts`). В конфиге пробы форсить `customCorporationsList` без оригинала этой корпорации: `seed` игнорируется, и коллизия может честно отдать боту другую корпорацию.
+
+## 8. Прогоны (все обязательны)
+
+```bash
+npm run build:server && npm run build:test      # типы сервера + тестового дерева
+npm run lint:client                             # vue-tsc
+npx eslint --no-cache <изменённые файлы>
+npm run make:json                               # локали без дублей
+npm run make:css                                # если трогал .less
+npm run test:server && npm run test:client      # полные сьюты
+```
+
+- [ ] Визуальная верификация, если менялся UI: `npm run build:client` → свой сервер (`PORT=8123 npm start`, чужие клоны на 8080/8092/8896) → playwright-проба → **посмотреть скриншот глазами**.
+
+## 9. Документация и память
+
+- [ ] Строка корпорации в таблице `docs/AUTOMA_DATA_AUDIT.md` §10 (официальный текст + статус реализации).
+- [ ] `docs/claude/marsbot-corporations.md`: список реализованных + секция нового примитива, если он появился.
+- [ ] Память проекта (`marsbot-corporations-framework`) — новые гочи, если они появились.
+
+## 10. Красные линии
+
+- **Никогда** не наследовать правила human-корпорации (стартовые M€, first action, human-теги, скидки) — оригинал даёт только идентичность/арт/лор/коллизию.
+- **Никогда** не добавлять `switch (corporation)` вне `AutomaCorporations`.
+- **Никогда** не выдумывать правило при неоднозначности: сверить с картой → RB-B → зафиксировать вывод комментарием + тестом; иначе спросить владельца.
+- Новое сериализуемое поле — опциональное, старые сейвы деградируют молча (`?? default`).
+- Легаси-сейв без корпорации остаётся corpless навсегда (гард `generation === 1`).
+
+---
+
+### Типовые ловушки (оплачены отладкой)
+
+1. **Данные не могут импортировать серверные константы** — трек в `trackCubes` адресуется ТЕГОМ, не индексом `THARSIS_TRACK`.
+2. **Статический импорт `PremiumCard.vue`** в потребителя цепочки `CardZoomModal → CardZoomCard` замыкает type-cycle и обрушивает `vue-tsc` в `{}` — использовать глобальный `premium-card-face` (в юнит-тесте регистрировать локально).
+3. **Куб/эффект помечается сработавшим ДО выполнения** — эффект может каскадом вернуться на тот же трек.
+4. **e2e-текст `.pcard` и кикеров — регистронезависимо** (`text-transform: uppercase` попадает в `innerText`).
+5. **Счёт визуальных элементов в e2e скоупить** (легенда кубов рисует свои свотчи тем же классом, что и мат).
+6. **Деталь «Планшет бота» открывается R3** (`KeyV`), не LT.
+7. Тёмный элемент на тёмном мате нуждается в тёмном ТЕЛЕ и холодном ободе — светлый обод превращает чёрный куб в белый.
