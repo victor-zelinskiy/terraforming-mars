@@ -52,3 +52,5 @@ cross-env NODE_ENV=development npx mochapack \
 Coverage specs enumerate the in-scope card set and FAIL with the exact list of cards needing attention (`cardPlayPreviewCoverage`, `actionReasonCoverage`, `cardInformation`, `effectSummaryCoverage`, `premiumCardViewModel`, `trackerCoverageGuard`, …). When widening expansion scope, widen their `SCOPE` sets first and let them tell you the work.
 
 Prefer a cheap unit/integration spec over e2e; e2e (`tests/e2e/`) only when the bug cannot be reproduced otherwise — and after `npm run make:css`, since `build:client` does not compile LESS.
+
+⚠️ **VERIFY THE BUILD BEFORE BLAMING THE PRODUCT.** e2e serves the BUILT client, and `make:css` refreshes only the stylesheet — a JS bundle from an earlier commit looks exactly like «this feature is broken», because the feature simply is not in it. The server prints `Starting <commit>, built at <date>` as its first log line: check it against `git log --oneline -1` before calling anything a regression. This cost two false product bugs in one session.
