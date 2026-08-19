@@ -74,21 +74,32 @@
          its tile icon into THIS plate as the hand rises out of it. -->
     <div class="con-handdock__plate" data-wheel-anchor="hand-dock" aria-hidden="true">
       <span class="con-handdock__plate-face"></span>
-      <!-- THE ALBUM SPINE. While the hand album owns the cards, the bay's
-           centre line IS the album's page navigation — the one stable place
-           the player reads their position and the page verbs from:
-           «LB  1–10 из 15 · 1/2  RB». It replaces the «КАРТЫ n/m» counter
-           for the album's lifetime (playable/total already live in the
-           album's own header), and swaps back the moment the hand docks.
-           Same absolutely-centred group as the status line — the range
-           digits are tabular and the page part is fixed-width-ish, so the
-           centre never walks between pages. The glyphs are GamepadGlyph
-           (never a literal button name) and each is its own click target —
-           the mouse turns pages right here. A direction that has no page
-           that way renders muted (never hidden — the shape is constant). -->
+      <!-- THE ALBUM SPINE — the bay's NAVIGATION INSTRUMENT. While the hand
+           album owns the cards, the bay's centre IS the album's page
+           navigation — the one stable place the player reads their position
+           and the page verbs from: «LB ‹  2 / 4  › RB» seated in a chamfered
+           instrument WELL (the same kant-over-glass construction as the
+           plate it is carved into — and as the album's edge gates, which is
+           what binds the two into one system). It replaces the «КАРТЫ n/m»
+           counter for the album's lifetime (playable/total already live in
+           the album's own header), and swaps back the moment the hand
+           docks. Same absolutely-centred group as the status line — digits
+           are tabular and both cells reserve width, so the centre never
+           walks between pages. The glyphs are GamepadGlyph (never a literal
+           button name) and each side is its own click target — the mouse
+           turns pages right here. A direction that has no page that way
+           renders muted in place (never hidden — the shape is constant).
+           On an actual page change the side chip of the turn's direction
+           fires once (`--fired-*`, `pageFlash`) — the instrument answers
+           the same beat the edge gate pulses on. -->
       <span v-if="album !== undefined"
             class="con-handdock__pager"
-            :class="{'con-handdock__pager--single': album.pages <= 1}">
+            :class="{
+              'con-handdock__pager--single': album.pages <= 1,
+              'con-handdock__pager--fired-next': pageFlash === 'next',
+              'con-handdock__pager--fired-prev': pageFlash === 'prev',
+            }">
+        <span class="con-handdock__pager-well" aria-hidden="true"></span>
         <button type="button" tabindex="-1"
                 class="con-handdock__pager-side con-handdock__pager-side--prev"
                 :class="{'con-handdock__pager-side--off': !album.canPrev}"
@@ -284,6 +295,11 @@ export default defineComponent({
       /** Which way the last page turn went — the number enters from the
        *  opposite side, so the swap reads as the album moving. */
       turnDir: 'next' as 'next' | 'prev',
+      /** An ACTUAL page change just landed — the side chip of the turn's
+       *  direction fires once (`--fired-*`), the instrument's half of the
+       *  beat the album's edge gate answers with its kick. */
+      pageFlash: undefined as 'next' | 'prev' | undefined,
+      pageFlashTimer: undefined as ReturnType<typeof setTimeout> | undefined,
     };
   },
   computed: {
@@ -359,10 +375,20 @@ export default defineComponent({
     },
   },
   watch: {
-    /** Remember the DIRECTION of a page change for the number's swap. */
+    /** Remember the DIRECTION of a page change for the number's swap, and
+     *  fire the matching side chip once (the flash rides the SAME edge —
+     *  an availability/filter re-derive without a page move fires nothing). */
     album(now: HandDockAlbum | undefined, was: HandDockAlbum | undefined) {
       if (now !== undefined && was !== undefined && now.page !== was.page) {
         this.turnDir = now.page > was.page ? 'next' : 'prev';
+        this.pageFlash = this.turnDir;
+        if (this.pageFlashTimer !== undefined) {
+          clearTimeout(this.pageFlashTimer);
+        }
+        this.pageFlashTimer = setTimeout(() => {
+          this.pageFlash = undefined;
+          this.pageFlashTimer = undefined;
+        }, motionMs(300));
       }
     },
     /** A landing (or any growth) — the pack "accepts" the card: a short
@@ -383,6 +409,9 @@ export default defineComponent({
   beforeUnmount() {
     if (this.receiveTimer !== undefined) {
       clearTimeout(this.receiveTimer);
+    }
+    if (this.pageFlashTimer !== undefined) {
+      clearTimeout(this.pageFlashTimer);
     }
   },
   methods: {

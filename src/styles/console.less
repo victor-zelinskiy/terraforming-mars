@@ -6340,133 +6340,194 @@ html.console-mode {
         justify-content: center;
         /* height + column-gap are set inline from the plan (slotH / gapX). */
     }
-    /* ── ALBUM EDGE AFFORDANCE — «there is a page that way» ───────────────
-       NOT a rail and NOT a scrollbar: a SHORT stack of sheet EDGES at the
-       vertical centre of the page boundary (three leaves, each one shorter,
-       dimmer and further out — the depth of a closed album seen edge-on),
-       with a compact chevron riding the innermost one. It stands in its own
-       reserved gutter (`ALBUM_EDGE_GUTTER` in consoleHandAlbum.ts), so an
-       edge card's ring and glow never meet it — the previous complaint was
-       as much about the graphic as about the position: a full-height
-       hairline reads as the physical boundary of the stage, and a card
-       beside it reads as cropped.
+    /* ── ALBUM EDGE GATE — «there is a page that way» ─────────────────────
+       ONE deliberate object per edge, never marks beside some lines: a
+       compact PYLON at the vertical centre of the page boundary — a
+       chamfered two-layer plate (cyan KANT over dark glass, the dock
+       plate's own construction) carrying a large chevron, with two sheet
+       SLIVERS stepping out from behind it toward the clip line: the pages
+       physically waiting beyond. It stands in its own reserved gutter
+       (`ALBUM_EDGE_GUTTER` in consoleHandAlbum.ts), so an edge card's ring
+       and glow never meet it. A shaped, glyph-bearing body with its own
+       fill cannot read as a scrollbar remnant or a cropped stage boundary —
+       the two failure modes of the hairline stack this replaces.
 
-       Both sides always render — an unavailable direction is `--off` (all
-       but gone) so the composition can never shift when the last page drops
-       its next-edge. Everything is transform/opacity + box-shadow, so
-       `con-perf-lite` keeps every cue. */
+       Both sides always render — an unavailable direction is `--off` (a
+       ghost of the shape) so the composition can never shift when the last
+       page drops its next-edge. Every functional cue is transform/opacity +
+       box-shadow/colour, so `con-perf-lite` keeps all of them; the
+       text-shadow blooms are decoration only. */
     &__pgedge {
         position: absolute;
         top: 50%;
+        /* The full reserved gutter is the HIT AREA; the drawn body inside is
+           narrower. SHORT on purpose — a tall shape is the rail this
+           language replaced (e2e guards < 55% of the album height). */
         width: 1.7rem;
-        /* SHORT on purpose — a tall stack is the rail this replaced. It must
-           read as a few sheets at the boundary, not as a track. */
-        height: 20%;
-        min-height: 3.4rem;
+        height: 22%;
+        min-height: 4.8rem;
         max-height: 7.2rem;
         padding: 0;
         border: 0;
         background: none;
         cursor: pointer;
         z-index: 4;
-        display: flex;
-        align-items: center;
-        justify-content: center;
         transform: translateY(-50%);
-        transition:
-            opacity calc(180ms * var(--motion-scale, 1)) ease,
-            transform calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        transition: opacity calc(180ms * var(--motion-scale, 1)) ease;
 
         &--left { left: 0; }
         &--right { right: 0; }
 
-        /* THE LEAVES — sheet edges: solid in the middle, DISSOLVING at both
-           ends (a mask, so nothing terminates in a hard cap the eye reads
-           as a rail's end-stop). The innermost is the brightest «page»;
-           the two behind recede. */
-        &-leaf {
-            position: absolute;
-            top: 50%;
-            border-radius: .2rem;
-            background: linear-gradient(180deg, fade(@con-cyan, 62%), fade(@con-cyan, 34%));
-            -webkit-mask-image: linear-gradient(180deg, transparent, #000 26%, #000 74%, transparent);
-            mask-image: linear-gradient(180deg, transparent, #000 26%, #000 74%, transparent);
-            transform: translateY(-50%);
-            transition:
-                transform calc(220ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
-                opacity calc(180ms * var(--motion-scale, 1)) ease;
-
-            &--1 { width: .26rem; height: 100%; opacity: 1; }
-            &--2 { width: .19rem; height: 74%; opacity: .6; }
-            &--3 { width: .13rem; height: 50%; opacity: .32; }
-        }
-        /* The fan: each further leaf steps OUTWARD (toward its own edge), so
-           the stack recedes past the clip instead of stacking inward over
-           the cards. Tight spacing — one object, not three marks. */
-        &--left &-leaf--1 { left: .62rem; }
-        &--left &-leaf--2 { left: .38rem; }
-        &--left &-leaf--3 { left: .18rem; }
-        &--right &-leaf--1 { right: .62rem; }
-        &--right &-leaf--2 { right: .38rem; }
-        &--right &-leaf--3 { right: .18rem; }
-        /* A soft wash bleeding IN from the clip line: the sheets look like
-           they come from beyond the stage rather than being drawn on it. */
+        /* A soft wash bleeding IN from the clip line — the gate belongs to
+           the BOUNDARY, not to the page content. Light only: it may cross
+           into the ring-clearance band, material may not. */
         &::before {
             content: '';
             position: absolute;
-            top: -18%;
-            bottom: -18%;
-            width: 3.2rem;
+            top: -16%;
+            bottom: -16%;
+            width: 2.9rem;
             pointer-events: none;
-            opacity: .55;
+            opacity: .45;
         }
         &--left::before {
             left: 0;
-            background: linear-gradient(90deg, fade(@con-cyan, 13%), transparent 78%);
+            background: linear-gradient(90deg, fade(@con-cyan, 12%), transparent 76%);
         }
         &--right::before {
             right: 0;
-            background: linear-gradient(270deg, fade(@con-cyan, 13%), transparent 78%);
+            background: linear-gradient(270deg, fade(@con-cyan, 12%), transparent 76%);
         }
 
-        /* The chevron — the only literal «direction» mark, quiet and small
-           (the bay spine already carries the LB/RB verbs; this must not
-           become a second command surface). */
+        /* The GLOW BED — hover/press light behind the body (an outer
+           box-shadow would be clipped by the face's polygon; a gradient
+           layer is not). Decorative light — the state it echoes is also
+           carried by the kant flash and the chevron colour. */
+        &::after {
+            content: '';
+            position: absolute;
+            inset: -14% -.5rem;
+            z-index: 0;
+            pointer-events: none;
+            background: radial-gradient(46% 42% at 50% 50%, fade(@con-cyan, 17%), transparent 74%);
+            opacity: 0;
+            transition: opacity calc(200ms * var(--motion-scale, 1)) ease;
+        }
+
+        /* THE SHEETS — two slivers stepping OUT from behind the face toward
+           the clip line, each shorter and dimmer, both ends dissolving (a
+           mask — nothing terminates in a hard cap the eye could read as a
+           rail's end-stop): the depth of the album waiting past the edge.
+           Centred by top-% rather than a translate, so the press keyframes
+           own `transform` without re-stating the centring. */
+        &-sheet {
+            position: absolute;
+            width: .5rem;
+            border-radius: .18rem;
+            background: linear-gradient(180deg, fade(@con-cyan, 62%), fade(@con-cyan, 30%));
+            -webkit-mask-image: linear-gradient(180deg, transparent, #000 20%, #000 80%, transparent);
+            mask-image: linear-gradient(180deg, transparent, #000 20%, #000 80%, transparent);
+            transition: opacity calc(200ms * var(--motion-scale, 1)) ease;
+
+            &--1 { top: 7%; height: 86%; opacity: .9; }
+            &--2 { top: 16%; height: 68%; opacity: .5; }
+        }
+        &--left &-sheet--1 { left: .12rem; }
+        &--left &-sheet--2 { left: -.04rem; }
+        &--right &-sheet--1 { right: .12rem; }
+        &--right &-sheet--2 { right: -.04rem; }
+
+        /* THE FACE — the pylon's body: a cyan KANT layer with the glass
+           inner face inset into it (two clipped layers, like the dock
+           plate — an inset box-shadow hairline would be cut off along the
+           chamfers). The OUTER corners bevel toward the clip line, so the
+           body aims where its chevron points. */
+        &-face {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 1.26rem;
+            z-index: 1;
+            background: linear-gradient(180deg, fade(@con-cyan, 52%), fade(@con-cyan, 15%) 48%, rgba(90, 130, 170, 0.3));
+        }
+        &--left &-face {
+            left: .3rem;
+            clip-path: polygon(100% 0, .36rem 0, 0 .62rem, 0 calc(100% - .62rem), .36rem 100%, 100% 100%);
+        }
+        &--right &-face {
+            right: .3rem;
+            clip-path: polygon(0 0, calc(100% - .36rem) 0, 100% .62rem, 100% calc(100% - .62rem), calc(100% - .36rem) 100%, 0 100%);
+        }
+        &-face-in {
+            position: absolute;
+            inset: .06rem;
+            background:
+                radial-gradient(130% 55% at 50% 0%, fade(@con-cyan, 10%), transparent 62%),
+                linear-gradient(180deg, rgba(13, 24, 37, 0.96), rgba(8, 14, 22, 0.94));
+            transition: box-shadow calc(200ms * var(--motion-scale, 1)) ease;
+        }
+        &--left &-face-in {
+            clip-path: polygon(100% 0, .32rem 0, 0 .58rem, 0 calc(100% - .58rem), .32rem 100%, 100% 100%);
+        }
+        &--right &-face-in {
+            clip-path: polygon(0 0, calc(100% - .32rem) 0, 100% .58rem, 100% calc(100% - .58rem), calc(100% - .32rem) 100%, 0 100%);
+        }
+
+        /* The CHEVRON — the one literal «direction» mark, with real body now
+           (the bay instrument still owns the LB/RB verbs; this stays a mark,
+           never a second command surface). */
         &-chev {
             position: absolute;
             top: 50%;
-            z-index: 1;
-            font-size: 1.15rem;
-            font-weight: 700;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.3rem;
+            font-weight: 800;
             line-height: 1;
-            color: #dff1ff;
-            text-shadow: 0 0 .6rem fade(@con-cyan, 55%), 0 .1rem .3rem rgba(0, 0, 0, 0.7);
-            transition: transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+            color: #e2f2ff;
+            text-shadow: 0 0 .55rem fade(@con-cyan, 50%), 0 .1rem .3rem rgba(0, 0, 0, 0.7);
+            transition:
+                transform calc(200ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1),
+                color calc(200ms * var(--motion-scale, 1)) ease;
         }
-        /* The chevron rides the STACK (over the leading leaf), so the whole
-           thing reads as ONE object rather than a mark beside some lines. */
-        &--left &-chev { left: .5rem; transform: translate(-50%, -50%); }
-        &--right &-chev { right: .5rem; transform: translate(50%, -50%); }
 
-        /* HOVER (mouse door) — the stack leans toward its own side. */
-        &--left:hover:not(&--off) &-chev { transform: translate(-50%, -50%) translateX(-.22rem); }
-        &--right:hover:not(&--off) &-chev { transform: translate(50%, -50%) translateX(.22rem); }
+        /* HOVER (the mouse door) — the gate answers: glow bed up, glass lit
+           from within, chevron leans toward its page, sheets brighten. */
+        &:hover:not(&--off) {
+            &::after { opacity: 1; }
+            .con-hand__pgedge-face-in { box-shadow: inset 0 0 .55rem fade(@con-cyan, 22%); }
+            .con-hand__pgedge-sheet--1 { opacity: 1; }
+            .con-hand__pgedge-sheet--2 { opacity: .6; }
+        }
+        &--left:hover:not(&--off) .con-hand__pgedge-chev { transform: translate(-50%, -50%) translateX(-.12rem); }
+        &--right:hover:not(&--off) .con-hand__pgedge-chev { transform: translate(-50%, -50%) translateX(.12rem); }
 
-        /* NO PAGE THAT WAY — present in layout, all but gone visually. */
+        /* NO PAGE THAT WAY — present in layout, a ghost on screen. */
         &--off {
-            opacity: .12;
+            opacity: .13;
             cursor: default;
         }
 
-        /* THE PRESS IMPULSE (LB/RB): the leaves fan out and the chevron
-           throws toward its own edge for one short beat, on the press
-           frame — the page slide then carries the movement on. */
-        &--pulse &-leaf {
-            animation: con-pgedge-pulse calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        /* THE PRESS IMPULSE — every turn door lands here (`--pulse`, one
+           shot): the gate KICKS INWARD, the direction the incoming page
+           will travel — the stack hands a page onto the stage. The sheets
+           follow a beat behind, the glass flashes; the page slide then
+           carries the movement on. */
+        &--pulse::after { opacity: 1; }
+        &--pulse &-face-in {
+            box-shadow: inset 0 0 .7rem fade(@con-cyan, 34%), inset 0 0 0 .05rem fade(@con-cyan, 40%);
         }
-        &--left&--pulse &-chev { transform: translate(-50%, -50%) translateX(-.38rem); }
-        &--right&--pulse &-chev { transform: translate(50%, -50%) translateX(.38rem); }
-        &--pulse &-leaf--1 { box-shadow: 0 0 .8rem fade(@con-cyan, 45%); }
+        &--pulse &-chev { color: #ffffff; }
+        &--left&--pulse &-face,
+        &--left&--pulse &-sheet {
+            animation: con-pgedge-kick-right calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
+        &--right&--pulse &-face,
+        &--right&--pulse &-sheet {
+            animation: con-pgedge-kick-left calc(260ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
+        }
+        &--pulse &-sheet--1 { animation-delay: calc(40ms * var(--motion-scale, 1)); }
+        &--pulse &-sheet--2 { animation-delay: calc(75ms * var(--motion-scale, 1)); }
     }
 
     /* ── one card slot ─────────────────────────────────────────────────── */
@@ -7036,12 +7097,18 @@ html.console-mode {
     from { filter: grayscale(0) brightness(1); }
     to { filter: grayscale(0.42) brightness(0.78); }
 }
-/* The edge affordance's press impulse: the sheet stack breathes once as the
-   page slide takes over (scaleY only — no layout, no reflow). */
-@keyframes con-pgedge-pulse {
-    0% { transform: translateY(-50%) scaleY(1); }
-    40% { transform: translateY(-50%) scaleY(1.22); }
-    100% { transform: translateY(-50%) scaleY(1); }
+/* The edge gate's press impulse: the body kicks INWARD — the direction the
+   incoming page will travel — and settles back (transform only: no layout,
+   no reflow). `-right` serves the LEFT gate, `-left` the right one. */
+@keyframes con-pgedge-kick-right {
+    0% { transform: translateX(0); }
+    32% { transform: translateX(.2rem); }
+    100% { transform: translateX(0); }
+}
+@keyframes con-pgedge-kick-left {
+    0% { transform: translateX(0); }
+    32% { transform: translateX(-.2rem); }
+    100% { transform: translateX(0); }
 }
 /* The spine's page number entering from the direction the album turned. */
 @keyframes con-pager-in {
@@ -7054,7 +7121,8 @@ html.console-mode {
 }
 @media (prefers-reduced-motion: reduce) {
     .con-handdock__pager-now b { animation: none; }
-    .con-hand__pgedge--pulse .con-hand__pgedge-leaf { animation: none; }
+    .con-hand__pgedge--pulse .con-hand__pgedge-face,
+    .con-hand__pgedge--pulse .con-hand__pgedge-sheet { animation: none; }
 }
 @media (prefers-reduced-motion: reduce) {
     .con-hand__slot--unplayable > :is(.card-container, .pcard) { animation: none; }
@@ -12480,62 +12548,139 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         color: fade(#8aa0b8, 66%);
     }
 
-    /* ── the ALBUM SPINE — the bay centre while the hand album is open ──
-       «LB  1–10 из 15 · 1/2  RB» in place of the «КАРТЫ n/m» line: the ONE
-       stable place the player reads their album position and the page verbs
-       from. Same absolutely-centred group as the status line (digit growth
-       is symmetric — the centre never walks); tabular digits keep the width
-       steady between pages. The glyph chips are the REAL page controls for
-       the mouse; a direction with no page that way mutes (never hides — the
-       shape is constant). Reads like the plate's own engraving, not a
-       button: no plate of its own, quiet rim only on hover. */
+    /* ── the ALBUM SPINE — the bay's NAVIGATION INSTRUMENT ──────────────
+       «LB ‹  2 / 4  › RB» in place of the «КАРТЫ n/m» line: the ONE stable
+       place the player reads their album position and the page verbs from.
+       No longer a floating engraving: the group is seated in a chamfered
+       instrument WELL — the same kant-over-glass, clipped-octagon build as
+       the plate it is carved into and as the album's EDGE GATES, which is
+       what makes the sides + the bay read as one navigation system. Same
+       absolutely-centred group as the status line (digit growth is
+       symmetric — the centre never walks); tabular digits keep the width
+       steady between pages. The side chips are the REAL page controls for
+       the mouse; a direction with no page that way mutes IN PLACE — its
+       chip goes ghost and loses the cyan voice (never hidden: the shape is
+       constant, and the dead side at a boundary is itself information). */
     &__pager {
         position: absolute;
         left: 50%;
-        bottom: .32rem;
+        bottom: .2rem;
         transform: translateX(-50%);
         z-index: 201; /* on the plate, never under a card */
         display: inline-flex;
         align-items: center;
-        gap: .55rem;
+        gap: .5rem;
+        /* Budgeted against the PLATE (--con-hud-h 2.2rem base): paddings +
+           the tallest chip must stay under the rim — profiles with shorter
+           plates (Deck 1.7rem) compact these in their own blocks. */
+        padding: .12rem .5rem .32rem;
         white-space: nowrap;
         text-shadow: 0 .05rem .1rem rgba(0, 0, 0, 0.8);
+        /* The instrument takes the MOUSE ITSELF: the plate around it is
+           pointer-inert unless the dock is `--live`, and the album is open
+           exactly when the dock is not — the chips are the album's mouse
+           page-verbs, so the well re-enables events for its own subtree
+           (it only renders while the album owns the bay). */
+        pointer-events: auto;
+        /* kant ring (the well's rim — visible around the inset face) */
+        background: linear-gradient(180deg, fade(@con-cyan, 36%), fade(@con-cyan, 12%) 55%, rgba(90, 130, 170, 0.22));
+        clip-path: polygon(.44rem 0, calc(100% - .44rem) 0, 100% .36rem, 100% calc(100% - .36rem), calc(100% - .44rem) 100%, .44rem 100%, 0 calc(100% - .36rem), 0 .36rem);
     }
+    /* The spine's own glyph keys — rem-sized INSIDE the instrument (the
+       component's px-authored box reads oversized against the compact well
+       at sub-1080 logical scales, and the couch floor re-sizes it on TV in
+       the profile block). */
+    &__pager .gp-glyph {
+        min-width: 1.05rem;
+        height: .9rem;
+        font-size: .5rem;
+
+        &--pill { min-width: 1.4rem; }
+    }
+    /* The recessed glass face inside the kant (an inset box-shadow hairline
+       would be cut off along the chamfers — a second clipped layer is not). */
+    &__pager-well {
+        position: absolute;
+        inset: .055rem;
+        background:
+            radial-gradient(70% 90% at 50% 0%, fade(@con-cyan, 7%), transparent 70%),
+            linear-gradient(180deg, rgba(10, 17, 26, 0.94), rgba(6, 11, 18, 0.96));
+        clip-path: polygon(.4rem 0, calc(100% - .4rem) 0, 100% .32rem, 100% calc(100% - .32rem), calc(100% - .4rem) 100%, .4rem 100%, 0 calc(100% - .32rem), 0 .32rem);
+    }
+    /* The page VERBS — real chips now (a control reads as a control): a
+       quiet body, a cyan hairline, the glyph + its direction mark. Hover
+       lifts and lights; the boundary state drops the cyan voice entirely. */
     &__pager-side {
+        position: relative;
+        z-index: 1;
         display: inline-flex;
         align-items: center;
-        gap: .18rem;
-        padding: .08rem .12rem;
+        gap: .2rem;
+        padding: .1rem .22rem;
         margin: 0;
         border: 0;
         border-radius: .3rem;
-        background: none;
+        background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.015));
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 17%);
         cursor: pointer;
-        transition: opacity calc(150ms * var(--motion-scale, 1)) ease, transform calc(150ms * var(--motion-scale, 1)) ease;
+        transition:
+            opacity calc(150ms * var(--motion-scale, 1)) ease,
+            transform calc(150ms * var(--motion-scale, 1)) ease,
+            box-shadow calc(180ms * var(--motion-scale, 1)) ease;
 
-        &:hover { transform: translateY(-.05rem); }
+        &:hover {
+            transform: translateY(-.05rem);
+            box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 44%), 0 0 .5rem fade(@con-cyan, 20%);
+        }
+        &:active { transform: translateY(0); }
         &--off {
-            opacity: .26;
+            opacity: .28;
             cursor: default;
-            &:hover { transform: none; }
+            box-shadow: inset 0 0 0 .05rem rgba(140, 160, 180, 0.16);
+
+            .con-handdock__pager-arrow { color: fade(#8aa0b8, 60%); }
+            &:hover, &:active {
+                transform: none;
+                box-shadow: inset 0 0 0 .05rem rgba(140, 160, 180, 0.16);
+            }
         }
     }
     /* The direction marks that bind each glyph to its side. */
     &__pager-arrow {
-        font-size: .78rem;
+        font-size: .8rem;
         font-weight: 700;
         line-height: 1;
-        color: fade(@con-cyan, 72%);
+        color: fade(@con-cyan, 78%);
+        transition: color calc(180ms * var(--motion-scale, 1)) ease;
     }
-    /* THE POSITION — the bay's brightest line. Both numeric cells reserve
-       their width (tabular + 2ch), so 1/4 → 10/12 never moves the centre. */
+    /* AN ACTUAL page change — the chip of the turn's direction fires once
+       (class-held state, transitions carry it in and out; the album's edge
+       gate kicks on the same beat). The flash OUTRANKS the boundary ghost
+       for its beat: a turn ONTO the last page still answers — the chip
+       lights once and then settles into `--off`, which reads as «you have
+       arrived at the edge» rather than a swallowed press. */
+    &__pager--fired-next .con-handdock__pager-side--next,
+    &__pager--fired-prev .con-handdock__pager-side--prev {
+        opacity: 1;
+        box-shadow: inset 0 0 0 .05rem fade(@con-cyan, 62%), 0 0 .6rem fade(@con-cyan, 26%);
+
+        .con-handdock__pager-arrow { color: #eaf6ff; }
+    }
+    /* THE POSITION — the bay's brightest line: the CURRENT page is the
+       instrument's loudest voice, the total a calm companion. Both numeric
+       cells reserve their width (tabular + reserved ch), so 1/4 → 10/12
+       never moves the centre. */
     &__pager-pos {
         position: relative;
+        z-index: 1;
         display: inline-flex;
         align-items: baseline;
         gap: .22rem;
         font-variant-numeric: tabular-nums;
         font-weight: 700;
+        /* Digits own no descenders — a tight line keeps the well inside the
+           plate's fixed height on every profile. */
+        line-height: 1;
     }
     &__pager-now {
         display: inline-block;
@@ -12545,10 +12690,10 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
 
         b {
             display: inline-block;
-            font-size: 1.02rem;
+            font-size: 1.1rem;
             letter-spacing: .02rem;
-            color: #eaf4ff;
-            text-shadow: 0 0 .5rem fade(@con-cyan, 42%);
+            color: #eef7ff;
+            text-shadow: 0 0 .5rem fade(@con-cyan, 46%);
             /* The DIRECTIONAL swap: the new number enters from the side the
                album came from (keyed on the page — Vue re-creates the node,
                so the animation runs once per turn). Short enough to finish
@@ -12564,18 +12709,19 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
     }
     &__pager-total {
         min-width: 1.2ch;
-        font-size: .76rem;
+        font-size: .78rem;
         letter-spacing: .02rem;
         color: fade(#cfe3f4, 62%);
     }
-    /* THE PROGRESS HAIRLINE — absolutely positioned under the numbers, so
-       it can never grow the bay. Segments while they stay legible, one
+    /* THE PROGRESS HAIRLINE — inside the well, under the numbers (absolute:
+       it can never grow the bay). Segments while they stay legible, one
        continuous fill past that. */
     &__pager-track {
         position: absolute;
-        left: 0;
-        right: 0;
-        bottom: -.34rem;
+        left: .55rem;
+        right: .55rem;
+        bottom: .15rem;
+        z-index: 1;
         display: flex;
         align-items: center;
         gap: .12rem;
@@ -12612,11 +12758,18 @@ html.con-profile-large.console-mode .notifications-layer.notifications-layer--jo
         background: fade(@con-cyan, 88%);
         transition: width calc(180ms * var(--motion-scale, 1)) cubic-bezier(0.22, 0.61, 0.36, 1);
     }
-    /* ONE PAGE — no navigation exists, so nothing advertises it: the sides
-       fade to a whisper and the position reads as a calm «1 / 1». The
-       geometry is untouched (the rail must not jump). */
+    /* ONE PAGE — no navigation exists, so nothing advertises it: the side
+       chips fade to a whisper (cyan voice dropped), the position reads as a
+       calm «1 / 1» and the well's own rim quiets. The geometry is untouched
+       (the instrument must not jump when a filter shrinks the album). */
     &__pager--single {
-        .con-handdock__pager-side { opacity: .12; cursor: default; }
+        background: linear-gradient(180deg, fade(@con-cyan, 20%), fade(@con-cyan, 8%) 55%, rgba(90, 130, 170, 0.16));
+
+        .con-handdock__pager-side {
+            opacity: .12;
+            cursor: default;
+            box-shadow: inset 0 0 0 .05rem rgba(140, 160, 180, 0.16);
+        }
         .con-handdock__pager-now b { color: fade(#cfe3f4, 66%); text-shadow: none; }
     }
 
@@ -26534,6 +26687,18 @@ html.con-profile-handheld {
         &__pile { width: 1.05rem; height: 1.5rem; }
         &__count { font-size: .7rem; }
     }
+    /* The hand dock's ALBUM SPINE inside the Deck's 1.7rem plate: the
+       cmdbar's handheld glyph size (the base instrument cap is still too
+       tall for this plate), compact well paddings, tighter anchor. */
+    .con-handdock__pager {
+        bottom: .12rem;
+        gap: .4rem;
+        padding: .08rem .4rem .26rem;
+    }
+    .con-handdock__pager .gp-glyph { min-width: .85rem; height: .85rem; font-size: .475rem; }
+    .con-handdock__pager-side { padding: .06rem .16rem; }
+    .con-handdock__pager-now b { font-size: .95rem; }
+    .con-handdock__pager-track { bottom: .1rem; }
 
     /* P30: the right STRATEGY RAIL packs to the Deck rail width — the
        medal stacks compress a step; nothing scrolls. The shorthand REPEATS

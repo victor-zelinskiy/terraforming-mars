@@ -426,11 +426,14 @@ html.con-profile-tv {
     .con-handdock__num { font-size: .95rem; }
     .con-handdock__sep { font-size: var(--con-t-floor); }
     /* The ALBUM SPINE reads from the couch: the CURRENT page is the loudest
-       thing in the bay, the total a calm companion beside it. */
+       thing in the bay, the total a calm companion beside it. Its glyph
+       keys take the strat-key couch size, NOT the global §0b floor box —
+       the instrument well + the 1.55rem box would burst the 2.3rem plate. */
     .con-handdock__pager-now b { font-size: 1.25rem; }
     .con-handdock__pager-total { font-size: .92rem; }
     .con-handdock__pager-slash { font-size: .82rem; }
     .con-handdock__pager-arrow { font-size: .95rem; }
+    .con-handdock__pager .gp-glyph { min-width: 1.5rem; height: 1.3rem; font-size: var(--con-t-floor); }
     /* Bay mode compacts the hint run a notch under the couch sizes too —
        the richest (board home) set must clear the two zones. Still ≥ the
        service-text floor (1rem = 20 logical px). */

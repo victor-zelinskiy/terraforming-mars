@@ -222,19 +222,24 @@
         </div>
       </div>
 
-      <!-- ALBUM EDGE AFFORDANCE — «there is a page that way», in the album's
-           own language. NOT a rail: a SHORT stack of sheet edges at the
-           vertical centre of the page edge (three offset leaves, each dimmer
-           and slightly inset — the depth of a closed album), with a compact
-           chevron riding it. It lives in its OWN reserved side gutter
-           (`ALBUM_EDGE_GUTTER`), so an edge card's ring/glow never meets it,
-           and it reads as sheets waiting past the clip rather than a
-           scrollbar or a cropped boundary. Both sides always RENDER (the
-           composition must not shift when the last page drops its next
-           edge) — an unavailable side is `--off`: nearly gone, never a lie
-           about where the album continues. `--pulse` is the LB/RB impulse:
-           the pressed side answers on the press frame (see `turnPage`),
-           then the ordinary page slide runs. -->
+      <!-- ALBUM EDGE GATE — «there is a page that way», as ONE deliberate
+           object. A compact PYLON at the vertical centre of the page edge:
+           a chamfered two-layer plate (cyan kant + dark glass — the dock
+           plate's own construction) carrying a large chevron, with two
+           sheet slivers stepping out from behind it toward the clip line —
+           the pages physically waiting beyond. It lives in its OWN reserved
+           side gutter (`ALBUM_EDGE_GUTTER`), so an edge card's ring/glow
+           never meets it; a shaped, glyph-bearing body cannot read as a
+           scrollbar or a cropped boundary the way the old hairline stack
+           did. Both sides always RENDER (the composition must not shift
+           when the last page drops its next edge) — an unavailable side is
+           `--off`: a ghost of the shape, never a lie about where the album
+           continues. `--pulse` answers EVERY page-turn door (LB/RB, click,
+           flick, wheel — see `turnPage`): the gate kicks INWARD, handing
+           the incoming page onto the stage, then the ordinary slide carries
+           the motion on. No controller-focus state by design: the pad never
+           parks a cursor here — its affordance is the physical bumper,
+           advertised by the bay instrument below. -->
       <button v-for="side in ['left', 'right']"
               :key="side"
               type="button" tabindex="-1" aria-hidden="true"
@@ -245,10 +250,12 @@
                 {'con-hand__pgedge--pulse': edgePulse === side},
               ]"
               @click="turnPage(side === 'left' ? -1 : 1)">
-        <span class="con-hand__pgedge-leaf con-hand__pgedge-leaf--3" aria-hidden="true"></span>
-        <span class="con-hand__pgedge-leaf con-hand__pgedge-leaf--2" aria-hidden="true"></span>
-        <span class="con-hand__pgedge-leaf con-hand__pgedge-leaf--1" aria-hidden="true"></span>
-        <span class="con-hand__pgedge-chev" aria-hidden="true">{{ side === 'left' ? '‹' : '›' }}</span>
+        <span class="con-hand__pgedge-sheet con-hand__pgedge-sheet--2" aria-hidden="true"></span>
+        <span class="con-hand__pgedge-sheet con-hand__pgedge-sheet--1" aria-hidden="true"></span>
+        <span class="con-hand__pgedge-face" aria-hidden="true">
+          <span class="con-hand__pgedge-face-in"></span>
+          <span class="con-hand__pgedge-chev">{{ side === 'left' ? '‹' : '›' }}</span>
+        </span>
       </button>
 
       <!-- Empty state, centred in the glass frame (filter vs truly-empty).
