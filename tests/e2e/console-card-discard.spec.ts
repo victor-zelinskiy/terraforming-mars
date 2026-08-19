@@ -33,6 +33,30 @@ const OUT = path.resolve('screenshots', 'card-discard');
 /** The last view the page received — the submit's answer is derived from it. */
 let lastView: Record<string, any> | undefined;
 
+/**
+ * THE FAKE SERVER'S MEMORY — the one thing this probe was missing.
+ *
+ * Two routes stand in for the server here, and they used to CONTRADICT each
+ * other. The submit answered «the discarded card is gone»; the model route
+ * re-injected the whole `PROBE_HAND` on EVERY refresh, so the next model poll
+ * handed the hand straight back. Whether the run saw it came down to whether a
+ * poll landed inside the cinematic: green on a dev box, red on all three CI
+ * attempts, with the product doing exactly the right thing in both.
+ *
+ * A stubbed server has to stay consistent with its own answers, so the model
+ * route now serves what the SUBMIT returned once the prompt has been answered
+ * — the discarded cards gone, a drawn card kept, and no prompt re-offered.
+ */
+let answeredHand: Array<{name: string}> | undefined;
+let promptAnswered = false;
+
+/** Every flow starts against a fresh stub — this file runs three of them. */
+function resetFakeServer(): void {
+  lastView = undefined;
+  answeredHand = undefined;
+  promptAnswered = false;
+}
+
 /** A deterministic hand to discard from (real cards — the faces must render). */
 const PROBE_HAND = [
   {name: 'Micro-Mills'}, {name: 'Insulation'}, {name: 'Windmills'}, {name: 'Deimos Down'},
@@ -122,7 +146,14 @@ async function injectMarsUniversityDiscard(page: Page, count = 1): Promise<void>
     // real one to throw away from (the dock + the grid both read this list).
     const hand = [...(body.cardsInHand ?? []), ...PROBE_HAND
       .filter((c) => !((body.cardsInHand ?? []) as Array<{name: string}>).some((h) => h.name === c.name))];
-    body.cardsInHand = hand;
+    body.cardsInHand = answeredHand ?? hand;
+    if (promptAnswered) {
+      // The decision is over: no prompt, and the hand the submit answered with.
+      body.waitingFor = undefined;
+      lastView = body;
+      await route.fulfill({response, json: body});
+      return;
+    }
     body.waitingFor = {
       type: 'or',
       title: 'Select an option',
@@ -176,6 +207,7 @@ async function interceptSubmit(
     }
     const gone = new Set(discarded());
     const body = JSON.parse(JSON.stringify(view));
+    promptAnswered = true;
     body.cardsInHand = (body.cardsInHand ?? []).filter((c: {name: string}) => !gone.has(c.name));
     body.waitingFor = undefined;
     body.game.gameAge = (body.game?.gameAge ?? 0) + 1;
@@ -189,6 +221,9 @@ async function interceptSubmit(
       body.game.deckSize = Math.max(0, (body.game.deckSize ?? 40) - 1);
       body.cardDrawReveals = [{id: 4242, cards: [{name: 'Ants'}]}];
     }
+    // …and the model route must agree from here on, or a poll lands the hand
+    // back in the dock the moment the cinematic ends.
+    answeredHand = body.cardsInHand;
     await route.fulfill({status: 200, json: body});
   });
 }
@@ -208,6 +243,7 @@ async function runDiscardFlow(
   // Surface a browser-side error as test output — a silent exception in the
   // scene would otherwise look like a timeout.
   page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+  resetFakeServer();
   // The opening is SETUP — the subject is the discard flow, which needs only
   // «the action phase is live, with a real hand and a real dock». The shared
   // driver ANSWERS the pregame over `player/input` and opens the console on a

@@ -512,14 +512,20 @@ test.describe('draft workspace · the between-generations flow', () => {
     await page.waitForSelector('.con-draftws', {timeout: 20_000});
     await expect.poll(pickedCount, {timeout: 15_000}).toBe(2);
     console.log('[restored picks]', await pickedCount());
-    // RT commits — press-verify-retry against the server's research flag.
-    for (let i = 0; i < 6; i++) {
+    // RT commits — press-verify-retry against the server's research flag, on a
+    // TIME budget rather than a press count. Every press here costs a fixed
+    // settle plus a model round trip, so «six tries» is six real attempts on a
+    // dev box and a fraction of that in useful work on a loaded runner: the
+    // presses get swallowed, the loop runs out, and the failure lands 45 s
+    // later on the terminal-beat poll — which is not the thing that broke.
+    // Assert the commit HERE, where the cause still has a name.
+    let committed = false;
+    for (const deadline = Date.now() + 90_000; !committed && Date.now() < deadline;) {
       await press(page, 'Period', 1400);
       const m = await modelOf(request, first.id) as WireModel & {thisPlayer?: {needsToResearch?: boolean}};
-      if (m.thisPlayer?.needsToResearch === false || m.game.phase === 'action') {
-        break;
-      }
+      committed = m.thisPlayer?.needsToResearch === false || m.game.phase === 'action';
     }
+    expect(committed, 'RT committed the research — the server cleared needsToResearch').toBeTruthy();
     // The terminal beat is a BOUNDED window (the workspace releases itself
     // right after it) — poll for the beat OR the release, and record which
     // one the sampler caught; missing the beat under driver latency must not
@@ -529,7 +535,7 @@ test.describe('draft workspace · the between-generations flow', () => {
       const now = await surface(page);
       sawDone = sawDone || now.done;
       return now.done || !now.workspace;
-    }, {timeout: 45_000}).toBeTruthy();
+    }, {timeout: 60_000}).toBeTruthy();
     s = await surface(page);
     console.log('[done]', JSON.stringify({sawDone, ...s}));
     await shoot(page, '08-done');

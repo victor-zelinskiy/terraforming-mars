@@ -688,6 +688,14 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
   // a prelude's Build Colony): the COLONY WORKSPACE serves it (standalone or
   // embedded — same root class either way).
   const colonies = page.locator('.con-colonies');
+  // The GENERIC prompt surface. It had no branch at all, so a task the walk
+  // met on the way home fell through to the 700 ms no-op below and spun until
+  // the budget died — reporting «board home never became live — still showing
+  // [".con-task",".con-board"]», a diagnosis that names the one surface it
+  // never tried to drive.
+  const task = page.locator('.con-task');
+  /** Consecutive rounds in which the task host was the only thing standing. */
+  let taskRounds = 0;
   for (let i = 0; i < maxRounds; i++) {
     if (await live.count() > 0 && await placement.count() === 0 && await hand.count() === 0 &&
         await start.count() === 0 && await composer.count() === 0 && await colonies.count() === 0 &&
@@ -799,7 +807,27 @@ export async function waitForBoardHome(page: Page, maxRounds = 70, opts: {keepCo
         // verdict (a follow-up that has already settled): close it.
         await press(page, 'Escape', 1200);
       }
+    } else if (await task.count() > 0) {
+      // WAIT IT OUT FIRST, ANSWER ONLY A STUCK ONE. A task that resolves by
+      // itself (a beat the shell is already driving) used to be simply waited
+      // through by the no-op below, and answering it eagerly would be a press
+      // into a prompt nobody asked this driver about. So this branch keeps the
+      // old behaviour for the first rounds and only then self-heals — the same
+      // shape as the product's own stalled-foreground watchdog, which also
+      // insists on several passes before it touches anything.
+      //
+      // When it does act, it uses the console's own two verbs and nothing
+      // else: A selects / confirms, RT commits a SET (the multi-pick shape,
+      // where A only toggles). Alternating covers both without guessing which
+      // prompt kind is on screen.
+      taskRounds++;
+      if (taskRounds > 3) {
+        await press(page, taskRounds % 2 === 0 ? 'Enter' : 'Period', 1400);
+      } else {
+        await page.waitForTimeout(700);
+      }
     } else {
+      taskRounds = 0;
       await page.waitForTimeout(700);
     }
   }
