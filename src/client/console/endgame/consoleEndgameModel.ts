@@ -34,6 +34,7 @@
  */
 import {Color} from '@/common/Color';
 import {EndgameMode, EndgameModel} from '@/client/components/endgame/endgameModel';
+import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import {
   buildFinalScoringRevealModel,
   FinalScoringRevealSegment,
@@ -76,6 +77,9 @@ export type ConsoleEndgameRow = {
   name: string;
   corporation: string; // '' when unknown
   isBot: boolean;
+  /** The bot seat's difficulty LABEL (i18n key, e.g. 'Hard') — its identity
+   *  line where a human shows a corporation. Absent for humans. */
+  difficulty?: string;
   finalTotal: number;
   megacredits: number;
   /** 1-based place; ties share the lower number (from the ranked model). */
@@ -227,11 +231,13 @@ export function buildConsoleEndgameVm(
 
   const rows: Array<ConsoleEndgameRow> = reveal.players.map((p) => {
     const ranked = byColor.get(p.color);
+    const difficulty = ranked?.botDifficulty;
     return {
       color: p.color,
       name: p.name,
       corporation: p.corporation,
       isBot: botColors.has(p.color),
+      ...(difficulty !== undefined ? {difficulty: DIFFICULTY_LABEL[difficulty]} : {}),
       finalTotal: p.finalTotal,
       megacredits: ranked?.megacredits ?? 0,
       place: ranked?.place ?? reveal.players.length,

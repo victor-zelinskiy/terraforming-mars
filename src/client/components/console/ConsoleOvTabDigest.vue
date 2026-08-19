@@ -16,6 +16,7 @@
         <span class="con-ovd__rwho">
           <span class="con-ovd__rname">{{ row.name }}</span>
           <span v-if="row.corporation !== ''" class="con-ovd__rcorp">{{ $t(row.corporation) }}</span>
+          <span v-else-if="row.difficulty !== undefined" class="con-ovd__rcorp con-ovd__rdiff">{{ $t(row.difficulty) }}</span>
         </span>
         <span class="con-ovd__rgap">{{ row.isWinner ? '' : '−' + row.gapToWinner }}</span>
         <span class="con-ovd__rtotal">{{ row.total }}<i class="con-ovd__runit">{{ $t('VP') }}</i></span>

@@ -11,11 +11,15 @@
     <div class="con-ovc__top">
       <div class="con-ovc__filters">
         <span class="con-ovc__filter" :class="{'con-ovc__filter--on': ui.cardsFilter === -1}">{{ $t('All players') }}</span>
+        <!-- The chip value is the CANONICAL «Карты» category — the same number
+             the Score tab shows — and wears its unit so it can never read as
+             a count of cards. -->
         <span v-for="(p, i) in vm.cards.byPlayer" :key="p.color"
               class="con-ovc__filter" :class="{'con-ovc__filter--on': ui.cardsFilter === i}">
           <span class="con-egov-legend__dot" :class="'player_bg_color_' + p.color" aria-hidden="true"></span>
           <span class="con-ovc__filter-name">{{ p.name }}</span>
           <b class="con-ovc__filter-vp">{{ p.cardsVp }}</b>
+          <i class="con-ovc__filter-unit">{{ $t('VP') }}</i>
         </span>
       </div>
       <div v-if="pageCount > 1" class="con-ovc__pager">{{ $t('Page') }} <b>{{ page + 1 }}</b>/{{ pageCount }}</div>
@@ -36,9 +40,22 @@
         </div>
       </div>
 
-      <!-- The context column: the focused card, full premium face. -->
+      <!-- The context column: a physical card shows its premium face; a bot
+           source shows its MECHANIC honestly (never a fake card). -->
       <div class="con-ovc__context">
-        <div class="con-ovc__card" :key="focusedRow !== undefined ? focusedRow.id : 'none'">
+        <div v-if="focusedRow !== undefined && focusedRow.bot !== undefined"
+             class="con-ovc__botsrc" :key="'b' + focusedRow.id">
+          <div class="con-ovc__botsrc-name">{{ $t(focusedRow.cardName) }}</div>
+          <div class="con-ovc__botsrc-kind">{{ $t(kindLabel(focusedRow.kind)) }}</div>
+          <div class="con-ovc__botsrc-rows">
+            <div v-for="(line, li) in botFormula(focusedRow.bot)" :key="li" class="con-ovc__botsrc-row">
+              <span class="con-ovc__botsrc-lbl">{{ $t(line.label) }}</span>
+              <b class="con-ovc__botsrc-val">{{ line.value }}</b>
+            </div>
+          </div>
+          <div class="con-ovc__botsrc-note">{{ $t('An aggregated MarsBot scoring source — not a physical project card.') }}</div>
+        </div>
+        <div v-else class="con-ovc__card" :key="focusedRow !== undefined ? focusedRow.id : 'none'">
           <Card v-if="focusedCardModel !== undefined" :card="focusedCardModel" :key="cardKey" lightweight />
         </div>
         <div v-if="focusedRow !== undefined" class="con-ovc__impact">
@@ -60,9 +77,20 @@
       <div class="con-egov-empty__note">{{ $t('This game was decided on the board and the rating track.') }}</div>
     </div>
 
-    <!-- NESTED DETAIL — the enlarged card. -->
+    <!-- NESTED DETAIL — the enlarged card, or the bot source's full mechanic. -->
     <div v-if="detailRow !== undefined" class="con-egov-detail con-ovc__detail">
-      <div class="con-ovc__detail-card">
+      <div v-if="detailRow.bot !== undefined" class="con-ovc__botsrc con-ovc__botsrc--big">
+        <div class="con-ovc__botsrc-name">{{ $t(detailRow.cardName) }}</div>
+        <div class="con-ovc__botsrc-kind">{{ $t(kindLabel(detailRow.kind)) }}</div>
+        <div class="con-ovc__botsrc-rows">
+          <div v-for="(line, li) in botFormula(detailRow.bot)" :key="li" class="con-ovc__botsrc-row">
+            <span class="con-ovc__botsrc-lbl">{{ $t(line.label) }}</span>
+            <b class="con-ovc__botsrc-val">{{ line.value }}</b>
+          </div>
+        </div>
+        <div class="con-ovc__botsrc-note">{{ $t('An aggregated MarsBot scoring source — not a physical project card.') }}</div>
+      </div>
+      <div v-else class="con-ovc__detail-card">
         <Card v-if="detailCardModel !== undefined" :card="detailCardModel" :key="'d' + detailRow.id" />
       </div>
       <div class="con-ovc__detail-side">
@@ -89,7 +117,8 @@ import {CardModel} from '@/common/models/CardModel';
 import {ViewModel} from '@/common/models/PlayerModel';
 import {NavDirection} from '@/client/gamepad/gamepadPollModel';
 import {endgamePlayerHex} from '@/client/components/endgame/endgameColors';
-import type {ConsoleOverviewVm, OvCardRow} from '@/client/console/endgame/consoleOverviewModel';
+import {$t} from '@/client/directives/i18n';
+import type {ConsoleOverviewVm, OvCardRow, OvBotCardSource} from '@/client/console/endgame/consoleOverviewModel';
 import {consoleOverviewUi} from '@/client/console/endgame/consoleOverviewState';
 import {useConsoleViewport} from '@/client/console/composables/useConsoleViewport';
 import Card from '@/client/components/card/CardFace.vue';
@@ -149,7 +178,8 @@ export default defineComponent({
       return this.filteredRows[this.focusIdx];
     },
     focusedCardModel(): CardModel | undefined {
-      return this.focusedRow !== undefined ? this.modelFor(this.focusedRow) : undefined;
+      const row = this.focusedRow;
+      return row !== undefined && row.bot === undefined ? this.modelFor(row) : undefined;
     },
     cardKey(): string {
       return this.focusedRow !== undefined ? this.focusedRow.id : 'none';
@@ -162,7 +192,8 @@ export default defineComponent({
       return this.vm.cards.rows.find((r) => r.id === d.rowId);
     },
     detailCardModel(): CardModel | undefined {
-      return this.detailRow !== undefined ? this.modelFor(this.detailRow) : undefined;
+      const row = this.detailRow;
+      return row !== undefined && row.bot === undefined ? this.modelFor(row) : undefined;
     },
   },
   methods: {
@@ -177,6 +208,29 @@ export default defineComponent({
     },
     rankOf(row: OvCardRow): number {
       return this.filteredRows.indexOf(row) + 1;
+    },
+    /** The bot source's REAL mechanic, line by line — labels are i18n keys,
+     *  values are the server's own numbers (AutomaVictoryPoints). */
+    botFormula(src: OvBotCardSource): Array<{label: string; value: string}> {
+      switch (src.kind) {
+      case 'mc':
+        return [
+          {label: 'M€ left at scoring', value: String(src.stock)},
+          {label: 'Conversion rate', value: `${src.rate} M€ → 1 ${$t('VP')}`},
+          {label: 'Result', value: `${Math.floor(src.stock / src.rate)} ${$t('VP')}`},
+        ];
+      case 'neural':
+        return [
+          {label: '+1 VP per adjacent space without a human tile', value: ''},
+          {label: 'Qualifying neighbours', value: String(src.count)},
+        ];
+      case 'icons':
+        return [
+          {label: '+1 VP per played card with a non-negative VP icon', value: ''},
+          {label: 'Qualifying cards in the pile', value: String(src.count)},
+          {label: 'Difficulty', value: $t(src.difficulty)},
+        ];
+      }
     },
     /** The LIVE tableau model when the card is on the owner's board (stored
      *  resources stay honest); a name-only face otherwise (awards etc.). */

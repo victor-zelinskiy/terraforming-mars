@@ -26,6 +26,7 @@ import {GlobalParameter} from '@/common/GlobalParameter';
 import {Tag} from '@/common/cards/Tag';
 import type {MADetail, CardVictoryPointsKind} from '@/common/game/VictoryPointsBreakdown';
 import type {ViewModel} from '@/common/models/PlayerModel';
+import {DIFFICULTY_LABEL} from '@/client/components/marsbot/marsBotView';
 import type {EndgameModel, EndgamePlayerScore} from '@/client/components/endgame/endgameModel';
 import type {InsightParam, EvidenceChip} from '@/client/components/endgame/insightEngine';
 import type {KeyEpisode, EpisodeRole, EpisodePhase} from '@/client/components/endgame/keyEpisodeEngine';
@@ -70,22 +71,17 @@ export type OvChartSeries = {
   dim?: boolean;
 };
 
-/** The Players-tab metric groups — shared by the pane (rendering/nav) and
- *  the overview root (the «Подробнее» availability of the focused group). */
+/** One Players-tab metric group of ONE participant — the panes render what a
+ *  participant honestly HAS (a bot never wears human economy groups), and
+ *  `comparable` gates «A Подробнее» (a cross-player grid needs ≥2 sides). */
 export type PlayerMetricGroup = {key: string; label: string; comparable: boolean};
-export const PLAYER_METRIC_GROUPS: ReadonlyArray<PlayerMetricGroup> = [
-  {key: 'production', label: 'Production', comparable: true},
-  {key: 'stock', label: 'Resources at the end', comparable: true},
-  {key: 'stats', label: 'Match statistics', comparable: true},
-  {key: 'tags', label: 'Tags', comparable: false},
-  {key: 'ma', label: 'Milestones & awards', comparable: false},
-  {key: 'categories', label: 'Score sources', comparable: false},
-];
 
 export type OvRankRow = {
   color: Color;
   name: string;
   corporation: string; // '' when unknown
+  /** The bot's difficulty LABEL (i18n key) — its identity line. */
+  difficulty?: string;
   place: number;
   total: number;
   /** VP behind the winner (0 for the winner). */
@@ -207,19 +203,37 @@ export type OvTimeline = {
 
 // ── Cards tab ───────────────────────────────────────────────────────────────
 
+/**
+ * The MECHANIC behind a MarsBot card-scoring source — the honest detail the
+ * tab shows instead of pretending an aggregated source is a physical card.
+ * Every number is the SERVER's own (AutomaVictoryPoints); nothing re-derived.
+ */
+export type OvBotCardSource =
+  /** Remaining M€ exchanged for VP by the final-generation rate. */
+  | {kind: 'mc'; stock: number; rate: number}
+  /** Neural Instance: +1 VP per adjacent space free of the human. */
+  | {kind: 'neural'; count: number}
+  /** Hard/Brutal: +1 VP per played card with a non-negative VP icon. */
+  | {kind: 'icons'; count: number; difficulty: string /* label key */};
+
 export type OvCardRow = {
   id: string;
   owner: Color;
   ownerName: string;
+  /** A CardName for a physical card; an i18n KEY for a bot/effect source. */
   cardName: string;
   vp: number;
   kind: CardVictoryPointsKind;
+  /** Present ⇔ this row is an aggregated MarsBot source, not a physical card. */
+  bot?: OvBotCardSource;
 };
 
 export type OvCardsPlayerSummary = {
   color: Color;
   name: string;
   isBot: boolean;
+  /** The CANONICAL «Карты» category value — the same number the ceremony and
+   *  the Score tab show (positives + the bot's normalised parts). */
   cardsVp: number;
   count: number;
   kinds: Record<CardVictoryPointsKind, number>;
@@ -264,26 +278,50 @@ export type OvPlayerCard = {
   color: Color;
   name: string;
   corporation: string;
+  /** The bot's difficulty LABEL (i18n key) — part of its identity line. */
+  difficulty?: string;
   place: number;
   total: number;
   isBot: boolean;
   isWinner: boolean;
+  /** Human economy groups — EMPTY for the bot (its rules keep no production
+   *  or resource stock; faking zeros would be a lie in bar form). */
   production: ReadonlyArray<OvMetric>;
   stock: ReadonlyArray<OvMetric>;
   stats: ReadonlyArray<OvMetric>;
-  /** Top played tags (count > 0), capped. */
+  /** Top played tags (count > 0), capped. Empty for the bot (its «tags» are
+   *  board tracks — see `botTracks`). */
   tags: ReadonlyArray<{tag: Tag; count: number}>;
   /** Raw milestone/award rows — the component translates the messages. */
   milestones: ReadonlyArray<MADetail>;
   awards: ReadonlyArray<MADetail>;
   /** Per-category VP (the ceremony's own numbers). */
   categories: ReadonlyArray<{key: ConsoleEndgameCategoryKey; label: string; accent: ConsoleEndgameCategoryKey; value: number}>;
+  /** BOT ONLY — the honest replacement for the human economy groups. */
+  botEconomy?: {
+    /** M€ left at scoring, the conversion rate and the VP it produced. */
+    stock: number; rate: number; vp: number;
+    /** Played project cards in the bot's pile. */
+    playedCount: number;
+  };
+  /** BOT ONLY — the six board tracks (the bot's «tags»): tag + position/max. */
+  botTracks?: ReadonlyArray<{tag: Tag; position: number; max: number}>;
+  /** THIS participant's metric groups, in display order (↑/↓ walks them). */
+  groups: ReadonlyArray<PlayerMetricGroup>;
 };
 
 export type OvPlayers = {
   players: ReadonlyArray<OvPlayerCard>;
   /** Cross-player maxima per metric key — the comparison scales. */
   maxima: Record<string, number>;
+  /**
+   * How many participants a metric key actually APPLIES to. A bar encodes a
+   * comparison — with fewer than two comparable participants the tab renders
+   * a plain value cell instead (a full-width bar against nobody is a lie).
+   */
+  comparable: Record<string, number>;
+  /** RAW server name → display name (award funder chips: «MarsBot» → «Бот»). */
+  displayNames: Record<string, string>;
 };
 
 // ── The VM ──────────────────────────────────────────────────────────────────
@@ -313,10 +351,17 @@ export type ConsoleOverviewExtras = {
     coloniesCount: number;
     terraformRating: number;
   }>;
+  /** The MarsBot table state (absent in human-only games): the tracks are the
+   *  bot's «tags», the played pile size its card footprint. */
+  automa?: {
+    tracks: ReadonlyArray<{tag: Tag; position: number; max: number}>;
+    playedCount: number;
+  };
 };
 
 /** The client-side adapter (kept beside the builder; reads only pure fields). */
 export function consoleOverviewExtrasFromView(view: ViewModel): ConsoleOverviewExtras {
+  const automa = view.game.automa;
   return {
     expansions: {
       venus: view.game.gameOptions.expansions.venus === true,
@@ -332,6 +377,12 @@ export function consoleOverviewExtrasFromView(view: ViewModel): ConsoleOverviewE
       coloniesCount: p.coloniesCount,
       terraformRating: p.terraformRating,
     })),
+    ...(automa !== undefined ? {
+      automa: {
+        tracks: automa.tracks.map((t) => ({tag: t.tags[0], position: t.position, max: t.maxPosition})),
+        playedCount: automa.playedPile.length,
+      },
+    } : {}),
   };
 }
 
@@ -554,40 +605,78 @@ function buildTimeline(model: EndgameModel, egVm: ConsoleEndgameVm): OvTimeline 
 
 // ── Cards ───────────────────────────────────────────────────────────────────
 
+/** The bot's normalised card sources — SAME labels as the ceremony's automa
+ *  sub-segments (finalScoringRevealModel), so one vocabulary tells one story. */
+function botCardRows(p: EndgamePlayerScore): Array<OvCardRow> {
+  const a = p.breakdown.automa;
+  if (a === undefined) {
+    return [];
+  }
+  const out: Array<OvCardRow> = [];
+  if (a.mcToVp > 0) {
+    out.push({
+      id: `${p.color}:bot:mc`, owner: p.color, ownerName: p.name,
+      cardName: 'M€ converted to VP', vp: a.mcToVp, kind: 'resource',
+      bot: {kind: 'mc', stock: p.megacredits, rate: a.mcPerVp},
+    });
+  }
+  if (a.neuralInstance > 0) {
+    out.push({
+      id: `${p.color}:bot:neural`, owner: p.color, ownerName: p.name,
+      cardName: 'Neural Instance', vp: a.neuralInstance, kind: 'conditional',
+      bot: {kind: 'neural', count: a.neuralInstance},
+    });
+  }
+  if (a.cardVp > 0) {
+    out.push({
+      id: `${p.color}:bot:icons`, owner: p.color, ownerName: p.name,
+      cardName: 'Played card icons', vp: a.cardVp, kind: 'fixed',
+      bot: {kind: 'icons', count: a.cardVp, difficulty: DIFFICULTY_LABEL[p.botDifficulty ?? 'hard']},
+    });
+  }
+  return out;
+}
+
 function buildCards(model: EndgameModel, egVm: ConsoleEndgameVm): OvCards {
   const bots = new Set(egVm.rows.filter((r) => r.isBot).map((r) => r.color));
+  // The CANONICAL «Карты» per player — the ceremony's own category values
+  // (positives + automa), so the filter chips can never disagree with the
+  // Score tab by construction.
+  const cardsCategory = egVm.categories.find((c) => c.key === 'cards');
   const positives: Array<OvCardRow> = [];
   const penalties: Array<OvCardRow> = [];
   const byPlayer: Array<OvCardsPlayerSummary> = [];
 
   for (const p of model.players) {
     const kinds: Record<CardVictoryPointsKind, number> = {resource: 0, conditional: 0, fixed: 0, penalty: 0};
-    const push = (c: {cardName: string; victoryPoint: number; kind: CardVictoryPointsKind}, i: number, neg: boolean) => {
-      const row: OvCardRow = {
-        id: `${p.color}:${c.cardName}:${i}`,
-        owner: p.color,
-        ownerName: p.name,
-        cardName: c.cardName,
-        vp: c.victoryPoint,
-        kind: c.kind,
-      };
-      (neg ? penalties : positives).push(row);
-      kinds[c.kind] += c.victoryPoint;
+    const push = (row: OvCardRow) => {
+      (row.vp < 0 ? penalties : positives).push(row);
+      kinds[row.kind] += row.vp;
     };
-    p.topCards.forEach((c, i) => push(c, i, false));
-    p.penaltyCards.forEach((c, i) => push(c, i, true));
+    p.topCards.forEach((c, i) => push({
+      id: `${p.color}:${c.cardName}:${i}`, owner: p.color, ownerName: p.name,
+      cardName: c.cardName, vp: c.victoryPoint, kind: c.kind,
+    }));
+    p.penaltyCards.forEach((c, i) => push({
+      id: `${p.color}:${c.cardName}:p${i}`, owner: p.color, ownerName: p.name,
+      cardName: c.cardName, vp: c.victoryPoint, kind: c.kind,
+    }));
+    const botRows = botCardRows(p);
+    botRows.forEach(push);
     byPlayer.push({
       color: p.color,
       name: p.name,
       isBot: bots.has(p.color),
-      cardsVp: p.breakdown.victoryPoints,
-      count: p.topCards.length + p.penaltyCards.length,
+      cardsVp: cardsCategory?.values[p.color] ?? 0,
+      count: p.topCards.length + p.penaltyCards.length + botRows.length,
       kinds,
     });
   }
 
-  positives.sort((a, b) => b.vp - a.vp);
-  penalties.sort((a, b) => a.vp - b.vp);
+  // One shared ranking: a bot source competes on its actual VP contribution;
+  // ties break on the stable row id (deterministic across reloads).
+  positives.sort((a, b) => b.vp - a.vp || a.id.localeCompare(b.id));
+  penalties.sort((a, b) => a.vp - b.vp || a.id.localeCompare(b.id));
   return {rows: [...positives, ...penalties], byPlayer};
 }
 
@@ -684,18 +773,30 @@ function buildPlayers(model: EndgameModel, egVm: ConsoleEndgameVm, extras: Conso
   const bots = new Set(egVm.rows.filter((r) => r.isBot).map((r) => r.color));
   const rawBy = new Map(extras.playersRaw.map((p) => [p.color, p]));
   const maxima: Record<string, number> = {};
+  const comparable: Record<string, number> = {};
   const bump = (key: string, v: number) => {
     maxima[key] = Math.max(maxima[key] ?? 1, v);
+    comparable[key] = (comparable[key] ?? 0) + 1;
   };
+  // RAW server name → display name: the award-funder chips must never print
+  // «MarsBot» in a localized UI (the server template carries the raw name).
+  const displayNames: Record<string, string> = {};
+  for (const p of model.players) {
+    displayNames[p.rawName ?? p.name] = p.name;
+  }
 
   const players: Array<OvPlayerCard> = model.players.map((p: EndgamePlayerScore) => {
     const raw = rawBy.get(p.color);
-    const production: Array<OvMetric> = PRODUCTION_META.map((m) => ({
+    const isBot = bots.has(p.color);
+    // The human economy groups are HUMAN-ONLY: the bot's rules keep no
+    // production and no resource stock (its M€ live in `botEconomy`), so a
+    // bot never contributes zeros to these bars — and never wears them.
+    const production: Array<OvMetric> = isBot ? [] : PRODUCTION_META.map((m) => ({
       key: 'prod:' + m.key,
       label: m.label,
       value: (p.production as Record<string, number> | undefined)?.[m.key] ?? 0,
     }));
-    const stock: Array<OvMetric> = PRODUCTION_META.map((m) => ({
+    const stock: Array<OvMetric> = isBot ? [] : PRODUCTION_META.map((m) => ({
       key: 'stock:' + m.key,
       label: m.label,
       value: m.key === 'megacredits' ? p.megacredits :
@@ -705,13 +806,15 @@ function buildPlayers(model: EndgameModel, egVm: ConsoleEndgameVm, extras: Conso
       {key: 'stat:tr', label: 'TR', value: raw?.terraformRating ?? p.breakdown.terraformRating},
       {key: 'stat:cities', label: 'Cities', value: raw?.citiesCount ?? 0},
       ...(extras.expansions.colonies ? [{key: 'stat:colonies', label: 'Colonies', value: raw?.coloniesCount ?? 0}] : []),
-      {key: 'stat:actions', label: 'Actions', value: raw?.actionsTakenThisGame ?? 0},
+      // The bot takes TURNS, not the human action count — a 0 in this bar
+      // would read as «did nothing», so the metric stays human-only.
+      ...(isBot ? [] : [{key: 'stat:actions', label: 'Actions', value: raw?.actionsTakenThisGame ?? 0}]),
       {key: 'stat:steps', label: 'Parameter steps', value: p.parametersTotal},
     ];
     for (const m of [...production, ...stock, ...stats]) {
       bump(m.key, m.value);
     }
-    const tags = Object.entries(raw?.tags ?? {})
+    const tags = isBot ? [] : Object.entries(raw?.tags ?? {})
       .map(([tag, count]) => ({tag: tag as Tag, count: count ?? 0}))
       .filter((t) => t.count > 0 && t.tag !== Tag.EVENT)
       .sort((a, b) => b.count - a.count)
@@ -719,13 +822,30 @@ function buildPlayers(model: EndgameModel, egVm: ConsoleEndgameVm, extras: Conso
     const categories = egVm.categories
       .map((cat) => ({key: cat.key, label: cat.label, accent: cat.accent, value: cat.values[p.color] ?? 0}))
       .filter((c) => c.value !== 0);
+    const automaParts = p.breakdown.automa;
+    const humanCount = model.players.length - bots.size;
+    const groups: Array<PlayerMetricGroup> = isBot ? [
+      {key: 'boteco', label: 'Bot economy', comparable: false},
+      {key: 'stats', label: 'Match statistics', comparable: model.players.length >= 2},
+      {key: 'bottracks', label: 'Bot tracks', comparable: false},
+      {key: 'ma', label: 'Milestones & awards', comparable: false},
+      {key: 'categories', label: 'Score sources', comparable: false},
+    ] : [
+      {key: 'production', label: 'Production', comparable: humanCount >= 2},
+      {key: 'stock', label: 'Resources at the end', comparable: humanCount >= 2},
+      {key: 'stats', label: 'Match statistics', comparable: model.players.length >= 2},
+      {key: 'tags', label: 'Tags', comparable: false},
+      {key: 'ma', label: 'Milestones & awards', comparable: false},
+      {key: 'categories', label: 'Score sources', comparable: false},
+    ];
     return {
       color: p.color,
       name: p.name,
       corporation: p.corporations.join(' / '),
+      ...(p.botDifficulty !== undefined ? {difficulty: DIFFICULTY_LABEL[p.botDifficulty]} : {}),
       place: p.place,
       total: p.total,
-      isBot: bots.has(p.color),
+      isBot,
       isWinner: p.isWinner,
       production,
       stock,
@@ -734,10 +854,20 @@ function buildPlayers(model: EndgameModel, egVm: ConsoleEndgameVm, extras: Conso
       milestones: p.breakdown.detailsMilestones,
       awards: p.breakdown.detailsAwards,
       categories,
+      ...(isBot && automaParts !== undefined ? {
+        botEconomy: {
+          stock: p.megacredits,
+          rate: automaParts.mcPerVp,
+          vp: automaParts.mcToVp,
+          playedCount: extras.automa?.playedCount ?? 0,
+        },
+      } : {}),
+      ...(isBot && extras.automa !== undefined ? {botTracks: extras.automa.tracks} : {}),
+      groups,
     };
   });
 
-  return {players, maxima};
+  return {players, maxima, comparable, displayNames};
 }
 
 // ── The builder ─────────────────────────────────────────────────────────────
@@ -753,6 +883,7 @@ export function buildConsoleOverviewVm(
     color: p.color,
     name: p.name,
     corporation: rowBy.get(p.color)?.corporation ?? p.corporations.join(' / '),
+    ...(p.botDifficulty !== undefined ? {difficulty: DIFFICULTY_LABEL[p.botDifficulty]} : {}),
     place: p.place,
     total: p.total,
     gapToWinner: Math.max(0, winnerTotal - p.total),

@@ -193,7 +193,9 @@ describe('consoleOverviewModel', () => {
     const {vm} = ovVmOf([a, b]);
     expect(vm.cards.rows.map((r) => r.cardName)).to.deep.eq(['Big', 'Mid', 'Small', 'Worse', 'Bad']);
     const red = vm.cards.byPlayer.find((p) => p.color === 'red')!;
-    expect(red.cardsVp).to.eq(9);
+    // The chip is the CANONICAL Score-tab «Карты» value: positive families
+    // (10); the −1 penalty stays a visible row under its own category.
+    expect(red.cardsVp).to.eq(10);
     expect(red.count).to.eq(3);
   });
 

@@ -2428,6 +2428,73 @@ const FACT_ANALYZERS: ReadonlyArray<Analyzer> = [
   analyzeCorporationImpact,
 ];
 
+/**
+ * The MarsBot's CARD ENGINE — its three normalised card-scoring sources
+ * (M€ conversion / Neural Instance / played-card icons, the same values the
+ * ceremony reveals under «Карты»). One candidate per bot seat, telling the
+ * DOMINANT source factually: the numbers are the server's own
+ * AutomaVictoryPoints — never a probability claim, never «luck» (the engine
+ * has no expected-value data for the bot's draws, so it must not pretend to).
+ */
+const analyzeAutomaCards: Analyzer = (ctx) => {
+  const out: Array<InsightCandidate> = [];
+  for (const p of ctx.players) {
+    const a = p.breakdown.automa;
+    if (a === undefined) {
+      continue;
+    }
+    const total = a.mcToVp + a.neuralInstance + a.cardVp;
+    if (total < 8) {
+      continue; // too small to be a story
+    }
+    const isWinner = p.color === ctx.winner.color;
+    const parts = [
+      {kind: 'mc', vp: a.mcToVp},
+      {kind: 'neural', vp: a.neuralInstance},
+      {kind: 'icons', vp: a.cardVp},
+    ].sort((x, y) => y.vp - x.vp);
+    const top = parts[0];
+    let textKey: string;
+    let params: Array<InsightParam>;
+    if (top.kind === 'mc') {
+      textKey = '${0} banked megacredits all game — the final conversion returned ${1} VP (1 VP per ${2} M€).';
+      params = [raw(p.name), raw(a.mcToVp), raw(a.mcPerVp)];
+    } else if (top.kind === 'neural') {
+      textKey = 'The Neural Instance of ${0} kept ${1} free neighbours — ${1} VP at scoring.';
+      params = [raw(p.name), raw(a.neuralInstance)];
+    } else {
+      textKey = 'The VP icons of ${0}\'s played pile paid ${1} VP — the difficulty\'s own card bonus.';
+      params = [raw(p.name), raw(a.cardVp)];
+    }
+    out.push({
+      id: `cards.bot-engine.${p.color}`,
+      group: 'cards',
+      priority: isWinner ? 76 : 64,
+      severity: total >= 15 ? 'major' : 'normal',
+      icon: 'cards',
+      badge: 'Bot cards',
+      color: p.color,
+      textKey,
+      params,
+      family: 'cardStory',
+      storyCluster: 'bot-cards',
+      evidenceChips: [
+        {t: 'raw', v: `+${total}`, label: 'VP', tone: 'metric'},
+        ...(a.cardVp > 0 && p.botDifficulty !== undefined ?
+          [{t: 'i18n', v: DIFFICULTY_LABELS[p.botDifficulty], tone: 'neutral'} as EvidenceChip] : []),
+      ],
+      scores: {impact: Math.min(1, total / 20), confidence: 1, relevance: 0.8},
+    });
+  }
+  return out;
+};
+
+/** Difficulty → label key (mirrors marsBotView.DIFFICULTY_LABEL — kept local
+ *  so this pure engine adds no client-view import). */
+const DIFFICULTY_LABELS: Readonly<Record<string, string>> = {
+  easy: 'Easy', normal: 'Normal', hard: 'Hard', brutal: 'Brutal',
+};
+
 const ANALYZERS: ReadonlyArray<Analyzer> = [
   analyzeVerdict,
   analyzeTimeline,
@@ -2436,6 +2503,7 @@ const ANALYZERS: ReadonlyArray<Analyzer> = [
   analyzeMomentum,
   analyzeParameters,
   analyzeCards,
+  analyzeAutomaCards,
   analyzeRace,
 ];
 

@@ -76,7 +76,6 @@ import type {ConsoleEndgameVm} from '@/client/console/endgame/consoleEndgameMode
 import {
   buildConsoleOverviewVm, consoleOverviewExtrasFromView,
   ConsoleOverviewVm, OverviewTabKey, OVERVIEW_TAB_ORDER, OVERVIEW_TAB_LABEL,
-  PLAYER_METRIC_GROUPS,
 } from '@/client/console/endgame/consoleOverviewModel';
 import {
   consoleOverviewUi, closeEndgameOverview, nextOverviewTab, OVERVIEW_MS,
@@ -139,8 +138,11 @@ export default defineComponent({
         return this.ovVm.timeline.gens >= 2;
       case 'cards':
         return this.ovVm.cards.rows.length > 0;
-      case 'players':
-        return PLAYER_METRIC_GROUPS[Math.min(Math.max(this.ui.playerGroup, 0), PLAYER_METRIC_GROUPS.length - 1)].comparable;
+      case 'players': {
+        const p = this.ovVm.players.players[Math.min(Math.max(this.ui.playerIdx, 0), Math.max(0, this.ovVm.players.players.length - 1))];
+        const groups = p?.groups ?? [];
+        return groups[Math.min(Math.max(this.ui.playerGroup, 0), Math.max(0, groups.length - 1))]?.comparable === true;
+      }
       default:
         return false;
       }

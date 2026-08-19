@@ -846,5 +846,20 @@
     "Score sources": "Источники очков",
     "No tags played": "Меток не сыграно",
     "No milestones or awards": "Без достижений и наград",
-    "Parameter steps": "Шаги параметров"
+    "Parameter steps": "Шаги параметров",
+
+    "Bot cards": "Карты бота",
+    "Bot economy": "Экономика бота",
+    "Bot tracks": "Треки бота",
+    "M€ left at scoring": "Остаток M€ при подсчёте",
+    "Conversion rate": "Курс обмена",
+    "Cards in the played pile": "Карт в стопке разыгранных",
+    "Qualifying neighbours": "Подходящих соседних клеток",
+    "Qualifying cards in the pile": "Подходящих карт в стопке",
+    "+1 VP per adjacent space without a human tile": "+1 ПО за соседнюю клетку без тайла человека",
+    "+1 VP per played card with a non-negative VP icon": "+1 ПО за разыгранную карту с неотрицательным значком ПО",
+    "An aggregated MarsBot scoring source — not a physical project card.": "Агрегированный источник очков бота — не физическая карта проекта.",
+    "${0} banked megacredits all game — the final conversion returned ${1} VP (1 VP per ${2} M€).": "${0} копил мегакредиты всю партию — финальная конвертация принесла ${1} ПО (1 ПО за ${2} M€).",
+    "The Neural Instance of ${0} kept ${1} free neighbours — ${1} VP at scoring.": "Нейроинстанция ${0} сохранила ${1} свободных соседних клеток — ${1} ПО при подсчёте.",
+    "The VP icons of ${0}'s played pile paid ${1} VP — the difficulty's own card bonus.": "Значки ПО в стопке ${0} принесли ${1} ПО — карточный бонус этой сложности."
 }

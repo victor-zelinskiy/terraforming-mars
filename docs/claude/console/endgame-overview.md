@@ -120,6 +120,32 @@ inside `.con-egov` (e2e-asserted); the VM builds are plain computeds over
 the settled endgame snapshot. The `.con-endgame` root selector already
 covers the scene for the leak detector (`WORKSPACE_KINDS` rootSelector).
 
+## The MarsBot endgame profile (2026-08-19 iteration)
+
+ONE canonical card story for the bot, everywhere. `AutomaScoring` owns the
+rules (M€ → VP by the final-generation rate 8→1 · Neural Instance adjacency ·
+hard/brutal +1 VP per non-negative VP icon in the played pile; TR/milestones/
+awards/greenery/city/colony/delta ride the standard engine paths).
+`endgameModel.categoryValue('cards')` folds `automaCardsTotal(breakdown)` in,
+so the INSIGHT layer sees the same «Карты» the ceremony reveals; the Cards
+tab synthesizes the three bot rows (`bot:` `mc`/`neural`/`icons`) with the
+ceremony's OWN segment labels and shows the real formula (stock/rate/count/
+difficulty) instead of a fake card face; the filter chips read the canonical
+category value **with the ПО unit** (the human chip therefore equals the
+Score tab — penalties stay visible rows under their own category, which is
+the whole «63 vs 61» story). Difficulty (`DIFFICULTY_LABEL`) rides the
+identity line in the ceremony row, the digest ranking and the Players
+profile; the award-funder chip remaps the RAW server name through
+`OvPlayers.displayNames` (never «MarsBot» in a localized UI). The Players
+tab gives the bot its OWN groups (`boteco`/`stats`/`bottracks`/`ma`/
+`categories` — no fake production/stock/tags), and a metric bar renders only
+when ≥2 participants carry the metric (`OvPlayers.comparable`) — a lone
+value is a plain cell. `analyzeAutomaCards` tells the DOMINANT bot card
+source factually (never «luck» — the engine has no expected-value data for
+bot draws). Specs: `consoleOverviewBot.spec.ts` (classification per source,
+the Score=Cards=Players=Insights invariants, difficulty ladder, honest-bars
+rule, human-only regression, the diagnostic contribution table).
+
 ## E2E
 
 `tests/e2e/console-endgame-overview.spec.ts`: the seamlessness probe

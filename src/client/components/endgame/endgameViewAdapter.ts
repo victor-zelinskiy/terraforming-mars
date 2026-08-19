@@ -117,6 +117,9 @@ export function endgameModelFromView(view: ViewModel, facts?: ReadonlyArray<Endg
         plants: p.plantProduction, energy: p.energyProduction, heat: p.heatProduction,
       },
       strategyInput: strategyInputFor(view, p, cardResources),
+      // The bot seat carries its difficulty — the endgame identity chip and
+      // the icon-VP formula note both read this one canonical value.
+      ...(p.isMarsBot === true && game.automa !== undefined ? {botDifficulty: game.automa.difficulty} : {}),
     }));
   // MarsBot clock win: entering the final generation means the human lost
   // regardless of totals (Automa rules) — the bot is the forced winner.

@@ -92,6 +92,9 @@
               <div class="con-eg__who">
                 <span class="con-eg__name">{{ rowBy(color).name }}</span>
                 <span v-if="rowBy(color).corporation !== ''" class="con-eg__corp">{{ $t(rowBy(color).corporation) }}</span>
+                <!-- The bot's identity line: WHICH bot was beaten (or won) —
+                     its difficulty, where a human shows the corporation. -->
+                <span v-else-if="rowBy(color).difficulty !== undefined" class="con-eg__corp con-eg__diff">{{ $t(rowBy(color).difficulty!) }}</span>
               </div>
             </div>
             <div class="con-eg__track">

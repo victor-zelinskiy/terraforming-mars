@@ -21,6 +21,7 @@
 import {Color} from '@/common/Color';
 import {GlobalParameter} from '@/common/GlobalParameter';
 import type {CardName} from '@/common/cards/CardName';
+import type {DifficultyLevel} from '@/common/automa/AutomaTypes';
 import type {EndgameFact} from '@/common/events/endgameFacts';
 import {CardVictoryPointsDetail, CardVictoryPointsKind, VictoryPointsBreakdown} from '@/common/game/VictoryPointsBreakdown';
 import {
@@ -72,6 +73,8 @@ export type EndgamePlayerInput = {
   // Rework §4–§20 — strategy-archetype raw inputs (tags / colonies / card-VP-by-source /
   // accumulated card resources), computed client-side (needs the card manifest).
   strategyInput?: StrategyInput;
+  /** The MarsBot seat's difficulty (present only on the bot's input). */
+  botDifficulty?: DifficultyLevel;
 };
 
 export type EndgameModelOptions = {
@@ -152,6 +155,8 @@ export type EndgamePlayerScore = {
   // detected profile (computed in buildEndgameModel, read by the UI player-profile section).
   strategyInput?: StrategyInput;
   strategyProfile?: PlayerStrategyProfile;
+  /** The MarsBot seat's difficulty (present only on the bot's score row). */
+  botDifficulty?: DifficultyLevel;
 };
 
 export type EndgameMode = 'solo' | 'duel' | 'standings';
@@ -231,10 +236,24 @@ const PARAMETER_META: ReadonlyArray<{key: GlobalParameter; label: string; accent
   {key: GlobalParameter.MOON_LOGISTIC_RATE, label: 'L. Logistic', accent: 'moon-road'},
 ];
 
+/**
+ * The MarsBot's special scoring parts (M€ conversion / Neural Instance /
+ * played-card icons) — factually CARD-ENGINE scoring, so every consumer that
+ * compares «Cards» across players folds them into that category. 0 for humans.
+ */
+export function automaCardsTotal(b: VictoryPointsBreakdown): number {
+  const a = b.automa;
+  return a === undefined ? 0 : a.mcToVp + a.neuralInstance + a.cardVp;
+}
+
 function categoryValue(b: VictoryPointsBreakdown, key: EndgameCategoryKey): number {
   switch (key) {
   case 'tr': return b.terraformRating;
-  case 'cards': return b.victoryPoints;
+  // «Cards» is ONE comparable category for every participant: the human's
+  // net card VP, plus the bot's normalised card-engine parts. Without the
+  // automa fold the insight layer saw «Бот · Карты 0» while the ceremony
+  // (finalScoringRevealModel remaps the same fields) showed 35.
+  case 'cards': return b.victoryPoints + automaCardsTotal(b);
   case 'board': return b.city + b.greenery;
   case 'mca': return b.milestones + b.awards;
   case 'moon': return b.moonHabitats + b.moonMines + b.moonRoads;
@@ -419,6 +438,7 @@ export function buildEndgameModel(inputs: ReadonlyArray<EndgamePlayerInput>, opt
       leftover: p.leftover,
       production: p.production,
       strategyInput: p.strategyInput,
+      ...(p.botDifficulty !== undefined ? {botDifficulty: p.botDifficulty} : {}),
     };
   });
 

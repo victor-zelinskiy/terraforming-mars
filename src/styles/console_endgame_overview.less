@@ -468,6 +468,8 @@
     overflow: hidden;
     text-overflow: ellipsis;
 }
+/* The bot's difficulty in the corp slot — its own quiet aqua accent. */
+.con-ovd__rdiff { color: rgba(124, 214, 226, 0.75); }
 .con-ovd__rgap {
     font-family: @con-font;
     font-size: 0.85rem;
@@ -736,8 +738,9 @@
 .con-ovs__cat {
     display: grid;
     /* Wide enough for «РЕЙТИНГ ТЕРРАФОРМИРОВАНИЯ» + the leader swatch — a
-     * category name is a decision label and may not ellipsize anywhere. */
-    grid-template-columns: 16rem minmax(0, 1fr);
+     * category name is a decision label and may not ellipsize anywhere
+     * (24 caps × ~0.61em @0.88rem + tracking + dot + swatch ≈ 16.5rem). */
+    grid-template-columns: 17rem minmax(0, 1fr);
     align-items: center;
     gap: 0.8rem;
     padding: 0.3rem 0.8rem;
@@ -1159,6 +1162,14 @@
     white-space: nowrap;
 }
 .con-ovc__filter-vp { font-variant-numeric: tabular-nums; }
+.con-ovc__filter-unit {
+    font-style: normal;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: @con-text-dim;
+}
+.con-ovc__filter--on .con-ovc__filter-unit { color: rgba(206, 224, 240, 0.7); }
 .con-ovc__pager {
     font-family: @con-font;
     font-size: 0.8rem;
@@ -1243,6 +1254,61 @@
 }
 .con-ovc__card .card-container { margin: 0; }
 /* Stacked and centred under the face — one column never fights for a line. */
+/* A BOT SOURCE'S mechanic panel — the honest stand-in for a card face:
+ * name, family, the real formula rows, and the «not a physical card» note. */
+.con-ovc__botsrc {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    width: 17rem;
+    box-sizing: border-box;
+    padding: 0.9rem 1rem;
+    border-radius: 0.55rem;
+    border: 0.05rem solid rgba(124, 214, 226, 0.3);
+    background: linear-gradient(180deg, rgba(14, 26, 32, 0.9) 0%, rgba(9, 16, 22, 0.9) 100%);
+}
+.con-ovc__botsrc--big { width: 24rem; }
+.con-ovc__botsrc-name {
+    font-family: @con-font;
+    font-size: 1.05rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #eaf6fa;
+}
+.con-ovc__botsrc-kind {
+    font-family: @con-font;
+    font-size: 0.72rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(124, 214, 226, 0.8);
+}
+.con-ovc__botsrc-rows {
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    padding-top: 0.2rem;
+    border-top: 0.05rem solid rgba(150, 175, 205, 0.16);
+}
+.con-ovc__botsrc-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.8rem;
+    font-family: @con-font;
+    font-size: 0.85rem;
+    color: rgba(206, 224, 240, 0.88);
+}
+.con-ovc__botsrc-val {
+    font-variant-numeric: tabular-nums;
+    color: #f2f8ff;
+    white-space: nowrap;
+}
+.con-ovc__botsrc-note {
+    font-family: @con-font;
+    font-size: 0.72rem;
+    line-height: 1.35;
+    color: @con-text-dim;
+}
 .con-ovc__impact {
     display: flex;
     flex-direction: column;
@@ -1648,6 +1714,13 @@
     color: #eaf4ff;
     font-variant-numeric: tabular-nums;
 }
+/* A metric with no second participant to compare against: the track cell is
+ * EMPTY (grid geometry stays — labels/values keep their columns), and the
+ * value alone carries the fact. */
+.con-ovpl__metric--solo .con-ovpl__mtrack { display: none; }
+.con-ovpl__mval--wide { white-space: nowrap; }
+.con-ovpl__diff { color: rgba(124, 214, 226, 0.8); }
+.con-ovpl__track-pos { font-variant-numeric: tabular-nums; color: #eaf4ff; }
 .con-ovpl__tags {
     display: flex;
     flex-wrap: wrap;
