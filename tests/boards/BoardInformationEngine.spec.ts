@@ -362,6 +362,27 @@ describe('BoardInformationEngine', () => {
     expect(info.facts.some((f) => f.category === 'external-area'), 'no external note on-grid').to.be.false;
   });
 
+  it('a NEUTRAL city scores nobody — no VP fact on hover, none from a greenery beside it', () => {
+    // A solo game's setup city: owned by the NEUTRAL colour, which is not a
+    // scoring participant. Promising it «+1 VP» was false, and the client
+    // rendered the recipient group as a raw «NEUTRAL».
+    const land = emptyLand((s) => game.board.getAdjacentSpaces(s).some((a) => a.spaceType === SpaceType.LAND && a.tile === undefined));
+    land.tile = {tileType: TileType.CITY};
+    land.player = {color: 'neutral'} as never;
+
+    const info = boardCellInfo(player, land);
+    expect(info.facts.some((f) => f.id === 'score-city'), 'no city scoring for neutral').to.be.false;
+
+    const beside = game.board.getAdjacentSpaces(land).find((a) => a.spaceType === SpaceType.LAND && a.tile === undefined)!;
+    const preview = boardCellPreview(player, beside, 'greenery');
+    expect(preview.futureScoringFacts.some((f) => f.id.startsWith('place-greenery-city')),
+      'a greenery beside a neutral city creates no city VP').to.be.false;
+    expect(preview.recipientFacts.some((f) => f.recipient.kind === 'player' && f.recipient.color === 'neutral'),
+      'nothing is addressed to the neutral colour').to.be.false;
+    // The greenery's own +1 VP is untouched.
+    expect(preview.futureScoringFacts.some((f) => f.id === 'place-greenery-self')).to.be.true;
+  });
+
   it('an OFF-Mars city (no Mars adjacency) shows NO false city-greenery scoring', () => {
     const offMars = game.board.spaces.find((s) => s.spaceType === SpaceType.COLONY);
     expect(offMars, 'off-Mars colony space exists').to.not.be.undefined;

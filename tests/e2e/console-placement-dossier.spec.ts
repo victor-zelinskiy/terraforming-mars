@@ -277,6 +277,69 @@ test.describe('console placement dossier · 4K TV', () => {
     await expectFits(page, 'a hazard-taxed city cell');
   });
 
+  /**
+   * THE NATURAL PRESERVE REPORT — the placed tile's OWN standing mechanic.
+   * Its Ares adjacency grant used to land inside «ПРАВИЛА ПОЛЯ» clamped to
+   * two lines («Ваш тайл будет давать бонус за…») over a half-empty panel.
+   * Now: its own «ПРИ РАЗМЕЩЕНИИ РЯДОМ» section, the full sentence visible,
+   * and «Без штрафа» as one word on the cell line rather than a section.
+   */
+  test('the placed tile’s adjacency mechanic is a full, unclipped trigger section', async ({page, request}) => {
+    test.setTimeout(420_000);
+    page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+
+    await bootIntoGame(page, request, {
+      config: aresConfig({seed: 0.23}),
+      cards: ['Natural Preserve:ares'],
+      query: '&consoleProfile=tv',
+    });
+    await page.waitForTimeout(1200);
+
+    expect(await playCardFromHand(page, 'Natural Preserve:ares'), 'never played the card').toBeTruthy();
+    for (let i = 0; i < 14 && !(await placementLive(page)); i++) {
+      await pump(page);
+      await page.waitForTimeout(800);
+    }
+    for (let i = 0; i < 3 && !(await placementLive(page)); i++) {
+      await press(page, 'Enter', 1500);
+      await pump(page);
+    }
+    expect(await placementLive(page), 'the tile never reached the board').toBeTruthy();
+    await walkUntil(page, (_t, cell) => cell.legal, 16);
+    await page.waitForTimeout(900);
+    await pump(page);
+    await shoot(page, '07-natural-preserve-adjacency');
+
+    const panel = panelOf(page);
+    // ① The tile's standing mechanic is its OWN section, not a field rule.
+    const tileSec = panel.locator('.con-context__sec--tile');
+    await expect(tileSec).toHaveCount(1);
+    await expect(tileSec).toContainText(/ПРИ РАЗМЕЩЕНИИ РЯДОМ/i);
+    await expect(tileSec).toContainText(/Бонус соседу/i);
+
+    // ② The trigger → outcome sentence is COMPLETE — nothing clipped. A
+    //    text assertion cannot prove visibility (innerText survives a clamp),
+    //    so measure the note's own box: a clamped element overflows itself.
+    const clip = await page.evaluate(() => {
+      const notes = Array.from(document.querySelectorAll(
+        '.con-context__sec--tile .con-dossier-row__note, .con-context__sec--tile .con-dossier-row__title'));
+      return notes.map((el) => ({
+        text: (el.textContent ?? '').slice(0, 40),
+        overflow: el.scrollHeight - el.clientHeight,
+      }));
+    });
+    expect(clip.length, 'the trigger row renders its sentence').toBeGreaterThan(0);
+    for (const c of clip) {
+      expect(c.overflow, `«${c.text}…» is clipped by ${c.overflow}px`).toBeLessThanOrEqual(2);
+    }
+
+    // ③ «Без штрафа» costs one word on the cell line, never a section, and
+    //    the whole reading still fits without the scroll.
+    await expect(panel.locator('.con-context__sec--effect')).toHaveCount(0);
+    await expect(panel.locator('.con-context__cell-tail')).toHaveCount(1);
+    await expectFits(page, 'the Natural Preserve placement');
+  });
+
   test('a named SPECIAL tile names itself', async ({page, request}) => {
     test.setTimeout(420_000);
     page.on('pageerror', (e) => console.log('[pageerror]', e.message));

@@ -768,7 +768,12 @@ function chainNote(id: string, title: string, description: string): BoardFact {
 function existingTileScoringFacts(player: IPlayer, space: Space): Array<BoardFact> {
   const board = player.game.board;
   const out: Array<BoardFact> = [];
-  const ownerColor = space.player?.color ?? space.coOwner?.color;
+  const rawOwner = space.player?.color ?? space.coOwner?.color;
+  // The NEUTRAL owner (a solo game's setup cities/greeneries) is not a scoring
+  // participant — its city scores nobody at game end, so a fact promising it
+  // «+1 VP» is false, and the client rendered its recipient as a raw «NEUTRAL».
+  // (MarsBot's bronze IS a scoring participant and stays.)
+  const ownerColor = rawOwner === 'neutral' ? undefined : rawOwner;
   if (Board.isGreenerySpace(space) && ownerColor !== undefined) {
     out.push(vpFact('score-greenery', 'city-greenery-scoring', 'Greenery scores at game end', recipientFor(player, ownerColor), 0, 1, '+1 VP at game end for its owner.'));
   }
@@ -897,11 +902,13 @@ function placementScoringFacts(player: IPlayer, space: Space, ctx: PlacementPrev
     out.push(vpFact('place-greenery-self', 'city-greenery-scoring', 'Greenery scores at game end', {kind: 'current-player'}, 0, 1));
     // Each adjacent city scores +1 more for ITS owner — possibly an opponent.
     // The recipient GROUP names the owner, so a description repeating "for its
-    // owner" adds nothing the layout doesn't carry.
+    // owner" adds nothing the layout doesn't carry. A NEUTRAL city (a solo
+    // game's setup city) scores NOBODY — promising it a VP was false, and the
+    // client rendered the recipient as a raw «NEUTRAL».
     for (const adj of board.getAdjacentSpaces(space)) {
       if (Board.isCitySpace(adj)) {
         const ownerColor = adj.player?.color ?? adj.coOwner?.color;
-        if (ownerColor !== undefined) {
+        if (ownerColor !== undefined && ownerColor !== 'neutral') {
           out.push(vpFact(
             `place-greenery-city-${adj.id}`,
             'city-greenery-scoring',

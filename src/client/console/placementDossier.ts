@@ -226,7 +226,7 @@ function actionLineOf(opts: {
 
 // ── sections ─────────────────────────────────────────────────────────
 
-export type DossierSectionKey = 'effect' | 'gain' | 'others' | 'progress' | 'endgame' | 'rules';
+export type DossierSectionKey = 'effect' | 'gain' | 'others' | 'tile' | 'progress' | 'endgame' | 'rules';
 
 /** One recipient's block inside «Получат другие игроки». */
 export type DossierRecipientGroup = {
@@ -251,54 +251,7 @@ export type DossierSection = {
    * THIS cell worth», which is a sum the rows already contain but never state.
    */
   total?: number;
-  /**
-   * What this section says when it has NO rows. Only a section that is always
-   * present has one — see `dossierZones`.
-   */
-  emptyKey?: string;
 };
-
-/** The panel's two stable zones (see {@link dossierZones}). */
-export type DossierZoneKey = 'consequences' | 'standing';
-
-export type DossierZone = {
-  key: DossierZoneKey;
-  sections: ReadonlyArray<DossierSection>;
-};
-
-/**
- * THE STABLE FRAME. The panel is a HUD of the cell under the cursor, so its
- * anchors may not travel as the player walks the board — a section that
- * appears, grows or vanishes per cell shifts everything below it and turns the
- * panel into the moving object on screen (measured: 272 px of drift between
- * two neighbouring cells).
- *
- * Two answers, both structural rather than animated:
- *  ① the sections are grouped into TWO ZONES — what this cell COSTS AND GIVES
- *    (the volatile half, which carries a reserved height in CSS) and the
- *    STANDING read (progress · endgame · rules), whose top edge therefore
- *    stays put;
- *  ② the CELL EFFECT block is always present, because «this cell costs
- *    nothing extra» is an answer the walking player wants anyway — and a
- *    block that comes and goes is exactly what moved everything below it.
- */
-export function dossierZones(sections: ReadonlyArray<DossierSection>): Array<DossierZone> {
-  const has = (key: DossierSectionKey) => sections.find((s) => s.key === key);
-  const effect: DossierSection = has('effect') ?? {
-    key: 'effect', titleKey: 'Cell effect', rows: [], stated: ['cost', 'warning'],
-    emptyKey: 'No extra cost',
-  };
-  const inZone = (keys: ReadonlyArray<DossierSectionKey>) =>
-    sections.filter((s) => keys.includes(s.key));
-  // «ПРАВИЛА ПОЛЯ» belongs with the CELL, not with the standing read: it
-  // describes what this square IS. Keeping it in the bottom zone also made
-  // the two blocks the player actually tracks travel 231 px whenever a
-  // neighbouring cell happened to carry a rule.
-  return [
-    {key: 'consequences', sections: [effect, ...inZone(['gain', 'others', 'rules'])]},
-    {key: 'standing', sections: inZone(['progress', 'endgame'])},
-  ];
-}
 
 /**
  * The viewer's endgame VP from this placement — the sum of the rows in the
@@ -364,6 +317,11 @@ const COMPACT_TITLES: Readonly<Record<string, string>> = {
   'Adjacent to ocean': 'Next to an ocean',
   'Clears the hazard': 'Hazard cleared',
   'Build here to clear it': 'Hazard cleared',
+  // The placed tile's own standing adjacency interaction (Ares). The section
+  // head already says WHEN («ПРИ РАЗМЕЩЕНИИ РЯДОМ»), so the row names only
+  // WHAT — the full trigger→outcome sentence is the row's own note.
+  'Your tile will grant an adjacency bonus': 'Bonus to the neighbour',
+  'Your tile will impose an adjacency cost': 'Adjacency cost',
   // Endgame scoring — the FACT for the chosen cell, not the rule behind it.
   'Greenery scores at game end': 'The tile itself',
   'Adjacent city scores at game end': 'Adjacent cities',
@@ -507,7 +465,35 @@ export function buildDossierRows(facts: ReadonlyArray<BoardFact>,
   });
 }
 
+/**
+ * A CARD/CORP trigger that will NOT fire on this cell (`noEffectHere` —
+ * Mining Guild off ore, Solar Farm off plants). The fork's «no silent loss»
+ * rule keeps the STATEMENT: the title names exactly what does not happen and
+ * the source chip names whose rule it is. What the console drops is the
+ * DESCRIPTION — a restatement of the card's general rule («Эта корпорация
+ * повышает производство стали только за…»), which is the «повтор полного
+ * текста карты» a decision panel does not owe. Structural: the trigger
+ * categories + no value of any kind.
+ */
+function isSkippedTriggerNote(fact: BoardFact): boolean {
+  return (fact.category === 'card-trigger' || fact.category === 'corporation-trigger') &&
+    fact.timing === 'rule' &&
+    fact.delta === undefined && fact.vp === undefined && fact.progress === undefined;
+}
+
 function singleRow(fact: BoardFact, stated: ReadonlyArray<BoardFactTiming>): DossierRow {
+  if (isSkippedTriggerNote(fact)) {
+    return {
+      key: fact.id,
+      label: fact.title,
+      params: fact.params,
+      severity: fact.severity,
+      count: 1,
+      reasons: [],
+      source: rowSourceLabel(fact),
+      timingKey: rowTimingKey(fact, stated),
+    };
+  }
   return {
     key: fact.id,
     label: compactTitleKey(fact),
@@ -570,9 +556,21 @@ function mergedRow(key: string, members: ReadonlyArray<BoardFact>, stated: Reado
 }
 
 /**
+ * The categories of `ruleFacts` that describe the PLACED TILE's own standing
+ * interaction with future neighbours — the Ares adjacency grant/toll, and the
+ * owner-benefit family should it ever reach a placement payload. STRUCTURAL
+ * (the engine's own category), never a title match. Everything else in
+ * `ruleFacts` stays a field rule: what the SQUARE is (external area, a
+ * deflection-zone note, «no printed bonus when covering»).
+ */
+const TILE_STANDING_CATEGORIES: ReadonlyArray<BoardFact['category']> =
+  ['ares-adjacency-bonus', 'tile-owner-benefit'];
+
+/**
  * The panel's reading order. THE CELL'S OWN TOLL comes first (a forced loss
- * must never sit below the fold), then the player's result, others' cuts,
- * standing progress, endgame VP and the field rules last.
+ * must never sit below the fold), then the player's result, others' cuts, the
+ * placed tile's standing adjacency interaction, standing progress, endgame VP
+ * and the remaining field rules last.
  */
 export function dossierSections(
   preview: BoardPlacementPreview,
@@ -599,6 +597,15 @@ export function dossierSections(
       rows: groups.flatMap((g) => g.rows), groups, stated: [],
     });
   }
+  // «ПРАВИЛА ПОЛЯ» used to be one bag: the tile's own future-adjacency
+  // mechanic (a TRIGGER → OUTCOME the player is buying) sat in it beside
+  // passive square notes, under one generic head — which is how the Natural
+  // Preserve's whole point ended up an ellipsis. The split is by CATEGORY.
+  const standing = preview.ruleFacts.filter((f) => TILE_STANDING_CATEGORIES.includes(f.category));
+  const fieldRules = preview.ruleFacts.filter((f) => !TILE_STANDING_CATEGORIES.includes(f.category));
+  if (standing.length > 0) {
+    out.push(section('tile', 'When placed adjacent', standing, ['rule']));
+  }
   const progress = preview.progressFacts ?? [];
   if (progress.length > 0) {
     out.push(section('progress', 'Milestones and awards', progress, []));
@@ -609,8 +616,8 @@ export function dossierSections(
       total: endgameVpTotal(preview.futureScoringFacts),
     });
   }
-  if (preview.ruleFacts.length > 0) {
-    out.push(section('rules', 'Field rules', preview.ruleFacts, ['rule']));
+  if (fieldRules.length > 0) {
+    out.push(section('rules', 'Field rules', fieldRules, ['rule']));
   }
   return out;
 }

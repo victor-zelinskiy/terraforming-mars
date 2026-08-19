@@ -7492,9 +7492,6 @@ html.console-mode {
     display: flex;
     flex-direction: column;
     gap: .6rem;
-    /* Fill the panel, so the body below can pin its tail to the bottom edge
-       (see `&__zone--standing`). */
-    min-height: 100%;
 
     /* Tile-art swatch zoom factors (the art is the board's own px sprite —
        46×51 hex — integrated via the documented zoom×ui-scale pattern).
@@ -7715,6 +7712,13 @@ html.console-mode {
         text-overflow: ellipsis;
         white-space: nowrap;
     }
+    /* The quiet «· без штрафа» tail on the cell line (a NON-event costs one
+       word here, never a section). */
+    &__cell-tail {
+        flex: 0 0 auto;
+        color: fade(@con-text-dim, 72%);
+        letter-spacing: .04rem;
+    }
     /* The refusal opens under the bar on a grid-rows well (0fr→1fr).
        ⚠️ NOT ANIMATED — per-cell navigation may not move the panel's
        geometry at all (that is what turns the HUD into the moving object on
@@ -7738,44 +7742,17 @@ html.console-mode {
         color: #f0c9c5;
     }
 
-    /* ── 3 · THE DOSSIER BODY — sections by intent ──────────────────── */
+    /* ── 3 · THE DOSSIER BODY — sections by intent, ONE natural flow ──
+       (Iteration 3: the bottom-pinned «standing» zone is gone — it held two
+       anchors still at the price of a dead band mid-panel, and the read
+       order is worth more than the fixed y. What survives of the stability
+       contract is the part the eye actually needs: NOTHING animates on a
+       cell change — content reflows instantly, only values flick.) */
     &__body {
         position: relative;
         display: flex;
         flex-direction: column;
         gap: .7rem;
-        /* Takes the panel's remaining height — the room the tail is pinned
-           inside. `min-height: 0` keeps a dense cell from stretching the
-           column past the panel (the scroll fallback owns that case). */
-        flex: 1 1 auto;
-        min-height: 0;
-    }
-    /* THE TWO STABLE ZONES (`dossierZones`), anchored to OPPOSITE EDGES —
-       which is what finally holds the frame still. What this cell costs and
-       gives grows DOWN from the top; the standing read (progress · endgame ·
-       rules) is pinned to the BOTTOM, so it keeps its y whatever the upper
-       zone does. Measured on a fast walk: the standing zone used to travel
-       277 px the moment a neighbouring cell added «ПОЛУЧАТ ДРУГИЕ ИГРОКИ»,
-       and a reserved height could only have bought that back as a permanent
-       hole. What varies between cells is now the EMPTY SPACE between the two
-       zones — the one thing the eye does not track. */
-    &__zone {
-        display: flex;
-        flex-direction: column;
-        gap: .7rem;
-
-        /* `auto` collapses by itself once the content genuinely fills the
-           panel, so a dense cell degrades to ordinary flow (and then to the
-           scroll fallback) instead of colliding. */
-        &--standing { margin-top: auto; }
-    }
-    /* An always-present section with nothing to report says so, quietly. */
-    &__sec-none {
-        .con-read-text();
-        padding: var(--ctx-row-py) 0;
-        font-size: calc(var(--ctx-t-sub) * var(--con-read-scale, 1));
-        line-height: 1.25;
-        color: rgba(190, 214, 232, 0.5);
     }
     &__sec {
         display: flex;
@@ -7788,6 +7765,10 @@ html.console-mode {
         &--effect { --dsec-accent: #ff9d94; --dsec-line: fade(@con-red, 32%); }
         &--gain { --dsec-accent: fade(@con-mint, 90%); --dsec-line: fade(@con-mint, 26%); }
         &--others { --dsec-accent: fade(@con-amber, 85%); --dsec-line: fade(@con-amber, 25%); }
+        /* The placed tile's own standing mechanic — a future interaction, so
+           it speaks in the console's cyan, distinct from the mint «now» and
+           the gold «at game end». */
+        &--tile { --dsec-accent: fade(@con-cyan, 88%); --dsec-line: fade(@con-cyan, 26%); }
         &--progress { --dsec-accent: #b9b0f4; --dsec-line: rgba(185, 176, 244, 0.28); }
         &--endgame { --dsec-accent: @sem-prestige; --dsec-line: rgba(255, 216, 122, 0.28); }
         &--rules,
@@ -7917,13 +7898,11 @@ html.console-mode {
         font-size: calc(var(--ctx-t-label) * var(--con-read-scale, 1));
         line-height: 1.25;
         color: #e9f3fc;
-        /* The compact vocabulary keeps a label to one line; a long unknown
-           server title takes two and is cut there — a fact never grows into
-           the four-line paragraph that pushed the endgame off screen. */
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
+        /* NO clamp, ever: this text is what the player decides BY, and the
+           two-line cut shipped exactly the defect it existed to prevent —
+           «Ваш тайл будет давать бонус за…» over a panel that was half
+           empty. Density is bought in the MODEL (compact vocabulary, pool
+           fallback, aggregation), never by cutting a sentence. */
     }
     /* «×2» — the count of the statements this line stands for. */
     &__count {
@@ -7959,13 +7938,11 @@ html.console-mode {
         .con-read-text();
         margin-top: .04rem;
         font-size: calc(var(--ctx-t-sub) * var(--con-read-scale, 1));
-        line-height: 1.25;
-        /* Secondary, never low-contrast: this is where the couch loses text. */
+        line-height: 1.3;
+        /* Secondary, never low-contrast: this is where the couch loses text.
+           And NO clamp (see the title's note) — a condition the player is
+           weighing wraps to as many lines as it needs. */
         color: rgba(196, 219, 238, 0.72);
-        display: -webkit-box;
-        -webkit-line-clamp: 2;
-        -webkit-box-orient: vertical;
-        overflow: hidden;
     }
     &__src {
         display: inline-block;

@@ -211,6 +211,45 @@ describe('placementDossier', () => {
       expect(endgameVpTotal([vp('a', 1), vp('b', -1)]), 'a net zero says nothing').to.be.undefined;
     });
 
+    /**
+     * The Natural Preserve report: the tile's OWN standing mechanic (the Ares
+     * adjacency grant) sat inside «ПРАВИЛА ПОЛЯ» beside passive square notes,
+     * under one generic head, clamped to two lines. The split is STRUCTURAL —
+     * the engine's own `ares-adjacency-bonus` category — never a title match.
+     */
+    it('the placed tile’s adjacency mechanic is its own TRIGGER section, not a field rule', () => {
+      const grant: BoardFact = {
+        id: 'place-adj-megacredits', category: 'ares-adjacency-bonus', timing: 'rule',
+        severity: 'positive', recipient: {kind: 'neutral'},
+        title: 'Your tile will grant an adjacency bonus',
+        description: 'Whoever places a tile next to it gains this — and you gain M€.',
+        delta: {icon: 'megacredits', amount: 1, direction: 'gain'},
+        source: {type: 'card', id: 'Natural Preserve:ares', label: 'Natural Preserve:ares'},
+      };
+      const squareNote: BoardFact = {
+        id: 'cover-no-bonus', category: 'placement-effect', timing: 'rule',
+        severity: 'info', recipient: {kind: 'neutral'},
+        title: 'No placement bonus',
+      };
+      const sections = dossierSections(preview({ruleFacts: [grant, squareNote]}));
+      expect(sections.map((s) => s.key)).to.deep.equal(['tile', 'rules']);
+      const tile = sections.find((s) => s.key === 'tile');
+      expect(tile?.titleKey).to.equal('When placed adjacent');
+      // The row: compact trigger label + the full outcome sentence, intact.
+      expect(tile?.rows[0].label).to.equal('Bonus to the neighbour');
+      expect(tile?.rows[0].note?.text)
+        .to.equal('Whoever places a tile next to it gains this — and you gain M€.');
+      // …and the RU dictionary really carries the whole chain.
+      for (const key of ['When placed adjacent', 'Bonus to the neighbour']) {
+        expect(RU[key], `missing RU translation for "${key}"`).to.be.a('string');
+      }
+      expect(RU['Whoever places a tile next to it gains this — and you gain M€.']).to.be.a('string');
+      // The imposed-cost twin reuses the engine's own established key.
+      expect(compactTitleKey({...grant, title: 'Your tile will impose an adjacency cost'}))
+        .to.equal('Adjacency cost');
+      expect(RU['Adjacency cost']).to.be.a('string');
+    });
+
     it('an empty preview names the honest empty line — tile vs marker', () => {
       expect(dossierEmptyKey(preview({}))).to.equal('Nothing happens beyond placing the tile.');
       expect(dossierEmptyKey(preview({placesTile: false}))).to.equal('Nothing happens beyond placing the marker.');
@@ -301,6 +340,33 @@ describe('placementDossier', () => {
         delta: {icon: 'animal', amount: 1, direction: 'gain'},
       };
       expect(compactTitleKey(bespoke)).to.equal('Some card-specific sentence the table has never met');
+    });
+
+    it('a skipped card trigger keeps its statement and drops the rule restatement', () => {
+      // `noEffectHere` — Mining Guild off ore. «No silent loss» keeps the
+      // TITLE (it names exactly what does not happen) and the SOURCE chip;
+      // the description is the card's general rule, which the panel does not
+      // owe («This corporation raises steel production only for…»).
+      const skipped: BoardFact = {
+        id: 'MiningGuild-noop', category: 'corporation-trigger', timing: 'rule',
+        severity: 'info', recipient: {kind: 'current-player'},
+        title: 'No steel or titanium bonus here — no steel production',
+        description: 'This corporation raises steel production only for a tile placed on an area with a steel or titanium placement bonus.',
+        source: {type: 'corporation', id: 'Mining Guild', label: 'Mining Guild'},
+      };
+      const [row] = buildDossierRows([skipped], ['rule']);
+      expect(row.label).to.equal('No steel or titanium bonus here — no steel production');
+      expect(row.note, 'the rule restatement is dropped').to.be.undefined;
+      expect(row.source).to.equal('Mining Guild');
+      // …while a note that CARRIES a value keeps explaining itself (the Ares
+      // adjacency grant’s trigger sentence is the outcome, not a restatement).
+      const withValue: BoardFact = {
+        ...skipped, id: 'v', category: 'ares-adjacency-bonus',
+        description: 'Whoever places a tile next to it gains this — and you gain M€.',
+        delta: {icon: 'megacredits', amount: 1, direction: 'gain'},
+      };
+      expect(buildDossierRows([withValue], ['rule'])[0].note?.text)
+        .to.equal('Whoever places a tile next to it gains this — and you gain M€.');
     });
 
     it('a single fact keeps its own note, its source chip and its timing tag', () => {

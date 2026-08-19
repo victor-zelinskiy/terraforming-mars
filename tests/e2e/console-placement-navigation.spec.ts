@@ -27,19 +27,38 @@ async function key(page: Page, code: string, settle = 130): Promise<void> {
   await page.screenshot({clip: {x: 0, y: 0, width: 8, height: 8}});
 }
 
-/** The y of every section head + the panel's own height. */
-async function anchors(page: Page): Promise<{heads: Array<{key: string, y: number}>, h: number, cell: string, rows: number}> {
+/**
+ * One sample of the walk: the panel's OUTER box (the geometry that must not
+ * move), which cell is focused, and what is IN MOTION right now. The value
+ * flick (`con-dossier-val-in`, a 100 ms opacity keyframe on a changed value)
+ * is the ONE sanctioned animation of a cell change — anything else running
+ * mid-walk (a transition, a height animation, a section reflow tween) is the
+ * regression this probe exists to catch.
+ */
+async function sample(page: Page): Promise<{
+  rect: string, cell: string, rows: number,
+  transitions: number, foreign: Array<string>,
+}> {
   return page.evaluate(() => {
     const panel = document.querySelector('.con-inspector') as HTMLElement | null;
-    const heads = Array.from(document.querySelectorAll('.con-context__sec')).map((s) => ({
-      key: (s.className.match(/con-context__sec--(\w+)/) ?? [])[1] ?? '?',
-      y: Math.round(s.getBoundingClientRect().top),
-    }));
+    const r = panel?.getBoundingClientRect();
+    const running = panel === null || typeof panel.getAnimations !== 'function' ? [] :
+      panel.getAnimations({subtree: true}).filter((a) => a.playState === 'running');
+    const isValFlick = (a: Animation): boolean =>
+      a instanceof CSSAnimation && a.animationName === 'con-dossier-val-in';
+    // PAINT is sanctioned (the cell bar's legal↔illegal recolour, the scroll
+    // fade); GEOMETRY is the regression. The split is the transition's own
+    // property.
+    const PAINT = ['opacity', 'background-color', 'box-shadow', 'color', 'border-color'];
+    const isPaint = (a: Animation): boolean =>
+      a instanceof CSSTransition && PAINT.includes(a.transitionProperty);
     return {
-      heads,
-      h: panel === null ? 0 : Math.round(panel.getBoundingClientRect().height),
+      rect: r === undefined ? '' : `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`,
       cell: document.querySelector('.con-cell-sel')?.getAttribute('data_space_id') ?? '',
       rows: document.querySelectorAll('.con-dossier-row').length,
+      transitions: running.filter((a) => a instanceof CSSTransition && !isPaint(a)).length,
+      foreign: running.filter((a) => !(a instanceof CSSTransition) && !isValFlick(a))
+        .map((a) => (a instanceof CSSAnimation ? a.animationName : a.constructor.name)),
     };
   });
 }
@@ -67,43 +86,34 @@ test.describe('placement dossier · fast navigation', () => {
 
     // ── THE WALK. Fast steps, no settle time — the player holding a direction
     //    is exactly the case a motion queue would show up in.
-    const seen: Array<Awaited<ReturnType<typeof anchors>>> = [];
+    const seen: Array<Awaited<ReturnType<typeof sample>>> = [];
     const walk = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp',
       'ArrowRight', 'ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'ArrowDown'];
     for (const step of walk) {
       await key(page, step, 120);
-      seen.push(await anchors(page));
+      seen.push(await sample(page));
     }
     fs.mkdirSync(OUT, {recursive: true});
     await page.screenshot({path: path.join(OUT, 'after-fast-walk.png')});
-
-    // ① THE FRAME HOLDS. The claim is about the four blocks a player tracks
-    //    while choosing a cell — the toll, the result, the standing and the
-    //    forecast: each must sit at the SAME y on every cell.
-    //    «ПРАВИЛА ПОЛЯ» is deliberately not among them: it is an optional
-    //    block riding the flow of the top-anchored zone, below everything
-    //    that is tracked, and pinning it too would mean reserving a permanent
-    //    hole for a block most cells do not have.
     console.log('[nav] ' + seen.map((s) =>
-      `${s.cell || '--'} rows=${s.rows} ${s.heads.map((h) => `${h.key}@${h.y}`).join(' ')}`).join('\n      '));
-    const ANCHORED = ['effect', 'gain', 'progress', 'endgame'];
-    let worst = 0;
-    let worstKey = '';
-    for (let i = 1; i < seen.length; i++) {
-      for (const head of seen[i].heads.filter((h) => ANCHORED.includes(h.key))) {
-        const before = seen[i - 1].heads.find((h) => h.key === head.key);
-        if (before !== undefined && Math.abs(head.y - before.y) > worst) {
-          worst = Math.abs(head.y - before.y);
-          worstKey = head.key;
-        }
-      }
-    }
-    // A couple of px absorbs sub-pixel rounding, nothing more. Before the
-    // frame was split into a top-anchored and a bottom-anchored zone, these
-    // blocks travelled 277 px the moment a neighbour carried one more fact.
-    expect(worst, `«${worstKey}» drifted ${worst}px between neighbouring cells`).toBeLessThanOrEqual(4);
+      `${s.cell || '--'} rows=${s.rows} rect=${s.rect} tr=${s.transitions} foreign=[${s.foreign.join(',')}]`).join('\n      '));
 
-    // ② NOTHING IS STILL MOVING once the walk stops — no queue to drain.
+    // ① THE PANEL'S OUTER GEOMETRY NEVER MOVES — the shell is the frame; only
+    //    the content inside it re-reads per cell.
+    const rects = new Set(seen.map((s) => s.rect));
+    expect([...rects], 'the panel box changed during the walk').toHaveLength(1);
+
+    // ② NOTHING ANIMATES ON A CELL CHANGE except the sanctioned 100 ms value
+    //    flick: no CSS transitions (that is what an animated grow/collapse
+    //    would run on), and no foreign keyframe animation inside the panel.
+    //    Sampled DURING the fast walk — a queue of tweens would be running
+    //    exactly here.
+    const withTransitions = seen.filter((s) => s.transitions > 0);
+    expect(withTransitions, `transitions ran mid-walk: ${JSON.stringify(withTransitions)}`).toHaveLength(0);
+    const withForeign = seen.flatMap((s) => s.foreign);
+    expect(withForeign, `foreign animations ran mid-walk: ${withForeign.join(', ')}`).toHaveLength(0);
+
+    // ③ NOTHING IS STILL MOVING once the walk stops — no queue to drain.
     await page.waitForTimeout(400);
     const running = await page.evaluate(() => {
       const panel = document.querySelector('.con-inspector');

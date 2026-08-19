@@ -57,6 +57,10 @@
              :class="selectedLegal ? 'con-context__cellbar--ok' : 'con-context__cellbar--no'">
           <span class="con-context__cell-mark" aria-hidden="true">{{ selectedLegal ? '◆' : '✕' }}</span>
           <span class="con-context__cell-name">{{ cellHeader !== '' ? cellHeader : $t('Board cell') }}</span>
+          <!-- «Без штрафа» is ONE quiet word on the cell line, not a section:
+               a whole «ЭФФЕКТ КЛЕТКИ» block whose entire content was the
+               absence of an effect spent a head + a row on a non-event. -->
+          <span v-if="noToll" class="con-context__cell-tail">· {{ $t('No extra cost') }}</span>
         </div>
         <div class="con-context__reason-well"
              :class="{'con-context__reason-well--open': !selectedLegal}"
@@ -75,15 +79,12 @@
            VALUES update (each is keyed on its own rendered text, so the ones
            that did not change do not even re-mount). -->
       <div class="con-context__body">
-        <!-- TWO ZONES, and the split is what keeps the frame still. The upper
-             one is what THIS cell costs and gives (it is the part that
-             genuinely differs between neighbours, and it holds a RESERVED
-             height); the lower one is the standing read — progress, endgame,
-             field rules — whose top edge therefore does not move as the
-             cursor walks. -->
-        <div v-for="zone in zones" :key="zone.key"
-             class="con-context__zone" :class="'con-context__zone--' + zone.key">
-        <section v-for="section in zone.sections" :key="section.key"
+        <!-- Sections follow each other in ONE natural flow with a shared
+             rhythm — a section exists only when it has rows, and the read
+             order is the decision order (toll → result → the tile's standing
+             mechanic → progress → endgame). Still NO animation of any kind
+             on a cell change: content reflows instantly; only values flick. -->
+        <section v-for="section in sections" :key="section.key"
                  class="con-context__sec" :class="'con-context__sec--' + section.key">
           <h3 class="con-context__sec-head">
             <span>{{ $t(section.titleKey) }}</span>
@@ -107,14 +108,8 @@
           </template>
           <template v-else>
             <console-placement-fact-row v-for="row in section.rows" :key="row.key" :row="row" />
-            <!-- A zone the player asked about answers even when the answer is
-                 «nothing»: an empty CELL EFFECT block says this cell costs no
-                 extra, and — being always present — it stops the whole read
-                 below it from jumping by its own height between neighbours. -->
-            <div v-if="section.rows.length === 0" class="con-context__sec-none">{{ $t(section.emptyKey ?? '') }}</div>
           </template>
         </section>
-        </div>
         <!-- «Ничего сверх размещения» — names WHAT lands (tile vs marker). -->
         <div v-if="emptyKey !== undefined" class="con-context__none">{{ $t(emptyKey) }}</div>
         <!-- An illegal cell has no preview — the hover facts still explain
@@ -229,14 +224,12 @@ import {
   DossierRecipientGroup,
   DossierRow,
   DossierSection,
-  DossierZone,
   PlacementConversion,
   PlacementIdentity,
   PlacementShape,
   buildDossierRows,
   dossierEmptyKey,
   dossierSections,
-  dossierZones,
   placementIdentity,
 } from '@/client/console/placementDossier';
 
@@ -352,9 +345,14 @@ export default defineComponent({
     sections(): ReadonlyArray<DossierSection> {
       return this.preview !== undefined ? dossierSections(this.preview, this.viewerColor) : [];
     },
-    /** …and grouped into the two zones that keep the frame still. */
-    zones(): ReadonlyArray<DossierZone> {
-      return this.preview !== undefined ? dossierZones(this.sections) : [];
+    /**
+     * This cell demands nothing extra — said as one quiet word on the cell
+     * line. Only for a LEGAL cell with a live preview: an illegal cell's line
+     * already carries the refusal, and no preview means no claim.
+     */
+    noToll(): boolean {
+      return this.selectedLegal && this.preview !== undefined &&
+        !this.sections.some((s) => s.key === 'effect');
     },
     emptyKey(): string | undefined {
       return this.preview !== undefined ? dossierEmptyKey(this.preview) : undefined;
@@ -412,7 +410,12 @@ export default defineComponent({
       switch (r.kind) {
       case 'current-player': return 'You';
       case 'player':
-      case 'tile-owner': return displayNameForColor(this.players, r.color);
+      case 'tile-owner': {
+        // A colour with no seat behind it must never leak raw («NEUTRAL» over
+        // a solo game's setup city) — name it through the i18n key.
+        const name = displayNameForColor(this.players, r.color);
+        return name === 'neutral' ? 'Neutral' : name;
+      }
       case 'neutral': return 'Field rule';
       case 'nobody': return 'Reserved';
       }

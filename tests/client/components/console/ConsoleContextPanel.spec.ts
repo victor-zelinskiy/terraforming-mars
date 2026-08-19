@@ -200,23 +200,25 @@ describe('ConsoleContextPanel', () => {
       const wrapper = mountPanel({preview, info, selectedLegal: true});
       // A `<TransitionGroup>` would leave its own wrapper/classes in the tree.
       expect(wrapper.html()).to.not.match(/con-dsec-/);
-      expect(wrapper.findAll('.con-context__zone > .con-context__sec').length).to.be.greaterThan(0);
+      expect(wrapper.findAll('.con-context__body > .con-context__sec').length).to.be.greaterThan(0);
     });
 
-    it('splits the body into the two anchored zones', () => {
-      const wrapper = mountPanel({preview, info, selectedLegal: true});
-      // The frame: what this cell costs and gives grows down from the top,
-      // the standing read is pinned to the bottom — so neither travels as the
-      // cursor walks (the e2e measures the real pixels).
-      expect(wrapper.findAll('.con-context__zone--consequences')).to.have.lengthOf(1);
-      expect(wrapper.findAll('.con-context__zone--standing')).to.have.lengthOf(1);
-      // …and the CELL EFFECT block is always present, answering «this cell
-      // costs nothing extra» rather than vanishing and moving everything.
-      const noEffect = mountPanel({
+    it('«без штрафа» is one word on the cell line, never a section', () => {
+      // A toll-free cell: NO «ЭФФЕКТ КЛЕТКИ» block at all — the absence of an
+      // effect is not worth a head + a row — and the cell bar carries the
+      // one-word confirmation instead.
+      const noToll = mountPanel({
         preview: {...preview, costFacts: [], warningFacts: []}, info, selectedLegal: true,
       });
-      expect(noEffect.find('.con-context__sec--effect').exists()).to.be.true;
-      expect(noEffect.find('.con-context__sec-none').exists()).to.be.true;
+      expect(noToll.find('.con-context__sec--effect').exists()).to.be.false;
+      expect(noToll.find('.con-context__cell-tail').exists()).to.be.true;
+      // A taxed cell: the block is back and the tail is gone.
+      const taxed = mountPanel({preview, info, selectedLegal: true});
+      expect(taxed.find('.con-context__sec--effect').exists()).to.be.true;
+      expect(taxed.find('.con-context__cell-tail').exists()).to.be.false;
+      // An ILLEGAL cell never claims «без штрафа» — its line carries the refusal.
+      const illegal = mountPanel({info, selectedLegal: false});
+      expect(illegal.find('.con-context__cell-tail').exists()).to.be.false;
     });
 
     it('keeps the value node of a row whose value did NOT change', async () => {
