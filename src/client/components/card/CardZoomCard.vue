@@ -13,8 +13,10 @@
     <BonusCardFace :id="bonusEntry.bonus" :ctx="bonusEntry.ctx" large />
   </div>
 
-  <!-- MarsBot CORPORATION entry — bot rules only; identity/art from the original. -->
-  <div v-else-if="corpEntry !== undefined" class="card-zoom-card card-zoom-card--bonus">
+  <!-- MarsBot CORPORATION entry — the ordinary premium corporation face
+       (bot rules in the mechanics zone, the 'automa' medallion); identity,
+       art and lore ride the original. Same stage wrapper as any .pcard. -->
+  <div v-else-if="corpEntry !== undefined" class="card-zoom-card card-zoom-card--premium">
     <MarsBotCorpFace :id="corpEntry.marsBotCorp" :resources="corpEntry.resources" large />
   </div>
 

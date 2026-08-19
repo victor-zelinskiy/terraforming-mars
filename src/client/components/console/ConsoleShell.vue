@@ -864,6 +864,13 @@
                               :tab="consoleCardZoom.inspectTab"
                               :nonce="side.nonce"
                               :closing="side.closing" />
+          <!-- The MarsBot corporation's printed boxes — the SAME rules panel,
+               fed the bot card's own groups (never the human original's). -->
+          <ConsoleCardRulesPanel v-else-if="zoomBotCorpAnnotations !== undefined"
+                                 ref="zoomRulesPanel"
+                                 :annotationsOverride="zoomBotCorpAnnotations"
+                                 :nonce="side.nonce"
+                                 :closing="side.closing" />
           <ConsoleCardRulesPanel v-else-if="zoomRulesCardName !== undefined && zoomHasRules"
                                  ref="zoomRulesPanel"
                                  :cardName="zoomRulesCardName"
@@ -1506,7 +1513,9 @@ import ConsoleInspectSide from '@/client/components/console/ConsoleInspectSide.v
 import ConsoleCardAvailabilityPanel from '@/client/components/console/ConsoleCardAvailabilityPanel.vue';
 import {buildCardAvailability, CardAvailabilityView} from '@/client/console/cardAvailability';
 import Card from '@/client/components/card/CardFace.vue';
-import {ZoomCard, bonusZoomEntry} from '@/client/components/card/cardZoomTypes';
+import {ZoomCard, bonusZoomEntry, isMarsBotCorpZoom} from '@/client/components/card/cardZoomTypes';
+import {CardAnnotation} from '@/client/components/cardAnnotations/annotationModel';
+import {marsBotCorpAnnotations} from '@/client/components/marsbot/marsBotCorpRules';
 import {consoleCardZoom, openConsoleCardZoom, navigateConsoleCardZoom, closeConsoleCardZoom, setConsoleZoomInspectTab, slotZoomOrigin, ZoomOrigin, ConsoleZoomProvenance} from '@/client/console/consoleCardZoom';
 import {beginZoomOpen, cancelZoomOpen, playZoomOpenFlight, zoomOpenSourceRect, playZoomClose, playZoomDepart, playZoomHandoff, playZoomSwap, retargetZoomHold, releaseZoomMotion} from '@/client/console/consoleZoomMotion';
 import {consoleReducedMotionActive} from '@/client/console/composables/useConsoleReducedMotion';
@@ -6458,7 +6467,17 @@ export default defineComponent({
      *  card had no rules) OR when the availability panel has something to say.
      *  Gates the panel AND the viewer's width reservation. */
     zoomSideVisible(): boolean {
-      return this.zoomHasRules || this.consoleCardZoom.inspect !== undefined || this.zoomAvailabilityView !== undefined;
+      return this.zoomHasRules || this.zoomBotCorpAnnotations !== undefined ||
+        this.consoleCardZoom.inspect !== undefined || this.zoomAvailabilityView !== undefined;
+    },
+    /** The MarsBot corporation's printed rule boxes for the rules panel —
+     *  only when the viewer is on a bot-corporation entry. */
+    zoomBotCorpAnnotations(): ReadonlyArray<CardAnnotation> | undefined {
+      const card = this.consoleCardZoom.card;
+      if (card === undefined || !isMarsBotCorpZoom(card)) {
+        return undefined;
+      }
+      return marsBotCorpAnnotations(card.marsBotCorp);
     },
     /**
      * The CURRENT-GAME availability view for the zoomed card — only in an

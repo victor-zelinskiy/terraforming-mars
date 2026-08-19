@@ -286,7 +286,12 @@ const EXPANSION_ICON_FILE: Partial<Record<GameModule, string>> = {
 };
 
 /** Expansion medallion icon; undefined for the base game (plain engraved medallion). */
-export function expansionIconUrl(module: GameModule): string | undefined {
+export function expansionIconUrl(module: GameModule | 'automa'): string | undefined {
+  // The MarsBot pseudo-module: the bot corporations' own stamp (a stylized
+  // «A» in the bot's mint identity — deliberately distinct from Ares).
+  if (module === 'automa') {
+    return 'assets/expansion_icons/expansion_icon_automa.svg';
+  }
   const file = EXPANSION_ICON_FILE[module];
   return file === undefined ? undefined : `assets/expansion_icons/expansion_icon_${file}.png`;
 }
@@ -302,6 +307,10 @@ export function mechItemIcon(item: ICardRenderItem): MechIconSpec | undefined {
       return {kind: 'img', url: tagIconUrl(item.tag)};
     }
     break;
+  case CardRenderItemType.EMPTY_TAG:
+    // «Any tag» — the blank tag circle (Spire's 2+-tags effect and the
+    // MarsBot Spire corporation print it the same way).
+    return {kind: 'img', url: `${TAGS}/empty.png`};
   case CardRenderItemType.RESOURCE:
     if (item.resource !== undefined) {
       return {kind: 'img', url: cardResourceIconUrl(item.resource)};

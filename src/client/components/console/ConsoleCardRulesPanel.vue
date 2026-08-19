@@ -75,7 +75,16 @@ export default defineComponent({
   name: 'ConsoleCardRulesPanel',
   components: {ConsoleScrollArea},
   props: {
-    cardName: {type: String as PropType<CardName>, required: true},
+    /** The manifest card whose Card-Information blocks feed the panel.
+     *  Optional when `annotationsOverride` supplies the groups directly. */
+    cardName: {type: String as PropType<CardName | undefined>, default: undefined},
+    /**
+     * EXTERNALLY-BUILT annotation groups — the ONE sanctioned entry for rules
+     * that are not a manifest card's information model (the MarsBot
+     * corporations: `marsBotCorpRules.ts` shapes their printed boxes into the
+     * same groups). Rendering, ordering, tiers and scroll are byte-identical.
+     */
+    annotationsOverride: {type: Array as PropType<ReadonlyArray<CardAnnotation> | undefined>, default: undefined},
     /** The viewer's settle signal: bumps when the card has LANDED (open
      *  settled / browse slide finished). The card-order measure runs then. */
     nonce: {type: Number, default: 0},
@@ -108,6 +117,12 @@ export default defineComponent({
   },
   computed: {
     annotations(): Array<CardAnnotation> {
+      if (this.annotationsOverride !== undefined) {
+        return [...this.annotationsOverride];
+      }
+      if (this.cardName === undefined) {
+        return [];
+      }
       return cardRuleAnnotations(this.cardName, this.suppressIds);
     },
     /** Physical-order fallback (stable within a kind: model order). */

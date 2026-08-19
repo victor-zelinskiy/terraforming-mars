@@ -43,12 +43,17 @@ Pick: приоритет корпорации; равные → случайно
 
 `AutomaHumanTagReactions.ts` — санкционированный **allowlist** (прецедент AutomaBans): ровно {Saturn Systems, Pharmacy Union, Splice}, как перечисляет RB-B. Диспатч из трёх точек резолва карты бота (`onBotCardResolved` — собственные `onCardPlayedByAnyPlayer` карт, атрибуция `withEffect` как у человеческого пути; возврат промпта для бота = громкий throw), из стартовых меток (`onBotNonCardTag` → `onNonCardTagAddedByAnyPlayer`, microbe → дальше) и из «microbe advancement» без карты (`onBotMicrobeAdvancement` → co-located `ICard.onMarsBotMicrobeAdvancement`; Venus-клетка 9 помечена `TrackDefinition.microbeTagCells`). Splice для бота берёт детерминированную M€-половину (микроб физически некуда класть). Исключение tracker-advance у Saturn — структурное: каскады через эти точки не проходят. Расширение санкции = новая строка в `SANCTIONED_REACTORS` + co-located хук в файле карты.
 
-## UI
+## UI — лицо = ОБЫЧНЫЙ премиальный `.pcard`
 
-- **Лицо**: `MarsBotCorpFace.vue` — семейство `mb-face` (`--corp`, `--large`); identity = `PremiumCorpIdentity` (wordmark оригинала), арт = `premiumCardArt(original)`, боксы карты с кикерами, стартовые метки только если напечатаны, счётчик ресурса.
-- **Fullscreen**: union-вход `marsBotCorpZoomEntry` (`cardZoomTypes.ts`) → `CardZoomCard`; лор — оригинала (`CardZoomModal.loreCardName`).
-- **«РАЗЫГРАНО» бота**: corporation-слот в `ConsolePlayedOverlay` (focus-ключ `botcorp`, физический lift через `data-zoom-slot`).
-- Дашборд бота (`ConsoleMarsBotSections`), identity во всех endgame/participant-местах (bot corporation name через `marsBotCorpDisplayName`), Turn Review corporation-цепочки.
+Карта бот-корпорации рендерится **один-в-один шаблоном премиальных корпораций** (владельческое требование 2026-08-19):
+
+- **`MarsBotCorpFace.vue`** — тонкий хост: `buildMarsBotCorpPremiumVm(id, resources)` (`marsBotCorpPremiumVm.ts`, pure) строит настоящий `PremiumCardVM` и рендерит через ГЛОБАЛЬНЫЙ `premium-card-face` (`vmOverride` — единственный санкционированный вход для не-манифестных лиц; статический импорт PremiumCard.vue замыкает type-cycle через CardZoomModal→CardZoomCard и обрушивает vue-tsc в `{}`).
+- **Механика под артом** = символьные боты-боксы, авторятся тем же `CardRenderer`-DSL (Credicor `[20MC]*: [4MC]`; Spire `◯◯*: [science]` + `10[science] → [city][TR]`; Ecoline `[plate B23] → [cards]`). `EMPTY_TAG` добавлен в `premiumCardIcons.mechItemIcon` (`assets/tags/empty.png`).
+- **Медальон дополнения = 'automa'** (pseudo-module в `PremiumCardVM.expansion`; `expansionIconUrl('automa')` → `assets/expansion_icons/expansion_icon_automa.svg` — стилизованная «A» с антенной, mint, отлична от Ares).
+- **Ресурс на карте** = штатная капсула `.pcard__res` (тот же сокет, что у карт игрока); Ecoline хранит РАСТЕНИЯ (не card-resource) → `resource.iconUrl`-override на стандартную иконку растений.
+- **Полный текст правил** = правая «§ ПРАВИЛА» панель зума: `marsBotCorpRules.marsBotCorpAnnotations(id)` → `ConsoleCardRulesPanel :annotationsOverride` (те же группы/кикеры/tier'ы; kinds: draftPriority→action-gold, effect→blue, BAP→mint). Лор — оригинала (`loreCardName`).
+- **«РАЗЫГРАНО» бота**: corporation-слот в `ConsolePlayedOverlay` (focus-ключ `botcorp`, физический lift через `data-zoom-slot`); хосты только МАСШТАБИРУЮТ фиксированный 320×460 бокс через `zoom` (console px-content правило).
+- Дашборд бота (`ConsoleMarsBotSections`), identity во всех endgame/participant-местах (`marsBotCorpDisplayName`), Turn Review corporation-цепочки. Guard: `tests/e2e/console-bot-corporation.spec.ts` (1080p) + `MarsBotCorpFace.spec.ts` (.pcard-структура, automa-медальон, no-human-leak).
 
 ## Статистика
 

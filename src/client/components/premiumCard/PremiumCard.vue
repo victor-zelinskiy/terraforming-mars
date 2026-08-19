@@ -243,6 +243,18 @@ export default defineComponent({
       required: false,
       default: 'full',
     },
+    /**
+     * EXTERNALLY-BUILT view-model — the ONE sanctioned entry for a face that
+     * is not a manifest card (the MarsBot corporations: their vm is built by
+     * `marsBotCorpPremiumVm.ts` from the bot card's own printed data). When
+     * set, the manifest lookup is skipped entirely; every render path below
+     * (header, art, mechanics, capsule, medallion) is byte-identical.
+     */
+    vmOverride: {
+      type: Object as () => PremiumCardVM | undefined,
+      required: false,
+      default: undefined,
+    },
   },
   data() {
     return {
@@ -262,6 +274,9 @@ export default defineComponent({
     },
     /** Computed (never data()) so a keyless re-pointed face re-resolves. */
     vm(): PremiumCardVM {
+      if (this.vmOverride !== undefined) {
+        return this.vmOverride;
+      }
       if (this.card === undefined) {
         return printedFaceVm(this.cardName);
       }
@@ -364,7 +379,7 @@ export default defineComponent({
       return result;
     },
     /** Live resource socket; only with a live model (printed faces stay pristine). */
-    resourceInfo(): {type: CardResource, amount: number} | undefined {
+    resourceInfo(): {type: CardResource, amount: number, iconUrl?: string} | undefined {
       if (this.card === undefined && this.robotCard === undefined) {
         return undefined;
       }
@@ -375,10 +390,15 @@ export default defineComponent({
         };
       }
       const res = this.vm.resource;
-      return res === undefined ? undefined : {type: res.type, amount: res.amount};
+      return res === undefined ? undefined : {type: res.type, amount: res.amount, iconUrl: res.iconUrl};
     },
     resourceIconUrl(): string {
-      return this.resourceInfo !== undefined ? cardResourceIconUrl(this.resourceInfo.type) : '';
+      if (this.resourceInfo === undefined) {
+        return '';
+      }
+      // A vm-supplied override (the Ecoline bot corporation stores PLANTS —
+      // a standard resource — on its card); else the card-resource family.
+      return this.resourceInfo.iconUrl ?? cardResourceIconUrl(this.resourceInfo.type);
     },
     ariaLabel(): string {
       const parts: Array<string> = [this.translatedTitle];

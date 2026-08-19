@@ -55,28 +55,39 @@ test.describe('console: the MarsBot corporation card', () => {
     }
     await expect(corpLine, 'the bot header wears its corporation as identity').toContainText('Spire');
 
-    // The dashboard block renders the corporation face with its rule boxes.
-    const dashFace = page.locator('.con-info__block--botcorp .mb-face--corp');
+    // The dashboard block renders the ORDINARY premium corporation card.
+    const dashFace = page.locator('.con-info__block--botcorp .pcard');
     await expect(dashFace).toBeVisible();
 
-    // ── The bot's «РАЗЫГРАНО» — the corporation slot ────────────────────
+    // ── The bot's «РАЗЫГРАНО» — the corporation slot (a real .pcard) ────
     await key(page, 'KeyX', 1400);
-    const slot = page.locator('.con-played__botcorp .mb-face--corp');
+    const slot = page.locator('.con-played__botcorp .pcard');
     await expect(slot, 'the corporation slot must stand in the bot tableau').toBeVisible();
     const slotText = (await slot.innerText()).replace(/\s+/g, ' ');
-    expect(slotText, 'bot rules only — the draft priority box').toContain('Больше всего меток');
+    // The nameplate renders uppercase (CSS text-transform) — match by case-insensitive.
+    expect(slotText, 'the title is the original corporation').toMatch(/spire/i);
     expect(slotText, 'no human Spire rule may leak (50 M€ start)').not.toMatch(/50\s*M/);
-    expect(slotText, 'no human Spire rule may leak (draw 4)').not.toMatch(/draw 4|4 карт/i);
+    // The face is icons-only: the tag rail (Earth) + the mechanics zone.
+    await expect(slot.locator('.pcard__tags')).toBeVisible();
+    await expect(slot.locator('.pcard__mech')).toBeVisible();
     await page.screenshot({path: 'screenshots/bot-corp-slot.png', fullPage: false});
 
     // ── A on the slot → the fullscreen inspect ──────────────────────────
     await key(page, 'Enter', 1600);
-    const zoomFace = page.locator('.con-zoom .mb-face--corp.mb-face--large');
-    await expect(zoomFace, 'the fullscreen corporation face').toBeVisible();
+    const zoomFace = page.locator('.con-zoom .card-zoom-stage .pcard');
+    await expect(zoomFace, 'the fullscreen premium corporation face').toBeVisible();
     const zoomText = (await zoomFace.innerText()).replace(/\s+/g, ' ');
-    expect(zoomText).toContain('Больше всего меток'); // DRAFT PRIORITY: Most tags
-    expect(zoomText).toContain('науки'); // the science effect / counter
     expect(zoomText, 'no human rules on the bot card').not.toMatch(/50\s*M/);
+    // The FULL rule text lives in the right «§ ПРАВИЛА» panel — the bot's
+    // own boxes with their own kickers.
+    const rules = page.locator('.con-zoom-rules');
+    await expect(rules).toBeVisible();
+    const rulesText = (await rules.innerText()).replace(/\s+/g, ' ');
+    // Kickers render uppercase (text-transform) — match case-insensitively.
+    expect(rulesText).toMatch(/приоритет драфта/i);
+    expect(rulesText).toMatch(/больше всего меток/i);
+    expect(rulesText).toMatch(/перед фазой действий/i);
+    expect(rulesText, 'no human rules in the panel').not.toMatch(/50\s*M/);
     // The archive entry (lore) rides the ORIGINAL corporation's card number.
     await expect(page.locator('.con-zoom .card-zoom-lore')).toBeVisible();
     await page.screenshot({path: 'screenshots/bot-corp-fullscreen.png', fullPage: false});

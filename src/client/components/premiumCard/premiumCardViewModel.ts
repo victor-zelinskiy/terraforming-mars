@@ -125,9 +125,14 @@ export type PremiumCardVM = {
   art?: PremiumCardArt;
   mechanics: MechanicsVM;
   vp?: PremiumVpVM;
-  expansion: GameModule;
+  /** The expansion medallion. 'automa' is the MarsBot pseudo-module — the
+   *  bot corporations' own stamp (see marsBotCorpPremiumVm.ts). */
+  expansion: GameModule | 'automa';
   compatibility: ReadonlyArray<GameModule>;
-  resource?: {type: CardResource, amount: number, isSrr: boolean};
+  /** The bottom resource capsule. `iconUrl` overrides the CardResource icon
+   *  for a token outside the card-resource families (the Ecoline bot
+   *  corporation stores PLANTS — a standard resource — on its card). */
+  resource?: {type: CardResource, amount: number, isSrr: boolean, iconUrl?: string};
 };
 
 const PROJECT_TYPES: ReadonlyArray<CardType> = [CardType.AUTOMATED, CardType.ACTIVE, CardType.EVENT];

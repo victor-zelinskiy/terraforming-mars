@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <!-- MarsBot (Automa) expansion stamp: a stylized angular «A» with an
+       antenna node — the bot's mint identity, deliberately distinct from
+       the Ares icon. Renders inside the 13px pcard expansion medallion. -->
+  <g fill="none" stroke="#7ad2b6" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4.6 21.4 L12 6.4 L19.4 21.4"/>
+    <path d="M8.4 15.6 H15.6"/>
+  </g>
+  <circle cx="12" cy="3" r="2.1" fill="#7ad2b6"/>
+</svg>

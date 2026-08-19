@@ -394,95 +394,15 @@
 /* Theater reveal hosts the face full-width. */
 .mb-step__bonusface { flex: 1 1 auto; min-width: 0; }
 
-/* ── MarsBot CORPORATION face (mb-face family; rules = bot boxes only) ────── */
+/* ── MarsBot CORPORATION card hosts ─────────────────────────────────────────────────────
 
-.mb-face--corp {
-    gap: 9px;
-    /* Portrait card proportions in every host — the corporation slot of the
-       tableau and the fullscreen stage both read it as a card. */
-    width: 100%;
-    box-shadow: inset 0 0 0 1.5px fade(@mb-accent, 34%), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-}
-.mbc__head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.mbc__badge {
-    padding: 2px 10px; border-radius: 4px;
-    font-family: Prototype, Orbitron, sans-serif;
-    font-size: 9px; letter-spacing: 1.6px; text-transform: uppercase;
-    color: #ffd9a8; background: rgba(240, 168, 80, 0.12);
-    box-shadow: inset 0 0 0 1px rgba(240, 168, 80, 0.4);
-}
-.mbc__number {
-    font-family: Prototype, Orbitron, sans-serif;
-    font-size: 9px; letter-spacing: 1px; color: @mb-text-dim;
-}
-/* The identity plate reuses PremiumCorpIdentity (the light wordmark plate +
- * the calibrated `.pcard-corp-stage` logo geometry) — the var sizes it here. */
-.mbc__identity {
-    --pcard-art-min: 64px;
-    --pcard-corp-logo-scale: 0.62;
-}
-.mbc__art {
-    --pcard-art-min: 84px;
-    position: relative;
-}
-.mbc__tags {
-    display: flex; align-items: center; gap: 6px;
-    padding: 5px 8px; border-radius: 6px;
-    background: rgba(10, 18, 16, 0.6);
-    box-shadow: inset 0 0 0 1px fade(@mb-accent, 16%);
-}
-.mbc__tags-label {
-    margin-right: 2px;
-    font-family: Prototype, Orbitron, sans-serif;
-    font-size: 8.5px; letter-spacing: 1.2px; text-transform: uppercase; color: @mb-text-dim;
-}
-.mbc__section { display: flex; flex-direction: column; gap: 5px; }
-.mbc__kicker {
-    align-self: flex-start;
-    padding: 2px 8px; border-radius: 3px;
-    font-family: Prototype, Orbitron, sans-serif;
-    font-size: 8.5px; letter-spacing: 1.4px; text-transform: uppercase;
-}
-/* The printed kicker colors: bronze DRAFT PRIORITY, cyan EFFECT, red-amber
- * BEFORE ACTION PHASE — desaturation-safe by weight + box, not color alone. */
-.mbc__kicker--draftPriority { color: #e6c28d; background: rgba(214, 168, 96, 0.12); box-shadow: inset 0 0 0 1px rgba(214, 168, 96, 0.4); }
-.mbc__kicker--effect { color: #a8dcf0; background: rgba(96, 176, 214, 0.12); box-shadow: inset 0 0 0 1px rgba(96, 176, 214, 0.4); }
-.mbc__kicker--beforeActionPhase,
-.mbc__kicker--roundStart { color: #ffd9a8; background: rgba(240, 168, 80, 0.12); box-shadow: inset 0 0 0 1px rgba(240, 168, 80, 0.4); }
-.mbc__kicker--setup { color: @mb-accent; background: fade(@mb-accent, 10%); box-shadow: inset 0 0 0 1px fade(@mb-accent, 38%); }
-.mbc__res {
-    display: flex; align-items: center; gap: 8px;
-    padding: 6px 10px; border-radius: 6px;
-    background: fade(@mb-accent, 8%);
-    box-shadow: inset 0 0 0 1px fade(@mb-accent, 30%);
-}
-.mbc__res--empty { background: rgba(10, 18, 16, 0.6); box-shadow: inset 0 0 0 1px fade(@mb-accent, 16%); }
-.mbc__res-icon {
-    display: inline-block; width: 20px; height: 20px;
-    background-size: contain; background-repeat: no-repeat; background-position: center;
-    transform: none;
-}
-.mbc__res-label {
-    flex: 1 1 auto; min-width: 0;
-    font-size: 11px; color: @mb-text-dim;
-}
-.mbc__res-count {
-    font-family: Prototype, Orbitron, sans-serif;
-    font-size: 15px; color: @mb-text;
-}
-/* The bot dashboard hosts the compact face in a column-width block. */
-.con-info__block--botcorp .mb-face--corp { max-width: 15rem; }
+   The bot corporation renders through the ORDINARY premium `.pcard`
+   (MarsBotCorpFace → PremiumCard with the bot's own vm) — no bespoke face
+   styles exist. Hosts only SIZE the fixed 320×460 design box via `zoom`
+   (integrating px content per the console scale model). */
 
-.mb-face--corp.mb-face--large {
-    .mbc__identity { --pcard-art-min: 96px; --pcard-corp-logo-scale: 0.92; }
-    .mbc__art { --pcard-art-min: 140px; }
-    .mbc__badge { font-size: 11px; }
-    .mbc__number { font-size: 11px; }
-    .mbc__kicker { font-size: 10.5px; padding: 3px 10px; }
-    .mbc__tags-label { font-size: 10px; }
-    .mbc__res-label { font-size: 13.5px; }
-    .mbc__res-count { font-size: 19px; }
-    .mbc__res-icon { width: 26px; height: 26px; }
+.con-info__block--botcorp .pcard {
+    zoom: calc(var(--con-ui-scale, 1) * 0.72);
 }
 
 /* ── Teaching layer ("How MarsBot plays") — shared desktop/console ────────── */
